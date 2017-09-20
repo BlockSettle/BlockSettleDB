@@ -113,13 +113,13 @@ if test "x$cross_compiling" != "xyes"; then
 	AX_SWIG_PYTHON([no])
 	AS_IF([test -z $AX_SWIG_PYTHON_CPPFLAGS], 
 		[AC_MSG_ERROR([failed to procure swig include path, make sure swig is installed])])
-	AC_SUBST([PYTHON_CFLAGS], [`python-config --cflags`])
-	AC_SUBST([PYTHON_LDFLAGS], [`python-config --ldflags`])
+	AC_SUBST([PYTHON_CFLAGS], [`$PYTHON-config --cflags`])
+	AC_SUBST([PYTHON_LDFLAGS], [`$PYTHON-config --ldflags`])
 	AX_PYTHON_MODULE([psutil], [fatal])
 else
-AC_SUBST([AX_SWIG_PYTHON_CPPFLAGS], [`python-config --includes`])
-AC_SUBST([PYTHON_CFLAGS], [`python-config --cflags`])
-AC_SUBST([PYTHON_LDFLAGS], [`python-config --ldflags`])
+AC_SUBST([AX_SWIG_PYTHON_CPPFLAGS], [`$PYTHON-config --includes`])
+AC_SUBST([PYTHON_CFLAGS], [`$PYTHON-config --cflags`])
+AC_SUBST([PYTHON_LDFLAGS], [`$PYTHON-config --ldflags`])
 fi
 
 AC_MSG_RESULT([AX_SWIG_PYTHON_CPPFLAGS: $AX_SWIG_PYTHON_CPPFLAGS])
