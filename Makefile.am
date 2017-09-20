@@ -87,11 +87,11 @@ install-exec-hook: uninstall-old
 if BUILD_CLIENT
 	mkdir -p $(DESTDIR)$(prefix)/lib/armory/ui
 	mkdir -p $(DESTDIR)$(prefix)/lib/armory/armoryengine
-	mkdir -p $(DESTDIR)$(prefix)/lib/armory/lang
 	mkdir -p $(DESTDIR)$(prefix)/share/applications
 	cp *.py *.so README.md $(DESTDIR)$(prefix)/lib/armory
-	cp -r ui/* $(DESTDIR)$(prefix)/lib/armory/ui
 	cp -r armoryengine/* $(DESTDIR)$(prefix)/lib/armory/armoryengine
+	mkdir -p $(DESTDIR)$(prefix)/lib/armory/lang
+	cp -r ui/* $(DESTDIR)$(prefix)/lib/armory/ui
 	cp lang/*.qm $(DESTDIR)$(prefix)/lib/armory/lang
 endif
 

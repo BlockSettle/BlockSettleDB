@@ -126,6 +126,9 @@ AC_MSG_RESULT([AX_SWIG_PYTHON_CPPFLAGS: $AX_SWIG_PYTHON_CPPFLAGS])
 AC_MSG_RESULT([PYTHON_CFLAGS: $PYTHON_LDFLAGS])
 AC_MSG_RESULT([PYTHON_LDFLAGS: $PYTHON_LDFLAGS])
 
+if test "x$with_gui" = "xyes"; then
+#check for  gui
+
 AC_CHECK_PROG([HAVE_PYRCC4], [pyrcc4], [yes], [no])
 AS_IF([test $HAVE_PYRCC4 == yes], [],
 	[AC_MSG_ERROR([missing pyrcc4 in path, make sure pyqt4-dev-tools is installed])]) 
@@ -134,6 +137,7 @@ AC_CHECK_PROG([HAVE_LRELEASE], [lrelease], [yes], [no])
 AS_IF([test $HAVE_LRELEASE == yes], [],
 	[AC_MSG_ERROR([missing lrelease in path, make sure qt4-linguist-tools is installed])]) 
 
+fi
 fi
 
 AC_SUBST([CXX_STANDARD], $CXX_STANDARD)
@@ -182,7 +186,7 @@ case $host in
   *linux*)
     BUILD_OS=linux
 
-    if test "x$build_client" = "xyes"; then
+    if test "x$build_client$with_gui" = "xyesyes"; then
        # Check existence of Qt packages.
        if ! pkg-config --exists 'QtCore >= 4.8 QtCore <= 5 QtGui >= 4.8 QtGui <= 5'; then
        	   AC_MSG_ERROR([missing QtCore library, make sure libqtcore4 and libqt4-dev are installed])
