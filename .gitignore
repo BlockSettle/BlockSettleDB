@@ -33,6 +33,7 @@
 *.libs
 *autom4te.cache
 
+Makefile
 config.h
 stamp-h1
 .dirstamp
@@ -61,6 +62,7 @@ _CppBlockUtils.*
 /cppForSwig/cryptopp/DLL_Debug
 /cppForSwig/cryptopp/dlltest___Win32_Debug
 /cppForSwig/cryptopp/Release
+/cppForSwig/cryptopp/Makefile
 
 /cppForSwig/fcgi/fcgi_config.h
 /cppForSwig/fcgi/examples/*
@@ -96,6 +98,8 @@ _CppBlockUtils.*
 /cppForSwig/swigwin/*
 /cppForSwig/pypaths.txt
 /cppForSwig/output.txt
+/cppForSwig/Makefile
+/cppForSwig/lmdb/Makefile
 
 /pytest/*.bin
 /pytest/mytxfile
