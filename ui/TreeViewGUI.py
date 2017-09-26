@@ -258,7 +258,7 @@ class TreeNode(object):
          
    def computeState(self):
       if not self.hasEntries():
-         raise "node needs children to compute state"
+         raise Exception("node needs children to compute state")
       
       self.populate()
       state = Qt.Checked

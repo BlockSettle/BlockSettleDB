@@ -1,3 +1,4 @@
+from __future__ import print_function
 ################################################################################
 #                                                                              #
 # Copyright (C) 2011-2015, Armory Technologies, Inc.                           #
@@ -187,7 +188,7 @@ class SatoshiDaemonManager(object):
          if self.satoshiHome is None:
             self.satoshiHome = BTC_HOME_DIR
 
-      if self.failedFindExe:  raise self.BitcoindError, 'bitcoind not found'
+      if self.failedFindExe:  raise self.BitcoindError('bitcoind not found')
 
       self.disabled = False
       self.bitcoind = None  # this will be a Popen object
@@ -340,10 +341,10 @@ class SatoshiDaemonManager(object):
       LOGINFO('Called startBitcoind')
 
       if self.isRunningBitcoind():
-         raise self.BitcoindError, 'Looks like we have already started theSDM'
+         raise self.BitcoindError('Looks like we have already started theSDM')
 
       if not os.path.exists(self.executable):
-         raise self.BitcoindError, 'Could not find bitcoind'
+         raise self.BitcoindError('Could not find bitcoind')
 
       self.launchBitcoindAndGuardian()
 
@@ -544,10 +545,10 @@ class SatoshiDaemonManager(object):
 
    #############################################################################
    def printSDMInfo(self):
-      print '\nCurrent SDM State:'
-      print '\t', 'SDM State Str'.ljust(20), ':', self.getSDMState()
+      print('\nCurrent SDM State:')
+      print('\t', 'SDM State Str'.ljust(20), ':', self.getSDMState())
       for key,value in self.returnSDMInfo().iteritems():
-         print '\t', str(key).ljust(20), ':', str(value)
+         print('\t', str(key).ljust(20), ':', str(value))
 
 
    #############################################################################

@@ -1,3 +1,4 @@
+from __future__ import print_function
 ##############################################################################
 #                                                                            #
 # Copyright (C) 2011-2015, Armory Technologies, Inc.                         #
@@ -655,8 +656,8 @@ def restoreTableView(qtbl, hexBytes):
          
       for i,c in toRestore[:-1]:
          qtbl.setColumnWidth(i, c)
-   except Exception, e:
-      print 'ERROR!'
+   except Exception as e:
+      print('ERROR!')
       pass
       # Don't want to crash the program just because couldn't load tbl data
 

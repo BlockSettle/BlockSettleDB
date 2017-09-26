@@ -1,3 +1,4 @@
+from __future__ import print_function
 ################################################################################
 #                                                                              #
 # Copyright (C) 2011-2015, Armory Technologies, Inc.                           #
@@ -297,7 +298,7 @@ class PyBtcWallet(object):
    def isWltSigningAnyLockbox(self, lockboxList):
       for lockbox in lockboxList:
          for addr160 in lockbox.a160List:
-            if self.addrMap.has_key(addr160):
+            if addr160 in self.addrMap:
                return True
       return False
 
@@ -307,14 +308,14 @@ class PyBtcWallet(object):
 
    #############################################################################
    def getTimeRangeForAddress(self, addr160):
-      if not self.addrMap.has_key(addr160):
+      if addr160 not in self.addrMap:
          return None
       else:
          return self.addrMap[addr160].getTimeRange()
 
    #############################################################################
    def getBlockRangeForAddress(self, addr160):
-      if not self.addrMap.has_key(addr160):
+      if addr160 not in self.addrMap:
          return None
       else:
          return self.addrMap[addr160].getBlockRange()
@@ -359,11 +360,11 @@ class PyBtcWallet(object):
    def printAddressBook(self):
       addrbook = self.cppWallet.createAddressBook()
       for abe in addrbook:
-         print hash160_to_addrStr(abe.getAddr160()),
+         print(hash160_to_addrStr(abe.getAddr160()), end=' ')
          txlist = abe.getTxList()
-         print len(txlist)
+         print(len(txlist))
          for rtx in txlist:
-            print '\t', binary_to_hex(rtx.getTxHash(), BIGENDIAN)
+            print('\t', binary_to_hex(rtx.getTxHash(), BIGENDIAN))
          
    #############################################################################
    def hasAnyImported(self):
@@ -451,7 +452,7 @@ class PyBtcWallet(object):
       """
       
       if not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
-         from CoinSelection import PyUnspentTxOut
+         from armoryengine.CoinSelection import PyUnspentTxOut
          utxos = self.cppWallet.getSpendableTxOutListForValue(valToSpend)
          utxoList = []
          for i in range(len(utxos)):
@@ -478,7 +479,7 @@ class PyBtcWallet(object):
       #return full set of unspent TxOuts
       if not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
          #calling this with no value argument will return the full UTXO list
-         from CoinSelection import PyUnspentTxOut
+         from armoryengine.CoinSelection import PyUnspentTxOut
          utxos = self.cppWallet.getSpendableTxOutListForValue()
          utxoList = []
          for i in range(len(utxos)):
@@ -493,7 +494,7 @@ class PyBtcWallet(object):
    def getZCUTXOList(self):
       #return full set of unspent ZC outputs
       if not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
-         from CoinSelection import PyUnspentTxOut
+         from armoryengine.CoinSelection import PyUnspentTxOut
          utxos = self.cppWallet.getSpendableZCList()
          utxoList = []
          for i in range(len(utxos)):
@@ -508,7 +509,7 @@ class PyBtcWallet(object):
    def getRBFTxOutList(self):
       #return full set of unspent ZC outputs
       if not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
-         from CoinSelection import PyUnspentTxOut
+         from armoryengine.CoinSelection import PyUnspentTxOut
          utxos = self.cppWallet.getRBFTxOutList()
          utxoList = []
          for i in range(len(utxos)):
@@ -580,13 +581,13 @@ class PyBtcWallet(object):
    def hasAddr(self, addrData):
       if isinstance(addrData, str):
          if len(addrData) == 20:
-            return self.addrMap.has_key(addrData)
+            return addrData in self.addrMap
          elif isLikelyDataType(addrData)==DATATYPE.Base58:
-            return self.addrMap.has_key(addrStr_to_hash160(addrData)[1])
+            return addrStr_to_hash160(addrData)[1] in self.addrMap
          else:
             return False
       elif isinstance(addrData, PyBtcAddress):
-         return self.addrMap.has_key(addrData.getAddr160())
+         return addrData.getAddr160() in self.addrMap
       else:
          return False
 
@@ -654,7 +655,7 @@ class PyBtcWallet(object):
                                                                else backupPath
       try:
          shutil.copy(self.walletPath, walletFileBackup)
-      except IOError, errReason:
+      except IOError as errReason:
          LOGERROR('Unable to copy file %s' % backupPath)
          LOGERROR('Reason for copy failure: %s' % errReason)
          retVal = False
@@ -1821,7 +1822,7 @@ class PyBtcWallet(object):
          return ''
 
       for _hash in hashList:
-         if self.commentsMap.has_key(_hash):
+         if _hash in self.commentsMap:
             return self.commentsMap[_hash]
       
       return ''
@@ -1833,7 +1834,7 @@ class PyBtcWallet(object):
       In the first case, use the 20-byte binary pubkeyhash.  Use 32-byte tx
       hash for the tx-comment case.
       """
-      if self.commentsMap.has_key(hashVal):
+      if hashVal in self.commentsMap:
          return self.commentsMap[hashVal]
       else:
          return ''
@@ -1847,7 +1848,7 @@ class PyBtcWallet(object):
       """
       updEntry = []
       isNewComment = False
-      if self.commentsMap.has_key(hashVal):
+      if hashVal in self.commentsMap:
          # If there is already a comment for this address, overwrite it
          oldCommentLen = len(self.commentsMap[hashVal])
          oldCommentLoc = self.commentLocs[hashVal]
@@ -1874,7 +1875,7 @@ class PyBtcWallet(object):
    #############################################################################
    def getAddrCommentIfAvail(self, txHash):
       # If we haven't extracted relevant addresses for this tx, yet -- do it
-      if not self.txAddrMap.has_key(txHash):
+      if txHash not in self.txAddrMap:
          self.txAddrMap[txHash] = []
          try:
             tx = TheBDM.bdv().getTxByHash(txHash)
@@ -1898,7 +1899,7 @@ class PyBtcWallet(object):
       addrComments = []
       for a160 in self.txAddrMap[txHash]:
          h160 = a160[1:]
-         if self.commentsMap.has_key(h160) and '[[' not in self.commentsMap[h160]:
+         if h160 in self.commentsMap and '[[' not in self.commentsMap[h160]:
             addrComments.append(self.commentsMap[h160])
 
       return '; '.join(addrComments)
@@ -1907,13 +1908,13 @@ class PyBtcWallet(object):
    def getAddrCommentFromLe(self, le):
       # If we haven't extracted relevant addresses for this tx, yet -- do it
       txHash = le.getTxHash()
-      if not self.txAddrMap.has_key(txHash):
+      if txHash not in self.txAddrMap:
          self.txAddrMap[txHash] = le.getScrAddrList()
                       
       addrComments = []
       for a160 in self.txAddrMap[txHash]:
          hash160 = a160[1:]
-         if self.commentsMap.has_key(hash160) and '[[' not in self.commentsMap[hash160]:
+         if hash160 in self.commentsMap and '[[' not in self.commentsMap[hash160]:
             addrComments.append(self.commentsMap[hash160])
 
       return '; '.join(addrComments)
@@ -1923,7 +1924,7 @@ class PyBtcWallet(object):
       # Smart comments for LedgerEntry objects:  get any direct comments ... 
       # if none, then grab the one for any associated addresses.
       txHash = le.getTxHash()
-      if self.commentsMap.has_key(txHash):
+      if txHash in self.commentsMap:
          comment = self.commentsMap[txHash]
       else:
          # [[ COMMENTS ]] are not meant to be displayed on main ledger
@@ -2154,7 +2155,7 @@ class PyBtcWallet(object):
       if verifyIntegrity:
          try:
             nError = self.doWalletFileConsistencyCheck()
-         except KeyDataError, errmsg:
+         except KeyDataError as errmsg:
             LOGEXCEPT('***ERROR:  Wallet file had unfixable errors.')
             raise KeyDataError(errmsg)
 
@@ -2567,13 +2568,13 @@ class PyBtcWallet(object):
             addr20 = verifyChecksum(addr20, addrChk)
 
       # Now a few sanity checks
-      if self.addrMap.has_key(addr20):
+      if addr20 in self.addrMap:
          LOGWARN('The private key address is already in your wallet!')
          return None
 
       addr20 = computedAddr20
 
-      if self.addrMap.has_key(addr20):
+      if addr20 in self.addrMap:
          LOGERROR('The computed private key address is already in your wallet!')
          return None
 
@@ -2952,7 +2953,7 @@ class PyBtcWallet(object):
          # would saturate the system's resources and fill the HDD.
          raise WalletAddressError('Chain index is out of range')
 
-      if self.chainIndexMap.has_key(desiredIdx):
+      if desiredIdx in self.chainIndexMap:
          return self.chainIndexMap[desiredIdx]
       else:
          # Somehow the address isn't here, even though it is less than the
@@ -2973,22 +2974,22 @@ class PyBtcWallet(object):
    #############################################################################
    def pprint(self, indent='', allAddrInfo=True):
       raise NotImplementedError("deprecated")
-      print indent + 'PyBtcWallet  :', self.uniqueIDB58
-      print indent + '   useEncrypt:', self.useEncryption
-      print indent + '   watchOnly :', self.watchingOnly
-      print indent + '   isLocked  :', self.isLocked
-      print indent + '   ShortLabel:', self.labelName 
-      print indent + '   LongLabel :', self.labelDescr
-      print ''
-      print indent + 'Root key:', self.addrMap['ROOT'].getAddrStr(),
-      print '(this address is never used)'
+      print(indent + 'PyBtcWallet  :', self.uniqueIDB58)
+      print(indent + '   useEncrypt:', self.useEncryption)
+      print(indent + '   watchOnly :', self.watchingOnly)
+      print(indent + '   isLocked  :', self.isLocked)
+      print(indent + '   ShortLabel:', self.labelName) 
+      print(indent + '   LongLabel :', self.labelDescr)
+      print('')
+      print(indent + 'Root key:', self.addrMap['ROOT'].getAddrStr(), end=' ')
+      print('(this address is never used)')
       if allAddrInfo:
          self.addrMap['ROOT'].pprint(indent=indent)
-      print indent + 'All usable keys:'
+      print(indent + 'All usable keys:')
       sortedAddrList = self.getAddrListSortedByChainIndex()
       for i,addr160,addrObj in sortedAddrList:
          if not addr160=='ROOT':
-            print '\n' + indent + 'Address:', addrObj.getAddrStr()
+            print('\n' + indent + 'Address:', addrObj.getAddrStr())
             if allAddrInfo:
                addrObj.pprint(indent=indent)
 
@@ -3005,12 +3006,12 @@ class PyBtcWallet(object):
          rootstr2 = binary_to_hex(wlt2.addrMap['ROOT'].serialize())
          isEqualTo = isEqualTo and (rootstr1 == rootstr2)
          if debug:
-            print ''
-            print 'RootAddrSelf:'
-            print prettyHex(rootstr1, indent=' '*5)
-            print 'RootAddrWlt2:'
-            print prettyHex(rootstr2, indent=' '*5)
-            print 'RootAddrDiff:',
+            print('')
+            print('RootAddrSelf:')
+            print(prettyHex(rootstr1, indent=' '*5))
+            print('RootAddrWlt2:')
+            print(prettyHex(rootstr2, indent=' '*5))
+            print('RootAddrDiff:', end=' ')
             pprintDiff(rootstr1, rootstr2, indent=' '*5)
 
          for addr160 in self.addrMap.keys():
@@ -3018,12 +3019,12 @@ class PyBtcWallet(object):
             addrstr2 = binary_to_hex(wlt2.addrMap[addr160].serialize())
             isEqualTo = isEqualTo and (addrstr1 == addrstr2)
             if debug:
-               print ''
-               print 'AddrSelf:', binary_to_hex(addr160),
-               print prettyHex(binary_to_hex(self.addrMap['ROOT'].serialize()), indent='     ')
-               print 'AddrSelf:', binary_to_hex(addr160),
-               print prettyHex(binary_to_hex(wlt2.addrMap['ROOT'].serialize()), indent='     ')
-               print 'AddrDiff:',
+               print('')
+               print('AddrSelf:', binary_to_hex(addr160), end=' ')
+               print(prettyHex(binary_to_hex(self.addrMap['ROOT'].serialize()), indent='     '))
+               print('AddrSelf:', binary_to_hex(addr160), end=' ')
+               print(prettyHex(binary_to_hex(wlt2.addrMap['ROOT'].serialize()), indent='     '))
+               print('AddrDiff:', end=' ')
                pprintDiff(addrstr1, addrstr2, indent=' '*5)
       except:
          return False
@@ -3131,7 +3132,7 @@ class PyBtcWallet(object):
       try:
          return self.cppWallet.getHistoryPage(pageID)
       except:
-         raise 'pageID is out of range'  
+         raise Exception('pageID is out of range')
       
    ###############################################################################
    @CheckWalletRegistration

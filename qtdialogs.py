@@ -2646,7 +2646,7 @@ class DlgImportAddress(ArmoryDialog):
          addr160 = convertKeyDataToAddress(privKey=binKeyData)
          addrStr = hash160_to_addrStr(addr160)
 
-      except InvalidHashError, e:
+      except InvalidHashError as e:
          QMessageBox.warning(self, self.tr('Entry Error'), self.tr(
             'The private key data you supplied appears to '
             'contain a consistency check.  This consistency '
@@ -2654,12 +2654,12 @@ class DlgImportAddress(ArmoryDialog):
             'key data correctly.'), QMessageBox.Ok)
          LOGERROR('Private key consistency check failed.')
          return
-      except BadInputError, e:
+      except BadInputError as e:
          QMessageBox.critical(self, self.tr('Invalid Data'), self.tr('Something went terribly '
             'wrong!  (key data unrecognized)'), QMessageBox.Ok)
          LOGERROR('Unrecognized key data!')
          return
-      except CompressedKeyError, e:
+      except CompressedKeyError as e:
          QMessageBox.critical(self, self.tr('Unsupported key type'), self.tr('You entered a key '
             'for an address that uses a compressed public key, usually produced '
             'in Bitcoin Core/bitcoind wallets created after version 0.6.0.  Armory '
@@ -2917,7 +2917,7 @@ class DlgImportAddress(ArmoryDialog):
                   nImport += 1
                else:
                   nAlready += 1
-            except Exception, msg:
+            except Exception as msg:
                # print '***ERROR importing:', addrStr
                # print '         Error Msg:', msg
                # nError += 1
@@ -3791,7 +3791,7 @@ class DlgImportPaperWallet(ArmoryDialog):
       first = root.extendAddressChain()
       newWltID = binary_to_base58((ADDRBYTE + first.getAddr160()[:5])[::-1])
 
-      if self.main.walletMap.has_key(newWltID):
+      if newWltID in self.main.walletMap:
          QMessageBox.question(self, self.tr('Duplicate Wallet!'), self.tr(
                'The data you entered is for a wallet with a ID: \n\n %1 '
                '\n\nYou already own this wallet! \n  '
@@ -7839,7 +7839,7 @@ class DlgAddressBook(ArmoryDialog):
 
       # Auto-select the default wallet, if there is one
       rowNum = 0
-      if defaultWltID and self.main.walletMap.has_key(defaultWltID):
+      if defaultWltID and defaultWltID in self.main.walletMap:
          rowNum = self.main.walletIndices[defaultWltID]
       rowIndex = self.wltDispModel.index(rowNum, 0)
       self.wltDispView.setCurrentIndex(rowIndex)
@@ -11229,7 +11229,7 @@ class DlgRestoreSingle(ArmoryDialog):
          return
 
       dlgOwnWlt = None
-      if self.main.walletMap.has_key(newWltID):
+      if newWltID in self.main.walletMap:
          dlgOwnWlt = DlgReplaceWallet(newWltID, self.parent, self.main)
 
          if (dlgOwnWlt.exec_()):
@@ -11528,7 +11528,7 @@ class DlgRestoreWOData(ArmoryDialog):
 
       # If we already have the wallet, don't replace it, otherwise proceed.
       dlgOwnWlt = None
-      if self.main.walletMap.has_key(newWltID):
+      if newWltID in self.main.walletMap:
          QMessageBox.warning(self, self.tr('Wallet Already Exists'), self.tr(
                              'The wallet already exists and will not be '
                              'replaced.'), QMessageBox.Ok)
@@ -12016,7 +12016,7 @@ class DlgRestoreFragged(ArmoryDialog):
          return
 
       dlgOwnWlt = None
-      if self.main.walletMap.has_key(newWltID):
+      if newWltID in self.main.walletMap:
          dlgOwnWlt = DlgReplaceWallet(newWltID, self.parent, self.main)
 
          if (dlgOwnWlt.exec_()):

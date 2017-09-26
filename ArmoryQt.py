@@ -11,6 +11,7 @@
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #                                   
 #                                                                            #
 ##############################################################################
+from __future__ import print_function
 import gettext
 
 
@@ -1971,7 +1972,7 @@ class ArmoryMainWindow(QMainWindow):
          LOGERROR(warnMsg.replace('\n', ' '))
          return {}
 
-      if not uriDict.has_key('address'):
+      if 'address' not in uriDict:
          if click:
             QMessageBox.warning(self, self.tr('The "bitcoin:" link you just clicked '
                'does not even contain an address!  There is nothing that '
@@ -1987,7 +1988,7 @@ class ArmoryMainWindow(QMainWindow):
       theAddrByte = checkAddrType(base58_to_binary(uriDict['address']))
       if theAddrByte!=-1 and not theAddrByte in [ADDRBYTE, P2SHBYTE]:
          net = 'Unknown Network'
-         if NETWORKS.has_key(theAddrByte):
+         if theAddrByte in NETWORKS:
             net = NETWORKS[theAddrByte]
          if click:
             QMessageBox.warning(self, self.tr('Wrong Network!'),
@@ -2860,7 +2861,7 @@ class ArmoryMainWindow(QMainWindow):
       # Update the maps/dictionaries
       newWltID = newWallet.uniqueIDB58
 
-      if self.walletMap.has_key(newWltID):
+      if newWltID in self.walletMap:
          return
 
       self.walletMap[newWltID] = newWallet
@@ -3253,7 +3254,7 @@ class ArmoryMainWindow(QMainWindow):
       wltID = wlt.uniqueIDB58
       wlt = None
 
-      if self.walletMap.has_key(wltID):
+      if wltID in self.walletMap:
          QMessageBox.warning(self, self.tr('Duplicate Wallet!'), self.tr(
             'You selected a wallet that has the same ID as one already '
             'in your wallet (%1)!  If you would like to import it anyway, '
@@ -3456,7 +3457,7 @@ class ArmoryMainWindow(QMainWindow):
       # Because Bitcoin Core doesn't store the message= field we have to assume
       # that the label field holds the Tx-info.  So we concatenate them for
       # the display message
-      uri_has = lambda s: uriDict.has_key(s)
+      uri_has = lambda s: s in uriDict
 
       haveLbl = uri_has('label')
       haveMsg = uri_has('message')
@@ -4952,7 +4953,7 @@ class ArmoryMainWindow(QMainWindow):
 
          newBlocks = args[0]
          if newBlocks>0:
-            print 'New Block: ', TheBDM.getTopBlockHeight()
+            print('New Block: ', TheBDM.getTopBlockHeight())
 
             self.ledgerModel.reset()
 
@@ -5015,7 +5016,7 @@ class ArmoryMainWindow(QMainWindow):
                elif wltID == "wallet_filter_changed":
                   reset = True
 
-               if self.walletSideScanProgress.has_key(wltID):
+               if wltID in self.walletSideScanProgress:
                   del self.walletSideScanProgress[wltID]
 
          self.createCombinedLedger(reset)
