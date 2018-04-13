@@ -16,18 +16,15 @@
 #include <future>
 
 #include "BitcoinP2p.h"
-#include "./fcgi/include/fcgiapp.h"
-#include "./fcgi/include/fcgios.h"
-
 #include "BlockDataViewer.h"
 #include "DataObject.h"
 #include "BDM_seder.h"
 #include "EncryptionUtils.h"
 #include "LedgerEntry.h"
 #include "DbHeader.h"
-#include "FcgiMessage.h"
 #include "BDV_Notification.h"
 #include "ZeroConf.h"
+#include "Server.h"
 
 #define MAX_CONTENT_LENGTH 1024*1024*1024
 #define CALLBACK_EXPIRE_COUNT 5
@@ -227,7 +224,7 @@ public:
 
       controlThreads_.push_back(thread(mainthread));
       controlThreads_.push_back(thread(outerthread));
-      
+
       unsigned innerThreadCount = 2;
       if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER &&
          bdmT_->bdm()->config().nodeType_ != Node_UnitTest)
@@ -252,57 +249,6 @@ public:
    void unregisterBDV(const string& bdvId);
    void shutdown(void);
    void exitRequestLoop(void);
-};
-
-///////////////////////////////////////////////////////////////////////////////
-class FCGI_Server
-{
-   /***
-   Figure if it should use a socket or a named pipe.
-   Force it to listen only to localhost if we use a socket 
-   (both in *nix and win32 code files)
-   ***/
-
-private:
-   SOCKET sockfd_ = -1;
-   mutex mu_;
-   int run_ = true;
-   atomic<uint32_t> liveThreads_;
-
-   const string port_;
-   const string ip_;
-
-   Clients clients_;
-
-private:
-   function<void(void)> getShutdownCallback(void)
-   {
-      auto shutdownCallback = [this](void)->void
-      {
-         this->haltFcgiLoop();
-      };
-
-      return shutdownCallback;
-   }
-
-public:
-   FCGI_Server(BlockDataManagerThread* bdmT, string port, bool listen_all) :
-      clients_(bdmT, getShutdownCallback()),
-      ip_(listen_all ? "" : "127.0.0.1"), port_(port)
-   {
-      LOGINFO << "Listening on port " << port;
-      if (listen_all)
-         LOGWARN << "Listening to all incoming connections";
-
-      liveThreads_.store(0, memory_order_relaxed);
-   }
-
-   void init(void);
-   void enterLoop(void);
-   void processRequest(FCGX_Request* req);
-   void haltFcgiLoop(void);
-   void shutdown(void) { clients_.shutdown(); }
-   void checkSocket(void) const;
 };
 
 #endif

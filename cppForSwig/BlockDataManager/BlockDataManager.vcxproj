@@ -176,6 +176,7 @@
     <ClCompile Include="..\ScrAddrFilter.cpp" />
     <ClCompile Include="..\ScrAddrObj.cpp" />
     <ClCompile Include="..\Script.cpp" />
+    <ClCompile Include="..\Server.cpp" />
     <ClCompile Include="..\Signer.cpp" />
     <ClCompile Include="..\SocketObject.cpp" />
     <ClCompile Include="..\SshParser.cpp" />
@@ -208,6 +209,7 @@
     <ClInclude Include="..\log.h" />
     <ClInclude Include="..\mdb\lmdb.h" />
     <ClInclude Include="..\nodeRPC.h" />
+    <ClInclude Include="..\Server.h" />
     <ClInclude Include="..\Signer.h" />
     <ClInclude Include="..\SocketIncludes.h" />
     <ClInclude Include="..\SocketObject.h" />
