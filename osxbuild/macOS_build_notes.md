@@ -25,7 +25,7 @@ If a bug is found, please consult the [Bitcoin Forum](https://bitcointalk.org/in
 
  4. Install and link dependencies required by the Armory build process but not by included Armory binaries.
 
-        brew install xz swig gettext openssl automake libtool homebrew/dupes/zlib
+        brew install xz swig gettext openssl automake libtool zlib cmake
         brew link gettext --force
 
  5. Restart your Mac. (This is necessary due to issues related to the Python install.)

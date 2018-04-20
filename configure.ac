@@ -102,6 +102,29 @@ AS_IF([test $HAVE_LRELEASE == yes], [],
 
 fi
 
+# Check for CMake - needed to build libwebsockets.
+# 2.8.9 is the minimum version libwebsockets requires.
+AC_CHECK_PROGS(CMAKE, cmake)
+if test -z "$CMAKE"; then
+   AC_MSG_ERROR([missing cmake in path - make sure cmake is installed])
+fi
+cmake_version=`$CMAKE --version 2>/dev/null | sed q | awk '{print $3}'`
+AS_VERSION_COMPARE("$cmake_version", 2.8.9,
+AC_MSG_ERROR([CMake 2.8.9 or later is needed to build libwebsockets]),,)
+
+# AS_IF is misleading. libwebsockets_build doesn't exist. We're just looking for
+# an excuse to trigger the libwebsockets setup. libwebsockets uses CMake, and
+# converting to Autotools would be a bad idea. Autotools and CMake don't play
+# nicely, so we just use CMake to create a Makefile that can be kicked off
+# later. Oh, and if CMake fails, we have to use a hack (check for the existence
+# of a Makefile) to see if we should proceed. Got a better solution? Speak up!
+AS_IF([test "x$libwebsockets_build" != xno],
+	[echo "Configuring libwebsockets"; lwsPreDir=`pwd`; echo $lwsPreDir; cd cppForSwig/libwebsockets/build/; cmake .. -DLWS_WITH_SSL=OFF -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=OFF; cd $lwsPreDir],
+	[echo "You should never, ever see this message when building libwebsockets!"])
+if test ! -f "$srcdir/cppForSwig/libwebsockets/build/Makefile" ; then
+	AC_MSG_ERROR([libwebsockets setup failed - abort Armory setup])
+fi
+
 AC_SUBST([CXX_STANDARD], $CXX_STANDARD)
 
 dnl Determine build OS and do other OS-specific things.

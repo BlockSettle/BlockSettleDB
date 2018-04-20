@@ -3,8 +3,8 @@ bin_PROGRAMS =
 noinst_PROGRAMS =
 lib_LTLIBRARIES =
 
-DIST_SUBDIRS = lmdb fcgi cryptopp
-SUBDIRS = lmdb fcgi cryptopp $(MAYBE_BUILD)
+DIST_SUBDIRS = lmdb fcgi cryptopp libwebsockets/build
+SUBDIRS = lmdb fcgi cryptopp libwebsockets/build $(MAYBE_BUILD)
 
 SWIG_FLAGS = -c++ -python -threads
 AM_CXXFLAGS = $(CXXFLAGS)
@@ -55,6 +55,7 @@ ARMORYCLI_SOURCE_FILES = Accounts.cpp \
 	ReentrantLock.cpp \
 	ScrAddrFilter.cpp \
 	ScrAddrObj.cpp \
+	Server.cpp \
 	SocketObject.cpp \
 	SshParser.cpp \
 	StringSockets.cpp \

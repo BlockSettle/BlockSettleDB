@@ -1,4 +1,5 @@
-#Ignore build files
+# Ignore build files.
+# NB: build/.gitignore is a trick to get Autotools to work. Leave it alone.
 config.h
 config.log
 config.status
