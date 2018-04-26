@@ -2243,7 +2243,7 @@ bool LMDBBlockDatabase::getStoredTx_byHash(const BinaryData& txHash,
       if (DBUtils::hgtxToDupID(hgtx) == 0x7F)
       {
          auto block_id = DBUtils::hgtxToHeight(hgtx);
-         auto& header = blockchainPtr_->getHeaderById(block_id);
+         auto header = blockchainPtr_->getHeaderById(block_id);
          
          BinaryWriter bw;
          bw.put_BinaryData(DBUtils::heightAndDupToHgtx(
@@ -2888,7 +2888,10 @@ void LMDBBlockDatabase::resetHistoryForAddressVector(
 void LMDBBlockDatabase::resetSSHdb()
 {
    if (getDbType() == ARMORY_DB_SUPER)
-      return resetSSHdb_Super();
+   {
+      resetSSHdb_Super();
+      return;
+   }
 
    map<BinaryData, int> sshKeys;
 
