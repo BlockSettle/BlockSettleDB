@@ -20,7 +20,7 @@ using namespace std;
 #include "./fcgi/include/fcgiapp.h"
 #include "./fcgi/include/fcgios.h"
 #include "FcgiMessage.h"
-#include "./libwebsockets/include/libwebsockets.h"
+#include "libwebsockets.h"
 
 #include "ThreadSafeClasses.h"
 #include "BDV_Notification.h"
