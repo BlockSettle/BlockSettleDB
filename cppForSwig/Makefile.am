@@ -20,6 +20,21 @@ if HAVE_CLANG
 SWIG_FLAGS += -D__CLANG__
 endif
 
+# Revisit this line later. RPATH is needed for portability purposes. For now,
+# install_name_tool works around portability issues on macOS but RPATH probably
+# works better. Linux doesn't seem to need this for the most part. libwebsockets
+# integration is an exception. I assume it's because usage of CMake means no .la
+# files, i.e., no auto-magical library linking in Autotools.
+# NOTE: '$$ORIGIN' is more linker special sauce insanity combined with quoting
+# insanity combined with flag insanity ("-Wl,-rpath,stuff" vs. "-Wl,-rpath=stuff")
+# combined with esoteric insanity (-Wl,-z,origin is here but might not be needed
+# after all). Why is my TV suddenly talking to me, doc?
+# Source 1: https://enchildfone.wordpress.com/2010/03/23/a-description-of-rpath-origin-ld_library_path-and-portable-linux-binaries/
+# Source 2: https://longwei.github.io/rpath_origin/
+# Source 3: https://stackoverflow.com/q/6324131
+# Source 4: https://stackoverflow.com/a/33862145
+#LDFLAGS += -Wl,-rpath,. -Wl,-rpath,'$$ORIGIN/../more/libs/here' -Wl,-z,origin
+
 INCLUDE_FILES = -Ibech32/ref/c++ -Ifcgi -Ilibwebsockets/build/include
 
 ARMORYDB_SOURCE_FILES = main.cpp
@@ -93,6 +108,8 @@ libArmoryCommon_la_LIBADD = lmdb/liblmdb.la \
 libArmoryCommon_la_LDFLAGS = $(LDFLAGS) -shared
 
 # Common command-line functionality library
+# NB: libwebsockets isn't Autotools, so that library's added differently than
+# Autotools-handled libraries. Ironically, LDADD for binaries doesn't care. Odd.
 lib_LTLIBRARIES += libArmoryCLI.la
 libArmoryCLI_la_SOURCES = $(ARMORYCLI_SOURCE_FILES)
 libArmoryCLI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
@@ -100,8 +117,9 @@ libArmoryCLI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) -Ilmdb -D__STDC_LIMIT_MACROS
 libArmoryCLI_la_LIBADD = fcgi/libfcgi/libfcgi.la \
 			 libArmoryCommon.la \
-			-lpthread
-libArmoryCLI_la_LDFLAGS = $(LDFLAGS) -shared
+			 -Llibwebsockets/build/lib/ -lwebsockets \
+			 -lpthread
+libArmoryCLI_la_LDFLAGS = $(LDFLAGS) -Wl,-rpath,'$$ORIGIN/../libwebsockets/build/lib' -shared
 
 #ArmoryDB
 bin_PROGRAMS += ArmoryDB
@@ -111,6 +129,7 @@ ArmoryDB_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 ArmoryDB_LDADD = fcgi/libfcgi/libfcgi.la \
 		 libArmoryCommon.la \
 		 libArmoryCLI.la \
+		 libwebsockets/build/lib/libwebsockets.so \
 		 -lpthread
 ArmoryDB_LDFLAGS = -static $(LDFLAGS)
 

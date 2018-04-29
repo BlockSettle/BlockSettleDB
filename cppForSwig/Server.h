@@ -17,8 +17,8 @@
 
 using namespace std;
 
-#include "./fcgi/include/fcgiapp.h"
-#include "./fcgi/include/fcgios.h"
+#include "include/fcgiapp.h"
+#include "include/fcgios.h"
 #include "FcgiMessage.h"
 #include "libwebsockets.h"
 
@@ -49,8 +49,8 @@ private:
    int run_ = true;
    atomic<uint32_t> liveThreads_;
 
-   const string port_;
    const string ip_;
+   const string port_;
 
    unique_ptr<Clients> clients_;
 

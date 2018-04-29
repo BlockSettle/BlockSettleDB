@@ -374,6 +374,9 @@ int WebSocketServer::callback(
       break;
    }
 
+   default:
+      break;
+
    }
 
    return 0;
