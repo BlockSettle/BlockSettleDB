@@ -249,6 +249,7 @@ public:
 
    void setRawData();
    const string& serialize();
+   BinaryData serialize_ws(void);
 
    ///////////////////////////////////////////////////////////////////////////////
    void merge(const Arguments& argIn)
@@ -355,12 +356,9 @@ protected:
 
 public:
 
-   virtual ~Callback() 
-   {
-      shutdown();
-   };
+   virtual ~Callback() = 0;
 
-   void callback(Arguments&& cmd, OrderType type = OrderOther);
+   virtual void callback(Arguments&& cmd, OrderType type = OrderOther);
    bool isValid(void) const { return cbStack_.isValid(); }
 
    void shutdown(void)

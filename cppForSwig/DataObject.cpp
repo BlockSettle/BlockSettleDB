@@ -317,6 +317,19 @@ const string& Arguments::serialize()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+BinaryData Arguments::serialize_ws()
+{
+   auto& str = serialize();
+   BinaryDataRef bdr((uint8_t*)str.c_str(), str.size());
+
+   BinaryWriter bw;
+   bw.put_uint32_t(0); //4 leading bytes for libws write
+   bw.put_BinaryDataRef(bdr);
+
+   return bw.getData();
+}
+
+///////////////////////////////////////////////////////////////////////////////
 void Arguments::setRawData()
 {
    rawBinary_ = READHEX(argStr_);
@@ -415,8 +428,14 @@ void Command::serialize()
 // Callback
 //
 ///////////////////////////////////////////////////////////////////////////////
-void Callback::callback(Arguments&& cmd, OrderType type)
+Callback::~Callback()
 {
-   OrderStruct order(move(cmd), type);
+   shutdown();
+};
+
+///////////////////////////////////////////////////////////////////////////////
+void Callback::callback(Arguments&& arg, OrderType type)
+{
+   OrderStruct order(move(arg), type);
    cbStack_.push_back(move(order));
 }

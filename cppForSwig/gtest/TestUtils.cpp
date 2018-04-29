@@ -195,7 +195,7 @@ namespace DBTestUtils
       cmd.args_.push_back(move(bdo));
       cmd.serialize();
 
-      auto&& result = clients->runCommand(cmd.command_);
+      auto&& result = clients->runCommand_FCGI(cmd.command_);
 
       auto& argVec = result.getArgVector();
       auto bdvId = dynamic_pointer_cast<DataObject<BinaryDataObject>>(argVec[0]);
@@ -209,7 +209,7 @@ namespace DBTestUtils
       cmd.method_ = "goOnline";
       cmd.ids_.push_back(id);
       cmd.serialize();
-      clients->runCommand(cmd.command_);
+      clients->runCommand_FCGI(cmd.command_);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -233,7 +233,7 @@ namespace DBTestUtils
       cmd.ids_.push_back(bdvId);
       cmd.serialize();
 
-      auto&& result = clients->runCommand(cmd.command_);
+      auto&& result = clients->runCommand_FCGI(cmd.command_);
 
       //check result
       auto& argVec = result.getArgVector();
@@ -258,7 +258,7 @@ namespace DBTestUtils
 
       cmd.serialize();
 
-      auto&& result = clients->runCommand(cmd.command_);
+      auto&& result = clients->runCommand_FCGI(cmd.command_);
       auto& argVec = result.getArgVector();
 
       auto&& balance_full =
@@ -294,7 +294,7 @@ namespace DBTestUtils
       cmd.ids_.push_back(bdvId);
       cmd.serialize();
 
-      auto&& result = clients->runCommand(cmd.command_);
+      auto&& result = clients->runCommand_FCGI(cmd.command_);
 
       //check result
       auto& argVec = result.getArgVector();
@@ -315,7 +315,7 @@ namespace DBTestUtils
       cmd.ids_.push_back(bdvId);
       cmd.serialize();
 
-      auto&& result = clients->runCommand(cmd.command_);
+      auto&& result = clients->runCommand_FCGI(cmd.command_);
 
       //check result
       auto& argVec = result.getArgVector();
@@ -336,7 +336,7 @@ namespace DBTestUtils
 
       cmd.serialize();
 
-      auto&& result = clients->runCommand(cmd.command_);
+      auto&& result = clients->runCommand_FCGI(cmd.command_);
       auto& argVec = result.getArgVector();
 
       auto lev = dynamic_pointer_cast<DataObject<LedgerEntryVector>>(argVec[0]);
@@ -383,7 +383,7 @@ namespace DBTestUtils
 
       while (1)
       {
-         auto&& result = clients->runCommand(cmd.command_);
+         auto&& result = clients->runCommand_FCGI(cmd.command_);
 
          if (processCallback(move(result)))
             return resultVec;
@@ -511,7 +511,7 @@ namespace DBTestUtils
       cmd.ids_.push_back(bdvId);
       cmd.serialize();
 
-      auto&& result = clients->runCommand(cmd.command_);
+      auto&& result = clients->runCommand_FCGI(cmd.command_);
 
       //check result
       auto& argVec = result.getArgVector();
@@ -534,7 +534,7 @@ namespace DBTestUtils
 
       cmd.serialize();
 
-      auto&& result = clients->runCommand(cmd.command_);
+      auto&& result = clients->runCommand_FCGI(cmd.command_);
       auto& argVec = result.getArgVector();
 
       Tx tx;
@@ -655,6 +655,6 @@ namespace DBTestUtils
       cmd.args_.push_back(move(bdVec));
       cmd.serialize();
 
-      clients->runCommand(cmd.command_);
+      clients->runCommand_FCGI(cmd.command_);
    }
 }

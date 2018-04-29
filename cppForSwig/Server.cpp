@@ -8,6 +8,7 @@
 
 
 #include "Server.h"
+#include "BlockDataManagerConfig.h"
 #include "BDM_Server.h"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -154,7 +155,7 @@ void FCGI_Server::processRequest(FCGX_Request* req)
 
       try
       {
-         auto&& retVal = clients_->runCommand(contentStr);
+         auto&& retVal = clients_->runCommand_FCGI(contentStr);
          retStream << retVal.serialize();
 
       }
@@ -239,4 +240,341 @@ void FCGI_Server::processRequest(FCGX_Request* req)
 void FCGI_Server::shutdown()
 {
    clients_->shutdown();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+//// WebSocketServer
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+atomic<WebSocketServer*> WebSocketServer::instance_ = nullptr;
+mutex WebSocketServer::mu_;
+
+///////////////////////////////////////////////////////////////////////////////
+WebSocketServer::WebSocketServer()
+{
+   clients_ = make_unique<Clients>();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+static struct lws_protocols protocols[] = {
+   /* first protocol must always be HTTP handler */
+
+   {
+      "http-only",		/* name */
+      callback_http,		/* callback */
+      sizeof(struct per_session_data__http),	/* per_session_data_size */
+      0,			/* max frame size / rx buffer */
+   },
+   {
+      "armory-bdm-protocol",
+      WebSocketServer::callback,
+      sizeof(struct per_session_data__bdv),
+      per_session_data__bdv::rcv_size,
+   },
+
+{ NULL, NULL, 0, 0 } /* terminator */
+};
+
+///////////////////////////////////////////////////////////////////////////////
+int callback_http(struct lws *wsi, enum lws_callback_reasons reason,
+   void *user, void *in, size_t len)
+{
+   return 0;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+int WebSocketServer::callback(
+   struct lws *wsi, enum lws_callback_reasons reason,
+   void *user, void *in, size_t len)
+{
+   struct per_session_data__bdv *session_data =
+      (struct per_session_data__bdv *)user;
+
+   switch (reason)
+   {
+
+   case LWS_CALLBACK_PROTOCOL_INIT:
+   {
+      break;
+   }
+
+   case LWS_CALLBACK_ESTABLISHED:
+   {
+      session_data->id_ =
+         SecureBinaryData().GenerateRandom(10).toHexStr();
+
+      auto instance = WebSocketServer::getInstance();
+      instance->addId(session_data->id_, wsi);
+      break;
+   }
+
+   case LWS_CALLBACK_CLOSED:
+   {
+      auto instance = WebSocketServer::getInstance();
+      instance->clients_->unregisterBDV(session_data->id_.toHexStr());
+      instance->eraseId(session_data->id_);
+
+      break;
+   }
+
+   case LWS_CALLBACK_RECEIVE:
+   {
+      auto packetPtr = make_unique<BDV_packet>(session_data->id_, wsi);
+      packetPtr->data_ = move(string((char*)in, len));
+
+      auto wsPtr = WebSocketServer::getInstance();
+      wsPtr->packetQueue_.push_back(move(packetPtr));
+      break;
+   }
+
+   case LWS_CALLBACK_SERVER_WRITEABLE:
+   {
+      auto wsPtr = WebSocketServer::getInstance();
+      auto writeMap = wsPtr->getWriteMap();
+      auto iter = writeMap->find(session_data->id_);
+      if (iter == writeMap->end())
+         break;
+
+      BinaryData packet;
+      try
+      {
+         packet = move(iter->second.stack_->pop_front());
+      }
+      catch (IsEmpty&)
+      {
+         break;
+      }
+
+      char response[per_session_data__bdv::rcv_size + LWS_PRE];
+      auto body = packet.getPtr() + LWS_PRE;
+
+      auto m = lws_write(wsi, 
+         body, packet.getSize(),
+         LWS_WRITE_BINARY);
+
+      if (m != packet.getSize())
+      {
+         LOGERR << "failed to send packet of size";
+         LOGERR << "packet is " << packet.getSize() <<
+            " bytes, sent " << m << " bytes";
+      }
+
+      /***
+      In case several threads are trying to write to the same socket, it's
+      possible their calls to callback_on_writeable may overlap, resulting 
+      in a single write entry being consumed.
+
+      To avoid this, we trigger the callback from within itself, which will 
+      break out if there are no more items in the writeable stack.
+      ***/
+      lws_callback_on_writable(wsi);
+
+      break;
+   }
+
+   }
+
+   return 0;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
+{
+   //init Clients object
+   auto shutdownLbd = [this](void)->void
+   {
+      this->shutdown();
+   };
+
+   clients_->init(bdmT, shutdownLbd);
+
+   //start command threads
+   auto commandThr = [this](void)->void
+   {
+      this->commandThread();
+   };
+
+   unsigned thrCount = 2;
+   if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
+      thrCount = thread::hardware_concurrency();
+
+   for(unsigned i=0; i<thrCount; i++)
+      threads_.push_back(thread(commandThr));
+
+   //run service thread
+   if (async)
+   {
+      auto loopthr = [this](void)->void
+      {
+         this->webSocketService();
+      };
+
+      threads_.push_back(thread(loopthr));
+      return;
+   }
+
+   webSocketService();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::shutdown()
+{
+   run_.store(0, memory_order_relaxed);
+   packetQueue_.terminate();
+
+   for (auto& thr : threads_)
+   {
+      if (thr.joinable())
+         thr.join();
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::webSocketService()
+{
+   struct lws_context_creation_info info;
+   struct lws_vhost *vhost;
+   const char *iface = NULL;
+   int uid = -1, gid = -1;
+   int pp_secs = 0;
+   int opts = 0;
+   int n = 0;
+
+   memset(&info, 0, sizeof info);
+   info.port = WEBSOCKET_PORT;
+
+   info.iface = iface;
+   info.protocols = protocols;
+   info.ssl_cert_filepath = NULL;
+   info.ssl_private_key_filepath = NULL;
+   info.ws_ping_pong_interval = pp_secs;
+   info.gid = gid;
+   info.uid = uid;
+   info.max_http_header_pool = 256;
+   info.options = opts | LWS_SERVER_OPTION_VALIDATE_UTF8 | LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
+   info.extensions = NULL;
+   info.timeout_secs = 5;
+   info.ssl_cipher_list = NULL;
+   info.ip_limit_ah = 24; /* for testing */
+   info.ip_limit_wsi = 105; /* for testing */
+
+   auto context = lws_create_context(&info);
+   if (context == NULL) 
+      throw LWS_Error("failed to create LWS context");
+
+   vhost = lws_create_vhost(context, &info);
+   if (!vhost)
+      throw LWS_Error("failed to create vhost");
+
+   run_.store(1, memory_order_relaxed);
+   while (run_.load(memory_order_relaxed) != 0)
+   {
+      n = lws_service(context, 50);
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+WebSocketServer* WebSocketServer::getInstance()
+{
+   while (1)
+   {
+      auto ptr = instance_.load(memory_order_relaxed);
+      if (ptr == nullptr)
+      {
+         unique_lock<mutex> lock(mu_);
+         ptr = instance_.load(memory_order_relaxed);
+         if (ptr != nullptr)
+            continue;
+
+         ptr = new WebSocketServer();
+         instance_.store(ptr, memory_order_relaxed);
+      }
+
+      return ptr;
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::commandThread()
+{
+   while (1)
+   {
+      unique_ptr<BDV_packet> packetPtr;
+      try
+      {
+         packetPtr = move(packetQueue_.pop_front());
+      }
+      catch(StopBlockingLoop&)
+      {
+         //end loop condition
+         return;
+      }
+
+      if (packetPtr == nullptr)
+      {
+         LOGWARN << "empty command packet";
+         continue;
+      }
+
+      //check wsi is valid
+      if (packetPtr->wsiPtr_ == nullptr)
+      {
+         LOGWARN << "null wsi";
+         continue;
+      }
+
+      try
+      {
+         auto&& result = clients_->runCommand_WS(packetPtr->ID_, packetPtr->data_);
+         write(packetPtr->ID_, result);
+      }
+      catch (exception&)
+      {
+         LOGWARN << "failed to process packet";
+         continue;
+      }
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::write(const BinaryData& id, Arguments& arg)
+{
+   if (arg.hasArgs())
+   {
+      //serialize arg
+      auto&& serializedResult = arg.serialize_ws();
+
+      //push to write map
+      auto writemap = writeMap_.get();
+
+      auto wsi_iter = writemap->find(id);
+      if (wsi_iter == writemap->end())
+         return;
+
+      wsi_iter->second.stack_->push_back(move(serializedResult));
+
+      //call write callback
+      lws_callback_on_writable(wsi_iter->second.wsiPtr_);
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<map<BinaryData, WriteStack>> WebSocketServer::getWriteMap(void)
+{
+   return writeMap_.get();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::addId(const BinaryData& id, struct lws* ptr)
+{
+   auto&& write_pair = make_pair(id, WriteStack(ptr));
+   writeMap_.insert(move(write_pair));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::eraseId(const BinaryData& id)
+{
+   writeMap_.erase(id);
 }

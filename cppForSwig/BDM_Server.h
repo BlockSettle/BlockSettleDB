@@ -37,6 +37,21 @@ enum WalletType
 
 ///////////////////////////////////////////////////////////////////////////////
 class SocketCallback : public Callback
+{  
+protected:
+   Arguments respond_inner(vector<Callback::OrderStruct>& orderVec);
+
+public:
+   SocketCallback()
+   {}
+
+   ~SocketCallback(void) = 0;
+   virtual void resetCounter(void) {}
+   virtual Arguments respond(const string&) = 0;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+class LongPoll : public SocketCallback
 {
 private:
    mutex mu_;
@@ -45,14 +60,27 @@ private:
    function<unsigned(void)> isReady_;
 
 public:
-   SocketCallback(function<unsigned(void)> isReady) :
-      Callback(), isReady_(isReady)
+   LongPoll(function<unsigned(void)> isReady) :
+      SocketCallback(), isReady_(isReady)
    {
       count_.store(0, memory_order_relaxed);
    }
 
-   void emit(void);
    Arguments respond(const string&);
+
+   ~LongPoll(void)
+   {
+      Callback::shutdown();
+
+      //after signaling shutdown, grab the mutex to make sure 
+      //all responders threads have terminated
+      unique_lock<mutex> lock(mu_);
+   }
+
+   void resetCounter(void)
+   {
+      count_.store(0, memory_order_relaxed);
+   }
 
    bool isValid(void)
    {
@@ -67,20 +95,21 @@ public:
 
       return true;
    }
+};
 
-   ~SocketCallback(void)
-   {
-      Callback::shutdown();
+///////////////////////////////////////////////////////////////////////////////
+class WS_Callback : public SocketCallback
+{
+private:
+   const BinaryData bdvID_;
 
-      //after signaling shutdown, grab the mutex to make sure 
-      //all responders threads have terminated
-      unique_lock<mutex> lock(mu_);
-   }
+public:
+   WS_Callback(const BinaryData& bdvid) :
+      bdvID_(bdvid)
+   {}
 
-   void resetCounter(void)
-   {
-      count_.store(0, memory_order_relaxed);
-   }
+   Arguments respond(const string&) { return Arguments(); }
+   void callback(Arguments&& arg, OrderType type);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -93,7 +122,7 @@ private:
       const vector<string>&, Arguments&)>> methodMap_;
    
    thread initT_;
-   shared_ptr<SocketCallback> cb_;
+   unique_ptr<SocketCallback> cb_;
 
    string bdvID_;
    BlockDataManagerThread* bdmT_;
@@ -132,8 +161,11 @@ private:
          cb_->resetCounter();
    }
 
+   void setup(void);
+
 public:
-   BDV_Server_Object(BlockDataManagerThread *bdmT);
+   BDV_Server_Object(const string& id, BlockDataManagerThread *bdmT);
+
    ~BDV_Server_Object(void) 
    { 
       haltThreads(); 
@@ -177,9 +209,9 @@ class Clients
 private:
    TransactionalMap<string, shared_ptr<BDV_Server_Object>> BDVs_;
    mutable BlockingStack<bool> gcCommands_;
-   BlockDataManagerThread* bdmT_;
+   BlockDataManagerThread* bdmT_ = nullptr;
 
-   function<void(void)> fcgiShutdownCallback_;
+   function<void(void)> shutdownCallback_;
 
    atomic<bool> run_;
 
@@ -196,56 +228,29 @@ private:
    void bdvMaintenanceThread(void);
 
 public:
-   Clients(BlockDataManagerThread* bdmT,
-      function<void(void)> shutdownLambda) :
-      bdmT_(bdmT), fcgiShutdownCallback_(shutdownLambda)
+
+   Clients(void)
    {
-      run_.store(true, memory_order_relaxed);
-
-      auto mainthread = [this](void)->void
-      {
-         commandThread();
-      };
-
-      auto outerthread = [this](void)->void
-      {
-         bdvMaintenanceLoop();
-      };
-
-      auto innerthread = [this](void)->void
-      {
-         bdvMaintenanceThread();
-      };
-
-      auto gcThread = [this](void)->void
-      {
-         garbageCollectorThread();
-      };
-
-      controlThreads_.push_back(thread(mainthread));
-      controlThreads_.push_back(thread(outerthread));
-
-      unsigned innerThreadCount = 2;
-      if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER &&
-         bdmT_->bdm()->config().nodeType_ != Node_UnitTest)
-         innerThreadCount == thread::hardware_concurrency();
-      for (unsigned i = 0; i < innerThreadCount; i++)
-         controlThreads_.push_back(thread(innerthread));
-
-      auto callbackPtr = make_unique<ZeroConfCallbacks_BDV>(this);
-      bdmT_->bdm()->registerZcCallbacks(move(callbackPtr));
-
-      //no gc for unit tests
-      if (bdmT_->bdm()->config().nodeType_ == Node_UnitTest)
-         return;
-
-      controlThreads_.push_back(thread(gcThread));
+      shutdownCallback_ = []() {};
    }
 
+   Clients(BlockDataManagerThread* bdmT,
+      function<void(void)> shutdownLambda)
+   {
+      init(bdmT, shutdownLambda);
+   }
+
+   void init(BlockDataManagerThread* bdmT,
+      function<void(void)> shutdownLambda);
+
    const shared_ptr<BDV_Server_Object>& get(const string& id) const;
-   Arguments runCommand(const string& cmd);
+   
+   Arguments runCommand_FCGI(const string& cmd);
+   Arguments runCommand_WS(const BinaryData& bdvid, const string& cmdStr);
+
+
    Arguments processShutdownCommand(Command&);
-   Arguments registerBDV(Arguments& arg);
+   Arguments registerBDV(Command& cmd, string bdvID);
    void unregisterBDV(const string& bdvId);
    void shutdown(void);
    void exitRequestLoop(void);

@@ -17,14 +17,11 @@ void BDV_Server_Object::buildMethodMap()
    auto registerCallback = [this]
       (const vector<string>& ids, Arguments& args)->Arguments
    {
-      auto cbPtr = this->cb_;
-      if (cbPtr == nullptr || !cbPtr->isValid())
+      if (this->cb_ == nullptr || !this->cb_->isValid())
          return Arguments();
 
       auto&& callbackArg = args.get<BinaryDataObject>();
-
       auto&& retval = this->cb_->respond(move(callbackArg.toStr()));
-
       if (!retval.hasArgs())
          LOGINFO << "returned empty callback packet";
 
@@ -994,7 +991,7 @@ Arguments Clients::processShutdownCommand(Command& cmdObj)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-Arguments Clients::runCommand(const string& cmdStr)
+Arguments Clients::runCommand_FCGI(const string& cmdStr)
 {
    if (!run_.load(memory_order_relaxed))
       return Arguments();
@@ -1013,7 +1010,7 @@ Arguments Clients::runCommand(const string& cmdStr)
    }
    else if (cmdObj.method_ == "registerBDV")
    {
-      return registerBDV(cmdObj.args_);
+      return registerBDV(cmdObj, string());
    }
    else if (cmdObj.method_ == "unregisterBDV")
    {
@@ -1036,6 +1033,34 @@ Arguments Clients::runCommand(const string& cmdStr)
 
    return result;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+Arguments Clients::runCommand_WS(const BinaryData& bdvid, const string& cmdStr)
+{
+   Command cmdObj(cmdStr);
+   cmdObj.deserialize();
+
+   if (cmdObj.method_ == "shutdown" || cmdObj.method_ == "shutdownNode")
+   {
+      return processShutdownCommand(cmdObj);
+   }
+
+   else if (bdmT_->bdm()->hasException())
+   {
+      rethrow_exception(bdmT_->bdm()->getException());
+   }
+   else if (cmdObj.method_ == "registerBDV")
+   {
+      return registerBDV(cmdObj, bdvid.toHexStr());
+   }
+
+   //find the BDV and method
+   auto bdv = get(bdvid.toHexStr());
+
+   //execute command
+   return bdv->executeCommand(cmdObj.method_, cmdObj.ids_, cmdObj.args_);
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 void Clients::shutdown()
@@ -1081,7 +1106,7 @@ void Clients::exitRequestLoop()
          thr.join();
 
    //shutdown loop on FcgiServer side
-   fcgiShutdownCallback_();
+   shutdownCallback_();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1095,11 +1120,11 @@ void Clients::unregisterAllBDVs()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-Arguments Clients::registerBDV(Arguments& arg)
+Arguments Clients::registerBDV(Command& cmd, string bdvID)
 {
    try
    {
-      auto&& magic_word = arg.get<BinaryDataObject>();
+      auto&& magic_word = cmd.args_.get<BinaryDataObject>();
       auto& thisMagicWord = bdmT_->bdm()->config().magicBytes_;
 
       if (thisMagicWord != magic_word.get())
@@ -1110,9 +1135,10 @@ Arguments Clients::registerBDV(Arguments& arg)
       throw DbErrorMsg("invalid magic word");
    }
 
+   if(bdvID.size() == 0)
+      bdvID = SecureBinaryData().GenerateRandom(10).toHexStr();
 
-   shared_ptr<BDV_Server_Object> newBDV
-      = make_shared<BDV_Server_Object>(bdmT_);
+   auto newBDV = make_shared<BDV_Server_Object>(bdvID, bdmT_);
 
    string newID(newBDV->getID());
 
@@ -1244,12 +1270,8 @@ Arguments BDV_Server_Object::executeCommand(const string& method,
    return iter->second(ids, args);
 }
 
-
-
 ///////////////////////////////////////////////////////////////////////////////
-BDV_Server_Object::BDV_Server_Object(
-   BlockDataManagerThread *bdmT) :
-   bdmT_(bdmT), BlockDataViewer(bdmT->bdm())
+void BDV_Server_Object::setup()
 {
    isReadyPromise_ = make_shared<promise<bool>>();
    isReadyFuture_ = isReadyPromise_->get_future();
@@ -1267,11 +1289,23 @@ BDV_Server_Object::BDV_Server_Object(
 
       return UINT32_MAX;
    };
-   
-   cb_ = make_shared<SocketCallback>(isReadyLambda);
 
-   bdvID_ = SecureBinaryData().GenerateRandom(10).toHexStr();
+   if (BlockDataManagerConfig::getServiceType() == SERVICE_FCGI)
+      cb_ = make_unique<LongPoll>(isReadyLambda);
+   else if (BlockDataManagerConfig::getServiceType() == SERVICE_WEBSOCKET)
+      cb_ = make_unique<WS_Callback>(READHEX(getID()));
+   else
+      throw runtime_error("unexpected service type");
+
    buildMethodMap();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+BDV_Server_Object::BDV_Server_Object(
+   const string& id, BlockDataManagerThread *bdmT) :
+   bdvID_(id), bdmT_(bdmT), BlockDataViewer(bdmT->bdm())
+{
+   setup();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1576,6 +1610,55 @@ bool BDV_Server_Object::registerLockbox(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+void Clients::init(BlockDataManagerThread* bdmT,
+   function<void(void)> shutdownLambda)
+{
+   bdmT_ = bdmT;
+   shutdownCallback_ = shutdownLambda;
+
+   run_.store(true, memory_order_relaxed);
+
+   auto mainthread = [this](void)->void
+   {
+      commandThread();
+   };
+
+   auto outerthread = [this](void)->void
+   {
+      bdvMaintenanceLoop();
+   };
+
+   auto innerthread = [this](void)->void
+   {
+      bdvMaintenanceThread();
+   };
+
+   auto gcThread = [this](void)->void
+   {
+      garbageCollectorThread();
+   };
+
+   controlThreads_.push_back(thread(mainthread));
+   controlThreads_.push_back(thread(outerthread));
+
+   unsigned innerThreadCount = 2;
+   if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER &&
+      bdmT_->bdm()->config().nodeType_ != Node_UnitTest)
+      innerThreadCount == thread::hardware_concurrency();
+   for (unsigned i = 0; i < innerThreadCount; i++)
+      controlThreads_.push_back(thread(innerthread));
+
+   auto callbackPtr = make_unique<ZeroConfCallbacks_BDV>(this);
+   bdmT_->bdm()->registerZcCallbacks(move(callbackPtr));
+
+   //no gc for unit tests
+   if (bdmT_->bdm()->config().nodeType_ == Node_UnitTest)
+      return;
+
+   controlThreads_.push_back(thread(gcThread));
+}
+
+///////////////////////////////////////////////////////////////////////////////
 void Clients::bdvMaintenanceLoop()
 {
    while (1)
@@ -1645,7 +1728,7 @@ void Clients::bdvMaintenanceThread()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-Arguments SocketCallback::respond(const string& command)
+Arguments LongPoll::respond(const string& command)
 {
    unique_lock<mutex> lock(mu_, defer_lock);
 
@@ -1656,9 +1739,8 @@ Arguments SocketCallback::respond(const string& command)
       arg.push_back(move(bdo));
       return move(arg);
    }
-   
+
    count_ = 0;
-   vector<Callback::OrderStruct> orderVec;
 
    if (command == "waitOnBDV")
    {
@@ -1679,6 +1761,8 @@ Arguments SocketCallback::respond(const string& command)
    {
       //throw unknown command error
    }
+
+   vector<Callback::OrderStruct> orderVec;
 
    try
    {
@@ -1709,6 +1793,31 @@ Arguments SocketCallback::respond(const string& command)
       terminateOrder.otype_ = OrderOther;
    }
 
+   return respond_inner(orderVec);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WS_Callback::callback(Arguments&& arg, OrderType type)
+{
+   OrderStruct order(move(arg), type);
+   vector<Callback::OrderStruct> orderVec;
+   orderVec.push_back(move(order));
+
+   //process callback
+   auto&& result = respond_inner(orderVec);
+
+   //write to socket
+   auto wsPtr = WebSocketServer::getInstance();
+   wsPtr->write(bdvID_, result);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+SocketCallback::~SocketCallback(void)
+{}
+
+///////////////////////////////////////////////////////////////////////////////
+Arguments SocketCallback::respond_inner(vector<Callback::OrderStruct>& orderVec)
+{
    //consolidate NewBlock and Refresh notifications
    Arguments* refreshOrderPtr = nullptr;
    int32_t newBlock = -1;
@@ -1718,39 +1827,37 @@ Arguments SocketCallback::respond(const string& command)
    {
       switch (order.otype_)
       {
-         case OrderNewBlock:
-         {
-            auto& argVector = order.order_.getArgVector();
-            if (argVector.size() != 2)
-               break;
-
-            auto heightPtr = (DataObject<IntType>*)argVector[1].get();
-
-            int blockheight = (int)heightPtr->getObj().getVal();
-            if (blockheight > newBlock)
-               newBlock = blockheight;
-
+      case OrderNewBlock:
+      {
+         auto& argVector = order.order_.getArgVector();
+         if (argVector.size() != 2)
             break;
-         }
 
-         case OrderRefresh:
-         {
-            refreshOrderPtr = &order.order_;
-            break;
-         }
+         auto heightPtr = (DataObject<IntType>*)argVector[1].get();
 
-         case OrderTerminate:
-         {
-            count_ = 5;
+         int blockheight = (int)heightPtr->getObj().getVal();
+         if (blockheight > newBlock)
+            newBlock = blockheight;
 
-            Arguments terminateArg;
-            BinaryDataObject bdo("terminate");
-            terminateArg.push_back(move(bdo));
-            return terminateArg;
-         }
+         break;
+      }
 
-         default:
-            arg.merge(order.order_);
+      case OrderRefresh:
+      {
+         refreshOrderPtr = &order.order_;
+         break;
+      }
+
+      case OrderTerminate:
+      {
+         Arguments terminateArg;
+         BinaryDataObject bdo("terminate");
+         terminateArg.push_back(move(bdo));
+         return terminateArg;
+      }
+
+      default:
+         arg.merge(order.order_);
       }
    }
 
