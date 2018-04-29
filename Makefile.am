@@ -85,7 +85,7 @@ if BUILD_DARWIN
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libArmoryCommon.0.dylib @loader_path/../lib/libArmoryCommon.0.dylib $(DESTDIR)$(prefix)/bin/ArmoryDB
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libArmoryCLI.0.dylib @loader_path/../lib/libArmoryCLI.0.dylib $(DESTDIR)$(prefix)/bin/ArmoryDB
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libcryptopp.0.dylib @loader_path/../lib/libcryptopp.0.dylib $(DESTDIR)$(prefix)/bin/ArmoryDB
-if HAVE_GUI
+if BUILD_CLIENT
 	rm -f $(DESTDIR)$(prefix)/lib/libCppBlockUtils.*
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libArmoryGUI.0.dylib @loader_path/../libArmoryGUI.0.dylib $(DESTDIR)$(prefix)/lib/armory/_CppBlockUtils.so
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libArmoryCommon.0.dylib @loader_path/libArmoryCommon.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryGUI.0.dylib
