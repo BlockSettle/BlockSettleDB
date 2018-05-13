@@ -66,6 +66,7 @@ protected:
 
 private:
    void readFromSocketThread(SOCKET, ReadCallback);
+   void init(void);
 
 protected:   
    void writeToSocket(SOCKET, void*, size_t);
@@ -82,7 +83,7 @@ protected:
    {}
    
 public:
-   BinarySocket(const string& addr, const string& port);
+   BinarySocket(const string& addr, const string& port, bool init = true);
 
    bool testConnection(void);
    SOCKET openSocket(bool blocking);

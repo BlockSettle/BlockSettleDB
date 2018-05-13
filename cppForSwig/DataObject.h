@@ -249,7 +249,6 @@ public:
 
    void setRawData();
    const string& serialize();
-   BinaryData serialize_ws(void);
 
    ///////////////////////////////////////////////////////////////////////////////
    void merge(const Arguments& argIn)

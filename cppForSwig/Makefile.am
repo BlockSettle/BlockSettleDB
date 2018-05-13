@@ -42,7 +42,8 @@ ARMORYGUI_SOURCE_FILES = CoinSelection.cpp \
 	SwigClient.cpp \
 	TransactionBatch.cpp \
 	WalletManager.cpp \
-	Wallets.cpp
+	Wallets.cpp \
+        WebSocketClient.cpp
 ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	BDM_Server.cpp \
 	BitcoinP2P.cpp \
@@ -94,7 +95,9 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	txio.cpp \
 	UniversalTimer.cpp \
 	bech32/ref/c++/bech32.cpp \
-	bech32/ref/c++/segwit_addr.cpp
+	bech32/ref/c++/segwit_addr.cpp \
+        WebSocketMessage.cpp
+        
 
 # libArmoryCommon - Required by all Armory programs/libraries.
 # Includes any files required by the common files.

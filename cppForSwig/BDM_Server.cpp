@@ -1644,7 +1644,7 @@ void Clients::init(BlockDataManagerThread* bdmT,
    unsigned innerThreadCount = 2;
    if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER &&
       bdmT_->bdm()->config().nodeType_ != Node_UnitTest)
-      innerThreadCount == thread::hardware_concurrency();
+      innerThreadCount = thread::hardware_concurrency();
    for (unsigned i = 0; i < innerThreadCount; i++)
       controlThreads_.push_back(thread(innerthread));
 
@@ -1808,7 +1808,7 @@ void WS_Callback::callback(Arguments&& arg, OrderType type)
 
    //write to socket
    auto wsPtr = WebSocketServer::getInstance();
-   wsPtr->write(bdvID_, result);
+   wsPtr->write(bdvID_, UINT64_MAX, result);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

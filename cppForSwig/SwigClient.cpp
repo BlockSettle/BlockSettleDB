@@ -1,3 +1,4 @@
+
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 //  Copyright (C) 2016, goatpig.                                              //
@@ -24,13 +25,25 @@ bool BlockDataViewer::hasRemoteDB(void)
 BlockDataViewer BlockDataViewer::getNewBDV(const string& addr,
    const string& port, SocketType st)
 {
-   BinarySocket sock(addr, port);
-   shared_ptr<BinarySocket> sockptr;
+   shared_ptr<BinarySocket> sockptr = nullptr;
    
-   if (st == SocketHttp)
-      sockptr = make_shared<HttpSocket>(sock);
-   else if (st == SocketFcgi)
-      sockptr = make_shared<FcgiSocket>(HttpSocket(sock));
+   switch (st)
+   {
+   case SocketHttp:
+      sockptr = make_shared<HttpSocket>(BinarySocket(addr, port));
+      break;
+   
+   case SocketFcgi:
+      sockptr = make_shared<FcgiSocket>(HttpSocket(BinarySocket(addr, port)));
+      break;
+
+   case SocketWS:
+      sockptr = WebSocketClient::getNew(addr, port);
+      break;
+
+   default:
+      throw SocketError("unexpected socket type");
+   }
 
    BlockDataViewer bdv(sockptr);
    return bdv;
@@ -1030,130 +1043,9 @@ void PythonCallback::remoteLoop(void)
    Command sendCmd;
    sendCmd.method_ = "registerCallback";
    sendCmd.ids_.push_back(bdvID_);
-   BinaryDataObject bdo("waitOnBDV");
+   BinaryDataObject bdo("getStatus");
    sendCmd.args_.push_back(move(bdo));
    sendCmd.serialize();
-
-   bool isReady = false;
-
-   auto processCallback = [&](Arguments args)->bool
-   {
-      //LOGINFO << "entering callback process lambda";
-
-      while (args.hasArgs())
-      {
-         auto&& cb = args.get<BinaryDataObject>();
-
-         auto orderIter = orderMap_.find(cb.toStr());
-         if(orderIter == orderMap_.end())
-         {
-            continue;
-         } 
-
-         switch (orderIter->second)
-         {
-            case CBO_continue:
-               break;
-
-            case CBO_NewBlock:
-            {
-               unsigned int newblock = args.get<IntType>().getVal();
-               bdvPtr_->setTopBlock(newblock);
-
-               if (newblock != 0)
-                  run(BDMAction::BDMAction_NewBlock, &newblock, newblock);
-
-               break;
-            }
-
-            case CBO_ZC:
-            {
-               auto&& lev = args.get<LedgerEntryVector>();
-               auto leVec = lev.toVector();
-
-               run(BDMAction::BDMAction_ZC, &leVec, 0);
-
-               break;
-            }
-
-            case CBO_BDV_Refresh:
-            {
-               auto&& refreshType = args.get<IntType>();
-               auto&& idVec = args.get<BinaryDataVector>();
-
-               auto refresh = BDV_refresh(refreshType.getVal());
-   
-               if (refresh != BDV_filterChanged)
-                  run(BDMAction::BDMAction_Refresh, (void*)&idVec.get(), 0);
-               else
-               {
-                  vector<BinaryData> bdvec;
-                  bdvec.push_back(BinaryData("wallet_filter_changed"));
-                  run(BDMAction::BDMAction_Refresh, (void*)&bdvec, 0);
-               }
-
-               break;
-            }
-
-            case CBO_BDM_Ready:
-            {
-               isReady = true;
-
-               sendCmd.args_.clear();
-               BinaryDataObject status("getStatus");
-               sendCmd.args_.push_back(move(status));
-               sendCmd.serialize();
-
-               unsigned int topblock = args.get<IntType>().getVal();
-               bdvPtr_->setTopBlock(topblock);
-
-               run(BDMAction::BDMAction_Ready, nullptr, topblock);
-
-               break;
-            }
-
-            case CBO_progress:
-            {
-               auto&& pd = args.get<ProgressData>();
-               progress(pd.phase_, pd.wltIDs_, pd.progress_,
-                  pd.time_, pd.numericProgress_);
-
-               break;
-            }
-
-            case CBO_terminate:
-            {
-               //shut down command from server
-               return false;
-            }
-
-            case CBO_NodeStatus:
-            {
-               auto&& serData = args.get<BinaryDataObject>();
-               NodeStatusStruct nss;
-               nss.deserialize(serData.get());
-
-               run(BDMAction::BDMAction_NodeStatus, &nss, 0);
-               break;
-            }
-
-            case CBO_BDV_Error:
-            {
-               auto&& serData = args.get<BinaryDataObject>();
-               BDV_Error_Struct bdvErr;
-               bdvErr.deserialize(serData.get());
-
-               run(BDMAction::BDMAction_BDV_Error, &bdvErr, 0);
-               break;
-            }
-
-            default:
-               continue;
-         }
-      }
-
-      return true;
-   };
 
    while (run_)
    {
@@ -1162,7 +1054,7 @@ void PythonCallback::remoteLoop(void)
          auto&& retval = sock_->writeAndRead(sendCmd.command_);
          Arguments args(move(retval));
 
-         if (!processCallback(move(args)))
+         if (!processArguments(move(args)))
             return;
       }
       catch (runtime_error&)
@@ -1170,6 +1062,117 @@ void PythonCallback::remoteLoop(void)
          continue;
       }
    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool PythonCallback::processArguments(Arguments args)
+{
+   while (args.hasArgs())
+   {
+      auto&& cb = args.get<BinaryDataObject>();
+
+      auto orderIter = orderMap_.find(cb.toStr());
+      if(orderIter == orderMap_.end())
+      {
+         continue;
+      } 
+
+      switch (orderIter->second)
+      {
+         case CBO_continue:
+            break;
+
+         case CBO_NewBlock:
+         {
+            unsigned int newblock = args.get<IntType>().getVal();
+            bdvPtr_->setTopBlock(newblock);
+
+            if (newblock != 0)
+               run(BDMAction::BDMAction_NewBlock, &newblock, newblock);
+
+            break;
+         }
+
+         case CBO_ZC:
+         {
+            auto&& lev = args.get<LedgerEntryVector>();
+            auto leVec = lev.toVector();
+
+            run(BDMAction::BDMAction_ZC, &leVec, 0);
+
+            break;
+         }
+
+         case CBO_BDV_Refresh:
+         {
+            auto&& refreshType = args.get<IntType>();
+            auto&& idVec = args.get<BinaryDataVector>();
+
+            auto refresh = BDV_refresh(refreshType.getVal());
+   
+            if (refresh != BDV_filterChanged)
+               run(BDMAction::BDMAction_Refresh, (void*)&idVec.get(), 0);
+            else
+            {
+               vector<BinaryData> bdvec;
+               bdvec.push_back(BinaryData("wallet_filter_changed"));
+               run(BDMAction::BDMAction_Refresh, (void*)&bdvec, 0);
+            }
+
+            break;
+         }
+
+         case CBO_BDM_Ready:
+         {
+            unsigned int topblock = args.get<IntType>().getVal();
+            bdvPtr_->setTopBlock(topblock);
+
+            run(BDMAction::BDMAction_Ready, nullptr, topblock);
+
+            break;
+         }
+
+         case CBO_progress:
+         {
+            auto&& pd = args.get<ProgressData>();
+            progress(pd.phase_, pd.wltIDs_, pd.progress_,
+               pd.time_, pd.numericProgress_);
+
+            break;
+         }
+
+         case CBO_terminate:
+         {
+            //shut down command from server
+            return false;
+         }
+
+         case CBO_NodeStatus:
+         {
+            auto&& serData = args.get<BinaryDataObject>();
+            NodeStatusStruct nss;
+            nss.deserialize(serData.get());
+
+            run(BDMAction::BDMAction_NodeStatus, &nss, 0);
+            break;
+         }
+
+         case CBO_BDV_Error:
+         {
+            auto&& serData = args.get<BinaryDataObject>();
+            BDV_Error_Struct bdvErr;
+            bdvErr.deserialize(serData.get());
+
+            run(BDMAction::BDMAction_BDV_Error, &bdvErr, 0);
+            break;
+         }
+
+         default:
+            continue;
+      }
+   }
+
+   return true; 
 }
 
 ///////////////////////////////////////////////////////////////////////////////

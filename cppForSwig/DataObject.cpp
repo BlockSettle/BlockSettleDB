@@ -317,19 +317,6 @@ const string& Arguments::serialize()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-BinaryData Arguments::serialize_ws()
-{
-   auto& str = serialize();
-   BinaryDataRef bdr((uint8_t*)str.c_str(), str.size());
-
-   BinaryWriter bw;
-   bw.put_uint32_t(0); //4 leading bytes for libws write
-   bw.put_BinaryDataRef(bdr);
-
-   return bw.getData();
-}
-
-///////////////////////////////////////////////////////////////////////////////
 void Arguments::setRawData()
 {
    rawBinary_ = READHEX(argStr_);

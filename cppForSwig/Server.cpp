@@ -322,7 +322,8 @@ int WebSocketServer::callback(
    case LWS_CALLBACK_RECEIVE:
    {
       auto packetPtr = make_unique<BDV_packet>(session_data->id_, wsi);
-      packetPtr->data_ = move(string((char*)in, len));
+      packetPtr->data_.resize(len);
+      memcpy(packetPtr->data_.getPtr(), (uint8_t*)in, len);
 
       auto wsPtr = WebSocketServer::getInstance();
       wsPtr->packetQueue_.push_back(move(packetPtr));
@@ -347,7 +348,6 @@ int WebSocketServer::callback(
          break;
       }
 
-      char response[per_session_data__bdv::rcv_size + LWS_PRE];
       auto body = packet.getPtr() + LWS_PRE;
 
       auto m = lws_write(wsi, 
@@ -456,7 +456,7 @@ void WebSocketServer::webSocketService()
    info.gid = gid;
    info.uid = uid;
    info.max_http_header_pool = 256;
-   info.options = opts | LWS_SERVER_OPTION_VALIDATE_UTF8 | LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
+   //info.options = opts | LWS_SERVER_OPTION_VALIDATE_UTF8 | LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
    info.extensions = NULL;
    info.timeout_secs = 5;
    info.ssl_cipher_list = NULL;
@@ -474,7 +474,7 @@ void WebSocketServer::webSocketService()
    run_.store(1, memory_order_relaxed);
    while (run_.load(memory_order_relaxed) != 0)
    {
-      n = lws_service(context, 50);
+      n = lws_service(context, 1000);
    }
 }
 
@@ -530,8 +530,10 @@ void WebSocketServer::commandThread()
 
       try
       {
-         auto&& result = clients_->runCommand_WS(packetPtr->ID_, packetPtr->data_);
-         write(packetPtr->ID_, result);
+         string message;
+         auto msg_id = WebSocketMessage::deserialize(packetPtr->data_, message);
+         auto&& result = clients_->runCommand_WS(packetPtr->ID_, message);
+         write(packetPtr->ID_, msg_id, result);
       }
       catch (exception&)
       {
@@ -542,12 +544,15 @@ void WebSocketServer::commandThread()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void WebSocketServer::write(const BinaryData& id, Arguments& arg)
+void WebSocketServer::write(const BinaryData& id, uint64_t msgid, 
+   Arguments& arg)
 {
    if (arg.hasArgs())
    {
       //serialize arg
-      auto&& serializedResult = arg.serialize_ws();
+      auto& serializedString = arg.serialize();
+      auto&& serializedResult = 
+         WebSocketMessage::serialize(msgid, serializedString);
 
       //push to write map
       auto writemap = writeMap_.get();

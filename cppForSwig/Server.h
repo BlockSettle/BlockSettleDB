@@ -20,6 +20,7 @@ using namespace std;
 #include "include/fcgiapp.h"
 #include "include/fcgios.h"
 #include "FcgiMessage.h"
+#include "WebSocketMessage.h"
 #include "libwebsockets.h"
 
 #include "ThreadSafeClasses.h"
@@ -27,8 +28,7 @@ using namespace std;
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
 #include "DataObject.h"
-
-#define WEBSOCKET_PORT 7681
+#include "BlockDataManagerConfig.h"
 
 
 class Clients;
@@ -99,18 +99,11 @@ enum demo_protocols {
 int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user,
    void *in, size_t len);
 
-class LWS_Error : public runtime_error
-{
-public:
-   LWS_Error(const string& err) :
-      runtime_error(err)
-   {}
-};
-
+///////////////////////////////////////////////////////////////////////////////
 struct BDV_packet
 {
    BinaryData ID_;
-   string data_;
+   BinaryData data_;
    struct lws *wsiPtr_;
 
    BDV_packet(const BinaryData& id, struct lws *wsi) :
@@ -164,7 +157,7 @@ public:
    shared_ptr<map<BinaryData, WriteStack>> getWriteMap(void);
    void addId(const BinaryData&, struct lws* ptr);
    void eraseId(const BinaryData&);
-   void write(const BinaryData&, Arguments&);
+   void write(const BinaryData&, uint64_t, Arguments&);
 };
 
 #endif

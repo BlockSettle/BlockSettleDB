@@ -15,8 +15,16 @@
 // BinarySocket
 //
 ///////////////////////////////////////////////////////////////////////////////
-BinarySocket::BinarySocket(const string& addr, const string& port) :
+BinarySocket::BinarySocket(const string& addr, const string& port, 
+   bool doInit) :
    addr_(addr), port_(port)
+{
+   if (doInit)
+      init();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void BinarySocket::init()
 {
    //resolve address
    struct addrinfo hints;
@@ -32,10 +40,10 @@ BinarySocket::BinarySocket(const string& addr, const string& port) :
    if(addr == "localhost")
       addrstr = "127.0.0.1"; 
 #else
-   auto& addrstr = addr;
+   auto& addrstr = addr_;
 #endif
 
-   getaddrinfo(addrstr.c_str(), port.c_str(), &hints, &result);
+   getaddrinfo(addrstr.c_str(), port_.c_str(), &hints, &result);
    for (auto ptr = result; ptr != nullptr; ptr = ptr->ai_next)
    {
       if (ptr->ai_family == AF_INET)
@@ -404,7 +412,7 @@ void BinarySocket::writeAndRead(
 #ifdef _WIN32
       auto status = WSAPoll(&pfd, 1, 60000);
 #else
-      auto status = poll(&pfd, 1, 60000);
+      auto status = poll(&pfd, 1, 1000);
 #endif
 
       if (status == 0)

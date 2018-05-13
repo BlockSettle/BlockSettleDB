@@ -28,6 +28,7 @@
 #endif
 
 #define DEFAULT_ZCTHREAD_COUNT 100
+#define WEBSOCKET_PORT 7681
 
 ////////////////////////////////////////////////////////////////////////////////
 struct BlockDataManagerConfig

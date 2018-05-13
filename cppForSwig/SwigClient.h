@@ -20,6 +20,7 @@ and handle the data transmission with the BDM server
 #include "log.h"
 #include "TxClasses.h"
 #include "BlockDataManagerConfig.h"
+#include "WebSocketClient.h"
 
 class WalletManager;
 class WalletContainer;
@@ -306,6 +307,7 @@ namespace SwigClient
 
       void startLoop(void);
       void remoteLoop(void);
+      bool processArguments(Arguments args);
 
       void shutdown(void);
    };

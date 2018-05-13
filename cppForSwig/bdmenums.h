@@ -74,7 +74,8 @@ enum SocketType
 {
    SocketBinary,
    SocketHttp,
-   SocketFcgi
+   SocketFcgi,
+   SocketWS
 };
 
 enum NodeType
