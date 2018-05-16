@@ -79,6 +79,9 @@ void BlockDataViewer::registerWithDB(BinaryData magic_word)
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::unregisterFromDB()
 {
+   if (sock_->type() == SocketWS)
+      return;
+
    Command cmd;
    cmd.method_ = "unregisterBDV";
    cmd.ids_.push_back(bdvID_);
@@ -1000,15 +1003,22 @@ void BlockHeader::unserialize(uint8_t const * ptr, uint32_t size)
 PythonCallback::PythonCallback(const BlockDataViewer& bdv) :
    sock_(bdv.sock_), bdvID_(bdv.getID()), bdvPtr_(&bdv)
 {
-   orderMap_["continue"]         = CBO_continue;
-   orderMap_["NewBlock"]         = CBO_NewBlock;
-   orderMap_["BDV_ZC"]           = CBO_ZC;
-   orderMap_["BDV_Refresh"]      = CBO_BDV_Refresh;
-   orderMap_["BDM_Ready"]        = CBO_BDM_Ready;
-   orderMap_["BDV_Progress"]     = CBO_progress;
-   orderMap_["terminate"]        = CBO_terminate;
-   orderMap_["BDV_NodeStatus"]   = CBO_NodeStatus;
-   orderMap_["BDV_Error"]        = CBO_BDV_Error;
+   orderMap_["continue"] = CBO_continue;
+   orderMap_["NewBlock"] = CBO_NewBlock;
+   orderMap_["BDV_ZC"] = CBO_ZC;
+   orderMap_["BDV_Refresh"] = CBO_BDV_Refresh;
+   orderMap_["BDM_Ready"] = CBO_BDM_Ready;
+   orderMap_["BDV_Progress"] = CBO_progress;
+   orderMap_["terminate"] = CBO_terminate;
+   orderMap_["BDV_NodeStatus"] = CBO_NodeStatus;
+   orderMap_["BDV_Error"] = CBO_BDV_Error;
+
+   //set callback ptr for websocket client
+   auto ws_ptr = dynamic_pointer_cast<WebSocketClient>(sock_);
+   if (ws_ptr == nullptr)
+      return;
+
+   ws_ptr->setPythonCallback(this);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

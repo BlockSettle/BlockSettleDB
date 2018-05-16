@@ -59,15 +59,20 @@ BlockDataManager *BlockDataManagerThread::bdm()
    return pimpl->bdm;
 }
 
-void BlockDataManagerThread::shutdown()
+bool BlockDataManagerThread::shutdown()
 {
-   if (pimpl->run)
-   {
-      pimpl->run = false;
+   if (pimpl == nullptr)
+      return false;
 
-      if (pimpl->tID.joinable())
-         pimpl->tID.join();
-   }
+   if (!pimpl->run)
+      return true;
+
+   pimpl->run = false;
+
+   if (pimpl->tID.joinable())
+      pimpl->tID.join();
+
+   return true;
 }
 
 void BlockDataManagerThread::join()

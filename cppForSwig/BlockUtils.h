@@ -266,7 +266,7 @@ public:
    BlockDataManager *bdm();
 
    // return true if the caller should wait on callback notification
-   void shutdown();
+   bool shutdown();
    void join();
 
    BlockHeader* topBH(void) const { return topBH_; }

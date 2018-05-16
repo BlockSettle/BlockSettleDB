@@ -108,7 +108,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\leveldb_windows_port\win32_posix;..\cryptopp;..\lmdb;..\fcgi;C:\Python27_64\include;..\fcgi\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\leveldb_windows_port\win32_posix;..\cryptopp;..\lmdb;..\fcgi;C:\Python27_64\include;..\libwebsockets\include;..\fcgi\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BasicRuntimeChecks>UninitializedLocalUsageCheck</BasicRuntimeChecks>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
@@ -116,7 +116,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;python27_d.lib;ws2_32.lib;websockets_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;python27_d.lib;ws2_32.lib;websockets_static_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\Python27amd64\libs;$(SolutionDir)libs\$(Platform)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -274,6 +274,8 @@
     <ClCompile Include="..\UniversalTimer.cpp" />
     <ClCompile Include="..\WalletManager.cpp" />
     <ClCompile Include="..\Wallets.cpp" />
+    <ClCompile Include="..\WebSocketClient.cpp" />
+    <ClCompile Include="..\WebSocketMessage.cpp" />
     <ClCompile Include="..\ZeroConf.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

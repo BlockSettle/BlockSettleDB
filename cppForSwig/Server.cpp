@@ -297,6 +297,8 @@ int WebSocketServer::callback(
 
    case LWS_CALLBACK_PROTOCOL_INIT:
    {
+      auto instance = WebSocketServer::getInstance();
+      instance->setIsReady();
       break;
    }
 
@@ -351,7 +353,7 @@ int WebSocketServer::callback(
       auto body = packet.getPtr() + LWS_PRE;
 
       auto m = lws_write(wsi, 
-         body, packet.getSize(),
+         body, packet.getSize() - LWS_PRE,
          LWS_WRITE_BINARY);
 
       if (m != packet.getSize())
@@ -414,7 +416,10 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
          this->webSocketService();
       };
 
+      auto fut = isReadyProm_.get_future();
       threads_.push_back(thread(loopthr));
+
+      fut.get();
       return;
    }
 
@@ -424,6 +429,8 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
 ///////////////////////////////////////////////////////////////////////////////
 void WebSocketServer::shutdown()
 {
+   unique_lock<mutex> lock(shutdownMutex_);
+
    run_.store(0, memory_order_relaxed);
    packetQueue_.terminate();
 
@@ -432,6 +439,21 @@ void WebSocketServer::shutdown()
       if (thr.joinable())
          thr.join();
    }
+
+   threads_.clear();
+
+   clients_->shutdown();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::setIsReady()
+{
+   try
+   {
+      isReadyProm_.set_value(true);
+   }
+   catch (future_error&)
+   {}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -439,7 +461,7 @@ void WebSocketServer::webSocketService()
 {
    struct lws_context_creation_info info;
    struct lws_vhost *vhost;
-   const char *iface = NULL;
+   const char *iface = nullptr;
    int uid = -1, gid = -1;
    int pp_secs = 0;
    int opts = 0;
@@ -450,32 +472,33 @@ void WebSocketServer::webSocketService()
 
    info.iface = iface;
    info.protocols = protocols;
-   info.ssl_cert_filepath = NULL;
-   info.ssl_private_key_filepath = NULL;
+   info.log_filepath = nullptr;
    info.ws_ping_pong_interval = pp_secs;
    info.gid = gid;
    info.uid = uid;
    info.max_http_header_pool = 256;
-   //info.options = opts | LWS_SERVER_OPTION_VALIDATE_UTF8 | LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
-   info.extensions = NULL;
-   info.timeout_secs = 5;
-   info.ssl_cipher_list = NULL;
+   info.options = opts | LWS_SERVER_OPTION_VALIDATE_UTF8 | LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
+   info.timeout_secs = 0;
    info.ip_limit_ah = 24; /* for testing */
    info.ip_limit_wsi = 105; /* for testing */
 
    auto context = lws_create_context(&info);
-   if (context == NULL) 
+   if (context == nullptr) 
       throw LWS_Error("failed to create LWS context");
 
    vhost = lws_create_vhost(context, &info);
-   if (!vhost)
+   if (vhost == nullptr)
       throw LWS_Error("failed to create vhost");
 
    run_.store(1, memory_order_relaxed);
-   while (run_.load(memory_order_relaxed) != 0)
+   while (run_.load(memory_order_relaxed) != 0 && n >= 0)
    {
-      n = lws_service(context, 1000);
+      n = lws_service(context, 50);
    }
+
+   LOGINFO << "cleaning up lws server";
+   lws_vhost_destroy(vhost);
+   lws_context_destroy(context);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -547,7 +570,7 @@ void WebSocketServer::commandThread()
 void WebSocketServer::write(const BinaryData& id, uint64_t msgid, 
    Arguments& arg)
 {
-   if (arg.hasArgs())
+   //if (arg.hasArgs())
    {
       //serialize arg
       auto& serializedString = arg.serialize();

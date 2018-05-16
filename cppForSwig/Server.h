@@ -138,9 +138,13 @@ private:
    unique_ptr<Clients> clients_;
    atomic<unsigned> run_;
 
+   mutex shutdownMutex_;
+   promise<bool> isReadyProm_;
+
 private:
    void webSocketService(void);
    void commandThread(void);
+   void setIsReady(void);
 
 public:
    WebSocketServer(void);

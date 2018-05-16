@@ -1068,7 +1068,8 @@ void Clients::shutdown()
    /*shutdown sequence*/
    
    //exit BDM maintenance thread
-   bdmT_->shutdown();
+   if (!bdmT_->shutdown())
+      return;
 
    //shutdown ZC container
    bdmT_->bdm()->disableZeroConf();

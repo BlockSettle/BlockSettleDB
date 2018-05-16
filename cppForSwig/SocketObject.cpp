@@ -36,8 +36,8 @@ void BinarySocket::init()
 
 #ifdef _WIN32
    //somehow getaddrinfo doesnt handle localhost on Windows
-   string addrstr = addr;
-   if(addr == "localhost")
+   string addrstr = addr_;
+   if(addr_ == "localhost")
       addrstr = "127.0.0.1"; 
 #else
    auto& addrstr = addr_;

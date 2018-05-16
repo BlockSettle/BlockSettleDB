@@ -25,6 +25,7 @@
 uint8_t BlockDataManagerConfig::pubkeyHashPrefix_;
 uint8_t BlockDataManagerConfig::scriptHashPrefix_;
 ARMORY_DB_TYPE BlockDataManagerConfig::armoryDbType_ = ARMORY_DB_FULL;
+SOCKET_SERVICE BlockDataManagerConfig::service_ = SERVICE_FCGI;
 
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,7 +35,7 @@ struct BlockDataManagerConfig
 {
 private:
    static ARMORY_DB_TYPE armoryDbType_;
-   static const SOCKET_SERVICE service_ = SERVICE_FCGI;
+   static SOCKET_SERVICE service_;
 
 public:
    BDM_INIT_MODE initMode_ = INIT_RESUME;
@@ -138,6 +138,11 @@ public:
    static ARMORY_DB_TYPE getDbType(void)
    {
       return armoryDbType_;
+   }
+
+   static void setServiceType(SOCKET_SERVICE _type)
+   {
+      service_ = _type;
    }
 
    static SOCKET_SERVICE getServiceType(void)

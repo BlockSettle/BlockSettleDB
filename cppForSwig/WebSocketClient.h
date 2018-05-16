@@ -28,13 +28,22 @@ using namespace std;
 struct WriteAndReadPacket
 {
    uint64_t id_;
-   BinaryData data_;
    promise<string> prom_;
 
    WriteAndReadPacket(void)
    {
       //create random_id
       id_ = rand();
+   }
+
+   ~WriteAndReadPacket(void)
+   {
+      try
+      {
+         prom_.set_value(string());
+      }
+      catch (future_error&)
+      {}
    }
 };
 
@@ -59,10 +68,11 @@ namespace SwigClient
 class WebSocketClient : public BinarySocket
 {
 private:
-   struct lws* wsiPtr_ = nullptr;
-   struct lws_context* contextPtr_ = nullptr;
+   atomic<void*> wsiPtr_ = nullptr;
+   atomic<void*> contextPtr_ = nullptr;
+   unique_ptr<promise<bool>> ctorProm_ = nullptr;
 
-   Stack<shared_ptr<WriteAndReadPacket>> writeQueue_;
+   Stack<BinaryData> writeQueue_;
    BlockingStack<BinaryData> readQueue_;
    atomic<unsigned> run_;
    thread serviceThr_, readThr_;
@@ -76,21 +86,15 @@ private:
    WebSocketClient(const string& addr, const string& port) :
       BinarySocket(addr, port, false)
    {
-      auto initLBD = [this](string addr, string port)->void
-      {
-         auto promPtr = make_unique<promise<bool>>();
-         auto fut = promPtr->get_future();
-         
-         init(addr, port, move(promPtr));
-         fut.get();
-      };
-
-      serviceThr_ = thread(initLBD, addr, port);
+      init();
    }
 
-   void init(const string& ip, const string& port, unique_ptr<promise<bool>>);
+   void init();
+   void setIsReady(bool);
    void readService(void);
    void service(void);
+   void connect(void);
+
 
 public:
    ~WebSocketClient()
@@ -98,8 +102,13 @@ public:
       shutdown();
    }
 
-   string writeAndRead(const string&, SOCKET sock = SOCK_MAX);
+   //locals
    void shutdown(void);   
+   void setPythonCallback(SwigClient::PythonCallback*);
+
+   //virtuals
+   SocketType type(void) const { return SocketWS; }
+   string writeAndRead(const string&, SOCKET sock = SOCK_MAX);
 
    //statics
    static shared_ptr<WebSocketClient> getNew(
@@ -111,8 +120,6 @@ public:
 
    static shared_ptr<WebSocketClient> getInstance(struct lws* ptr);
    static void eraseInstance(struct lws* ptr);
-
-   friend void* operator new(size_t);
 };
 
 #endif

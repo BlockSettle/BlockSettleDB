@@ -7,13 +7,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "WebSocketMessage.h"
+#include "libwebsockets.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData WebSocketMessage::serialize(uint64_t id, const string& msg)
 {
    BinaryWriter bw;
 
-   bw.put_uint32_t(0); //leading 4 bytes for lws
+   BinaryData bd_buffer(LWS_PRE);
+   bw.put_BinaryData(bd_buffer); //leading bytes for lws write routine
    bw.put_uint64_t(id);
 
    //TODO: fallback to raw binary messages once lws is standardized

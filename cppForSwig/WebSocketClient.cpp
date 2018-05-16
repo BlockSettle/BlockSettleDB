@@ -31,15 +31,16 @@ string WebSocketClient::writeAndRead(const string& packet, SOCKET sock)
 {
    //create response object
    auto response = make_shared<WriteAndReadPacket>();
-   response->data_ = move(WebSocketMessage::serialize(response->id_, packet));
+   auto&& data = WebSocketMessage::serialize(response->id_, packet);
    auto fut = response->prom_.get_future();
 
    //push object to queue and map
-   readPackets_.insert(make_pair(response->id_, response));   
-   writeQueue_.push_back(move(response));
+   readPackets_.insert(make_pair(response->id_, move(response)));   
+   writeQueue_.push_back(move(data));
 
    //trigger write callback
-   lws_callback_on_writable(wsiPtr_);
+   auto wsiptr = (struct lws*)wsiPtr_.load(memory_order_relaxed);
+   auto rs = lws_callback_on_writable(wsiptr);
 
    //wait on future and return
    auto&& val = fut.get();
@@ -54,13 +55,29 @@ shared_ptr<WebSocketClient> WebSocketClient::getNew(
    shared_ptr<WebSocketClient> newObject;
    newObject.reset(objPtr);
    
-   objectMap_.insert(move(make_pair(newObject->wsiPtr_, newObject)));
+   auto wsiptr = (struct lws*)newObject->wsiPtr_.load(memory_order_relaxed);
+
+   objectMap_.insert(move(make_pair(wsiptr, newObject)));
+   newObject->connect();
    return newObject;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WebSocketClient::init(const string& ip, const string& port,
-   unique_ptr<promise<bool>> promPtr)
+void WebSocketClient::setIsReady(bool status)
+{
+   if (ctorProm_ != nullptr)
+   {
+      try
+      {
+         ctorProm_->set_value(status);
+      }
+      catch(future_error&)
+      { }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WebSocketClient::init()
 {
    run_.store(1, memory_order_relaxed);
 
@@ -74,9 +91,11 @@ void WebSocketClient::init(const string& ip, const string& port,
    info.gid = -1;
    info.uid = -1;
 
-   contextPtr_ = lws_create_context(&info);
-   if (contextPtr_ == NULL) 
+   auto contextptr = lws_create_context(&info);
+   if (contextptr == NULL) 
       throw LWS_Error("failed to create LWS context");
+
+   contextPtr_.store(contextptr, memory_order_relaxed);
 
    //connect to server
    struct lws_client_connect_info i;
@@ -86,20 +105,29 @@ void WebSocketClient::init(const string& ip, const string& port,
    i.port = WEBSOCKET_PORT;
    const char *prot, *p;
    char path[300];
-   lws_parse_uri((char*)ip.c_str(), &prot, &i.address, &i.port, &p);
+   lws_parse_uri((char*)addr_.c_str(), &prot, &i.address, &i.port, &p);
 
    path[0] = '/';
    lws_strncpy(path + 1, p, sizeof(path) - 1);
    i.path = path;
    i.host = i.address;
    i.origin = i.address;
+   i.ietf_version_or_minus_one = -1;
 
-   i.context = contextPtr_;
-   i.method = "HTTP";
+   i.context = contextptr;
+   i.method = nullptr;
    i.protocol = protocols[PROTOCOL_ARMORY_CLIENT].name;   
-   i.pwsi = &wsiPtr_;
-   wsiPtr_ = lws_client_connect_via_info(&i);   
-   
+   i.pwsi = nullptr;
+   auto wsiptr = lws_client_connect_via_info(&i);   
+   wsiPtr_.store(wsiptr, memory_order_relaxed);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WebSocketClient::connect()
+{
+   ctorProm_ = make_unique<promise<bool>>();
+   auto fut = ctorProm_->get_future();
+
    //start service threads
    auto readLBD = [this](void)->void
    {
@@ -108,28 +136,60 @@ void WebSocketClient::init(const string& ip, const string& port,
 
    readThr_ = thread(readLBD);
 
-   promPtr->set_value(true);
-   service();
+   auto serviceLBD = [this](void)->void
+   {
+      service();
+   };
+
+   serviceThr_ = thread(serviceLBD);
+
+   bool result = true;
+   try
+   {
+      result = fut.get();
+   }
+   catch (future_error&)
+   {
+      result = false;
+   }
+   
+   if (result == false)
+      throw LWS_Error("failed to connect to server");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::service()
 {
-   while(run_.load(memory_order_relaxed) != 0)
+   int n = 0;
+   auto contextptr = 
+      (struct lws_context*)contextPtr_.load(memory_order_relaxed);
+   contextPtr_.store(nullptr, memory_order_relaxed);
+
+   while(run_.load(memory_order_relaxed) != 0 && n >= 0)
    {
-      lws_service(contextPtr_, 100);
+      n = lws_service(contextptr, 50);
    }
+
+   lws_context_destroy(contextptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::shutdown()
 {
+   readPackets_.clear();
+
    run_.store(0, memory_order_relaxed);
    if(serviceThr_.joinable())
       serviceThr_.join();
 
-   lws_context_destroy(contextPtr_);
-   contextPtr_ = nullptr;
+
+   auto contextptr =
+      (struct lws_context*)contextPtr_.load(memory_order_relaxed);
+   if (contextptr != nullptr)
+   {
+      lws_context_destroy(contextptr);
+      contextPtr_.store(nullptr, memory_order_relaxed);
+   }
 
    readQueue_.terminate();
    if(readThr_.joinable())
@@ -146,19 +206,37 @@ int WebSocketClient::callback(struct lws *wsi,
    switch (reason)
    {
 
+   case LWS_CALLBACK_CLIENT_ESTABLISHED:
+   {
+      //ws connection established with server
+      //printf("connection established with server");
+      auto instance = WebSocketClient::getInstance(wsi);
+      instance->setIsReady(true);
+      break;
+   }
+
    case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
    {
-      printf("client connect fail");
-      break;
+      LOGERR << "lws client connection error";
+      if (len > 0)
+      {
+         auto errstr = (char*)in;
+         LOGERR << "   error message: " << errstr;
+      }
+      else
+      {
+         LOGERR << "no error message was provided by lws";
+      }
    }
 
+   case LWS_CALLBACK_CLIENT_CLOSED:
    case LWS_CALLBACK_CLOSED:
    {
-      //WebSocketClient::eraseInstance(wsi);
+      WebSocketClient::eraseInstance(wsi);
       break;
    }
 
-   case LWS_CALLBACK_RECEIVE:
+   case LWS_CALLBACK_CLIENT_RECEIVE:
    {
       BinaryData bdData;
       bdData.resize(len);
@@ -169,11 +247,11 @@ int WebSocketClient::callback(struct lws *wsi,
       break;
    }
 
-   case LWS_CALLBACK_SERVER_WRITEABLE:
+   case LWS_CALLBACK_CLIENT_WRITEABLE:
    {
       auto instance = WebSocketClient::getInstance(wsi);
 
-      shared_ptr<WriteAndReadPacket> packet;
+      BinaryData packet;
       try
       {
          packet = move(instance->writeQueue_.pop_front());
@@ -183,15 +261,15 @@ int WebSocketClient::callback(struct lws *wsi,
          break;
       }
 
-      auto body = packet->data_.getPtr() + LWS_PRE;
+      auto body = packet.getPtr() + LWS_PRE;
       auto m = lws_write(wsi, 
-         body, packet->data_.getSize(),
+         body, packet.getSize() - LWS_PRE,
          LWS_WRITE_BINARY);
 
-      if (m != packet->data_.getSize())
+      if (m != packet.getSize())
       {
          LOGERR << "failed to send packet of size";
-         LOGERR << "packet is " << packet->data_.getSize() <<
+         LOGERR << "packet is " << packet.getSize() <<
             " bytes, sent " << m << " bytes";
       }
 
@@ -267,5 +345,19 @@ shared_ptr<WebSocketClient> WebSocketClient::getInstance(struct lws* ptr)
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::eraseInstance(struct lws* ptr)
 {
+   auto instance = getInstance(ptr);
+   instance->setIsReady(false);
+   instance->readPackets_.clear();
+   instance->run_.store(0, memory_order_relaxed);
    objectMap_.erase(ptr);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+void WebSocketClient::setPythonCallback(SwigClient::PythonCallback* ptr)
+{
+   pythonCallbackPtr_ = ptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+

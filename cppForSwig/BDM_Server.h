@@ -109,7 +109,7 @@ public:
    {}
 
    Arguments respond(const string&) { return Arguments(); }
-   void callback(Arguments&& arg, OrderType type);
+   void callback(Arguments&& arg, OrderType type = OrderOther);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
