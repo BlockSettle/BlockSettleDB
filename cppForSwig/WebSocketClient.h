@@ -70,8 +70,8 @@ namespace SwigClient
 class WebSocketClient : public BinarySocket
 {
 private:
-   atomic<void*> wsiPtr_ = nullptr;
-   atomic<void*> contextPtr_ = nullptr;
+   atomic<void*> wsiPtr_;
+   atomic<void*> contextPtr_;
    unique_ptr<promise<bool>> ctorProm_ = nullptr;
 
    Stack<BinaryData> writeQueue_;
@@ -87,6 +87,8 @@ private:
    WebSocketClient(const string& addr, const string& port) :
       BinarySocket(addr, port, false)
    {
+      wsiPtr_.store(nullptr, memory_order_relaxed);
+      contextPtr_.store(nullptr, memory_order_relaxed);
       init();
    }
 

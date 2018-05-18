@@ -323,7 +323,7 @@ void WebSocketClient::readService()
       {
          try
          {
-            iter->second->response_.processPacket(move(packet));
+            iter->second->response_.processPacket(packet);
          }
          catch (exception&)
          {
@@ -342,7 +342,7 @@ void WebSocketClient::readService()
       {
          //or is it a callback command? process it locally
          WebSocketMessage response;
-         response.processPacket(move(packet));
+         response.processPacket(packet);
 
          string message;
          if (!response.reconstruct(message))

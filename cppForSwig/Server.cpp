@@ -586,7 +586,7 @@ void WebSocketServer::commandThread()
             continue;
          }
 
-         msgPtr->processPacket(move(packetPtr->data_));
+         msgPtr->processPacket(packetPtr->data_);
          string message;
          if (!msgPtr->reconstruct(message))
          {
