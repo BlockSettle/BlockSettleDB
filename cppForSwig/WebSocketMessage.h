@@ -14,6 +14,10 @@
 
 #include "BinaryData.h"
 
+#define WEBSOCKET_MESSAGE_PACKET_SIZE 8000
+#define WEBSOCKET_MESSAGE_PACKET_HEADER 10
+#define WEBSOCKET_CALLBACK_ID 0xFFFFFFFFFFFFFFFE
+
 using namespace std;
 
 class LWS_Error : public runtime_error
@@ -24,10 +28,20 @@ public:
    {}
 };
 
-struct WebSocketMessage
+class WebSocketMessage
 {
-   static BinaryData serialize(uint64_t messageID, const string& message);
-   static uint64_t deserialize(const BinaryData& data, string& message);
+private:
+   map<uint8_t, BinaryData> packets_;
+   uint64_t id_ = UINT64_MAX;
+   unsigned count_ = UINT32_MAX;
+
+public:
+   static vector<BinaryData> serialize(uint64_t messageID, const string& message);
+   static uint64_t getMessageId(const BinaryData&);
+
+   void processPacket(BinaryData&);
+   bool reconstruct(string& msg);
+   uint64_t id(void) const { return id_; }
 };
 
 #endif

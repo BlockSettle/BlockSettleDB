@@ -27,13 +27,15 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 struct WriteAndReadPacket
 {
-   uint64_t id_;
+   uint64_t id_ = UINT64_MAX;
    promise<string> prom_;
+   WebSocketMessage response_;
 
    WriteAndReadPacket(void)
    {
       //create random_id
-      id_ = rand();
+      while(id_ == UINT64_MAX || id_ == WEBSOCKET_CALLBACK_ID)
+         id_ = rand();
    }
 
    ~WriteAndReadPacket(void)
@@ -82,7 +84,6 @@ private:
    static TransactionalMap<struct lws*, shared_ptr<WebSocketClient>> objectMap_; 
 
 private:
-
    WebSocketClient(const string& addr, const string& port) :
       BinarySocket(addr, port, false)
    {
@@ -119,7 +120,7 @@ public:
       void *user, void *in, size_t len);
 
    static shared_ptr<WebSocketClient> getInstance(struct lws* ptr);
-   static void eraseInstance(struct lws* ptr);
+   static void destroyInstance(struct lws* ptr);
 };
 
 #endif

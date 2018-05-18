@@ -304,8 +304,8 @@ int WebSocketServer::callback(
 
    case LWS_CALLBACK_ESTABLISHED:
    {
-      session_data->id_ =
-         SecureBinaryData().GenerateRandom(10).toHexStr();
+      auto&& bdid = SecureBinaryData().GenerateRandom(8);
+      session_data->id_ = *(uint64_t*)bdid.getPtr();
 
       auto instance = WebSocketServer::getInstance();
       instance->addId(session_data->id_, wsi);
@@ -315,7 +315,8 @@ int WebSocketServer::callback(
    case LWS_CALLBACK_CLOSED:
    {
       auto instance = WebSocketServer::getInstance();
-      instance->clients_->unregisterBDV(session_data->id_.toHexStr());
+      BinaryDataRef bdr((uint8_t*)&session_data->id_, 8);
+      instance->clients_->unregisterBDV(bdr.toHexStr());
       instance->eraseId(session_data->id_);
 
       break;
@@ -356,7 +357,7 @@ int WebSocketServer::callback(
          body, packet.getSize() - LWS_PRE,
          LWS_WRITE_BINARY);
 
-      if (m != packet.getSize())
+      if (m != packet.getSize() - LWS_PRE)
       {
          LOGERR << "failed to send packet of size";
          LOGERR << "packet is " << packet.getSize() <<
@@ -387,18 +388,20 @@ int WebSocketServer::callback(
 ///////////////////////////////////////////////////////////////////////////////
 void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
 {
+   auto instance = getInstance();
+
    //init Clients object
-   auto shutdownLbd = [this](void)->void
+   auto shutdownLbd = [instance](void)->void
    {
-      this->shutdown();
+      instance->shutdown();
    };
 
-   clients_->init(bdmT, shutdownLbd);
+   instance->clients_->init(bdmT, shutdownLbd);
 
    //start command threads
-   auto commandThr = [this](void)->void
+   auto commandThr = [instance](void)->void
    {
-      this->commandThread();
+      instance->commandThread();
    };
 
    unsigned thrCount = 2;
@@ -406,43 +409,51 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
       thrCount = thread::hardware_concurrency();
 
    for(unsigned i=0; i<thrCount; i++)
-      threads_.push_back(thread(commandThr));
+      instance->threads_.push_back(thread(commandThr));
 
    //run service thread
    if (async)
    {
-      auto loopthr = [this](void)->void
+      auto loopthr = [instance](void)->void
       {
-         this->webSocketService();
+         instance->webSocketService();
       };
 
-      auto fut = isReadyProm_.get_future();
-      threads_.push_back(thread(loopthr));
+      auto fut = instance->isReadyProm_.get_future();
+      instance->threads_.push_back(thread(loopthr));
 
       fut.get();
       return;
    }
 
-   webSocketService();
+   instance->webSocketService();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void WebSocketServer::shutdown()
 {
-   unique_lock<mutex> lock(shutdownMutex_);
+   unique_lock<mutex> lock(mu_);
 
-   run_.store(0, memory_order_relaxed);
-   packetQueue_.terminate();
+   auto ptr = instance_.load(memory_order_relaxed);
+   if (ptr == nullptr)
+      return;
 
-   for (auto& thr : threads_)
+   auto instance = getInstance();
+
+   instance->run_.store(0, memory_order_relaxed);
+   instance->packetQueue_.terminate();
+
+   for (auto& thr : instance->threads_)
    {
       if (thr.joinable())
          thr.join();
    }
 
-   threads_.clear();
+   instance->threads_.clear();
+   instance->clients_->shutdown();
 
-   clients_->shutdown();
+   instance_.store(nullptr, memory_order_relaxed);
+   delete instance;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -553,10 +564,48 @@ void WebSocketServer::commandThread()
 
       try
       {
+         shared_ptr<WebSocketMessage> msgPtr = nullptr;
+         
+         {
+            auto packet_id = WebSocketMessage::getMessageId(packetPtr->data_);
+            auto read_map = readMap_.get();
+            auto iter = read_map->find(packet_id);
+            if (iter == read_map->end())
+            {
+               msgPtr = make_shared<WebSocketMessage>();
+            }
+            else
+            {
+               msgPtr = iter->second;
+            }
+         }
+
+         if (msgPtr == nullptr)
+         {
+            LOGWARN << "null ws message!";
+            continue;
+         }
+
+         msgPtr->processPacket(move(packetPtr->data_));
          string message;
-         auto msg_id = WebSocketMessage::deserialize(packetPtr->data_, message);
+         if (!msgPtr->reconstruct(message))
+         {
+            //TODO: limit partial messages, d/c client as malvolent if 
+            //threshold is met
+
+            //incomplete message, store partial data for later
+            auto msg_pair = make_pair(msgPtr->id(), msgPtr);
+            readMap_.insert(move(msg_pair));
+            continue;
+         }
+
          auto&& result = clients_->runCommand_WS(packetPtr->ID_, message);
-         write(packetPtr->ID_, msg_id, result);
+         write(packetPtr->ID_, msgPtr->id(), result);
+
+         //clean up
+         readMap_.erase(msgPtr->id());
+
+         //TODO: replace readMap with lockless container
       }
       catch (exception&)
       {
@@ -567,45 +616,45 @@ void WebSocketServer::commandThread()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void WebSocketServer::write(const BinaryData& id, uint64_t msgid, 
+void WebSocketServer::write(const uint64_t& id, const uint64_t& msgid,
    Arguments& arg)
 {
-   //if (arg.hasArgs())
-   {
-      //serialize arg
-      auto& serializedString = arg.serialize();
-      auto&& serializedResult = 
-         WebSocketMessage::serialize(msgid, serializedString);
+   auto instance = getInstance();
+   
+   //serialize arg
+   auto& serializedString = arg.serialize();
+   auto&& serializedResult =
+      WebSocketMessage::serialize(msgid, serializedString);
 
-      //push to write map
-      auto writemap = writeMap_.get();
+   //push to write map
+   auto writemap = instance->writeMap_.get();
 
-      auto wsi_iter = writemap->find(id);
-      if (wsi_iter == writemap->end())
-         return;
+   auto wsi_iter = writemap->find(id);
+   if (wsi_iter == writemap->end())
+      return;
 
-      wsi_iter->second.stack_->push_back(move(serializedResult));
+   for(auto& data : serializedResult)
+      wsi_iter->second.stack_->push_back(move(data));
 
-      //call write callback
-      lws_callback_on_writable(wsi_iter->second.wsiPtr_);
-   }
+   //call write callback
+   lws_callback_on_writable(wsi_iter->second.wsiPtr_);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<map<BinaryData, WriteStack>> WebSocketServer::getWriteMap(void)
+shared_ptr<map<uint64_t, WriteStack>> WebSocketServer::getWriteMap(void)
 {
    return writeMap_.get();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void WebSocketServer::addId(const BinaryData& id, struct lws* ptr)
+void WebSocketServer::addId(const uint64_t& id, struct lws* ptr)
 {
    auto&& write_pair = make_pair(id, WriteStack(ptr));
    writeMap_.insert(move(write_pair));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void WebSocketServer::eraseId(const BinaryData& id)
+void WebSocketServer::eraseId(const uint64_t& id)
 {
    writeMap_.erase(id);
 }

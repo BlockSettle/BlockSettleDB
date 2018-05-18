@@ -1035,10 +1035,11 @@ Arguments Clients::runCommand_FCGI(const string& cmdStr)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-Arguments Clients::runCommand_WS(const BinaryData& bdvid, const string& cmdStr)
+Arguments Clients::runCommand_WS(const uint64_t& bdvid, const string& cmdStr)
 {
    Command cmdObj(cmdStr);
    cmdObj.deserialize();
+   BinaryDataRef bdr((uint8_t*)&bdvid, 8);
 
    if (cmdObj.method_ == "shutdown" || cmdObj.method_ == "shutdownNode")
    {
@@ -1051,11 +1052,11 @@ Arguments Clients::runCommand_WS(const BinaryData& bdvid, const string& cmdStr)
    }
    else if (cmdObj.method_ == "registerBDV")
    {
-      return registerBDV(cmdObj, bdvid.toHexStr());
+      return registerBDV(cmdObj, bdr.toHexStr());
    }
 
    //find the BDV and method
-   auto bdv = get(bdvid.toHexStr());
+   auto bdv = get(bdr.toHexStr());
 
    //execute command
    return bdv->executeCommand(cmdObj.method_, cmdObj.ids_, cmdObj.args_);
@@ -1292,11 +1293,22 @@ void BDV_Server_Object::setup()
    };
 
    if (BlockDataManagerConfig::getServiceType() == SERVICE_FCGI)
+   {
       cb_ = make_unique<LongPoll>(isReadyLambda);
+   }
    else if (BlockDataManagerConfig::getServiceType() == SERVICE_WEBSOCKET)
-      cb_ = make_unique<WS_Callback>(READHEX(getID()));
+   {
+      auto&& bdid = READHEX(getID());
+      if (bdid.getSize() != 8)
+         throw runtime_error("invalid bdv id");
+
+      auto intid = (uint64_t*)bdid.getPtr();
+      cb_ = make_unique<WS_Callback>(*intid);
+   }
    else
+   {
       throw runtime_error("unexpected service type");
+   }
 
    buildMethodMap();
 }
@@ -1808,8 +1820,7 @@ void WS_Callback::callback(Arguments&& arg, OrderType type)
    auto&& result = respond_inner(orderVec);
 
    //write to socket
-   auto wsPtr = WebSocketServer::getInstance();
-   wsPtr->write(bdvID_, UINT64_MAX, result);
+   WebSocketServer::write(bdvID_, WEBSOCKET_CALLBACK_ID, result);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

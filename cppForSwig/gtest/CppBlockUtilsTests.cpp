@@ -8069,7 +8069,7 @@ TEST_F(BlockUtilsBare, WebSocketStack)
          const vector<string> &walletIdVec,
          float progress, unsigned secondsRem,
          unsigned progressNumeric
-         )
+      )
       {}
 
       void waitOnSignal(BDMAction signal)
@@ -8101,8 +8101,7 @@ TEST_F(BlockUtilsBare, WebSocketStack)
 
    ScrAddrFilter::init();
    theBDMt_ = new BlockDataManagerThread(config);
-   auto server = WebSocketServer::getInstance();
-   server->start(theBDMt_, true);
+   WebSocketServer::start(theBDMt_, true);
 
    theBDMt_->start(config.initMode_);
 
@@ -8110,7 +8109,25 @@ TEST_F(BlockUtilsBare, WebSocketStack)
       "127.0.0.1", "7681", SocketType::SocketWS);
    bdvObj.registerWithDB(config.magicBytes_);
 
-   vector<BinaryData> scrAddrVec;
+   auto createNAddresses = [](unsigned count)->vector<BinaryData>
+   {
+      vector<BinaryData> result;
+
+      for (unsigned i = 0; i < count; i++)
+      {
+         BinaryWriter bw;
+         bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
+
+         auto&& addrData = SecureBinaryData().GenerateRandom(20);
+         bw.put_BinaryData(addrData);
+
+         result.push_back(bw.getData());
+      }
+
+      return result;
+   };
+
+   auto&& scrAddrVec = createNAddresses(2000);
    scrAddrVec.push_back(TestChain::scrAddrA);
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
@@ -8195,7 +8212,7 @@ TEST_F(BlockUtilsBare, WebSocketStack)
    w1AddrBalances = wallet1.getAddrBalancesFromDB();
    balanceVec = w1AddrBalances[TestChain::scrAddrA];
    //value didn't change, shouldnt be getting a balance vector for this address
-   EXPECT_EQ(balanceVec.size(), 0); 
+   EXPECT_EQ(balanceVec.size(), 0);
    balanceVec = w1AddrBalances[TestChain::scrAddrB];
    EXPECT_EQ(balanceVec[0], 20 * COIN);
    balanceVec = w1AddrBalances[TestChain::scrAddrC];
@@ -8272,7 +8289,7 @@ TEST_F(BlockUtilsBare, WebSocketStack)
    bdvObj.unregisterFromDB();
    bdvObj.shutdown(config.cookie_);
 
-   server->shutdown();
+   WebSocketServer::shutdown();
 
    delete theBDMt_;
    theBDMt_ = nullptr;

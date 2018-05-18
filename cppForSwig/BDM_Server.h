@@ -101,10 +101,10 @@ public:
 class WS_Callback : public SocketCallback
 {
 private:
-   const BinaryData bdvID_;
+   const uint64_t bdvID_;
 
 public:
-   WS_Callback(const BinaryData& bdvid) :
+   WS_Callback(const uint64_t& bdvid) :
       bdvID_(bdvid)
    {}
 
@@ -246,7 +246,7 @@ public:
    const shared_ptr<BDV_Server_Object>& get(const string& id) const;
    
    Arguments runCommand_FCGI(const string& cmd);
-   Arguments runCommand_WS(const BinaryData& bdvid, const string& cmdStr);
+   Arguments runCommand_WS(const uint64_t& bdvid, const string& cmdStr);
 
 
    Arguments processShutdownCommand(Command&);

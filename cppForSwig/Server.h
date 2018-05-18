@@ -83,7 +83,7 @@ struct per_session_data__http {
 
 struct per_session_data__bdv {
    static const unsigned rcv_size = 8000;
-   BinaryData id_;
+   uint64_t id_;
 };
 
 enum demo_protocols {
@@ -102,11 +102,11 @@ int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user,
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_packet
 {
-   BinaryData ID_;
+   uint64_t ID_;
    BinaryData data_;
    struct lws *wsiPtr_;
 
-   BDV_packet(const BinaryData& id, struct lws *wsi) :
+   BDV_packet(const uint64_t& id, struct lws *wsi) :
       ID_(id), wsiPtr_(wsi)
    {}
 };
@@ -130,21 +130,22 @@ class WebSocketServer
 private:
    vector<thread> threads_;
    BlockingStack<unique_ptr<BDV_packet>> packetQueue_;
-   TransactionalMap<BinaryData, WriteStack> writeMap_;
+   TransactionalMap<uint64_t, WriteStack> writeMap_;
+   TransactionalMap<uint64_t, shared_ptr<WebSocketMessage>> readMap_;
 
    static atomic<WebSocketServer*> instance_;
    static mutex mu_;
    
    unique_ptr<Clients> clients_;
    atomic<unsigned> run_;
-
-   mutex shutdownMutex_;
    promise<bool> isReadyProm_;
 
 private:
    void webSocketService(void);
    void commandThread(void);
    void setIsReady(void);
+   
+   static WebSocketServer* getInstance(void);
 
 public:
    WebSocketServer(void);
@@ -153,15 +154,13 @@ public:
       struct lws *wsi, enum lws_callback_reasons reason, 
       void *user, void *in, size_t len);
 
-   static WebSocketServer* getInstance(void);
-
-   void start(BlockDataManagerThread* bdmT, bool async);
-   void shutdown(void);
+   static void start(BlockDataManagerThread* bdmT, bool async);
+   static void shutdown(void);
+   static void write(const uint64_t&, const uint64_t&, Arguments&);
    
-   shared_ptr<map<BinaryData, WriteStack>> getWriteMap(void);
-   void addId(const BinaryData&, struct lws* ptr);
-   void eraseId(const BinaryData&);
-   void write(const BinaryData&, uint64_t, Arguments&);
+   shared_ptr<map<uint64_t, WriteStack>> getWriteMap(void);
+   void addId(const uint64_t&, struct lws* ptr);
+   void eraseId(const uint64_t&);
 };
 
 #endif

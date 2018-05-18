@@ -31,12 +31,13 @@ string WebSocketClient::writeAndRead(const string& packet, SOCKET sock)
 {
    //create response object
    auto response = make_shared<WriteAndReadPacket>();
-   auto&& data = WebSocketMessage::serialize(response->id_, packet);
+   auto&& data_vector = WebSocketMessage::serialize(response->id_, packet);
    auto fut = response->prom_.get_future();
 
    //push object to queue and map
    readPackets_.insert(make_pair(response->id_, move(response)));   
-   writeQueue_.push_back(move(data));
+   for(auto& data : data_vector)
+      writeQueue_.push_back(move(data));
 
    //trigger write callback
    auto wsiptr = (struct lws*)wsiPtr_.load(memory_order_relaxed);
@@ -117,8 +118,10 @@ void WebSocketClient::init()
    i.context = contextptr;
    i.method = nullptr;
    i.protocol = protocols[PROTOCOL_ARMORY_CLIENT].name;   
-   i.pwsi = nullptr;
-   auto wsiptr = lws_client_connect_via_info(&i);   
+
+   struct lws* wsiptr;
+   i.pwsi = &wsiptr;
+   wsiptr = lws_client_connect_via_info(&i);   
    wsiPtr_.store(wsiptr, memory_order_relaxed);
 }
 
@@ -154,7 +157,10 @@ void WebSocketClient::connect()
    }
    
    if (result == false)
+   {
+      LOGERR << "failed to connect to lws server";
       throw LWS_Error("failed to connect to server");
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,7 +187,6 @@ void WebSocketClient::shutdown()
    run_.store(0, memory_order_relaxed);
    if(serviceThr_.joinable())
       serviceThr_.join();
-
 
    auto contextptr =
       (struct lws_context*)contextPtr_.load(memory_order_relaxed);
@@ -232,7 +237,7 @@ int WebSocketClient::callback(struct lws *wsi,
    case LWS_CALLBACK_CLIENT_CLOSED:
    case LWS_CALLBACK_CLOSED:
    {
-      WebSocketClient::eraseInstance(wsi);
+      WebSocketClient::destroyInstance(wsi);
       break;
    }
 
@@ -266,7 +271,7 @@ int WebSocketClient::callback(struct lws *wsi,
          body, packet.getSize() - LWS_PRE,
          LWS_WRITE_BINARY);
 
-      if (m != packet.getSize())
+      if (m != packet.getSize() - LWS_PRE)
       {
          LOGERR << "failed to send packet of size";
          LOGERR << "packet is " << packet.getSize() <<
@@ -296,36 +301,60 @@ int WebSocketClient::callback(struct lws *wsi,
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::readService()
 {
-   while(1)
+   while (1)
    {
       BinaryData packet;
       try
       {
          packet = move(readQueue_.pop_front());
       }
-      catch(StopBlockingLoop&)
+      catch (StopBlockingLoop&)
       {
          break;
       }
-  
+
       //deser packet
-      string message;
-      auto msgid = WebSocketMessage::deserialize(packet, message);    
+      auto msgid = WebSocketMessage::getMessageId(packet);
 
       //figure out request id, fulfill promise
       auto readMap = readPackets_.get();
       auto iter = readMap->find(msgid);
-      if(iter != readMap->end())
+      if (iter != readMap->end())
       {
+         try
+         {
+            iter->second->response_.processPacket(move(packet));
+         }
+         catch (exception&)
+         {
+            LOGWARN << "invalid packet, dropping message";
+            readPackets_.erase(msgid);
+         }
+         
+         string message;
+         if (!iter->second->response_.reconstruct(message))
+            continue;
+
          iter->second->prom_.set_value(move(message));
          readPackets_.erase(msgid);
       }
-      else
+      else if (msgid == WEBSOCKET_CALLBACK_ID)
       {
          //or is it a callback command? process it locally
+         WebSocketMessage response;
+         response.processPacket(move(packet));
+
+         string message;
+         if (!response.reconstruct(message))
+            continue; //callbacks should always be a single packet
+
          Arguments argObj(move(message));
-         if(pythonCallbackPtr_ != nullptr)
+         if (pythonCallbackPtr_ != nullptr)
             pythonCallbackPtr_->processArguments(argObj);
+      }
+      else
+      {
+         LOGWARN << "invalid msg id";
       }
    }
 }
@@ -343,7 +372,7 @@ shared_ptr<WebSocketClient> WebSocketClient::getInstance(struct lws* ptr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WebSocketClient::eraseInstance(struct lws* ptr)
+void WebSocketClient::destroyInstance(struct lws* ptr)
 {
    auto instance = getInstance(ptr);
    instance->setIsReady(false);
