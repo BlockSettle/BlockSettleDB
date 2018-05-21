@@ -80,6 +80,8 @@ _CppBlockUtils.*
 /cppForSwig/pypaths.txt
 /cppForSwig/output.txt
 
+/cppForSwig/libbtc/bitcoin-spv
+
 /pytest/*.bin
 /pytest/mytxfile
 
@@ -99,6 +101,8 @@ _CppBlockUtils.*
 /sandbox.py
 
 /lang/*.qm
+
+test-driver
 
 /webshop/orders/m*
 /webshop/orders/n*

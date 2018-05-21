@@ -2,9 +2,13 @@
 bin_PROGRAMS =
 noinst_PROGRAMS =
 lib_LTLIBRARIES =
+TESTS =
+BENCH =
 
-DIST_SUBDIRS = lmdb fcgi cryptopp libwebsockets/build
-SUBDIRS = lmdb fcgi cryptopp libwebsockets/build $(MAYBE_BUILD)
+LIBBTC = libbtc/libbtc.la
+
+DIST_SUBDIRS = lmdb fcgi cryptopp libwebsockets/build libbtc
+SUBDIRS = lmdb fcgi cryptopp libwebsockets/build libbtc $(MAYBE_BUILD)
 
 SWIG_FLAGS = -c++ -python -threads
 AM_CXXFLAGS =
@@ -35,7 +39,8 @@ endif
 # Source 4: https://stackoverflow.com/a/33862145
 #LDFLAGS += -Wl,-rpath,. -Wl,-rpath,'$$ORIGIN/../more/libs/here' -Wl,-z,origin
 
-INCLUDE_FILES = -Ibech32/ref/c++ -Ifcgi -Ilibwebsockets/build/include
+INCLUDE_FILES = -Ibech32/ref/c++ -Ifcgi -Ilibwebsockets/build/include \
+	-Ilibbtc/include -Ilibbtc/src/secp256k1/include
 
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = CoinSelection.cpp \
@@ -119,6 +124,7 @@ libArmoryCLI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 			$(PYTHON_CFLAGS)
 libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) -Ilmdb -D__STDC_LIMIT_MACROS
 libArmoryCLI_la_LIBADD = fcgi/libfcgi/libfcgi.la \
+			 $(LIBBTC) \
 			 libArmoryCommon.la \
 			 -Llibwebsockets/build/lib/ -lwebsockets \
 			 -lpthread
@@ -175,6 +181,5 @@ clean-local:
 # .include file prevents gtest subdir from building a second copy of Armory.
 # Also provides a convenient spot to place all test-related materials.
 if BUILD_TESTS
-TESTS =
 include Makefile.tests.include
 endif
