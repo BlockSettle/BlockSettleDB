@@ -3,7 +3,6 @@ bin_PROGRAMS =
 noinst_PROGRAMS =
 lib_LTLIBRARIES =
 TESTS =
-BENCH =
 
 LIBBTC = libbtc/libbtc.la
 LIBCHACHA20POLY1305 = chacha20poly1305/.libs/libchacha20poly1305.la
@@ -15,8 +14,8 @@ LIBCRYPTOPP =
 LIBLMDB = liblmdb.la
 LIBSECP256K1 = libbtc/src/secp256k1/libsecp256k1.la
 
-DIST_SUBDIRS = libbtc
-SUBDIRS = libbtc $(MAYBE_BUILD)
+DIST_SUBDIRS = libbtc chacha20poly1305
+SUBDIRS = libbtc chacha20poly1305 $(MAYBE_BUILD)
 
 # Flag used to determine if the code will *only* use libbtc, and not Crypto++.
 LIBBTC_FLAGS =
@@ -57,12 +56,12 @@ endif
 #LDFLAGS += -Wl,-rpath,. -Wl,-rpath,'$$ORIGIN/../more/libs/here' -Wl,-z,origin
 
 protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
-#	@test -f protoc
+#	@test -f proto
 	protoc --cpp_out=protobuf --proto_path=protobuf $<
 
 INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
-	-Ilibbtc/include -Ilibbtc/src/secp256k1/include \
-	$(LWS_CFLAGS)
+	-Ichacha20poly1305 -Ilibbtc/src/secp256k1/include \
+	-Ilibbtc/include $(LWS_CFLAGS)
 
 # Files should *not* be marked as "common" if at all possible. Also, a refactor
 # might not hurt one of these days. Some of the "common" files could be GUI/CLI
@@ -72,6 +71,7 @@ ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = TransactionBatch.cpp
 ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	BDM_Server.cpp \
+	BIP151.cpp \
 	BitcoinP2P.cpp \
 	Blockchain.cpp \
 	BlockchainScanner.cpp \
@@ -175,7 +175,9 @@ liblmdb_la_SOURCES = lmdb/libraries/liblmdb/lmdbpp.cpp \
 		lmdb/libraries/liblmdb/mdb.c \
 		lmdb/libraries/liblmdb/midl.c
 liblmdb_la_CPPFLAGS = -Ilmdb/libraries/liblmdb -fPIC
+liblmdb_la_LDFLAGS = -static
 
+# libArmoryCommon - Required by all Armory programs/libraries.
 # Common functionality across GUI and command line
 lib_LTLIBRARIES += $(LIBARMORYCOMMON)
 libArmoryCommon_la_SOURCES = $(ARMORYCOMMON_SOURCE_FILES)
@@ -220,8 +222,7 @@ if BUILD_CLIENT
 # Common GUI functionality library
 lib_LTLIBRARIES += $(LIBARMORYGUI)
 libArmoryGUI_la_SOURCES = $(ARMORYGUI_SOURCE_FILES)
-libArmoryGUI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
-			$(PYTHON_CFLAGS)
+libArmoryGUI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) $(PYTHON_CFLAGS)
 libArmoryGUI_la_CXXFLAGS = $(AM_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryGUI_la_LIBADD = $(LIBARMORYCOMMON) $(LIBCRYPTOPP) \
 			-lpthread
@@ -239,7 +240,18 @@ libCppBlockUtils_la_LIBADD = $(LIBARMORYCOMMON) $(LIBARMORYGUI) \
 				$(LIBCRYPTOPP) -lpthread
 libCppBlockUtils_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PYTHON_LDFLAGS) -shared
 
-#custom rules
+# While not strictly necessary, it may be necessary at some point to use install
+# names (macOS equivlent of rpath) longer than the one used by default
+# (/usr/local/lib). Let's plan for it. Don't use "-install_name" flag, as that
+# only affects CppBlockUtils and not whatever it relies upon. Can fix that
+# elsewhere with the "install_name_tool" binary.
+if BUILD_DARWIN
+libCppBlockUtils_la_LDFLAGS += -headerpad_max_install_names
+libArmoryCommon_la_LDFLAGS += -headerpad_max_install_names
+libArmoryCLI_la_LDFLAGS += -headerpad_max_install_names
+endif
+
+#custom rules - always force SWIG to run and compile the resultant C++ file
 CppBlockUtils_wrap.cxx: CppBlockUtils.i
 	swig $(SWIG_FLAGS) CppBlockUtils.i
 
