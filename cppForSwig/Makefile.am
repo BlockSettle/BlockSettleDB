@@ -113,9 +113,11 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	DecryptedDataContainer.cpp \
 	DerivationScheme.cpp \
 	EncryptionUtils.cpp \
+	hkdf.cpp \
 	KDF.cpp \
 	NetworkConfig.cpp \
 	log.cpp \
+	NetworkConfig.cpp \
 	ReentrantLock.cpp \
 	Script.cpp \
 	SecureBinaryData.cpp \
@@ -203,6 +205,7 @@ libArmoryCLI_la_LIBADD = $(LIBBTC) \
 			 $(LIBARMORYCOMMON) \
 			 $(LIBCRYPTOPP) \
 			 $(LIBBTC) \
+			 $(LIBCHACHAPOLY1305) \
 			 -lpthread
 libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS)
 
