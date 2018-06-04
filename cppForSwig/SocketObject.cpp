@@ -253,7 +253,7 @@ void SocketPrototype::listen(AcceptCallback callback, SOCKET& sockfd)
 #ifndef _WIN32
 void PersistentSocket::socketService_nix()
 {
-   size_t readIncrement = 8192;
+   int readIncrement = 8192;
    stringstream errorss;
 
    exception_ptr exceptptr = nullptr;
@@ -266,144 +266,141 @@ void PersistentSocket::socketService_nix()
 
    //socket to poll
    pfd[1].fd = sockfd_;
-   pfd[1].events = POLLIN;
+   pfd[1].events = POLLIN | POLLOUT;
 
    int timeout = 100;
+   bool writeReady = false;
 
-   try
+   auto serviceWrite = [&](void)->void
    {
-      while (1)
+      if (!writeReady)
+         return;
+      writeReady = false;
+      vector<uint8_t> payload;
+
+      if (writeLeftOver_.size() != 0)
       {
-         auto status = poll(pfd, 2, timeout);
-
-         if (status == 0)
-            continue;
-
-         if (status == -1)
+         payload = move(writeLeftOver_);
+         writeLeftOver_.clear();
+      }
+      else
+      {
+         try
          {
-            //poll error, process and exit loop
-            auto errornum = errno;
-            errorss << "poll() error in readFromSocketThread: " << errornum;
-            LOGERR << errorss.str();
-            throw SocketError(errorss.str());
+            payload = move(writeQueue_.pop_front());
          }
-
-         if (pfd[0].revents & POLLIN)
+         catch (IsEmpty&)
          {
-            uint8_t b;
-            auto readAmt = recv(pipes_[0], (char*)&b, 1, 0);
+            writeReady = true;
+            return;
+         }
+      }
 
-            if (readAmt == 1)
+      auto bytessent = send(sockfd_, (char*)&payload[0], payload.size(), 0);
+      if (bytessent == 0)
+         LOGERR << "failed to send data";
+
+      writeOffset_ += bytessent;
+      if (writeOffset_ < payload.size())
+         writeLeftOver_ = move(payload);
+      else
+         writeOffset_ = 0;
+   };
+
+   while (1)
+   {
+      auto status = poll(pfd, 2, timeout);
+
+      if (status == 0)
+         continue;
+
+      if (status == -1)
+      {
+         //poll error, process and exit loop
+         auto errornum = errno;
+         LOGERR << "poll() error in readFromSocketThread: " << errornum;
+         break;
+      }
+
+      if (pfd[0].revents & POLLIN)
+      {
+         uint8_t b;
+         auto readAmt = read(pipes_[0], (char*)&b, 1);
+
+         if (readAmt == 1)
+         {
+            if (b == 0)
+               serviceWrite();
+            else if (b == 1)
+               break; //exit poll loop signal
+         }
+      }
+
+      if (pfd[1].revents & POLLNVAL)
+      {
+         LOGERR << "POLLNVAL in readFromSocketThread";
+      }
+
+      //exceptions
+      if (pfd[1].revents & POLLERR)
+      {
+         //break out of poll loop
+         LOGERR << "POLLERR error in readFromSocketThread";
+         break;
+      }
+
+      if (pfd[1].revents & POLLIN)
+      {
+         //read socket
+         vector<uint8_t> readdata;
+         readdata.resize(readIncrement);
+
+         size_t totalread = 0;
+         int readAmt;
+
+         while ((readAmt =
+            recv(sockfd_, (char*)&readdata[0] + totalread, readIncrement, 0))
+            != 0)
+         {
+            if (readAmt < 0)
             {
-               if (b == 0)
-                  pfd[1].events |= POLLOUT; //experiment with setting revents instead
-               else if (b == 1)
-                  break; //exit poll loop signal
-            }
-         }
-
-         if (pfd[1].revents & POLLNVAL)
-         {
-            throw SocketError("POLLNVAL in readFromSocketThread");
-         }
-
-         //exceptions
-         if (pfd[1].revents & POLLERR)
-         {
-            //TODO: grab socket error code, pass error to callback
-
-            //break out of poll loop
-            errorss << "POLLERR error in readFromSocketThread";
-            LOGERR << errorss.str();
-            throw SocketError(errorss.str());
-         }
-
-         if (pfd[1].revents & POLLIN)
-         {
-            //read socket
-            vector<uint8_t> readdata;
-            readdata.resize(readIncrement);
-
-            size_t totalread = 0;
-            int readAmt;
-
-            while ((readAmt =
-               recv(sockfd_, (char*)&readdata[0] + totalread, readIncrement, 0))
-               != 0)
-            {
-               if (readAmt < 0)
-               {
-                  auto errornum = errno;
-                  if (errornum == EAGAIN || errornum == EWOULDBLOCK)
-                     break;
-
-                  errorss << "recv error: " << errornum;
-                  throw SocketError(errorss.str());
+               auto errornum = errno;
+               if (errornum == EAGAIN || errornum == EWOULDBLOCK)
                   break;
-               }
 
-               totalread += readAmt;
-               if (readAmt < readIncrement)
-                  break;
-
-               readdata.resize(totalread + readIncrement);
-            }
-
-            if (readAmt == 0)
-            {
-               LOGINFO << "POLLIN recv return 0";
+               LOGERR << "recv error: " << errornum;
                break;
             }
 
-            if (totalread > 0)
-            {
-               readdata.resize(totalread);
-               readQueue_.push_back(move(readdata));
-            }
+            totalread += readAmt;
+            if (readAmt < readIncrement)
+               break;
+
+            readdata.resize(totalread + readIncrement);
          }
 
-         if (pfd[1].revents & POLLOUT)
+         if (readAmt == 0)
          {
-            vector<uint8_t> payload;
-
-            if (writeLeftOver_.size() != 0)
-            {
-               payload = move(writeLeftOver_);
-               writeLeftOver_.clear();
-            }
-            else
-            {
-               try
-               {
-                  payload = move(writeQueue_.pop_front());
-               }
-               catch (IsEmpty&)
-               {
-                  pfd[1].events = POLLIN;
-                  continue;
-               }
-            }
-
-            auto bytessent = send(sockfd_, (char*)&payload[0], payload.size(), 0);
-
-            if (bytessent == 0)
-               throw SocketError("failed to send data");
-
-            writeOffset_ += bytessent;
-            if (writeOffset_ < payload.size())
-               writeLeftOver_ = move(payload);
-            else
-               writeOffset_ = 0;
+            LOGINFO << "POLLIN recv return 0";
+            break;
          }
 
-         //socket was closed
-         if (pfd[1].revents & POLLHUP)
-            break;
+         if (totalread > 0)
+         {
+            readdata.resize(totalread);
+            readQueue_.push_back(move(readdata));
+         }
       }
-   }
-   catch (...)
-   {
-      exceptptr = current_exception();
+
+      if (pfd[1].revents & POLLOUT)
+      {
+         writeReady = true;
+         serviceWrite();
+      }
+
+      //socket was closed
+      if (pfd[1].revents & POLLHUP)
+         break;
    }
 }
 #endif
@@ -415,7 +412,7 @@ void PersistentSocket::socketService_win()
    size_t readIncrement = 8192;
    DWORD timeout = 100000;
 
-   setSocketPollEvent(sockfd_, events_[0], FD_READ | FD_WRITE);
+   WSAEventSelect(sockfd_, events_[0], FD_READ | FD_WRITE | FD_CLOSE);
    bool writeReady = false;
 
    auto serviceSocketWrite = [&writeReady, this](void)->void
@@ -562,13 +559,6 @@ void PersistentSocket::socketService_win()
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-void PersistentSocket::setSocketPollEvent(
-   SOCKET sockfd, WSAEVENT& wsaEvent, unsigned flags)
-{
-   WSAEventSelect(sockfd, wsaEvent, flags | FD_CLOSE);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 void PersistentSocket::queuePayloadForWrite(Socket_WritePayload& wPayload)
 {
    //push to write queue
@@ -623,7 +613,7 @@ void PersistentSocket::signalService(uint8_t signal)
 #else
    if (pipes_[1] == SOCK_MAX)
       return;
-   send(pipes_[1], &signal, 1, 0);
+   write(pipes_[1], &signal, 1);
 #endif
 }
 

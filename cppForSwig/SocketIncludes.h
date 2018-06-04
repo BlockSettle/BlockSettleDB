@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <poll.h>
 #define closesocket close
 
 typedef int SOCKET;

@@ -52,7 +52,7 @@ public:
 struct SocketService
 {
 private:
-   unsigned pipes_[2];
+   SOCKET pipes_[2];
    thread thr_;
    atomic<bool> run_;
 

@@ -45,6 +45,8 @@ INCLUDE_FILES = -Ibech32/ref/c++ -Ifcgi -Ilibwebsockets/build/include \
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = CoinSelection.cpp \
 	SwigClient.cpp \
+        AsyncClient.cpp \
+        ClientClasses.cpp \
 	TransactionBatch.cpp \
 	WalletManager.cpp \
 	Wallets.cpp \
@@ -66,6 +68,7 @@ ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	ScrAddrObj.cpp \
 	Server.cpp \
 	SocketObject.cpp \
+        SocketService_unix.cpp \
 	SshParser.cpp \
 	txio.cpp \
 	ZeroConf.cpp

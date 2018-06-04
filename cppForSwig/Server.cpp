@@ -159,7 +159,6 @@ void FCGI_Server::processRequest(shared_ptr<FCGX_Request> req)
          auto&& retVal = clients_->runCommand_FCGI(contentStr);
          if(retVal.hasArgs())
             retStream << retVal.serialize();
-
       }
       catch (exception& e)
       {
@@ -236,9 +235,7 @@ void FCGI_Server::processRequest(shared_ptr<FCGX_Request> req)
    FCGX_Finish_r(req.get());
 
    if (req->ipcFd != -1)
-   {
       passToKeepAliveService(req);
-   }
 
    liveThreads_.fetch_sub(1, memory_order_relaxed);
 }
@@ -291,7 +288,7 @@ void FCGI_Server::passToKeepAliveService(shared_ptr<FCGX_Request> req)
 #endif
    keepAliveStruct.sockfd_ = sockfd;
 
-   keepAliveService_.addSocket(move(keepAliveStruct));
+   keepAliveService_.addSocket(keepAliveStruct);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

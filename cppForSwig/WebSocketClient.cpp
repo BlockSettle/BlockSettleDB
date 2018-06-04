@@ -370,8 +370,9 @@ void WebSocketClient::readService()
             BinaryDataRef bdr(&message[0], message.size());
             BinaryData bd_hexit;
             bd_hexit.createFromHex(bdr);
+            auto&& bdr_hexit = bd_hexit.getRef();
 
-            callbackPtr_->processArguments(bd_hexit.getRef());
+            callbackPtr_->processArguments(bdr_hexit);
          }
       }
       else

@@ -9,7 +9,7 @@
 #include "DataObject.h"
 #include "BtcUtils.h"
 
-atomic<unsigned> Arguments::id_counter_ = 0;
+atomic<unsigned> Arguments::id_counter_;
 bool Arguments::serializeId_ = true;
 
 ///////////////////////////////////////////////////////////////////////////////

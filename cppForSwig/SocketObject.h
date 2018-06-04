@@ -200,8 +200,6 @@ private:
    void signalService(uint8_t);
 #ifdef _WIN32
    void socketService_win(void);
-   void setSocketPollEvent(
-      SOCKET sockfd, WSAEVENT& wsaEvent, unsigned flags);
 #else
    void socketService_nix(void);
 #endif

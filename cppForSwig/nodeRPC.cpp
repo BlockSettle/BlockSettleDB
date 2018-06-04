@@ -45,7 +45,8 @@ RpcStatus NodeRPC::setupConnection()
 
    stringstream auth_header;
    auth_header << "Authorization: Basic " << b64_ba;
-   socket_->precacheHttpHeader(auth_header.str());
+   auto header_str = auth_header.str();
+   socket_->precacheHttpHeader(header_str);
 
    goodNode_ = true;
    nodeChainState_.reset();

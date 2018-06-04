@@ -7738,6 +7738,7 @@ TEST_F(BlockUtilsBare, FCGIStack)
 
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.fcgiPort_, SocketType::SocketFcgi);
+
    bdvObj.registerWithDB(config.magicBytes_);
 
    vector<BinaryData> scrAddrVec;

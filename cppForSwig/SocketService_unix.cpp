@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "SocketService.h"
+#include <cstring>
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -17,7 +18,7 @@ void SocketService::addSocket(SocketStruct& obj)
 {
    socketQueue_.push_back(move(obj));
    char b = 0;
-   send(pipes_[1], &b, 1, 0);
+   write(pipes_[1], &b, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,7 +38,7 @@ void SocketService::startService()
 void SocketService::shutdown()
 {
    char b = 1;
-   send(pipes_[1], &b, 1, 0);
+   write(pipes_[1], &b, 1);
 
    if (thr_.joinable())
       thr_.join();
@@ -54,10 +55,11 @@ void SocketService::serviceSockets()
 {
    map<SOCKET, SocketStruct> sockets;
    set<SOCKET> toCleanUp;
-   vector<struct pollfd> vpfd;
-   
+
+   vector<pollfd> vpfd;
+  
    {
-      vpfd.push_back(struct pollfd());
+      vpfd.push_back(pollfd());
       auto& pfd = vpfd.back();
       pfd.events = POLLIN;
       pfd.fd = pipes_[0];
@@ -79,7 +81,7 @@ void SocketService::serviceSockets()
             if (sockStruct.sockfd_ == SOCK_MAX)
                continue;
 
-            vpfd.push_back(struct pollfd());
+            vpfd.push_back(pollfd());
             auto& pfd = vpfd.back();
             pfd.events = POLLIN;
             pfd.fd = sockStruct.sockfd_;
@@ -103,7 +105,7 @@ void SocketService::serviceSockets()
             sockets.erase(vpfd[i].fd);
             if(vpfd.size() > 2)
                vpfd[i] = vpfd[vpfd.size() - 1];
-            vpfd.erase(vpfd.end());
+            vpfd.pop_back();
             --i;
          }
       }
@@ -122,6 +124,7 @@ void SocketService::serviceSockets()
 
       if(iter->second.serviceRead_)
          iter->second.serviceRead_();
+
       if (iter->second.singleUse_)
          toCleanUp.insert(sockfd);
    };
@@ -140,7 +143,7 @@ void SocketService::serviceSockets()
       toCleanUp.insert(sockfd);
    };
 
-   DWORD timeout = 100000;
+   int timeout = 100000;
    while (1)
    {
       cleanUp();
@@ -159,7 +162,7 @@ void SocketService::serviceSockets()
       if (vpfd[0].revents & POLLIN)
       {
          uint8_t b;
-         auto readAmt = recv(vpfd[0].fd, (char*)&b, 1, 0);
+         auto readAmt = read(vpfd[0].fd, (char*)&b, 1);
 
          if (readAmt == 1)
          {

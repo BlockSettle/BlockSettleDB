@@ -232,7 +232,7 @@ bool FcgiSocket::processPacket(
          }
 
          //completed request, return with payload
-         auto&& bodyRef = move(packetStruct.getHttpBody());
+         auto&& bodyRef = packetStruct.getHttpBody();
          if (bodyRef.getSize() > 0)
          {
             BinaryData bodyBin;
