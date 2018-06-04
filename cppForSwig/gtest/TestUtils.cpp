@@ -235,7 +235,6 @@ namespace DBTestUtils
 
       auto&& result = clients->runCommand_FCGI(cmd.command_);
 
-      //check result
       auto& argVec = result.getArgVector();
       auto retint = dynamic_pointer_cast<DataObject<IntType>>(argVec[0]);
       if (retint->getObj().getVal() == 0)
@@ -262,13 +261,13 @@ namespace DBTestUtils
       auto& argVec = result.getArgVector();
 
       auto&& balance_full =
-         dynamic_pointer_cast<DataObject<IntType>>(argVec[0])->getObj().getVal();
-      auto&& balance_spen =
          dynamic_pointer_cast<DataObject<IntType>>(argVec[1])->getObj().getVal();
-      auto&& balance_unco =
+      auto&& balance_spen =
          dynamic_pointer_cast<DataObject<IntType>>(argVec[2])->getObj().getVal();
-      auto&& count =
+      auto&& balance_unco =
          dynamic_pointer_cast<DataObject<IntType>>(argVec[3])->getObj().getVal();
+      auto&& count =
+         dynamic_pointer_cast<DataObject<IntType>>(argVec[4])->getObj().getVal();
 
       vector<uint64_t> balanceVec;
       balanceVec.push_back(balance_full);
@@ -294,9 +293,9 @@ namespace DBTestUtils
       cmd.ids_.push_back(bdvId);
       cmd.serialize();
 
-      auto&& result = clients->runCommand_FCGI(cmd.command_);
+      clients->runCommand_FCGI(cmd.command_);
 
-      //check result
+      auto&& result = clients->runCommand_FCGI(cmd.command_);
       auto& argVec = result.getArgVector();
       auto retint = dynamic_pointer_cast<DataObject<IntType>>(argVec[0]);
       if (retint->getObj().getVal() == 0)

@@ -169,6 +169,10 @@ private:
    vector<shared_ptr<DataMeta>> argData_;
    BinaryData rawBinary_;
    BinaryRefReader rawRefReader_;
+   unsigned msgId_ = UINT32_MAX;
+
+   static atomic<unsigned> id_counter_;
+   static bool serializeId_;
 
 private:
    void init(void);
@@ -181,6 +185,7 @@ private:
       rawBinary_ = move(arg.rawBinary_);
       rawRefReader_.setNewData(rawBinary_);
       rawRefReader_.advance(arg.rawRefReader_.getPosition());
+      msgId_ = arg.msgId_;
    }
 
    void setFromRef(const Arguments& arg)
@@ -191,6 +196,7 @@ private:
       rawBinary_ = arg.rawBinary_;
       rawRefReader_.setNewData(rawBinary_);
       rawRefReader_.advance(arg.rawRefReader_.getPosition());
+      msgId_ = arg.msgId_;
    }
 
 public:
@@ -229,6 +235,12 @@ public:
       setFromRef(arg);
    }
 
+   Arguments(const BinaryDataRef& bdr)
+   {
+      //owner is reponsible for perpetuating the referenced data
+      rawRefReader_.setNewData(bdr);
+   }
+
    Arguments operator=(Arguments&& arg)
    {
       if (this == &arg)
@@ -249,6 +261,7 @@ public:
 
    void setRawData();
    const string& serialize();
+   static void serializeID(bool val) { serializeId_ = val; }
 
    ///////////////////////////////////////////////////////////////////////////////
    void merge(const Arguments& argIn)
@@ -310,6 +323,14 @@ public:
       argStr_.clear();
       argData_.clear();
    }
+
+   BinaryDataRef getRemainingBDR(void)
+   {
+      return rawRefReader_.get_BinaryDataRef(rawRefReader_.getSizeRemaining());
+   }
+
+   unsigned getMessageId(void) const { return msgId_; }
+   void setMessageId(unsigned id) { msgId_ = id; }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -331,6 +352,7 @@ struct Command
 
    void deserialize(void);
    void serialize(void);
+   void serialize(vector<uint8_t>&);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -9,6 +9,9 @@
 #include "DataObject.h"
 #include "BtcUtils.h"
 
+atomic<unsigned> Arguments::id_counter_ = 0;
+bool Arguments::serializeId_ = true;
+
 ///////////////////////////////////////////////////////////////////////////////
 void ErrorType::serialize(BinaryWriter& bw) const
 {
@@ -307,6 +310,16 @@ const string& Arguments::serialize()
       return argStr_;
 
    BinaryWriter bw;
+
+   if (serializeId_)
+   {
+      if (msgId_ == UINT32_MAX)
+         msgId_ = id_counter_.fetch_add(1, memory_order_relaxed);
+
+      IntType id(msgId_);
+      id.serialize(bw);
+   }
+
    for (auto& arg : argData_)
       arg->serialize(bw);
 
@@ -408,6 +421,37 @@ void Command::serialize()
    //prepend first 4 bytes of hash as checksum
    command_ = hash.getSliceRef(0, 4).toHexStr();
    command_.append(packet);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void Command::serialize(vector<uint8_t>& result)
+{
+   if (method_.size() == 0)
+      throw runtime_error("empty command");
+
+   stringstream ss;
+
+   for (auto id : ids_)
+   {
+      //id
+      ss << "&" << id;
+   }
+
+   ss << "&" << method_;
+   ss << ".";
+   ss << args_.serialize();
+
+   //hash the packet
+   auto&& packet = ss.str();
+   auto&& hash = BtcUtils::getHash256(packet);
+   auto&& hash_prefix = hash.getSliceRef(0, 4).toHexStr();
+
+   //prepare resulting vector
+   result.resize(8 + packet.size());
+
+   //prepend first 4 bytes of hash as checksum
+   memcpy(&result[0], hash_prefix.c_str(), 8);
+   memcpy(&result[0] + 8, packet.c_str(), packet.size());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

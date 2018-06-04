@@ -24,8 +24,7 @@ NodeRPC::NodeRPC(
    BlockDataManagerConfig& config) :
    bdmConfig_(config)
 {
-   socket_ = make_unique<HttpSocket>(
-      BinarySocket("127.0.0.1", bdmConfig_.rpcPort_));
+   socket_ = make_unique<HttpSocket>("127.0.0.1", bdmConfig_.rpcPort_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,10 +43,9 @@ RpcStatus NodeRPC::setupConnection()
    basicAuthString_ = move(authString);
    auto&& b64_ba = BtcUtils::base64_encode(basicAuthString_);
 
-   socket_->resetHeaders();
    stringstream auth_header;
    auth_header << "Authorization: Basic " << b64_ba;
-   socket_->addHeader(auth_header.str());
+   socket_->precacheHttpHeader(auth_header.str());
 
    goodNode_ = true;
    nodeChainState_.reset();
@@ -74,20 +72,18 @@ RpcStatus NodeRPC::testConnection()
    {
       goodNode_ = false;
 
-
       JSON_object json_obj;
       json_obj.add_pair("method", "getblockcount");
 
       try
       {
-         auto&& serializedPacket = JSON_encode(json_obj);
-         auto&& response = socket_->writeAndRead(serializedPacket);
+         auto&& response = queryRPC(json_obj);
          auto&& response_obj = JSON_decode(response);
 
          if (response_obj.isResponseValid(json_obj.id_))
          {
-            goodNode_ = true;
             state = RpcStatus_Online;
+            goodNode_ = true;
          }
          else
          {
@@ -213,7 +209,7 @@ float NodeRPC::getFeeByte(unsigned blocksToConfirm)
 
    json_obj.add_pair("params", json_array);
 
-   auto&& response = socket_->writeAndRead(JSON_encode(json_obj));
+   auto&& response = queryRPC(json_obj);
    auto&& response_obj = JSON_decode(response);
 
    if (!response_obj.isResponseValid(json_obj.id_))
@@ -259,7 +255,7 @@ FeeEstimateResult NodeRPC::getFeeByteSmart(
 
    json_obj.add_pair("params", json_array);
 
-   auto&& response = socket_->writeAndRead(JSON_encode(json_obj));
+   auto&& response = queryRPC(json_obj);
    auto&& response_obj = JSON_decode(response);
 
    if (!response_obj.isResponseValid(json_obj.id_))
@@ -316,8 +312,7 @@ bool NodeRPC::updateChainStatus(void)
    JSON_object json_getblockchaininfo;
    json_getblockchaininfo.add_pair("method", "getblockchaininfo");
 
-   auto&& response = JSON_decode(
-      socket_->writeAndRead(JSON_encode(json_getblockchaininfo)));
+   auto&& response = JSON_decode(queryRPC(json_getblockchaininfo));
    if (!response.isResponseValid(json_getblockchaininfo.id_))
       throw JSON_Exception("invalid response");
 
@@ -336,8 +331,7 @@ bool NodeRPC::updateChainStatus(void)
    json_getheader.add_pair("method", "getblockheader");
    json_getheader.add_pair("params", params_obj);
 
-   auto&& block_header = JSON_decode(
-      socket_->writeAndRead(JSON_encode(json_getheader)));
+   auto&& block_header = JSON_decode(queryRPC(json_getheader));
 
    if (!block_header.isResponseValid(json_getheader.id_))
       throw JSON_Exception("invalid response");
@@ -426,7 +420,7 @@ void NodeRPC::waitOnChainSync(function<void(void)> callbck)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-string NodeRPC::broadcastTx(const BinaryData& rawTx) const
+string NodeRPC::broadcastTx(const BinaryData& rawTx)
 {
    ReentrantLock lock(this);
 
@@ -439,7 +433,7 @@ string NodeRPC::broadcastTx(const BinaryData& rawTx) const
 
    json_obj.add_pair("params", json_array);
 
-   auto&& response = socket_->writeAndRead(JSON_encode(json_obj));
+   auto&& response = queryRPC(json_obj);
    auto&& response_obj = JSON_decode(response);
 
    string return_str;
@@ -479,7 +473,7 @@ void NodeRPC::shutdown()
    JSON_object json_obj;
    json_obj.add_pair("method", "stop");
 
-   auto&& response = socket_->writeAndRead(JSON_encode(json_obj));
+   auto&& response = queryRPC(json_obj);
    auto&& response_obj = JSON_decode(response);
 
    if (!response_obj.isResponseValid(json_obj.id_))
@@ -492,4 +486,30 @@ void NodeRPC::shutdown()
       throw JSON_Exception("invalid response");
 
    LOGINFO << responseStr->val_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string NodeRPC::queryRPC(JSON_object& request)
+{
+   Socket_WritePayload write_payload;
+   auto&& payload_str = move(JSON_encode(request));
+   vector<uint8_t> payload_vec;
+   payload_vec.resize(payload_str.size());
+   memcpy(&payload_vec[0], payload_str.c_str(), payload_str.size());
+
+   //TODO: avoid the copy
+   write_payload.data_ = move(payload_vec);
+   auto promPtr = make_shared<promise<string>>();
+   auto fut = promPtr->get_future();
+
+   auto callback = [promPtr](string body)->void
+   {
+      promPtr->set_value(move(body));
+   };
+
+   auto read_payload = make_shared<Socket_ReadPayload>(request.id_);
+   read_payload->callbackReturn_ = make_unique<CallbackReturn_HttpBody>(callback);
+   socket_->pushPayload(write_payload, read_payload);
+
+   return fut.get();
 }

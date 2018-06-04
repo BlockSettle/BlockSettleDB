@@ -829,11 +829,10 @@ void Payload_Reject::deserialize(uint8_t* dataptr, size_t len)
 ////////////////////////////////////////////////////////////////////////////////
 BitcoinP2P::BitcoinP2P(const string& addrV4, const string& port,
    uint32_t magicword) :
-   binSocket_(addrV4, port), magic_word_(magicword)
+   addr_(addrV4), port_(port), magic_word_(magicword)
 {
    nodeConnected_.store(false, memory_order_relaxed);
    run_.store(true, memory_order_relaxed);
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -885,13 +884,14 @@ void BitcoinP2P::connectLoop(void)
    {
       //clean up stacks
       dataStack_ = make_shared<BlockingStack<vector<uint8_t>>>();
+      socket_ = make_unique<BitcoinP2PSocket>(addr_, port_, dataStack_);
 
       verackPromise_ = make_unique<promise<bool>>();
       auto verackFuture = verackPromise_->get_future();
 
       while (run_.load(memory_order_relaxed))
       {
-         if (binSocket_.openSocket(false))
+         if (socket_->openSocket(false))
             break;
 
          if (waitBeforeReconnect < 5000)
@@ -912,7 +912,7 @@ void BitcoinP2P::connectLoop(void)
          }
       };
 
-      pollSocketThread();
+      socket_->connectToRemote();
       thread processThr(processThread);
 
       //send version payload
@@ -924,10 +924,10 @@ void BitcoinP2P::connectLoop(void)
       try
       {
          //send version
-         if (binSocket_.getSocketName(clientsocketaddr) != 0)
+         if (socket_->getSocketName(clientsocketaddr) != 0)
             throw SocketError("failed to get client sockaddr");
 
-         if (binSocket_.getPeerName(node_addr_) != 0)
+         if (socket_->getPeerName(node_addr_) != 0)
             throw SocketError("failed to get peer sockaddr");
 
          // Services, for future extensibility
@@ -963,40 +963,14 @@ void BitcoinP2P::connectLoop(void)
          processThr.join();
       
       //close socket to guarantee select returns
-      if (binSocket_.isValid())
-         binSocket_.closeSocket();
+      if (socket_->isValid())
+         socket_->shutdown();
 
       LOGINFO << "Disconnected from Bitcoin node";
       updateNodeStatus(false);
    }
 
    shutdownPromise.set_value(true);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2P::pollSocketThread()
-{
-   unique_lock<mutex> lock(pollMutex_, defer_lock);
-
-   if (!lock.try_lock())
-      throw SocketError("another poll thread is already running");
-
-   auto dataStack = dataStack_;
-
-   auto callback = [dataStack](
-      vector<uint8_t> socketdata, exception_ptr ePtr)->bool
-   {
-      if (ePtr == nullptr && socketdata.size() > 0)
-      {
-         dataStack->push_back(move(socketdata));
-         return false;
-      }
-
-      dataStack->terminate(ePtr);
-      return true;
-   };
-
-   binSocket_.readFromSocket(callback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1045,12 +1019,6 @@ void BitcoinP2P::processDataStackThread()
    {
 
       LOGERR << "caught unkown exception in processDataStackThread";
-
-      /*if (verackPromise_ == nullptr)
-         return;
-
-      exception_ptr eptr = current_exception();
-      verackPromise_->set_exception(eptr);*/
    }
 }
 
@@ -1318,7 +1286,9 @@ void BitcoinP2P::sendMessage(Payload&& payload)
    auto&& msg = payload.serialize(magic_word_);
 
    unique_lock<mutex> lock(writeMutex_);
-   binSocket_.writeToSocket(&msg[0], msg.size());
+   Socket_WritePayload socket_payload;
+   socket_payload.data_ = move(msg);
+   socket_->pushPayload(socket_payload, nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1431,7 +1401,7 @@ void BitcoinP2P::unregisterGetTxCallback(
 void BitcoinP2P::shutdown()
 {
    run_.store(false, memory_order_relaxed);
-   binSocket_.closeSocket();
+   socket_->shutdown();
 
    //wait until connect loop exists
    shutdownFuture_.wait();
@@ -1450,4 +1420,21 @@ void BitcoinP2P::updateNodeStatus(bool connected)
 {
    nodeConnected_.store(connected, memory_order_release);
    callback();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// BitcoinP2PSocket
+//
+////////////////////////////////////////////////////////////////////////////////
+void  BitcoinP2PSocket::respond(vector<uint8_t>& packet)
+{
+   readDataStack_->push_back(move(packet));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void BitcoinP2PSocket::pushPayload(Socket_WritePayload& write_payload, 
+   shared_ptr<Socket_ReadPayload> read_payload)
+{
+   queuePayloadForWrite(write_payload);
 }

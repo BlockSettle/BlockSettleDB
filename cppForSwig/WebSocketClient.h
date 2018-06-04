@@ -21,32 +21,24 @@
 #include "SocketObject.h"
 #include "WebSocketMessage.h"
 #include "BlockDataManagerConfig.h"
+#include "ClientClasses.h"
+#include "AsyncClient.h"
 
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct WriteAndReadPacket
 {
-   uint64_t id_ = UINT64_MAX;
-   promise<string> prom_;
+   const unsigned id_;
    WebSocketMessage response_;
+   shared_ptr<Socket_ReadPayload> payload_;
 
-   WriteAndReadPacket(void)
-   {
-      //create random_id
-      while(id_ == UINT64_MAX || id_ == WEBSOCKET_CALLBACK_ID)
-         id_ = rand();
-   }
+   WriteAndReadPacket(unsigned id, shared_ptr<Socket_ReadPayload> payload) :
+      id_(id), payload_(payload)
+   {}
 
    ~WriteAndReadPacket(void)
-   {
-      try
-      {
-         prom_.set_value(string());
-      }
-      catch (future_error&)
-      {}
-   }
+   {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +59,7 @@ namespace SwigClient
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-class WebSocketClient : public BinarySocket
+class WebSocketClient : public SocketPrototype
 {
 private:
    atomic<void*> wsiPtr_;
@@ -79,13 +71,13 @@ private:
    atomic<unsigned> run_;
    thread serviceThr_, readThr_;
    TransactionalMap<uint64_t, shared_ptr<WriteAndReadPacket>> readPackets_;
-   SwigClient::PythonCallback* pythonCallbackPtr_ = nullptr;
+   RemoteCallback* callbackPtr_ = nullptr;
    
    static TransactionalMap<struct lws*, shared_ptr<WebSocketClient>> objectMap_; 
 
 private:
    WebSocketClient(const string& addr, const string& port) :
-      BinarySocket(addr, port, false)
+      SocketPrototype(addr, port, false)
    {
       wsiPtr_.store(nullptr, memory_order_relaxed);
       contextPtr_.store(nullptr, memory_order_relaxed);
@@ -96,8 +88,6 @@ private:
    void setIsReady(bool);
    void readService(void);
    void service(void);
-   void connect(void);
-
 
 public:
    ~WebSocketClient()
@@ -107,11 +97,13 @@ public:
 
    //locals
    void shutdown(void);   
-   void setPythonCallback(SwigClient::PythonCallback*);
+   void setCallback(RemoteCallback*);
 
    //virtuals
    SocketType type(void) const { return SocketWS; }
-   string writeAndRead(const string&, SOCKET sock = SOCK_MAX);
+   void pushPayload(
+      Socket_WritePayload&, shared_ptr<Socket_ReadPayload>);
+   bool connectToRemote(void);
 
    //statics
    static shared_ptr<WebSocketClient> getNew(

@@ -60,6 +60,8 @@ private:
          nodeStatusLambda_();
    }
 
+   string queryRPC(JSON_object&);
+
 public:
    NodeRPC(BlockDataManagerConfig&);
    
@@ -73,7 +75,7 @@ public:
    bool updateChainStatus(void);
    const NodeChainState& getChainStatus(void) const;   
    void waitOnChainSync(function<void(void)>);
-   string broadcastTx(const BinaryData&) const;
+   string broadcastTx(const BinaryData&);
 
    void registerNodeStatusLambda(function<void(void)> lbd) { nodeStatusLambda_ = lbd; }
 

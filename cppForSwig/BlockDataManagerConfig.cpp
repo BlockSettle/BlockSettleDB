@@ -690,7 +690,7 @@ void BlockDataManagerConfig::createCookie() const
 bool BlockDataManagerConfig::testConnection(
    const string& ip, const string& port)
 {
-   BinarySocket testSock(ip, port);
+   SimpleSocket testSock(ip, port);
    return testSock.testConnection();
 }
 

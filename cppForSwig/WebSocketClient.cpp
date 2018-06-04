@@ -7,7 +7,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "WebSocketClient.h"
-#include "SwigClient.h"
 
 TransactionalMap<struct lws*, shared_ptr<WebSocketClient>> 
    WebSocketClient::objectMap_;
@@ -27,25 +26,37 @@ static struct lws_protocols protocols[] = {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-string WebSocketClient::writeAndRead(const string& packet, SOCKET sock)
+void WebSocketClient::pushPayload(Socket_WritePayload& write_payload,
+   shared_ptr<Socket_ReadPayload> read_payload)
 {
-   //create response object
-   auto response = make_shared<WriteAndReadPacket>();
-   auto&& data_vector = WebSocketMessage::serialize(response->id_, packet);
-   auto fut = response->prom_.get_future();
+   unsigned id;
+   do
+   {
+      id = rand();
+   } while (id == UINT32_MAX || id == WEBSOCKET_CALLBACK_ID);
 
-   //push object to queue and map
-   readPackets_.insert(make_pair(response->id_, move(response)));   
+   if (read_payload != nullptr)
+   {
+      //create response object
+      auto response = make_shared<WriteAndReadPacket>(id, read_payload);
+
+      //set response id
+      readPackets_.insert(make_pair(response->id_, move(response)));   
+   }
+   else
+   {
+   }
+   
+   auto&& data_vector = 
+      WebSocketMessage::serialize(id, write_payload.data_);
+
+   //push packets to write queue
    for(auto& data : data_vector)
       writeQueue_.push_back(move(data));
 
    //trigger write callback
    auto wsiptr = (struct lws*)wsiPtr_.load(memory_order_relaxed);
-   auto rs = lws_callback_on_writable(wsiptr);
-
-   //wait on future and return
-   auto&& val = fut.get();
-   return val;
+   lws_callback_on_writable(wsiptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,7 +70,6 @@ shared_ptr<WebSocketClient> WebSocketClient::getNew(
    auto wsiptr = (struct lws*)newObject->wsiPtr_.load(memory_order_relaxed);
 
    objectMap_.insert(move(make_pair(wsiptr, newObject)));
-   newObject->connect();
    return newObject;
 }
 
@@ -80,6 +90,7 @@ void WebSocketClient::setIsReady(bool status)
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::init()
 {
+   Arguments::serializeID(false);
    run_.store(1, memory_order_relaxed);
 
    //setup context
@@ -126,7 +137,7 @@ void WebSocketClient::init()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WebSocketClient::connect()
+bool WebSocketClient::connectToRemote()
 {
    ctorProm_ = make_unique<promise<bool>>();
    auto fut = ctorProm_->get_future();
@@ -159,8 +170,9 @@ void WebSocketClient::connect()
    if (result == false)
    {
       LOGERR << "failed to connect to lws server";
-      throw LWS_Error("failed to connect to server");
    }
+
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -303,10 +315,10 @@ void WebSocketClient::readService()
 {
    while (1)
    {
-      BinaryData packet;
+      BinaryData payload;
       try
       {
-         packet = move(readQueue_.pop_front());
+         payload = move(readQueue_.pop_front());
       }
       catch (StopBlockingLoop&)
       {
@@ -314,7 +326,7 @@ void WebSocketClient::readService()
       }
 
       //deser packet
-      auto msgid = WebSocketMessage::getMessageId(packet);
+      auto msgid = WebSocketMessage::getMessageId(payload);
 
       //figure out request id, fulfill promise
       auto readMap = readPackets_.get();
@@ -323,7 +335,7 @@ void WebSocketClient::readService()
       {
          try
          {
-            iter->second->response_.processPacket(packet);
+            iter->second->response_.processPacket(payload);
          }
          catch (exception&)
          {
@@ -331,26 +343,36 @@ void WebSocketClient::readService()
             readPackets_.erase(msgid);
          }
          
-         string message;
+         vector<uint8_t> message;
          if (!iter->second->response_.reconstruct(message))
             continue;
 
-         iter->second->prom_.set_value(move(message));
+         BinaryDataRef bdr(&message[0], message.size());
+         BinaryData bd_hexit;
+         bd_hexit.createFromHex(bdr);
+         
+         iter->second->payload_->callbackReturn_->callback(
+            bd_hexit.getRef(), nullptr);
          readPackets_.erase(msgid);
       }
       else if (msgid == WEBSOCKET_CALLBACK_ID)
       {
          //or is it a callback command? process it locally
          WebSocketMessage response;
-         response.processPacket(packet);
+         response.processPacket(payload);
 
-         string message;
+         vector<uint8_t> message;
          if (!response.reconstruct(message))
             continue; //callbacks should always be a single packet
 
-         Arguments argObj(move(message));
-         if (pythonCallbackPtr_ != nullptr)
-            pythonCallbackPtr_->processArguments(argObj);
+         if (callbackPtr_ != nullptr)
+         {
+            BinaryDataRef bdr(&message[0], message.size());
+            BinaryData bd_hexit;
+            bd_hexit.createFromHex(bdr);
+
+            callbackPtr_->processArguments(bd_hexit.getRef());
+         }
       }
       else
       {
@@ -382,11 +404,8 @@ void WebSocketClient::destroyInstance(struct lws* ptr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WebSocketClient::setPythonCallback(SwigClient::PythonCallback* ptr)
+void WebSocketClient::setCallback(RemoteCallback* ptr)
 {
-   pythonCallbackPtr_ = ptr;
+   callbackPtr_ = ptr;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
 

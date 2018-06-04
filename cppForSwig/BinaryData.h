@@ -15,8 +15,8 @@
    #endif
 
    #ifndef ssize_t
-      #ifdef _WIN64
-         #define ssize_t LONGLONG
+      #ifdef _WIN32
+         #define ssize_t SSIZE_T
       #else
          #define ssize_t long
       #endif
@@ -545,45 +545,17 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   void createFromHex(string const & str)
-   {
-      static const uint8_t binLookupTable[256] = { 
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0, 0, 0, 0, 0, 0, 
-         0, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-      if (str.size() % 2 != 0)
-      {
-         LOGERR << "odd hexit count";
-         throw runtime_error("odd hexit count");
-      }
-      size_t newLen = str.size() / 2;
-      alloc(newLen);
-
-      for(size_t i=0; i<newLen; i++)
-      {
-         uint8_t char1 = binLookupTable[ (uint8_t)str[2*i  ] ];
-         uint8_t char2 = binLookupTable[ (uint8_t)str[2*i+1] ];
-         data_[i] = (char1 << 4) | char2;
-      }
-   }
-
+   void createFromHex(const string& str);
+   void createFromHex(BinaryDataRef const & bdr);
 
    // For deallocating all the memory that is currently used by this BD
    void clear(void) { data_.clear(); }
+   vector<uint8_t> release(void) 
+   { 
+      auto vec = move(data_);
+      clear();
+      return vec; 
+   }
 
 public:
    static BinaryData EmptyBinData_;

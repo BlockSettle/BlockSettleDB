@@ -12,7 +12,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 %module(directors="1") CppBlockUtils
-%feature("director") PythonCallback;
+%feature("director") RemoteCallback;
 %feature("director") PythonSigner;
 %feature("director") PythonSigner_BCH;
 %feature("director") UniversalSigner;

@@ -10,7 +10,24 @@
 #include "libwebsockets.h"
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<BinaryData> WebSocketMessage::serialize(uint64_t id, const string& msg)
+vector<BinaryData> WebSocketMessage::serialize(uint64_t id,
+   const vector<uint8_t>& payload)
+{
+   BinaryDataRef bdr(&payload[0], payload.size());
+   return serialize(id, bdr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<BinaryData> WebSocketMessage::serialize(uint64_t id,
+   const string& payload)
+{
+   BinaryDataRef bdr((uint8_t*)payload.c_str(), payload.size());
+   return serialize(id, bdr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<BinaryData> WebSocketMessage::serialize(uint64_t id, 
+   const BinaryDataRef& payload)
 {
    //TODO: fallback to raw binary messages once lws is standardized
    //TODO: less copies, more efficient serialization
@@ -19,8 +36,8 @@ vector<BinaryData> WebSocketMessage::serialize(uint64_t id, const string& msg)
 
    size_t data_size =
       WEBSOCKET_MESSAGE_PACKET_SIZE - WEBSOCKET_MESSAGE_PACKET_HEADER;
-   auto msg_count = msg.size() / data_size;
-   if (msg_count * data_size < msg.size())
+   auto msg_count = payload.getSize() / data_size;
+   if (msg_count * data_size < payload.getSize())
       msg_count++;
 
    if (msg_count > 255)
@@ -47,8 +64,8 @@ vector<BinaryData> WebSocketMessage::serialize(uint64_t id, const string& msg)
       bw.put_uint8_t(i);
 
       //data
-      auto size = min(data_size, msg.size() - pos);
-      BinaryDataRef bdr((uint8_t*)msg.c_str() + pos, size);
+      auto size = min(data_size, payload.getSize() - pos);
+      BinaryDataRef bdr(payload.getPtr() + pos, size);
       bw.put_BinaryDataRef(bdr);
       pos += data_size;
 
@@ -96,7 +113,7 @@ void WebSocketMessage::processPacket(BinaryData& packet)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool WebSocketMessage::reconstruct(string& msg)
+bool WebSocketMessage::reconstruct(vector<uint8_t>& payload)
 {
    //TODO: reduce the amount of copies
 
@@ -107,17 +124,48 @@ bool WebSocketMessage::reconstruct(string& msg)
    if (packets_.size() != count_)
       return false;
 
-   msg.clear();
+   payload.clear();
+   size_t offset = 0;
    //reconstruct msg from packets
    for (auto& packet : packets_)
    {
-      msg.append(
+      auto&& size = packet.second.getSize() - WEBSOCKET_MESSAGE_PACKET_HEADER;
+      payload.resize(offset + size);
+      
+      memcpy(&payload[0] + offset,
+         packet.second.getPtr() + WEBSOCKET_MESSAGE_PACKET_HEADER,
+         size);
+
+      offset += size;
+   }
+
+   return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool WebSocketMessage::reconstruct(string& payload)
+{
+   //TODO: reduce the amount of copies
+
+   //sanity checks
+   if (id_ == UINT64_MAX || count_ == UINT32_MAX)
+      return false;
+
+   if (packets_.size() != count_)
+      return false;
+
+   payload.clear();
+   //reconstruct msg from packets
+   for (auto& packet : packets_)
+   {
+      payload.append(
          (char*)packet.second.getPtr() + WEBSOCKET_MESSAGE_PACKET_HEADER,
          packet.second.getSize() - WEBSOCKET_MESSAGE_PACKET_HEADER);
    }
 
    return true;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 uint64_t WebSocketMessage::getMessageId(const BinaryData& packet)

@@ -36,11 +36,15 @@ private:
    unsigned count_ = UINT32_MAX;
 
 public:
-   static vector<BinaryData> serialize(uint64_t messageID, const string& message);
+   static vector<BinaryData> serialize(uint64_t, const BinaryDataRef&);
+   static vector<BinaryData> serialize(uint64_t, const vector<uint8_t>&);
+   static vector<BinaryData> serialize(uint64_t, const string&);
    static uint64_t getMessageId(const BinaryData&);
 
    void processPacket(BinaryData&);
-   bool reconstruct(string& msg);
+   bool reconstruct(vector<uint8_t>&);
+   bool reconstruct(string&);
+
    uint64_t id(void) const { return id_; }
 };
 

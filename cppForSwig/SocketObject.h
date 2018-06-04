@@ -18,6 +18,9 @@
 
 #ifndef _WIN32
 #include <poll.h>
+#define socketService socketService_nix
+#else
+#define socketService socketService_win
 #endif
 
 #include "ThreadSafeClasses.h"
@@ -25,12 +28,52 @@
 #include "log.h"
 
 #include "SocketIncludes.h"
+#include "BinaryData.h"
 
 using namespace std;
    
 typedef function<bool(vector<uint8_t>, exception_ptr)>  ReadCallback;
 
 ///////////////////////////////////////////////////////////////////////////////
+struct CallbackReturn
+{
+   virtual ~CallbackReturn(void) = 0;
+   virtual void callback(const BinaryDataRef&, exception_ptr) = 0;
+};
+
+struct CallbackReturn_CloseBitcoinP2PSocket : public CallbackReturn
+{
+private:
+   shared_ptr<BlockingStack<vector<uint8_t>>> dataStack_;
+
+public:
+   CallbackReturn_CloseBitcoinP2PSocket(
+      shared_ptr<BlockingStack<vector<uint8_t>>> datastack) :
+      dataStack_(datastack)
+   {}
+
+   void callback(const BinaryDataRef& bdr, exception_ptr eptr) 
+   { dataStack_->terminate(eptr); }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+struct Socket_ReadPayload
+{
+   unsigned id_;
+   unique_ptr<CallbackReturn> callbackReturn_ = nullptr;
+
+   Socket_ReadPayload(unsigned id) :
+      id_(id)
+   {}
+};
+
+////
+struct Socket_WritePayload
+{
+   vector<uint8_t> data_;
+};
+
+////
 struct AcceptStruct
 {
    SOCKET sockfd_;
@@ -44,10 +87,13 @@ struct AcceptStruct
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-class BinarySocket
+class SocketPrototype
 {
    friend class FCGI_Server;
    friend class ListenServer;
+
+private: 
+   bool blocking_ = true;
 
 protected:
 
@@ -65,104 +111,133 @@ protected:
    bool verbose_ = true;
 
 private:
-   void readFromSocketThread(SOCKET, ReadCallback);
    void init(void);
 
 protected:   
-   void writeToSocket(SOCKET, void*, size_t);
-   void readFromSocket(SOCKET, ReadCallback);
    void setBlocking(SOCKET, bool);
+   void listen(AcceptCallback, SOCKET& sockfd);
 
-   void writeAndRead(SOCKET, uint8_t*, size_t, 
-      SequentialReadCallback);
-
-   void listen(AcceptCallback);
-
-   BinarySocket(void) :
+   SocketPrototype(void) :
       addr_(""), port_("")
    {}
    
 public:
-   BinarySocket(const string& addr, const string& port, bool init = true);
+   SocketPrototype(const string& addr, const string& port, bool init = true);
+   virtual ~SocketPrototype(void) = 0;
 
    bool testConnection(void);
+   bool isBlocking(void) const { return blocking_; }
    SOCKET openSocket(bool blocking);
    
    static void closeSocket(SOCKET&);
+   virtual void pushPayload(
+      Socket_WritePayload&, shared_ptr<Socket_ReadPayload>) = 0;
+   virtual bool connectToRemote(void) = 0;
 
-   virtual string writeAndRead(const string&, SOCKET sock = SOCK_MAX)
-   {
-      throw SocketError("not implemented, use the protected method instead");
-   }
-
-   virtual SocketType type(void) const { return SocketBinary; }
+   virtual SocketType type(void) const = 0;
+   const string& getAddrStr(void) const { return addr_; }
+   const string& getPortStr(void) const { return port_; }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-class DedicatedBinarySocket : public BinarySocket
+class SimpleSocket : public SocketPrototype
+{
+protected:
+   SOCKET sockfd_ = SOCK_MAX;
+
+private:
+   int writeToSocket(vector<uint8_t>&);
+
+public:
+   SimpleSocket(const string& addr, const string& port) :
+      SocketPrototype(addr, port)
+   {}
+   
+   SimpleSocket(SOCKET sockfd) :
+      SocketPrototype(), sockfd_(sockfd)
+   {}
+
+   ~SimpleSocket(void)
+   {
+      closeSocket(sockfd_);
+   }
+
+   SocketType type(void) const { return SocketSimple; }
+
+   void pushPayload(
+      Socket_WritePayload&, shared_ptr<Socket_ReadPayload>);
+   vector<uint8_t> readFromSocket(void);
+   void shutdown(void);
+   void listen(AcceptCallback);
+   bool connectToRemote(void);
+   SOCKET getSockFD(void) const { return sockfd_; }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+class PersistentSocket : public SocketPrototype
 {
    friend class ListenServer;
 
 private:
    SOCKET sockfd_ = SOCK_MAX;
+   vector<thread> threads_;
+   
+   vector<uint8_t> writeLeftOver_;
+   size_t writeOffset_ = 0;
+
+   atomic<bool> run_;
+
+#ifdef _WIN32
+   WSAEVENT events_[2];
+#else
+   SOCKET pipes_[2];
+#endif
+
+   BlockingStack<vector<uint8_t>> readQueue_;
+   Stack<vector<uint8_t>> writeQueue_;
+
+private:
+   void signalService(uint8_t);
+#ifdef _WIN32
+   void socketService_win(void);
+   void setSocketPollEvent(
+      SOCKET sockfd, WSAEVENT& wsaEvent, unsigned flags);
+#else
+   void socketService_nix(void);
+#endif
+   void readService(void);
+   void initPipes(void);
+   void cleanUpPipes(void);
+   void init(void);
+
+protected:
+   virtual bool processPacket(vector<uint8_t>&, vector<uint8_t>&);
+   virtual void respond(vector<uint8_t>&) = 0;
+   void queuePayloadForWrite(Socket_WritePayload&);
 
 public:
-   DedicatedBinarySocket(const string& addr, const string& port) :
-      BinarySocket(addr, port)
-   {}
-
-   DedicatedBinarySocket(SOCKET sockfd) :
-      BinarySocket(), sockfd_(sockfd)
-   {}
-
-   ~DedicatedBinarySocket(void) 
-   { BinarySocket::closeSocket(sockfd_); }
-
-   void closeSocket()
+   PersistentSocket(const string& addr, const string& port) :
+      SocketPrototype(addr, port)
    {
-      BinarySocket::closeSocket(sockfd_);
+      init();
    }
 
-   void writeToSocket(void* data, size_t len)
+   PersistentSocket(SOCKET sockfd) :
+      SocketPrototype(), sockfd_(sockfd)
    {
-      BinarySocket::writeToSocket(sockfd_, data, len);
+      init();
    }
 
-   void readFromSocket(ReadCallback callback)
+   ~PersistentSocket(void)
    {
-      BinarySocket::readFromSocket(sockfd_, callback);
+      shutdown();
    }
 
-   bool openSocket(bool blocking)
-   {
-      if (addr_.size() != 0 && port_.size() != 0)
-         sockfd_ = BinarySocket::openSocket(blocking);
-      
-      return isValid();
-   }
-
-   int getSocketName(struct sockaddr& sa)
-   {
-#ifdef _WIN32
-      int namelen = sizeof(sa);
-#else
-      unsigned int namelen = sizeof(sa);
-#endif
-
-      return getsockname(sockfd_, &sa, &namelen);
-   }
-
-   int getPeerName(struct sockaddr& sa)
-   {
-#ifdef _WIN32
-      int namelen = sizeof(sa);
-#else
-      unsigned int namelen = sizeof(sa);
-#endif
-
-      return getpeername(sockfd_, &sa, &namelen);
-   }
-
+   void shutdown();
+   bool openSocket(bool blocking);
+   int getSocketName(struct sockaddr& sa);
+   int getPeerName(struct sockaddr& sa);
+   bool connectToRemote(void);
    bool isValid(void) const { return sockfd_ != SOCK_MAX; }
 };
 
@@ -179,12 +254,12 @@ private:
       SocketStruct(void)
       {}
 
-      shared_ptr<DedicatedBinarySocket> sock_;
+      shared_ptr<SimpleSocket> sock_;
       thread thr_;
    };
 
 private:
-   unique_ptr<DedicatedBinarySocket> listenSocket_;
+   unique_ptr<SimpleSocket> listenSocket_;
    map<SOCKET, unique_ptr<SocketStruct>> acceptMap_;
    Stack<SOCKET> cleanUpStack_;
 

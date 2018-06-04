@@ -202,6 +202,19 @@ static int Win32NewDescriptor(FILE_TYPE type, int fd, int desiredFd)
     return index;
 }
 
+int Win32GetFDForDescriptor(int index)
+{
+   int result = -1;
+   EnterCriticalSection(&fdTableCritical);
+   
+   if (fdTable[index].type != FD_UNUSED)
+      result = fdTable[index].fid.value;
+
+   LeaveCriticalSection(&fdTableCritical);
+
+   return result;
+}
+
 /*
  *--------------------------------------------------------------
  *

@@ -319,19 +319,19 @@ public:
 
       if (swigWallet_ != nullptr)
       {
-         SwigClient::ScrAddrObj saObj(
-            swigWallet_.get(), addrPtr->getAddress(), index,
+         AsyncClient::ScrAddrObj saObj(
+            &swigWallet_->asyncWallet_, addrPtr->getAddress(), index,
             full, spend, unconf, count);
          saObj.addrHash_ = addrPtr->getPrefixedHash();
 
-         return saObj;
+         return SwigClient::ScrAddrObj(saObj);
       }
       else
       {
-         SwigClient::ScrAddrObj saObj(
+         AsyncClient::ScrAddrObj saObj(
             addrPtr->getAddress(), addrPtr->getPrefixedHash(), index);
 
-         return saObj;
+         return SwigClient::ScrAddrObj(saObj);
       }
    }
 

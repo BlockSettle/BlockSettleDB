@@ -85,15 +85,15 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../fcgi/include;../fcgi;../cryptopp;../leveldb_windows_port/win32_posix;../lmdb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../fcgi/include;../fcgi;../cryptopp;../leveldb_windows_port/win32_posix;../lmdb;../libwebsockets/include;../libwebsockets;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>CONSOLE;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BasicRuntimeChecks>UninitializedLocalUsageCheck</BasicRuntimeChecks>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>../libs/x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;ws2_32.lib;websockets_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>../libs/x64;../libwebsockets/lib/Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;ws2_32.lib;websockets_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy ..\x64\Debug\BlockDataManager.exe ..\..\ArmoryDB_debug.exe</Command>
@@ -120,7 +120,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../fcgi/include;../fcgi;../cryptopp;../leveldb_windows_port/win32_posix;../lmdb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../fcgi/include;../fcgi;../cryptopp;../leveldb_windows_port/win32_posix;../lmdb;../libwebsockets/include;../libwebsockets;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>CONSOLE;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -128,8 +128,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>../libs/x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>cryptopp.lib;LMDB_Win.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>../libs/x64;../libwebsockets/lib/Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>cryptopp.lib;LMDB_Win.lib;ws2_32.lib;websockets_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy ..\x64\Release\BlockDataManager.exe ..\..\ArmoryDB.exe</Command>
@@ -179,6 +179,7 @@
     <ClCompile Include="..\Server.cpp" />
     <ClCompile Include="..\Signer.cpp" />
     <ClCompile Include="..\SocketObject.cpp" />
+    <ClCompile Include="..\SocketService_win32.cpp" />
     <ClCompile Include="..\SshParser.cpp" />
     <ClCompile Include="..\StoredBlockObj.cpp" />
     <ClCompile Include="..\StringSockets.cpp" />
@@ -187,6 +188,7 @@
     <ClCompile Include="..\TxEvalState.cpp" />
     <ClCompile Include="..\txio.cpp" />
     <ClCompile Include="..\UniversalTimer.cpp" />
+    <ClCompile Include="..\WebSocketMessage.cpp" />
     <ClCompile Include="..\ZeroConf.cpp" />
   </ItemGroup>
   <ItemGroup>

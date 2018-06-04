@@ -72,10 +72,11 @@ enum BDM_INIT_MODE
 
 enum SocketType
 {
-   SocketBinary,
    SocketHttp,
    SocketFcgi,
-   SocketWS
+   SocketWS,
+   SocketBitcoinP2P,
+   SocketSimple
 };
 
 enum NodeType

@@ -32,6 +32,8 @@ FCGI_Server::FCGI_Server(
 ///////////////////////////////////////////////////////////////////////////////
 void FCGI_Server::init()
 {
+   run_.store(true, memory_order_relaxed);
+
    stringstream ss;
 #ifdef _WIN32
    if (ip_ == "127.0.0.1" || ip_ == "localhost")
@@ -46,12 +48,14 @@ void FCGI_Server::init()
    sockfd_ = FCGX_OpenSocket(socketStr.c_str(), 10);
    if (sockfd_ == -1)
       throw runtime_error("failed to create FCGI listen socket");
+
+   keepAliveService_.startService();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void FCGI_Server::checkSocket() const
 {
-   BinarySocket testSock(ip_, port_);
+   SimpleSocket testSock(ip_, port_);
    if (testSock.testConnection())
    {
       LOGERR << "There is already a process listening on "
@@ -76,33 +80,30 @@ void FCGI_Server::haltFcgiLoop()
    ***/
 
    //shutdown loop
-   run_ = 0;
-
-   //spin lock until all requests are closed
-   while (liveThreads_.load(memory_order_relaxed) != 0);
+   run_.store(false, memory_order_relaxed);
 
    //connect to own listen to trigger thread exit
-   BinarySocket sock("127.0.0.1", port_);
-   auto sockfd = sock.openSocket(false);
-   if (sockfd == SOCK_MAX)
+   SimpleSocket sock("127.0.0.1", port_);
+   if(!sock.connectToRemote())
       return;
 
-   auto&& fcgiMsg = FcgiMessage::makePacket("");
+   auto&& fcgiMsg = FcgiMessage::makePacket(vector<uint8_t>());
    auto serdata = fcgiMsg.serialize();
-   auto serdatalength = fcgiMsg.getSerializedDataLength();
 
-   sock.writeToSocket(sockfd, serdata, serdatalength);
-   sock.closeSocket(sockfd);
+   Socket_WritePayload payload;
+   payload.data_ = move(serdata);
+   sock.pushPayload(payload, nullptr);
+   sock.shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void FCGI_Server::enterLoop()
 {
-   while (run_)
+   while (run_.load(memory_order_relaxed))
    {
-      FCGX_Request* request = new FCGX_Request;
-      FCGX_InitRequest(request, sockfd_, 0);
-      int rc = FCGX_Accept_r(request);
+      auto request = make_shared<FCGX_Request>();
+      FCGX_InitRequest(request.get(), sockfd_, 0);
+      int rc = FCGX_Accept_r(request.get());
 
       if (rc != 0)
       {
@@ -116,7 +117,7 @@ void FCGI_Server::enterLoop()
          throw runtime_error("accept error");
       }
 
-      auto processRequestLambda = [this](FCGX_Request* req)->void
+      auto processRequestLambda = [this](shared_ptr<FCGX_Request> req)->void
       {
          this->processRequest(req);
       };
@@ -131,7 +132,7 @@ void FCGI_Server::enterLoop()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void FCGI_Server::processRequest(FCGX_Request* req)
+void FCGI_Server::processRequest(shared_ptr<FCGX_Request> req)
 {
    //extract the string command from the fgci request
    stringstream ss;
@@ -156,7 +157,8 @@ void FCGI_Server::processRequest(FCGX_Request* req)
       try
       {
          auto&& retVal = clients_->runCommand_FCGI(contentStr);
-         retStream << retVal.serialize();
+         if(retVal.hasArgs())
+            retStream << retVal.serialize();
 
       }
       catch (exception& e)
@@ -191,8 +193,7 @@ void FCGI_Server::processRequest(FCGX_Request* req)
    else
    {
       LOGERR << "empty content_length";
-      FCGX_Finish_r(req);
-      delete req;
+      FCGX_Finish_r(req.get());
 
       liveThreads_.fetch_sub(1, memory_order_relaxed);
       return;
@@ -200,38 +201,44 @@ void FCGI_Server::processRequest(FCGX_Request* req)
 
    delete[] content;
 
-   //print serialized retVal
-   ss << retStream.str();
-
-   auto&& retStr = ss.str();
-   vector<pair<size_t, size_t>> msgOffsetVec;
-   auto totalsize = retStr.size();
-   //8192 (one memory page) - 8 (1 fcgi header), also a multiple of 8
-   size_t delim = 8184;
-   size_t start = 0;
-
-   while (totalsize > 0)
+   if (retStream.str().size() > 0)
    {
-      auto chunk = delim;
-      if (chunk > totalsize)
-         chunk = totalsize;
+      //print serialized retVal
+      ss << retStream.str();
 
-      msgOffsetVec.push_back(make_pair(start, chunk));
-      start += chunk;
-      totalsize -= chunk;
+      auto&& retStr = ss.str();
+      vector<pair<size_t, size_t>> msgOffsetVec;
+      auto totalsize = retStr.size();
+      //8192 (one memory page) - 8 (1 fcgi header), also a multiple of 8
+      size_t delim = 8184;
+      size_t start = 0;
+
+      while (totalsize > 0)
+      {
+         auto chunk = delim;
+         if (chunk > totalsize)
+            chunk = totalsize;
+
+         msgOffsetVec.push_back(make_pair(start, chunk));
+         start += chunk;
+         totalsize -= chunk;
+      }
+
+      //get non const ptr of the message string since we will set temp null bytes
+      //for the purpose of breaking down the string into FCGI sized packets
+      char* ptr = const_cast<char*>(retStr.c_str());
+
+      //complete FCGI request
+      for (auto& offsetPair : msgOffsetVec)
+         FCGX_PutStr(ptr + offsetPair.first, offsetPair.second, req->out);
    }
 
-   //get non const ptr of the message string since we will set temp null bytes
-   //for the purpose of breaking down the string into FCGI sized packets
-   char* ptr = const_cast<char*>(retStr.c_str());
+   FCGX_Finish_r(req.get());
 
-   //complete FCGI request
-   for (auto& offsetPair : msgOffsetVec)
-      FCGX_PutStr(ptr + offsetPair.first, offsetPair.second, req->out);
-
-   FCGX_Finish_r(req);
-
-   delete req;
+   if (req->ipcFd != -1)
+   {
+      passToKeepAliveService(req);
+   }
 
    liveThreads_.fetch_sub(1, memory_order_relaxed);
 }
@@ -239,7 +246,52 @@ void FCGI_Server::processRequest(FCGX_Request* req)
 ///////////////////////////////////////////////////////////////////////////////
 void FCGI_Server::shutdown()
 {
+   keepAliveService_.shutdown();
    clients_->shutdown();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void FCGI_Server::passToKeepAliveService(shared_ptr<FCGX_Request> req)
+{
+   auto serviceRead = [this, req](void)->void
+   {
+      int rc = FCGX_Accept_r(req.get());
+
+      if (rc != 0)
+      {
+#ifdef _WIN32
+         auto err_i = WSAGetLastError();
+#else
+         auto err_i = errno;
+#endif
+         LOGERR << "Accept failed with error number: " << err_i;
+         LOGERR << "error message is: " << strerror(err_i);
+         throw runtime_error("accept error");
+      }
+
+      auto processRequestLambda = [this](shared_ptr<FCGX_Request> req)->void
+      {
+         this->processRequest(req);
+      };
+
+      liveThreads_.fetch_add(1, memory_order_relaxed);
+      thread thr(processRequestLambda, req);
+      if (thr.joinable())
+         thr.detach();
+   };
+
+   SocketStruct keepAliveStruct;
+
+   keepAliveStruct.serviceRead_ = serviceRead;
+   keepAliveStruct.singleUse_ = true;
+
+   SOCKET sockfd = req->ipcFd;
+#ifdef _WIN32
+   sockfd = Win32GetFDForDescriptor(req->ipcFd);
+#endif
+   keepAliveStruct.sockfd_ = sockfd;
+
+   keepAliveService_.addSocket(move(keepAliveStruct));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -247,13 +299,15 @@ void FCGI_Server::shutdown()
 //// WebSocketServer
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-
 atomic<WebSocketServer*> WebSocketServer::instance_;
 mutex WebSocketServer::mu_;
+promise<bool> WebSocketServer::shutdownPromise_;
+shared_future<bool> WebSocketServer::shutdownFuture_;
 
 ///////////////////////////////////////////////////////////////////////////////
 WebSocketServer::WebSocketServer()
 {
+   Arguments::serializeID(false);
    clients_ = make_unique<Clients>();
 }
 
@@ -388,12 +442,13 @@ int WebSocketServer::callback(
 ///////////////////////////////////////////////////////////////////////////////
 void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
 {
+   shutdownFuture_ = shutdownPromise_.get_future();
    auto instance = getInstance();
 
    //init Clients object
-   auto shutdownLbd = [instance](void)->void
+   auto shutdownLbd = [](void)->void
    {
-      instance->shutdown();
+      WebSocketServer::shutdown();
    };
 
    instance->clients_->init(bdmT, shutdownLbd);
@@ -454,6 +509,7 @@ void WebSocketServer::shutdown()
 
    instance_.store(nullptr, memory_order_relaxed);
    delete instance;
+   shutdownPromise_.set_value(true);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -619,6 +675,9 @@ void WebSocketServer::commandThread()
 void WebSocketServer::write(const uint64_t& id, const uint64_t& msgid,
    Arguments& arg)
 {
+   if (!arg.hasArgs())
+      return;
+
    auto instance = getInstance();
    
    //serialize arg
@@ -638,6 +697,17 @@ void WebSocketServer::write(const uint64_t& id, const uint64_t& msgid,
 
    //call write callback
    lws_callback_on_writable(wsi_iter->second.wsiPtr_);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::waitOnShutdown()
+{
+   try
+   {
+      shutdownFuture_.get();
+   }
+   catch(future_error&)
+   { }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

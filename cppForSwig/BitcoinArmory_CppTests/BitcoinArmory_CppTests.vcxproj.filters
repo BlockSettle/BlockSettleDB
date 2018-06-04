@@ -129,6 +129,15 @@
     <ClInclude Include="..\bech32\ref\c++\bech32.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\AsyncClient.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ClientClasses.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\SocketService.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\BinaryData.cpp">
@@ -330,6 +339,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\WebSocketMessage.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\AsyncClient.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ClientClasses.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\SocketService_win32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

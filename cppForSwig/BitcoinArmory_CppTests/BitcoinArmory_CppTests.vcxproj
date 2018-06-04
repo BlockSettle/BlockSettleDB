@@ -108,7 +108,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\leveldb_windows_port\win32_posix;..\cryptopp;..\lmdb;..\fcgi;C:\Python27_64\include;..\libwebsockets\include;..\fcgi\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\leveldb_windows_port\win32_posix;..\cryptopp;..\lmdb;..\fcgi;C:\Python27_64\include;..\libwebsockets\include;..\fcgi\include;..\libwebsockets\lib;..\libwebsockets;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BasicRuntimeChecks>UninitializedLocalUsageCheck</BasicRuntimeChecks>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
@@ -116,8 +116,8 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;python27_d.lib;ws2_32.lib;websockets_static_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\Python27amd64\libs;$(SolutionDir)libs\$(Platform)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;python27_d.lib;ws2_32.lib;websockets_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Python27amd64\libs;$(SolutionDir)libs\$(Platform)\;../libwebsockets/lib/Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -171,6 +171,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\Addresses.h" />
+    <ClInclude Include="..\AsyncClient.h" />
     <ClInclude Include="..\bdmenums.h" />
     <ClInclude Include="..\BDM_supportClasses.h" />
     <ClInclude Include="..\bech32\ref\c++\bech32.h" />
@@ -184,6 +185,7 @@
     <ClInclude Include="..\BlockUtils.h" />
     <ClInclude Include="..\BtcUtils.h" />
     <ClInclude Include="..\BtcWallet.h" />
+    <ClInclude Include="..\ClientClasses.h" />
     <ClInclude Include="..\CoinSelection.h" />
     <ClInclude Include="..\DatabaseBuilder.h" />
     <ClInclude Include="..\EncryptionUtils.h" />
@@ -200,6 +202,7 @@
     <ClInclude Include="..\ScriptRecipient.h" />
     <ClInclude Include="..\Signer.h" />
     <ClInclude Include="..\SocketObject.h" />
+    <ClInclude Include="..\SocketService.h" />
     <ClInclude Include="..\StoredBlockObj.h" />
     <ClInclude Include="..\Transactions.h" />
     <ClInclude Include="..\TxClasses.h" />
@@ -214,6 +217,7 @@
     <ClCompile Include="..\Addresses.cpp" />
     <ClCompile Include="..\AssetEncryption.cpp" />
     <ClCompile Include="..\Assets.cpp" />
+    <ClCompile Include="..\AsyncClient.cpp" />
     <ClCompile Include="..\BDM_mainthread.cpp" />
     <ClCompile Include="..\BDM_seder.cpp" />
     <ClCompile Include="..\BDM_Server.cpp" />
@@ -231,6 +235,7 @@
     <ClCompile Include="..\BlockUtils.cpp" />
     <ClCompile Include="..\BtcUtils.cpp" />
     <ClCompile Include="..\BtcWallet.cpp" />
+    <ClCompile Include="..\ClientClasses.cpp" />
     <ClCompile Include="..\CoinSelection.cpp" />
     <ClCompile Include="..\DatabaseBuilder.cpp" />
     <ClCompile Include="..\DataObject.cpp" />
@@ -263,6 +268,7 @@
     <ClCompile Include="..\Server.cpp" />
     <ClCompile Include="..\Signer.cpp" />
     <ClCompile Include="..\SocketObject.cpp" />
+    <ClCompile Include="..\SocketService_win32.cpp" />
     <ClCompile Include="..\SshParser.cpp" />
     <ClCompile Include="..\StoredBlockObj.cpp" />
     <ClCompile Include="..\StringSockets.cpp" />

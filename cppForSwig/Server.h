@@ -29,6 +29,7 @@ using namespace std;
 #include "EncryptionUtils.h"
 #include "DataObject.h"
 #include "BlockDataManagerConfig.h"
+#include "SocketService.h"
 
 
 class Clients;
@@ -46,13 +47,14 @@ class FCGI_Server
 private:
    SOCKET sockfd_ = -1;
    mutex mu_;
-   int run_ = true;
+   atomic<bool> run_;
    atomic<uint32_t> liveThreads_;
 
    const string ip_;
    const string port_;
 
    unique_ptr<Clients> clients_;
+   SocketService keepAliveService_;
 
 private:
    function<void(void)> getShutdownCallback(void)
@@ -65,12 +67,14 @@ private:
       return shutdownCallback;
    }
 
+   void passToKeepAliveService(shared_ptr<FCGX_Request>);
+
 public:
    FCGI_Server(BlockDataManagerThread* bdmT, string port, bool listen_all);
 
    void init(void);
    void enterLoop(void);
-   void processRequest(FCGX_Request* req);
+   void processRequest(shared_ptr<FCGX_Request> req);
    void haltFcgiLoop(void);
    void shutdown(void);
    void checkSocket(void) const;
@@ -135,6 +139,8 @@ private:
 
    static atomic<WebSocketServer*> instance_;
    static mutex mu_;
+   static promise<bool> shutdownPromise_;
+   static shared_future<bool> shutdownFuture_;
    
    unique_ptr<Clients> clients_;
    atomic<unsigned> run_;
@@ -157,6 +163,7 @@ public:
    static void start(BlockDataManagerThread* bdmT, bool async);
    static void shutdown(void);
    static void write(const uint64_t&, const uint64_t&, Arguments&);
+   static void waitOnShutdown(void);
    
    shared_ptr<map<uint64_t, WriteStack>> getWriteMap(void);
    void addId(const uint64_t&, struct lws* ptr);

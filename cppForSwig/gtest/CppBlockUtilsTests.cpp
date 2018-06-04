@@ -2275,7 +2275,7 @@ protected:
    BinaryData rawTxIn_;
    BinaryData rawTxOut_;
 
-   BlockHeader bh_;
+   ::BlockHeader bh_;
    Tx tx1_;
    Tx tx2_;
 };
@@ -2785,7 +2785,7 @@ protected:
    BinaryData rawTx0_;
    BinaryData rawTx1_;
 
-   BlockHeader bh_;
+   ::BlockHeader bh_;
    Tx tx1_;
    Tx tx2_;
 
@@ -4232,7 +4232,7 @@ TEST_F(StoredBlockObjTest, SScriptHistoryUnser)
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-class testBlockHeader : public BlockHeader
+class testBlockHeader : public ::BlockHeader
 {
 public:
    void setBlockHeight(uint32_t height)
@@ -4602,7 +4602,7 @@ protected:
    BinaryData rawBlock_;
    BinaryData rawTx0_;
    BinaryData rawTx1_;
-   BlockHeader bh_;
+   ::BlockHeader bh_;
    Tx tx1_;
    Tx tx2_;
    StoredHeader sbh_;
@@ -4931,177 +4931,6 @@ TEST_F(LMDBTest, PutGetStoredTxHints)
    EXPECT_EQ(   sths.dbKeyList_.size(),  0);
    EXPECT_EQ(   sths.preferredDBKey_.getSize(), 0);
 }
-
-
-////////////////////////////////////////////////////////////////////////////////
-/*TEST_F(LMDBTest, PutGetStoredScriptHistory)
-{
-   ASSERT_TRUE(standardOpenDBs());
-   auto&& tx = iface_->beginTransaction(SSH, LMDB::ReadWrite);
-   auto&& sshtx = iface_->beginTransaction(SUBSSH, LMDB::ReadWrite);
-
-   ///////////////////////////////////////////////////////////////////////////
-   // A whole bunch of setup stuff we need for ssh operations to work right
-   LMDBBlockDatabase *const iface = iface_;
-   iface->setValidDupIDForHeight(255,0);
-   iface->setValidDupIDForHeight(256,0);
-
-   BinaryData dbkey0 = READHEX("0000ff00""0001""0001");
-   BinaryData dbkey1 = READHEX("0000ff00""0002""0002");
-   BinaryData dbkey2 = READHEX("00010000""0004""0004");
-   BinaryData dbkey3 = READHEX("00010000""0006""0006");
-   uint64_t   val0   = READ_UINT64_HEX_LE("0100000000000000");
-   uint64_t   val1   = READ_UINT64_HEX_LE("0002000000000000");
-   uint64_t   val2   = READ_UINT64_HEX_LE("0000030000000000");
-   uint64_t   val3   = READ_UINT64_HEX_LE("0000000400000000");
-
-   BinaryData PREFIX = READHEX("03");
-   BinaryData RAWTX = READHEX(
-         "01000000016290dce984203b6a5032e543e9e272d8bce934c7de4d15fa0fe44d"
-         "d49ae4ece9010000008b48304502204f2fa458d439f957308bca264689aa175e"
-         "3b7c5f78a901cb450ebd20936b2c500221008ea3883a5b80128e55c9c6070aa6"
-         "264e1e0ce3d18b7cd7e85108ce3d18b7419a0141044202550a5a6d3bb81549c4"
-         "a7803b1ad59cdbba4770439a4923624a8acfc7d34900beb54a24188f7f0a4068"
-         "9d905d4847cc7d6c8d808a457d833c2d44ef83f76bffffffff0242582c0a0000"
-         "00001976a914c1b4695d53b6ee57a28647ce63e45665df6762c288ac80d1f008"
-         "000000001976a9140e0aec36fe2545fb31a41164fb6954adcd96b34288ac0000"
-         "0000");
-   iface->putValue(SSH, DB_PREFIX_TXDATA, dbkey0, RAWTX);
-   iface->putValue(SSH, DB_PREFIX_TXDATA, dbkey1, RAWTX);
-   iface->putValue(SSH, DB_PREFIX_TXDATA, dbkey2, RAWTX);
-   iface->putValue(SSH, DB_PREFIX_TXDATA, dbkey3, RAWTX);
-
-   TxIOPair txio0(dbkey0, val0);
-   TxIOPair txio1(dbkey1, val1);
-   TxIOPair txio2(dbkey2, val2);
-   TxIOPair txio3(dbkey3, val3);
-   txio3.setMultisig(true);
-   ///////////////////////////////////////////////////////////////////////////
-
-   StoredSubHistory * subptr;
-   TxIOPair * txioptr;
-
-   StoredScriptHistory ssh, sshorig, sshtemp;
-   BinaryData hgtX0 = READHEX("0000ff00");
-   BinaryData hgtX1 = READHEX("00010000");
-   BinaryData uniq  = READHEX("00""0000ffff0000ffff0000ffff0000ffff0000ffff");
-   sshorig.uniqueKey_ = uniq;
-   uint32_t blk = READ_UINT32_HEX_LE("ffff0000");
-   sshorig.scanHeight_ = blk;
-   sshorig.version_  = 1;
-
-   /////////////////////////////////////////////////////////////////////////////
-   // Haven't actually done anything yet...
-   ssh = sshorig;
-   EXPECT_EQ(ssh.uniqueKey_, uniq);
-   EXPECT_EQ(ssh.scanHeight_, blk);
-   EXPECT_EQ(ssh.subHistMap_.size(), 0);
-
-   /////////////////////////////////////////////////////////////////////////////
-   // An empty ssh -- this shouldn't happen in production, but test it anyway
-   iface_->putStoredScriptHistory(ssh);
-   iface_->getStoredScriptHistory(sshtemp, uniq);
-
-   EXPECT_EQ(sshtemp.uniqueKey_, uniq);
-   EXPECT_EQ(sshtemp.scanHeight_, blk);
-   EXPECT_EQ(sshtemp.subHistMap_.size(), 0);
-   
-   /////////////////////////////////////////////////////////////////////////////
-   // A single txio
-   ssh = sshorig;
-   ssh.insertTxio(txio0);
-
-   iface_->putStoredScriptHistory(ssh);
-   iface_->getStoredScriptHistory(sshtemp, uniq);
-
-   EXPECT_EQ(sshtemp.uniqueKey_, uniq);
-   EXPECT_EQ(sshtemp.scanHeight_, blk);
-   EXPECT_EQ(sshtemp.totalTxioCount_, 1);
-   EXPECT_EQ(sshtemp.totalUnspent_, val0);
-   EXPECT_EQ(sshtemp.subHistMap_.size(), 1);
-   ASSERT_NE(sshtemp.subHistMap_.find(hgtX0), sshtemp.subHistMap_.end());
-   subptr = &sshtemp.subHistMap_[hgtX0];
-   EXPECT_EQ(subptr->uniqueKey_, uniq);
-   EXPECT_EQ(subptr->hgtX_, hgtX0);
-   ASSERT_EQ(subptr->txioMap_.size(), 1);
-   ASSERT_NE(subptr->txioMap_.find(dbkey0), subptr->txioMap_.end());
-   txioptr = &subptr->txioMap_[dbkey0];
-   EXPECT_EQ(txioptr->getDBKeyOfOutput(), dbkey0);
-   EXPECT_EQ(txioptr->getValue(), val0);
-   EXPECT_FALSE(txioptr->isMultisig());
-   
-   /////////////////////////////////////////////////////////////////////////////
-   // Two TxIOPairs in one sub history
-   ssh = sshorig;
-   sshtemp = StoredScriptHistory();
-   ssh.insertTxio(txio0);
-   ssh.insertTxio(txio1);
-
-   iface_->putStoredScriptHistory(ssh);
-   iface_->getStoredScriptHistory(sshtemp, uniq);
-
-   EXPECT_EQ(sshtemp.uniqueKey_, uniq);
-   EXPECT_EQ(sshtemp.scanHeight_, blk);
-   EXPECT_EQ(sshtemp.totalTxioCount_, 2);
-   EXPECT_EQ(sshtemp.totalUnspent_, val0+val1);
-   EXPECT_EQ(sshtemp.subHistMap_.size(), 1);
-   ASSERT_NE(sshtemp.subHistMap_.find(hgtX0), sshtemp.subHistMap_.end());
-   subptr = &sshtemp.subHistMap_[hgtX0];
-   EXPECT_EQ(subptr->uniqueKey_, uniq);
-   EXPECT_EQ(subptr->hgtX_, hgtX0);
-   ASSERT_EQ(subptr->txioMap_.size(), 2);
-   ASSERT_NE(subptr->txioMap_.find(dbkey0), subptr->txioMap_.end());
-   txioptr = &subptr->txioMap_[dbkey0];
-   EXPECT_EQ(txioptr->getDBKeyOfOutput(), dbkey0);
-   EXPECT_EQ(txioptr->getValue(), val0);
-   EXPECT_FALSE(txioptr->isMultisig());
-   txioptr = &subptr->txioMap_[dbkey1];
-   EXPECT_EQ(txioptr->getDBKeyOfOutput(), dbkey1);
-   EXPECT_EQ(txioptr->getValue(), val1);
-   EXPECT_FALSE(txioptr->isMultisig());
-   
-
-   /////////////////////////////////////////////////////////////////////////////
-   // Add new sub-history with multisig
-   ssh = sshorig;
-   ssh.insertTxio(txio0);
-   ssh.insertTxio(txio1);
-   ssh.insertTxio(txio3);
-
-   iface_->putStoredScriptHistory(ssh);
-   iface_->getStoredScriptHistory(sshtemp, uniq);
-
-   EXPECT_EQ(sshtemp.uniqueKey_, uniq);
-   EXPECT_EQ(sshtemp.scanHeight_, blk);
-   EXPECT_EQ(sshtemp.totalTxioCount_, 3);
-   EXPECT_EQ(sshtemp.totalUnspent_, val0+val1);
-   EXPECT_EQ(sshtemp.subHistMap_.size(), 2);
-
-   ASSERT_NE(sshtemp.subHistMap_.find(hgtX0), sshtemp.subHistMap_.end());
-   subptr = &sshtemp.subHistMap_[hgtX0];
-   EXPECT_EQ(subptr->uniqueKey_, uniq);
-   EXPECT_EQ(subptr->hgtX_, hgtX0);
-   ASSERT_EQ(subptr->txioMap_.size(), 2);
-   ASSERT_NE(subptr->txioMap_.find(dbkey0), subptr->txioMap_.end());
-   txioptr = &subptr->txioMap_[dbkey0];
-   EXPECT_EQ(txioptr->getDBKeyOfOutput(), dbkey0);
-   EXPECT_EQ(txioptr->getValue(), val0);
-   txioptr = &subptr->txioMap_[dbkey1];
-   EXPECT_EQ(txioptr->getDBKeyOfOutput(), dbkey1);
-   EXPECT_EQ(txioptr->getValue(), val1);
-   EXPECT_FALSE(txioptr->isMultisig());
-
-   ASSERT_NE(sshtemp.subHistMap_.find(hgtX1), sshtemp.subHistMap_.end());
-   subptr = &sshtemp.subHistMap_[hgtX1];
-   EXPECT_EQ(subptr->uniqueKey_, uniq);
-   EXPECT_EQ(subptr->hgtX_, hgtX1);
-   ASSERT_EQ(subptr->txioMap_.size(), 1);
-   ASSERT_NE(subptr->txioMap_.find(dbkey3), subptr->txioMap_.end());
-   txioptr = &subptr->txioMap_[dbkey3];
-   EXPECT_EQ(txioptr->getDBKeyOfOutput(), dbkey3);
-   EXPECT_EQ(txioptr->getValue(), val3);
-   EXPECT_TRUE(txioptr->isMultisig());
-}*/
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(LMDBTest, WipeEntry)
@@ -5737,6 +5566,7 @@ protected:
       mkdir(ldbdir_);
 
       //init to fcgi socket
+      Arguments::serializeID(true);
       BlockDataManagerConfig::setServiceType(SERVICE_FCGI);
 
       // Put the first 5 blocks into the blkdir
@@ -5840,8 +5670,10 @@ TEST_F(BlockUtilsBare, Load5Blocks)
    };
 
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -5952,8 +5784,10 @@ TEST_F(BlockUtilsBare, Load4Blocks_Plus2)
    };
 
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -6057,8 +5891,10 @@ TEST_F(BlockUtilsBare, Load4Blocks_ReloadBDM_ZC_Plus2)
    };
 
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -6119,8 +5955,10 @@ TEST_F(BlockUtilsBare, Load4Blocks_ReloadBDM_ZC_Plus2)
    bdvID = DBTestUtils::registerBDV(clients_, magic_);
 
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -6273,8 +6111,10 @@ TEST_F(BlockUtilsBare, Load3Blocks_ZC_Plus3_TestLedgers)
    };
 
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -6383,8 +6223,10 @@ TEST_F(BlockUtilsBare, Load3Blocks_ZC_Plus3_TestLedgers)
 
    scrAddrVec.pop_back();
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -6516,8 +6358,10 @@ TEST_F(BlockUtilsBare, Load3Blocks_ZCchain)
    };
 
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -6779,8 +6623,10 @@ TEST_F(BlockUtilsBare, Load3Blocks_RBF)
    };
 
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -6917,8 +6763,10 @@ TEST_F(BlockUtilsBare, Load5Blocks_FullReorg)
       TestChain::lb2ScrAddrP2SH
    };
 
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -6999,8 +6847,10 @@ TEST_F(BlockUtilsBare, Load5Blocks_DoubleReorg)
       TestChain::lb2ScrAddrP2SH
    };
 
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -7111,8 +6961,10 @@ TEST_F(BlockUtilsBare, Load5Blocks_ReloadBDM_Reorg)
       TestChain::lb2ScrAddrP2SH
    };
 
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -7139,8 +6991,10 @@ TEST_F(BlockUtilsBare, Load5Blocks_ReloadBDM_Reorg)
 
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec2, "wallet2");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -7209,8 +7063,10 @@ TEST_F(BlockUtilsBare, CorruptedBlock)
       TestChain::lb2ScrAddrP2SH
    };
 
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -7281,8 +7137,10 @@ TEST_F(BlockUtilsBare, Load5Blocks_RescanOps)
       };
 
       DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-      DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-      DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+      DBTestUtils::regLockbox(
+         clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+      DBTestUtils::regLockbox(
+         clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
       auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -7401,8 +7259,10 @@ TEST_F(BlockUtilsBare, Load5Blocks_RescanEmptyDB)
       };
 
       DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-      DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-      DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+      DBTestUtils::regLockbox(
+         clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+      DBTestUtils::regLockbox(
+         clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
       auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -7476,8 +7336,10 @@ TEST_F(BlockUtilsBare, Load5Blocks_RebuildEmptyDB)
       };
 
       DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-      DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-      DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+      DBTestUtils::regLockbox(
+         clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+      DBTestUtils::regLockbox(
+         clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
       auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -7542,8 +7404,10 @@ TEST_F(BlockUtilsBare, Load5Blocks_SideScan)
    };
 
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -7627,8 +7491,10 @@ TEST_F(BlockUtilsBare, Load5Blocks_GetUtxos)
    };
 
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -7703,8 +7569,10 @@ TEST_F(BlockUtilsBare, Load4Blocks_ZC_GetUtxos)
    };
 
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -7806,14 +7674,14 @@ TEST_F(BlockUtilsBare, Load4Blocks_ZC_GetUtxos)
 TEST_F(BlockUtilsBare, FCGIStack)
 {
    //gotta derive callback class
-   class UTCallback : public SwigClient::PythonCallback
+   class UTCallback : public RemoteCallback
    {
    private:
       BlockingStack<BDMAction> actionStack_;
 
    public:
       UTCallback(const SwigClient::BlockDataViewer& bdv) :
-         PythonCallback(bdv)
+          RemoteCallback(bdv.getRemoteCallbackSetupStruct())
       {}
 
       void run(BDMAction action, void* ptr, int block = 0)
@@ -7862,12 +7730,11 @@ TEST_F(BlockUtilsBare, FCGIStack)
    server.checkSocket();
    server.init();
 
-   theBDMt_->start(config.initMode_);
-
    auto fcgiLoop = [&](void)->void
    { server.enterLoop(); };
 
    auto tID = thread(fcgiLoop);
+   theBDMt_->start(config.initMode_);
 
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.fcgiPort_, SocketType::SocketFcgi);
@@ -7897,7 +7764,7 @@ TEST_F(BlockUtilsBare, FCGIStack)
    //wait on signals
    bdvObj.goOnline();
    UTCallback pCallback(bdvObj);
-   pCallback.startLoop();
+   pCallback.start();
    pCallback.waitOnSignal(BDMAction_Ready);
 
    auto w1AddrBalances = wallet1.getAddrBalancesFromDB();
@@ -8038,7 +7905,6 @@ TEST_F(BlockUtilsBare, FCGIStack)
 
    if (tID.joinable())
       tID.join();
-
    server.shutdown();
 
    delete theBDMt_;
@@ -8049,14 +7915,14 @@ TEST_F(BlockUtilsBare, FCGIStack)
 TEST_F(BlockUtilsBare, WebSocketStack)
 {
    //gotta derive callback class
-   class UTCallback : public SwigClient::PythonCallback
+   class UTCallback : public RemoteCallback
    {
    private:
       BlockingStack<BDMAction> actionStack_;
 
    public:
       UTCallback(const SwigClient::BlockDataViewer& bdv) :
-         PythonCallback(bdv)
+         RemoteCallback(bdv.getRemoteCallbackSetupStruct())
       {}
 
       void run(BDMAction action, void* ptr, int block = 0)
@@ -8285,11 +8151,10 @@ TEST_F(BlockUtilsBare, WebSocketStack)
    EXPECT_EQ(lb2Balances[0], 30 * COIN);
 
    //cleanup
-   //pCallback.shutdown();   
    bdvObj.unregisterFromDB();
    bdvObj.shutdown(config.cookie_);
 
-   WebSocketServer::shutdown();
+   WebSocketServer::waitOnShutdown();
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -9805,8 +9670,10 @@ TEST_F(BlockUtilsBare, Load5Blocks_CheckWalletFilters)
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec1, "wallet1");
    DBTestUtils::regWallet(clients_, bdvID, scrAddrVec2, "wallet2");
 
-   DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
-   DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
+   DBTestUtils::regLockbox(
+      clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -9891,14 +9758,14 @@ TEST_F(BlockUtilsBare, Load5Blocks_CheckWalletFilters)
 TEST_F(BlockUtilsBare, GrabAddrLedger_PostReg)
 {
    //gotta derive callback class
-   class UTCallback : public SwigClient::PythonCallback
+   class UTCallback : public RemoteCallback
    {
    private:
       BlockingStack<BDMAction> actionStack_;
 
    public:
       UTCallback(const SwigClient::BlockDataViewer& bdv) :
-         PythonCallback(bdv)
+         RemoteCallback(bdv.getRemoteCallbackSetupStruct())
       {}
 
       void run(BDMAction action, void* ptr, int block = 0)
@@ -9966,7 +9833,7 @@ TEST_F(BlockUtilsBare, GrabAddrLedger_PostReg)
    //wait on signals
    bdvObj.goOnline();
    UTCallback pCallback(bdvObj);
-   pCallback.startLoop();
+   pCallback.start();
    pCallback.waitOnSignal(BDMAction_Ready);
 
    const auto &walletId = SecureBinaryData().GenerateRandom(8).toHexStr();
@@ -10087,10 +9954,6 @@ TEST_F(BlockUtilsBare, ZC_InOut_SameBlock)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 }
 
-
-
-// Comments need to be added....
-// Most of this data is from the BIP32 test vectors.
 class TestCryptoECDSA : public ::testing::Test
 {
 protected:

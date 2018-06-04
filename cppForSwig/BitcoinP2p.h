@@ -498,12 +498,34 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+class BitcoinP2PSocket : public PersistentSocket
+{
+private:
+   shared_ptr<BlockingStack<vector<uint8_t>>> readDataStack_;
+
+public:
+   BitcoinP2PSocket(const string& addr, const string& port, 
+      shared_ptr<BlockingStack<vector<uint8_t>>> readStack) :
+      PersistentSocket(addr, port), readDataStack_(readStack)
+   {}
+
+   SocketType type(void) const { return SocketBitcoinP2P; }
+
+   void pushPayload(
+      Socket_WritePayload&, shared_ptr<Socket_ReadPayload>);
+   void respond(vector<uint8_t>&);
+};
+
+////////////////////////////////////////////////////////////////////////////////
 class BitcoinP2P
 {
 private:
+   const string addr_;
+   const string port_;
+
    const uint32_t magic_word_;
    struct sockaddr node_addr_;
-   DedicatedBinarySocket binSocket_;
+   unique_ptr<BitcoinP2PSocket> socket_;
 
    mutex connectMutex_, pollMutex_, writeMutex_;
    unique_ptr<promise<bool>> connectedPromise_ = nullptr;

@@ -36,8 +36,7 @@ void BDV_Server_Object::buildMethodMap()
    {
       this->startThreads();
 
-      Arguments retarg;
-      return retarg;
+      return Arguments();
    };
 
    methodMap_["goOnline"] = goOnline;
@@ -225,11 +224,8 @@ void BDV_Server_Object::buildMethodMap()
       auto&& scrAddrVec = args.get<BinaryDataVector>();
 
       this->registerAddrVec(id_str, scrAddrVec.get());
-      auto retVal = IntType(1);
 
-      Arguments retarg;
-      retarg.push_back(move(retVal));
-      return retarg;
+      return Arguments();
    };
 
    methodMap_["registerAddrList"] = registerAddrList;
@@ -322,6 +318,7 @@ void BDV_Server_Object::buildMethodMap()
       auto count = IntType(wltPtr->getWltTotalTxnCount());
 
       Arguments retarg;
+      retarg.push_back(move(IntType(4)));
       retarg.push_back(move(balance_full));
       retarg.push_back(move(balance_spen));
       retarg.push_back(move(balance_unco));
@@ -543,8 +540,7 @@ void BDV_Server_Object::buildMethodMap()
       if (thr.joinable())
          thr.detach();
 
-      Arguments retarg;
-      return retarg;
+      return Arguments();
    };
 
    methodMap_["broadcastZC"] = broadcastZC;
@@ -618,6 +614,7 @@ void BDV_Server_Object::buildMethodMap()
       {
          BinaryDataObject bdo(move(balances.first));
          retarg.push_back(move(bdo));
+         retarg.push_back(move(IntType(3)));
          retarg.push_back(move(IntType(get<0>(balances.second))));
          retarg.push_back(move(IntType(get<1>(balances.second))));
          retarg.push_back(move(IntType(get<2>(balances.second))));
@@ -737,10 +734,7 @@ void BDV_Server_Object::buildMethodMap()
 
       this->updateWalletsLedgerFilter(bdVec.get());
 
-      Arguments retarg;
-      unsigned done = 1;
-      retarg.push_back(move(IntType(done)));
-      return move(retarg);
+      return Arguments();
    };
 
    methodMap_["updateWalletsLedgerFilter"] = updateWalletsLedgerFilter;
@@ -999,18 +993,21 @@ Arguments Clients::runCommand_FCGI(const string& cmdStr)
    Command cmdObj(cmdStr);
    cmdObj.deserialize();
 
+   unsigned requestId = cmdObj.args_.get<IntType>().getVal();
+
    if (cmdObj.method_ == "shutdown" || cmdObj.method_ == "shutdownNode")
    {
       return processShutdownCommand(cmdObj);
    }
-
    else if (bdmT_->bdm()->hasException())
    {
       rethrow_exception(bdmT_->bdm()->getException());
    }
    else if (cmdObj.method_ == "registerBDV")
    {
-      return registerBDV(cmdObj, string());
+      auto&& result = registerBDV(cmdObj, string());
+      result.setMessageId(requestId);
+      return result;
    }
    else if (cmdObj.method_ == "unregisterBDV")
    {
@@ -1028,7 +1025,9 @@ Arguments Clients::runCommand_FCGI(const string& cmdStr)
    auto bdv = get(cmdObj.ids_[0]);
 
    //execute command
-   auto&& result = bdv->executeCommand(cmdObj.method_, cmdObj.ids_, cmdObj.args_);
+   auto&& result = 
+      bdv->executeCommand(cmdObj.method_, cmdObj.ids_, cmdObj.args_);
+   result.setMessageId(requestId);
    bdv->resetCounter();
 
    return result;
@@ -1061,7 +1060,6 @@ Arguments Clients::runCommand_WS(const uint64_t& bdvid, const string& cmdStr)
    //execute command
    return bdv->executeCommand(cmdObj.method_, cmdObj.ids_, cmdObj.args_);
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 void Clients::shutdown()
@@ -1178,7 +1176,6 @@ void Clients::unregisterBDV(const string& bdvId)
    bdvPtr.reset();
    LOGINFO << "unregistered bdv: " << bdvId;
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////
 void Clients::commandThread(void) const
