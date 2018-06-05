@@ -38,8 +38,8 @@ AC_ARG_WITH([gui],
 
 
 if test "x$want_debug" = "xyes" -a $ac_cv_c_compiler_gnu != no; then
-  CFLAGS="$CFLAGS -O0 -g"
-  CXXFLAGS="$CXXFLAGS -O0 -g"
+  CFLAGS="$CFLAGS -O0 -g3"
+  CXXFLAGS="$CXXFLAGS -O0 -g3"
   AC_DEFINE([DEBUG], 1, [Define for debugging])
 else
   CFLAGS="$CFLAGS -O2"
@@ -224,7 +224,8 @@ dnl Crypto++ - No customs
 dnl libchacha20poly1305 - No customs
 dnl libbtc - --disable-wallet --disable-tools
 dnl libsecp256k1 (libbtc) - --disable-shared --with-pic --with-bignum=no
-ac_configure_args="${orig_config_args} --disable-wallet --disable-tools --disable-shared --with-pic --with-bignum=no"
+dnl NB: --disable-wallet left off for now. Upstream issues kill debug builds.
+ac_configure_args="${orig_config_args} --disable-tools --disable-shared --with-pic --with-bignum=no"
 AC_CONFIG_SUBDIRS([cppForSwig/fcgi cppForSwig/cryptopp cppForSwig/libbtc])
 
 AC_OUTPUT
