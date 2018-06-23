@@ -831,6 +831,7 @@ BitcoinP2P::BitcoinP2P(const string& addrV4, const string& port,
    uint32_t magicword) :
    addr_(addrV4), port_(port), magic_word_(magicword)
 {
+   invBlockStack_ = make_shared<BlockingStack<vector<InvEntry>>>();
    nodeConnected_.store(false, memory_order_relaxed);
    run_.store(true, memory_order_relaxed);
 }
@@ -838,6 +839,7 @@ BitcoinP2P::BitcoinP2P(const string& addrV4, const string& port,
 ////////////////////////////////////////////////////////////////////////////////
 BitcoinP2P::~BitcoinP2P()
 {
+   invBlockStack_->terminate();
    //TODO: kill connectLoop first
 }
 
@@ -1160,20 +1162,7 @@ void BitcoinP2P::processInv(unique_ptr<Payload> payload)
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinP2P::processInvBlock(vector<InvEntry> invVec)
 {
-   vector<function<void(const vector<InvEntry>&)>> callbacksVec;
-   try
-   {
-      while (1)
-      {
-         auto&& blockLambda = invBlockLambdas_.pop_front();
-         callbacksVec.push_back(move(blockLambda));
-      }
-   }
-   catch (IsEmpty&)
-   {}
-
-   for (auto& callback : callbacksVec)
-      callback(invVec);
+   invBlockStack_->push_back(move(invVec));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1286,9 +1275,9 @@ void BitcoinP2P::sendMessage(Payload&& payload)
    auto&& msg = payload.serialize(magic_word_);
 
    unique_lock<mutex> lock(writeMutex_);
-   Socket_WritePayload socket_payload;
-   socket_payload.data_ = move(msg);
-   socket_->pushPayload(socket_payload, nullptr);
+   auto socket_payload = make_unique<WritePayload_Raw>();
+   socket_payload->data_ = move(msg);
+   socket_->pushPayload(move(socket_payload), nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1433,8 +1422,14 @@ void  BitcoinP2PSocket::respond(vector<uint8_t>& packet)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinP2PSocket::pushPayload(Socket_WritePayload& write_payload, 
+void BitcoinP2PSocket::pushPayload(
+   unique_ptr<Socket_WritePayload> write_payload,
    shared_ptr<Socket_ReadPayload> read_payload)
 {
-   queuePayloadForWrite(write_payload);
+   if (write_payload == nullptr)
+      return;
+
+   vector<uint8_t> data;
+   write_payload->serialize(data);
+   queuePayloadForWrite(data);
 }

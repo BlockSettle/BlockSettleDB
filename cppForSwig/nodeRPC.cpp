@@ -421,7 +421,7 @@ void NodeRPC::waitOnChainSync(function<void(void)> callbck)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-string NodeRPC::broadcastTx(const BinaryData& rawTx)
+string NodeRPC::broadcastTx(const BinaryDataRef& rawTx)
 {
    ReentrantLock lock(this);
 
@@ -492,14 +492,9 @@ void NodeRPC::shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 string NodeRPC::queryRPC(JSON_object& request)
 {
-   Socket_WritePayload write_payload;
-   auto&& payload_str = move(JSON_encode(request));
-   vector<uint8_t> payload_vec;
-   payload_vec.resize(payload_str.size());
-   memcpy(&payload_vec[0], payload_str.c_str(), payload_str.size());
+   auto write_payload = make_unique<WritePayload_String>();
+   write_payload->data_ = move(JSON_encode(request));
 
-   //TODO: avoid the copy
-   write_payload.data_ = move(payload_vec);
    auto promPtr = make_shared<promise<string>>();
    auto fut = promPtr->get_future();
 
@@ -510,7 +505,116 @@ string NodeRPC::queryRPC(JSON_object& request)
 
    auto read_payload = make_shared<Socket_ReadPayload>(request.id_);
    read_payload->callbackReturn_ = make_unique<CallbackReturn_HttpBody>(callback);
-   socket_->pushPayload(write_payload, read_payload);
+   socket_->pushPayload(move(write_payload), read_payload);
 
    return fut.get();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// NodeChainState
+//
+////////////////////////////////////////////////////////////////////////////////
+bool ::NodeChainState::processState(
+   shared_ptr<JSON_object> const getblockchaininfo_obj)
+{
+   if (state_ == ChainStatus_Ready)
+      return false;
+
+   //progress status
+   auto pct_obj = getblockchaininfo_obj->getValForKey("verificationprogress");
+   auto pct_val = dynamic_pointer_cast<JSON_number>(pct_obj);
+   if (pct_val == nullptr)
+      return false;
+
+   pct_ = min(pct_val->val_, 1.0);
+   auto pct_int = unsigned(pct_ * 10000.0);
+
+   if (pct_int != prev_pct_int_)
+   {
+      LOGINFO << "waiting on node sync: " << float(pct_ * 100.0) << "%";
+      prev_pct_int_ = pct_int;
+   }
+
+   if (pct_ >= 0.9995)
+   {
+      state_ = ChainStatus_Ready;
+      return true;
+   }
+
+   //compare top block timestamp to now
+   if (heightTimeVec_.size() == 0)
+      return false;
+
+   uint64_t now = time(0);
+   uint64_t diff = 0;
+
+   auto blocktime = get<1>(heightTimeVec_.back());
+   if (now > blocktime)
+      diff = now - blocktime;
+
+   //we got this far, node is still syncing, let's compute progress and eta
+   state_ = ChainStatus_Syncing;
+
+   //average amount of blocks left to sync based on timestamp diff
+   auto blocksLeft = diff / 600;
+
+   //compute block syncing speed based off of the last 20 top blocks
+   auto iterend = heightTimeVec_.rbegin();
+   auto time_end = get<2>(*iterend);
+
+   auto iterbegin = heightTimeVec_.begin();
+   auto time_begin = get<2>(*iterbegin);
+
+   if (time_end <= time_begin)
+      return false;
+
+   auto blockdiff = get<0>(*iterend) - get<0>(*iterbegin);
+   if (blockdiff == 0)
+      return false;
+
+   auto timediff = time_end - time_begin;
+   blockSpeed_ = float(blockdiff) / float(timediff);
+   eta_ = uint64_t(float(blocksLeft) * blockSpeed_);
+
+   blocksLeft_ = blocksLeft;
+
+   return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unsigned ::NodeChainState::getTopBlock() const
+{
+   if (heightTimeVec_.size() == 0)
+      throw runtime_error("");
+
+   return get<0>(heightTimeVec_.back());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ::NodeChainState::appendHeightAndTime(unsigned height, uint64_t timestamp)
+{
+   try
+   {
+      if (getTopBlock() == height)
+         return;
+   }
+   catch (...)
+   {
+   }
+
+   heightTimeVec_.push_back(make_tuple(height, timestamp, time(0)));
+
+   //force the list at 20 max entries
+   while (heightTimeVec_.size() > 20)
+      heightTimeVec_.pop_front();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ::NodeChainState::reset()
+{
+   heightTimeVec_.clear();
+   state_ = ChainStatus_Unknown;
+   blockSpeed_ = 0.0f;
+   eta_ = 0;
 }

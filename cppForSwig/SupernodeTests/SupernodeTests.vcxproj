@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -21,13 +21,13 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{42375AF7-AC76-40E6-9A77-CB2B7C74A3C8}</ProjectGuid>
     <RootNamespace>SupernodeTests</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.16299.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -83,13 +83,14 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\leveldb_windows_port\win32_posix;..\cryptopp;..\lmdb;..\fcgi;C:\Python27amd64\include;..\fcgi\include;../libwebsockets/include;../libwebsockets;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\leveldb_windows_port\win32_posix;..\cryptopp;..\lmdb;..\fcgi;C:\Python27amd64\include;..\fcgi\include;../libwebsockets/include;../libwebsockets;..\protobuf\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>4146;4703;</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;python27_d.lib;ws2_32.lib;websockets_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;python27_d.lib;ws2_32.lib;websockets_static.lib;protobuf_win_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\Python27amd64\libs;$(SolutionDir)libs\$(Platform)\;../libwebsockets/lib/Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <ProjectReference>
@@ -136,7 +137,6 @@
     <ClCompile Include="..\Assets.cpp" />
     <ClCompile Include="..\AsyncClient.cpp" />
     <ClCompile Include="..\BDM_mainthread.cpp" />
-    <ClCompile Include="..\BDM_seder.cpp" />
     <ClCompile Include="..\BDM_Server.cpp" />
     <ClCompile Include="..\bech32\ref\c++\bech32.cpp" />
     <ClCompile Include="..\bech32\ref\c++\segwit_addr.cpp" />
@@ -155,7 +155,6 @@
     <ClCompile Include="..\ClientClasses.cpp" />
     <ClCompile Include="..\CoinSelection.cpp" />
     <ClCompile Include="..\DatabaseBuilder.cpp" />
-    <ClCompile Include="..\DataObject.cpp" />
     <ClCompile Include="..\DBUtils.cpp" />
     <ClCompile Include="..\DecryptedDataContainer.cpp" />
     <ClCompile Include="..\DerivationScheme.cpp" />

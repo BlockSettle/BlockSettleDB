@@ -14,7 +14,6 @@ and handle the data transmission with the BDM server
 #ifndef _SWIGCLIENT_H
 #define _SWIGCLIENT_H
 
-#include "BDM_seder.h"
 #include "StringSockets.h"
 #include "bdmenums.h"
 #include "log.h"
@@ -51,7 +50,7 @@ namespace SwigClient
 
       LedgerDelegate(AsyncClient::LedgerDelegate&);
 
-      vector<LedgerEntryData> getHistoryPage(uint32_t id);
+      vector<::ClientClasses::LedgerEntry> getHistoryPage(uint32_t id);
    };
 
    class BtcWallet;
@@ -92,7 +91,7 @@ namespace SwigClient
    public:
       BtcWallet(AsyncClient::BtcWallet& wlt);
       vector<uint64_t> getBalancesAndCount(
-         uint32_t topBlockHeight, bool IGNOREZC);
+         uint32_t topBlockHeight);
 
       vector<UTXO> getSpendableTxOutListForValue(uint64_t val);
       vector<UTXO> getSpendableZCList();
@@ -101,14 +100,17 @@ namespace SwigClient
       map<BinaryData, uint32_t> getAddrTxnCountsFromDB(void);
       map<BinaryData, vector<uint64_t> > getAddrBalancesFromDB(void);
 
-      vector<LedgerEntryData> getHistoryPage(uint32_t id);
-      LedgerEntryData getLedgerEntryForTxHash(
+      vector<::ClientClasses::LedgerEntry> getHistoryPage(uint32_t id);
+      shared_ptr<::ClientClasses::LedgerEntry> getLedgerEntryForTxHash(
          const BinaryData& txhash);
 
       ScrAddrObj getScrAddrObjByKey(const BinaryData&,
          uint64_t, uint64_t, uint64_t, uint32_t);
 
       vector<AddressBookEntry> createAddressBook(void) const;
+
+      virtual string registerAddresses(
+         const vector<BinaryData>& addrVec, bool isNew);
    };
 
    ///////////////////////////////////////////////////////////////////////////////
@@ -120,14 +122,15 @@ namespace SwigClient
    public:
       Lockbox(AsyncClient::Lockbox& asynclb);
 
-      void getBalancesAndCountFromDB(uint32_t topBlockHeight, bool IGNOREZC);
+      void getBalancesAndCountFromDB(uint32_t topBlockHeight);
 
       uint64_t getFullBalance(void) const;
       uint64_t getSpendableBalance(void) const;
       uint64_t getUnconfirmedBalance(void) const;
       uint64_t getWltTotalTxnCount(void) const;
 
-      bool hasScrAddr(const BinaryData&) const;
+      string registerAddresses(
+         const vector<BinaryData>& addrVec, bool isNew);
    };
 
    ///////////////////////////////////////////////////////////////////////////////
@@ -138,7 +141,7 @@ namespace SwigClient
 
    public:
       Blockchain(const BlockDataViewer&);
-      bool hasHeaderWithHash(const BinaryData& hash);
+      ::ClientClasses::BlockHeader getHeaderByHash(const BinaryData& hash);
       ClientClasses::BlockHeader getHeaderByHeight(unsigned height);
    };
 
@@ -169,13 +172,8 @@ namespace SwigClient
 
    public:
       ~BlockDataViewer(void);
-      BtcWallet registerWallet(const string& id,
-         const vector<BinaryData>& addrVec,
-         bool isNew);
-
-      Lockbox registerLockbox(const string& id,
-         const vector<BinaryData>& addrVec,
-         bool isNew);
+      BtcWallet instantiateWallet(const string& id);
+      Lockbox instantiateLockbox(const string& id);
 
       const string& getID(void) const;
 
@@ -201,19 +199,16 @@ namespace SwigClient
       void updateWalletsLedgerFilter(const vector<BinaryData>& wltIdVec);
       bool hasRemoteDB(void);
 
-      NodeStatusStruct getNodeStatus(void);
+      shared_ptr<::ClientClasses::NodeStatusStruct> getNodeStatus(void);
       unsigned getTopBlock(void) const;
       ClientClasses::FeeEstimateStruct estimateFee(unsigned, const string&);
 
-      vector<LedgerEntryData> getHistoryForWalletSelection(
+      vector<::ClientClasses::LedgerEntry> getHistoryForWalletSelection(
          const vector<string>& wldIDs, const string& orderingStr);
 
-      uint64_t getValueForTxOut(const BinaryData& txHash, unsigned inputId);
       string broadcastThroughRPC(const BinaryData& rawTx);
 
       vector<UTXO> getUtxosForAddrVec(const vector<BinaryData>&);
-
-      void registerAddrList(const BinaryData&, const vector<BinaryData>&);
 
       RemoteCallbackSetupStruct getRemoteCallbackSetupStruct(void) const
       { return bdvAsync_.getRemoteCallbackSetupStruct(); }

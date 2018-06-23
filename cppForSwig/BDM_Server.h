@@ -17,14 +17,14 @@
 
 #include "BitcoinP2p.h"
 #include "BlockDataViewer.h"
-#include "DataObject.h"
-#include "BDM_seder.h"
 #include "EncryptionUtils.h"
 #include "LedgerEntry.h"
 #include "DbHeader.h"
 #include "BDV_Notification.h"
+#include "BDVCodec.h"
 #include "ZeroConf.h"
 #include "Server.h"
+#include "BtcWallet.h"
 
 #define MAX_CONTENT_LENGTH 1024*1024*1024
 #define CALLBACK_EXPIRE_COUNT 5
@@ -36,44 +36,51 @@ enum WalletType
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-class SocketCallback : public Callback
-{  
-protected:
-   Arguments respond_inner(vector<Callback::OrderStruct>& orderVec);
-
+class Callback
+{
 public:
-   SocketCallback()
-   {}
 
-   ~SocketCallback(void) = 0;
-   virtual void resetCounter(void) {}
-   virtual Arguments respond(const string&) = 0;
+   virtual ~Callback() = 0;
+
+   virtual void callback(shared_ptr<::Codec_BDVCommand::BDVCallback>) = 0;
+   virtual bool isValid(void) = 0;
+   virtual void shutdown(void) = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-class LongPoll : public SocketCallback
+class LongPoll : public Callback
 {
 private:
    mutex mu_;
    atomic<unsigned> count_;
+   TimedStack<shared_ptr<::Codec_BDVCommand::BDVCallback>> notificationStack_;
 
    function<unsigned(void)> isReady_;
 
+private:
+   shared_ptr<::google::protobuf::Message> respond_inner(
+      vector<shared_ptr<::Codec_BDVCommand::BDVCallback>>& orderVec);
+
 public:
    LongPoll(function<unsigned(void)> isReady) :
-      SocketCallback(), isReady_(isReady)
+      Callback(), isReady_(isReady)
    {
       count_.store(0, memory_order_relaxed);
    }
 
-   Arguments respond(const string&);
+   shared_ptr<::google::protobuf::Message> respond(
+      shared_ptr<::Codec_BDVCommand::BDVCommand>);
 
    ~LongPoll(void)
    {
-      Callback::shutdown();
+      shutdown();
+   }
 
+   void shutdown(void)
+   {
       //after signaling shutdown, grab the mutex to make sure 
       //all responders threads have terminated
+      notificationStack_.terminate();
       unique_lock<mutex> lock(mu_);
    }
 
@@ -95,10 +102,15 @@ public:
 
       return true;
    }
+
+   void callback(shared_ptr<::Codec_BDVCommand::BDVCallback> command)
+   {
+      notificationStack_.push_back(move(command));
+   }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-class WS_Callback : public SocketCallback
+class WS_Callback : public Callback
 {
 private:
    const uint64_t bdvID_;
@@ -108,8 +120,9 @@ public:
       bdvID_(bdvid)
    {}
 
-   Arguments respond(const string&) { return Arguments(); }
-   void callback(Arguments&& arg, OrderType type = OrderOther);
+   void callback(shared_ptr<::Codec_BDVCommand::BDVCallback>);
+   bool isValid(void) { return true; }
+   void shutdown(void) {}
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -117,12 +130,9 @@ class BDV_Server_Object : public BlockDataViewer
 {
    friend class Clients;
 
-private:
-   map<string, function<Arguments(
-      const vector<string>&, Arguments&)>> methodMap_;
-   
+private: 
    thread initT_;
-   unique_ptr<SocketCallback> cb_;
+   unique_ptr<Callback> cb_;
 
    string bdvID_;
    BlockDataManagerThread* bdmT_;
@@ -131,9 +141,7 @@ private:
 
    struct walletRegStruct
    {
-      vector<BinaryData> scrAddrVec;
-      string IDstr;
-      bool isNew;
+      shared_ptr<::Codec_BDVCommand::BDVCommand> command_;
       WalletType type_;
    };
 
@@ -143,25 +151,31 @@ private:
    shared_ptr<promise<bool>> isReadyPromise_;
    shared_future<bool> isReadyFuture_;
 
+   function<void(unique_ptr<BDV_Notification>)> notifLambda_;
+
 private:
    BDV_Server_Object(BDV_Server_Object&) = delete; //no copies
       
-   void buildMethodMap(void);
+   shared_ptr<::google::protobuf::Message> processCommand(
+      shared_ptr<::Codec_BDVCommand::BDVCommand>);
    void startThreads(void);
 
-   bool registerWallet(
-      vector<BinaryData> const& scrAddrVec, string IDstr, bool wltIsNew);
-   bool registerLockbox(
-      vector<BinaryData> const& scrAddrVec, string IDstr, bool wltIsNew);
-   void registerAddrVec(const string&, vector<BinaryData> const& scrAddrVec);
+   void registerWallet(shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   void registerLockbox(shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   void populateWallets(map<string, walletRegStruct>&);
 
-   void resetCounter(void) const
+   void resetCounter(void)
    {
-      if (cb_ != nullptr)
-         cb_->resetCounter();
+      auto longpoll = dynamic_cast<LongPoll*>(cb_.get());
+      if (longpoll != nullptr)
+         longpoll->resetCounter();
    }
 
    void setup(void);
+
+   void flagRefresh(
+      BDV_refresh refresh, const BinaryData& refreshId,
+      unique_ptr<BDV_Notification_ZC> zcPtr);
 
 public:
    BDV_Server_Object(const string& id, BlockDataManagerThread *bdmT);
@@ -172,13 +186,8 @@ public:
    }
 
    const string& getID(void) const { return bdvID_; }
-   void pushNotification(shared_ptr<BDV_Notification>);
+   void processNotification(shared_ptr<BDV_Notification>);
    void init(void);
-
-   Arguments executeCommand(const string& method, 
-                              const vector<string>& ids, 
-                              Arguments& args);
-  
    void haltThreads(void);
 };
 
@@ -230,9 +239,7 @@ private:
 public:
 
    Clients(void)
-   {
-      shutdownCallback_ = []() {};
-   }
+   {}
 
    Clients(BlockDataManagerThread* bdmT,
       function<void(void)> shutdownLambda)
@@ -245,12 +252,15 @@ public:
 
    const shared_ptr<BDV_Server_Object>& get(const string& id) const;
    
-   Arguments runCommand_FCGI(const string& cmd);
-   Arguments runCommand_WS(const uint64_t& bdvid, const string& cmdStr);
+   shared_ptr<::google::protobuf::Message> runCommand_FCGI(
+      shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   shared_ptr<::google::protobuf::Message> runCommand_WS(
+      const uint64_t& bdvid, shared_ptr<::Codec_BDVCommand::BDVCommand>);
 
-
-   Arguments processShutdownCommand(Command&);
-   Arguments registerBDV(Command& cmd, string bdvID);
+   void processShutdownCommand(
+      shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   shared_ptr<::google::protobuf::Message> registerBDV(
+      shared_ptr<::Codec_BDVCommand::BDVCommand>, string bdvID);
    void unregisterBDV(const string& bdvId);
    void shutdown(void);
    void exitRequestLoop(void);

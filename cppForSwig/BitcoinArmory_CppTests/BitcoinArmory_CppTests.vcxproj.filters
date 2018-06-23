@@ -138,6 +138,9 @@
     <ClInclude Include="..\SocketService.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\BDVCodec.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\BinaryData.cpp">
@@ -219,12 +222,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\DatabaseBuilder.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\BDM_seder.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\DataObject.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\BitcoinP2P.cpp">
@@ -350,5 +347,31 @@
     <ClCompile Include="..\SocketService_win32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\protobuf\AddressData.proto">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\protobuf\Utxo.proto">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\protobuf\LedgerEntry.proto">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\protobuf\NodeStatus.proto">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\protobuf\FeeEstimate.proto">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\protobuf\AddressBook.proto">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\protobuf\CommonTypes.proto">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\protobuf\BDVCommand.proto">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

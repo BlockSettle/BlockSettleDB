@@ -27,7 +27,6 @@ using namespace std;
 #include "BDV_Notification.h"
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
-#include "DataObject.h"
 #include "BlockDataManagerConfig.h"
 #include "SocketService.h"
 
@@ -162,7 +161,8 @@ public:
 
    static void start(BlockDataManagerThread* bdmT, bool async);
    static void shutdown(void);
-   static void write(const uint64_t&, const uint64_t&, Arguments&);
+   static void write(const uint64_t&, const uint32_t&, 
+      shared_ptr<::google::protobuf::Message>);
    static void waitOnShutdown(void);
    
    shared_ptr<map<uint64_t, WriteStack>> getWriteMap(void);

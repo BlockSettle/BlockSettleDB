@@ -197,7 +197,7 @@ public:
    void copyFrom(uint8_t const * start, uint8_t const * end) 
                   { copyFrom( start, (end-start)); }  // [start, end)
    void copyFrom(string const & str)                         
-                  { copyFrom( (uint8_t*)str.c_str(), str.size()); } 
+                  { copyFrom( (uint8_t*)str.data(), str.size()); } 
    void copyFrom(BinaryData const & bd)                      
                   { copyFrom( bd.getPtr(), bd.getSize() ); }
    void copyFrom(BinaryDataRef const & bdr);
@@ -635,7 +635,7 @@ public:
    void setRef(uint8_t const * start, uint8_t const * end) 
                   { setRef( start, (end-start)); }  // [start, end)
    void setRef(string const & str)                         
-                  { setRef( (uint8_t*)str.c_str(), str.size()); } 
+                  { setRef( (uint8_t*)str.data(), str.size()); } 
    void setRef(BinaryData const & bd)                      
                   { setRef( bd.getPtr(), bd.getSize() ); }
 
@@ -921,57 +921,6 @@ public:
       return string((char const *)(&(outStr[0])), 2*nBytes_);
    }
 
-
-
-/*
-#ifdef USE_CRYPTOPP
-
-   static void getHash256(uint8_t const * strToHash,
-                          uint32_t        nBytes,
-                          BinaryData    & hashOutput)
-   {
-      static CryptoPP::SHA256 sha256_;
-      if(hashOutput.getSize() != 32)
-         hashOutput.resize(32);
-
-      sha256_.CalculateDigest(hashOutput.getPtr(), strToHash, nBytes);
-      sha256_.CalculateDigest(hashOutput.getPtr(), hashOutput.getPtr(), 32);
-   }
-
-   static void getHash256(BinaryDataRef const & strToHash, 
-                          BinaryData          & hashOutput)
-   {
-      static CryptoPP::SHA256 sha256_;
-      if(hashOutput.getSize() != 32)
-         hashOutput.resize(32);
-
-      sha256_.CalculateDigest(hashOutput.getPtr(), strToHash.getPtr(), strToHash.getSize());
-      sha256_.CalculateDigest(hashOutput.getPtr(), hashOutput.getPtr(), 32);
-
-   }
-
-   static BinaryData getHash256(BinaryDataRef const & strToHash)
-   {
-      static CryptoPP::SHA256 sha256_;
-      
-      BinaryData hashOutput(32);
-      sha256_.CalculateDigest(hashOutput.getPtr(), strToHash.getPtr(), strToHash.getSize());
-      sha256_.CalculateDigest(hashOutput.getPtr(), hashOutput.getPtr(), 32);
-      return hashOutput;
-   }
-
-   BinaryData getHash256(void)
-   {
-      static CryptoPP::SHA256 sha256_;
-      BinaryData hashOutput(32);
-      sha256_.CalculateDigest(hashOutput.getPtr(), ptr_,                 nBytes_);
-      sha256_.CalculateDigest(hashOutput.getPtr(), hashOutput.getPtr(), 32);
-      return hashOutput;
-   }
-
-#endif
-*/
-
 private:
    uint8_t const * ptr_;
    size_t  nBytes_;
@@ -979,8 +928,6 @@ private:
 private:
 
 };
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

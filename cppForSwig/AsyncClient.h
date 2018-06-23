@@ -15,7 +15,6 @@ Handle codec and socketing for armory client
 
 #include <thread>
 
-#include "BDM_seder.h"
 #include "StringSockets.h"
 #include "bdmenums.h"
 #include "log.h"
@@ -27,6 +26,14 @@ Handle codec and socketing for armory client
 class WalletManager;
 class WalletContainer;
 
+class ClientMessageError : public runtime_error
+{
+public:
+   ClientMessageError(const string& err) :
+      runtime_error(err)
+   {}
+};
+
 namespace SwigClient
 {
    class BlockDataViewer;
@@ -34,6 +41,8 @@ namespace SwigClient
 
 namespace AsyncClient
 {
+   static bool textSerialization_ = false;
+
    class BlockDataViewer;
 
    ///////////////////////////////////////////////////////////////////////////////
@@ -50,7 +59,8 @@ namespace AsyncClient
 
       LedgerDelegate(shared_ptr<SocketPrototype>, const string&, const string&);
 
-      void getHistoryPage(uint32_t id, function<void(vector<LedgerEntryData>)>);
+      void getHistoryPage(uint32_t id, 
+         function<void(vector<::ClientClasses::LedgerEntry>)>);
    };
 
    class BtcWallet;
@@ -118,7 +128,7 @@ namespace AsyncClient
    public:
       BtcWallet(const BlockDataViewer&, const string&);
       
-      void getBalancesAndCount(uint32_t topBlockHeight, bool IGNOREZC,
+      void getBalancesAndCount(uint32_t topBlockHeight,
          function<void(vector<uint64_t>)>);
 
       void getSpendableTxOutListForValue(uint64_t val, 
@@ -129,13 +139,17 @@ namespace AsyncClient
       void getAddrTxnCountsFromDB(function<void(map<BinaryData, uint32_t>)>);
       void getAddrBalancesFromDB(function<void(map<BinaryData, vector<uint64_t>>)>);
 
-      void getHistoryPage(uint32_t id, function<void(vector<LedgerEntryData>)>);
+      void getHistoryPage(uint32_t id, 
+         function<void(vector<::ClientClasses::LedgerEntry>)>);
       void getLedgerEntryForTxHash(
-         const BinaryData& txhash, function<void(LedgerEntryData)>);
+         const BinaryData& txhash, 
+         function<void(shared_ptr<::ClientClasses::LedgerEntry>)>);
 
       ScrAddrObj getScrAddrObjByKey(const BinaryData&,
          uint64_t, uint64_t, uint64_t, uint32_t);
 
+      virtual string registerAddresses(
+         const vector<BinaryData>& addrVec, bool isNew);
       void createAddressBook(function<void(vector<AddressBookEntry>)>) const;
    };
 
@@ -149,25 +163,21 @@ namespace AsyncClient
 
       uint64_t txnCount_ = 0;
 
-      set<BinaryData> scrAddrSet_;
-
    public:
 
-      Lockbox(const BlockDataViewer& bdv, const string& id,
-         const vector<BinaryData>& addrVec) :
+      Lockbox(const BlockDataViewer& bdv, const string& id) :
          BtcWallet(bdv, id)
-      {
-         scrAddrSet_.insert(addrVec.begin(), addrVec.end());
-      }
+      {}
 
-      void getBalancesAndCountFromDB(uint32_t topBlockHeight, bool IGNOREZC);
+      void getBalancesAndCountFromDB(uint32_t topBlockHeight);
 
       uint64_t getFullBalance(void) const { return fullBalance_; }
       uint64_t getSpendableBalance(void) const { return spendableBalance_; }
       uint64_t getUnconfirmedBalance(void) const { return unconfirmedBalance_; }
       uint64_t getWltTotalTxnCount(void) const { return txnCount_; }
-
-      bool hasScrAddr(const BinaryData&) const;
+ 
+      string registerAddresses(
+         const vector<BinaryData>& addrVec, bool isNew);
    };
 
    ///////////////////////////////////////////////////////////////////////////////
@@ -179,7 +189,8 @@ namespace AsyncClient
 
    public:
       Blockchain(const BlockDataViewer&);
-      void hasHeaderWithHash(const BinaryData& hash, function<void(bool)>);
+      void getHeaderByHash(const BinaryData& hash, 
+         function<void(ClientClasses::BlockHeader)>);
       void getHeaderByHeight(
          unsigned height, function<void(ClientClasses::BlockHeader)>);
    };
@@ -223,13 +234,8 @@ namespace AsyncClient
 
    public:
       ~BlockDataViewer(void);
-      BtcWallet registerWallet(const string& id,
-         const vector<BinaryData>& addrVec,
-         bool isNew, function<void(bool)>);
-
-      Lockbox registerLockbox(const string& id,
-         const vector<BinaryData>& addrVec,
-         bool isNew, function<void(bool)>);
+      BtcWallet instantiateWallet(const string& id);
+      Lockbox instantiateLockbox(const string& id);
 
       const string& getID(void) const { return bdvID_; }
       shared_ptr<SocketPrototype> getSocketObject(void) const { return sock_; }
@@ -251,31 +257,37 @@ namespace AsyncClient
 
       void broadcastZC(const BinaryData& rawTx);
       void getTxByHash(const BinaryData& txHash, function<void(Tx)>);
-      void getRawHeaderForTxHash(const BinaryData& txHash, function<void(BinaryData)>);
+      void getRawHeaderForTxHash(
+         const BinaryData& txHash, function<void(BinaryData)>);
 
       void updateWalletsLedgerFilter(const vector<BinaryData>& wltIdVec);
       bool hasRemoteDB(void);
 
-      void getNodeStatus(function<void(NodeStatusStruct)>);
+      void getNodeStatus(
+         function<void(shared_ptr<::ClientClasses::NodeStatusStruct>)>);
       unsigned getTopBlock(void) const { return topBlock_; }
       void estimateFee(unsigned, const string&, 
          function<void(ClientClasses::FeeEstimateStruct)>);
 
       void getHistoryForWalletSelection(
          const vector<string>& wldIDs, const string& orderingStr,
-         function<void(vector<LedgerEntryData>)>);
+         function<void(vector<::ClientClasses::LedgerEntry>)>);
 
-      void getValueForTxOut(const BinaryData& txHash, unsigned inputId,
-         function<void(uint64_t)>);
       void broadcastThroughRPC(const BinaryData& rawTx, function<void(string)>);
 
       void getUtxosForAddrVec(const vector<BinaryData>&, 
          function<void(vector<UTXO>)>);
 
-      void registerAddrList(const BinaryData&, const vector<BinaryData>&);
       RemoteCallbackSetupStruct getRemoteCallbackSetupStruct(void) const;
+
+      static unique_ptr<WritePayload_Protobuf> make_payload(
+         ::Codec_BDVCommand::Methods, const string&);
    };
+
+   ////////////////////////////////////////////////////////////////////////////
+   void deserialize(::google::protobuf::Message*, BinaryDataRef);
 };
+
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -293,7 +305,7 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -308,7 +320,7 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -327,7 +339,7 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -345,7 +357,7 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -363,22 +375,24 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 struct CallbackReturn_NodeStatusStruct : public CallbackReturn
 {
 private:
-   function<void(NodeStatusStruct)> userCallbackLambda_;
+   function<void(shared_ptr<::ClientClasses::NodeStatusStruct>)> 
+      userCallbackLambda_;
 
 public:
-   CallbackReturn_NodeStatusStruct(function<void(NodeStatusStruct)> lbd) :
+   CallbackReturn_NodeStatusStruct(
+      function<void(shared_ptr<::ClientClasses::NodeStatusStruct>)> lbd) :
       userCallbackLambda_(lbd)
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -394,23 +408,23 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 struct CallbackReturn_VectorLedgerEntryData : public CallbackReturn
 {
 private:
-   function<void(vector<LedgerEntryData>)> userCallbackLambda_;
+   function<void(vector<::ClientClasses::LedgerEntry>)> userCallbackLambda_;
 
 public:
    CallbackReturn_VectorLedgerEntryData(
-      function<void(vector<LedgerEntryData>)> lbd) :
+      function<void(vector<::ClientClasses::LedgerEntry>)> lbd) :
       userCallbackLambda_(lbd)
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -426,7 +440,7 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -442,7 +456,7 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -458,7 +472,7 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -474,7 +488,7 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -490,23 +504,23 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 struct CallbackReturn_LedgerEntryData : public CallbackReturn
 {
 private:
-   function<void(LedgerEntryData)> userCallbackLambda_;
+   function<void(shared_ptr<::ClientClasses::LedgerEntry>)> userCallbackLambda_;
 
 public:
    CallbackReturn_LedgerEntryData(
-      function<void(LedgerEntryData)> lbd) :
+      function<void(shared_ptr<::ClientClasses::LedgerEntry>)> lbd) :
       userCallbackLambda_(lbd)
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -522,7 +536,7 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -537,7 +551,7 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -554,7 +568,24 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
+};
+
+///////////////////////////////////////////////////////////////////////////////
+struct CallbackReturn_BDVCallback : public CallbackReturn
+{
+private:
+   function<void(shared_ptr<::Codec_BDVCommand::BDVCallback>)>
+      userCallbackLambda_;
+
+public:
+   CallbackReturn_BDVCallback(
+      function<void(shared_ptr<::Codec_BDVCommand::BDVCallback>)> lbd) :
+      userCallbackLambda_(lbd)
+   {}
+
+   //virtual
+   void callback(BinaryDataRef);
 };
 
 #endif

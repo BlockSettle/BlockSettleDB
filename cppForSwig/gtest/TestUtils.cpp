@@ -8,6 +8,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 #include "TestUtils.h"
 
+using namespace ::Codec_BDVCommand;
+
 #if ! defined(_MSC_VER) && ! defined(__MINGW32__)
    /////////////////////////////////////////////////////////////////////////////
    void rmdir(string src)
@@ -189,27 +191,25 @@ namespace DBTestUtils
    /////////////////////////////////////////////////////////////////////////////
    string registerBDV(Clients* clients, const BinaryData& magic_word)
    {
-      Command cmd;
-      cmd.method_ = "registerBDV";
-      BinaryDataObject bdo(magic_word);
-      cmd.args_.push_back(move(bdo));
-      cmd.serialize();
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::registerBDV);
+      message->set_hash(magic_word.getPtr(), magic_word.getSize());
 
-      auto&& result = clients->runCommand_FCGI(cmd.command_);
+      auto&& result = clients->runCommand_FCGI(message);
+      auto response =
+         dynamic_pointer_cast<::Codec_CommonTypes::BinaryData>(result);
 
-      auto& argVec = result.getArgVector();
-      auto bdvId = dynamic_pointer_cast<DataObject<BinaryDataObject>>(argVec[0]);
-      return bdvId->getObj().toStr();
+      return response->data();
    }
 
    /////////////////////////////////////////////////////////////////////////////
    void goOnline(Clients* clients, const string& id)
    {
-      Command cmd;
-      cmd.method_ = "goOnline";
-      cmd.ids_.push_back(id);
-      cmd.serialize();
-      clients->runCommand_FCGI(cmd.command_);
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::goOnline);
+      message->set_bdvid(id);
+
+      clients->runCommand_FCGI(message);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -219,55 +219,42 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   void regWallet(Clients* clients, const string& bdvId,
+   string registerWallet(Clients* clients, const string& bdvId,
       const vector<BinaryData>& scrAddrs, const string& wltName)
    {
-      Command cmd;
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::registerWallet);
+      message->set_bdvid(bdvId);
+      message->set_walletid(wltName);
+      message->set_flag(false);
+      auto&& id = SecureBinaryData().GenerateRandom(5).toHexStr();
+      message->set_hash(id);
 
-      BinaryDataObject bdo(wltName);
-      cmd.args_.push_back(move(bdo));
-      cmd.args_.push_back(move(BinaryDataVector(scrAddrs)));
-      cmd.args_.push_back(move(IntType(false)));
+      for (auto& scrAddr : scrAddrs)
+         message->add_bindata(scrAddr.getPtr(), scrAddr.getSize());
 
-      cmd.method_ = "registerWallet";
-      cmd.ids_.push_back(bdvId);
-      cmd.serialize();
-
-      auto&& result = clients->runCommand_FCGI(cmd.command_);
-
-      auto& argVec = result.getArgVector();
-      auto retint = dynamic_pointer_cast<DataObject<IntType>>(argVec[0]);
-      if (retint->getObj().getVal() == 0)
-      {
-         BinaryData wltId = (wltName);
-         waitOnWalletRefresh(clients, bdvId, wltId);
-      }
+      clients->runCommand_FCGI(message);
+      return id;
    }
 
    /////////////////////////////////////////////////////////////////////////////
    vector<uint64_t> getBalanceAndCount(Clients* clients,
       const string& bdvId, const string& walletId, unsigned blockheight)
    {
-      Command cmd;
-      cmd.method_ = "getBalancesAndCount";
-      cmd.ids_.push_back(bdvId);
-      cmd.ids_.push_back(walletId);
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::getBalancesAndCount);
+      message->set_bdvid(bdvId);
+      message->set_walletid(walletId);
+      message->set_height(blockheight);
 
-      cmd.args_.push_back(move(IntType(blockheight)));
+      auto&& result = clients->runCommand_FCGI(message);
+      auto response =
+         dynamic_pointer_cast<::Codec_CommonTypes::ManyUnsigned>(result);
 
-      cmd.serialize();
-
-      auto&& result = clients->runCommand_FCGI(cmd.command_);
-      auto& argVec = result.getArgVector();
-
-      auto&& balance_full =
-         dynamic_pointer_cast<DataObject<IntType>>(argVec[1])->getObj().getVal();
-      auto&& balance_spen =
-         dynamic_pointer_cast<DataObject<IntType>>(argVec[2])->getObj().getVal();
-      auto&& balance_unco =
-         dynamic_pointer_cast<DataObject<IntType>>(argVec[3])->getObj().getVal();
-      auto&& count =
-         dynamic_pointer_cast<DataObject<IntType>>(argVec[4])->getObj().getVal();
+      auto&& balance_full = response->value(0);
+      auto&& balance_spen = response->value(1);
+      auto&& balance_unco = response->value(2);
+      auto&& count = response->value(3);
 
       vector<uint64_t> balanceVec;
       balanceVec.push_back(balance_full);
@@ -282,97 +269,82 @@ namespace DBTestUtils
    void regLockbox(Clients* clients, const string& bdvId,
       const vector<BinaryData>& scrAddrs, const string& wltName)
    {
-      Command cmd;
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::registerLockbox);
+      message->set_bdvid(bdvId);
+      message->set_walletid(wltName);
+      message->set_flag(false);
+      auto&& id = SecureBinaryData().GenerateRandom(5).toHexStr();
+      message->set_hash(id);
 
-      BinaryDataObject bdo(wltName);
-      cmd.args_.push_back(move(bdo));
-      cmd.args_.push_back(move(BinaryDataVector(scrAddrs)));
-      cmd.args_.push_back(move(IntType(false)));
+      for (auto& scrAddr : scrAddrs)
+         message->add_bindata(scrAddr.getPtr(), scrAddr.getSize());
 
-      cmd.method_ = "registerLockbox";
-      cmd.ids_.push_back(bdvId);
-      cmd.serialize();
-
-      clients->runCommand_FCGI(cmd.command_);
-
-      auto&& result = clients->runCommand_FCGI(cmd.command_);
-      auto& argVec = result.getArgVector();
-      auto retint = dynamic_pointer_cast<DataObject<IntType>>(argVec[0]);
-      if (retint->getObj().getVal() == 0)
-      {
-         BinaryData wltId = (wltName);
-         waitOnWalletRefresh(clients, bdvId, wltId);
-      }
+      clients->runCommand_FCGI(message);
    }
 
    /////////////////////////////////////////////////////////////////////////////
    string getLedgerDelegate(Clients* clients, const string& bdvId)
    {
-      Command cmd;
-
-      cmd.method_ = "getLedgerDelegateForWallets";
-      cmd.ids_.push_back(bdvId);
-      cmd.serialize();
-
-      auto&& result = clients->runCommand_FCGI(cmd.command_);
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::getLedgerDelegateForWallets);
+      message->set_bdvid(bdvId);
 
       //check result
-      auto& argVec = result.getArgVector();
-      auto delegateid = dynamic_pointer_cast<DataObject<BinaryDataObject>>(argVec[0]);
-      return delegateid->getObj().toStr();
+      auto&& result = clients->runCommand_FCGI(message);
+      auto response =
+         dynamic_pointer_cast<::Codec_CommonTypes::Strings>(result);
+      return response->data(0);
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   vector<LedgerEntryData> getHistoryPage(Clients* clients, const string& bdvId,
+   vector<::ClientClasses::LedgerEntry> getHistoryPage(
+      Clients* clients, const string& bdvId,
       const string& delegateId, uint32_t pageId)
    {
-      Command cmd;
-      cmd.method_ = "getHistoryPage";
-      cmd.ids_.push_back(bdvId);
-      cmd.ids_.push_back(delegateId);
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::getHistoryPage);
+      message->set_bdvid(bdvId);
+      message->set_delegateid(delegateId);
+      message->set_pageid(pageId);
 
-      cmd.args_.push_back(move(IntType(pageId)));
 
-      cmd.serialize();
+      auto&& result = clients->runCommand_FCGI(message);
+      auto response =
+         dynamic_pointer_cast<::Codec_LedgerEntry::ManyLedgerEntry>(result);
 
-      auto&& result = clients->runCommand_FCGI(cmd.command_);
-      auto& argVec = result.getArgVector();
+      vector<::ClientClasses::LedgerEntry> levData;
+      for (unsigned i = 0; i < response->values_size(); i++)
+      {
+         ::ClientClasses::LedgerEntry led(response, i);
+         levData.push_back(led);
+      }
 
-      auto lev = dynamic_pointer_cast<DataObject<LedgerEntryVector>>(argVec[0]);
-
-      auto levData = lev->getObj().toVector();
       return levData;
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   vector<shared_ptr<DataMeta>> waitOnSignal(
-      Clients* clients, const string& bdvId,
-      string command, const string& signal)
+   tuple<shared_ptr<BDVCallback>, unsigned> waitOnSignal(
+      Clients* clients, const string& bdvId, NotificationType signal)
    {
-      Command cmd;
-      cmd.method_ = "registerCallback";
-      cmd.ids_.push_back(bdvId);
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::waitOnBDVNotification);
+      message->set_bdvid(bdvId);
 
-      BinaryDataObject bdo(command);
-      cmd.args_.push_back(move(bdo));
-      cmd.serialize();
+      shared_ptr<BDVCallback> callbackPtr;
+      unsigned index;
 
-      vector<shared_ptr<DataMeta>> resultVec;
-
-      auto processCallback = [&](Arguments args)->bool
+      auto processCallback = 
+      [&](shared_ptr<::google::protobuf::Message> cmd)->bool
       {
-         auto& argVec = args.getArgVector();
-
-         for (auto arg : argVec)
+         auto notifPtr = dynamic_pointer_cast<BDVCallback>(cmd);
+         for (unsigned i = 0; i < notifPtr->notification_size(); i++)
          {
-            auto argstr = dynamic_pointer_cast<DataObject<BinaryDataObject>>(arg);
-            if (argstr == nullptr)
-               continue;
-
-            auto&& cb = argstr->getObj().toStr();
-            if (cb == signal)
+            auto& notif = notifPtr->notification(i);
+            if (notif.type() == signal)
             {
-               resultVec = argVec;
+               callbackPtr = notifPtr;
+               index = i;
                return true;
             }
          }
@@ -382,46 +354,52 @@ namespace DBTestUtils
 
       while (1)
       {
-         auto&& result = clients->runCommand_FCGI(cmd.command_);
+         auto result = clients->runCommand_FCGI(message);
 
          if (processCallback(move(result)))
-            return resultVec;
+            return make_tuple(callbackPtr, index);
       }
    }
 
    /////////////////////////////////////////////////////////////////////////////
    void waitOnBDMReady(Clients* clients, const string& bdvId)
    {
-      waitOnSignal(clients, bdvId, "waitOnBDV", "BDM_Ready");
+      waitOnSignal(clients, bdvId, NotificationType::ready);
    }
 
    /////////////////////////////////////////////////////////////////////////////
    void waitOnNewBlockSignal(Clients* clients, const string& bdvId)
    {
-      waitOnSignal(clients, bdvId, "getStatus", "NewBlock");
+      waitOnSignal(clients, bdvId, NotificationType::newblock);
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   vector<LedgerEntryData> waitOnNewZcSignal(Clients* clients, const string& bdvId)
+   vector<::ClientClasses::LedgerEntry> waitOnNewZcSignal(
+      Clients* clients, const string& bdvId)
    {
-      auto&& result = waitOnSignal(clients, bdvId, "getStatus", "BDV_ZC");
+      auto&& result = waitOnSignal(
+         clients, bdvId, NotificationType::zc);
 
-      if (result.size() != 2)
+      auto& callbackPtr = get<0>(result);
+      auto& index = get<1>(result);
+      auto& notif = callbackPtr->notification(index);
+
+      if (!notif.has_ledgers())
       {
          cout << "invalid result vector size in waitOnNewZcSignal";
          throw runtime_error("");
       }
 
-      auto arg_bdov = 
-         dynamic_pointer_cast<DataObject<LedgerEntryVector>>(result[1]);
-      if (arg_bdov == nullptr)
+      auto lev = notif.ledgers();
+
+      vector<::ClientClasses::LedgerEntry> levData;
+      for (unsigned i = 0; i < lev.values_size(); i++)
       {
-         cout << "invalid result entry type in waitOnNewBlockSignal";
-         throw runtime_error("");
+         ::ClientClasses::LedgerEntry led(callbackPtr, index, i);
+         levData.push_back(led);
       }
 
-      auto&& levec = arg_bdov->getObj();
-      return levec.toVector();
+      return levData;
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -430,26 +408,31 @@ namespace DBTestUtils
    {
       while (1)
       {
-         auto&& result = waitOnSignal(clients, bdvId, "getStatus", "BDV_Refresh");
+         auto&& result = waitOnSignal(
+            clients, bdvId, NotificationType::refresh);
 
          if (wltId.getSize() == 0)
             return;
 
-         if (result.size() != 3)
+         auto& callbackPtr = get<0>(result);
+         auto& index = get<1>(result);
+         auto& notif = callbackPtr->notification(index);
+         
+         if (!notif.has_refresh())
          {
             cout << "invalid result vector size in waitOnWalletRefresh";
             throw runtime_error("");
          }
 
-         auto argstr = dynamic_pointer_cast<DataObject<BinaryDataVector>>(result[2]);
-         if (argstr == nullptr)
+         auto& refresh = notif.refresh();
+         for (unsigned i = 0; i < refresh.id_size(); i++)
          {
-            cout << "invalid result entry type in waitOnWalletRefresh";
-            throw runtime_error("");
+            auto& id = notif.refresh().id(i);
+            BinaryDataRef bdr;
+            bdr.setRef(id);
+            if (bdr == wltId)
+               return;
          }
-
-         if (argstr->getObj().get()[0] == wltId)
-            break;
       }
    }
 
@@ -498,50 +481,24 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   BinaryData getTxByHash(Clients* clients, const string bdvId,
+   Tx getTxByHash(Clients* clients, const string bdvId,
       const BinaryData& txHash)
    {
-      Command cmd;
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::getTxByHash);
+      message->set_bdvid(bdvId);
+      message->set_hash(txHash.getPtr(), txHash.getSize());
 
-      BinaryDataObject bdo(txHash);
-      cmd.args_.push_back(move(bdo));
-
-      cmd.method_ = "getTxByHash";
-      cmd.ids_.push_back(bdvId);
-      cmd.serialize();
-
-      auto&& result = clients->runCommand_FCGI(cmd.command_);
-
-      //check result
-      auto& argVec = result.getArgVector();
-      auto tx = dynamic_pointer_cast<DataObject<BinaryDataObject>>(argVec[0]);
-
-      return tx->getObj().get();
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   Tx getTxObjByHash(
-      Clients* clients, const string& bdvId, const BinaryData& txHash)
-   {
-      Command cmd;
-      cmd.method_ = "getTxByHash";
-      cmd.ids_.push_back(bdvId);
-
-
-      BinaryDataObject hash(txHash);
-      cmd.args_.push_back(move(hash));
-
-      cmd.serialize();
-
-      auto&& result = clients->runCommand_FCGI(cmd.command_);
-      auto& argVec = result.getArgVector();
-
-      Tx tx;
-      auto tx_bdo =
-         dynamic_pointer_cast<DataObject<BinaryDataObject>>(argVec[0]);
-      tx.unserializeWithMetaData(tx_bdo->getObj().get());
-
-      return tx;
+      auto&& result = clients->runCommand_FCGI(message);
+      auto response =
+         dynamic_pointer_cast<::Codec_CommonTypes::TxWithMetaData>(result);
+      
+      auto& txstr = response->rawtx();
+      BinaryDataRef txbdr; txbdr.setRef(txstr);
+      Tx txobj(txbdr);
+      txobj.setChainedZC(response->ischainedzc());
+      txobj.setRBF(response->isrbf());
+      return txobj;
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -642,18 +599,12 @@ namespace DBTestUtils
    void updateWalletsLedgerFilter(
       Clients* clients, const string& bdvId, const vector<BinaryData>& idVec)
    {
-      Command cmd;
-
-      cmd.method_ = "updateWalletsLedgerFilter";
-      cmd.ids_.push_back(bdvId);
-
-      BinaryDataVector bdVec;
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::updateWalletsLedgerFilter);
+      message->set_bdvid(bdvId);
       for (auto id : idVec)
-         bdVec.push_back(move(id));
+         message->add_bindata(id.getPtr(), id.getSize());
 
-      cmd.args_.push_back(move(bdVec));
-      cmd.serialize();
-
-      clients->runCommand_FCGI(cmd.command_);
+      clients->runCommand_FCGI(message);
    }
 }

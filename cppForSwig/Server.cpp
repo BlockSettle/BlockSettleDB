@@ -10,6 +10,10 @@
 #include "Server.h"
 #include "BlockDataManagerConfig.h"
 #include "BDM_Server.h"
+#include "google/protobuf/text_format.h"
+#include "google/protobuf/io/zero_copy_stream_impl_lite.h"
+
+using namespace ::google::protobuf;
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -87,12 +91,13 @@ void FCGI_Server::haltFcgiLoop()
    if(!sock.connectToRemote())
       return;
 
-   auto&& fcgiMsg = FcgiMessage::makePacket(vector<uint8_t>());
+   BinaryData bd;
+   auto&& fcgiMsg = FcgiMessage::makePacket(bd.getRef());
    auto serdata = fcgiMsg.serialize();
 
-   Socket_WritePayload payload;
-   payload.data_ = move(serdata);
-   sock.pushPayload(payload, nullptr);
+   auto payload = make_unique<WritePayload_Raw>();
+   payload->data_ = move(serdata);
+   sock.pushPayload(move(payload), nullptr);
    sock.shutdown();
 }
 
@@ -144,11 +149,20 @@ void FCGI_Server::processRequest(shared_ptr<FCGX_Request> req)
    if (content_length != nullptr)
    {
       auto a = atoi(content_length);
+      if (a == 0)
+      {
+         FCGX_Finish_r(req.get());
+         return;
+      }
+
       content = new char[a + 1];
       FCGX_GetStr(content, a, req->in);
       content[a] = 0;
 
-      string contentStr(content);
+      string contentStr(content + 4);
+      io::ArrayInputStream ais(content + 4, a - 4);
+      auto message = make_shared<::Codec_BDVCommand::BDVCommand>();
+      TextFormat::Parse(&ais, message.get());
 
       //print HTML header
       ss << "HTTP/1.1 200 OK\r\n";
@@ -156,33 +170,39 @@ void FCGI_Server::processRequest(shared_ptr<FCGX_Request> req)
 
       try
       {
-         auto&& retVal = clients_->runCommand_FCGI(contentStr);
-         if(retVal.hasArgs())
-            retStream << retVal.serialize();
+         auto&& retVal = clients_->runCommand_FCGI(message);
+         content[4] = 0;
+         if (retVal != nullptr)
+         {
+            retStream << content;
+            string ser_str;
+            TextFormat::PrintToString(*retVal.get(), &ser_str);
+            retStream << ser_str;
+         }
       }
       catch (exception& e)
       {
-         ErrorType err(e.what());
-         Arguments arg;
-         arg.push_back(move(err));
-
-         retStream << arg.serialize();
+         ::Codec_NodeStatus::BDV_Error errorMsg;
+         errorMsg.set_error(e.what());
+         string err_str;
+         TextFormat::PrintToString(errorMsg, &err_str);
+         retStream << err_str;
       }
       catch (DbErrorMsg &e)
       {
-         ErrorType err(e.what());
-         Arguments arg;
-         arg.push_back(move(err));
-
-         retStream << arg.serialize();
+         ::Codec_NodeStatus::BDV_Error errorMsg;
+         errorMsg.set_error(e.what());
+         string err_str;
+         TextFormat::PrintToString(errorMsg, &err_str);
+         retStream << err_str;
       }
       catch (...)
       {
-         ErrorType err("unknown error");
-         Arguments arg;
-         arg.push_back(move(err));
-
-         retStream << arg.serialize();
+         ::Codec_NodeStatus::BDV_Error errorMsg;
+         errorMsg.set_error("unknown error processing message");
+         string err_str;
+         TextFormat::PrintToString(errorMsg, &err_str);
+         retStream << err_str;
       }
 
       //complete HTML header
@@ -252,6 +272,9 @@ void FCGI_Server::passToKeepAliveService(shared_ptr<FCGX_Request> req)
 {
    auto serviceRead = [this, req](void)->void
    {
+      if (!run_.load(memory_order_relaxed))
+         return;
+
       int rc = FCGX_Accept_r(req.get());
 
       if (rc != 0)
@@ -304,7 +327,6 @@ shared_future<bool> WebSocketServer::shutdownFuture_;
 ///////////////////////////////////////////////////////////////////////////////
 WebSocketServer::WebSocketServer()
 {
-   Arguments::serializeID(false);
    clients_ = make_unique<Clients>();
 }
 
@@ -439,6 +461,7 @@ int WebSocketServer::callback(
 ///////////////////////////////////////////////////////////////////////////////
 void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
 {
+   shutdownPromise_ = promise<bool>();
    shutdownFuture_ = shutdownPromise_.get_future();
    auto instance = getInstance();
 
@@ -495,14 +518,18 @@ void WebSocketServer::shutdown()
    instance->run_.store(0, memory_order_relaxed);
    instance->packetQueue_.terminate();
 
+   vector<thread::id> idVec;
    for (auto& thr : instance->threads_)
    {
+      idVec.push_back(thr.get_id());
       if (thr.joinable())
          thr.join();
    }
 
    instance->threads_.clear();
    instance->clients_->shutdown();
+
+   DatabaseContainer_Sharded::clearThreadShardTx(idVec);
 
    instance_.store(nullptr, memory_order_relaxed);
    delete instance;
@@ -640,8 +667,8 @@ void WebSocketServer::commandThread()
          }
 
          msgPtr->processPacket(packetPtr->data_);
-         string message;
-         if (!msgPtr->reconstruct(message))
+         BinaryDataRef payload;
+         if (!msgPtr->reconstruct(payload))
          {
             //TODO: limit partial messages, d/c client as malvolent if 
             //threshold is met
@@ -652,6 +679,8 @@ void WebSocketServer::commandThread()
             continue;
          }
 
+         auto message = make_shared<::Codec_BDVCommand::BDVCommand>();
+         message->ParseFromArray(payload.getPtr(), payload.getSize());
          auto&& result = clients_->runCommand_WS(packetPtr->ID_, message);
          write(packetPtr->ID_, msgPtr->id(), result);
 
@@ -666,21 +695,32 @@ void WebSocketServer::commandThread()
          continue;
       }
    }
+
+   DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void WebSocketServer::write(const uint64_t& id, const uint64_t& msgid,
-   Arguments& arg)
+void WebSocketServer::write(const uint64_t& id, const uint32_t& msgid,
+   shared_ptr<Message> message)
 {
-   if (!arg.hasArgs())
+   if (message == nullptr)
       return;
 
    auto instance = getInstance();
    
    //serialize arg
-   auto& serializedString = arg.serialize();
+   vector<uint8_t> serializedData;
+   if (message->ByteSize() > 0)
+   {
+      serializedData.resize(message->ByteSize());
+      auto result = message->SerializeToArray(
+         &serializedData[0], serializedData.size());
+      if (!result)
+         throw runtime_error("failed to serialize protobuf message");
+   }
+
    auto&& serializedResult =
-      WebSocketMessage::serialize(msgid, serializedString);
+      WebSocketMessage::serialize(msgid, serializedData);
 
    //push to write map
    auto writemap = instance->writeMap_.get();

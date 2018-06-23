@@ -36,8 +36,6 @@
 #include "UniversalTimer.h"
 #include "log.h"
 
-class LedgerEntryData;
-
 #define HEADER_SIZE 80
 #define COIN 100000000ULL
 #define NBLOCKS_REGARDED_AS_RESCAN 144
@@ -1723,12 +1721,6 @@ public:
    static int cast_to_int(void* in)
    {
       return *(reinterpret_cast<int*>(in));
-   }
-
-   static const vector<LedgerEntryData>& cast_to_LedgerVector(void* in)
-   {
-      vector<LedgerEntryData>* vle = (vector<LedgerEntryData>*)in;
-      return *vle;
    }
 
    static const string& cast_to_string(void* in)

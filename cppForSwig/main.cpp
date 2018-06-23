@@ -11,6 +11,7 @@ using namespace std;
 
 int main(int argc, char* argv[])
 {
+   GOOGLE_PROTOBUF_VERIFY_VERSION;
    ScrAddrFilter::init();
 
 #ifdef _WIN32
@@ -66,6 +67,7 @@ int main(int argc, char* argv[])
 
    //stop all threads and clean up
    server.shutdown();
+   google::protobuf::ShutdownProtobufLibrary();
 
    return 0;
 }

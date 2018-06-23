@@ -162,13 +162,13 @@ uint16_t FcgiMessage::beginRequest(void)
    return requestID_;
 }
 ///////////////////////////////////////////////////////////////////////////////
-FcgiMessage FcgiMessage::makePacket(const vector<uint8_t>& payload)
+FcgiMessage FcgiMessage::makePacket(const BinaryDataRef& payload)
 {
    FcgiMessage fcgiMsg;
    auto requestID = fcgiMsg.beginRequest();
 
    stringstream msglength;
-   msglength << payload.size();
+   msglength << payload.getSize();
 
    //params
    auto& params = fcgiMsg.getNewPacket();
@@ -181,14 +181,14 @@ FcgiMessage FcgiMessage::makePacket(const vector<uint8_t>& payload)
    paramterminator.buildHeader(FCGI_PARAMS, requestID);
 
    //data
-   auto msglen = payload.size();
+   auto msglen = payload.getSize();
    size_t offset = 0;
    size_t uint16max = UINT16_MAX;
    while (msglen > offset)
    {
       size_t currentlen = min(msglen - offset, uint16max);
       auto& data = fcgiMsg.getNewPacket();
-      data.addData((char*)&payload[0] + offset, currentlen);
+      data.addData((char*)payload.getPtr() + offset, currentlen);
       data.buildHeader(FCGI_STDIN, requestID);
 
       offset += currentlen;

@@ -26,9 +26,10 @@
 #include "ThreadSafeClasses.h"
 #include "bdmenums.h"
 #include "log.h"
-
 #include "SocketIncludes.h"
 #include "BinaryData.h"
+
+#include "google/protobuf/message.h"
 
 using namespace std;
    
@@ -38,7 +39,7 @@ typedef function<bool(vector<uint8_t>, exception_ptr)>  ReadCallback;
 struct CallbackReturn
 {
    virtual ~CallbackReturn(void) = 0;
-   virtual void callback(const BinaryDataRef&, exception_ptr) = 0;
+   virtual void callback(BinaryDataRef) = 0;
 };
 
 struct CallbackReturn_CloseBitcoinP2PSocket : public CallbackReturn
@@ -59,21 +60,59 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 struct Socket_ReadPayload
 {
-   unsigned id_;
+   uint16_t id_ = UINT16_MAX;
    unique_ptr<CallbackReturn> callbackReturn_ = nullptr;
+
+   Socket_ReadPayload(void)
+   {}
 
    Socket_ReadPayload(unsigned id) :
       id_(id)
    {}
 };
 
-////
+///////////////////////////////////////////////////////////////////////////////
 struct Socket_WritePayload
 {
-   vector<uint8_t> data_;
+   virtual ~Socket_WritePayload(void) = 0;
+   virtual void serialize(vector<uint8_t>&) = 0;
+   virtual string serializeToText(void) = 0;
 };
 
 ////
+struct WritePayload_Protobuf : public Socket_WritePayload
+{
+   unique_ptr<::google::protobuf::Message> message_;
+
+   void serialize(vector<uint8_t>&);
+   string serializeToText(void);
+};
+
+////
+struct WritePayload_Raw : public Socket_WritePayload
+{
+   vector<uint8_t> data_;
+
+   void serialize(vector<uint8_t>&);
+   string serializeToText(void) {
+      throw SocketError("raw payload cannot serilaize to str"); }
+};
+
+////
+struct WritePayload_String : public Socket_WritePayload
+{
+   string data_;
+
+   void serialize(vector<uint8_t>&) {
+      throw SocketError("string payload cannot serilaize to raw binary");
+   }
+   
+   string serializeToText(void) {
+      return move(data_);
+   }
+};
+
+///////////////////////////////////////////////////////////////////////////////
 struct AcceptStruct
 {
    SOCKET sockfd_;
@@ -131,7 +170,8 @@ public:
    
    static void closeSocket(SOCKET&);
    virtual void pushPayload(
-      Socket_WritePayload&, shared_ptr<Socket_ReadPayload>) = 0;
+      unique_ptr<Socket_WritePayload>,
+      shared_ptr<Socket_ReadPayload>) = 0;
    virtual bool connectToRemote(void) = 0;
 
    virtual SocketType type(void) const = 0;
@@ -165,7 +205,8 @@ public:
    SocketType type(void) const { return SocketSimple; }
 
    void pushPayload(
-      Socket_WritePayload&, shared_ptr<Socket_ReadPayload>);
+      unique_ptr<Socket_WritePayload>,
+      shared_ptr<Socket_ReadPayload>);
    vector<uint8_t> readFromSocket(void);
    void shutdown(void);
    void listen(AcceptCallback);
@@ -211,7 +252,7 @@ private:
 protected:
    virtual bool processPacket(vector<uint8_t>&, vector<uint8_t>&);
    virtual void respond(vector<uint8_t>&) = 0;
-   void queuePayloadForWrite(Socket_WritePayload&);
+   void queuePayloadForWrite(vector<uint8_t>&);
 
 public:
    PersistentSocket(const string& addr, const string& port) :

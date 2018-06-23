@@ -33,7 +33,6 @@
 #include "../cryptopp/integer.h"
 #include "../Progress.h"
 #include "../reorgTest/blkdata.h"
-#include "../BDM_seder.h"
 #include "../BDM_Server.h"
 #include "../TxClasses.h"
 #include "../txio.h"
@@ -103,7 +102,7 @@ namespace DBTestUtils
    void goOnline(Clients* clients, const string& id);
    const shared_ptr<BDV_Server_Object> getBDV(Clients* clients, const string& id);
    
-   void regWallet(Clients* clients, const string& bdvId,
+   string registerWallet(Clients* clients, const string& bdvId,
       const vector<BinaryData>& scrAddrs, const string& wltName);
    void regLockbox(Clients* clients, const string& bdvId,
       const vector<BinaryData>& scrAddrs, const string& wltName);
@@ -111,16 +110,18 @@ namespace DBTestUtils
    vector<uint64_t> getBalanceAndCount(Clients* clients,
       const string& bdvId, const string& walletId, unsigned blockheight);
    string getLedgerDelegate(Clients* clients, const string& bdvId);
-   vector<LedgerEntryData> getHistoryPage(Clients* clients, const string& bdvId,
+   vector<::ClientClasses::LedgerEntry> getHistoryPage(
+      Clients* clients, const string& bdvId,
       const string& delegateId, uint32_t pageId);
 
-   vector<shared_ptr<DataMeta>> waitOnSignal(
-      Clients* clients, const string& bdvId,
-      string command, const string& signal);
+   tuple<shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> waitOnSignal(
+      Clients* clients, const string& bdvId, 
+      ::Codec_BDVCommand::NotificationType signal);
    void waitOnBDMReady(Clients* clients, const string& bdvId);
 
    void waitOnNewBlockSignal(Clients* clients, const string& bdvId);
-   vector<LedgerEntryData> waitOnNewZcSignal(Clients* clients, const string& bdvId);
+   vector<::ClientClasses::LedgerEntry> waitOnNewZcSignal(
+      Clients* clients, const string& bdvId);
    void waitOnWalletRefresh(Clients* clients, const string& bdvId, 
       const BinaryData& wltId);
    void triggerNewBlockNotification(BlockDataManagerThread* bdmt);
@@ -141,10 +142,8 @@ namespace DBTestUtils
    void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec);
    pair<BinaryData, BinaryData> getAddrAndPubKeyFromPrivKey(BinaryData privKey);
 
-   BinaryData getTxByHash(Clients* clients, const string bdvId,
+   Tx getTxByHash(Clients* clients, const string bdvId,
       const BinaryData& txHash);
-   Tx getTxObjByHash(
-      Clients* clients, const string& bdvId, const BinaryData& txHash);
 
    void addTxioToSsh(StoredScriptHistory&, const map<BinaryData, TxIOPair>&);
    void prettyPrintSsh(StoredScriptHistory& ssh);
@@ -153,6 +152,62 @@ namespace DBTestUtils
 
    void updateWalletsLedgerFilter(
       Clients*, const string&, const vector<BinaryData>&);
+
+   /////////////////////////////////////////////////////////////////////////////
+   class UTCallback : public RemoteCallback
+   {
+      struct BdmNotif
+      {
+         BDMAction action_;
+         vector<BinaryData> idVec_;
+      };
+
+   private:
+      BlockingStack<BdmNotif> actionStack_;
+
+   public:
+      UTCallback(const SwigClient::BlockDataViewer& bdv) :
+         RemoteCallback(bdv.getRemoteCallbackSetupStruct())
+      {}
+
+      void run(BDMAction action, void* ptr, int block = 0)
+      {
+         BdmNotif notif;
+         notif.action_ = action;
+         if (action == BDMAction_Refresh)
+            notif.idVec_ = *((vector<BinaryData>*)ptr);
+
+         actionStack_.push_back(move(notif));
+      }
+
+      void progress(BDMPhase phase, const vector<string> &walletIdVec,
+         float progress, unsigned secondsRem, unsigned progressNumeric)
+      {}
+
+      void waitOnSignal(BDMAction signal, string id = "")
+      {
+         BinaryDataRef idRef; idRef.setRef(id);
+         while (1)
+         {
+            auto action = actionStack_.pop_front();
+            if (action.action_ == signal)
+            {
+               if (id.size() > 0)
+               {
+                  for (auto& id : action.idVec_)
+                  {
+                     if (id == idRef)
+                        return;
+                  }
+               }
+               else
+               {
+                  return;
+               }
+            }
+         }
+      }
+   };
 }
 
 namespace ResolverUtils
@@ -224,7 +279,7 @@ namespace ResolverUtils
       }
    };
 
-   ////////////////////////////////////////////////////////////////////////////////
+   /////////////////////////////////////////////////////////////////////////////
    struct CustomFeed : public ResolverFeed
    {
       map<BinaryDataRef, BinaryDataRef> hash_to_preimage_;

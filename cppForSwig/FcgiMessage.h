@@ -14,6 +14,7 @@
 #include <string>
 #include <sstream>
 #include "./fcgi/include/fastcgi.h"
+#include "BinaryData.h"
 
 using namespace std;
 
@@ -58,7 +59,7 @@ private:
    int requestID_ = -1;
 
 public:
-   static FcgiMessage makePacket(const vector<uint8_t>&);
+   static FcgiMessage makePacket(const BinaryDataRef&);
 
    vector<uint8_t> serialize(void);
    

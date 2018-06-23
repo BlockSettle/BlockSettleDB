@@ -100,6 +100,25 @@ class BlockFiles;
 class DatabaseBuilder;
 class BDV_Server_Object;
 
+///////////////////////////////////////////////////////////////////////////////
+struct ProgressData
+{
+   BDMPhase phase_;
+   double progress_;
+   unsigned time_;
+   unsigned numericProgress_;
+   vector<string> wltIDs_;
+
+   ProgressData(void)
+   {}
+
+   ProgressData(BDMPhase phase, double prog,
+      unsigned time, unsigned numProg, vector<string> wltIDs) :
+      phase_(phase), progress_(prog), time_(time),
+      numericProgress_(numProg), wltIDs_(wltIDs)
+   {}
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 class BlockDataManager
 {
@@ -117,8 +136,8 @@ private:
    // Reorganization details
 
    class BDM_ScrAddrFilter;
-   shared_ptr<BDM_ScrAddrFilter>    scrAddrData_;
-   shared_ptr<Blockchain> blockchain_ = nullptr;
+   shared_ptr<BDM_ScrAddrFilter> scrAddrData_;
+   shared_ptr<Blockchain> blockchain_;
 
    BDM_state BDMstate_ = BDM_offline;
 
@@ -150,9 +169,6 @@ public:
    const BlockDataManagerConfig &config() const { return config_; }
    
    LMDBBlockDatabase *getIFace(void) {return iface_;}
-   
-   shared_future<bool> registerAddressBatch(
-      const set<BinaryData>& addrSet, bool isNew);
    
    /////////////////////////////////////////////////////////////////////////////
    // Get the parameters of the network as they've been set
@@ -222,11 +238,6 @@ public:
    bool isReady(void) const;
    void resetDatabases(ResetDBMode mode);
    
-   void terminateAllScans(void) 
-   {
-      ScrAddrFilter::shutdown();
-   }
-
    unsigned getCheckedTxCount(void) const { return checkTransactionCount_; }
    NodeStatusStruct getNodeStatus(void) const;
    void registerZcCallbacks(unique_ptr<ZeroConfCallbacks> ptr)

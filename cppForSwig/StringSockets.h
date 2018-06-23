@@ -97,11 +97,11 @@ private:
 private:
    PacketData currentRead_;
    unique_ptr<HttpMessage> messageWithPrecacheHeaders_;
-   TransactionalMap<unsigned, shared_ptr<Socket_ReadPayload>> payloadMap_;
+   TransactionalMap<uint16_t, shared_ptr<Socket_ReadPayload>> payloadMap_;
 
 protected:
    void addReadPayload(shared_ptr<Socket_ReadPayload>);
-   vector<uint8_t> getHttpPayload(char*, size_t);
+   vector<uint8_t> getHttpPayload(const char*, size_t);
 
 public:
    HttpSocket(const string& addr, const string& port);
@@ -111,7 +111,8 @@ public:
    virtual bool processPacket(vector<uint8_t>&, vector<uint8_t>&);
 
    virtual void pushPayload(
-      Socket_WritePayload&, shared_ptr<Socket_ReadPayload>);
+      unique_ptr<Socket_WritePayload>,
+      shared_ptr<Socket_ReadPayload>);
    virtual void respond(vector<uint8_t>&);
 
    void precacheHttpHeader(string& header) 
@@ -159,7 +160,8 @@ public:
 
    bool processPacket(vector<uint8_t>&, vector<uint8_t>&);
    void pushPayload(
-      Socket_WritePayload&, shared_ptr<Socket_ReadPayload>);
+      unique_ptr<Socket_WritePayload>,
+      shared_ptr<Socket_ReadPayload>);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -174,6 +176,6 @@ public:
    {}
 
    //virtual
-   void callback(const BinaryDataRef&, exception_ptr);
+   void callback(BinaryDataRef);
 };
 #endif

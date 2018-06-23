@@ -8,13 +8,17 @@
 
 #include "ClientClasses.h"
 #include "WebSocketClient.h"
+#include "protobuf/compiled/BDVCommand.pb.h"
+
+using namespace ClientClasses;
+using namespace ::Codec_BDVCommand;
 
 ///////////////////////////////////////////////////////////////////////////////
 //
 // BlockHeader
 //
 ///////////////////////////////////////////////////////////////////////////////
-ClientClasses::BlockHeader::BlockHeader(
+BlockHeader::BlockHeader(
    const BinaryData& rawheader, unsigned height)
 {
    unserialize(rawheader.getRef());
@@ -22,7 +26,7 @@ ClientClasses::BlockHeader::BlockHeader(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ClientClasses::BlockHeader::unserialize(uint8_t const * ptr, uint32_t size)
+void BlockHeader::unserialize(uint8_t const * ptr, uint32_t size)
 {
    if (size < HEADER_SIZE)
       throw BlockDeserializingException();
@@ -36,6 +40,142 @@ void ClientClasses::BlockHeader::unserialize(uint8_t const * ptr, uint32_t size)
 
 ///////////////////////////////////////////////////////////////////////////////
 //
+// LedgerEntry
+//
+///////////////////////////////////////////////////////////////////////////////
+LedgerEntry::LedgerEntry(shared_ptr<::Codec_LedgerEntry::LedgerEntry> msg) :
+   msgPtr_(msg), ptr_(msg.get())
+{}
+
+///////////////////////////////////////////////////////////////////////////////
+LedgerEntry::LedgerEntry(BinaryDataRef bdr)
+{
+   auto msg = make_shared<::Codec_LedgerEntry::LedgerEntry>();
+   msg->ParseFromArray(bdr.getPtr(), bdr.getSize());
+   ptr_ = msg.get();
+   msgPtr_ = msg;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+LedgerEntry::LedgerEntry(
+   shared_ptr<::Codec_LedgerEntry::ManyLedgerEntry> msg, unsigned index) :
+   msgPtr_(msg)
+{
+   ptr_ = &msg->values(index);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+LedgerEntry::LedgerEntry(
+   shared_ptr<::Codec_BDVCommand::BDVCallback> msg, unsigned i, unsigned y) :
+   msgPtr_(msg)
+{
+   auto& notif = msg->notification(i);
+   auto& ledgers = notif.ledgers();
+   ptr_ = &ledgers.values(y);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+const string& LedgerEntry::getID() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   return ptr_->id();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+int64_t LedgerEntry::getValue() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   return ptr_->balance();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+uint32_t LedgerEntry::getBlockNum() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   return ptr_->txheight();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+BinaryDataRef LedgerEntry::getTxHash() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   auto& val = ptr_->txhash();
+   BinaryDataRef bdr;
+   bdr.setRef(val);
+   return bdr;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+uint32_t LedgerEntry::getIndex() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   return ptr_->index();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+uint32_t LedgerEntry::getTxTime() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   return ptr_->txtime();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool LedgerEntry::isCoinbase() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   return ptr_->iscoinbase();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool LedgerEntry::isSentToSelf() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   return ptr_->issts();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool LedgerEntry::isChangeBack() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   return ptr_->ischangeback();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool LedgerEntry::isOptInRBF() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   return ptr_->optinrbf();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool LedgerEntry::isChainedZC() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   return ptr_->ischainedzc();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool LedgerEntry::isWitness() const
+{
+   if (ptr_ == nullptr)
+      throw runtime_error("uninitialized ledger entry");
+   return ptr_->iswitness();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
 // RemoteCallback
 //
 ///////////////////////////////////////////////////////////////////////////////
@@ -43,16 +183,6 @@ RemoteCallback::RemoteCallback(RemoteCallbackSetupStruct setupstruct) :
    sock_(setupstruct.sockPtr_), bdvID_(setupstruct.bdvId_), 
    setHeightLbd_(setupstruct.setHeightLambda_)
 {
-   orderMap_["continue"] = CBO_continue;
-   orderMap_["NewBlock"] = CBO_NewBlock;
-   orderMap_["BDV_ZC"] = CBO_ZC;
-   orderMap_["BDV_Refresh"] = CBO_BDV_Refresh;
-   orderMap_["BDM_Ready"] = CBO_BDM_Ready;
-   orderMap_["BDV_Progress"] = CBO_progress;
-   orderMap_["terminate"] = CBO_terminate;
-   orderMap_["BDV_NodeStatus"] = CBO_NodeStatus;
-   orderMap_["BDV_Error"] = CBO_BDV_Error;
-
    //set callback ptr for websocket client
    auto ws_ptr = dynamic_pointer_cast<WebSocketClient>(sock_);
    if (ws_ptr == nullptr)
@@ -83,52 +213,47 @@ void RemoteCallback::shutdown()
 ///////////////////////////////////////////////////////////////////////////////
 void RemoteCallback::pushCallbackRequest(void)
 {
-   if (!run_)
+   if (!run_ || sock_->type() == SocketWS)
       return;
 
-   Command sendCmd;
-   sendCmd.method_ = "registerCallback";
-   sendCmd.ids_.push_back(bdvID_);
-   BinaryDataObject bdo("getStatus");
-   sendCmd.args_.push_back(move(bdo));
+   auto command = make_unique<BDVCommand>();
+   command->set_method(Methods::waitOnBDVNotification);
+   command->set_bdvid(bdvID_);
 
-   Socket_WritePayload write_payload;
-   sendCmd.serialize(write_payload.data_);
+   auto write_payload = make_unique<WritePayload_Protobuf>();
+   write_payload->message_ = move(command);
 
-   auto callback = [this](BinaryDataRef bdr)->void
+   auto callback = [this](
+      shared_ptr<BDVCallback> msg)->void
    {
-      this->processArguments(bdr);
+      this->processNotifications(msg);
    };
 
-   auto read_payload = make_shared<Socket_ReadPayload>(sendCmd.args_.getMessageId());
+   auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
-      make_unique<CallbackReturn_BinaryDataRef>(callback);
-   sock_->pushPayload(write_payload, read_payload);
+      make_unique<CallbackReturn_BDVCallback>(callback);
+   sock_->pushPayload(move(write_payload), read_payload);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool RemoteCallback::processArguments(BinaryDataRef& bdr)
+bool RemoteCallback::processNotifications(
+   shared_ptr<BDVCallback> callback)
 {
-   Arguments args(bdr);
-
-   while (args.hasArgs())
+   for(unsigned i = 0; i<callback->notification_size(); i++)
    {
-      auto&& cb = args.get<BinaryDataObject>();
+      auto& notif = callback->notification(i);
 
-      auto orderIter = orderMap_.find(cb.toStr());
-      if (orderIter == orderMap_.end())
+      switch (notif.type())
       {
-         continue;
-      }
-
-      switch (orderIter->second)
-      {
-      case CBO_continue:
+      case NotificationType::continue_:
          break;
 
-      case CBO_NewBlock:
+      case NotificationType::newblock:
       {
-         unsigned int newblock = args.get<IntType>().getVal();
+         if (!notif.has_height())
+            break;
+
+         unsigned int newblock = notif.height();
          setHeightLbd_(newblock);
 
          if (newblock != 0)
@@ -137,25 +262,45 @@ bool RemoteCallback::processArguments(BinaryDataRef& bdr)
          break;
       }
 
-      case CBO_ZC:
+      case NotificationType::zc:
       {
-         auto&& lev = args.get<LedgerEntryVector>();
-         auto leVec = lev.toVector();
+         if (!notif.has_ledgers())
+            break;
+
+         auto& ledgers = notif.ledgers();
+
+         vector<LedgerEntry> leVec;
+         for (unsigned y = 0; y < ledgers.values_size(); y++)
+         {
+            LedgerEntry le(callback, i, y);
+            leVec.push_back(move(le));
+         }
 
          run(BDMAction::BDMAction_ZC, &leVec, 0);
 
          break;
       }
 
-      case CBO_BDV_Refresh:
+      case NotificationType::refresh:
       {
-         auto&& refreshType = args.get<IntType>();
-         auto&& idVec = args.get<BinaryDataVector>();
+         if (!notif.has_refresh())
+            break;
 
-         auto refresh = BDV_refresh(refreshType.getVal());
+         auto& refresh = notif.refresh();
+         auto refreshType = (BDV_refresh)refresh.refreshtype();
+         
+         vector<BinaryData> bdVec;
+         for (unsigned y = 0; y < refresh.id_size(); y++)
+         {
+            auto& str = refresh.id(y);
+            BinaryData bd; bd.copyFrom(str);
+            bdVec.push_back(move(bd));
+         }
 
-         if (refresh != BDV_filterChanged)
-            run(BDMAction::BDMAction_Refresh, (void*)&idVec.get(), 0);
+         if (refreshType != BDV_filterChanged)
+         {
+            run(BDMAction::BDMAction_Refresh, (void*)&bdVec, 0);
+         }
          else
          {
             vector<BinaryData> bdvec;
@@ -166,9 +311,12 @@ bool RemoteCallback::processArguments(BinaryDataRef& bdr)
          break;
       }
 
-      case CBO_BDM_Ready:
+      case NotificationType::ready:
       {
-         unsigned int topblock = args.get<IntType>().getVal();
+         if (!notif.has_height())
+            break;
+
+         unsigned int topblock = notif.height();
          setHeightLbd_(topblock);
 
          run(BDMAction::BDMAction_Ready, nullptr, topblock);
@@ -176,36 +324,46 @@ bool RemoteCallback::processArguments(BinaryDataRef& bdr)
          break;
       }
 
-      case CBO_progress:
+      case NotificationType::progress:
       {
-         auto&& pd = args.get<ProgressData>();
-         progress(pd.phase_, pd.wltIDs_, pd.progress_,
-            pd.time_, pd.numericProgress_);
+         if (!notif.has_progress())
+            break;
+
+         ProgressData pd(callback, i);
+         progress(pd.phase(), pd.wltIDs(), pd.progress(),
+            pd.time(), pd.numericProgress());
 
          break;
       }
 
-      case CBO_terminate:
+      case NotificationType::terminate:
       {
          //shut down command from server
          return false;
       }
 
-      case CBO_NodeStatus:
+      case NotificationType::nodestatus:
       {
-         auto&& serData = args.get<BinaryDataObject>();
-         NodeStatusStruct nss;
-         nss.deserialize(serData.get());
+         if (!notif.has_nodestatus())
+            break;
+
+         ::ClientClasses::NodeStatusStruct nss(callback, i);
 
          run(BDMAction::BDMAction_NodeStatus, &nss, 0);
          break;
       }
 
-      case CBO_BDV_Error:
+      case NotificationType::error:
       {
-         auto&& serData = args.get<BinaryDataObject>();
+         if (!notif.has_error())
+            break;
+
+         auto& msg = notif.error();
+
          BDV_Error_Struct bdvErr;
-         bdvErr.deserialize(serData.get());
+         bdvErr.errorStr_ = move(msg.error());
+         bdvErr.errType_ = (BDV_ErrorType)msg.type();
+         bdvErr.extraMsg_ = move(msg.extra());
 
          run(BDMAction::BDMAction_BDV_Error, &bdvErr, 0);
          break;
@@ -218,4 +376,133 @@ bool RemoteCallback::processArguments(BinaryDataRef& bdr)
 
    pushCallbackRequest();
    return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// NodeStatusStruct
+//
+///////////////////////////////////////////////////////////////////////////////
+::ClientClasses::NodeStatusStruct::NodeStatusStruct(BinaryDataRef bdr)
+{
+   auto msg = make_shared<::Codec_NodeStatus::NodeStatus>();
+   msg->ParseFromArray(bdr.getPtr(), bdr.getSize());
+   ptr_ = msg.get();
+   msgPtr_ = msg;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+::ClientClasses::NodeStatusStruct::NodeStatusStruct(
+   shared_ptr<::Codec_NodeStatus::NodeStatus> msg)
+{
+   msgPtr_ = msg;
+   ptr_ = msg.get();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+::ClientClasses::NodeStatusStruct::NodeStatusStruct(
+   shared_ptr<::Codec_BDVCommand::BDVCallback> msg, unsigned i) :
+   msgPtr_(msg)
+{
+   auto& notif = msg->notification(i);
+   ptr_ = &notif.nodestatus();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+NodeStatus ClientClasses::NodeStatusStruct::status() const
+{
+   return (NodeStatus)ptr_->status();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool ::ClientClasses::NodeStatusStruct::isSegWitEnabled() const
+{
+   return ptr_->segwitenabled();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+RpcStatus ClientClasses::NodeStatusStruct::rpcStatus() const
+{
+   return (RpcStatus)ptr_->rpcstatus();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+::ClientClasses::NodeChainState 
+   ClientClasses::NodeStatusStruct::chainState() const
+{
+   auto msg = dynamic_pointer_cast<::Codec_NodeStatus::NodeStatus>(msgPtr_);
+   return NodeChainState(msg);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// NodeChainState
+//
+///////////////////////////////////////////////////////////////////////////////
+::ClientClasses::NodeChainState::NodeChainState(
+   shared_ptr<::Codec_NodeStatus::NodeStatus> msg) :
+   msgPtr_(msg)
+{
+   ptr_ = &msg->chainstate();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/*unsigned ::ClientClasses::NodeChainState::getTopBlock() const
+{
+   return ptr_->
+}*/
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// ProgressData
+//
+///////////////////////////////////////////////////////////////////////////////
+::ClientClasses::ProgressData::ProgressData(BinaryDataRef bdr)
+{
+   auto msg = make_shared<::Codec_NodeStatus::ProgressData>();
+   ptr_ = msg.get();
+   msgPtr_ = msg;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+::ClientClasses::ProgressData::ProgressData(
+   shared_ptr<::Codec_BDVCommand::BDVCallback> msg, unsigned i) :
+   msgPtr_(msg)
+{
+   auto& notif = msg->notification(i);
+   ptr_ = &notif.progress();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+BDMPhase ClientClasses::ProgressData::phase() const
+{
+   return (BDMPhase)ptr_->phase();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+double ClientClasses::ProgressData::progress() const
+{
+   return ptr_->progress();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+unsigned ClientClasses::ProgressData::time() const
+{
+   return ptr_->time();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+unsigned ClientClasses::ProgressData::numericProgress() const
+{
+   return ptr_->numericprogress();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+vector<string> ClientClasses::ProgressData::wltIDs() const
+{
+   vector<string> vec;
+   for (unsigned i = 0; i < ptr_->id_size(); i++)
+      vec.push_back(ptr_->id(i));
+
+   return vec;
 }

@@ -79,38 +79,16 @@ void BlockDataViewer::shutdownNode(const string& cookie)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-SwigClient::BtcWallet BlockDataViewer::registerWallet(
-   const string& id, const vector<BinaryData>& addrVec, bool isNew)
+SwigClient::BtcWallet BlockDataViewer::instantiateWallet(const string& id)
 {
-   auto promPtr = make_shared<promise<bool>>();
-   auto fut = promPtr->get_future();
-
-   auto callback = [promPtr](bool result)->void
-   {
-      promPtr->set_value(result);
-   };
-
-   auto&& asyncWallet = bdvAsync_.registerWallet(id, addrVec, isNew, callback);
-
-   fut.get();
+   auto&& asyncWallet = bdvAsync_.instantiateWallet(id);
    return BtcWallet(asyncWallet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-Lockbox BlockDataViewer::registerLockbox(
-   const string& id, const vector<BinaryData>& addrVec, bool isNew)
+Lockbox BlockDataViewer::instantiateLockbox(const string& id)
 {
-   auto promPtr = make_shared<promise<bool>>();
-   auto fut = promPtr->get_future();
-
-   auto callback = [promPtr](bool result)->void
-   {
-      promPtr->set_value(result);
-   };
-
-   auto&& asyncLocbox = bdvAsync_.registerLockbox(id, addrVec, isNew, callback);
-
-   fut.get();
+   auto&& asyncLocbox = bdvAsync_.instantiateLockbox(id);
    return Lockbox(asyncLocbox);
 }
 
@@ -213,18 +191,20 @@ void BlockDataViewer::updateWalletsLedgerFilter(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-NodeStatusStruct BlockDataViewer::getNodeStatus()
+shared_ptr<::ClientClasses::NodeStatusStruct> BlockDataViewer::getNodeStatus()
 {
-   auto prom = make_shared<promise<NodeStatusStruct>>();
+   auto prom = make_shared<
+      promise<shared_ptr<::ClientClasses::NodeStatusStruct>>>();
    auto fut = prom->get_future();
 
-   auto resultLBD = [prom](NodeStatusStruct nss)->void
+   auto resultLBD = [prom](
+      shared_ptr<::ClientClasses::NodeStatusStruct> nss)->void
    {
-      prom->set_value(move(nss));
+      prom->set_value(nss);
    };
 
    bdvAsync_.getNodeStatus(resultLBD);
-   return move(fut.get());
+   return fut.get();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -244,34 +224,19 @@ ClientClasses::FeeEstimateStruct BlockDataViewer::estimateFee(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-vector<LedgerEntryData> BlockDataViewer::getHistoryForWalletSelection(
-   const vector<string>& wltIDs, const string& orderingStr)
+vector<::ClientClasses::LedgerEntry> 
+   BlockDataViewer::getHistoryForWalletSelection(
+      const vector<string>& wltIDs, const string& orderingStr)
 {
-   auto prom = make_shared<promise<vector<LedgerEntryData>>>();
+   auto prom = make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
    auto fut = prom->get_future();
 
-   auto resultLBD = [prom](vector<LedgerEntryData> vec)->void
+   auto resultLBD = [prom](vector<::ClientClasses::LedgerEntry> vec)->void
    {
       prom->set_value(move(vec));
    };
 
    bdvAsync_.getHistoryForWalletSelection(wltIDs, orderingStr, resultLBD);
-   return move(fut.get());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-uint64_t BlockDataViewer::getValueForTxOut(
-   const BinaryData& txHash, unsigned inputId)
-{
-   auto prom = make_shared<promise<uint64_t>>();
-   auto fut = prom->get_future();
-
-   auto resultLBD = [prom](uint64_t val)->void
-   {
-      prom->set_value(move(val));
-   };
-
-   bdvAsync_.getValueForTxOut(txHash, inputId, resultLBD);
    return move(fut.get());
 }
 
@@ -288,14 +253,6 @@ string BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx)
 
    bdvAsync_.broadcastThroughRPC(rawTx, resultLBD);
    return move(fut.get());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::registerAddrList(
-   const BinaryData& id,
-   const vector<BinaryData>& addrVec)
-{
-   bdvAsync_.registerAddrList(id, addrVec);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -342,12 +299,13 @@ LedgerDelegate::LedgerDelegate(AsyncClient::LedgerDelegate& led) :
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
-vector<LedgerEntryData> LedgerDelegate::getHistoryPage(uint32_t id)
+vector<::ClientClasses::LedgerEntry> LedgerDelegate::getHistoryPage(
+   uint32_t id)
 {
-   auto prom = make_shared<promise<vector<LedgerEntryData>>>();
+   auto prom = make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
    auto fut = prom->get_future();
 
-   auto resultLBD = [prom](vector<LedgerEntryData> vec)->void
+   auto resultLBD = [prom](vector<::ClientClasses::LedgerEntry> vec)->void
    {
       prom->set_value(move(vec));
    };
@@ -366,8 +324,15 @@ SwigClient::BtcWallet::BtcWallet(AsyncClient::BtcWallet& wlt) :
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
+string SwigClient::BtcWallet::registerAddresses(
+   const vector<BinaryData>& addrVec, bool isNew)
+{
+   return asyncWallet_.registerAddresses(addrVec, isNew);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 vector<uint64_t> SwigClient::BtcWallet::getBalancesAndCount(
-   uint32_t blockheight, bool IGNOREZC)
+   uint32_t blockheight)
 {
    auto prom = make_shared<promise<vector<uint64_t>>>();
    auto fut = prom->get_future();
@@ -377,7 +342,7 @@ vector<uint64_t> SwigClient::BtcWallet::getBalancesAndCount(
       prom->set_value(move(val));
    };
 
-   asyncWallet_.getBalancesAndCount(blockheight, IGNOREZC, resultLBD);
+   asyncWallet_.getBalancesAndCount(blockheight, resultLBD);
    return move(fut.get());
 }
 
@@ -458,12 +423,13 @@ map<BinaryData, vector<uint64_t>>
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-vector<LedgerEntryData> SwigClient::BtcWallet::getHistoryPage(uint32_t id)
+vector<::ClientClasses::LedgerEntry> SwigClient::BtcWallet::getHistoryPage(
+   uint32_t id)
 {
-   auto prom = make_shared<promise<vector<LedgerEntryData>>>();
+   auto prom = make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
    auto fut = prom->get_future();
 
-   auto resultLBD = [prom](vector<LedgerEntryData> val)->void
+   auto resultLBD = [prom](vector<::ClientClasses::LedgerEntry> val)->void
    {
       prom->set_value(move(val));
    };
@@ -473,19 +439,20 @@ vector<LedgerEntryData> SwigClient::BtcWallet::getHistoryPage(uint32_t id)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-LedgerEntryData SwigClient::BtcWallet::getLedgerEntryForTxHash(
+shared_ptr<::ClientClasses::LedgerEntry> 
+   SwigClient::BtcWallet::getLedgerEntryForTxHash(
    const BinaryData& txhash)
 {
-   auto prom = make_shared<promise<LedgerEntryData>>();
+   auto prom = make_shared<promise<shared_ptr<::ClientClasses::LedgerEntry>>>();
    auto fut = prom->get_future();
 
-   auto resultLBD = [prom](LedgerEntryData val)->void
+   auto resultLBD = [prom](shared_ptr<::ClientClasses::LedgerEntry> val)->void
    {
       prom->set_value(move(val));
    };
 
    asyncWallet_.getLedgerEntryForTxHash(txhash, resultLBD);
-   return move(fut.get());
+   return fut.get();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -522,16 +489,16 @@ asyncLockbox_(asynclb), BtcWallet(asynclb)
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
-void Lockbox::getBalancesAndCountFromDB(uint32_t topBlockHeight, bool IGNOREZC)
+void Lockbox::getBalancesAndCountFromDB(uint32_t topBlockHeight)
 {
-   asyncLockbox_.getBalancesAndCountFromDB(topBlockHeight, IGNOREZC);
+   asyncLockbox_.getBalancesAndCountFromDB(topBlockHeight);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool Lockbox::hasScrAddr(const BinaryData& addr) const
+string Lockbox::registerAddresses(const vector<BinaryData>& addrVec,
+   bool isNew)
 {
-   //TODO: revisit this method once network refactor congeals
-   return asyncLockbox_.hasScrAddr(addr);
+   return asyncLockbox_.registerAddresses(addrVec, isNew);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -646,17 +613,18 @@ SwigClient::Blockchain::Blockchain(const BlockDataViewer& bdv) :
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
-bool SwigClient::Blockchain::hasHeaderWithHash(const BinaryData& hash)
+::ClientClasses::BlockHeader SwigClient::Blockchain::getHeaderByHash(
+   const BinaryData& hash)
 {
-   auto prom = make_shared<promise<bool>>();
+   auto prom = make_shared<promise<::ClientClasses::BlockHeader>>();
    auto fut = prom->get_future();
 
-   auto resultLBD = [prom](bool val)->void
+   auto resultLBD = [prom](::ClientClasses::BlockHeader val)->void
    {
       prom->set_value(move(val));
    };
 
-   asyncBlockchain_.hasHeaderWithHash(hash, resultLBD);
+   asyncBlockchain_.getHeaderByHash(hash, resultLBD);
    return move(fut.get());
 }
 
@@ -720,10 +688,10 @@ bool ProcessMutex::test(const string& uriLink)
       auto bwRef = bw.getDataRef();
 
       //serialize argv
-      Socket_WritePayload payload;
-      payload.data_.resize(bwRef.getSize());
-      memcpy(&payload.data_[0], bwRef.getPtr(), bwRef.getSize());
-      sock.pushPayload(payload, nullptr);
+      auto payload = make_unique<WritePayload_Raw>();
+      payload->data_.resize(bwRef.getSize());
+      memcpy(&payload->data_[0], bwRef.getPtr(), bwRef.getSize());
+      sock.pushPayload(move(payload), nullptr);
    }
    catch (...)
    {

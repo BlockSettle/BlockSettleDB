@@ -15,6 +15,8 @@
 
 #include "BinaryData.h"
 #include "SocketObject.h"
+#include "BDVCodec.h"
+#include "nodeRPC.h"
 
 namespace AsyncClient
 {
@@ -104,13 +106,13 @@ namespace ClientClasses
       uint32_t           getNonce(void) const { return READ_UINT32_LE(getPtr() + 76); }
       uint32_t           getBlockHeight(void) const { return blockHeight_; }
 
-      /////////////////////////////////////////////////////////////////////////////
+      //////////////////////////////////////////////////////////////////////////
       BinaryDataRef  getThisHashRef(void) const { return thisHash_.getRef(); }
       BinaryDataRef  getPrevHashRef(void) const { return BinaryDataRef(getPtr() + 4, 32); }
       BinaryDataRef  getMerkleRootRef(void) const { return BinaryDataRef(getPtr() + 36, 32); }
       BinaryDataRef  getDiffBitsRef(void) const { return BinaryDataRef(getPtr() + 72, 4); }
 
-      /////////////////////////////////////////////////////////////////////////////
+      //////////////////////////////////////////////////////////////////////////
       uint8_t const * getPtr(void) const {
          if (!isInitialized_)
             throw runtime_error("uninitialized BlockHeader");
@@ -135,33 +137,114 @@ namespace ClientClasses
       BinaryData     thisHash_;
       double         difficultyDbl_ = 0.0;
    };
+
+   ////////////////////////////////////////////////////////////////////////////
+   class LedgerEntry
+   {
+   private:
+      shared_ptr<::google::protobuf::Message> msgPtr_;
+      const ::Codec_LedgerEntry::LedgerEntry* ptr_ = nullptr;
+
+
+
+   public:
+      LedgerEntry(BinaryDataRef bdr);
+      LedgerEntry(shared_ptr<::Codec_LedgerEntry::LedgerEntry>);
+      LedgerEntry(shared_ptr<::Codec_LedgerEntry::ManyLedgerEntry>,
+         unsigned);
+      LedgerEntry(shared_ptr<::Codec_BDVCommand::BDVCallback>,
+         unsigned, unsigned);
+
+      const string&       getID(void) const;
+      int64_t             getValue(void) const;
+      uint32_t            getBlockNum(void) const;
+      BinaryDataRef       getTxHash(void) const;
+      uint32_t            getIndex(void) const;
+      uint32_t            getTxTime(void) const;
+      bool                isCoinbase(void) const;
+      bool                isSentToSelf(void) const;
+      bool                isChangeBack(void) const;
+      bool                isOptInRBF(void) const;
+      bool                isChainedZC(void) const;
+      bool                isWitness(void) const;
+
+      vector<BinaryDataRef> getScrAddrList(void) const;
+   };
+
+   ////////////////////////////////////////////////////////////////////////////
+   class NodeChainState
+   {
+   private:
+      shared_ptr<::google::protobuf::Message> msgPtr_;
+      const ::Codec_NodeStatus::NodeChainState* ptr_;
+
+   public:
+      NodeChainState(shared_ptr<::Codec_NodeStatus::NodeStatus>);
+
+      unsigned getTopBlock(void) const;
+      ChainStatus state(void) const;
+      float getBlockSpeed(void) const;
+
+      float getProgressPct(void) const;
+      uint64_t getETA(void) const;
+      unsigned getBlocksLeft(void) const;
+   };
+
+   ////////////////////////////////////////////////////////////////////////////
+   class NodeStatusStruct
+   {
+      friend class RemoteCallback;
+
+   private:
+      shared_ptr<::google::protobuf::Message> msgPtr_;
+      const ::Codec_NodeStatus::NodeStatus* ptr_;
+      
+   private:
+      NodeStatusStruct(shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned);
+
+   public:
+      NodeStatusStruct(BinaryDataRef);
+      NodeStatusStruct(shared_ptr<::Codec_NodeStatus::NodeStatus>);
+
+      NodeStatus status(void) const;
+      bool isSegWitEnabled(void) const;
+      RpcStatus rpcStatus(void) const;
+      NodeChainState chainState(void) const;
+   };
+
+   ////////////////////////////////////////////////////////////////////////////
+   class ProgressData
+   {
+      friend class RemoteCallback;
+
+   private:
+      shared_ptr<::google::protobuf::Message> msgPtr_;
+      const ::Codec_NodeStatus::ProgressData* ptr_;
+
+   private:
+      ProgressData(shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned);
+
+   public:
+      ProgressData(BinaryDataRef);
+
+      BDMPhase phase(void) const;
+      double progress(void) const;
+      unsigned time(void) const;
+      unsigned numericProgress(void) const;
+      vector<string> wltIDs(void) const;
+   };
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 class RemoteCallback
 {
 private:
-
-   enum CallbackOrder
-   {
-      CBO_continue,
-      CBO_NewBlock,
-      CBO_ZC,
-      CBO_BDV_Refresh,
-      CBO_BDM_Ready,
-      CBO_progress,
-      CBO_terminate,
-      CBO_NodeStatus,
-      CBO_BDV_Error
-   };
-
    bool run_ = true;
 
    const shared_ptr<SocketPrototype> sock_;
    const string bdvID_;
    SOCKET sockfd_;
 
-   map<string, CallbackOrder> orderMap_;
    function<void(unsigned)> setHeightLbd_;
 
 private:
@@ -181,7 +264,7 @@ public:
 
    void start(void);
    void shutdown(void);
-   bool processArguments(BinaryDataRef&);
+   bool processNotifications(shared_ptr<::Codec_BDVCommand::BDVCallback>);
 };
 
 #endif

@@ -512,7 +512,8 @@ public:
    SocketType type(void) const { return SocketBitcoinP2P; }
 
    void pushPayload(
-      Socket_WritePayload&, shared_ptr<Socket_ReadPayload>);
+      unique_ptr<Socket_WritePayload>,
+      shared_ptr<Socket_ReadPayload>);
    void respond(vector<uint8_t>&);
 };
 
@@ -539,7 +540,7 @@ private:
    exception_ptr process_except_ = nullptr;
 
    //callback lambdas
-   Stack<function<void(const vector<InvEntry>&)>> invBlockLambdas_;
+   shared_ptr<BlockingStack<vector<InvEntry>>> invBlockStack_;
    function<void(vector<InvEntry>&)> invTxLambda_ = {};
    function<void(void)> nodeStatusLambda_;
 
@@ -569,7 +570,7 @@ protected:
 private:
    void connectLoop(void);
 
-   void pollSocketThread();
+   //void pollSocketThread();
    void processDataStackThread(void);
    void processPayload(vector<unique_ptr<Payload>>);
 
@@ -604,14 +605,6 @@ public:
 
    shared_ptr<Payload> getTx(const InvEntry&, uint32_t timeout);
 
-   void registerInvBlockLambda(function<void(const vector<InvEntry>)> func)
-   {
-      if (!run_.load(memory_order_relaxed))
-         throw runtime_error("node has been shutdown");
-
-      invBlockLambdas_.push_back(move(func));
-   }
-
    void registerInvTxLambda(function<void(vector<InvEntry>)> func)
    {
       if (!run_.load(memory_order_relaxed))
@@ -628,6 +621,10 @@ public:
 
    void updateNodeStatus(bool connected);
    void registerNodeStatusLambda(function<void(void)> lbd) { nodeStatusLambda_ = lbd; }
+   shared_ptr<BlockingStack<vector<InvEntry>>> getInvBlockStack(void) const
+   {
+      return invBlockStack_;
+   }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

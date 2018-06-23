@@ -7,7 +7,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "StringSockets.h"
-#include "DataObject.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -99,7 +98,7 @@ bool HttpSocket::processPacket(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-vector<uint8_t> HttpSocket::getHttpPayload(char* ptr, size_t len)
+vector<uint8_t> HttpSocket::getHttpPayload(const char* ptr, size_t len)
 {
    //create http packet
    HttpMessage msg(addr_);
@@ -126,46 +125,45 @@ void HttpSocket::addReadPayload(shared_ptr<Socket_ReadPayload> read_payload)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void HttpSocket::pushPayload(Socket_WritePayload& write_payload, 
+void HttpSocket::pushPayload(
+   unique_ptr<Socket_WritePayload> write_payload,
    shared_ptr<Socket_ReadPayload> read_payload)
 {
-   write_payload.data_ = move(getHttpPayload(
-      (char*)&write_payload.data_[0], write_payload.data_.size()));
+   uint16_t id = rand() % 65536;
+   BinaryDataRef bdr((uint8_t*)&id, 2);
+   read_payload->id_ = id;
+
+   stringstream data;
+   data << bdr.toHexStr();
+   data << write_payload->serializeToText();
+   auto&& str = data.str();
+
+   auto&& payload = move(getHttpPayload(str.c_str(), str.size()));
 
    addReadPayload(read_payload);
-   queuePayloadForWrite(write_payload);
+   queuePayloadForWrite(payload);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void HttpSocket::respond(vector<uint8_t>& payload)
 {
-   if (payload.size() == 0)
+   if (payload.size() < 4)
       return;
 
-   BinaryDataRef bdr(&payload[0], payload.size());
+   BinaryData id_ref(&payload[0], 4);
+   BinaryData id_bd;
+   id_bd.createFromHex(id_ref);
+   auto msg_id = READ_UINT16_LE(id_bd);
+
+   BinaryDataRef bdr(&payload[0] + 4, payload.size() - 4);
    
-   //get msg id
-   Arguments args(bdr);
-   unsigned msg_id;
-
-   try
-   {
-      msg_id = args.get<IntType>().getVal();
-   }
-   catch(runtime_error&)
-   { 
-      //bad format, ignore message
-      return;
-   }
-
    {
       auto payloadmap = payloadMap_.get();
       auto iter = payloadmap->find(msg_id);
       if (iter == payloadmap->end())
          return;
 
-      auto ref = args.getRemainingBDR();
-      iter->second->callbackReturn_->callback(ref, nullptr);
+      iter->second->callbackReturn_->callback(bdr);
    }
 
    payloadMap_.erase(msg_id);
@@ -235,8 +233,7 @@ bool FcgiSocket::processPacket(
          auto&& bodyRef = packetStruct.getHttpBody();
          if (bodyRef.getSize() > 0)
          {
-            BinaryData bodyBin;
-            bodyBin.createFromHex(bodyRef);
+            BinaryData bodyBin(bodyRef);
             payload = move(bodyBin.release());
          }
 
@@ -317,14 +314,27 @@ void FcgiSocket::deletePacketStruct(uint16_t id)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void FcgiSocket::pushPayload(Socket_WritePayload& write_payload,
+void FcgiSocket::pushPayload(
+   unique_ptr<Socket_WritePayload> write_payload,
    shared_ptr<Socket_ReadPayload> read_payload)
 {
-   auto&& fcgi_message = FcgiMessage::makePacket(write_payload.data_);
-   write_payload.data_ = move(fcgi_message.serialize());
+   stringstream data;
+   uint16_t id = rand() % 65536;
+   BinaryDataRef bdr((uint8_t*)&id, 2);
+
+   if (read_payload != nullptr)
+      read_payload->id_ = id;
+
+   data << bdr.toHexStr();
+   data << write_payload->serializeToText();
+   auto&& str = data.str();
+
+   BinaryDataRef dataRef((uint8_t*)str.c_str(), str.size());
+   auto&& fcgi_message = FcgiMessage::makePacket(dataRef);
+   auto&& payload = fcgi_message.serialize();
 
    addReadPayload(read_payload);
-   queuePayloadForWrite(write_payload);
+   queuePayloadForWrite(payload);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -332,8 +342,7 @@ void FcgiSocket::pushPayload(Socket_WritePayload& write_payload,
 // CallbackReturn_HttpBody
 //
 ///////////////////////////////////////////////////////////////////////////////
-void CallbackReturn_HttpBody::callback(const BinaryDataRef& ref,
-   exception_ptr eptr)
+void CallbackReturn_HttpBody::callback(BinaryDataRef ref)
 {
    string body(ref.toCharPtr(), ref.getSize());
    userCallbackLambda_(move(body));

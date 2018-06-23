@@ -26,7 +26,8 @@ static struct lws_protocols protocols[] = {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-void WebSocketClient::pushPayload(Socket_WritePayload& write_payload,
+void WebSocketClient::pushPayload(
+   unique_ptr<Socket_WritePayload> write_payload,
    shared_ptr<Socket_ReadPayload> read_payload)
 {
    unsigned id;
@@ -46,9 +47,12 @@ void WebSocketClient::pushPayload(Socket_WritePayload& write_payload,
    else
    {
    }
+
+   vector<uint8_t> data;
+   write_payload->serialize(data);
    
    auto&& data_vector = 
-      WebSocketMessage::serialize(id, write_payload.data_);
+      WebSocketMessage::serialize(id, data);
 
    //push packets to write queue
    for(auto& data : data_vector)
@@ -90,7 +94,6 @@ void WebSocketClient::setIsReady(bool status)
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::init()
 {
-   Arguments::serializeID(false);
    run_.store(1, memory_order_relaxed);
 
    //setup context
@@ -343,16 +346,11 @@ void WebSocketClient::readService()
             readPackets_.erase(msgid);
          }
          
-         vector<uint8_t> message;
+         BinaryDataRef message;
          if (!iter->second->response_.reconstruct(message))
             continue;
-
-         BinaryDataRef bdr(&message[0], message.size());
-         BinaryData bd_hexit;
-         bd_hexit.createFromHex(bdr);
          
-         iter->second->payload_->callbackReturn_->callback(
-            bd_hexit.getRef(), nullptr);
+         iter->second->payload_->callbackReturn_->callback(message);
          readPackets_.erase(msgid);
       }
       else if (msgid == WEBSOCKET_CALLBACK_ID)
@@ -361,18 +359,16 @@ void WebSocketClient::readService()
          WebSocketMessage response;
          response.processPacket(payload);
 
-         vector<uint8_t> message;
+         BinaryDataRef message;
          if (!response.reconstruct(message))
             continue; //callbacks should always be a single packet
 
          if (callbackPtr_ != nullptr)
          {
-            BinaryDataRef bdr(&message[0], message.size());
-            BinaryData bd_hexit;
-            bd_hexit.createFromHex(bdr);
-            auto&& bdr_hexit = bd_hexit.getRef();
+            auto msgptr = make_shared<::Codec_BDVCommand::BDVCallback>();
+            msgptr->ParseFromArray(message.getPtr(), message.getSize());
 
-            callbackPtr_->processArguments(bdr_hexit);
+            callbackPtr_->processNotifications(msgptr);
          }
       }
       else

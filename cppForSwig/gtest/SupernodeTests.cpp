@@ -225,7 +225,6 @@ protected:
 
    void initBDM(void)
    {
-      ScrAddrFilter::init();
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
 
@@ -290,6 +289,9 @@ protected:
 
       theBDMt_ = nullptr;
       clients_ = nullptr;
+      
+      DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
+      EXPECT_EQ(DatabaseContainer_Sharded::txShardMap_.size(), 0);
 
       rmdir(blkdir_);
       rmdir(homedir_);
@@ -1017,10 +1019,8 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
    auto& txio = txioHeightMap.txioMap_.rbegin()->second;
    auto&& txhash = txio.getTxHashOfOutput(iface_);
 
-   auto&& tx_raw = DBTestUtils::getTxByHash(clients_, bdvID, txhash);
-   Tx tx_obj;
-   tx_obj.unserializeWithMetaData(tx_raw);
-   EXPECT_EQ(tx_obj.getThisHash(), txhash);
+   auto&& txObj = DBTestUtils::getTxByHash(clients_, bdvID, txhash);
+   EXPECT_EQ(txObj.getThisHash(), txhash);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1301,7 +1301,6 @@ protected:
 
    void initBDM(void)
    {
-      ScrAddrFilter::init();
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
 
@@ -1369,6 +1368,9 @@ protected:
       theBDMt_ = nullptr;
       clients_ = nullptr;
 
+      DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
+      EXPECT_EQ(DatabaseContainer_Sharded::txShardMap_.size(), 0);
+
       rmdir(blkdir_);
       rmdir(homedir_);
 
@@ -1410,7 +1412,7 @@ TEST_F(BlockUtilsWithWalletTest, Test_WithWallet)
    theBDMt_->start(config.initMode_);
    auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
 
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -1418,7 +1420,6 @@ TEST_F(BlockUtilsWithWalletTest, Test_WithWallet)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-
 
    uint64_t balanceWlt;
    uint64_t balanceDB;
@@ -1443,9 +1444,7 @@ TEST_F(BlockUtilsWithWalletTest, Test_WithWallet)
    balanceDB = iface_->getBalanceForScrAddr(TestChain::scrAddrE);
    EXPECT_EQ(balanceDB, 30 * COIN);
    balanceDB = iface_->getBalanceForScrAddr(TestChain::scrAddrF);
-   EXPECT_EQ(balanceDB, 5 * COIN);
-
-   
+   EXPECT_EQ(balanceDB, 5 * COIN);   
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1459,8 +1458,7 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAddrAfterWallet)
    theBDMt_->start(config.initMode_);
    auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
 
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
    //wait on signals
@@ -1472,10 +1470,12 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAddrAfterWallet)
    uint64_t balanceDB;
 
    //post initial load address registration
-   wlt->addScrAddress(TestChain::scrAddrD);
+   scrAddrVec.clear();
+   scrAddrVec.push_back(TestChain::scrAddrD);
+   auto&& registrationId =
+      DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
    //wait on the address scan
-   DBTestUtils::waitOnWalletRefresh(clients_, bdvID, wlt->walletID());
-
+   DBTestUtils::waitOnWalletRefresh(clients_, bdvID, registrationId);
 
    balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrA)->getFullBalance();
    balanceDB = iface_->getBalanceForScrAddr(TestChain::scrAddrA);
@@ -1533,7 +1533,7 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
    theBDMt_->start(config.initMode_);
    auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
 
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -1639,10 +1639,8 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
    EXPECT_EQ(iface_->getTxHashForLdbKey(zcKey), ZChash);
 
    //grab ZC by hash
-   auto&& zctx_fromdb = DBTestUtils::getTxByHash(clients_, bdvID, ZChash);
-   Tx zctx_obj;
-   zctx_obj.unserializeWithMetaData(zctx_fromdb);
-   EXPECT_EQ(zctx_obj.getThisHash(), ZChash);
+   auto&& txobj = DBTestUtils::getTxByHash(clients_, bdvID, ZChash);
+   EXPECT_EQ(txobj.getThisHash(), ZChash);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1657,7 +1655,7 @@ TEST_F(BlockUtilsWithWalletTest, UnrelatedZC_CheckLedgers)
    scrAddrVec.push_back(TestChain::scrAddrA);
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -1682,14 +1680,12 @@ TEST_F(BlockUtilsWithWalletTest, UnrelatedZC_CheckLedgers)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
 
-   /***
-   Create zc that spends from addr D to F. This is supernode so the DB
-   should track this ZC even though it isn't registered. Send the ZC as
-   a batch along with a ZC that hits our wallets, in order to get the 
-   notification, which comes at the BDV level (i.e. only for registered
-   wallets).
-   ***/
-
+   //Create zc that spends from addr D to F. This is supernode so the DB
+   //should track this ZC even though it isn't registered. Send the ZC as
+   //a batch along with a ZC that hits our wallets, in order to get the 
+   //notification, which comes at the BDV level (i.e. only for registered
+   //wallets).
+   
    auto&& ZC1 = TestUtils::getTx(5, 2); //block 5, tx 2
    auto&& ZChash1 = BtcUtils::getHash256(ZC1);
 
@@ -1797,7 +1793,7 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAfterZC)
    scrAddrVec.push_back(TestChain::scrAddrA);
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -1822,13 +1818,11 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAfterZC)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
 
-   /***
-   Create zc that spends from addr D to F. This is supernode so the DB
-   should track this ZC even though it isn't registered. Send the ZC as
-   a batch along with a ZC that hits our wallets, in order to get the
-   notification, which comes at the BDV level (i.e. only for registered
-   wallets).
-   ***/
+   //Create zc that spends from addr D to F. This is supernode so the DB
+   //should track this ZC even though it isn't registered. Send the ZC as
+   //a batch along with a ZC that hits our wallets, in order to get the
+   //notification, which comes at the BDV level (i.e. only for registered
+   //wallets).
 
    auto&& ZC1 = TestUtils::getTx(5, 2); //block 5, tx 2
    auto&& ZChash1 = BtcUtils::getHash256(ZC1);
@@ -1869,8 +1863,9 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAfterZC)
 
    //Register scrAddrD with the wallet. It should have the ZC balance
    scrAddrVec.push_back(TestChain::scrAddrD);
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::waitOnWalletRefresh(clients_, bdvID, wallet1id);
+   auto&& registrationId = 
+      DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::waitOnWalletRefresh(clients_, bdvID, registrationId);
    
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
    EXPECT_EQ(scrObj->getFullBalance(), 65 * COIN);
@@ -1930,8 +1925,8 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    for (auto& addr : wltSet)
       wltVec.push_back(addr);
 
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regWallet(clients_, bdvID, wltVec, assetWlt->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, wltVec, assetWlt->getID());
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
    //wait on signals
@@ -2117,9 +2112,9 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    for (auto& addr : addrSet)
       addrVec_singleSig.push_back(addr);
 
-   DBTestUtils::regWallet(clients_, bdvID, addrVec, "ms_entry");
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regWallet(clients_, bdvID, addrVec_singleSig, assetWlt_2->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, addrVec, "ms_entry");
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, addrVec_singleSig, assetWlt_2->getID());
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -2223,7 +2218,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
 
       //grab ZC from DB and verify it again
-      auto&& zc_from_db = DBTestUtils::getTxObjByHash(clients_, bdvID, zcHash);
+      auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
       auto&& raw_tx = zc_from_db.serialize();
       auto bctx = BCTX::parse(raw_tx);
       TransactionVerifier tx_verifier(*bctx, utxoVec);
@@ -2408,7 +2403,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
 
    //grab ZC from DB and verify it again
-   auto&& zc_from_db = DBTestUtils::getTxObjByHash(clients_, bdvID, zcHash);
+   auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
    auto&& raw_tx = zc_from_db.serialize();
    auto bctx = BCTX::parse(raw_tx);
    TransactionVerifier tx_verifier(*bctx, unspentVec);
@@ -2487,8 +2482,8 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
    vector<BinaryData> hashVec;
    hashVec.insert(hashVec.begin(), hashSet.begin(), hashSet.end());
 
-   DBTestUtils::regWallet(clients_, bdvID, hashVec, assetWlt->getID());
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec, assetWlt->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -2849,7 +2844,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_InOut_SameBlock)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -2929,5 +2924,6 @@ GTEST_API_ int main(int argc, char **argv)
    FLUSHLOG();
    CLEANUPLOG();
 
+   google::protobuf::ShutdownProtobufLibrary();
    return exitCode;
 }

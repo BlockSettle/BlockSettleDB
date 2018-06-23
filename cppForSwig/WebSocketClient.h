@@ -17,7 +17,6 @@
 #include "libwebsockets.h"
 #include "ThreadSafeClasses.h"
 #include "BinaryData.h"
-#include "DataObject.h"
 #include "SocketObject.h"
 #include "WebSocketMessage.h"
 #include "BlockDataManagerConfig.h"
@@ -102,7 +101,8 @@ public:
    //virtuals
    SocketType type(void) const { return SocketWS; }
    void pushPayload(
-      Socket_WritePayload&, shared_ptr<Socket_ReadPayload>);
+      unique_ptr<Socket_WritePayload>,
+      shared_ptr<Socket_ReadPayload>);
    bool connectToRemote(void);
 
    //statics

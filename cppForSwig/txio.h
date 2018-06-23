@@ -125,13 +125,15 @@ public:
    bool isUTXO(void) const { return isUTXO_; }
    void setUTXO(bool val) { isUTXO_ = val; }
 
-   void setScrAddrLambda(function < const BinaryData&(void) > func)
+   void setScrAddrLambda(function<const BinaryDataRef&(void)> func)
    {
       getScrAddr_ = func;
    }
 
-   const BinaryData& getScrAddr(void) const
+   BinaryDataRef getScrAddr(void) const
    {
+      if (!getScrAddr_)
+         return BinaryDataRef();
       return getScrAddr_();
    }
 
@@ -173,9 +175,7 @@ private:
    bool isUTXO_ = false;
 
    //used to get a relevant scrAddr from a txio
-   function<const BinaryData& (void)> getScrAddr_ = 
-      [](void)->const BinaryData&
-      { return BinaryData::EmptyBinData_; };
+   function<const BinaryDataRef& (void)> getScrAddr_;
 };
 
 #endif

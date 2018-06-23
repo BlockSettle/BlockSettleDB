@@ -144,10 +144,10 @@ public:
    void registerWithBDV(bool isNew);
 
    vector<uint64_t> getBalancesAndCount(
-      uint32_t topBlockHeight, bool IGNOREZC)
+      uint32_t topBlockHeight)
    {
       auto&& balVec =
-         swigWallet_->getBalancesAndCount(topBlockHeight, IGNOREZC);
+         swigWallet_->getBalancesAndCount(topBlockHeight);
 
       totalBalance_ = balVec[0];
       spendableBalance_ = balVec[1];
@@ -212,12 +212,12 @@ public:
       return balanceMap_;
    }
 
-   vector<LedgerEntryData> getHistoryPage(uint32_t id)
+   vector<::ClientClasses::LedgerEntry> getHistoryPage(uint32_t id)
    {
       return swigWallet_->getHistoryPage(id);
    }
 
-   LedgerEntryData getLedgerEntryForTxHash(
+   shared_ptr<::ClientClasses::LedgerEntry> getLedgerEntryForTxHash(
       const BinaryData& txhash)
    {
       return swigWallet_->getLedgerEntryForTxHash(txhash);

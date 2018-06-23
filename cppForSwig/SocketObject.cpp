@@ -10,6 +10,8 @@
 #include <cstring>
 #include <stdexcept>
 
+#include "google/protobuf/text_format.h"
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // SocketPrototype
@@ -559,10 +561,13 @@ void PersistentSocket::socketService_win()
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
-void PersistentSocket::queuePayloadForWrite(Socket_WritePayload& wPayload)
+void PersistentSocket::queuePayloadForWrite(vector<uint8_t>& payload)
 {
+   if (payload.size() == 0)
+      return;
+
    //push to write queue
-   writeQueue_.push_back(move(wPayload.data_));
+   writeQueue_.push_back(move(payload));
 
    //signal poll service with 0 to trigger POLLOUT event
    signalService(0);
@@ -744,17 +749,23 @@ void PersistentSocket::shutdown()
 //// SimpleSocket
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
-void SimpleSocket::pushPayload(Socket_WritePayload& write_payload,
+void SimpleSocket::pushPayload(
+   unique_ptr<Socket_WritePayload> write_payload,
    shared_ptr<Socket_ReadPayload> read_payload)
 {
-   writeToSocket(write_payload.data_);
+   if (write_payload == nullptr)
+      return;
+
+   vector<uint8_t> data;
+   write_payload->serialize(data);
+   writeToSocket(data);
 
    if (read_payload == nullptr)
       return;
 
    auto&& result = readFromSocket();
    BinaryDataRef bdr(&result[0], result.size());
-   read_payload->callbackReturn_->callback(bdr, nullptr);
+   read_payload->callbackReturn_->callback(bdr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1015,3 +1026,38 @@ void ListenServer::stop()
 ///////////////////////////////////////////////////////////////////////////////
 CallbackReturn::~CallbackReturn()
 {}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// Socket_WritePayload
+//
+///////////////////////////////////////////////////////////////////////////////
+Socket_WritePayload::~Socket_WritePayload(void)
+{}
+
+///////////////////////////////////////////////////////////////////////////////
+void WritePayload_Raw::serialize(vector<uint8_t>& data)
+{
+   data = move(data_);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+string WritePayload_Protobuf::serializeToText(void)
+{
+   if (message_ == nullptr)
+      return string();
+
+   string str;
+   ::google::protobuf::TextFormat::PrintToString(*message_.get(), &str);
+   return str;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WritePayload_Protobuf::serialize(vector<uint8_t>& data)
+{
+   if (message_ == nullptr)
+      return;
+
+   data.resize(message_->ByteSize());
+   message_->SerializeToArray(&data[0], data.size());
+}

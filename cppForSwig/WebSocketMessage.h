@@ -15,8 +15,8 @@
 #include "BinaryData.h"
 
 #define WEBSOCKET_MESSAGE_PACKET_SIZE 8000
-#define WEBSOCKET_MESSAGE_PACKET_HEADER 10
-#define WEBSOCKET_CALLBACK_ID 0xFFFFFFFFFFFFFFFE
+#define WEBSOCKET_MESSAGE_PACKET_HEADER 6
+#define WEBSOCKET_CALLBACK_ID 0xFFFFFFFE
 
 using namespace std;
 
@@ -32,20 +32,20 @@ class WebSocketMessage
 {
 private:
    map<uint8_t, BinaryData> packets_;
-   uint64_t id_ = UINT64_MAX;
+   BinaryData payload_;
+   uint32_t id_ = UINT32_MAX;
    unsigned count_ = UINT32_MAX;
 
 public:
-   static vector<BinaryData> serialize(uint64_t, const BinaryDataRef&);
-   static vector<BinaryData> serialize(uint64_t, const vector<uint8_t>&);
-   static vector<BinaryData> serialize(uint64_t, const string&);
-   static uint64_t getMessageId(const BinaryData&);
+   static vector<BinaryData> serialize(uint32_t, const BinaryDataRef&);
+   static vector<BinaryData> serialize(uint32_t, const vector<uint8_t>&);
+   static vector<BinaryData> serialize(uint32_t, const string&);
+   static uint32_t getMessageId(const BinaryData&);
 
    void processPacket(BinaryData&);
-   bool reconstruct(vector<uint8_t>&);
-   bool reconstruct(string&);
+   bool reconstruct(BinaryDataRef&);
 
-   uint64_t id(void) const { return id_; }
+   uint32_t id(void) const { return id_; }
 };
 
 #endif

@@ -7,300 +7,228 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "BDM_Server.h"
-#include "BDM_seder.h"
+
+using namespace ::google::protobuf;
+using namespace ::Codec_BDVCommand;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-void BDV_Server_Object::buildMethodMap()
+shared_ptr<Message> BDV_Server_Object::processCommand(
+   shared_ptr<BDVCommand> command)
 {
-   //registerCallback
-   auto registerCallback = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   /*
+   BDV_Command messages using any of the following methods need to carry a 
+   valid BDV id
+   */
+
+   switch (command->method())
    {
-      if (this->cb_ == nullptr || !this->cb_->isValid())
-         return Arguments();
-
-      auto&& callbackArg = args.get<BinaryDataObject>();
-      auto&& retval = this->cb_->respond(move(callbackArg.toStr()));
-      if (!retval.hasArgs())
-         LOGINFO << "returned empty callback packet";
-
-      return retval;
-   };
-
-   methodMap_["registerCallback"] = registerCallback;
-
-   //goOnline
-   auto goOnline = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::waitOnBDVInit:
+   case Methods::waitOnBDVNotification:
    {
+      /* in: void
+         out: BDVCallback
+      */
+      if (!cb_->isValid())
+         break;
+
+      auto longpoll = dynamic_cast<LongPoll*>(this->cb_.get());
+      if (longpoll == nullptr)
+         break;
+
+      return longpoll->respond(command);
+   }
+
+   case Methods::goOnline:
+   {
+      /* in: void
+         out: void
+      */
       this->startThreads();
+      return nullptr;
+   }
 
-      return Arguments();
-   };
-
-   methodMap_["goOnline"] = goOnline;
-
-   //getTopBlockHeight
-   auto getTopBlockHeight = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getTopBlockHeight:
    {
-      auto retVal = IntType(this->getTopBlockHeight());
-      Arguments retarg;
-      retarg.push_back(move(retVal));
-      return retarg;
-   };
+      /* in: void
+         out: Codec_CommonTypes::OneUnsigned
+      */
+      auto response = make_shared<::Codec_CommonTypes::OneUnsigned>();
+      response->set_value(this->getTopBlockHeight());
+      return response;
+   }
 
-   methodMap_["getTopBlockHeight"] = getTopBlockHeight;
-
-   //getHistoryPage
-   auto getHistoryPage = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getHistoryPage:
    {
-      if (ids.size() < 2)
-         throw runtime_error("unexpected id count");
+      /*
+         in: delegateID + pageID or
+             walletID + pageID
+         out: Codec_LedgerEntry::ManyLedgerEntry
+      */
 
       auto toLedgerEntryVector = []
-         (vector<LedgerEntry>& leVec)->LedgerEntryVector
+      (vector<LedgerEntry>& leVec)->shared_ptr<Message>
       {
-         LedgerEntryVector lev;
+         auto response = make_shared<::Codec_LedgerEntry::ManyLedgerEntry>();
+
          for (auto& le : leVec)
          {
-            LedgerEntryData led(le.getWalletID(),
-               le.getValue(), le.getBlockNum(), le.getTxHash(),
-               le.getIndex(), le.getTxTime(), le.isCoinbase(),
-               le.isSentToSelf(), le.isChangeBack(), 
-               le.isOptInRBF(), le.isChainedZC(), le.usesWitness(),
-               le.getScrAddrList());
-            lev.push_back(move(led));
+            auto lePtr = response->add_values();
+            le.fillMessage(lePtr);
          }
 
-         return lev;
+         return response;
       };
 
-      auto& nextID = ids[1];
 
       //is it a ledger from a delegate?
-      auto delegateIter = delegateMap_.find(nextID);
-      if (delegateIter != delegateMap_.end())
+      if (command->has_delegateid())
       {
-         
-         auto& delegateObject = delegateIter->second;
+         auto delegateIter = delegateMap_.find(command->delegateid());
+         if (delegateIter != delegateMap_.end())
+         {
+            if (!command->has_pageid())
+               throw runtime_error("invalid command for getHistoryPage");
 
-         auto arg0 = args.get<IntType>();
+            auto& delegateObject = delegateIter->second;
+            auto pageId = command->pageid();
 
-         auto&& retVal = delegateObject.getHistoryPage(arg0.getVal());
-
-         Arguments retarg;
-         retarg.push_back(move(toLedgerEntryVector(retVal)));
-         return retarg;
+            auto&& retVal = delegateObject.getHistoryPage(pageId);
+            return toLedgerEntryVector(retVal);
+         }
       }
-      
-      //or a wallet?
-      auto theWallet = getWalletOrLockbox(nextID);
-      if (theWallet != nullptr)
+      else if(command->has_walletid())
       {
-         //is it an address ledger?
-         if (ids.size() == 3)
+         auto& wltID = command->walletid();
+         BinaryDataRef wltIDRef; wltIDRef.setRef(wltID);
+         auto theWallet = getWalletOrLockbox(wltIDRef);
+         if (theWallet != nullptr)
          {
+            unsigned pageId = UINT32_MAX;
+            BinaryDataRef txHash;
 
-         }
-
-         unsigned pageId = UINT32_MAX;
-         BinaryData txHash;
-
-         //is a page or a hash
-         try
-         {
-            pageId = args.get<IntType>().getVal();
-         }
-         catch (runtime_error&)
-         {
-            auto&& bdo = args.get<BinaryDataObject>();
-            txHash = bdo.get();
-         }
-         
-         LedgerEntryVector resultLev;
-         if (pageId != UINT32_MAX)
-         {
-            auto&& retVal = theWallet->getHistoryPageAsVector(pageId);
-            resultLev = move(toLedgerEntryVector(retVal));
-         }
-         else
-         {
-            pageId = 0;
-            while (1)
+            if (command->has_pageid())
             {
-               auto ledgerMap = theWallet->getHistoryPage(pageId++);
-               for (auto& lePair : *ledgerMap)
-               {
-                  auto& leHash = lePair.second.getTxHash();
-                  if (leHash == txHash)
-                  {
-                     auto& le = lePair.second;
-
-                     LedgerEntryData led(le.getWalletID(),
-                        le.getValue(), le.getBlockNum(), le.getTxHash(),
-                        le.getIndex(), le.getTxTime(), le.isCoinbase(),
-                        le.isSentToSelf(), le.isChangeBack(),
-                        le.isOptInRBF(), le.isChainedZC(), le.usesWitness(),
-                        le.getScrAddrList());
-
-                     LedgerEntryVector lev;
-                     lev.push_back(move(led));
-
-                     Arguments retarg;
-                     retarg.push_back(move(lev));
-                     return retarg;
-                  }
-               }
+               auto&& retVal = theWallet->getHistoryPageAsVector(
+                  command->pageid());
+               return toLedgerEntryVector(retVal);
             }
-         }
-         
-         Arguments retarg;
-         retarg.push_back(move(resultLev));
-         return retarg;
+         }      
       }
 
-      throw runtime_error("invalid id");
-      return Arguments();
-   };
+      throw runtime_error("invalid command for getHistoryPage");
+   }
 
-   methodMap_["getHistoryPage"] = getHistoryPage;
-
-   //registerWallet
-   auto registerWallet = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::registerWallet:
    {
-      if (ids.size() != 1)
-         throw runtime_error("unexpected id count");
+      /*
+      in: 
+         walletid
+         flag: set to true if the wallet is new
+         hash: registration id. The callback notifying the registation 
+               completion will carry this id. If the registration
+               id is empty, no callback will be triggered on completion.
+         bindata[]: addresses
 
-      auto&& id = args.get<BinaryDataObject>();
-      auto&& scrAddrVec = args.get<BinaryDataVector>();
-      bool isNew = args.get<IntType>().getVal();
+      out: void, registration completion is signaled by callback
+      */
+      if (!command->has_walletid())
+         throw runtime_error("invalid command for registerWallet");
 
-      auto retVal = 
-         IntType(this->registerWallet(scrAddrVec.get(), move(id.toStr()), isNew));
-      
-      Arguments retarg;
-      retarg.push_back(move(retVal));
-      return retarg;
-   };
+      this->registerWallet(command);
+      break;
+   }
 
-   methodMap_["registerWallet"] = registerWallet;
-
-   //registerLockbox
-   auto registerLockbox = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::registerLockbox:
    {
-      if (ids.size() != 1)
-         throw runtime_error("unexpected id count");
+      /* see registerWallet */
 
-      auto&& id = args.get<BinaryDataObject>();
-      auto&& scrAddrVec = args.get<BinaryDataVector>();
-      bool isNew = args.get<IntType>().getVal();
+      if (!command->has_walletid())
+         throw runtime_error("invalid command for registerLockbox");
 
-      auto retVal = IntType(this->registerLockbox(
-         scrAddrVec.get(), move(id.toStr()), isNew));
+      this->registerLockbox(command);
+      break;
+   }
 
-      Arguments retarg;
-      retarg.push_back(move(retVal));
-      return retarg;
-   };
-
-   methodMap_["registerLockbox"] = registerLockbox;
-
-   //registerAddrList
-   auto registerAddrList = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getLedgerDelegateForWallets:
    {
-      if (ids.size() != 1)
-         throw runtime_error("unexpected id count");
-
-      auto&& id_bdo = args.get<BinaryDataObject>();
-      auto& id_bd = id_bdo.get();
-      string id_str(id_bd.toCharPtr(), id_bd.getSize());
-
-      auto&& scrAddrVec = args.get<BinaryDataVector>();
-
-      this->registerAddrVec(id_str, scrAddrVec.get());
-
-      return Arguments();
-   };
-
-   methodMap_["registerAddrList"] = registerAddrList;
-
-   //getLedgerDelegateForWallets
-   auto getLedgerDelegateForWallets = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
-   {
+      /*
+      in: void
+      out: ledger delegate id as a string wrapped in Codec_CommonTypes::Strings
+      */
       auto&& ledgerdelegate = this->getLedgerDelegateForWallets();
-      string id = ids[0];
+
+      string id = this->getID();
       id.append("_w");
 
       this->delegateMap_.insert(make_pair(id, ledgerdelegate));
 
-      Arguments retarg;
-      BinaryDataObject bdo(id);
-      retarg.push_back(move(bdo));
-      return retarg;
-   };
+      auto response = make_shared<::Codec_CommonTypes::Strings>();
+      response->add_data(id);
+      return response;
+   }
 
-   methodMap_["getLedgerDelegateForWallets"] = getLedgerDelegateForWallets;
-
-   //getLedgerDelegateForLockbox
-   auto getLedgerDelegateForLockboxes = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getLedgerDelegateForLockboxes:
    {
+      /* see getLedgerDelegateForWallets */
       auto&& ledgerdelegate = this->getLedgerDelegateForLockboxes();
-      string id = ids[0];
+
+      string id = this->getID();
       id.append("_l");
 
       this->delegateMap_.insert(make_pair(id, ledgerdelegate));
 
-      Arguments retarg;
-      BinaryDataObject bdo(id);
-      retarg.push_back(move(bdo));
-      return retarg;
-   };
+      auto response = make_shared<::Codec_CommonTypes::Strings>();
+      response->add_data(id);
+      return response;
+   }
 
-   methodMap_["getLedgerDelegateForLockboxes"] = getLedgerDelegateForLockboxes;
-
-   //getLedgerDelegateForScrAddr
-   auto getLedgerDelegateForScrAddr = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getLedgerDelegateForScrAddr:
    {
-      auto& walletId = ids[1];
-      BinaryData bdId((uint8_t*)walletId.c_str(), walletId.size());
+      /*
+      in:
+         walletid
+         scraddr
+      out: ledger delegate id as a string wrapped in Codec_CommonTypes::Strings
+      */
+      if (!command->has_walletid() || !command->has_scraddr())
+         throw runtime_error("invalid command for getLedgerDelegateForScrAddr");
 
-      auto&& scrAddr = args.get<BinaryDataObject>();
-      auto&& ledgerdelegate = 
-         this->getLedgerDelegateForScrAddr(bdId, scrAddr.get());
-      string id = scrAddr.get().toHexStr();
+      auto& walletId = command->walletid();
+      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
+
+      auto& scrAddr = command->scraddr();
+      BinaryData addr; addr.copyFrom(scrAddr);
+
+      auto&& ledgerdelegate =
+         this->getLedgerDelegateForScrAddr(walletIdRef, addr);
+      string id = addr.toHexStr();
 
       this->delegateMap_.insert(make_pair(id, ledgerdelegate));
+      auto response = make_shared<::Codec_CommonTypes::Strings>();
+      response->add_data(id);
+      return response;
+   }
 
-      Arguments retarg;
-      BinaryDataObject bdo(id);
-      retarg.push_back(move(bdo));
-      return retarg;
-   };
-
-   methodMap_["getLedgerDelegateForScrAddr"] = getLedgerDelegateForScrAddr;
-
-   //getBalancesAndCount
-   auto getBalancesAndCount = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getBalancesAndCount:
    {
-      if (ids.size() != 2)
-         throw runtime_error("unexpected id count");
+      /*
+      in:
+         walletid
+         height
+      out: full, spendable and unconfirmed balance + transaction count
+         wrapped in Codec_CommonTypes::ManyUnsigned
+      */
+      if (! command->has_walletid() || !command->has_height())
+         throw runtime_error("invalid command for getBalancesAndCount");
 
-      auto& walletId = ids[1];
-      BinaryData bdId((uint8_t*)walletId.c_str(), walletId.size());
+      auto& walletId = command->walletid();
+      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
+
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (int i = 0; i < this->groups_.size(); i++)
       {
-         auto wltIter = this->groups_[i].wallets_.find(bdId);
+         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
          if (wltIter != this->groups_[i].wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -308,58 +236,35 @@ void BDV_Server_Object::buildMethodMap()
       if (wltPtr == nullptr)
          throw runtime_error("unknown wallet/lockbox ID");
 
-      auto height = args.get<IntType>();
-      auto balance_full = 
-         IntType(wltPtr->getFullBalance());
-      auto balance_spen = 
-         IntType(wltPtr->getSpendableBalance(height.getVal()));
-      auto balance_unco = 
-         IntType(wltPtr->getUnconfirmedBalance(height.getVal()));
-      auto count = IntType(wltPtr->getWltTotalTxnCount());
+      uint32_t height = command->height();
 
-      Arguments retarg;
-      retarg.push_back(move(IntType(4)));
-      retarg.push_back(move(balance_full));
-      retarg.push_back(move(balance_spen));
-      retarg.push_back(move(balance_unco));
-      retarg.push_back(move(count));
-      return retarg;
-   };
+      auto response = make_shared<::Codec_CommonTypes::ManyUnsigned>();
+      response->add_value(wltPtr->getFullBalance());
+      response->add_value(wltPtr->getSpendableBalance(height));
+      response->add_value(wltPtr->getUnconfirmedBalance(height));
+      response->add_value(wltPtr->getWltTotalTxnCount());
+      return response;
+   }
 
-   methodMap_["getBalancesAndCount"] = getBalancesAndCount;
-
-   //hasHeaderWithHash
-   auto hasHeaderWithHash = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getSpendableTxOutListForValue:
    {
-      if (ids.size() != 1)
-         throw runtime_error("unexpected id count");
+      /*
+      in:
+         walletid
+         value
+      out: enough UTXOs to cover value twice, as Codec_Utxo::ManyUtxo
+      */
 
-      auto&& hash = args.get<BinaryDataObject>();
+      if (!command->has_walletid() || !command->has_value())
+         throw runtime_error("invalid command for getSpendableTxOutListForValue");
 
-      auto hasHash = 
-         IntType(this->blockchain().hasHeaderWithHash(hash.get()));
+      auto& walletId = command->walletid();
+      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
-      Arguments retarg;
-      retarg.push_back(move(hasHash));
-      return retarg;
-   };
-
-   methodMap_["hasHeaderWithHash"] = hasHeaderWithHash;
-
-   //getSpendableTxOutListForValue
-   auto getSpendableTxOutListForValue = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
-   {
-      if (ids.size() != 2)
-         throw runtime_error("unexpected id count");
-
-      auto& walletId = ids[1];
-      BinaryData bdId((uint8_t*)walletId.c_str(), walletId.size());
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (int i = 0; i < this->groups_.size(); i++)
       {
-         auto wltIter = this->groups_[i].wallets_.find(bdId);
+         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
          if (wltIter != this->groups_[i].wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -367,42 +272,42 @@ void BDV_Server_Object::buildMethodMap()
       if (wltPtr == nullptr)
          throw runtime_error("unknown wallet or lockbox ID");
 
-      auto value = args.get<IntType>().getVal();
+      auto&& utxoVec = wltPtr->getSpendableTxOutListForValue(
+         command->value());
 
-      auto&& utxoVec = wltPtr->getSpendableTxOutListForValue(value);
-
-      Arguments retarg;
-      auto count = IntType(utxoVec.size());
-      retarg.push_back(move(count));
-
+      auto response = make_shared<::Codec_Utxo::ManyUtxo>();
       for (auto& utxo : utxoVec)
       {
-         UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-            move(utxo.txHash_), move(utxo.script_));
-
-         auto&& bdser = entry.serialize();
-         BinaryDataObject bdo(move(bdser));
-         retarg.push_back(move(bdo));
+         auto utxoPtr = response->add_value();
+         utxoPtr->set_value(utxo.value_);
+         utxoPtr->set_script(utxo.script_.getPtr(), utxo.script_.getSize());
+         utxoPtr->set_txheight(utxo.txHeight_);
+         utxoPtr->set_txindex(utxo.txIndex_);
+         utxoPtr->set_txoutindex(utxo.txOutIndex_);
+         utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
       }
 
-      return retarg;
-   };
+      return response;
+   }
 
-   methodMap_["getSpendableTxOutListForValue"] = getSpendableTxOutListForValue;
-
-   //getSpendableZCList
-   auto getSpendableZCList = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getSpendableZCList:
    {
-      if (ids.size() != 2)
-         throw runtime_error("unexpected id count");
+      /*
+      in:
+      walletid
+      out: all ZC UTXOs for this wallet, as Codec_Utxo::ManyUtxo
+      */
 
-      auto& walletId = ids[1];
-      BinaryData bdId((uint8_t*)walletId.c_str(), walletId.size());
+      if (!command->has_walletid())
+         throw runtime_error("invalid command for getSpendableZCList");
+
+      auto& walletId = command->walletid();
+      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
+
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (int i = 0; i < this->groups_.size(); i++)
       {
-         auto wltIter = this->groups_[i].wallets_.find(bdId);
+         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
          if (wltIter != this->groups_[i].wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -412,38 +317,39 @@ void BDV_Server_Object::buildMethodMap()
 
       auto&& utxoVec = wltPtr->getSpendableTxOutListZC();
 
-      Arguments retarg;
-      auto count = IntType(utxoVec.size());
-      retarg.push_back(move(count));
-
+      auto response = make_shared<::Codec_Utxo::ManyUtxo>();
       for (auto& utxo : utxoVec)
       {
-         UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-            move(utxo.txHash_), move(utxo.script_));
-
-         auto&& bdser = entry.serialize();
-         BinaryDataObject bdo(move(bdser));
-         retarg.push_back(move(bdo));
+         auto utxoPtr = response->add_value();
+         utxoPtr->set_value(utxo.value_);
+         utxoPtr->set_script(utxo.script_.getPtr(), utxo.script_.getSize());
+         utxoPtr->set_txheight(utxo.txHeight_);
+         utxoPtr->set_txindex(utxo.txIndex_);
+         utxoPtr->set_txoutindex(utxo.txOutIndex_);
+         utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
       }
 
-      return retarg;
-   };
+      return response;
+   }
 
-   methodMap_["getSpendableZCList"] = getSpendableZCList;
-
-   //getRBFTxOutList
-   auto getRBFTxOutList = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getRBFTxOutList:
    {
-      if (ids.size() != 2)
-         throw runtime_error("unexpected id count");
+      /*
+      in:
+      walletid
+      out: all RBF UTXOs for this wallet, as Codec_Utxo::ManyUtxo
+      */
 
-      auto& walletId = ids[1];
-      BinaryData bdId((uint8_t*)walletId.c_str(), walletId.size());
+      if (!command->has_walletid())
+         throw runtime_error("invalid command for getSpendableZCList");
+
+      auto& walletId = command->walletid();
+      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
+
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (int i = 0; i < this->groups_.size(); i++)
       {
-         auto wltIter = this->groups_[i].wallets_.find(bdId);
+         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
          if (wltIter != this->groups_[i].wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -453,38 +359,40 @@ void BDV_Server_Object::buildMethodMap()
 
       auto&& utxoVec = wltPtr->getRBFTxOutList();
 
-      Arguments retarg;
-      auto count = IntType(utxoVec.size());
-      retarg.push_back(move(count));
-
+      auto response = make_shared<::Codec_Utxo::ManyUtxo>();
       for (auto& utxo : utxoVec)
       {
-         UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-            move(utxo.txHash_), move(utxo.script_));
-
-         auto&& bdser = entry.serialize();
-         BinaryDataObject bdo(move(bdser));
-         retarg.push_back(move(bdo));
+         auto utxoPtr = response->add_value();
+         utxoPtr->set_value(utxo.value_);
+         utxoPtr->set_script(utxo.script_.getPtr(), utxo.script_.getSize());
+         utxoPtr->set_txheight(utxo.txHeight_);
+         utxoPtr->set_txindex(utxo.txIndex_);
+         utxoPtr->set_txoutindex(utxo.txOutIndex_);
+         utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
       }
 
-      return retarg;
-   };
+      return response;
+   }
 
-   methodMap_["getRBFTxOutList"] = getRBFTxOutList;
-
-   //getSpendableTxOutListForAddr
-   auto getSpendableTxOutListForAddr = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getSpendableTxOutListForAddr:
    {
-      if (ids.size() != 2)
-         throw runtime_error("unexpected id count");
+      /*
+      in:
+      walletid
+      scraddr
+      out: all UTXOs for this address, as Codec_Utxo::ManyUtxo
+      */
 
-      auto& walletId = ids[1];
-      BinaryData bdId((uint8_t*)walletId.c_str(), walletId.size());
+      if (!command->has_walletid() || !command->has_scraddr())
+         throw runtime_error("invalid command for getSpendableZCList");
+
+      auto& walletId = command->walletid();
+      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
+
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (int i = 0; i < this->groups_.size(); i++)
       {
-         auto wltIter = this->groups_[i].wallets_.find(bdId);
+         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
          if (wltIter != this->groups_[i].wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -492,72 +400,72 @@ void BDV_Server_Object::buildMethodMap()
       if (wltPtr == nullptr)
          throw runtime_error("unknown wallet or lockbox ID");
 
-      auto&& scrAddr = args.get<BinaryDataObject>();      
-      auto addrObj = wltPtr->getScrAddrObjByKey(scrAddr.get());
-
-      bool ignorezc = args.get<IntType>().getVal();
+      auto& scrAddr = command->scraddr();
+      BinaryDataRef scrAddrRef((uint8_t*)scrAddr.data(), scrAddr.size());
+      auto addrObj = wltPtr->getScrAddrObjByKey(scrAddrRef);
 
       auto spentByZC = [this](const BinaryData& dbkey)->bool
       { return this->isTxOutSpentByZC(dbkey); };
 
       auto&& utxoVec = addrObj->getAllUTXOs(spentByZC);
 
-      Arguments retarg;
-      auto count = IntType(utxoVec.size());
-      retarg.push_back(move(count));
-
+      auto response = make_shared<::Codec_Utxo::ManyUtxo>();
       for (auto& utxo : utxoVec)
       {
-         UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-            move(utxo.txHash_), move(utxo.script_));
-
-         auto&& bdser = entry.serialize();
-         BinaryDataObject bdo(move(bdser));
-         retarg.push_back(move(bdo));
+         auto utxoPtr = response->add_value();
+         utxoPtr->set_value(utxo.value_);
+         utxoPtr->set_script(utxo.script_.getPtr(), utxo.script_.getSize());
+         utxoPtr->set_txheight(utxo.txHeight_);
+         utxoPtr->set_txindex(utxo.txIndex_);
+         utxoPtr->set_txoutindex(utxo.txOutIndex_);
+         utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
       }
 
-      return retarg;
-   };
+      return response;
+   }
 
-   methodMap_["getSpendableTxOutListForAddr"] = getSpendableTxOutListForAddr;
-
-
-   //broadcastZC
-   auto broadcastZC = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::broadcastZC:
    {
-      if (ids.size() != 1)
-         throw runtime_error("unexpected id count");
+      /*
+      in: raw tx as bindata[0]
+      out: void
+      */
 
-      auto broadcastLBD = [this](BinaryDataObject bdo)->void
+      if (command->bindata_size() != 1)
+         throw runtime_error("invalid command for broadcastZC");
+
+      auto broadcastLBD = [this](BinaryData bd)->void
       {
          this->zeroConfCont_->broadcastZC(
-            bdo.get(), this->getID(), 10000);
+            bd, this->getID(), 10000);
       };
-      
-      auto&& rawTx = args.get<BinaryDataObject>();
-      thread thr(broadcastLBD, move(rawTx));
+
+      auto&& rawTx = command->bindata(0);
+      BinaryData rawTxBD((uint8_t*)rawTx.data(), rawTx.size());
+      thread thr(broadcastLBD, move(rawTxBD));
       if (thr.joinable())
          thr.detach();
 
-      return Arguments();
-   };
+      return nullptr;
+   }
 
-   methodMap_["broadcastZC"] = broadcastZC;
-
-   //getAddrTxnCounts
-   auto getAddrTxnCounts = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getAddrTxnCounts:
    {
-      if (ids.size() != 2)
-         throw runtime_error("unexpected id count");
+      /*
+      in: walletid
+      out: transaction count for each address in wallet, 
+           as Codec_AddressData::ManyAddressData
+      */
+      if (!command->has_walletid())
+         throw runtime_error("invalid command for getSpendableZCList");
 
-      auto& walletId = ids[1];
-      BinaryData bdId((uint8_t*)walletId.c_str(), walletId.size());
+      auto& walletId = command->walletid();
+      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
+
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (int i = 0; i < this->groups_.size(); i++)
       {
-         auto wltIter = this->groups_[i].wallets_.find(bdId);
+         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
          if (wltIter != this->groups_[i].wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -567,35 +475,35 @@ void BDV_Server_Object::buildMethodMap()
 
       auto&& countMap = wltPtr->getAddrTxnCounts(updateID_);
 
-      Arguments retarg;
-      auto&& mapSize = IntType(countMap.size());
-      retarg.push_back(move(mapSize));
-
+      auto response = make_shared<::Codec_AddressData::ManyAddressData>();
       for (auto count : countMap)
       {
-         BinaryDataObject bdo(move(count.first));
-         retarg.push_back(move(bdo));
-         retarg.push_back(move(IntType(count.second)));
+         auto addrData = response->add_scraddrdata();
+         addrData->set_scraddr(count.first.getPtr(), count.first.getSize());
+         addrData->add_value(count.second);
       }
 
-      return retarg;
-   };
+      return response;
+   }
 
-   methodMap_["getAddrTxnCounts"] = getAddrTxnCounts;
-
-   //getAddrBalances
-   auto getAddrBalances = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getAddrBalances:
    {
-      if (ids.size() != 2)
-         throw runtime_error("unexpected id count");
+      /*
+      in: walletid
+      out: full, spendable and unconfirmed balance for each address in
+           wallet, as Codec_AddressData::ManyAddressData
+      */
 
-      auto& walletId = ids[1];
-      BinaryData bdId((uint8_t*)walletId.c_str(), walletId.size());
+      if (!command->has_walletid())
+         throw runtime_error("invalid command for getSpendableZCList");
+
+      auto& walletId = command->walletid();
+      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
+
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (int i = 0; i < this->groups_.size(); i++)
       {
-         auto wltIter = this->groups_[i].wallets_.find(bdId);
+         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
          if (wltIter != this->groups_[i].wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -606,303 +514,319 @@ void BDV_Server_Object::buildMethodMap()
       auto&& balanceMap = wltPtr->getAddrBalances(
          updateID_, this->getTopBlockHeight());
 
-      Arguments retarg;
-      auto&& mapSize = IntType(balanceMap.size());
-      retarg.push_back(move(mapSize));
-
+      auto response = make_shared<::Codec_AddressData::ManyAddressData>();
       for (auto balances : balanceMap)
       {
-         BinaryDataObject bdo(move(balances.first));
-         retarg.push_back(move(bdo));
-         retarg.push_back(move(IntType(3)));
-         retarg.push_back(move(IntType(get<0>(balances.second))));
-         retarg.push_back(move(IntType(get<1>(balances.second))));
-         retarg.push_back(move(IntType(get<2>(balances.second))));
+         auto addrData = response->add_scraddrdata();
+         addrData->set_scraddr(balances.first.getPtr(), balances.first.getSize());
+         addrData->add_value(get<0>(balances.second));
+         addrData->add_value(get<1>(balances.second));
+         addrData->add_value(get<2>(balances.second));
       }
 
-      return retarg;
-   };
+      return response;
+   }
 
-   methodMap_["getAddrBalances"] = getAddrBalances;
-
-
-   //getTxByHash
-   auto getTxByHash = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getTxByHash:
    {
-      if (ids.size() != 1)
-         throw runtime_error("unexpected id count");
+      /*
+      in: hash
+      out: tx as Codec_CommonTypes::TxWithMetaData
+      */
 
-      auto&& txHash = args.get<BinaryDataObject>();
-      auto&& retval = this->getTxByHash(txHash.get());
-      BinaryDataObject bdo(move(retval.serializeWithMetaData()));
+      if (!command->has_hash())
+         throw runtime_error("invalid command for getTxByHash");
 
-      Arguments retarg;
-      retarg.push_back(move(bdo));
-      return move(retarg);
-   };
+      auto& txHash = command->hash();
+      BinaryDataRef txHashRef; txHashRef.setRef(txHash);
+      auto&& retval = this->getTxByHash(txHashRef);
+      auto& hash = retval.getThisHash();
 
-   methodMap_["getTxByHash"] = getTxByHash;
+      auto response = make_shared<::Codec_CommonTypes::TxWithMetaData>();
+      response->set_rawtx(retval.getPtr(), retval.getSize());
+      response->set_isrbf(retval.isRBF());
+      response->set_ischainedzc(retval.isChained());
+      return response;
+   }
 
-   //getAddressFullBalance
-   auto getAddressFullBalance = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getAddressFullBalance:
    {
-      if (ids.size() != 2)
-         throw runtime_error("unexpected id count");
+      /*
+      in: scraddr
+      out: current balance in DB (does not cover ZC), 
+           as Codec_CommonTypes::OneUnsigned
+      */
 
-      auto&& scrAddr = args.get<BinaryDataObject>();
-      auto&& retval = this->getAddrFullBalance(scrAddr.get());
+      if (!command->has_scraddr())
+         throw runtime_error("invalid command for getAddressFullBalance");
 
-      Arguments retarg;
-      retarg.push_back(move(IntType(get<0>(retval))));
-      return move(retarg);
-   };
+      auto& scrAddr = command->scraddr();
+      BinaryDataRef scrAddrRef; scrAddrRef.setRef(scrAddr);
+      auto&& retval = this->getAddrFullBalance(scrAddrRef);
 
-   methodMap_["getAddressFullBalance"] = getAddressFullBalance;
+      auto response = make_shared<::Codec_CommonTypes::OneUnsigned>();
+      response->set_value(get<0>(retval));
+      return response;
+   }
 
-   //getAddressTxioCount
-   auto getAddressTxioCount = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getAddressTxioCount:
    {
-      if (ids.size() != 2)
-         throw runtime_error("unexpected id count");
+      /*
+      in: scraddr
+      out: current transaction count in DB (does not cover ZC), 
+           as Codec_CommonTypes::OneUnsigned
+      */
+      if (!command->has_scraddr())
+         throw runtime_error("invalid command for getAddressFullBalance");
 
-      auto&& scrAddr = args.get<BinaryDataObject>();
-      auto&& retval = this->getAddrFullBalance(scrAddr.get());
+      auto& scrAddr = command->scraddr();
+      BinaryDataRef scrAddrRef; scrAddrRef.setRef(scrAddr);
+      auto&& retval = this->getAddrFullBalance(scrAddrRef);
 
-      Arguments retarg;
-      retarg.push_back(move(IntType(get<1>(retval))));
-      return move(retarg);
-   };
+      auto response = make_shared<::Codec_CommonTypes::OneUnsigned>();
+      response->set_value(get<1>(retval));
+      return response;
+   }
 
-   methodMap_["getAddressTxioCount"] = getAddressTxioCount;
-
-   //getHeaderByHeight
-   auto getHeaderByHeight = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getHeaderByHeight:
    {
-      if (ids.size() != 1)
-         throw runtime_error("unexpected id count");
+      /*
+      in: height
+      out: raw header, as Codec_CommonTypes::BinaryData
+      */
 
-      auto height = args.get<IntType>().getVal();
-      auto header = blockchain().getHeaderByHeight(height);
+      if (!command->has_height())
+         throw runtime_error("invalid command for getHeaderByHeight");
 
-      BinaryDataObject bdo(header->serialize());
+      auto header = blockchain().getHeaderByHeight(command->height());
+      auto& headerData = header->serialize();
 
-      Arguments retarg;
-      retarg.push_back(move(bdo));
-      return move(retarg);
-   };
+      auto response = make_shared<::Codec_CommonTypes::BinaryData>();
+      response->set_data(headerData.getPtr(), headerData.getSize());
+      return response;
+   }
 
-   methodMap_["getHeaderByHeight"] = getHeaderByHeight;
-
-   //createAddressBook
-   auto createAddressBook = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::createAddressBook:
    {
-      if (ids.size() != 2)
-         throw runtime_error("unexpected id count");
+      /*
+      in: walletid
+      out: Codec_AddressBook::AddressBook
+      */
 
-      auto wltPtr = getWalletOrLockbox(ids[1]);
+      if (!command->has_walletid())
+         throw runtime_error("invalid command for createAddressBook");
+
+      auto& walletId = command->walletid();
+      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
+      auto wltPtr = getWalletOrLockbox(walletIdRef);
       if (wltPtr == nullptr)
          throw runtime_error("invalid id");
 
       auto&& abeVec = wltPtr->createAddressBook();
 
-      Arguments retarg;
-      unsigned count = abeVec.size();
-      retarg.push_back(move(IntType(count)));
-
+      auto response = make_shared<::Codec_AddressBook::AddressBook>();
       for (auto& abe : abeVec)
       {
-         auto&& serString = abe.serialize();
-         BinaryDataObject bdo(move(serString));
-         retarg.push_back(move(bdo));
+         auto entry = response->add_entry();
+         auto& scrAddr = abe.getScrAddr();
+         entry->set_scraddr(scrAddr.getPtr(), scrAddr.getSize());
+
+         auto& txHashList = abe.getTxHashList();
+         for (auto txhash : txHashList)
+            entry->add_txhash(txhash.getPtr(), txhash.getSize());
       }
 
-      return move(retarg);
-   };
+      return response;
+   }
 
-   methodMap_["createAddressBook"] = createAddressBook;
-
-   //updateWalletsLedgerFilter
-   auto updateWalletsLedgerFilter = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::updateWalletsLedgerFilter:
    {
-      auto&& bdVec = args.get<BinaryDataVector>();
+      /*
+      in: vector of wallet ids to display in wallet ledger delegate, as bindata
+      out: void
+      */
+      vector<BinaryData> bdVec;
+      for (unsigned i = 0; i < command->bindata_size(); i++)
+      {
+         auto& val = command->bindata(i);
+         BinaryData valRef((uint8_t*)val.data(), val.size());
+         bdVec.push_back(valRef);
+      }
 
-      this->updateWalletsLedgerFilter(bdVec.get());
+      this->updateWalletsLedgerFilter(bdVec);
+      return nullptr;
+   }
 
-      return Arguments();
-   };
-
-   methodMap_["updateWalletsLedgerFilter"] = updateWalletsLedgerFilter;
-
-   //getNodeStatus
-   auto getNodeStatus = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getNodeStatus:
    {
+      /*
+      in: void
+      out: Codec_NodeStatus::NodeStatus
+      */
       auto&& nodeStatus = this->bdmPtr_->getNodeStatus();
 
-      BinaryDataObject bdo(nodeStatus.serialize());
-      Arguments retarg;
-      retarg.push_back(move(bdo));
-      return move(retarg);
-   };
+      auto response = make_shared<::Codec_NodeStatus::NodeStatus>();
+      response->set_status((unsigned)nodeStatus.status_);
+      response->set_segwitenabled(nodeStatus.SegWitEnabled_);
+      response->set_rpcstatus((unsigned)nodeStatus.rpcStatus_);
 
-   methodMap_["getNodeStatus"] = getNodeStatus;
+      auto chainState_proto = new ::Codec_NodeStatus::NodeChainState();
+      chainState_proto->set_state((unsigned)nodeStatus.chainState_.state());
+      chainState_proto->set_blockspeed(nodeStatus.chainState_.getBlockSpeed());
+      chainState_proto->set_eta(nodeStatus.chainState_.getETA());
+      chainState_proto->set_pct(nodeStatus.chainState_.getProgressPct());
+      chainState_proto->set_blocksleft(nodeStatus.chainState_.getBlocksLeft());
+      response->set_allocated_chainstate(chainState_proto);
 
-   //estimateFee
-   auto estimateFee = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+      return response;
+   }
+
+   case Methods::estimateFee:
    {
-      auto blocksToConfirm = args.get<IntType>().getVal();
-      auto strat_bd = args.get<BinaryDataObject>().get();
-      string strat(strat_bd.toCharPtr(), strat_bd.getSize());
+      /*
+      in: 
+         value
+         startegy as bindata[0]
+      out: 
+         Codec_FeeEstimate::FeeEstimate
+      */
+      if (!command->has_value() || command->bindata_size() != 1)
+         throw runtime_error("invalid command for estimateFee");
+
+      uint32_t blocksToConfirm = command->value();
+      auto strat = command->bindata(0);
 
       auto feeByte = this->bdmPtr_->nodeRPC_->getFeeByteSmart(
          blocksToConfirm, strat);
 
-      BinaryWriter bw;
-      bw.put_double(feeByte.feeByte_);
-      BinaryDataObject val(bw.getData());
-      IntType version(feeByte.smartFee_);
-      BinaryDataObject err(feeByte.error_);
+      auto response = make_shared<::Codec_FeeEstimate::FeeEstimate>();
+      response->set_feebyte(feeByte.feeByte_);
+      response->set_smartfee(feeByte.smartFee_);
+      response->set_error(feeByte.error_);
+      return response;
+   }
 
-      Arguments retarg;
-      retarg.push_back(move(val));
-      retarg.push_back(move(version));
-      retarg.push_back(move(err));
-      return move(retarg);
-   };
-
-   methodMap_["estimateFee"] = estimateFee;
-
-   //getHistoryForWalletSelection
-   auto getHistoryForWalletSelection = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getHistoryForWalletSelection:
    {
-      auto&& wltIDs = args.get<BinaryDataVector>();
-      auto orderingBdo = args.get<BinaryDataObject>().get();
-      auto orderingStr = string(orderingBdo.getCharPtr(), orderingBdo.getSize());
+      /*
+      in:
+         vector of wallet ids to get history for, as bindata
+         flag, set to true to order history ascending
+      out:
+         history for wallet list, as Codec_LedgerEntry::ManyLedgerEntry
+      */
+
+      if (!command->has_flag())
+         throw runtime_error("invalid command for getHistoryForWalletSelection");
+
+      vector<BinaryData> wltIDs;
+      for (unsigned i = 0; i < command->bindata_size(); i++)
+      {
+         auto& id = command->bindata(i);
+         BinaryData idRef((uint8_t*)id.data(), id.size());
+         wltIDs.push_back(idRef);
+      }
+
+      auto orderingFlag = command->flag();
 
       HistoryOrdering ordering;
-      if (orderingStr == "ascending")
+      if (orderingFlag)
          ordering = order_ascending;
-      else if (orderingStr == "descending")
+      else 
          ordering = order_descending;
-      else
-         throw runtime_error("invalid ordering str");
 
-      auto&& wltGroup = this->getStandAloneWalletGroup(wltIDs.get(), ordering);
-            
-      LedgerEntryVector lev;
+      auto&& wltGroup = this->getStandAloneWalletGroup(wltIDs, ordering);
+
+      auto response = make_shared<::Codec_LedgerEntry::ManyLedgerEntry>();
       for (unsigned y = 0; y < wltGroup.getPageCount(); y++)
       {
          auto&& histPage = wltGroup.getHistoryPage(y, false, false, UINT32_MAX);
+
          for (auto& le : histPage)
          {
-            LedgerEntryData led(le.getWalletID(),
-               le.getValue(), le.getBlockNum(), le.getTxHash(),
-               le.getIndex(), le.getTxTime(), le.isCoinbase(),
-               le.isSentToSelf(), le.isChangeBack(),
-               le.isOptInRBF(), le.isChainedZC(), le.usesWitness(),
-               le.getScrAddrList());
-            lev.push_back(move(led));
+            auto lePtr = response->add_values();
+            le.fillMessage(lePtr);
          }
       }
 
-      Arguments retarg;
-      retarg.push_back(move(lev));
-      return move(retarg);
-   };
+      return response;
+   }
 
-   methodMap_["getHistoryForWalletSelection"] = getHistoryForWalletSelection;
-
-   //getValueForTxOut
-   auto getValueForTxOut = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::broadcastThroughRPC:
    {
-      auto&& txHashObj = args.get<BinaryDataObject>();
-      auto& txHash = txHashObj.get();
-      auto txoutIndex = args.get<IntType>().getVal();
-         
-      auto&& theTx = this->getTxByHash(txHash);
-      if (!theTx.isInitialized())
-         throw runtime_error("failed to find tx");
+      /*
+      in: raw tx as bindata[0]
+      out: rpc response string as Codec_CommonTypes::String
+      */
 
-      auto&& txOut = theTx.getTxOutCopy(txoutIndex);
+      if (command->bindata_size() != 1)
+         throw runtime_error("invalid command for broadcastThroughRPC");
 
-      Arguments retarg;
-      retarg.push_back(move(IntType(txOut.getValue())));
-      return move(retarg);
-   };
-
-   methodMap_["getValueForTxOut"] = getValueForTxOut;
-
-   //broadcastThroughRPC
-   auto broadcastThroughRPC = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
-   {
-      auto&& rawTx = args.get<BinaryDataObject>();
-      auto& rawTxBd = rawTx.get();
+      auto& rawTx = command->bindata(0);
+      BinaryDataRef rawTxRef; rawTxRef.setRef(rawTx);
 
       auto&& response =
-         this->bdmPtr_->nodeRPC_->broadcastTx(rawTxBd);
+         this->bdmPtr_->nodeRPC_->broadcastTx(rawTxRef);
 
       if (response == "success")
       {
-         this->bdmPtr_->zeroConfCont_->pushZcToParser(rawTxBd);
+         this->bdmPtr_->zeroConfCont_->pushZcToParser(rawTxRef);
       }
 
-      BinaryData response_bdr(response);
+      auto result = make_shared<::Codec_CommonTypes::Strings>();
+      result->add_data(response);
+      return result;
+   }
 
-      Arguments retarg;
-      retarg.push_back(move(BinaryDataObject(move(response_bdr))));
-      return move(retarg);
-   };
-
-   methodMap_["broadcastThroughRPC"] = broadcastThroughRPC;
-
-   //getUTXOsForAddrList
-   auto getUTXOsForAddrList = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getUTXOsForAddrList:
    {
-      auto&& addrBdVec = args.get<BinaryDataVector>();
-      auto& addrVec = addrBdVec.get();
+      /*
+      in: addresses as bindata
+      out: Codec_Utxo::ManyUtxo
+      */
+
+      vector<BinaryData> addrVec;
+      for (unsigned i = 0; i < command->bindata_size(); i++)
+      {
+         auto& addr = command->bindata(i);
+         BinaryData addrRef((uint8_t*)addr.data(), addr.size());
+         addrVec.push_back(addrRef);
+      }
 
       auto&& utxoVec = this->getUnspentTxoutsForAddr160List(addrVec, false);
 
-      Arguments retarg;
-      auto count = IntType(utxoVec.size());
-      retarg.push_back(move(count));
-
+      auto response = make_shared<::Codec_Utxo::ManyUtxo>();
       for (auto& utxo : utxoVec)
       {
-         UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-            move(utxo.txHash_), move(utxo.script_));
-
-         auto&& bdser = entry.serialize();
-         BinaryDataObject bdo(move(bdser));
-         retarg.push_back(move(bdo));
+         auto utxoPtr = response->add_value();
+         utxoPtr->set_value(utxo.value_);
+         utxoPtr->set_script(utxo.script_.getPtr(), utxo.script_.getSize());
+         utxoPtr->set_txheight(utxo.txHeight_);
+         utxoPtr->set_txindex(utxo.txIndex_);
+         utxoPtr->set_txoutindex(utxo.txOutIndex_);
+         utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
       }
 
-      return retarg;
-   };
+      return response;
+   }
 
-   methodMap_["getUTXOsForAddrList"] = getUTXOsForAddrList;
-
-   //getRawHeaderForTxHash
-   auto getRawHeaderForTxHash = [this]
-      (const vector<string>& ids, Arguments& args)->Arguments
+   case Methods::getHeaderByHash:
    {
-      auto&& hash = args.get<BinaryDataObject>();
-      auto&& dbKey = this->db_->getDBKeyForHash(hash.get());
-      
-      Arguments retarg;
+      /*
+      in: hash
+      out: raw header, as Codec_CommonTypes::BinaryData
+      */
+
+      if (!command->has_hash())
+         throw runtime_error("invalid command for getHeaderByHash");
+
+      auto& txHash = command->hash();
+      BinaryDataRef txHashRef; txHashRef.setRef(txHash);
+
+      auto&& dbKey = this->db_->getDBKeyForHash(txHashRef);
+
       if (dbKey.getSize() == 0)
-         return retarg;
+         return nullptr;
 
       unsigned height; uint8_t dup;
       BinaryRefReader key_brr(dbKey.getRef());
@@ -916,16 +840,19 @@ void BDV_Server_Object::buildMethodMap()
       }
       catch (exception&)
       {
-         return retarg;
+         return nullptr;
       }
 
-      BinaryDataObject headerBDO(move(rawHeader));
-      retarg.push_back(move(headerBDO));
-      return retarg;
-   };
+      auto response = make_shared<::Codec_CommonTypes::BinaryData>();
+      response->set_data(rawHeader.getPtr(), rawHeader.getSize());
+      return response;
+   }
 
-   methodMap_["getRawHeaderForTxHash"] = getRawHeaderForTxHash;
+   default:
+      LOGWARN << "unkonwn method";
+   }
 
+   return nullptr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -943,26 +870,29 @@ const shared_ptr<BDV_Server_Object>& Clients::get(const string& id) const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-Arguments Clients::processShutdownCommand(Command& cmdObj)
+void Clients::processShutdownCommand(shared_ptr<BDVCommand> command)
 {
    auto& thisCookie = bdmT_->bdm()->config().cookie_;
    if (thisCookie.size() == 0)
-      return Arguments();
+      return;
 
    try
    {
-      auto&& cookie = cmdObj.args_.get<BinaryDataObject>();
-      auto&& cookieStr = cookie.toStr();
+      if (!command->has_hash())
+         throw runtime_error("malformed command for processShutdownCommand");
+      auto& cookie = command->hash();
 
-      if ((cookieStr.size() == 0) || (cookieStr != thisCookie))
+      if ((cookie.size() == 0) || (cookie != thisCookie))
          throw runtime_error("spawnId mismatch");
    }
    catch (...)
    {
-      return Arguments();
+      return;
    }
 
-   if (cmdObj.method_ == "shutdown")
+   switch (command->method())
+   {
+   case Methods::shutdown:
    {
       auto shutdownLambda = [this](void)->void
       {
@@ -974,91 +904,97 @@ Arguments Clients::processShutdownCommand(Command& cmdObj)
       thread shutdownThr(shutdownLambda);
       if (shutdownThr.joinable())
          shutdownThr.detach();
+      break;
    }
-   else if (cmdObj.method_ == "shutdownNode")
+
+   case Methods::shutdownNode:
    {
       if (bdmT_->bdm()->nodeRPC_ != nullptr)
          bdmT_->bdm()->nodeRPC_->shutdown();
    }
 
-   return Arguments();
+   default:
+      LOGWARN << "unexpected command in processShutdownCommand";
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-Arguments Clients::runCommand_FCGI(const string& cmdStr)
+shared_ptr<Message> Clients::runCommand_FCGI(shared_ptr<BDVCommand> command)
 {
    if (!run_.load(memory_order_relaxed))
-      return Arguments();
+      return nullptr;
+
+   switch (command->method())
+   {
+   case Methods::shutdown:
+   case Methods::shutdownNode:
+   {
+      processShutdownCommand(command);
+      break;
+   }
+     
+   case Methods::registerBDV:
+   {
+      return registerBDV(command, string());
+   }
    
-   Command cmdObj(cmdStr);
-   cmdObj.deserialize();
-
-   unsigned requestId = cmdObj.args_.get<IntType>().getVal();
-
-   if (cmdObj.method_ == "shutdown" || cmdObj.method_ == "shutdownNode")
+   case Methods::unregistedBDV:
    {
-      return processShutdownCommand(cmdObj);
+      unregisterBDV(command->bdvid());
+      break;
    }
-   else if (bdmT_->bdm()->hasException())
-   {
-      rethrow_exception(bdmT_->bdm()->getException());
-   }
-   else if (cmdObj.method_ == "registerBDV")
-   {
-      auto&& result = registerBDV(cmdObj, string());
-      result.setMessageId(requestId);
+
+   default:
+      if (bdmT_->bdm()->hasException())
+         rethrow_exception(bdmT_->bdm()->getException());
+
+      if (!command->has_bdvid())
+         throw runtime_error("invalid command");
+
+      auto bdv = get(command->bdvid());
+
+      //execute command
+      auto&& result = bdv->processCommand(command);
+      bdv->resetCounter();
       return result;
    }
-   else if (cmdObj.method_ == "unregisterBDV")
-   {
-      if (cmdObj.ids_.size() != 1)
-         throw runtime_error("invalid arg count for unregisterBDV");
 
-      unregisterBDV(cmdObj.ids_[0]);
-      return Arguments();
-   }
-
-   //find the BDV and method
-   if (cmdObj.ids_.size() == 0)
-      throw runtime_error("malformed command");
-
-   auto bdv = get(cmdObj.ids_[0]);
-
-   //execute command
-   auto&& result = 
-      bdv->executeCommand(cmdObj.method_, cmdObj.ids_, cmdObj.args_);
-   result.setMessageId(requestId);
-   bdv->resetCounter();
-
-   return result;
+   return nullptr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-Arguments Clients::runCommand_WS(const uint64_t& bdvid, const string& cmdStr)
+shared_ptr<Message> Clients::runCommand_WS(
+   const uint64_t& bdvid, shared_ptr<BDVCommand> command)
 {
-   Command cmdObj(cmdStr);
-   cmdObj.deserialize();
    BinaryDataRef bdr((uint8_t*)&bdvid, 8);
 
-   if (cmdObj.method_ == "shutdown" || cmdObj.method_ == "shutdownNode")
+   switch (command->method())
    {
-      return processShutdownCommand(cmdObj);
+   case Methods::shutdown:
+   case Methods::shutdownNode:
+   {
+      processShutdownCommand(command);
+      break;
    }
 
-   else if (bdmT_->bdm()->hasException())
-   {
-      rethrow_exception(bdmT_->bdm()->getException());
-   }
-   else if (cmdObj.method_ == "registerBDV")
-   {
-      return registerBDV(cmdObj, bdr.toHexStr());
+   case Methods::registerBDV:
+      return registerBDV(command, bdr.toHexStr());
+
+   case Methods::unregistedBDV:
+      break;
+
+   default:
+      if (bdmT_->bdm()->hasException())
+         rethrow_exception(bdmT_->bdm()->getException());
+
+      //find the BDV and method
+      auto bdv = get(bdr.toHexStr());
+
+      //execute command
+      return bdv->processCommand(command);
    }
 
-   //find the BDV and method
-   auto bdv = get(bdr.toHexStr());
-
-   //execute command
-   return bdv->executeCommand(cmdObj.method_, cmdObj.ids_, cmdObj.args_);
+   return nullptr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1072,9 +1008,7 @@ void Clients::shutdown()
 
    //shutdown ZC container
    bdmT_->bdm()->disableZeroConf();
-
-   //terminate all ongoing scans
-   bdmT_->bdm()->terminateAllScans();
+   bdmT_->bdm()->getScrAddrFilter()->shutdown();
 
    bdmT_->cleanUp();
 }
@@ -1101,12 +1035,19 @@ void Clients::exitRequestLoop()
    outerBDVNotifStack_.completed();
    innerBDVNotifStack_.completed();
 
+   vector<thread::id> idVec;
    for (auto& thr : controlThreads_)
+   {
+      idVec.push_back(thr.get_id());
       if (thr.joinable())
          thr.join();
+   }
+
+   DatabaseContainer_Sharded::clearThreadShardTx(idVec);
 
    //shutdown loop on FcgiServer side
-   shutdownCallback_();
+   if(shutdownCallback_)
+      shutdownCallback_();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1120,14 +1061,18 @@ void Clients::unregisterAllBDVs()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-Arguments Clients::registerBDV(Command& cmd, string bdvID)
+shared_ptr<Message> Clients::registerBDV(
+   shared_ptr<BDVCommand> command, string bdvID)
 {
    try
    {
-      auto&& magic_word = cmd.args_.get<BinaryDataObject>();
+      if (!command->has_hash())
+         throw runtime_error("invalid command for registerBDV");
+      auto& magic_word = command->hash();
+      BinaryDataRef magic_word_ref; magic_word_ref.setRef(magic_word);
       auto& thisMagicWord = bdmT_->bdm()->config().magicBytes_;
 
-      if (thisMagicWord != magic_word.get())
+      if (thisMagicWord != magic_word_ref)
          throw runtime_error("");
    }
    catch (...)
@@ -1137,20 +1082,24 @@ Arguments Clients::registerBDV(Command& cmd, string bdvID)
 
    if(bdvID.size() == 0)
       bdvID = SecureBinaryData().GenerateRandom(10).toHexStr();
-
    auto newBDV = make_shared<BDV_Server_Object>(bdvID, bdmT_);
 
-   string newID(newBDV->getID());
+   auto notiflbd = [this](unique_ptr<BDV_Notification> notifPtr)
+   {
+      this->outerBDVNotifStack_.push_back(move(notifPtr));
+   };
 
+   newBDV->notifLambda_ = notiflbd;
+   
    //add to BDVs map
+   string newID(newBDV->getID());
    BDVs_.insert(move(make_pair(newID, newBDV)));
 
    LOGINFO << "registered bdv: " << newID;
 
-   Arguments args;
-   BinaryDataObject bdo(newID);
-   args.push_back(move(bdo));
-   return args;
+   auto response = make_shared<::Codec_CommonTypes::BinaryData>();
+   response->set_data(newID);
+   return response;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1249,24 +1198,12 @@ void Clients::garbageCollectorThread(void)
                bdvToDelete.push_back(bdvPair.first);
          }
       }
-
+   
       for (auto& bdvID : bdvToDelete)
       {
          unregisterBDV(bdvID);
       }
    }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-Arguments BDV_Server_Object::executeCommand(const string& method,
-   const vector<string>& ids, Arguments& args)
-{
-   //make sure the method exists
-   auto iter = methodMap_.find(method);
-   if (iter == methodMap_.end())
-      throw runtime_error("error: unknown method");
-
-   return iter->second(ids, args);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1306,8 +1243,6 @@ void BDV_Server_Object::setup()
    {
       throw runtime_error("unexpected service type");
    }
-
-   buildMethodMap();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1330,10 +1265,10 @@ void BDV_Server_Object::startThreads()
 ///////////////////////////////////////////////////////////////////////////////
 void BDV_Server_Object::haltThreads()
 {
+   if(cb_ != nullptr)
+      cb_->shutdown();
    if (initT_.joinable())
       initT_.join();
-
-   cb_->shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1344,7 +1279,6 @@ void BDV_Server_Object::init()
    while (1)
    {
       bool isNew = false;
-      set<BinaryData> scrAddrSet;
       map<string, walletRegStruct> wltMap;
 
       {
@@ -1357,30 +1291,38 @@ void BDV_Server_Object::init()
          wltRegMap_.clear();
       }
 
-      //bundle addresses to register together
+      //create address batch
+      auto batch = make_shared<AddressBatch>(bdvID_);
+      batch->isNew_ = false;
+
+      //fill with addresses from protobuf payloads
       for (auto& wlt : wltMap)
       {
-         for (auto& scraddr : wlt.second.scrAddrVec)
-            scrAddrSet.insert(scraddr);
+         for (unsigned i = 0; i < wlt.second.command_->bindata_size(); i++)
+         {
+            auto& addrStr = wlt.second.command_->bindata(i);
+            BinaryDataRef addrRef; addrRef.setRef(addrStr);
+            batch->scrAddrSet_.insert(move(addrRef));
+         }
       }
 
-      //register address set with BDM
-      auto&& waitOnFuture = bdmPtr_->registerAddressBatch(scrAddrSet, isNew);
-      waitOnFuture.wait();
-
-      //register actual wallets with BDV
-      auto bdvPtr = (BlockDataViewer*)this;
-      for (auto& wlt : wltMap)
+      //callback only serves to wait on the registration event
+      auto promPtr = make_shared<promise<bool>>();
+      auto fut = promPtr->get_future();
+      auto callback = [promPtr](set<BinaryDataRef>&)->void
       {
-         //this should return when the wallet is registered, since all
-         //underlying  addresses are already registered with the BDM
-         if (wlt.second.type_ == TypeWallet)
-            bdvPtr->registerWallet(
-            wlt.second.scrAddrVec, wlt.second.IDstr, wlt.second.isNew);
-         else
-            bdvPtr->registerLockbox(
-            wlt.second.scrAddrVec, wlt.second.IDstr, wlt.second.isNew);
-      }
+         promPtr->set_value(true);
+      };
+
+      batch->callback_ = callback;
+
+      //register the batch
+      auto saf = bdmPtr_->getScrAddrFilter();
+      saf->registerAddressBatch(batch);
+      fut.get();
+
+      //addresses are now registered, populate the wallet maps
+      populateWallets(wltMap);
    }
 
    //could a wallet registration event get lost in between the init loop 
@@ -1403,16 +1345,17 @@ void BDV_Server_Object::init()
    isReadyPromise_->set_value(true);
 
    //callback client with BDM_Ready packet
-   Arguments args;
-   BinaryDataObject bdo("BDM_Ready");
-   args.push_back(move(bdo));
-   unsigned int topblock = blockchain().top()->getBlockHeight();
-   args.push_back(move(IntType(topblock)));
-   cb_->callback(move(args));
+   auto message = make_shared<BDVCallback>();
+   auto notif = message->add_notification();
+   notif->set_type(NotificationType::ready);
+   notif->set_height(blockchain().top()->getBlockHeight());
+   cb_->callback(message);
+
+   DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void BDV_Server_Object::pushNotification(
+void BDV_Server_Object::processNotification(
    shared_ptr<BDV_Notification> notifPtr)
 {
    auto action = notifPtr->action_type();
@@ -1425,20 +1368,20 @@ void BDV_Server_Object::pushNotification(
 
    scanWallets(notifPtr);
 
+   auto callbackPtr = make_shared<BDVCallback>();
+   auto notif = callbackPtr->add_notification();
+
    switch (action)
    {
    case BDV_NewBlock:
    {
-      Arguments args2;
+      notif->set_type(NotificationType::newblock);
       auto&& payload =
          dynamic_pointer_cast<BDV_Notification_NewBlock>(notifPtr);
       uint32_t blocknum =
          payload->reorgState_.newTop_->getBlockHeight();
+      notif->set_height(payload->reorgState_.newTop_->getBlockHeight());
 
-      BinaryDataObject bdo("NewBlock");
-      args2.push_back(move(bdo));
-      args2.push_back(move(IntType(blocknum)));
-      cb_->callback(move(args2), OrderNewBlock);
       break;
    }
 
@@ -1447,47 +1390,30 @@ void BDV_Server_Object::pushNotification(
       auto&& payload =
          dynamic_pointer_cast<BDV_Notification_Refresh>(notifPtr);
 
-      IntType refreshType(payload->refresh_);
-      BinaryData bdId = payload->refreshID_;
-      BinaryDataVector bdvec;
-      bdvec.push_back(move(bdId));
+      auto& bdId = payload->refreshID_;
 
-      Arguments args2;
-      BinaryDataObject bdo("BDV_Refresh");
-      args2.push_back(move(bdo));
-      args2.push_back(move(refreshType));
-      args2.push_back(move(bdvec));
-      cb_->callback(move(args2), OrderRefresh);
+      notif->set_type(NotificationType::refresh);
+      auto refresh = notif->mutable_refresh();
+      refresh->set_refreshtype(payload->refresh_);
+      refresh->add_id(bdId.getPtr(), bdId.getSize());
+
       break;
    }
 
    case BDV_ZC:
    {
-      Arguments args2;
-
       auto&& payload =
          dynamic_pointer_cast<BDV_Notification_ZC>(notifPtr);
 
-      BinaryDataObject bdo("BDV_ZC");
-      args2.push_back(move(bdo));
+      notif->set_type(NotificationType::zc);
+      auto ledgers = notif->mutable_ledgers();
 
-      LedgerEntryVector lev;
       for (auto& lePair : payload->leMap_)
       {
-         auto&& le = lePair.second;
-         LedgerEntryData led(le.getWalletID(),
-            le.getValue(), le.getBlockNum(), move(le.getTxHash()),
-            le.getIndex(), le.getTxTime(), le.isCoinbase(),
-            le.isSentToSelf(), le.isChangeBack(),
-            le.isOptInRBF(), le.isChainedZC(), le.usesWitness(),
-            le.getScrAddrList());
-
-         lev.push_back(move(led));
+         auto ledger_entry = ledgers->add_values();
+         lePair.second.fillMessage(ledger_entry);
       }
 
-      args2.push_back(move(lev));
-
-      cb_->callback(move(args2), OrderZC);
       break;
    }
 
@@ -1496,15 +1422,16 @@ void BDV_Server_Object::pushNotification(
       auto&& payload =
          dynamic_pointer_cast<BDV_Notification_Progress>(notifPtr);
 
-      ProgressData pd(payload->phase_, payload->progress_,
-         payload->time_, payload->numericProgress_, payload->walletIDs_);
+      notif->set_type(NotificationType::progress);
+      auto pd = notif->mutable_progress();
 
-      Arguments args2;
-      BinaryDataObject bdo("BDV_Progress");
-      args2.push_back(move(bdo));
-      args2.push_back(move(pd));
-
-      cb_->callback(move(args2), OrderProgress);
+      pd->set_phase(payload->phase_);
+      pd->set_progress(payload->progress_);
+      pd->set_time(payload->time_);
+      pd->set_numericprogress(payload->numericProgress_);
+      for (auto& id : payload->walletIDs_)
+         pd->add_id(move(id));
+    
       break;
    }
 
@@ -1513,13 +1440,23 @@ void BDV_Server_Object::pushNotification(
       auto&& payload =
          dynamic_pointer_cast<BDV_Notification_NodeStatus>(notifPtr);
 
-      Arguments args2;
-      BinaryDataObject bdo("BDV_NodeStatus");
-      BinaryDataObject nssBdo(payload->status_.serialize());
-      args2.push_back(move(bdo));
-      args2.push_back(move(nssBdo));
+      notif->set_type(NotificationType::nodestatus);
+      auto status = notif->mutable_nodestatus();
 
-      cb_->callback(move(args2), OrderNodeStatus);
+      auto& nodeStatus = payload->status_;
+
+      status->set_status((unsigned)nodeStatus.status_);
+      status->set_segwitenabled(nodeStatus.SegWitEnabled_);
+      status->set_rpcstatus((unsigned)nodeStatus.rpcStatus_);
+
+      auto chainState_proto = new ::Codec_NodeStatus::NodeChainState();
+      chainState_proto->set_state((unsigned)nodeStatus.chainState_.state());
+      chainState_proto->set_blockspeed(nodeStatus.chainState_.getBlockSpeed());
+      chainState_proto->set_eta(nodeStatus.chainState_.getETA());
+      chainState_proto->set_pct(nodeStatus.chainState_.getProgressPct());
+      chainState_proto->set_blocksleft(nodeStatus.chainState_.getBlocksLeft());
+      status->set_allocated_chainstate(chainState_proto);
+
       break;
    }
 
@@ -1528,24 +1465,26 @@ void BDV_Server_Object::pushNotification(
       auto&& payload =
          dynamic_pointer_cast<BDV_Notification_Error>(notifPtr);
 
-      Arguments args2;
-      BinaryDataObject bdo("BDV_Error");
-      BinaryDataObject errBdo(payload->errStruct.serialize());
-      args2.push_back(move(bdo));
-      args2.push_back(move(errBdo));
+      notif->set_type(NotificationType::error);
+      auto error = notif->mutable_error();
 
-      cb_->callback(move(args2), OrderBDVError);
+      error->set_type((unsigned)payload->errStruct.errType_);
+      error->set_error(payload->errStruct.errorStr_);
+      error->set_extra(payload->errStruct.extraMsg_);
+
       break;
    }
 
    default:
       return;
    }
+
+   cb_->callback(callbackPtr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool BDV_Server_Object::registerWallet(
-   vector<BinaryData> const& scrAddrVec, string IDstr, bool wltIsNew)
+void BDV_Server_Object::registerWallet(
+   shared_ptr<::Codec_BDVCommand::BDVCommand> command)
 {
    if (isReadyFuture_.wait_for(chrono::seconds(0)) != future_status::ready)
    {
@@ -1553,49 +1492,21 @@ bool BDV_Server_Object::registerWallet(
       unique_lock<mutex> lock(registerWalletMutex_);
 
       //save data
-      auto& wltregstruct = wltRegMap_[IDstr];
-
-      wltregstruct.scrAddrVec = scrAddrVec;
-      wltregstruct.IDstr = IDstr;
-      wltregstruct.isNew = wltIsNew;
-      wltregstruct.type_ = TypeWallet;
-
-      return true;
-   }
-
-   //register wallet with BDV
-   auto bdvPtr = (BlockDataViewer*)this;
-   return bdvPtr->registerWallet(scrAddrVec, IDstr, wltIsNew);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void BDV_Server_Object::registerAddrVec(
-   const string& idStr,
-   vector<BinaryData> const& scrAddrVec)
-{
-   if (isReadyFuture_.wait_for(chrono::seconds(0)) != future_status::ready)
-   {
-      //only run this code if the bdv maintenance thread hasn't started yet
-      unique_lock<mutex> lock(registerWalletMutex_);
-
-      //save data
-      auto& wltregstruct = wltRegMap_[idStr];
-
-      wltregstruct.scrAddrVec = scrAddrVec;
-      wltregstruct.IDstr = idStr;
-      wltregstruct.isNew = false;
+      auto& wltregstruct = wltRegMap_[command->hash()];
+      wltregstruct.command_ = command;
       wltregstruct.type_ = TypeWallet;
 
       return;
    }
 
    //register wallet with BDV
-   registerArbitraryAddressVec(scrAddrVec, idStr);
+   auto bdvPtr = (BlockDataViewer*)this;
+   bdvPtr->registerWallet(command);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool BDV_Server_Object::registerLockbox(
-   vector<BinaryData> const& scrAddrVec, string IDstr, bool wltIsNew)
+void BDV_Server_Object::registerLockbox(
+   shared_ptr<::Codec_BDVCommand::BDVCommand> command)
 {
    if (isReadyFuture_.wait_for(chrono::seconds(0)) != future_status::ready)
    {
@@ -1604,21 +1515,84 @@ bool BDV_Server_Object::registerLockbox(
       unique_lock<mutex> lock(registerWalletMutex_);
 
       //save data
-      auto& wltregstruct = wltRegMap_[IDstr];
-
-      wltregstruct.scrAddrVec = scrAddrVec;
-      wltregstruct.IDstr = IDstr;
-      wltregstruct.isNew = wltIsNew;
+      auto& wltregstruct = wltRegMap_[command->hash()];
+      wltregstruct.command_ = command;
       wltregstruct.type_ = TypeLockbox;
 
-      return true;
+      return;
    }
 
    //register wallet with BDV
    auto bdvPtr = (BlockDataViewer*)this;
-   return bdvPtr->registerLockbox(scrAddrVec, IDstr, wltIsNew);
+   bdvPtr->registerLockbox(command);
 }
 
+///////////////////////////////////////////////////////////////////////////////
+void BDV_Server_Object::populateWallets(map<string, walletRegStruct>& wltMap)
+{
+   auto safPtr = getSAF();
+   auto addrMap = safPtr->getScrAddrMap();
+
+   for (auto& wlt : wltMap)
+   {
+      auto& walletId = wlt.second.command_->walletid();
+      BinaryDataRef bdr; bdr.setRef(walletId);
+
+      shared_ptr<BtcWallet> theWallet;
+      if (wlt.second.type_ == TypeWallet)
+         theWallet = groups_[group_wallet].getOrSetWallet(bdr);
+      else
+         theWallet = groups_[group_lockbox].getOrSetWallet(bdr);
+
+      if (theWallet == nullptr)
+      {
+         LOGERR << "failed to get or set wallet";
+         continue;
+      }
+
+      map<BinaryDataRef, shared_ptr<ScrAddrObj>> newAddrMap;
+      for (unsigned i = 0; i < wlt.second.command_->bindata_size(); i++)
+      {
+         auto& addrStr = wlt.second.command_->bindata(i);
+         BinaryDataRef addrRef; addrRef.setRef(addrStr);
+
+         if (theWallet->hasScrAddress(addrRef))
+            continue;
+
+         auto iter = addrMap->find(addrRef);
+         if (iter == addrMap->end())
+            throw runtime_error("address missing from saf");
+
+         auto addrObj = make_shared<ScrAddrObj>(
+            db_, &blockchain(), iter->first);
+         newAddrMap.insert(move(make_pair(iter->first, addrObj)));
+      }
+
+      if (newAddrMap.size() == 0)
+         continue;
+
+      theWallet->scrAddrMap_.update(newAddrMap);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void BDV_Server_Object::flagRefresh(
+   BDV_refresh refresh, const BinaryData& refreshID,
+   unique_ptr<BDV_Notification_ZC> zcPtr)
+{
+   auto notif = make_unique<BDV_Notification_Refresh>(
+      getID(), refresh, refreshID);
+   if (zcPtr != nullptr)
+      notif->zcPacket_ = move(zcPtr->packet_);
+
+   if (notifLambda_)
+      notifLambda_(move(notif));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// Clients
+//
 ///////////////////////////////////////////////////////////////////////////////
 void Clients::init(BlockDataManagerThread* bdmT,
    function<void(void)> shutdownLambda)
@@ -1733,155 +1707,138 @@ void Clients::bdvMaintenanceThread()
          continue;
       }
 
-      notifPtr->bdvPtr_->pushNotification(notifPtr->notifPtr_);
+      notifPtr->bdvPtr_->processNotification(notifPtr->notifPtr_);
    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-Arguments LongPoll::respond(const string& command)
+shared_ptr<Message> LongPoll::respond(shared_ptr<BDVCommand> command)
 {
    unique_lock<mutex> lock(mu_, defer_lock);
 
    if (!lock.try_lock())
    {
-      Arguments arg;
-      BinaryDataObject bdo("continue");
-      arg.push_back(move(bdo));
-      return move(arg);
+      auto response = make_shared<BDVCallback>();
+      auto notif = response->add_notification();
+      notif->set_type(NotificationType::continue_);
+      return response;
    }
 
    count_ = 0;
 
-   if (command == "waitOnBDV")
+   switch (command->method())
    {
-      //test if ready
+   case Methods::waitOnBDVInit:
+   {
+      //check is bdv is ready
       auto topheight = isReady_();
       if (topheight != UINT32_MAX)
       {
-         Arguments arg;
-         BinaryDataObject bdo("BDM_Ready");
-         arg.push_back(move(bdo));
-         arg.push_back(move(IntType(topheight)));
-         return move(arg);
+         auto response = make_shared<BDVCallback>();
+         auto notif = response->add_notification();
+         notif->set_type(NotificationType::ready);
+         notif->set_height(topheight);
+
+         vector<shared_ptr<BDVCallback>> orderVec;
+         orderVec.push_back(response);
+         return respond_inner(orderVec);
       }
 
-      //otherwise wait on callback stack as usual
-   }
-   else if (command != "getStatus")
-   {
-      //throw unknown command error
+      //otherwise, fallback to wait on notifications
    }
 
-   vector<Callback::OrderStruct> orderVec;
+   case Methods::waitOnBDVNotification:
+   {
+      vector<shared_ptr<BDVCallback>> orderVec;
 
-   try
-   {
-      orderVec = move(cbStack_.pop_all(std::chrono::seconds(50)));
-   }
-   catch (IsEmpty&)
-   {
-      Arguments arg;
-      BinaryDataObject bdo("continue");
-      arg.push_back(move(bdo));
-      return move(arg);
-   }
-   catch (StackTimedOutException&)
-   {
-      Arguments arg;
-      BinaryDataObject bdo("continue");
-      arg.push_back(move(bdo));
-      return move(arg);
-   }
-   catch (StopBlockingLoop&)
-   {
-      count_ = 5;
+      try
+      {
+         orderVec = move(notificationStack_.pop_all(std::chrono::seconds(50)));
+      }
+      catch (IsEmpty&)
+      {
+         auto response = make_shared<BDVCallback>();
+         auto notif = response->add_notification();
+         notif->set_type(NotificationType::continue_);
+         orderVec.push_back(response);
+      }
+      catch (StackTimedOutException&)
+      {
+         auto response = make_shared<BDVCallback>();
+         auto notif = response->add_notification();
+         notif->set_type(NotificationType::continue_);
+         orderVec.push_back(response);
+      }
+      catch (StopBlockingLoop&)
+      {
+         count_ = 5;
 
-      //return terminate packet
-      Callback::OrderStruct terminateOrder;
-      BinaryDataObject bdo("terminate");
-      terminateOrder.order_.push_back(move(bdo));
-      terminateOrder.otype_ = OrderOther;
+         //return terminate packet
+         auto response = make_shared<BDVCallback>();
+         auto notif = response->add_notification();
+         notif->set_type(NotificationType::terminate);
+         orderVec.push_back(response);
+      }
+
+      return respond_inner(orderVec);
    }
 
-   return respond_inner(orderVec);
+   default:
+      LOGWARN << "invalid command for longpoll callback";
+   }
+
+   return nullptr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void WS_Callback::callback(Arguments&& arg, OrderType type)
+void WS_Callback::callback(shared_ptr<BDVCallback> command)
 {
-   OrderStruct order(move(arg), type);
-   vector<Callback::OrderStruct> orderVec;
-   orderVec.push_back(move(order));
-
-   //process callback
-   auto&& result = respond_inner(orderVec);
-
    //write to socket
-   WebSocketServer::write(bdvID_, WEBSOCKET_CALLBACK_ID, result);
+   WebSocketServer::write(bdvID_, WEBSOCKET_CALLBACK_ID, command);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-SocketCallback::~SocketCallback(void)
-{}
-
-///////////////////////////////////////////////////////////////////////////////
-Arguments SocketCallback::respond_inner(vector<Callback::OrderStruct>& orderVec)
+shared_ptr<Message> LongPoll::respond_inner(
+   vector<shared_ptr<BDVCallback>>& orderVec)
 {
-   //consolidate NewBlock and Refresh notifications
-   Arguments* refreshOrderPtr = nullptr;
-   int32_t newBlock = -1;
+   if (orderVec.size() == 0)
+      return nullptr;
 
-   Arguments arg;
+   //consolidate NewBlock and Progress notifications
+   shared_ptr<BDVCallback> order_newblock;
+   shared_ptr<BDVCallback> order_progress;
+
+   auto response = make_shared<::Codec_BDVCommand::BDVCallback>();
+
    for (auto& order : orderVec)
    {
-      switch (order.otype_)
+      if (order->notification_size() == 0)
+         continue;
+
+      auto& notif = order->notification(0);
+      switch (notif.type())
       {
-      case OrderNewBlock:
-      {
-         auto& argVector = order.order_.getArgVector();
-         if (argVector.size() != 2)
-            break;
 
-         auto heightPtr = (DataObject<IntType>*)argVector[1].get();
-
-         int blockheight = (int)heightPtr->getObj().getVal();
-         if (blockheight > newBlock)
-            newBlock = blockheight;
-
+      case NotificationType::newblock:
+         order_newblock = order;
          break;
-      }
 
-      case OrderRefresh:
-      {
-         refreshOrderPtr = &order.order_;
+      case NotificationType::progress:
+         order_progress = order;
          break;
-      }
-
-      case OrderTerminate:
-      {
-         Arguments terminateArg;
-         BinaryDataObject bdo("terminate");
-         terminateArg.push_back(move(bdo));
-         return terminateArg;
-      }
 
       default:
-         arg.merge(order.order_);
+         response->MergeFrom(*order);
       }
    }
 
-   if (refreshOrderPtr != nullptr)
-      arg.merge(*refreshOrderPtr);
+   if (order_newblock != nullptr)
+      response->MergeFrom(*order_newblock);
 
-   if (newBlock > -1)
-   {
-      BinaryDataObject bdo("NewBlock");
-      arg.push_back(move(bdo));
-      arg.push_back(move(IntType(newBlock)));
-   }
-
-   //send it
-   return move(arg);
+   if (order_progress != nullptr)
+      response->MergeFrom(*order_progress);
+    
+   return move(response);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1935,3 +1892,7 @@ void ZeroConfCallbacks_BDV::errorCallback(
       bdvId, Error_ZC, move(errorStr), txHash);
    clientsPtr_->innerBDVNotifStack_.push_back(move(notifPacket));
 }
+
+///////////////////////////////////////////////////////////////////////////////
+Callback::~Callback()
+{}
