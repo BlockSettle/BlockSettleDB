@@ -687,7 +687,8 @@ unique_ptr<BDV_Notification_ZC> BlockDataViewer::createZcNotification(
 
    for (auto& txiopair : *txiomap)
    {
-      if (!filter(txiopair.first.getRef()))
+      auto&& bdref = txiopair.first.getRef();
+      if (!filter(bdref))
          continue;
 
       packet.txioMap_.insert(txiopair);
@@ -770,7 +771,7 @@ void WalletGroup::registerAddresses(
    auto addrMap = theWallet->scrAddrMap_.get();
 
    set<BinaryDataRef> scrAddrSet;
-   for (unsigned i=0; i<msg->bindata_size(); i++)
+   for (int i=0; i<msg->bindata_size(); i++)
    {
       auto& scrAddr = msg->bindata(i);
       BinaryDataRef scrAddrRef; scrAddrRef.setRef(scrAddr);

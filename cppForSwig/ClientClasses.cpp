@@ -8,7 +8,7 @@
 
 #include "ClientClasses.h"
 #include "WebSocketClient.h"
-#include "protobuf/compiled/BDVCommand.pb.h"
+#include "protobuf/BDVCommand.pb.h"
 
 using namespace ClientClasses;
 using namespace ::Codec_BDVCommand;
@@ -239,13 +239,13 @@ void RemoteCallback::pushCallbackRequest(void)
 bool RemoteCallback::processNotifications(
    shared_ptr<BDVCallback> callback)
 {
-   for(unsigned i = 0; i<callback->notification_size(); i++)
+   for(int i = 0; i<callback->notification_size(); i++)
    {
       auto& notif = callback->notification(i);
 
       switch (notif.type())
       {
-      case NotificationType::continue_:
+      case NotificationType::continue_polling:
          break;
 
       case NotificationType::newblock:
@@ -270,7 +270,7 @@ bool RemoteCallback::processNotifications(
          auto& ledgers = notif.ledgers();
 
          vector<LedgerEntry> leVec;
-         for (unsigned y = 0; y < ledgers.values_size(); y++)
+         for (int y = 0; y < ledgers.values_size(); y++)
          {
             LedgerEntry le(callback, i, y);
             leVec.push_back(move(le));
@@ -290,7 +290,7 @@ bool RemoteCallback::processNotifications(
          auto refreshType = (BDV_refresh)refresh.refreshtype();
          
          vector<BinaryData> bdVec;
-         for (unsigned y = 0; y < refresh.id_size(); y++)
+         for (int y = 0; y < refresh.id_size(); y++)
          {
             auto& str = refresh.id(y);
             BinaryData bd; bd.copyFrom(str);

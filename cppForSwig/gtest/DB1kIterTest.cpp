@@ -19,7 +19,6 @@ protected:
 
    void initBDM(void)
    {
-      ScrAddrFilter::init();
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
 
@@ -143,7 +142,7 @@ TEST_F(DB1kIter, DbInit1kIter)
       TestChain::lb2ScrAddrP2SH
    };
 
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
    DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
    DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
@@ -209,7 +208,7 @@ TEST_F(DB1kIter, DbInit1kIter_WithSignals)
       theBDMt_->start(config.initMode_);
       auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
 
-      DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+      DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
       DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
       DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 
@@ -309,7 +308,7 @@ TEST_F(DB1kIter, DbInit1kIter_WithSignals)
       bdvID = DBTestUtils::registerBDV(clients_, magic_);
 
       scrAddrVec.pop_back();
-      DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+      DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
       DBTestUtils::regLockbox(clients_, bdvID, lb1ScrAddrs, TestChain::lb1B58ID);
       DBTestUtils::regLockbox(clients_, bdvID, lb2ScrAddrs, TestChain::lb2B58ID);
 

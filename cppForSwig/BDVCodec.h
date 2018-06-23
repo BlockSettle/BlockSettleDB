@@ -9,13 +9,13 @@
 #ifndef _H_BDV_CODEC_
 #define _H_BDV_CODEC_
 
-#include "protobuf/compiled/AddressBook.pb.h"
-#include "protobuf/compiled/AddressData.pb.h"
-#include "protobuf/compiled/CommonTypes.pb.h"
-#include "protobuf/compiled/FeeEstimate.pb.h"
-#include "protobuf/compiled/LedgerEntry.pb.h"
-#include "protobuf/compiled/Utxo.pb.h"
-#include "protobuf/compiled/NodeStatus.pb.h"
-#include "protobuf/compiled/BDVCommand.pb.h"
+#include "protobuf/AddressBook.pb.h"
+#include "protobuf/AddressData.pb.h"
+#include "protobuf/CommonTypes.pb.h"
+#include "protobuf/FeeEstimate.pb.h"
+#include "protobuf/LedgerEntry.pb.h"
+#include "protobuf/Utxo.pb.h"
+#include "protobuf/NodeStatus.pb.h"
+#include "protobuf/BDVCommand.pb.h"
 
 #endif

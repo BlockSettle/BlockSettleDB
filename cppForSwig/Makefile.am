@@ -43,10 +43,10 @@ INCLUDE_FILES = -Ibech32/ref/c++ -Ifcgi -Ilibwebsockets/build/include \
 	-Ilibbtc/include -Ilibbtc/src/secp256k1/include
 
 ARMORYDB_SOURCE_FILES = main.cpp
-ARMORYGUI_SOURCE_FILES = CoinSelection.cpp \
-	SwigClient.cpp \
-        AsyncClient.cpp \
+ARMORYGUI_SOURCE_FILES = AsyncClient.cpp \
+	CoinSelection.cpp \
         ClientClasses.cpp \
+	SwigClient.cpp \
 	TransactionBatch.cpp \
 	WalletManager.cpp \
 	Wallets.cpp \
@@ -76,14 +76,12 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	Addresses.cpp \
 	AssetEncryption.cpp \
 	Assets.cpp \
-	BDM_seder.cpp \
 	BinaryData.cpp \
 	Blockchain.cpp \
 	BlockDataManagerConfig.cpp \
 	BlockDataMap.cpp \
 	BlockObj.cpp \
 	BtcUtils.cpp \
-	DataObject.cpp \
 	DBUtils.cpp \
 	DecryptedDataContainer.cpp \
 	DerivationScheme.cpp \
@@ -104,7 +102,10 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	UniversalTimer.cpp \
 	bech32/ref/c++/bech32.cpp \
 	bech32/ref/c++/segwit_addr.cpp \
-        WebSocketMessage.cpp
+        WebSocketMessage.cpp \
+	./protobuf/AddressBook.pb.cc ./protobuf/AddressData.pb.cc ./protobuf/BDVCommand.pb.cc \
+	./protobuf/CommonTypes.pb.cc ./protobuf/FeeEstimate.pb.cc ./protobuf/LedgerEntry.pb.cc \
+	./protobuf/NodeStatus.pb.cc ./protobuf/Utxo.pb.cc
         
 
 # libArmoryCommon - Required by all Armory programs/libraries.
@@ -115,7 +116,7 @@ libArmoryCommon_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 libArmoryCommon_la_CXXFLAGS = $(AM_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryCommon_la_LIBADD = lmdb/liblmdb.la \
 				cryptopp/libcryptopp.la \
-				-lpthread
+				-lpthread -lprotobuf
 libArmoryCommon_la_LDFLAGS = $(LDFLAGS) -shared
 
 # Common command-line functionality library

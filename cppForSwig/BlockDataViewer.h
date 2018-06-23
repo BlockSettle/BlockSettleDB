@@ -26,7 +26,7 @@ using namespace std;
 #include "util.h"
 #include "bdmenums.h"
 #include "BtcWallet.h"
-#include "protobuf/compiled/BDVCommand.pb.h"
+#include "BDVCodec.h"
 
 typedef enum
 {

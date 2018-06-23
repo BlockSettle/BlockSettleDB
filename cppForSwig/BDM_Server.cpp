@@ -226,10 +226,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
-      for (int i = 0; i < this->groups_.size(); i++)
+      for (auto& group : this->groups_)
       {
-         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
-         if (wltIter != this->groups_[i].wallets_.end())
+         auto wltIter = group.wallets_.find(walletIdRef);
+         if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
 
@@ -262,10 +262,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
-      for (int i = 0; i < this->groups_.size(); i++)
+      for (auto& group : this->groups_)
       {
-         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
-         if (wltIter != this->groups_[i].wallets_.end())
+         auto wltIter = group.wallets_.find(walletIdRef);
+         if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
 
@@ -305,10 +305,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
-      for (int i = 0; i < this->groups_.size(); i++)
+      for (auto& group : this->groups_)
       {
-         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
-         if (wltIter != this->groups_[i].wallets_.end())
+         auto wltIter = group.wallets_.find(walletIdRef);
+         if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
 
@@ -347,10 +347,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
-      for (int i = 0; i < this->groups_.size(); i++)
+      for (auto& group : this->groups_)
       {
-         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
-         if (wltIter != this->groups_[i].wallets_.end())
+         auto wltIter = group.wallets_.find(walletIdRef);
+         if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
 
@@ -390,10 +390,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
-      for (int i = 0; i < this->groups_.size(); i++)
+      for (auto& group : this->groups_)
       {
-         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
-         if (wltIter != this->groups_[i].wallets_.end())
+         auto wltIter = group.wallets_.find(walletIdRef);
+         if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
 
@@ -463,10 +463,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
-      for (int i = 0; i < this->groups_.size(); i++)
+      for (auto& group : this->groups_)
       {
-         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
-         if (wltIter != this->groups_[i].wallets_.end())
+         auto wltIter = group.wallets_.find(walletIdRef);
+         if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
 
@@ -501,10 +501,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
-      for (int i = 0; i < this->groups_.size(); i++)
+      for (auto& group : this->groups_)
       {
-         auto wltIter = this->groups_[i].wallets_.find(walletIdRef);
-         if (wltIter != this->groups_[i].wallets_.end())
+         auto wltIter = group.wallets_.find(walletIdRef);
+         if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
 
@@ -540,7 +540,6 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto& txHash = command->hash();
       BinaryDataRef txHashRef; txHashRef.setRef(txHash);
       auto&& retval = this->getTxByHash(txHashRef);
-      auto& hash = retval.getThisHash();
 
       auto response = make_shared<::Codec_CommonTypes::TxWithMetaData>();
       response->set_rawtx(retval.getPtr(), retval.getSize());
@@ -1720,7 +1719,7 @@ shared_ptr<Message> LongPoll::respond(shared_ptr<BDVCommand> command)
    {
       auto response = make_shared<BDVCallback>();
       auto notif = response->add_notification();
-      notif->set_type(NotificationType::continue_);
+      notif->set_type(NotificationType::continue_polling);
       return response;
    }
 
@@ -1759,14 +1758,14 @@ shared_ptr<Message> LongPoll::respond(shared_ptr<BDVCommand> command)
       {
          auto response = make_shared<BDVCallback>();
          auto notif = response->add_notification();
-         notif->set_type(NotificationType::continue_);
+         notif->set_type(NotificationType::continue_polling);
          orderVec.push_back(response);
       }
       catch (StackTimedOutException&)
       {
          auto response = make_shared<BDVCallback>();
          auto notif = response->add_notification();
-         notif->set_type(NotificationType::continue_);
+         notif->set_type(NotificationType::continue_polling);
          orderVec.push_back(response);
       }
       catch (StopBlockingLoop&)

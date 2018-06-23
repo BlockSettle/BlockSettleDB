@@ -412,13 +412,13 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-struct CallbackReturn_VectorLedgerEntryData : public CallbackReturn
+struct CallbackReturn_VectorLedgerEntry : public CallbackReturn
 {
 private:
    function<void(vector<::ClientClasses::LedgerEntry>)> userCallbackLambda_;
 
 public:
-   CallbackReturn_VectorLedgerEntryData(
+   CallbackReturn_VectorLedgerEntry(
       function<void(vector<::ClientClasses::LedgerEntry>)> lbd) :
       userCallbackLambda_(lbd)
    {}
@@ -508,13 +508,13 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-struct CallbackReturn_LedgerEntryData : public CallbackReturn
+struct CallbackReturn_LedgerEntry : public CallbackReturn
 {
 private:
    function<void(shared_ptr<::ClientClasses::LedgerEntry>)> userCallbackLambda_;
 
 public:
-   CallbackReturn_LedgerEntryData(
+   CallbackReturn_LedgerEntry(
       function<void(shared_ptr<::ClientClasses::LedgerEntry>)> lbd) :
       userCallbackLambda_(lbd)
    {}

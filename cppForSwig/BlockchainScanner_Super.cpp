@@ -188,7 +188,7 @@ void BlockchainScanner_Super::scan()
    if (serialize_tID.joinable())
       serialize_tID.join();
 
-   auto& committhr_id = commit_tID.get_id();
+   auto&& committhr_id = commit_tID.get_id();
    if (commit_tID.joinable())
       commit_tID.join();
 

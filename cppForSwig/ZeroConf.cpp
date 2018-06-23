@@ -689,8 +689,6 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
                      {
                         try
                         {
-                           auto& txToReplace = getzctxforkey(idIter->second);
-
                            //gather replaced tx children
                            auto&& keySet = getTxChildren(idIter->second);
                            invalidatedKeys.insert(keySet.begin(), keySet.end());
@@ -791,7 +789,6 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
       //TODO: multi thread this at some point
 
       auto txmap = txMap_.get();
-      auto bdvcallbacks = bdvCallbacks_.get();
 
       for (auto& invalidKey : invalidatedKeys)
       {
@@ -838,7 +835,6 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
       return;
 
    auto txiomapPtr = txioMap_.get();
-   auto bdvcallbacks = bdvCallbacks_.get();
 
    for (auto& bdvMap : flaggedBDVs)
    {
@@ -990,7 +986,6 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
    if (parsedTx.status() == Tx_Mined || parsedTx.status() == Tx_Invalid)
       return bulkData;
 
-   auto& tx = parsedTx.tx_;
    auto mainAddressSet = scrAddrMap_->get();
 
    auto filter = [mainAddressSet, this]

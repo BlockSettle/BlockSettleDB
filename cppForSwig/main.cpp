@@ -12,7 +12,6 @@ using namespace std;
 int main(int argc, char* argv[])
 {
    GOOGLE_PROTOBUF_VERIFY_VERSION;
-   ScrAddrFilter::init();
 
 #ifdef _WIN32
    WSADATA wsaData;

@@ -17,7 +17,7 @@ enum Methods
 	
 	goOnline = 10;
 	registerWallet = 11;
-	registerLockbox = 12s;
+	registerLockbox = 12;
 
 	getTopBlockHeight = 20;
 	getHeaderByHeight = 21;
@@ -74,7 +74,7 @@ message BDVCommand
 enum NotificationType
 {
 	terminate = 0;
-	continue = 1;
+	continue_polling = 1;
 	ready = 2;
 	newblock = 3;
 	refresh = 4;

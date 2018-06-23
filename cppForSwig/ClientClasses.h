@@ -59,6 +59,38 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+class RemoteCallback
+{
+private:
+   bool run_ = true;
+
+   const shared_ptr<SocketPrototype> sock_;
+   const string bdvID_;
+   SOCKET sockfd_;
+
+   function<void(unsigned)> setHeightLbd_;
+
+private:
+   void pushCallbackRequest(void);
+
+public:
+   RemoteCallback(RemoteCallbackSetupStruct);
+   virtual ~RemoteCallback(void) = 0;
+
+   virtual void run(BDMAction action, void* ptr, int block = 0) = 0;
+   virtual void progress(
+      BDMPhase phase,
+      const vector<string> &walletIdVec,
+      float progress, unsigned secondsRem,
+      unsigned progressNumeric
+   ) = 0;
+
+   void start(void);
+   void shutdown(void);
+   bool processNotifications(shared_ptr<::Codec_BDVCommand::BDVCallback>);
+};
+
+///////////////////////////////////////////////////////////////////////////////
 namespace ClientClasses
 {
 
@@ -145,8 +177,6 @@ namespace ClientClasses
       shared_ptr<::google::protobuf::Message> msgPtr_;
       const ::Codec_LedgerEntry::LedgerEntry* ptr_ = nullptr;
 
-
-
    public:
       LedgerEntry(BinaryDataRef bdr);
       LedgerEntry(shared_ptr<::Codec_LedgerEntry::LedgerEntry>);
@@ -193,7 +223,7 @@ namespace ClientClasses
    ////////////////////////////////////////////////////////////////////////////
    class NodeStatusStruct
    {
-      friend class RemoteCallback;
+      friend class ::RemoteCallback;
 
    private:
       shared_ptr<::google::protobuf::Message> msgPtr_;
@@ -215,7 +245,7 @@ namespace ClientClasses
    ////////////////////////////////////////////////////////////////////////////
    class ProgressData
    {
-      friend class RemoteCallback;
+      friend class ::RemoteCallback;
 
    private:
       shared_ptr<::google::protobuf::Message> msgPtr_;
@@ -233,38 +263,6 @@ namespace ClientClasses
       unsigned numericProgress(void) const;
       vector<string> wltIDs(void) const;
    };
-};
-
-///////////////////////////////////////////////////////////////////////////////
-class RemoteCallback
-{
-private:
-   bool run_ = true;
-
-   const shared_ptr<SocketPrototype> sock_;
-   const string bdvID_;
-   SOCKET sockfd_;
-
-   function<void(unsigned)> setHeightLbd_;
-
-private:
-   void pushCallbackRequest(void);
-
-public:
-   RemoteCallback(RemoteCallbackSetupStruct);
-   virtual ~RemoteCallback(void) = 0;
-
-   virtual void run(BDMAction action, void* ptr, int block = 0) = 0;
-   virtual void progress(
-      BDMPhase phase,
-      const vector<string> &walletIdVec,
-      float progress, unsigned secondsRem,
-      unsigned progressNumeric
-   ) = 0;
-
-   void start(void);
-   void shutdown(void);
-   bool processNotifications(shared_ptr<::Codec_BDVCommand::BDVCallback>);
 };
 
 #endif

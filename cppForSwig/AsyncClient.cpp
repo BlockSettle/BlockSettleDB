@@ -365,7 +365,7 @@ void BlockDataViewer::getHistoryForWalletSelection(
 
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
-      make_unique<CallbackReturn_VectorLedgerEntryData>(callback);
+      make_unique<CallbackReturn_VectorLedgerEntry>(callback);
    sock_->pushPayload(move(payload), read_payload);
 }
 
@@ -420,7 +420,7 @@ void LedgerDelegate::getHistoryPage(uint32_t id,
 
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
-      make_unique<CallbackReturn_VectorLedgerEntryData>(callback);
+      make_unique<CallbackReturn_VectorLedgerEntry>(callback);
    sock_->pushPayload(move(payload), read_payload);
 }
 
@@ -557,7 +557,7 @@ void AsyncClient::BtcWallet::getHistoryPage(uint32_t id,
 
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
-      make_unique<CallbackReturn_VectorLedgerEntryData>(callback);
+      make_unique<CallbackReturn_VectorLedgerEntry>(callback);
    sock_->pushPayload(move(payload), read_payload);
 }
 
@@ -577,7 +577,7 @@ void AsyncClient::BtcWallet::getLedgerEntryForTxHash(
 
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
-      make_unique<CallbackReturn_LedgerEntryData>(callback);
+      make_unique<CallbackReturn_LedgerEntry>(callback);
    sock_->pushPayload(move(payload), read_payload);
 }
 
@@ -889,13 +889,13 @@ void CallbackReturn_FeeEstimateStruct::callback(BinaryDataRef bdr)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void CallbackReturn_VectorLedgerEntryData::callback(BinaryDataRef bdr)
+void CallbackReturn_VectorLedgerEntry::callback(BinaryDataRef bdr)
 {
    auto msg = make_shared<::Codec_LedgerEntry::ManyLedgerEntry>();
    AsyncClient::deserialize(msg.get(), bdr);
 
    vector <::ClientClasses::LedgerEntry> lev;
-   for (unsigned i = 0; i < msg->values_size(); i++)
+   for (int i = 0; i < msg->values_size(); i++)
    {
       ::ClientClasses::LedgerEntry le(msg, i);
       lev.push_back(move(le));
@@ -920,7 +920,7 @@ void CallbackReturn_VectorUTXO::callback(BinaryDataRef bdr)
    AsyncClient::deserialize(&utxos, bdr);
 
    vector<UTXO> utxovec(utxos.value_size());
-   for (unsigned i = 0; i < utxos.value_size(); i++)
+   for (int i = 0; i < utxos.value_size(); i++)
    {
       auto& proto_utxo = utxos.value(i);
       auto& utxo = utxovec[i];
@@ -945,7 +945,7 @@ void CallbackReturn_VectorUINT64::callback(BinaryDataRef bdr)
    AsyncClient::deserialize(&msg, bdr);
 
    vector<uint64_t> intvec(msg.value_size());
-   for (uint64_t i = 0; i < msg.value_size(); i++)
+   for (int i = 0; i < msg.value_size(); i++)
       intvec[i] = msg.value(i);
 
    userCallbackLambda_(move(intvec));
@@ -959,7 +959,7 @@ void CallbackReturn_Map_BD_U32::callback(BinaryDataRef bdr)
 
    map<BinaryData, uint32_t> bdmap;
 
-   for (unsigned i = 0; i < msg.scraddrdata_size(); i++)
+   for (int i = 0; i < msg.scraddrdata_size(); i++)
    {
       auto& addrData = msg.scraddrdata(i);
       auto& addr = addrData.scraddr();
@@ -982,7 +982,7 @@ void CallbackReturn_Map_BD_VecU64::callback(BinaryDataRef bdr)
    AsyncClient::deserialize(&msg, bdr);
 
    map<BinaryData, vector<uint64_t>> bdMap;
-   for (unsigned i = 0; i < msg.scraddrdata_size(); i++)
+   for (int i = 0; i < msg.scraddrdata_size(); i++)
    {
       auto& addrData = msg.scraddrdata(i);
       auto& addr = addrData.scraddr();
@@ -990,7 +990,7 @@ void CallbackReturn_Map_BD_VecU64::callback(BinaryDataRef bdr)
       addrRef.setRef(addr);
       auto& vec = bdMap[addrRef];
 
-      for (uint64_t y = 0; y < addrData.value_size(); y++)
+      for (int y = 0; y < addrData.value_size(); y++)
          vec.push_back(addrData.value(y));
    }
 
@@ -998,7 +998,7 @@ void CallbackReturn_Map_BD_VecU64::callback(BinaryDataRef bdr)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void CallbackReturn_LedgerEntryData::callback(BinaryDataRef bdr)
+void CallbackReturn_LedgerEntry::callback(BinaryDataRef bdr)
 {
    auto msg = make_shared<::Codec_LedgerEntry::LedgerEntry>();
    AsyncClient::deserialize(msg.get(), bdr);
@@ -1014,13 +1014,13 @@ void CallbackReturn_VectorAddressBookEntry::callback(BinaryDataRef bdr)
    AsyncClient::deserialize(&addressBook, bdr);
 
    vector<AddressBookEntry> abVec;
-   for (unsigned i = 0; i < addressBook.entry_size(); i++)
+   for (int i = 0; i < addressBook.entry_size(); i++)
    {
       auto& entry = addressBook.entry(i);
       AddressBookEntry abe;
       abe.scrAddr_.copyFrom(entry.scraddr());
 
-      for (unsigned y = 0; y < entry.txhash_size(); y++)
+      for (int y = 0; y < entry.txhash_size(); y++)
       {
          BinaryData bd(entry.txhash(y));
          abe.txHashList_.push_back(move(bd));
