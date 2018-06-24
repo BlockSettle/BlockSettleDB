@@ -354,7 +354,7 @@ void LedgerEntry::fillMessage(::Codec_LedgerEntry::LedgerEntry* msg)
       return;
    }
 
-   msg->set_id((const char*)ID_.getPtr(), ID_.getSize());
+   msg->set_id(ID_.getPtr(), ID_.getSize());
    msg->set_balance(value_);
    msg->set_txheight(blockNum_);
 

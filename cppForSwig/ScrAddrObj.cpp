@@ -205,9 +205,7 @@ void ScrAddrObj::scanZC(const ScanAddressStruct& scanInfo,
           isZcFromWallet(move(txioPair.second.getDBKeyOfOutput().getSliceRef(0, 6))))
          txioPair.second.setTxOutFromSelf(true);
 
-      txioPair.second.setScrAddrLambda(
-         [this](void)->const BinaryDataRef&{ return this->getScrAddr(); });
-
+      txioPair.second.setScrAddrRef(getScrAddr());
       relevantTxIO_[txioPair.first] = move(txioPair.second);
    }
 }
@@ -367,9 +365,7 @@ map<BinaryData, TxIOPair> ScrAddrObj::getHistoryForScrAddr(
          {
             auto& txio = outMap[txioPair.first];
             txio = txioPair.second;
-            txio.setScrAddrLambda(
-               [this](void)->const BinaryDataRef&
-               { return this->getScrAddr(); });
+            txio.setScrAddrRef(getScrAddr());
          }
       }
       else
@@ -383,9 +379,7 @@ map<BinaryData, TxIOPair> ScrAddrObj::getHistoryForScrAddr(
             {
                auto& txio = outMap[txioPair.first];
                txio = txioPair.second;
-               txio.setScrAddrLambda(
-                  [this](void)->const BinaryDataRef&
-                  { return this->getScrAddr(); });
+               txio.setScrAddrRef(getScrAddr());
             }
          }
       }
@@ -430,10 +424,8 @@ map<BinaryData, TxIOPair> ScrAddrObj::getHistoryForScrAddr(
          if (withMultisig || !txiop.second.isMultisig())
          {
             auto& txio = outMap[txiop.first];
-            txio.setScrAddrLambda(
-                  [this](void)->const BinaryDataRef&
-               { return this->getScrAddr(); });
-            
+            txio.setScrAddrRef(getScrAddr());
+
             if (!txio.hasValue())
                txio = txiop.second;
          }

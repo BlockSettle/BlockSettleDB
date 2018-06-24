@@ -4,7 +4,7 @@ package Codec_LedgerEntry;
 
 message LedgerEntry
 {
-	required string ID = 1;
+	required bytes ID = 1;
 	required sint64 balance = 2;
 	
 	optional uint32 txHeight = 3;
