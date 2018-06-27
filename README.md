@@ -22,49 +22,51 @@ Multi-signature transactions are accommodated under-the-hood about 80%, and will
 
 ### Dependencies
 
-* GNU Compiler Collection  
+* GNU Compiler Collection
  Linux:   Install package `g++`
 
-* Crypto++  
- Linux:   Install package `libcrypto++-dev`  
- Windows: [Download](https://www.cryptopp.com/#download)   
+* Crypto++
+ Linux:   Install package `libcrypto++-dev`
+ Windows: [Download](https://www.cryptopp.com/#download)
 
-* SWIG  
- Linux:   Install package `swig`  
+* SWIG
+ Linux:   Install package `swig`
  Windows: [Download](http://www.swig.org/download.html)  
- MSVS: Copy swigwin-2.x directory next to cryptopp as `swigwin`  
+ MSVS: Copy swigwin-2.x directory next to cryptopp as `swigwin`
 
-* Python 2.6/2.7  
- Linux:   Install package `python-dev`  
- Windows: [Download](https://www.python.org/getit/)  
+* Python 2.6/2.7
+ Linux:   Install package `python-dev`
+ Windows: [Download](https://www.python.org/getit/)
 
-* Python Twisted -- asynchronous networking  
- Linux:   Install package `python-twisted`  
- Windows: [Download](https://twistedmatrix.com/trac/wiki/Downloads)  
+* Python Twisted -- asynchronous networking
+ Linux:   Install package `python-twisted`
+ Windows: [Download](https://twistedmatrix.com/trac/wiki/Downloads)
 
-* PyQt 4 (for Python 2.X)  
- Linux:   Install packages `libqtcore4`, `libqt4-dev`, `python-qt4`, and `pyqt4-dev-tools`  
- Windows: [Download](https://riverbankcomputing.com/software/pyqt/download) 
+* PyQt 4 (for Python 2.X)
+ Linux:   Install packages `libqtcore4`, `libqt4-dev`, `python-qt4`, and `pyqt4-dev-tools`
+ Windows: [Download](https://riverbankcomputing.com/software/pyqt/download)
 
-* qt4reactor.py -- combined eventloop for PyQt and Twisted  
- All OS:  [Download](https://launchpad.net/qt4reactor)  
-
-* pywin32  
- Windows Only:  qt4reactor relies on pywin32 (for win32event module). [Download](https://sourceforge.net/projects/pywin32/files/pywin32/)  
-
-* py2exe  
- (OPTIONAL - if you want to make a standalone executable in Windows)  
- Windows: [Download](http://www.py2exe.org/)  
+* py2exe
+ (OPTIONAL - if you want to make a standalone executable in Windows)
+ Windows: [Download](http://www.py2exe.org/)
 
 * LMDB - database engine, modified to suit Armory's use cases
-[LMDB page](http://symas.com/mdb/)
+[LMDB page](http://symas.com/mdb/) - No need for external installs by Armory users
+
+* libwebsockets
+ Linux:   Final instructions TBA.
+ Windows: Follow the "Windows binary build" directions [here](https://github.com/warmcat/libwebsockets/blob/master/README.md).
+
+* Google Protocol Buffers (protobuf)
+ Linux:   Install the `protobuf` package.
+ Windows: Follow the "C++ Installation - Windows" directions [here](https://github.com/google/protobuf/blob/master/src/README.md), downloading only the `protoc` binary.
 
 * macOS
  [Instructions for downloading, verifying, and running Armory on macOS](README_macOS.md).
 
 ## Sample Code
 
-Armory contains over 25,000 lines of code, between the C++ and python libraries.  This can be very confusing for someone unfamiliar with the code (you).  Below I have attempted to illustrate the CONOPS (concept of operations) that the library was designed for, so you know how to use it in your own development activities.  There is a TON of sample code in the following:
+Armory contains tens of thousands of lines of code, between the C++ and python libraries.  This can be very confusing for someone unfamiliar with the code (you).  Below I have attempted to illustrate the CONOPS (concept of operations) that the library was designed for, so you know how to use it in your own development activities.  There is a TON of sample code in the following:
 
 * C++ -   [BlockUtilsTest.cpp](cppForSwig/BlockUtilsTest.cpp)
 * Python -   [Unit Tests](pytest/), [sample_armory_code.py](extras/sample_armory_code.py)
@@ -78,3 +80,4 @@ See [LICENSE file](LICENSE)
 ## Copyright
 
 Copyright (C) 2011-2015, Armory Technologies, Inc.
+Copyright (C) 2016-2018, goatpig

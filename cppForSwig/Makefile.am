@@ -7,8 +7,8 @@ BENCH =
 
 LIBBTC = libbtc/libbtc.la
 
-DIST_SUBDIRS = lmdb fcgi cryptopp libwebsockets/build libbtc
-SUBDIRS = lmdb fcgi cryptopp libwebsockets/build libbtc $(MAYBE_BUILD)
+DIST_SUBDIRS = lmdb fcgi cryptopp libbtc
+SUBDIRS = lmdb fcgi cryptopp libbtc $(MAYBE_BUILD)
 
 SWIG_FLAGS = -c++ -python -threads
 AM_CXXFLAGS =
@@ -26,9 +26,7 @@ endif
 
 # Revisit this line later. RPATH is needed for portability purposes. For now,
 # install_name_tool works around portability issues on macOS but RPATH probably
-# works better. Linux doesn't seem to need this for the most part. libwebsockets
-# integration is an exception. I assume it's because usage of CMake means no .la
-# files, i.e., no auto-magical library linking in Autotools.
+# works better. Linux doesn't seem to need this for the most part.
 # NOTE: '$$ORIGIN' is more linker special sauce insanity combined with quoting
 # insanity combined with flag insanity ("-Wl,-rpath,stuff" vs. "-Wl,-rpath=stuff")
 # combined with esoteric insanity (-Wl,-z,origin is here but might not be needed
@@ -39,9 +37,16 @@ endif
 # Source 4: https://stackoverflow.com/a/33862145
 #LDFLAGS += -Wl,-rpath,. -Wl,-rpath,'$$ORIGIN/../more/libs/here' -Wl,-z,origin
 
-INCLUDE_FILES = -Ibech32/ref/c++ -Ifcgi -Ilibwebsockets/build/include \
-	-Ilibbtc/include -Ilibbtc/src/secp256k1/include
+protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
+#	@test -f protoc
+	protoc --cpp_out=protobuf --proto_path=protobuf $<
 
+# NOTE: /usr/local/include reflects local installs of libwebsockets. This may
+# be removed later.
+INCLUDE_FILES = -Ibech32/ref/c++ -Ifcgi \
+	-Ilibbtc/include -Ilibbtc/src/secp256k1/include -I/usr/local/include
+
+# Files should *not* be marked as "common" if at all possible.
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = AsyncClient.cpp \
 	CoinSelection.cpp \
@@ -102,26 +107,50 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	UniversalTimer.cpp \
 	bech32/ref/c++/bech32.cpp \
 	bech32/ref/c++/segwit_addr.cpp \
-        WebSocketMessage.cpp \
-	./protobuf/AddressBook.pb.cc ./protobuf/AddressData.pb.cc ./protobuf/BDVCommand.pb.cc \
-	./protobuf/CommonTypes.pb.cc ./protobuf/FeeEstimate.pb.cc ./protobuf/LedgerEntry.pb.cc \
-	./protobuf/NodeStatus.pb.cc ./protobuf/Utxo.pb.cc
-        
+	WebSocketMessage.cpp
+
+PROTOBUF_PROTO = protobuf/AddressBook.proto \
+	protobuf/AddressData.proto \
+	protobuf/BDVCommand.proto \
+	protobuf/CommonTypes.proto \
+	protobuf/FeeEstimate.proto \
+	protobuf/LedgerEntry.proto \
+	protobuf/NodeStatus.proto \
+	protobuf/Utxo.proto
+
+PROTOBUF_CC = protobuf/AddressBook.pb.cc \
+	protobuf/AddressData.pb.cc \
+	protobuf/BDVCommand.pb.cc \
+	protobuf/CommonTypes.pb.cc \
+	protobuf/FeeEstimate.pb.cc \
+	protobuf/LedgerEntry.pb.cc \
+	protobuf/NodeStatus.pb.cc \
+	protobuf/Utxo.pb.cc
+
+PROTOBUF_H = protobuf/AddressBook.pb.h \
+	protobuf/AddressData.pb.h \
+	protobuf/BDVCommand.pb.h \
+	protobuf/CommonTypes.pb.h \
+	protobuf/FeeEstimate.pb.h \
+	protobuf/LedgerEntry.pb.h \
+	protobuf/NodeStatus.pb.h \
+	protobuf/Utxo.pb.h
+
+dist_noinst_DATA = $(PROTOBUF_PROTO)
 
 # libArmoryCommon - Required by all Armory programs/libraries.
 # Includes any files required by the common files.
 lib_LTLIBRARIES += libArmoryCommon.la
 libArmoryCommon_la_SOURCES = $(ARMORYCOMMON_SOURCE_FILES)
-libArmoryCommon_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+nodist_libArmoryCommon_la_SOURCES = $(PROTOBUF_CC) $(PROTOBUF_H)
+libArmoryCommon_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)r
 libArmoryCommon_la_CXXFLAGS = $(AM_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryCommon_la_LIBADD = lmdb/liblmdb.la \
 				cryptopp/libcryptopp.la \
 				-lpthread -lprotobuf
-libArmoryCommon_la_LDFLAGS = $(LDFLAGS) -shared
+libArmoryCommon_la_LDFLAGS = $(LDFLAGS) $(PROTOBUF_FLAGS) -shared
 
 # Common command-line functionality library
-# NB: libwebsockets isn't Autotools, so that library's added differently than
-# Autotools-handled libraries. Ironically, LDADD for binaries doesn't care. Odd.
 lib_LTLIBRARIES += libArmoryCLI.la
 libArmoryCLI_la_SOURCES = $(ARMORYCLI_SOURCE_FILES)
 libArmoryCLI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
@@ -130,9 +159,9 @@ libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) -Ilmdb -D__STDC_LIMIT_MACROS
 libArmoryCLI_la_LIBADD = fcgi/libfcgi/libfcgi.la \
 			 $(LIBBTC) \
 			 libArmoryCommon.la \
-			 -Llibwebsockets/build/lib/ -lwebsockets \
-			 -lpthread
-libArmoryCLI_la_LDFLAGS = $(LDFLAGS) -Wl,-rpath,'$$ORIGIN/../libwebsockets/build/lib' -shared
+			 -lpthread \
+			 -lwebsockets
+libArmoryCLI_la_LDFLAGS = $(LDFLAGS) -shared
 
 #ArmoryDB
 bin_PROGRAMS += ArmoryDB
@@ -142,7 +171,6 @@ ArmoryDB_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 ArmoryDB_LDADD = fcgi/libfcgi/libfcgi.la \
 		 libArmoryCommon.la \
 		 libArmoryCLI.la \
-		 libwebsockets/build/lib/libwebsockets.so \
 		 -lpthread
 ArmoryDB_LDFLAGS = -static $(LDFLAGS)
 
@@ -174,13 +202,19 @@ libCppBlockUtils_la_LDFLAGS = $(LDFLAGS) $(PYTHON_LDFLAGS) -shared
 CppBlockUtils_wrap.cxx: CppBlockUtils.i
 	swig $(SWIG_FLAGS) CppBlockUtils.i
 
-.PHONY: CppBlockUtils_wrap.cxx
+.PHONY: CppBlockUtils_wrap.cxx $(PROTOBUF_H)
 endif
+
+MOSTLYCLEANFILES = $(PROTOBUF_CC) $(PROTOBUF_H)
+BUILT_SOURCES = $(PROTOBUF_H)
 
 clean-local:
 	rm -f CppBlockUtils.py
 	rm -f CppBlockUtils_wrap.cxx
 	rm -f CppBlockUtils_wrap.h
+
+protobuf_clean:
+	rm -f protobuf/*.pb.*
 
 # .include file prevents gtest subdir from building a second copy of Armory.
 # Also provides a convenient spot to place all test-related materials.
