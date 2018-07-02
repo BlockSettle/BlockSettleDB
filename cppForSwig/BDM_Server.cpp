@@ -11,7 +11,10 @@
 using namespace ::google::protobuf;
 using namespace ::Codec_BDVCommand;
 
-
+///////////////////////////////////////////////////////////////////////////////
+//
+// BDV_Server_Object
+//
 ///////////////////////////////////////////////////////////////////////////////
 shared_ptr<Message> BDV_Server_Object::processCommand(
    shared_ptr<BDVCommand> command)
@@ -860,354 +863,16 @@ const shared_ptr<BDV_Server_Object>& Clients::get(const string& id) const
    auto bdvmap = BDVs_.get();
    auto iter = bdvmap->find(id);
    if (iter == bdvmap->end())
-   {
-      LOGERR << "unknown BDVid";
-      throw runtime_error("unknown BDVid");
-   }
+      return nullptr;
 
    return iter->second;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void Clients::processShutdownCommand(shared_ptr<BDVCommand> command)
-{
-   auto& thisCookie = bdmT_->bdm()->config().cookie_;
-   if (thisCookie.size() == 0)
-      return;
-
-   try
-   {
-      if (!command->has_hash())
-         throw runtime_error("malformed command for processShutdownCommand");
-      auto& cookie = command->hash();
-
-      if ((cookie.size() == 0) || (cookie != thisCookie))
-         throw runtime_error("spawnId mismatch");
-   }
-   catch (...)
-   {
-      return;
-   }
-
-   switch (command->method())
-   {
-   case Methods::shutdown:
-   {
-      auto shutdownLambda = [this](void)->void
-      {
-         this->exitRequestLoop();
-      };
-
-      //run shutdown sequence in its own thread so that the fcgi listen
-      //loop can exit properly.
-      thread shutdownThr(shutdownLambda);
-      if (shutdownThr.joinable())
-         shutdownThr.detach();
-      break;
-   }
-
-   case Methods::shutdownNode:
-   {
-      if (bdmT_->bdm()->nodeRPC_ != nullptr)
-         bdmT_->bdm()->nodeRPC_->shutdown();
-   }
-
-   default:
-      LOGWARN << "unexpected command in processShutdownCommand";
-   }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-shared_ptr<Message> Clients::runCommand_FCGI(shared_ptr<BDVCommand> command)
-{
-   if (!run_.load(memory_order_relaxed))
-      return nullptr;
-
-   switch (command->method())
-   {
-   case Methods::shutdown:
-   case Methods::shutdownNode:
-   {
-      processShutdownCommand(command);
-      break;
-   }
-     
-   case Methods::registerBDV:
-   {
-      return registerBDV(command, string());
-   }
-   
-   case Methods::unregistedBDV:
-   {
-      unregisterBDV(command->bdvid());
-      break;
-   }
-
-   default:
-      if (bdmT_->bdm()->hasException())
-         rethrow_exception(bdmT_->bdm()->getException());
-
-      if (!command->has_bdvid())
-         throw runtime_error("invalid command");
-
-      auto bdv = get(command->bdvid());
-
-      //execute command
-      auto&& result = bdv->processCommand(command);
-      bdv->resetCounter();
-      return result;
-   }
-
-   return nullptr;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-shared_ptr<Message> Clients::runCommand_WS(
-   const uint64_t& bdvid, shared_ptr<BDVCommand> command)
-{
-   BinaryDataRef bdr((uint8_t*)&bdvid, 8);
-
-   switch (command->method())
-   {
-   case Methods::shutdown:
-   case Methods::shutdownNode:
-   {
-      processShutdownCommand(command);
-      break;
-   }
-
-   case Methods::registerBDV:
-      return registerBDV(command, bdr.toHexStr());
-
-   case Methods::unregistedBDV:
-      break;
-
-   default:
-      if (bdmT_->bdm()->hasException())
-         rethrow_exception(bdmT_->bdm()->getException());
-
-      //find the BDV and method
-      auto bdv = get(bdr.toHexStr());
-
-      //execute command
-      return bdv->processCommand(command);
-   }
-
-   return nullptr;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void Clients::shutdown()
-{
-   /*shutdown sequence*/
-   
-   //exit BDM maintenance thread
-   if (!bdmT_->shutdown())
-      return;
-
-   //shutdown ZC container
-   bdmT_->bdm()->disableZeroConf();
-   bdmT_->bdm()->getScrAddrFilter()->shutdown();
-
-   bdmT_->cleanUp();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void Clients::exitRequestLoop()
-{
-   /*terminate request processing loop*/
-   LOGINFO << "proceeding to shutdown";
-
-   //prevent all new commands from running
-   run_.store(false, memory_order_relaxed);
-   
-   //shutdown Clients gc thread
-   gcCommands_.completed();
-   
-   //cleanup all BDVs
-   unregisterAllBDVs();
-
-   //shutdown node
-   bdmT_->bdm()->shutdownNode();
-   bdmT_->bdm()->shutdownNotifications();
-
-   outerBDVNotifStack_.completed();
-   innerBDVNotifStack_.completed();
-
-   vector<thread::id> idVec;
-   for (auto& thr : controlThreads_)
-   {
-      idVec.push_back(thr.get_id());
-      if (thr.joinable())
-         thr.join();
-   }
-
-   DatabaseContainer_Sharded::clearThreadShardTx(idVec);
-
-   //shutdown loop on FcgiServer side
-   if(shutdownCallback_)
-      shutdownCallback_();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void Clients::unregisterAllBDVs()
-{
-   auto bdvs = BDVs_.get();
-   BDVs_.clear();
-
-   for (auto& bdv : *bdvs)
-      bdv.second->haltThreads();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-shared_ptr<Message> Clients::registerBDV(
-   shared_ptr<BDVCommand> command, string bdvID)
-{
-   try
-   {
-      if (!command->has_hash())
-         throw runtime_error("invalid command for registerBDV");
-      auto& magic_word = command->hash();
-      BinaryDataRef magic_word_ref; magic_word_ref.setRef(magic_word);
-      auto& thisMagicWord = bdmT_->bdm()->config().magicBytes_;
-
-      if (thisMagicWord != magic_word_ref)
-         throw runtime_error("");
-   }
-   catch (...)
-   {
-      throw DbErrorMsg("invalid magic word");
-   }
-
-   if(bdvID.size() == 0)
-      bdvID = SecureBinaryData().GenerateRandom(10).toHexStr();
-   auto newBDV = make_shared<BDV_Server_Object>(bdvID, bdmT_);
-
-   auto notiflbd = [this](unique_ptr<BDV_Notification> notifPtr)
-   {
-      this->outerBDVNotifStack_.push_back(move(notifPtr));
-   };
-
-   newBDV->notifLambda_ = notiflbd;
-   
-   //add to BDVs map
-   string newID(newBDV->getID());
-   BDVs_.insert(move(make_pair(newID, newBDV)));
-
-   LOGINFO << "registered bdv: " << newID;
-
-   auto response = make_shared<::Codec_CommonTypes::BinaryData>();
-   response->set_data(newID);
-   return response;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void Clients::unregisterBDV(const string& bdvId)
-{
-   shared_ptr<BDV_Server_Object> bdvPtr;
-
-   //shutdown bdv threads
-   {
-      auto bdvMap = BDVs_.get();
-      auto bdvIter = bdvMap->find(bdvId);
-      if (bdvIter == bdvMap->end())
-         return;
-
-      //copy shared_ptr and unregister from bdv map
-      bdvPtr = bdvIter->second;
-      BDVs_.erase(bdvId);
-   }
-
-   bdvPtr->haltThreads();
-
-   //we are done
-   bdvPtr.reset();
-   LOGINFO << "unregistered bdv: " << bdvId;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void Clients::commandThread(void) const
-{
-   if (bdmT_ == nullptr)
-      throw runtime_error("invalid BDM thread ptr");
-
-   while (1)
-   {
-      bool timedout = true;
-      shared_ptr<BDV_Notification> notifPtr;
-
-      try
-      {
-         notifPtr = move(bdmT_->bdm()->notificationStack_.pop_front(
-            chrono::seconds(60)));
-         if (notifPtr == nullptr)
-            continue;
-         timedout = false;
-      }
-      catch (StackTimedOutException&)
-      {
-         //nothing to do
-      }
-      catch (StopBlockingLoop&)
-      {
-         return;
-      }
-      catch (IsEmpty&)
-      {
-         LOGERR << "caught isEmpty in Clients maintenance loop";
-         continue;
-      }
-
-      //trigger gc thread
-      if (timedout == true || notifPtr->action_type() != BDV_Progress)
-         gcCommands_.push_back(true);
-      
-      //don't go any futher if there is no new top
-      if (timedout)
-         continue;
-
-      outerBDVNotifStack_.push_back(move(notifPtr));
-   }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void Clients::garbageCollectorThread(void)
-{
-   while (1)
-   {
-      try
-      {
-         bool command = gcCommands_.pop_front();
-         if(!command)
-            return;
-      }
-      catch (StopBlockingLoop&)
-      {
-         return;
-      }
-
-      vector<string> bdvToDelete;
-      
-      {
-         auto bdvmap = BDVs_.get();
-
-         for (auto& bdvPair : *bdvmap)
-         {
-            if (!bdvPair.second->cb_->isValid())
-               bdvToDelete.push_back(bdvPair.first);
-         }
-      }
-   
-      for (auto& bdvID : bdvToDelete)
-      {
-         unregisterBDV(bdvID);
-      }
-   }
-}
-
-///////////////////////////////////////////////////////////////////////////////
 void BDV_Server_Object::setup()
 {
+   packetProcess_threadLock_.store(0, memory_order_relaxed);
+
    isReadyPromise_ = make_shared<promise<bool>>();
    isReadyFuture_ = isReadyPromise_->get_future();
    auto lbdFut = isReadyFuture_;
@@ -1588,6 +1253,76 @@ void BDV_Server_Object::flagRefresh(
       notifLambda_(move(notif));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+bool BDV_Server_Object::processPayload(
+   shared_ptr<BDV_Payload>& packet, shared_ptr<Message>& result)
+{
+   //only ever one thread gets this far at any given time, therefor none of the
+   //underlying objects need to be thread safe
+   if (packet == nullptr)
+      return nullptr;
+
+   if (WebSocketMessage::getMessageCount(packet->payloadRef_) == 1)
+   {
+      //single packet, process right away
+      auto&& payload = WebSocketMessage::getSingleMessage(
+         packet->payloadRef_);
+
+      auto message = make_shared<BDVCommand>();
+      if (!message->ParseFromArray(payload.getPtr(), payload.getSize()))
+      {
+         auto staticCommand = make_shared<StaticCommand>();
+         if (staticCommand->ParseFromArray(payload.getPtr(), payload.getSize()))
+            result = staticCommand;
+
+         return false;
+      }
+
+      result = processCommand(message);
+      return true;
+   }
+   else
+   {
+      /*fragmented packet*/
+
+      //have we seen this id already?
+      shared_ptr<BDV_FragmentedMessage> fragmentedMessagePtr;
+
+      auto iter = fragmentedPackets_.find(packet->messageID_);
+      if (iter == fragmentedPackets_.end())
+      {
+         //otherwise, instantiate the object
+         fragmentedMessagePtr = make_shared<BDV_FragmentedMessage>();
+         fragmentedPackets_.insert(make_pair(
+            packet->messageID_, fragmentedMessagePtr));
+      }
+      else
+      {
+         fragmentedMessagePtr = iter->second;
+      }
+
+      //merge new packet in container
+      fragmentedMessagePtr->mergePayload(packet);
+
+      //if we have all payloads, grab message and process
+      if (!fragmentedMessagePtr->message_.isComplete())
+         return false;
+
+      auto message = make_shared<::Codec_BDVCommand::BDVCommand>();
+      if (!fragmentedMessagePtr->getMessage(message))
+      {
+         fragmentedPackets_.erase(packet->messageID_);
+         return false;
+      }
+
+      result = processCommand(message);
+
+      //clean up msg id and return result
+      fragmentedPackets_.erase(packet->messageID_);
+      return true;
+   }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Clients
@@ -1603,7 +1338,7 @@ void Clients::init(BlockDataManagerThread* bdmT,
 
    auto mainthread = [this](void)->void
    {
-      commandThread();
+      notificationThread();
    };
 
    auto outerthread = [this](void)->void
@@ -1621,6 +1356,11 @@ void Clients::init(BlockDataManagerThread* bdmT,
       garbageCollectorThread();
    };
 
+   auto parserThread = [this](void)->void
+   {
+      this->messageParserThread();
+   };
+
    controlThreads_.push_back(thread(mainthread));
    controlThreads_.push_back(thread(outerthread));
 
@@ -1629,7 +1369,10 @@ void Clients::init(BlockDataManagerThread* bdmT,
       bdmT_->bdm()->config().nodeType_ != Node_UnitTest)
       innerThreadCount = thread::hardware_concurrency();
    for (unsigned i = 0; i < innerThreadCount; i++)
+   {
       controlThreads_.push_back(thread(innerthread));
+      controlThreads_.push_back(thread(parserThread));
+   }
 
    auto callbackPtr = make_unique<ZeroConfCallbacks_BDV>(this);
    bdmT_->bdm()->registerZcCallbacks(move(callbackPtr));
@@ -1709,6 +1452,375 @@ void Clients::bdvMaintenanceThread()
       notifPtr->bdvPtr_->processNotification(notifPtr->notifPtr_);
    }
 }
+
+///////////////////////////////////////////////////////////////////////////////
+void Clients::processShutdownCommand(shared_ptr<StaticCommand> command)
+{
+   auto& thisCookie = bdmT_->bdm()->config().cookie_;
+   if (thisCookie.size() == 0)
+      return;
+
+   try
+   {
+      if (!command->has_cookie())
+         throw runtime_error("malformed command for processShutdownCommand");
+      auto& cookie = command->cookie();
+
+      if ((cookie.size() == 0) || (cookie != thisCookie))
+         throw runtime_error("spawnId mismatch");
+   }
+   catch (...)
+   {
+      return;
+   }
+
+   switch (command->method())
+   {
+   case StaticMethods::shutdown:
+   {
+      auto shutdownLambda = [this](void)->void
+      {
+         this->exitRequestLoop();
+      };
+
+      //run shutdown sequence in its own thread so that the fcgi listen
+      //loop can exit properly.
+      thread shutdownThr(shutdownLambda);
+      if (shutdownThr.joinable())
+         shutdownThr.detach();
+      break;
+   }
+
+   case StaticMethods::shutdownNode:
+   {
+      if (bdmT_->bdm()->nodeRPC_ != nullptr)
+         bdmT_->bdm()->nodeRPC_->shutdown();
+   }
+
+   default:
+      LOGWARN << "unexpected command in processShutdownCommand";
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void Clients::shutdown()
+{
+   /*shutdown sequence*/
+
+   //exit BDM maintenance thread
+   if (!bdmT_->shutdown())
+      return;
+
+   //shutdown ZC container
+   bdmT_->bdm()->disableZeroConf();
+   bdmT_->bdm()->getScrAddrFilter()->shutdown();
+
+   bdmT_->cleanUp();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void Clients::exitRequestLoop()
+{
+   /*terminate request processing loop*/
+   LOGINFO << "proceeding to shutdown";
+
+   //prevent all new commands from running
+   run_.store(false, memory_order_relaxed);
+
+   //shutdown Clients gc thread
+   gcCommands_.completed();
+
+   //cleanup all BDVs
+   unregisterAllBDVs();
+
+   //shutdown node
+   bdmT_->bdm()->shutdownNode();
+   bdmT_->bdm()->shutdownNotifications();
+
+   outerBDVNotifStack_.completed();
+   innerBDVNotifStack_.completed();
+   packetQueue_.terminate();
+
+   vector<thread::id> idVec;
+   for (auto& thr : controlThreads_)
+   {
+      idVec.push_back(thr.get_id());
+      if (thr.joinable())
+         thr.join();
+   }
+
+   DatabaseContainer_Sharded::clearThreadShardTx(idVec);
+
+   //shutdown loop on FcgiServer side
+   if (shutdownCallback_)
+      shutdownCallback_();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void Clients::unregisterAllBDVs()
+{
+   auto bdvs = BDVs_.get();
+   BDVs_.clear();
+
+   for (auto& bdv : *bdvs)
+      bdv.second->haltThreads();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<Message> Clients::registerBDV(
+   shared_ptr<StaticCommand> command, string bdvID)
+{
+   try
+   {
+      if (!command->has_magicword())
+         throw runtime_error("invalid command for registerBDV");
+      auto& magic_word = command->magicword();
+      BinaryDataRef magic_word_ref; magic_word_ref.setRef(magic_word);
+      auto& thisMagicWord = bdmT_->bdm()->config().magicBytes_;
+
+      if (thisMagicWord != magic_word_ref)
+         throw runtime_error("magic word mismatch");
+   }
+   catch (runtime_error& e)
+   {
+      auto response = make_shared<::Codec_NodeStatus::BDV_Error>();
+      response->set_type(Error_BDV);
+      response->set_error(e.what());
+      return response;
+   }
+
+   if (bdvID.size() == 0)
+      bdvID = SecureBinaryData().GenerateRandom(10).toHexStr();
+   auto newBDV = make_shared<BDV_Server_Object>(bdvID, bdmT_);
+
+   auto notiflbd = [this](unique_ptr<BDV_Notification> notifPtr)
+   {
+      this->outerBDVNotifStack_.push_back(move(notifPtr));
+   };
+
+   newBDV->notifLambda_ = notiflbd;
+
+   //add to BDVs map
+   string newID(newBDV->getID());
+   BDVs_.insert(move(make_pair(newID, newBDV)));
+
+   LOGINFO << "registered bdv: " << newID;
+
+   auto response = make_shared<::Codec_CommonTypes::BinaryData>();
+   response->set_data(newID);
+   return response;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void Clients::unregisterBDV(const string& bdvId)
+{
+   shared_ptr<BDV_Server_Object> bdvPtr;
+
+   //shutdown bdv threads
+   {
+      auto bdvMap = BDVs_.get();
+      auto bdvIter = bdvMap->find(bdvId);
+      if (bdvIter == bdvMap->end())
+         return;
+
+      //copy shared_ptr and unregister from bdv map
+      bdvPtr = bdvIter->second;
+      BDVs_.erase(bdvId);
+   }
+
+   bdvPtr->haltThreads();
+
+   //we are done
+   bdvPtr.reset();
+   LOGINFO << "unregistered bdv: " << bdvId;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void Clients::notificationThread(void) const
+{
+   if (bdmT_ == nullptr)
+      throw runtime_error("invalid BDM thread ptr");
+
+   while (1)
+   {
+      bool timedout = true;
+      shared_ptr<BDV_Notification> notifPtr;
+
+      try
+      {
+         notifPtr = move(bdmT_->bdm()->notificationStack_.pop_front(
+            chrono::seconds(60)));
+         if (notifPtr == nullptr)
+            continue;
+         timedout = false;
+      }
+      catch (StackTimedOutException&)
+      {
+         //nothing to do
+      }
+      catch (StopBlockingLoop&)
+      {
+         return;
+      }
+      catch (IsEmpty&)
+      {
+         LOGERR << "caught isEmpty in Clients maintenance loop";
+         continue;
+      }
+
+      //trigger gc thread
+      if (timedout == true || notifPtr->action_type() != BDV_Progress)
+         gcCommands_.push_back(true);
+
+      //don't go any futher if there is no new top
+      if (timedout)
+         continue;
+
+      outerBDVNotifStack_.push_back(move(notifPtr));
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void Clients::garbageCollectorThread(void)
+{
+   while (1)
+   {
+      try
+      {
+         bool command = gcCommands_.pop_front();
+         if (!command)
+            return;
+      }
+      catch (StopBlockingLoop&)
+      {
+         return;
+      }
+
+      vector<string> bdvToDelete;
+
+      {
+         auto bdvmap = BDVs_.get();
+
+         for (auto& bdvPair : *bdvmap)
+         {
+            if (!bdvPair.second->cb_->isValid())
+               bdvToDelete.push_back(bdvPair.first);
+         }
+      }
+
+      for (auto& bdvID : bdvToDelete)
+      {
+         unregisterBDV(bdvID);
+      }
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void Clients::messageParserThread(void)
+{
+   while (1)
+   {
+      shared_ptr<BDV_Payload> payloadPtr;
+      
+      try
+      {
+         payloadPtr = move(packetQueue_.pop_front());
+      }
+      catch (StopBlockingLoop&)
+      {
+         break;
+      }
+
+      //sanity check
+      if (payloadPtr == nullptr || payloadPtr->bdvPtr_ == nullptr)
+         continue;
+
+      auto bdvPtr = payloadPtr->bdvPtr_;
+      unsigned zero = 0;
+      if (!bdvPtr->packetProcess_threadLock_.compare_exchange_strong(
+            zero, 1, memory_order_relaxed, memory_order_relaxed))
+      {
+         //Failed to grab lock, there's already a thread processing a payload
+         //for this bdv. Insert the payload back into the queue. Another 
+         //thread will eventually pick it up and successfully grab the lock
+
+         packetQueue_.push_back(move(payloadPtr));
+         continue;
+      }
+
+      /*grabbed the thread lock, time to process the payload*/
+      auto result = processCommand(payloadPtr);
+
+      //release lock
+      bdvPtr->packetProcess_threadLock_.store(0, memory_order_relaxed);
+
+      //write return value if any
+      if (result != nullptr)
+         WebSocketServer::write(
+            payloadPtr->packet_->bdvID_, payloadPtr->messageID_, result);
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload>
+   payloadPtr)
+{
+   //clear bdvPtr from the payload to avoid circular ownership
+   auto bdvPtr = payloadPtr->bdvPtr_;
+   payloadPtr->bdvPtr_.reset();
+
+   //process payload
+   shared_ptr<Message> result = nullptr;
+   if (!bdvPtr->processPayload(payloadPtr, result))
+   {
+      auto staticCommand = dynamic_pointer_cast<StaticCommand>(result);
+      if (staticCommand == nullptr)
+         return nullptr;
+
+      result = processUnregisteredCommand(
+         payloadPtr->packet_->bdvID_, staticCommand);
+   }
+
+   return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<Message> Clients::processUnregisteredCommand(const uint64_t& bdvId, 
+   shared_ptr<StaticCommand> command)
+{
+   switch (command->method())
+   {
+   case StaticMethods::shutdown:
+   case StaticMethods::shutdownNode:
+   {
+      processShutdownCommand(command);
+      break;
+   }
+
+   case StaticMethods::registerBDV:
+   {
+      BinaryDataRef bdr;
+      bdr.setRef((uint8_t*)&bdvId, 8);
+      return registerBDV(command, bdr.toHexStr());
+   }
+
+   case StaticMethods::unregisterBDV:
+      break;
+
+   default:
+      return nullptr;
+   }
+
+   return nullptr;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// Callback
+//
+///////////////////////////////////////////////////////////////////////////////
+Callback::~Callback()
+{}
 
 ///////////////////////////////////////////////////////////////////////////////
 shared_ptr<Message> LongPoll::respond(shared_ptr<BDVCommand> command)
@@ -1841,6 +1953,10 @@ shared_ptr<Message> LongPoll::respond_inner(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+//
+// ZeroConfCallbacks
+//
+///////////////////////////////////////////////////////////////////////////////
 set<string> ZeroConfCallbacks_BDV::hasScrAddr(const BinaryDataRef& addr) const
 {
    set<string> result;
@@ -1893,5 +2009,22 @@ void ZeroConfCallbacks_BDV::errorCallback(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-Callback::~Callback()
-{}
+//
+// BDV_FragmentedMessage
+//
+///////////////////////////////////////////////////////////////////////////////
+void BDV_FragmentedMessage::mergePayload(shared_ptr<BDV_Payload> payload)
+{
+   if (payload == nullptr)
+      return;
+
+   message_.mergePayload(payload->payloadRef_);
+   payloads_.push_back(payload);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool BDV_FragmentedMessage::getMessage(
+   shared_ptr<::google::protobuf::Message> msgPtr)
+{
+   return message_.getMessage(msgPtr);
+}

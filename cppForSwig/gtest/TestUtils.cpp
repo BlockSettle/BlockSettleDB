@@ -191,11 +191,11 @@ namespace DBTestUtils
    /////////////////////////////////////////////////////////////////////////////
    string registerBDV(Clients* clients, const BinaryData& magic_word)
    {
-      auto message = make_shared<BDVCommand>();
-      message->set_method(Methods::registerBDV);
-      message->set_hash(magic_word.getPtr(), magic_word.getSize());
+      auto message = make_shared<StaticCommand>();
+      message->set_method(StaticMethods::registerBDV);
+      message->set_magicword(magic_word.getPtr(), magic_word.getSize());
 
-      auto&& result = clients->runCommand_FCGI(message);
+      auto&& result = clients->processUnregisteredCommand(0, message);
       auto response =
          dynamic_pointer_cast<::Codec_CommonTypes::BinaryData>(result);
 
@@ -209,7 +209,7 @@ namespace DBTestUtils
       message->set_method(Methods::goOnline);
       message->set_bdvid(id);
 
-      clients->runCommand_FCGI(message);
+      processCommand(clients, message);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -233,7 +233,7 @@ namespace DBTestUtils
       for (auto& scrAddr : scrAddrs)
          message->add_bindata(scrAddr.getPtr(), scrAddr.getSize());
 
-      clients->runCommand_FCGI(message);
+      processCommand(clients, message);
       return id;
    }
 
@@ -247,7 +247,7 @@ namespace DBTestUtils
       message->set_walletid(walletId);
       message->set_height(blockheight);
 
-      auto&& result = clients->runCommand_FCGI(message);
+      auto&& result = processCommand(clients, message);
       auto response =
          dynamic_pointer_cast<::Codec_CommonTypes::ManyUnsigned>(result);
 
@@ -280,7 +280,7 @@ namespace DBTestUtils
       for (auto& scrAddr : scrAddrs)
          message->add_bindata(scrAddr.getPtr(), scrAddr.getSize());
 
-      clients->runCommand_FCGI(message);
+      processCommand(clients, message);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -291,7 +291,7 @@ namespace DBTestUtils
       message->set_bdvid(bdvId);
 
       //check result
-      auto&& result = clients->runCommand_FCGI(message);
+      auto&& result = processCommand(clients, message);
       auto response =
          dynamic_pointer_cast<::Codec_CommonTypes::Strings>(result);
       return response->data(0);
@@ -309,7 +309,7 @@ namespace DBTestUtils
       message->set_pageid(pageId);
 
 
-      auto&& result = clients->runCommand_FCGI(message);
+      auto&& result = processCommand(clients, message);
       auto response =
          dynamic_pointer_cast<::Codec_LedgerEntry::ManyLedgerEntry>(result);
 
@@ -354,7 +354,7 @@ namespace DBTestUtils
 
       while (1)
       {
-         auto result = clients->runCommand_FCGI(message);
+         auto result = processCommand(clients, message);
 
          if (processCallback(move(result)))
             return make_tuple(callbackPtr, index);
@@ -489,7 +489,7 @@ namespace DBTestUtils
       message->set_bdvid(bdvId);
       message->set_hash(txHash.getPtr(), txHash.getSize());
 
-      auto&& result = clients->runCommand_FCGI(message);
+      auto&& result = processCommand(clients, message);
       auto response =
          dynamic_pointer_cast<::Codec_CommonTypes::TxWithMetaData>(result);
       
@@ -605,6 +605,31 @@ namespace DBTestUtils
       for (auto id : idVec)
          message->add_bindata(id.getPtr(), id.getSize());
 
-      clients->runCommand_FCGI(message);
+      processCommand(clients, message);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   shared_ptr<::google::protobuf::Message> processCommand(
+      Clients* clients, shared_ptr<::google::protobuf::Message> msg)
+   {
+      auto len = msg->ByteSize();
+      vector<uint8_t> buffer(len);
+      msg->SerializeToArray(&buffer[0], len);
+      auto&& bdVec = WebSocketMessage::serialize(0, buffer);
+      
+      if (bdVec.size() > 1)
+         LOGWARN << "large message in unit tests";
+
+      auto payload = make_shared<BDV_Payload>();
+      payload->messageID_ = 0;
+      payload->payloadRef_ = bdVec[0].getSliceRef(
+         LWS_PRE, bdVec[0].getSize() - LWS_PRE);
+      
+      BinaryData zero;
+      zero.resize(8);
+      memset(zero.getPtr(), 0, 8);
+      payload->bdvPtr_ = clients->get(zero.toHexStr());
+
+      return clients->processCommand(payload);
    }
 }

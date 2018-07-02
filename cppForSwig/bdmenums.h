@@ -106,6 +106,8 @@ enum BDV_refresh
 
 enum BDV_ErrorType
 {
+   Error_BDM,
+   Error_BDV,
    Error_ZC
 };
 

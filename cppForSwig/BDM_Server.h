@@ -35,6 +35,28 @@ enum WalletType
    TypeLockbox
 };
 
+class BDV_Server_Object;
+
+///////////////////////////////////////////////////////////////////////////////
+struct BDV_Payload
+{
+   shared_ptr<BDV_packet> packet_;
+   shared_ptr<BDV_Server_Object> bdvPtr_;
+   BinaryDataRef payloadRef_;
+   uint32_t messageID_;
+   //uint64_t bdvID_;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+struct BDV_FragmentedMessage
+{
+   vector<shared_ptr<BDV_Payload>> payloads_;
+   FragmentedMessage message_;
+
+   void mergePayload(shared_ptr<BDV_Payload>);
+   bool getMessage(shared_ptr<::google::protobuf::Message>);
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 class Callback
 {
@@ -153,6 +175,9 @@ private:
 
    function<void(unique_ptr<BDV_Notification>)> notifLambda_;
 
+   map<unsigned, shared_ptr<BDV_FragmentedMessage>> fragmentedPackets_;
+   atomic<unsigned> packetProcess_threadLock_;
+
 private:
    BDV_Server_Object(BDV_Server_Object&) = delete; //no copies
       
@@ -189,6 +214,8 @@ public:
    void processNotification(shared_ptr<BDV_Notification>);
    void init(void);
    void haltThreads(void);
+   bool processPayload(shared_ptr<BDV_Payload>&, 
+      shared_ptr<::google::protobuf::Message>&);
 };
 
 class Clients;
@@ -228,13 +255,15 @@ private:
 
    mutable BlockingStack<shared_ptr<BDV_Notification>> outerBDVNotifStack_;
    BlockingStack<shared_ptr<BDV_Notification_Packet>> innerBDVNotifStack_;
+   BlockingStack<shared_ptr<BDV_Payload>> packetQueue_;
 
 private:
-   void commandThread(void) const;
+   void notificationThread(void) const;
    void garbageCollectorThread(void);
    void unregisterAllBDVs(void);
    void bdvMaintenanceLoop(void);
    void bdvMaintenanceThread(void);
+   void messageParserThread(void);
 
 public:
 
@@ -252,18 +281,23 @@ public:
 
    const shared_ptr<BDV_Server_Object>& get(const string& id) const;
    
-   shared_ptr<::google::protobuf::Message> runCommand_FCGI(
-      shared_ptr<::Codec_BDVCommand::BDVCommand>);
-   shared_ptr<::google::protobuf::Message> runCommand_WS(
-      const uint64_t& bdvid, shared_ptr<::Codec_BDVCommand::BDVCommand>);
-
    void processShutdownCommand(
-      shared_ptr<::Codec_BDVCommand::BDVCommand>);
+      shared_ptr<::Codec_BDVCommand::StaticCommand>);
    shared_ptr<::google::protobuf::Message> registerBDV(
-      shared_ptr<::Codec_BDVCommand::BDVCommand>, string bdvID);
+      shared_ptr<::Codec_BDVCommand::StaticCommand>, string bdvID);
    void unregisterBDV(const string& bdvId);
    void shutdown(void);
    void exitRequestLoop(void);
+   
+   void queuePayload(shared_ptr<BDV_Payload>& payload)
+   {
+      packetQueue_.push_back(move(payload));
+   }
+
+   shared_ptr<::google::protobuf::Message> processUnregisteredCommand(
+      const uint64_t& bdvId, shared_ptr<::Codec_BDVCommand::StaticCommand>);
+   shared_ptr<::google::protobuf::Message> processCommand(
+      shared_ptr<BDV_Payload>);
 };
 
 #endif

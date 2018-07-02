@@ -6,12 +6,16 @@ import "CommonTypes.proto";
 
 package Codec_BDVCommand;
 
-enum Methods
+enum StaticMethods
 {
 	registerBDV = 1;
-	unregistedBDV = 2;
+	unregisterBDV = 2;
 	shutdown = 3;
 	shutdownNode = 4;
+}
+
+enum Methods
+{
 	waitOnBDVInit = 5;
 	waitOnBDVNotification = 6;
 	
@@ -51,6 +55,13 @@ enum Methods
 
 	getNodeStatus = 90;
 	estimateFee = 91;
+}
+
+message StaticCommand
+{
+	required StaticMethods method = 1;
+	optional bytes cookie = 2;
+	optional bytes magicWord = 3;
 }
 
 message BDVCommand

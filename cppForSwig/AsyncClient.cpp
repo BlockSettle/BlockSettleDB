@@ -36,6 +36,18 @@ unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(
+   StaticMethods method)
+{
+   auto payload = make_unique<WritePayload_Protobuf>();
+   auto message = make_unique<StaticCommand>();
+   message->set_method(method);
+
+   payload->message_ = move(message);
+   return move(payload);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 bool BlockDataViewer::hasRemoteDB(void)
 {
    return sock_->testConnection();
@@ -81,9 +93,9 @@ void BlockDataViewer::registerWithDB(BinaryData magic_word)
    //get bdvID
    try
    {
-      auto payload = make_payload(Methods::registerBDV, "");
-      auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
-      command->set_hash(magic_word.getPtr(), magic_word.getSize());
+      auto payload = make_payload(StaticMethods::registerBDV);
+      auto command = dynamic_cast<StaticCommand*>(payload->message_.get());
+      command->set_magicword(magic_word.getPtr(), magic_word.getSize());
       
       //registration is always blocking as it needs to guarantee the bdvID
 
@@ -114,7 +126,7 @@ void BlockDataViewer::unregisterFromDB()
    if (sock_->type() == SocketWS)
       return;
    
-   auto payload = make_payload(Methods::unregistedBDV, bdvID_);
+   auto payload = make_payload(StaticMethods::unregisterBDV);
    sock_->pushPayload(move(payload), nullptr);
 }
 
@@ -148,11 +160,11 @@ BlockDataViewer::~BlockDataViewer()
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::shutdown(const string& cookie)
 {
-   auto payload = make_payload(Methods::shutdown, "");
-   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+   auto payload = make_payload(StaticMethods::shutdown);
+   auto command = dynamic_cast<StaticCommand*>(payload->message_.get());
 
    if (cookie.size() > 0)
-      command->set_hash(cookie);
+      command->set_cookie(cookie);
 
    sock_->pushPayload(move(payload), nullptr);
 }
@@ -160,11 +172,11 @@ void BlockDataViewer::shutdown(const string& cookie)
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::shutdownNode(const string& cookie)
 {
-   auto payload = make_payload(Methods::shutdownNode, "");
-   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+   auto payload = make_payload(StaticMethods::shutdownNode);
+   auto command = dynamic_cast<StaticCommand*>(payload->message_.get());
 
    if (cookie.size() > 0)
-      command->set_hash(cookie);
+      command->set_cookie(cookie);
 
    sock_->pushPayload(move(payload), nullptr);
 }

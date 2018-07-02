@@ -140,7 +140,7 @@ void FCGI_Server::enterLoop()
 void FCGI_Server::processRequest(shared_ptr<FCGX_Request> req)
 {
    //extract the string command from the fgci request
-   stringstream ss;
+  /* stringstream ss;
    stringstream retStream;
    char* content = nullptr;
 
@@ -257,7 +257,7 @@ void FCGI_Server::processRequest(shared_ptr<FCGX_Request> req)
    if (req->ipcFd != -1)
       passToKeepAliveService(req);
 
-   liveThreads_.fetch_sub(1, memory_order_relaxed);
+   liveThreads_.fetch_sub(1, memory_order_relaxed);*/
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -397,7 +397,7 @@ int WebSocketServer::callback(
 
    case LWS_CALLBACK_RECEIVE:
    {
-      auto packetPtr = make_unique<BDV_packet>(session_data->id_, wsi);
+      auto packetPtr = make_shared<BDV_packet>(session_data->id_, wsi);
       packetPtr->data_.resize(len);
       memcpy(packetPtr->data_.getPtr(), (uint8_t*)in, len);
 
@@ -479,12 +479,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
       instance->commandThread();
    };
 
-   unsigned thrCount = 2;
-   if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
-      thrCount = thread::hardware_concurrency();
-
-   for(unsigned i=0; i<thrCount; i++)
-      instance->threads_.push_back(thread(commandThr));
+   instance->threads_.push_back(thread(commandThr));
 
    //run service thread
    if (async)
@@ -618,12 +613,12 @@ void WebSocketServer::commandThread()
 {
    while (1)
    {
-      unique_ptr<BDV_packet> packetPtr;
+      shared_ptr<BDV_packet> packetPtr;
       try
       {
          packetPtr = move(packetQueue_.pop_front());
       }
-      catch(StopBlockingLoop&)
+      catch (StopBlockingLoop&)
       {
          //end loop condition
          return;
@@ -642,57 +637,45 @@ void WebSocketServer::commandThread()
          continue;
       }
 
-      try
-      {
-         shared_ptr<WebSocketMessage> msgPtr = nullptr;
-         
-         {
-            auto packet_id = WebSocketMessage::getMessageId(packetPtr->data_);
-            auto read_map = readMap_.get();
-            auto iter = read_map->find(packet_id);
-            if (iter == read_map->end())
-            {
-               msgPtr = make_shared<WebSocketMessage>();
-            }
-            else
-            {
-               msgPtr = iter->second;
-            }
-         }
-
-         if (msgPtr == nullptr)
-         {
-            LOGWARN << "null ws message!";
-            continue;
-         }
-
-         msgPtr->processPacket(packetPtr->data_);
-         BinaryDataRef payload;
-         if (!msgPtr->reconstruct(payload))
-         {
-            //TODO: limit partial messages, d/c client as malvolent if 
-            //threshold is met
-
-            //incomplete message, store partial data for later
-            auto msg_pair = make_pair(msgPtr->id(), msgPtr);
-            readMap_.insert(move(msg_pair));
-            continue;
-         }
-
-         auto message = make_shared<::Codec_BDVCommand::BDVCommand>();
-         message->ParseFromArray(payload.getPtr(), payload.getSize());
-         auto&& result = clients_->runCommand_WS(packetPtr->ID_, message);
-         write(packetPtr->ID_, msgPtr->id(), result);
-
-         //clean up
-         readMap_.erase(msgPtr->id());
-
-         //TODO: replace readMap with lockless container
-      }
-      catch (exception&)
-      {
-         LOGWARN << "failed to process packet";
+      auto& msgPairs = WebSocketMessage::parsePacket(packetPtr->data_.getRef());
+      if (msgPairs.size() == 0)
          continue;
+
+      BinaryDataRef bdr((uint8_t*)&packetPtr->bdvID_, 8);
+      auto&& bdvPtr = clients_->get(bdr.toHexStr());
+      for (auto& msg : msgPairs)
+      {
+         if (bdvPtr != nullptr)
+         {
+            //create payload
+            auto bdv_payload = make_shared<BDV_Payload>();
+            bdv_payload->bdvPtr_ = bdvPtr;
+            bdv_payload->packet_ = packetPtr;
+            bdv_payload->payloadRef_ = msg.second;
+            bdv_payload->messageID_ = msg.first;
+
+            //queue for clients thread pool to process
+            clients_->queuePayload(bdv_payload);
+         }
+         else
+         {
+            //unregistered command
+            if (WebSocketMessage::getMessageCount(msg.second) != 1)
+               continue;
+
+            auto&& messageRef = WebSocketMessage::getSingleMessage(msg.second);
+
+            //process command 
+            auto message = make_shared<::Codec_BDVCommand::StaticCommand>();
+            if (!message->ParseFromArray(messageRef.getPtr(), messageRef.getSize()))
+               continue;
+
+            auto&& reply = clients_->processUnregisteredCommand(
+               packetPtr->bdvID_, message);
+
+            //reply
+            write(packetPtr->bdvID_, msg.first, reply);
+         }
       }
    }
 
@@ -716,7 +699,10 @@ void WebSocketServer::write(const uint64_t& id, const uint32_t& msgid,
       auto result = message->SerializeToArray(
          &serializedData[0], serializedData.size());
       if (!result)
-         throw runtime_error("failed to serialize protobuf message");
+      {
+         LOGWARN << "failed to serialize message";
+         return;
+      }
    }
 
    auto&& serializedResult =

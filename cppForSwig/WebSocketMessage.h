@@ -11,8 +11,10 @@
 
 #include <stdexcept>
 #include <string>
+#include <memory>
 
 #include "BinaryData.h"
+#include <google/protobuf/message.h>
 
 #define WEBSOCKET_MESSAGE_PACKET_SIZE 8000
 #define WEBSOCKET_MESSAGE_PACKET_HEADER 6
@@ -30,22 +32,34 @@ public:
 
 class WebSocketMessage
 {
-private:
-   map<uint8_t, BinaryData> packets_;
-   BinaryData payload_;
-   uint32_t id_ = UINT32_MAX;
-   unsigned count_ = UINT32_MAX;
-
 public:
    static vector<BinaryData> serialize(uint32_t, const BinaryDataRef&);
    static vector<BinaryData> serialize(uint32_t, const vector<uint8_t>&);
    static vector<BinaryData> serialize(uint32_t, const string&);
-   static uint32_t getMessageId(const BinaryData&);
+   
+   static uint8_t getMessageCount(const BinaryDataRef&);
+   static uint32_t getMessageId(const BinaryDataRef&);
+   static uint8_t getPayloadId(const BinaryDataRef&);
+   
+   static vector<pair<unsigned, BinaryDataRef>> parsePacket(BinaryDataRef);
+ 
+   static BinaryDataRef getSingleMessage(const BinaryDataRef&);
+   static bool reconstructFragmentedMessage(
+      const map<uint8_t, BinaryDataRef>&,
+      shared_ptr<::google::protobuf::Message>);
+   static bool reconstructFragmentedMessage(
+      const map<uint8_t, BinaryDataRef>&, BinaryData&);
+};
 
-   void processPacket(BinaryData&);
-   bool reconstruct(BinaryDataRef&);
+///////////////////////////////////////////////////////////////////////////////
+struct FragmentedMessage
+{
+   map<uint8_t, BinaryDataRef> payloads_;
 
-   uint32_t id(void) const { return id_; }
+   void mergePayload(BinaryDataRef);
+   bool getMessage(shared_ptr<::google::protobuf::Message>);
+   bool getMessage(BinaryData&);
+   bool isComplete(void) const;
 };
 
 #endif

@@ -105,12 +105,12 @@ int callback_http(struct lws *wsi, enum lws_callback_reasons reason, void *user,
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_packet
 {
-   uint64_t ID_;
+   uint64_t bdvID_;
    BinaryData data_;
    struct lws *wsiPtr_;
 
    BDV_packet(const uint64_t& id, struct lws *wsi) :
-      ID_(id), wsiPtr_(wsi)
+      bdvID_(id), wsiPtr_(wsi)
    {}
 };
 
@@ -132,9 +132,8 @@ class WebSocketServer
 {
 private:
    vector<thread> threads_;
-   BlockingStack<unique_ptr<BDV_packet>> packetQueue_;
+   BlockingStack<shared_ptr<BDV_packet>> packetQueue_;
    TransactionalMap<uint64_t, WriteStack> writeMap_;
-   TransactionalMap<uint64_t, shared_ptr<WebSocketMessage>> readMap_;
 
    static atomic<WebSocketServer*> instance_;
    static mutex mu_;
@@ -161,9 +160,12 @@ public:
 
    static void start(BlockDataManagerThread* bdmT, bool async);
    static void shutdown(void);
+   static void waitOnShutdown(void);
+
    static void write(const uint64_t&, const uint32_t&, 
       shared_ptr<::google::protobuf::Message>);
-   static void waitOnShutdown(void);
+   static void write(struct lws *wsi, const uint32_t&,
+      shared_ptr<::google::protobuf::Message>);
    
    shared_ptr<map<uint64_t, WriteStack>> getWriteMap(void);
    void addId(const uint64_t&, struct lws* ptr);

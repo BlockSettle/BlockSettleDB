@@ -8,6 +8,9 @@
 
 #include "WebSocketMessage.h"
 #include "libwebsockets.h"
+#include <google/protobuf/io/zero_copy_stream_impl.h>
+
+using namespace ::google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 vector<BinaryData> WebSocketMessage::serialize(uint32_t id,
@@ -37,7 +40,9 @@ vector<BinaryData> WebSocketMessage::serialize(uint32_t id,
    vector<BinaryData> result;
 
    size_t data_size =
-      WEBSOCKET_MESSAGE_PACKET_SIZE - WEBSOCKET_MESSAGE_PACKET_HEADER;
+      WEBSOCKET_MESSAGE_PACKET_SIZE - 
+      WEBSOCKET_MESSAGE_PACKET_HEADER - 
+      3; //max varint length to encode size <= 8000
    auto msg_count = payload.getSize() / data_size;
    if (msg_count * data_size < payload.getSize())
       msg_count++;
@@ -65,10 +70,13 @@ vector<BinaryData> WebSocketMessage::serialize(uint32_t id,
       bw.put_uint8_t(msg_count);
       bw.put_uint8_t(i);
 
+      //msg size
+      auto size = min(data_size, payload.getSize() - pos);
+      bw.put_var_int(size);
+
       //data
       if (payload.getSize() > 0)
       {
-         auto size = min(data_size, payload.getSize() - pos);
          BinaryDataRef bdr(payload.getPtr() + pos, size);
          bw.put_BinaryDataRef(bdr);
          pos += size;
@@ -81,94 +89,86 @@ vector<BinaryData> WebSocketMessage::serialize(uint32_t id,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WebSocketMessage::processPacket(BinaryData& packet)
+bool WebSocketMessage::reconstructFragmentedMessage(
+   const map<uint8_t, BinaryDataRef>& payloadMap,
+   shared_ptr<::google::protobuf::Message> msg)
 {
-   auto id = getMessageId(packet);
+   //this method expects packets in order
+
+   if (payloadMap.size() == 0)
+      return false;
+
+   auto count = payloadMap.size();
+
+   //create a zero copy stream from each packet
+   vector<ZeroCopyInputStream*> streams;
+   streams.reserve(count);
    
-   //sanity check
-   if (id == UINT32_MAX)
-      throw LWS_Error("invalid msg id");
+   try
+   {
+      for (auto& data_pair : payloadMap)
+      {
+         BinaryRefReader brr(data_pair.second);
+         brr.advance(WEBSOCKET_MESSAGE_PACKET_HEADER);
+         auto len = brr.get_var_int();
+         auto bdrPacket = brr.get_BinaryDataRef(len);
 
-   //compare with msg id, if it's missing, init
-   if (id_ == UINT32_MAX)
-      id_ = id;
-   else if (id_ != id)
-      throw LWS_Error("msg id mismatch");
+         auto stream = new ArrayInputStream(
+            bdrPacket.getPtr(), bdrPacket.getSize());
+         streams.push_back(stream);
+      }
+   }
+   catch (...)
+   {
+      for (auto& stream : streams)
+         delete stream;
+      return false;
+   }
 
-   //get count
-   auto count = (uint8_t*)packet.getPtr() + 4;
+   //pass it all to concatenating stream
+   ConcatenatingInputStream cStream(&streams[0], streams.size());
 
-   //sanity check
-   if (*count == 0)
-      throw LWS_Error("null packet count");
+   //deser message
+   auto result = msg->ParseFromZeroCopyStream(&cStream);
 
-   //compare packet count
-   if (count_ == UINT32_MAX)
-      count_ = *count;
-   else if (count_ != *count)
-      throw LWS_Error("packet count mismatch");
-   
-   //get packet id
-   auto packet_id = (uint8_t*)packet.getPtr() + 5;
+   //cleanup
+   for (auto& stream : streams)
+      delete stream;
 
-   //make packet pair
-   auto&& packet_pair = make_pair(*packet_id, move(packet));
-
-   packets_.insert(move(packet_pair));
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool WebSocketMessage::reconstruct(BinaryDataRef& payload)
+bool WebSocketMessage::reconstructFragmentedMessage(
+   const map<uint8_t, BinaryDataRef>& payloadMap, BinaryData& msg)
 {
-   //TODO: reduce the amount of copies
+   //this method expects packets in order
 
-   //sanity checks
-   if (id_ == UINT32_MAX || count_ == UINT32_MAX)
+   if (payloadMap.size() == 0)
       return false;
 
-   if (packets_.size() != count_)
-      return false;
-
-  
-   if (packets_.size() == 1)
+   try
    {
-      auto& packet = packets_.begin()->second;
-      payload = packet.getSliceRef(
-         WEBSOCKET_MESSAGE_PACKET_HEADER,
-         packet.getSize() - WEBSOCKET_MESSAGE_PACKET_HEADER);
+      for (auto& data_pair : payloadMap)
+      {
+         BinaryRefReader brr(data_pair.second);
+         brr.advance(WEBSOCKET_MESSAGE_PACKET_HEADER);
+         auto len = brr.get_var_int();
+         auto bdrPacket = brr.get_BinaryDataRef(len);
+
+         msg.append(bdrPacket);
+      }
    }
-   else
+   catch (...)
    {
-      size_t total = 0;
-      vector<pair<size_t, uint8_t*>> offsets;
-
-      //reconstruct msg from packets
-      for (auto& packet : packets_)
-      {
-         auto size = packet.second.getSize() - 
-            WEBSOCKET_MESSAGE_PACKET_HEADER;
-         auto offset = packet.second.getPtr() + WEBSOCKET_MESSAGE_PACKET_HEADER;
-         
-         offsets.push_back(make_pair(size, offset));
-         total += size;
-      }
-
-      payload_.resize(total);
-      size_t pos = 0;
-      for (auto& offset : offsets)
-      {
-         memcpy(payload_.getPtr() + pos, offset.second, offset.first);
-         pos += offset.first;
-      }
-
-      payload.setRef(payload_);
+      return false;
    }
 
    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint32_t WebSocketMessage::getMessageId(const BinaryData& packet)
+uint32_t WebSocketMessage::getMessageId(const BinaryDataRef& packet)
 {
    //sanity check
    if (packet.getSize() < WEBSOCKET_MESSAGE_PACKET_HEADER ||
@@ -176,4 +176,113 @@ uint32_t WebSocketMessage::getMessageId(const BinaryData& packet)
       return UINT32_MAX;
 
    return *(uint32_t*)packet.getPtr();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint8_t WebSocketMessage::getPayloadId(const BinaryDataRef& packet)
+{
+   //sanity check
+   if (packet.getSize() < WEBSOCKET_MESSAGE_PACKET_HEADER ||
+      packet.getSize() > WEBSOCKET_MESSAGE_PACKET_SIZE)
+      return UINT32_MAX;
+
+   return *(packet.getPtr() + 5);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<pair<unsigned, BinaryDataRef>> WebSocketMessage::parsePacket(
+   BinaryDataRef packet)
+{
+   vector<pair<unsigned, BinaryDataRef>> msgVec;
+   BinaryRefReader brr(packet);
+
+   while (brr.getSizeRemaining() > 0)
+   {
+      if (brr.getSizeRemaining() < WEBSOCKET_MESSAGE_PACKET_HEADER + 1)
+         break;
+
+      brr.advance(WEBSOCKET_MESSAGE_PACKET_HEADER);
+
+      try
+      {
+         uint8_t varIntSize;
+         auto len = brr.get_var_int(&varIntSize);
+         if (brr.getSizeRemaining() < len)
+            break;
+
+         brr.rewind(varIntSize + WEBSOCKET_MESSAGE_PACKET_HEADER);
+         auto&& msgRef = brr.get_BinaryDataRef(
+            WEBSOCKET_MESSAGE_PACKET_HEADER + len + varIntSize);
+         auto msgId = getMessageId(msgRef);
+
+         auto&& data_pair = make_pair(msgId, msgRef);
+         msgVec.push_back(move(data_pair));
+      }
+      catch (runtime_error&)
+      {
+         break;
+      }
+   }
+
+   return msgVec;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint8_t WebSocketMessage::getMessageCount(const BinaryDataRef& bdr)
+{
+   return *(bdr.getPtr() + 4);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryDataRef WebSocketMessage::getSingleMessage(const BinaryDataRef& bdr)
+{
+   BinaryRefReader brr(bdr);
+   brr.advance(WEBSOCKET_MESSAGE_PACKET_HEADER);
+   auto len = brr.get_var_int();
+   return brr.get_BinaryDataRef(len);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// FragmentedMessage
+//
+///////////////////////////////////////////////////////////////////////////////
+void FragmentedMessage::mergePayload(BinaryDataRef payload)
+{
+   if (payload.getSize() == 0)
+      return;
+
+   auto id = WebSocketMessage::getPayloadId(payload);
+   payloads_.insert(move(make_pair(id, payload)));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool FragmentedMessage::getMessage(
+   shared_ptr<::google::protobuf::Message> msgPtr)
+{
+   if (!isComplete())
+      return false;
+
+   return WebSocketMessage::reconstructFragmentedMessage(payloads_, msgPtr);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool FragmentedMessage::getMessage(BinaryData& bd)
+{
+   return WebSocketMessage::reconstructFragmentedMessage(payloads_, bd);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool FragmentedMessage::isComplete() const
+{
+   if (payloads_.size() == 0)
+      return false;
+
+   auto& iter = payloads_.begin();
+   auto count = WebSocketMessage::getMessageCount(iter->second);
+
+   if (payloads_.size() != count)
+      return false;
+
+   return true;
 }

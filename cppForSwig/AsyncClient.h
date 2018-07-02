@@ -282,6 +282,8 @@ namespace AsyncClient
 
       static unique_ptr<WritePayload_Protobuf> make_payload(
          ::Codec_BDVCommand::Methods, const string&);
+      static unique_ptr<WritePayload_Protobuf> make_payload(
+         ::Codec_BDVCommand::StaticMethods);
    };
 
    ////////////////////////////////////////////////////////////////////////////

@@ -29,7 +29,8 @@ using namespace std;
 struct WriteAndReadPacket
 {
    const unsigned id_;
-   WebSocketMessage response_;
+   vector<BinaryData> packets_;
+   unique_ptr<FragmentedMessage> fragmentedMessage_ = nullptr;
    shared_ptr<Socket_ReadPayload> payload_;
 
    WriteAndReadPacket(unsigned id, shared_ptr<Socket_ReadPayload> payload) :

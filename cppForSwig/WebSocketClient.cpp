@@ -50,11 +50,9 @@ void WebSocketClient::pushPayload(
 
    vector<uint8_t> data;
    write_payload->serialize(data);
-   
-   auto&& data_vector = 
-      WebSocketMessage::serialize(id, data);
 
    //push packets to write queue
+   auto&& data_vector = WebSocketMessage::serialize(id, data);
    for(auto& data : data_vector)
       writeQueue_.push_back(move(data));
 
@@ -329,42 +327,51 @@ void WebSocketClient::readService()
       }
 
       //deser packet
-      auto msgid = WebSocketMessage::getMessageId(payload);
+      auto payloadRef = payload.getRef();      
+      auto msgid = WebSocketMessage::getMessageId(payloadRef);
 
       //figure out request id, fulfill promise
       auto readMap = readPackets_.get();
       auto iter = readMap->find(msgid);
       if (iter != readMap->end())
       {
-         try
+         auto& msgObjPtr = iter->second;
+         if (WebSocketMessage::getMessageCount(payloadRef) == 1)
          {
-            iter->second->response_.processPacket(payload);
-         }
-         catch (exception&)
-         {
-            LOGWARN << "invalid packet, dropping message";
+            //single packet, process it right away
+            auto&& message = WebSocketMessage::getSingleMessage(payloadRef);
+            msgObjPtr->payload_->callbackReturn_->callback(message);
             readPackets_.erase(msgid);
+            continue;
          }
          
-         BinaryDataRef message;
-         if (!iter->second->response_.reconstruct(message))
+         //fragmented packet
+         if (msgObjPtr->fragmentedMessage_ == nullptr)
+            msgObjPtr->fragmentedMessage_ = move(make_unique<FragmentedMessage>());
+
+         msgObjPtr->packets_.push_back(move(payload));
+         msgObjPtr->fragmentedMessage_->mergePayload(payloadRef);
+         
+         if (!msgObjPtr->fragmentedMessage_->isComplete())
             continue;
          
-         iter->second->payload_->callbackReturn_->callback(message);
+         //TODO: replace with zero copy concatenated stream
+         BinaryData reconstructedPayload;
+         msgObjPtr->fragmentedMessage_->getMessage(reconstructedPayload);
+         iter->second->payload_->callbackReturn_->callback(
+            reconstructedPayload.getRef());
          readPackets_.erase(msgid);
       }
       else if (msgid == WEBSOCKET_CALLBACK_ID)
       {
-         //or is it a callback command? process it locally
-         WebSocketMessage response;
-         response.processPacket(payload);
-
-         BinaryDataRef message;
-         if (!response.reconstruct(message))
-            continue; //callbacks should always be a single packet
+         //callbacks can only be single packets
+         if (WebSocketMessage::getMessageCount(payloadRef) != 1)
+            continue;
 
          if (callbackPtr_ != nullptr)
          {
+            auto&& message = WebSocketMessage::getSingleMessage(payloadRef);
+
             auto msgptr = make_shared<::Codec_BDVCommand::BDVCallback>();
             msgptr->ParseFromArray(message.getPtr(), message.getSize());
 

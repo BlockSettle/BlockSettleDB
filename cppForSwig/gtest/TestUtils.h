@@ -153,6 +153,9 @@ namespace DBTestUtils
    void updateWalletsLedgerFilter(
       Clients*, const string&, const vector<BinaryData>&);
 
+   shared_ptr<::google::protobuf::Message> processCommand(
+      Clients* clients, shared_ptr<::google::protobuf::Message>);
+
    /////////////////////////////////////////////////////////////////////////////
    class UTCallback : public RemoteCallback
    {
