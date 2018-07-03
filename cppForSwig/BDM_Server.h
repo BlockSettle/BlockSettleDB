@@ -279,7 +279,7 @@ public:
    void init(BlockDataManagerThread* bdmT,
       function<void(void)> shutdownLambda);
 
-   const shared_ptr<BDV_Server_Object>& get(const string& id) const;
+   shared_ptr<BDV_Server_Object> get(const string& id) const;
    
    void processShutdownCommand(
       shared_ptr<::Codec_BDVCommand::StaticCommand>);

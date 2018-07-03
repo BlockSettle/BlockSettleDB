@@ -637,12 +637,13 @@ void WebSocketServer::commandThread()
          continue;
       }
 
-      auto& msgPairs = WebSocketMessage::parsePacket(packetPtr->data_.getRef());
+      auto&& msgPairs = WebSocketMessage::parsePacket(packetPtr->data_.getRef());
       if (msgPairs.size() == 0)
          continue;
 
       BinaryDataRef bdr((uint8_t*)&packetPtr->bdvID_, 8);
-      auto&& bdvPtr = clients_->get(bdr.toHexStr());
+      auto&& hexID = bdr.toHexStr();
+      auto bdvPtr = clients_->get(hexID);
       for (auto& msg : msgPairs)
       {
          if (bdvPtr != nullptr)

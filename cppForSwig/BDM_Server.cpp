@@ -858,7 +858,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-const shared_ptr<BDV_Server_Object>& Clients::get(const string& id) const
+shared_ptr<BDV_Server_Object> Clients::get(const string& id) const
 {
    auto bdvmap = BDVs_.get();
    auto iter = bdvmap->find(id);
@@ -1266,7 +1266,7 @@ bool BDV_Server_Object::processPayload(
    //only ever one thread gets this far at any given time, therefor none of the
    //underlying objects need to be thread safe
    if (packet == nullptr)
-      return nullptr;
+      return false;
 
    if (WebSocketMessage::getMessageCount(packet->payloadRef_) == 1)
    {

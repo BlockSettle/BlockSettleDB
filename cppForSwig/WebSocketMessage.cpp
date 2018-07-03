@@ -278,7 +278,7 @@ bool FragmentedMessage::isComplete() const
    if (payloads_.size() == 0)
       return false;
 
-   auto& iter = payloads_.begin();
+   auto iter = payloads_.begin();
    auto count = WebSocketMessage::getMessageCount(iter->second);
 
    if (payloads_.size() != count)
