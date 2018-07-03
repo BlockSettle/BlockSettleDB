@@ -102,7 +102,7 @@ namespace DBTestUtils
    void goOnline(Clients* clients, const string& id);
    const shared_ptr<BDV_Server_Object> getBDV(Clients* clients, const string& id);
    
-   string registerWallet(Clients* clients, const string& bdvId,
+   void registerWallet(Clients* clients, const string& bdvId,
       const vector<BinaryData>& scrAddrs, const string& wltName);
    void regLockbox(Clients* clients, const string& bdvId,
       const vector<BinaryData>& scrAddrs, const string& wltName);

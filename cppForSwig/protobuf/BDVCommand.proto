@@ -88,11 +88,12 @@ enum NotificationType
 	continue_polling = 1;
 	ready = 2;
 	newblock = 3;
-	refresh = 4;
-	zc = 5;
-	progress = 6;
-	nodestatus = 7;
-	error = 8;
+	zc = 4;
+	error = 5;
+
+	progress = 20;
+	nodestatus = 21;
+	refresh = 22;
 }
 
 message Notification

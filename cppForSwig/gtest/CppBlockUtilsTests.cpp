@@ -7437,11 +7437,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_SideScan)
    //post-init address registration
    scrAddrVec.clear();
    scrAddrVec.push_back(TestChain::scrAddrD);
-   auto&& regId = 
-      DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
-
-   //wait on the address scan
-   DBTestUtils::waitOnWalletRefresh(clients_, bdvID, regId);
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
    EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
@@ -8847,10 +8843,7 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
    hashSet = assetWlt->getAddrHashSet();
    hashVec.clear();
    hashVec.insert(hashVec.begin(), hashSet.begin(), hashSet.end());
-
-   auto&& regId = 
-      DBTestUtils::registerWallet(clients_, bdvID, hashVec, assetWlt->getID());
-   DBTestUtils::waitOnWalletRefresh(clients_, bdvID, regId);
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec, assetWlt->getID());
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);

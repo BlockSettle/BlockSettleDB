@@ -219,7 +219,7 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   string registerWallet(Clients* clients, const string& bdvId,
+   void registerWallet(Clients* clients, const string& bdvId,
       const vector<BinaryData>& scrAddrs, const string& wltName)
    {
       auto message = make_shared<BDVCommand>();
@@ -234,7 +234,54 @@ namespace DBTestUtils
          message->add_bindata(scrAddr.getPtr(), scrAddr.getSize());
 
       processCommand(clients, message);
-      return id;
+      while (1)
+      {
+         auto&& callbackPtr = waitOnSignal(clients, bdvId, NotificationType::refresh);
+         auto& notif = get<0>(callbackPtr)->notification(get<1>(callbackPtr));
+         
+         if (!notif.has_refresh())
+            continue;
+
+         auto& refresh = notif.refresh();
+         for (int i = 0; i < refresh.id_size(); i++)
+         {
+            if (refresh.id(i) == id)
+               return;
+         }
+      }
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   void regLockbox(Clients* clients, const string& bdvId,
+      const vector<BinaryData>& scrAddrs, const string& wltName)
+   {
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::registerLockbox);
+      message->set_bdvid(bdvId);
+      message->set_walletid(wltName);
+      message->set_flag(false);
+      auto&& id = SecureBinaryData().GenerateRandom(5).toHexStr();
+      message->set_hash(id);
+
+      for (auto& scrAddr : scrAddrs)
+         message->add_bindata(scrAddr.getPtr(), scrAddr.getSize());
+
+      processCommand(clients, message);
+      while (1)
+      {
+         auto&& callbackPtr = waitOnSignal(clients, bdvId, NotificationType::refresh);
+         auto& notif = get<0>(callbackPtr)->notification(get<1>(callbackPtr));
+
+         if (!notif.has_refresh())
+            continue;
+
+         auto& refresh = notif.refresh();
+         for (int i = 0; i < refresh.id_size(); i++)
+         {
+            if (refresh.id(i) == id)
+               return;
+         }
+      }
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -263,24 +310,6 @@ namespace DBTestUtils
       balanceVec.push_back(count);
 
       return balanceVec;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   void regLockbox(Clients* clients, const string& bdvId,
-      const vector<BinaryData>& scrAddrs, const string& wltName)
-   {
-      auto message = make_shared<BDVCommand>();
-      message->set_method(Methods::registerLockbox);
-      message->set_bdvid(bdvId);
-      message->set_walletid(wltName);
-      message->set_flag(false);
-      auto&& id = SecureBinaryData().GenerateRandom(5).toHexStr();
-      message->set_hash(id);
-
-      for (auto& scrAddr : scrAddrs)
-         message->add_bindata(scrAddr.getPtr(), scrAddr.getSize());
-
-      processCommand(clients, message);
    }
 
    /////////////////////////////////////////////////////////////////////////////

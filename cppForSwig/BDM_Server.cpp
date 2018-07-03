@@ -1023,7 +1023,7 @@ void BDV_Server_Object::processNotification(
    shared_ptr<BDV_Notification> notifPtr)
 {
    auto action = notifPtr->action_type();
-   if (action != BDV_Progress && action != BDV_NodeStatus)
+   if (action < BDV_Progress)
    {
       //skip all but progress notifications if BDV isn't ready
       if (isReadyFuture_.wait_for(chrono::seconds(0)) != future_status::ready)
@@ -1160,6 +1160,9 @@ void BDV_Server_Object::registerWallet(
       wltregstruct.command_ = command;
       wltregstruct.type_ = TypeWallet;
 
+      auto notif = make_shared<BDV_Notification_Refresh>(
+         getID(), BDV_registrationCompleted, command->hash());
+      processNotification(notif);
       return;
    }
 
@@ -1183,6 +1186,9 @@ void BDV_Server_Object::registerLockbox(
       wltregstruct.command_ = command;
       wltregstruct.type_ = TypeLockbox;
 
+      auto notif = make_shared<BDV_Notification_Refresh>(
+         getID(), BDV_registrationCompleted, command->hash());
+      processNotification(notif);
       return;
    }
 
@@ -1793,12 +1799,20 @@ shared_ptr<Message> Clients::processUnregisteredCommand(const uint64_t& bdvId,
    case StaticMethods::shutdown:
    case StaticMethods::shutdownNode:
    {
+      /*
+      in: cookie
+      out: void
+      */
       processShutdownCommand(command);
       break;
    }
 
    case StaticMethods::registerBDV:
    {
+      /*
+      in: network magic word
+      out: bdv id as string
+      */
       BinaryDataRef bdr;
       bdr.setRef((uint8_t*)&bdvId, 8);
       return registerBDV(command, bdr.toHexStr());

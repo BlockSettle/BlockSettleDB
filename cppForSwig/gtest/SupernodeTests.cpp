@@ -1472,10 +1472,7 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAddrAfterWallet)
    //post initial load address registration
    scrAddrVec.clear();
    scrAddrVec.push_back(TestChain::scrAddrD);
-   auto&& registrationId =
-      DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   //wait on the address scan
-   DBTestUtils::waitOnWalletRefresh(clients_, bdvID, registrationId);
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrA)->getFullBalance();
    balanceDB = iface_->getBalanceForScrAddr(TestChain::scrAddrA);
@@ -1863,9 +1860,7 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAfterZC)
 
    //Register scrAddrD with the wallet. It should have the ZC balance
    scrAddrVec.push_back(TestChain::scrAddrD);
-   auto&& registrationId = 
-      DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::waitOnWalletRefresh(clients_, bdvID, registrationId);
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
    
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
    EXPECT_EQ(scrObj->getFullBalance(), 65 * COIN);
