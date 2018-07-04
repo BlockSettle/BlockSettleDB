@@ -37,7 +37,7 @@ AC_ARG_WITH([gui],
               [with_gui="$withval"], [with_gui=yes])
 
 # Check for protobuf (protoc in particular is required)
-PKG_CHECK_MODULES(PROTOBUF, protobuf >= 3.0.0)
+PKG_CHECK_MODULES(PROTOBUF, protobuf >= 2.0.0)
 
 if test "x$want_debug" = "xyes" -a $ac_cv_c_compiler_gnu != no; then
   CFLAGS="$CFLAGS -O0 -g3"
