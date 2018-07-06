@@ -1221,7 +1221,7 @@ void BDV_Server_Object::populateWallets(map<string, walletRegStruct>& wltMap)
       }
 
       map<BinaryDataRef, shared_ptr<ScrAddrObj>> newAddrMap;
-      for (unsigned i = 0; i < wlt.second.command_->bindata_size(); i++)
+      for (int i = 0; i < wlt.second.command_->bindata_size(); i++)
       {
          auto& addrStr = wlt.second.command_->bindata(i);
          BinaryDataRef addrRef; addrRef.setRef(addrStr);

@@ -44,7 +44,8 @@ protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
 # NOTE: /usr/local/include reflects local installs of libwebsockets. This may
 # be removed later.
 INCLUDE_FILES = -Ibech32/ref/c++ -Ifcgi \
-	-Ilibbtc/include -Ilibbtc/src/secp256k1/include -I/usr/local/include
+	-Ilibbtc/include -Ilibbtc/src/secp256k1/include -I/usr/local/include \
+	$(LWS_CFLAGS)
 
 # Files should *not* be marked as "common" if at all possible.
 ARMORYDB_SOURCE_FILES = main.cpp
@@ -143,12 +144,13 @@ dist_noinst_DATA = $(PROTOBUF_PROTO)
 lib_LTLIBRARIES += libArmoryCommon.la
 libArmoryCommon_la_SOURCES = $(ARMORYCOMMON_SOURCE_FILES)
 nodist_libArmoryCommon_la_SOURCES = $(PROTOBUF_CC) $(PROTOBUF_H)
-libArmoryCommon_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)r
+libArmoryCommon_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 libArmoryCommon_la_CXXFLAGS = $(AM_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryCommon_la_LIBADD = lmdb/liblmdb.la \
 				cryptopp/libcryptopp.la \
-				-lpthread -lprotobuf
-libArmoryCommon_la_LDFLAGS = $(LDFLAGS) $(PROTOBUF_FLAGS) -shared
+				-lpthread -lprotobuf \
+				-lwebsockets
+libArmoryCommon_la_LDFLAGS = $(LDFLAGS) $(PROTOBUF_FLAGS) $(LWS_LDFLAGS) -shared
 
 # Common command-line functionality library
 lib_LTLIBRARIES += libArmoryCLI.la
@@ -159,8 +161,7 @@ libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) -Ilmdb -D__STDC_LIMIT_MACROS
 libArmoryCLI_la_LIBADD = fcgi/libfcgi/libfcgi.la \
 			 $(LIBBTC) \
 			 libArmoryCommon.la \
-			 -lpthread \
-			 -lwebsockets
+			 -lpthread
 libArmoryCLI_la_LDFLAGS = $(LDFLAGS) -shared
 
 #ArmoryDB

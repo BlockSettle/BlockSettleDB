@@ -469,7 +469,7 @@ public:
 
       size_t offset = 4;
 
-      for (auto i = 0; i < len_; i++)
+      for (unsigned i = 0; i < len_; i++)
       {
          if (offset >= len)
             throw TxFilterException("deser error");

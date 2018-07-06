@@ -36,6 +36,20 @@ AC_ARG_WITH([gui],
               [do not build GUI @<:@default=no@:>@]),
               [with_gui="$withval"], [with_gui=yes])
 
+custom lws path
+AC_ARG_WITH([own-lws],
+		AS_HELP_STRING([--with-own-lws], 
+		[pass path of your own lws binary and headers @<:@default=no@:>@]),
+		[with_own_lws="$withval"], [with_own_lws=no])
+
+if test "x$with_own_lws" = "xno"; then
+	AC_SUBST([LWS_CFLAGS], "")
+	AC_SUBST([LWS_LDFLAGS], "")
+else
+	AC_SUBST([LWS_CFLAGS], ["-I$with_own_lws/include"])
+	AC_SUBST([LWS_LDFLAGS], ["-L$with_own_lws/lib"])
+fi
+
 # Check for protobuf (protoc in particular is required)
 PKG_CHECK_MODULES(PROTOBUF, protobuf >= 2.0.0)
 
@@ -232,3 +246,4 @@ echo "  with tests      = $want_tests"
 echo "  with benchmarks = $want_benchmark"
 echo "  debug symbols   = $want_debug"
 echo "  with GUI/client = $build_client"
+echo "  custom lws path = $with_own_lws"
