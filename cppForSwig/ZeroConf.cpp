@@ -1546,6 +1546,7 @@ void ZeroConfContainer::processInvTxThread(void)
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::processInvTxThread(ZeroConfInvPacket& packet)
 {
+   packet.invEntry_.invtype_ = Inv_Msg_Witness_Tx;
    auto payload =
       networkNode_->getTx(packet.invEntry_, packet.batchPtr_->timeout_);
 

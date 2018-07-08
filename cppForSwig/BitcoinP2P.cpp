@@ -840,7 +840,6 @@ BitcoinP2P::BitcoinP2P(const string& addrV4, const string& port,
 BitcoinP2P::~BitcoinP2P()
 {
    invBlockStack_->terminate();
-   //TODO: kill connectLoop first
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -881,6 +880,9 @@ void BitcoinP2P::connectLoop(void)
    size_t waitBeforeReconnect = 0;
    promise<bool> shutdownPromise;
    shutdownFuture_ = shutdownPromise.get_future();
+
+   if (!invTxLambda_)
+      throw SocketError("BitcoinP2P object is not initialized");
 
    while (run_.load(memory_order_relaxed))
    {
@@ -1146,10 +1148,7 @@ void BitcoinP2P::processInv(unique_ptr<Payload> payload)
       }
 
       case Inv_Msg_Witness_Tx:
-         processInvTx(move(entryVec.second));
-         break;
-
-      case Inv_Msg_Tx:
+      case Inv_Msg_Tx:         
          processInvTx(move(entryVec.second));
          break;
 
@@ -1174,9 +1173,9 @@ void BitcoinP2P::processInvTx(vector<InvEntry> invVec)
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinP2P::processGetData(unique_ptr<Payload> payload)
 {
-   Payload_GetData payloadgetdata = move(*(Payload_GetData*)payload.release());
+   auto payloadgetdata = (Payload_GetData*)payload.get();
 
-   auto& invvector = payloadgetdata.getInvVector();
+   auto& invvector = payloadgetdata->getInvVector();
    auto getdatamap = getDataPayloadMap_.get();
 
    for (auto& entry : invvector)

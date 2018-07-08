@@ -541,7 +541,7 @@ private:
 
    //callback lambdas
    shared_ptr<BlockingStack<vector<InvEntry>>> invBlockStack_;
-   function<void(vector<InvEntry>&)> invTxLambda_ = {};
+   function<void(vector<InvEntry>&)> invTxLambda_;
    function<void(void)> nodeStatusLambda_;
 
    //stores callback by txhash for getdata packet we send to the node
