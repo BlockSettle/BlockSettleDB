@@ -27,7 +27,7 @@
 #include "lmdb_wrapper.h"
 #include "Blockchain.h"
 
-#include "google/protobuf/message.h"
+#include <google/protobuf/message.h>
 
 #define SIDESCAN_ID 0x100000ff
 

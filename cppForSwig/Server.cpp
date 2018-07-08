@@ -57,22 +57,6 @@ void FCGI_Server::init()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void FCGI_Server::checkSocket() const
-{
-   SimpleSocket testSock(ip_, port_);
-   if (testSock.testConnection())
-   {
-      LOGERR << "There is already a process listening on "
-         << ip_ << ":" << port_;
-      LOGERR << "ArmoryDB cannot start under these conditions. Shutting down!";
-      LOGERR << "Make sure to shutdown the conflicting process" <<
-         "before trying again (most likely another ArmoryDB instance).";
-
-      exit(1);
-   }
-}
-
-///////////////////////////////////////////////////////////////////////////////
 void FCGI_Server::haltFcgiLoop()
 {
    /*** to exit the FCGI loop we need to shutdown the FCGI lib as a whole

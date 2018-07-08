@@ -76,7 +76,6 @@ public:
    void processRequest(shared_ptr<FCGX_Request> req);
    void haltFcgiLoop(void);
    void shutdown(void);
-   void checkSocket(void) const;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -163,8 +162,6 @@ public:
    static void waitOnShutdown(void);
 
    static void write(const uint64_t&, const uint32_t&, 
-      shared_ptr<::google::protobuf::Message>);
-   static void write(struct lws *wsi, const uint32_t&,
       shared_ptr<::google::protobuf::Message>);
    
    shared_ptr<map<uint64_t, WriteStack>> getWriteMap(void);

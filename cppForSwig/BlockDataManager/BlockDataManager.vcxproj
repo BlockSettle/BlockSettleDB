@@ -85,15 +85,16 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../fcgi/include;../fcgi;../cryptopp;../leveldb_windows_port/win32_posix;../lmdb;../libwebsockets/include;../libwebsockets;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../fcgi/include;../fcgi;../cryptopp;../leveldb_windows_port/win32_posix;../lmdb;../libwebsockets/include;../protobuf/src;../libwebsockets;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>CONSOLE;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BasicRuntimeChecks>UninitializedLocalUsageCheck</BasicRuntimeChecks>
+      <DisableSpecificWarnings>4146;4703;</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>../libs/x64;../libwebsockets/lib/Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;ws2_32.lib;websockets_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;ws2_32.lib;websockets_static.lib;protobuf_win_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy ..\x64\Debug\BlockDataManager.exe ..\..\ArmoryDB_debug.exe</Command>
@@ -137,7 +138,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\BDM_mainthread.cpp" />
-    <ClCompile Include="..\BDM_seder.cpp" />
     <ClCompile Include="..\BDM_Server.cpp" />
     <ClCompile Include="..\bech32\ref\c++\bech32.cpp" />
     <ClCompile Include="..\bech32\ref\c++\segwit_addr.cpp" />
@@ -154,7 +154,6 @@
     <ClCompile Include="..\BtcUtils.cpp" />
     <ClCompile Include="..\BtcWallet.cpp" />
     <ClCompile Include="..\DatabaseBuilder.cpp" />
-    <ClCompile Include="..\DataObject.cpp" />
     <ClCompile Include="..\DBUtils.cpp" />
     <ClCompile Include="..\EncryptionUtils.cpp" />
     <ClCompile Include="..\FcgiMessage.cpp" />

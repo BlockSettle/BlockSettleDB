@@ -63,8 +63,7 @@ public:
 
    NodeType nodeType_ = Node_BTC;
    string btcPort_;
-   string fcgiPort_;
-   bool listen_all_ = false;
+   string listenPort_;
    string rpcPort_;
 
    bool customFcgiPort_ = false;

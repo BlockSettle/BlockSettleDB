@@ -29,7 +29,7 @@
 #include "SocketIncludes.h"
 #include "BinaryData.h"
 
-#include "google/protobuf/message.h"
+#include <google/protobuf/message.h>
 
 using namespace std;
    
@@ -212,6 +212,9 @@ public:
    void listen(AcceptCallback);
    bool connectToRemote(void);
    SOCKET getSockFD(void) const { return sockfd_; }
+
+   //
+   static bool checkSocket(const string& ip, const string& port);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -106,7 +106,7 @@ void BlockDataManagerConfig::selectNetwork(const string &netname)
       scriptHashPrefix_ = SCRIPT_PREFIX_P2SH;
       
       if (!customFcgiPort_)
-         fcgiPort_ = portToString(FCGI_PORT_MAINNET);
+         listenPort_ = portToString(LISTEN_PORT_MAINNET);
    }
    else if (netname == "Test")
    {
@@ -121,7 +121,7 @@ void BlockDataManagerConfig::selectNetwork(const string &netname)
       testnet_ = true;
       
       if (!customFcgiPort_)
-         fcgiPort_ = portToString(FCGI_PORT_TESTNET);
+         listenPort_ = portToString(LISTEN_PORT_TESTNET);
    }
    else if (netname == "Regtest")
    {
@@ -136,7 +136,7 @@ void BlockDataManagerConfig::selectNetwork(const string &netname)
       regtest_ = true;
       
       if (!customFcgiPort_)
-         fcgiPort_ = portToString(FCGI_PORT_REGTEST);
+         listenPort_ = portToString(LISTEN_PORT_REGTEST);
    }
 }
 
@@ -191,7 +191,7 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
 
    --satoshi-datadir: path to blockchain data folder (blkXXXXX.dat files)
 
-   --ram_usage: defines the ram use during scan operations. 1 level averages
+   --ram-usage: defines the ram use during scan operations. 1 level averages
    128MB of ram (without accounting the base amount, ~400MB). Defaults at 50.
    Can't be lower than 1. Can be changed in between processes
 
@@ -216,13 +216,11 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
    --cookie: create a cookie file holding a random authentication key to allow
    local clients to make use of elevated commands, like shutdown.
 
-   --fcgi-port: sets the DB listening port.
+   --listen-port: sets the DB listening port.
 
    --clear-mempool: delete all zero confirmation transactions from the DB.
 
    --satoshirpc-port: set node rpc port
-
-   --listen-all: listen to all incoming IPs (not just localhost)
 
    ***/
 
@@ -365,7 +363,7 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
 
             if (!testConnection("127.0.0.1", portss.str()))
             {
-               fcgiPort_ = portss.str();
+               listenPort_ = portss.str();
                break;
             }
          }
@@ -382,29 +380,23 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
    bool onlyDetectNetwork)
 {
    //server networking
-   auto iter = args.find("fcgi-port");
+   auto iter = args.find("listen-port");
    if (iter != args.end())
    {
-      fcgiPort_ = stripQuotes(iter->second);
+      listenPort_ = stripQuotes(iter->second);
       int portInt = 0;
-      stringstream portSS(fcgiPort_);
+      stringstream portSS(listenPort_);
       portSS >> portInt;
 
       if (portInt < 1 || portInt > 65535)
       {
-         cout << "Invalid fcgi port, falling back to default" << endl;
-         fcgiPort_ = "";
+         cout << "Invalid listen port, falling back to default" << endl;
+         listenPort_ = "";
       }
       else
       {
          customFcgiPort_ = true;
       }
-   }
-
-   iter = args.find("listen-all");
-   if (iter != args.end())
-   {
-      listen_all_ = true;
    }
 
    //network type
@@ -683,7 +675,7 @@ void BlockDataManagerConfig::createCookie() const
    appendPath(cookiePath, ".cookie_");
    fstream fs(cookiePath, ios_base::out | ios_base::trunc);
    fs << cookie_ << endl;
-   fs << fcgiPort_;
+   fs << listenPort_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -703,8 +695,8 @@ string BlockDataManagerConfig::hasLocalDB(
       return port;
 
    //check db on default port
-   if (testConnection("127.0.0.1", portToString(FCGI_PORT_MAINNET)))
-      return portToString(FCGI_PORT_MAINNET);
+   if (testConnection("127.0.0.1", portToString(LISTEN_PORT_MAINNET)))
+      return portToString(LISTEN_PORT_MAINNET);
 
    //check for cookie file
    auto&& cookie_port = getPortFromCookie(datadir);
