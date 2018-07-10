@@ -202,6 +202,7 @@ libArmoryCLI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 			   -Ilmdb/libraries/liblmdb -D__STDC_LIMIT_MACROS
 libArmoryCLI_la_LIBADD = $(LIBBTC) \
+			 $(LIBCHACHA20POLY1305) \
 			 $(LIBARMORYCOMMON) \
 			 $(LIBCRYPTOPP) \
 			 $(LIBBTC) \
