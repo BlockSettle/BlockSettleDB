@@ -270,7 +270,7 @@ protected:
       unsigned port_int = 50000 + rand() % 10000;
       stringstream port_ss;
       port_ss << port_int;
-      config.fcgiPort_ = port_ss.str();
+      config.listenPort_ = port_ss.str();
 
       initBDM();
    }
@@ -1346,7 +1346,7 @@ protected:
       unsigned port_int = 50000 + rand() % 10000;
       stringstream port_ss;
       port_ss << port_int;
-      config.fcgiPort_ = port_ss.str();
+      config.listenPort_ = port_ss.str();
 
       initBDM();
 

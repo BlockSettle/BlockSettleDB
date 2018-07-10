@@ -5582,7 +5582,7 @@ protected:
       unsigned port_int = 50000 + rand() % 10000;
       stringstream port_ss;
       port_ss << port_int;
-      config.fcgiPort_ = port_ss.str();
+      config.listenPort_ = port_ss.str();
 
       wallet1id = BinaryData("wallet1");
       wallet2id = BinaryData("wallet2");
@@ -7682,9 +7682,9 @@ TEST_F(BlockUtilsBare, DISABLED_FCGIStack)
 
    FCGX_Init();
    theBDMt_ = new BlockDataManagerThread(config);
-   FCGI_Server server(theBDMt_, config.fcgiPort_, false);
+   FCGI_Server server(theBDMt_, config.listenPort_, false);
 
-   server.checkSocket();
+   //server.checkSocket();
    server.init();
 
    auto fcgiLoop = [&](void)->void
@@ -7694,7 +7694,7 @@ TEST_F(BlockUtilsBare, DISABLED_FCGIStack)
    theBDMt_->start(config.initMode_);
 
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.fcgiPort_, SocketType::SocketFcgi);
+      "127.0.0.1", config.listenPort_, SocketType::SocketFcgi);
 
    bdvObj.registerWithDB(config.magicBytes_);
 

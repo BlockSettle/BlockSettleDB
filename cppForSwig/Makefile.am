@@ -161,8 +161,8 @@ libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) -Ilmdb -D__STDC_LIMIT_MACROS
 libArmoryCLI_la_LIBADD = fcgi/libfcgi/libfcgi.la \
 			 $(LIBBTC) \
 			 libArmoryCommon.la \
-			 -lpthread
-libArmoryCLI_la_LDFLAGS = $(LDFLAGS) -shared
+			 -lpthread -lwebsockets
+libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWS_LDFLAGS) -shared
 
 #ArmoryDB
 bin_PROGRAMS += ArmoryDB
