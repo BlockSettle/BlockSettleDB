@@ -7934,18 +7934,27 @@ TEST_F(BlockUtilsBare, WebSocketStack)
       TestChain::lb2ScrAddrP2SH
    };
 
+   vector<string> walletRegIDs;
+
    auto&& wallet1 = bdvObj.instantiateWallet("wallet1");
-   wallet1.registerAddresses(scrAddrVec, false);
+   walletRegIDs.push_back(
+      wallet1.registerAddresses(scrAddrVec, false));
+  
 
    auto&& lb1 = bdvObj.instantiateLockbox("lb1");
-   lb1.registerAddresses(lb1ScrAddrs, false);
+   walletRegIDs.push_back(
+      lb1.registerAddresses(lb1ScrAddrs, false));
 
    auto&& lb2 = bdvObj.instantiateLockbox("lb2");
-   lb2.registerAddresses(lb2ScrAddrs, false);
+   walletRegIDs.push_back(
+      lb2.registerAddresses(lb2ScrAddrs, false));
 
-   //wait on signals
-   bdvObj.goOnline();
+   //wait on registration ack
    DBTestUtils::UTCallback pCallback(bdvObj);
+   pCallback.waitOnManyRefresh(walletRegIDs);
+
+   //go online
+   bdvObj.goOnline();
    pCallback.waitOnSignal(BDMAction_Ready);
 
    auto w1AddrBalances = wallet1.getAddrBalancesFromDB();
