@@ -1268,10 +1268,10 @@ bool BDV_Server_Object::processPayload(
    if (packet == nullptr)
       return false;
 
-   if (WebSocketMessage::getMessageCount(packet->payloadRef_) == 1)
+   if (WebSocketMessageCodec::getMessageCount(packet->payloadRef_) == 1)
    {
       //single packet, process right away
-      auto&& payload = WebSocketMessage::getSingleMessage(
+      auto&& payload = WebSocketMessageCodec::getSingleMessage(
          packet->payloadRef_);
 
       auto message = make_shared<BDVCommand>();

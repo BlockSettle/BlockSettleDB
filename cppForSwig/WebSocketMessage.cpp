@@ -13,7 +13,11 @@
 using namespace ::google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<BinaryData> WebSocketMessage::serialize(uint32_t id,
+//
+// WebSocketMessageCodec
+//
+////////////////////////////////////////////////////////////////////////////////
+vector<BinaryData> WebSocketMessageCodec::serialize(uint32_t id,
    const vector<uint8_t>& payload)
 {
    BinaryDataRef bdr;
@@ -23,7 +27,7 @@ vector<BinaryData> WebSocketMessage::serialize(uint32_t id,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<BinaryData> WebSocketMessage::serialize(uint32_t id,
+vector<BinaryData> WebSocketMessageCodec::serialize(uint32_t id,
    const string& payload)
 {
    BinaryDataRef bdr((uint8_t*)payload.c_str(), payload.size());
@@ -31,7 +35,7 @@ vector<BinaryData> WebSocketMessage::serialize(uint32_t id,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<BinaryData> WebSocketMessage::serialize(uint32_t id, 
+vector<BinaryData> WebSocketMessageCodec::serialize(uint32_t id,
    const BinaryDataRef& payload)
 {
    //TODO: fallback to raw binary messages once lws is standardized
@@ -89,7 +93,7 @@ vector<BinaryData> WebSocketMessage::serialize(uint32_t id,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool WebSocketMessage::reconstructFragmentedMessage(
+bool WebSocketMessageCodec::reconstructFragmentedMessage(
    const map<uint8_t, BinaryDataRef>& payloadMap,
    shared_ptr<::google::protobuf::Message> msg)
 {
@@ -139,7 +143,7 @@ bool WebSocketMessage::reconstructFragmentedMessage(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool WebSocketMessage::reconstructFragmentedMessage(
+bool WebSocketMessageCodec::reconstructFragmentedMessage(
    const map<uint8_t, BinaryDataRef>& payloadMap, BinaryData& msg)
 {
    //this method expects packets in order
@@ -168,7 +172,7 @@ bool WebSocketMessage::reconstructFragmentedMessage(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint32_t WebSocketMessage::getMessageId(const BinaryDataRef& packet)
+uint32_t WebSocketMessageCodec::getMessageId(const BinaryDataRef& packet)
 {
    //sanity check
    if (packet.getSize() < WEBSOCKET_MESSAGE_PACKET_HEADER ||
@@ -179,7 +183,7 @@ uint32_t WebSocketMessage::getMessageId(const BinaryDataRef& packet)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint8_t WebSocketMessage::getPayloadId(const BinaryDataRef& packet)
+uint8_t WebSocketMessageCodec::getPayloadId(const BinaryDataRef& packet)
 {
    //sanity check
    if (packet.getSize() < WEBSOCKET_MESSAGE_PACKET_HEADER ||
@@ -190,7 +194,7 @@ uint8_t WebSocketMessage::getPayloadId(const BinaryDataRef& packet)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<pair<unsigned, BinaryDataRef>> WebSocketMessage::parsePacket(
+vector<pair<unsigned, BinaryDataRef>> WebSocketMessageCodec::parsePacket(
    BinaryDataRef packet)
 {
    vector<pair<unsigned, BinaryDataRef>> msgVec;
@@ -228,13 +232,13 @@ vector<pair<unsigned, BinaryDataRef>> WebSocketMessage::parsePacket(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint8_t WebSocketMessage::getMessageCount(const BinaryDataRef& bdr)
+uint8_t WebSocketMessageCodec::getMessageCount(const BinaryDataRef& bdr)
 {
    return *(bdr.getPtr() + 4);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef WebSocketMessage::getSingleMessage(const BinaryDataRef& bdr)
+BinaryDataRef WebSocketMessageCodec::getSingleMessage(const BinaryDataRef& bdr)
 {
    BinaryRefReader brr(bdr);
    brr.advance(WEBSOCKET_MESSAGE_PACKET_HEADER);
@@ -247,42 +251,60 @@ BinaryDataRef WebSocketMessage::getSingleMessage(const BinaryDataRef& bdr)
 // FragmentedMessage
 //
 ///////////////////////////////////////////////////////////////////////////////
-void FragmentedMessage::mergePayload(BinaryDataRef payload)
+void FragmentedReadMessage::mergePayload(BinaryDataRef payload)
 {
    if (payload.getSize() == 0)
       return;
 
-   auto id = WebSocketMessage::getPayloadId(payload);
+   auto id = WebSocketMessageCodec::getPayloadId(payload);
    payloads_.insert(move(make_pair(id, payload)));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool FragmentedMessage::getMessage(
+bool FragmentedReadMessage::getMessage(
    shared_ptr<::google::protobuf::Message> msgPtr)
 {
    if (!isComplete())
       return false;
 
-   return WebSocketMessage::reconstructFragmentedMessage(payloads_, msgPtr);
+   return WebSocketMessageCodec::reconstructFragmentedMessage(payloads_, msgPtr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool FragmentedMessage::getMessage(BinaryData& bd)
+bool FragmentedReadMessage::getMessage(BinaryData& bd)
 {
-   return WebSocketMessage::reconstructFragmentedMessage(payloads_, bd);
+   return WebSocketMessageCodec::reconstructFragmentedMessage(payloads_, bd);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool FragmentedMessage::isComplete() const
+bool FragmentedReadMessage::isComplete() const
 {
    if (payloads_.size() == 0)
       return false;
 
    auto iter = payloads_.begin();
-   auto count = WebSocketMessage::getMessageCount(iter->second);
+   auto count = WebSocketMessageCodec::getMessageCount(iter->second);
 
    if (payloads_.size() != count)
       return false;
 
    return true;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// WebSocketMessage
+//
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketMessage::construct(uint32_t msgid, vector<uint8_t> data)
+{
+   packets_ = move(
+      WebSocketMessageCodec::serialize(msgid, data));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+const BinaryData& WebSocketMessage::getNextPacket() const
+{
+   auto& val = packets_[index_++];
+   return val;
 }

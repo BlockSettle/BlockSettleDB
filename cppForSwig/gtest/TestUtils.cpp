@@ -644,7 +644,7 @@ namespace DBTestUtils
       auto len = msg->ByteSize();
       vector<uint8_t> buffer(len);
       msg->SerializeToArray(&buffer[0], len);
-      auto&& bdVec = WebSocketMessage::serialize(0, buffer);
+      auto&& bdVec = WebSocketMessageCodec::serialize(0, buffer);
       
       if (bdVec.size() > 1)
          LOGWARN << "large message in unit tests";

@@ -52,9 +52,9 @@ void WebSocketClient::pushPayload(
    write_payload->serialize(data);
 
    //push packets to write queue
-   auto&& data_vector = WebSocketMessage::serialize(id, data);
-   for(auto& data : data_vector)
-      writeQueue_.push_back(move(data));
+   WebSocketMessage ws_msg;
+   ws_msg.construct(id, data);
+   writeQueue_.push_back(move(ws_msg));
 
    //trigger write callback
    auto wsiptr = (struct lws*)wsiPtr_.load(memory_order_relaxed);
@@ -269,17 +269,21 @@ int WebSocketClient::callback(struct lws *wsi,
    {
       auto instance = WebSocketClient::getInstance(wsi);
 
-      BinaryData packet;
-      try
+      if (instance->currentMessage_.isDone())
       {
-         packet = move(instance->writeQueue_.pop_front());
-      }
-      catch (IsEmpty&)
-      {
-         break;
+         try
+         {
+            instance->currentMessage_ = 
+               move(instance->writeQueue_.pop_front());
+         }
+         catch (IsEmpty&)
+         {
+            break;
+         }
       }
 
-      auto body = packet.getPtr() + LWS_PRE;
+      auto& packet = instance->currentMessage_.getNextPacket();
+      auto body = (uint8_t*)packet.getPtr() + LWS_PRE;
       auto m = lws_write(wsi, 
          body, packet.getSize() - LWS_PRE,
          LWS_WRITE_BINARY);
@@ -328,7 +332,7 @@ void WebSocketClient::readService()
 
       //deser packet
       auto payloadRef = payload.getRef();      
-      auto msgid = WebSocketMessage::getMessageId(payloadRef);
+      auto msgid = WebSocketMessageCodec::getMessageId(payloadRef);
 
       //figure out request id, fulfill promise
       auto readMap = readPackets_.get();
@@ -336,10 +340,10 @@ void WebSocketClient::readService()
       if (iter != readMap->end())
       {
          auto& msgObjPtr = iter->second;
-         if (WebSocketMessage::getMessageCount(payloadRef) == 1)
+         if (WebSocketMessageCodec::getMessageCount(payloadRef) == 1)
          {
             //single packet, process it right away
-            auto&& message = WebSocketMessage::getSingleMessage(payloadRef);
+            auto&& message = WebSocketMessageCodec::getSingleMessage(payloadRef);
             msgObjPtr->payload_->callbackReturn_->callback(message);
             readPackets_.erase(msgid);
             continue;
@@ -347,7 +351,8 @@ void WebSocketClient::readService()
          
          //fragmented packet
          if (msgObjPtr->fragmentedMessage_ == nullptr)
-            msgObjPtr->fragmentedMessage_ = move(make_unique<FragmentedMessage>());
+            msgObjPtr->fragmentedMessage_ = 
+               move(make_unique<FragmentedReadMessage>());
 
          msgObjPtr->packets_.push_back(move(payload));
          msgObjPtr->fragmentedMessage_->mergePayload(payloadRef);
@@ -365,12 +370,12 @@ void WebSocketClient::readService()
       else if (msgid == WEBSOCKET_CALLBACK_ID)
       {
          //callbacks can only be single packets
-         if (WebSocketMessage::getMessageCount(payloadRef) != 1)
+         if (WebSocketMessageCodec::getMessageCount(payloadRef) != 1)
             continue;
 
          if (callbackPtr_ != nullptr)
          {
-            auto&& message = WebSocketMessage::getSingleMessage(payloadRef);
+            auto&& message = WebSocketMessageCodec::getSingleMessage(payloadRef);
 
             auto msgptr = make_shared<::Codec_BDVCommand::BDVCallback>();
             msgptr->ParseFromArray(message.getPtr(), message.getSize());

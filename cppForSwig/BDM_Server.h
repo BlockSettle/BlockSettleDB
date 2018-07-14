@@ -51,7 +51,7 @@ struct BDV_Payload
 struct BDV_FragmentedMessage
 {
    vector<shared_ptr<BDV_Payload>> payloads_;
-   FragmentedMessage message_;
+   FragmentedReadMessage message_;
 
    void mergePayload(shared_ptr<BDV_Payload>);
    bool getMessage(shared_ptr<::google::protobuf::Message>);

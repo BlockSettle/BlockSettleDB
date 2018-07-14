@@ -30,7 +30,7 @@ struct WriteAndReadPacket
 {
    const unsigned id_;
    vector<BinaryData> packets_;
-   unique_ptr<FragmentedMessage> fragmentedMessage_ = nullptr;
+   unique_ptr<FragmentedReadMessage> fragmentedMessage_ = nullptr;
    shared_ptr<Socket_ReadPayload> payload_;
 
    WriteAndReadPacket(unsigned id, shared_ptr<Socket_ReadPayload> payload) :
@@ -66,7 +66,9 @@ private:
    atomic<void*> contextPtr_;
    unique_ptr<promise<bool>> ctorProm_ = nullptr;
 
-   Stack<BinaryData> writeQueue_;
+   Stack<WebSocketMessage> writeQueue_;
+   WebSocketMessage currentMessage_;
+
    BlockingStack<BinaryData> readQueue_;
    atomic<unsigned> run_;
    thread serviceThr_, readThr_;

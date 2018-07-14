@@ -398,17 +398,23 @@ int WebSocketServer::callback(
       if (iter == writeMap->end())
          break;
 
-      BinaryData packet;
-      try
+      if (iter->second.currentMsg_.isDone())
       {
-         packet = move(iter->second.stack_->pop_front());
+         try
+         {
+            iter->second.currentMsg_ = 
+               move(iter->second.stack_->pop_front());
+         }
+         catch (IsEmpty&)
+         {
+            break;
+         }
       }
-      catch (IsEmpty&)
-      {
-         break;
-      }
+      
+      auto& ws_msg = iter->second.currentMsg_;
 
-      auto body = packet.getPtr() + LWS_PRE;
+      auto& packet = ws_msg.getNextPacket();
+      auto body = (uint8_t*)packet.getPtr() + LWS_PRE;
 
       auto m = lws_write(wsi, 
          body, packet.getSize() - LWS_PRE,
@@ -621,7 +627,7 @@ void WebSocketServer::commandThread()
          continue;
       }
 
-      auto&& msgPairs = WebSocketMessage::parsePacket(packetPtr->data_.getRef());
+      auto&& msgPairs = WebSocketMessageCodec::parsePacket(packetPtr->data_.getRef());
       if (msgPairs.size() == 0)
          continue;
 
@@ -645,10 +651,10 @@ void WebSocketServer::commandThread()
          else
          {
             //unregistered command
-            if (WebSocketMessage::getMessageCount(msg.second) != 1)
+            if (WebSocketMessageCodec::getMessageCount(msg.second) != 1)
                continue;
 
-            auto&& messageRef = WebSocketMessage::getSingleMessage(msg.second);
+            auto&& messageRef = WebSocketMessageCodec::getSingleMessage(msg.second);
 
             //process command 
             auto message = make_shared<::Codec_BDVCommand::StaticCommand>();
@@ -690,8 +696,8 @@ void WebSocketServer::write(const uint64_t& id, const uint32_t& msgid,
       }
    }
 
-   auto&& serializedResult =
-      WebSocketMessage::serialize(msgid, serializedData);
+   WebSocketMessage ws_msg; 
+   ws_msg.construct(msgid, serializedData);
 
    //push to write map
    auto writemap = instance->writeMap_.get();
@@ -700,8 +706,7 @@ void WebSocketServer::write(const uint64_t& id, const uint32_t& msgid,
    if (wsi_iter == writemap->end())
       return;
 
-   for(auto& data : serializedResult)
-      wsi_iter->second.stack_->push_back(move(data));
+   wsi_iter->second.stack_->push_back(move(ws_msg));
 
    //call write callback
    lws_callback_on_writable(wsi_iter->second.wsiPtr_);

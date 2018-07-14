@@ -16,7 +16,7 @@
 #include "BinaryData.h"
 #include <google/protobuf/message.h>
 
-#define WEBSOCKET_MESSAGE_PACKET_SIZE 8000
+#define WEBSOCKET_MESSAGE_PACKET_SIZE 1500
 #define WEBSOCKET_MESSAGE_PACKET_HEADER 6
 #define WEBSOCKET_CALLBACK_ID 0xFFFFFFFE
 
@@ -30,7 +30,7 @@ public:
    {}
 };
 
-class WebSocketMessage
+class WebSocketMessageCodec
 {
 public:
    static vector<BinaryData> serialize(uint32_t, const BinaryDataRef&);
@@ -52,7 +52,23 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-struct FragmentedMessage
+class WebSocketMessage
+{
+private:
+   mutable unsigned index_ = 0;
+   vector<BinaryData> packets_;
+
+public:
+   WebSocketMessage()
+   {}
+
+   void construct(uint32_t msgid, vector<uint8_t> data);
+   bool isDone(void) const { return index_ >= packets_.size(); }
+   const BinaryData& getNextPacket(void) const;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+struct FragmentedReadMessage
 {
    map<uint8_t, BinaryDataRef> payloads_;
 
