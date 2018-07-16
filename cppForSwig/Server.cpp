@@ -627,46 +627,39 @@ void WebSocketServer::commandThread()
          continue;
       }
 
-      auto&& msgPairs = WebSocketMessageCodec::parsePacket(packetPtr->data_.getRef());
-      if (msgPairs.size() == 0)
-         continue;
-
       BinaryDataRef bdr((uint8_t*)&packetPtr->bdvID_, 8);
       auto&& hexID = bdr.toHexStr();
       auto bdvPtr = clients_->get(hexID);
-      for (auto& msg : msgPairs)
+
+      if (bdvPtr != nullptr)
       {
-         if (bdvPtr != nullptr)
-         {
-            //create payload
-            auto bdv_payload = make_shared<BDV_Payload>();
-            bdv_payload->bdvPtr_ = bdvPtr;
-            bdv_payload->packet_ = packetPtr;
-            bdv_payload->payloadRef_ = msg.second;
-            bdv_payload->messageID_ = msg.first;
+         //create payload
+         auto bdv_payload = make_shared<BDV_Payload>();
+         bdv_payload->bdvPtr_ = bdvPtr;
+         bdv_payload->packet_ = packetPtr;
 
-            //queue for clients thread pool to process
-            clients_->queuePayload(bdv_payload);
-         }
-         else
-         {
-            //unregistered command
-            if (WebSocketMessageCodec::getMessageCount(msg.second) != 1)
-               continue;
+         //queue for clients thread pool to process
+         clients_->queuePayload(bdv_payload);
+      }
+      else
+      {
+         //unregistered command
+         auto&& messageRef = 
+            WebSocketMessageCodec::getSingleMessage(packetPtr->data_);
+         if (messageRef.getSize() == 0)
+            continue;
 
-            auto&& messageRef = WebSocketMessageCodec::getSingleMessage(msg.second);
+         //process command 
+         auto message = make_shared<::Codec_BDVCommand::StaticCommand>();
+         if (!message->ParseFromArray(messageRef.getPtr(), messageRef.getSize()))
+            continue;
 
-            //process command 
-            auto message = make_shared<::Codec_BDVCommand::StaticCommand>();
-            if (!message->ParseFromArray(messageRef.getPtr(), messageRef.getSize()))
-               continue;
+         auto&& reply = clients_->processUnregisteredCommand(
+            packetPtr->bdvID_, message);
 
-            auto&& reply = clients_->processUnregisteredCommand(
-               packetPtr->bdvID_, message);
-
-            //reply
-            write(packetPtr->bdvID_, msg.first, reply);
-         }
+         //reply
+         write(packetPtr->bdvID_, 
+            WebSocketMessageCodec::getMessageId(packetPtr->data_), reply);
       }
    }
 

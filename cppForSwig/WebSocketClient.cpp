@@ -269,11 +269,11 @@ int WebSocketClient::callback(struct lws *wsi,
    {
       auto instance = WebSocketClient::getInstance(wsi);
 
-      if (instance->currentMessage_.isDone())
+      if (instance->currentWriteMessage_.isDone())
       {
          try
          {
-            instance->currentMessage_ = 
+            instance->currentWriteMessage_ =
                move(instance->writeQueue_.pop_front());
          }
          catch (IsEmpty&)
@@ -282,7 +282,7 @@ int WebSocketClient::callback(struct lws *wsi,
          }
       }
 
-      auto& packet = instance->currentMessage_.getNextPacket();
+      auto& packet = instance->currentWriteMessage_.getNextPacket();
       auto body = (uint8_t*)packet.getPtr() + LWS_PRE;
       auto m = lws_write(wsi, 
          body, packet.getSize() - LWS_PRE,
@@ -331,57 +331,58 @@ void WebSocketClient::readService()
       }
 
       //deser packet
-      auto payloadRef = payload.getRef();      
-      auto msgid = WebSocketMessageCodec::getMessageId(payloadRef);
+      currentReadMessage_.packets_.push_back(move(payload));
+      auto payloadRef = currentReadMessage_.packets_.back().getRef();
+
+      auto sz = currentReadMessage_.message_.parsePacket(payloadRef);
+      if (sz == SIZE_MAX)
+      {
+         currentReadMessage_.reset();
+         continue;
+      }
+      else if (sz == SIZE_MAX -1)
+      {
+         currentReadMessage_.packets_.pop_back();
+         continue;
+      }
+
+      if (!currentReadMessage_.message_.isReady())
+         continue;
+
 
       //figure out request id, fulfill promise
+      auto& msgid = currentReadMessage_.message_.getId();
       auto readMap = readPackets_.get();
       auto iter = readMap->find(msgid);
       if (iter != readMap->end())
       {
          auto& msgObjPtr = iter->second;
-         if (WebSocketMessageCodec::getMessageCount(payloadRef) == 1)
-         {
-            //single packet, process it right away
-            auto&& message = WebSocketMessageCodec::getSingleMessage(payloadRef);
-            msgObjPtr->payload_->callbackReturn_->callback(message);
-            readPackets_.erase(msgid);
+         auto callbackPtr = dynamic_cast<CallbackReturn_WebSocket*>(
+            msgObjPtr->payload_->callbackReturn_.get());
+         if (callbackPtr == nullptr)
             continue;
-         }
-         
-         //fragmented packet
-         if (msgObjPtr->fragmentedMessage_ == nullptr)
-            msgObjPtr->fragmentedMessage_ = 
-               move(make_unique<FragmentedReadMessage>());
 
-         msgObjPtr->packets_.push_back(move(payload));
-         msgObjPtr->fragmentedMessage_->mergePayload(payloadRef);
-         
-         if (!msgObjPtr->fragmentedMessage_->isComplete())
-            continue;
-         
-         //TODO: replace with zero copy concatenated stream
-         BinaryData reconstructedPayload;
-         msgObjPtr->fragmentedMessage_->getMessage(reconstructedPayload);
-         iter->second->payload_->callbackReturn_->callback(
-            reconstructedPayload.getRef());
+         callbackPtr->callback(currentReadMessage_.message_);
          readPackets_.erase(msgid);
+         currentReadMessage_.reset();
       }
       else if (msgid == WEBSOCKET_CALLBACK_ID)
       {
-         //callbacks can only be single packets
-         if (WebSocketMessageCodec::getMessageCount(payloadRef) != 1)
-            continue;
-
-         if (callbackPtr_ != nullptr)
+         if (callbackPtr_ == nullptr)
          {
-            auto&& message = WebSocketMessageCodec::getSingleMessage(payloadRef);
-
-            auto msgptr = make_shared<::Codec_BDVCommand::BDVCallback>();
-            msgptr->ParseFromArray(message.getPtr(), message.getSize());
-
-            callbackPtr_->processNotifications(msgptr);
+            currentReadMessage_.reset();
+            continue;
          }
+
+         auto msgptr = make_shared<::Codec_BDVCommand::BDVCallback>();
+         if (!currentReadMessage_.message_.getMessage(msgptr.get()))
+         {
+            currentReadMessage_.reset();
+            continue;
+         }
+
+         callbackPtr_->processNotifications(msgptr);
+         currentReadMessage_.reset();
       }
       else
       {

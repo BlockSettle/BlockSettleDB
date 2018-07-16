@@ -5097,7 +5097,6 @@ TEST_F(TxRefTest, TxRefKeyParts)
    EXPECT_EQ(txr.getBlockTxIndex(), 15);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class BlockDir : public ::testing::Test
@@ -7935,12 +7934,12 @@ TEST_F(BlockUtilsBare, WebSocketStack)
    };
 
    vector<string> walletRegIDs;
+   DBTestUtils::UTCallback pCallback(bdvObj);
 
    auto&& wallet1 = bdvObj.instantiateWallet("wallet1");
    walletRegIDs.push_back(
       wallet1.registerAddresses(scrAddrVec, false));
   
-
    auto&& lb1 = bdvObj.instantiateLockbox("lb1");
    walletRegIDs.push_back(
       lb1.registerAddresses(lb1ScrAddrs, false));
@@ -7950,7 +7949,6 @@ TEST_F(BlockUtilsBare, WebSocketStack)
       lb2.registerAddresses(lb2ScrAddrs, false));
 
    //wait on registration ack
-   DBTestUtils::UTCallback pCallback(bdvObj);
    pCallback.waitOnManyRefresh(walletRegIDs);
 
    //go online
