@@ -66,7 +66,7 @@ vector<BinaryData> WebSocketMessageCodec::serialize(uint32_t id,
          bw.put_BinaryData(bd_buffer);
 
          auto packet_len = min(
-            WEBSOCKET_MESSAGE_PACKET_SIZE, 
+            (size_t)WEBSOCKET_MESSAGE_PACKET_SIZE, 
             data_len - pos);
 
          bw.put_BinaryDataRef(payload.getSliceRef(pos, packet_len));
