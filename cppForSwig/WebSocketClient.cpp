@@ -93,6 +93,7 @@ void WebSocketClient::setIsReady(bool status)
 void WebSocketClient::init()
 {
    run_.store(1, memory_order_relaxed);
+   currentReadMessage_.reset();
 
    //setup context
    struct lws_context_creation_info info;
@@ -331,9 +332,7 @@ void WebSocketClient::readService()
       }
 
       //deser packet
-      currentReadMessage_.packets_.push_back(move(payload));
-      auto payloadRef = currentReadMessage_.packets_.back().getRef();
-
+      auto payloadRef = currentReadMessage_.insertDataAndGetRef(payload);
       auto sz = currentReadMessage_.message_.parsePacket(payloadRef);
       if (sz == SIZE_MAX)
       {
@@ -342,7 +341,7 @@ void WebSocketClient::readService()
       }
       else if (sz == SIZE_MAX -1)
       {
-         currentReadMessage_.packets_.pop_back();
+         currentReadMessage_.eraseLast();
          continue;
       }
 
