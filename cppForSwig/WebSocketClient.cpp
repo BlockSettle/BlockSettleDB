@@ -319,6 +319,7 @@ int WebSocketClient::callback(struct lws *wsi,
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::readService()
 {
+   size_t packetid = 0;
    while (1)
    {
       BinaryData payload;
@@ -333,15 +334,11 @@ void WebSocketClient::readService()
 
       //deser packet
       auto payloadRef = currentReadMessage_.insertDataAndGetRef(payload);
-      auto sz = currentReadMessage_.message_.parsePacket(payloadRef);
-      if (sz == SIZE_MAX)
+      auto result = 
+         currentReadMessage_.message_.parsePacket(packetid++, payloadRef);
+      if (!result)
       {
          currentReadMessage_.reset();
-         continue;
-      }
-      else if (sz == SIZE_MAX -1)
-      {
-         currentReadMessage_.eraseLast();
          continue;
       }
 
