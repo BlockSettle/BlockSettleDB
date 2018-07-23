@@ -122,6 +122,23 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       throw runtime_error("invalid command for getHistoryPage");
    }
 
+   case Methods::getPageCountForLedgerDelegate:
+   {
+      if (!command->has_delegateid())
+         throw runtime_error(
+            "invalid command for getPageCountForLedgerDelegate");
+
+      auto delegateIter = delegateMap_.find(command->delegateid());
+      if (delegateIter != delegateMap_.end())
+      {
+         auto count = delegateIter->second.getPageCount();
+         
+         auto response = make_shared<::Codec_CommonTypes::OneUnsigned>();
+         response->set_value(count);
+         return response;
+      }
+   }
+
    case Methods::registerWallet:
    {
       /*
