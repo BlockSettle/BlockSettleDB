@@ -8088,7 +8088,6 @@ TEST_F(BlockUtilsBare, WebSocketStack)
    EXPECT_EQ(lb2Balances[0], 30 * COIN);
 
    //cleanup
-   bdvObj.unregisterFromDB();
    bdvObj.shutdown(config.cookie_);
 
    WebSocketServer::waitOnShutdown();

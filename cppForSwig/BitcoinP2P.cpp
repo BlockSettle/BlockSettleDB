@@ -1388,6 +1388,9 @@ void BitcoinP2P::unregisterGetTxCallback(
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinP2P::shutdown()
 {
+   if (!run_.load(memory_order_relaxed))
+      return;
+
    run_.store(false, memory_order_relaxed);
    if (socket_ != nullptr)
    {

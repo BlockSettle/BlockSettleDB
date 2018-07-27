@@ -94,7 +94,7 @@ void WebSocketClient::setIsReady(bool status)
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::init()
 {
-   run_.store(1, memory_order_relaxed);
+   run_->store(1, memory_order_relaxed);
    currentReadMessage_.reset();
 
    //setup context
@@ -136,7 +136,7 @@ void WebSocketClient::init()
 
    struct lws* wsiptr;
    i.pwsi = &wsiptr;
-   wsiptr = lws_client_connect_via_info(&i);   
+   wsiptr = lws_client_connect_via_info(&i); 
    wsiPtr_.store(wsiptr, memory_order_relaxed);
 }
 
@@ -156,10 +156,14 @@ bool WebSocketClient::connectToRemote()
 
    auto serviceLBD = [this](void)->void
    {
-      service();
+      auto wsiPtr = (struct lws*)this->wsiPtr_.load(memory_order_relaxed);
+      auto contextPtr = 
+         (struct lws_context*)this->contextPtr_.load(memory_order_relaxed);
+      service(this->run_, wsiPtr, contextPtr);
    };
 
-   serviceThr_ = thread(serviceLBD);
+   auto serviceThr = thread(serviceLBD);
+   serviceThr.detach();
 
    bool result = true;
    try
@@ -180,38 +184,29 @@ bool WebSocketClient::connectToRemote()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WebSocketClient::service()
+void WebSocketClient::service(shared_ptr<atomic<unsigned>> runPtr,
+   struct lws* wsiPtr, struct lws_context* contextPtr)
 {
    int n = 0;
-   auto contextptr = 
-      (struct lws_context*)contextPtr_.load(memory_order_relaxed);
-   contextPtr_.store(nullptr, memory_order_relaxed);
-
-   while(run_.load(memory_order_relaxed) != 0 && n >= 0)
+   while(runPtr->load(memory_order_relaxed) != 0 && n >= 0)
    {
-      n = lws_service(contextptr, 50);
+      n = lws_service(contextPtr, 50);
    }
 
-   lws_context_destroy(contextptr);
+   destroyInstance(wsiPtr);
+   lws_context_destroy(contextPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::shutdown()
 {
-   if (run_.load(memory_order_relaxed) == 0)
-      return;
-
+   run_->store(0, memory_order_relaxed);
    readPackets_.clear();
-
-   run_.store(0, memory_order_relaxed);
-   if(serviceThr_.joinable())
-      serviceThr_.join();
 
    auto contextptr =
       (struct lws_context*)contextPtr_.load(memory_order_relaxed);
    if (contextptr != nullptr)
    {
-      lws_context_destroy(contextptr);
       contextPtr_.store(nullptr, memory_order_relaxed);
    }
 
@@ -220,11 +215,7 @@ void WebSocketClient::shutdown()
       readThr_.join();
 
    setIsReady(false);
-
-   auto lwsPtr = (struct lws*)wsiPtr_.load(memory_order_relaxed);
    wsiPtr_.store(nullptr, memory_order_relaxed);
-
-   destroyInstance(lwsPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -417,13 +408,10 @@ void WebSocketClient::destroyInstance(struct lws* ptr)
    {
       auto instance = getInstance(ptr);
       instance->shutdown();
+      objectMap_.erase(ptr);
    }
    catch (LWS_Error&)
-   {
-      return;
-   }
-      
-   objectMap_.erase(ptr);
+   {}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

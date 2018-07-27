@@ -1550,24 +1550,13 @@ void Clients::processShutdownCommand(shared_ptr<StaticCommand> command)
 ///////////////////////////////////////////////////////////////////////////////
 void Clients::shutdown()
 {
-   /*shutdown sequence*/
-
-   //exit BDM maintenance thread
-   if (!bdmT_->shutdown())
+   unique_lock<mutex> lock(shutdownMutex_, defer_lock);
+   if (!lock.try_lock())
       return;
-
-   //shutdown ZC container
-   bdmT_->bdm()->disableZeroConf();
-   bdmT_->bdm()->getScrAddrFilter()->shutdown();
-
-   bdmT_->cleanUp();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void Clients::exitRequestLoop()
-{
-   /*terminate request processing loop*/
-   LOGINFO << "proceeding to shutdown";
+   
+   /*shutdown sequence*/
+   if (!run_.load(memory_order_relaxed))
+      return;
 
    //prevent all new commands from running
    run_.store(false, memory_order_relaxed);
@@ -1578,13 +1567,14 @@ void Clients::exitRequestLoop()
    //cleanup all BDVs
    unregisterAllBDVs();
 
-   //shutdown node
-   bdmT_->bdm()->shutdownNode();
-   bdmT_->bdm()->shutdownNotifications();
-
+   //shutdown maintenance threads
    outerBDVNotifStack_.completed();
    innerBDVNotifStack_.completed();
    packetQueue_.terminate();
+
+   //exit BDM maintenance thread
+   if (!bdmT_->shutdown())
+      return;
 
    vector<thread::id> idVec;
    for (auto& thr : controlThreads_)
@@ -1594,7 +1584,19 @@ void Clients::exitRequestLoop()
          thr.join();
    }
 
+   //shutdown ZC container
+   bdmT_->bdm()->disableZeroConf();
+   bdmT_->bdm()->getScrAddrFilter()->shutdown();
+   bdmT_->cleanUp();
+
    DatabaseContainer_Sharded::clearThreadShardTx(idVec);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void Clients::exitRequestLoop()
+{
+   /*terminate request processing loop*/
+   LOGINFO << "proceeding to shutdown";
 
    //shutdown loop on FcgiServer side
    if (shutdownCallback_)

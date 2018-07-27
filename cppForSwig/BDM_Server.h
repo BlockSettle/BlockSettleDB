@@ -264,6 +264,8 @@ private:
    BlockingStack<shared_ptr<BDV_Notification_Packet>> innerBDVNotifStack_;
    BlockingStack<shared_ptr<BDV_Payload>> packetQueue_;
 
+   mutex shutdownMutex_;
+
 private:
    void notificationThread(void) const;
    void garbageCollectorThread(void);

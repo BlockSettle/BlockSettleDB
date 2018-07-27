@@ -492,14 +492,19 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
 ///////////////////////////////////////////////////////////////////////////////
 void WebSocketServer::shutdown()
 {
-   unique_lock<mutex> lock(mu_);
-
+   unique_lock<mutex> lock(mu_, defer_lock);
+   if (!lock.try_lock())
+      return;
+   
    auto ptr = instance_.load(memory_order_relaxed);
    if (ptr == nullptr)
       return;
 
    auto instance = getInstance();
+   if (instance->run_.load(memory_order_relaxed) == 0)
+      return;
 
+   instance->clients_->shutdown();
    instance->run_.store(0, memory_order_relaxed);
    instance->packetQueue_.terminate();
 
@@ -512,13 +517,17 @@ void WebSocketServer::shutdown()
    }
 
    instance->threads_.clear();
-   instance->clients_->shutdown();
-
    DatabaseContainer_Sharded::clearThreadShardTx(idVec);
 
    instance_.store(nullptr, memory_order_relaxed);
    delete instance;
-   shutdownPromise_.set_value(true);
+   
+   try
+   {
+      shutdownPromise_.set_value(true);
+   }
+   catch (future_error& e)
+   {}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
