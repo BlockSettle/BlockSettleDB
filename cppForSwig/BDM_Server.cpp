@@ -1297,7 +1297,7 @@ bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet,
 
    shared_ptr<BDV_Payload> currentPacket = packet;
    do //loop over packetMap to feed unparsed messages back in
-   {
+   {  
       auto parsed = currentMessage_.parsePacket(currentPacket);
       if (!parsed)
       {
@@ -1308,7 +1308,7 @@ bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet,
 
       if (currentMessage_.isReady())
       {
-         //message is complete, time to process it        
+         //message is complete, time to process it
          break;
       }
 
@@ -1329,6 +1329,7 @@ bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet,
 
       //have the next packet, iterate over it
       currentPacket = iter->second;
+      packetMap_.erase(iter);
    } while (1);
 
    packet->messageID_ = currentMessage_.partialMessage_.getId();
