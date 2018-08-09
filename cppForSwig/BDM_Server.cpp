@@ -1180,6 +1180,7 @@ void BDV_Server_Object::registerWallet(
       auto notif = make_shared<BDV_Notification_Refresh>(
          getID(), BDV_registrationCompleted, command->hash());
       processNotification(notif);
+
       return;
    }
 
@@ -1285,16 +1286,6 @@ bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet,
    if (packet == nullptr)
       return false;
 
-   if (packetMap_.size() > 0)
-   {
-      if (packetMap_.rbegin()->first < packet->packetID_)
-      {
-         //packet id exceed id of highest unparsed packet, store for later
-         packetMap_.insert(make_pair(packet->packetID_, packet));
-         return true;
-      }
-   }
-
    shared_ptr<BDV_Payload> currentPacket = packet;
    do //loop over packetMap to feed unparsed messages back in
    {  
@@ -1318,12 +1309,13 @@ bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet,
          return true;
       }
 
-      //look for the next consecutive id
-      auto nextId = currentPacket->packetID_ + 1;
+      //look for the next consecutive id following current message's 
+      //top id
+      auto nextId = currentMessage_.topId() + 1;
       auto iter = packetMap_.find(nextId);
       if (iter == packetMap_.end())
       {
-         //no packet with the next id, return
+         //no such packet, return
          return true;
       }
 
@@ -1366,6 +1358,7 @@ void BDV_Server_Object::resetCurrentMessage()
    {
       auto iter = packetMap_.begin();
       packetToReinject_ = iter->second;
+      packetMap_.erase(iter);
    }
 }
 
@@ -1406,6 +1399,7 @@ void Clients::init(BlockDataManagerThread* bdmT,
    {
       this->messageParserThread();
    };
+
 
    controlThreads_.push_back(thread(mainthread));
    controlThreads_.push_back(thread(outerthread));
@@ -1780,23 +1774,33 @@ void Clients::messageParserThread(void)
       }
 
       //sanity check
-      if (payloadPtr == nullptr || payloadPtr->bdvPtr_ == nullptr)
+      if (payloadPtr == nullptr)
+      {
+         LOGERR << "????????? empty payload";
          continue;
+      }
+
+      if (payloadPtr->bdvPtr_ == nullptr)
+      {
+         LOGERR << "???????? empty bdv ptr";
+         continue;
+      }
 
       auto bdvPtr = payloadPtr->bdvPtr_;
       unsigned zero = 0;
-      if (!bdvPtr->packetProcess_threadLock_.compare_exchange_strong(
-            zero, 1, memory_order_relaxed, memory_order_relaxed))
+      if (!bdvPtr->packetProcess_threadLock_.compare_exchange_weak(zero, 1))
       {
          //Failed to grab lock, there's already a thread processing a payload
          //for this bdv. Insert the payload back into the queue. Another 
-         //thread will eventually pick it up and successfully grab the lock
+         //thread will eventually pick it up and successfully grab the lock 
+         if(payloadPtr == nullptr)
+            LOGERR << "!!!!!! empty payload at reinsertion";
 
          packetQueue_.push_back(move(payloadPtr));
          continue;
       }
 
-      /*grabbed the thread lock, time to process the payload*/
+      //grabbed the thread lock, time to process the payload
       auto result = processCommand(payloadPtr);
       if (bdvPtr->packetToReinject_ != nullptr)
       {
@@ -1806,7 +1810,7 @@ void Clients::messageParserThread(void)
       }
 
       //release lock
-      bdvPtr->packetProcess_threadLock_.store(0, memory_order_relaxed);
+      bdvPtr->packetProcess_threadLock_.store(0);
 
       //write return value if any
       if (result != nullptr)
@@ -2072,7 +2076,7 @@ void ZeroConfCallbacks_BDV::errorCallback(
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-// BDV_FragmentedMessage
+// BDV_PartialMessage
 //
 ///////////////////////////////////////////////////////////////////////////////
 bool BDV_PartialMessage::parsePacket(shared_ptr<BDV_Payload> packet)
@@ -2101,3 +2105,18 @@ bool BDV_PartialMessage::getMessage(shared_ptr<Message> msgPtr)
 
    return partialMessage_.getMessage(msgPtr.get());
 }
+
+///////////////////////////////////////////////////////////////////////////////
+size_t BDV_PartialMessage::topId() const
+{
+   auto& packetMap = partialMessage_.getPacketMap();
+   if (packetMap.size() == 0)
+      return SIZE_MAX;
+
+   return packetMap.rbegin()->first;
+}
+
+
+
+
+
