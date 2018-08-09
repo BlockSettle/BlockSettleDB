@@ -12,7 +12,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 #include "TestUtils.h"
 
-
+/*
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -5521,7 +5521,7 @@ TEST_F(BlockDir, BlockFileSplitUpdate)
    delete clients;
    delete BDMt;
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -5638,7 +5638,7 @@ protected:
    BinaryData LB1ID;
    BinaryData LB2ID;
 };
-
+/*
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsBare, Load5Blocks)
 {
@@ -8275,7 +8275,7 @@ TEST_F(BlockUtilsBare, WebSocketStack_ManyZC)
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsBare, WebSocketStack_Reconnect)
 {
@@ -8296,6 +8296,25 @@ TEST_F(BlockUtilsBare, WebSocketStack_Reconnect)
    theBDMt_ = new BlockDataManagerThread(config);
    WebSocketServer::start(theBDMt_, true);
 
+   auto createNAddresses = [](unsigned count)->vector<BinaryData>
+   {
+      vector<BinaryData> result;
+
+      for (unsigned i = 0; i < count; i++)
+      {
+         BinaryWriter bw;
+         bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
+
+         auto&& addrData = SecureBinaryData().GenerateRandom(20);
+         bw.put_BinaryData(addrData);
+
+         result.push_back(bw.getData());
+      }
+
+      return result;
+   };
+
+      auto&& scrAddrVec = createNAddresses(2000);
    theBDMt_->start(config.initMode_);
 
    {
@@ -8303,25 +8322,6 @@ TEST_F(BlockUtilsBare, WebSocketStack_Reconnect)
          "127.0.0.1", "7681", SocketType::SocketWS);
       bdvObj.registerWithDB(config.magicBytes_);
 
-      auto createNAddresses = [](unsigned count)->vector<BinaryData>
-      {
-         vector<BinaryData> result;
-
-         for (unsigned i = 0; i < count; i++)
-         {
-            BinaryWriter bw;
-            bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
-
-            auto&& addrData = SecureBinaryData().GenerateRandom(20);
-            bw.put_BinaryData(addrData);
-
-            result.push_back(bw.getData());
-         }
-
-         return result;
-      };
-
-      auto&& scrAddrVec = createNAddresses(2000);
       scrAddrVec.push_back(TestChain::scrAddrA);
       scrAddrVec.push_back(TestChain::scrAddrB);
       scrAddrVec.push_back(TestChain::scrAddrC);
@@ -8438,35 +8438,13 @@ TEST_F(BlockUtilsBare, WebSocketStack_Reconnect)
       bdvObj.unregisterFromDB();
    }
 
-   for (int i = 0; i < 10; i++)
+   for (int i = 0; i < 10000; i++)
    {
+      cout << ".iter " << i << endl;
+
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", "7681", SocketType::SocketWS);
       bdvObj.registerWithDB(config.magicBytes_);
-
-      auto createNAddresses = [](unsigned count)->vector<BinaryData>
-      {
-         vector<BinaryData> result;
-
-         for (unsigned i = 0; i < count; i++)
-         {
-            BinaryWriter bw;
-            bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
-
-            auto&& addrData = SecureBinaryData().GenerateRandom(20);
-            bw.put_BinaryData(addrData);
-
-            result.push_back(bw.getData());
-         }
-
-         return result;
-      };
-
-      auto&& scrAddrVec = createNAddresses(2000);
-      scrAddrVec.push_back(TestChain::scrAddrA);
-      scrAddrVec.push_back(TestChain::scrAddrB);
-      scrAddrVec.push_back(TestChain::scrAddrC);
-      scrAddrVec.push_back(TestChain::scrAddrE);
 
       const vector<BinaryData> lb1ScrAddrs
       {
@@ -8556,7 +8534,7 @@ TEST_F(BlockUtilsBare, WebSocketStack_Reconnect)
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
-
+/*
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsBare, Replace_ZC_Test)
 {
@@ -10404,7 +10382,7 @@ TEST_F(TestCryptoECDSA, VerifyPubKeyValidity)
    EXPECT_TRUE(CryptoECDSA().VerifyPublicKeyValid(uncompPointPub1));
    EXPECT_TRUE(CryptoECDSA().VerifyPublicKeyValid(uncompPointPub2));
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 // Now actually execute all the tests

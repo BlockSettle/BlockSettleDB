@@ -54,6 +54,7 @@ void WebSocketClient::pushPayload(
    //push packets to write queue
    WebSocketMessage ws_msg;
    ws_msg.construct(id, data);
+
    writeQueue_.push_back(move(ws_msg));
 
    //trigger write callback
@@ -200,6 +201,10 @@ void WebSocketClient::service(shared_ptr<atomic<unsigned>> runPtr,
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::shutdown()
 {
+   auto count = shutdownCount_.fetch_add(1);
+   if (count > 0)
+      return;
+
    run_->store(0, memory_order_relaxed);
    readPackets_.clear();
 
@@ -211,8 +216,18 @@ void WebSocketClient::shutdown()
    }
 
    readQueue_.terminate();
+   try
+   {
    if(readThr_.joinable())
       readThr_.join();
+   }
+   catch(system_error& e)
+   {
+      LOGERR << "!!!!!! client read thread join failed with error: " << e.what();
+      LOGERR << "!!!!!! shutdown count is " << 
+            shutdownCount_.load(memory_order_relaxed);
+      throw e;
+   }
 
    setIsReady(false);
    wsiPtr_.store(nullptr, memory_order_relaxed);
@@ -297,6 +312,9 @@ int WebSocketClient::callback(struct lws *wsi,
          LOGERR << "packet is " << packet.getSize() <<
             " bytes, sent " << m << " bytes";
       }
+
+      if (instance->currentWriteMessage_.isDone())      
+         instance->count_.fetch_add(1, memory_order_relaxed);
 
       /***
       In case several threads are trying to write to the same socket, it's
