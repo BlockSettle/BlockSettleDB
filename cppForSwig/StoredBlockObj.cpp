@@ -1111,20 +1111,15 @@ void StoredTxOut::serializeDBValue(
 {
    TXOUT_SPENTNESS writeSpent = spentness;
 
-   if (!forceSaveSpentness)
-   {
-      switch (dbType)
-      {
-         //// If the DB is in lite or partial modes, we don't bother recording
-         //   spentness (in fact, if it's spent, this entry probably won't even
-         //   be written to the DB).
-      case ARMORY_DB_BARE:                                 break;
-      case ARMORY_DB_FULL:                                 break;
-      case ARMORY_DB_SUPER:                                break;
-      default:
-         LOGERR << "Invalid DB mode in serializeStoredTxOutValue";
-      }
-   }
+   size_t len = 2 + dataRef.getSize();
+   
+   if (writeSpent)
+      len += spentByTxIn.getSize();
+
+   if (dbType == ARMORY_DB_SUPER)
+      len += hash.getSize() + 2;
+
+   bw.reserve(len);
 
    BitPacker<uint16_t> bitpack;
    bitpack.putBits((uint16_t)ARMORY_DB_VERSION, 4);
