@@ -115,7 +115,6 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	EncryptionUtils.cpp \
 	hkdf.cpp \
 	KDF.cpp \
-	NetworkConfig.cpp \
 	log.cpp \
 	NetworkConfig.cpp \
 	ReentrantLock.cpp \
@@ -205,8 +204,7 @@ libArmoryCLI_la_LIBADD = $(LIBBTC) \
 			 $(LIBCHACHA20POLY1305) \
 			 $(LIBARMORYCOMMON) \
 			 $(LIBCRYPTOPP) \
-			 $(LIBBTC) \
-			 $(LIBCHACHAPOLY1305) \
+			 $(LIBLMDB)
 			 -lpthread
 libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS)
 
@@ -219,6 +217,7 @@ ArmoryDB_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
 		 $(LIBCRYPTOPP) \
 		 $(LIBBTC) \
+		 $(LIBLMDB) \
 		 -lpthread -lprotobuf -lwebsockets
 ArmoryDB_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
 
