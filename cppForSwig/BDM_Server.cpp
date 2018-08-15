@@ -722,7 +722,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       uint32_t blocksToConfirm = command->value();
       auto strat = command->bindata(0);
 
-      auto feeByte = this->bdmPtr_->nodeRPC_->getFeeByteSmart(
+      auto feeByte = this->bdmPtr_->nodeRPC_->getFeeByte(
          blocksToConfirm, strat);
 
       auto response = make_shared<::Codec_FeeEstimate::FeeEstimate>();
