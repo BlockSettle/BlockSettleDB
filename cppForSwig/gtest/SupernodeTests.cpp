@@ -2941,7 +2941,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
 
    {
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", "7681", SocketType::SocketWS);
+         "127.0.0.1", config.listenPort_, SocketType::SocketWS);
       bdvObj.registerWithDB(config.magicBytes_);
       DBTestUtils::UTCallback pCallback(bdvObj);
       
@@ -2966,7 +2966,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
    auto request_lambda = [&](void)->void
    {
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", "7681", SocketType::SocketWS);
+         "127.0.0.1", config.listenPort_, SocketType::SocketWS);
       bdvObj.registerWithDB(config.magicBytes_);
 
       const vector<BinaryData> lb1ScrAddrs
@@ -3191,7 +3191,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
    }
 
    auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", "7681", SocketType::SocketWS);
+      "127.0.0.1", config.listenPort_, SocketType::SocketWS);
    bdvObj2.shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 

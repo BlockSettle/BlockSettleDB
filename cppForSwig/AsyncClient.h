@@ -383,7 +383,7 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-struct CallbackReturn_NodeStatusStruct : public CallbackReturn_WebSocket
+class CallbackReturn_NodeStatusStruct : public CallbackReturn_WebSocket
 {
 private:
    function<void(shared_ptr<::ClientClasses::NodeStatusStruct>)> 
