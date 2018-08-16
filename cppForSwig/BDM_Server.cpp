@@ -722,8 +722,18 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       uint32_t blocksToConfirm = command->value();
       auto strat = command->bindata(0);
 
-      auto feeByte = this->bdmPtr_->nodeRPC_->getFeeByte(
-         blocksToConfirm, strat);
+      FeeEstimateResult feeByte;
+      try
+      {
+         feeByte = this->bdmPtr_->nodeRPC_->getFeeByte(
+            blocksToConfirm, strat);
+      }
+      catch (exception&)
+      {
+         feeByte.smartFee_ = false;
+         feeByte.feeByte_ = -1.0f;
+         feeByte.error_ = string("failed to get fee/byte from RPC");
+      }
 
       auto response = make_shared<::Codec_FeeEstimate::FeeEstimate>();
       response->set_feebyte(feeByte.feeByte_);
