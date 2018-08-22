@@ -140,13 +140,12 @@ public:
 public:
    ~WebSocketClient()
    {
-      auto lwsPtr = (struct lws*)wsiPtr_.load(memory_order_relaxed);
-      if(lwsPtr != nullptr)
-         destroyInstance(lwsPtr);
+      shutdown();
    }
 
    //locals
    void shutdown(void);   
+   void cleanUp(void);
    void setCallback(shared_ptr<RemoteCallback>);
 
    //virtuals
