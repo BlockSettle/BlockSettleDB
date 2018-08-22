@@ -107,7 +107,7 @@ private:
    shared_ptr<atomic<unsigned>> run_;
    thread serviceThr_, readThr_;
    TransactionalMap<uint64_t, shared_ptr<WriteAndReadPacket>> readPackets_;
-   RemoteCallback* callbackPtr_ = nullptr;
+   shared_ptr<RemoteCallback> callbackPtr_ = nullptr;
    
    static TransactionalMap<
       struct lws*, shared_ptr<WebSocketClient>> objectMap_; 
@@ -147,7 +147,7 @@ public:
 
    //locals
    void shutdown(void);   
-   void setCallback(RemoteCallback*);
+   void setCallback(shared_ptr<RemoteCallback>);
 
    //virtuals
    SocketType type(void) const { return SocketWS; }

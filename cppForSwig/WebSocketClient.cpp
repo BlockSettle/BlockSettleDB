@@ -184,8 +184,8 @@ void WebSocketClient::shutdown()
    readQueue_.terminate();
    try
    {
-   if(readThr_.joinable())
-      readThr_.join();
+      if(readThr_.joinable())
+         readThr_.join();
    }
    catch(system_error& e)
    {
@@ -411,7 +411,7 @@ void WebSocketClient::destroyInstance(struct lws* ptr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WebSocketClient::setCallback(RemoteCallback* ptr)
+void WebSocketClient::setCallback(shared_ptr<RemoteCallback> ptr)
 {
    callbackPtr_ = ptr;
 }
