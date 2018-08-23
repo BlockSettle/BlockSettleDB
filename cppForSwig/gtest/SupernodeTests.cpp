@@ -2941,14 +2941,12 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto isConnectedFut = pCallback->getFuture();
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, pCallback);
-      if (!isConnectedFut.get())
-         throw runtime_error("failed to connect to remote");
-      bdvObj.registerWithDB(config.magicBytes_);
+      bdvObj->connectToRemote();
+      bdvObj->registerWithDB(config.magicBytes_);
       
-      auto&& wallet1 = bdvObj.instantiateWallet("wallet1");
+      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
       walletRegIDs.push_back(
          wallet1.registerAddresses(scrAddrVec, false));
@@ -2957,23 +2955,21 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
 
       //go online
-      bdvObj.goOnline();
+      bdvObj->goOnline();
       pCallback->waitOnSignal(BDMAction_Ready);
 
-      auto delegate = move(bdvObj.getLedgerDelegateForWallets());
+      auto delegate = move(bdvObj->getLedgerDelegateForWallets());
       auto ledgers = move(delegate.getHistoryPage(0));
 
-      bdvObj.unregisterFromDB();
+      bdvObj->unregisterFromDB();
    }
 
    auto request_lambda = [&](void)->void
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto isConnectedFut = pCallback->getFuture();
       auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, pCallback);
-      if (!isConnectedFut.get())
-         throw runtime_error("failed to connect to remote");
+      bdvObj->connectToRemote();
       bdvObj->registerWithDB(config.magicBytes_);
 
       const vector<BinaryData> lb1ScrAddrs
@@ -3198,7 +3194,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
 
    auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, nullptr);
-   bdvObj2.shutdown(config.cookie_);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
    delete theBDMt_;

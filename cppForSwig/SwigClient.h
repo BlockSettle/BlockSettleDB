@@ -173,12 +173,14 @@ namespace SwigClient
 
    public:
       ~BlockDataViewer(void);
+      
+      void connectToRemote(void);
       BtcWallet instantiateWallet(const string& id);
       Lockbox instantiateLockbox(const string& id);
 
       const string& getID(void) const;
 
-      static BlockDataViewer getNewBDV(
+      static shared_ptr<BlockDataViewer> getNewBDV(
          const string& addr, const string& port, shared_ptr<RemoteCallback>);
 
       LedgerDelegate getLedgerDelegateForWallets(void);

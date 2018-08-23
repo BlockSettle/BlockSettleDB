@@ -54,21 +54,24 @@ bool BlockDataViewer::hasRemoteDB(void)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+void BlockDataViewer::connectToRemote(void)
+{
+   sock_->connectToRemote();
+}
+
+///////////////////////////////////////////////////////////////////////////////
 shared_ptr<BlockDataViewer> BlockDataViewer::getNewBDV(const string& addr,
    const string& port, shared_ptr<RemoteCallback> callbackPtr)
 {
    //create socket object
-   auto  sockptr = WebSocketClient::getNew(addr, port);
+   auto sockptr = make_shared<WebSocketClient>(addr, port, callbackPtr);
 
    //instantiate bdv object
    BlockDataViewer* bdvPtr = new BlockDataViewer(sockptr);
 
    //setup callback
    if (callbackPtr != nullptr)
-   {
       callbackPtr->setup(bdvPtr->getRemoteCallbackSetupStruct());
-      sockptr->setCallback(callbackPtr);
-   }
 
    //create shared_ptr of bdv object
    shared_ptr<BlockDataViewer> bdvSharedPtr;
@@ -144,11 +147,10 @@ BlockDataViewer::BlockDataViewer(void)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-BlockDataViewer::BlockDataViewer(const shared_ptr<SocketPrototype> sock) :
+BlockDataViewer::BlockDataViewer(shared_ptr<SocketPrototype> sock) :
    sock_(sock)
 {
    cache_ = make_shared<ClientCache>();
-   sock->connectToRemote(); //TODO: move this to its own method
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -76,7 +76,7 @@ public:
       float progress, unsigned secondsRem,
       unsigned progressNumeric
    ) = 0;
-   virtual void socketStatus(bool) = 0;
+   virtual void disconnected(void) = 0;
 
    void setup(RemoteCallbackSetupStruct);
    bool processNotifications(shared_ptr<::Codec_BDVCommand::BDVCallback>);

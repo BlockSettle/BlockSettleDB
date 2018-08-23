@@ -243,7 +243,7 @@ namespace AsyncClient
 
    private:
       BlockDataViewer(void);
-      BlockDataViewer(const shared_ptr<SocketPrototype> sock);
+      BlockDataViewer(shared_ptr<SocketPrototype> sock);
       bool isValid(void) const { return sock_ != nullptr; }
 
       const BlockDataViewer& operator=(const BlockDataViewer& rhs)
@@ -259,6 +259,8 @@ namespace AsyncClient
 
    public:
       ~BlockDataViewer(void);
+
+      void connectToRemote(void);
       BtcWallet instantiateWallet(const string& id);
       Lockbox instantiateLockbox(const string& id);
 
