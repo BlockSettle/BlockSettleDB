@@ -3015,7 +3015,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
 
       vector<AsyncClient::LedgerDelegate> delV(4);
 
-      auto getAddrDelegate = [bdvObj](BinaryData& scrAddr, 
+      auto getAddrDelegate = [bdvObj](const BinaryData& scrAddr, 
          AsyncClient::LedgerDelegate* delPtr)->void
       {
          //get scrAddr delegates
@@ -3058,7 +3058,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       //get addr ledgers
       deque<vector<::ClientClasses::LedgerEntry>> addrLedgerV(4);
       auto getAddrLedger = [bdvObj](
-         AsyncClient::LedgerDelegate& delegate, 
+         AsyncClient::LedgerDelegate delegate, 
          vector<::ClientClasses::LedgerEntry>* addrLedger)->void
       {
          auto ledger_prom = 
