@@ -2995,6 +2995,11 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       walletRegIDs.push_back(
          wallet1.registerAddresses(scrAddrVec, false));
 
+      scrAddrVec.push_back(TestChain::scrAddrD);
+      auto&& wallet2 = bdvObj->instantiateWallet("wallet2");
+      walletRegIDs.push_back(
+         wallet2.registerAddresses(scrAddrVec, false));
+
       auto&& lb1 = bdvObj->instantiateLockbox("lb1");
       walletRegIDs.push_back(
          lb1.registerAddresses(lb1ScrAddrs, false));
@@ -3019,10 +3024,10 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       };
       bdvObj->getLedgerDelegateForWallets(del1_get);
 
-      vector<AsyncClient::LedgerDelegate> delV(10);
+      vector<AsyncClient::LedgerDelegate> delV(21);
 
       auto getAddrDelegate = [bdvObj](const BinaryData& scrAddr, 
-         AsyncClient::LedgerDelegate* delPtr)->void
+         string walletId, AsyncClient::LedgerDelegate* delPtr)->void
       {
          //get scrAddr delegates
          auto del_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
@@ -3032,15 +3037,24 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
             del_prom->set_value(move(delegate));
          };
          bdvObj->getLedgerDelegateForScrAddr(
-            "wallet1", scrAddr, del_get);
+            walletId, scrAddr, del_get);
          *delPtr = move(del_fut.get());
       };
       
       auto delegate = move(del1_fut.get());
 
       deque<thread> delThr;
-      for (unsigned i=0; i<10; i++)
-         delThr.push_back(thread(getAddrDelegate, scrAddrVec[i], &delV[i]));
+      for (unsigned i = 0; i < 10; i++)
+      {
+         delThr.push_back(
+            thread(getAddrDelegate, scrAddrVec[i], "wallet1", &delV[i]));
+      }
+
+      for (unsigned i = 10; i < 21; i++)
+      {
+         delThr.push_back(
+            thread(getAddrDelegate, scrAddrVec[i - 10], "wallet2", &delV[i]));
+      }
 
       for (auto& thr : delThr)
       {
@@ -3060,7 +3074,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       delegate.getHistoryPage(0, ledger_get);
 
       //get addr ledgers
-      deque<vector<::ClientClasses::LedgerEntry>> addrLedgerV(10);
+      deque<vector<::ClientClasses::LedgerEntry>> addrLedgerV(21);
       auto getAddrLedger = [bdvObj](
          AsyncClient::LedgerDelegate delegate, 
          vector<::ClientClasses::LedgerEntry>* addrLedger)->void
@@ -3080,7 +3094,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
 
       delThr.clear();
 
-      for (unsigned i = 0; i < 10; i++)
+      for (unsigned i = 0; i < 21; i++)
          delThr.push_back(thread(getAddrLedger, delV[i], &addrLedgerV[i]));
 
       //
@@ -3207,7 +3221,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       EXPECT_EQ(lb2Balances[0], 30 * COIN);
 
       //grab main ledgers
-      auto& firstEntry = ledgers[0];
+      auto& firstEntry = ledgers[1];
       auto txHash = firstEntry.getTxHash();
       EXPECT_EQ(firstHash, txHash);
 
@@ -3249,6 +3263,22 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       EXPECT_EQ(addrLedgerV[7].size(), 7);
       EXPECT_EQ(addrLedgerV[8].size(), 4);
       EXPECT_EQ(addrLedgerV[9].size(), 2);
+      EXPECT_EQ(addrLedgerV[20].size(), 4);
+
+      for (unsigned i = 0; i < 10; i++)
+      {
+         auto& v1 = addrLedgerV[i];         
+         auto& v2 = addrLedgerV[i + 10];
+
+         if (v1.size() != v2.size())
+            EXPECT_TRUE(FALSE);
+
+         for (unsigned y = 0; y < v1.size(); y++)
+         {
+            if(!(v1[y] == v2[y]))
+               EXPECT_TRUE(FALSE);
+         }
+      }
 
       bdvObj->unregisterFromDB();
    };
