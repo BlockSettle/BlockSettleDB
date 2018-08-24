@@ -69,10 +69,6 @@ shared_ptr<BlockDataViewer> BlockDataViewer::getNewBDV(const string& addr,
    //instantiate bdv object
    BlockDataViewer* bdvPtr = new BlockDataViewer(sockptr);
 
-   //setup callback
-   if (callbackPtr != nullptr)
-      callbackPtr->setup(bdvPtr->getRemoteCallbackSetupStruct());
-
    //create shared_ptr of bdv object
    shared_ptr<BlockDataViewer> bdvSharedPtr;
    bdvSharedPtr.reset(bdvPtr);
@@ -659,41 +655,6 @@ void AsyncClient::BtcWallet::createAddressBook(
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_VectorAddressBookEntry>(callback);
    sock_->pushPayload(move(payload), read_payload);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-RemoteCallbackSetupStruct BlockDataViewer::getRemoteCallbackSetupStruct() const
-{
-   auto callback = [this](unsigned height)->void
-   {
-      this->setTopBlock(height);
-   };
-
-   shared_ptr<SocketPrototype> sockPtr;
-
-   switch (sock_->type())
-   {
-   case SocketHttp:
-   {
-      sockPtr = 
-         make_shared<HttpSocket>(sock_->getAddrStr(), sock_->getPortStr());
-      sockPtr->connectToRemote();
-      break;
-   }
-
-   case SocketFcgi:
-   {
-      sockPtr =
-         make_shared<FcgiSocket>(sock_->getAddrStr(), sock_->getPortStr());
-      sockPtr->connectToRemote();
-      break;
-   }
-
-   default:
-      sockPtr = sock_;
-   }
-
-   return RemoteCallbackSetupStruct(sockPtr, bdvID_, callback);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

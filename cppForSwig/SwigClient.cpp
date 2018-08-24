@@ -283,12 +283,6 @@ vector<UTXO> BlockDataViewer::getUtxosForAddrVec(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-unsigned BlockDataViewer::getTopBlock() const
-{
-   return bdvAsync_.getTopBlock();
-}
-
-///////////////////////////////////////////////////////////////////////////////
 bool BlockDataViewer::isValid() const
 {
    return bdvAsync_.isValid();

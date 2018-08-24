@@ -8314,10 +8314,7 @@ TEST_F(BlockUtilsBare, WebSocketStack_Reconnect)
       return result;
    };
    
-   deque<shared_ptr<SwigClient::BlockDataViewer>> bdvQ;
-
-   //auto&& scrAddrVec = createNAddresses(2000);
-   vector<BinaryData> scrAddrVec;
+   auto&& scrAddrVec = createNAddresses(2000);
    theBDMt_->start(config.initMode_);
 
    {
@@ -8438,8 +8435,7 @@ TEST_F(BlockUtilsBare, WebSocketStack_Reconnect)
       lb2Balances = lb2.getBalancesAndCount(5);
       EXPECT_EQ(lb2Balances[0], 30 * COIN);
 
-      bdvQ.push_back(bdvObj);
-      //bdvObj.unregisterFromDB();
+      bdvObj->unregisterFromDB();
    }
    
    for (int i = 0; i < 10; i++)
@@ -8528,8 +8524,7 @@ TEST_F(BlockUtilsBare, WebSocketStack_Reconnect)
       auto&& tx = bdvObj->getTxByHash(firstHash);
       EXPECT_EQ(tx.getThisHash(), firstHash);
 
-      //bdvObj.unregisterFromDB();
-      bdvQ.push_back(bdvObj);
+      bdvObj->unregisterFromDB();
    }
    
    auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
