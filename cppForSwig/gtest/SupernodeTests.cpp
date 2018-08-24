@@ -3271,12 +3271,12 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
          auto& v2 = addrLedgerV[i + 10];
 
          if (v1.size() != v2.size())
-            EXPECT_TRUE(FALSE);
+            EXPECT_TRUE(false);
 
          for (unsigned y = 0; y < v1.size(); y++)
          {
             if(!(v1[y] == v2[y]))
-               EXPECT_TRUE(FALSE);
+               EXPECT_TRUE(false);
          }
       }
 
