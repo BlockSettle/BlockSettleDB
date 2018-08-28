@@ -2978,6 +2978,10 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(config.magicBytes_);
 
+      //go online
+      bdvObj->goOnline();
+      pCallback->waitOnSignal(BDMAction_Ready);
+
       const vector<BinaryData> lb1ScrAddrs
       {
          TestChain::lb1ScrAddr,
@@ -3011,9 +3015,6 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       //wait on registration ack
       pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
 
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
 
       //get wallets delegate
       auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
