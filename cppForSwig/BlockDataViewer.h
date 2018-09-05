@@ -157,9 +157,6 @@ public:
       return zeroConfCont_->getZcTxOutsForKey(keys);
    }
 
-   const set<BinaryData>& getSpentSAforZCKey(const BinaryData& zcKey) const
-   { return zeroConfCont_->getSpentSAforZCKey(zcKey); }
-
    ScrAddrFilter* getSAF(void) { return saf_; }
    const BlockDataManagerConfig& config() const { return bdmPtr_->config(); }
 

@@ -124,7 +124,8 @@ void BlockDataViewer::scanWallets(shared_ptr<BDV_Notification> action)
       scanData.saStruct_.zcMap_ = 
          move(zcAction->packet_.txioMap_);
 
-      scanData.saStruct_.newZcKeys_ = zcAction->packet_.newZcKeys_;
+      scanData.saStruct_.newKeysAndScrAddr_ = 
+         zcAction->packet_.newKeysAndScrAddr_;
 
       if (zcAction->packet_.purgePacket_ != nullptr)
       {

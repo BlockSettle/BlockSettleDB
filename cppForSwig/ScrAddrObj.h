@@ -45,7 +45,7 @@ struct ScanAddressStruct
 
    map<BinaryData, shared_ptr<map<BinaryData, TxIOPair>>> zcMap_;
    map<BinaryData, LedgerEntry> zcLedgers_;
-   set<BinaryData> newZcKeys_;
+   shared_ptr<map<BinaryData, shared_ptr<set<BinaryDataRef>>>> newKeysAndScrAddr_;
 };
 
 class ScrAddrObj

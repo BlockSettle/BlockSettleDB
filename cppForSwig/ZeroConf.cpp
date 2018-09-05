@@ -43,7 +43,7 @@ Tx ZeroConfContainer::getTxByHash(const BinaryData& txHash) const
    if (txiter == txmap->end())
       return Tx();
 
-   auto& theTx = txiter->second.tx_;
+   auto& theTx = txiter->second->tx_;
    theTx.setTxRef(TxRef(keyIter->second));
 
    return theTx;
@@ -58,16 +58,16 @@ bool ZeroConfContainer::hasTxByHash(const BinaryData& txHash) const
 ///////////////////////////////////////////////////////////////////////////////
 map<BinaryData, BinaryData> ZeroConfContainer::purge(
    const Blockchain::ReorganizationState& reorgState,
-   map<BinaryData, ParsedTx>& zcMap)
+   map<BinaryDataRef, shared_ptr<ParsedTx>>& zcMap)
 {
    if (db_ == nullptr || zcMap.size() == 0)
       return map<BinaryData, BinaryData>();
 
-   vector<BinaryData> ktdVec;
+   deque<BinaryData> ktdVec;
    map<BinaryData, BinaryData> minedKeys;
 
    auto updateChildren = [&zcMap, &minedKeys, this](
-      const BinaryData& txHash, const BinaryData& blockKey,
+      BinaryDataRef& txHash, const BinaryData& blockKey,
       map<BinaryData, unsigned> minedHashes)->void
    {
       auto spentIter = outPointsSpentByKey_.find(txHash);
@@ -83,7 +83,7 @@ map<BinaryData, BinaryData> ZeroConfContainer::purge(
       //list children by key
       set<BinaryDataRef> keysToClear;
       for (auto& op_pair : spentIter->second)
-         keysToClear.insert(op_pair.second.getRef());
+         keysToClear.insert(op_pair.second);
 
       //run through children, replace key
       for (auto& zckey : keysToClear)
@@ -92,7 +92,7 @@ map<BinaryData, BinaryData> ZeroConfContainer::purge(
          if (zcIter == zcMap.end())
             continue;
 
-         for (auto& input : zcIter->second.inputs_)
+         for (auto& input : zcIter->second->inputs_)
          {
             if (input.opRef_.getTxHashRef() != txHash)
                continue;
@@ -108,7 +108,7 @@ map<BinaryData, BinaryData> ZeroConfContainer::purge(
             minedKeys.insert(make_pair(prevKey, bw_key.getData()));
             input.opRef_.getDbKey() = bw_key.getData();
 
-            zcIter->second.isChainedZc_ = false;
+            zcIter->second->isChainedZc_ = false;
          }
       }
    };
@@ -127,7 +127,7 @@ map<BinaryData, BinaryData> ZeroConfContainer::purge(
       {
          auto& zc = zcMapIter->second;
          bool invalidated = false;
-         for (auto& input : zc.inputs_)
+         for (auto& input : zc->inputs_)
          {
             auto opIter = spentOutpoints.find(input.opRef_.getTxHashRef());
             if (opIter == spentOutpoints.end())
@@ -156,7 +156,7 @@ map<BinaryData, BinaryData> ZeroConfContainer::purge(
          zcMap.erase(zcMapIter++);
 
          //this zc is now invalid, check if it has children
-         auto& zchash = zcMove.getTxHash();
+         auto&& zchash = zcMove->getTxHash().getRef();
          updateChildren(zchash, blockKey, minedHashes);
       }
    };
@@ -258,7 +258,7 @@ map<BinaryData, BinaryData> ZeroConfContainer::purge(
       //delete keys from DB
       auto deleteKeys = [&](void)->void
       {
-         this->updateZCinDB(vector<BinaryData>(), ktdVec);
+         this->updateZCinDB(deque<BinaryData>(), ktdVec);
       };
 
       preprocessZcMap(zcMap);
@@ -271,15 +271,17 @@ map<BinaryData, BinaryData> ZeroConfContainer::purge(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void ZeroConfContainer::preprocessZcMap(map<BinaryData, ParsedTx>& zcMap)
+void ZeroConfContainer::preprocessZcMap(
+   map<BinaryDataRef, shared_ptr<ParsedTx>>& zcMap)
 {
    //run threads to preprocess the zcMap
    auto counter = make_shared<atomic<unsigned>>();
    counter->store(0, memory_order_relaxed);
 
-   vector<ParsedTx*> txVec;
+   vector<shared_ptr<ParsedTx>> txVec;
+   txVec.reserve(zcMap.size());
    for (auto& txPair : zcMap)
-      txVec.push_back(&txPair.second);
+      txVec.push_back(txPair.second);
 
    auto parserLdb = [this, &txVec, counter](void)->void
    {
@@ -324,9 +326,11 @@ void ZeroConfContainer::dropZC(const set<BinaryData>& zcKeys)
    if (zcKeys.size() == 0)
       return;
 
-   vector<BinaryData> keysToDelete;
-   vector<BinaryData> txoutsToDelete;
-   vector<BinaryData> hashesToDelete;
+   deque<BinaryData> keysToDelete;   
+   deque<BinaryDataRef> keysToDeleteRef;
+
+   deque<BinaryData> txoutsToDelete;
+   deque<BinaryDataRef> hashesToDelete;
 
    map<BinaryData, shared_ptr<map<BinaryData, TxIOPair>>> updateMap;
 
@@ -376,7 +380,6 @@ void ZeroConfContainer::dropZC(const set<BinaryData>& zcKeys)
          }
       };
 
-      auto keytospendsaPtr = keyToSpentScrAddr_.get();
       auto txmapPtr = txMap_.get();
       auto txhashmapPtr = txHashToDBKey_.get();
       auto txoutset = txOutsSpentByZC_.get();
@@ -393,16 +396,17 @@ void ZeroConfContainer::dropZC(const set<BinaryData>& zcKeys)
          if (zcIter == txmapPtr->end())
             continue;
 
-         auto& hash = zcIter->second.getTxHash();
+         auto&& hash = zcIter->second->getTxHash().getRef();
          hashesToDelete.push_back(hash);
          outPointsSpentByKey_.erase(hash);
 
          //drop from keyToSpendScrAddr_
-         auto saSetIter = keytospendsaPtr->find(zcKey);
-         if (saSetIter != keytospendsaPtr->end())
+         auto saSetIter = keyToSpentScrAddr_.find(zcKey.getRef());
+         if (saSetIter != keyToSpentScrAddr_.end())
          {
-            for (auto& sa : saSetIter->second)
+            for (auto& sa : *saSetIter->second)
                dropTxios(zcKey, sa);
+            keyToSpentScrAddr_.erase(saSetIter);
          }
 
          //drop from keyToFundedScrAddr_
@@ -416,7 +420,7 @@ void ZeroConfContainer::dropZC(const set<BinaryData>& zcKeys)
          }
 
          //drop from txOutsSpentByZC_
-         for (auto& input : zcIter->second.inputs_)
+         for (auto& input : zcIter->second->inputs_)
          {
             if (!input.isResolved())
                continue;
@@ -425,13 +429,41 @@ void ZeroConfContainer::dropZC(const set<BinaryData>& zcKeys)
 
          //mark for deletion
          keysToDelete.push_back(zcKey);
+         keysToDeleteRef.push_back(zcKey.getRef());
       }
+   }
+
+   //clear txhash spentness
+   auto opIter = outPointsSpentByKey_.begin();
+   while(opIter != outPointsSpentByKey_.end())
+   {
+      auto iter = opIter->second.begin();
+      while (iter != opIter->second.end())
+      {
+         auto invalIter = zcKeys.find(iter->second);
+         if (invalIter == zcKeys.end())
+         {
+            ++iter;
+            continue;
+         }
+
+         //key of invalidated zc, remove from spent outpoints map
+         opIter->second.erase(iter++);
+      }
+
+      if (opIter->second.size() != 0)
+      {
+         ++opIter;
+         continue;
+      }
+
+      //all spenders were invalidated, remove outpoint from spent map entirely
+      outPointsSpentByKey_.erase(opIter++);
    }
 
    //drop from containers
    txHashToDBKey_.erase(hashesToDelete);
-   txMap_.erase(keysToDelete);
-   keyToSpentScrAddr_.erase(keysToDelete);
+   txMap_.erase(keysToDeleteRef);
    txOutsSpentByZC_.erase(txoutsToDelete);
 
    //gathers keys to delete
@@ -455,7 +487,7 @@ void ZeroConfContainer::dropZC(const set<BinaryData>& zcKeys)
    //delete keys from DB
    auto deleteKeys = [&](void)->void
    {
-      this->updateZCinDB(vector<BinaryData>(), keysToDelete);
+      this->updateZCinDB(deque<BinaryData>(), keysToDelete);
    };
 
    thread deleteKeyThread(deleteKeys);
@@ -469,7 +501,7 @@ void ZeroConfContainer::parseNewZC(void)
    while (1)
    {
       ZcActionStruct zcAction;
-      map<BinaryData, ParsedTx> zcMap;
+      map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap;
       try
       {
          zcAction = move(newZcStack_.pop_front());
@@ -545,18 +577,18 @@ void ZeroConfContainer::parseNewZC(void)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
+void ZeroConfContainer::parseNewZC(
+   map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap,
    bool updateDB, bool notify)
 {
    unique_lock<mutex> lock(parserMutex_);
-   set<BinaryData> newZcByHash;
-   vector<BinaryData> keysToWrite;
+   deque<BinaryData> keysToWrite;
 
    auto iter = zcMap.begin();
    while (iter != zcMap.end())
    {
-      if (iter->second.status() == Tx_Mined ||
-         iter->second.status() == Tx_Invalid)
+      if (iter->second->status() == Tx_Mined ||
+         iter->second->status() == Tx_Invalid)
          zcMap.erase(iter++);
       else
          ++iter;
@@ -567,7 +599,7 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
       auto txmap_ptr = txMap_.get();
       if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
       {
-         auto& txHash = newZCPair.second.getTxHash();
+         auto& txHash = newZCPair.second->getTxHash();
          auto insertIter = allZcTxHashes_.insert(txHash);
          if (!insertIter.second)
             continue;
@@ -581,8 +613,8 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
       keysToWrite.push_back(newZCPair.first);
    }
 
-   map<BinaryData, BinaryData> txhashmap_update;
-   map<BinaryData, ParsedTx> txmap_update;
+   map<BinaryDataRef, BinaryDataRef> txhashmap_update;
+   map<BinaryDataRef, shared_ptr<ParsedTx>> txmap_update;
    set<BinaryData> invalidatedKeys;
 
    bool hasChanges = false;
@@ -617,14 +649,14 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
       (const BinaryData& zc_key)->const ParsedTx&
       {
          auto local_iter = txmap_update.find(zc_key);
-      if (local_iter != txmap_update.end())
-         return local_iter->second;
+         if (local_iter != txmap_update.end())
+            return *local_iter->second;
 
-      auto global_iter = txmap_ptr->find(zc_key);
-      if (global_iter == txmap_ptr->end())
-         throw runtime_error("no zc tx for this key");
+         auto global_iter = txmap_ptr->find(zc_key);
+         if (global_iter == txmap_ptr->end())
+            throw runtime_error("no zc tx for this key");
 
-      return global_iter->second;
+         return *global_iter->second;
       };
 
       function<set<BinaryData>(const BinaryData&)> getTxChildren =
@@ -663,13 +695,13 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
 
       for (auto& newZCPair : zcMap)
       {
-         auto& txHash = newZCPair.second.getTxHash();
+         auto&& txHash = newZCPair.second->getTxHash().getRef();
          if (txhashmap_ptr->find(txHash) != txhashmap_ptr->end())
             continue; //already have this ZC
 
          {
             auto&& bulkData = ZCisMineBulkFilter(
-               newZCPair.second, newZCPair.first,
+               *newZCPair.second, newZCPair.first,
                getzckeyfortxhash, getzctxforkey);
 
             //check for replacement
@@ -705,8 +737,8 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
             }
 
             //add ZC if its relevant
-            if (newZCPair.second.status() != Tx_Invalid &&
-               newZCPair.second.status() != Tx_Uninitialized &&
+            if (newZCPair.second->status() != Tx_Invalid &&
+               newZCPair.second->status() != Tx_Uninitialized &&
                !bulkData.isEmpty())
             {
                hasChanges = true;
@@ -716,17 +748,35 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
 
                for (auto& idmap : bulkData.outPointsSpentByKey_)
                {
-                  //cant use insert, have to replace values if they already exist
-                  auto& thisIdMap = outPointsSpentByKey_[idmap.first];
+                  //Since the outpoint is being replaced, the tx holding the 
+                  //reference to the txhash this pair is keyed by will expire.
+                  //Re-key the pair by the replacing hash
+
+                  pair<BinaryDataRef, map<unsigned, BinaryDataRef>> outpoints;
+                  outpoints.first = idmap.first;
+                  auto opIter = outPointsSpentByKey_.find(idmap.first);
+                  if (opIter != outPointsSpentByKey_.end())
+                  {
+                     outpoints.second = move(opIter->second);
+                     outPointsSpentByKey_.erase(opIter);
+                  }
+
                   for (auto& idpair : idmap.second)
-                     thisIdMap[idpair.first] = idpair.second;
+                     outpoints.second[idpair.first] = idpair.second;
+
+                  outPointsSpentByKey_.insert(move(outpoints));
                }
 
                //merge scrAddr spent by key
-               keyToSpentScrAddr_.update(move(bulkData.keyToSpentScrAddr_));
+               for (auto& sa_pair : bulkData.keyToSpentScrAddr_)
+               {
+                  auto insertResult = keyToSpentScrAddr_.insert(sa_pair);
+                  if (insertResult.second == false)
+                     insertResult.first->second = move(sa_pair.second);
+               }
 
                //merge scrAddr funded by key
-               typedef map<BinaryData, set<BinaryData>>::iterator mapbd_setbd_iter;
+               typedef map<BinaryDataRef, set<BinaryDataRef>>::iterator mapbd_setbd_iter;
                keyToFundedScrAddr_.insert(
                   move_iterator<mapbd_setbd_iter>(bulkData.keyToFundedScrAddr_.begin()),
                   move_iterator<mapbd_setbd_iter>(bulkData.keyToFundedScrAddr_.end()));
@@ -748,7 +798,6 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
                }
 
                txioMap_.update(move(newtxiomap));
-               newZcByHash.insert(txHash);
 
                //notify BDVs
                for (auto& bdvMap : bulkData.flaggedBDVs_)
@@ -762,9 +811,20 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
       }
    }
 
-   set<BinaryData> newZcKeys;
+   auto newZcKeys = 
+      make_shared<map<BinaryData, shared_ptr<set<BinaryDataRef>>>>();
+   auto newTxPtrMap = 
+      make_shared<map<BinaryDataRef, shared_ptr<ParsedTx>>>(txmap_update);
    for (auto tx_pair : txmap_update)
-      newZcKeys.insert(tx_pair.first);
+   {
+      shared_ptr<set<BinaryDataRef>> spentScrAddr = nullptr;
+      auto iter = keyToSpentScrAddr_.find(tx_pair.first);
+      if (iter != keyToSpentScrAddr_.end())
+         spentScrAddr = iter->second;
+
+      auto addr_pair = make_pair(tx_pair.first, move(spentScrAddr));
+      newZcKeys->insert(move(addr_pair));
+   }
 
    txHashToDBKey_.update(txhashmap_update);
    txMap_.update(txmap_update);
@@ -773,7 +833,7 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
    {
       //write ZC in the new thread to guaranty we can get a RW tx
       auto writeNewZC = [&, this](void)->void
-      { this->updateZCinDB(keysToWrite, vector<BinaryData>()); };
+      { this->updateZCinDB(keysToWrite, deque<BinaryData>()); };
 
       thread writeNewZCthread(writeNewZC);
       writeNewZCthread.join();
@@ -800,7 +860,7 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
          //gather all scrAddr from invalidated tx
          set<BinaryDataRef> addrRefs;
 
-         for (auto& input : zcIter->second.inputs_)
+         for (auto& input : zcIter->second->inputs_)
          {
             if (!input.isResolved())
                continue;
@@ -808,7 +868,7 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
             addrRefs.insert(input.scrAddr_.getRef());
          }
 
-         for (auto& output : zcIter->second.outputs_)
+         for (auto& output : zcIter->second->outputs_)
          {
             addrRefs.insert(output.scrAddr_.getRef());
          }
@@ -842,6 +902,8 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
          continue;
 
       NotificationPacket notificationPacket(bdvMap.first);
+      notificationPacket.txMap_ = newTxPtrMap; 
+
       for (auto& sa : bdvMap.second.second.txioKeys_)
       {
          auto saIter = txiomapPtr->find(sa);
@@ -858,7 +920,7 @@ void ZeroConfContainer::parseNewZC(map<BinaryData, ParsedTx> zcMap,
             move(bdvMap.second.second.invalidatedKeys_);
       }
 
-      notificationPacket.newZcKeys_ = newZcKeys;
+      notificationPacket.newKeysAndScrAddr_ = newZcKeys;
       bdvCallbacks_->pushZcNotification(notificationPacket);
    }
 }
@@ -978,7 +1040,7 @@ void ZeroConfContainer::preprocessTx(ParsedTx& tx) const
 
 ///////////////////////////////////////////////////////////////////////////////
 ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
-   ParsedTx & parsedTx, const BinaryData & ZCkey,
+   ParsedTx& parsedTx, const BinaryDataRef& ZCkey,
    function<bool(const BinaryData&, BinaryData&)> getzckeyfortxhash,
    function<const ParsedTx&(const BinaryData&)> getzctxforkey)
 {
@@ -1149,7 +1211,9 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
          move(flaggedBDVs.second), true);
 
       auto& updateSet = bulkData.keyToSpentScrAddr_[ZCkey];
-      updateSet.insert(input.scrAddr_);
+      if (updateSet == nullptr)
+         updateSet = make_shared<set<BinaryDataRef>>();
+      updateSet->insert(input.scrAddr_.getRef());
    }
 
    //funded txios
@@ -1171,7 +1235,7 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
          txio.setChained(isChained);
 
          auto& fundedScrAddr = bulkData.keyToFundedScrAddr_[ZCkey];
-         fundedScrAddr.insert(output.scrAddr_);
+         fundedScrAddr.insert(output.scrAddr_.getRef());
 
          auto&& txioKey = txio.getDBKeyOfOutput();
          insertNewZc(output.scrAddr_, move(txioKey),
@@ -1271,7 +1335,7 @@ vector<TxOut> ZeroConfContainer::getZcTxOutsForKey(
       if (txIter == txmap->end())
          continue;
 
-      auto& theTx = txIter->second;
+      auto& theTx = *txIter->second;
 
       auto outIdRef = key.getSliceRef(6, 2);
       auto outId = READ_UINT16_BE(outIdRef);
@@ -1286,27 +1350,8 @@ vector<TxOut> ZeroConfContainer::getZcTxOutsForKey(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-const set<BinaryData>& ZeroConfContainer::getSpentSAforZCKey(
-   const BinaryData& zcKey) const
-{
-   auto keytospendsaPtr = keyToSpentScrAddr_.get();
-   auto iter = keytospendsaPtr->find(zcKey);
-   if (iter == keytospendsaPtr->end())
-      return emptySetBinData_;
-
-   return iter->second;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-const shared_ptr<map<BinaryData, set<BinaryData>>>
-ZeroConfContainer::getKeyToSpentScrAddrMap() const
-{
-   return keyToSpentScrAddr_.get();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void ZeroConfContainer::updateZCinDB(const vector<BinaryData>& keysToWrite,
-   const vector<BinaryData>& keysToDelete)
+void ZeroConfContainer::updateZCinDB(const deque<BinaryData>& keysToWrite,
+   const deque<BinaryData>& keysToDelete)
 {
    auto txmap = txMap_.get();
    auto&& tx = db_->beginTransaction(ZERO_CONF, LMDB::ReadWrite);
@@ -1316,8 +1361,9 @@ void ZeroConfContainer::updateZCinDB(const vector<BinaryData>& keysToWrite,
       auto iter = txmap->find(key);
       if (iter != txmap->end())
       {
+         /*TODO: speed this up*/
          StoredTx zcTx;
-         zcTx.createFromTx(iter->second.tx_, true, true);
+         zcTx.createFromTx(iter->second->tx_, true, true);
          db_->putStoredZC(zcTx, key);
       }
       else
@@ -1365,7 +1411,7 @@ void ZeroConfContainer::updateZCinDB(const vector<BinaryData>& keysToWrite,
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::loadZeroConfMempool(bool clearMempool)
 {
-   map<BinaryData, ParsedTx> zcMap;
+   map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap;
 
    {
       auto dbs = ZERO_CONF;
@@ -1394,11 +1440,11 @@ void ZeroConfContainer::loadZeroConfMempool(bool clearMempool)
             Tx zctx(zcStx.getSerializedTx());
             zctx.setTxTime(zcStx.unixTime_);
 
-            ParsedTx parsedTx;
-            parsedTx.tx_ = move(zctx);
+            auto parsedTx = make_shared<ParsedTx>(zckey);
+            parsedTx->tx_ = move(zctx);
 
             zcMap.insert(move(make_pair(
-               move(zckey), move(parsedTx))));
+               parsedTx->getKeyRef(), move(parsedTx))));
          }
          else if (zcKey.getSize() == 9)
          {
@@ -1422,7 +1468,7 @@ void ZeroConfContainer::loadZeroConfMempool(bool clearMempool)
    if (clearMempool == true)
    {
       LOGWARN << "Mempool was flagged for deletion!";
-      vector<BinaryData> keysToWrite, keysToDelete;
+      deque<BinaryData> keysToWrite, keysToDelete;
 
       for (const auto& zcTx : zcMap)
          keysToDelete.push_back(zcTx.first);
@@ -1486,8 +1532,12 @@ void ZeroConfContainer::processInvTxVec(
    batch->timeout_ = timeout;
    for (unsigned i = 0; i < invVec.size(); i++)
    {
-      pair<BinaryData, ParsedTx> txPair;
-      txPair.first = move(getNewZCkey());
+      pair<BinaryDataRef, shared_ptr<ParsedTx>> txPair;
+      auto&& key = getNewZCkey();
+      auto ptx = make_shared<ParsedTx>(key);
+      txPair.first = ptx->getKeyRef();
+      txPair.second = move(ptx);
+
       batch->txMap_.insert(move(txPair));
    }
 
@@ -1565,27 +1615,32 @@ void ZeroConfContainer::processInvTxThread(ZeroConfInvPacket& packet)
    auto payloadtx = dynamic_pointer_cast<Payload_Tx>(payload);
    if (payloadtx == nullptr)
    {
-      txObj.state_ = Tx_Invalid;
+      txObj->state_ = Tx_Invalid;
       packet.batchPtr_->incrementCounter();
       return;
    }
 
    //push raw tx with current time
    auto& rawTx = payloadtx->getRawTx();
-   txObj.tx_.unserialize(&rawTx[0], rawTx.size());
-   txObj.tx_.setTxTime(time(0));
+   txObj->tx_.unserialize(&rawTx[0], rawTx.size());
+   txObj->tx_.setTxTime(time(0));
 
-   preprocessTx(txObj);
+   preprocessTx(*txObj);
    packet.batchPtr_->incrementCounter();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::pushZcToParser(const BinaryDataRef& rawTx)
 {
-   pair<BinaryData, ParsedTx> zcpair;
-   zcpair.first = getNewZCkey();
-   zcpair.second.tx_.unserialize(rawTx.getPtr(), rawTx.getSize());
-   zcpair.second.tx_.setTxTime(time(0));
+   pair<BinaryDataRef, shared_ptr<ParsedTx>> zcpair;
+   auto&& key = getNewZCkey();
+   auto ptx = make_shared<ParsedTx>(key);
+
+   ptx->tx_.unserialize(rawTx.getPtr(), rawTx.getSize());
+   ptx->tx_.setTxTime(time(0));
+
+   zcpair.first = ptx->getKeyRef();
+   zcpair.second = move(ptx);
 
    ZcActionStruct actionstruct;
    actionstruct.batch_ = make_shared<ZeroConfBatch>();

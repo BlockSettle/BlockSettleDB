@@ -202,7 +202,7 @@ void ScrAddrObj::scanZC(const ScanAddressStruct& scanInfo,
    for (auto& txioPair : newZC)
    {
       if (txioPair.second.hasTxOutZC() &&
-          isZcFromWallet(move(txioPair.second.getDBKeyOfOutput().getSliceRef(0, 6))))
+          isZcFromWallet(txioPair.second.getDBKeyOfOutput().getSliceRef(0, 6)))
          txioPair.second.setTxOutFromSelf(true);
 
       txioPair.second.setScrAddrRef(getScrAddr());
