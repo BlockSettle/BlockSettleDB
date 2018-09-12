@@ -3790,7 +3790,7 @@ mdb_env_checkmapsize(MDB_env *env, int index)
    struct stat stat_struct; int stat_result;
 
    memset(&stat_struct, 0, sizeof(struct stat));
-   stat_result = _stat64(env->me_path, &stat_struct);
+   stat_result = stat(env->me_path, &stat_struct);
    if (stat_result != 0)
       stat_result = errno;
 
