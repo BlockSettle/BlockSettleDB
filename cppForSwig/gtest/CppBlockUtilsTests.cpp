@@ -6194,7 +6194,7 @@ TEST_F(BlockUtilsBare, Load3Blocks_ZC_Plus3_TestLedgers)
    EXPECT_EQ(zcStx.stxoMap_.begin()->second.getValue(), 10 * COIN);
 
    //check ZChash in DB
-   EXPECT_EQ(iface_->getTxHashForLdbKey(zcKey), ZChash1);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getHashForKey(zcKey), ZChash1);
 
    dbtx.reset();
 

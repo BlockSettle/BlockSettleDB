@@ -406,6 +406,11 @@ public:
       auto ss = atomic_load_explicit(&snapshot_, memory_order_acquire);
       return ss;
    }
+
+   shared_ptr<ParsedTx> getTxByKey(const BinaryData&) const;
+   TxOut getTxOutCopy(const BinaryDataRef, unsigned) const;
+   BinaryDataRef getKeyForHash(const BinaryData&) const;
+   BinaryDataRef getHashForKey(const BinaryData&) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

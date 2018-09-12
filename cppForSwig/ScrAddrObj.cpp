@@ -15,8 +15,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ScrAddrObj::ScrAddrObj(LMDBBlockDatabase *db, Blockchain *bc,
-   BinaryDataRef addr) :
-      db_(db), bc_(bc), scrAddr_(addr), utxos_(this)
+   ZeroConfContainer* zc, BinaryDataRef addr) :
+      db_(db), bc_(bc), zc_(zc), scrAddr_(addr), utxos_(this)
 { 
    relevantTxIO_.clear();
 } 
@@ -320,7 +320,7 @@ map<BinaryData, LedgerEntry> ScrAddrObj::updateLedgers(
                                uint32_t startBlock, uint32_t endBlock) const
 {
    return LedgerEntry::computeLedgerMap(txioMap, startBlock, endBlock,
-                                 scrAddr_, db_, bc_);
+                                 scrAddr_, db_, bc_, zc_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

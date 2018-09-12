@@ -1364,10 +1364,8 @@ void ZeroConfContainer::loadZeroConfMempool(bool clearMempool)
    map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap;
 
    {
-      auto dbs = ZERO_CONF;
-
-      auto&& tx = db_->beginTransaction(dbs, LMDB::ReadOnly);
-      auto dbIter = db_->getIterator(dbs);
+      auto&& tx = db_->beginTransaction(ZERO_CONF, LMDB::ReadOnly);
+      auto dbIter = db_->getIterator(ZERO_CONF);
 
       if (!dbIter->seekToStartsWith(DB_PREFIX_ZCDATA))
          return;
@@ -1780,7 +1778,7 @@ void ZeroConfContainer::increaseParserThreadPool(unsigned count)
 
 ///////////////////////////////////////////////////////////////////////////////
 shared_ptr<map<BinaryData, shared_ptr<TxIOPair>>>
-ZeroConfContainer::getTxioMapForScrAddr(const BinaryData& scrAddr) const
+   ZeroConfContainer::getTxioMapForScrAddr(const BinaryData& scrAddr) const
 {
    auto ss = getSnapshot();
    auto& txiomap = ss->txioMap_;
@@ -1790,6 +1788,50 @@ ZeroConfContainer::getTxioMapForScrAddr(const BinaryData& scrAddr) const
       return nullptr;
 
    return iter->second;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<ParsedTx> ZeroConfContainer::getTxByKey(const BinaryData& key) const
+{
+   auto ss = getSnapshot();
+   auto iter = ss->txMap_.find(key.getRef());
+   if (iter == ss->txMap_.end())
+      return nullptr;
+
+   return iter->second;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+BinaryDataRef ZeroConfContainer::getKeyForHash(const BinaryData& hash) const
+{
+   auto ss = getSnapshot();
+   auto iter = ss->txHashToDBKey_.find(hash);
+   if (iter == ss->txHashToDBKey_.end())
+      return BinaryDataRef();
+
+   return iter->second;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+BinaryDataRef ZeroConfContainer::getHashForKey(const BinaryData& key) const
+{
+   auto ss = getSnapshot();
+   auto iter = ss->txMap_.find(key);
+   if (iter == ss->txMap_.end())
+      return BinaryDataRef();
+
+   return iter->second->getTxHash().getRef();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+TxOut ZeroConfContainer::getTxOutCopy(
+   const BinaryDataRef key, unsigned index) const
+{
+   auto&& tx = getTxByKey(key);
+   if (tx == nullptr)
+      return TxOut();
+
+   return tx->tx_.getTxOutCopy(index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

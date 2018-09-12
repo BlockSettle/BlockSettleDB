@@ -26,6 +26,7 @@ using namespace std;
 #include "util.h"
 #include "bdmenums.h"
 #include "BtcWallet.h"
+#include "ZeroConf.h"
 #include "BDVCodec.h"
 
 typedef enum
@@ -89,6 +90,7 @@ public:
    LMDBBlockDatabase* getDB(void) const;
    const Blockchain& blockchain() const  { return *bc_; }
    Blockchain& blockchain() { return *bc_; }
+   ZeroConfContainer* zcContainer() { return zc_; }
    uint32_t getTopBlockHeight(void) const;
    const shared_ptr<BlockHeader> getTopBlockHeader(void) const
    { return bc_->top(); }
@@ -126,7 +128,7 @@ public:
       if (bdmPtr_ == nullptr)
          return false;
       return bdmPtr_->isRunning(); 
-   }
+   } 
 
    void blockUntilBDMisReady(void) const
    {
@@ -201,6 +203,7 @@ protected:
    BlockDataManager* bdmPtr_ = nullptr;
    LMDBBlockDatabase*        db_;
    shared_ptr<Blockchain>    bc_;
+   ZeroConfContainer*        zc_;
    ScrAddrFilter*            saf_;
 
    //Wanna keep the BtcWallet non copyable so the only existing object for

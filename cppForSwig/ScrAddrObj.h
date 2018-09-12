@@ -13,6 +13,7 @@
 #include "Blockchain.h"
 #include "BlockObj.h"
 #include "txio.h"
+#include "ZeroConf.h"
 #include "LedgerEntry.h"
 #include "HistoryPager.h"
 
@@ -184,7 +185,7 @@ public:
       relevantTxIO_.clear();
    }
 
-   ScrAddrObj(LMDBBlockDatabase *db, Blockchain *bc,
+   ScrAddrObj(LMDBBlockDatabase *db, Blockchain *bc, ZeroConfContainer *zc,
       BinaryDataRef addr);
 
    ScrAddrObj(const ScrAddrObj& rhs) : 
@@ -295,6 +296,7 @@ public:
 private:
    LMDBBlockDatabase *db_;
    Blockchain        *bc_;
+   ZeroConfContainer *zc_;
    
    BinaryDataRef scrAddr_; //this includes the prefix byte!
 

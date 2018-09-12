@@ -1633,7 +1633,7 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
    //check ZChash in DB
    BinaryData zcKey = WRITE_UINT16_BE(0xFFFF);
    zcKey.append(WRITE_UINT32_LE(0));
-   EXPECT_EQ(iface_->getTxHashForLdbKey(zcKey), ZChash);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getHashForKey(zcKey), ZChash);
 
    //grab ZC by hash
    auto&& txobj = DBTestUtils::getTxByHash(clients_, bdvID, ZChash);

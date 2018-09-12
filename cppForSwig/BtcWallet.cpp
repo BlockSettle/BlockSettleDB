@@ -708,7 +708,7 @@ map<BinaryData, LedgerEntry> BtcWallet::updateWalletLedgersFromTxio(
    uint32_t startBlock, uint32_t endBlock) const
 {
    return LedgerEntry::computeLedgerMap(txioMap, startBlock, endBlock, 
-      walletID_, bdvPtr_->getDB(), &bdvPtr_->blockchain());
+      walletID_, bdvPtr_->getDB(), &bdvPtr_->blockchain(), bdvPtr_->zcContainer());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
