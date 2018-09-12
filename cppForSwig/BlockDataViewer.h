@@ -74,10 +74,6 @@ public:
    void scanWallets(shared_ptr<BDV_Notification>);
    bool hasWallet(const BinaryData& ID) const;
 
-   const shared_ptr<map<BinaryData, shared_ptr<map<BinaryData, TxIOPair>>>>
-      getFullZeroConfTxIOMap() const
-   { return zeroConfCont_->getFullTxioMap(); }
-
    Tx                getTxByHash(BinaryData const & txHash) const;
    TxOut             getPrevTxOut(TxIn & txin) const;
    Tx                getPrevTx(TxIn & txin) const;
@@ -142,11 +138,11 @@ public:
    bool isTxOutSpentByZC(const BinaryData& dbKey) const
    { return zeroConfCont_->isTxOutSpentByZC(dbKey); }
 
-   map<BinaryData, TxIOPair> getUnspentZCForScrAddr(
+   map<BinaryData, shared_ptr<TxIOPair>> getUnspentZCForScrAddr(
       const BinaryData& scrAddr) const
    { return zeroConfCont_->getUnspentZCforScrAddr(scrAddr); }
 
-   map<BinaryData, TxIOPair> getRBFTxIOsforScrAddr(
+   map<BinaryData, shared_ptr<TxIOPair>> getRBFTxIOsforScrAddr(
       const BinaryData& scrAddr) const
    {
       return zeroConfCont_->getRBFTxIOsforScrAddr(scrAddr);

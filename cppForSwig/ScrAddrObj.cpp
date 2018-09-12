@@ -171,24 +171,24 @@ void ScrAddrObj::scanZC(const ScanAddressStruct& scanInfo,
          auto& txio = _keyIter->second;
          if (txio.hasTxIn())
          {
-            if (txio.getDBKeyOfInput() == newtxio.getDBKeyOfInput())
+            if (txio.getDBKeyOfInput() == newtxio->getDBKeyOfInput())
                continue;
          }
       }
 
-      newZC[txiopair.first] = newtxio;
+      newZC[txiopair.first] = *newtxio;
 
-      if (txiopair.second.hasTxOutZC())
+      if (txiopair.second->hasTxOutZC())
       {
          auto& zckeyset = 
-            validZCKeys_[txiopair.second.getDBKeyOfOutput()];
+            validZCKeys_[txiopair.second->getDBKeyOfOutput()];
          zckeyset.insert(txiopair.first);
       }
 
-      if (txiopair.second.hasTxInZC())
+      if (txiopair.second->hasTxInZC())
       {
          auto& zckeyset =
-            validZCKeys_[txiopair.second.getDBKeyOfInput()];
+            validZCKeys_[txiopair.second->getDBKeyOfInput()];
          zckeyset.insert(txiopair.first);
       }
    }

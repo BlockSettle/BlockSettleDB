@@ -5859,7 +5859,6 @@ TEST_F(BlockUtilsBare, Load4Blocks_Plus2)
    wltLB1.reset();
    wltLB2.reset();
 }
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsBare, Load4Blocks_ReloadBDM_ZC_Plus2)
 {
@@ -7979,7 +7978,7 @@ TEST_F(BlockUtilsBare, WebSocketStack_ManyZC)
       return spender;
    };
 
-   //add 50 ZC
+   //add 100 ZC
    vector<BinaryData> allZcHash;
    for(int i=0; i<100; i++)
    {
@@ -8044,7 +8043,7 @@ TEST_F(BlockUtilsBare, WebSocketStack_ManyZC)
       pCallback->waitOnSignal(BDMAction_ZC, ZCHash.toHexStr());
    }
 
-   //grad ledger, check all zc hash are in there
+   //grab ledger, check all zc hash are in there
    auto&& ledgerDelegate = bdvObj->getLedgerDelegateForWallets();
    auto count = ledgerDelegate.getPageCount();
    EXPECT_EQ(count, 1);

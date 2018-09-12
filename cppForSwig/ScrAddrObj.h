@@ -43,7 +43,7 @@ struct ScanAddressStruct
    set<BinaryData> invalidatedZcKeys_;
    map<BinaryData, BinaryData> minedTxioKeys_;
 
-   map<BinaryData, shared_ptr<map<BinaryData, TxIOPair>>> zcMap_;
+   map<BinaryData, shared_ptr<map<BinaryData, shared_ptr<TxIOPair>>>> zcMap_;
    map<BinaryData, LedgerEntry> zcLedgers_;
    shared_ptr<map<BinaryData, shared_ptr<set<BinaryDataRef>>>> newKeysAndScrAddr_;
 };

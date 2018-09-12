@@ -325,10 +325,10 @@ vector<UnspentTxOut> BtcWallet::getRBFTxOutList()
 
          for (auto& zcTxio : zcTxioMap)
          {
-            if (zcTxio.second.hasTxOutZC())
-               zcKeys.insert(zcTxio.second.getDBKeyOfOutput());
+            if (zcTxio.second->hasTxOutZC())
+               zcKeys.insert(zcTxio.second->getDBKeyOfOutput());
             else
-               txoutKeys.insert(zcTxio.second.getDBKeyOfOutput());
+               txoutKeys.insert(zcTxio.second->getDBKeyOfOutput());
          }
       }
    }

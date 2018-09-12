@@ -145,7 +145,7 @@ namespace DBTestUtils
    Tx getTxByHash(Clients* clients, const string bdvId,
       const BinaryData& txHash);
 
-   void addTxioToSsh(StoredScriptHistory&, const map<BinaryData, TxIOPair>&);
+   void addTxioToSsh(StoredScriptHistory&, const map<BinaryData, shared_ptr<TxIOPair>>&);
    void prettyPrintSsh(StoredScriptHistory& ssh);
    LedgerEntry getLedgerEntryFromWallet(shared_ptr<BtcWallet>, const BinaryData&);
    LedgerEntry getLedgerEntryFromAddr(ScrAddrObj*, const BinaryData&);

@@ -536,31 +536,31 @@ namespace DBTestUtils
    /////////////////////////////////////////////////////////////////////////////
    void addTxioToSsh(
       StoredScriptHistory& ssh, 
-      const map<BinaryData, TxIOPair>& txioMap)
+      const map<BinaryData, shared_ptr<TxIOPair>>& txioMap)
    {
       for (auto& txio_pair : txioMap)
       {
          auto subssh_key = txio_pair.first.getSliceRef(0, 4);
 
          auto& subssh = ssh.subHistMap_[subssh_key];
-         subssh.txioMap_[txio_pair.first] = txio_pair.second;
+         subssh.txioMap_[txio_pair.first] = *txio_pair.second;
 
          unsigned txioCount = 1;
-         if (txio_pair.second.hasTxIn())
+         if (txio_pair.second->hasTxIn())
          {
-            ssh.totalUnspent_ -= txio_pair.second.getValue();
+            ssh.totalUnspent_ -= txio_pair.second->getValue();
 
             auto txinKey_prefix = 
-               txio_pair.second.getDBKeyOfInput().getSliceCopy(0, 4);
-            if (txio_pair.second.getDBKeyOfOutput().startsWith(txinKey_prefix))
+               txio_pair.second->getDBKeyOfInput().getSliceCopy(0, 4);
+            if (txio_pair.second->getDBKeyOfOutput().startsWith(txinKey_prefix))
             {
-               ssh.totalUnspent_ += txio_pair.second.getValue();
+               ssh.totalUnspent_ += txio_pair.second->getValue();
                ++txioCount;
             }
          }
          else
          {
-            ssh.totalUnspent_ += txio_pair.second.getValue();
+            ssh.totalUnspent_ += txio_pair.second->getValue();
          }
 
          ssh.totalTxioCount_ += txioCount;

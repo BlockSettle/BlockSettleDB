@@ -410,7 +410,7 @@ vector<UnspentTxOut> BlockDataViewer::getUnspentTxoutsForAddr160List(
       {
          auto zcIter = zcTxioMap.find(utxoPair.first);
          if (zcIter != zcTxioMap.end())
-            if (zcIter->second.hasTxInZC())
+            if (zcIter->second->hasTxInZC())
                continue;
 
          UTXOs.push_back(utxoPair.second);
@@ -421,13 +421,13 @@ vector<UnspentTxOut> BlockDataViewer::getUnspentTxoutsForAddr160List(
 
       for (const auto& zcTxio : zcTxioMap)
       {
-         if (!zcTxio.second.hasTxOutZC())
+         if (!zcTxio.second->hasTxOutZC())
             continue;
          
-         if (zcTxio.second.hasTxInZC())
+         if (zcTxio.second->hasTxInZC())
             continue;
 
-         TxOut txout = zcTxio.second.getTxOutCopy(db_);
+         TxOut txout = zcTxio.second->getTxOutCopy(db_);
          UnspentTxOut UTXO = UnspentTxOut(db_, txout, UINT32_MAX);
 
          UTXOs.push_back(UTXO);
@@ -693,15 +693,19 @@ unique_ptr<BDV_Notification_ZC> BlockDataViewer::createZcNotification(
    ZeroConfContainer::NotificationPacket packet(getID());
 
    //grab zc map
-   auto txiomap = zeroConfCont_->getFullTxioMap();
-
-   for (auto& txiopair : *txiomap)
+   auto ss = zeroConfCont_->getSnapshot();
+   if (ss != nullptr)
    {
-      auto&& bdref = txiopair.first.getRef();
-      if (!filter(bdref))
-         continue;
+      auto& txiomap = ss->txioMap_;
 
-      packet.txioMap_.insert(txiopair);
+      for (auto& txiopair : txiomap)
+      {
+         auto&& bdref = txiopair.first.getRef();
+         if (!filter(bdref))
+            continue;
+
+         packet.txioMap_.insert(txiopair);
+      }
    }
 
    auto notifPtr = make_unique<BDV_Notification_ZC>(packet);
