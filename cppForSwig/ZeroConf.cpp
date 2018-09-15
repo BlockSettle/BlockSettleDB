@@ -408,7 +408,7 @@ void ZeroConfContainer::dropZC(
                continue;
 
             //5. grab hash reference and key by it
-            auto& replaceHash = 
+            auto replaceHash = 
                replaceIter->second->inputs_[id.first].opRef_.getTxHashRef();
 
             pair<BinaryDataRef, map<unsigned, BinaryDataRef>> new_pair;
