@@ -363,8 +363,63 @@ void ZeroConfContainer::dropZC(
 
    /*** drop tx from snapshot ***/
    auto&& hashToDelete = iter->second->getTxHash().getRef();
-   outPointsSpentByKey_.erase(hashToDelete);
    ss->txHashToDBKey_.erase(hashToDelete);
+
+   //drop from outPointsSpentByKey_
+   outPointsSpentByKey_.erase(hashToDelete);
+   for (auto& input : iter->second->inputs_)
+   {
+      auto opIter = 
+         outPointsSpentByKey_.find(input.opRef_.getTxHashRef());
+      if (opIter == outPointsSpentByKey_.end())
+         continue;
+
+      //erase the index
+      opIter->second.erase(input.opRef_.getIndex());
+
+      //erase the txhash if the index map is empty
+      if (opIter->second.size() == 0)
+      {
+         outPointsSpentByKey_.erase(opIter);
+      }
+      else if (opIter->first.getPtr() == input.opRef_.getTxHashRef().getPtr())
+      {
+         //outpoint hash reference is owned by this tx object, rekey it
+         
+         //1. save the idmap
+         auto indexMap = move(opIter->second);
+
+         //2. erase current entry
+         outPointsSpentByKey_.erase(opIter);
+
+         //3. look for another zc among the referenced spenders
+         for (auto& id : indexMap)
+         {
+            auto& tx_key = id.second;
+            if (tx_key == key)
+               continue;
+
+            //4. we have a different zc, grab it
+            auto replaceIter = txMap.find(tx_key);
+            
+            //sanity checks
+            if (replaceIter == txMap.end() || 
+               id.first >= replaceIter->second->inputs_.size())
+               continue;
+
+            //5. grab hash reference and key by it
+            auto& replaceHash = 
+               replaceIter->second->inputs_[id.first].opRef_.getTxHashRef();
+
+            pair<BinaryDataRef, map<unsigned, BinaryDataRef>> new_pair;
+            new_pair.first = replaceHash;
+            new_pair.second = move(indexMap);
+            outPointsSpentByKey_.insert(new_pair);
+            break;
+         }
+      }
+
+   }
 
    //drop from keyToSpendScrAddr_
    auto saSetIter = keyToSpentScrAddr_.find(key);
