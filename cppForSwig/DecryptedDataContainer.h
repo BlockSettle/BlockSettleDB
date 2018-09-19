@@ -13,7 +13,7 @@
 #include "Assets.h"
 #include "ReentrantLock.h"
 #include "BinaryData.h"
-#include "lmdb/lmdbpp.h"
+#include "lmdbpp.h"
 
 #define ENCRYPTIONKEY_PREFIX        0xC0
 #define ENCRYPTIONKEY_PREFIX_TEMP   0xCC

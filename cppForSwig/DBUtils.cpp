@@ -566,3 +566,10 @@ int DBUtils::removeDirectory(const string& path)
 
    return 0;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+size_t DBUtils::getFileSize(const string& path)
+{
+   auto stat_struct = getPathStat(path);
+   return stat_struct.st_size;
+}

@@ -1637,6 +1637,8 @@ int	mdb_reader_list(MDB_env *env, MDB_msg_func *func, void *ctx);
 int	mdb_reader_check(MDB_env *env, int *dead);
 /**	@} */
 
+mdb_size_t mdb_env_getmapsize(MDB_env* env);
+
 #ifdef __cplusplus
 }
 #endif

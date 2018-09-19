@@ -37,6 +37,19 @@ TransactionalMap<thread::id, shared_ptr<SHARDTX>>
    DatabaseContainer_Sharded::txShardMap_;
 
 const set<DB_SELECT> LMDBBlockDatabase::supernodeDBs_({ SUBSSH, SPENTNESS });
+const map<string, size_t> LMDBBlockDatabase::mapSizes_ = {
+   {"headers", 4 * 1024 * 1024 * 1024ULL},
+   {"blkdata", 1024 * 1024ULL},
+   {"history", 1024 * 1024ULL},
+   {"txhints", 20 * 1024 * 1024 * 1024ULL},
+   {"ssh",   100 * 1024 * 1024 * 1024ULL},
+   {"subssh", 10 * 1024 * 1024 * 1024ULL},
+   {"stxo", 100 * 1024 * 1024 * 1024ULL},
+   {"zeroconf", 10 * 1024 * 1024 * 1024ULL},
+   {"txfilters", 10 * 1024 * 1024 * 1024ULL},
+   {"spentness", 1024 * 1024 * 1024ULL},
+   {"checkpoint", 100 * 1024 * 1024 * 1024ULL}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -3069,6 +3082,26 @@ void DBPair::open(const string& path, const string& dbName)
       return;
 
    env_.open(path);
+   auto map_size = env_.getMapSize();
+   auto iter = LMDBBlockDatabase::mapSizes_.find(dbName);
+   if (iter != LMDBBlockDatabase::mapSizes_.end())
+   {
+      auto default_size = iter->second;
+      if (map_size < default_size)
+         map_size = default_size;
+      try
+      {
+         auto file_size = DBUtils::getFileSize(path);
+         auto ratio = float(file_size) / float(map_size);
+         if (ratio > 0.75f)
+            map_size *= 2;
+      }
+      catch (runtime_error&)
+      {
+      }
+   }
+   env_.setMapSize(map_size);
+
    auto&& tx = beginTransaction(LMDB::ReadWrite);
    db_.open(&env_, dbName);
 }

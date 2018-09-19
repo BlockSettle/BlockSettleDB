@@ -23,7 +23,7 @@
 #include "BlockObj.h"
 #include "StoredBlockObj.h"
 
-#include "lmdb/lmdbpp.h"
+#include "lmdbpp.h"
 #include "ThreadSafeClasses.h"
 #include "ReentrantLock.h"
 
@@ -1165,6 +1165,7 @@ public:
 
 public:
    map<DB_SELECT, shared_ptr<DatabaseContainer>> dbMap_;
+   const static map<string, size_t> mapSizes_;
 
 private:
    BinaryData           genesisBlkHash_;

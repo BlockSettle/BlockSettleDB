@@ -20,7 +20,7 @@
 #include "ReentrantLock.h"
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
-#include "lmdb/lmdbpp.h"
+#include "lmdbpp.h"
 #include "Script.h"
 #include "Signer.h"
 

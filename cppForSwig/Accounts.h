@@ -15,7 +15,7 @@
 
 #include "ReentrantLock.h"
 #include "BinaryData.h"
-#include "lmdb/lmdbpp.h"
+#include "lmdbpp.h"
 #include "EncryptionUtils.h"
 #include "Assets.h"
 #include "Addresses.h"

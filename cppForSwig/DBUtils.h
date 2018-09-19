@@ -153,6 +153,7 @@ public:
    static int removeDirectory(const string&);
    static struct stat getPathStat(const string& path);
    static struct stat getPathStat(const char* path, unsigned len);
+   static size_t getFileSize(const string& path);
    static bool isFile(const string& path);
    static bool isDir(const string& path);
 

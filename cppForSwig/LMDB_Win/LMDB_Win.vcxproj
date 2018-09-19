@@ -19,14 +19,14 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\lmdb\lmdbpp.cpp" />
-    <ClCompile Include="..\lmdb\mdb.c" />
-    <ClCompile Include="..\lmdb\midl.c" />
+    <ClInclude Include="..\lmdb\libraries\liblmdb\lmdb.h" />
+    <ClInclude Include="..\lmdb\libraries\liblmdb\lmdbpp.h" />
+    <ClInclude Include="..\lmdb\libraries\liblmdb\midl.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\lmdb\lmdb.h" />
-    <ClInclude Include="..\lmdb\lmdbpp.h" />
-    <ClInclude Include="..\lmdb\midl.h" />
+    <ClCompile Include="..\lmdb\libraries\liblmdb\lmdbpp.cpp" />
+    <ClCompile Include="..\lmdb\libraries\liblmdb\mdb.c" />
+    <ClCompile Include="..\lmdb\libraries\liblmdb\midl.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{2DAEB6BF-8CF7-43D5-AEA9-BF824BBC8AE4}</ProjectGuid>
@@ -144,7 +144,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>false</SDLCheck>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>../leveldb_windows_port/win32_posix;../lmdb</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../leveldb_windows_port/win32_posix;../lmdb/libraries/liblmdb</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <WholeProgramOptimization>true</WholeProgramOptimization>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>

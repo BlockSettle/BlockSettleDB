@@ -3649,7 +3649,7 @@ mdb_page_flush(MDB_txn *txn, int keep)
 	unsigned	psize = env->me_psize, j;
 	int			i, pagecount = dl[0].mid, rc;
 	size_t		size = 0;
-	off_t		pos = 0;
+	size_t		pos = 0;
 	pgno_t		pgno = 0;
 	MDB_page	*dp = NULL;
 #ifdef _WIN32
@@ -4912,7 +4912,7 @@ mdb_env_reader_dest(void *ptr)
  *	in a single process, for now. They can override this if needed.
  */
 #ifndef MAX_TLS_KEYS
-#define MAX_TLS_KEYS	64
+#define MAX_TLS_KEYS	512
 #endif
 static pthread_key_t mdb_tls_keys[MAX_TLS_KEYS];
 static int mdb_tls_nkeys;
@@ -11181,3 +11181,8 @@ utf8_to_utf16(const char *src, MDB_name *dst, int xtra)
 }
 #endif /* defined(_WIN32) */
 /** @} */
+
+mdb_size_t mdb_env_getmapsize(MDB_env* env)
+{
+   return env->me_mapsize;
+}
