@@ -843,9 +843,6 @@ public:
       BinaryData const & magic);
 
    /////////////////////////////////////////////////////////////////////////////
-   void openSupernodeDBs(void);
-
-   /////////////////////////////////////////////////////////////////////////////
    void closeDatabases();
    void replaceDatabases(DB_SELECT, const string&);
    void cycleDatabase(DB_SELECT);
@@ -1091,7 +1088,8 @@ public:
    BinaryData getGenesisTxHash(void)    { return genesisTxHash_; }
    BinaryData getMagicBytes(void)       { return magicBytes_; }
 
-   ARMORY_DB_TYPE armoryDbType(void) { return BlockDataManagerConfig::getDbType(); }
+   ARMORY_DB_TYPE armoryDbType(void) const
+   { return BlockDataManagerConfig::getDbType(); }
 
    const string& baseDir(void) const { DatabaseContainer::baseDir_; }
    void setBlkFolder(const string& path) { blkFolder_ = path; }
@@ -1163,6 +1161,15 @@ public:
    void putMissingHashes(const set<BinaryData>&, uint32_t);
    set<BinaryData> getMissingHashes(uint32_t) const;
 
+   void updateHeightToIdMap(map<unsigned, unsigned>& idmap)
+   {
+      heightToBatchId_.update(move(idmap));
+   }
+
+   void loadHeightToIdMap();
+   unsigned getShardIdForHeight(unsigned) const;
+   unsigned getNextShardIdForHeight(unsigned) const;
+
 public:
    map<DB_SELECT, shared_ptr<DatabaseContainer>> dbMap_;
    const static map<string, size_t> mapSizes_;
@@ -1187,6 +1194,8 @@ private:
    string blkFolder_;
    const shared_ptr<Blockchain> blockchainPtr_;
    const static set<DB_SELECT> supernodeDBs_;
+
+   TransactionalMap<unsigned, unsigned> heightToBatchId_;
 };
 
 #endif

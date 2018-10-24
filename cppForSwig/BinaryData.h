@@ -622,6 +622,13 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
+   void reset(void)
+   {
+      ptr_ = nullptr;
+      nBytes_ = 0;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
    uint8_t const * getPtr(void) const       { return ptr_;    }
    size_t getSize(void) const               { return nBytes_; }
    bool isNull(void) { return (ptr_==NULL);}

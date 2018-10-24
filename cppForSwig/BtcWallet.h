@@ -132,6 +132,8 @@ private:
    { return bdvPtr_; }
 
    map<uint32_t, uint32_t> computeScrAddrMapHistSummary(void);
+   map<uint32_t, uint32_t> computeScrAddrMapHistSummary_Super(void);
+
    const map<uint32_t, uint32_t>& getSSHSummary(void) const
    { return histPages_.getSSHsummary(); }
 

@@ -524,6 +524,8 @@ namespace DBTestUtils
       auto&& result = processCommand(clients, message);
       auto response =
          dynamic_pointer_cast<::Codec_CommonTypes::TxWithMetaData>(result);
+      if (response == nullptr)
+         throw runtime_error("getTxByHash failed");
       
       auto& txstr = response->rawtx();
       BinaryDataRef txbdr; txbdr.setRef(txstr);

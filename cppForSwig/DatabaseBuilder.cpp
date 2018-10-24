@@ -579,6 +579,7 @@ BinaryData DatabaseBuilder::scanHistory(int32_t startHeight,
          progress_, reportprogress);
 
       bcs.scan();
+      bcs.scanSpentness();
       bcs.updateSSH(forceRescanSSH_ & init);
 
       return bcs.getTopScannedBlockHash();
@@ -939,6 +940,7 @@ void DatabaseBuilder::commitAllStxos(
          pair<BinaryData, BinaryWriter> stxocount;
          
          stxocount.first = move(DBUtils::getBlkDataKeyNoPrefix(id, 0xFF, i));
+         stxocount.second.put_BinaryData(hash);
          stxocount.second.put_var_int(txouts.size());
 
          serializedStxos.push_back(move(stxocount));
@@ -952,9 +954,7 @@ void DatabaseBuilder::commitAllStxos(
             auto txoutDataRef = txns[i]->getTxOutRef(y);
 
             StoredTxOut::serializeDBValue(bwPair.second, ARMORY_DB_SUPER, false,
-               0, isCoinbase, TXOUT_SPENTUNK, txoutDataRef, 
-               emptyRef, hash.getRef(), y);
-
+               0, isCoinbase, txoutDataRef);
             serializedStxos.push_back(move(bwPair));
          }
       }

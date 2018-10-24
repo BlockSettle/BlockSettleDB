@@ -26,7 +26,7 @@
 #include "txio.h"
 #include "BlockDataManagerConfig.h"
 
-#define ARMORY_DB_VERSION   0x9502
+#define ARMORY_DB_VERSION   0x9701
 #define ARMORY_DB_DEFAULT   ARMORY_DB_FULL
 #define UTXO_STORAGE        SCRIPT_UTXO_VECTOR
 
@@ -43,13 +43,13 @@ enum DB_SELECT
    BLKDATA,
    SSH,
    SUBSSH,
+   SUBSSH_META,
    HISTORY,
    STXO,
    TXHINTS,
    ZERO_CONF,
    TXFILTERS,
    SPENTNESS,
-   CHECKPOINT,
    COUNT
 };
 
@@ -127,6 +127,7 @@ public:
    uint32_t        appliedToHgt_=0;
    uint32_t        armoryVer_=ARMORY_DB_VERSION;
    ARMORY_DB_TYPE  armoryType_=ARMORY_DB_FULL; //default db mode
+   uint64_t metaInt_ = UINT64_MAX;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,13 +164,10 @@ public:
       BinaryWriter&,
       ARMORY_DB_TYPE, bool,
       uint16_t txversion, bool isCoinbase,
-      TXOUT_SPENTNESS,
-      const BinaryDataRef dataRef,
-      const BinaryDataRef spentByTxIn,
-      const BinaryDataRef hash,
-      uint16_t txoutindex);
+      const BinaryDataRef dataRef);
 
    BinaryData getDBKey(bool withPrefix = true) const;
+   BinaryData getSpentnessKey(void) const;
    BinaryData getDBKeyOfParentTx(bool withPrefix = true) const;
    BinaryData& getHgtX(void);
 
@@ -458,13 +456,16 @@ public:
 
    uint64_t getSubHistoryBalance(bool withMultisig=false);
    uint64_t getSubHistoryReceived(bool withMultisig=false);
-
-   void pprintFullSubSSH(uint32_t indent=3);
    
    StoredSubHistory(const StoredSubHistory& copy)
    {
       *this = copy;
    }
+
+   static void compressMany(
+      const map<BinaryDataRef, StoredSubHistory*>& ssh, 
+      unsigned heightOffset, unsigned spentOffset,
+      BinaryWriter& bw);
 
    StoredSubHistory& operator=(const StoredSubHistory& copy)
    {
@@ -517,15 +518,15 @@ public:
    void       unserializeDBValue(BinaryData const & bd);
    void       unserializeDBValue(BinaryDataRef      bd);
    void       unserializeDBKey(BinaryDataRef key, bool withPrefix=true);
+   void decompressManySubssh(const BinaryDataRef&,
+      unsigned height_offset, unsigned spent_offset,
+      unsigned lower_bound, unsigned upper_bound);
    
-   void       addUpSummary(const StoredScriptHistory&);
-   void       substractSummary(const StoredScriptHistory&);
-
+   void addSummary(const StoredScriptHistory&);
+   void substractSummary(const StoredScriptHistory&);
+   
    BinaryData    getDBKey(bool withPrefix=true) const;
    SCRIPT_PREFIX getScriptType(void) const;
-
-   void pprintOneLine(uint32_t indent=3);
-   void pprintFullSSH(uint32_t indent=3);
 
    uint64_t getScriptReceived(bool withMultisig=false);
    uint64_t getScriptBalance(bool withMultisig=false);

@@ -9,9 +9,18 @@
 #ifndef _SSH_PARSER_H
 #define _SSH_PARSER_H
 
+#include <atomic>
+#include <condition_variable>
+
 #include "lmdb_wrapper.h"
 #include "Blockchain.h"
 #include "ScrAddrFilter.h"
+
+#ifndef UNIT_TESTS
+#define SSH_BOUNDS_BATCH_SIZE 100000
+#else
+#define SSH_BOUNDS_BATCH_SIZE 2
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 struct SshBatch
@@ -26,52 +35,82 @@ struct SshBatch
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+struct SshBounds
+{
+   pair<BinaryData, BinaryData> bounds_;
+   map<BinaryData, BinaryWriter> serializedSsh_;
+   chrono::duration<double> time_;
+   uint64_t count_ = 0;
+
+   unique_ptr<promise<bool>> completed_;
+   shared_future<bool> fut_;
+
+   SshBounds(void)
+   {
+      completed_ = make_unique<promise<bool>>();
+      fut_ = completed_->get_future();
+   }
+
+   void serializeResult(map<BinaryDataRef, StoredScriptHistory>&);
+};
+
+struct SshMapping
+{
+   map<uint8_t, shared_ptr<SshMapping>> map_;
+   uint64_t count_ = 0;
+
+   shared_ptr<SshMapping> getMappingForKey(uint8_t);
+   void prettyPrint(stringstream&, unsigned);
+   void merge(SshMapping&);
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
 class ShardedSshParser
 {
 private:
    LMDBBlockDatabase* db_;
    atomic<unsigned> counter_;
-   const unsigned scanFrom_;
-   const unsigned scanTo_;
+   const unsigned firstHeight_;
+   unsigned firstShard_;
    const unsigned threadCount_;
    bool init_;
+   bool undo_ = false;
 
-   mutex mu_;
+   vector<unique_ptr<SshBounds>> boundsVector_;
 
-   BlockingQueue<unique_ptr<SshBatch>> checkpointQueue_;
-   BlockingQueue<unique_ptr<SshBatch>> serializedSshQueue_;
-   BlockingQueue<pair<BinaryData, BinaryData>>  sshBoundsQueue_;
+   atomic<unsigned> commitedBoundsCounter_;
+   atomic<unsigned> fetchBoundsCounter_;
+   condition_variable writeThreadCV_;
+   mutex cvMutex_;
 
-   map<unsigned, atomic<unsigned>> shardSemaphores_;
+   atomic<unsigned> mapCount_;
+   vector<SshMapping> mappingResults_;
 
 private:
-   void compileCheckpoints(void);
-   void tallySshThread(void);
-   void parseShardsThread(const vector<pair<BinaryData, BinaryData>>&);
    void putSSH(void);
-   void putCheckpoint(unsigned boundsCount);
+   SshBounds* getNext();
    
-   void undoCheckpoint(unsigned shardId);
-   void resetCheckpoint(unsigned shardId);
-
 private:
-   vector<pair<BinaryData, BinaryData>> getBounds(
-      bool withPrefix, uint8_t prefix);
+   void setupBounds();
+   SshMapping mapSubSshDB();
+   void mapSubSshDBThread(unsigned);
+   void parseSshThread(void);
 
 public:
    ShardedSshParser(
       LMDBBlockDatabase* db,
-      unsigned scanFrom, unsigned scanTo,
+      unsigned firstHeight, 
       unsigned threadCount, bool init)
       : db_(db),
-      scanFrom_(scanFrom), scanTo_(scanTo),
+      firstHeight_(firstHeight),
       threadCount_(threadCount), init_(init)
    {
       counter_.store(0, memory_order_relaxed);
    }
 
    void updateSsh(void);
-   void undoShards(const set<unsigned>&);
+   void undo(void);
 };
 
 typedef pair<set<BinaryData>, map<BinaryData, StoredScriptHistory>> subSshParserResult;

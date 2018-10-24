@@ -572,15 +572,18 @@ void BtcWallet::reset()
 ////////////////////////////////////////////////////////////////////////////////
 map<uint32_t, uint32_t> BtcWallet::computeScrAddrMapHistSummary()
 {
-   struct preHistory
+   if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
+      return computeScrAddrMapHistSummary_Super();
+
+   struct PreHistory
    {
       uint32_t txioCount_;
       vector<BinaryDataRef> scrAddrs_;
 
-      preHistory(void) : txioCount_(0) {}
+      PreHistory(void) : txioCount_(0) {}
    };
 
-   map<uint32_t, preHistory> preHistSummary;
+   map<uint32_t, PreHistory> preHistSummary;
 
    auto addrMap = scrAddrMap_.get();
 
@@ -639,6 +642,33 @@ map<uint32_t, uint32_t> BtcWallet::computeScrAddrMapHistSummary()
    }
 
    return histSummary;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+map<uint32_t, uint32_t> BtcWallet::computeScrAddrMapHistSummary_Super()
+{
+   auto addrMap = scrAddrMap_.get();
+   auto&& sshtx = bdvPtr_->getDB()->beginTransaction(SSH, LMDB::ReadOnly);
+
+   map<uint32_t, uint32_t> result;
+
+   for (auto& scrAddrPair : *addrMap)
+   {
+      scrAddrPair.second->mapHistory();
+      const map<uint32_t, uint32_t>& txioSum =
+         scrAddrPair.second->getHistSSHsummary();
+
+      for (auto& sum : txioSum)
+      {
+         auto iter = result.find(sum.first);
+         if (iter != result.end())
+            iter->second += sum.second;
+         else
+            result.insert(sum);
+      }
+   }
+
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
