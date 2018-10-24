@@ -56,6 +56,20 @@ public:
    {}
 };
 
+class ConfMismatch
+{
+   const unsigned expected_;
+   const unsigned actual_;
+
+public:
+   ConfMismatch(unsigned expected, unsigned actual) :
+      expected_(expected), actual_(actual)
+   {}
+
+   unsigned expected(void) const { return expected_; }
+   unsigned actual(void) const { return actual_; }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 struct FeeEstimateResult
 {

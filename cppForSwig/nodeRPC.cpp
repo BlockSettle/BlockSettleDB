@@ -267,7 +267,7 @@ FeeEstimateResult NodeRPC::queryFeeByteSmart(HttpSocket& sock,
 
          if (blocksPtr != nullptr)
             if (blocksPtr->val_ != confTarget)
-               throw JSON_Exception("conf_target mismatch");
+               throw ConfMismatch(confTarget, blocksPtr->val_);
       }
    }
 
@@ -336,8 +336,15 @@ void NodeRPC::aggregateFeeEstimates()
 
       for (auto& target : confTargets)
       {
-         auto&& result = queryFeeByteSmart(sock, target, strat);
-         newMap.insert(make_pair(target, move(result)));
+         try
+         {
+            auto&& result = queryFeeByteSmart(sock, target, strat);
+            newMap.insert(make_pair(target, move(result)));
+         }
+         catch (ConfMismatch&)
+         {
+            break;
+         }
       }
    }
 
