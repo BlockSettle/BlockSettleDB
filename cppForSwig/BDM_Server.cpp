@@ -672,7 +672,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       out: void
       */
       vector<BinaryData> bdVec;
-      for (unsigned i = 0; i < command->bindata_size(); i++)
+      for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& val = command->bindata(i);
          BinaryData valRef((uint8_t*)val.data(), val.size());
@@ -756,7 +756,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for getHistoryForWalletSelection");
 
       vector<BinaryData> wltIDs;
-      for (unsigned i = 0; i < command->bindata_size(); i++)
+      for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
          BinaryData idRef((uint8_t*)id.data(), id.size());
@@ -822,7 +822,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       */
 
       vector<BinaryData> addrVec;
-      for (unsigned i = 0; i < command->bindata_size(); i++)
+      for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& addr = command->bindata(i);
          BinaryData addrRef((uint8_t*)addr.data(), addr.size());
@@ -999,7 +999,7 @@ void BDV_Server_Object::init()
       //fill with addresses from protobuf payloads
       for (auto& wlt : wltMap)
       {
-         for (unsigned i = 0; i < wlt.second.command_->bindata_size(); i++)
+         for (int i = 0; i < wlt.second.command_->bindata_size(); i++)
          {
             auto& addrStr = wlt.second.command_->bindata(i);
             BinaryDataRef addrRef; addrRef.setRef(addrStr);
@@ -1427,11 +1427,6 @@ void Clients::init(BlockDataManagerThread* bdmT,
       bdvMaintenanceThread();
    };
 
-   auto gcThread = [this](void)->void
-   {
-      garbageCollectorThread();
-   };
-
    auto parserThread = [this](void)->void
    {
       this->messageParserThread();
@@ -1453,12 +1448,6 @@ void Clients::init(BlockDataManagerThread* bdmT,
 
    auto callbackPtr = make_unique<ZeroConfCallbacks_BDV>(this);
    bdmT_->bdm()->registerZcCallbacks(move(callbackPtr));
-
-   //no gc for unit tests
-   if (bdmT_->bdm()->config().nodeType_ == Node_UnitTest)
-      return;
-
-   controlThreads_.push_back(thread(gcThread));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1756,41 +1745,6 @@ void Clients::notificationThread(void) const
          continue;
 
       outerBDVNotifStack_.push_back(move(notifPtr));
-   }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void Clients::garbageCollectorThread(void)
-{
-   while (1)
-   {
-      try
-      {
-         bool command = gcCommands_.pop_front();
-         if (!command)
-            return;
-      }
-      catch (StopBlockingLoop&)
-      {
-         return;
-      }
-
-      vector<string> bdvToDelete;
-
-      {
-         auto bdvmap = BDVs_.get();
-
-         for (auto& bdvPair : *bdvmap)
-         {
-            if (!bdvPair.second->cb_->isValid())
-               bdvToDelete.push_back(bdvPair.first);
-         }
-      }
-
-      for (auto& bdvID : bdvToDelete)
-      {
-         unregisterBDV(bdvID);
-      }
    }
 }
 

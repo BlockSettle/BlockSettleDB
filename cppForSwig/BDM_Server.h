@@ -269,7 +269,6 @@ private:
 
 private:
    void notificationThread(void) const;
-   void garbageCollectorThread(void);
    void unregisterAllBDVs(void);
    void bdvMaintenanceLoop(void);
    void bdvMaintenanceThread(void);
