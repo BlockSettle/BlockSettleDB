@@ -224,12 +224,8 @@ void ShardedSshParser::undo()
    };
 
    vector<thread> threads;
-   unsigned count = threadCount_;
-   if (threadCount_ > 1)
-      --count;
-   for (unsigned i = 1; i < count; i++)
+   for (unsigned i = 1; i < threadCount_; i++)
       threads.push_back(thread(ssh_lambda));
-
    putSSH();
 
    for (auto& thr : threads)
@@ -728,7 +724,7 @@ void ShardedSshParser::parseSshThread()
          ++current_id;
       }
 
-      if (sshMap.size() > 0 && firstShard_ != 0)
+      if (sshMap.size() > 0 && (firstShard_ != 0 || undo_))
       {
          //does the key exist in db already?
          auto sshtx = db_->beginTransaction(SSH, LMDB::ReadOnly);

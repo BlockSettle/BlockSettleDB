@@ -982,9 +982,12 @@ bool LMDBBlockDatabase::fillStoredSubHistory(
 unsigned LMDBBlockDatabase::getShardIdForHeight(unsigned height) const
 {
    auto hiMap = heightToBatchId_.get();
+   if (hiMap->size() == 0)
+      return UINT32_MAX;
+
    auto height_iter = hiMap->lower_bound(height);
    if (height_iter == hiMap->end())
-      return UINT32_MAX;
+      return hiMap->rbegin()->second;
 
    if (height_iter->first > height && height_iter != hiMap->begin())
       --height_iter;
@@ -1006,6 +1009,17 @@ unsigned LMDBBlockDatabase::getNextShardIdForHeight(unsigned height) const
 bool LMDBBlockDatabase::fillStoredSubHistory_Super(
    StoredScriptHistory& ssh, unsigned start, unsigned end) const
 {
+   auto dupIdMap = validDupByHeight_.get();
+   function<bool(unsigned, uint8_t)> isValidDupId = 
+      [dupIdMap](unsigned height, uint8_t dupid)->bool
+   {
+      auto iter = dupIdMap->find(height);
+      if (iter == dupIdMap->end())
+         return false;
+
+      return dupid == iter->second;
+   };
+
    auto meta_tx = beginTransaction(SUBSSH_META, LMDB::ReadOnly);
 
    //convert height range to batch id range
@@ -1074,7 +1088,7 @@ bool LMDBBlockDatabase::fillStoredSubHistory_Super(
 
       ssh.decompressManySubssh(dbIter->getValueRef(), 
          height_offset, spent_offset,
-         start, end);
+         start, end, isValidDupId);
 
       ++ssh_lower_bound;
    }

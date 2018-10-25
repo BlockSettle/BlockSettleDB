@@ -164,7 +164,8 @@ public:
       BinaryWriter&,
       ARMORY_DB_TYPE, bool,
       uint16_t txversion, bool isCoinbase,
-      const BinaryDataRef dataRef);
+      const BinaryDataRef dataRef,
+      TXOUT_SPENTNESS spentness, BinaryDataRef spentByTxin);
 
    BinaryData getDBKey(bool withPrefix = true) const;
    BinaryData getSpentnessKey(void) const;
@@ -520,7 +521,8 @@ public:
    void       unserializeDBKey(BinaryDataRef key, bool withPrefix=true);
    void decompressManySubssh(const BinaryDataRef&,
       unsigned height_offset, unsigned spent_offset,
-      unsigned lower_bound, unsigned upper_bound);
+      unsigned lower_bound, unsigned upper_bound,
+      function<bool(unsigned, uint8_t)>& isDupIdValid);
    
    void addSummary(const StoredScriptHistory&);
    void substractSummary(const StoredScriptHistory&);

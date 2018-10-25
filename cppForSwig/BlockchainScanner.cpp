@@ -220,18 +220,6 @@ void BlockchainScanner::scan_nocheck(int32_t scanFrom)
    auto timeSpent = TIMER_READ_SEC("throttling");
    if (timeSpent > 5)
       LOGINFO << "throttling for " << timeSpent << "s";
-
-   /*timeSpent = TIMER_READ_SEC("outputs");
-   LOGINFO << "outputs: " << timeSpent << "s";
-   
-   timeSpent = TIMER_READ_SEC("inputs");
-   LOGINFO << "inputs: " << timeSpent << "s";
-   
-   timeSpent = TIMER_READ_SEC("write");
-   LOGINFO << "write: " << timeSpent << "s";
-   
-   timeSpent = TIMER_READ_SEC("preload");
-   LOGINFO << "preload: " << timeSpent << "s";*/
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -989,7 +977,7 @@ void BlockchainScanner::processAndCommitTxHints(ParserBatch* batch)
 ////////////////////////////////////////////////////////////////////////////////
 void BlockchainScanner::updateSSH(bool force, int32_t startHeight)
 {
-   //loop over all subssh entiers in SUBSSH db, 
+   //loop over all subssh entries in SUBSSH db, 
    //compile balance, txio count and summary map for each address
    //now also resolves unhinted tx hashes
    

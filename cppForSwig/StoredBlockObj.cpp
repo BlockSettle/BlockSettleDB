@@ -1077,10 +1077,14 @@ void StoredTxOut::unserializeDBValue(BinaryRefReader & brr)
    BitUnpacker<uint16_t> bitunpack(brr);
    unserArmVer_ =                  bitunpack.getBits(4);
    txVersion_   =                  bitunpack.getBits(2);
+   spentness_   = (TXOUT_SPENTNESS)bitunpack.getBits(2);
    isCoinbase_  =                  bitunpack.getBit();
    auto dbType  = (ARMORY_DB_TYPE) bitunpack.getBits(2);
 
    unserialize(brr);
+
+   if (spentness_ == TXOUT_SPENT && brr.getSizeRemaining() >= 8)
+      spentByTxInKey_ = brr.get_BinaryData(8);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1088,7 +1092,8 @@ void StoredTxOut::serializeDBValue(BinaryWriter & bw, ARMORY_DB_TYPE dbType,
                                    bool forceSaveSpentness) const
 {
    serializeDBValue(bw, dbType, forceSaveSpentness,
-      txVersion_, isCoinbase_, dataCopy_.getRef());
+      txVersion_, isCoinbase_, dataCopy_.getRef(), 
+      spentness_, spentByTxInKey_.getRef());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1096,7 +1101,8 @@ void StoredTxOut::serializeDBValue(
    BinaryWriter& bw,
    ARMORY_DB_TYPE dbType, bool forceSaveSpentness,
    uint16_t txVersion, bool isCoinbase,
-   const BinaryDataRef dataRef)
+   const BinaryDataRef dataRef, 
+   TXOUT_SPENTNESS spentness, BinaryDataRef spentByTxin)
 {
    size_t len = 2 + dataRef.getSize();
    bw.reserve(len);
@@ -1104,11 +1110,19 @@ void StoredTxOut::serializeDBValue(
    BitPacker<uint16_t> bitpack;
    bitpack.putBits((uint16_t)ARMORY_DB_VERSION, 4);
    bitpack.putBits((uint16_t)txVersion, 2);
+   bitpack.putBits((uint16_t)spentness, 2);
    bitpack.putBit(isCoinbase);
    bitpack.putBits((uint16_t)dbType, 2);
 
    bw.put_BitPacker(bitpack);
    bw.put_BinaryData(dataRef);  // 8-byte value, var_int sz, pkscript
+
+   if (spentness == TXOUT_SPENT)
+   {
+      if (spentByTxin.getSize() == 0)
+         LOGERR << "Need to write out spentByTxIn but no spentness data";
+      bw.put_BinaryDataRef(spentByTxin);
+   }
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1505,7 +1519,8 @@ void StoredScriptHistory::unserializeDBValue(BinaryDataRef bdr)
 ////////////////////////////////////////////////////////////////////////////////
 void StoredScriptHistory::decompressManySubssh(const BinaryDataRef& data,
    unsigned height_base, unsigned spent_offset,
-   unsigned lower_bound, unsigned upper_bound)
+   unsigned lower_bound, unsigned upper_bound,
+   function<bool(unsigned, uint8_t)>& isDupIdValid)
 {
    BinaryRefReader brr(data);
    
@@ -1615,6 +1630,9 @@ void StoredScriptHistory::decompressManySubssh(const BinaryDataRef& data,
 
          subssh.txioMap_.insert(move(make_pair(move(outputKey), move(p))));
       }
+
+      if (!isDupIdValid(this_height, dupId))
+         continue;
 
       //add to subssh map
       auto hgtx = DBUtils::getBlkDataKeyNoPrefix(this_height, dupId);
@@ -1835,7 +1853,22 @@ void StoredScriptHistory::substractSummary(const StoredScriptHistory& ssh)
    totalUnspent_ -= ssh.totalUnspent_;
 
    for (auto& summary_pair : ssh.subsshSummary_)
-      subsshSummary_.erase(summary_pair.first);
+   {
+      auto summIter = subsshSummary_.find(summary_pair.first);
+      if (summIter == subsshSummary_.end())
+      {
+         LOGWARN << "missing entry in substractSummary";
+         continue;
+      }
+
+      if (summary_pair.second >= summIter->second)
+      {
+         subsshSummary_.erase(summary_pair.first);
+         continue;
+      }
+
+      summIter->second -= summary_pair.second;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
