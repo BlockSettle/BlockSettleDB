@@ -16,38 +16,10 @@
 
 #ifdef _WIN32
 #include <windows.h>
-
-typedef NTSTATUS(WINAPI NtCreateSectionFunc)
-(OUT PHANDLE sh, IN ACCESS_MASK acc,
-   IN void * oa OPTIONAL,
-   IN PLARGE_INTEGER ms OPTIONAL,
-   IN ULONG pp, IN ULONG aa, IN HANDLE fh OPTIONAL);
-
-static NtCreateSectionFunc *NtCreateSection;
-
-typedef enum _SECTION_INHERIT {
-   ViewShare = 1,
-   ViewUnmap = 2
-} SECTION_INHERIT;
-
-typedef NTSTATUS(WINAPI NtMapViewOfSectionFunc)
-(IN HANDLE sh, IN HANDLE ph,
-   IN OUT PVOID *addr, IN ULONG_PTR zbits,
-   IN SIZE_T cs, IN OUT PLARGE_INTEGER off OPTIONAL,
-   IN OUT PSIZE_T vs, IN SECTION_INHERIT ih,
-   IN ULONG at, IN ULONG pp);
-
-static NtMapViewOfSectionFunc *NtMapViewOfSection;
-
-typedef NTSTATUS(WINAPI NtCloseFunc)(HANDLE h);
-
-static NtCloseFunc *NtClose;
 #else
 #include <sys/types.h>
 #include <sys/stat.h>
 #endif
-
-#define DB_SIZE_INCREMENT 32*1024*1024LL
 
 static std::string errorString(int rc)
 {
@@ -595,31 +567,6 @@ bool LMDB::isOpen() const
 
 void LMDB::open(LMDBEnv *_env, const std::string &name)
 {
-   /* Grab functions we need from NTDLL */
-   if (!NtCreateSection) 
-   {
-      try
-      {
-         HMODULE h = GetModuleHandle("NTDLL.DLL");
-         if (!h)
-            throw std::runtime_error("failed to grab ntdll method");
-         NtClose = (NtCloseFunc *)GetProcAddress(h, "NtClose");
-         if (!NtClose)
-            throw std::runtime_error("failed to grab ntdll method");
-         NtMapViewOfSection = (NtMapViewOfSectionFunc *)GetProcAddress(h, "NtMapViewOfSection");
-         if (!NtMapViewOfSection)
-            throw std::runtime_error("failed to grab ntdll method");
-         NtCreateSection = (NtCreateSectionFunc *)GetProcAddress(h, "NtCreateSection");
-         if (!NtCreateSection)
-            throw std::runtime_error("failed to grab ntdll method");
-      }
-      catch (std::exception&)
-      {
-         std::cout << "failed to grab function from ntdll" << std::endl;
-         throw LMDBException("failed to grab function from ntdll");
-      }
-   }
-
    if (isOpen())
    {
       throw LMDBException("LMDB already open");
