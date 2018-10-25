@@ -3186,7 +3186,7 @@ TEST_F(StoredBlockObjTest, SHeaderDBSerFull_B1)
    sbh_.numBytes_         = 65535;
 
    // SetUp already contains sbh_.unserialize(rawHead_);
-   BinaryData flags = READHEX("95021100");
+   BinaryData flags = READHEX("97011100");
    BinaryData ntx   = READHEX("0f000000");
    BinaryData nbyte = READHEX("ffff0000");
 
@@ -3216,7 +3216,7 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_H)
 TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B1)
 {
    BinaryData dbval = READHEX(
-      "95021100010000001d8f4ec0443e1f19f305e488c1085c95de7cc3fd25e0d2c5"
+      "97011100010000001d8f4ec0443e1f19f305e488c1085c95de7cc3fd25e0d2c5"
       "bb5d0000000000009762547903d36881a86751f3f5049e23050113f779735ef8"
       "2734ebf0b4450081d8c8c84db3936a1a334b035b0f000000ffff0000");
 
@@ -3229,7 +3229,7 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B1)
    EXPECT_EQ(sbh_.merkle_     ,  READHEX(""));
    EXPECT_EQ(sbh_.numTx_      ,  15);
    EXPECT_EQ(sbh_.numBytes_   ,  65535);
-   EXPECT_EQ(sbh_.unserArmVer_,  0x9502);
+   EXPECT_EQ(sbh_.unserArmVer_,  0x9701);
    EXPECT_EQ(sbh_.unserBlkVer_,  1);
    EXPECT_EQ(sbh_.unserDbType_,  ARMORY_DB_FULL);
    EXPECT_EQ(sbh_.unserMkType_,  MERKLE_SER_NONE);
@@ -3240,7 +3240,7 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B1)
 TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B2)
 {
    BinaryData dbval = READHEX(
-      "95021180010000001d8f4ec0443e1f19f305e488c1085c95de7cc3fd25e0d2c5"
+      "97011180010000001d8f4ec0443e1f19f305e488c1085c95de7cc3fd25e0d2c5"
       "bb5d0000000000009762547903d36881a86751f3f5049e23050113f779735ef8"
       "2734ebf0b4450081d8c8c84db3936a1a334b035b0f000000ffff0000deadbeef");
 
@@ -3253,7 +3253,7 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B2)
    EXPECT_EQ(sbh_.merkle_      , READHEX("deadbeef"));
    EXPECT_EQ(sbh_.numTx_       , 15);
    EXPECT_EQ(sbh_.numBytes_    , 65535);
-   EXPECT_EQ(sbh_.unserArmVer_,  0x9502);
+   EXPECT_EQ(sbh_.unserArmVer_,  0x9701);
    EXPECT_EQ(sbh_.unserBlkVer_,  1);
    EXPECT_EQ(sbh_.unserDbType_,  ARMORY_DB_FULL);
    EXPECT_EQ(sbh_.unserMkType_,  MERKLE_SER_FULL);
@@ -3263,7 +3263,7 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B2)
 TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B3)
 {
    BinaryData dbval = READHEX(
-      "95021100010000001d8f4ec0443e1f19f305e488c1085c95de7cc3fd25e0d2c5"
+      "97011100010000001d8f4ec0443e1f19f305e488c1085c95de7cc3fd25e0d2c5"
       "bb5d0000000000009762547903d36881a86751f3f5049e23050113f779735ef8"
       "2734ebf0b4450081d8c8c84db3936a1a334b035b0f000000ffff0000");
 
@@ -3276,7 +3276,7 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B3)
    EXPECT_EQ(sbh_.merkle_     ,  READHEX(""));
    EXPECT_EQ(sbh_.numTx_      ,  15);
    EXPECT_EQ(sbh_.numBytes_   ,  65535);
-   EXPECT_EQ(sbh_.unserArmVer_,  0x9502);
+   EXPECT_EQ(sbh_.unserArmVer_,  0x9701);
    EXPECT_EQ(sbh_.unserBlkVer_,  1);
    EXPECT_EQ(sbh_.unserMkType_,  MERKLE_SER_NONE);
 }
@@ -3379,7 +3379,7 @@ TEST_F(StoredBlockObjTest, STxSerDBValue_1)
    StoredTx stx;
    stx.unserialize(rawTxUnfrag_);
 
-   BinaryData  first2  = READHEX("95024400"); // little-endian, of course
+   BinaryData  first2  = READHEX("97014400"); // little-endian, of course
    BinaryData  txHash  = origTx.getThisHash();
    BinaryData  fragged = stx.getSerializedTxFragged();
    BinaryData  output  = first2 + txHash + fragged;
@@ -3392,7 +3392,7 @@ TEST_F(StoredBlockObjTest, STxUnserDBValue_1)
    Tx origTx(rawTxUnfrag_);
 
    BinaryData toUnser = READHEX(
-      "95024400e471262336aa67391e57c8c6fe03bae29734079e06ff75c7fa4d0a873c83"
+      "97014400e471262336aa67391e57c8c6fe03bae29734079e06ff75c7fa4d0a873c83"
       "f03c01000000020044fbc929d78e4203eed6f1d3d39c0157d8e5c100bbe08867"
       "79c0ebf6a69324010000008a47304402206568144ed5e7064d6176c74738b04c"
       "08ca19ca54ddeb480084b77f45eebfe57802207927d6975a5ac0e1bb36f5c053"
@@ -3431,7 +3431,7 @@ TEST_F(StoredBlockObjTest, STxUnserDBValue_2)
    Tx origTx(rawTxUnfrag_);
 
    BinaryData toUnser = READHEX(
-      "95020040e471262336aa67391e57c8c6fe03bae29734079e06ff75c7fa4d0a873c83"
+      "97010040e471262336aa67391e57c8c6fe03bae29734079e06ff75c7fa4d0a873c83"
       "f03c01000000020044fbc929d78e4203eed6f1d3d39c0157d8e5c100bbe08867"
       "79c0ebf6a69324010000008a47304402206568144ed5e7064d6176c74738b04c"
       "08ca19ca54ddeb480084b77f45eebfe57802207927d6975a5ac0e1bb36f5c053"
@@ -3514,7 +3514,7 @@ TEST_F(StoredBlockObjTest, STxOutSerDBValue_1)
    // For this example:  DBVer=0, TxVer=1, TxSer=FRAGGED[1]
    //   0000   01    00   0  --- ----
    EXPECT_EQ(serializeDBValue(stxo0, ARMORY_DB_FULL),  
-      READHEX("2420") + rawTxOut0_);
+      READHEX("1420") + rawTxOut0_);
 }
    
 
@@ -3536,7 +3536,7 @@ TEST_F(StoredBlockObjTest, STxOutSerDBValue_2)
    stxo0.spentByTxInKey_ = spentStr;
    EXPECT_EQ(
       serializeDBValue(stxo0, ARMORY_DB_FULL),
-      READHEX("2520")+rawTxOut0_+spentStr
+      READHEX("1520")+rawTxOut0_+spentStr
    );
 }
 
@@ -3560,7 +3560,7 @@ TEST_F(StoredBlockObjTest, STxOutSerDBValue_3)
    stxo0.spentByTxInKey_ = spentStr;
    EXPECT_EQ(
       serializeDBValue(stxo0, ARMORY_DB_FULL),
-      READHEX("25a0") + rawTxOut0_ + spentStr
+      READHEX("15a0") + rawTxOut0_ + spentStr
    );
 }
 
@@ -4632,18 +4632,21 @@ TEST_F(LMDBTest, OpenClose)
 
    // 0123 4567 0123 4567
    // 0000 0010 0001 ---- ---- ---- ---- ----
-   BinaryData flags = READHEX("95021000");
+   BinaryData flags = READHEX("97011000");
+   BinaryData ff = READHEX("ffffffffffffffff");
 
    for(uint32_t i=0; i<HList.size(); i++)
    {
       EXPECT_EQ(HList[i].first,  READHEX("000000"));
-      EXPECT_EQ(BList[i].second, magic_ + flags + zeros_ + zeros_ + BtcUtils::EmptyHash_);
+      EXPECT_EQ(BList[i].second, magic_ + flags + zeros_ + zeros_ + 
+         BtcUtils::EmptyHash_ + BtcUtils::EmptyHash_ + ff);
    }
 
    for(uint32_t i=0; i<BList.size(); i++)
    {
       EXPECT_EQ(HList[i].first,  READHEX("000000"));
-      EXPECT_EQ(BList[i].second, magic_ + flags + zeros_ + zeros_ + BtcUtils::EmptyHash_);
+      EXPECT_EQ(BList[i].second, magic_ + flags + zeros_ + zeros_ + 
+         BtcUtils::EmptyHash_ + BtcUtils::EmptyHash_ + ff);
    }
                          
    iface_->closeDatabases();
@@ -4655,7 +4658,8 @@ TEST_F(LMDBTest, OpenCloseOpenNominal)
 {
    // 0123 4567 0123 4567
    // 0000 0010 0001 ---- ---- ---- ---- ----
-   BinaryData flags = READHEX("95021000");
+   BinaryData flags = READHEX("97011000");
+   BinaryData ff = READHEX("ffffffffffffffff");
 
    iface_->openDatabases(
       config_.dbDir_,
@@ -4679,13 +4683,15 @@ TEST_F(LMDBTest, OpenCloseOpenNominal)
    for(uint32_t i=0; i<HList.size(); i++)
    {
       EXPECT_EQ(HList[i].first,  READHEX("000000"));
-      EXPECT_EQ(BList[i].second, magic_ + flags + zeros_ + zeros_ + BtcUtils::EmptyHash_);
+      EXPECT_EQ(BList[i].second, magic_ + flags + zeros_ + zeros_ +
+         BtcUtils::EmptyHash_ + BtcUtils::EmptyHash_ + ff);
    }
 
    for(uint32_t i=0; i<BList.size(); i++)
    {
       EXPECT_EQ(HList[i].first,  READHEX("000000"));
-      EXPECT_EQ(BList[i].second, magic_ + flags + zeros_ + zeros_ + BtcUtils::EmptyHash_);
+      EXPECT_EQ(BList[i].second, magic_ + flags + zeros_ + zeros_ + 
+         BtcUtils::EmptyHash_ + BtcUtils::EmptyHash_ + ff);
    }
                          
    iface_->closeDatabases();
@@ -4694,7 +4700,8 @@ TEST_F(LMDBTest, OpenCloseOpenNominal)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(LMDBTest, PutGetDelete)
 {
-   BinaryData flags = READHEX("95021000");
+   BinaryData flags = READHEX("97011000");
+   BinaryData ff = READHEX("ffffffffffffffff");
 
    iface_->openDatabases(
       config_.dbDir_,
@@ -4710,7 +4717,9 @@ TEST_F(LMDBTest, PutGetDelete)
    DB_PREFIX TXDATA = DB_PREFIX_TXDATA;
    BinaryData DBINFO = StoredDBInfo().getDBKey();
    BinaryData PREFIX = WRITE_UINT8_BE((uint8_t)TXDATA);
-   BinaryData val0 = magic_ + flags + zeros_ + zeros_ + BtcUtils::EmptyHash_;
+   BinaryData val0 = magic_ + flags + zeros_ + zeros_ +
+      BtcUtils::EmptyHash_ + BtcUtils::EmptyHash_ + ff;
+
    BinaryData commonValue = READHEX("abcd1234");
    BinaryData keyAB = READHEX("0100");
    BinaryData nothing = READHEX("0000");
