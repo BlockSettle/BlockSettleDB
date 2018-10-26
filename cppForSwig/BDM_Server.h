@@ -177,6 +177,7 @@ private:
 
    function<void(unique_ptr<BDV_Notification>)> notifLambda_;
    atomic<unsigned> packetProcess_threadLock_;
+   atomic<unsigned> notificationProcess_threadLock_;
 
    map<size_t, shared_ptr<BDV_Payload>> packetMap_;
    BDV_PartialMessage currentMessage_;

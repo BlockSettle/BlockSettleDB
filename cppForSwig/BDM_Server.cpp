@@ -909,6 +909,7 @@ shared_ptr<BDV_Server_Object> Clients::get(const string& id) const
 void BDV_Server_Object::setup()
 {
    packetProcess_threadLock_.store(0, memory_order_relaxed);
+   notificationProcess_threadLock_.store(0, memory_order_relaxed);
 
    isReadyPromise_ = make_shared<promise<bool>>();
    isReadyFuture_ = isReadyPromise_->get_future();
@@ -1197,9 +1198,9 @@ void BDV_Server_Object::registerWallet(
       wltregstruct.command_ = command;
       wltregstruct.type_ = TypeWallet;
 
-      auto notif = make_shared<BDV_Notification_Refresh>(
+      auto notif = make_unique<BDV_Notification_Refresh>(
          getID(), BDV_registrationCompleted, command->hash());
-      processNotification(notif);
+      notifLambda_(move(notif));
 
       return;
    }
@@ -1224,9 +1225,9 @@ void BDV_Server_Object::registerLockbox(
       wltregstruct.command_ = command;
       wltregstruct.type_ = TypeLockbox;
 
-      auto notif = make_shared<BDV_Notification_Refresh>(
+      auto notif = make_unique<BDV_Notification_Refresh>(
          getID(), BDV_registrationCompleted, command->hash());
-      processNotification(notif);
+      notifLambda_(move(notif));
       return;
    }
 
@@ -1515,7 +1516,23 @@ void Clients::bdvMaintenanceThread()
          continue;
       }
 
-      notifPtr->bdvPtr_->processNotification(notifPtr->notifPtr_);
+      auto bdvPtr = notifPtr->bdvPtr_;
+      unsigned zero = 0;
+      if (!bdvPtr->notificationProcess_threadLock_.compare_exchange_weak(
+         zero, 1))
+      {
+         //Failed to grab lock, there's already a thread processing a payload
+         //for this bdv. Insert the payload back into the queue. Another 
+         //thread will eventually pick it up and successfully grab the lock 
+         if (notifPtr == nullptr)
+            LOGERR << "!!!!!! empty notif at reinsertion";
+
+         innerBDVNotifStack_.push_back(move(notifPtr));
+         continue;
+      }
+
+      bdvPtr->processNotification(notifPtr->notifPtr_);
+      bdvPtr->notificationProcess_threadLock_.store(0);
    }
 }
 
