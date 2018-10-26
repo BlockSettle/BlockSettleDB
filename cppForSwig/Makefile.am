@@ -216,7 +216,7 @@ CppBlockUtils_wrap.cxx: CppBlockUtils.i
 endif
 
 MOSTLYCLEANFILES = $(PROTOBUF_CC) $(PROTOBUF_H)
-BUILT_SOURCES = $(PROTOBUF_H)
+BUILT_SOURCES = $(PROTOBUF_CC)
 
 clean-local:
 	rm -f CppBlockUtils.py
