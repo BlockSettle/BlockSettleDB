@@ -391,7 +391,7 @@ shared_ptr<BlockHeader> Blockchain::organizeChain(bool forceRebuild, bool verbos
       LOGINFO << "Organized chain in " << duration << "s";
    }
 
-   return 0;
+   return nullptr;
 }
 
 

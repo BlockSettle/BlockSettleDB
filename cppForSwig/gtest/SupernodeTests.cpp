@@ -1897,7 +1897,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    };
 
    //
-   TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
+   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    theBDMt_->start(config.initMode_);
    auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
 
@@ -1936,9 +1936,9 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
    EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 70 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
 
    for (auto& sa : wltSet)
    {
@@ -1964,11 +1964,12 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
       addToFeed(TestChain::privKeyAddrE);
+      addToFeed(TestChain::privKeyAddrF);
 
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(UINT64_MAX);
 
-      //consume firt utxo, send 2 to scrAddrA, 3 to new wallet
+      //consume 1st utxo, send 2 to scrAddrA, 3 to new wallet
       signer.addSpender(getSpenderPtr(unspentVec[0], feed));
       signer.addRecipient(addr1_ptr->getRecipient(3 * COIN));
       auto recipientChange = make_shared<Recipient_P2PKH>(
@@ -1996,9 +1997,9 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
    EXPECT_EQ(scrObj->getFullBalance(), 52 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 90 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = assetWltDbObj->getScrAddrObjByKey(addr1_ptr->getPrefixedHash());
    EXPECT_EQ(scrObj->getFullBalance(), 3 * COIN);
@@ -2006,7 +2007,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    EXPECT_EQ(scrObj->getFullBalance(), 10 * COIN);
 
    //push block 4 of first chain
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4" }, blk0dat_);
+   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5", "4A", "5A" }, blk0dat_);
    DBTestUtils::triggerNewBlockNotification(theBDMt_);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
@@ -2014,14 +2015,14 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
    EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 10 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
 
    scrObj = assetWltDbObj->getScrAddrObjByKey(addr1_ptr->getPrefixedHash());
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
    scrObj = assetWltDbObj->getScrAddrObjByKey(addr2_ptr->getPrefixedHash());
-   EXPECT_EQ(scrObj->getFullBalance(), 10 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

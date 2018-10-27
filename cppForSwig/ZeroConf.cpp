@@ -160,7 +160,7 @@ bool ZeroConfContainer::purge(
    {
       //reset resolved outpoints cause of reorg
       for (auto& zc_pair : zcMap)
-         zc_pair.second.reset();
+         zc_pair.second->reset();
    }
 
    auto getIdSpoofLbd = [](const BinaryData&)->unsigned
