@@ -1518,7 +1518,6 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
       return spender;
    };
 
-   // Copy only the first two blocks
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    vector<BinaryData> scrAddrVec;
@@ -3295,6 +3294,183 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
          thr.join();
    }
 
+   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, nullptr);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
+   WebSocketServer::waitOnShutdown();
+
+   delete theBDMt_;
+   theBDMt_ = nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ZcUpdate)
+{
+   BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
+
+   //
+   TestUtils::setBlocks({ "0", "1" }, blk0dat_);
+
+   //run clients from websocketserver object instead
+   clients_->exitRequestLoop();
+   clients_->shutdown();
+
+   delete clients_;
+   delete theBDMt_;
+   clients_ = nullptr;
+
+   theBDMt_ = new BlockDataManagerThread(config);
+   WebSocketServer::start(theBDMt_, true);
+
+   vector<BinaryData> scrAddrVec;
+   scrAddrVec.push_back(TestChain::scrAddrA);
+   scrAddrVec.push_back(TestChain::scrAddrB);
+   scrAddrVec.push_back(TestChain::scrAddrC);
+
+   theBDMt_->start(config.initMode_);
+
+   auto pCallback = make_shared<DBTestUtils::UTCallback>();
+   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, pCallback);
+   bdvObj->connectToRemote();
+   bdvObj->registerWithDB(config.magicBytes_);
+
+   //go online
+   bdvObj->goOnline();
+   pCallback->waitOnSignal(BDMAction_Ready);
+
+   vector<string> walletRegIDs;
+
+   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+   walletRegIDs.push_back(
+      wallet1.registerAddresses(scrAddrVec, false));
+
+   //wait on registration ack
+   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+   //get wallets delegate
+   auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
+   auto del1_fut = del1_prom->get_future();
+   auto del1_get = [del1_prom](AsyncClient::LedgerDelegate delegate)->void
+   {
+      del1_prom->set_value(move(delegate));
+   };
+   bdvObj->getLedgerDelegateForWallets(del1_get);
+   auto&& main_delegate = del1_fut.get();
+   
+   auto ledger_prom =
+      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+   auto ledger_fut = ledger_prom->get_future();
+   auto ledger_get =
+      [ledger_prom](vector<::ClientClasses::LedgerEntry> ledgerV)->void
+   {
+      ledger_prom->set_value(move(ledgerV));
+   };
+   main_delegate.getHistoryPage(0, ledger_get);
+   auto&& main_ledger = ledger_fut.get();
+
+   //check ledgers
+   EXPECT_EQ(main_ledger.size(), 2);
+
+   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
+   EXPECT_EQ(main_ledger[0].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+
+   //add the 2 zc
+   auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
+   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
+
+   auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
+   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
+
+   DBTestUtils::ZcVector rawZcVec;
+   rawZcVec.push_back(ZC1, 1300000000);
+   rawZcVec.push_back(ZC2, 1310000000);
+
+   DBTestUtils::pushNewZc(theBDMt_, rawZcVec);
+   pCallback->waitOnSignal(BDMAction_ZC);
+
+   //get the new ledgers
+   auto ledger2_prom =
+      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+   auto ledger2_fut = ledger2_prom->get_future();
+   auto ledger2_get =
+      [ledger2_prom](vector<::ClientClasses::LedgerEntry> ledgerV)->void
+   {
+      ledger2_prom->set_value(move(ledgerV));
+   };
+   main_delegate.getHistoryPage(0, ledger2_get);
+   main_ledger = move(ledger2_fut.get());
+
+   //check ledgers
+   EXPECT_EQ(main_ledger.size(), 4);
+
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
+   EXPECT_EQ(main_ledger[0].getIndex(), 1);
+   
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+
+   //push an extra block
+   TestUtils::appendBlocks({ "2" }, blk0dat_);
+   DBTestUtils::triggerNewBlockNotification(theBDMt_);
+   pCallback->waitOnSignal(BDMAction_NewBlock);
+
+   //get the new ledgers
+   auto ledger3_prom =
+      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+   auto ledger3_fut = ledger3_prom->get_future();
+   auto ledger3_get =
+      [ledger3_prom](vector<::ClientClasses::LedgerEntry> ledgerV)->void
+   {
+      ledger3_prom->set_value(move(ledgerV));
+   };
+   main_delegate.getHistoryPage(0, ledger3_get);
+   main_ledger = move(ledger3_fut.get());
+
+   //check ledgers
+   EXPECT_EQ(main_ledger.size(), 5);
+
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
+   EXPECT_EQ(main_ledger[0].getIndex(), 2);
+
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
+   EXPECT_EQ(main_ledger[1].getIndex(), 1);
+
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
+   EXPECT_EQ(main_ledger[4].getIndex(), 0);
+
+   //disconnect
+   bdvObj->unregisterFromDB();
+
+   //cleanup
    auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, nullptr);
    bdvObj2->connectToRemote();
