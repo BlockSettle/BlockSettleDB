@@ -67,8 +67,9 @@ bool ZeroConfContainer::purge(
 
    set<BinaryData> keysToDelete;
    auto& zcMap = ss->txMap_;
+   auto& txoutspentbyzc = ss->txOutsSpentByZC_;
 
-   auto updateChildren = [&zcMap, &minedKeys, this](
+   auto updateChildren = [&zcMap, &minedKeys, &txoutspentbyzc, this](
       BinaryDataRef& txHash, const BinaryData& blockKey,
       map<BinaryData, unsigned> minedHashes)->void
    {
@@ -100,6 +101,7 @@ bool ZeroConfContainer::purge(
                continue;
 
             auto prevKey = input.opRef_.getDbKey();
+            txoutspentbyzc.erase(prevKey);
             input.opRef_.reset();
 
             BinaryWriter bw_key(8);
