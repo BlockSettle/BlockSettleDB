@@ -157,7 +157,7 @@ private:
    
    float queryFeeByte(HttpSocket&, unsigned);
    FeeEstimateResult queryFeeByteSmart(HttpSocket&,
-      unsigned confTarget, string& strategy);
+      unsigned& confTarget, string& strategy);
    void aggregateFeeEstimates(void);
    void resetAuthString(void);
 

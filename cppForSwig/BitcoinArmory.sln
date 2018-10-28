@@ -41,6 +41,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "websockets", "libwebsockets
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "protobuf_win", "protobuf_win\protobuf_win.vcxproj", "{D6641684-8219-4707-8388-906719EF74C3}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "client_test", "client_test\client_test.vcxproj", "{5CB0DD3D-58BC-41E8-BFD6-120977E38985}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Mixed Platforms = Debug|Mixed Platforms
@@ -412,6 +414,36 @@ Global
 		{D6641684-8219-4707-8388-906719EF74C3}.WinXP_32|Win32.Build.0 = Release|Win32
 		{D6641684-8219-4707-8388-906719EF74C3}.WinXP_32|x64.ActiveCfg = Release|x64
 		{D6641684-8219-4707-8388-906719EF74C3}.WinXP_32|x64.Build.0 = Release|x64
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Debug|Mixed Platforms.Build.0 = Debug|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Debug|Win32.Build.0 = Debug|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Debug|x64.ActiveCfg = Debug|x64
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Debug|x64.Build.0 = Debug|x64
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.MinSizeRel|Mixed Platforms.ActiveCfg = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.MinSizeRel|Mixed Platforms.Build.0 = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.MinSizeRel|Win32.ActiveCfg = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.MinSizeRel|Win32.Build.0 = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.MinSizeRel|x64.ActiveCfg = Release|x64
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.MinSizeRel|x64.Build.0 = Release|x64
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Release|Mixed Platforms.ActiveCfg = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Release|Mixed Platforms.Build.0 = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Release|Win32.ActiveCfg = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Release|Win32.Build.0 = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Release|x64.ActiveCfg = Release|x64
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.Release|x64.Build.0 = Release|x64
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.RelWithDebInfo|Mixed Platforms.ActiveCfg = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.RelWithDebInfo|Mixed Platforms.Build.0 = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.RelWithDebInfo|Win32.ActiveCfg = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.RelWithDebInfo|Win32.Build.0 = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.RelWithDebInfo|x64.ActiveCfg = Release|x64
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.RelWithDebInfo|x64.Build.0 = Release|x64
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.WinXP_32|Mixed Platforms.ActiveCfg = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.WinXP_32|Mixed Platforms.Build.0 = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.WinXP_32|Win32.ActiveCfg = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.WinXP_32|Win32.Build.0 = Release|Win32
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.WinXP_32|x64.ActiveCfg = Release|x64
+		{5CB0DD3D-58BC-41E8-BFD6-120977E38985}.WinXP_32|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

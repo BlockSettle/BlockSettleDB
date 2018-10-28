@@ -215,7 +215,7 @@ float NodeRPC::queryFeeByte(HttpSocket& sock, unsigned blocksToConfirm)
 
 ////////////////////////////////////////////////////////////////////////////////
 FeeEstimateResult NodeRPC::queryFeeByteSmart(HttpSocket& sock,
-   unsigned confTarget, string& strategy)
+   unsigned& confTarget, string& strategy)
 {
    auto fallback = [this, &confTarget, &sock](void)->FeeEstimateResult
    {
@@ -267,7 +267,7 @@ FeeEstimateResult NodeRPC::queryFeeByteSmart(HttpSocket& sock,
 
          if (blocksPtr != nullptr)
             if (blocksPtr->val_ != confTarget)
-               throw ConfMismatch(confTarget, blocksPtr->val_);
+               confTarget = blocksPtr->val_;
       }
    }
 
