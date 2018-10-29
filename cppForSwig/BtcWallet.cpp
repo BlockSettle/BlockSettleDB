@@ -768,7 +768,7 @@ ScrAddrObj& BtcWallet::getScrAddrObjRef(const BinaryData& key)
    }
 
    std::ostringstream ss;
-   ss << "no ScrAddr matches key " << key.toBinStr() << 
+   ss << "no ScrAddr matches key " << key.toHexStr() << 
       " in Wallet " << walletID_.toBinStr();
    LOGERR << ss.str();
    throw std::runtime_error(ss.str());
