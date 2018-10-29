@@ -842,26 +842,39 @@ BinaryData LMDBBlockDatabase::getDBKeyForHash(const BinaryData& txhash,
    else
    {
       BinaryData forkedMatch;
+      bool offChainHints = false;
       for (uint32_t i = 0; i < numHints; i++)
       {
          BinaryDataRef hint = brrHints.get_BinaryDataRef(6);
-         //grab tx by key, hash and check
 
-         if (txhash == getTxHashForLdbKey(hint))
+         //check this key is on the main branch
+         auto hintRef = hint.getSliceRef(0, 4);
+         auto blockId = DBUtils::hgtxToHeight(hintRef);
+
+         if (!isBlockIDOnMainBranch(blockId))
          {
-            //check this key is on the main branch
-            auto hintRef = hint.getSliceRef(0, 4);
-            auto height = DBUtils::hgtxToHeight(hintRef);
-            auto dupId = DBUtils::hgtxToDupID(hintRef);
-
-            if (!isBlockIDOnMainBranch(height))
-            {
-               forkedMatch = hint;
-               continue;
-            }
-
-            return hint;
+            forkedMatch = hint;
+            offChainHints = true;
+            continue;
          }
+
+         //check hash matches
+         auto&& txhashfromdb = getTxHashForLdbKey(hint);
+         if (txhash != txhashfromdb)
+            continue;
+
+         return hint;
+      }
+
+      if (forkedMatch.getSize() == 0)
+      {
+         //LOGWARN << "failed to get valid key for txhash with " << numHints << " hints";
+
+         if (brrHints.getSizeRemaining() != 0)
+            LOGWARN << " bytes remaining for this hint";
+
+         if (offChainHints)
+            LOGWARN << " had off chain hits";
       }
 
       return forkedMatch;
@@ -1427,7 +1440,7 @@ bool LMDBBlockDatabase::isBlockIDOnMainBranch(unsigned blockId) const
    auto iter = dupmap->find(blockId);
    if (iter == dupmap->end())
    {
-      LOGERR << "no branching entry for blockID " << blockId;
+      //LOGERR << "no branching entry for blockID " << blockId;
       return false;
    }
 
@@ -2337,12 +2350,11 @@ bool LMDBBlockDatabase::getStoredTxOut(
       return false;
    }
 
-   //Let's look in the db first. Stxos are fetched mostly to spend coins,
-   //so there is a high chance we wont need to pull the stxo from the raw
-   //block, since fullnode keeps track of all relevant stxos
-
    if (getDbType() != ARMORY_DB_SUPER)
    {
+      //Let's look in the db first. Stxos are fetched mostly to spend coins,
+      //so there is a high chance we wont need to pull the stxo from the raw
+      //block, since fullnode keeps track of all relevant stxos
       auto&& tx = beginTransaction(STXO, LMDB::ReadOnly);
       BinaryRefReader brr = getValueReader(STXO, DB_PREFIX_TXDATA, DBkey);
 

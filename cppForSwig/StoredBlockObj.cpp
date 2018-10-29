@@ -1133,11 +1133,11 @@ BinaryData StoredTxOut::getDBKey(bool withPrefix) const
       txIndex_     == UINT16_MAX ||
       txOutIndex_  == UINT16_MAX)
    {
-      LOGERR << "Requesting DB key for incomplete STXO";
+      /*LOGERR << "Requesting DB key for incomplete STXO";
       LOGERR << "--- height: " << blockHeight_;
       LOGERR << "--- dupID: " << duplicateID_;
       LOGERR << "--- txIndex: " << txIndex_;
-      LOGERR << "--- txOutIndex" << txOutIndex_;
+      LOGERR << "--- txOutIndex" << txOutIndex_;*/
       return BinaryData(0);
    }
 
@@ -1160,11 +1160,11 @@ BinaryData StoredTxOut::getSpentnessKey() const
       txIndex_ == UINT16_MAX ||
       txOutIndex_ == UINT16_MAX)
    {
-      LOGERR << "Requesting DB key for incomplete STXO";
+      /*LOGERR << "Requesting DB key for incomplete STXO";
       LOGERR << "--- height: " << blockHeight_;
       LOGERR << "--- dupID: " << duplicateID_;
       LOGERR << "--- txIndex: " << txIndex_;
-      LOGERR << "--- txOutIndex" << txOutIndex_;
+      LOGERR << "--- txOutIndex" << txOutIndex_;*/
       return BinaryData(0);
    }
 
