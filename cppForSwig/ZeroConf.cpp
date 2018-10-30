@@ -685,6 +685,8 @@ void ZeroConfContainer::parseNewZC(
             //loop through all outpoints consumed by this ZC
             for (auto& idSet : bulkData.outPointsSpentByKey_)
             {
+               set<BinaryData> childKeysToDrop;
+
                //compare them to the list of currently spent outpoints
                auto hashIter = outPointsSpentByKey_.find(idSet.first);
                if (hashIter == outPointsSpentByKey_.end())
@@ -708,7 +710,8 @@ void ZeroConfContainer::parseNewZC(
                            auto txiter = txmap.find(key);
                            if (txiter != txmap.end())
                               invalidatedTx.insert(*txiter);
-                           dropZC(ss, key);
+                           childKeysToDrop.insert(key);
+                           //dropZC(ss, key);
                         }
                      }
                      catch (exception&)
@@ -717,6 +720,9 @@ void ZeroConfContainer::parseNewZC(
                      }
                   }
                }
+
+               for (auto& childKey : childKeysToDrop)
+                  dropZC(ss, childKey);
             }
          }
 
@@ -942,7 +948,6 @@ void ZeroConfContainer::preprocessTx(ParsedTx& tx) const
 
    for (uint32_t iin = 0; iin < nTxIn; iin++)
    {
-
       auto& txIn = tx.inputs_[iin];
       if (txIn.isResolved())
          continue;
