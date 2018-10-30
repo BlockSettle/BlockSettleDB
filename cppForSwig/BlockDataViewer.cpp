@@ -951,7 +951,6 @@ vector<LedgerEntry> WalletGroup::getHistoryPage(
    if (rebuildLedger || remapWallets)
       pageHistory(remapWallets, false);
 
-   hist_.setCurrentPage(pageId);
    vector<LedgerEntry> vle;
 
    if (rebuildLedger || remapWallets)

@@ -53,17 +53,19 @@ private:
       }
    };
 
-   bool isInitialized_ = false;
-   vector<shared_ptr<Page>> pages_;
+   shared_ptr<atomic<bool>> isInitialized_;
+   shared_ptr<vector<shared_ptr<Page>>> pages_;
    map<uint32_t, uint32_t> SSHsummary_;
-
-   uint32_t currentPage_ = -1;
    
    static uint32_t txnPerPage_;
 
 public:
 
-   HistoryPager(void) {}
+   HistoryPager(void) 
+   {
+      isInitialized_ = make_shared<atomic<bool>>();
+      isInitialized_->store(false, memory_order_relaxed);
+   }
 
    shared_ptr<map<BinaryData, LedgerEntry>> getPageLedgerMap(
       function< map<BinaryData, TxIOPair>(uint32_t, uint32_t) > getTxio,
@@ -73,13 +75,15 @@ public:
 
    shared_ptr<map<BinaryData, LedgerEntry>> getPageLedgerMap(uint32_t pageId);
 
-   void reset(void) { 
-      pages_.clear(); 
-      isInitialized_ = false;
+   void reset(void) 
+   { 
+      isInitialized_->store(false, memory_order_relaxed);
+      pages_.reset(); 
    }
 
-   void addPage(uint32_t count, uint32_t bottom, uint32_t top);
-   void sortPages(void);
+   void addPage(vector<shared_ptr<Page>>&, 
+      uint32_t count, uint32_t bottom, uint32_t top);
+   void sortPages(vector<shared_ptr<Page>>&);
    
    bool mapHistory(
       function< map<uint32_t, uint32_t>(void) > getSSHsummary);
@@ -88,9 +92,7 @@ public:
    { return SSHsummary_; }
    
    uint32_t getPageBottom(uint32_t id) const;
-   size_t   getPageCount(void) const { return pages_.size(); }
-   uint32_t getCurrentPage(void) const { return currentPage_; }
-   void setCurrentPage(uint32_t pageId) { currentPage_ = pageId; }
+   size_t   getPageCount(void) const;
    
    uint32_t getRangeForHeightAndCount(uint32_t height, uint32_t count) const;
    uint32_t getBlockInVicinity(uint32_t blk) const;
@@ -98,7 +100,7 @@ public:
 
    bool isInitiliazed(void) const
    {
-      return isInitialized_;
+      return isInitialized_->load(memory_order_relaxed);
    }
 };
 
