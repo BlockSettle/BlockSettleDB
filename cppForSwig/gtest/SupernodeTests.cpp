@@ -3019,9 +3019,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       //get wallets delegate
       auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
       auto del1_fut = del1_prom->get_future();
-      auto del1_get = [del1_prom](AsyncClient::LedgerDelegate delegate)->void
+      auto del1_get = [del1_prom](ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
       {
-         del1_prom->set_value(move(delegate));
+         del1_prom->set_value(move(delegate.get()));
       };
       bdvObj->getLedgerDelegateForWallets(del1_get);
 
@@ -3033,9 +3033,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
          //get scrAddr delegates
          auto del_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
          auto del_fut = del_prom->get_future();
-         auto del_get = [del_prom](AsyncClient::LedgerDelegate delegate)->void
+         auto del_get = [del_prom](ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
          {
-            del_prom->set_value(move(delegate));
+            del_prom->set_value(move(delegate.get()));
          };
          bdvObj->getLedgerDelegateForScrAddr(
             walletId, scrAddr, del_get);
@@ -3068,9 +3068,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
          make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
       auto ledger_fut = ledger_prom->get_future();
       auto ledger_get = 
-         [ledger_prom](vector<::ClientClasses::LedgerEntry> ledgerV)->void
+         [ledger_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
       {
-         ledger_prom->set_value(move(ledgerV));
+         ledger_prom->set_value(move(ledgerV.get()));
       };
       delegate.getHistoryPage(0, ledger_get);
 
@@ -3084,9 +3084,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
             make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
          auto ledger_fut = ledger_prom->get_future();
          auto ledger_get = 
-            [ledger_prom](vector<::ClientClasses::LedgerEntry> ledgerV)->void
+            [ledger_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
          {
-            ledger_prom->set_value(move(ledgerV));
+            ledger_prom->set_value(move(ledgerV.get()));
          };
 
          delegate.getHistoryPage(0, ledger_get);
@@ -3102,9 +3102,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       auto w1AddrBal_prom = make_shared<promise<map<BinaryData, vector<uint64_t>>>>();
       auto w1AddrBal_fut = w1AddrBal_prom->get_future();
       auto w1_getAddrBalancesLBD = 
-         [w1AddrBal_prom](map<BinaryData, vector<uint64_t>> balances)->void
+         [w1AddrBal_prom](ReturnMessage<map<BinaryData, vector<uint64_t>>> balances)->void
       {
-         w1AddrBal_prom->set_value(move(balances));
+         w1AddrBal_prom->set_value(move(balances.get()));
       };
       wallet1.getAddrBalancesFromDB(w1_getAddrBalancesLBD);
       
@@ -3112,9 +3112,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       auto w1Bal_prom = make_shared<promise<vector<uint64_t>>>();
       auto w1Bal_fut = w1Bal_prom->get_future();
       auto w1_getBalanceAndCountLBD = 
-         [w1Bal_prom](vector<uint64_t> balances)->void
+         [w1Bal_prom](ReturnMessage<vector<uint64_t>> balances)->void
       {
-         w1Bal_prom->set_value(move(balances));
+         w1Bal_prom->set_value(move(balances.get()));
       };
       wallet1.getBalancesAndCount(5, w1_getBalanceAndCountLBD);
 
@@ -3122,9 +3122,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       auto lb1AddrBal_prom = make_shared<promise<map<BinaryData, vector<uint64_t>>>>();
       auto lb1AddrBal_fut = lb1AddrBal_prom->get_future();
       auto lb1_getAddrBalancesLBD = 
-         [lb1AddrBal_prom](map<BinaryData, vector<uint64_t>> balances)->void
+         [lb1AddrBal_prom](ReturnMessage<map<BinaryData, vector<uint64_t>>> balances)->void
       {
-         lb1AddrBal_prom->set_value(move(balances));
+         lb1AddrBal_prom->set_value(move(balances.get()));
       };
       lb1.getAddrBalancesFromDB(lb1_getAddrBalancesLBD);
 
@@ -3132,9 +3132,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       auto lb2AddrBal_prom = make_shared<promise<map<BinaryData, vector<uint64_t>>>>();
       auto lb2AddrBal_fut = lb2AddrBal_prom->get_future();
       auto lb2_getAddrBalancesLBD = 
-         [lb2AddrBal_prom](map<BinaryData, vector<uint64_t>> balances)->void
+         [lb2AddrBal_prom](ReturnMessage<map<BinaryData, vector<uint64_t>>> balances)->void
       {
-         lb2AddrBal_prom->set_value(move(balances));
+         lb2AddrBal_prom->set_value(move(balances.get()));
       };
       lb2.getAddrBalancesFromDB(lb2_getAddrBalancesLBD);
 
@@ -3142,9 +3142,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       auto lb1Bal_prom = make_shared<promise<vector<uint64_t>>>();
       auto lb1Bal_fut = lb1Bal_prom->get_future();
       auto lb1_getBalanceAndCountLBD = 
-         [lb1Bal_prom](vector<uint64_t> balances)->void
+         [lb1Bal_prom](ReturnMessage<vector<uint64_t>> balances)->void
       {
-         lb1Bal_prom->set_value(move(balances));
+         lb1Bal_prom->set_value(move(balances.get()));
       };
       lb1.getBalancesAndCount(5, lb1_getBalanceAndCountLBD);
 
@@ -3152,27 +3152,27 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       auto lb2Bal_prom = make_shared<promise<vector<uint64_t>>>();
       auto lb2Bal_fut = lb2Bal_prom->get_future();
       auto lb2_getBalanceAndCountLBD = 
-         [lb2Bal_prom](vector<uint64_t> balances)->void
+         [lb2Bal_prom](ReturnMessage<vector<uint64_t>> balances)->void
       {
-         lb2Bal_prom->set_value(move(balances));
+         lb2Bal_prom->set_value(move(balances.get()));
       };
       lb2.getBalancesAndCount(5, lb2_getBalanceAndCountLBD);
 
       //get tx
       auto tx_prom = make_shared<promise<Tx>>();
       auto tx_fut = tx_prom->get_future();
-      auto tx_get = [tx_prom](Tx tx)->void
+      auto tx_get = [tx_prom](ReturnMessage<Tx> tx)->void
       {
-         tx_prom->set_value(move(tx));
+         tx_prom->set_value(move(tx.get()));
       };
       bdvObj->getTxByHash(firstHash, tx_get);
 
       //get utxos
       auto utxo_prom = make_shared<promise<vector<UTXO>>>();
       auto utxo_fut = utxo_prom->get_future();
-      auto utxo_get = [utxo_prom](vector<UTXO> utxoV)->void
+      auto utxo_get = [utxo_prom](ReturnMessage<vector<UTXO>> utxoV)->void
       {
-         utxo_prom->set_value(move(utxoV));
+         utxo_prom->set_value(move(utxoV.get()));
       };
       wallet1.getSpendableTxOutListForValue(UINT64_MAX, utxo_get);
 
@@ -3239,9 +3239,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
          auto& hash = utxo.getTxHash();
          auto utxoProm = make_shared<promise<Tx>>();
          futMap.insert(make_pair(hash, utxoProm->get_future()));
-         auto utxoLBD = [utxoProm](Tx tx)->void
+         auto utxoLBD = [utxoProm](ReturnMessage<Tx> tx)->void
          {
-            utxoProm->set_value(move(tx));
+            utxoProm->set_value(move(tx.get()));
          };
          bdvObj->getTxByHash(hash, utxoLBD);
       }
@@ -3353,9 +3353,10 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ZcUpdate)
    //get wallets delegate
    auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
    auto del1_fut = del1_prom->get_future();
-   auto del1_get = [del1_prom](AsyncClient::LedgerDelegate delegate)->void
+   auto del1_get = [del1_prom](
+      ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
    {
-      del1_prom->set_value(move(delegate));
+      del1_prom->set_value(move(delegate.get()));
    };
    bdvObj->getLedgerDelegateForWallets(del1_get);
    auto&& main_delegate = del1_fut.get();
@@ -3364,9 +3365,10 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ZcUpdate)
       make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
    auto ledger_fut = ledger_prom->get_future();
    auto ledger_get =
-      [ledger_prom](vector<::ClientClasses::LedgerEntry> ledgerV)->void
+      [ledger_prom](
+         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
    {
-      ledger_prom->set_value(move(ledgerV));
+      ledger_prom->set_value(move(ledgerV.get()));
    };
    main_delegate.getHistoryPage(0, ledger_get);
    auto&& main_ledger = ledger_fut.get();
@@ -3401,9 +3403,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ZcUpdate)
       make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
    auto ledger2_fut = ledger2_prom->get_future();
    auto ledger2_get =
-      [ledger2_prom](vector<::ClientClasses::LedgerEntry> ledgerV)->void
+      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
    {
-      ledger2_prom->set_value(move(ledgerV));
+      ledger2_prom->set_value(move(ledgerV.get()));
    };
    main_delegate.getHistoryPage(0, ledger2_get);
    main_ledger = move(ledger2_fut.get());
@@ -3437,9 +3439,9 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ZcUpdate)
       make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
    auto ledger3_fut = ledger3_prom->get_future();
    auto ledger3_get =
-      [ledger3_prom](vector<::ClientClasses::LedgerEntry> ledgerV)->void
+      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
    {
-      ledger3_prom->set_value(move(ledgerV));
+      ledger3_prom->set_value(move(ledgerV.get()));
    };
    main_delegate.getHistoryPage(0, ledger3_get);
    main_ledger = move(ledger3_fut.get());
