@@ -1526,7 +1526,7 @@ class BtcUtilsTest : public ::testing::Test
 protected:
    virtual void SetUp(void) 
    {
-      BlockDataManagerConfig().selectNetwork("Main");
+      BlockDataManagerConfig().selectNetwork(NETWORK_MODE_MAINNET);
 
       rawHead_ = READHEX(
          "010000001d8f4ec0443e1f19f305e488c1085c95de7cc3fd25e0d2c5bb5d0000"
@@ -4253,17 +4253,13 @@ protected:
          system("rm -rf ./ldbtestdir/*");
       #endif
 
-      magic_ = READHEX(MAINNET_MAGIC_BYTES);
-      ghash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-      gentx_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
       zeros_ = READHEX("00000000");
          
       BlockDataManagerConfig::setDbType(ARMORY_DB_FULL);
       config_.dbDir_ = string("ldbtestdir");
 
-      config_.genesisBlockHash_ = ghash_;
-      config_.genesisTxHash_ = gentx_;
-      config_.magicBytes_ = magic_;
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      magic_ = NetworkConfig::getMagicBytes();
 
       iface_ = new LMDBBlockDatabase(nullptr, string());
 
@@ -4569,10 +4565,7 @@ protected:
    bool standardOpenDBs(void) 
    {
       iface_->openDatabases(
-         config_.dbDir_,
-         config_.genesisBlockHash_,
-         config_.genesisTxHash_,
-         config_.magicBytes_);
+         config_.dbDir_);
 
       auto&& tx = iface_->beginTransaction(HISTORY, LMDB::ReadWrite);
 
@@ -4592,8 +4585,6 @@ protected:
    vector<pair<BinaryData, BinaryData> > expectOutB_;
 
    BinaryData magic_;
-   BinaryData ghash_;
-   BinaryData gentx_;
    BinaryData zeros_;
 
    BinaryData rawHead_;
@@ -4610,7 +4601,6 @@ protected:
    BinaryData rawTxFragged_;
    BinaryData rawTxOut0_;
    BinaryData rawTxOut1_;
-
 };
 
 
@@ -4618,10 +4608,7 @@ protected:
 TEST_F(LMDBTest, OpenClose)
 {
    iface_->openDatabases(
-      config_.dbDir_,
-      config_.genesisBlockHash_,
-      config_.genesisTxHash_,
-      config_.magicBytes_);
+      config_.dbDir_);
 
    ASSERT_TRUE(iface_->databasesAreOpen());
 
@@ -4662,18 +4649,12 @@ TEST_F(LMDBTest, OpenCloseOpenNominal)
    BinaryData ff = READHEX("ffffffffffffffff");
 
    iface_->openDatabases(
-      config_.dbDir_,
-      config_.genesisBlockHash_,
-      config_.genesisTxHash_,
-      config_.magicBytes_);
+      config_.dbDir_);
 
    iface_->closeDatabases();
 
    iface_->openDatabases(
-      config_.dbDir_,
-      config_.genesisBlockHash_,
-      config_.genesisTxHash_,
-      config_.magicBytes_);
+      config_.dbDir_);
 
    ASSERT_TRUE(iface_->databasesAreOpen());
 
@@ -4704,10 +4685,7 @@ TEST_F(LMDBTest, PutGetDelete)
    BinaryData ff = READHEX("ffffffffffffffff");
 
    iface_->openDatabases(
-      config_.dbDir_,
-      config_.genesisBlockHash_,
-      config_.genesisTxHash_,
-      config_.magicBytes_);
+      config_.dbDir_);
 
    ASSERT_TRUE(iface_->databasesAreOpen());
    
@@ -5155,10 +5133,8 @@ TEST_F(BlockDir, HeadersFirst)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   
-   config.genesisBlockHash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-   config.genesisTxHash_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
-   config.magicBytes_ = READHEX(MAINNET_MAGIC_BYTES);
+
+   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
 
    config.nodeType_ = Node_UnitTest;
    
@@ -5178,7 +5154,7 @@ TEST_F(BlockDir, HeadersFirst)
       TestChain::scrAddrC
    };
 
-   auto&& bdvID = DBTestUtils::registerBDV(clients, config.magicBytes_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients, NetworkConfig::getMagicBytes());
    DBTestUtils::registerWallet(clients, bdvID, scraddrs, "wallet1");
    auto bdvPtr = DBTestUtils::getBDV(clients, bdvID);
 
@@ -5211,11 +5187,8 @@ TEST_F(BlockDir, HeadersFirstUpdate)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
+   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
 
-   config.genesisBlockHash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-   config.genesisTxHash_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
-   config.magicBytes_ = READHEX(MAINNET_MAGIC_BYTES);
-   
    config.nodeType_ = Node_UnitTest;
 
    // Put the first 5 blocks out of order
@@ -5234,7 +5207,7 @@ TEST_F(BlockDir, HeadersFirstUpdate)
       TestChain::scrAddrC
    };
 
-   auto&& bdvID = DBTestUtils::registerBDV(clients, config.magicBytes_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients, NetworkConfig::getMagicBytes());
    DBTestUtils::registerWallet(clients, bdvID, scraddrs, "wallet1");
    auto bdvPtr = DBTestUtils::getBDV(clients, bdvID);
 
@@ -5273,10 +5246,7 @@ TEST_F(BlockDir, HeadersFirstReorg)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-
-   config.genesisBlockHash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-   config.genesisTxHash_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
-   config.magicBytes_ = READHEX(MAINNET_MAGIC_BYTES);
+   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
 
    config.nodeType_ = Node_UnitTest;
 
@@ -5295,7 +5265,7 @@ TEST_F(BlockDir, HeadersFirstReorg)
       TestChain::scrAddrC
    };
 
-   auto&& bdvID = DBTestUtils::registerBDV(clients, config.magicBytes_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients, NetworkConfig::getMagicBytes());
    DBTestUtils::registerWallet(clients, bdvID, scraddrs, "wallet1");
    auto bdvPtr = DBTestUtils::getBDV(clients, bdvID);
 
@@ -5353,10 +5323,7 @@ TEST_F(BlockDir, HeadersFirstUpdateTwice)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-
-   config.genesisBlockHash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-   config.genesisTxHash_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
-   config.magicBytes_ = READHEX(MAINNET_MAGIC_BYTES);
+   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
 
    config.nodeType_ = Node_UnitTest;
 
@@ -5375,7 +5342,7 @@ TEST_F(BlockDir, HeadersFirstUpdateTwice)
       TestChain::scrAddrC
    };
 
-   auto&& bdvID = DBTestUtils::registerBDV(clients, config.magicBytes_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients, NetworkConfig::getMagicBytes());
    DBTestUtils::registerWallet(clients, bdvID, scraddrs, "wallet1");
    auto bdvPtr = DBTestUtils::getBDV(clients, bdvID);
 
@@ -5418,10 +5385,7 @@ TEST_F(BlockDir, BlockFileSplit)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-
-   config.genesisBlockHash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-   config.genesisTxHash_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
-   config.magicBytes_ = READHEX(MAINNET_MAGIC_BYTES);
+   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
 
    config.nodeType_ = Node_UnitTest;
 
@@ -5443,7 +5407,7 @@ TEST_F(BlockDir, BlockFileSplit)
       TestChain::scrAddrC
    };
 
-   auto&& bdvID = DBTestUtils::registerBDV(clients, config.magicBytes_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients, NetworkConfig::getMagicBytes());
    DBTestUtils::registerWallet(clients, bdvID, scraddrs, "wallet1");
    auto bdvPtr = DBTestUtils::getBDV(clients, bdvID);
 
@@ -5477,10 +5441,7 @@ TEST_F(BlockDir, BlockFileSplitUpdate)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-
-   config.genesisBlockHash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-   config.genesisTxHash_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
-   config.magicBytes_ = READHEX(MAINNET_MAGIC_BYTES);
+   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
 
    config.nodeType_ = Node_UnitTest;
 
@@ -5499,7 +5460,7 @@ TEST_F(BlockDir, BlockFileSplitUpdate)
       TestChain::scrAddrC
    };
 
-   auto&& bdvID = DBTestUtils::registerBDV(clients, config.magicBytes_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients, NetworkConfig::getMagicBytes());
    DBTestUtils::registerWallet(clients, bdvID, scraddrs, "wallet1");
    auto bdvPtr = DBTestUtils::getBDV(clients, bdvID);
 
@@ -5553,9 +5514,6 @@ protected:
    virtual void SetUp()
    {
       LOGDISABLESTDOUT();
-      magic_ = READHEX(MAINNET_MAGIC_BYTES);
-      ghash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-      gentx_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
       zeros_ = READHEX("00000000");
 
       blkdir_ = string("./blkfiletest");
@@ -5582,9 +5540,7 @@ protected:
       config.dbDir_ = ldbdir_;
       config.threadCount_ = 3;
 
-      config.genesisBlockHash_ = ghash_;
-      config.genesisTxHash_ = gentx_;
-      config.magicBytes_ = magic_;
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       config.nodeType_ = Node_UnitTest;
       
       unsigned port_int = 50000 + rand() % 10000;
@@ -5632,9 +5588,6 @@ protected:
    BlockDataManagerConfig config;
 
    LMDBBlockDatabase* iface_;
-   BinaryData magic_;
-   BinaryData ghash_;
-   BinaryData gentx_;
    BinaryData zeros_;
 
    string blkdir_;
@@ -5652,7 +5605,7 @@ protected:
 TEST_F(BlockUtilsBare, Load5Blocks)
 {
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -5730,7 +5683,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_DamagedBlkFile)
    BtcUtils::copyFile("../reorgTest/botched_block.dat", blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -5766,7 +5719,7 @@ TEST_F(BlockUtilsBare, Load4Blocks_Plus2)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -5874,7 +5827,7 @@ TEST_F(BlockUtilsBare, Load4Blocks_ReloadBDM_ZC_Plus2)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
    
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -5955,7 +5908,7 @@ TEST_F(BlockUtilsBare, Load4Blocks_ReloadBDM_ZC_Plus2)
    initBDM();
 
    theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
    DBTestUtils::regLockbox(
@@ -6094,7 +6047,7 @@ TEST_F(BlockUtilsBare, Load3Blocks_ZC_Plus3_TestLedgers)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6222,7 +6175,7 @@ TEST_F(BlockUtilsBare, Load3Blocks_ZC_Plus3_TestLedgers)
    initBDM();
 
    theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    scrAddrVec.pop_back();
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
@@ -6342,7 +6295,7 @@ TEST_F(BlockUtilsBare, Load3Blocks_ZCchain)
    zc2Vec.push_back(move(ZC2), 1500000000);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6607,7 +6560,7 @@ TEST_F(BlockUtilsBare, Load3Blocks_RBF)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6741,7 +6694,7 @@ TEST_F(BlockUtilsBare, Load3Blocks_RBF)
 TEST_F(BlockUtilsBare, Load5Blocks_FullReorg)
 {
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6825,7 +6778,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_DoubleReorg)
    TestUtils::setBlocks({ "0", "1", "2", "3", "4A" }, blk0dat_);
    
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6939,7 +6892,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_DoubleReorg)
 TEST_F(BlockUtilsBare, Load5Blocks_ReloadBDM_Reorg)
 {
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6990,7 +6943,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_ReloadBDM_Reorg)
    initBDM();
 
    theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec2, "wallet2");
@@ -7047,7 +7000,7 @@ TEST_F(BlockUtilsBare, CorruptedBlock)
    TestUtils::setBlocks({ "0", "1", "2", "3", "4" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -7118,7 +7071,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_RescanOps)
    auto startbdm = [&wlt, &wltLB1, &wltLB2, this](BDM_INIT_MODE init)->void
    {
       theBDMt_->start(init);
-      auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+      auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
       vector<BinaryData> scrAddrVec;
       scrAddrVec.push_back(TestChain::scrAddrA);
@@ -7240,7 +7193,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_RescanEmptyDB)
    auto startbdm = [&wlt, &wltLB1, &wltLB2, this](BDM_INIT_MODE init)->void
    {
       theBDMt_->start(init);
-      auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+      auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
       vector<BinaryData> scrAddrVec;
       scrAddrVec.push_back(TestChain::scrAddrA);
@@ -7317,7 +7270,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_RebuildEmptyDB)
    auto startbdm = [&wlt, &wltLB1, &wltLB2, this](BDM_INIT_MODE init)->void
    {
       theBDMt_->start(init);
-      auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+      auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
       vector<BinaryData> scrAddrVec;
       scrAddrVec.push_back(TestChain::scrAddrA);
@@ -7388,7 +7341,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_RebuildEmptyDB)
 TEST_F(BlockUtilsBare, Load5Blocks_SideScan)
 {
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -7472,7 +7425,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_SideScan)
 TEST_F(BlockUtilsBare, Load5Blocks_GetUtxos)
 {
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -7552,7 +7505,7 @@ TEST_F(BlockUtilsBare, Load4Blocks_ZC_GetUtxos)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -7698,7 +7651,7 @@ TEST_F(BlockUtilsBare, WebSocketStack)
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, pCallback);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(config.magicBytes_);
+   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
    {
@@ -7922,7 +7875,7 @@ TEST_F(BlockUtilsBare, WebSocketStack_ManyZC)
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, pCallback);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(config.magicBytes_);
+   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
    auto& bdvID = bdvObj->getID();
 
    vector<BinaryData> scrAddrVec;
@@ -8123,7 +8076,7 @@ TEST_F(BlockUtilsBare, WebSocketStack_Reconnect)
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, pCallback);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(config.magicBytes_);
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
       scrAddrVec.push_back(TestChain::scrAddrA);
       scrAddrVec.push_back(TestChain::scrAddrB);
@@ -8247,7 +8200,7 @@ TEST_F(BlockUtilsBare, WebSocketStack_Reconnect)
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, pCallback);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(config.magicBytes_);
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
       const vector<BinaryData> lb1ScrAddrs
       {
@@ -8363,7 +8316,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -8912,7 +8865,7 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -9151,7 +9104,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -9422,7 +9375,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -9823,7 +9776,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
 TEST_F(BlockUtilsBare, Load5Blocks_CheckWalletFilters)
 {
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec1, scrAddrVec2;
    scrAddrVec1.push_back(TestChain::scrAddrA);
@@ -9956,7 +9909,7 @@ TEST_F(BlockUtilsBare, GrabAddrLedger_PostReg)
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, pCallback);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(config.magicBytes_);
+   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -10020,7 +9973,7 @@ TEST_F(BlockUtilsBare, ZC_InOut_SameBlock)
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);

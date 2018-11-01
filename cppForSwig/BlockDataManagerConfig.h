@@ -5,21 +5,25 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2018, goatpig                                          //            
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
+
+/*general config for all things client and server*/
 
 #ifndef BLOCKDATAMANAGERCONFIG_H
 #define BLOCKDATAMANAGERCONFIG_H
 
 #include <exception>
 #include <thread>
-#include "bdmenums.h"
-#include "BinaryData.h"
 #include <tuple>
 #include <list>
+
+#include "bdmenums.h"
+#include "BinaryData.h"
+#include "NetworkConfig.h"
 
 #ifdef _WIN32
 #include <ShlObj.h>
@@ -51,15 +55,7 @@ public:
    string dataDir_;
    string blkFileLocation_;
    string dbDir_;
-
-   bool testnet_ = false;
-   bool regtest_ = false;
-
    string logFilePath_;
-
-   BinaryData genesisBlockHash_;
-   BinaryData genesisTxHash_;
-   BinaryData magicBytes_;
 
    NodeType nodeType_ = Node_BTC;
    string btcPort_;
@@ -83,27 +79,10 @@ public:
    const string cookie_;
    bool useCookie_ = false;
 
-   static uint8_t pubkeyHashPrefix_;
-   static uint8_t scriptHashPrefix_;
-
 public:
    BlockDataManagerConfig();
 
-   /////////////
-   void setGenesisBlockHash(const BinaryData &h)
-   {
-      genesisBlockHash_ = h;
-   }
-   void setGenesisTxHash(const BinaryData &h)
-   {
-      genesisTxHash_ = h;
-   }
-   void setMagicBytes(const BinaryData &h)
-   {
-      magicBytes_ = h;
-   }
-
-   void selectNetwork(const std::string &netname);
+   void selectNetwork(NETWORK_MODE);
 
    void processArgs(const map<string, string>&, bool);
    void parseArgs(int argc, char* argv[]);
@@ -147,9 +126,6 @@ public:
    }
 
    static string getDbModeStr(void);
-
-   static uint8_t getPubkeyHashPrefix(void) { return pubkeyHashPrefix_; }
-   static uint8_t getScriptHashPrefix(void) { return scriptHashPrefix_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

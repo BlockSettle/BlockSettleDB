@@ -85,7 +85,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../fcgi/include;../fcgi;../cryptopp;../leveldb_windows_port/win32_posix;../lmdb;../libwebsockets/include;../protobuf/src;../libwebsockets;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../fcgi/include;../fcgi;../cryptopp;../leveldb_windows_port/win32_posix;../lmdb/libraries/liblmdb;../../../lws/include;../protobuf/src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>CONSOLE;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BasicRuntimeChecks>UninitializedLocalUsageCheck</BasicRuntimeChecks>
@@ -93,7 +93,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>../libs/x64;../libwebsockets/lib/Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>../libs/x64;../../../lws/lib/Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;ws2_32.lib;websockets_static.lib;protobuf_win_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
@@ -121,7 +121,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../fcgi/include;../fcgi;../cryptopp;../leveldb_windows_port/win32_posix;../lmdb;../libwebsockets/include;../libwebsockets;../protobuf/src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../fcgi/include;../fcgi;../cryptopp;../leveldb_windows_port/win32_posix;../lmdb/libraries/liblmdb;../../../lws/include;../protobuf/src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>CONSOLE;_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <DisableSpecificWarnings>4146;4703;</DisableSpecificWarnings>
@@ -130,7 +130,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>../libs/x64;../libwebsockets/lib/Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>../libs/x64;../../../lws/lib/Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>cryptopp.lib;LMDB_Win.lib;ws2_32.lib;websockets_static.lib;protobuf_win.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
@@ -170,6 +170,7 @@
     <ClCompile Include="..\lmdb_wrapper.cpp" />
     <ClCompile Include="..\log.cpp" />
     <ClCompile Include="..\main.cpp" />
+    <ClCompile Include="..\NetworkConfig.cpp" />
     <ClCompile Include="..\nodeRPC.cpp" />
     <ClCompile Include="..\Progress.cpp" />
     <ClCompile Include="..\ReentrantLock.cpp" />

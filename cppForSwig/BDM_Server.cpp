@@ -1661,7 +1661,7 @@ shared_ptr<Message> Clients::registerBDV(
          throw runtime_error("invalid command for registerBDV");
       auto& magic_word = command->magicword();
       BinaryDataRef magic_word_ref; magic_word_ref.setRef(magic_word);
-      auto& thisMagicWord = bdmT_->bdm()->config().magicBytes_;
+      auto& thisMagicWord = NetworkConfig::getMagicBytes();
 
       if (thisMagicWord != magic_word_ref)
          throw runtime_error("magic word mismatch");

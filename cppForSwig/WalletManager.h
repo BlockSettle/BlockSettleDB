@@ -392,9 +392,9 @@ public:
       auto txOutRef = BtcUtils::getTxOutScrAddrNoCopy(script);
 
       auto p2pkh_prefix =
-        SCRIPT_PREFIX(BlockDataManagerConfig::getPubkeyHashPrefix());
+        SCRIPT_PREFIX(NetworkConfig::getPubkeyHashPrefix());
       auto p2sh_prefix =
-         SCRIPT_PREFIX(BlockDataManagerConfig::getScriptHashPrefix());
+         SCRIPT_PREFIX(NetworkConfig::getScriptHashPrefix());
 
       shared_ptr<ScriptRecipient> recipient;
       if (txOutRef.type_ == p2pkh_prefix)

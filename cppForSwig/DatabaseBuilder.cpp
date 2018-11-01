@@ -1463,9 +1463,5 @@ void DatabaseBuilder::reprocessTxFilter(
 void DatabaseBuilder::cycleDatabases()
 {
    db_->closeDatabases();
-   db_->openDatabases(
-      bdmConfig_.dbDir_,
-      bdmConfig_.genesisBlockHash_,
-      bdmConfig_.genesisTxHash_,
-      bdmConfig_.magicBytes_);
+   db_->openDatabases(bdmConfig_.dbDir_);
 }

@@ -236,9 +236,6 @@ protected:
    virtual void SetUp()
    {
       LOGDISABLESTDOUT();
-      magic_ = READHEX(MAINNET_MAGIC_BYTES);
-      ghash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-      gentx_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
       zeros_ = READHEX("00000000");
 
       blkdir_ = string("./blkfiletest");
@@ -262,9 +259,6 @@ protected:
       config.dbDir_ = ldbdir_;
       config.threadCount_ = 3;
 
-      config.genesisBlockHash_ = ghash_;
-      config.genesisTxHash_ = gentx_;
-      config.magicBytes_ = magic_;
       config.nodeType_ = Node_UnitTest;
 
       unsigned port_int = 50000 + rand() % 10000;
@@ -310,9 +304,6 @@ protected:
    BlockDataManagerConfig config;
 
    LMDBBlockDatabase* iface_;
-   BinaryData magic_;
-   BinaryData ghash_;
-   BinaryData gentx_;
    BinaryData zeros_;
 
    string blkdir_;
@@ -325,7 +316,7 @@ protected:
 TEST_F(BlockUtilsSuper, Load5Blocks)
 {
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -388,7 +379,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks)
 TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
 {
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -460,7 +451,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
    EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5);
 
    theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -519,7 +510,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
 TEST_F(BlockUtilsSuper, Load5Blocks_Reload_Rescan)
 {
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -591,7 +582,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_Reload_Rescan)
    EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5);
 
    theBDMt_->start(INIT_RESCAN);
-   bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -652,7 +643,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -725,7 +716,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    EXPECT_EQ(ssh_sdbi.topBlkHgt_, 3);
 
    theBDMt_->start(INIT_SSH);
-   bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -799,7 +790,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    TestUtils::appendBlocks({ "4" }, blk0dat_);
 
    theBDMt_->start(INIT_SSH);
-   bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -923,7 +914,7 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
    TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -948,7 +939,7 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
    initBDM();
 
    theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1027,7 +1018,7 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
 TEST_F(BlockUtilsSuper, Load5Blocks_FullReorg)
 {
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1092,7 +1083,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_FullReorg)
 TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM_Reorg)
 {
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1108,7 +1099,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM_Reorg)
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5", "4A", "5A" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1175,7 +1166,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DoubleReorg)
    TestUtils::setBlocks({ "0", "1", "2", "3", "4A" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1312,9 +1303,6 @@ protected:
    virtual void SetUp()
    {
       LOGDISABLESTDOUT();
-      magic_ = READHEX(MAINNET_MAGIC_BYTES);
-      ghash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-      gentx_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
       zeros_ = READHEX("00000000");
 
       blkdir_ = string("./blkfiletest");
@@ -1338,9 +1326,6 @@ protected:
       config.dbDir_ = ldbdir_;
       config.threadCount_ = 3;
 
-      config.genesisBlockHash_ = ghash_;
-      config.genesisTxHash_ = gentx_;
-      config.magicBytes_ = magic_;
       config.nodeType_ = Node_UnitTest;
 
       unsigned port_int = 50000 + rand() % 10000;
@@ -1388,9 +1373,6 @@ protected:
    BlockDataManagerConfig config;
 
    LMDBBlockDatabase* iface_;
-   BinaryData magic_;
-   BinaryData ghash_;
-   BinaryData gentx_;
    BinaryData zeros_;
 
    string blkdir_;
@@ -1410,7 +1392,7 @@ TEST_F(BlockUtilsWithWalletTest, Test_WithWallet)
    scrAddrVec.push_back(TestChain::scrAddrC);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
@@ -1456,7 +1438,7 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAddrAfterWallet)
    scrAddrVec.push_back(TestChain::scrAddrC);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
@@ -1527,7 +1509,7 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
@@ -1645,7 +1627,7 @@ TEST_F(BlockUtilsWithWalletTest, UnrelatedZC_CheckLedgers)
    TestUtils::setBlocks({ "0", "1", "2", "3", "4" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -1783,7 +1765,7 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAfterZC)
    TestUtils::setBlocks({ "0", "1", "2", "3", "4" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -1898,7 +1880,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
@@ -2043,7 +2025,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2451,7 +2433,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2832,7 +2814,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_InOut_SameBlock)
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
 
    theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2944,7 +2926,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, pCallback);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(config.magicBytes_);
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
       
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -2976,7 +2958,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
       auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, pCallback);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(config.magicBytes_);
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
       //go online
       bdvObj->goOnline();
@@ -3335,7 +3317,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ZcUpdate)
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, pCallback);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(config.magicBytes_);
+   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
    //go online
    bdvObj->goOnline();

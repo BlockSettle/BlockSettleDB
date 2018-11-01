@@ -171,6 +171,9 @@
     <ClCompile Include="..\WebSocketMessage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\NetworkConfig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="fcgi\include\fcgiapp.h">

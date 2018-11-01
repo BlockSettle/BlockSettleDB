@@ -51,12 +51,12 @@ INCLUDE_FILES = -Ibech32/ref/c++ -Ifcgi -Ilmdb/libraries/liblmdb \
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = AsyncClient.cpp \
 	CoinSelection.cpp \
-        ClientClasses.cpp \
+    ClientClasses.cpp \
 	SwigClient.cpp \
 	TransactionBatch.cpp \
 	WalletManager.cpp \
 	Wallets.cpp \
-        WebSocketClient.cpp
+    WebSocketClient.cpp
 ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	BDM_Server.cpp \
 	BitcoinP2P.cpp \
@@ -74,7 +74,7 @@ ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	ScrAddrObj.cpp \
 	Server.cpp \
 	SocketObject.cpp \
-        SocketService_unix.cpp \
+    SocketService_unix.cpp \
 	SshParser.cpp \
 	txio.cpp \
 	ZeroConf.cpp
@@ -84,6 +84,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	Assets.cpp \
 	BinaryData.cpp \
 	Blockchain.cpp \
+	NetworkConfig.cpp \
 	BlockDataManagerConfig.cpp \
 	BlockDataMap.cpp \
 	BlockObj.cpp \

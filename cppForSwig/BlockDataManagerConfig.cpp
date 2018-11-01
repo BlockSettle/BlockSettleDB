@@ -22,8 +22,6 @@
 // NodeStatusStruct
 //
 ////////////////////////////////////////////////////////////////////////////////
-uint8_t BlockDataManagerConfig::pubkeyHashPrefix_;
-uint8_t BlockDataManagerConfig::scriptHashPrefix_;
 ARMORY_DB_TYPE BlockDataManagerConfig::armoryDbType_ = ARMORY_DB_FULL;
 SOCKET_SERVICE BlockDataManagerConfig::service_ = SERVICE_FCGI;
 
@@ -81,7 +79,7 @@ const string BlockDataManagerConfig::defaultRegtestBlkFileLocation_ =
 BlockDataManagerConfig::BlockDataManagerConfig() :
    cookie_(SecureBinaryData().GenerateRandom(32).toHexStr())
 {
-   selectNetwork("Main");
+   selectNetwork(NETWORK_MODE_MAINNET);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,50 +91,45 @@ string BlockDataManagerConfig::portToString(unsigned port)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BlockDataManagerConfig::selectNetwork(const string &netname)
+void BlockDataManagerConfig::selectNetwork(NETWORK_MODE mode)
 {
-   if (netname == "Main")
+   NetworkConfig::selectNetwork(mode);
+
+   switch (mode)
    {
-      genesisBlockHash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
-      genesisTxHash_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
-      magicBytes_ = READHEX(MAINNET_MAGIC_BYTES);
+   case NETWORK_MODE_MAINNET:
+   {
       btcPort_ = portToString(NODE_PORT_MAINNET);
       rpcPort_ = portToString(RPC_PORT_MAINNET);
-      pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160;
-      scriptHashPrefix_ = SCRIPT_PREFIX_P2SH;
-      
+
       if (!customFcgiPort_)
          listenPort_ = portToString(LISTEN_PORT_MAINNET);
+      break;
    }
-   else if (netname == "Test")
+
+   case NETWORK_MODE_TESTNET:
    {
-      genesisBlockHash_ = READHEX(TESTNET_GENESIS_HASH_HEX);
-      genesisTxHash_ = READHEX(TESTNET_GENESIS_TX_HASH_HEX);
-      magicBytes_ = READHEX(TESTNET_MAGIC_BYTES);
       btcPort_ = portToString(NODE_PORT_TESTNET);
       rpcPort_ = portToString(RPC_PORT_TESTNET);
-      pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160_TESTNET;
-      scriptHashPrefix_ = SCRIPT_PREFIX_P2SH_TESTNET;
 
-      testnet_ = true;
-      
       if (!customFcgiPort_)
          listenPort_ = portToString(LISTEN_PORT_TESTNET);
+      break;
    }
-   else if (netname == "Regtest")
+
+   case NETWORK_MODE_REGTEST:
    {
-      genesisBlockHash_ = READHEX(REGTEST_GENESIS_HASH_HEX);
-      genesisTxHash_ = READHEX(REGTEST_GENESIS_TX_HASH_HEX);
-      magicBytes_ = READHEX(REGTEST_MAGIC_BYTES);
       btcPort_ = portToString(NODE_PORT_REGTEST);
       rpcPort_ = portToString(RPC_PORT_TESTNET);
-      pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160_TESTNET;
-      scriptHashPrefix_ = SCRIPT_PREFIX_P2SH_TESTNET;
 
-      regtest_ = true;
-      
       if (!customFcgiPort_)
          listenPort_ = portToString(LISTEN_PORT_REGTEST);
+      break;
+   }
+
+   default:
+      LOGERR << "unexpected network mode!";
+      throw runtime_error("unxecpted network mode");
    }
 }
 
@@ -256,12 +249,30 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
       }
       else
       {
-         if (!testnet_ && !regtest_)
+         switch (NetworkConfig::getMode())
+         {
+         case NETWORK_MODE_MAINNET:
+         {
             dataDir_ = defaultDataDir_;
-         else if (!regtest_)
+            break;
+         }
+
+         case NETWORK_MODE_TESTNET:
+         {
             dataDir_ = defaultTestnetDataDir_;
-         else
+            break;
+         }
+
+         case NETWORK_MODE_REGTEST:
+         {
             dataDir_ = defaultRegtestDataDir_;
+            break;
+         }
+
+         default:
+            LOGERR << "unexpected network mode";
+            throw runtime_error("unexpected network mode");
+         }
       }
 
       expandPath(dataDir_);
@@ -293,10 +304,17 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
 
       if (blkFileLocation_.size() == 0)
       {
-         if (!testnet_)
+         switch (NetworkConfig::getMode())
+         {
+         case NETWORK_MODE_MAINNET:
+         {
             blkFileLocation_ = defaultBlkFileLocation_;
-         else
+            break;
+         }
+         
+         default:
             blkFileLocation_ = defaultTestnetBlkFileLocation_;
+         }
       }
 
       //expand paths if necessary
@@ -403,18 +421,18 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
    iter = args.find("testnet");
    if (iter != args.end())
    {
-      selectNetwork("Test");
+      selectNetwork(NETWORK_MODE_TESTNET);
    }
    else
    {
       iter = args.find("regtest");
       if (iter != args.end())
       {
-         selectNetwork("Regtest");
+         selectNetwork(NETWORK_MODE_REGTEST);
       }
       else
       {
-         selectNetwork("Main");
+         selectNetwork(NETWORK_MODE_MAINNET);
       }
    }
 

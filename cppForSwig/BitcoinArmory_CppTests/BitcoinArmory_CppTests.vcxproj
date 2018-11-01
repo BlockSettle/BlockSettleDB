@@ -172,6 +172,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\NetworkConfig.h" />
     <ClInclude Include="..\Addresses.h" />
     <ClInclude Include="..\AsyncClient.h" />
     <ClInclude Include="..\bdmenums.h" />
@@ -260,6 +261,7 @@
     <ClCompile Include="..\leveldb_windows_port\win32_posix\Win_TranslatePath.cpp" />
     <ClCompile Include="..\lmdb_wrapper.cpp" />
     <ClCompile Include="..\log.cpp" />
+    <ClCompile Include="..\NetworkConfig.cpp" />
     <ClCompile Include="..\nodeRPC.cpp" />
     <ClCompile Include="..\Progress.cpp" />
     <ClCompile Include="..\ReentrantLock.cpp" />

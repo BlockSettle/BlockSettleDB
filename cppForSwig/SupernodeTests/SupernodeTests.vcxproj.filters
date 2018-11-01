@@ -222,6 +222,9 @@
     <ClCompile Include="..\SocketService_win32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\NetworkConfig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\bech32\ref\c++\bech32.h">

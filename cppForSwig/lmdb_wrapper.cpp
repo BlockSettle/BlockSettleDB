@@ -493,23 +493,17 @@ LMDBBlockDatabase::~LMDBBlockDatabase(void)
 // manually specify them, if you want to throw an error if it's not what you 
 // were expecting
 void LMDBBlockDatabase::openDatabases(
-   const string& basedir,
-   BinaryData const & genesisBlkHash,
-   BinaryData const & genesisTxHash,
-   BinaryData const & magic)
+   const string& basedir)
 {
-   if (DatabaseContainer::baseDir_.size() == 0)
-      DatabaseContainer::baseDir_ = basedir;
-
-   if (DatabaseContainer::magicBytes_.getSize() == 0)
-      DatabaseContainer::magicBytes_ = magic;
-
    LOGINFO << "Opening databases...";
    LOGINFO << "dbmode: " << BlockDataManagerConfig::getDbModeStr();
 
-   magicBytes_ = magic;
-   genesisTxHash_ = genesisTxHash;
-   genesisBlkHash_ = genesisBlkHash;
+   magicBytes_ = NetworkConfig::getMagicBytes();
+   genesisTxHash_ = NetworkConfig::getGenesisTxHash();
+   genesisBlkHash_ = NetworkConfig::getMagicBytes();
+   
+   DatabaseContainer::baseDir_ = basedir;
+   DatabaseContainer::magicBytes_ = NetworkConfig::getMagicBytes();
 
    if (genesisBlkHash_.getSize() == 0 || magicBytes_.getSize() == 0)
    {
@@ -657,8 +651,7 @@ void LMDBBlockDatabase::resetHistoryDatabases(void)
       db_spentness->eraseOnDisk();
    }
    
-   openDatabases(DatabaseContainer::baseDir_, genesisBlkHash_, genesisTxHash_,
-         magicBytes_);
+   openDatabases(DatabaseContainer::baseDir_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -674,8 +667,7 @@ void LMDBBlockDatabase::destroyAndResetDatabases(void)
    
    // Reopen the databases with the exact same parameters as before
    // The close & destroy operations shouldn't have changed any of that.
-   openDatabases(DatabaseContainer::baseDir_, genesisBlkHash_, genesisTxHash_, 
-      magicBytes_);
+   openDatabases(DatabaseContainer::baseDir_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2896,8 +2888,7 @@ void LMDBBlockDatabase::resetSSHdb_Super()
       db_ssh->eraseOnDisk();
    }
 
-   openDatabases(DatabaseContainer::baseDir_, genesisBlkHash_, genesisTxHash_,
-      magicBytes_);
+   openDatabases(DatabaseContainer::baseDir_);
 }
 
 /////////////////////////////////////////////////////////////////////////////

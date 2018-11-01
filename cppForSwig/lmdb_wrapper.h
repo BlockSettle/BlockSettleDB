@@ -837,10 +837,7 @@ public:
    ~LMDBBlockDatabase(void);
 
    /////////////////////////////////////////////////////////////////////////////
-   void openDatabases(const string &basedir,
-      BinaryData const & genesisBlkHash,
-      BinaryData const & genesisTxHash,
-      BinaryData const & magic);
+   void openDatabases(const string &basedir);
 
    /////////////////////////////////////////////////////////////////////////////
    void closeDatabases();
