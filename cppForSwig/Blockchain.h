@@ -77,15 +77,6 @@ public:
 
    bool hasHeaderWithHash(BinaryData const & txHash) const;
    const shared_ptr<BlockHeader> getHeaderPtrForTxRef(const TxRef &txr) const;
-   const shared_ptr<BlockHeader> getHeaderPtrForTx(const Tx & txObj) const
-   {
-      if(txObj.getTxRef().isNull())
-      {
-         throw runtime_error("TxRef in Tx object is not set, cannot get header ptr");
-      }
-      
-      return getHeaderPtrForTxRef(txObj.getTxRef());
-   }
    
    shared_ptr<map<HashString, shared_ptr<BlockHeader>>> allHeaders(void) const
    {

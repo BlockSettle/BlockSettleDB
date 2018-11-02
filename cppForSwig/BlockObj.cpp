@@ -299,21 +299,6 @@ UnspentTxOut::UnspentTxOut(void) :
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void UnspentTxOut::init(LMDBBlockDatabase *db, TxOut & txout, uint32_t blkNum, 
-   bool isMulti)
-{
-   TxRef txRef = txout.getParentTxRef();
-   DBTxRef parentTxRef(txRef, db);
-   txHash_     = parentTxRef.getThisHash();
-   txOutIndex_ = txout.getIndex();
-   txIndex_    = txRef.getBlockTxIndex();
-   txHeight_   = txout.getParentHeight();
-   value_      = txout.getValue();
-   script_     = txout.getScript();
-   isMultisigRef_ = isMulti;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 BinaryData UnspentTxOut::getRecipientScrAddr(void) const
 {
    return BtcUtils::getTxOutScrAddr(getScript());

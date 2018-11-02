@@ -82,8 +82,6 @@ public:
    BinaryData        getTxHashForDbKey(const BinaryData& dbKey6) const
    { return db_->getTxHashForLdbKey(dbKey6); }
    
-   bool isTxMainBranch(const Tx &tx) const;
-
    BinaryData        getSenderScrAddr(TxIn & txin) const;
    int64_t           getSentValue(TxIn & txin) const;
 
@@ -116,13 +114,6 @@ public:
    StoredHeader getBlockFromDB(uint32_t height, uint8_t dupID) const;
    bool scrAddressIsRegistered(const BinaryData& scrAddr) const;
    
-   const shared_ptr<BlockHeader> getHeaderPtrForTx(Tx& theTx) const
-      { return bc_->getHeaderPtrForTx(theTx); }
-
-   vector<UnspentTxOut> 
-      getUnspentTxoutsForAddr160List(
-      const vector<BinaryData>&, bool ignoreZc) const;
-
    bool isBDMRunning(void) const 
    { 
       if (bdmPtr_ == nullptr)
@@ -155,6 +146,11 @@ public:
       return zeroConfCont_->getZcTxOutsForKey(keys);
    }
 
+   vector<UnspentTxOut> getZcUTXOsForKeys(const set<BinaryData>& keys) const
+   {
+      return zeroConfCont_->getZcUTXOsForKey(keys);
+   }
+
    ScrAddrFilter* getSAF(void) { return saf_; }
    const BlockDataManagerConfig& config() const { return bdmPtr_->config(); }
 
@@ -174,6 +170,7 @@ public:
 
    TxOut getTxOutCopy(const BinaryData& txHash, uint16_t index) const;
    TxOut getTxOutCopy(const BinaryData& dbKey) const;
+   StoredTxOut getStoredTxOut(const BinaryData& dbKey) const;
 
    Tx getSpenderTxForTxOut(uint32_t height, uint32_t txindex, uint16_t txoutid) const;
 

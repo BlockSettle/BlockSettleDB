@@ -1183,13 +1183,20 @@ BinaryData StoredTxOut::getDBKeyOfParentTx(bool withPrefix) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData& StoredTxOut::getHgtX(void)
+const BinaryData& StoredTxOut::getHgtX(void) const
 { 
    if (hgtX_.getSize())
       return hgtX_;
 
    hgtX_ = getDBKey(false).getSliceCopy(0, 4); 
    return hgtX_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unsigned StoredTxOut::getHeight(void) const
+{
+   auto& hgtx = getHgtX();
+   return DBUtils::hgtxToHeight(hgtx);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1217,8 +1224,6 @@ Tx StoredTx::getTxCopy(void) const
    }
    
    Tx returnTx(getSerializedTx());
-   if(blockHeight_ != UINT32_MAX)
-      returnTx.setTxRef(TxRef(getDBKey(false)));
    returnTx.setRBF(isRBF_);
    return returnTx;
 }
@@ -1291,7 +1296,6 @@ StoredTx & StoredTx::createFromTx(Tx & tx, bool doFrag, bool withTxOuts)
 
          stxo.unserialize(tx.getTxOutCopy(txo).serialize());
          stxo.txVersion_      = tx.getVersion();
-         stxo.txIndex_        = tx.getBlockTxIndex();
          stxo.txOutIndex_     = txo;
          stxo.isCoinbase_     = tx.getTxInCopy(0).isCoinbase();
          stxo.parentHash_     = thisHash_;

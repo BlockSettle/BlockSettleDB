@@ -816,34 +816,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
    case Methods::getUTXOsForAddrList:
    {
-      /*
-      in: addresses as bindata
-      out: Codec_Utxo::ManyUtxo
-      */
-
-      vector<BinaryData> addrVec;
-      for (int i = 0; i < command->bindata_size(); i++)
-      {
-         auto& addr = command->bindata(i);
-         BinaryData addrRef((uint8_t*)addr.data(), addr.size());
-         addrVec.push_back(addrRef);
-      }
-
-      auto&& utxoVec = this->getUnspentTxoutsForAddr160List(addrVec, false);
-
-      auto response = make_shared<::Codec_Utxo::ManyUtxo>();
-      for (auto& utxo : utxoVec)
-      {
-         auto utxoPtr = response->add_value();
-         utxoPtr->set_value(utxo.value_);
-         utxoPtr->set_script(utxo.script_.getPtr(), utxo.script_.getSize());
-         utxoPtr->set_txheight(utxo.txHeight_);
-         utxoPtr->set_txindex(utxo.txIndex_);
-         utxoPtr->set_txoutindex(utxo.txOutIndex_);
-         utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
-      }
-
-      return response;
+      throw runtime_error("deprecated");
    }
 
    case Methods::getHeaderByHash:
@@ -888,7 +861,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
    }
 
    default:
-      LOGWARN << "unkonwn method";
+      LOGWARN << "unkonwn command";
+      throw runtime_error("unknown command");
    }
 
    return nullptr;

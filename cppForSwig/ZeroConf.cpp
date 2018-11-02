@@ -43,10 +43,7 @@ Tx ZeroConfContainer::getTxByHash(const BinaryData& txHash) const
    if (txiter == txmap.end())
       return Tx();
 
-   auto& theTx = txiter->second->tx_;
-   theTx.setTxRef(TxRef(keyIter->second));
-
-   return theTx;
+   return txiter->second->tx_;
 }
 ///////////////////////////////////////////////////////////////////////////////
 bool ZeroConfContainer::hasTxByHash(const BinaryData& txHash) const
@@ -1336,9 +1333,39 @@ vector<TxOut> ZeroConfContainer::getZcTxOutsForKey(
       auto outId = READ_UINT16_BE(outIdRef);
 
       auto&& txout = theTx.tx_.getTxOutCopy(outId);
-      txout.setParentTxRef(zcKey);
-
       result.push_back(move(txout));
+   }
+
+   return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+vector<UnspentTxOut> ZeroConfContainer::getZcUTXOsForKey(
+   const set<BinaryData>& keys) const
+{
+   vector<UnspentTxOut> result;
+   auto ss = getSnapshot();
+   auto& txmap = ss->txMap_;
+
+   for (auto& key : keys)
+   {
+      auto zcKey = key.getSliceRef(0, 6);
+
+      auto txIter = txmap.find(zcKey);
+      if (txIter == txmap.end())
+         continue;
+
+      auto& theTx = *txIter->second;
+
+      auto outIdRef = key.getSliceRef(6, 2);
+      auto outId = READ_UINT16_BE(outIdRef);
+
+      auto&& txout = theTx.tx_.getTxOutCopy(outId);
+      UnspentTxOut utxo(
+         theTx.getTxHash(), outId, UINT32_MAX,
+         txout.getValue(), txout.getScript());
+
+      result.push_back(move(utxo));
    }
 
    return result;

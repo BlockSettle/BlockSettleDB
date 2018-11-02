@@ -170,7 +170,8 @@ public:
    BinaryData getDBKey(bool withPrefix = true) const;
    BinaryData getSpentnessKey(void) const;
    BinaryData getDBKeyOfParentTx(bool withPrefix = true) const;
-   BinaryData& getHgtX(void);
+   const BinaryData& getHgtX(void) const;
+   unsigned getHeight(void) const;
 
    StoredTxOut & createFromTxOut(TxOut & txout);
    BinaryData    getSerializedTxOut(void) const;
@@ -206,7 +207,7 @@ public:
    TXOUT_SPENTNESS   spentness_;
    bool              isCoinbase_;
    BinaryData        spentByTxInKey_;
-   BinaryData        hgtX_;
+   mutable BinaryData hgtX_;
    
 
    mutable BinaryData scrAddr_;

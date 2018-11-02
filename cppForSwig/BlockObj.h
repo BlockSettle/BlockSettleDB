@@ -402,16 +402,11 @@ class UnspentTxOut
 {
 public:
    UnspentTxOut(void);
-   UnspentTxOut(LMDBBlockDatabase *db, TxOut & txout, uint32_t blknum) 
-      { init(db, txout, blknum);}
-
-
    UnspentTxOut(BinaryData const & hash, uint32_t outIndex, uint32_t height, 
                 uint64_t val, BinaryData const & script) :
       txHash_(hash), txOutIndex_(outIndex), txHeight_(height),
-      value_(val), script_(script) {}
-
-   void init(LMDBBlockDatabase *db, TxOut & txout, uint32_t blknum, bool isMultiRef=false);
+      value_(val), script_(script) 
+   {}
 
    BinaryData   getTxHash(void) const      { return txHash_;     }
    uint32_t     getTxtIndex(void) const    { return txIndex_; }

@@ -1878,8 +1878,7 @@ TxOut LMDBBlockDatabase::getTxOutCopy(
       StoredTxOut stxo;
       stxo.unserializeDBValue(brr.getRawRef());
       auto&& txout_raw = stxo.getSerializedTxOut();
-      TxRef txref(ldbKey6B);
-      txoOut.unserialize(txout_raw, txout_raw.getSize(), txref, txOutIdx);
+      txoOut.unserialize(txout_raw, txout_raw.getSize(), txOutIdx);
       return txoOut;
    }
    else
@@ -1893,11 +1892,9 @@ TxOut LMDBBlockDatabase::getTxOutCopy(
       return TxOut();
    }
 
-   TxRef parent(ldbKey6B);
-
    brr.advance(2);
    txoOut.unserialize_checked(
-      brr.getCurrPtr(), brr.getSizeRemaining(), 0, parent, (uint32_t)txOutIdx);
+      brr.getCurrPtr(), brr.getSizeRemaining(), 0, (uint32_t)txOutIdx);
    return txoOut;
 }
 
@@ -1944,11 +1941,10 @@ TxIn LMDBBlockDatabase::getTxInCopy(
             LOGERR << "Requested TxIn with index greater than numTxIn";
             return TxIn();
          }
-         TxRef parent(ldbKey6B);
          uint8_t const * txInStart = brr.exposeDataPtr() + 34 + offsetsIn[txInIdx];
          uint32_t txInLength = offsetsIn[txInIdx + 1] - offsetsIn[txInIdx];
          TxIn txin;
-         txin.unserialize_checked(txInStart, brr.getSize() - 34 - offsetsIn[txInIdx], txInLength, parent, txInIdx);
+         txin.unserialize_checked(txInStart, brr.getSize() - 34 - offsetsIn[txInIdx], txInLength, txInIdx);
          return txin;
       }
    }
@@ -2282,49 +2278,44 @@ bool LMDBBlockDatabase::getStoredTxOut(
    if (getDbType() != ARMORY_DB_SUPER)
       throw LmdbWrapperException("supernode only call");
 
-   //grab hints
-   StoredTxHints txhints;
-   if (!getStoredTxHints(txhints, txHash.getRef()))
+   auto&& txKey = getDBKeyForHash(txHash);
+   if (txKey.getSize() == 0)
       return false;
 
-   for (auto hint : txhints.dbKeyList_)
+   unsigned id;
+   uint8_t dup;
+   uint16_t txIdx;
+   BinaryRefReader brrKey(txKey);
+
+   BLKDATA_TYPE bdtype = DBUtils::readBlkDataKeyNoPrefix(
+      brrKey, id, dup, txIdx);
+
+   //grab header
+   auto header = blockchainPtr_->getHeaderById(id);
+   BinaryWriter bw;
+   bw.put_BinaryData(txKey);
+   bw.put_uint16_t(txoutid, BE);
+
+   //grab tx
+   auto&& stxo_tx = beginTransaction(STXO, LMDB::ReadOnly);
+   auto data = getValueNoCopy(STXO, bw.getDataRef());
+   if (data.getSize() == 0)
    {
-      BinaryRefReader brrHint(hint);
-      unsigned id;
-      uint8_t dup;
-      uint16_t txIdx;
-      BLKDATA_TYPE bdtype = DBUtils::readBlkDataKeyNoPrefix(
-         brrHint, id, dup, txIdx);
-
-      //grab header
-      auto header = blockchainPtr_->getHeaderById(id);
-
-      //grab tx
-      auto&& theTx = getFullTxCopy(txIdx, header);
-      if (theTx.getThisHash() != txHash)
-         continue;
-
-      //grab txout
-      auto txOutOffset = theTx.getTxOutOffset(txoutid);
-
-      //grab dataref
-      BinaryDataRef tx_bdr(theTx.getPtr(), theTx.getSize());
-      BinaryRefReader brr(tx_bdr);
-      brr.advance(txOutOffset);
-
-      //convert to stxo
-      stxo.unserialize(brr);
-      stxo.parentHash_ = theTx.getThisHash();
-      stxo.blockHeight_ = header->getBlockHeight();
-      stxo.duplicateID_ = header->getDuplicateID();
-      stxo.txIndex_ = txIdx;
-      stxo.txOutIndex_ = txoutid;
-      stxo.isCoinbase_ = (txIdx == 0);
-
-      return true;
+      LOGWARN << "no txout for key: " << header->getBlockHeight() <<
+         "|" << header->getDuplicateID() << "|" << txIdx << "|" << txoutid;
+      return false;
    }
 
-   return false;
+   //convert to stxo
+   stxo.unserializeDBValue(data);
+   stxo.parentHash_ = txHash;
+   stxo.blockHeight_ = header->getBlockHeight();
+   stxo.duplicateID_ = header->getDuplicateID();
+   stxo.txIndex_ = txIdx;
+   stxo.txOutIndex_ = txoutid;
+   stxo.isCoinbase_ = (txIdx == 0);
+
+   return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2365,19 +2356,33 @@ bool LMDBBlockDatabase::getStoredTxOut(
 
       BinaryRefReader txout_key(DBkey);
       DBUtils::readBlkDataKeyNoPrefix(txout_key, id, dup, txIdx, txoutid);
-      
       shared_ptr<BlockHeader> header;
+      
+      BinaryDataRef bdr_key;
+      BinaryData bd_tempkey;
       try
       {
-         header = blockchainPtr_->getHeaderById(id);
+         if (dup != 0x7F)
+         {
+            header = blockchainPtr_->getHeaderByHeight(id);
+            bd_tempkey = move(DBUtils::getBlkDataKeyNoPrefix(
+               header->getThisID(), 0xFF, txIdx, txoutid));
+            bdr_key.setRef(bd_tempkey);
+         }
+         else
+         {
+            header = blockchainPtr_->getHeaderById(id);
+            bdr_key.setRef(DBkey);
+         }
       }
       catch (...)
       {
          LOGWARN << "no header for id " << id;
+         return false;
       }
 
       auto&& stxo_tx = beginTransaction(STXO, LMDB::ReadOnly);
-      auto data = getValueNoCopy(STXO, DBkey);
+      auto data = getValueNoCopy(STXO, bdr_key);
       if (data.getSize() == 0)
       {
          LOGWARN << "no txout for key: " << header->getBlockHeight() <<
@@ -2386,13 +2391,6 @@ bool LMDBBlockDatabase::getStoredTxOut(
       }
 
       stxo.unserializeDBValue(data);
-
-      if (dup != 0x7F)
-      {
-         LOGINFO << "need id in block key, got height";
-         throw LmdbWrapperException("unexpected block key format");
-      }
-
       stxo.blockHeight_ = header->getBlockHeight();
       stxo.duplicateID_ = header->getDuplicateID();
       stxo.txIndex_ = txIdx;

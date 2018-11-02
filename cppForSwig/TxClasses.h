@@ -133,19 +133,9 @@ public:
    bool operator==(TxRef const & txr) const  { return dbKey6B_ == txr.dbKey6B_; }
 
    bool operator>=(const BinaryData& dbkey) const { return dbKey6B_ >= dbkey; }
+
 protected:
-   //FileDataPtr        blkFilePtr_;
-   //BlockHeader*       headerPtr_;
-
-   // Both filePtr and headerPtr can be replaced by a single dbKey
-   // It is 6 bytes:  [ HeaderHgt(3) || DupID(1) || TxIndex(2) ]
-   // It tells us exactly how to get this Tx from DB, and by the way
-   // the DB is structured, the first four bytes also tells us how 
-   // to get the associated header.  
    BinaryData           dbKey6B_;
-
-   // TxRefs are associated with a particular interface (at this time, there
-   // will only be one interface).
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,8 +144,9 @@ class TxIn
    friend class BlockDataManager;
 
 public:
-   TxIn(void) : dataCopy_(0), parentHash_(0), parentHeight_(UINT32_MAX),
-      scriptType_(TXIN_SCRIPT_NONSTANDARD), scriptOffset_(0) {}
+   TxIn(void) : 
+      dataCopy_(0), scriptType_(TXIN_SCRIPT_NONSTANDARD), scriptOffset_(0) 
+   {}
 
    uint8_t const *  getPtr(void) const { assert(isInitialized()); return dataCopy_.getPtr(); }
    size_t           getSize(void) const { assert(isInitialized()); return dataCopy_.getSize(); }
@@ -181,17 +172,8 @@ public:
    bool             isScriptSpendP2SH() const  { return scriptType_ == TXIN_SCRIPT_SPENDP2SH; }
    bool             isScriptNonStd() const    { return scriptType_ == TXIN_SCRIPT_NONSTANDARD; }
 
-   TxRef            getParentTxRef() const { return parentTx_; }
    uint32_t         getIndex(void) const { return index_; }
-
-   //void setParentTx(TxRef txref, int32_t idx=-1) {parentTx_=txref; index_=idx;}
-
    uint32_t         getSequence() const  { return READ_UINT32_LE(getPtr() + getSize() - 4); }
-   uint32_t         getParentHeight() const;
-
-   void             setParentHash(BinaryData const & txhash) { parentHash_ = txhash; }
-   const BinaryData& getParentHash(void) const { return parentHash_; }
-   void             setParentHeight(uint32_t blkheight) { parentHeight_ = blkheight; }
 
    /////////////////////////////////////////////////////////////////////////////
    const BinaryData&  serialize(void) const { return dataCopy_; }
@@ -200,23 +182,19 @@ public:
    void unserialize_checked(uint8_t const * ptr,
       uint32_t        size,
       uint32_t        nbytes = 0,
-      TxRef           parent = TxRef(),
       uint32_t        idx = UINT32_MAX);
 
    void unserialize(BinaryData const & str,
       uint32_t       nbytes = 0,
-      TxRef          parent = TxRef(),
-      uint32_t       idx = UINT32_MAX);
+      uint32_t        idx = UINT32_MAX);
 
    void unserialize(BinaryDataRef  str,
       uint32_t       nbytes = 0,
-      TxRef          parent = TxRef(),
-      uint32_t       idx = UINT32_MAX);
+      uint32_t        idx = UINT32_MAX);
 
    void unserialize(BinaryRefReader & brr,
       uint32_t       nbytes = 0,
-      TxRef          parent = TxRef(),
-      uint32_t       idx = UINT32_MAX);
+      uint32_t        idx = UINT32_MAX);
 
    void unserialize_swigsafe_(BinaryData const & rawIn) { unserialize(rawIn); }
 
@@ -232,16 +210,11 @@ public:
 
 private:
    BinaryData       dataCopy_;
-   BinaryData       parentHash_;
-   uint32_t         parentHeight_;
 
    // Derived properties - we expect these to be set after construct/copy
    uint32_t         index_;
    TXIN_SCRIPT_TYPE scriptType_;
    uint32_t         scriptOffset_;
-   TxRef            parentTx_;
-
-
 };
 
 
@@ -251,39 +224,22 @@ class TxOut
    friend class BlockDataManager;
    friend class ZeroConfContainer;
 
-private:
-   void setParentTxRef(const BinaryData& key)
-   {
-      parentTx_.setDBKey(key);
-   }
-
 public:
 
    /////////////////////////////////////////////////////////////////////////////
-   TxOut(void) : dataCopy_(0), parentHash_(0) {}
-   /*
-   TxOut(uint8_t const * ptr,
-   uint32_t        nBytes=0,
-   TxRef           parent=TxRef(),
-   uint32_t        idx=UINT32_MAX) { unserialize(ptr, nBytes, parent, idx); } */
+   TxOut(void) : dataCopy_(0)
+   {}
 
    uint8_t const * getPtr(void) const { return dataCopy_.getPtr(); }
    uint32_t        getSize(void) const { return (uint32_t)dataCopy_.getSize(); }
    uint64_t        getValue(void) const { return READ_UINT64_LE(dataCopy_.getPtr()); }
    bool            isStandard(void) const { return scriptType_ != TXOUT_SCRIPT_NONSTANDARD; }
    bool            isInitialized(void) const { return dataCopy_.getSize() > 0; }
-   TxRef           getParentTxRef() const { return parentTx_; }
-   uint32_t        getParentIndex() const;
    uint32_t        getIndex(void) { return index_; }
-
-   //void setParentTx(TxRef txref, uint32_t idx=-1) { parentTx_=txref; index_=idx;}
-
 
    /////////////////////////////////////////////////////////////////////////////
    BinaryData const & getScrAddressStr(void) const { return uniqueScrAddr_; }
    BinaryDataRef      getScrAddressRef(void) const { return uniqueScrAddr_.getRef(); }
-   //BinaryData const & getRecipientAddr(void) const    { return recipientBinAddr20_; }
-   //BinaryDataRef      getRecipientAddrRef(void) const { return recipientBinAddr20_.getRef(); }
 
    /////////////////////////////////////////////////////////////////////////////
    BinaryData         getScript(void);
@@ -304,32 +260,22 @@ public:
    BinaryData         serialize(void) { return BinaryData(dataCopy_); }
    BinaryDataRef      serializeRef(void) { return dataCopy_; }
 
-   uint32_t           getParentHeight() const;
-
-   void               setParentHash(BinaryData const & txhash) { parentHash_ = txhash; }
-   const BinaryData& getParentHash(void) const { return parentHash_; }
-   void               setParentHeight(uint32_t blkheight) { parentHeight_ = blkheight; }
-
    /////////////////////////////////////////////////////////////////////////////
    void unserialize_checked(uint8_t const *   ptr,
       uint32_t          size,
       uint32_t          nbytes = 0,
-      TxRef             parent = TxRef(),
       uint32_t          idx = UINT32_MAX);
 
    void unserialize(BinaryData const & str,
       uint32_t           nbytes = 0,
-      TxRef              parent = TxRef(),
-      uint32_t           idx = UINT32_MAX);
+      uint32_t        idx = UINT32_MAX);
 
    void unserialize(BinaryDataRef const & str,
       uint32_t          nbytes = 0,
-      TxRef             parent = TxRef(),
-      uint32_t          idx = UINT32_MAX);
+      uint32_t        idx = UINT32_MAX);
    void unserialize(BinaryRefReader & brr,
       uint32_t          nbytes = 0,
-      TxRef             parent = TxRef(),
-      uint32_t          idx = UINT32_MAX);
+      uint32_t        idx = UINT32_MAX);
 
    void unserialize_swigsafe_(BinaryData const & rawOut) { unserialize(rawOut); }
 
@@ -337,16 +283,12 @@ public:
 
 private:
    BinaryData        dataCopy_;
-   BinaryData        parentHash_;
-   uint32_t          parentHeight_;
 
    // Derived properties - we expect these to be set after construct/copy
-   //BinaryData        recipientBinAddr20_;
    BinaryData        uniqueScrAddr_;
    TXOUT_SCRIPT_TYPE scriptType_;
    uint32_t          scriptOffset_;
    uint32_t          index_;
-   TxRef             parentTx_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -382,11 +324,6 @@ public:
    static Tx          createFromStr(BinaryData const & bd) { return Tx(bd); }
 
    /////////////////////////////////////////////////////////////////////////////
-   bool               hasTxRef(void) const { return txRefObj_.isInitialized(); }
-   TxRef              getTxRef(void) const { return txRefObj_; }
-   void               setTxRef(TxRef ref) { txRefObj_ = ref; }
-
-   /////////////////////////////////////////////////////////////////////////////
    BinaryData         serialize(void) const    { return dataCopy_; }
    BinaryData         serializeNoWitness(void) const;
 
@@ -410,15 +347,6 @@ public:
    // okay to do it on the fly
    TxIn     getTxInCopy(int i) const;
    TxOut    getTxOutCopy(int i) const;
-
-
-   /////////////////////////////////////////////////////////////////////////////
-   // All these methods return UINTX_MAX if txRefObj.isNull()
-   // BinaryData getBlockHash(void)      { return txRefObj_.getBlockHash();      }
-   // uint32_t   getBlockTimestamp(void) { return txRefObj_.getBlockTimestamp(); }
-   uint32_t   getBlockHeight(void) const { return txRefObj_.getBlockHeight(); }
-   uint8_t    getDuplicateID(void) const { return txRefObj_.getDuplicateID(); }
-   uint16_t   getBlockTxIndex(void) const { return txRefObj_.getBlockTxIndex(); }
 
    bool isRBF(void) const;
    void setRBF(bool isTrue)
@@ -466,11 +394,7 @@ private:
    vector<size_t> offsetsTxOut_;
    vector<size_t> offsetsWitness_;
 
-   // To be calculated later
-   //BlockHeader*  headerPtr_;
-   TxRef         txRefObj_;
-
-   uint32_t      txTime_;
+   uint32_t      txTime_ = 0;
 
    bool isRBF_ = false;
    bool isChainedZc_ = false;

@@ -2382,140 +2382,6 @@ TEST_F(BlockObjTest, OutPointSerialize)
    EXPECT_EQ(op.serialize(), rawOP);
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockObjTest, TxInNoInit)
-{
-   TxIn txin;
-
-   EXPECT_FALSE(txin.isInitialized());
-   EXPECT_EQ(   txin.serialize().getSize(), 0);
-   EXPECT_EQ(   txin.getScriptType(), TXIN_SCRIPT_NONSTANDARD);
-   EXPECT_FALSE(txin.isStandard());
-   EXPECT_FALSE(txin.isCoinbase());
-   EXPECT_EQ(   txin.getParentHeight(), 0xffffffff);
-
-   BinaryData newhash = READHEX("abcd1234");
-   txin.setParentHash(newhash);
-   txin.setParentHeight(1234);
-   
-   EXPECT_EQ(txin.getParentHash(),   newhash);
-   EXPECT_EQ(txin.getParentHeight(), 1234);
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockObjTest, TxInUnserialize)
-{
-   BinaryRefReader brr(rawTxIn_);
-   const uint32_t len = rawTxIn_.getSize();
-   BinaryData srcAddr = BtcUtils::getHash160( READHEX("04"
-      "5d74feae58c4c36d7c35beac05eddddc78b3ce4b02491a2eea72043978056a8b"
-      "c439b99ddaad327207b09ef16a8910828e805b0cc8c11fba5caea2ee939346d7"));
-   BinaryData rawOP = READHEX(
-      "0044fbc929d78e4203eed6f1d3d39c0157d8e5c100bbe0886779c0ebf6a69324"
-      "01000000");
-
-   vector<TxIn> txins(6);
-   txins[0].unserialize_checked(rawTxIn_.getPtr(), len); 
-   txins[1].unserialize_checked(rawTxIn_.getPtr(), len, len); 
-   txins[2].unserialize_checked(rawTxIn_.getPtr(), len, len, TxRef(), 12); 
-   txins[3].unserialize(rawTxIn_.getRef());
-   txins[4].unserialize(brr);
-   txins[5].unserialize_swigsafe_(rawTxIn_);
-
-   for(uint32_t i=0; i<6; i++)
-   {
-      EXPECT_TRUE( txins[i].isInitialized());
-      EXPECT_EQ(   txins[i].serialize().getSize(), len);
-      EXPECT_EQ(   txins[i].getScriptType(), TXIN_SCRIPT_STDUNCOMPR);
-      EXPECT_EQ(   txins[i].getScriptSize(), len-(36+1+4));
-      EXPECT_TRUE( txins[i].isStandard());
-      EXPECT_FALSE(txins[i].isCoinbase());
-      EXPECT_EQ(   txins[i].getSequence(), UINT32_MAX);
-      EXPECT_EQ(   txins[i].getSenderScrAddrIfAvail(), srcAddr);
-      EXPECT_EQ(   txins[i].getOutPoint().serialize(), rawOP);
-
-      EXPECT_FALSE(txins[i].getParentTxRef().isInitialized());
-      EXPECT_EQ(   txins[i].getParentHeight(), UINT32_MAX);
-      EXPECT_EQ(   txins[i].getParentHash(),   BinaryData(0));
-      EXPECT_EQ(   txins[i].serialize(),       rawTxIn_);
-      if(i==2)
-         EXPECT_EQ(txins[i].getIndex(), 12);
-      else
-         EXPECT_EQ(txins[i].getIndex(), UINT32_MAX);
-   }
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockObjTest, TxOutUnserialize)
-{
-   BinaryRefReader brr(rawTxOut_);
-   uint32_t len = rawTxOut_.getSize();
-   BinaryData dstAddr = READHEX("8dce8946f1c7763bb60ea5cf16ef514cbed0633b");
-
-   vector<TxOut> txouts(6);
-   txouts[0].unserialize_checked(rawTxOut_.getPtr(), len); 
-   txouts[1].unserialize_checked(rawTxOut_.getPtr(), len, len); 
-   txouts[2].unserialize_checked(rawTxOut_.getPtr(), len, len, TxRef(), 12); 
-   txouts[3].unserialize(rawTxOut_.getRef());
-   txouts[4].unserialize(brr);
-   txouts[5].unserialize_swigsafe_(rawTxOut_);
-
-   for(uint32_t i=0; i<6; i++)
-   {
-      EXPECT_TRUE( txouts[i].isInitialized());
-      EXPECT_EQ(   txouts[i].getSize(), len);
-      EXPECT_EQ(   txouts[i].getScriptType(), TXOUT_SCRIPT_STDHASH160);
-      EXPECT_EQ(   txouts[i].getScriptSize(), 25);
-      EXPECT_TRUE( txouts[i].isStandard());
-      EXPECT_EQ(   txouts[i].getValue(), 0x00000000d58b4cac);
-      EXPECT_EQ(   txouts[i].getScrAddressStr(), HASH160PREFIX+dstAddr);
-
-      EXPECT_TRUE( txouts[i].isScriptStandard());
-      EXPECT_TRUE( txouts[i].isScriptStdHash160());
-      EXPECT_FALSE(txouts[i].isScriptStdPubKey65());
-      EXPECT_FALSE(txouts[i].isScriptStdPubKey33());
-      EXPECT_FALSE(txouts[i].isScriptP2SH());
-      EXPECT_FALSE(txouts[i].isScriptNonStd());
-
-      EXPECT_FALSE(txouts[i].getParentTxRef().isInitialized());
-      EXPECT_EQ(   txouts[i].getParentHeight(), UINT32_MAX);
-      EXPECT_EQ(   txouts[i].getParentHash(),   BinaryData(0));
-      EXPECT_EQ(   txouts[i].serialize(),       rawTxOut_);
-      if(i==2)
-         EXPECT_EQ(txouts[i].getIndex(), 12);
-      else
-         EXPECT_EQ(txouts[i].getIndex(), UINT32_MAX);
-   }
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockObjTest, TxNoInit)
-{
-   Tx tx;
-   
-   EXPECT_FALSE(tx.isInitialized());
-
-   // Actually, why even bother with all these no-init tests?  We should always
-   // check whether the tx is initialized before using it.  If you don't, you
-   // deserve to seg fault :)
-   //EXPECT_EQ(   tx.getSize(), UINT32_MAX);
-   //EXPECT_TRUE( tx.isStandard());
-   //EXPECT_EQ(   tx.getValue(), 0x00000000d58b4cac);
-   //EXPECT_EQ(   tx.getRecipientAddr(), dstAddr);
-
-   //EXPECT_TRUE( tx.isScriptStandard());
-   //EXPECT_TRUE( tx.isScriptStdHash160());
-   //EXPECT_FALSE(tx.isScriptStdPubKey65());
-   //EXPECT_FALSE(tx.isScriptStdPubKey33());
-   //EXPECT_FALSE(tx.isScriptP2SH());
-   //EXPECT_FALSE(tx.isScriptNonStd());
-
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockObjTest, TxUnserialize)
 {
@@ -2555,7 +2421,6 @@ TEST_F(BlockObjTest, TxUnserialize)
       EXPECT_EQ(   txs[i].getNumTxIn(), 1);
       EXPECT_EQ(   txs[i].getNumTxOut(), 2);
       EXPECT_EQ(   txs[i].getThisHash(), tx0hash.copySwapEndian());
-      //EXPECT_FALSE(txs[i].isMainBranch());
 
       EXPECT_EQ(   txs[i].getTxInOffset(0),    5);
       EXPECT_EQ(   txs[i].getTxInOffset(1),  185);
@@ -2574,8 +2439,6 @@ TEST_F(BlockObjTest, TxUnserialize)
       EXPECT_EQ(   txs[i].getTxOutCopy(0).getValue(), v0);
       EXPECT_EQ(   txs[i].getTxOutCopy(1).getValue(), v1);
       EXPECT_EQ(   txs[i].getSumOfOutputs(),  v0+v1);
-
-      EXPECT_EQ(   txs[i].getBlockTxIndex(),  UINT16_MAX);
    }
 }
 

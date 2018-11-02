@@ -378,6 +378,7 @@ public:
       getRBFTxIOsforScrAddr(BinaryData scrAddr) const;
 
    vector<TxOut> getZcTxOutsForKey(const set<BinaryData>&) const;
+   vector<UnspentTxOut> getZcUTXOsForKey(const set<BinaryData>&) const;
 
    void updateZCinDB(void);
 

@@ -224,16 +224,6 @@ Tx BlockDataViewer::getTxByHash(BinaryData const & txhash) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool BlockDataViewer::isTxMainBranch(const Tx &tx) const
-{
-   if (!tx.hasTxRef())
-      return false;
-
-   DBTxRef dbTxRef(tx.getTxRef(), db_);
-   return dbTxRef.isMainBranch();
-}
-
-////////////////////////////////////////////////////////////////////////////////
 TxOut BlockDataViewer::getPrevTxOut(TxIn & txin) const
 {
    if (txin.isCoinbase())
@@ -377,65 +367,6 @@ shared_ptr<BlockHeader> BlockDataViewer::getHeaderByHash(
    const BinaryData& blockHash) const
 {
    return bc_->getHeaderByHash(blockHash);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-vector<UnspentTxOut> BlockDataViewer::getUnspentTxoutsForAddr160List(
-   const vector<BinaryData>& scrAddrVec, bool ignoreZc) const
-{
-   auto scrAddrMap = saf_->getScrAddrMap();
-
-   if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
-   {
-      for (const auto& scrAddr : scrAddrVec)
-      {
-         auto saIter = scrAddrMap->find(scrAddr);
-         if (saIter == scrAddrMap->end())
-            throw std::range_error("Don't have this scrAddr tracked");
-      }
-   }
-
-   vector<UnspentTxOut> UTXOs;
-
-   for (const auto& scrAddr : scrAddrVec)
-   {
-      const auto& zcTxioMap = zeroConfCont_->getUnspentZCforScrAddr(scrAddr);
-
-      StoredScriptHistory ssh;
-      db_->getStoredScriptHistory(ssh, scrAddr);
-
-      map<BinaryData, UnspentTxOut> scrAddrUtxoMap;
-      db_->getFullUTXOMapForSSH(ssh, scrAddrUtxoMap);
-
-      for (const auto& utxoPair : scrAddrUtxoMap)
-      {
-         auto zcIter = zcTxioMap.find(utxoPair.first);
-         if (zcIter != zcTxioMap.end())
-            if (zcIter->second->hasTxInZC())
-               continue;
-
-         UTXOs.push_back(utxoPair.second);
-      }
-
-      if (ignoreZc)
-         continue;
-
-      for (const auto& zcTxio : zcTxioMap)
-      {
-         if (!zcTxio.second->hasTxOutZC())
-            continue;
-         
-         if (zcTxio.second->hasTxInZC())
-            continue;
-
-         TxOut txout = zcTxio.second->getTxOutCopy(db_);
-         UnspentTxOut UTXO = UnspentTxOut(db_, txout, UINT32_MAX);
-
-         UTXOs.push_back(UTXO);
-      }
-   }
-
-   return UTXOs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -631,6 +562,21 @@ TxOut BlockDataViewer::getTxOutCopy(const BinaryData& dbKey) const
       txOut = move(zeroConfCont_->getTxOutCopy(bdkey, index));
 
    return txOut;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+StoredTxOut BlockDataViewer::getStoredTxOut(const BinaryData& dbKey) const
+{
+   if (dbKey.getSize() != 8)
+      throw runtime_error("invalid txout key length");
+
+   auto&& tx = db_->beginTransaction(STXO, LMDB::ReadOnly);
+
+   StoredTxOut stxo;
+   db_->getStoredTxOut(stxo, dbKey);
+   stxo.parentHash_ = move(db_->getTxHashForLdbKey(dbKey.getSliceRef(0, 6)));
+   
+   return stxo;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
