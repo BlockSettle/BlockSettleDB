@@ -1081,10 +1081,6 @@ public:
    KVLIST getAllDatabaseEntries(DB_SELECT db);
    void   printAllDatabaseEntries(DB_SELECT db);
 
-   BinaryData getGenesisBlockHash(void) { return genesisBlkHash_; }
-   BinaryData getGenesisTxHash(void)    { return genesisTxHash_; }
-   BinaryData getMagicBytes(void)       { return magicBytes_; }
-
    ARMORY_DB_TYPE armoryDbType(void) const
    { return BlockDataManagerConfig::getDbType(); }
 
@@ -1172,10 +1168,6 @@ public:
    const static map<string, size_t> mapSizes_;
 
 private:
-   BinaryData           genesisBlkHash_;
-   BinaryData           genesisTxHash_;
-   BinaryData           magicBytes_;
-
    bool                 dbIsOpen_;
    uint32_t             ldbBlockSize_;
 

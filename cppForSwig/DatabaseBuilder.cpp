@@ -22,7 +22,7 @@ DatabaseBuilder::DatabaseBuilder(BlockFiles& blockFiles,
    bdmConfig_(bdm.config()), blockchain_(bdm.blockchain()),
    scrAddrFilter_(bdm.getScrAddrFilter()),
    progress_(progress),
-   magicBytes_(db_->getMagicBytes()), topBlockOffset_(0, 0),
+   topBlockOffset_(0, 0),
    forceRescanSSH_(forceRescanSSH)
 {}
 
@@ -463,7 +463,8 @@ void DatabaseBuilder::parseBlockFile(
    function<bool(const uint8_t* data, size_t size, size_t offset)> callback)
 {
    //check magic bytes at start of file
-   auto magicBytesSize = magicBytes_.getSize();
+   auto& magicBytes = NetworkConfig::getMagicBytes();
+   auto magicBytesSize = magicBytes.getSize();
    if (fileSize < magicBytesSize)
    {
       stringstream ss;
@@ -472,7 +473,7 @@ void DatabaseBuilder::parseBlockFile(
    }
 
    BinaryDataRef dataMagic(fileMap, magicBytesSize);
-   if (dataMagic != magicBytes_)
+   if (dataMagic != magicBytes)
       throw runtime_error("Unexpected network magic bytes found in block data file");
 
    //set pointer to start offset
@@ -485,12 +486,12 @@ void DatabaseBuilder::parseBlockFile(
       size_t localProgress = magicBytesSize;
       BinaryDataRef magic(fileMap, magicBytesSize);
 
-      if (magic != magicBytes_)
+      if (magic != magicBytes)
       {
          //no magic byte trailing the last valid file offset, let's look for one
          BinaryDataRef theFile(fileMap + localProgress, 
             fileSize - progress - localProgress);
-         int32_t foundOffset = theFile.find(magicBytes_);
+         int32_t foundOffset = theFile.find(magicBytes);
          if (foundOffset == -1)
             return;
          
@@ -499,7 +500,7 @@ void DatabaseBuilder::parseBlockFile(
          localProgress += foundOffset;
 
          magic.setRef(fileMap + localProgress, magicBytesSize);
-         if (magic != magicBytes_)
+         if (magic != magicBytes)
             throw runtime_error("parsing for magic byte failed");
 
          localProgress += 4;

@@ -864,7 +864,7 @@ void BlockchainScanner_Super::scanSpentness()
       }
       catch(exception&)
       { 
-         sdbi.magic_ = db_->getMagicBytes();
+         sdbi.magic_ = NetworkConfig::getMagicBytes();
       }
    }
 

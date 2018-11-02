@@ -497,15 +497,11 @@ void LMDBBlockDatabase::openDatabases(
 {
    LOGINFO << "Opening databases...";
    LOGINFO << "dbmode: " << BlockDataManagerConfig::getDbModeStr();
-
-   magicBytes_ = NetworkConfig::getMagicBytes();
-   genesisTxHash_ = NetworkConfig::getGenesisTxHash();
-   genesisBlkHash_ = NetworkConfig::getMagicBytes();
    
    DatabaseContainer::baseDir_ = basedir;
    DatabaseContainer::magicBytes_ = NetworkConfig::getMagicBytes();
 
-   if (genesisBlkHash_.getSize() == 0 || magicBytes_.getSize() == 0)
+   if (!NetworkConfig::isInitialized())
    {
       LOGERR << " must set magic bytes and genesis block";
       LOGERR << "           before opening databases.";
@@ -536,7 +532,7 @@ void LMDBBlockDatabase::openDatabases(
       StoredDBInfo sdbi = openDB(CURRDB);
 
       // Check that the magic bytes are correct
-      if (magicBytes_ != sdbi.magic_)
+      if (NetworkConfig::getMagicBytes() != sdbi.magic_)
       {
          throw DbErrorMsg("Magic bytes mismatch!  Different blokchain?");
       }

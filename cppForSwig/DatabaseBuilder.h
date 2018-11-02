@@ -27,7 +27,6 @@ private:
    shared_ptr<ScrAddrFilter> scrAddrFilter_;
 
    const ProgressCallback progress_;
-   const BinaryData magicBytes_;
    BlockOffset topBlockOffset_;
    const BlockDataManagerConfig bdmConfig_;
 
