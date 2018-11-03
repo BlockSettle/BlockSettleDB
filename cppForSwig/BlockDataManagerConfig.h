@@ -79,6 +79,9 @@ public:
    const string cookie_;
    bool useCookie_ = false;
 
+private:
+   static bool fileExists(const string&, int);
+
 public:
    BlockDataManagerConfig();
 

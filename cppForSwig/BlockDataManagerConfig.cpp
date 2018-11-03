@@ -8,7 +8,6 @@
 
 #include "BlockDataManagerConfig.h"
 #include "BtcUtils.h"
-#include "DBUtils.h"
 #include "DbHeader.h"
 #include "EncryptionUtils.h"
 #include "JSON_codec.h"
@@ -88,6 +87,21 @@ string BlockDataManagerConfig::portToString(unsigned port)
    stringstream ss;
    ss << port;
    return ss.str();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool BlockDataManagerConfig::fileExists(const string& path, int mode)
+{
+#ifdef _WIN32
+   return _access(path.c_str(), mode) == 0;
+#else
+   auto nixmode = F_OK;
+   if (mode & 2)
+      nixmode |= R_OK;
+   if (mode & 4)
+      nixmode |= W_OK;
+   return access(path.c_str(), nixmode) == 0;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,7 +295,7 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
       auto configPath = dataDir_;
       appendPath(configPath, "armorydb.conf");
 
-      if (DBUtils::fileExists(configPath, 2))
+      if (fileExists(configPath, 2))
       {
          ConfigFile cf(configPath);
          auto mapIter = cf.keyvalMap_.find("datadir");
@@ -333,7 +347,7 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
       //test all paths
       auto testPath = [](const string& path, int mode)
       {
-         if (!DBUtils::fileExists(path, mode))
+         if (!fileExists(path, mode))
          {
             stringstream ss;
             ss << path << " is not a valid path";
