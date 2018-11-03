@@ -537,69 +537,6 @@ void Tx::pprintAlot(ostream & os)
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //
-// TxRef methods
-//
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-
-/////////////////////////////////////////////////////////////////////////////
-uint32_t TxRef::getBlockHeight(void) const
-{
-   if (dbKey6B_.getSize() == 6 && 
-      !dbKey6B_.startsWith(DBUtils::ZeroConfHeader_))
-      return DBUtils::hgtxToHeight(dbKey6B_.getSliceCopy(0, 4));
-   else
-      return UINT32_MAX;
-}
-
-/////////////////////////////////////////////////////////////////////////////
-uint8_t TxRef::getDuplicateID(void) const
-{
-   if (dbKey6B_.getSize() == 6)
-      return DBUtils::hgtxToDupID(dbKey6B_.getSliceCopy(0, 4));
-   else
-      return UINT8_MAX;
-}
-
-/////////////////////////////////////////////////////////////////////////////
-uint16_t TxRef::getBlockTxIndex(void) const
-{
-   if (dbKey6B_.getSize() == 6)
-   {
-      if (!dbKey6B_.startsWith(DBUtils::ZeroConfHeader_))
-         return READ_UINT16_BE(dbKey6B_.getPtr() + 4);
-      else
-         return READ_UINT32_BE(dbKey6B_.getPtr() + 2);
-   }
-   else
-      return UINT16_MAX;
-}
-
-
-/////////////////////////////////////////////////////////////////////////////
-void TxRef::pprint(ostream & os, int nIndent) const
-{
-   os << "TxRef Information:" << endl;
-   //os << "   Hash:      " << getThisHash().toHexStr() << endl;
-   os << "   Height:    " << getBlockHeight() << endl;
-   os << "   BlkIndex:  " << getBlockTxIndex() << endl;
-   //os << "   FileIdx:   " << blkFilePtr_.getFileIndex() << endl;
-   //os << "   FileStart: " << blkFilePtr_.getStartByte() << endl;
-   //os << "   NumBytes:  " << blkFilePtr_.getNumBytes() << endl;
-   os << "   ----- " << endl;
-   os << "   Read from disk, full tx-info: " << endl;
-   //getTxCopy().pprint(os, nIndent+1); 
-}
-
-/////////////////////////////////////////////////////////////////////////////
-void TxRef::setRef(BinaryDataRef bdr)
-{
-   dbKey6B_ = bdr.copy();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-//
 // UTXO methods
 //
 ////////////////////////////////////////////////////////////////////////////////

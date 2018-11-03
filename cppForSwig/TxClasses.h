@@ -91,54 +91,6 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class TxRef
-{
-   friend class BlockDataManager;
-   friend class Tx;
-
-public:
-   /////////////////////////////////////////////////////////////////////////////
-   TxRef() { }
-   TxRef(BinaryDataRef bdr) { setRef(bdr); }
-
-   /////////////////////////////////////////////////////////////////////////////
-   void setRef(BinaryDataRef bdr);
-
-   /////////////////////////////////////////////////////////////////////////////
-   bool           isInitialized(void)  const { return dbKey6B_.getSize()>0; }
-   bool           isNull(void) const { return !isInitialized(); }
-
-   /////////////////////////////////////////////////////////////////////////////
-   const BinaryData& getDBKey(void) const { return dbKey6B_; }
-   BinaryDataRef  getDBKeyRef(void)       { return dbKey6B_.getRef(); }
-   void           setDBKey(BinaryData    const & bd) { dbKey6B_.copyFrom(bd); }
-   void           setDBKey(BinaryDataRef const & bd) { dbKey6B_.copyFrom(bd); }
-
-
-   /////////////////////////////////////////////////////////////////////////////
-   BinaryData     getDBKeyOfChild(uint16_t i) const
-   {
-      return dbKey6B_ + WRITE_UINT16_BE(i);
-   }
-
-   uint16_t           getBlockTxIndex(void) const;
-   uint32_t           getBlockHeight(void) const;
-   uint8_t            getDuplicateID(void) const;
-
-   /////////////////////////////////////////////////////////////////////////////
-   void               pprint(ostream & os = cout, int nIndent = 0) const;
-
-   /////////////////////////////////////////////////////////////////////////////
-   bool operator==(BinaryData const & dbkey) const { return dbKey6B_ == dbkey; }
-   bool operator==(TxRef const & txr) const  { return dbKey6B_ == txr.dbKey6B_; }
-
-   bool operator>=(const BinaryData& dbkey) const { return dbKey6B_ >= dbkey; }
-
-protected:
-   BinaryData           dbKey6B_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
 class TxIn
 {
    friend class BlockDataManager;
