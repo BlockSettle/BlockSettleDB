@@ -88,15 +88,29 @@ RpcStatus NodeRPC::testConnection()
       {
          auto error_ptr = response_obj.getValForKey("error");
          auto error_obj = dynamic_pointer_cast<JSON_object>(error_ptr);
-         auto error_code_ptr = error_obj->getValForKey("code");
-         auto error_code = dynamic_pointer_cast<JSON_number>(error_code_ptr);
-
-         if (error_code == nullptr)
-            throw JSON_Exception("failed to get error code");
-
-         if ((int)error_code->val_ == -28)
+         if (error_obj != nullptr)
          {
-            state = RpcStatus_Error_28;
+            auto error_code_ptr = error_obj->getValForKey("code");
+            auto error_code = dynamic_pointer_cast<JSON_number>(error_code_ptr);
+
+            if (error_code == nullptr)
+               throw JSON_Exception("failed to get error code");
+
+            if ((int)error_code->val_ == -28)
+            {
+               state = RpcStatus_Error_28;
+            }
+         }
+         else
+         {
+            state = RpcStatus_Disabled;
+
+            auto error_val = dynamic_pointer_cast<JSON_string>(error_ptr);
+            if (error_val != nullptr)
+            {
+               LOGWARN << "Rpc connection test failed with error: " <<
+                  error_val->val_;
+            }
          }
       }
    }
