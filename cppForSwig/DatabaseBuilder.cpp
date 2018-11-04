@@ -609,14 +609,16 @@ Blockchain::ReorganizationState DatabaseBuilder::update(void)
    {
       //reorg, undo blocks up to branch point
       undoHistory(reorgState);
-
       startHeight = reorgState.reorgBranchPoint_->getBlockHeight() + 1;
    }
 
    //scan new blocks   
    BinaryData&& topScannedHash = scanHistory(startHeight, false, false);
    if (topScannedHash != blockchain_->top()->getThisHash())
+   {
+      LOGERR << "scan failure during DatabaseBuilder::update";
       throw runtime_error("scan failure during DatabaseBuilder::update");
+   }
 
    //TODO: recover from failed scan 
 

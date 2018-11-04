@@ -174,9 +174,11 @@ try
 
    auto updateChainLambda = [bdm, this]()->bool
    {
+      LOGINFO << "readBlkFileUpdate";
       auto reorgState = bdm->readBlkFileUpdate();
       if (reorgState.hasNewTop_)
       {
+         LOGINFO << "found new top";
          //purge zc container
          ZeroConfContainer::ZcActionStruct zcaction;
          zcaction.action_ = Zc_Purge;
