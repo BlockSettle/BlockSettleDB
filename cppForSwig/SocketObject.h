@@ -145,7 +145,6 @@ struct AcceptStruct
 ///////////////////////////////////////////////////////////////////////////////
 class SocketPrototype
 {
-   friend class FCGI_Server;
    friend class ListenServer;
 
 private: 

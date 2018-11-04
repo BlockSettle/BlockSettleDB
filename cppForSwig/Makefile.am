@@ -7,8 +7,8 @@ BENCH =
 
 LIBBTC = libbtc/libbtc.la
 
-DIST_SUBDIRS = fcgi cryptopp libbtc
-SUBDIRS = fcgi cryptopp libbtc $(MAYBE_BUILD)
+DIST_SUBDIRS = cryptopp libbtc
+SUBDIRS = cryptopp libbtc $(MAYBE_BUILD)
 
 SWIG_FLAGS = -c++ -python -threads
 AM_CXXFLAGS =
@@ -43,7 +43,7 @@ protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
 
 # NOTE: /usr/local/include reflects local installs of libwebsockets. This may
 # be removed later.
-INCLUDE_FILES = -Ibech32/ref/c++ -Ifcgi -Ilmdb/libraries/liblmdb \
+INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
 	-Ilibbtc/include -Ilibbtc/src/secp256k1/include -I/usr/local/include \
 	$(LWS_CFLAGS)
 
@@ -93,7 +93,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	DecryptedDataContainer.cpp \
 	DerivationScheme.cpp \
 	EncryptionUtils.cpp \
-	FcgiMessage.cpp \
+	HttpMessage.cpp \
 	JSON_codec.cpp \
 	lmdb_wrapper.cpp \
 	log.cpp \
@@ -168,8 +168,7 @@ libArmoryCLI_la_SOURCES = $(ARMORYCLI_SOURCE_FILES)
 libArmoryCLI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 			$(PYTHON_CFLAGS)
 libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) -Ilmdb/libraries/liblmdb -D__STDC_LIMIT_MACROS
-libArmoryCLI_la_LIBADD = fcgi/libfcgi/libfcgi.la \
-			 $(LIBBTC) \
+libArmoryCLI_la_LIBADD = $(LIBBTC) \
 			 libArmoryCommon.la \
 			 -lpthread -lwebsockets
 libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWS_LDFLAGS) -shared
@@ -179,8 +178,7 @@ bin_PROGRAMS += ArmoryDB
 ArmoryDB_SOURCES = $(ARMORYDB_SOURCE_FILES)
 ArmoryDB_CXXFLAGS = $(AM_CXXFLAGS) -D__STDC_LIMIT_MACROS
 ArmoryDB_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
-ArmoryDB_LDADD = fcgi/libfcgi/libfcgi.la \
-		 libArmoryCommon.la \
+ArmoryDB_LDADD = libArmoryCommon.la \
 		 libArmoryCLI.la \
 		 -lpthread -lprotobuf
 ArmoryDB_LDFLAGS = -static $(LDFLAGS) $(LWS_LDFLAGS)
@@ -203,7 +201,6 @@ libCppBlockUtils_la_SOURCES = CppBlockUtils_wrap.cxx
 libCppBlockUtils_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 				$(PYTHON_CFLAGS)
 libCppBlockUtils_la_CXXFLAGS = $(AM_CXXFLAGS) -Ilmdb/libraries/liblmdb \
-				-Ifcgi/include \
 				-D__STDC_LIMIT_MACROS
 libCppBlockUtils_la_LIBADD = libArmoryCommon.la libArmoryGUI.la \
 				cryptopp/libcryptopp.la -lpthread

@@ -32,14 +32,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       /* in: void
          out: BDVCallback
       */
-      if (!cb_->isValid())
-         break;
-
-      auto longpoll = dynamic_cast<LongPoll*>(this->cb_.get());
-      if (longpoll == nullptr)
-         break;
-
-      return longpoll->respond(command);
+      break;
    }
 
    case Methods::goOnline:
@@ -902,11 +895,9 @@ void BDV_Server_Object::setup()
       return UINT32_MAX;
    };
 
-   if (BlockDataManagerConfig::getServiceType() == SERVICE_FCGI)
+   switch (BlockDataManagerConfig::getServiceType())
    {
-      cb_ = make_unique<LongPoll>(isReadyLambda);
-   }
-   else if (BlockDataManagerConfig::getServiceType() == SERVICE_WEBSOCKET)
+   case SERVICE_WEBSOCKET:
    {
       auto&& bdid = READHEX(getID());
       if (bdid.getSize() != 8)
@@ -914,9 +905,14 @@ void BDV_Server_Object::setup()
 
       auto intid = (uint64_t*)bdid.getPtr();
       cb_ = make_unique<WS_Callback>(*intid);
+      break;
    }
-   else
-   {
+   
+   case SERVICE_UNITTEST:
+      cb_ = make_unique<UnitTest_Callback>();
+      break;
+
+   default:
       throw runtime_error("unexpected service type");
    }
 }
@@ -1540,7 +1536,7 @@ void Clients::processShutdownCommand(shared_ptr<StaticCommand> command)
          this->exitRequestLoop();
       };
 
-      //run shutdown sequence in its own thread so that the fcgi listen
+      //run shutdown sequence in its own thread so that the server listen
       //loop can exit properly.
       thread shutdownThr(shutdownLambda);
       if (shutdownThr.joinable())
@@ -1610,7 +1606,7 @@ void Clients::exitRequestLoop()
    /*terminate request processing loop*/
    LOGINFO << "proceeding to shutdown";
 
-   //shutdown loop on FcgiServer side
+   //shutdown loop on server side
    if (shutdownCallback_)
       shutdownCallback_();
 }
@@ -1872,85 +1868,6 @@ Callback::~Callback()
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<Message> LongPoll::respond(shared_ptr<BDVCommand> command)
-{
-   unique_lock<mutex> lock(mu_, defer_lock);
-
-   if (!lock.try_lock())
-   {
-      auto response = make_shared<BDVCallback>();
-      auto notif = response->add_notification();
-      notif->set_type(NotificationType::continue_polling);
-      return response;
-   }
-
-   count_ = 0;
-
-   switch (command->method())
-   {
-   case Methods::waitOnBDVInit:
-   {
-      //check is bdv is ready
-      auto topheight = isReady_();
-      if (topheight != UINT32_MAX)
-      {
-         auto response = make_shared<BDVCallback>();
-         auto notif = response->add_notification();
-         notif->set_type(NotificationType::ready);
-         notif->set_height(topheight);
-
-         vector<shared_ptr<BDVCallback>> orderVec;
-         orderVec.push_back(response);
-         return respond_inner(orderVec);
-      }
-
-      //otherwise, fallback to wait on notifications
-   }
-
-   case Methods::waitOnBDVNotification:
-   {
-      vector<shared_ptr<BDVCallback>> orderVec;
-
-      try
-      {
-         orderVec = move(notificationStack_.pop_all(std::chrono::seconds(50)));
-      }
-      catch (IsEmpty&)
-      {
-         auto response = make_shared<BDVCallback>();
-         auto notif = response->add_notification();
-         notif->set_type(NotificationType::continue_polling);
-         orderVec.push_back(response);
-      }
-      catch (StackTimedOutException&)
-      {
-         auto response = make_shared<BDVCallback>();
-         auto notif = response->add_notification();
-         notif->set_type(NotificationType::continue_polling);
-         orderVec.push_back(response);
-      }
-      catch (StopBlockingLoop&)
-      {
-         count_ = 5;
-
-         //return terminate packet
-         auto response = make_shared<BDVCallback>();
-         auto notif = response->add_notification();
-         notif->set_type(NotificationType::terminate);
-         orderVec.push_back(response);
-      }
-
-      return respond_inner(orderVec);
-   }
-
-   default:
-      LOGWARN << "invalid command for longpoll callback";
-   }
-
-   return nullptr;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 void WS_Callback::callback(shared_ptr<BDVCallback> command)
 {
    //write to socket
@@ -1958,47 +1875,23 @@ void WS_Callback::callback(shared_ptr<BDVCallback> command)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<Message> LongPoll::respond_inner(
-   vector<shared_ptr<BDVCallback>>& orderVec)
+void UnitTest_Callback::callback(shared_ptr<BDVCallback> command)
 {
-   if (orderVec.size() == 0)
-      return nullptr;
+   //stash the notification, unit test will pull it as needed
+   notifQueue_.push_back(move(command));
+}
 
-   //consolidate NewBlock and Progress notifications
-   shared_ptr<BDVCallback> order_newblock;
-   shared_ptr<BDVCallback> order_progress;
-
-   auto response = make_shared<::Codec_BDVCommand::BDVCallback>();
-
-   for (auto& order : orderVec)
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<::Codec_BDVCommand::BDVCallback> UnitTest_Callback::getNotification()
+{
+   try
    {
-      if (order->notification_size() == 0)
-         continue;
-
-      auto& notif = order->notification(0);
-      switch (notif.type())
-      {
-
-      case NotificationType::newblock:
-         order_newblock = order;
-         break;
-
-      case NotificationType::progress:
-         order_progress = order;
-         break;
-
-      default:
-         response->MergeFrom(*order);
-      }
+      return notifQueue_.pop_front();
    }
+   catch (StopBlockingLoop&)
+   {}
 
-   if (order_newblock != nullptr)
-      response->MergeFrom(*order_newblock);
-
-   if (order_progress != nullptr)
-      response->MergeFrom(*order_progress);
-    
-   return move(response);
+   return nullptr;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

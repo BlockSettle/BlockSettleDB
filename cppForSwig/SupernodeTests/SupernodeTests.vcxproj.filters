@@ -69,9 +69,6 @@
     <ClCompile Include="..\EncryptionUtils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\FcgiMessage.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\HistoryPager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -153,12 +150,6 @@
     <ClCompile Include="..\leveldb_windows_port\win32_posix\mman.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\fcgi\libfcgi\fcgiapp.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\fcgi\libfcgi\os_win32.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\gtest\gtest-all.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -223,6 +214,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\NetworkConfig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\HttpMessage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

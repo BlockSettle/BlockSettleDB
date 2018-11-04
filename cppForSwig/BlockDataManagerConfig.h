@@ -62,8 +62,7 @@ public:
    string listenPort_;
    string rpcPort_;
 
-   bool customFcgiPort_ = false;
-
+   bool customListenPort_ = false;
 
    unsigned ramUsage_ = 4;
    unsigned threadCount_ = thread::hardware_concurrency();

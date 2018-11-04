@@ -220,14 +220,13 @@ AM_CONDITIONAL([BUILD_TESTS], [test "x$want_tests" = "xyes"])
 
 dnl ac_configure_args can only be set once and affects all subdirs.
 dnl Place all params here.
-dnl FCGI - No customs
 dnl Crypto++ - No customs
 dnl libchacha20poly1305 - No customs
 dnl libbtc - --disable-wallet --disable-tools
 dnl libsecp256k1 (libbtc) - --disable-shared --with-pic --with-bignum=no
 dnl NB: --disable-wallet left off for now. Upstream issues kill debug builds.
 ac_configure_args="${orig_config_args} --disable-tools --disable-shared --with-pic --with-bignum=no"
-AC_CONFIG_SUBDIRS([cppForSwig/fcgi cppForSwig/cryptopp cppForSwig/libbtc])
+AC_CONFIG_SUBDIRS([cppForSwig/cryptopp cppForSwig/libbtc])
 
 AC_OUTPUT
 

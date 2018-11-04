@@ -37,6 +37,12 @@ enum WalletType
 
 class BDV_Server_Object;
 
+namespace DBTestUtils
+{
+   tuple<shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> waitOnSignal(
+      Clients*, const string&, ::Codec_BDVCommand::NotificationType);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_Payload
 {
@@ -72,68 +78,6 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-class LongPoll : public Callback
-{
-private:
-   mutex mu_;
-   atomic<unsigned> count_;
-   TimedQueue<shared_ptr<::Codec_BDVCommand::BDVCallback>> notificationStack_;
-
-   function<unsigned(void)> isReady_;
-
-private:
-   shared_ptr<::google::protobuf::Message> respond_inner(
-      vector<shared_ptr<::Codec_BDVCommand::BDVCallback>>& orderVec);
-
-public:
-   LongPoll(function<unsigned(void)> isReady) :
-      Callback(), isReady_(isReady)
-   {
-      count_.store(0, memory_order_relaxed);
-   }
-
-   shared_ptr<::google::protobuf::Message> respond(
-      shared_ptr<::Codec_BDVCommand::BDVCommand>);
-
-   ~LongPoll(void)
-   {
-      shutdown();
-   }
-
-   void shutdown(void)
-   {
-      //after signaling shutdown, grab the mutex to make sure 
-      //all responders threads have terminated
-      notificationStack_.terminate();
-      unique_lock<mutex> lock(mu_);
-   }
-
-   void resetCounter(void)
-   {
-      count_.store(0, memory_order_relaxed);
-   }
-
-   bool isValid(void)
-   {
-      unique_lock<mutex> lock(mu_, defer_lock);
-
-      if (lock.try_lock())
-      {
-         auto count = count_.fetch_add(1, memory_order_relaxed) + 1;
-         if (count >= CALLBACK_EXPIRE_COUNT)
-            return false;
-      }
-
-      return true;
-   }
-
-   void callback(shared_ptr<::Codec_BDVCommand::BDVCallback> command)
-   {
-      notificationStack_.push_back(move(command));
-   }
-};
-
-///////////////////////////////////////////////////////////////////////////////
 class WS_Callback : public Callback
 {
 private:
@@ -150,9 +94,26 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+class UnitTest_Callback : public Callback
+{
+private:
+   BlockingQueue<shared_ptr<::Codec_BDVCommand::BDVCallback>> notifQueue_;
+
+public:
+   void callback(shared_ptr<::Codec_BDVCommand::BDVCallback>);
+   bool isValid(void) { return true; }
+   void shutdown(void) {}
+
+   shared_ptr<::Codec_BDVCommand::BDVCallback> getNotification(void);
+};
+
+///////////////////////////////////////////////////////////////////////////////
 class BDV_Server_Object : public BlockDataViewer
 {
    friend class Clients;
+   friend tuple<shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> 
+      DBTestUtils::waitOnSignal(
+      Clients*, const string&, ::Codec_BDVCommand::NotificationType);
 
 private: 
    thread initT_;
@@ -194,14 +155,6 @@ private:
    void registerWallet(shared_ptr<::Codec_BDVCommand::BDVCommand>);
    void registerLockbox(shared_ptr<::Codec_BDVCommand::BDVCommand>);
    void populateWallets(map<string, walletRegStruct>&);
-
-   void resetCounter(void)
-   {
-      auto longpoll = dynamic_cast<LongPoll*>(cb_.get());
-      if (longpoll != nullptr)
-         longpoll->resetCounter();
-   }
-
    void setup(void);
 
    void flagRefresh(

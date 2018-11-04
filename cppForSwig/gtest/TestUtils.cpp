@@ -356,14 +356,10 @@ namespace DBTestUtils
    tuple<shared_ptr<BDVCallback>, unsigned> waitOnSignal(
       Clients* clients, const string& bdvId, NotificationType signal)
    {
-      auto message = make_shared<BDVCommand>();
-      message->set_method(Methods::waitOnBDVNotification);
-      message->set_bdvid(bdvId);
-
       shared_ptr<BDVCallback> callbackPtr;
       unsigned index;
 
-      auto processCallback = 
+      auto processCallback =
       [&](shared_ptr<::google::protobuf::Message> cmd)->bool
       {
          auto notifPtr = dynamic_pointer_cast<BDVCallback>(cmd);
@@ -381,11 +377,16 @@ namespace DBTestUtils
          return false;
       };
 
-      while (1)
-      {
-         auto result = processCommand(clients, message);
+      auto bdv_obj = clients->get(bdvId);
+      auto cbPtr = bdv_obj->cb_.get();
+      auto unittest_cbptr = dynamic_cast<UnitTest_Callback*>(cbPtr);
+      if (unittest_cbptr == nullptr)
+         throw runtime_error("unexpected callback ptr type");
 
-         if (processCallback(move(result)))
+      while (true)
+      {
+         auto&& notifPtr = unittest_cbptr->getNotification();
+         if (processCallback(notifPtr))
             return make_tuple(callbackPtr, index);
       }
    }

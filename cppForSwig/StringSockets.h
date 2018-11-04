@@ -11,7 +11,7 @@
 
 #include <string.h>
 #include "SocketObject.h"
-#include "FcgiMessage.h"
+#include "HttpMessage.h"
 
 typedef vector<uint8_t>::iterator vecIter;
 
@@ -20,14 +20,6 @@ struct HttpError : public SocketError
 {
 public:
    HttpError(const string& e) : SocketError(e)
-   {}
-};
-
-///////////////////////////////////////////////////////////////////////////////
-struct FcgiError : public SocketError
-{
-public:
-   FcgiError(const string& e) : SocketError(e)
    {}
 };
 
@@ -119,49 +111,6 @@ public:
    {
       messageWithPrecacheHeaders_->addHeader(move(header));
    }
-};
-
-///////////////////////////////////////////////////////////////////////////////
-class FcgiSocket : public HttpSocket
-{
-private:
-   struct PacketStruct
-   {
-      vector<uint8_t> httpData_;
-
-      int endpacket = 0;
-      size_t ptroffset = 0;
-
-      BinaryDataRef getHttpBody(void)
-      {
-         if (httpData_.size() == 0)
-            return BinaryDataRef();
-
-         auto offset = HttpSocket::
-            getHttpBodyOffset((char*)&httpData_[0], httpData_.size());
-         
-         BinaryDataRef httpBody(&httpData_[0] + offset, 
-            httpData_.size() - offset);
-         
-         return httpBody;
-      }
-   };
-
-   map<uint16_t, PacketStruct> packetMap_;
-   vector<uint8_t> leftOver_;
-
-private:
-   PacketStruct& getPacketStruct(uint16_t);
-   void deletePacketStruct(uint16_t);
-
-public:
-   FcgiSocket(const string& addr, const string& port);
-   SocketType type(void) const { return SocketFcgi; }
-
-   bool processPacket(vector<uint8_t>&, vector<uint8_t>&);
-   void pushPayload(
-      unique_ptr<Socket_WritePayload>,
-      shared_ptr<Socket_ReadPayload>);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

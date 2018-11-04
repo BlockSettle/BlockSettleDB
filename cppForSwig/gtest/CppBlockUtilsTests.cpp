@@ -4967,6 +4967,9 @@ protected:
       mkdir(blkdir_);
       mkdir(homedir_);
       
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
+
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
       wallet1id = BinaryData("wallet1");
    }
@@ -4996,9 +4999,6 @@ TEST_F(BlockDir, HeadersFirst)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-
-   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-
    config.nodeType_ = Node_UnitTest;
    
    // Put the first 5 blocks out of order
@@ -5050,8 +5050,6 @@ TEST_F(BlockDir, HeadersFirstUpdate)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-
    config.nodeType_ = Node_UnitTest;
 
    // Put the first 5 blocks out of order
@@ -5109,8 +5107,6 @@ TEST_F(BlockDir, HeadersFirstReorg)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-
    config.nodeType_ = Node_UnitTest;
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
@@ -5186,8 +5182,6 @@ TEST_F(BlockDir, HeadersFirstUpdateTwice)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-
    config.nodeType_ = Node_UnitTest;
 
    TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
@@ -5248,8 +5242,6 @@ TEST_F(BlockDir, BlockFileSplit)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-
    config.nodeType_ = Node_UnitTest;
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
@@ -5304,8 +5296,6 @@ TEST_F(BlockDir, BlockFileSplitUpdate)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-
    config.nodeType_ = Node_UnitTest;
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
@@ -5391,8 +5381,7 @@ protected:
       mkdir(homedir_);
       mkdir(ldbdir_);
 
-      //init to fcgi socket
-      BlockDataManagerConfig::setServiceType(SERVICE_FCGI);
+      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
 
       // Put the first 5 blocks into the blkdir
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
@@ -7493,11 +7482,8 @@ TEST_F(BlockUtilsBare, Load4Blocks_ZC_GetUtxos)
 TEST_F(BlockUtilsBare, WebSocketStack)
 {
    BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
-   //run clients from websocketserver object instead
    clients_->exitRequestLoop();
    clients_->shutdown();
 
@@ -9756,7 +9742,7 @@ TEST_F(BlockUtilsBare, GrabAddrLedger_PostReg)
    //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
-   //run clients from fcgiserver object instead
+   //run clients from server object instead
    clients_->exitRequestLoop();
    clients_->shutdown();
 

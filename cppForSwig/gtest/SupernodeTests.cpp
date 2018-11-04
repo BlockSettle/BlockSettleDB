@@ -251,6 +251,7 @@ protected:
       mkdir(ldbdir_);
 
       // Put the first 5 blocks into the blkdir
+      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
 
@@ -1318,6 +1319,7 @@ protected:
       mkdir(ldbdir_);
 
       // Put the first 5 blocks into the blkdir
+      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
 

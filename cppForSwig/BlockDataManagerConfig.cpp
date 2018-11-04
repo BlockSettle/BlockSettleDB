@@ -22,7 +22,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 ARMORY_DB_TYPE BlockDataManagerConfig::armoryDbType_ = ARMORY_DB_FULL;
-SOCKET_SERVICE BlockDataManagerConfig::service_ = SERVICE_FCGI;
+SOCKET_SERVICE BlockDataManagerConfig::service_ = SERVICE_WEBSOCKET;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,7 +116,7 @@ void BlockDataManagerConfig::selectNetwork(NETWORK_MODE mode)
       btcPort_ = portToString(NODE_PORT_MAINNET);
       rpcPort_ = portToString(RPC_PORT_MAINNET);
 
-      if (!customFcgiPort_)
+      if (!customListenPort_)
          listenPort_ = portToString(LISTEN_PORT_MAINNET);
       break;
    }
@@ -126,7 +126,7 @@ void BlockDataManagerConfig::selectNetwork(NETWORK_MODE mode)
       btcPort_ = portToString(NODE_PORT_TESTNET);
       rpcPort_ = portToString(RPC_PORT_TESTNET);
 
-      if (!customFcgiPort_)
+      if (!customListenPort_)
          listenPort_ = portToString(LISTEN_PORT_TESTNET);
       break;
    }
@@ -136,7 +136,7 @@ void BlockDataManagerConfig::selectNetwork(NETWORK_MODE mode)
       btcPort_ = portToString(NODE_PORT_REGTEST);
       rpcPort_ = portToString(RPC_PORT_TESTNET);
 
-      if (!customFcgiPort_)
+      if (!customListenPort_)
          listenPort_ = portToString(LISTEN_PORT_REGTEST);
       break;
    }
@@ -381,11 +381,11 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
 
       testPath(blkFileLocation_, 2);
 
-      //fcgi port
-      if (useCookie_ && !customFcgiPort_)
+      //listen port
+      if (useCookie_ && !customListenPort_)
       {
-         //no custom fcgi port was provided and the db was spawned with a 
-         //cookie file, fcgi port will be randomized
+         //no custom listen port was provided and the db was spawned with a 
+         //cookie file, listen port will be randomized
          srand(time(0));
          while (1)
          {
@@ -427,7 +427,7 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
       }
       else
       {
-         customFcgiPort_ = true;
+         customListenPort_ = true;
       }
    }
 

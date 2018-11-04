@@ -17,7 +17,6 @@
 
 using namespace std;
 
-#include "FcgiMessage.h"
 #include "WebSocketMessage.h"
 #include "libwebsockets.h"
 
