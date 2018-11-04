@@ -51,31 +51,39 @@ INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = AsyncClient.cpp \
 	CoinSelection.cpp \
-    ClientClasses.cpp \
+	ClientClasses.cpp \
 	SwigClient.cpp \
 	TransactionBatch.cpp \
 	WalletManager.cpp \
 	Wallets.cpp \
-    WebSocketClient.cpp
+	WebSocketClient.cpp
 ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	BDM_Server.cpp \
 	BitcoinP2P.cpp \
+	Blockchain.cpp \
 	BlockchainScanner.cpp \
 	BlockchainScanner_Super.cpp \
+	BlockDataMap.cpp \
 	BlockDataViewer.cpp \
+	BlockObj.cpp \
 	BlockUtils.cpp \
 	BtcWallet.cpp \
 	DatabaseBuilder.cpp \
+	DBUtils.cpp \
 	HistoryPager.cpp \
+	HttpMessage.cpp \
+	JSON_codec.cpp \
 	LedgerEntry.cpp \
+	lmdb_wrapper.cpp \
 	nodeRPC.cpp \
 	Progress.cpp \
 	ScrAddrFilter.cpp \
 	ScrAddrObj.cpp \
 	Server.cpp \
-	SocketObject.cpp \
-    SocketService_unix.cpp \
+	SocketService_unix.cpp \
 	SshParser.cpp \
+	StoredBlockObj.cpp \
+	StringSockets.cpp \
 	txio.cpp \
 	ZeroConf.cpp
 ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
@@ -83,25 +91,17 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	AssetEncryption.cpp \
 	Assets.cpp \
 	BinaryData.cpp \
-	Blockchain.cpp \
-	NetworkConfig.cpp \
 	BlockDataManagerConfig.cpp \
-	BlockDataMap.cpp \
-	BlockObj.cpp \
 	BtcUtils.cpp \
-	DBUtils.cpp \
 	DecryptedDataContainer.cpp \
 	DerivationScheme.cpp \
 	EncryptionUtils.cpp \
-	HttpMessage.cpp \
-	JSON_codec.cpp \
-	lmdb_wrapper.cpp \
+	NetworkConfig.cpp \
 	log.cpp \
 	ReentrantLock.cpp \
 	Script.cpp \
 	Signer.cpp \
-	StoredBlockObj.cpp \
-	StringSockets.cpp \
+	SocketObject.cpp \
 	Transactions.cpp \
 	TxClasses.cpp \
 	TxEvalState.cpp \

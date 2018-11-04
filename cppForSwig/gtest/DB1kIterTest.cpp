@@ -55,10 +55,6 @@ protected:
       config.blkFileLocation_ = blkdir_;
       config.dbDir_ = ldbdir_;
       config.threadCount_ = 3;
-
-      config.genesisBlockHash_ = ghash_;
-      config.genesisTxHash_ = gentx_;
-      config.magicBytes_ = magic_;
       config.nodeType_ = Node_UnitTest;
 
       wallet1id = BinaryData("wallet1");

@@ -113,7 +113,8 @@ LedgerDelegate BlockDataViewer::getLedgerDelegateForWallets()
    {
       try
       {
-         LedgerDelegate led(as_led.get());
+         auto led_mv = move(as_led.get());
+         LedgerDelegate led(led_mv);
          prom->set_value(move(led));
       }
       catch (ClientMessageError&)
@@ -137,7 +138,8 @@ LedgerDelegate BlockDataViewer::getLedgerDelegateForLockboxes()
    {
       try
       {
-         LedgerDelegate led(as_led.get());
+         auto led_mv = move(as_led.get());
+         LedgerDelegate led(led_mv);
          prom->set_value(move(led));
       }
       catch (exception&)
@@ -220,7 +222,8 @@ LedgerDelegate BlockDataViewer::getLedgerDelegateForScrAddr(
    {
       try
       {
-         LedgerDelegate led(as_led.get());
+         auto led_mv = move(as_led.get());
+         LedgerDelegate led(led_mv);
          prom->set_value(move(led));
       }
       catch (exception&)
