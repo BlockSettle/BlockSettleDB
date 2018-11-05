@@ -10,6 +10,8 @@
 #include "BtcUtils.h"
 #include "EncryptionUtils.h"
 
+using namespace std;
+
 BinaryData BinaryData::EmptyBinData_(0);
 
 ////////////////////////////////////////////////////////////////////////////////

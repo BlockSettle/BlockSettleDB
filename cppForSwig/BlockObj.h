@@ -41,7 +41,7 @@ template<typename T> class TxFilter
    template <typename U> friend class TxFilterPool;
 
 private:
-   vector<T> filterVector_;
+   std::vector<T> filterVector_;
    const uint8_t* filterPtr_ = nullptr;
    
    uint32_t blockKey_ = UINT32_MAX;
@@ -150,7 +150,7 @@ public:
 
    bool isValid(void) const { return isValid_; }
 
-   void update(const vector<BinaryData>& hashVec)
+   void update(const std::vector<BinaryData>& hashVec)
    {
       if (!isValid())
          throw runtime_error("txfilter needs initialized first");
@@ -161,15 +161,15 @@ public:
       }
    }   
    
-   set<uint32_t> compare(const BinaryData& hash) const
+   std::set<uint32_t> compare(const BinaryData& hash) const
    {
       auto key = (T*)hash.getPtr();
       return compare(*key);
    }
 
-   set<uint32_t> compare(const T& key) const
+   std::set<uint32_t> compare(const T& key) const
    {
-      set<uint32_t> resultSet;
+      std::set<uint32_t> resultSet;
       if (filterVector_.size() != 0)
       {
          for (unsigned i = 0; i < filterVector_.size(); i++)
@@ -186,7 +186,7 @@ public:
                resultSet.insert(i);
       }
       else
-         throw runtime_error("invalid filter");
+         throw std::runtime_error("invalid filter");
 
       return resultSet;
    }
@@ -196,7 +196,7 @@ public:
    void serialize(BinaryWriter& bw) const
    {
       if (blockKey_ == UINT32_MAX)
-         throw runtime_error("invalid block key");
+         throw std::runtime_error("invalid block key");
 
       uint32_t size = 12 + filterVector_.size() * sizeof(T);
       bw.put_uint32_t(size);
@@ -265,7 +265,7 @@ public:
    BinaryDataRef  getDiffBitsRef(void) const   { return BinaryDataRef(getPtr()+72,4 ); }
    uint32_t       getNumTx(void) const         { return numTx_; }
 
-   const string&  getFileName(void) const { return blkFile_; }
+   const std::string&  getFileName(void) const { return blkFile_; }
    uint64_t       getOffset(void) const { return blkFileOffset_; }
    uint32_t       getBlockFileNum(void) const { return blkFileNum_; }
    /////////////////////////////////////////////////////////////////////////////
@@ -283,13 +283,13 @@ public:
    void            setNumTx(uint32_t ntx) { numTx_ = ntx; }
 
    /////////////////////////////////////////////////////////////////////////////
-   void           setBlockFile(string filename)     {blkFile_       = filename;}
+   void           setBlockFile(std::string filename)     {blkFile_       = filename;}
    void           setBlockFileNum(uint32_t fnum)    {blkFileNum_    = fnum;}
    void           setBlockFileOffset(uint64_t offs) {blkFileOffset_ = offs;}
 
    /////////////////////////////////////////////////////////////////////////////
-   void          pprint(ostream & os=cout, int nIndent=0, bool pBigendian=true) const;
-   void          pprintAlot(ostream & os=cout);
+   void          pprint(std::ostream & os= std::cout, int nIndent=0, bool pBigendian=true) const;
+   void          pprintAlot(std::ostream & os= std::cout);
 
    /////////////////////////////////////////////////////////////////////////////
    const BinaryData& serialize(void) const   { return dataCopy_; }
@@ -342,7 +342,7 @@ private:
    BinaryData     nextHash_;
    double         difficultySum_ = 0.0;
 
-   string         blkFile_;
+   std::string         blkFile_;
    uint32_t       blkFileNum_ = UINT32_MAX;
    uint64_t       blkFileOffset_ = SIZE_MAX;
 
@@ -385,7 +385,7 @@ public:
    uint8_t            getDuplicateID(void) const;
 
    /////////////////////////////////////////////////////////////////////////////
-   void               pprint(ostream & os = cout, int nIndent = 0) const;
+   void               pprint(std::ostream & os = std::cout, int nIndent = 0) const;
 
    /////////////////////////////////////////////////////////////////////////////
    bool operator==(BinaryData const & dbkey) const { return dbKey6B_ == dbkey; }
@@ -485,7 +485,7 @@ public:
    static bool CompareTech1(UnspentTxOut const & uto1, UnspentTxOut const & uto2);
    static bool CompareTech2(UnspentTxOut const & uto1, UnspentTxOut const & uto2);
    static bool CompareTech3(UnspentTxOut const & uto1, UnspentTxOut const & uto2);
-   static void sortTxOutVect(vector<UnspentTxOut> & utovect, int sortType=1);
+   static void sortTxOutVect(std::vector<UnspentTxOut> & utovect, int sortType=1);
 
 
 public:

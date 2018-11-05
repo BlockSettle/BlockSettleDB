@@ -28,6 +28,7 @@
 #include <dirent.h>
 #endif
 
+using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 const BinaryData DBUtils::ZeroConfHeader_ = BinaryData::CreateFromHex("FFFF");

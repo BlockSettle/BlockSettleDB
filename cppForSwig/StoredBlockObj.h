@@ -306,7 +306,7 @@ public:
    bool isRBF(void) const { return isRBF_; }
 
    ////
-   map<uint16_t, StoredTxOut> stxoMap_;
+   std::map<uint16_t, StoredTxOut> stxoMap_;
    bool isRBF_ = false;
 };
 
@@ -416,7 +416,7 @@ public:
    { return static_cast<DBTx&>(stxMap_[index]); }
 
    ///
-   map<uint16_t, StoredTx> stxMap_;
+   std::map<uint16_t, StoredTx> stxMap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -465,7 +465,7 @@ public:
    }
 
    static void compressMany(
-      const map<BinaryDataRef, StoredSubHistory*>& ssh, 
+      const std::map<BinaryDataRef, StoredSubHistory*>& ssh,
       unsigned heightOffset, unsigned spentOffset,
       BinaryWriter& bw);
 
@@ -491,7 +491,7 @@ public:
    // Store all TxIOs for this ScrAddr and block
    BinaryData     uniqueKey_;  // includes the prefix byte!
    BinaryData     hgtX_;
-   map<BinaryData, TxIOPair> txioMap_;
+   std::map<BinaryData, TxIOPair> txioMap_;
    uint32_t height_;
    uint8_t  dupID_;
    uint32_t txioCount_;
@@ -523,7 +523,7 @@ public:
    void decompressManySubssh(const BinaryDataRef&,
       unsigned height_offset, unsigned spent_offset,
       unsigned lower_bound, unsigned upper_bound,
-      function<bool(unsigned, uint8_t)>& isDupIdValid);
+      std::function<bool(unsigned, uint8_t)>& isDupIdValid);
    
    void addSummary(const StoredScriptHistory&);
    void substractSummary(const StoredScriptHistory&);
@@ -536,7 +536,7 @@ public:
 
    bool     haveFullHistoryLoaded(void) const;
 
-   bool getFullTxioMap(map<BinaryData, TxIOPair> & mapToFill,
+   bool getFullTxioMap(std::map<BinaryData, TxIOPair> & mapToFill,
                        bool withMultisig=false);
 
    void mergeSubHistory(const StoredSubHistory& subssh);
@@ -551,7 +551,7 @@ public:
    int32_t        tallyHeight_ = -1;
    uint64_t       totalTxioCount_;
    uint64_t       totalUnspent_;
-   map<unsigned, unsigned> subsshSummary_;
+   std::map<unsigned, unsigned> subsshSummary_;
 
    // If this ssh has only one TxIO (most of them), then we don't bother
    // with supplemental entries just to hold that one TxIO in the DB.
@@ -559,7 +559,7 @@ public:
    // objects which will have the per-block lists of TxIOs.  But when 
    // it gets serialized to disk, we will store single-Txio SSHs in
    // the base entry and forego extra DB entries.
-   map<BinaryData, StoredSubHistory> subHistMap_;
+   std::map<BinaryData, StoredSubHistory> subHistMap_;
 };
 
 
@@ -587,8 +587,8 @@ public:
    uint32_t    blockHeight_;
    uint8_t     duplicateID_;
 
-   vector<StoredTxOut>  stxOutsRemovedByBlock_;
-   vector<OutPoint>     outPointsAddedByBlock_;
+   std::vector<StoredTxOut>  stxOutsRemovedByBlock_;
+   std::vector<OutPoint>     outPointsAddedByBlock_;
 };
 
 
@@ -618,7 +618,7 @@ public:
    BinaryData getDBKey(bool withPrefix=true) const;
 
    BinaryData         txHashPrefix_; 
-   vector<BinaryData> dbKeyList_;
+   std::vector<BinaryData> dbKeyList_;
    BinaryData         preferredDBKey_;
 };
 
@@ -643,11 +643,11 @@ public:
          {
             if(dupAndHashList_[i].second != hash)
                LOGERR << "Pushing different hash into existing HHL dupID"; 
-            dupAndHashList_[i] = make_pair(dup,hash);
+            dupAndHashList_[i] = std::make_pair(dup,hash);
             return;
          }
       }
-      dupAndHashList_.push_back(make_pair(dup,hash));
+      dupAndHashList_.push_back(std::make_pair(dup,hash));
    }
 
    BinaryData getDBKey(bool withPrefix=true) const;
@@ -658,7 +658,7 @@ public:
    void setPreferredDupID(uint8_t newDup) {preferredDup_ = newDup;}
 
    uint32_t           height_;
-   vector<pair<uint8_t, BinaryData> > dupAndHashList_;
+   std::vector<std::pair<uint8_t, BinaryData> > dupAndHashList_;
    uint8_t            preferredDup_;
 };
 

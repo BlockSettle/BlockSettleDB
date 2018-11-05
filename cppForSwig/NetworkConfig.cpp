@@ -8,6 +8,8 @@
 
 #include "NetworkConfig.h"
 
+using namespace std;
+
 uint8_t NetworkConfig::pubkeyHashPrefix_;
 uint8_t NetworkConfig::scriptHashPrefix_;
 BinaryData NetworkConfig::genesisBlockHash_;

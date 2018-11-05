@@ -14,6 +14,7 @@
 #include "BlockDataManagerConfig.h"
 #include "bech32/ref/c++/segwit_addr.h"
 
+using namespace std;
 
 const BinaryData BtcUtils::BadAddress_ = BinaryData::CreateFromHex("0000000000000000000000000000000000000000");
 const BinaryData BtcUtils::EmptyHash_  = BinaryData::CreateFromHex("0000000000000000000000000000000000000000000000000000000000000000");

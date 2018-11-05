@@ -25,23 +25,23 @@
 class RecipientReuseException
 {
 private:
-   vector<string> addrVec_;
+   std::vector<std::string> addrVec_;
    uint64_t total_;
    uint64_t value_;
 
 public:
    RecipientReuseException(
-      const vector<BinaryData>& scrAddrVec, uint64_t total, uint64_t val) :
+      const std::vector<BinaryData>& scrAddrVec, uint64_t total, uint64_t val) :
       total_(total), value_(val)
    {
       for (auto& scrAddr : scrAddrVec)
       {
          auto&& addr58 = BtcUtils::scrAddrToBase58(scrAddr);
-         addrVec_.push_back(string(addr58.getCharPtr(), addr58.getSize()));
+         addrVec_.push_back(std::string(addr58.getCharPtr(), addr58.getSize()));
       }
    }
 
-   const vector<string>& getAddresses(void) const { return addrVec_; }
+   const std::vector<std::string>& getAddresses(void) const { return addrVec_; }
    uint64_t total(void) const { return total_; }
    uint64_t value(void) const { return value_; }
 };
@@ -157,7 +157,7 @@ public:
    bool       getSenderScrAddrIfAvail(BinaryData & addrTarget) const;
    BinaryData getSenderScrAddrIfAvail(void) const;
 
-   void pprint(ostream & os = cout, int nIndent = 0, bool pBigendian = true) const;
+   void pprint(std::ostream & os = std::cout, int nIndent = 0, bool pBigendian = true) const;
 
 
 private:
@@ -231,7 +231,7 @@ public:
 
    void unserialize_swigsafe_(BinaryData const & rawOut) { unserialize(rawOut); }
 
-   void  pprint(ostream & os = cout, int nIndent = 0, bool pBigendian = true);
+   void  pprint(std::ostream & os = std::cout, int nIndent = 0, bool pBigendian = true);
 
 private:
    BinaryData        dataCopy_;
@@ -313,8 +313,8 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   void pprint(ostream & os = cout, int nIndent = 0, bool pBigendian = true);
-   void pprintAlot(ostream & os = cout);
+   void pprint(std::ostream & os = std::cout, int nIndent = 0, bool pBigendian = true);
+   void pprintAlot(std::ostream & os = std::cout);
 
    bool operator==(const Tx& rhs) const
    {
@@ -342,9 +342,9 @@ private:
    mutable BinaryData    thisHash_;
 
    // Will always create TxIns and TxOuts on-the-fly; only store the offsets
-   vector<size_t> offsetsTxIn_;
-   vector<size_t> offsetsTxOut_;
-   vector<size_t> offsetsWitness_;
+   std::vector<size_t> offsetsTxIn_;
+   std::vector<size_t> offsetsTxOut_;
+   std::vector<size_t> offsetsWitness_;
 
    uint32_t      txTime_ = 0;
 
@@ -371,8 +371,8 @@ struct UTXO
 
    UTXO(uint64_t value, uint32_t txHeight, uint32_t txIndex, 
       uint32_t txOutIndex, BinaryData txHash, BinaryData script) :
-      txHash_(move(txHash)), txHeight_(txHeight), txIndex_(txIndex), 
-      txOutIndex_(txOutIndex), value_(value), script_(move(script))
+      txHash_(std::move(txHash)), txHeight_(txHeight), txIndex_(txIndex),
+      txOutIndex_(txOutIndex), value_(value), script_(std::move(script))
    {}
 
    UTXO(void) {}
@@ -384,7 +384,7 @@ struct UTXO
 
    uint64_t getValue(void) const { return value_; }
    const BinaryData& getTxHash(void) const { return txHash_; }
-   string getTxHashStr(void) const { return txHash_.toHexStr(); }
+   std::string getTxHashStr(void) const { return txHash_.toHexStr(); }
    const BinaryData& getScript(void) const { return script_; }
    uint32_t getTxIndex(void) const { return txIndex_; }
    uint32_t getTxOutIndex(void) const { return txOutIndex_; }
@@ -448,7 +448,7 @@ public:
    const BinaryData& getScrAddr(void) { return scrAddr_; }
 
    /////
-   const vector<BinaryData>& getTxHashList(void) const
+   const std::vector<BinaryData>& getTxHashList(void) const
    {
       return txHashList_;
    }
@@ -464,7 +464,7 @@ public:
 
 private:
    BinaryData scrAddr_;
-   vector<BinaryData> txHashList_;
+   std::vector<BinaryData> txHashList_;
 };
 
 #endif

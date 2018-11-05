@@ -17,6 +17,8 @@
 #include "StoredBlockObj.h"
 #include "DbHeader.h"
 
+using namespace std;
+
 /////////////////////////////////////////////////////////////////////////////
 BinaryData StoredDBInfo::getDBKey(uint16_t id)
 {
