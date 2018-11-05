@@ -33,6 +33,8 @@
 #include <sys/types.h>
 #endif
 
+using namespace std;
+
 TransactionalMap<thread::id, shared_ptr<SHARDTX>> 
    DatabaseContainer_Sharded::txShardMap_;
 

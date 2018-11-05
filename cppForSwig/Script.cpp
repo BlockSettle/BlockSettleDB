@@ -11,6 +11,8 @@
 #include "Signer.h"
 #include "cryptopp/oids.h"
 
+using namespace std;
+
 //dtors
 StackValue::~StackValue()
 {}

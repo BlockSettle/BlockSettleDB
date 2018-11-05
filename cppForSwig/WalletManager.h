@@ -9,8 +9,6 @@
 #ifndef _WALLET_MANAGER_H
 #define _WALLET_MANAGER_H
 
-using namespace std;
-
 #include <mutex>
 #include <memory>
 #include <string>

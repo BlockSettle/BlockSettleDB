@@ -9,6 +9,8 @@
 #include "BlockchainScanner_Super.h"
 #include "EncryptionUtils.h"
 
+using namespace std;
+
 ////////////////////////////////////////////////////////////////////////////////
 void BlockchainScanner_Super::scan()
 {
