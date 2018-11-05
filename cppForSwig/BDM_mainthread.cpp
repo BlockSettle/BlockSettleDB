@@ -20,6 +20,8 @@
 
 #include <ctime>
 
+using namespace std;
+
 BDM_CallBack::~BDM_CallBack()
 {}
 
