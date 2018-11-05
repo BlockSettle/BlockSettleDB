@@ -15,17 +15,15 @@
 #include <sstream>
 #include "BinaryData.h"
 
-using namespace std;
-
 ///////////////////////////////////////////////////////////////////////////////
 class HttpMessage
 {
 private:
-   vector<string> headers_;
-   const string addr_;
+   std::vector<std::string> headers_;
+   const std::string addr_;
 
 public:
-   HttpMessage(const string& addr, bool initHeaders = true) :
+   HttpMessage(const std::string& addr, bool initHeaders = true) :
       addr_(addr)
    {
       if(initHeaders)
@@ -33,7 +31,7 @@ public:
    }
 
    void setupHeaders(void);
-   void addHeader(string);
+   void addHeader(std::string);
    int32_t makeHttpPayload(
       char** payload_out, const char* payload_in, size_t len);
 };

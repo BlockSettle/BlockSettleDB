@@ -12,6 +12,8 @@
 #include <string.h>
 #include "BitcoinP2p.h"
 
+using namespace std;
+
 bool PEER_USES_WITNESS;
 
 template <typename T> uint32_t put_integer_be(uint8_t* ptr, const T& integer)

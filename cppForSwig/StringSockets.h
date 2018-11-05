@@ -13,13 +13,13 @@
 #include "SocketObject.h"
 #include "HttpMessage.h"
 
-typedef vector<uint8_t>::iterator vecIter;
+typedef std::vector<uint8_t>::iterator vecIter;
 
 ///////////////////////////////////////////////////////////////////////////////
 struct HttpError : public SocketError
 {
 public:
-   HttpError(const string& e) : SocketError(e)
+   HttpError(const std::string& e) : SocketError(e)
    {}
 };
 
@@ -29,7 +29,7 @@ class HttpSocket : public SimpleSocket
 private:
    struct PacketData
    {
-      vector<uint8_t> httpData_;
+      std::vector<uint8_t> httpData_;
       int content_length_ = -1;
       size_t header_len_ = SIZE_MAX;
 
@@ -43,11 +43,11 @@ private:
          {
             if (content_length_ + header_len_ > httpData_.size())
             {
-               vector<uint8_t> leftOverData;
+               std::vector<uint8_t> leftOverData;
                leftOverData.insert(leftOverData.end(),
-                  move_iterator<vecIter>(httpData_.begin() + 
+                  std::move_iterator<vecIter>(httpData_.begin() +
                      header_len_ + content_length_),
-                  move_iterator<vecIter>(httpData_.end()));
+                  std::move_iterator<vecIter>(httpData_.end()));
                httpData_ = move(leftOverData);
             }
             else
@@ -60,24 +60,24 @@ private:
          header_len_ = SIZE_MAX;
       }
 
-      void get_content_len(const string& header_str)
+      void get_content_len(const std::string& header_str)
       {
-         string err504("HTTP/1.1 504");
+         std::string err504("HTTP/1.1 504");
          if (header_str.compare(0, err504.size(), err504) == 0)
             throw HttpError("connection timed out");
 
-         string search_tok_caps("Content-Length: ");
+         std::string search_tok_caps("Content-Length: ");
          auto tokpos = header_str.find(search_tok_caps);
-         if (tokpos != string::npos)
+         if (tokpos != std::string::npos)
          {
             content_length_ = atoi(header_str.c_str() +
                tokpos + search_tok_caps.size());
             return;
          }
 
-         string search_tok("content-length: ");
+         std::string search_tok("content-length: ");
          tokpos = header_str.find(search_tok);
-         if (tokpos != string::npos)
+         if (tokpos != std::string::npos)
          {
             content_length_ = atoi(header_str.c_str() +
                tokpos + search_tok.size());
@@ -88,28 +88,28 @@ private:
 
 private:
    PacketData currentRead_;
-   unique_ptr<HttpMessage> messageWithPrecacheHeaders_;
-   Queue<shared_ptr<Socket_ReadPayload>> readStack_;
+   std::unique_ptr<HttpMessage> messageWithPrecacheHeaders_;
+   Queue<std::shared_ptr<Socket_ReadPayload>> readStack_;
 
 protected:
-   void addReadPayload(shared_ptr<Socket_ReadPayload>);
-   string getHttpPayload(const char*, size_t);
+   void addReadPayload(std::shared_ptr<Socket_ReadPayload>);
+   std::string getHttpPayload(const char*, size_t);
 
 public:
-   HttpSocket(const string& addr, const string& port);
+   HttpSocket(const std::string& addr, const std::string& port);
 
    static size_t getHttpBodyOffset(const char*, size_t);
    virtual SocketType type(void) const { return SocketHttp; }
-   virtual bool processPacket(vector<uint8_t>&, vector<uint8_t>&);
+   virtual bool processPacket(std::vector<uint8_t>&, std::vector<uint8_t>&);
 
    virtual void pushPayload(
-      unique_ptr<Socket_WritePayload>,
-      shared_ptr<Socket_ReadPayload>);
-   virtual void respond(vector<uint8_t>&);
+      std::unique_ptr<Socket_WritePayload>,
+      std::shared_ptr<Socket_ReadPayload>);
+   virtual void respond(std::vector<uint8_t>&);
 
-   void precacheHttpHeader(string& header) 
+   void precacheHttpHeader(std::string& header)
    {
-      messageWithPrecacheHeaders_->addHeader(move(header));
+      messageWithPrecacheHeaders_->addHeader(std::move(header));
    }
 };
 
@@ -117,10 +117,10 @@ public:
 struct CallbackReturn_HttpBody : public CallbackReturn
 {
 private:
-   function<void(string)> userCallbackLambda_;
+   std::function<void(std::string)> userCallbackLambda_;
 
 public:
-   CallbackReturn_HttpBody(function<void(string)> lbd) :
+   CallbackReturn_HttpBody(std::function<void(std::string)> lbd) :
       userCallbackLambda_(lbd)
    {}
 
