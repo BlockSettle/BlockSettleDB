@@ -25,9 +25,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 struct SshBatch
 {
-   unique_ptr<promise<bool>> waitOnWriter_ = nullptr;
+   std::unique_ptr<std::promise<bool>> waitOnWriter_ = nullptr;
    const unsigned shardId_;
-   map<BinaryData, BinaryWriter> serializedSsh_;
+   std::map<BinaryData, BinaryWriter> serializedSsh_;
 
    SshBatch(unsigned shardId) :
       shardId_(shardId)
@@ -37,30 +37,30 @@ struct SshBatch
 ////////////////////////////////////////////////////////////////////////////////
 struct SshBounds
 {
-   pair<BinaryData, BinaryData> bounds_;
-   map<BinaryData, BinaryWriter> serializedSsh_;
-   chrono::duration<double> time_;
+   std::pair<BinaryData, BinaryData> bounds_;
+   std::map<BinaryData, BinaryWriter> serializedSsh_;
+   std::chrono::duration<double> time_;
    uint64_t count_ = 0;
 
-   unique_ptr<promise<bool>> completed_;
-   shared_future<bool> fut_;
+   std::unique_ptr<std::promise<bool>> completed_;
+   std::shared_future<bool> fut_;
 
    SshBounds(void)
    {
-      completed_ = make_unique<promise<bool>>();
+      completed_ = make_unique<std::promise<bool>>();
       fut_ = completed_->get_future();
    }
 
-   void serializeResult(map<BinaryDataRef, StoredScriptHistory>&);
+   void serializeResult(std::map<BinaryDataRef, StoredScriptHistory>&);
 };
 
 struct SshMapping
 {
-   map<uint8_t, shared_ptr<SshMapping>> map_;
+   std::map<uint8_t, std::shared_ptr<SshMapping>> map_;
    uint64_t count_ = 0;
 
-   shared_ptr<SshMapping> getMappingForKey(uint8_t);
-   void prettyPrint(stringstream&, unsigned);
+   std::shared_ptr<SshMapping> getMappingForKey(uint8_t);
+   void prettyPrint(std::stringstream&, unsigned);
    void merge(SshMapping&);
 };
 
@@ -70,22 +70,22 @@ class ShardedSshParser
 {
 private:
    LMDBBlockDatabase* db_;
-   atomic<unsigned> counter_;
+   std::atomic<unsigned> counter_;
    const unsigned firstHeight_;
    unsigned firstShard_;
    const unsigned threadCount_;
    bool init_;
    bool undo_ = false;
 
-   vector<unique_ptr<SshBounds>> boundsVector_;
+   std::vector<std::unique_ptr<SshBounds>> boundsVector_;
 
-   atomic<unsigned> commitedBoundsCounter_;
-   atomic<unsigned> fetchBoundsCounter_;
-   condition_variable writeThreadCV_;
-   mutex cvMutex_;
+   std::atomic<unsigned> commitedBoundsCounter_;
+   std::atomic<unsigned> fetchBoundsCounter_;
+   std::condition_variable writeThreadCV_;
+   std::mutex cvMutex_;
 
-   atomic<unsigned> mapCount_;
-   vector<SshMapping> mappingResults_;
+   std::atomic<unsigned> mapCount_;
+   std::vector<SshMapping> mappingResults_;
 
 private:
    void putSSH(void);
@@ -106,18 +106,18 @@ public:
       firstHeight_(firstHeight),
       threadCount_(threadCount), init_(init)
    {
-      counter_.store(0, memory_order_relaxed);
+      counter_.store(0, std::memory_order_relaxed);
    }
 
    void updateSsh(void);
    void undo(void);
 };
 
-typedef pair<set<BinaryData>, map<BinaryData, StoredScriptHistory>> subSshParserResult;
+typedef std::pair<std::set<BinaryData>, std::map<BinaryData, StoredScriptHistory>> subSshParserResult;
 subSshParserResult parseSubSsh(
-   unique_ptr<LDBIter>, int32_t scanFrom, bool,
-   function<uint8_t(unsigned)>,
-   shared_ptr<map<BinaryDataRef, shared_ptr<AddrAndHash>>>,
+   std::unique_ptr<LDBIter>, int32_t scanFrom, bool,
+   std::function<uint8_t(unsigned)>,
+   std::shared_ptr<std::map<BinaryDataRef, std::shared_ptr<AddrAndHash>>>,
    BinaryData upperBound);
 
 #endif

@@ -9,6 +9,8 @@
 #include "BlockchainScanner.h"
 #include "log.h"
 
+using namespace std;
+
 ////////////////////////////////////////////////////////////////////////////////
 void BlockchainScanner::scan(int32_t scanFrom)
 {
