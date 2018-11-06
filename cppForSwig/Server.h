@@ -15,8 +15,6 @@
 #include <atomic>
 #include <vector>
 
-using namespace std;
-
 #include "WebSocketMessage.h"
 #include "libwebsockets.h"
 

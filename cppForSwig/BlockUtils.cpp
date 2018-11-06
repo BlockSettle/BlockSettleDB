@@ -21,6 +21,8 @@
 #include "BlockchainScanner.h"
 #include "DatabaseBuilder.h"
 
+using namespace std;
+
 static bool scanFor(std::istream &in, const uint8_t * bytes, const unsigned len)
 {
    std::vector<uint8_t> ahead(len); // the bytes matched

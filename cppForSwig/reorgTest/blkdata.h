@@ -26,10 +26,10 @@ const BinaryData privKeyAddrF = BinaryData::CreateFromHex("efefefefefefefefefefe
 
 // LB1 = AddrB + AddrC
 // LB2 = AddrD + AddrE
-const string lb1B58ID = "DuR9CQX6";
+const std::string lb1B58ID = "DuR9CQX6";
 const BinaryData lb1ScrAddr = BinaryData::CreateFromHex("fe0102cb2abde8bccacc32e893df3a054b9ef7f227a4ceee26c56fc1d942be8d7a24b2a1001dd894693980");
 const BinaryData lb1ScrAddrP2SH = BinaryData::CreateFromHex("05ae3c7b8b4b00ae7b3d8702d0a23bcda2ac541e34");
-const string lb2B58ID = "eqWJZTcT";
+const std::string lb2B58ID = "eqWJZTcT";
 const BinaryData lb2ScrAddr = BinaryData::CreateFromHex("fe020247b8ad0b1d6803260ce428d9e09e2cd99fd3b359c522664fb0e55cdc5c0cea73b4aad97ec8343232");
 const BinaryData lb2ScrAddrP2SH = BinaryData::CreateFromHex("05de46f84ba728121eb3bdb1c30140cd6c0c8b7e25");
 
@@ -43,7 +43,7 @@ const BinaryData blkHash4A = BinaryData::CreateFromHex("fb97af2c706d9410d90651d1
 const BinaryData blkHash5A = BinaryData::CreateFromHex("3a6a8a8a1b0a64d28c07b680e3a079530c5997894aafd31684b5f83500000000");
 
 const unsigned int zcTxSize = 258;
-const string zcTxHash256 = "b6b6f145742a9072fd85f96772e63a00eb4101709aa34ec5dd59e8fc904191a7";
+const std::string zcTxHash256 = "b6b6f145742a9072fd85f96772e63a00eb4101709aa34ec5dd59e8fc904191a7";
 const unsigned int lbZCTxSize = 378;
 }
 

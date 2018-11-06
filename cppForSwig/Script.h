@@ -22,11 +22,13 @@
 #define STACKITEM_SIG_PREFIX              0x13
 #define STACKITEM_MULTISIG_PREFIX         0x14
 
+#include <algorithm>
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
 #include "BtcUtils.h"
 #include "SigHashEnum.h"
 #include "TxEvalState.h"
+
 
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptException : public std::runtime_error
@@ -651,29 +653,9 @@ private:
       stack_.push_back(std::move(bd));
    }
 
-   void op_min(void)
-   {
-      auto&& b = pop_back();
-      auto&& a = pop_back();
+   void op_min(void);
 
-      auto aI = rawBinaryToInt(a);
-      auto bI = rawBinaryToInt(b);
-
-      auto cI = min(aI, bI);
-      stack_.push_back(std::move(intToRawBinary(cI)));
-   }
-
-   void op_max(void)
-   {
-      auto&& b = pop_back();
-      auto&& a = pop_back();
-
-      auto aI = rawBinaryToInt(a);
-      auto bI = rawBinaryToInt(b);
-
-      auto cI = max(aI, bI);
-      stack_.push_back(std::move(intToRawBinary(cI)));
-   }
+   void op_max(void);
 
    void op_within(void)
    {

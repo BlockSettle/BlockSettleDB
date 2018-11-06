@@ -111,73 +111,73 @@ public:
 class BDV_Server_Object : public BlockDataViewer
 {
    friend class Clients;
-   friend tuple<shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> 
+   friend std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned>
       DBTestUtils::waitOnSignal(
-      Clients*, const string&, ::Codec_BDVCommand::NotificationType);
+      Clients*, const std::string&, ::Codec_BDVCommand::NotificationType);
 
 private: 
-   thread initT_;
-   unique_ptr<Callback> cb_;
+   std::thread initT_;
+   std::unique_ptr<Callback> cb_;
 
-   string bdvID_;
+   std::string bdvID_;
    BlockDataManagerThread* bdmT_;
 
-   map<string, LedgerDelegate> delegateMap_;
+   std::map<std::string, LedgerDelegate> delegateMap_;
 
    struct walletRegStruct
    {
-      shared_ptr<::Codec_BDVCommand::BDVCommand> command_;
+      std::shared_ptr<::Codec_BDVCommand::BDVCommand> command_;
       WalletType type_;
    };
 
-   mutex registerWalletMutex_;
-   map<string, walletRegStruct> wltRegMap_;
+   std::mutex registerWalletMutex_;
+   std::map<std::string, walletRegStruct> wltRegMap_;
 
-   shared_ptr<promise<bool>> isReadyPromise_;
-   shared_future<bool> isReadyFuture_;
+   std::shared_ptr<std::promise<bool>> isReadyPromise_;
+   std::shared_future<bool> isReadyFuture_;
 
-   function<void(unique_ptr<BDV_Notification>)> notifLambda_;
-   atomic<unsigned> packetProcess_threadLock_;
-   atomic<unsigned> notificationProcess_threadLock_;
+   std::function<void(std::unique_ptr<BDV_Notification>)> notifLambda_;
+   std::atomic<unsigned> packetProcess_threadLock_;
+   std::atomic<unsigned> notificationProcess_threadLock_;
 
-   map<size_t, shared_ptr<BDV_Payload>> packetMap_;
+   std::map<size_t, std::shared_ptr<BDV_Payload>> packetMap_;
    BDV_PartialMessage currentMessage_;
-   atomic<size_t> nextPacketId_ = {0};
-   shared_ptr<BDV_Payload> packetToReinject_ = nullptr;
+   std::atomic<size_t> nextPacketId_ = {0};
+   std::shared_ptr<BDV_Payload> packetToReinject_ = nullptr;
 
 private:
    BDV_Server_Object(BDV_Server_Object&) = delete; //no copies
       
-   shared_ptr<::google::protobuf::Message> processCommand(
-      shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   std::shared_ptr<::google::protobuf::Message> processCommand(
+      std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
    void startThreads(void);
 
-   void registerWallet(shared_ptr<::Codec_BDVCommand::BDVCommand>);
-   void registerLockbox(shared_ptr<::Codec_BDVCommand::BDVCommand>);
-   void populateWallets(map<string, walletRegStruct>&);
+   void registerWallet(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   void registerLockbox(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   void populateWallets(std::map<std::string, walletRegStruct>&);
    void setup(void);
 
    void flagRefresh(
       BDV_refresh refresh, const BinaryData& refreshId,
-      unique_ptr<BDV_Notification_ZC> zcPtr);
+      std::unique_ptr<BDV_Notification_ZC> zcPtr);
    void resetCurrentMessage(void);
 
 public:
-   BDV_Server_Object(const string& id, BlockDataManagerThread *bdmT);
+   BDV_Server_Object(const std::string& id, BlockDataManagerThread *bdmT);
 
    ~BDV_Server_Object(void) 
    { 
       haltThreads(); 
    }
 
-   const string& getID(void) const { return bdvID_; }
-   void processNotification(shared_ptr<BDV_Notification>);
+   const std::string& getID(void) const { return bdvID_; }
+   void processNotification(std::shared_ptr<BDV_Notification>);
    void init(void);
    void haltThreads(void);
-   bool processPayload(shared_ptr<BDV_Payload>&, 
-      shared_ptr<::google::protobuf::Message>&);
+   bool processPayload(std::shared_ptr<BDV_Payload>&,
+      std::shared_ptr<::google::protobuf::Message>&);
 
-   size_t getNextPacketId(void) { return nextPacketId_.fetch_add(1, memory_order_relaxed); }
+   size_t getNextPacketId(void) { return nextPacketId_.fetch_add(1, std::memory_order_relaxed); }
 };
 
 class Clients;
@@ -196,7 +196,7 @@ public:
    set<string> hasScrAddr(const BinaryDataRef&) const;
    void pushZcNotification(ZeroConfContainer::NotificationPacket& packet);
    void errorCallback(
-      const string& bdvId, string& errorStr, const string& txHash);
+      const std::string& bdvId, std::string& errorStr, const std::string& txHash);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -205,19 +205,19 @@ class Clients
    friend class ZeroConfCallbacks_BDV;
 
 private:
-   TransactionalMap<string, shared_ptr<BDV_Server_Object>> BDVs_;
+   TransactionalMap<std::string, shared_ptr<BDV_Server_Object>> BDVs_;
    mutable BlockingQueue<bool> gcCommands_;
    BlockDataManagerThread* bdmT_ = nullptr;
 
-   function<void(void)> shutdownCallback_;
+   std::function<void(void)> shutdownCallback_;
 
-   atomic<bool> run_;
+   std::atomic<bool> run_;
 
-   vector<thread> controlThreads_;
+   std::vector<std::thread> controlThreads_;
 
-   mutable BlockingQueue<shared_ptr<BDV_Notification>> outerBDVNotifStack_;
-   BlockingQueue<shared_ptr<BDV_Notification_Packet>> innerBDVNotifStack_;
-   BlockingQueue<shared_ptr<BDV_Payload>> packetQueue_;
+   mutable BlockingQueue<std::shared_ptr<BDV_Notification>> outerBDVNotifStack_;
+   BlockingQueue<std::shared_ptr<BDV_Notification_Packet>> innerBDVNotifStack_;
+   BlockingQueue<std::shared_ptr<BDV_Payload>> packetQueue_;
 
    mutex shutdownMutex_;
 
@@ -234,33 +234,33 @@ public:
    {}
 
    Clients(BlockDataManagerThread* bdmT,
-      function<void(void)> shutdownLambda)
+      std::function<void(void)> shutdownLambda)
    {
       init(bdmT, shutdownLambda);
    }
 
    void init(BlockDataManagerThread* bdmT,
-      function<void(void)> shutdownLambda);
+      std::function<void(void)> shutdownLambda);
 
-   shared_ptr<BDV_Server_Object> get(const string& id) const;
+   std::shared_ptr<BDV_Server_Object> get(const std::string& id) const;
    
    void processShutdownCommand(
-      shared_ptr<::Codec_BDVCommand::StaticCommand>);
-   shared_ptr<::google::protobuf::Message> registerBDV(
-      shared_ptr<::Codec_BDVCommand::StaticCommand>, string bdvID);
-   void unregisterBDV(const string& bdvId);
+      std::shared_ptr<::Codec_BDVCommand::StaticCommand>);
+   std::shared_ptr<::google::protobuf::Message> registerBDV(
+      std::shared_ptr<::Codec_BDVCommand::StaticCommand>, string bdvID);
+   void unregisterBDV(const std::string& bdvId);
    void shutdown(void);
    void exitRequestLoop(void);
    
-   void queuePayload(shared_ptr<BDV_Payload>& payload)
+   void queuePayload(std::shared_ptr<BDV_Payload>& payload)
    {  
       packetQueue_.push_back(move(payload));
    }
 
-   shared_ptr<::google::protobuf::Message> processUnregisteredCommand(
-      const uint64_t& bdvId, shared_ptr<::Codec_BDVCommand::StaticCommand>);
-   shared_ptr<::google::protobuf::Message> processCommand(
-      shared_ptr<BDV_Payload>);
+   std::shared_ptr<::google::protobuf::Message> processUnregisteredCommand(
+      const uint64_t& bdvId, std::shared_ptr<::Codec_BDVCommand::StaticCommand>);
+   std::shared_ptr<::google::protobuf::Message> processCommand(
+      std::shared_ptr<BDV_Payload>);
 };
 
 #endif

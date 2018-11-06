@@ -301,17 +301,7 @@ public:
    BinaryData    getSliceCopy(ssize_t start_pos, uint32_t nChar) const;
 
    /////////////////////////////////////////////////////////////////////////////
-   bool operator<(BinaryData const & bd2) const
-   {
-      size_t minLen = min(getSize(), bd2.getSize());
-      for(size_t i=0; i<minLen; i++)
-      {
-         if( data_[i] == bd2.data_[i] )
-            continue;
-         return data_[i] < bd2.data_[i];
-      }
-      return (getSize() < bd2.getSize());
-   }
+   bool operator<(BinaryData const & bd2) const;
 
    /////////////////////////////////////////////////////////////////////////////
    bool operator<(BinaryDataRef const & bd2) const;
@@ -341,17 +331,7 @@ public:
    bool operator!=(BinaryDataRef const & bd2) const { return (!((*this)==bd2)); }
 
    /////////////////////////////////////////////////////////////////////////////
-   bool operator>(BinaryData const & bd2) const
-   {
-      size_t minLen = min(getSize(), bd2.getSize());
-      for(size_t i=0; i<minLen; i++)
-      {
-         if( data_[i] == bd2.data_[i] )
-            continue;
-         return data_[i] > bd2.data_[i];
-      }
-      return (getSize() > bd2.getSize());
-   }
+   bool operator>(BinaryData const & bd2) const;
    
    /////////////////////////////////////////////////////////////////////////////
    bool operator>=(BinaryData const & bd2) const
@@ -838,18 +818,7 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   bool operator<(BinaryDataRef const & bd2) const
-   {
-      auto minsize = min(nBytes_, bd2.nBytes_);
-      for (size_t i = 0; i < minsize; i++)
-      {
-         if (ptr_[i] == bd2.ptr_[i])
-            continue;
-         return ptr_[i] < bd2.ptr_[i];
-      }
-      
-      return (nBytes_ < bd2.nBytes_);
-   }
+   bool operator<(BinaryDataRef const & bd2) const;
 
    /////////////////////////////////////////////////////////////////////////////
    bool operator==(BinaryDataRef const & bd2) const
@@ -889,18 +858,7 @@ public:
 
 
    /////////////////////////////////////////////////////////////////////////////
-   bool operator>(BinaryDataRef const & bd2) const
-   {
-      size_t minLen = min(nBytes_, bd2.nBytes_);
-      for(size_t i=0; i<minLen; i++)
-      {
-         if( ptr_[i] == bd2.ptr_[i] )
-            continue;
-         return ptr_[i] > bd2.ptr_[i];
-      }
-      return (nBytes_ > bd2.nBytes_);
-   }
-
+   bool operator>(BinaryDataRef const & bd2) const;
 
    /////////////////////////////////////////////////////////////////////////////
    std::string toHexStr(bool bigEndian=false) const
@@ -974,25 +932,13 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   void advance(uint32_t nBytes) 
-   { 
-      pos_ += nBytes;  
-      pos_ = min(pos_, getSize());
-   }
+   void advance(uint32_t nBytes);
 
    /////////////////////////////////////////////////////////////////////////////
-   void rewind(size_t nBytes) 
-   { 
-      pos_ -= nBytes;  
-      pos_ = max(pos_, (size_t)0);
-   }
+   void rewind(size_t nBytes);
 
    /////////////////////////////////////////////////////////////////////////////
-   void resize(size_t nBytes)
-   {
-      bdStr_.resize(nBytes);
-      pos_ = min(nBytes, pos_);
-   }
+   void resize(size_t nBytes);
 
    /////////////////////////////////////////////////////////////////////////////
    uint64_t get_var_int(uint8_t* nRead=NULL);
@@ -1164,11 +1110,7 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   void advance(size_t nBytes) 
-   { 
-      pos_.fetch_add(nBytes, std::memory_order_relaxed);
-      pos_.store(min(pos_.load(std::memory_order_relaxed), totalSize_), std::memory_order_relaxed);
-   }
+   void advance(size_t nBytes);
 
    /////////////////////////////////////////////////////////////////////////////
    void rewind(uint32_t nBytes) 

@@ -13,6 +13,8 @@
 #include "ScrAddrFilter.h"
 #include "Transactions.h"
 
+using namespace std;
+
 /////////////////////////////////////////////////////////////////////////////
 DatabaseBuilder::DatabaseBuilder(BlockFiles& blockFiles, 
    BlockDataManager& bdm,

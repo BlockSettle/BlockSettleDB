@@ -17,8 +17,6 @@
 #include <stdint.h>
 #include <string>
 
-using namespace std;
-
 #include "BlockUtils.h"
 #include "txio.h"
 #include "BDV_Notification.h"
@@ -44,7 +42,7 @@ typedef enum
 
 class WalletGroup;
 
-class BDMnotReady : public exception
+class BDMnotReady : public std::exception
 {
    virtual const char* what() const throw()
    {
@@ -66,13 +64,13 @@ public:
    // blockchain in RAM, each scan will take 30-120 seconds.  Registering makes 
    // sure that the intial blockchain scan picks up wallet-relevant stuff as 
    // it goes, and does a full [re-]scan of the blockchain only if necessary.
-   void registerWallet(shared_ptr<::Codec_BDVCommand::BDVCommand>);
-   void registerLockbox(shared_ptr<::Codec_BDVCommand::BDVCommand>);
-   void registerAddresses(shared_ptr<::Codec_BDVCommand::BDVCommand>);
-   void       unregisterWallet(const string& ID);
-   void       unregisterLockbox(const string& ID);
+   void registerWallet(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   void registerLockbox(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   void registerAddresses(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   void       unregisterWallet(const std::string& ID);
+   void       unregisterLockbox(const std::string& ID);
 
-   void scanWallets(shared_ptr<BDV_Notification>);
+   void scanWallets(std::shared_ptr<BDV_Notification>);
    bool hasWallet(const BinaryData& ID) const;
 
    Tx                getTxByHash(BinaryData const & txHash) const;
@@ -90,25 +88,25 @@ public:
    Blockchain& blockchain() { return *bc_; }
    ZeroConfContainer* zcContainer() { return zc_; }
    uint32_t getTopBlockHeight(void) const;
-   const shared_ptr<BlockHeader> getTopBlockHeader(void) const
+   const std::shared_ptr<BlockHeader> getTopBlockHeader(void) const
    { return bc_->top(); }
-   shared_ptr<BlockHeader> getHeaderByHash(const BinaryData& blockHash) const;
+   std::shared_ptr<BlockHeader> getHeaderByHash(const BinaryData& blockHash) const;
 
    void reset();
 
    size_t getWalletsPageCount(void) const;
-   vector<LedgerEntry> getWalletsHistoryPage(uint32_t, 
+   std::vector<LedgerEntry> getWalletsHistoryPage(uint32_t,
                                              bool rebuildLedger, 
                                              bool remapWallets);
 
    size_t getLockboxesPageCount(void) const;
-   vector<LedgerEntry> getLockboxesHistoryPage(uint32_t,
+   std::vector<LedgerEntry> getLockboxesHistoryPage(uint32_t,
       bool rebuildLedger,
       bool remapWallets);
 
    virtual void flagRefresh(
       BDV_refresh refresh, const BinaryData& refreshId,
-      unique_ptr<BDV_Notification_ZC> zcPtr) = 0;
+      std::unique_ptr<BDV_Notification_ZC> zcPtr) = 0;
 
    StoredHeader getMainBlockFromDB(uint32_t height) const;
    StoredHeader getBlockFromDB(uint32_t height, uint8_t dupID) const;
@@ -124,29 +122,29 @@ public:
    void blockUntilBDMisReady(void) const
    {
       if (bdmPtr_ == nullptr)
-         throw runtime_error("no bdmPtr_");
+         throw std::runtime_error("no bdmPtr_");
       bdmPtr_->blockUntilReady();
    }
 
    bool isTxOutSpentByZC(const BinaryData& dbKey) const
    { return zeroConfCont_->isTxOutSpentByZC(dbKey); }
 
-   map<BinaryData, shared_ptr<TxIOPair>> getUnspentZCForScrAddr(
+   std::map<BinaryData, std::shared_ptr<TxIOPair>> getUnspentZCForScrAddr(
       const BinaryData& scrAddr) const
    { return zeroConfCont_->getUnspentZCforScrAddr(scrAddr); }
 
-   map<BinaryData, shared_ptr<TxIOPair>> getRBFTxIOsforScrAddr(
+   std::map<BinaryData, std::shared_ptr<TxIOPair>> getRBFTxIOsforScrAddr(
       const BinaryData& scrAddr) const
    {
       return zeroConfCont_->getRBFTxIOsforScrAddr(scrAddr);
    }
 
-   vector<TxOut> getZcTxOutsForKeys(const set<BinaryData>& keys) const
+   std::vector<TxOut> getZcTxOutsForKeys(const std::set<BinaryData>& keys) const
    {
       return zeroConfCont_->getZcTxOutsForKey(keys);
    }
 
-   vector<UnspentTxOut> getZcUTXOsForKeys(const set<BinaryData>& keys) const
+   std::vector<UnspentTxOut> getZcUTXOsForKeys(const std::set<BinaryData>& keys) const
    {
       return zeroConfCont_->getZcUTXOsForKey(keys);
    }
@@ -155,10 +153,10 @@ public:
    const BlockDataManagerConfig& config() const { return bdmPtr_->config(); }
 
    WalletGroup getStandAloneWalletGroup(
-      const vector<BinaryData>& wltIDs, HistoryOrdering order);
+      const std::vector<BinaryData>& wltIDs, HistoryOrdering order);
 
-   void updateWalletsLedgerFilter(const vector<BinaryData>& walletsList);
-   void updateLockboxesLedgerFilter(const vector<BinaryData>& walletsList);
+   void updateWalletsLedgerFilter(const std::vector<BinaryData>& walletsList);
+   void updateLockboxesLedgerFilter(const std::vector<BinaryData>& walletsList);
 
    uint32_t getBlockTimeByHeight(uint32_t) const;
    uint32_t getClosestBlockHeightForTime(uint32_t);
@@ -177,29 +175,29 @@ public:
    bool isZcEnabled() const { return bdmPtr_->isZcEnabled(); }
 
    void flagRescanZC(bool flag)
-   { rescanZC_.store(flag, memory_order_release); }
+   { rescanZC_.store(flag, std::memory_order_release); }
 
    bool getZCflag(void) const
-   { return rescanZC_.load(memory_order_acquire); }
+   { return rescanZC_.load(std::memory_order_acquire); }
 
    bool isRBF(const BinaryData& txHash) const;
    bool hasScrAddress(const BinaryDataRef&) const;
 
-   shared_ptr<BtcWallet> getWalletOrLockbox(const BinaryData& id) const;
+   std::shared_ptr<BtcWallet> getWalletOrLockbox(const BinaryData& id) const;
 
-   tuple<uint64_t, uint64_t> getAddrFullBalance(const BinaryData&);
+   std::tuple<uint64_t, uint64_t> getAddrFullBalance(const BinaryData&);
 
-   unique_ptr<BDV_Notification_ZC> createZcNotification(
-      function<bool(BinaryDataRef&)>);
+   std::unique_ptr<BDV_Notification_ZC> createZcNotification(
+      std::function<bool(BinaryDataRef&)>);
 
-   virtual const string& getID(void) const = 0;
+   virtual const std::string& getID(void) const = 0;
 
 protected:
-   atomic<bool> rescanZC_;
+   std::atomic<bool> rescanZC_;
 
    BlockDataManager* bdmPtr_ = nullptr;
    LMDBBlockDatabase*        db_;
-   shared_ptr<Blockchain>    bc_;
+   std::shared_ptr<Blockchain>    bc_;
    ZeroConfContainer*        zc_;
    ScrAddrFilter*            saf_;
 
@@ -207,10 +205,10 @@ protected:
    //a given wallet is in the registered* map. Don't want to save pointers
    //to avoid cleanup snafus. Time for smart pointers
 
-   vector<WalletGroup> groups_;
+   std::vector<WalletGroup> groups_;
    
    uint32_t lastScanned_ = 0;
-   const shared_ptr<ZeroConfContainer> zeroConfCont_;
+   const std::shared_ptr<ZeroConfContainer> zeroConfCont_;
 
    int32_t updateID_ = 0;
 };
@@ -241,38 +239,38 @@ public:
 
    ~WalletGroup();
 
-   shared_ptr<BtcWallet> getOrSetWallet(const BinaryDataRef&);
-   void registerAddresses(shared_ptr<::Codec_BDVCommand::BDVCommand>);
-   void unregisterWallet(const string& IDstr);
+   std::shared_ptr<BtcWallet> getOrSetWallet(const BinaryDataRef&);
+   void registerAddresses(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   void unregisterWallet(const std::string& IDstr);
 
    bool hasID(const BinaryData& ID) const;
-   shared_ptr<BtcWallet> getWalletByID(const BinaryData& ID) const;
+   std::shared_ptr<BtcWallet> getWalletByID(const BinaryData& ID) const;
 
    void reset();
    
    size_t getPageCount(void) const { return hist_.getPageCount(); }
-   vector<LedgerEntry> getHistoryPage(uint32_t pageId, unsigned updateID, 
+   std::vector<LedgerEntry> getHistoryPage(uint32_t pageId, unsigned updateID,
       bool rebuildLedger, bool remapWallets);
 
-   const set<BinaryData>& getValidZcSet(void) const
+   const std::set<BinaryData>& getValidZcSet(void) const
    {
       return validZcSet_;
    }
 
 private:   
-   map<uint32_t, uint32_t> computeWalletsSSHSummary(
+   std::map<uint32_t, uint32_t> computeWalletsSSHSummary(
       bool forcePaging, bool pageAnyway);
    bool pageHistory(bool forcePaging, bool pageAnyway);
-   void updateLedgerFilter(const vector<BinaryData>& walletsVec);
+   void updateLedgerFilter(const std::vector<BinaryData>& walletsVec);
 
    void scanWallets(ScanWalletStruct&, int32_t);
-   map<BinaryData, shared_ptr<BtcWallet> > getWalletMap(void) const;
+   std::map<BinaryData, std::shared_ptr<BtcWallet> > getWalletMap(void) const;
 
    uint32_t getBlockInVicinity(uint32_t) const;
    uint32_t getPageIdForBlockHeight(uint32_t) const;
 
 private:
-   map<BinaryData, shared_ptr<BtcWallet> > wallets_;
+   std::map<BinaryData, std::shared_ptr<BtcWallet> > wallets_;
    mutable ReadWriteLock lock_;
 
    //The globalLedger (used to render the main transaction ledger) is
@@ -291,8 +289,8 @@ private:
    //and user actions, so it needs a synchronization primitive.
    std::mutex globalLedgerLock_;
 
-   set<BinaryData> validZcSet_;
-   set<BinaryData> wltFilterSet_;
+   std::set<BinaryData> validZcSet_;
+   std::set<BinaryData> wltFilterSet_;
 };
 
 #endif
