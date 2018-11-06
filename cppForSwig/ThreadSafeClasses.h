@@ -344,20 +344,20 @@ public:
 
    virtual T pop_front(bool rethrow = true)
    {
-		unique_lock<mutex> lock(mu_);
+		std::unique_lock<std::mutex> lock(mu_);
 		if (queue_.size() == 0)
 			throw IsEmpty();
 
-		T val = move(queue_.front());
+		T val = std::move(queue_.front());
 		queue_.pop_front();
 		count_.fetch_sub(1, std::memory_order_relaxed);
-		return move(val);
+		return std::move(val);
    }
 
    virtual void push_back(T&& obj)
    {
-		unique_lock<mutex> lock(mu_);
-		queue_.push_back(move(obj));
+		std::unique_lock<std::mutex> lock(mu_);
+		queue_.push_back(std::move(obj));
 		count_.fetch_add(1, std::memory_order_relaxed);
    }
 
@@ -368,7 +368,7 @@ public:
 
    virtual void clear()
    {
-      std::unique_lock<mutex> lock(mu_);
+      std::unique_lock<std::mutex> lock(mu_);
 		queue_.clear();
 		count_.store(0, std::memory_order_relaxed);
    }
@@ -460,7 +460,7 @@ public:
 		{
 			//loop stopped
 			waiting_.fetch_sub(1, std::memory_order_relaxed);
-         std::rethrow_exception(current_exception());
+         std::rethrow_exception(std::current_exception());
 		}
 
 		//to shut up the compiler warning
@@ -473,7 +473,7 @@ public:
 		if (completed)
 			return;
 
-		Queue<T>::push_back(move(obj));
+		Queue<T>::push_back(std::move(obj));
 
 		{
          std::unique_lock<std::mutex> lock(condVarMutex_);
@@ -524,7 +524,7 @@ public:
 			}
 			catch (...)
 			{
-				exceptptr = current_exception();
+				exceptptr = std::current_exception();
 			}
 		}
 
@@ -559,7 +559,7 @@ private:
 private:
    std::cv_status wait_on_data(std::chrono::milliseconds timeout)
    {
-		auto terminate = terminate_.load(memory_order_relaxed);
+		auto terminate = terminate_.load(std::memory_order_relaxed);
 		if (terminate)
 		{
 			if (Queue<T>::exceptPtr_ != nullptr)
@@ -604,7 +604,7 @@ public:
 		{
 		   auto&& retval = Queue<T>::pop_front();
 		   waiting_.fetch_sub(1, std::memory_order_relaxed);
-		   return move(retval);
+		   return std::move(retval);
 		}
 		catch (IsEmpty&)
 		{}
@@ -627,7 +627,7 @@ public:
 	{
 	   //loop stopped unexpectedly
 	   waiting_.fetch_sub(1, std::memory_order_relaxed);
-      std::rethrow_exception(current_exception());
+      std::rethrow_exception(std::current_exception());
 	}
 
 	return T();
@@ -637,12 +637,12 @@ public:
    {
       std::vector<T> vecT;
 
-		vecT.push_back(move(pop_front(timeout)));
+		vecT.push_back(std::move(pop_front(timeout)));
 	
 		try
 		{
 			while (1)
-				vecT.push_back(move(Queue<T>::pop_front()));
+				vecT.push_back(std::move(Queue<T>::pop_front()));
 		}
 		catch (IsEmpty&)
 		{}
@@ -652,7 +652,7 @@ public:
 
    void push_back(T&& obj)
    {
-		Queue<T>::push_back(move(obj));
+		Queue<T>::push_back(std::move(obj));
 
 		{
          std::unique_lock<std::mutex> lock(condVarMutex_);
@@ -673,7 +673,7 @@ public:
 			}
 			catch (...)
 			{
-				exceptptr = current_exception();
+				exceptptr = std::current_exception();
 			}
 		}
 
@@ -728,7 +728,7 @@ public:
 
    void insert(std::pair<T, U>&& mv)
    {
-		auto newMap = make_shared<std::map<T, U>>();
+		auto newMap = std::make_shared<std::map<T, U>>();
 
       std::unique_lock<std::mutex> lock(mu_);
 		newMap->insert(map_->begin(), map_->end());
@@ -747,9 +747,9 @@ public:
 		newMap->insert(map_->begin(), map_->end());
 		newMap->insert(obj);
 		
-		atomic_store(&map_, newMap);
+		std::atomic_store(&map_, newMap);
 
-		count_.store(map_->size(), memory_order_relaxed);
+		count_.store(map_->size(), std::memory_order_relaxed);
    }
 
    void update(std::map<T, U> updatemap)
@@ -757,13 +757,13 @@ public:
 		if (updatemap.size() == 0)
 			return;
 
-		auto newMap = make_shared<std::map<T, U>>(move(updatemap));
+		auto newMap = std::make_shared<std::map<T, U>>(std::move(updatemap));
 
       std::unique_lock<std::mutex> lock(mu_);
 		for (auto& data_pair : *map_)
 			newMap->insert(data_pair);
 
-		atomic_store(&map_, newMap);
+		std::atomic_store(&map_, newMap);
 
 		count_.store(map_->size(), std::memory_order_relaxed);
    }
@@ -790,7 +790,7 @@ public:
 		if (idVec.size() == 0)
 			return;
 
-		auto newMap = make_shared<std::map<T, U>>();
+		auto newMap = std::make_shared<std::map<T, U>>();
 
       std::unique_lock<std::mutex> lock(mu_);
 		newMap->insert(map_->begin(), map_->end());
@@ -851,7 +851,7 @@ public:
 
    void clear(void)
    {
-		auto newMap = make_shared<std::map<T, U>>();
+		auto newMap = std::make_shared<std::map<T, U>>();
       std::unique_lock<std::mutex> lock(mu_);
 
       std::atomic_store(&map_, newMap);
@@ -891,13 +891,13 @@ public:
 
    void insert(T&& mv)
    {
-		auto newSet = make_shared<std::set<T>>();
+		auto newSet = std::make_shared<std::set<T>>();
 
       std::unique_lock<std::mutex> lock(mu_);
 		newSet->insert(set_->begin(), set_->end());
 		newSet->insert(move(mv));
 
-		atomic_store(&set_, newSet);
+		std::atomic_store(&set_, newSet);
 		count_.store(set_->size(), std::memory_order_relaxed);
    }
 

@@ -369,7 +369,7 @@ public:
 
       //get key
 
-      std::map<uint32_t, set<uint32_t>> returnMap;
+      std::map<uint32_t, std::set<uint32_t>> returnMap;
 
       if (pool_.size())
       {
@@ -403,7 +403,7 @@ public:
             auto&& resultSet = filterPtr.compare(hash);
             if (resultSet.size() > 0)
             {
-               returnMap.insert(make_pair(
+               returnMap.insert(std::make_pair(
                   filterPtr.getBlockKey(),
                   move(resultSet)));
             }
@@ -481,7 +481,7 @@ public:
 
          offset += *filtersize;
 
-         pool_.insert(move(filter));
+         pool_.insert(std::move(filter));
       }
    }
 

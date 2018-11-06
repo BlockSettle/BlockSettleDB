@@ -52,7 +52,7 @@ private:
    void update(const BinaryData& hash)
    {
       if (hash.getSize() != 32)
-         throw range_error("unexpected hash length");
+         throw std::range_error("unexpected hash length");
 
       auto hashHead = (T*)hash.getPtr();
 
@@ -72,16 +72,16 @@ private:
    bool checkPtrLen(const uint8_t* ptr)
    {
       if (ptr == nullptr)
-         throw runtime_error("invalid txfilter ptr");
+         throw std::runtime_error("invalid txfilter ptr");
 
       auto size = (uint32_t*)(ptr);
       if (*size < 12)
-         throw runtime_error("invalid txfilter ptr");
+         throw std::runtime_error("invalid txfilter ptr");
 
       auto len = (uint32_t*)(ptr + 8);
       auto total = *len * sizeof(T) + 12;
       if (total != *size)
-         throw runtime_error("invalid txfilter ptr");
+         throw std::runtime_error("invalid txfilter ptr");
 
       return true;
    }
@@ -93,7 +93,7 @@ private:
       len_ = *(uint32_t*)(ptr + 8);
 
       if (*size != len_ * sizeof(T) + 12)
-         throw runtime_error("deser error");
+         throw std::runtime_error("deser error");
       
       filterVector_.resize(len_);
       memcpy(&filterVector_[0], ptr + 12, len_ * sizeof(T));
@@ -153,7 +153,7 @@ public:
    void update(const std::vector<BinaryData>& hashVec)
    {
       if (!isValid())
-         throw runtime_error("txfilter needs initialized first");
+         throw std::runtime_error("txfilter needs initialized first");
 
       for (auto& hash : hashVec)
       {

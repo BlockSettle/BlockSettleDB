@@ -208,7 +208,7 @@ public:
    void rethrow(void) 
    { 
       if (except_ptr_ != nullptr)
-         rethrow_exception(except_ptr_); 
+         std::rethrow_exception(except_ptr_); 
    }
 };
 
