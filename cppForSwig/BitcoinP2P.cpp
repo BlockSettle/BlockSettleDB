@@ -1407,8 +1407,12 @@ void BitcoinP2P::updateNodeStatus(bool connected)
 ////////////////////////////////////////////////////////////////////////////////
 void  BitcoinP2PSocket::respond(vector<uint8_t>& packet)
 {
-   readDataStack_->push_back(move(packet));
+   if (packet.size() >= 0)
+      readDataStack_->push_back(move(packet));
+   else
+      readDataStack_->terminate();
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinP2PSocket::pushPayload(
