@@ -552,7 +552,7 @@ shared_ptr<AssetEntry> AssetAccount::getAssetForIndex(unsigned id) const
 void AssetAccount::updateAddressHashMap(
    const set<AddressEntryType>& typeSet)
 {
-   if (updateHashMap_ = false)
+   if (updateHashMap_ == false)
       return;
 
    ReentrantLock lock(this);
