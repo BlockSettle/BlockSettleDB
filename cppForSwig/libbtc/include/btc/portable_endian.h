@@ -60,7 +60,10 @@
 
 #elif defined(__WINDOWS__)
 
+#ifndef _MSC_VER
 #include <sys/param.h>
+#endif
+
 #include <winsock2.h>
 
 #if BYTE_ORDER == LITTLE_ENDIAN

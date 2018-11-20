@@ -31,11 +31,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#ifndef _MSC_VER
 #include <unistd.h>
+#endif
 
 #include <btc/utils.h>
 
-#ifdef WIN32
+#if defined(WIN32) || defined(_WIN32)
 
 #ifdef _MSC_VER
 #pragma warning(disable:4786)
@@ -287,7 +290,7 @@ void btc_get_default_datadir(cstring *path_out)
 void btc_file_commit(FILE *file)
 {
     fflush(file); // harmless if redundantly called
-#ifdef WIN32
+#if defined(WIN32) || defined(_MSC_VER)
     HANDLE hFile = (HANDLE)_get_osfhandle(_fileno(file));
     FlushFileBuffers(hFile);
 #else
@@ -298,5 +301,6 @@ void btc_file_commit(FILE *file)
     #else
     fsync(fileno(file));
     #endif
+#endif
 #endif
 }

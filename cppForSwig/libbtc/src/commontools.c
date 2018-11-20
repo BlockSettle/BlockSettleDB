@@ -17,12 +17,15 @@
 #include <btc/utils.h>
 
 #include <assert.h>
-#include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef _MSC_VER
+#include <getopt.h>
 #include <unistd.h>
+#endif
 
 btc_bool addresses_from_pubkey(const btc_chainparams* chain, const char* pubkey_hex, char* p2pkh_address, char* p2sh_p2wpkh_address, char *p2wpkh_address)
 {
@@ -100,17 +103,17 @@ btc_bool hd_print_node(const btc_chainparams* chain, const char* nodeser)
         return false;
 
     size_t strsize = 128;
-    char str[strsize];
+    char* str = malloc(strsize);
     btc_hdnode_get_p2pkh_address(&node, chain, str, strsize);
 
     printf("ext key: %s\n", nodeser);
 
     size_t privkey_wif_size_bin = 34;
-    uint8_t pkeybase58c[privkey_wif_size_bin];
+    uint8_t* pkeybase58c = malloc(privkey_wif_size_bin);
     pkeybase58c[0] = chain->b58prefix_secret_address;
     pkeybase58c[33] = 1; /* always use compressed keys */
     size_t privkey_wif_size = 128;
-    char privkey_wif[privkey_wif_size];
+    char* privkey_wif = malloc(privkey_wif_size);
     memcpy(&pkeybase58c[1], node.private_key, BTC_ECKEY_PKEY_LENGTH);
     assert(btc_base58_encode_check(pkeybase58c, privkey_wif_size_bin, privkey_wif, privkey_wif_size) != 0);
     if (btc_hdnode_has_privkey(&node)) {
@@ -123,12 +126,22 @@ btc_bool hd_print_node(const btc_chainparams* chain, const char* nodeser)
     printf("p2wpkh address: %s\n", str);
 
     if (!btc_hdnode_get_pub_hex(&node, str, &strsize))
+    {
+        free(str);
+        free(pkeybase58c);
+        free(privkey_wif);
         return false;
+    }
+
     printf("pubkey hex: %s\n", str);
 
     strsize = 128;
     btc_hdnode_serialize_public(&node, chain, str, strsize);
     printf("extended pubkey: %s\n", str);
+
+    free(str);
+    free(pkeybase58c);
+    free(privkey_wif);
     return true;
 }
 

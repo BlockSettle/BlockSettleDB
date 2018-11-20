@@ -26,14 +26,16 @@
 
 #include <btc/random.h>
 
+#ifndef _MSC_VER
 #include "libbtc-config.h"
+#endif
 
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
-#ifdef WIN32
+#if defined(WIN32) || defined(_WIN32)
 #include <windows.h>
 #include <wincrypt.h>
 #endif
@@ -84,13 +86,14 @@ btc_bool btc_random_bytes_internal(uint8_t* buf, uint32_t len, uint8_t update_se
 void btc_random_init_internal(void) {}
 btc_bool btc_random_bytes_internal(uint8_t* buf, uint32_t len, const uint8_t update_seed)
 {
-#ifdef WIN32
+#if defined(WIN32) || defined(_MSC_VER)
     HCRYPTPROV hProvider;
     int ret = CryptAcquireContextW(&hProvider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT);
     assert(ret);
     ret = CryptGenRandom(hProvider, len, buf);
     assert(ret);
     CryptReleaseContext(hProvider, 0);
+    return true;
 #else
     (void)update_seed; //unused
     FILE* frand = fopen(RANDOM_DEVICE, "r");
