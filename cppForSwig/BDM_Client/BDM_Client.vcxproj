@@ -103,15 +103,16 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../leveldb_windows_port\win32_posix;../;../cryptopp;C:\Python27amd64\include;../libwebsockets/include;../libwebsockets;..\protobuf\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_WINSOCKAPI_;SIGNER_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>../leveldb_windows_port\win32_posix;../;../cryptopp;C:\Python27amd64\include;../libwebsockets/include;../libwebsockets;../lmdb/libraries/liblmdb;..\protobuf\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_WINSOCKAPI_;SIGNER_DEBUG;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>4146</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>..\libs\x64;C:\Python27amd64\libs;../libwebsockets/lib/Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>LMDB_Win_d.lib;cryptopp_d.lib;ws2_32.lib;websockets_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>LMDB_Win_d.lib;cryptopp_d.lib;ws2_32.lib;websockets_static.lib;protobuf_win_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>..\swigwin\swig.exe -c++ -python -D_WIN32 -threads -outdir ..\..\ -v ..\CppBlockUtils.i</Command>
@@ -198,7 +199,6 @@
     <ClCompile Include="..\AssetEncryption.cpp" />
     <ClCompile Include="..\Assets.cpp" />
     <ClCompile Include="..\AsyncClient.cpp" />
-    <ClCompile Include="..\BDM_seder.cpp" />
     <ClCompile Include="..\bech32\ref\c++\bech32.cpp" />
     <ClCompile Include="..\bech32\ref\c++\segwit_addr.cpp" />
     <ClCompile Include="..\BinaryData.cpp" />
@@ -210,16 +210,16 @@
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\leveldb_windows_port\win32_posix;../;../cryptopp;C:\Python27_64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\leveldb_windows_port\win32_posix;../;../cryptopp;C:\Python27_64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <ClCompile Include="..\DataObject.cpp" />
     <ClCompile Include="..\DBUtils.cpp" />
     <ClCompile Include="..\DecryptedDataContainer.cpp" />
     <ClCompile Include="..\DerivationScheme.cpp" />
     <ClCompile Include="..\EncryptionUtils.cpp" />
-    <ClCompile Include="..\FcgiMessage.cpp" />
+    <ClCompile Include="..\HttpMessage.cpp" />
     <ClCompile Include="..\JSON_codec.cpp" />
     <ClCompile Include="..\leveldb_windows_port\win32_posix\dirent_win32.cpp" />
     <ClCompile Include="..\leveldb_windows_port\win32_posix\mman.cpp" />
     <ClCompile Include="..\log.cpp" />
+    <ClCompile Include="..\NetworkConfig.cpp" />
     <ClCompile Include="..\ReentrantLock.cpp" />
     <ClCompile Include="..\Script.cpp" />
     <ClCompile Include="..\Signer.cpp" />
