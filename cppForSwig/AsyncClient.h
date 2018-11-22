@@ -43,6 +43,10 @@ private:
    shared_ptr<ClientMessageError> error_;
 
 public:
+   ReturnMessage(void) :
+      value_(U())
+   {}
+
    ReturnMessage(U& val) :
       value_(move(val))
    {}
@@ -330,6 +334,8 @@ namespace AsyncClient
          function<void(ReturnMessage<shared_ptr<::ClientClasses::NodeStatusStruct>>)>);
       void estimateFee(unsigned, const string&, 
          function<void(ReturnMessage<ClientClasses::FeeEstimateStruct>)>);
+      void getFeeSchedule(const string&,function<void(ReturnMessage<
+            std::map<unsigned, ClientClasses::FeeEstimateStruct>>)>);
 
       void getHistoryForWalletSelection(
          const vector<string>& wldIDs, const string& orderingStr,
@@ -473,6 +479,23 @@ private:
 public:
    CallbackReturn_FeeEstimateStruct(
       function<void(ReturnMessage<ClientClasses::FeeEstimateStruct>)> lbd) :
+      userCallbackLambda_(lbd)
+   {}
+
+   //virtual
+   void callback(const WebSocketMessagePartial&);
+};
+
+///////////////////////////////////////////////////////////////////////////////
+struct CallbackReturn_FeeSchedule : public CallbackReturn_WebSocket
+{
+private:
+   function<void(ReturnMessage<map<unsigned, ClientClasses::FeeEstimateStruct>>)>
+      userCallbackLambda_;
+
+public:
+   CallbackReturn_FeeSchedule(function<void(ReturnMessage<
+      map<unsigned, ClientClasses::FeeEstimateStruct>>)> lbd) :
       userCallbackLambda_(lbd)
    {}
 

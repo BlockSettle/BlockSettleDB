@@ -396,6 +396,21 @@ void BlockDataViewer::estimateFee(unsigned blocksToConfirm,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+void BlockDataViewer::getFeeSchedule(const string& strategy, function<void(
+   ReturnMessage<map<unsigned, ClientClasses::FeeEstimateStruct>>)> callback)
+{
+   auto payload = make_payload(Methods::getFeeSchedule, bdvID_);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+   command->add_bindata(strategy);
+
+   auto read_payload = make_shared<Socket_ReadPayload>();
+   read_payload->callbackReturn_ =
+      make_unique<CallbackReturn_FeeSchedule>(callback);
+   sock_->pushPayload(move(payload), read_payload);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getHistoryForWalletSelection(
    const vector<string>& wldIDs, const string& orderingStr,
    function<void(ReturnMessage<vector<::ClientClasses::LedgerEntry>>)> callback)
@@ -969,6 +984,37 @@ void CallbackReturn_FeeEstimateStruct::callback(
    {
       ReturnMessage<ClientClasses::FeeEstimateStruct> rm(e);
       userCallbackLambda_(rm);
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void CallbackReturn_FeeSchedule::callback(
+   const WebSocketMessagePartial& partialMsg)
+{
+   try
+   {
+      ::Codec_FeeEstimate::FeeSchedule msg;
+      AsyncClient::deserialize(&msg, partialMsg);
+
+      map<unsigned, ClientClasses::FeeEstimateStruct> result;
+
+      for (int i = 0; i < msg.estimate_size(); i++)
+      {
+         auto& feeByte = msg.estimate(i);
+         ClientClasses::FeeEstimateStruct fes(
+            feeByte.feebyte(), feeByte.smartfee(), feeByte.error());
+
+         auto target = msg.target(i);
+         result.insert(make_pair(target, move(fes)));
+      }
+
+      ReturnMessage<map<unsigned, ClientClasses::FeeEstimateStruct>> rm(result);
+      userCallbackLambda_(move(rm));
+   }
+   catch (ClientMessageError& e)
+   {
+      ReturnMessage<map<unsigned, ClientClasses::FeeEstimateStruct>> rm(e);
+      userCallbackLambda_(move(rm));
    }
 }
 

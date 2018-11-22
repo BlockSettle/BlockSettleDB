@@ -715,23 +715,43 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       uint32_t blocksToConfirm = command->value();
       auto strat = command->bindata(0);
 
-      FeeEstimateResult feeByte;
-      try
-      {
-         feeByte = this->bdmPtr_->nodeRPC_->getFeeByte(
+      auto& feeByte = this->bdmPtr_->nodeRPC_->getFeeByte(
             blocksToConfirm, strat);
-      }
-      catch (exception&)
-      {
-         feeByte.smartFee_ = false;
-         feeByte.feeByte_ = -1.0f;
-         feeByte.error_ = string("failed to get fee/byte from RPC");
-      }
 
       auto response = make_shared<::Codec_FeeEstimate::FeeEstimate>();
       response->set_feebyte(feeByte.feeByte_);
       response->set_smartfee(feeByte.smartFee_);
       response->set_error(feeByte.error_);
+      return response;
+   }
+
+   case Methods::getFeeSchedule:
+   {
+      /*
+      in:
+         startegy as bindata[0]
+      out:
+         Codec_FeeEstimate::FeeScehdule
+      */
+      if (command->bindata_size() != 1)
+         throw runtime_error("invalid command for getFeeSchedule");
+
+      uint32_t blocksToConfirm = command->value();
+      auto strat = command->bindata(0);
+      auto& feeBytes = this->bdmPtr_->nodeRPC_->getFeeSchedule(strat);
+
+      auto response = make_shared<::Codec_FeeEstimate::FeeSchedule>();
+      for (auto& feeBytePair : feeBytes)
+      {
+         auto& feeByte = feeBytePair.second;
+
+         response->add_target(feeBytePair.first);
+         auto estimate = response->add_estimate();
+         estimate->set_feebyte(feeByte.feeByte_);
+         estimate->set_smartfee(feeByte.smartFee_);
+         estimate->set_error(feeByte.error_);
+      }
+
       return response;
    }
 
