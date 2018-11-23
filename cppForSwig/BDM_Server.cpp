@@ -100,7 +100,6 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          auto theWallet = getWalletOrLockbox(wltIDRef);
          if (theWallet != nullptr)
          {
-            unsigned pageId = UINT32_MAX;
             BinaryDataRef txHash;
 
             if (command->has_pageid())
@@ -736,7 +735,6 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       if (command->bindata_size() != 1)
          throw runtime_error("invalid command for getFeeSchedule");
 
-      uint32_t blocksToConfirm = command->value();
       auto strat = command->bindata(0);
       auto feeBytes = this->bdmPtr_->nodeRPC_->getFeeSchedule(strat);
 
@@ -940,7 +938,7 @@ void BDV_Server_Object::setup()
 ///////////////////////////////////////////////////////////////////////////////
 BDV_Server_Object::BDV_Server_Object(
    const string& id, BlockDataManagerThread *bdmT) :
-   bdvID_(id), bdmT_(bdmT), BlockDataViewer(bdmT->bdm())
+   BlockDataViewer(bdmT->bdm()), bdvID_(id), bdmT_(bdmT)
 {
    setup();
 }
@@ -970,7 +968,6 @@ void BDV_Server_Object::init()
 
    while (1)
    {
-      bool isNew = false;
       map<string, walletRegStruct> wltMap;
 
       {
@@ -1070,8 +1067,6 @@ void BDV_Server_Object::processNotification(
       notif->set_type(NotificationType::newblock);
       auto&& payload =
          dynamic_pointer_cast<BDV_Notification_NewBlock>(notifPtr);
-      uint32_t blocknum =
-         payload->reorgState_.newTop_->getBlockHeight();
       notif->set_height(payload->reorgState_.newTop_->getBlockHeight());
 
       break;
