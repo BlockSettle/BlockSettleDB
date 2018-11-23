@@ -28,9 +28,6 @@ unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(
    auto message = make_unique<BDVCommand>();
    message->set_method(method);
 
-   if (AsyncClient::textSerialization_ && bdvid.size() > 0)
-      message->set_bdvid(bdvid);
-
    payload->message_ = move(message);
    return move(payload);
 }
@@ -469,7 +466,7 @@ void BlockDataViewer::getUtxosForAddrVec(const vector<BinaryData>& addrVec,
 ///////////////////////////////////////////////////////////////////////////////
 LedgerDelegate::LedgerDelegate(shared_ptr<SocketPrototype> sock,
    const string& bdvid, const string& ldid) :
-   sock_(sock), delegateID_(ldid), bdvID_(bdvid)
+   delegateID_(ldid), bdvID_(bdvid), sock_(sock)
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -509,7 +506,7 @@ void LedgerDelegate::getPageCount(
 //
 ///////////////////////////////////////////////////////////////////////////////
 AsyncClient::BtcWallet::BtcWallet(const BlockDataViewer& bdv, const string& id) :
-   sock_(bdv.sock_), walletID_(id), bdvID_(bdv.bdvID_)
+   walletID_(id), bdvID_(bdv.bdvID_), sock_(bdv.sock_)
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -734,18 +731,17 @@ string AsyncClient::Lockbox::registerAddresses(
 ScrAddrObj::ScrAddrObj(shared_ptr<SocketPrototype> sock, const string& bdvId,
    const string& walletID, const BinaryData& scrAddr, int index,
    uint64_t full, uint64_t spendabe, uint64_t unconf, uint32_t count) :
-   sock_(sock), bdvID_(bdvId), walletID_(walletID), scrAddr_(scrAddr),
-   index_(index), fullBalance_(full), spendableBalance_(spendabe),
-   unconfirmedBalance_(unconf), count_(count)
+   bdvID_(bdvId), walletID_(walletID), scrAddr_(scrAddr), sock_(sock),
+   fullBalance_(full), spendableBalance_(spendabe),
+   unconfirmedBalance_(unconf), count_(count), index_(index)
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
 ScrAddrObj::ScrAddrObj(AsyncClient::BtcWallet* wlt, const BinaryData& scrAddr,
    int index, uint64_t full, uint64_t spendabe, uint64_t unconf, uint32_t count) :
-   sock_(wlt->sock_), bdvID_(wlt->bdvID_), walletID_(wlt->walletID_),
-   scrAddr_(scrAddr), index_(index),
+   bdvID_(wlt->bdvID_), walletID_(wlt->walletID_), scrAddr_(scrAddr), sock_(wlt->sock_),
    fullBalance_(full), spendableBalance_(spendabe),
-   unconfirmedBalance_(unconf), count_(count)
+   unconfirmedBalance_(unconf), count_(count), index_(index)
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
