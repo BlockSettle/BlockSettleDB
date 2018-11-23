@@ -909,6 +909,9 @@ void BlockDataManager::resetDatabases(ResetDBMode mode)
       iface_->destroyAndResetDatabases();
       blockchain_->clear();
       break;
+   
+   default:
+      break;
    }
 
    if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
