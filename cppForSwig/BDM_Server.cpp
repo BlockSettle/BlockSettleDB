@@ -715,7 +715,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       uint32_t blocksToConfirm = command->value();
       auto strat = command->bindata(0);
 
-      auto& feeByte = this->bdmPtr_->nodeRPC_->getFeeByte(
+      auto feeByte = this->bdmPtr_->nodeRPC_->getFeeByte(
             blocksToConfirm, strat);
 
       auto response = make_shared<::Codec_FeeEstimate::FeeEstimate>();
@@ -738,7 +738,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       uint32_t blocksToConfirm = command->value();
       auto strat = command->bindata(0);
-      auto& feeBytes = this->bdmPtr_->nodeRPC_->getFeeSchedule(strat);
+      auto feeBytes = this->bdmPtr_->nodeRPC_->getFeeSchedule(strat);
 
       auto response = make_shared<::Codec_FeeEstimate::FeeSchedule>();
       for (auto& feeBytePair : feeBytes)
