@@ -542,7 +542,10 @@ void LMDBBlockDatabase::openDatabases(
       if (CURRDB == HEADERS)
       {
          if (getDbType() != sdbi.armoryType_)
-            throw LmdbWrapperException("db type mismatch");
+         {
+            LOGERR << "db type mismatch, aborting";
+            exit(-2);
+         }
       }
    }
 

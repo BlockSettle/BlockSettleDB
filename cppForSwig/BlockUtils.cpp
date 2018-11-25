@@ -780,7 +780,8 @@ BlockDataManager::BlockDataManager(
    if (bdmConfig.exceptionPtr_ != nullptr)
    {
       exceptPtr_ = bdmConfig.exceptionPtr_;
-      return;
+      LOGERR << "exception thrown in bdmConfig, aborting!";
+      exit(-1);
    }
    
    blockchain_ = make_shared<Blockchain>(NetworkConfig::getGenesisBlockHash());
