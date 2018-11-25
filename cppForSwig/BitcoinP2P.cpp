@@ -1066,8 +1066,8 @@ void BitcoinP2P::checkServices(unique_ptr<Payload> payload)
 {
    Payload_Version* pver = (Payload_Version*)payload.get();
 
-   auto&& node_mw = READHEX(MAINNET_MAGIC_BYTES);
-   auto mwInt = (uint32_t*)node_mw.getPtr();
+   auto& this_mw = NetworkConfig::getMagicBytes();
+   auto mwInt = (uint32_t*)this_mw.getPtr();
 
    if(*mwInt != magic_word_)
    {
@@ -1075,8 +1075,8 @@ void BitcoinP2P::checkServices(unique_ptr<Payload> payload)
       bdr_mw.setRef((uint8_t*)&magic_word_, 4);
 
       LOGERR << "Node magic word does not match expected magic word:";
-      LOGERR << "   expected: " << bdr_mw.toHexStr();
-      LOGERR << "   got: " << node_mw.toHexStr();
+      LOGERR << "   expected: " << this_mw.toHexStr();
+      LOGERR << "   got: " << bdr_mw.toHexStr();
       throw BitcoinP2P_Exception("magic word mismatch");
    }
 
