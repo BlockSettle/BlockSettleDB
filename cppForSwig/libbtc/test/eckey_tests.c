@@ -77,8 +77,8 @@ void test_eckey()
     u_assert_mem_eq(pubkey.pubkey, pubkey_rec.pubkey, sizeof(pubkey.pubkey));
 
 
-    size_t size = 66;
-    char str[size];
+    size_t size = 67;
+    char* str = malloc(size);
     int r = btc_pubkey_get_hex(&pubkey, str, &size);
     u_assert_int_eq(r, true);
     u_assert_int_eq(size, 66);
@@ -104,4 +104,5 @@ void test_eckey()
     btc_privkey_decode_wif(wifstr, &btc_chainparams_main, &key_wif_decode);
 
     u_assert_mem_eq(key_wif_decode.privkey, key_wif.privkey, sizeof(key_wif_decode.privkey));
+    free(str);
 }

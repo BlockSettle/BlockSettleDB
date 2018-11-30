@@ -101,14 +101,15 @@ void btc_privkey_encode_wif(const btc_key* privkey, const btc_chainparams* chain
 
 btc_bool btc_privkey_decode_wif(const char *privkey_wif, const btc_chainparams* chain, btc_key* privkey) {
 
-    if (!privkey_wif || strlen(privkey_wif) < 50) {
+    size_t privkey_size = strlen(privkey_wif);
+    if (!privkey_wif || privkey_size < 50) {
         return false;
     }
-    uint8_t* privkey_data = malloc(strlen(privkey_wif));
-    memset(privkey_data, 0, sizeof(privkey_data));
+    uint8_t* privkey_data = malloc(privkey_size);
+    memset(privkey_data, 0, privkey_size);
     size_t outlen = 0;
 
-    outlen = btc_base58_decode_check(privkey_wif, privkey_data, sizeof(privkey_data));
+    outlen = btc_base58_decode_check(privkey_wif, privkey_data, privkey_size);
     if (!outlen) {
         free(privkey_data);
         return false;
@@ -118,7 +119,7 @@ btc_bool btc_privkey_decode_wif(const char *privkey_wif, const btc_chainparams* 
         return false;
     }
     memcpy(privkey->privkey, &privkey_data[1], BTC_ECKEY_PKEY_LENGTH);
-    btc_mem_zero(&privkey_data, sizeof(privkey_data));
+    btc_mem_zero(privkey_data, privkey_size);
     free(privkey_data);
     return true;
 }

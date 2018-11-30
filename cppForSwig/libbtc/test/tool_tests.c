@@ -23,18 +23,18 @@ void test_tool()
     u_assert_str_eq(addr_p2wpkh, "bc1qalzchqutx9f3wjln69nhkusnx5aymn8a7dl97t");
 
     size_t pubkeylen = 100;
-    char pubkey[pubkeylen];
+    char* pubkey = malloc(pubkeylen);
     u_assert_int_eq(pubkey_from_privatekey(&btc_chainparams_main, "KxDQjJwvLdNNGhsipGgmceWaPjRndZuaQB9B2tgdHsw5sQ8Rtqje", pubkey, &pubkeylen), true);
     u_assert_str_eq(pubkey, "02fcba7ecf41bc7e1be4ee122d9d22e3333671eb0a3a87b5cdf099d59874e1940f");
 
     size_t privkeywiflen = 100;
-    char privkeywif[privkeywiflen];
+    char* privkeywif = malloc(privkeywiflen);
     char privkeyhex[100];
     u_assert_int_eq(gen_privatekey(&btc_chainparams_main, privkeywif, privkeywiflen, NULL), true);
     u_assert_int_eq(gen_privatekey(&btc_chainparams_main, privkeywif, privkeywiflen, privkeyhex), true);
 
-    uint8_t privkey_data[strlen(privkeywif)];
-    size_t outlen = btc_base58_decode_check(privkeywif, privkey_data, sizeof(privkey_data));
+    uint8_t* privkey_data = malloc(strlen(privkeywif));
+    size_t outlen = btc_base58_decode_check(privkeywif, privkey_data, strlen(privkeywif));
     u_assert_int_eq(privkey_data[0] == btc_chainparams_main.b58prefix_secret_address, true);
 
     char privkey_hex_or_null[65];
@@ -42,12 +42,12 @@ void test_tool()
     u_assert_str_eq(privkeyhex,privkey_hex_or_null);
 
     size_t masterkeysize = 200;
-    char masterkey[masterkeysize];
+    char* masterkey = malloc(masterkeysize);
     u_assert_int_eq(hd_gen_master(&btc_chainparams_main, masterkey, masterkeysize), true);
     u_assert_int_eq(hd_print_node(&btc_chainparams_main, masterkey), true);
 
     size_t extoutsize = 200;
-    char extout[extoutsize];
+    char* extout = malloc(extoutsize);
     const char *privkey = "xprv9s21ZrQH143K2JF8RafpqtKiTbsbaxEeUaMnNHsm5o6wCW3z8ySyH4UxFVSfZ8n7ESu7fgir8imbZKLYVBxFPND1pniTZ81vKfd45EHKX73";
 
     u_assert_int_eq(hd_derive(&btc_chainparams_main, privkey, "m/1", extout, extoutsize), true);
@@ -63,4 +63,10 @@ void test_tool()
 
     u_assert_int_eq(hd_derive(&btc_chainparams_main, privkey, "m", extout, extoutsize), false);
     u_assert_int_eq(hd_derive(&btc_chainparams_main, privkey, "n/1", extout, extoutsize), false);
+
+    free(pubkey);
+    free(privkeywif);
+    free(privkey_data);
+    free(masterkey);
+    free(extout);
 }

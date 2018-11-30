@@ -135,7 +135,7 @@ void test_block_header()
 
     uint256 checkhash;
     btc_block_header_hash(&bheader, (uint8_t *)&checkhash);
-    char hashhex[sizeof(checkhash)*2];
+    char hashhex[sizeof(checkhash)*2 + 1];
     utils_bin_to_hex(checkhash, sizeof(checkhash), hashhex);
     utils_reverse_hex(hashhex, strlen(hashhex));
     u_assert_str_eq(blockheader_hash_h427928, hashhex);

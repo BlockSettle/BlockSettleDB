@@ -116,7 +116,7 @@ int main()
     u_run_test(test_eckey);
 
 #ifdef WITH_WALLET
-    //u_run_test(test_wallet);
+    u_run_test(test_wallet);
 #endif
 
 #ifdef WITH_TOOLS

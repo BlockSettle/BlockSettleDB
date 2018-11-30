@@ -302,5 +302,4 @@ void btc_file_commit(FILE *file)
     fsync(fileno(file));
     #endif
 #endif
-#endif
 }
