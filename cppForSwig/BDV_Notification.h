@@ -54,6 +54,7 @@ struct BDV_Notification_NewBlock : public BDV_Notification
 {
    Blockchain::ReorganizationState reorgState_;
    std::shared_ptr<ZcPurgePacket> zcPurgePacket_;
+   std::shared_ptr<ZeroConfSharedStateSnapshot> zcState_;
 
    BDV_Notification_NewBlock(
       const Blockchain::ReorganizationState& ref, 

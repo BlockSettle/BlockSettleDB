@@ -113,6 +113,9 @@ void BlockDataViewer::scanWallets(shared_ptr<BDV_Notification> action)
             reorgNotif->zcPurgePacket_->minedTxioKeys_;
       }
 
+      //carry zc state
+      scanData.saStruct_.zcState_ = reorgNotif->zcState_;
+
       prevTopBlock = reorgState.prevTop_->getBlockHeight() + 1;
 
       break;
