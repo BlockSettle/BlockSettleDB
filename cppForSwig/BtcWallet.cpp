@@ -356,7 +356,7 @@ vector<AddressBookEntry> BtcWallet::createAddressBook(void)
 
    for (auto& saPair : *scrAddrMap)
    {
-      auto& txioMap = saPair.second->getTxios();
+      auto&& txioMap = saPair.second->getTxios();
 
       for (auto& txioPair : txioMap)
       {
