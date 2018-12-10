@@ -48,3 +48,12 @@ gtest_CppBlockUtilsTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_CppBlockUtilsTests_LDADD = gtest/libgtest.la
 gtest_CppBlockUtilsTests_LDFLAGS = $(AM_LDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/CppBlockUtilsTests
+
+# WalletTests
+bin_PROGRAMS += gtest/WalletTests
+gtest_WalletTests_SOURCES = gtest/WalletTests.cpp
+gtest_WalletTests_CXXFLAGS = $(AM_CXXFLAGS)
+gtest_WalletTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) -DUNIT_TESTS
+gtest_WalletTests_LDADD = gtest/libgtest.la libbtc/libbtc.la
+gtest_WalletTests_LDFLAGS = $(AM_LDFLAGS) $(LDFLAGS) -static
+TESTS += gtest/WalletTests

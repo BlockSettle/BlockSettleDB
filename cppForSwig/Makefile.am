@@ -91,6 +91,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	AssetEncryption.cpp \
 	Assets.cpp \
 	BinaryData.cpp \
+	BIP32_Serialization.cpp \
 	BlockDataManagerConfig.cpp \
 	BtcUtils.cpp \
 	DecryptedDataContainer.cpp \
@@ -158,8 +159,9 @@ libArmoryCommon_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 libArmoryCommon_la_CXXFLAGS = $(AM_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryCommon_la_LIBADD = liblmdb.la \
 				cryptopp/libcryptopp.la \
+				libbtc/libbtc.la libbtc/src/secp256k1/libsecp256k1.la \
 				-lpthread -lprotobuf \
-				-lwebsockets
+				-lwebsockets 
 libArmoryCommon_la_LDFLAGS = $(LDFLAGS) $(PROTOBUF_FLAGS) $(LWS_LDFLAGS) -shared
 
 # Common command-line functionality library
