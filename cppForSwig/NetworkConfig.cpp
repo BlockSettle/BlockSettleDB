@@ -16,6 +16,8 @@ BinaryData NetworkConfig::genesisBlockHash_;
 BinaryData NetworkConfig::genesisTxHash_;
 BinaryData NetworkConfig::magicBytes_;
 NETWORK_MODE NetworkConfig::mode_;
+const btc_chainparams* NetworkConfig::chain_params_ = nullptr;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 void NetworkConfig::selectNetwork(NETWORK_MODE mode)
@@ -30,6 +32,7 @@ void NetworkConfig::selectNetwork(NETWORK_MODE mode)
       pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160;
       scriptHashPrefix_ = SCRIPT_PREFIX_P2SH;
 
+      chain_params_ = &btc_chainparams_main;
       break;
    }
 
@@ -41,6 +44,7 @@ void NetworkConfig::selectNetwork(NETWORK_MODE mode)
       pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160_TESTNET;
       scriptHashPrefix_ = SCRIPT_PREFIX_P2SH_TESTNET;
 
+      chain_params_ = &btc_chainparams_test;
       break;
    }
 
@@ -52,6 +56,7 @@ void NetworkConfig::selectNetwork(NETWORK_MODE mode)
       pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160_TESTNET;
       scriptHashPrefix_ = SCRIPT_PREFIX_P2SH_TESTNET;
 
+      chain_params_ = &btc_chainparams_regtest;
       break;
    }
 

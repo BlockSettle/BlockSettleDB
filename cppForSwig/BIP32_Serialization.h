@@ -11,52 +11,50 @@
 
 #include "BtcUtils.h"
 #include "EncryptionUtils.h"
+#include "btc/bip32.h"
 
-class BIP32_Serialization
+class BIP32_Node
 {
 private:
-   unsigned version_;
-   uint8_t depth_;
-   BinaryData fingerprint_;
-   unsigned leaf_id_;
-
    SecureBinaryData chaincode_;
-   SecureBinaryData key_;
+   SecureBinaryData privkey_;
+   SecureBinaryData pubkey_;
 
-   string b58_string_;
+   btc_hdnode node_;
 
 private:
-   void encode(void);
-   void decode(void);
+   std::string encodeBase58(void) const;
+   void decodeBase58(const std::string&);
+   void init(void);
+   void assign(void);
 
 public:
-   BIP32_Serialization(const string& b58_string) :
-      b58_string_(b58_string)
-   {
-      decode();
-   }
+   BIP32_Node(void)
+   {}
 
-   BIP32_Serialization(
-      uint8_t depth, unsigned leaf_id,
-      const SecureBinaryData& chaincode,
-      const SecureBinaryData& key) :
-      depth_(depth), leaf_id_(leaf_id),
-      chaincode_(chaincode)
-   {
-      encode();
-   }
+   void initFromSeed(const SecureBinaryData&);
+   void initFromBase58(const std::string&);
+   void initFromPrivateKey(uint8_t depth, unsigned leaf_id,
+      const SecureBinaryData& privKey, const SecureBinaryData& chaincode);
+   void initFromPublicKey(uint8_t depth, unsigned leaf_id,
+      const SecureBinaryData& pubKey, const SecureBinaryData& chaincode);
 
    static BinaryData computeFingerprint(const SecureBinaryData& key);
 
    //gets
-   const string& getBase58(void) const { return b58_string_; }
-   unsigned getVersion(void) const { return version_; }
-   uint8_t getDepth(void) const { return depth_; }
-   const BinaryData& getFingerPrint(void) const { return fingerprint_; }
-   unsigned getLeafID(void) const { return leaf_id_; }
+   std::string getBase58(void) const { return encodeBase58(); }
+   uint8_t getDepth(void) const { return node_.depth; }
+   uint32_t getFingerPrint(void) const { return node_.fingerprint; }
+   unsigned getLeafID(void) const { return node_.child_num; }
+   BIP32_Node getPublicCopy(void) const;
+
+   //derivation
+   void derivePrivate(unsigned);
+   void derivePublic(unsigned);
 
    const SecureBinaryData& getChaincode(void) const { return chaincode_; }
-   const SecureBinaryData& getKey(void) const { return key_; }
+   const SecureBinaryData& getPrivateKey(void) const { return privkey_; }
+   const SecureBinaryData& getPublicKey(void) const { return pubkey_; }
 };
 
 #endif

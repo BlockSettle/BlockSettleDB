@@ -302,7 +302,7 @@ void AssetAccount::extendPublicChain(
 
    auto&& assetVec = extendPublicChain(assetPtr,
       assetPtr->getIndex() + 1, 
-      assetPtr->getIndex() + 1 + count);
+      assetPtr->getIndex() + count);
 
    LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
 
@@ -394,7 +394,7 @@ void AssetAccount::extendPrivateChain(
    auto lastIndex = getLastComputedIndex();
 
    auto&& assetVec = extendPrivateChain(ddc, assetPtr, 
-      assetPtr->getIndex() + 1, assetPtr->getIndex() + 1 + count);
+      assetPtr->getIndex() + 1, assetPtr->getIndex() + count);
 
    LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
 

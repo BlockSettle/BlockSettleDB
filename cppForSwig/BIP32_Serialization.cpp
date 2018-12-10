@@ -7,10 +7,43 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "BIP32_Serialization.h"
-#include "BlockDataManagerConfig.h"
+#include "NetworkConfig.h"
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData BIP32_Serialization::computeFingerprint(const SecureBinaryData& key)
+void BIP32_Node::init()
+{
+   if (privkey_.getSize() > 0)
+      privkey_.clear();
+   privkey_.resize(BTC_ECKEY_PKEY_LENGTH);
+   memset(privkey_.getPtr(), 0, BTC_ECKEY_PKEY_LENGTH);
+
+   if (pubkey_.getSize() > 0)
+      pubkey_.clear();
+   pubkey_.resize(BTC_ECKEY_COMPRESSED_LENGTH);
+   memset(pubkey_.getPtr(), 0, BTC_ECKEY_COMPRESSED_LENGTH);
+
+   if (chaincode_.getSize() > 0)
+      chaincode_.clear();
+   chaincode_.resize(BTC_BIP32_CHAINCODE_SIZE);
+   memset(chaincode_.getPtr(), 0, BTC_BIP32_CHAINCODE_SIZE);
+
+   node_.depth = 0;
+   node_.child_num = 0;
+   node_.fingerprint = 0;
+
+   assign();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void BIP32_Node::assign()
+{
+   node_.chain_code = chaincode_.getPtr();
+   node_.private_key = privkey_.getPtr();
+   node_.public_key = pubkey_.getPtr();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData BIP32_Node::computeFingerprint(const SecureBinaryData& key)
 {
    auto compute_fingerprint = [](const SecureBinaryData& key)->BinaryData
    {
@@ -55,130 +88,123 @@ BinaryData BIP32_Serialization::computeFingerprint(const SecureBinaryData& key)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BIP32_Serialization::encode()
+std::string BIP32_Node::encodeBase58() const
 {
-   bool ispriv = false;
+   if (chaincode_.getSize() != BTC_BIP32_CHAINCODE_SIZE)
+      throw std::runtime_error("invalid chaincode for BIP32 ser");
 
-   if (key_.getSize() == 32)
+   size_t result_len = 200;
+   char* result_char = new char[result_len];
+   memset(result_char, 0, result_len);
+
+   if (privkey_.getSize() == BTC_ECKEY_PKEY_LENGTH)
    {
-      ispriv = true;
+      btc_hdnode_serialize_private(
+         &node_, NetworkConfig::get_chain_params(), result_char, result_len);
    }
-   else if (key_.getSize() == 33)
+   else if (pubkey_.getSize() == BTC_ECKEY_COMPRESSED_LENGTH)
    {
-      if (key_.getPtr()[0] == 0)
-         ispriv = true;
-   }
-
-   if (chaincode_.getSize() != 32)
-      throw runtime_error("invalid chaincode for BIP32 ser");
-
-   fingerprint_ = move(computeFingerprint(key_));
-
-   BinaryWriter bw;
-
-   if (BlockDataManagerConfig::getPubkeyHashPrefix() ==
-      SCRIPT_PREFIX_HASH160)
-   {
-      if (ispriv)
-         bw.put_uint32_t(BIP32_SER_VERSION_MAIN_PRV, BE);
-      else
-         bw.put_uint32_t(BIP32_SER_VERSION_MAIN_PUB, BE);
-   }
-   else if (BlockDataManagerConfig::getPubkeyHashPrefix() ==
-      SCRIPT_PREFIX_HASH160_TESTNET)
-   {
-      if (ispriv)
-         bw.put_uint32_t(BIP32_SER_VERSION_TEST_PRV, BE);
-      else
-         bw.put_uint32_t(BIP32_SER_VERSION_TEST_PUB, BE);
+      btc_hdnode_serialize_public(
+         &node_, NetworkConfig::get_chain_params(), result_char, result_len);
    }
    else
    {
-      throw runtime_error("invalid network");
+      delete[] result_char;
+      throw std::runtime_error("uninitialized BIP32 object, cannot encode");
    }
 
-   bw.put_uint8_t(depth_);
-   bw.put_BinaryData(fingerprint_);
-   bw.put_uint32_t(leaf_id_, BE);
+   if (strlen(result_char) == 0)
+   throw std::runtime_error("failed to serialized bip32 string");
 
-   bw.put_BinaryData(chaincode_);
-
-   if (key_.getSize() == 32 && ispriv)
-      bw.put_uint8_t(0);
-   else
-      throw runtime_error("invalid key for BIP32 ser");
-   bw.put_BinaryData(key_);
-
-   auto&& hash = BtcUtils::getSha256(bw.getData()).getSliceCopy(0, 4);
-   bw.put_BinaryData(hash);
-
-   auto&& b58_data = BtcUtils::base58_encode(bw.getData());
-   b58_string_ = b58_data.toBinStr();
+   std::string result = result_char;
+   delete[] result_char;
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BIP32_Serialization::decode()
+void BIP32_Node::decodeBase58(const std::string& str)
 {
    //b58 decode 
-   auto&& bin_data = BtcUtils::base58_decode(b58_string_);
-   if (bin_data.getSize() != 82)
-      throw runtime_error("invalid bip32 serialized string");
+   if(!btc_hdnode_deserialize(
+      str.c_str(), NetworkConfig::get_chain_params(), &node_))
+      throw std::runtime_error("invalid bip32 serialized string");
+}
 
-   //checksum
-   BinaryRefReader brr(bin_data);
-   auto bdr_val = brr.get_BinaryDataRef(bin_data.getSize() - 4);
-   auto bdr_chksum = brr.get_BinaryDataRef(4);
+////////////////////////////////////////////////////////////////////////////////
+void BIP32_Node::initFromSeed(const SecureBinaryData& seed)
+{
+   init();
+   if (!btc_hdnode_from_seed(seed.getPtr(), seed.getSize(), &node_))
+      throw std::runtime_error("failed to setup seed");
+}
 
-   auto&& hash = BtcUtils::getSha256(bdr_val);
-   if (hash.getSliceRef(0, 4) != bdr_chksum)
-      throw runtime_error("bip32 checksum failure");
+////////////////////////////////////////////////////////////////////////////////
+void BIP32_Node::initFromBase58(const std::string& str)
+{
+   init();
+   decodeBase58(str);
+}
 
-   ////
-   BinaryRefReader brr_val(bdr_val);
+////////////////////////////////////////////////////////////////////////////////
+void BIP32_Node::initFromPrivateKey(uint8_t depth, unsigned leaf_id,
+   const SecureBinaryData& privKey, const SecureBinaryData& chaincode)
+{
+   if (privKey.getSize() != BTC_ECKEY_PKEY_LENGTH)
+      throw std::runtime_error("unexpected private key size");
 
-   //version
-   auto verbytes = brr_val.get_uint32_t(BE);
+   if (chaincode.getSize() != BTC_BIP32_CHAINCODE_SIZE)
+      throw std::runtime_error("unexpected chaincode size");
 
-   bool ispriv = false;
-   switch (verbytes)
-   {
-   case BIP32_SER_VERSION_MAIN_PRV:
-      ispriv = true;
+   init();
+   memcpy(privkey_.getPtr(), privKey.getPtr(), BTC_ECKEY_PKEY_LENGTH);
+   memcpy(chaincode_.getPtr(), chaincode.getPtr(), BTC_BIP32_CHAINCODE_SIZE);
 
-   case BIP32_SER_VERSION_MAIN_PUB:
-   {
-      if (BlockDataManagerConfig::getPubkeyHashPrefix() !=
-         SCRIPT_PREFIX_HASH160)
-         throw runtime_error("bip32 string is for wrong network");
-      break;
-   }
+   node_.depth = depth;
+   node_.child_num = leaf_id;
+}
 
-   case BIP32_SER_VERSION_TEST_PRV:
-      ispriv = true;
+////////////////////////////////////////////////////////////////////////////////
+void BIP32_Node::initFromPublicKey(uint8_t depth, unsigned leaf_id,
+   const SecureBinaryData& pubKey, const SecureBinaryData& chaincode)
+{
+   if (pubKey.getSize() != BTC_ECKEY_COMPRESSED_LENGTH)
+      throw std::runtime_error("unexpected private key size");
 
-   case BIP32_SER_VERSION_TEST_PUB:
-   {
-      if (BlockDataManagerConfig::getPubkeyHashPrefix() !=
-         SCRIPT_PREFIX_HASH160_TESTNET)
-         throw runtime_error("bip32 string is for wrong network");
-      break;
-   }
+   if (chaincode.getSize() != BTC_BIP32_CHAINCODE_SIZE)
+      throw std::runtime_error("unexpected chaincode size");
 
-   default:
-      throw runtime_error("unexpected bip32 string version");
-   }
+   init();
+   memcpy(pubkey_.getPtr(), pubKey.getPtr(), BTC_ECKEY_COMPRESSED_LENGTH);
+   memcpy(chaincode_.getPtr(), chaincode.getPtr(), BTC_BIP32_CHAINCODE_SIZE);
 
-   depth_ = brr_val.get_uint8_t();
-   fingerprint_ = brr_val.get_BinaryData(4);
-   leaf_id_ = brr_val.get_uint32_t(BE);
+   node_.depth = depth;
+   node_.child_num = leaf_id;
+}
 
-   chaincode_ = brr_val.get_BinaryData(32);
-   key_ = brr_val.get_BinaryData(33);
+////////////////////////////////////////////////////////////////////////////////
+void BIP32_Node::derivePrivate(unsigned id)
+{
+   if (!btc_hdnode_private_ckd(&node_, id))
+      throw std::runtime_error("failed to derive bip32 private key");
+}
 
-   if (ispriv && key_.getPtr()[0] != 0)
-      throw runtime_error("bip32 string invalid key type");
+////////////////////////////////////////////////////////////////////////////////
+void BIP32_Node::derivePublic(unsigned id)
+{
+   if (!btc_hdnode_public_ckd(&node_, id))
+      throw std::runtime_error("failed to derive bip32 public key");
+}
 
-   auto&& fingerprint = computeFingerprint(key_);
-   if (fingerprint != fingerprint_)
-      throw runtime_error("bip32 string fingerprint mismatch");
+////////////////////////////////////////////////////////////////////////////////
+BIP32_Node BIP32_Node::getPublicCopy() const
+{
+   BIP32_Node copy;
+   copy.initFromPublicKey(
+      getDepth(), getLeafID(), getPublicKey(), getChaincode());
+
+   copy.node_ = node_;
+   copy.privkey_.clear();
+   copy.assign();
+
+   return copy;
 }

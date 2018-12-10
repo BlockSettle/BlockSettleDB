@@ -11,7 +11,13 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 class AddressTests : public ::testing::Test
-{};
+{
+protected:
+   virtual void SetUp(void)
+   {
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+   }
+};
 
 TEST_F(AddressTests, base58_Tests)
 {
@@ -52,18 +58,23 @@ TEST_F(AddressTests, bech32_Tests)
    EXPECT_EQ(script_hash, script_hash2);
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 class DerivationTests : public ::testing::Test
 {
 protected:
-   BinaryData seed_ = READHEX("000102030405060708090a0b0c0d0e0f");
+   SecureBinaryData seed_ = READHEX("000102030405060708090a0b0c0d0e0f");
+
+protected:
+   virtual void SetUp(void)
+   {
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+   }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(DerivationTests, BIP32_Tests)
 {
-   auto&& root = CryptoECDSA::bip32_seed_to_master_root(seed_);
-
    //m
    {
       //priv ser & deser
@@ -72,22 +83,20 @@ TEST_F(DerivationTests, BIP32_Tests)
             "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi");
 
          //ser
-         BIP32_Serialization serObj(
-            0, 0,
-            root.first, root.second);
+         BIP32_Node serObj;
+         serObj.initFromSeed(seed_);
          EXPECT_EQ(serObj.getBase58(), ext_prv);
-
+   
          //deser
-         BIP32_Serialization deserObj(ext_prv);
-         EXPECT_EQ(deserObj.getVersion(), BIP32_SER_VERSION_MAIN_PRV);
+         BIP32_Node deserObj;
+         deserObj.initFromBase58(ext_prv);
          EXPECT_EQ(deserObj.getDepth(), 0);
          EXPECT_EQ(deserObj.getLeafID(), 0);
-         
-         EXPECT_EQ(deserObj.getChaincode(), root.second);
-         
-         auto& privkey = deserObj.getKey();
-         EXPECT_EQ(privkey.getPtr()[0], 0);
-         EXPECT_EQ(privkey.getSliceCopy(1, 32), root.first);
+
+         EXPECT_EQ(deserObj.getChaincode().toHexStr(), "873dff81c02f525623fd1fe5167eac3a55a049de3d314bb42ee227ffed37d508");
+
+         auto& privkey = deserObj.getPrivateKey();
+         EXPECT_EQ(privkey.toHexStr(), "e8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35");
       }
 
       //pub ser & deser
@@ -95,53 +104,39 @@ TEST_F(DerivationTests, BIP32_Tests)
          string ext_pub(
             "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8");
 
-         auto&& compressed_pub = CryptoECDSA().CompressPoint(root.first);
-
-         //ser
-         BIP32_Serialization serObj(
-            0, 0,
-            compressed_pub, root.second);
-         EXPECT_EQ(serObj.getBase58(), ext_pub);
-
          //deser
-         BIP32_Serialization deserObj(ext_pub);
-         EXPECT_EQ(deserObj.getVersion(), BIP32_SER_VERSION_MAIN_PUB);
+         BIP32_Node deserObj;
+         deserObj.initFromBase58(ext_pub);
          EXPECT_EQ(deserObj.getDepth(), 0);
          EXPECT_EQ(deserObj.getLeafID(), 0);
 
-         EXPECT_EQ(deserObj.getChaincode(), root.second);
-         EXPECT_EQ(deserObj.getKey(), compressed_pub);
+         EXPECT_EQ(deserObj.getChaincode().toHexStr(), "873dff81c02f525623fd1fe5167eac3a55a049de3d314bb42ee227ffed37d508");
+         EXPECT_EQ(deserObj.getPublicKey().toHexStr(), "0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2");
       }
    }
-
+   
    //m/0'
    {
-      auto&& node = CryptoECDSA::bip32_derive_private_key(
-         root.first, root.second, 0x80000000);
+      BIP32_Node serObj;
+      serObj.initFromSeed(seed_);
+      serObj.derivePrivate(0x80000000);
 
       //priv ser & deser
       {
-
          string ext_prv(
             "xprv9uHRZZhk6KAJC1avXpDAp4MDc3sQKNxDiPvvkX8Br5ngLNv1TxvUxt4cV1rGL5hj6KCesnDYUhd7oWgT11eZG7XnxHrnYeSvkzY7d2bhkJ7");
 
          //ser
-         BIP32_Serialization serObj(
-            0, 0,
-            node.first, node.second);
          EXPECT_EQ(serObj.getBase58(), ext_prv);
 
          //deser
-         BIP32_Serialization deserObj(ext_prv);
-         EXPECT_EQ(deserObj.getVersion(), BIP32_SER_VERSION_MAIN_PRV);
+         BIP32_Node deserObj;
+         deserObj.initFromBase58(ext_prv);
          EXPECT_EQ(deserObj.getDepth(), 1);
-         EXPECT_EQ(deserObj.getLeafID(), 0);
+         EXPECT_EQ(deserObj.getLeafID(), 0x80000000);
 
-         EXPECT_EQ(deserObj.getChaincode(), node.second);
-
-         auto& privkey = deserObj.getKey();
-         EXPECT_EQ(privkey.getPtr()[0], 0);
-         EXPECT_EQ(privkey.getSliceCopy(1, 32), node.first);
+         EXPECT_EQ(deserObj.getChaincode(), serObj.getChaincode());
+         EXPECT_EQ(deserObj.getPrivateKey(), serObj.getPrivateKey());
       }
 
       //pub ser & deser
@@ -149,22 +144,17 @@ TEST_F(DerivationTests, BIP32_Tests)
          string ext_pub(
             "xpub68Gmy5EdvgibQVfPdqkBBCHxA5htiqg55crXYuXoQRKfDBFA1WEjWgP6LHhwBZeNK1VTsfTFUHCdrfp1bgwQ9xv5ski8PX9rL2dZXvgGDnw");
 
-         auto&& compressed_pub = CryptoECDSA().CompressPoint(node.first);
-
-         //ser
-         BIP32_Serialization serObj(
-            0, 0,
-            compressed_pub, node.second);
-         EXPECT_EQ(serObj.getBase58(), ext_pub);
+         BIP32_Node publicCopy = serObj.getPublicCopy();
+         EXPECT_EQ(publicCopy.getBase58(), ext_pub);
 
          //deser
-         BIP32_Serialization deserObj(ext_pub);
-         EXPECT_EQ(deserObj.getVersion(), BIP32_SER_VERSION_MAIN_PUB);
+         BIP32_Node deserObj;
+         deserObj.initFromBase58(ext_pub);
          EXPECT_EQ(deserObj.getDepth(), 1);
-         EXPECT_EQ(deserObj.getLeafID(), 0);
+         EXPECT_EQ(deserObj.getLeafID(), 0x80000000);
 
-         EXPECT_EQ(deserObj.getChaincode(), node.second);
-         EXPECT_EQ(deserObj.getKey(), compressed_pub);
+         EXPECT_EQ(deserObj.getChaincode(), publicCopy.getChaincode());
+         EXPECT_EQ(deserObj.getPublicKey(), publicCopy.getPublicKey());
       }
    }
 }
@@ -285,7 +275,7 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, Encryption_Test)
 {
-   /* #1: check deriving from an encrypted root yield correct chain */
+   //#1: check deriving from an encrypted root yield correct chain
    //create 1 wallet from priv key
    auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
@@ -330,8 +320,8 @@ TEST_F(WalletsTest, Encryption_Test)
       ASSERT_EQ(pubkey_ptr->getUncompressedKey(), publicKeys[i]);
    }
 
-   /* #2: check no unencrypted private keys are on disk. Incidentally,
-   check public keys are, for sanity */
+   //#2: check no unencrypted private keys are on disk. Incidentally,
+   //check public keys are, for sanity
 
    //close wallet object
    auto filename = assetWlt->getFilename();
@@ -800,6 +790,8 @@ GTEST_API_ int main(int argc, char **argv)
    WSAStartup(wVersion, &wsaData);
 #endif
 
+   btc_ecc_start();
+
    srand(time(0));
    std::cout << "Running main() from gtest_main.cc\n";
 
@@ -809,6 +801,8 @@ GTEST_API_ int main(int argc, char **argv)
 
    testing::InitGoogleTest(&argc, argv);
    int exitCode = RUN_ALL_TESTS();
+
+   btc_ecc_stop();
 
    FLUSHLOG();
    CLEANUPLOG();
