@@ -501,8 +501,9 @@ bool BtcWallet::scanWallet(ScanWalletStruct& scanInfo, int32_t updateID)
                if (iter == ledgerMap.end())
                   continue;
 
-               scanInfo.saStruct_.zcLedgers_.insert(
-                  make_pair(iter->first, iter->second));
+               auto& walletZcLedgers = 
+                  scanInfo.saStruct_.zcLedgers_[walletID()];
+               walletZcLedgers.insert(*iter);
             }
          }
 

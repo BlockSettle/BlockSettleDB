@@ -188,13 +188,16 @@ void BlockDataViewer::scanWallets(shared_ptr<BDV_Notification> action)
       scanData.startBlock_ = *sbIter;
       group.scanWallets(scanData, updateID_);
 
-      if (leVecPtr != nullptr)
+      sbIter++;
+   }
+
+   if (leVecPtr != nullptr)
+   {
+      for (auto& walletLedgerMap : scanData.saStruct_.zcLedgers_)
       {
-         for (auto& lePair : scanData.saStruct_.zcLedgers_)
+         for(auto& lePair : walletLedgerMap.second)
             leVecPtr->push_back(lePair.second);
       }
-
-      sbIter++;
    }
 
    lastScanned_ = endBlock;
