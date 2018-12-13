@@ -69,7 +69,7 @@ void BlockDataViewer::scanWallets(shared_ptr<BDV_Notification> action)
    bool refresh = false;
 
    ScanWalletStruct scanData;
-   map<BinaryData, LedgerEntry>* leMapPtr = nullptr;
+   vector<LedgerEntry>* leVecPtr = nullptr;
 
    switch (action->action_type())
    {
@@ -138,7 +138,7 @@ void BlockDataViewer::scanWallets(shared_ptr<BDV_Notification> action)
             zcAction->packet_.purgePacket_->invalidatedZcKeys_;
       }
 
-      leMapPtr = &zcAction->leMap_;
+      leVecPtr = &zcAction->leVec_;
       prevTopBlock = startBlock = endBlock = blockchain().top()->getBlockHeight();
 
       break;
@@ -188,9 +188,12 @@ void BlockDataViewer::scanWallets(shared_ptr<BDV_Notification> action)
       scanData.startBlock_ = *sbIter;
       group.scanWallets(scanData, updateID_);
 
-      if (leMapPtr != nullptr)
-         leMapPtr->insert(scanData.saStruct_.zcLedgers_.begin(),
-                          scanData.saStruct_.zcLedgers_.end());
+      if (leVecPtr != nullptr)
+      {
+         for (auto& lePair : scanData.saStruct_.zcLedgers_)
+            leVecPtr->push_back(lePair.second);
+      }
+
       sbIter++;
    }
 

@@ -242,7 +242,7 @@ namespace DBTestUtils
 
          while (1)
          {
-            if (count == ids.size())
+            if (count >= ids.size())
                break;
 
             auto queuesize = actionStack_.count();
