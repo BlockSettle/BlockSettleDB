@@ -4,7 +4,11 @@ AC_INIT([BitcoinArmory],[0.96.4],[moothecowlord@gmail.com])
 AM_INIT_AUTOMAKE([1.11 subdir-objects foreign -Wall -Werror])
 
 AM_PROG_AR
-LT_INIT
+
+# Disable shared libraries due to Crypto++ having issues with shared builds
+# pre-6.0. Once Crypto++ is tossed, shared will be fine again.
+LT_INIT([pic-only])
+AC_DISABLE_SHARED
 
 AC_CANONICAL_HOST
 
@@ -36,19 +40,21 @@ AC_ARG_WITH([gui],
               [do not build GUI @<:@default=no@:>@]),
               [with_gui="$withval"], [with_gui=yes])
 
-custom lws path
+# Custom libwebsockets path. This will be a mandatory flag, even if the user
+# uses /usr/local. The problem is that Ubuntu has a pretty old version of LWS.
+# We should just use a newer version and link it in.
 AC_ARG_WITH([own-lws],
 		AS_HELP_STRING([--with-own-lws], 
 		[pass path of your own lws binary and headers @<:@default=no@:>@]),
 		[with_own_lws="$withval"], [with_own_lws=no])
 
-if test "x$with_own_lws" = "xno"; then
-	AC_SUBST([LWS_CFLAGS], "")
-	AC_SUBST([LWS_LDFLAGS], "")
-else
-	AC_SUBST([LWS_CFLAGS], ["-I$with_own_lws/include"])
-	AC_SUBST([LWS_LDFLAGS], ["-L$with_own_lws/lib  -rpath $with_own_lws/lib"])
-fi
+# Force user to define which LWS they wish to use.
+AS_IF([test $with_own_lws != no], [],
+	[AC_MSG_ERROR([A custom version of libwebsockets must be defined. /usr/local is an acceptable location.])]) 
+
+AC_SUBST([LWS_CFLAGS], ["-I$with_own_lws/include"])
+AC_SUBST([LWS_LDFLAGS], ["-L$with_own_lws/lib"])
+LIBS="-lwebsockets $LIBS"
 
 # Check for protobuf (protoc in particular is required)
 PKG_CHECK_MODULES(PROTOBUF, protobuf >= 2.0.0)
@@ -124,6 +130,8 @@ fi
 
 AC_SUBST([CXX_STANDARD], $CXX_STANDARD)
 
+LDFLAGS="${LDFLAGS} -static"
+
 dnl Determine build OS and do other OS-specific things.
 case $host in
   *darwin*)
@@ -174,14 +182,10 @@ case $host in
     ;;
 esac
 
-dnl Check for protoc (Google Protocol Buffers) and libwebsockets.
+dnl Check for protoc (Google Protocol Buffers).
 AC_PATH_PROG([PROTOC], [protoc], [])
 AS_IF([test x"$PROTOC" = x],
 	[AC_MSG_ERROR([cannot find protoc (the Protocol Buffers compiler)])])
-AC_CHECK_LIB([websockets],
-	[lws_create_context],
-	[],
-	[AC_MSG_ERROR([cannot find libwebsockets])])
 
 dnl Clang detection is complicated since it comes up as GCC too.
 AC_LANG_PUSH([C++])
@@ -239,6 +243,7 @@ echo "  CXX             = $CXX"
 echo "  CXXFLAGS        = $CXXFLAGS"
 echo "  LDFLAGS         = $LDFLAGS"
 echo "  LD              = $LD"
+echo "  LIBS            = $LIBS"
 echo "  ac_configure_args = $ac_configure_args"
 echo "  with tests      = $want_tests"
 echo "  with benchmarks = $want_benchmark"
