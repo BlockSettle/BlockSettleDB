@@ -91,7 +91,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	AssetEncryption.cpp \
 	Assets.cpp \
 	BinaryData.cpp \
-	BIP32_Serialization.cpp \
+	BIP32_Node.cpp \
 	BlockDataManagerConfig.cpp \
 	BtcUtils.cpp \
 	DecryptedDataContainer.cpp \
