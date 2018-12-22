@@ -42,7 +42,7 @@
 #include "../Signer.h"
 #include "../Wallets.h"
 #include "../WalletManager.h"
-#include "../BIP32_Serialization.h"
+#include "../BIP32_Node.h"
 #include "../BitcoinP2p.h"
 #include "btc/ecc.h"
 

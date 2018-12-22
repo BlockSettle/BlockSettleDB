@@ -6,7 +6,7 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "BIP32_Serialization.h"
+#include "BIP32_Node.h"
 #include "NetworkConfig.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,52 +43,7 @@ void BIP32_Node::assign()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData BIP32_Node::computeFingerprint(const SecureBinaryData& key)
-{
-   auto compute_fingerprint = [](const SecureBinaryData& key)->BinaryData
-   {
-      return BtcUtils::hash160(key).getSliceCopy(0, 4);
-   };
-
-   bool ispriv = false;
-
-   if (key.getSize() == 32)
-   {
-      ispriv = true;
-   }
-   else if (key.getSize() == 33)
-   {
-      if (key.getPtr()[0] == 0)
-         ispriv = true;
-   }
-
-   if (ispriv)
-   {
-      BinaryDataRef privkey = key.getRef();
-      if (privkey.getSize() == 33)
-         privkey = key.getSliceRef(1, 32);
-
-      auto&& pubkey = CryptoECDSA().ComputePublicKey(privkey);
-      auto&& compressed_pub = CryptoECDSA().CompressPoint(pubkey);
-
-      return compute_fingerprint(compressed_pub);
-   }
-   else
-   {
-      if (key.getSize() != 33)
-      {
-         auto&& compressed_pub = CryptoECDSA().CompressPoint(key);
-         return compute_fingerprint(compressed_pub);
-      }
-      else
-      {
-         return compute_fingerprint(key);
-      }
-   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-std::string BIP32_Node::encodeBase58() const
+SecureBinaryData BIP32_Node::encodeBase58() const
 {
    if (chaincode_.getSize() != BTC_BIP32_CHAINCODE_SIZE)
       throw std::runtime_error("invalid chaincode for BIP32 ser");
@@ -116,17 +71,17 @@ std::string BIP32_Node::encodeBase58() const
    if (strlen(result_char) == 0)
    throw std::runtime_error("failed to serialized bip32 string");
 
-   std::string result = result_char;
+   SecureBinaryData result((uint8_t*)result_char, strlen(result_char));
    delete[] result_char;
    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BIP32_Node::decodeBase58(const std::string& str)
+void BIP32_Node::decodeBase58(const char* str)
 {
    //b58 decode 
    if(!btc_hdnode_deserialize(
-      str.c_str(), NetworkConfig::get_chain_params(), &node_))
+      str, NetworkConfig::get_chain_params(), &node_))
       throw std::runtime_error("invalid bip32 serialized string");
 }
 
@@ -139,10 +94,18 @@ void BIP32_Node::initFromSeed(const SecureBinaryData& seed)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BIP32_Node::initFromBase58(const std::string& str)
+void BIP32_Node::initFromBase58(const SecureBinaryData& b58)
 {
    init();
-   decodeBase58(str);
+
+   //sbd doesnt 0 terminate strings as it is not specialized for char strings,
+   //have to set it manually since libbtc b58 code derives string length from
+   //strlen
+   SecureBinaryData b58_copy(b58.getSize() + 1);
+   memcpy(b58_copy.getPtr(), b58.getPtr(), b58.getSize());
+   b58_copy.getPtr()[b58.getSize()] = 0;
+
+   decodeBase58(b58_copy.getCharPtr());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,9 +121,11 @@ void BIP32_Node::initFromPrivateKey(uint8_t depth, unsigned leaf_id,
    init();
    memcpy(privkey_.getPtr(), privKey.getPtr(), BTC_ECKEY_PKEY_LENGTH);
    memcpy(chaincode_.getPtr(), chaincode.getPtr(), BTC_BIP32_CHAINCODE_SIZE);
-
+   
    node_.depth = depth;
    node_.child_num = leaf_id;
+
+   btc_hdnode_fill_public_key(&node_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,4 +172,34 @@ BIP32_Node BIP32_Node::getPublicCopy() const
    copy.assign();
 
    return copy;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/*void BIP32_Node::setPublicKey(const SecureBinaryData& key)
+{
+   pubkey_ = key;
+   assign();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void BIP32_Node::setPrivateKey(const SecureBinaryData& key)
+{
+   privkey_ = key;
+   assign();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void BIP32_Node::setChaincode(const SecureBinaryData& key)
+{
+   chaincode_ = key;
+   assign();
+}*/
+
+////////////////////////////////////////////////////////////////////////////////
+bool BIP32_Node::isPublic() const
+{
+   if (privkey_.getSize() == 0 || privkey_ == BtcUtils::EmptyHash())
+      return true;
+
+   return false;
 }

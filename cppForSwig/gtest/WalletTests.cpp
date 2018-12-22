@@ -19,6 +19,7 @@ protected:
    }
 };
 
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(AddressTests, base58_Tests)
 {
    BinaryData h_160 = READHEX("00010966776006953d5567439e5e39f86a0d273bee");
@@ -31,6 +32,7 @@ TEST_F(AddressTests, base58_Tests)
    EXPECT_EQ(decoded, h_160);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(AddressTests, bech32_Tests)
 {
    BinaryData pubkey =
@@ -79,7 +81,7 @@ TEST_F(DerivationTests, BIP32_Tests)
    {
       //priv ser & deser
       {
-         string ext_prv(
+         SecureBinaryData ext_prv(
             "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi");
 
          //ser
@@ -101,7 +103,7 @@ TEST_F(DerivationTests, BIP32_Tests)
 
       //pub ser & deser
       {
-         string ext_pub(
+         SecureBinaryData ext_pub(
             "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8");
 
          //deser
@@ -123,7 +125,7 @@ TEST_F(DerivationTests, BIP32_Tests)
 
       //priv ser & deser
       {
-         string ext_prv(
+         SecureBinaryData ext_prv(
             "xprv9uHRZZhk6KAJC1avXpDAp4MDc3sQKNxDiPvvkX8Br5ngLNv1TxvUxt4cV1rGL5hj6KCesnDYUhd7oWgT11eZG7XnxHrnYeSvkzY7d2bhkJ7");
 
          //ser
@@ -141,7 +143,7 @@ TEST_F(DerivationTests, BIP32_Tests)
 
       //pub ser & deser
       {
-         string ext_pub(
+         SecureBinaryData ext_pub(
             "xpub68Gmy5EdvgibQVfPdqkBBCHxA5htiqg55crXYuXoQRKfDBFA1WEjWgP6LHhwBZeNK1VTsfTFUHCdrfp1bgwQ9xv5ski8PX9rL2dZXvgGDnw");
 
          BIP32_Node publicCopy = serObj.getPublicCopy();
@@ -770,11 +772,85 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    ASSERT_TRUE(TestUtils::searchFile(filename, newPrivKeys[0]));
 }
 
-//armory derscheme tests
 //bip32 tests
+//TODO: flesh out tests with bip32 vectors
 
-//wo copy tests
-//bip32 wo create test
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, BIP32_Chain)
+{
+   //BIP32 test 1 seed
+   SecureBinaryData wltSeed = READHEX("000102030405060708090a0b0c0d0e0f");
+   BIP32_Node seedNode;
+   seedNode.initFromSeed(wltSeed);
+   auto b58 = seedNode.getBase58();
+
+   //0'/1/2'/2
+   vector<unsigned> derivationPath = { 0x80000000, 1, 0x80000002 };
+   auto assetWlt = AssetWallet_Single::createFromBase58_BIP32(
+      homedir_,
+      b58, //root as a r value
+      derivationPath,
+      SecureBinaryData("test"), //set passphrase to "test"
+      4); //set lookup computation to 4 entries
+
+   auto passphrasePrompt = [](const BinaryData&)->SecureBinaryData
+   {
+      return SecureBinaryData("test");
+   };
+
+   assetWlt->setPassphrasePromptLambda(passphrasePrompt);
+   auto lock = assetWlt->lockDecryptedContainer();
+
+   auto assetPtr = assetWlt->getMainAccountAssetForIndex(2);
+   auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
+   ASSERT_NE(assetSingle, nullptr);
+
+   auto& decryptedKey =
+      assetWlt->getDecryptedValue(assetSingle->getPrivKey());
+
+   BIP32_Node privNode;
+   SecureBinaryData priv_b58("xprvA2JDeKCSNNZky6uBCviVfJSKyQ1mDYahRjijr5idH2WwLsEd4Hsb2Tyh8RfQMuPh7f7RtyzTtdrbdqqsunu5Mm3wDvUAKRHSC34sJ7in334");
+   privNode.initFromBase58(priv_b58);
+
+   EXPECT_EQ(decryptedKey, privNode.getPrivateKey());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, BIP32_Public_Chain)
+{
+   //0'/1/2'
+   vector<unsigned> derivationPath = { 0x80000000, 1, 0x80000002 };
+
+   //BIP32 test 1 seed
+   SecureBinaryData wltSeed = READHEX("000102030405060708090a0b0c0d0e0f");
+   BIP32_Node seedNode;
+   seedNode.initFromSeed(wltSeed);
+   for (auto& derId : derivationPath)
+      seedNode.derivePrivate(derId);
+
+   auto pubSeedNode = seedNode.getPublicCopy();
+   auto b58 = pubSeedNode.getBase58();
+
+   //2
+   vector<unsigned> derivationPath_Soft = { 2 };
+   auto assetWlt = AssetWallet_Single::createFromBase58_BIP32(
+      homedir_,
+      b58, //root as a r value
+      derivationPath_Soft,
+      SecureBinaryData(), //set passphrase to "test"
+      4); //set lookup computation to 4 entries
+
+   auto accID = assetWlt->getMainAccountID();
+   auto assetPtr = assetWlt->getAccountRoot(accID);
+   auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
+   ASSERT_NE(assetSingle, nullptr);
+
+   BIP32_Node pubNode;
+   SecureBinaryData pub_b58("xpub6FHa3pjLCk84BayeJxFW2SP4XRrFd1JYnxeLeU8EqN3vDfZmbqBqaGJAyiLjTAwm6ZLRQUMv1ZACTj37sR62cfN7fe5JnJ7dh8zL4fiyLHV");
+   pubNode.initFromBase58(pub_b58);
+
+   EXPECT_EQ(assetSingle->getPubKey()->getCompressedKey(), pubNode.getPublicKey());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
