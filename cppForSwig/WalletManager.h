@@ -186,7 +186,10 @@ public:
          auto& assetID = wallet_->getAssetIDForAddr(count.first);
          auto addrType = wallet_->getAddrTypeForID(assetID);
 
-         wallet_->getAddressEntryForID(assetID, addrType);
+         auto hashType = asset->getAddressTypeForHash(
+            count.first.getSliceRef(1, count.first.getSize() - 1));
+
+         updateWallet |= asset->setAddressEntryType(hashType);
       }
 
       return countMap_;
@@ -401,6 +404,9 @@ public:
          recipient = make_shared<Recipient_P2SH>(txOutRef.scriptRef_, value);
       else if (txOutRef.type_ == SCRIPT_PREFIX_OPRETURN)
          recipient = make_shared<Recipient_OPRETURN>(txOutRef.scriptRef_);
+      else if (txOutRef.type_ == SCRIPT_PREFIX_P2WSH ||
+         txOutRef.type_ == SCRIPT_PREFIX_P2WPKH)
+         recipient = make_shared<Recipient_Bech32>(txOutRef.scriptRef_, value);
       else
          throw WalletException("unexpected output type");
 

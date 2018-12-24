@@ -25,6 +25,7 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 ARMORY_DB_TYPE BlockDataManagerConfig::armoryDbType_ = ARMORY_DB_FULL;
 SOCKET_SERVICE BlockDataManagerConfig::service_ = SERVICE_WEBSOCKET;
+string BlockDataManagerConfig::bech32Prefix_;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -115,32 +116,44 @@ void BlockDataManagerConfig::selectNetwork(NETWORK_MODE mode)
    {
    case NETWORK_MODE_MAINNET:
    {
-      btcPort_ = portToString(NODE_PORT_MAINNET);
       rpcPort_ = portToString(RPC_PORT_MAINNET);
+      pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160;
+      scriptHashPrefix_ = SCRIPT_PREFIX_P2SH;
+      bech32Prefix_ = "bc";
+      
+      if (!customFcgiPort_)
+         listenPort_ = portToString(FCGI_PORT_MAINNET);
+      
+      if(!customBtcPort_)
+         btcPort_ = portToString(NODE_PORT_MAINNET);
 
-      if (!customListenPort_)
-         listenPort_ = portToString(LISTEN_PORT_MAINNET);
       break;
    }
 
    case NETWORK_MODE_TESTNET:
    {
-      btcPort_ = portToString(NODE_PORT_TESTNET);
       rpcPort_ = portToString(RPC_PORT_TESTNET);
+      bech32Prefix_ = "tb";
 
       if (!customListenPort_)
          listenPort_ = portToString(LISTEN_PORT_TESTNET);
       break;
+
+      if (!customBtcPort_)
+         btcPort_ = portToString(NODE_PORT_TESTNET);
    }
 
    case NETWORK_MODE_REGTEST:
    {
-      btcPort_ = portToString(NODE_PORT_REGTEST);
       rpcPort_ = portToString(RPC_PORT_TESTNET);
+      bech32Prefix_ = "tb";
 
       if (!customListenPort_)
          listenPort_ = portToString(LISTEN_PORT_REGTEST);
       break;
+
+      if (!customBtcPort_)
+         btcPort_ = portToString(NODE_PORT_REGTEST);
    }
 
    default:
@@ -230,6 +243,8 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
    --clear-mempool: delete all zero confirmation transactions from the DB.
 
    --satoshirpc-port: set node rpc port
+
+   --satoshi-port: set Bitcoin node port
 
    ***/
 
@@ -431,6 +446,13 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
       {
          customListenPort_ = true;
       }
+   }
+
+   iter = args.find("satoshi-port");
+   if (iter != args.end())
+   {
+      btcPort_ = stripQuotes(iter->second);
+      customBtcPort_ = true;
    }
 
    //network type
@@ -836,6 +858,11 @@ vector<BinaryData> ConfigFile::fleshOutArgs(
 
    //complete config file path
    string configFile_path = BlockDataManagerConfig::defaultDataDir_;
+   if (keyValMap.find("--testnet") != keyValMap.end())
+      configFile_path = BlockDataManagerConfig::defaultTestnetDataDir_;
+   else if (keyValMap.find("--regtest") != keyValMap.end())
+      configFile_path = BlockDataManagerConfig::defaultRegtestDataDir_;
+
    auto datadir_iter = keyValMap.find("--datadir");
    if (datadir_iter != keyValMap.end() && datadir_iter->second.size() > 0)
       configFile_path = datadir_iter->second;

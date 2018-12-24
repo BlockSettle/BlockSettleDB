@@ -63,6 +63,7 @@ public:
    std::string rpcPort_;
 
    bool customListenPort_ = false;
+   bool customBtcPort_ = false;
 
    unsigned ramUsage_ = 4;
    unsigned threadCount_ = std::thread::hardware_concurrency();
@@ -80,6 +81,7 @@ public:
 
 private:
    static bool fileExists(const std::string&, int);
+   static string bech32Prefix_;
 
 public:
    BlockDataManagerConfig();

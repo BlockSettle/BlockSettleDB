@@ -42,7 +42,7 @@ If a bug is found, please consult the [Bitcoin Forum](https://bitcointalk.org/in
 
  8. Compile Armory.
 
-        cd *Location of Armory source code*  (An example would be ~/Projects/BitcoinArmory)
+		cd *Location of Armory source code*  (An example would be ~/Projects/BitcoinArmory)
 		git submodule init  (Required only if using Git version control, as discussed in Step 7.2.)
 		git submodule update  (Required only if using Git version control, as discussed in Step 7.2.)
 		cd osxbuild

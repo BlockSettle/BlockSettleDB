@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 """Build Armory as a Mac OS X Application."""
 
 import os
@@ -19,23 +19,25 @@ from tempfile import mkstemp
 
 # Set some constants up front
 minOSXVer     = '10.9'
-pythonVer     = '2.7.14' # NB: ArmoryMac.pro must also be kept up to date!!!
+pythonVer     = '2.7.15' # NB: ArmoryMac.pro must also be kept up to date!!!
 pyMajorVer    = '2.7'
-setToolVer    = '38.2.3'
-setToolSubdir = '41/80/268fda78a53c2629128f8174d2952c7f902c93ebaa2062b64f27aa101b07'
-pipVer        = '9.0.1'
-pipSubdir     = '11/b6/abcb525026a4be042b486df43905d6893fb04f05aac21c32c638e939e447'
-psutilVer     = '5.4.1'
-psutilSubdir  = 'fe/17/0f0bf5792b2dfe6003efc5175c76225f7d3426f88e2bf8d360cfab870cd8'
-libpngVer     = '1.6.34'
-qtVer         = '4.8.7'  # NB: ArmoryMac.pro must also be kept up to date!!!
-                         # Possibly "sipFlags" below too.
-sipVer        = '4.19.6' # NB: ArmoryMac.pro must also be kept up to date!!!
-pyQtVer       = '4.12.1' # NB: When I'm upgraded, SIP usually has to be upgraded too.
+setToolVer    = '40.1.0'
+setToolSubdir = '5a/df/b2e3d9693bb0dcbeac516a73dd7a9eb82b126ae52e4a74605a9b01beddd5'
+pipVer        = '18.0'
+pipSubdir     = '69/81/52b68d0a4de760a2f1979b0931ba7889202f302072cc7a0d614211bc7579'
+psutilVer     = '5.4.7'
+psutilSubdir  = '7d/9a/1e93d41708f8ed2b564395edfa3389f0fd6d567597401c2e5e2775118d8b'
+libpngVer     = '1.6.35'
+qtVer         = '4.8.7'   # NB: ArmoryMac.pro must also be kept up to date!!!
+                          # Possibly "sipFlags" below too.
+sipVer        = '4.19.12' # NB: ArmoryMac.pro must also be kept up to date!!!
+pyQtVer       = '4.12.1'  # NB: When I'm upgraded, SIP might be upgraded too.
+                          #     4.12.2 is final version & changes build method.
+                          #     Just ignore it.
 
 # Used only if compiling a version that supports armoryd
-twistedVer    = '17.9.0'
-twistedSubdir = 'a2/37/298f9547606c45d75aa9792369302cc63aa4bbcf7b5f607560180dd099d2'
+twistedVer    = '18.7.0'
+twistedSubdir = '90/50/4c315ce5d119f67189d1819629cae7908ca0b0a6c572980df5cc6942bc22'
 
 # Various paths and build materials related to Armory.
 LOGFILE        = 'build-app.log.txt'
@@ -342,28 +344,28 @@ def downloadPkg(pkgname, fname, url, ID, toDir=WORKDLDIR):
 distfiles = []
 distfiles.append( [ 'Python', \
                     "Python-%s.tar.xz" % pythonVer, \
-                    "http://python.org/ftp/python/%s/Python-%s.tar.xz" % (pythonVer, pythonVer), \
-                    "cf146474fc988b4b6b53fdd81b71c2815873b469" ] )
+                    "https://python.org/ftp/python/%s/Python-%s.tar.xz" % (pythonVer, pythonVer), \
+                    "f99348a095ec4a6411c84c0d15343d11920c9724" ] )
 
 distfiles.append( [ 'setuptools', \
                     "setuptools-%s.zip" % setToolVer, \
                     "https://pypi.python.org/packages/%s/setuptools-%s.zip" % (setToolSubdir, setToolVer), \
-                    "a1044deb1f2c42f037003f02704557fb4ee55694" ] )
+                    "a5c40f3730c70de499804eafc5c65547f95c9adb" ] )
 
 distfiles.append( [ 'Pip', \
                     "pip-%s.tar.gz" % pipVer, \
                     "https://pypi.python.org/packages/%s/pip-%s.tar.gz" % (pipSubdir, pipVer), \
-                    "57ff41e99cb01b6a1c2b0999161589b726f0ec8b" ] )
+                    "337f4694bfcd4d698d9b02b38a7520fabc42a1d9" ] )
 
 distfiles.append( [ "psutil", \
                     "psutil-%s.tar.gz" % psutilVer, \
                     "https://pypi.python.org/packages/%s/psutil-%s.tar.gz" % (psutilSubdir, psutilVer), \
-                    "6305bc320d7b9d37967e5e004e2404beefa71a34" ] )
+                    "4c7c8cb5a4915eb7148a1080030f9097be87d3e4" ] )
 
 distfiles.append( [ 'libpng', \
                     "libpng-%s.tar.xz" % libpngVer, \
                     "https://sourceforge.net/projects/libpng/files/libpng16/%s/libpng-%s.tar.xz" % (libpngVer, libpngVer), \
-                    "45de4ec996ffcc3e18037e7c128abe95f4d0292a" ] )
+                    "0df1561aa1da610e892239348970d574b14deed0" ] )
 
 # When we upgrade to Qt5....
 #distfiles.append( [ "Qt", \
@@ -373,13 +375,13 @@ distfiles.append( [ 'libpng', \
 
 distfiles.append( [ "Qt", \
                     "qt-everywhere-opensource-src-%s.tar.gz" % qtVer, \
-                    "http://download.qt-project.org/official_releases/qt/4.8/%s/qt-everywhere-opensource-src-%s.tar.gz" % (qtVer, qtVer), \
+                    "https://download.qt.io/archive/qt/4.8/%s/qt-everywhere-opensource-src-%s.tar.gz" % (qtVer, qtVer), \
                     "76aef40335c0701e5be7bb3a9101df5d22fe3666" ] )
 
 distfiles.append( [ "sip", \
                     "sip-%s.tar.gz" % sipVer, \
                     "https://sourceforge.net/projects/pyqt/files/sip/sip-%s/sip-%s.tar.gz" % (sipVer, sipVer), \
-                    '61ff744c67642f10a352f3e076cbe89c79e6387b' ] )
+                    '9f4d0f05ab814ddcde767669cfb6bc184bba931d' ] )
 
 # When we upgrade to Qt5....
 #distfiles.append( [ "pyqt", \
@@ -395,7 +397,7 @@ distfiles.append( [ "pyqt", \
 distfiles.append( [ 'Twisted', \
                     "Twisted-%s.tar.bz2" % twistedVer, \
                     "https://files.pythonhosted.org/packages/%s/Twisted-%s.tar.bz2" % (twistedSubdir, twistedVer), \
-                    "a218e69ab51b5c6b632043f91aed98bc92083a90" ] )
+                    "949c75da0426ca139a3128fecb484eeb7513087e" ] )
 
 # Now repack the information in distfiles
 tarfilesToDL = {}
