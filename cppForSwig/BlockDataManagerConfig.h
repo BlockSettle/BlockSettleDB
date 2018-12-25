@@ -81,7 +81,6 @@ public:
 
 private:
    static bool fileExists(const std::string&, int);
-   static string bech32Prefix_;
 
 public:
    BlockDataManagerConfig();

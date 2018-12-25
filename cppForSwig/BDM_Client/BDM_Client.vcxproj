@@ -201,8 +201,6 @@
     <ClCompile Include="..\AsyncClient.cpp" />
     <ClCompile Include="..\bech32\ref\c++\bech32.cpp" />
     <ClCompile Include="..\bech32\ref\c++\segwit_addr.cpp" />
-    <ClCompile Include="..\bech32\ref\c++\bech32.cpp" />
-    <ClCompile Include="..\bech32\ref\c++\segwit_addr.cpp" />
     <ClCompile Include="..\BinaryData.cpp" />
     <ClCompile Include="..\BlockDataManagerConfig.cpp" />
     <ClCompile Include="..\BtcUtils.cpp" />

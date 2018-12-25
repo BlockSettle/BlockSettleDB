@@ -263,7 +263,7 @@ public:
    void extendPrivateChainToIndex(const BinaryData&, unsigned);
 
    bool hasScrAddr(const BinaryData& scrAddr);
-   const BinaryData& getAssetIDForAddr(const BinaryData& scrAddr);
+   const std::pair<BinaryData, AddressEntryType>& getAssetIDForAddr(const BinaryData& scrAddr);
    AddressEntryType getAddrTypeForID(const BinaryData& ID);
    std::shared_ptr<AddressEntry> getAddressEntryForID(
       const BinaryData&, AddressEntryType aeType = AddressEntryType_Default);

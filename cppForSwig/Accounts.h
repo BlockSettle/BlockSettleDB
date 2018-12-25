@@ -420,7 +420,7 @@ private:
 
    AddressEntryType defaultAddressEntryType_ = AddressEntryType_P2PKH;
    std::set<AddressEntryType> addressTypes_;
-   std::map<BinaryData, BinaryData> addressHashes_;
+   std::map<BinaryData, std::pair<BinaryData, AddressEntryType>> addressHashes_;
 
    BinaryData ID_;
    std::shared_ptr<LMDBEnv> dbEnv_ = nullptr;
@@ -509,10 +509,10 @@ public:
    bool hasAddressType(AddressEntryType);
 
    std::shared_ptr<AssetEntry> getAssetForID(const BinaryData&) const;
-   const BinaryData& getAssetIDForAddr(const BinaryData&);
+   const std::pair<BinaryData, AddressEntryType>& getAssetIDPairForAddr(const BinaryData&);
 
    void updateAddressHashMap(void);
-   const std::map<BinaryData, BinaryData>& getAddressHashMap(void);
+   const std::map<BinaryData, std::pair<BinaryData, AddressEntryType>>& getAddressHashMap(void);
 
    std::shared_ptr<AssetAccount> getOuterAccount(void) const;
    const std::map<BinaryData, std::shared_ptr<AssetAccount>>& getAccountMap(void) const;

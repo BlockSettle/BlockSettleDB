@@ -1089,7 +1089,8 @@ shared_ptr<AssetEntry> AddressAccount::getAssetForID(const BinaryData& ID) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressAccount::getAssetIDForAddr(const BinaryData& scrAddr)
+const pair<BinaryData, AddressEntryType>& 
+   AddressAccount::getAssetIDPairForAddr(const BinaryData& scrAddr)
 {
    updateAddressHashMap();
 
@@ -1113,14 +1114,17 @@ void AddressAccount::updateAddressHashMap()
       {
          for (auto& hash : assetHash.second)
          {
-            addressHashes_.insert(make_pair(hash.second, assetHash.first));
+            auto&& inner_pair = make_pair(hash.second, hash.first);
+            auto&& outer_pair = make_pair(hash.second, move(inner_pair));
+            addressHashes_.emplace(outer_pair);
          }
       }
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const map<BinaryData, BinaryData>& AddressAccount::getAddressHashMap()
+const map<BinaryData, pair<BinaryData, AddressEntryType>>& 
+   AddressAccount::getAddressHashMap()
 {
    updateAddressHashMap();
    return addressHashes_;

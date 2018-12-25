@@ -347,6 +347,9 @@
     <ClCompile Include="..\HttpMessage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\BIP32_Node.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\protobuf\AddressData.proto">

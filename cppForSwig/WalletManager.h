@@ -173,25 +173,6 @@ public:
    const map<BinaryData, uint32_t>& getAddrTxnCountsFromDB(void)
    {
       auto&& countmap = swigWallet_->getAddrTxnCountsFromDB();
-
-      for (auto count : countmap)
-      {
-         if (count.first.getSize() == 0)
-            continue;
-
-         //save count
-         countMap_[count.first] = count.second;
-
-         //fetch the asset in wallet
-         auto& assetID = wallet_->getAssetIDForAddr(count.first);
-         auto addrType = wallet_->getAddrTypeForID(assetID);
-
-         auto hashType = asset->getAddressTypeForHash(
-            count.first.getSliceRef(1, count.first.getSize() - 1));
-
-         updateWallet |= asset->setAddressEntryType(hashType);
-      }
-
       return countMap_;
    }
    
@@ -278,7 +259,7 @@ public:
       return wallet_->hasScrAddr(scrAddr);
    }
 
-   const BinaryData& getAssetIDForAddr(const BinaryData& scrAddr)
+   const std::pair<BinaryData, AddressEntryType>& getAssetIDForAddr(const BinaryData& scrAddr)
    {
       return wallet_->getAssetIDForAddr(scrAddr);
    }
@@ -286,7 +267,7 @@ public:
    const BinaryData& getScriptHashPreimage(const BinaryData& hash)
    {
       auto& assetID = wallet_->getAssetIDForAddr(hash);
-      auto addrPtr = wallet_->getAddressEntryForID(assetID);
+      auto addrPtr = wallet_->getAddressEntryForID(assetID.first, assetID.second);
       return addrPtr->getPreimage();
    }
 

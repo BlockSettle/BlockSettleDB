@@ -337,7 +337,7 @@ public:
       bw.put_uint8_t(binScript_.getSize());
       bw.put_BinaryData(binScript_);
 
-      script_ = move(bw.getData());
+      script_ = std::move(bw.getData());
    }
 
    size_t getSize(void) const

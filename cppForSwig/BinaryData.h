@@ -536,7 +536,7 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   const vector<uint8_t>& getVector(void) const
+   const std::vector<uint8_t>& getVector(void) const
    {
       return data_;
    }

@@ -182,7 +182,7 @@ int WalletContainer::detectHighestUsedIndex()
    {
       auto& addr = addrCountPair.first;
       auto& ID = wallet_->getAssetIDForAddr(addr);
-      auto asset = wallet_->getAssetForID(ID);
+      auto asset = wallet_->getAssetForID(ID.first);
       if (asset->getIndex() > topIndex)
          topIndex = asset->getIndex();
    }
@@ -276,10 +276,7 @@ void CoinSelectionInstance::decorateUTXOs(
    {
       auto&& scrAddr = utxo.getRecipientScrAddr();
       auto& ID = walletPtr->getAssetIDForAddr(scrAddr);
-      auto addrPtr = walletPtr->getAddressEntryForID(ID);
-
-      auto scrAddrNoPrefix = scrAddr.getSliceRef(1, scrAddr.getSize() - 1);
-      auto addrPtr = walletPtr->getAddressEntryForIndex(index, scrAddrNoPrefix);
+      auto addrPtr = walletPtr->getAddressEntryForID(ID.first, ID.second);
 
       utxo.txinRedeemSizeBytes_ = addrPtr->getInputSize();
 

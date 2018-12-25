@@ -25,7 +25,6 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 ARMORY_DB_TYPE BlockDataManagerConfig::armoryDbType_ = ARMORY_DB_FULL;
 SOCKET_SERVICE BlockDataManagerConfig::service_ = SERVICE_WEBSOCKET;
-string BlockDataManagerConfig::bech32Prefix_;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,12 +116,9 @@ void BlockDataManagerConfig::selectNetwork(NETWORK_MODE mode)
    case NETWORK_MODE_MAINNET:
    {
       rpcPort_ = portToString(RPC_PORT_MAINNET);
-      pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160;
-      scriptHashPrefix_ = SCRIPT_PREFIX_P2SH;
-      bech32Prefix_ = "bc";
       
-      if (!customFcgiPort_)
-         listenPort_ = portToString(FCGI_PORT_MAINNET);
+      if (!customListenPort_)
+         listenPort_ = portToString(LISTEN_PORT_TESTNET);
       
       if(!customBtcPort_)
          btcPort_ = portToString(NODE_PORT_MAINNET);
@@ -133,27 +129,27 @@ void BlockDataManagerConfig::selectNetwork(NETWORK_MODE mode)
    case NETWORK_MODE_TESTNET:
    {
       rpcPort_ = portToString(RPC_PORT_TESTNET);
-      bech32Prefix_ = "tb";
 
       if (!customListenPort_)
          listenPort_ = portToString(LISTEN_PORT_TESTNET);
-      break;
 
       if (!customBtcPort_)
          btcPort_ = portToString(NODE_PORT_TESTNET);
+
+      break;
    }
 
    case NETWORK_MODE_REGTEST:
    {
       rpcPort_ = portToString(RPC_PORT_TESTNET);
-      bech32Prefix_ = "tb";
 
       if (!customListenPort_)
          listenPort_ = portToString(LISTEN_PORT_REGTEST);
-      break;
 
       if (!customBtcPort_)
          btcPort_ = portToString(NODE_PORT_REGTEST);
+
+      break;
    }
 
    default:

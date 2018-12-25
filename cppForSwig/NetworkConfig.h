@@ -62,6 +62,7 @@ private:
 
    static NETWORK_MODE mode_;
    static const btc_chainparams* chain_params_;
+   static std::string bech32Prefix_;
 
 public:
    static void selectNetwork(NETWORK_MODE);

@@ -1422,7 +1422,8 @@ bool AssetWallet::hasScrAddr(const BinaryData& scrAddr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AssetWallet::getAssetIDForAddr(const BinaryData& scrAddr)
+const pair<BinaryData, AddressEntryType>& 
+   AssetWallet::getAssetIDForAddr(const BinaryData& scrAddr)
 {
    //this takes prefixed hashes or a b58 address
 
@@ -1443,7 +1444,7 @@ const BinaryData& AssetWallet::getAssetIDForAddr(const BinaryData& scrAddr)
    {
       try
       {
-         return acc->getAssetIDForAddr(scrHash);
+         return acc->getAssetIDPairForAddr(scrHash);
       }
       catch (runtime_error&)
       {
@@ -1452,7 +1453,6 @@ const BinaryData& AssetWallet::getAssetIDForAddr(const BinaryData& scrAddr)
    }
 
    throw runtime_error("unknown scrAddr");
-   return BtcUtils::BadAddress();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
