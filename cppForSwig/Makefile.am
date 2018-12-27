@@ -41,8 +41,6 @@ protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
 #	@test -f protoc
 	protoc --cpp_out=protobuf --proto_path=protobuf $<
 
-# NOTE: /usr/local/include reflects local installs of libwebsockets. This may
-# be removed later.
 INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
 	-Ilibbtc/include -Ilibbtc/src/secp256k1/include \
 	$(LWS_CFLAGS)
@@ -143,11 +141,10 @@ PROTOBUF_H = protobuf/AddressBook.pb.h \
 	protobuf/NodeStatus.pb.h \
 	protobuf/Utxo.pb.h
 
+# Protobuf files required for distribution but not installation.
 dist_noinst_DATA = $(PROTOBUF_PROTO)
 
-# libArmoryCommon - Required by all Armory programs/libraries.
-# Includes any files required by the common files.
-
+# LMDB (DB used by Armory)
 lib_LTLIBRARIES += liblmdb.la
 liblmdb_la_SOURCES = lmdb/libraries/liblmdb/lmdbpp.cpp \
 		lmdb/libraries/liblmdb/mdb.c \
@@ -162,9 +159,10 @@ libArmoryCommon_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 libArmoryCommon_la_CXXFLAGS = $(AM_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryCommon_la_LIBADD = liblmdb.la \
 				cryptopp/libcryptopp.la \
-				libbtc/libbtc.la libbtc/src/secp256k1/libsecp256k1.la \
+				libbtc/libbtc.la \
+				libbtc/src/secp256k1/libsecp256k1.la \
 				-lpthread -lprotobuf
-libArmoryCommon_la_LDFLAGS = $(LDFLAGS) $(PROTOBUF_FLAGS)
+libArmoryCommon_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PROTOBUF_FLAGS)
 
 # Command-line functionality library
 lib_LTLIBRARIES += libArmoryCLI.la
@@ -174,18 +172,22 @@ libArmoryCLI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) -Ilmdb/libraries/liblmdb -D__STDC_LIMIT_MACROS
 libArmoryCLI_la_LIBADD = $(LIBBTC) \
 			 libArmoryCommon.la \
+			 cryptopp/libcryptopp.la \
+			 libbtc/libbtc.la \
 			 -lpthread
-libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWS_LDFLAGS)
+libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS)
 
-#ArmoryDB
+# ArmoryDB binary
 bin_PROGRAMS += ArmoryDB
 ArmoryDB_SOURCES = $(ARMORYDB_SOURCE_FILES)
 ArmoryDB_CXXFLAGS = $(AM_CXXFLAGS) -D__STDC_LIMIT_MACROS
 ArmoryDB_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 ArmoryDB_LDADD = libArmoryCommon.la \
 		 libArmoryCLI.la \
-		 -lpthread -lprotobuf
-ArmoryDB_LDFLAGS = -static $(LWS_LDFLAGS) $(LDFLAGS)
+		 cryptopp/libcryptopp.la \
+		 libbtc/libbtc.la \
+		 -lpthread -lprotobuf -lwebsockets
+ArmoryDB_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
 
 if BUILD_CLIENT
 # Common GUI functionality library
@@ -196,7 +198,7 @@ libArmoryGUI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 libArmoryGUI_la_CXXFLAGS = $(AM_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryGUI_la_LIBADD = libArmoryCommon.la cryptopp/libcryptopp.la \
 			-lpthread
-libArmoryGUI_la_LDFLAGS = $(LDFLAGS) $(PYTHON_LDFLAGS)
+libArmoryGUI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PYTHON_LDFLAGS) -shared
 
 #libCppBlockUtils - SWIG library.
 # "shared" LDFLAG due to SWIG requirements.
@@ -208,7 +210,7 @@ libCppBlockUtils_la_CXXFLAGS = $(AM_CXXFLAGS) -Ilmdb/libraries/liblmdb \
 				-D__STDC_LIMIT_MACROS
 libCppBlockUtils_la_LIBADD = libArmoryCommon.la libArmoryGUI.la \
 				cryptopp/libcryptopp.la -lpthread
-libCppBlockUtils_la_LDFLAGS = $(LDFLAGS) $(PYTHON_LDFLAGS) -shared
+libCppBlockUtils_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PYTHON_LDFLAGS) -shared
 
 #custom rules
 CppBlockUtils_wrap.cxx: CppBlockUtils.i

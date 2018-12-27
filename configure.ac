@@ -5,10 +5,7 @@ AM_INIT_AUTOMAKE([1.11 subdir-objects foreign -Wall -Werror])
 
 AM_PROG_AR
 
-# Disable shared libraries due to Crypto++ having issues with shared builds
-# pre-6.0. Once Crypto++ is tossed, shared will be fine again.
-LT_INIT([pic-only])
-AC_DISABLE_SHARED
+LT_INIT()
 
 AC_CANONICAL_HOST
 
@@ -52,8 +49,13 @@ AC_ARG_WITH([own-lws],
 AS_IF([test $with_own_lws != no], [],
 	[AC_MSG_ERROR([A custom version of libwebsockets must be defined. /usr/local is an acceptable location.])]) 
 
+# Even if libraries don't directly use LWS, they may rely on libraries that do
+# rely on LWS. This causes the "child" libraries to rely on LWS too! Be sure to
+# use the rpath equivalent in LDFLAGS for all affected libraries, "children" and
+# "parent".
 AC_SUBST([LWS_CFLAGS], ["-I$with_own_lws/include"])
-AC_SUBST([LWS_LDFLAGS], ["-L$with_own_lws/lib"])
+AC_SUBST([LWSLDFLAGS], ["-L$with_own_lws/lib -R $with_own_lws/lib"])
+AC_SUBST([LWS_LIB_LOC], ["$with_own_lws/lib"])
 LIBS="-lwebsockets $LIBS"
 
 # Check for protobuf (protoc in particular is required)
@@ -129,7 +131,8 @@ fi
 
 AC_SUBST([CXX_STANDARD], $CXX_STANDARD)
 
-LDFLAGS="${LDFLAGS} -static"
+# Tinkering with LDFLAGS hopefully won't be needed, but just in case....
+#LDFLAGS="${LDFLAGS} -static"
 
 dnl Determine build OS and do other OS-specific things.
 case $host in

@@ -22,7 +22,32 @@ if BUILD_CLIENT
 endif
 
 copy-script:
+# Creating redistributable binaries is a horror show with Autotools. GCC can use
+# $ORIGIN to make searching for libraries relative via RPATH. libtool refuses to
+# support $ORIGIN. The elder gods punish all who dare question their decision.
+#
+# The "ideal" method is to just dump everything into a standard folder that the
+# system will search (e.g., /usr/local/lib). This isn't always ideal, or even
+# possible. The workaround: Let Automake do its thing and then use an external
+# tool to tell libraries to use RPATH to search local locations.
+# SOURCE 1: https://wiki.debian.org/RpathIssue
+# SOURCE 2: https://www.mikeash.com/pyblog/friday-qa-2009-11-06-linking-and-install-names.html
+# SOURCE 3: https://github.com/conda/conda-build/issues/279
+# SOURCE 4: https://longwei.github.io/rpath_origin/
+if ! BUILD_DARWIN
+	patchelf --set-rpath \$$ORIGIN:\$$ORIGIN/cppForSwig/.libs:\$$ORIGIN/lib:\$$ORIGIN/../lib cppForSwig/ArmoryDB
+	patchelf --set-rpath \$$ORIGIN:\$$ORIGIN/lib:\$$ORIGIN/../lib cppForSwig/.libs/libArmoryCommon.so
+	patchelf --set-rpath \$$ORIGIN:\$$ORIGIN/lib:\$$ORIGIN/../lib cppForSwig/.libs/libArmoryCLI.so
+if BUILD_CLIENT
+	patchelf --set-rpath \$$ORIGIN:\$$ORIGIN/lib:\$$ORIGIN/../lib cppForSwig/.libs/libArmoryGUI.so
+	patchelf --set-rpath \$$ORIGIN:\$$ORIGIN/lib:\$$ORIGIN/../lib cppForSwig/.libs/libCppBlockUtils.so
+endif
+endif
 	cp cppForSwig/ArmoryDB ./ArmoryDB
+
+# Copy libwebsockets instance over to keep components happy.
+	mkdir -p lib
+	cp -R $(LWS_LIB_LOC)/libwebsockets.so* ./lib/
 
 # SWIG code and requirements.
 if BUILD_CLIENT
@@ -58,19 +83,13 @@ endif
 	mkdir -p $(DESTDIR)$(prefix)/bin
 # Sometimes, uninstall-old deletes a valid ArmoryDB. Copy again to be safe.
 	cp ArmoryDB $(DESTDIR)$(prefix)/bin
+	cp -R $(LWS_LIB_LOC)/libwebsockets.so* $(DESTDIR)$(prefix)/lib/
 
-# On macOS, The linker hard-codes the locations of dependent shared libraries
-# linked in libraries and binaries. This means Armory.app won't be portable
-# because, by default, attempts to load the link shared libraries will fail. The
-# workaround: Let Automake do its thing and then use an external tool (installed
-# by Xcode) to tell libraries where to actually find shared libraries they need.
-# In addition, while not necessary, change the shared library IDs so that
-# they're not absolute. (Strangely, some frameworks are also hard-coded inside
-# the shared libraries, but they don't cause problems. Just ignore them.)
-# Finally, delete a redundant instance of libCppBlockUtils.
-# SOURCE 1: https://www.mikeash.com/pyblog/friday-qa-2009-11-06-linking-and-install-names.html
-# SOURCE 2: https://github.com/conda/conda-build/issues/279
-# Alt target name (useful for debugging?): @executable_path/py/usr/local/lib/liblmdb.0.dylib
+# See the earlier comment about Autotools, redistributables, and RPATH. (Linux
+# uses patchelf, Macs use install_name_tool, which is installed by Xcode.) While
+# not strictly necessary, change the Mac's shared library IDs so that they're
+# not absolute. (Strangely, some frameworks are also hard-coded inside the
+# shared libraries, but they don't cause problems. Just ignore them.)
 if BUILD_DARWIN
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libArmoryCommon.0.dylib @loader_path/../libArmoryCommon.0.dylib $(DESTDIR)$(prefix)/lib/armory/_CppBlockUtils.so
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libcryptopp.0.dylib @loader_path/libcryptopp.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryCommon.0.dylib
@@ -96,9 +115,7 @@ endif
 
 # No need to install test binaries.
 if BUILD_TESTS
-	rm -f $(DESTDIR)$(prefix)/bin/ContainerTests
-	rm -f $(DESTDIR)$(prefix)/bin/CppBlockUtilsTests
-	rm -f $(DESTDIR)$(prefix)/bin/DB1kIterTest
+	rm -f $(DESTDIR)$(prefix)/bin/*Tests
 endif
 
 # Skip Linux-specific steps on OSX.
@@ -118,6 +135,7 @@ uninstall-hook: uninstall-old
 
 clean-local:
 	rm -f ArmoryDB
+	rm -f lib/*
 	rm -f CppBlockUtils.py
 	rm -f _CppBlockUtils.so
 	rm -f CppBlockUtils.pyc
