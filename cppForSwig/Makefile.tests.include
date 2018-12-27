@@ -79,6 +79,6 @@ gtest_WalletTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) -DUNIT_TESTS
 gtest_WalletTests_LDADD = gtest/libgtest.la libbtc/libbtc.la libArmoryCommon.la \
 		 libArmoryCLI.la \
 		 cryptopp/libcryptopp.la \
-		 libbtc/libbtc.la -lprotobuf
+		 libbtc/libbtc.la  liblmdb.la -lprotobuf
 gtest_WalletTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/WalletTests
