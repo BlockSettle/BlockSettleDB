@@ -165,6 +165,52 @@ TEST_F(DerivationTests, BIP32_Tests)
    }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, ArmoryChain_Tests)
+{
+   SecureBinaryData chaincode = READHEX(
+      "0x31302928272625242322212019181716151413121110090807060504030201");
+   SecureBinaryData privateKey = READHEX(
+      "0x0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a");
+
+   auto&& privkey1 = CryptoECDSA().ComputeChainedPrivateKey(
+      privateKey, chaincode);
+   auto&& privkey2 = CryptoECDSA().ComputeChainedPrivateKey(
+      privkey1, chaincode);
+   auto&& privkey3 = CryptoECDSA().ComputeChainedPrivateKey(
+      privkey2, chaincode);
+   auto&& privkey4 = CryptoECDSA().ComputeChainedPrivateKey(
+      privkey3, chaincode);
+
+   EXPECT_EQ(privkey1.toHexStr(), 
+      "e2ffa33627c47f042e93425ded75942accaaca09d0a82d9bcf24af4fc6b5bb85");
+   EXPECT_EQ(privkey2.toHexStr(), 
+      "a2002f9fdfb531e68d1fd3383ec10195b30e77c58877ce4d82795133dfd8dd9e");
+   EXPECT_EQ(privkey3.toHexStr(), 
+      "03993b61f346be5a60a85bd465153b2c41abe92db4f6267a6577f590a85b8422");
+   EXPECT_EQ(privkey4.toHexStr(), 
+      "dd39a855e2528898fbb0e8c99c9237c70915c80d690741c0c87f1c6e74b9a8d4");
+
+   auto&& publicKey = CryptoECDSA().ComputePublicKey(privateKey);
+
+   auto&& pubkey1 = CryptoECDSA().ComputeChainedPublicKey(
+      publicKey, chaincode);
+   auto&& pubkey2 = CryptoECDSA().ComputeChainedPublicKey(
+      pubkey1, chaincode);
+   auto&& pubkey3 = CryptoECDSA().ComputeChainedPublicKey(
+      pubkey2, chaincode);
+   auto&& pubkey4 = CryptoECDSA().ComputeChainedPublicKey(
+      pubkey3, chaincode);
+
+   EXPECT_EQ(pubkey1.toHexStr(), 
+      "045f22b6502501d833413073ace7ca34effcb455953559eb5d39914abcf2e8f64545fd54b4e1ca097d978c74c0bc1cab3d8c3c426dcba345d5d136b5494ae13d71");
+   EXPECT_EQ(pubkey2.toHexStr(), 
+      "04d0c5b147db60bfb59604871a89da13bc105066032e8d7667f5d631a1ebe04685d72894567aefdbcdac5abaa16f389d9da972882a703c58452c212e66e0e24671");
+   EXPECT_EQ(pubkey3.toHexStr(), 
+      "04b883039aa4d0c7903ce5ed26596f06af0698f91f804c19be027896fa67d1d14d45f85994cc38077a8bc8e980db41f736e0b1a8e41e34fd0e18dfd970fd7e681b");
+   EXPECT_EQ(pubkey4.toHexStr(), 
+      "0436e30c6b3295df86d8085d3171bfb11608943c4282a0bf98e841088a14e33cda8412dcf74fb6c8cb89dd00f208ca2c03a437b93730e8d92b45d6841e07ae4e6f");
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -775,9 +821,6 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    ASSERT_TRUE(TestUtils::searchFile(filename, newIVs[0]));
    ASSERT_TRUE(TestUtils::searchFile(filename, newPrivKeys[0]));
 }
-
-//bip32 tests
-//TODO: flesh out tests with bip32 vectors
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, BIP32_Chain)
