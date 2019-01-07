@@ -227,7 +227,7 @@ namespace DBTestUtils
       message->set_bdvid(bdvId);
       message->set_walletid(wltName);
       message->set_flag(false);
-      auto&& id = SecureBinaryData().GenerateRandom(5).toHexStr();
+      auto&& id = CryptoPRNG::generateRandom(5).toHexStr();
       message->set_hash(id);
 
       for (auto& scrAddr : scrAddrs)
@@ -260,7 +260,7 @@ namespace DBTestUtils
       message->set_bdvid(bdvId);
       message->set_walletid(wltName);
       message->set_flag(false);
-      auto&& id = SecureBinaryData().GenerateRandom(5).toHexStr();
+      auto&& id = CryptoPRNG::generateRandom(5).toHexStr();
       message->set_hash(id);
 
       for (auto& scrAddr : scrAddrs)

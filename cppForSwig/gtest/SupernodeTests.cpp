@@ -1884,7 +1884,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    theBDMt_->start(config.initMode_);
    auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
 
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
@@ -2039,21 +2039,21 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    //// create 3 assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
-   wltRoot = move(SecureBinaryData().GenerateRandom(32));
+   wltRoot = move(CryptoPRNG::generateRandom(32));
    auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
-   wltRoot = move(SecureBinaryData().GenerateRandom(32));
+   wltRoot = move(CryptoPRNG::generateRandom(32));
    auto assetWlt_3 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
@@ -2447,7 +2447,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
@@ -2906,7 +2906,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
          BinaryWriter bw;
          bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
 
-         auto&& addrData = SecureBinaryData().GenerateRandom(20);
+         auto&& addrData = CryptoPRNG::generateRandom(20);
          bw.put_BinaryData(addrData);
 
          result.push_back(bw.getData());
@@ -3482,6 +3482,10 @@ GTEST_API_ int main(int argc, char **argv)
    WSAStartup(wVersion, &wsaData);
 #endif
 
+   btc_ecc_start();
+
+   GOOGLE_PROTOBUF_VERIFY_VERSION;
+   srand(time(0));
    std::cout << "Running main() from gtest_main.cc\n";
 
    // Setup the log file 
@@ -3493,7 +3497,8 @@ GTEST_API_ int main(int argc, char **argv)
 
    FLUSHLOG();
    CLEANUPLOG();
-
    google::protobuf::ShutdownProtobufLibrary();
+
+   btc_ecc_stop();
    return exitCode;
 }

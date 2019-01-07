@@ -24,11 +24,15 @@ TEST_F(AddressTests, base58_Tests)
 {
    BinaryData h_160 = READHEX("00010966776006953d5567439e5e39f86a0d273bee");
    BinaryData scrAddr("16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM");
+   scrAddr.append(0x00);
 
    auto&& encoded = BtcUtils::scrAddrToBase58(h_160);
    EXPECT_EQ(encoded, scrAddr);
 
    auto&& decoded = BtcUtils::base58toScrAddr(scrAddr);
+   EXPECT_EQ(decoded, h_160);
+
+   decoded = BtcUtils::base58toScrAddr(encoded);
    EXPECT_EQ(decoded, h_160);
 }
 
@@ -194,7 +198,7 @@ TEST_F(WalletsTest, CreateCloseOpen_Test)
    //create 3 wallets
    for (unsigned i = 0; i < 3; i++)
    {
-      auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+      auto&& wltRoot = CryptoPRNG::generateRandom(32);
       auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
          homedir_,
          move(wltRoot), //root as a r value
@@ -245,7 +249,7 @@ TEST_F(WalletsTest, CreateCloseOpen_Test)
 TEST_F(WalletsTest, CreateWOCopy_Test)
 {
    //create 1 wallet from priv key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
@@ -279,7 +283,7 @@ TEST_F(WalletsTest, Encryption_Test)
 {
    //#1: check deriving from an encrypted root yield correct chain
    //create 1 wallet from priv key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
@@ -345,7 +349,7 @@ TEST_F(WalletsTest, Encryption_Test)
 TEST_F(WalletsTest, LockAndExtend_Test)
 {
    //create wallet from priv key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
@@ -494,7 +498,7 @@ TEST_F(WalletsTest, LockAndExtend_Test)
 TEST_F(WalletsTest, WrongPassphrase_Test)
 {
    //create wallet from priv key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
@@ -569,7 +573,7 @@ TEST_F(WalletsTest, WrongPassphrase_Test)
 TEST_F(WalletsTest, ChangePassphrase_Test)
 {
    //create wallet from priv key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
@@ -868,6 +872,7 @@ GTEST_API_ int main(int argc, char **argv)
 
    btc_ecc_start();
 
+   GOOGLE_PROTOBUF_VERIFY_VERSION;
    srand(time(0));
    std::cout << "Running main() from gtest_main.cc\n";
 
@@ -878,10 +883,10 @@ GTEST_API_ int main(int argc, char **argv)
    testing::InitGoogleTest(&argc, argv);
    int exitCode = RUN_ALL_TESTS();
 
-   btc_ecc_stop();
-
    FLUSHLOG();
    CLEANUPLOG();
+   google::protobuf::ShutdownProtobufLibrary();
 
+   btc_ecc_stop();
    return exitCode;
 }

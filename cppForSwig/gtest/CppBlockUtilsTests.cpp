@@ -12,7 +12,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 #include "TestUtils.h"
 
-
+#ifndef LIBBTC_ONLY
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,7 +256,7 @@ TEST_F(CryptoPPTest, DetSigning)
     // use the actual signing & verification calls.
     SecureBinaryData prvKeyX(32);
     prvKey5U.Encode(prvKeyX.getPtr(), prvKeyX.getSize());
-    BTC_PRIVKEY prvKeyY = CryptoECDSA().ParsePrivateKey(prvKeyX);
+    BTC_PRIVKEY prvKeyY = CryptoECDSA::ParsePrivateKey(prvKeyX);
 
     // Signing materials
     BTC_DETSIGNER signer(prvKeyY);
@@ -269,10 +269,10 @@ TEST_F(CryptoPPTest, DetSigning)
     SecureBinaryData dataToSign(data5U.c_str());
     CryptoPP::StringSource(dataToSign.toBinStr(), true,
                            new CryptoPP::SignerFilter(dummyPRNG, signer,
-                                                      new CryptoPP::StringSink(outputSig)));
+                           new CryptoPP::StringSink(outputSig)));
 
     // Verify the sig.
-    BTC_PUBKEY pubKeyY = CryptoECDSA().ComputePublicKey(prvKeyY);
+    BTC_PUBKEY pubKeyY = CryptoECDSA::ComputePublicKey(prvKeyY);
     BTC_VERIFIER verifier(pubKeyY);
     SecureBinaryData finalSig(outputSig);
     EXPECT_TRUE(verifier.VerifyMessage((const byte*)dataToSign.getPtr(), 
@@ -306,7 +306,7 @@ TEST_F(CryptoPPTest, DetSigning)
     EXPECT_EQ(secp256k1ExpRes1T, secp256k1Res1T);
 
 }
-
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 class BinaryDataTest : public ::testing::Test
@@ -1732,7 +1732,7 @@ TEST_F(BtcUtilsTest, SimpleHash)
    EXPECT_EQ(hashOut, headHashLE_);
    EXPECT_EQ(hashOut, headHashBE_.copySwapEndian());
 
-   BtcUtils::getHash256_NoSafetyCheck(rawHead_.getPtr(), rawHead_.getSize(), hashOut);
+   BtcUtils::getHash256(rawHead_.getPtr(), rawHead_.getSize(), hashOut);
    EXPECT_EQ(hashOut, headHashLE_);
    EXPECT_EQ(hashOut, headHashBE_.copySwapEndian());
 
@@ -7511,7 +7511,7 @@ TEST_F(BlockUtilsBare, WebSocketStack)
          BinaryWriter bw;
          bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
 
-         auto&& addrData = SecureBinaryData().GenerateRandom(20);
+         auto&& addrData = CryptoPRNG::generateRandom(20);
          bw.put_BinaryData(addrData);
 
          result.push_back(bw.getData());
@@ -7908,7 +7908,7 @@ TEST_F(BlockUtilsBare, WebSocketStack_Reconnect)
          BinaryWriter bw;
          bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
 
-         auto&& addrData = SecureBinaryData().GenerateRandom(20);
+         auto&& addrData = CryptoPRNG::generateRandom(20);
          bw.put_BinaryData(addrData);
 
          result.push_back(bw.getData());
@@ -8177,7 +8177,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
@@ -8726,7 +8726,7 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
@@ -8964,7 +8964,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot),
@@ -9236,7 +9236,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
@@ -9769,7 +9769,7 @@ TEST_F(BlockUtilsBare, GrabAddrLedger_PostReg)
    bdvObj->goOnline();
    pCallback->waitOnSignal(BDMAction_Ready);
 
-   const auto &walletId = SecureBinaryData().GenerateRandom(8).toHexStr();
+   const auto &walletId = CryptoPRNG::generateRandom(8).toHexStr();
    auto&& wallet = bdvObj->instantiateWallet(walletId);
    auto&& registrationId = wallet.registerAddresses(scrAddrVec, false);
    pCallback->waitOnSignal(BDMAction_Refresh, registrationId);
@@ -9971,15 +9971,6 @@ TEST_F(TestCryptoECDSA, VerifySECP256K1Point)
    EXPECT_TRUE(CryptoECDSA().ECVerifyPoint(verifyX, verifyY));
 }
 
-// Multiply two scalars and check the result.
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(TestCryptoECDSA, SECP256K1MultScalars)
-{
-   SecureBinaryData testRes = CryptoECDSA().ECMultiplyScalars(multScalarA,
-                                                              multScalarB);
-   EXPECT_EQ(multRes, testRes);
-}
-
 // Verify that some public keys (compressed and uncompressed) are valid.
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(TestCryptoECDSA, VerifyPubKeyValidity)
@@ -10004,6 +9995,8 @@ GTEST_API_ int main(int argc, char **argv)
       WSAStartup(wVersion, &wsaData);
    #endif
 
+   btc_ecc_start();
+
    GOOGLE_PROTOBUF_VERIFY_VERSION;
    srand(time(0));
    std::cout << "Running main() from gtest_main.cc\n";
@@ -10017,8 +10010,9 @@ GTEST_API_ int main(int argc, char **argv)
    
    FLUSHLOG();
    CLEANUPLOG();
-
    google::protobuf::ShutdownProtobufLibrary();
+
+   btc_ecc_stop();
    return exitCode;
 }
 

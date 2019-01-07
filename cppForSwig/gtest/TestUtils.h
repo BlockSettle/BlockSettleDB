@@ -29,8 +29,12 @@
 #include "../ScrAddrObj.h"
 #include "../BtcWallet.h"
 #include "../BlockDataViewer.h"
+
+#ifndef LIBBTC_ONLY
 #include "../cryptopp/DetSign.h"
 #include "../cryptopp/integer.h"
+#endif
+
 #include "../Progress.h"
 #include "../reorgTest/blkdata.h"
 #include "../BDM_Server.h"

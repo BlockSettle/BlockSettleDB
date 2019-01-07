@@ -107,8 +107,8 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\leveldb_windows_port\win32_posix;..\cryptopp;../lmdb/libraries/liblmdb;../libbtc/include;C:\Python27_64\include;../../../lws/include;..\protobuf\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;NOMINMAX;LIBBTC_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\leveldb_windows_port\win32_posix;..\cryptopp;../lmdb/libraries/liblmdb;../libbtc/src/secp256k1/include;../libbtc/include;C:\Python27_64\include;../../../lws/include;..\protobuf\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BasicRuntimeChecks>UninitializedLocalUsageCheck</BasicRuntimeChecks>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
@@ -118,7 +118,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;python27_d.lib;ws2_32.lib;websockets_static.lib;protobuf_win_d.lib;libbtc_win_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>LMDB_Win_d.lib;python27_d.lib;ws2_32.lib;websockets_static.lib;protobuf_win_d.lib;libbtc_win_d.lib;cryptopp_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\Python27amd64\libs;$(SolutionDir)libs\$(Platform)\;../../../lws/lib/Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -204,6 +204,7 @@
     <ClInclude Include="..\ScrAddrObj.h" />
     <ClInclude Include="..\Script.h" />
     <ClInclude Include="..\ScriptRecipient.h" />
+    <ClInclude Include="..\SecureBinaryData.h" />
     <ClInclude Include="..\Signer.h" />
     <ClInclude Include="..\SocketObject.h" />
     <ClInclude Include="..\SocketService.h" />
@@ -246,12 +247,14 @@
     <ClCompile Include="..\DecryptedDataContainer.cpp" />
     <ClCompile Include="..\DerivationScheme.cpp" />
     <ClCompile Include="..\EncryptionUtils.cpp" />
+    <ClCompile Include="..\EncryptionUtils_libbtc.cpp" />
     <ClCompile Include="..\gtest\CppBlockUtilsTests.cpp" />
     <ClCompile Include="..\gtest\gtest-all.cc" />
     <ClCompile Include="..\gtest\TestUtils.cpp" />
     <ClCompile Include="..\HistoryPager.cpp" />
     <ClCompile Include="..\HttpMessage.cpp" />
     <ClCompile Include="..\JSON_codec.cpp" />
+    <ClCompile Include="..\KDF.cpp" />
     <ClCompile Include="..\LedgerEntry.cpp" />
     <ClCompile Include="..\leveldb_windows_port\win32_posix\dirent_win32.cpp" />
     <ClCompile Include="..\leveldb_windows_port\win32_posix\mman.cpp" />
@@ -267,6 +270,7 @@
     <ClCompile Include="..\ScrAddrFilter.cpp" />
     <ClCompile Include="..\ScrAddrObj.cpp" />
     <ClCompile Include="..\Script.cpp" />
+    <ClCompile Include="..\SecureBinaryData.cpp" />
     <ClCompile Include="..\Server.cpp" />
     <ClCompile Include="..\Signer.cpp" />
     <ClCompile Include="..\SocketObject.cpp" />

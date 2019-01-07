@@ -82,7 +82,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;UNIT_TESTS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;UNIT_TESTS;NOMINMAX;LIBBTC_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\leveldb_windows_port\win32_posix;..\cryptopp;../lmdb/libraries/liblmdb;C:\Python27amd64\include;..\fcgi\include;../../../lws/include;..\protobuf\src;../libbtc/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
@@ -160,12 +160,14 @@
     <ClCompile Include="..\DecryptedDataContainer.cpp" />
     <ClCompile Include="..\DerivationScheme.cpp" />
     <ClCompile Include="..\EncryptionUtils.cpp" />
+    <ClCompile Include="..\EncryptionUtils_libbtc.cpp" />
     <ClCompile Include="..\gtest\gtest-all.cc" />
     <ClCompile Include="..\gtest\SupernodeTests.cpp" />
     <ClCompile Include="..\gtest\TestUtils.cpp" />
     <ClCompile Include="..\HistoryPager.cpp" />
     <ClCompile Include="..\HttpMessage.cpp" />
     <ClCompile Include="..\JSON_codec.cpp" />
+    <ClCompile Include="..\KDF.cpp" />
     <ClCompile Include="..\LedgerEntry.cpp" />
     <ClCompile Include="..\leveldb_windows_port\win32_posix\dirent_win32.cpp" />
     <ClCompile Include="..\leveldb_windows_port\win32_posix\mman.cpp" />
@@ -179,6 +181,7 @@
     <ClCompile Include="..\ScrAddrFilter.cpp" />
     <ClCompile Include="..\ScrAddrObj.cpp" />
     <ClCompile Include="..\Script.cpp" />
+    <ClCompile Include="..\SecureBinaryData.cpp" />
     <ClCompile Include="..\Server.cpp" />
     <ClCompile Include="..\sighandler.cpp" />
     <ClCompile Include="..\Signer.cpp" />

@@ -183,10 +183,10 @@ void btc_pubkey_from_key(const btc_key* privkey, btc_pubkey* pubkey_inout)
     if (pubkey_inout == NULL || privkey == NULL)
         return;
 
-    size_t in_out_len = BTC_ECKEY_COMPRESSED_LENGTH;
+    size_t in_out_len = BTC_ECKEY_UNCOMPRESSED_LENGTH;
 
-    btc_ecc_get_pubkey(privkey->privkey, pubkey_inout->pubkey, &in_out_len, true);
-    pubkey_inout->compressed = true;
+    btc_ecc_get_pubkey(privkey->privkey, pubkey_inout->pubkey, &in_out_len, false);
+    pubkey_inout->compressed = false;
 }
 
 

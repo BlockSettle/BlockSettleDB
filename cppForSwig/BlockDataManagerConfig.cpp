@@ -78,7 +78,7 @@ const string BlockDataManagerConfig::defaultRegtestBlkFileLocation_ =
 
 ////////////////////////////////////////////////////////////////////////////////
 BlockDataManagerConfig::BlockDataManagerConfig() :
-   cookie_(SecureBinaryData().GenerateRandom(32).toHexStr())
+   cookie_(CryptoPRNG::generateRandom(32).toHexStr())
 {
    selectNetwork(NETWORK_MODE_MAINNET);
 }
