@@ -118,7 +118,7 @@ void BlockDataManagerConfig::selectNetwork(NETWORK_MODE mode)
       rpcPort_ = portToString(RPC_PORT_MAINNET);
       
       if (!customListenPort_)
-         listenPort_ = portToString(LISTEN_PORT_TESTNET);
+         listenPort_ = portToString(LISTEN_PORT_MAINNET);
       
       if(!customBtcPort_)
          btcPort_ = portToString(NODE_PORT_MAINNET);
@@ -141,7 +141,7 @@ void BlockDataManagerConfig::selectNetwork(NETWORK_MODE mode)
 
    case NETWORK_MODE_REGTEST:
    {
-      rpcPort_ = portToString(RPC_PORT_TESTNET);
+      rpcPort_ = portToString(RPC_PORT_REGTEST);
 
       if (!customListenPort_)
          listenPort_ = portToString(LISTEN_PORT_REGTEST);
