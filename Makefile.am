@@ -47,7 +47,11 @@ endif
 
 # Copy libwebsockets instance over to keep components happy.
 	mkdir -p lib
+if BUILD_DARWIN
+	cp -L $(LWS_LIB_LOC)/libwebsockets.dylib ./lib/
+else
 	cp -R $(LWS_LIB_LOC)/libwebsockets.so* ./lib/
+endif
 
 # SWIG code and requirements.
 if BUILD_CLIENT
@@ -92,24 +96,28 @@ endif
 # shared libraries, but they don't cause problems. Just ignore them.)
 if BUILD_DARWIN
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libArmoryCommon.0.dylib @loader_path/../libArmoryCommon.0.dylib $(DESTDIR)$(prefix)/lib/armory/_CppBlockUtils.so
-	install_name_tool -change $(DESTDIR)$(prefix)/lib/libcryptopp.0.dylib @loader_path/libcryptopp.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryCommon.0.dylib
-	install_name_tool -change $(DESTDIR)$(prefix)/lib/libcryptopp.0.dylib @loader_path/libcryptopp.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryCLI.0.dylib
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libArmoryCommon.0.dylib @loader_path/libArmoryCommon.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryCLI.0.dylib
 	install_name_tool -id @rpath/libCppBlockUtils.0.dylib $(DESTDIR)$(prefix)/lib/armory/_CppBlockUtils.so
 	install_name_tool -id @rpath/libfcgi.0.dylib $(DESTDIR)$(prefix)/lib/libfcgi.0.dylib
 	install_name_tool -id @rpath/libArmoryCommon.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryCommon.0.dylib
 	install_name_tool -id @rpath/libArmoryCLI.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryCLI.0.dylib
 	install_name_tool -id @rpath/libArmoryGUI.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryGUI.0.dylib
-	install_name_tool -id @rpath/libcryptopp.0.dylib $(DESTDIR)$(prefix)/lib/libcryptopp.0.dylib
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libArmoryCommon.0.dylib @loader_path/../lib/libArmoryCommon.0.dylib $(DESTDIR)$(prefix)/bin/ArmoryDB
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libArmoryCLI.0.dylib @loader_path/../lib/libArmoryCLI.0.dylib $(DESTDIR)$(prefix)/bin/ArmoryDB
+if USE_CRYPTOPP
+	install_name_tool -change $(DESTDIR)$(prefix)/lib/libcryptopp.0.dylib @loader_path/libcryptopp.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryCommon.0.dylib
+	install_name_tool -change $(DESTDIR)$(prefix)/lib/libcryptopp.0.dylib @loader_path/libcryptopp.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryCLI.0.dylib
+	install_name_tool -id @rpath/libcryptopp.0.dylib $(DESTDIR)$(prefix)/lib/libcryptopp.0.dylib
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libcryptopp.0.dylib @loader_path/../lib/libcryptopp.0.dylib $(DESTDIR)$(prefix)/bin/ArmoryDB
+endif
 if BUILD_CLIENT
 	rm -f $(DESTDIR)$(prefix)/lib/libCppBlockUtils.*
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libArmoryGUI.0.dylib @loader_path/../libArmoryGUI.0.dylib $(DESTDIR)$(prefix)/lib/armory/_CppBlockUtils.so
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libArmoryCommon.0.dylib @loader_path/libArmoryCommon.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryGUI.0.dylib
+if USE_CRYPTOPP
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libcryptopp.0.dylib @loader_path/libcryptopp.0.dylib $(DESTDIR)$(prefix)/lib/libArmoryGUI.0.dylib
 	install_name_tool -change $(DESTDIR)$(prefix)/lib/libcryptopp.0.dylib @loader_path/../libcryptopp.0.dylib $(DESTDIR)$(prefix)/lib/armory/_CppBlockUtils.so
+endif
 endif
 endif
 

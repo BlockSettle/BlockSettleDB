@@ -45,6 +45,13 @@ AC_ARG_WITH([own-lws],
 		[pass path of your own lws binary and headers @<:@default=no@:>@]),
 		[with_own_lws="$withval"], [with_own_lws=no])
 
+# Crypto++ usage. Armory defaults to using libbtc for most crypto. However, a
+# legacy transition period where Crypto++ can be used instead is in effect.
+AC_ARG_WITH([cryptopp],
+		AS_HELP_STRING([--with-cryptopp],
+		[use Crypto++ instead of libbtc for crypto functions @<:@default=no@:>@]),
+		[with_cryptopp="$withval"], [with_cryptopp=no])
+
 # Force user to define which LWS they wish to use.
 AS_IF([test $with_own_lws != no], [],
 	[AC_MSG_ERROR([A custom version of libwebsockets must be defined. /usr/local is an acceptable location.])]) 
@@ -223,6 +230,7 @@ AC_CONFIG_FILES(Makefile
 
 AM_CONDITIONAL([BUILD_BENCH], [test x$want_benchmark = xyes])
 AM_CONDITIONAL([BUILD_TESTS], [test "x$want_tests" = "xyes"])
+AM_CONDITIONAL([USE_CRYPTOPP], [test x$with_cryptopp = xyes])
 
 dnl ac_configure_args can only be set once and affects all subdirs.
 dnl Place all params here.
@@ -232,7 +240,8 @@ dnl libbtc - --disable-wallet --disable-tools
 dnl libsecp256k1 (libbtc) - --disable-shared --with-pic --with-bignum=no
 dnl NB: --disable-wallet left off for now. Upstream issues kill debug builds.
 ac_configure_args="${orig_config_args} --disable-tools --disable-shared --with-pic --with-bignum=no"
-AC_CONFIG_SUBDIRS([cppForSwig/cryptopp cppForSwig/libbtc])
+AC_CONFIG_SUBDIRS([cppForSwig/libbtc])
+AM_COND_IF([USE_CRYPTOPP], [AC_CONFIG_SUBDIRS([cppForSwig/cryptopp])], [])
 
 AC_OUTPUT
 
@@ -252,3 +261,4 @@ echo "  with benchmarks = $want_benchmark"
 echo "  debug symbols   = $want_debug"
 echo "  with GUI/client = $build_client"
 echo "  custom lws path = $with_own_lws"
+echo "  use Crypto++    = $with_cryptopp"
