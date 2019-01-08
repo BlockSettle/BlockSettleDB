@@ -94,10 +94,13 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	DecryptedDataContainer.cpp \
 	DerivationScheme.cpp \
 	EncryptionUtils.cpp \
+	EncryptionUtils_libbtc.cpp \
+	KDF.cpp \
 	NetworkConfig.cpp \
 	log.cpp \
 	ReentrantLock.cpp \
 	Script.cpp \
+	SecureBinaryData.cpp \
 	Signer.cpp \
 	SocketObject.cpp \
 	StoredBlockObj.cpp \
