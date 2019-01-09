@@ -65,10 +65,6 @@ btc_hdnode* btc_hdnode_new()
     btc_hdnode* hdnode;
     hdnode = btc_calloc(1, sizeof(*hdnode));
 
-    hdnode->chain_code = malloc(BTC_BIP32_CHAINCODE_SIZE);
-    hdnode->private_key = malloc(BTC_ECKEY_PKEY_LENGTH);
-    hdnode->public_key = malloc(BTC_ECKEY_COMPRESSED_LENGTH);
-
     return hdnode;
 }
 
