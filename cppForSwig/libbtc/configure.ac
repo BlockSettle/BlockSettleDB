@@ -82,7 +82,7 @@ if test "x$with_net" = xyes; then
 fi
 
 if test "x$enable_debug" = xyes; then
-  CFLAGS="$CFLAGS -g3 -O0 -DDEBUG"
+  CFLAGS="-g3 -O0 -DDEBUG -W $warn_CFLAGS"
   CXXFLAGS="$CXXFLAGS -g3 -O0 -DDEBUG"
   AC_DEFINE_UNQUOTED([ENABLE_DEBUG],[1],[Define to 1 to enable debung output])
 fi
