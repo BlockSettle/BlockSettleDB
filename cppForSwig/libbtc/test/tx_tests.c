@@ -1375,6 +1375,7 @@ void test_tx_sign_p2pkh_i2(btc_tx *tx) {
 
     cstr_free(tx_ser, true);
     cstr_free(script, true);
+    cstr_free(script_wrong, true);
 
     btc_free(tx_data);
     btc_free(script_data);
@@ -1409,5 +1410,8 @@ void test_scripts() {
     u_assert_int_eq(type, BTC_TX_PUBKEY);
     type = btc_script_classify(script_data_p2pkh, vec);
     u_assert_int_eq(type, BTC_TX_PUBKEYHASH);
+
+    cstr_free(script_data_p2pk, true);
+    cstr_free(script_data_p2pkh, true);
     vector_free(vec, true);
 }
