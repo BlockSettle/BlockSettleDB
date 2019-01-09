@@ -101,10 +101,16 @@ void btc_privkey_encode_wif(const btc_key* privkey, const btc_chainparams* chain
 
 btc_bool btc_privkey_decode_wif(const char *privkey_wif, const btc_chainparams* chain, btc_key* privkey) {
 
-    size_t privkey_size = strlen(privkey_wif);
-    if (!privkey_wif || privkey_size < 50) {
+    if (!privkey_wif) {
         return false;
     }
+
+    size_t privkey_size = strlen(privkey_wif);
+
+    if(privkey_size < 50) {
+        return false;
+    }
+    
     uint8_t* privkey_data = (uint8_t*)btc_malloc(privkey_size);
     memset(privkey_data, 0, privkey_size);
     size_t outlen = 0;
