@@ -85,12 +85,10 @@ void test_wallet()
     hash160[0] = wallet->chain->b58prefix_pubkey_address;
     btc_hdnode_get_hash160(checknode->hdnode, hash160+1);
 
-    size_t addrsize = 98;
-    char* addr = malloc(addrsize);
-    btc_base58_encode_check(hash160, sizeof(uint160) + 1, addr, addrsize);
+    char addr[98];
+    btc_base58_encode_check(hash160, sizeof(uint160) + 1, addr, 98);
     u_assert_int_eq(strcmp(addr, addrs->data[0]), 0);
     vector_free(addrs, true);
-    free(addr);
 
     // add some txes
     static const char *hextx_coinbase = "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff6403c4210637e4b883e5bda9e7a59ee4bb99e9b1bc468ae3c311fe570bbbaadade4d0c6ae4fd009f2045e7808d8c569b1eb63ecdb802000000f09f909f0f4d696e6564206279206368656e626f000000000000000000000000000000000000000000000000c036008601bb734c95000000001976a914bef5a2f9a56a94aab12459f72ad9cf8cf19c7bbe88aca7525e3a";
@@ -98,12 +96,12 @@ void test_wallet()
     static const char *hextx_ntx = "0100000001f48eef277d1338def6e6656b9226a82cb63b0591d15844e896fb875d95990edb000000006b483045022100ed3681313a3a52c1beb2f94f4cbba80d341652676463516cfd3e7fcfb00fdb8902201ff1acfba71bbb4436a990eac8f2ec3944a917859e2b02c9c113445147f23b9c0121021b8f3b66d044fabca1295e6ed16558909ebea941404ff376dcaec106cefe3526feffffff02e5b32400000000001976a91444d6af9359434935f1e9a0f43643eae59bf64d1388ace417541a030000001976a914d69367208e54bfdfa8ed1c77e4d8f6730b9777e388acb8210600";
 
     // form coinbase tx
-    uint8_t* tx_data = malloc(strlen(hextx_coinbase) / 2);
+    uint8_t* tx_data = btc_malloc(strlen(hextx_coinbase) / 2);
     int outlen;
     utils_hex_to_bin(hextx_coinbase, tx_data, strlen(hextx_coinbase), &outlen);
     btc_wtx* wtx = btc_wallet_wtx_new();
     btc_tx_deserialize(tx_data, outlen, wtx->tx, NULL, true);
-    free(tx_data);
+    btc_free(tx_data);
 
     // add coinbase tx
     wtx->height = 0;
@@ -118,11 +116,11 @@ void test_wallet()
     btc_wallet_wtx_free(wtx);
 
     // form normal tx
-    uint8_t* tx_data_n = malloc(strlen(hextx_ntx) / 2);
+    uint8_t* tx_data_n = btc_malloc(strlen(hextx_ntx) / 2);
     utils_hex_to_bin(hextx_ntx, tx_data_n, strlen(hextx_ntx), &outlen);
     wtx = btc_wallet_wtx_new();
     btc_tx_deserialize(tx_data_n, outlen, wtx->tx, NULL, true);
-    free(tx_data_n);
+    btc_free(tx_data_n);
 
     // add normal tx
     wtx->height = 0;

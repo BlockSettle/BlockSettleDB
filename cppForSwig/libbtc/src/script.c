@@ -78,10 +78,10 @@ btc_bool btc_script_copy_without_op_codeseperator(const cstring* script_in, cstr
 
         if (data_len > 0) {
             assert(data_len < 16777215); //limit max push to 0xFFFFFF
-            unsigned char* bufpush = malloc(data_len);
+            unsigned char* bufpush = (unsigned char*)btc_malloc(data_len);
             deser_bytes(bufpush, &buf, data_len);
             cstr_append_buf(script_out, bufpush, data_len);
-            free(bufpush);
+            btc_free(bufpush);
         } else
             cstr_append_buf(script_out, &opcode, 1);
     }

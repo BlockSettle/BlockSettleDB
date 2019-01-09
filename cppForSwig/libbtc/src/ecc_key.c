@@ -105,22 +105,22 @@ btc_bool btc_privkey_decode_wif(const char *privkey_wif, const btc_chainparams* 
     if (!privkey_wif || privkey_size < 50) {
         return false;
     }
-    uint8_t* privkey_data = malloc(privkey_size);
+    uint8_t* privkey_data = (uint8_t*)btc_malloc(privkey_size);
     memset(privkey_data, 0, privkey_size);
     size_t outlen = 0;
 
     outlen = btc_base58_decode_check(privkey_wif, privkey_data, privkey_size);
     if (!outlen) {
-        free(privkey_data);
+        btc_free(privkey_data);
         return false;
     }
     if (privkey_data[0] != chain->b58prefix_secret_address) {
-        free(privkey_data);
+        btc_free(privkey_data);
         return false;
     }
     memcpy(privkey->privkey, &privkey_data[1], BTC_ECKEY_PKEY_LENGTH);
     btc_mem_zero(privkey_data, privkey_size);
-    free(privkey_data);
+    btc_free(privkey_data);
     return true;
 }
 
