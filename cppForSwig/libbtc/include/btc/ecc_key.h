@@ -59,6 +59,8 @@ LIBBTC_API unsigned int btc_pubkey_get_length(unsigned char ch_header);
 LIBBTC_API btc_bool btc_pubkey_is_valid(const btc_pubkey* pubkey);
 LIBBTC_API void btc_pubkey_cleanse(btc_pubkey* pubkey);
 LIBBTC_API void btc_pubkey_from_key(const btc_key* privkey, btc_pubkey* pubkey_inout);
+LIBBTC_API void btc_pubkey_from_key_uncompressed(const btc_key* privkey, btc_pubkey* pubkey_inout);
+
 
 //get the hash160 (single SHA256 + RIPEMD160)
 LIBBTC_API void btc_pubkey_get_hash160(const btc_pubkey* pubkey, uint160 hash160);
