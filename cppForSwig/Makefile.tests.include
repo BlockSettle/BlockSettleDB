@@ -64,11 +64,13 @@ bin_PROGRAMS += gtest/SupernodeTests
 gtest_SupernodeTests_SOURCES = gtest/SupernodeTests.cpp
 gtest_SupernodeTests_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS)
 gtest_SupernodeTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) -DUNIT_TESTS
-gtest_SupernodeTests_LDADD = gtest/libgtest.la $(LIBARMORYCOMMON) \
-		 $(LIBARMORYCLI) \
-		 $(LIBCRYPTOPP) \
-		 $(LIBLMDB) \
-		 $(LIBBTC) -lprotobuf
+gtest_SupernodeTests_LDADD = gtest/libgtest.la \
+			$(LIBARMORYCOMMON) \
+			$(LIBARMORYCLI) \
+			$(LIBCRYPTOPP) \
+			$(LIBLMDB) \
+			$(LIBBTC) \
+			-lprotobuf
 gtest_SupernodeTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/SupernodeTests
 
@@ -77,10 +79,14 @@ bin_PROGRAMS += gtest/CppBlockUtilsTests
 gtest_CppBlockUtilsTests_SOURCES = gtest/CppBlockUtilsTests.cpp
 gtest_CppBlockUtilsTests_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS)
 gtest_CppBlockUtilsTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
-gtest_CppBlockUtilsTests_LDADD = gtest/libgtest.la $(LIBARMORYCOMMON) \
-		 $(LIBARMORYCLI) \
-		 $(LIBCRYPTOPP) \
-		 $(LIBBTC) $(LIBLMDB) -lprotobuf
+gtest_CppBlockUtilsTests_LDADD = gtest/libgtest.la \
+			$(LIBARMORYCOMMON) \
+			$(LIBCHACHA20POLY1305) \
+			$(LIBARMORYCLI) \
+			$(LIBCRYPTOPP) \
+			$(LIBBTC) \
+			$(LIBLMDB) \
+			-lprotobuf
 gtest_CppBlockUtilsTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/CppBlockUtilsTests
 
@@ -89,9 +95,13 @@ bin_PROGRAMS += gtest/WalletTests
 gtest_WalletTests_SOURCES = gtest/WalletTests.cpp
 gtest_WalletTests_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS)
 gtest_WalletTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) -DUNIT_TESTS
-gtest_WalletTests_LDADD = gtest/libgtest.la $(LIBBTC) $(LIBARMORYCOMMON) \
-		 $(LIBARMORYCLI) \
-		 $(LIBCRYPTOPP) \
-		 $(LIBBTC)  $(LIBLMDB) -lprotobuf
+gtest_WalletTests_LDADD = gtest/libgtest.la \
+			$(LIBBTC) \
+			$(LIBARMORYCOMMON) \
+			$(LIBARMORYCLI) \
+			$(LIBCRYPTOPP) \
+			$(LIBBTC) \
+			$(LIBLMDB) \
+			-lprotobuf
 gtest_WalletTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/WalletTests
