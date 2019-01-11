@@ -103,10 +103,14 @@ int btc_base58_decode(void* bin, size_t* binszp, const char* b58)
     switch (bytesleft) {
     case 3:
         *(binu++) = (outi[0] & 0xff0000) >> 16;
+#ifdef __GNUC__
         __attribute__ ((fallthrough));
+#endif
     case 2:
         *(binu++) = (outi[0] & 0xff00) >> 8;
+#ifdef __GNUC__
         __attribute__ ((fallthrough));
+#endif
     case 1:
         *(binu++) = (outi[0] & 0xff);
         ++j;
