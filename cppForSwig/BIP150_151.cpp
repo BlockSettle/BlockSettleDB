@@ -8,7 +8,7 @@
 
 #include <cassert>
 #include <fstream>
-#ifdef WIN32
+#if defined(WIN32) || defined(_MSC_VER)
 #include <Ws2tcpip.h>
 #else
 #include <arpa/inet.h>

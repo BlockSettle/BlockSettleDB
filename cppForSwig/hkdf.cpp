@@ -80,10 +80,13 @@ void hkdf_sha256(uint8_t *result, const size_t &resultSize,
                   tmpHashInput.getPtr(),
                   tmpHashInput.getSize(),
                   tmpHashRes.getPtr());
-      std::copy(&tmpHashRes[0], &tmpHashRes[SHA256_DIGEST_LENGTH], &t[resBytes]);
+      std::copy(
+         tmpHashRes.getPtr(), 
+         tmpHashRes.getPtr() + SHA256_DIGEST_LENGTH, 
+         &t[resBytes]);
    }
 
    // Write the final results and exit.
-   std::copy(&t[0], &t[resultSize], result);
+   std::copy(t.getPtr(), t.getPtr() + resultSize, result);
    return;
 }

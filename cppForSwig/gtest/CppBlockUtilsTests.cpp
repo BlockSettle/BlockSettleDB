@@ -12,7 +12,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 #include "TestUtils.h"
 
-#ifndef LIBBTC_ONLY
 ////////////////////////////////////////////////////////////////////////////////
 // RFC 5869 (HKDF) unit tests for SHA-256.
 class HKDF256Test : public ::testing::Test
@@ -176,6 +175,12 @@ protected:
       authchallenge2Data = READHEX(authchallenge2_hexstr);
       authreply2Data = READHEX(authreply2_hexstr);
       cli150Fingerprint = "3APoaDH59ANeNt6WbGNksbcWSpdUsZhCqrANS";
+
+#ifndef _MSC_VER
+      baseDir_ = "./input_files";
+#else
+      baseDir_ = "../gtest/input_files";
+#endif
    }
 
    BinaryData prvKeyClientIn;
@@ -219,6 +224,8 @@ protected:
    BinaryData authchallenge2Data;
    BinaryData authreply2Data;
    string cli150Fingerprint;
+
+   string baseDir_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -226,6 +233,8 @@ TEST_F(BIP150_151Test, checkData_151_Only)
 {
    // Run before the first test has been run. (SetUp/TearDown will be called
    // for each test. Multiple context startups/shutdowns leads to crashes.)
+   string filepath = baseDir_ + "/bip150v0_cli1/";
+   startupBIP150CTX(4, filepath);
    startupBIP151CTX();
 
    // BIP 151 connection uses private keys we feed it. (Normally, we'd let it
@@ -479,7 +488,8 @@ TEST_F(BIP150_151Test, checkData_150_151)
    // so that two separate key sets can be tested. There's no real reason to
    // support this in Armory right now, though, and it'd be a lot of work. For
    // now, just cheat and have two "separate" systems with the same input files.
-   startupBIP150CTX(4, OS_TranslatePath("./input_files/bip150v0_cli1/"));
+   string filepath = baseDir_ + "/bip150v0_cli1/";
+   startupBIP150CTX(4, filepath);
 
    btc_key prvKeyCliIn;
    btc_key prvKeyCliOut;
@@ -685,7 +695,7 @@ TEST_F(BIP150_151Test, handshakeCases_151_Only)
    shutdownBIP151CTX();
 }
 
-
+#ifndef LIBBTC_ONLY
 ////////////////////////////////////////////////////////////////////////////////
 // Test any custom Crypto++ code we've written.
 // Deterministic signing vectors taken from RFC6979 and other sources.
