@@ -65,8 +65,11 @@ _CppBlockUtils.*
 /cppForSwig/fcgi/fcgi_config.h
 /cppForSwig/fcgi/examples/*
 
+/cppForSwig/gtest/BIP151RekeyTest
 /cppForSwig/gtest/ContainerTests
 /cppForSwig/gtest/CppBlockUtilsTests
+/cppForSwig/gtest/SupernodeTests
+/cppForSwig/gtest/WalletTests
 /cppForSwig/gtest/*.txt
 /cppForSwig/gtest/*.a
 /cppForSwig/gtest/*.out.*
