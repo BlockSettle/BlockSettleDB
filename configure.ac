@@ -237,10 +237,11 @@ dnl ac_configure_args can only be set once and affects all subdirs.
 dnl Place all params here.
 dnl Crypto++ - No customs
 dnl libchacha20poly1305 - No customs
-dnl libbtc - --disable-wallet --disable-tools
+dnl libbtc - --disable-wallet --disable-net --disable-tools
 dnl libsecp256k1 (libbtc) - --disable-shared --with-pic --with-bignum=no
-dnl NB: --disable-wallet left off for now. Upstream issues kill debug builds.
-ac_configure_args="${orig_config_args} --disable-tools --disable-shared --with-pic --with-bignum=no"
+dnl NB: For libbtc, wallet & net are basically intertwined. If disabling one,
+dnl     both must be disabled, else weird compiler/linker errors appear.
+ac_configure_args="${orig_config_args} --disable-wallet --disable-net --disable-tools --disable-shared --with-pic --with-bignum=no"
 AC_CONFIG_SUBDIRS([cppForSwig/libbtc])
 AM_COND_IF([USE_CRYPTOPP], [AC_CONFIG_SUBDIRS([cppForSwig/cryptopp])], [])
 
