@@ -10,6 +10,7 @@
 #include "WebSocketClient.h"
 #include "protobuf/BDVCommand.pb.h"
 
+using namespace std;
 using namespace ClientClasses;
 using namespace ::Codec_BDVCommand;
 
