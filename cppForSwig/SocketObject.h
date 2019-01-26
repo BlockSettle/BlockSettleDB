@@ -75,6 +75,7 @@ struct Socket_WritePayload
    virtual ~Socket_WritePayload(void) = 0;
    virtual void serialize(std::vector<uint8_t>&) = 0;
    virtual std::string serializeToText(void) = 0;
+   virtual size_t getSerializedSize(void) const = 0;
 };
 
 ////
@@ -84,6 +85,9 @@ struct WritePayload_Protobuf : public Socket_WritePayload
 
    void serialize(std::vector<uint8_t>&);
    std::string serializeToText(void);
+   size_t getSerializedSize(void) const {
+      return message_->ByteSize();
+   }
 };
 
 ////
@@ -94,6 +98,7 @@ struct WritePayload_Raw : public Socket_WritePayload
    void serialize(std::vector<uint8_t>&);
    std::string serializeToText(void) {
       throw SocketError("raw payload cannot serilaize to str"); }
+   size_t getSerializedSize(void) const { return data_.size(); };
 };
 
 ////
@@ -108,6 +113,8 @@ struct WritePayload_String : public Socket_WritePayload
    std::string serializeToText(void) {
       return std::move(data_);
    }
+
+   size_t getSerializedSize(void) const { return data_.size(); };
 };
 
 ////
@@ -124,6 +131,8 @@ struct WritePayload_StringPassthrough : public Socket_WritePayload
    std::string serializeToText(void) {
       return move(data_);
    }
+
+   size_t getSerializedSize(void) const { return data_.size(); };
 };
 
 
