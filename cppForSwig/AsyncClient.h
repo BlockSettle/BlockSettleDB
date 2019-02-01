@@ -48,7 +48,7 @@ public:
    {}
 
    ReturnMessage(U& val) :
-      value_(move(val))
+      value_(std::move(val))
    {}
 
    ReturnMessage(const U& val) :
@@ -57,7 +57,7 @@ public:
 
    ReturnMessage(ClientMessageError& err)
    {
-      error_ = make_shared<ClientMessageError>(err);
+      error_ = std::make_shared<ClientMessageError>(err);
    }
 
    U get(void) 
@@ -65,7 +65,7 @@ public:
       if (error_ != nullptr)
          throw *error_;
          
-      return move(value_);
+      return std::move(value_);
    }
 };
 

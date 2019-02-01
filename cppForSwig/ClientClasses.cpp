@@ -19,7 +19,7 @@ using namespace ::Codec_BDVCommand;
 // BlockHeader
 //
 ///////////////////////////////////////////////////////////////////////////////
-BlockHeader::BlockHeader(
+ClientClasses::BlockHeader::BlockHeader(
    const BinaryData& rawheader, unsigned height)
 {
    unserialize(rawheader.getRef());
@@ -27,7 +27,7 @@ BlockHeader::BlockHeader(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BlockHeader::unserialize(uint8_t const * ptr, uint32_t size)
+void ClientClasses::BlockHeader::unserialize(uint8_t const * ptr, uint32_t size)
 {
    if (size < HEADER_SIZE)
       throw BlockDeserializingException();
