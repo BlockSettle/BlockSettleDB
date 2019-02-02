@@ -107,7 +107,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;NOMINMAX;LIBBTC_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;NOMINMAX;LIBBTC_ONLY;UNIT_TESTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>../chacha20poly1305;..\leveldb_windows_port\win32_posix;..\cryptopp;../lmdb/libraries/liblmdb;../libbtc/src/secp256k1/include;../libbtc/include;C:\Python27_64\include;../../../lws/include;..\protobuf\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <BasicRuntimeChecks>UninitializedLocalUsageCheck</BasicRuntimeChecks>
@@ -172,6 +172,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\AuthorizedPeers.h" />
+    <ClInclude Include="..\chacha20poly1305\chacha.h" />
+    <ClInclude Include="..\chacha20poly1305\chachapoly_aead.h" />
     <ClInclude Include="..\NetworkConfig.h" />
     <ClInclude Include="..\Addresses.h" />
     <ClInclude Include="..\AsyncClient.h" />
@@ -223,6 +226,7 @@
     <ClCompile Include="..\AssetEncryption.cpp" />
     <ClCompile Include="..\Assets.cpp" />
     <ClCompile Include="..\AsyncClient.cpp" />
+    <ClCompile Include="..\AuthorizedPeers.cpp" />
     <ClCompile Include="..\BDM_mainthread.cpp" />
     <ClCompile Include="..\BDM_Server.cpp" />
     <ClCompile Include="..\bech32\ref\c++\bech32.cpp" />

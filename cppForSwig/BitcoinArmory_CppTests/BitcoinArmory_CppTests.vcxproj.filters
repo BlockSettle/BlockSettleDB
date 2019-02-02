@@ -147,6 +147,15 @@
     <ClInclude Include="..\SecureBinaryData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\chacha20poly1305\chacha.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\chacha20poly1305\chachapoly_aead.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\AuthorizedPeers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\BinaryData.cpp">
@@ -375,6 +384,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\chacha20poly1305\chachapoly_aead.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\AuthorizedPeers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

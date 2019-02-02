@@ -8,6 +8,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 #include "TestUtils.h"
 
+using namespace std;
 using namespace ::Codec_BDVCommand;
 
 #if ! defined(_MSC_VER) && ! defined(__MINGW32__)
@@ -650,7 +651,8 @@ namespace DBTestUtils
       auto len = msg->ByteSize();
       vector<uint8_t> buffer(len);
       msg->SerializeToArray(&buffer[0], len);
-      auto&& bdVec = WebSocketMessageCodec::serialize(0, buffer);
+      auto&& bdVec = WebSocketMessageCodec::serialize(
+         buffer, nullptr, WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, 0);
       
       if (bdVec.size() > 1)
          LOGWARN << "large message in unit tests";
