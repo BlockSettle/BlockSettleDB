@@ -11,13 +11,13 @@ EXTRA_DIST = *.py *.md LICENSE LICENSE-ATI LICENSE-MIT \
 
 ACLOCAL_AMFLAGS = -I build-aux/m4
 
-lrelease:
 if BUILD_CLIENT
+lrelease:
 	lrelease lang/*.ts
 endif
 
-qrc_img_resources.py: imgList.xml
 if BUILD_CLIENT
+qrc_img_resources.py: imgList.xml
 	pyrcc4 -o qrc_img_resources.py imgList.xml
 endif
 
@@ -155,6 +155,8 @@ uninstall-hook: uninstall-old
 clean-local:
 	rm -f ArmoryDB
 	rm -f lib/*
+if BUILD_CLIENT
 	rm -f CppBlockUtils.py
 	rm -f _CppBlockUtils.so
 	rm -f CppBlockUtils.pyc
+endif

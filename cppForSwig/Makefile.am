@@ -119,7 +119,6 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	CoinSelection.cpp \
 	DecryptedDataContainer.cpp \
 	DerivationScheme.cpp \
-	EncryptionUtils.cpp \
 	hkdf.cpp \
 	KDF.cpp \
 	log.cpp \
@@ -145,6 +144,8 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 
 if ! USE_CRYPTOPP
 ARMORYCOMMON_SOURCE_FILES += EncryptionUtils_libbtc.cpp
+else
+ARMORYCOMMON_SOURCE_FILES += EncryptionUtils.cpp
 endif
 
 PROTOBUF_PROTO = protobuf/AddressBook.proto \
