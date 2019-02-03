@@ -416,6 +416,7 @@ void WebSocketServer::commandThread()
             (uint8_t*)packetPtr->data_.getPtr(), packetPtr->data_.getSize()) != 0)
          {
             //failed to decrypt, kill connection
+            closeClientConnection(packetPtr->bdvID_);
             continue;
          }
 

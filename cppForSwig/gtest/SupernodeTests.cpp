@@ -13,6 +13,7 @@
 
 #include "TestUtils.h"
 
+using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,7 +74,7 @@ protected:
 };
 
 
-
+/*
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(DISABLED_PartialMerkleTest, FullTree)
 {
@@ -2876,9 +2877,127 @@ TEST_F(BlockUtilsWithWalletTest, ZC_InOut_SameBlock)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 }
+*/
+////////////////////////////////////////////////////////////////////////////////
+class WebSocketTests : public ::testing::Test
+{
+protected:
+   BlockDataManagerThread *theBDMt_;
+   Clients* clients_;
+
+   void initBDM(void)
+   {
+      theBDMt_ = new BlockDataManagerThread(config);
+      iface_ = theBDMt_->bdm()->getIFace();
+
+      auto mockedShutdown = [](void)->void {};
+      clients_ = new Clients(theBDMt_, mockedShutdown);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void SetUp()
+   {
+      LOGDISABLESTDOUT();
+      zeros_ = READHEX("00000000");
+
+      blkdir_ = string("./blkfiletest");
+      homedir_ = string("./fakehomedir");
+      ldbdir_ = string("./ldbtestdir");
+
+      rmdir(blkdir_);
+      rmdir(homedir_);
+      rmdir(ldbdir_);
+
+      mkdir(blkdir_);
+      mkdir(homedir_);
+      mkdir(ldbdir_);
+
+      // Put the first 5 blocks into the blkdir
+      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
+      blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
+      TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
+
+      BlockDataManagerConfig::setDbType(ARMORY_DB_SUPER);
+      config.blkFileLocation_ = blkdir_;
+      config.dbDir_ = ldbdir_;
+      config.threadCount_ = 3;
+      config.dataDir_ = homedir_;
+      config.nodeType_ = Node_UnitTest;
+
+      unsigned port_int = 50000 + rand() % 10000;
+      stringstream port_ss;
+      port_ss << port_int;
+      config.listenPort_ = port_ss.str();
+
+      startupBIP151CTX();
+
+      //setup auth peers for server and client
+      AuthorizedPeers serverPeers(homedir_, SERVER_AUTH_PEER_FILENAME);
+      AuthorizedPeers clientPeers(homedir_, CLIENT_AUTH_PEER_FILENAME);
+
+      //share public keys between client and server
+      auto& serverPubkey = serverPeers.getOwnPublicKey();
+      auto& clientPubkey = clientPeers.getOwnPublicKey();
+
+      stringstream serverAddr;
+      serverAddr << "127.0.0.1:" << config.listenPort_;
+      clientPeers.addPeer(serverPubkey, serverAddr.str());
+      serverPeers.addPeer(clientPubkey, "127.0.0.1");
+
+      wallet1id = BinaryData(string("wallet1"));
+
+      initBDM();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void TearDown(void)
+   {
+      shutdownBIP151CTX();
+
+      if (clients_ != nullptr)
+      {
+         clients_->exitRequestLoop();
+         clients_->shutdown();
+      }
+
+      delete clients_;
+      delete theBDMt_;
+
+      theBDMt_ = nullptr;
+      clients_ = nullptr;
+
+      DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
+      EXPECT_EQ(DatabaseContainer_Sharded::txShardMap_.size(), 0);
+
+      rmdir(blkdir_);
+      rmdir(homedir_);
+
+#ifdef _MSC_VER
+      rmdir("./ldbtestdir");
+      mkdir("./ldbtestdir");
+#else
+      string delstr = ldbdir_ + "/*";
+      rmdir(delstr);
+#endif
+      LOGENABLESTDOUT();
+      CLEANUP_ALL_TIMERS();
+   }
+
+   BlockDataManagerConfig config;
+
+   LMDBBlockDatabase* iface_;
+   BinaryData zeros_;
+
+   string blkdir_;
+   string homedir_;
+   string ldbdir_;
+   string blk0dat_;
+
+   BinaryData wallet1id;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
+TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 {
    BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
 
@@ -3290,7 +3409,7 @@ TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ParallelAsync)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsWithWalletTest, WebSocketStack_ZcUpdate)
+TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 {
    BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
 

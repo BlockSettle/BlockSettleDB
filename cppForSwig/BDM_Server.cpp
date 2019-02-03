@@ -1668,6 +1668,12 @@ void Clients::unregisterBDV(const string& bdvId)
       BDVs_.erase(bdvId);
    }
 
+   if (bdvPtr == nullptr)
+   {
+      LOGERR << "empty bdv ptr before unregistration";
+      return;
+   }
+
    bdvPtr->haltThreads();
 
    //we are done
