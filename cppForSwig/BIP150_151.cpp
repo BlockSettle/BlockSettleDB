@@ -468,11 +468,11 @@ void BIP151Session::chacha20Poly1305Rekey(uint8_t* keyToUpdate,
       std::copy(std::begin(sessionID_), std::end(sessionID_), &hashData2[0]);
       std::copy(keyToUpdate, keyToUpdate + keySize, &hashData2[BIP151PRVKEYSIZE]);
       std::copy(bip150ReqIDKey,
-                bip150ReqIDKey + BIP151PUBKEYSIZE,
-                &hashData2[BIP151PRVKEYSIZE*2]);
+                bip150ReqIDKey + bip150ReqIDKeySize,
+                &hashData2[BIP151PRVKEYSIZE + keySize]);
       std::copy(bip150ResIDKey,
-                bip150ResIDKey + BIP151PUBKEYSIZE,
-                &hashData2[(BIP151PRVKEYSIZE*2) + BIP151PUBKEYSIZE]);
+                bip150ResIDKey + bip150ResIDKeySize,
+                &hashData2[(BIP151PRVKEYSIZE + keySize) + bip150ReqIDKeySize]);
 
       uint256 hashOut2;
       btc_hash(hashData2.data(), hashData2.size(), hashOut2);
@@ -1014,11 +1014,12 @@ const int BIP151Connection::processAuthpropose(const uint8_t* inMsg,
 // IN:  authchallengeBufferSize - The size of the output buffer.
 //      targetIPPort - The IP:Port/Name of the target. This name is used to
 //                     to find the relevant public key, needed to generate the 
-//                     challenge hash (step 1). Passing an empty string will
-//                     pick the public key matching the preceding auth propose 
-//                     (step 4).
+//                     challenge hash (step 1). This argument is ignored in
+//                     step 4 (requesterSent == false).
 //      requesterSent - Indicates if the requester wants the data (true - step
-//                      1) or the responder (false - step 4).
+//                      1) or the responder (false - step 4). In step 4, the 
+//                      challenge key is set to the key from selected by the
+//                      AuthPropose process.
 //      goodPropose - Indicates if AUTHPROPOSE was validated. Applicable only
 //                    if the responder is getting AUTHCHALLENGE data.
 // OUT: authchallengeBuffer - The buffer with the authchallenge data.
@@ -1300,11 +1301,12 @@ BIP150StateMachine::BIP150StateMachine(
 // IN:  bufSize - AUTHCHALLENGE data buffer size. Must be >=32 bytes.
 //      targetIPPort - The IP:Port/Name of the target. This name is used to
 //                     to find the relevant public key, needed to generate the 
-//                     challenge hash (step 1). Passing an empty string will
-//                     pick the public key matching the preceding auth propose 
-//                     (step 4).
+//                     challenge hash (step 1). This argument is ignored in
+//                     step 4 (requesterSent == false).
 //      requesterSent - Indicates if the requester wants the data (true - step
-//                      1) or the responder (false - step 4).
+//                      1) or the responder (false - step 4). In step 4, the 
+//                      challenge key is set to the key from selected by the
+//                      AuthPropose process.
 //      goodPropose - Indicates if AUTHPROPOSE was validated. Applicable only
 //                    if the responder is getting AUTHCHALLENGE data.
 // OUT: buf - The data to go into an AUTHCHALLENGE messsage.
@@ -1356,18 +1358,11 @@ const int BIP150StateMachine::getAuthchallengeData(uint8_t* buf,
    {
       if (requesterSent == true)
       {
-         if (targetIPPort.size() != 0)
-         {
-            auto& foundKeyBin = authKeys_.getPubKey(targetIPPort);
-            chosenAuthPeerKey = foundKeyBin;
-         }
-
-         hashKey = &chosenAuthPeerKey;
+         auto& foundKeyBin = authKeys_.getPubKey(targetIPPort);
+         chosenAuthPeerKey = foundKeyBin;
       }
-      else
-      {
-         hashKey = &authKeys_.getPubKey("own");
-      }
+         
+      hashKey = &chosenAuthPeerKey;
    }
    catch (std::exception&)
    {
@@ -1557,13 +1552,12 @@ const int BIP150StateMachine::processAuthchallenge(const BinaryData& inData,
 {
    int retVal = -1;
    assert(inData.getSize() == BIP151PRVKEYSIZE);
-   const btc_pubkey* hashKey;
+   const btc_pubkey* hashKey = &authKeys_.getPubKey("own");
 
    if(requesterSent == true)
    {
       resetSM();
       curState_ = BIP150State::CHALLENGE1;
-      hashKey = &authKeys_.getPubKey("own");
    }
    else
    {
@@ -1575,8 +1569,6 @@ const int BIP150StateMachine::processAuthchallenge(const BinaryData& inData,
          return errorSM(retVal);
       }
       curState_ = BIP150State::CHALLENGE2;
-      hashKey = &chosenAuthPeerKey;
-      BinaryData hashkeystr(hashKey->pubkey, 33);
    }
 
    // Build a hash and compare.

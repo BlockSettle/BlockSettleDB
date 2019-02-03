@@ -74,7 +74,7 @@ protected:
 };
 
 
-/*
+
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(DISABLED_PartialMerkleTest, FullTree)
 {
@@ -2877,7 +2877,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_InOut_SameBlock)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 }
-*/
+
 ////////////////////////////////////////////////////////////////////////////////
 class WebSocketTests : public ::testing::Test
 {
