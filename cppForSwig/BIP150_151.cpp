@@ -278,7 +278,9 @@ void BIP151Session::sessionRekey(const bool& bip151Rekey,
                                  const uint8_t* reqIDKey,
                                  const size_t& reqIDKeySize,
                                  const uint8_t* resIDKey,
-                                 const size_t& resIDKeySize)
+                                 const size_t& resIDKeySize,
+                                 const uint8_t* oppositeSessionKey,
+                                 const size_t& oppositeSessionKeySize)
 {
    switch(cipherType_)
    {
@@ -293,18 +295,27 @@ void BIP151Session::sessionRekey(const bool& bip151Rekey,
       if(bip151Rekey == true)
       {
          chacha20Poly1305Rekey(poly1305Key, BIP151PRVKEYSIZE,
-                               true, nullptr, 0, nullptr, 0);
+                               true, nullptr, 0, nullptr, 0, nullptr, 0);
          chacha20Poly1305Rekey(chacha20Key, BIP151PRVKEYSIZE,
-                               true, nullptr, 0, nullptr, 0);
+                               true, nullptr, 0, nullptr, 0, nullptr, 0);
       }
       else
       {
+         assert(oppositeSessionKeySize == BIP151PRVKEYSIZE * 2);
+
+         const uint8_t* oppositePoly1305Key;
+         const uint8_t* oppositeChacha20Key;
+         oppositePoly1305Key = oppositeSessionKey;
+         oppositeChacha20Key = oppositeSessionKey + BIP151PRVKEYSIZE;
+
          chacha20Poly1305Rekey(poly1305Key, BIP151PRVKEYSIZE,
                                false, reqIDKey, reqIDKeySize,
-                               resIDKey, resIDKeySize);
+                               resIDKey, resIDKeySize, 
+                               oppositePoly1305Key, BIP151PRVKEYSIZE);
          chacha20Poly1305Rekey(chacha20Key, BIP151PRVKEYSIZE,
                                false, reqIDKey, reqIDKeySize,
-                               resIDKey, resIDKeySize);
+                               resIDKey, resIDKeySize, 
+                               oppositeChacha20Key, BIP151PRVKEYSIZE);
       }
 
       //upload new keys to chacha session
@@ -437,13 +448,12 @@ const int BIP151Session::decPayload(const uint8_t* cipherData,
 // IN:  keySize - The size of the key to be updated.
 // OUT: keyToUpdate - The updated key (ChaCha20 or Poly1305).
 // RET: None
-void BIP151Session::chacha20Poly1305Rekey(uint8_t* keyToUpdate,
-                                          const size_t& keySize,
-                                          const bool& bip151Rekey,
-                                          const uint8_t* bip150ReqIDKey,
-                                          const size_t& bip150ReqIDKeySize,
-                                          const uint8_t* bip150ResIDKey,
-                                          const size_t& bip150ResIDKeySize)
+void BIP151Session::chacha20Poly1305Rekey(
+   uint8_t* keyToUpdate, const size_t& keySize, 
+   const bool& bip151Rekey,
+   const uint8_t* bip150ReqIDKey, const size_t& bip150ReqIDKeySize,
+   const uint8_t* bip150ResIDKey, const size_t& bip150ResIDKeySize,
+   const uint8_t* oppositeChannelCipherKey, const size_t& oppositeChannelCipherKeySize)
 {
    assert(keySize == BIP151PRVKEYSIZE);
 
@@ -460,19 +470,24 @@ void BIP151Session::chacha20Poly1305Rekey(uint8_t* keyToUpdate,
    }
    else
    {
-      assert(bip150ReqIDKeySize >= 33);
-      assert(bip150ResIDKeySize >= 33);
+      assert(bip150ReqIDKeySize == BIP151PUBKEYSIZE);
+      assert(bip150ResIDKeySize == BIP151PUBKEYSIZE);
+      assert(oppositeChannelCipherKeySize == BIP151PRVKEYSIZE);
 
       // Generate, via 2xSHA256, a new symmetric key.
-      std::array<uint8_t, 130> hashData2;
+      std::array<uint8_t, 162> hashData2;
       std::copy(std::begin(sessionID_), std::end(sessionID_), &hashData2[0]);
       std::copy(keyToUpdate, keyToUpdate + keySize, &hashData2[BIP151PRVKEYSIZE]);
+      std::copy(oppositeChannelCipherKey, 
+         oppositeChannelCipherKey + oppositeChannelCipherKeySize,
+         &hashData2[BIP151PRVKEYSIZE + keySize]);
+
       std::copy(bip150ReqIDKey,
                 bip150ReqIDKey + bip150ReqIDKeySize,
-                &hashData2[BIP151PRVKEYSIZE + keySize]);
+                &hashData2[BIP151PRVKEYSIZE + keySize + oppositeChannelCipherKeySize]);
       std::copy(bip150ResIDKey,
                 bip150ResIDKey + bip150ResIDKeySize,
-                &hashData2[(BIP151PRVKEYSIZE + keySize) + bip150ReqIDKeySize]);
+                &hashData2[BIP151PRVKEYSIZE + keySize + oppositeChannelCipherKeySize + bip150ReqIDKeySize]);
 
       uint256 hashOut2;
       btc_hash(hashData2.data(), hashData2.size(), hashOut2);
@@ -784,7 +799,7 @@ const int BIP151Connection::processEncack(const uint8_t* inMsg,
       }
       else
       {
-         inSes_.sessionRekey(true, nullptr, 0, nullptr, 0);
+         inSes_.sessionRekey(true, nullptr, 0, nullptr, 0, nullptr, 0);
          retVal = 0;
       }
    }
@@ -914,7 +929,7 @@ const int BIP151Connection::bip151RekeyConn(uint8_t* encackBuf,
       return retVal;
    }
 
-   outSes_.sessionRekey(true, nullptr, 0, nullptr, 0);
+   outSes_.sessionRekey(true, nullptr, 0, nullptr, 0, nullptr, 0);
    retVal = 0;
    return retVal;
 }
@@ -1853,17 +1868,20 @@ const int BIP150StateMachine::errorSM(const int& outVal)
 void BIP150StateMachine::rekey()
 {
    auto ownPubKey = authKeys_.getPubKey("own");
+   auto outSesOldKey = outSes_->hkdfKeySet_;
    outSes_->sessionRekey(false,
       ownPubKey.pubkey,
       BIP151PUBKEYSIZE,
       chosenAuthPeerKey.pubkey,
-      BIP151PUBKEYSIZE);
+      BIP151PUBKEYSIZE,
+      inSes_->hkdfKeySet_.data(), 64);
 
    inSes_->sessionRekey(false, 
       chosenAuthPeerKey.pubkey, 
       BIP151PUBKEYSIZE,
       ownPubKey.pubkey, 
-      BIP151PUBKEYSIZE);
+      BIP151PUBKEYSIZE, 
+      outSesOldKey.data(), 64);
    
    curState_ = BIP150State::SUCCESS;
 }

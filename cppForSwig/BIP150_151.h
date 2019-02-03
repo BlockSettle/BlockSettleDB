@@ -115,6 +115,8 @@ public:
 
 class BIP151Session
 {
+   friend class BIP150StateMachine;
+
 private:
    chachapolyaead_ctx sessionCTX_; // Session context
    std::array<uint8_t, BIP151PRVKEYSIZE> sessionID_{}; // Session ID
@@ -133,13 +135,12 @@ private:
    const int verifyCipherType();
    void gettempECDHPubKey(btc_pubkey* tempECDHPubKey);
    const int genSymKeys(const uint8_t* peerECDHPubKey);
-   void chacha20Poly1305Rekey(uint8_t* keyToUpdate,
-                              const size_t& keySize,
-                              const bool& bip151Rekey,
-                              const uint8_t* bip150ReqIDKey,
-                              const size_t& bip150ReqIDKeySize,
-                              const uint8_t* bip150ResIDKey,
-                              const size_t& bip150ResIDKeySize);
+   void chacha20Poly1305Rekey(
+      uint8_t* keyToUpdate, const size_t& keySize,
+      const bool& bip151Rekey,
+      const uint8_t* bip150ReqIDKey, const size_t& bip150ReqIDKeySize,
+      const uint8_t* bip150ResIDKey, const size_t& bip150ResIDKeySize,
+      const uint8_t* oppositeChannelCipherKey, const size_t& oppositeChannelCipherKeySize);
 
 public:
    // Constructor setting the session direction.
@@ -153,7 +154,9 @@ public:
                      const uint8_t* reqIDKey,
                      const size_t& reqIDKeySize,
                      const uint8_t* resIDKey,
-                     const size_t& resIDKeySize);
+                     const size_t& resIDKeySize,
+                     const uint8_t* oppositeSessionKey,
+                     const size_t& oppositeSessionKeySize);
    // "Smart" ciphertype set. Checks to make sure it's valid.
    const int setCipherType(const BIP151SymCiphers& inCipher);
    void setEncinitSeen() { encinit_ = true; }
@@ -263,7 +266,7 @@ public:
    const int getEncackData(uint8_t* encackBuf, const size_t& encBufSize);
    const bool rekeyNeeded(const size_t& sz) { return outSes_.rekeyNeeded(sz); }
    const int bip151RekeyConn(uint8_t* encackBuf, const size_t& encackSize);
-   void rekeyOuterSession(void) { outSes_.sessionRekey(true, nullptr, 0, nullptr, 0); }
+   void rekeyOuterSession(void) { outSes_.sessionRekey(true, nullptr, 0, nullptr, 0, nullptr, 0); }
    const uint8_t* getSessionID(const bool& dirIsOut);
    const bool connectionComplete() const { return(inSes_.handshakeComplete() == true &&
                                                   outSes_.handshakeComplete() == true); }
