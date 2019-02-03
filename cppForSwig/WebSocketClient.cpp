@@ -57,59 +57,80 @@ void WebSocketClient::pushPayload(
       readPackets_.insert(make_pair(id, move(response)));   
    }
 
-   vector<uint8_t> data;
-   write_payload->serialize(data);
+   write_payload->id_ = id;
+   writeSerializationQueue_.push_back(move(write_payload));
+}
 
-   //push packets to write queue
-   if(!bip151Connection_->connectionComplete())
-      throw LWS_Error("invalid aead state");
-
-   //check for rekey
+////////////////////////////////////////////////////////////////////////////////
+void WebSocketClient::writeService()
+{
+   while (true)
    {
-      bool needs_rekey = false;
-      auto rightnow = chrono::system_clock::now();
-
-      if (bip151Connection_->rekeyNeeded(write_payload->getSerializedSize()))
+      unique_ptr<Socket_WritePayload> message;
+      try
       {
-         needs_rekey = true;
+         message = move(writeSerializationQueue_.pop_front());
       }
-      else
+      catch (StopBlockingLoop&)
       {
-         auto time_sec = chrono::duration_cast<chrono::seconds>(
-            rightnow - outKeyTimePoint_);
-         if (time_sec.count() >= AEAD_REKEY_INVERVAL_SECONDS)
+         break;
+      }
+
+      vector<uint8_t> data;
+      message->serialize(data);
+
+      //push packets to write queue
+      if (!bip151Connection_->connectionComplete())
+         throw LWS_Error("invalid aead state");
+
+      //check for rekey
+      {
+         bool needs_rekey = false;
+         auto rightnow = chrono::system_clock::now();
+
+         if (bip151Connection_->rekeyNeeded(message->getSerializedSize()))
+         {
             needs_rekey = true;
+         }
+         else
+         {
+            auto time_sec = chrono::duration_cast<chrono::seconds>(
+               rightnow - outKeyTimePoint_);
+            if (time_sec.count() >= AEAD_REKEY_INVERVAL_SECONDS)
+               needs_rekey = true;
+         }
+
+         if (needs_rekey)
+         {
+            BinaryData rekeyPacket(BIP151PUBKEYSIZE);
+            memset(rekeyPacket.getPtr(), 0, BIP151PUBKEYSIZE);
+
+            SerializedMessage rekey_msg;
+            rekey_msg.construct(
+               rekeyPacket.getDataVector(),
+               bip151Connection_.get(), WS_MSGTYPE_AEAD_REKEY);
+
+            writeQueue_.push_back(move(rekey_msg));
+            bip151Connection_->rekeyOuterSession();
+            outKeyTimePoint_ = rightnow;
+            ++outerRekeyCount_;
+         }
       }
 
-      if (needs_rekey)
-      {
-         BinaryData rekeyPacket(BIP151PUBKEYSIZE);
-         memset(rekeyPacket.getPtr(), 0, BIP151PUBKEYSIZE);
+      SerializedMessage ws_msg;
+      ws_msg.construct(
+         data, bip151Connection_.get(), 
+         WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, message->id_);
 
-         SerializedMessage rekey_msg;
-         rekey_msg.construct(
-            rekeyPacket.getDataVector(), 
-            bip151Connection_.get(), WS_MSGTYPE_AEAD_REKEY);
+      writeQueue_.push_back(move(ws_msg));
 
-         writeQueue_.push_back(move(rekey_msg));
-         bip151Connection_->rekeyOuterSession();
-         outKeyTimePoint_ = rightnow;
-         ++outerRekeyCount_;
-      }
+      //trigger write callback
+      auto wsiptr = (struct lws*)wsiPtr_.load(memory_order_relaxed);
+      if (wsiptr == nullptr)
+         throw LWS_Error("invalid lws instance");
+      if (lws_callback_on_writable(wsiptr) < 1)
+         throw LWS_Error("invalid lws instance");
    }
-
-   SerializedMessage ws_msg;
-   ws_msg.construct(
-      data, bip151Connection_.get(), WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, id);
-
-   writeQueue_.push_back(move(ws_msg));
-
-   //trigger write callback
-   auto wsiptr = (struct lws*)wsiPtr_.load(memory_order_relaxed);
-   if (wsiptr == nullptr)
-      throw LWS_Error("invalid lws instance");
-   if (lws_callback_on_writable(wsiptr) < 1)
-      throw LWS_Error("invalid lws instance");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,6 +213,13 @@ bool WebSocketClient::connectToRemote()
 
    readThr_ = thread(readLBD);
 
+   auto writeLBD = [this](void)->void
+   {
+      this->writeService();
+   };
+
+   writeThr_ = thread(writeLBD);
+
    return connectedFut.get();
 }
 
@@ -217,15 +245,22 @@ void WebSocketClient::shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::cleanUp()
 {
+   writeSerializationQueue_.terminate();
    readQueue_.terminate();
 
    try
    {
+      if (writeThr_.joinable())
+         writeThr_.join();
+
       if(readThr_.joinable())
          readThr_.join();
    }
    catch(system_error& e)
    {
+      LOGERR << "failed to join on client threads with error:";
+      LOGERR << e.what();
+
       throw e;
    }
    

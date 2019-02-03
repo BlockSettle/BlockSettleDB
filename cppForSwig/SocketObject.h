@@ -72,6 +72,8 @@ struct Socket_ReadPayload
 ///////////////////////////////////////////////////////////////////////////////
 struct Socket_WritePayload
 {
+   unsigned id_;
+
    virtual ~Socket_WritePayload(void) = 0;
    virtual void serialize(std::vector<uint8_t>&) = 0;
    virtual std::string serializeToText(void) = 0;
