@@ -28,6 +28,7 @@
 // direct access to libsecp256k1 calls, just create one.
 secp256k1_context* secp256k1_ecdh_ctx = nullptr;
 uint32_t ipType_ = 0;
+bool publicRequester_ = false;
 
 // FIX/NOTE: Just use btc_ecc_start() from btc/ecc.h when starting up Armory.
 // Need to initialize things, and not just for BIP 151 once libbtc is used more.
@@ -1288,12 +1289,14 @@ const size_t BIP151Message::messageSizeHint()
 // 
 // IN:  ipVer - The IP version to be used. Valid values are 4, 6, and 20 (20
 //              indicates that Armory will use Tor).
-//      dataDir - The directory that stores the relevant key material.
+//      publicRequester - false: auth both sides
+//                        true: auth responder (server), allow anonymous requester (client)
 // OUT: None
 // RET: N/A
-void startupBIP150CTX(const uint32_t& ipVer)
+void startupBIP150CTX(const uint32_t& ipVer, bool publicRequester)
 {
    ::ipType_ = ipVer;
+   ::publicRequester_ = publicRequester;
 }
 
 // Overridden constructor for a BIP 150 state machine session. Sets the internal
@@ -1397,8 +1400,19 @@ const int BIP150StateMachine::getAuthchallengeData(uint8_t* buf,
    }
    else if(goodPropose == false && requesterSent == false) // AC 2 BAD
    {
-      std::array<uint8_t, BIP151PUBKEYSIZE> badPropose{};
-      buildHashData(buf, badPropose.data(), false);
+      //could not find an authorized public key from auth propose
+      if (::publicRequester_ == false)
+      {
+         //we do not allow for unknown peers, return all 0 auth challenge
+         std::memset(buf, 0, BIP151PRVKEYSIZE);
+      }
+      else
+      {
+         //we allow for anon peers, return all 1s auth challenge
+         std::memset(buf, 0xFF, BIP151PRVKEYSIZE);
+         return 1;
+      }
+
       retVal = 1;
    }
 
@@ -1499,6 +1513,12 @@ const int BIP150StateMachine::getAuthreplyData(uint8_t* buf,
 
       retVal = 0;
    } // if
+   else if (!responderSent && ::publicRequester_)
+   {
+      const btc_pubkey* hashKey = &authKeys_.getPubKey("own");
+      std::memcpy(buf, hashKey->pubkey, BIP151PUBKEYSIZE);
+      retVal = 0;
+   }
    else
    {
       std::memset(buf, 0, BIP151PRVKEYSIZE*2);
@@ -1594,8 +1614,19 @@ const int BIP150StateMachine::processAuthchallenge(const BinaryData& inData,
       return errorSM(retVal);
    }
 
-   if(memcmp(inData.getPtr(), challengeHash.data(), BIP151PRVKEYSIZE) != 0)
+   if(std::memcmp(inData.getPtr(), challengeHash.data(), BIP151PRVKEYSIZE) != 0)
    {
+      if (!requesterSent && ::publicRequester_)
+      {
+         char anonChallenge[BIP151PRVKEYSIZE];
+         memset(anonChallenge, 0xFF, BIP151PRVKEYSIZE);
+         if (std::memcmp(inData.getPtr(), anonChallenge, BIP151PRVKEYSIZE) == 0)
+         {
+            //valid anon auth challenge from responder
+            return 1;
+         }
+      }
+      
       LOGERR << "BIP 150 - AUTHCHALLENGE message cannot be verified.";
       return errorSM(1);
    }
@@ -1674,6 +1705,17 @@ const int BIP150StateMachine::processAuthreply(BinaryData& inData,
    }
    else
    {
+      if (::publicRequester_ && !responderSent && !goodChallenge)
+      {
+         //Responder allows for anon peers and requester auth propose had no match,
+         //this auth reply carries the requester's public key instead of the signed
+         //session id. Set the peer auth key in order to rekey successfully.
+         btc_pubkey_init(&chosenAuthPeerKey);
+         std::memcpy(chosenAuthPeerKey.pubkey, inData.getPtr(), BIP151PUBKEYSIZE);
+         chosenAuthPeerKey.compressed = true;
+         return 0;
+      }
+
       LOGERR << "BIP 150 - AUTHREPLY signature cannot be verified.";
       retVal = 1;
       return errorSM(retVal);
@@ -1725,6 +1767,12 @@ const int BIP150StateMachine::processAuthpropose(const BinaryData& inData)
    // If we found a valid key, save it for later processing purposes.
    if(validKey == nullptr)
    {
+      if (::publicRequester_)
+      {
+         //public responders tolerate anon peers
+         return 1;
+      }
+
       LOGERR << "BIP 150 - Unable to verify AUTHPROPOSE message.";
       return errorSM(1);
    }

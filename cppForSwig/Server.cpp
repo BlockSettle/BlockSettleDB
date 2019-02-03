@@ -432,9 +432,9 @@ void WebSocketServer::commandThread()
          continue;
       }
 
-      if (!bip151Connection->connectionComplete())
+      if (bip151Connection->getBIP150State() != BIP150State::SUCCESS)
       {
-         //can't get this far without encryption
+         //can't get this far without fully setup AEAD
          closeClientConnection(packetPtr->bdvID_);
          continue;
       }
@@ -809,6 +809,11 @@ void WebSocketServer::processAEADHandshake(
          {
             goodPropose = false;
          }
+         else
+         {
+            //keep track of the propose check state
+            clientState.bip151Connection_->setGoodPropose();
+         }
 
          BinaryData authchallengeBuf(BIP151PRVKEYSIZE);
          if(clientState.bip151Connection_->getAuthchallengeData(
@@ -835,7 +840,7 @@ void WebSocketServer::processAEADHandshake(
             dataBdr.getPtr(),
             dataBdr.getSize(),
             false,
-            true) != 0)
+            clientState.bip151Connection_->getProposeFlag()) != 0)
          {
             //invalid auth setup, kill connection
             return false;

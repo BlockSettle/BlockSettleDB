@@ -74,7 +74,6 @@ protected:
 };
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(DISABLED_PartialMerkleTest, FullTree)
 {
@@ -2930,6 +2929,7 @@ protected:
       config.listenPort_ = port_ss.str();
 
       startupBIP151CTX();
+      startupBIP150CTX(4, false);
 
       //setup auth peers for server and client
       AuthorizedPeers serverPeers(homedir_, SERVER_AUTH_PEER_FILENAME);
@@ -2999,6 +2999,13 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 {
+   //anon client
+   {
+      AuthorizedPeers serverPeers(homedir_, SERVER_AUTH_PEER_FILENAME);
+      serverPeers.eraseName("127.0.0.1");
+      startupBIP150CTX(4, true);
+   }
+
    BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
 
    //

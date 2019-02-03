@@ -436,7 +436,7 @@ void WebSocketClient::readService()
          continue;
       }
 
-      if (!bip151Connection_->connectionComplete())
+      if (bip151Connection_->getBIP150State() != BIP150State::SUCCESS)
       {
          LOGWARN << "encryption layer is uninitialized, aborting connection";
          shutdown();
@@ -629,17 +629,19 @@ bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj
       }
 
       BinaryData authreplyBuf(BIP151PRVKEYSIZE * 2);
-      if (bip151Connection_->getAuthreplyData(
+      auto validReply = bip151Connection_->getAuthreplyData(
          authreplyBuf.getPtr(),
          authreplyBuf.getSize(),
          false, //true: step #5 of 6
-         goodChallenge) == -1)
+         goodChallenge);
+
+      writeData(authreplyBuf, WS_MSGTYPE_AUTH_REPLY, true);
+
+      if (validReply != 0)
       {
          //auth setup failure, kill connection
          return false;
       }
-
-      writeData(authreplyBuf, WS_MSGTYPE_AUTH_REPLY, true);
 
       //rekey
       bip151Connection_->bip150HandshakeRekey();

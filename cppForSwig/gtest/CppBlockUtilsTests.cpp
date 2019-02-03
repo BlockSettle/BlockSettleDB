@@ -236,7 +236,7 @@ TEST_F(BIP150_151Test, checkData_151_Only)
    // Run before the first test has been run. (SetUp/TearDown will be called
    // for each test. Multiple context startups/shutdowns leads to crashes.)
    startupBIP151CTX();
-   startupBIP150CTX(4);
+   startupBIP150CTX(4, false);
 
    // BIP 151 connection uses private keys we feed it. (Normally, we'd let it
    // generate its own private keys.)
@@ -607,7 +607,7 @@ TEST_F(BIP150_151Test, checkData_150_151)
    AuthPeersLambdas aklCli(cli_getPubKeyMap, cli_getPrivKey, cli_getauthset);
 
 
-   startupBIP150CTX(4);
+   startupBIP150CTX(4, false);
 
    btc_key prvKeyCliIn;
    btc_key prvKeyCliOut;
@@ -10139,6 +10139,7 @@ protected:
       LB2ID = BinaryData(TestChain::lb2B58ID);
 
       startupBIP151CTX();
+      startupBIP150CTX(4, false);
 
       //setup auth peers for server and client
       AuthorizedPeers serverPeers(homedir_, SERVER_AUTH_PEER_FILENAME);
@@ -10205,6 +10206,13 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack)
 {
+   //anon client
+   {
+      AuthorizedPeers serverPeers(homedir_, SERVER_AUTH_PEER_FILENAME);
+      serverPeers.eraseName("127.0.0.1");
+      startupBIP150CTX(4, true);
+   }
+   
    BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
