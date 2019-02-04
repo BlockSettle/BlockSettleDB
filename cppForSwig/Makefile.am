@@ -104,6 +104,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	AssetEncryption.cpp \
 	Assets.cpp \
 	AsyncClient.cpp \
+	AuthorizedPeers.cpp \
 	BinaryData.cpp \
 	BIP32_Node.cpp \
 	BlockDataManagerConfig.cpp \
@@ -217,6 +218,7 @@ ArmoryDB_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
 		 $(LIBCRYPTOPP) \
 		 $(LIBBTC) \
+		 $(LIBCHACHA20POLY1305) \
 		 $(LIBLMDB) \
 		 -lpthread -lprotobuf -lwebsockets
 ArmoryDB_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static

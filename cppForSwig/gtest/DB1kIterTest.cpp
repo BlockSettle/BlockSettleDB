@@ -35,9 +35,9 @@ protected:
       gentx_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
       zeros_ = READHEX("00000000");
 
-      blkdir_ = string("./blkfiletest");
-      homedir_ = string("./fakehomedir");
-      ldbdir_ = string("./ldbtestdir");
+      blkdir_ = std::string("./blkfiletest");
+      homedir_ = std::string("./fakehomedir");
+      ldbdir_ = std::string("./ldbtestdir");
 
       rmdir(blkdir_);
       rmdir(homedir_);
@@ -87,7 +87,7 @@ protected:
       rmdir("./ldbtestdir");
       mkdir("./ldbtestdir");
 #else
-      string delstr = ldbdir_ + "/*";
+      std::string delstr = ldbdir_ + "/*";
       rmdir(delstr);
 #endif
       LOGENABLESTDOUT();
@@ -102,10 +102,10 @@ protected:
    BinaryData gentx_;
    BinaryData zeros_;
 
-   string blkdir_;
-   string homedir_;
-   string ldbdir_;
-   string blk0dat_;
+   std::string blkdir_;
+   std::string homedir_;
+   std::string ldbdir_;
+   std::string blk0dat_;
 
    BinaryData wallet1id;
    BinaryData wallet2id;
@@ -119,7 +119,7 @@ TEST_F(DB1kIter, DbInit1kIter)
    theBDMt_->start(config.initMode_);
    auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
 
-   vector<BinaryData> scrAddrVec;
+   std::vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
@@ -127,12 +127,12 @@ TEST_F(DB1kIter, DbInit1kIter)
    scrAddrVec.push_back(TestChain::scrAddrE);
    scrAddrVec.push_back(TestChain::scrAddrF);
 
-   const vector<BinaryData> lb1ScrAddrs
+   const std::vector<BinaryData> lb1ScrAddrs
    {
       TestChain::lb1ScrAddr,
       TestChain::lb1ScrAddrP2SH
    };
-   const vector<BinaryData> lb2ScrAddrs
+   const std::vector<BinaryData> lb2ScrAddrs
    {
       TestChain::lb2ScrAddr,
       TestChain::lb2ScrAddrP2SH
@@ -157,7 +157,7 @@ TEST_F(DB1kIter, DbInit1kIter)
 
    for (unsigned i = 0; i<1000; i++)
    {
-      cout << "iter: " << i << endl;
+      std::cout << "iter: " << i << std::endl;
       initBDM();
       auto bdm = theBDMt_->bdm();
       bdm->doInitialSyncOnLoad_Rebuild(fakeprog);
@@ -177,14 +177,14 @@ TEST_F(DB1kIter, DbInit1kIter)
 TEST_F(DB1kIter, DbInit1kIter_WithSignals)
 {
 
-   vector<BinaryData> scrAddrVec;
+   std::vector<BinaryData> scrAddrVec;
 
-   const vector<BinaryData> lb1ScrAddrs
+   const std::vector<BinaryData> lb1ScrAddrs
    {
       TestChain::lb1ScrAddr,
       TestChain::lb1ScrAddrP2SH
    };
-   const vector<BinaryData> lb2ScrAddrs
+   const std::vector<BinaryData> lb2ScrAddrs
    {
       TestChain::lb2ScrAddr,
       TestChain::lb2ScrAddrP2SH
@@ -242,7 +242,7 @@ TEST_F(DB1kIter, DbInit1kIter_WithSignals)
       fread(rawZC.getPtr(), 259, 1, ff);
       fclose(ff);
       DBTestUtils::ZcVector rawZcVec;
-      rawZcVec.push_back(move(rawZC), 1300000000);
+      rawZcVec.push_back(std::move(rawZC), 1300000000);
 
       BinaryData ZChash = READHEX(TestChain::zcTxHash256);
 
@@ -441,7 +441,7 @@ TEST_F(DB1kIter, DbInit1kIter_WithSignals)
       delete clients_;
       delete theBDMt_;
 
-      cout << i << endl;
+      std::cout << i << std::endl;
 
       rmdir(blkdir_);
       rmdir(homedir_);

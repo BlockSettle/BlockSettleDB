@@ -44,6 +44,7 @@ gtest_DB1kIterTest_LDADD = gtest/libgtest.la $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
 		 $(LIBCRYPTOPP) \
 		 $(LIBBTC) \
+		 $(LIBCHACHA20POLY1305) \
 		 $(LIBLMDB) \
 		 -lprotobuf
 gtest_DB1kIterTest_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
@@ -70,6 +71,7 @@ gtest_SupernodeTests_LDADD = gtest/libgtest.la \
 			$(LIBCRYPTOPP) \
 			$(LIBLMDB) \
 			$(LIBBTC) \
+			$(LIBCHACHA20POLY1305) \
 			-lprotobuf
 gtest_SupernodeTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/SupernodeTests
@@ -101,6 +103,7 @@ gtest_WalletTests_LDADD = gtest/libgtest.la \
 			$(LIBARMORYCLI) \
 			$(LIBCRYPTOPP) \
 			$(LIBBTC) \
+			$(LIBCHACHA20POLY1305) \
 			$(LIBLMDB) \
 			-lprotobuf
 gtest_WalletTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static

@@ -5,6 +5,8 @@
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
+#include <stdexcept>
+
 #include "TestUtils.h"
 
 
@@ -17,9 +19,9 @@ class BIP151RekeyTest : public ::testing::Test
 protected:
    virtual void SetUp(void)
    {
-      string command_hexstr = "fake";
-      string payload_hexstr = "deadbeef";
-      string msg_hexstr = "0d0000000466616b6504000000deadbeef";
+      std::string command_hexstr = "fake";
+      std::string payload_hexstr = "deadbeef";
+      std::string msg_hexstr = "0d0000000466616b6504000000deadbeef";
 
       command.copyFrom(command_hexstr);
       payload = READHEX(payload_hexstr);
@@ -38,8 +40,28 @@ TEST_F(BIP151RekeyTest, rekeyRequired)
    // for each test. Context startup/shutdown multiple times leads to crashes.)
    startupBIP151CTX();
 
-   BIP151Connection cliCon;
-   BIP151Connection srvCon;
+   // BIP 151 connection uses private keys we feed it. (Normally, we'd let it
+   // generate its own private keys.)
+   auto getpubkeymap = [](void)->const std::map<std::string, btc_pubkey>&
+   {
+      throw std::runtime_error("");
+   };
+
+   auto getprivkey = [](const BinaryDataRef&)->const SecureBinaryData&
+   {
+      throw std::runtime_error("");
+   };
+
+   auto getauthset = [](void)->const std::set<SecureBinaryData>&
+   {
+      throw std::runtime_error("");
+   };
+
+   AuthPeersLambdas akl1(getpubkeymap, getprivkey, getauthset);
+   AuthPeersLambdas akl2(getpubkeymap, getprivkey, getauthset);
+
+   BIP151Connection cliCon(akl1);
+   BIP151Connection srvCon(akl2);
 
    // Set up encinit/encack directly. (Initial encinit/encack will use regular
    // Bitcoin P2P messages, which we'll skip building.) Confirm all steps
@@ -101,7 +123,7 @@ TEST_F(BIP151RekeyTest, rekeyRequired)
                            encMsgBuffer.getSize(),
                            decMsgBuffer.getPtr(),
                            decMsgBuffer.getSize());
-      EXPECT_FALSE(cliCon.rekeyNeeded());
+      EXPECT_FALSE(cliCon.rekeyNeeded(testMsgData.getSize()));
       EXPECT_EQ(msg, decMsgBuffer);
    }
    cliCon.assemblePacket(testMsgData.getPtr(),
@@ -112,7 +134,7 @@ TEST_F(BIP151RekeyTest, rekeyRequired)
                         encMsgBuffer.getSize(),
                         decMsgBuffer.getPtr(),
                         decMsgBuffer.getSize());
-   EXPECT_TRUE(cliCon.rekeyNeeded());
+   EXPECT_TRUE(cliCon.rekeyNeeded(testMsgData.getSize()));
    EXPECT_EQ(msg, decMsgBuffer);
 
    // Do a rekey and confirm that everything has been reset.
@@ -146,7 +168,7 @@ TEST_F(BIP151RekeyTest, rekeyRequired)
                            encMsgBuffer.getSize(),
                            decMsgBuffer.getPtr(),
                            decMsgBuffer.getSize());
-      EXPECT_FALSE(cliCon.rekeyNeeded());
+      EXPECT_FALSE(cliCon.rekeyNeeded(testMsgData.getSize()));
       EXPECT_EQ(msg, decMsgBuffer);
    }
    cliCon.assemblePacket(testMsgData.getPtr(),
@@ -157,7 +179,7 @@ TEST_F(BIP151RekeyTest, rekeyRequired)
                         encMsgBuffer.getSize(),
                         decMsgBuffer.getPtr(),
                         decMsgBuffer.getSize());
-   EXPECT_TRUE(cliCon.rekeyNeeded());
+   EXPECT_TRUE(cliCon.rekeyNeeded(testMsgData.getSize()));
    EXPECT_EQ(msg, decMsgBuffer);
 
    // Run after the final test has finished.
