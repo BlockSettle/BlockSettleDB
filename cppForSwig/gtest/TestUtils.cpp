@@ -659,11 +659,11 @@ namespace DBTestUtils
 
       auto payload = make_shared<BDV_Payload>();
       payload->messageID_ = 0;
-      payload->packet_ = make_shared<BDV_packet>(0, nullptr);
+      payload->bdvID_ = 0;
 
       auto bdRef = bdVec[0].getSliceRef(
          LWS_PRE, bdVec[0].getSize() - LWS_PRE);
-      payload->packet_->data_ = bdRef;
+      payload->packetData_ = bdRef;
       
       BinaryData zero;
       zero.resize(8);
