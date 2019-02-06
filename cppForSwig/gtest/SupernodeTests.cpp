@@ -3396,7 +3396,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 
       auto rekeyCount = bdvObj->getRekeyCount();
       EXPECT_EQ(rekeyCount.first, 2);
-      EXPECT_EQ(rekeyCount.second, 9);
+      EXPECT_TRUE(rekeyCount.second > 7);
       bdvObj->unregisterFromDB();
    };
 

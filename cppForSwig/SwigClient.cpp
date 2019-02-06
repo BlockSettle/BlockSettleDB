@@ -459,6 +459,12 @@ string SwigClient::BtcWallet::registerAddresses(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+string SwigClient::BtcWallet::setUnconfirmedTarget(unsigned confTarget)
+{
+   return asyncWallet_.setUnconfirmedTarget(confTarget);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 vector<uint64_t> SwigClient::BtcWallet::getBalancesAndCount(
    uint32_t blockheight)
 {

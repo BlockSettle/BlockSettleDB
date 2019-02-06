@@ -10422,6 +10422,22 @@ TEST_F(WebSocketTests, WebSocketStack)
    lb2Balances = lb2.getBalancesAndCount(5);
    EXPECT_EQ(lb2Balances[0], 30 * COIN);
 
+   //set wallet unconfirmed balance target to 2 blocks
+   auto&& confId = wallet1.setUnconfirmedTarget(2);
+   vector<string> confIdVec;
+   confIdVec.push_back(confId);
+   pCallback->waitOnManySignals(BDMAction_Refresh, confIdVec);
+
+   //check new wallet balances
+   w1Balances = wallet1.getBalancesAndCount(5);
+   fullBalance = w1Balances[0];
+   spendableBalance = w1Balances[1];
+   unconfirmedBalance = w1Balances[2];
+   EXPECT_EQ(fullBalance, 170 * COIN);
+   EXPECT_EQ(spendableBalance, 70 * COIN);
+   EXPECT_EQ(unconfirmedBalance, 130 * COIN);
+
+
    //check rekey count
    auto rekeyCount = bdvObj->getRekeyCount();
 

@@ -118,6 +118,7 @@ namespace SwigClient
 
       virtual std::string registerAddresses(
          const std::vector<BinaryData>& addrVec, bool isNew);
+      std::string setUnconfirmedTarget(unsigned);
    };
 
    ///////////////////////////////////////////////////////////////////////////////

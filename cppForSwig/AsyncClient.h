@@ -215,6 +215,8 @@ namespace AsyncClient
          const std::vector<BinaryData>& addrVec, bool isNew);
       void createAddressBook(
          std::function<void(ReturnMessage<std::vector<AddressBookEntry>>)>) const;
+
+      std::string setUnconfirmedTarget(unsigned);
    };
 
    /////////////////////////////////////////////////////////////////////////////

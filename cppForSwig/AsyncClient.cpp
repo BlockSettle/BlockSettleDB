@@ -544,6 +544,22 @@ string AsyncClient::BtcWallet::registerAddresses(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+string AsyncClient::BtcWallet::setUnconfirmedTarget(unsigned confTarget)
+{
+   auto payload = BlockDataViewer::make_payload(
+      Methods::setWalletConfTarget, bdvID_);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+   command->set_walletid(walletID_);
+
+   auto&& registrationId = CryptoPRNG::generateRandom(5).toHexStr();
+   command->set_hash(registrationId);
+   command->set_height(confTarget);
+
+   sock_->pushPayload(move(payload), nullptr);
+   return registrationId;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getBalancesAndCount(uint32_t blockheight, 
    function<void(ReturnMessage<vector<uint64_t>>)> callback)
 {
