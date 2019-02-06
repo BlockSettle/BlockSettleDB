@@ -58,6 +58,19 @@ bool BlockDataViewer::connectToRemote(void)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+void BlockDataViewer::addPublicKey(const SecureBinaryData& pubkey)
+{
+   auto wsSock = dynamic_pointer_cast<WebSocketClient>(sock_);
+   if (wsSock == nullptr)
+   {
+      LOGERR << "invalid socket type for auth peer management";
+      return;
+   }
+
+   wsSock->addPublicKey(pubkey);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 shared_ptr<BlockDataViewer> BlockDataViewer::getNewBDV(const string& addr,
    const string& port, shared_ptr<RemoteCallback> callbackPtr)
 {

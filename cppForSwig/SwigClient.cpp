@@ -29,6 +29,12 @@ bool BlockDataViewer::connectToRemote()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+void BlockDataViewer::addPublicKey(const SecureBinaryData& pubkey)
+{
+   bdvAsync_.addPublicKey(pubkey);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 const BlockDataViewer& BlockDataViewer::operator=(const BlockDataViewer& rhs)
 {
    bdvAsync_ = rhs.bdvAsync_;

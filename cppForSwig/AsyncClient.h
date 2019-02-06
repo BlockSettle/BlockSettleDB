@@ -294,6 +294,7 @@ namespace AsyncClient
       ~BlockDataViewer(void);
 
       bool connectToRemote(void);
+      void addPublicKey(const SecureBinaryData&);
       BtcWallet instantiateWallet(const std::string& id);
       Lockbox instantiateLockbox(const std::string& id);
 

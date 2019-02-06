@@ -2922,6 +2922,7 @@ protected:
       config.threadCount_ = 3;
       config.dataDir_ = homedir_;
       config.nodeType_ = Node_UnitTest;
+      config.ephemeralPeers_ = false;
 
       unsigned port_int = 50000 + rand() % 10000;
       stringstream port_ss;
@@ -2999,12 +3000,11 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 {
-   //anon client
-   {
-      AuthorizedPeers serverPeers(homedir_, SERVER_AUTH_PEER_FILENAME);
-      serverPeers.eraseName("127.0.0.1");
-      startupBIP150CTX(4, true);
-   }
+   //public server
+   startupBIP150CTX(4, true);
+
+   //randomized peer keys, in ram only
+   config.ephemeralPeers_ = true;
 
    BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
 
@@ -3022,6 +3022,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 
    theBDMt_ = new BlockDataManagerThread(config);
    WebSocketServer::start(theBDMt_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
    {
@@ -3053,6 +3054,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, pCallback);
+      bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
       
@@ -3085,6 +3087,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, pCallback);
+      bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
@@ -3391,6 +3394,9 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
          }
       }
 
+      auto rekeyCount = bdvObj->getRekeyCount();
+      EXPECT_EQ(rekeyCount.first, 2);
+      EXPECT_EQ(rekeyCount.second, 9);
       bdvObj->unregisterFromDB();
    };
 
@@ -3406,6 +3412,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 
    auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, nullptr);
+   bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
    bdvObj2->shutdown(config.cookie_);

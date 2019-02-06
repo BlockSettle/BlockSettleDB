@@ -1382,6 +1382,262 @@ TEST_F(WalletMetaDataTest, AuthPeers)
    }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletMetaDataTest, AuthPeers_Ephemeral)
+{
+   auto authPeers = make_unique<AuthorizedPeers>();
+
+   //auth meta account expects valid pubkeys
+   auto&& privKey1 = CryptoPRNG::generateRandom(32);
+   auto&& pubkey1 = CryptoECDSA().ComputePublicKey(privKey1);
+   auto&& pubkey1_compressed = CryptoECDSA().CompressPoint(pubkey1);
+   authPeers->addPeer(pubkey1,
+      "1.1.1.1", "0123::4567::89ab::cdef::", "test.com");
+
+   auto&& privKey2 = CryptoPRNG::generateRandom(32);
+   auto&& pubkey2 = CryptoECDSA().ComputePublicKey(privKey2);
+   auto&& pubkey2_compressed = CryptoECDSA().CompressPoint(pubkey2);
+   authPeers->addPeer(pubkey2_compressed, "2.2.2.2", "domain.com");
+
+   auto&& privKey3 = CryptoPRNG::generateRandom(32);
+   auto&& pubkey3 = CryptoECDSA().ComputePublicKey(privKey3);
+   auto&& pubkey3_compressed = CryptoECDSA().CompressPoint(pubkey3);
+   string domain_name("anotherdomain.com");
+   authPeers->addPeer(pubkey3_compressed,
+      "3.3.3.3", "test.com", domain_name);
+
+   {
+      //check peer object has expected values
+      auto& peerMap = authPeers->getPeerNameMap();
+      auto& pubkeySet = authPeers->getPublicKeySet();
+
+      {
+         //first peer
+         auto iter1 = peerMap.find("1.1.1.1");
+         auto iter2 = peerMap.find("0123::4567::89ab::cdef::");
+         auto iter3 = peerMap.find("test.com");
+
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter2->second.pubkey, BIP151PUBKEYSIZE), 0);
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter3->second.pubkey, BIP151PUBKEYSIZE), 0);
+
+         //convert btc_pubkey to sbd
+         SecureBinaryData pubkey1_sbd(iter1->second.pubkey, BIP151PUBKEYSIZE);
+         EXPECT_EQ(pubkey1_sbd, pubkey1_compressed);
+         EXPECT_NE(pubkey1_sbd, pubkey1);
+         EXPECT_TRUE(pubkeySet.find(pubkey1_compressed) != pubkeySet.end());
+      }
+
+      {
+         //second peer
+         auto iter1 = peerMap.find("2.2.2.2");
+         auto iter2 = peerMap.find("domain.com");
+
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter2->second.pubkey, BIP151PUBKEYSIZE), 0);
+
+         //convert btc_pubkey to sbd
+         SecureBinaryData pubkey2_sbd(iter1->second.pubkey, BIP151PUBKEYSIZE);
+         EXPECT_EQ(pubkey2_sbd, pubkey2_compressed);
+         EXPECT_NE(pubkey2_sbd, pubkey2);
+         EXPECT_TRUE(pubkeySet.find(pubkey2_compressed) != pubkeySet.end());
+      }
+
+      {
+         //third peer
+         auto iter1 = peerMap.find("3.3.3.3");
+         auto iter2 = peerMap.find("test.com");
+         auto iter3 = peerMap.find("anotherdomain.com");
+
+         EXPECT_NE(memcmp(iter1->second.pubkey, iter2->second.pubkey, BIP151PUBKEYSIZE), 0);
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter3->second.pubkey, BIP151PUBKEYSIZE), 0);
+
+         //convert btc_pubkey to sbd
+         SecureBinaryData pubkey3_sbd(iter1->second.pubkey, BIP151PUBKEYSIZE);
+         EXPECT_EQ(pubkey3_sbd, pubkey3_compressed);
+         EXPECT_NE(pubkey3_sbd, pubkey3);
+         EXPECT_TRUE(pubkeySet.find(pubkey3_compressed) != pubkeySet.end());
+      }
+   }
+
+   //add more keys
+   auto&& privKey4 = CryptoPRNG::generateRandom(32);
+   auto&& pubkey4 = CryptoECDSA().ComputePublicKey(privKey4);
+   auto&& pubkey4_compressed = CryptoECDSA().CompressPoint(pubkey4);
+   btc_pubkey btckey4;
+   btc_pubkey_init(&btckey4);
+   std::memcpy(btckey4.pubkey, pubkey4.getPtr(), 65);
+   btc_pubkey btckey4_cmp;
+   btc_pubkey_init(&btckey4_cmp);
+   btc_ecc_public_key_compress(btckey4.pubkey, btckey4_cmp.pubkey);
+   btckey4_cmp.compressed = true;
+
+   authPeers->addPeer(btckey4,
+      "4.4.4.4", "more.com");
+
+   auto&& privKey5 = CryptoPRNG::generateRandom(32);
+   auto&& pubkey5 = CryptoECDSA().ComputePublicKey(privKey5);
+   auto&& pubkey5_compressed = CryptoECDSA().CompressPoint(pubkey5);
+   btc_pubkey btckey5;
+   btc_pubkey_init(&btckey5);
+   std::memcpy(btckey5.pubkey, pubkey5_compressed.getPtr(), 33);
+   btckey5.compressed = true;
+
+   authPeers->addPeer(btckey5, "5.5.5.5", "newdomain.com");
+
+   {
+      //check peer object has expected values
+      auto& peerMap = authPeers->getPeerNameMap();
+      auto& pubkeySet = authPeers->getPublicKeySet();
+
+      {
+         //first peer
+         auto iter1 = peerMap.find("1.1.1.1");
+         auto iter2 = peerMap.find("0123::4567::89ab::cdef::");
+         auto iter3 = peerMap.find("test.com");
+
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter2->second.pubkey, BIP151PUBKEYSIZE), 0);
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter3->second.pubkey, BIP151PUBKEYSIZE), 0);
+
+         //convert btc_pubkey to sbd
+         SecureBinaryData pubkey1_sbd(iter1->second.pubkey, BIP151PUBKEYSIZE);
+         EXPECT_EQ(pubkey1_sbd, pubkey1_compressed);
+         EXPECT_NE(pubkey1_sbd, pubkey1);
+         EXPECT_TRUE(pubkeySet.find(pubkey1_compressed) != pubkeySet.end());
+      }
+
+      {
+         //second peer
+         auto iter1 = peerMap.find("2.2.2.2");
+         auto iter2 = peerMap.find("domain.com");
+
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter2->second.pubkey, BIP151PUBKEYSIZE), 0);
+
+         //convert btc_pubkey to sbd
+         SecureBinaryData pubkey2_sbd(iter1->second.pubkey, BIP151PUBKEYSIZE);
+         EXPECT_EQ(pubkey2_sbd, pubkey2_compressed);
+         EXPECT_NE(pubkey2_sbd, pubkey2);
+         EXPECT_TRUE(pubkeySet.find(pubkey2_compressed) != pubkeySet.end());
+      }
+
+      {
+         //third peer
+         auto iter1 = peerMap.find("3.3.3.3");
+         auto iter2 = peerMap.find("test.com");
+         auto iter3 = peerMap.find("anotherdomain.com");
+
+         EXPECT_NE(memcmp(iter1->second.pubkey, iter2->second.pubkey, BIP151PUBKEYSIZE), 0);
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter3->second.pubkey, BIP151PUBKEYSIZE), 0);
+
+         //convert btc_pubkey to sbd
+         SecureBinaryData pubkey3_sbd(iter1->second.pubkey, BIP151PUBKEYSIZE);
+         EXPECT_EQ(pubkey3_sbd, pubkey3_compressed);
+         EXPECT_NE(pubkey3_sbd, pubkey3);
+         EXPECT_TRUE(pubkeySet.find(pubkey3_compressed) != pubkeySet.end());
+      }
+
+      {
+         //4th peer
+
+         auto iter1 = peerMap.find("4.4.4.4");
+         auto iter2 = peerMap.find("more.com");
+
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter2->second.pubkey, BIP151PUBKEYSIZE), 0);
+
+         //convert btc_pubkey to sbd
+         EXPECT_NE(memcmp(iter1->second.pubkey, btckey4.pubkey, BIP151PUBKEYSIZE), 0);
+         EXPECT_EQ(memcmp(iter1->second.pubkey, btckey4_cmp.pubkey, BIP151PUBKEYSIZE), 0);
+         EXPECT_TRUE(pubkeySet.find(pubkey4_compressed) != pubkeySet.end());
+      }
+
+      {
+         //5th peer
+
+         auto iter1 = peerMap.find("5.5.5.5");
+         auto iter2 = peerMap.find("newdomain.com");
+
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter2->second.pubkey, BIP151PUBKEYSIZE), 0);
+
+         //convert btc_pubkey to sbd
+         EXPECT_EQ(memcmp(iter1->second.pubkey, btckey5.pubkey, BIP151PUBKEYSIZE), 0);
+         EXPECT_TRUE(pubkeySet.find(pubkey5_compressed) != pubkeySet.end());
+      }
+   }
+
+   //remove entries, check again
+   authPeers->eraseName(domain_name);
+   authPeers->eraseKey(pubkey2);
+   authPeers->eraseName("5.5.5.5");
+   authPeers->eraseKey(btckey4);
+
+   {
+      //check peer object has expected values
+      auto& peerMap = authPeers->getPeerNameMap();
+      auto& pubkeySet = authPeers->getPublicKeySet();
+
+      {
+         //first peer
+         auto iter1 = peerMap.find("1.1.1.1");
+         auto iter2 = peerMap.find("0123::4567::89ab::cdef::");
+         auto iter3 = peerMap.find("test.com");
+
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter2->second.pubkey, BIP151PUBKEYSIZE), 0);
+         EXPECT_EQ(memcmp(iter1->second.pubkey, iter3->second.pubkey, BIP151PUBKEYSIZE), 0);
+
+         //convert btc_pubkey to sbd
+         SecureBinaryData pubkey1_sbd(iter1->second.pubkey, BIP151PUBKEYSIZE);
+         EXPECT_EQ(pubkey1_sbd, pubkey1_compressed);
+         EXPECT_NE(pubkey1_sbd, pubkey1);
+         EXPECT_TRUE(pubkeySet.find(pubkey1_compressed) != pubkeySet.end());
+      }
+
+      {
+         //second peer
+         auto iter1 = peerMap.find("2.2.2.2");
+         auto iter2 = peerMap.find("domain.com");
+
+         EXPECT_TRUE(iter1 == peerMap.end());
+         EXPECT_TRUE(iter2 == peerMap.end());
+         EXPECT_TRUE(pubkeySet.find(pubkey2_compressed) == pubkeySet.end());
+      }
+
+      {
+         //third peer
+         auto iter1 = peerMap.find("3.3.3.3");
+         auto iter2 = peerMap.find("test.com");
+         auto iter3 = peerMap.find("anotherdomain.com");
+
+         EXPECT_NE(memcmp(iter1->second.pubkey, iter2->second.pubkey, BIP151PUBKEYSIZE), 0);
+         EXPECT_TRUE(iter3 == peerMap.end());
+
+         //convert btc_pubkey to sbd
+         SecureBinaryData pubkey3_sbd(iter1->second.pubkey, BIP151PUBKEYSIZE);
+         EXPECT_EQ(pubkey3_sbd, pubkey3_compressed);
+         EXPECT_NE(pubkey3_sbd, pubkey3);
+         EXPECT_TRUE(pubkeySet.find(pubkey3_compressed) != pubkeySet.end());
+      }
+
+      {
+         //4th peer
+         auto iter1 = peerMap.find("4.4.4.4");
+         auto iter2 = peerMap.find("more.com");
+
+         EXPECT_EQ(iter1, peerMap.end());
+         EXPECT_EQ(iter2, peerMap.end());
+         EXPECT_TRUE(pubkeySet.find(pubkey4_compressed) == pubkeySet.end());
+      }
+
+      {
+         //5th peer
+         auto iter1 = peerMap.find("5.5.5.5");
+         auto iter2 = peerMap.find("newdomain.com");
+
+         EXPECT_EQ(iter1, peerMap.end());
+
+         EXPECT_EQ(memcmp(iter2->second.pubkey, btckey5.pubkey, BIP151PUBKEYSIZE), 0);
+         EXPECT_TRUE(pubkeySet.find(pubkey5_compressed) != pubkeySet.end());
+      }
+   }
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
