@@ -9201,7 +9201,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
       ZCHash1 = move(BtcUtils::getHash256(bogusTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-      for (auto& ledger : ledgerVec)
+      for (auto& ledger : ledgerVec.first)
          EXPECT_EQ(ledger.getTxHash(), ZCHash1);
    }
 
@@ -9303,7 +9303,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
       ZCHash2 = move(BtcUtils::getHash256(rawTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec2);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-      for (auto& ledger : ledgerVec)
+      for (auto& ledger : ledgerVec.first)
          EXPECT_EQ(ledger.getTxHash(), ZCHash2);
    }
 
@@ -9520,7 +9520,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       ZCHash1 = move(BtcUtils::getHash256(rawTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-      for (auto& ledger : ledgerVec)
+      for (auto& ledger : ledgerVec.first)
          EXPECT_EQ(ledger.getTxHash(), ZCHash1);
    }
 
@@ -9603,7 +9603,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       ZCHash2 = move(BtcUtils::getHash256(rawTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec3);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-      for (auto& ledger : ledgerVec)
+      for (auto& ledger : ledgerVec.first)
          EXPECT_EQ(ledger.getTxHash(), ZCHash2);
    }
 
@@ -9723,8 +9723,10 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       ZCHash3 = move(BtcUtils::getHash256(rawTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec2);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-      for (auto& ledger : ledgerVec)
+      for (auto& ledger : ledgerVec.first)
          EXPECT_EQ(ledger.getTxHash(), ZCHash3);
+
+      EXPECT_EQ(*ledgerVec.second.begin(), ZCHash2);
    }
 
    //check balances

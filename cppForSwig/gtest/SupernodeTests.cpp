@@ -1923,6 +1923,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
    EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
 
+   BinaryData ZCHash1, ZCHash2;
    for (auto& sa : wltSet)
    {
       scrObj = assetWltDbObj->getScrAddrObjByKey(sa);
@@ -1971,7 +1972,11 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
 
       DBTestUtils::ZcVector zcVec;
       zcVec.push_back(signer.serialize(), 14000000);
+      ZCHash1 = zcVec.zcVec_.back().getThisHash();
+
       zcVec.push_back(signer2.serialize(), 14100000);
+      ZCHash2 = zcVec.zcVec_.back().getThisHash();
+
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
    }
@@ -1989,12 +1994,38 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    scrObj = assetWltDbObj->getScrAddrObjByKey(addr2_ptr->getPrefixedHash());
    EXPECT_EQ(scrObj->getFullBalance(), 10 * COIN);
 
-   //push block 4 of first chain
+   //reorg the chain
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5", "4A", "5A" }, blk0dat_);
    DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
+   auto&& newBlockNotif = DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
+   
+   //check new block callback carries an invalidated zc notif as well
+   auto notifPtr = get<0>(newBlockNotif);
+   auto notifIndex = get<1>(newBlockNotif);
 
-   //check balances, 1st ZC should be gone, 2nd should still be valid
+   EXPECT_EQ(notifIndex, 0);
+   EXPECT_EQ(notifPtr->notification_size(), 2);
+
+   //grab the invalidated zc notif, it should carry the hash for both our ZC
+   auto& zcNotif = notifPtr->notification(1);
+   EXPECT_EQ(zcNotif.type(), ::Codec_BDVCommand::NotificationType::invalidated_zc);
+   EXPECT_TRUE(zcNotif.has_ids());
+   
+   auto& ids = zcNotif.ids();
+   EXPECT_EQ(ids.value_size(), 2);
+   
+   //check zc hash 1
+   auto& id0_str = ids.value(0).data();
+   BinaryData id0_bd((uint8_t*)id0_str.c_str(), id0_str.size());
+   EXPECT_EQ(ZCHash1, id0_bd);
+
+   //check zc hash 2
+   auto& id1_str = ids.value(1).data();
+   BinaryData id1_bd((uint8_t*)id1_str.c_str(), id1_str.size());
+   EXPECT_EQ(ZCHash2, id1_bd);
+
+
+   //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
    EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);

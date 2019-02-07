@@ -399,13 +399,14 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   void waitOnNewBlockSignal(Clients* clients, const string& bdvId)
+   tuple<shared_ptr<BDVCallback>, unsigned> waitOnNewBlockSignal(
+      Clients* clients, const string& bdvId)
    {
-      waitOnSignal(clients, bdvId, NotificationType::newblock);
+      return waitOnSignal(clients, bdvId, NotificationType::newblock);
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   vector<::ClientClasses::LedgerEntry> waitOnNewZcSignal(
+   pair<vector<::ClientClasses::LedgerEntry>, set<BinaryData>> waitOnNewZcSignal(
       Clients* clients, const string& bdvId)
    {
       auto&& result = waitOnSignal(
@@ -423,11 +424,26 @@ namespace DBTestUtils
 
       auto lev = notif.ledgers();
 
-      vector<::ClientClasses::LedgerEntry> levData;
+      pair<vector<::ClientClasses::LedgerEntry>, set<BinaryData>> levData;
       for (unsigned i = 0; i < lev.values_size(); i++)
       {
          ::ClientClasses::LedgerEntry led(callbackPtr, index, i);
-         levData.push_back(led);
+         levData.first.push_back(led);
+      }
+
+      if (callbackPtr->notification_size() >= index + 2)
+      {
+         auto& invalidated_notif = callbackPtr->notification(index + 1);
+         if (invalidated_notif.has_ids())
+         {
+            auto ids = invalidated_notif.ids();
+            for (unsigned i = 0; i < ids.value_size(); i++)
+            {
+               auto& id_str = ids.value(i).data();
+               BinaryData id_bd((uint8_t*)id_str.c_str(), id_str.size());
+               levData.second.insert(id_bd);
+            }
+         }
       }
 
       return levData;

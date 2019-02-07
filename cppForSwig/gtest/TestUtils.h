@@ -126,9 +126,10 @@ namespace DBTestUtils
       ::Codec_BDVCommand::NotificationType signal);
    void waitOnBDMReady(Clients* clients, const std::string& bdvId);
 
-   void waitOnNewBlockSignal(Clients* clients, const std::string& bdvId);
-   std::vector<::ClientClasses::LedgerEntry> waitOnNewZcSignal(
-      Clients* clients, const std::string& bdvId);
+   std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> 
+      waitOnNewBlockSignal(Clients* clients, const std::string& bdvId);
+   std::pair<std::vector<::ClientClasses::LedgerEntry>, std::set<BinaryData>>
+      waitOnNewZcSignal(Clients* clients, const std::string& bdvId);
    void waitOnWalletRefresh(Clients* clients, const std::string& bdvId,
       const BinaryData& wltId);
    void triggerNewBlockNotification(BlockDataManagerThread* bdmt);
