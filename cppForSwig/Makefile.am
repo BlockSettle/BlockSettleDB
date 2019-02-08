@@ -73,6 +73,7 @@ INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
 # might not hurt one of these days. Some of the "common" files could be GUI/CLI
 # files but are "common" for the sake of unit testing. In an ideal world, the
 # unit tests would be split into multiple files as needed. One day....
+KEYMANAGER_SOURCE_FILES = KeyManager.cpp
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = TransactionBatch.cpp
 ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
@@ -212,7 +213,7 @@ libArmoryCLI_la_LIBADD = $(LIBBTC) \
 			 $(LIBCHACHA20POLY1305) \
 			 $(LIBARMORYCOMMON) \
 			 $(LIBCRYPTOPP) \
-			 $(LIBLMDB)
+			 $(LIBLMDB) \
 			 -lpthread
 libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS)
 
@@ -230,6 +231,21 @@ ArmoryDB_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBLMDB) \
 		 -lpthread -lprotobuf -lwebsockets
 ArmoryDB_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
+
+# KeyManager binary
+bin_PROGRAMS += BIP150KeyManager
+BIP150KeyManager_SOURCES = $(KEYMANAGER_SOURCE_FILES)
+BIP150KeyManager_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS) \
+			-D__STDC_LIMIT_MACROS
+BIP150KeyManager_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+BIP150KeyManager_LDADD = $(LIBARMORYCOMMON) \
+		 $(LIBARMORYCLI) \
+		 $(LIBCRYPTOPP) \
+		 $(LIBBTC) \
+		 $(LIBCHACHA20POLY1305) \
+		 $(LIBLMDB) \
+		 -lpthread -lprotobuf -lwebsockets
+BIP150KeyManager_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
 
 if BUILD_CLIENT
 # Common GUI functionality library
@@ -278,6 +294,7 @@ clean-local:
 	rm -f CppBlockUtils.py
 	rm -f CppBlockUtils_wrap.cxx
 	rm -f CppBlockUtils_wrap.h
+	rm -f BIP150KeyManager
 
 protobuf_clean:
 	rm -f protobuf/*.pb.*

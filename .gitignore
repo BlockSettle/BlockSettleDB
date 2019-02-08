@@ -43,6 +43,8 @@ Makefile
 ArmoryDB
 /armoryengine/ArmoryBuild.py
 
+/cppForSwig/BIP150KeyManager
+
 CppBlockUtils.py
 _CppBlockUtils.*
 /cppForSwig/CppBlockUtils_wrap.cxx
