@@ -14,7 +14,7 @@ AM_CXXFLAGS += -DGTEST_USE_OWN_TR1_TUPLE=1
 endif
 
 # Standard gtest library
-lib_LTLIBRARIES += gtest/libgtest.la
+noinst_LTLIBRARIES += gtest/libgtest.la
 gtest_libgtest_la_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
 gtest_libgtest_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_libgtest_la_SOURCES = gtest/TestUtils.cpp gtest/gtest-all.cc
@@ -31,7 +31,8 @@ gtest_ContainerTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_ContainerTests_LDADD = gtest/libgtest.la $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
 		 $(LIBCRYPTOPP) \
-		 $(LIBBTC) -lprotobuf
+		 $(LIBBTC) \
+		 $(LIBPROTOBUF_STATIC)
 gtest_ContainerTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/ContainerTests
 
@@ -46,7 +47,21 @@ gtest_DB1kIterTest_LDADD = gtest/libgtest.la $(LIBARMORYCOMMON) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
 		 $(LIBLMDB) \
-		 -lprotobuf
+		 $(LIBPROTOBUF_STATIC) \
+		 $(LIBWEBSOCKETS_STATIC)
+if BUILD_OPENSSL_SUPPORT
+gtest_DB1kIterTest_LDADD += $(LIBSSL_STATIC) \
+		 $(LIBCRYPTO_STATIC)
+endif
+if BUILD_LIBUV_SUPPORT
+gtest_DB1kIterTest_LDADD += $(LIBUV_STATIC)
+endif
+if BUILD_LIBEVENT_SUPPORT
+gtest_DB1kIterTest_LDADD += $(LIBEVENT_STATIC)
+endif
+if BUILD_LIBCAP_SUPPORT
+gtest_DB1kIterTest_LDADD += $(LIBCAP_LIBS)
+endif
 gtest_DB1kIterTest_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/DB1kIterTest
 
@@ -72,7 +87,21 @@ gtest_SupernodeTests_LDADD = gtest/libgtest.la \
 			$(LIBLMDB) \
 			$(LIBBTC) \
 			$(LIBCHACHA20POLY1305) \
-			-lprotobuf
+			$(LIBPROTOBUF_STATIC) \
+			$(LIBWEBSOCKETS_STATIC)
+if BUILD_OPENSSL_SUPPORT
+gtest_SupernodeTests_LDADD += $(LIBSSL_STATIC) \
+		 $(LIBCRYPTO_STATIC)
+endif
+if BUILD_LIBUV_SUPPORT
+gtest_SupernodeTests_LDADD += $(LIBUV_STATIC)
+endif
+if BUILD_LIBEVENT_SUPPORT
+gtest_SupernodeTests_LDADD += $(LIBEVENT_STATIC)
+endif
+if BUILD_LIBCAP_SUPPORT
+gtest_SupernodeTests_LDADD += $(LIBCAP_LIBS)
+endif
 gtest_SupernodeTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/SupernodeTests
 
@@ -88,7 +117,21 @@ gtest_CppBlockUtilsTests_LDADD = gtest/libgtest.la \
 			$(LIBCRYPTOPP) \
 			$(LIBBTC) \
 			$(LIBLMDB) \
-			-lprotobuf
+			$(LIBPROTOBUF_STATIC) \
+			$(LIBWEBSOCKETS_STATIC)
+if BUILD_OPENSSL_SUPPORT
+gtest_CppBlockUtilsTests_LDADD += $(LIBSSL_STATIC) \
+		 $(LIBCRYPTO_STATIC)
+endif
+if BUILD_LIBUV_SUPPORT
+gtest_CppBlockUtilsTests_LDADD += $(LIBUV_STATIC)
+endif
+if BUILD_LIBEVENT_SUPPORT
+gtest_CppBlockUtilsTests_LDADD += $(LIBEVENT_STATIC)
+endif
+if BUILD_LIBCAP_SUPPORT
+gtest_CppBlockUtilsTests_LDADD += $(LIBCAP_LIBS)
+endif
 gtest_CppBlockUtilsTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/CppBlockUtilsTests
 
@@ -98,14 +141,27 @@ gtest_WalletTests_SOURCES = gtest/WalletTests.cpp
 gtest_WalletTests_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
 gtest_WalletTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_WalletTests_LDADD = gtest/libgtest.la \
-			$(LIBBTC) \
 			$(LIBARMORYCOMMON) \
+			$(LIBCHACHA20POLY1305) \
 			$(LIBARMORYCLI) \
 			$(LIBCRYPTOPP) \
 			$(LIBBTC) \
-			$(LIBCHACHA20POLY1305) \
 			$(LIBLMDB) \
-			-lprotobuf
+			$(LIBPROTOBUF_STATIC) \
+			$(LIBWEBSOCKETS_STATIC)
+if BUILD_OPENSSL_SUPPORT
+gtest_WalletTests_LDADD += $(LIBSSL_STATIC) \
+		 $(LIBCRYPTO_STATIC)
+endif
+if BUILD_LIBUV_SUPPORT
+gtest_WalletTests_LDADD += $(LIBUV_STATIC)
+endif
+if BUILD_LIBEVENT_SUPPORT
+gtest_WalletTests_LDADD += $(LIBEVENT_STATIC)
+endif
+if BUILD_LIBCAP_SUPPORT
+gtest_WalletTests_LDADD += $(LIBCAP_LIBS)
+endif
 gtest_WalletTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/WalletTests
 
@@ -115,13 +171,26 @@ gtest_SignerTests_SOURCES = gtest/SignerTests.cpp
 gtest_SignerTests_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
 gtest_SignerTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_SignerTests_LDADD = gtest/libgtest.la \
-			$(LIBBTC) \
 			$(LIBARMORYCOMMON) \
 			$(LIBARMORYCLI) \
 			$(LIBCRYPTOPP) \
 			$(LIBBTC) \
 			$(LIBCHACHA20POLY1305) \
 			$(LIBLMDB) \
-			-lprotobuf
+			$(LIBPROTOBUF_STATIC) \
+			$(LIBWEBSOCKETS_STATIC)
+if BUILD_OPENSSL_SUPPORT
+gtest_SignerTests_LDADD += $(LIBSSL_STATIC) \
+		 $(LIBCRYPTO_STATIC)
+endif
+if BUILD_LIBUV_SUPPORT
+gtest_SignerTests_LDADD += $(LIBUV_STATIC)
+endif
+if BUILD_LIBEVENT_SUPPORT
+gtest_SignerTests_LDADD += $(LIBEVENT_STATIC)
+endif
+if BUILD_LIBCAP_SUPPORT
+gtest_SignerTests_LDADD += $(LIBCAP_LIBS)
+endif
 gtest_SignerTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/SignerTests

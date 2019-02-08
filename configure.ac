@@ -31,6 +31,12 @@ AC_ARG_ENABLE([debug],
               [compile with debug symbols @<:@default=no@:>@]),
               [want_debug="$enableval"], [want_debug=no])
 
+#build client arg
+AC_ARG_WITH([client],
+              AS_HELP_STRING([--without-client],
+              [do not build client @<:@default=no@:>@]),
+              [with_client="$withval"], [with_client=yes])
+
 #build gui arg
 AC_ARG_WITH([gui],
               AS_HELP_STRING([--without-gui],
@@ -41,32 +47,26 @@ AC_ARG_WITH([gui],
 # uses /usr/local. The problem is that Ubuntu has a pretty old version of LWS.
 # We should just use a newer version and link it in.
 AC_ARG_WITH([own-lws],
-		AS_HELP_STRING([--with-own-lws], 
-		[pass path of your own lws binary and headers @<:@default=no@:>@]),
-		[with_own_lws="$withval"], [with_own_lws=no])
+    AS_HELP_STRING([--with-own-lws],
+    [pass path of your own lws binary and headers @<:@default=no@:>@]),
+    [with_own_lws="$withval"], [with_own_lws=no])
 
 # Crypto++ usage. Armory defaults to using libbtc for most crypto. However, a
 # legacy transition period where Crypto++ can be used instead is in effect.
 AC_ARG_WITH([cryptopp],
-		AS_HELP_STRING([--with-cryptopp],
-		[use Crypto++ instead of libbtc for crypto functions @<:@default=no@:>@]),
-		[with_cryptopp="$withval"], [with_cryptopp=no])
-
-# Force user to define which LWS they wish to use.
-AS_IF([test $with_own_lws != no], [],
-	[AC_MSG_ERROR([A custom version of libwebsockets must be defined. /usr/local is an acceptable location.])]) 
-
-# Even if libraries don't directly use LWS, they may rely on libraries that do
-# rely on LWS. This causes the "child" libraries to rely on LWS too! Be sure to
-# use the rpath equivalent in LDFLAGS for all affected libraries, "children" and
-# "parent".
-AC_SUBST([LWS_CFLAGS], ["-I$with_own_lws/include"])
-AC_SUBST([LWSLDFLAGS], ["-L$with_own_lws/lib -R $with_own_lws/lib"])
-AC_SUBST([LWS_LIB_LOC], ["$with_own_lws/lib"])
-LIBS="-lwebsockets $LIBS"
+    AS_HELP_STRING([--with-cryptopp],
+    [use Crypto++ instead of libbtc for crypto functions @<:@default=no@:>@]),
+    [with_cryptopp="$withval"], [with_cryptopp=no])
 
 # Check for protobuf (protoc in particular is required)
 PKG_CHECK_MODULES(PROTOBUF, protobuf >= 2.0.0)
+PKG_CHECK_VAR([PROTOBUF_LIBDIR], [protobuf], [libdir])
+AC_MSG_CHECKING([protobuf lib path])
+AS_IF([test "x$PROTOBUF_LIBDIR" = "x"], [
+  AC_MSG_FAILURE([Unable to identify protobuf lib path.])
+])
+AC_SUBST([PROTOBUF_LIBDIR])
+CXXFLAGS="${CXXFLAGS} ${PROTOBUF_CFLAGS}"
 
 if test "x$want_debug" = "xyes" -a $ac_cv_c_compiler_gnu != no; then
   CFLAGS="$CFLAGS -O0 -g3"
@@ -77,10 +77,15 @@ else
   CXXFLAGS="$CXXFLAGS -O2"
 fi
 
-# For now, the GUI is considered synonymous with the client. This may change.
-AS_IF([test "x$with_gui" = "xyes"], [build_client=yes],
-	[build_client=no])
+
+AS_IF([test "x$with_client" = "xyes"], [build_client=yes],
+  [build_client=no])
 AM_CONDITIONAL([BUILD_CLIENT], [test x$build_client = xyes])
+
+# Building the GUI requires the client.
+AS_IF([test "x$with_client$with_gui" = "xyesyes"], [build_gui=yes],
+  [build_gui=no])
+AM_CONDITIONAL([BUILD_GUI], [test x$build_gui = xyes])
 
 AC_PROG_CC
 AC_PROG_CXX
@@ -107,15 +112,15 @@ if test "x$build_client" = "xyes"; then
 
 AC_CHECK_PROG([HAVE_SWIG], [swig], [yes], [no])
 AS_IF([test $HAVE_SWIG == yes], [],
-	[AC_MSG_ERROR([missing swig!])]) 
+  [AC_MSG_ERROR([missing swig!])])
 
 if test "x$cross_compiling" != "xyes"; then
-	AX_SWIG_PYTHON([no])
-	AS_IF([test -z $AX_SWIG_PYTHON_CPPFLAGS], 
-		[AC_MSG_ERROR([failed to procure swig include path, make sure swig is installed])])
-	AC_SUBST([PYTHON_CFLAGS], [`$PYTHON-config --cflags`])
-	AC_SUBST([PYTHON_LDFLAGS], [`$PYTHON-config --ldflags`])
-	AX_PYTHON_MODULE([psutil], [fatal])
+  AX_SWIG_PYTHON([no])
+  AS_IF([test -z $AX_SWIG_PYTHON_CPPFLAGS],
+    [AC_MSG_ERROR([failed to procure swig include path, make sure swig is installed])])
+  AC_SUBST([PYTHON_CFLAGS], [`$PYTHON-config --cflags`])
+  AC_SUBST([PYTHON_LDFLAGS], [`$PYTHON-config --ldflags`])
+  AX_PYTHON_MODULE([psutil], [fatal])
 else
 AC_SUBST([AX_SWIG_PYTHON_CPPFLAGS], [`$PYTHON-config --includes`])
 AC_SUBST([PYTHON_CFLAGS], [`$PYTHON-config --cflags`])
@@ -126,16 +131,16 @@ AC_MSG_RESULT([AX_SWIG_PYTHON_CPPFLAGS: $AX_SWIG_PYTHON_CPPFLAGS])
 AC_MSG_RESULT([PYTHON_CFLAGS: $PYTHON_LDFLAGS])
 AC_MSG_RESULT([PYTHON_LDFLAGS: $PYTHON_LDFLAGS])
 
-if test "x$with_gui" = "xyes"; then
+if test "x$build_gui" = "xyes"; then
 #check for  gui
 
 AC_CHECK_PROG([HAVE_PYRCC4], [pyrcc4], [yes], [no])
 AS_IF([test $HAVE_PYRCC4 == yes], [],
-	[AC_MSG_ERROR([missing pyrcc4 in path, make sure pyqt4-dev-tools is installed])]) 
+  [AC_MSG_ERROR([missing pyrcc4 in path, make sure pyqt4-dev-tools is installed])])
 
 AC_CHECK_PROG([HAVE_LRELEASE], [lrelease], [yes], [no])
 AS_IF([test $HAVE_LRELEASE == yes], [],
-	[AC_MSG_ERROR([missing lrelease in path, make sure qt4-linguist-tools is installed])]) 
+  [AC_MSG_ERROR([missing lrelease in path, make sure qt4-linguist-tools is installed])])
 
 fi
 fi
@@ -168,17 +173,25 @@ case $host in
         CXXFLAGS="${CXXFLAGS} -mmacosx-version-min=${with_macosx_version_min}"
         OBJC="${OBJC} -mmacosx-version-min=${with_macosx_version_min}"
     fi
+    AC_CHECK_PROG([BREW],brew, brew)
+    if test x$with_own_lws$BREW = xnobrew; then
+        use_pkgconfig=yes
+        openssl_prefix=`$BREW --prefix openssl 2>/dev/null`
+        if test x$openssl_prefix != x; then
+            PKG_CONFIG_PATH="$openssl_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export PKG_CONFIG_PATH
+        fi
+    fi
 
     # Just FYI, here are some linker flags, used and unused, that are noteworthy.
     # In the future, making sure install_name_tool usage is minimized would be
     # ideal. (Some usage may be necessary. See https://lists.gnu.org/archive/html/libtool-patches/2010-09/msg00308.html
     # for an example.)
     # -undefined dynamic_lookup: https://stackoverflow.com/a/30934307
-    # -headerpad_max_install_names: https://software.intel.com/en-us/forums/intel-threading-building-blocks/topic/509396
     # -rpath @executable_path/ (or other paths to search): https://wincent.com/wiki/@executable_path,_@load_path_and_@rpath
     # -install_name @loader_path/libArmoryCommon.0.dylib: http://osiris.laya.com/coding/dylib_linking.html
     CXXFLAGS="${CXXFLAGS} -stdlib=libc++ -fPIC -pipe"
-    LDFLAGS="${LDFLAGS} -stdlib=libc++ -lc++ -headerpad_max_install_names"
+    LDFLAGS="${LDFLAGS} -stdlib=libc++ -lc++"
 
     # There really ought to be some sort of Qt check here. M4 files don't work
     # well with Armory. Revisit this later. Not required, just nice to have.
@@ -186,19 +199,163 @@ case $host in
   *linux*)
     BUILD_OS=linux
 
-    if test "x$build_client$with_gui" = "xyesyes"; then
+    if test x$with_own_lws = xno; then
+        use_pkgconfig=yes
+    fi
+
+    if test "x$build_gui" = "xyes"; then
        # Check existence of Qt packages.
        if ! pkg-config --exists 'QtCore >= 4.8 QtCore <= 5 QtGui >= 4.8 QtGui <= 5'; then
-       	   AC_MSG_ERROR([missing QtCore library, make sure libqtcore4 and libqt4-dev are installed])
+           AC_MSG_ERROR([missing QtCore library, make sure libqtcore4 and libqt4-dev are installed])
        fi
     fi
     ;;
 esac
 
+if test x$use_pkgconfig = xyes; then
+    m4_ifndef([PKG_PROG_PKG_CONFIG], [AC_MSG_ERROR(PKG_PROG_PKG_CONFIG macro not found. Please install pkg-config and re-run autogen.sh.)])
+    m4_ifdef([PKG_PROG_PKG_CONFIG], [
+    PKG_PROG_PKG_CONFIG
+    if test x"$PKG_CONFIG" = "x"; then
+        AC_MSG_ERROR(pkg-config not found.)
+    fi
+    ])
+fi
+
 dnl Check for protoc (Google Protocol Buffers).
 AC_PATH_PROG([PROTOC], [protoc], [])
 AS_IF([test x"$PROTOC" = x],
-	[AC_MSG_ERROR([cannot find protoc (the Protocol Buffers compiler)])])
+  [AC_MSG_ERROR([cannot find protoc (the Protocol Buffers compiler)])])
+
+if test x$use_pkgconfig = xyes; then
+    PKG_CHECK_MODULES([WEBSOCKETS], [libwebsockets >= 3.0.1],,[AC_MSG_ERROR(libwebsockets >= 3.0.1 not found.)])
+    AC_MSG_CHECKING([libwebsockets lib path])
+    PKG_CHECK_VAR([WEBSOCKETS_LIBDIR], [libwebsockets], [libdir])
+    AS_IF([test "x$WEBSOCKETS_LIBDIR" = "x"], [
+      AC_MSG_FAILURE([Unable to identify libwebsockets lib path.])
+    ])
+    AC_MSG_RESULT($WEBSOCKETS_LIBDIR)
+    AC_SUBST([WEBSOCKETS_LIBDIR])
+    CXXFLAGS="${CXXFLAGS} ${WEBSOCKETS_CFLAGS}"
+else
+    # Even if libraries don't directly use LWS, they may rely on libraries that do
+    # rely on LWS. This causes the "child" libraries to rely on LWS too! Be sure to
+    # use the rpath equivalent in LDFLAGS for all affected libraries, "children" and
+    # "parent".
+    AC_SUBST([WEBSOCKETS_LIBDIR], ["$with_own_lws/lib"])
+    CXXFLAGS="${CXXFLAGS} -I$with_own_lws/include"
+fi
+
+AC_MSG_CHECKING(for LWS_WITH_TLS)
+AC_LANG_PUSH([C++])
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+#include "lws_config.h"
+#ifndef LWS_WITH_TLS
+# error macro not defined
+#endif
+]])],
+  [ LWS_WITH_TLS_FOUND="yes" ],
+  [ LWS_WITH_TLS_FOUND="no" ]
+)
+AC_LANG_POP([C++])
+AC_MSG_RESULT($LWS_WITH_TLS_FOUND)
+
+if test x$LWS_WITH_TLS_FOUND = xyes; then
+    PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(libssl not found.)])
+    AC_MSG_CHECKING([libssl lib path])
+    PKG_CHECK_VAR([SSL_LIBDIR], [libssl], [libdir])
+    AS_IF([test "x$SSL_LIBDIR" = "x"], [
+      AC_MSG_FAILURE([Unable to identify libssl lib path.])
+    ])
+    AC_MSG_RESULT($SSL_LIBDIR)
+    AC_SUBST([SSL_LIBDIR])
+    CXXFLAGS="${CXXFLAGS} ${SSL_CFLAGS}"
+
+    PKG_CHECK_MODULES([CRYPTO], [libcrypto],, [AC_MSG_ERROR(libcrypto not found.)])
+    AC_MSG_CHECKING([libcrypto lib path])
+    PKG_CHECK_VAR([CRYPTO_LIBDIR], [libcrypto], [libdir])
+    AS_IF([test "x$CRYPTO_LIBDIR" = "x"], [
+      AC_MSG_FAILURE([Unable to identify libcrypto lib path.])
+    ])
+    AC_MSG_RESULT($CRYPTO_LIBDIR)
+    AC_SUBST([CRYPTO_LIBDIR])
+fi
+
+AC_MSG_CHECKING(for LWS_WITH_LIBUV)
+AC_LANG_PUSH([C++])
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+#include "lws_config.h"
+#ifndef LWS_WITH_LIBUV
+# error macro not defined
+#endif
+]])],
+  [ LWS_WITH_LIBUV_FOUND="yes" ],
+  [ LWS_WITH_LIBUV_FOUND="no" ]
+)
+AC_LANG_POP([C++])
+AC_MSG_RESULT($LWS_WITH_LIBUV_FOUND)
+
+if test x$LWS_WITH_LIBUV_FOUND = xyes; then
+    PKG_CHECK_MODULES([LIBUV], [libuv],, [AC_MSG_ERROR(libuv not found.)])
+    AC_MSG_CHECKING([libuv lib path])
+    PKG_CHECK_VAR([LIBUV_LIBDIR], [libuv], [libdir])
+    AS_IF([test "x$LIBUV_LIBDIR" = "x"], [
+      AC_MSG_FAILURE([Unable to identify libuv lib path.])
+    ])
+    AC_MSG_RESULT($LIBUV_LIBDIR)
+    AC_SUBST([LIBUV_LIBDIR])
+    CXXFLAGS="${CXXFLAGS} ${LIBUV_CFLAGS}"
+fi
+
+AC_MSG_CHECKING(for LWS_WITH_LIBEVENT)
+AC_LANG_PUSH([C++])
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+#include "lws_config.h"
+#ifndef LWS_WITH_LIBEVENT
+# error macro not defined
+#endif
+]])],
+  [ LWS_WITH_LIBEVENT_FOUND="yes" ],
+  [ LWS_WITH_LIBEVENT_FOUND="no" ]
+)
+AC_LANG_POP([C++])
+AC_MSG_RESULT($LWS_WITH_LIBEVENT_FOUND)
+
+if test x$LWS_WITH_LIBEVENT_FOUND = xyes; then
+    PKG_CHECK_MODULES([LIBEVENT], [libevent],, [AC_MSG_ERROR(libevent not found.)])
+    AC_MSG_CHECKING([libevent lib path])
+    PKG_CHECK_VAR([LIBEVENT_LIBDIR], [libevent], [libdir])
+    AS_IF([test "x$LIBEVENT_LIBDIR" = "x"], [
+      AC_MSG_FAILURE([Unable to identify libevent lib path.])
+    ])
+    AC_MSG_RESULT($LIBEVENT_LIBDIR)
+    AC_SUBST([LIBEVENT_LIBDIR])
+    CXXFLAGS="${CXXFLAGS} ${LIBEVENT_CFLAGS}"
+fi
+
+AC_MSG_CHECKING(for LWS_HAVE_LIBCAP)
+AC_LANG_PUSH([C++])
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+#include "lws_config.h"
+#ifndef LWS_HAVE_LIBCAP
+# error macro not defined
+#endif
+]])],
+  [ LWS_HAVE_LIBCAP_FOUND="yes" ],
+  [ LWS_HAVE_LIBCAP_FOUND="no" ]
+)
+AC_LANG_POP([C++])
+AC_MSG_RESULT($LWS_HAVE_LIBCAP_FOUND)
+
+if test x$LWS_HAVE_LIBCAP_FOUND = xyes; then
+    PKG_CHECK_MODULES([LIBCAP], [libcap],, [AC_MSG_ERROR(libcap not found.)])
+    AC_SUBST([LIBCAP_LIBS])
+fi
+
+AM_CONDITIONAL([BUILD_OPENSSL_SUPPORT], [test x$LWS_WITH_TLS_FOUND = xyes])
+AM_CONDITIONAL([BUILD_LIBUV_SUPPORT], [test x$LWS_WITH_LIBUV_FOUND = xyes])
+AM_CONDITIONAL([BUILD_LIBEVENT_SUPPORT], [test x$LWS_WITH_LIBEVENT_FOUND = xyes])
+AM_CONDITIONAL([BUILD_LIBCAP_SUPPORT], [test x$LWS_HAVE_LIBCAP_FOUND = xyes])
 
 dnl Clang detection is complicated since it comes up as GCC too.
 AC_LANG_PUSH([C++])
@@ -230,8 +387,8 @@ AM_CONDITIONAL([HAVE_CLANG], [test x$CLANG = xyes])
 AM_CONDITIONAL([BUILD_DARWIN], [test x$BUILD_OS = xdarwin])
 
 AC_CONFIG_FILES(Makefile
-		cppForSwig/Makefile
-		cppForSwig/chacha20poly1305/Makefile)
+    cppForSwig/Makefile
+    cppForSwig/chacha20poly1305/Makefile)
 
 AM_CONDITIONAL([BUILD_BENCH], [test x$want_benchmark = xyes])
 AM_CONDITIONAL([BUILD_TESTS], [test "x$want_tests" = "xyes"])
@@ -265,6 +422,7 @@ echo "  ac_configure_args = $ac_configure_args"
 echo "  with tests        = $want_tests"
 echo "  with benchmarks   = $want_benchmark"
 echo "  debug symbols     = $want_debug"
-echo "  with GUI/client   = $build_client"
+echo "  with client       = $build_client"
+echo "  with GUI          = $build_gui"
 echo "  custom lws path   = $with_own_lws"
 echo "  use Crypto++      = $with_cryptopp"

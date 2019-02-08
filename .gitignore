@@ -88,6 +88,7 @@ _CppBlockUtils.*
 /cppForSwig/gtest/*.dSYM
 /cppForSwig/gtest/*.lmdb*
 /cppForSwig/gtest/DB1kIterTest
+/cppForSwig/gtest/SignerTests
 
 /cppForSwig/libbtc/bitcoin-spv
 

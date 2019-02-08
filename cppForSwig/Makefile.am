@@ -2,10 +2,12 @@
 bin_PROGRAMS =
 noinst_PROGRAMS =
 lib_LTLIBRARIES =
+noinst_LTLIBRARIES =
 TESTS =
+BUILT_SOURCES =
 
 LIBBTC = libbtc/libbtc.la
-LIBCHACHA20POLY1305 = chacha20poly1305/.libs/libchacha20poly1305.la
+LIBCHACHA20POLY1305 = chacha20poly1305/libchacha20poly1305.la
 LIBCPPBLOCKUTILS = libCppBlockUtils.la
 LIBARMORYCOMMON = libArmoryCommon.la
 LIBARMORYGUI = libArmoryGUI.la
@@ -13,6 +15,18 @@ LIBARMORYCLI = libArmoryCLI.la
 LIBCRYPTOPP =
 LIBLMDB = liblmdb.la
 LIBSECP256K1 = libbtc/src/secp256k1/libsecp256k1.la
+LIBWEBSOCKETS_STATIC = $(WEBSOCKETS_LIBDIR)/libwebsockets.a
+LIBPROTOBUF_STATIC = $(PROTOBUF_LIBDIR)/libprotobuf.a
+if BUILD_OPENSSL_SUPPORT
+LIBCRYPTO_STATIC = $(CRYPTO_LIBDIR)/libcrypto.a
+LIBSSL_STATIC = $(SSL_LIBDIR)/libssl.a
+endif
+if BUILD_LIBUV_SUPPORT
+LIBUV_STATIC = $(LIBUV_LIBDIR)/libuv.a
+endif
+if BUILD_LIBEVENT_SUPPORT
+LIBEVENT_STATIC = $(LIBEVENT_LIBDIR)/libevent.a
+endif
 
 DIST_SUBDIRS = libbtc chacha20poly1305
 SUBDIRS = libbtc chacha20poly1305 $(MAYBE_BUILD)
@@ -102,7 +116,6 @@ ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	Server.cpp \
 	SocketService_unix.cpp \
 	SshParser.cpp \
-	StoredBlockObj.cpp \
 	StringSockets.cpp \
 	txio.cpp \
 	ZeroConf.cpp
@@ -181,7 +194,7 @@ PROTOBUF_H = protobuf/AddressBook.pb.h \
 dist_noinst_DATA = $(PROTOBUF_PROTO)
 
 # LMDB (DB used by Armory)
-lib_LTLIBRARIES += $(LIBLMDB)
+noinst_LTLIBRARIES += $(LIBLMDB)
 liblmdb_la_SOURCES = lmdb/libraries/liblmdb/lmdbpp.cpp \
 		lmdb/libraries/liblmdb/mdb.c \
 		lmdb/libraries/liblmdb/midl.c
@@ -190,28 +203,26 @@ liblmdb_la_LDFLAGS = -static
 
 # libArmoryCommon - Required by all Armory programs/libraries.
 # Common functionality across GUI and command line
-lib_LTLIBRARIES += $(LIBARMORYCOMMON)
+noinst_LTLIBRARIES += $(LIBARMORYCOMMON)
 libArmoryCommon_la_SOURCES = $(ARMORYCOMMON_SOURCE_FILES)
 nodist_libArmoryCommon_la_SOURCES = $(PROTOBUF_CC) $(PROTOBUF_H)
 libArmoryCommon_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 libArmoryCommon_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 			      $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
-libArmoryCommon_la_LIBADD = $(LIBLMDB) \
-				$(LIBCRYPTOPP) \
+libArmoryCommon_la_LIBADD = $(LIBCRYPTOPP) \
 				$(LIBBTC) \
 				$(LIBSECP256K1) \
-				-lpthread -lprotobuf
+				-lpthread
 libArmoryCommon_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PROTOBUF_FLAGS)
 
 # Command-line functionality library
-lib_LTLIBRARIES += $(LIBARMORYCLI)
+noinst_LTLIBRARIES += $(LIBARMORYCLI)
 libArmoryCLI_la_SOURCES = $(ARMORYCLI_SOURCE_FILES)
 libArmoryCLI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 			$(PYTHON_CFLAGS)
 libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 			   $(UNIT_TEST_CXXFLAGS) -Ilmdb/libraries/liblmdb -D__STDC_LIMIT_MACROS
-libArmoryCLI_la_LIBADD = $(LIBBTC) \
-			 $(LIBCHACHA20POLY1305) \
+libArmoryCLI_la_LIBADD = $(LIBCHACHA20POLY1305) \
 			 $(LIBARMORYCOMMON) \
 			 $(LIBCRYPTOPP) \
 			 $(LIBLMDB) \
@@ -230,8 +241,22 @@ ArmoryDB_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
 		 $(LIBLMDB) \
-		 -lpthread -lprotobuf -lwebsockets
-ArmoryDB_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
+		 $(LIBPROTOBUF_STATIC) \
+		 $(LIBWEBSOCKETS_STATIC)
+if BUILD_OPENSSL_SUPPORT
+ArmoryDB_LDADD += $(LIBSSL_STATIC) \
+		 $(LIBCRYPTO_STATIC)
+endif
+if BUILD_LIBUV_SUPPORT
+ArmoryDB_LDADD += $(LIBUV_STATIC)
+endif
+if BUILD_LIBEVENT_SUPPORT
+ArmoryDB_LDADD += $(LIBEVENT_STATIC)
+endif
+if BUILD_LIBCAP_SUPPORT
+ArmoryDB_LDADD += $(LIBCAP_LIBS)
+endif
+ArmoryDB_LDFLAGS = $(LDFLAGS) -static
 
 # KeyManager binary
 bin_PROGRAMS += BIP150KeyManager
@@ -245,19 +270,22 @@ BIP150KeyManager_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
 		 $(LIBLMDB) \
-		 -lpthread -lprotobuf -lwebsockets
+		 $(LIBPROTOBUF_STATIC) \
+		 -lpthread
 BIP150KeyManager_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
 
-if BUILD_CLIENT
+if BUILD_GUI
 # Common GUI functionality library
-lib_LTLIBRARIES += $(LIBARMORYGUI)
+noinst_LTLIBRARIES += $(LIBARMORYGUI)
 libArmoryGUI_la_SOURCES = $(ARMORYGUI_SOURCE_FILES)
 libArmoryGUI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) $(PYTHON_CFLAGS)
 libArmoryGUI_la_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryGUI_la_LIBADD = $(LIBARMORYCOMMON) $(LIBCRYPTOPP) \
 			-lpthread
-libArmoryGUI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PYTHON_LDFLAGS) -shared
+libArmoryGUI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PYTHON_LDFLAGS)
+endif
 
+if BUILD_CLIENT
 #libCppBlockUtils - SWIG library.
 # "shared" LDFLAG due to SWIG requirements.
 lib_LTLIBRARIES += $(LIBCPPBLOCKUTILS)
@@ -266,30 +294,21 @@ libCppBlockUtils_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 				$(PYTHON_CFLAGS)
 libCppBlockUtils_la_CXXFLAGS = $(AM_CXXFLAGS) -Ilmdb/libraries/liblmdb \
 				$(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
-libCppBlockUtils_la_LIBADD = $(LIBARMORYCOMMON) $(LIBARMORYGUI) \
-				$(LIBCRYPTOPP) -lpthread
+libCppBlockUtils_la_LIBADD = $(LIBARMORYCOMMON) $(LIBCRYPTOPP) \
+				-lpthread
+if BUILD_GUI
+libCppBlockUtils_la_LIBADD += $(LIBARMORYGUI)
+endif
 libCppBlockUtils_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PYTHON_LDFLAGS) -shared
 
-# While not strictly necessary, it may be necessary at some point to use install
-# names (macOS equivlent of rpath) longer than the one used by default
-# (/usr/local/lib). Let's plan for it. Don't use "-install_name" flag, as that
-# only affects CppBlockUtils and not whatever it relies upon. Can fix that
-# elsewhere with the "install_name_tool" binary.
-if BUILD_DARWIN
-libCppBlockUtils_la_LDFLAGS += -headerpad_max_install_names
-libArmoryCommon_la_LDFLAGS += -headerpad_max_install_names
-libArmoryCLI_la_LDFLAGS += -headerpad_max_install_names
-endif
-
+BUILT_SOURCES += CppBlockUtils_wrap.cxx
 #custom rules - always force SWIG to run and compile the resultant C++ file
 CppBlockUtils_wrap.cxx: CppBlockUtils.i
 	swig $(SWIG_FLAGS) CppBlockUtils.i
-
-.PHONY: CppBlockUtils_wrap.cxx $(PROTOBUF_H)
 endif
 
 MOSTLYCLEANFILES = $(PROTOBUF_CC) $(PROTOBUF_H)
-BUILT_SOURCES = $(PROTOBUF_CC)
+BUILT_SOURCES += $(PROTOBUF_CC)
 
 clean-local:
 	rm -f CppBlockUtils.py
