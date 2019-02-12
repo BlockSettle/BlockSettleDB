@@ -7,6 +7,11 @@
 *.la
 *.qm
 *.in
+*.obj
+*.tlog
+*.lob
+*.idb
+*.pdb
 
 *libtool.m4
 *ltoptions.m4
@@ -38,6 +43,7 @@ config.h
 stamp-h1
 .dirstamp
 1
+.vs
 
 Makefile
 ArmoryDB
