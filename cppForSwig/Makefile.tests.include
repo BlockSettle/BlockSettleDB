@@ -53,7 +53,7 @@ TESTS += gtest/DB1kIterTest
 # BIP151RekeyTest
 bin_PROGRAMS += gtest/BIP151RekeyTest
 gtest_BIP151RekeyTest_SOURCES = gtest/BIP151RekeyTest.cpp
-gtest_BIP151RekeyTest_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS)
+gtest_BIP151RekeyTest_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
 gtest_BIP151RekeyTest_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_BIP151RekeyTest_LDADD = gtest/libgtest.la $(LIBBTC) $(LIBCRYPTOPP) \
 			$(LIBCHACHA20POLY1305)
