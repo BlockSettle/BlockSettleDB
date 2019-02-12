@@ -130,13 +130,8 @@
     <ClCompile Include="..\bech32\ref\c++\bech32.cpp" />
     <ClCompile Include="..\bech32\ref\c++\segwit_addr.cpp" />
     <ClCompile Include="..\BinaryData.cpp" />
-    <ClCompile Include="..\BIP150_151.cpp" />
     <ClCompile Include="..\BIP32_Node.cpp" />
-    <ClCompile Include="..\BlockDataManagerConfig.cpp" />
     <ClCompile Include="..\BtcUtils.cpp" />
-    <ClCompile Include="..\chacha20poly1305\chacha.c" />
-    <ClCompile Include="..\chacha20poly1305\chachapoly_aead.c" />
-    <ClCompile Include="..\chacha20poly1305\poly1305.c" />
     <ClCompile Include="..\DBUtils.cpp" />
     <ClCompile Include="..\DecryptedDataContainer.cpp" />
     <ClCompile Include="..\DerivationScheme.cpp" />
@@ -149,16 +144,14 @@
     <ClCompile Include="..\log.cpp" />
     <ClCompile Include="..\NetworkConfig.cpp" />
     <ClCompile Include="..\ReentrantLock.cpp" />
-    <ClCompile Include="..\Script.cpp" />
+    <ClCompile Include="..\ScriptRecipient.cpp" />
     <ClCompile Include="..\SecureBinaryData.cpp" />
-    <ClCompile Include="..\Signer.cpp" />
-    <ClCompile Include="..\SocketObject.cpp" />
-    <ClCompile Include="..\Transactions.cpp" />
-    <ClCompile Include="..\TxClasses.cpp" />
-    <ClCompile Include="..\TxEvalState.cpp" />
     <ClCompile Include="..\UniversalTimer.cpp" />
     <ClCompile Include="..\Wallets.cpp" />
     <ClCompile Include="..\Win_TranslatePath.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\ScriptRecipient.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

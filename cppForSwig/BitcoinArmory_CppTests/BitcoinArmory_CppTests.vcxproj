@@ -279,6 +279,7 @@
     <ClCompile Include="..\ScrAddrFilter.cpp" />
     <ClCompile Include="..\ScrAddrObj.cpp" />
     <ClCompile Include="..\Script.cpp" />
+    <ClCompile Include="..\ScriptRecipient.cpp" />
     <ClCompile Include="..\SecureBinaryData.cpp" />
     <ClCompile Include="..\Server.cpp" />
     <ClCompile Include="..\Signer.cpp" />

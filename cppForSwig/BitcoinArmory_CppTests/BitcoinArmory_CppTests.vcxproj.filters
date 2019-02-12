@@ -389,6 +389,9 @@
     <ClCompile Include="..\AuthorizedPeers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\ScriptRecipient.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\protobuf\AddressData.proto">
