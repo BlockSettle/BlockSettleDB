@@ -127,6 +127,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	ReentrantLock.cpp \
 	Script.cpp \
 	SecureBinaryData.cpp \
+	ScriptRecipient.cpp \
 	Signer.cpp \
 	SocketObject.cpp \
 	StoredBlockObj.cpp \
