@@ -10226,13 +10226,15 @@ TEST_F(WebSocketTests, WebSocketStack)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, true);
+   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, true);
 
    theBDMt_->start(config.initMode_);
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, pCallback);
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, pCallback);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
@@ -10473,7 +10475,8 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, true);
+   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, true);
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
    {
@@ -10499,7 +10502,8 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, pCallback);
+         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+         BlockDataManagerConfig::ephemeralPeers_, pCallback);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
@@ -10623,7 +10627,8 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
 
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, pCallback);
+         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+         BlockDataManagerConfig::ephemeralPeers_, pCallback);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
@@ -10707,7 +10712,8 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
    }
 
    auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, nullptr);
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->connectToRemote();
 
    bdvObj2->shutdown(config.cookie_);
@@ -10734,12 +10740,14 @@ TEST_F(WebSocketTests, GrabAddrLedger_PostReg)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, true);
+   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, true);
    theBDMt_->start(config.initMode_);
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, pCallback);
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, pCallback);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
@@ -10796,13 +10804,15 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, true);
+   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, true);
 
    theBDMt_->start(config.initMode_);
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, pCallback);
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, pCallback);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
    auto& bdvID = bdvObj->getID();
