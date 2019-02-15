@@ -10155,6 +10155,9 @@ protected:
       serverAddr << "127.0.0.1:" << config.listenPort_;
       clientPeers.addPeer(serverPubkey, serverAddr.str());
       serverPeers.addPeer(clientPubkey, "127.0.0.1");
+      
+      serverPubkey_ = BinaryData(serverPubkey.pubkey, 33);
+      serverAddr_ = serverAddr.str();
 
       initBDM();
    }
@@ -10203,6 +10206,8 @@ protected:
    BinaryData wallet2id;
    BinaryData LB1ID;
    BinaryData LB2ID;
+   BinaryData serverPubkey_;
+   string serverAddr_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -10461,6 +10466,7 @@ TEST_F(WebSocketTests, WebSocketStack)
 TEST_F(WebSocketTests, WebSocketStack_Reconnect)
 {
    BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
+   startupBIP150CTX(4, true);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
@@ -10477,6 +10483,15 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
    theBDMt_ = new BlockDataManagerThread(config);
    WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
       BlockDataManagerConfig::ephemeralPeers_, true);
+
+
+   auto pubkeyPrompt = [this](const BinaryData& pubkey, const string& name)->bool
+   {
+      if (pubkey != serverPubkey_ || name != serverAddr_)
+         return false;
+
+      return true;
+   };
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
    {
@@ -10503,7 +10518,8 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         true, pCallback);
+      bdvObj->setCheckServerKeyPromptLambda(pubkeyPrompt);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
@@ -10628,7 +10644,8 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         true, pCallback);
+      bdvObj->setCheckServerKeyPromptLambda(pubkeyPrompt);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
@@ -10713,7 +10730,8 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
 
    auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      BlockDataManagerConfig::ephemeralPeers_, nullptr);
+     true, nullptr);
+   bdvObj2->setCheckServerKeyPromptLambda(pubkeyPrompt);
    bdvObj2->connectToRemote();
 
    bdvObj2->shutdown(config.cookie_);
