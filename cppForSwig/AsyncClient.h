@@ -22,6 +22,7 @@ Handle codec and socketing for armory client
 #include "BlockDataManagerConfig.h"
 #include "WebSocketClient.h"
 #include "ClientClasses.h"
+#include "SocketWritePayload.h"
 
 class WalletManager;
 class WalletContainer;
