@@ -108,3 +108,20 @@ gtest_WalletTests_LDADD = gtest/libgtest.la \
 			-lprotobuf
 gtest_WalletTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/WalletTests
+
+#SignerTests
+bin_PROGRAMS += gtest/SignerTests
+gtest_SignerTests_SOURCES = gtest/SignerTests.cpp
+gtest_SignerTests_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
+gtest_SignerTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+gtest_SignerTests_LDADD = gtest/libgtest.la \
+			$(LIBBTC) \
+			$(LIBARMORYCOMMON) \
+			$(LIBARMORYCLI) \
+			$(LIBCRYPTOPP) \
+			$(LIBBTC) \
+			$(LIBCHACHA20POLY1305) \
+			$(LIBLMDB) \
+			-lprotobuf
+gtest_SignerTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
+TESTS += gtest/SignerTests
