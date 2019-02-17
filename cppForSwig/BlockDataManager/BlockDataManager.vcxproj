@@ -214,6 +214,7 @@
     <ClInclude Include="..\Signer.h" />
     <ClInclude Include="..\SocketIncludes.h" />
     <ClInclude Include="..\SocketObject.h" />
+    <ClInclude Include="..\SocketWritePayload.h" />
     <ClInclude Include="..\StoredBlockObj.h" />
     <ClInclude Include="..\ThreadSafeClasses.h" />
     <ClInclude Include="..\Transactions.h" />

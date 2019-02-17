@@ -9,6 +9,8 @@
 
 #include "TestUtils.h"
 
+using namespace std;
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,7 +22,6 @@ protected:
 
    void initBDM(void)
    {
-      ScrAddrFilter::init();
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
 
@@ -49,6 +50,8 @@ protected:
       mkdir(homedir_);
       mkdir(ldbdir_);
 
+      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
+
       // Put the first 5 blocks into the blkdir
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -58,9 +61,7 @@ protected:
       config.dbDir_ = ldbdir_;
       config.threadCount_ = 3;
 
-      config.genesisBlockHash_ = ghash_;
-      config.genesisTxHash_ = gentx_;
-      config.magicBytes_ = magic_;
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       config.nodeType_ = Node_UnitTest;
 
       wallet1id = BinaryData("wallet1");
@@ -158,7 +159,7 @@ TEST_F(SignerTest, Signer_Test)
    scrAddrVec.push_back(TestChain::scrAddrD);
    scrAddrVec.push_back(TestChain::scrAddrE);
 
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -258,7 +259,7 @@ TEST_F(SignerTest, SpendTest_P2PKH)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
@@ -272,8 +273,8 @@ TEST_F(SignerTest, SpendTest_P2PKH)
    vector<BinaryData> hashVec;
    hashVec.insert(hashVec.begin(), hashSet.begin(), hashSet.end());
 
-   DBTestUtils::regWallet(clients_, bdvID, hashVec, assetWlt->getID());
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec, assetWlt->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -508,7 +509,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
@@ -525,8 +526,8 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
    for (auto addrPtr : addrVec)
       hashVec.push_back(addrPtr->getPrefixedHash());
 
-   DBTestUtils::regWallet(clients_, bdvID, hashVec, assetWlt->getID());
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec, assetWlt->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -565,7 +566,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       Signer signer;
 
       //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResovlerUtils::TestResolverFeed>();
+      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
 
       auto addToFeed = [feed](const BinaryData& key)->void
       {
@@ -754,21 +755,21 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
    //// create 3 assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
-   wltRoot = move(SecureBinaryData().GenerateRandom(32));
+   wltRoot = move(CryptoPRNG::generateRandom(32));
    auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
-   wltRoot = move(SecureBinaryData().GenerateRandom(32));
+   wltRoot = move(CryptoPRNG::generateRandom(32));
    auto assetWlt_3 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
@@ -799,8 +800,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
    vector<BinaryData> addrVec;
    addrVec.push_back(addr_ms->getPrefixedHash());
 
-   DBTestUtils::regWallet(clients_, bdvID, addrVec, "ms_entry");
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, addrVec, "ms_entry");
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -1033,21 +1034,21 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    //// create 3 assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
-   wltRoot = move(SecureBinaryData().GenerateRandom(32));
+   wltRoot = move(CryptoPRNG::generateRandom(32));
    auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
-   wltRoot = move(SecureBinaryData().GenerateRandom(32));
+   wltRoot = move(CryptoPRNG::generateRandom(32));
    auto assetWlt_3 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
@@ -1085,9 +1086,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    for (auto& addr : addrSet)
       addrVec_singleSig.push_back(addr);
 
-   DBTestUtils::regWallet(clients_, bdvID, addrVec, "ms_entry");
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regWallet(clients_, bdvID, addrVec_singleSig, assetWlt_2->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, addrVec, "ms_entry");
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, addrVec_singleSig, assetWlt_2->getID());
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -1191,7 +1192,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
 
 	   //grab ZC from DB and verify it again
-      auto&& zc_from_db = DBTestUtils::getTxObjByHash(clients_, bdvID, zcHash);
+      auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
       auto&& raw_tx = zc_from_db.serialize();
       auto bctx = BCTX::parse(raw_tx);
       TransactionVerifier tx_verifier(*bctx, utxoVec);
@@ -1376,7 +1377,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
 
    //grab ZC from DB and verify it again
-   auto&& zc_from_db = DBTestUtils::getTxObjByHash(clients_, bdvID, zcHash);
+   auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
    auto&& raw_tx = zc_from_db.serialize();
    auto bctx = BCTX::parse(raw_tx);
    TransactionVerifier tx_verifier(*bctx, unspentVec);
@@ -1438,13 +1439,13 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
    //create a root private key
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
-      SecureBinaryData().GenerateRandom(32), //root as rvalue
+      CryptoPRNG::generateRandom(32), //root as rvalue
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
-      move(SecureBinaryData().GenerateRandom(32)), //root as rvalue
+      move(CryptoPRNG::generateRandom(32)), //root as rvalue
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
@@ -1467,9 +1468,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
    for (auto addrPtr : addrVec_2)
       hashVec_2.push_back(addrPtr->getPrefixedHash());
 
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regWallet(clients_, bdvID, hashVec_1, assetWlt_1->getID());
-   DBTestUtils::regWallet(clients_, bdvID, hashVec_2, assetWlt_2->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec_1, assetWlt_1->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec_2, assetWlt_2->getID());
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -1767,13 +1768,13 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
    //create a root private key
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
-      SecureBinaryData().GenerateRandom(32), //root as rvalue
+      CryptoPRNG::generateRandom(32), //root as rvalue
       SecureBinaryData(), //empty passphrase
       3); //set lookup computation to 3 entries
 
    auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
-      move(SecureBinaryData().GenerateRandom(32)), //root as rvalue
+      move(CryptoPRNG::generateRandom(32)), //root as rvalue
       SecureBinaryData(), //empty passphrase
       3); //set lookup computation to 3 entries
 
@@ -1796,9 +1797,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
    for (auto addrPtr : addrVec_2)
       hashVec_2.push_back(addrPtr->getPrefixedHash());
 
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regWallet(clients_, bdvID, hashVec_1, assetWlt_1->getID());
-   DBTestUtils::regWallet(clients_, bdvID, hashVec_2, assetWlt_2->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec_1, assetWlt_1->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec_2, assetWlt_2->getID());
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -2148,13 +2149,13 @@ TEST_F(SignerTest, GetUnsignedTxId)
    //create a root private key
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
-      SecureBinaryData().GenerateRandom(32), //root as rvalue
+      CryptoPRNG::generateRandom(32), //root as rvalue
       SecureBinaryData(), //empty passphrase
       3); //set lookup computation to 3 entries
 
    auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
-      move(SecureBinaryData().GenerateRandom(32)), //root as rvalue
+      move(CryptoPRNG::generateRandom(32)), //root as rvalue
       SecureBinaryData(), //empty passphrase
       3); //set lookup computation to 3 entries
 
@@ -2178,9 +2179,9 @@ TEST_F(SignerTest, GetUnsignedTxId)
    for (auto addrPtr : addrVec_2)
       hashVec_2.push_back(addrPtr->getPrefixedHash());
 
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::regWallet(clients_, bdvID, hashVec_1, assetWlt_1->getID());
-   DBTestUtils::regWallet(clients_, bdvID, hashVec_2, assetWlt_2->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec_1, assetWlt_1->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec_2, assetWlt_2->getID());
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -2528,7 +2529,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
@@ -2542,8 +2543,8 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
    vector<BinaryData> hashVec;
    hashVec.insert(hashVec.begin(), hashSet.begin(), hashSet.end());
 
-   DBTestUtils::regWallet(clients_, bdvID, hashVec, assetWlt->getID());
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec, assetWlt->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -2779,7 +2780,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
    //// create assetWlt ////
 
    //create a root private key
-   auto&& wltRoot = SecureBinaryData().GenerateRandom(32);
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
@@ -2793,8 +2794,8 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
    vector<BinaryData> hashVec;
    hashVec.insert(hashVec.begin(), hashSet.begin(), hashSet.end());
 
-   DBTestUtils::regWallet(clients_, bdvID, hashVec, assetWlt->getID());
-   DBTestUtils::regWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec, assetWlt->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
 
@@ -3017,18 +3018,22 @@ GTEST_API_ int main(int argc, char **argv)
    WSAStartup(wVersion, &wsaData);
 #endif
 
+   GOOGLE_PROTOBUF_VERIFY_VERSION;
    srand(time(0));
    std::cout << "Running main() from gtest_main.cc\n";
 
    // Setup the log file 
    STARTLOGGING("cppTestsLog.txt", LogLvlDebug2);
    //LOGDISABLESTDOUT();
+   btc_ecc_start();
 
    testing::InitGoogleTest(&argc, argv);
    int exitCode = RUN_ALL_TESTS();
+   btc_ecc_stop();
 
    FLUSHLOG();
    CLEANUPLOG();
+   google::protobuf::ShutdownProtobufLibrary();
 
    return exitCode;
 }
