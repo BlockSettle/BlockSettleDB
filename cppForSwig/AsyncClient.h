@@ -218,6 +218,7 @@ namespace AsyncClient
          std::function<void(ReturnMessage<std::vector<AddressBookEntry>>)>) const;
 
       std::string setUnconfirmedTarget(unsigned);
+      std::string walletID(void) const { return walletID_; }
    };
 
    /////////////////////////////////////////////////////////////////////////////
