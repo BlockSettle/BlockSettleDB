@@ -3640,6 +3640,102 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WebSocketTests, WebSocketStack_ParallelAsync_ManyLargeWallets)
+{
+   //public server
+   startupBIP150CTX(4, true);
+
+   //randomized peer keys, in ram only
+   config.ephemeralPeers_ = true;
+
+   BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
+
+   //
+   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
+
+   //run clients from websocketserver object instead
+   clients_->exitRequestLoop();
+   clients_->shutdown();
+
+   auto&& firstHash = READHEX("b6b6f145742a9072fd85f96772e63a00eb4101709aa34ec5dd59e8fc904191a7");
+   delete clients_;
+   delete theBDMt_;
+   clients_ = nullptr;
+
+   theBDMt_ = new BlockDataManagerThread(config);
+   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
+
+   auto createNAddresses = [](unsigned count)->vector<BinaryData>
+   {
+      vector<BinaryData> result;
+
+      for (unsigned i = 0; i < count; i++)
+      {
+         BinaryWriter bw;
+         bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
+
+         auto&& addrData = CryptoPRNG::generateRandom(20);
+         bw.put_BinaryData(addrData);
+
+         result.push_back(bw.getData());
+      }
+
+      return result;
+   };
+
+   auto&& _scrAddrVec1 = createNAddresses(2000);
+   _scrAddrVec1.push_back(TestChain::scrAddrA);
+
+   auto&& _scrAddrVec2 = createNAddresses(3000);
+   _scrAddrVec2.push_back(TestChain::scrAddrB);
+
+   auto&& _scrAddrVec3 = createNAddresses(1500);
+   _scrAddrVec3.push_back(TestChain::scrAddrC);
+
+   auto&& _scrAddrVec4 = createNAddresses(4000);
+   _scrAddrVec4.push_back(TestChain::scrAddrE);
+
+   theBDMt_->start(config.initMode_);
+
+   {
+      auto pCallback = make_shared<DBTestUtils::UTCallback>();
+      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+         BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      bdvObj->addPublicKey(serverPubkey);
+      bdvObj->connectToRemote();
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+
+      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+      vector<string> walletRegIDs;
+      walletRegIDs.push_back(
+         wallet1.registerAddresses(_scrAddrVec1, false));
+
+      auto&& wallet2 = bdvObj->instantiateWallet("wallet2");
+      walletRegIDs.push_back(
+         wallet1.registerAddresses(_scrAddrVec2, false));
+
+      auto&& wallet3 = bdvObj->instantiateWallet("wallet3");
+      walletRegIDs.push_back(
+         wallet1.registerAddresses(_scrAddrVec3, false));
+
+      auto&& wallet4 = bdvObj->instantiateWallet("wallet4");
+      walletRegIDs.push_back(
+         wallet1.registerAddresses(_scrAddrVec4, false));
+
+      //wait on registration ack
+      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+      //go online
+      bdvObj->goOnline();
+      pCallback->waitOnSignal(BDMAction_Ready);
+      bdvObj->unregisterFromDB();
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 // Now actually execute all the tests
 ////////////////////////////////////////////////////////////////////////////////
