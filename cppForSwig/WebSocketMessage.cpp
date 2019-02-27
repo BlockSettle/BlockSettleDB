@@ -169,11 +169,11 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
       uint16_t fragment_count = left_over / fragment_room + 1;
       if (fragment_count >= 253)
       {
-         left_over -= fragment_count * fragment_room;
+         left_over -= 252 * fragment_room;
          
          //3 extra bytes for fragment count >= 253
          fragment_room = payload_room - 3; 
-         fragment_count += left_over / fragment_room;
+         fragment_count = 253 + left_over / fragment_room;
       }
 
       if (left_over % fragment_room != 0)
@@ -201,7 +201,7 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
       for (unsigned i = 1; i < fragment_count; i++)
       {
          if (i == 253)
-            fragment_overhead += 3;
+            fragment_overhead += 2;
 
          //figure out data size
          size_t data_size = min(

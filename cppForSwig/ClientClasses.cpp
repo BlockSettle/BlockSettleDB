@@ -19,7 +19,7 @@ using namespace ::Codec_BDVCommand;
 ///////////////////////////////////////////////////////////////////////////////
 void ClientClasses::initLibrary()
 {
-   startupBIP150CTX(4, BlockDataManagerConfig::ephemeralPeers_);
+   startupBIP150CTX(4, false);
    startupBIP151CTX();
    btc_ecc_start();
 }

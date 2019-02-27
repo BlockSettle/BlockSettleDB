@@ -12,8 +12,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "TestUtils.h"
-
 using namespace std;
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,7 +72,6 @@ protected:
    vector<BinaryData> txList_;
    vector<BinaryData> merkleTree_;
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(DISABLED_PartialMerkleTest, FullTree)
@@ -3685,16 +3684,16 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync_ManyLargeWallets)
       return result;
    };
 
-   auto&& _scrAddrVec1 = createNAddresses(2000);
+   auto&& _scrAddrVec1 = createNAddresses(20000);
    _scrAddrVec1.push_back(TestChain::scrAddrA);
 
-   auto&& _scrAddrVec2 = createNAddresses(3000);
+   auto&& _scrAddrVec2 = createNAddresses(30000);
    _scrAddrVec2.push_back(TestChain::scrAddrB);
 
-   auto&& _scrAddrVec3 = createNAddresses(1500);
+   auto&& _scrAddrVec3 = createNAddresses(15000);
    _scrAddrVec3.push_back(TestChain::scrAddrC);
 
-   auto&& _scrAddrVec4 = createNAddresses(4000);
+   auto&& _scrAddrVec4 = createNAddresses(40000);
    _scrAddrVec4.push_back(TestChain::scrAddrE);
 
    theBDMt_->start(config.initMode_);
