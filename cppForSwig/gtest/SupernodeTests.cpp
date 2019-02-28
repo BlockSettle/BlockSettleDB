@@ -3714,15 +3714,15 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync_ManyLargeWallets)
 
       auto&& wallet2 = bdvObj->instantiateWallet("wallet2");
       walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec2, false));
+         wallet2.registerAddresses(_scrAddrVec2, false));
 
       auto&& wallet3 = bdvObj->instantiateWallet("wallet3");
       walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec3, false));
+         wallet3.registerAddresses(_scrAddrVec3, false));
 
       auto&& wallet4 = bdvObj->instantiateWallet("wallet4");
       walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec4, false));
+         wallet4.registerAddresses(_scrAddrVec4, false));
 
       //wait on registration ack
       pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
