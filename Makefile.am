@@ -22,19 +22,8 @@ qrc_img_resources.py: imgList.xml
 endif
 
 copy-script:
-# Creating redistributable binaries is a horror show with Autotools. GCC can use
-# $ORIGIN to make searching for libraries relative via RPATH. libtool refuses to
-# support $ORIGIN. The elder gods punish all who dare question their decision.
-#
-# The "ideal" method is to just dump everything into a standard folder that the
-# system will search (e.g., /usr/local/lib). This isn't always ideal, or even
-# possible. The workaround: Let Automake do its thing and then use an external
-# tool to tell libraries to use RPATH to search local locations.
-# SOURCE 1: https://wiki.debian.org/RpathIssue
-# SOURCE 2: https://www.mikeash.com/pyblog/friday-qa-2009-11-06-linking-and-install-names.html
-# SOURCE 3: https://github.com/conda/conda-build/issues/279
-# SOURCE 4: https://longwei.github.io/rpath_origin/
 	cp cppForSwig/ArmoryDB ./ArmoryDB
+	cp cppForSwig/BIP150KeyManager ./BIP150KeyManager
 
 # SWIG code and requirements.
 if BUILD_CLIENT
@@ -64,6 +53,7 @@ all-local: copy-script lrelease qrc_img_resources.py
 #target to clean up pre autotools installation left overs
 uninstall-old:
 	rm -f $(DESTDIR)$(prefix)/bin/ArmoryDB
+	rm -f $(DESTDIR)$(prefix)/bin/BIP150KeyManager
 
 install-exec-hook: uninstall-old
 if BUILD_CLIENT
@@ -84,6 +74,7 @@ endif
 	mkdir -p $(DESTDIR)$(prefix)/bin
 # Sometimes, uninstall-old deletes a valid ArmoryDB. Copy again to be safe.
 	cp ArmoryDB $(DESTDIR)$(prefix)/bin
+	cp BIP150KeyManager $(DESTDIR)$(prefix)/bin
 
 # No need to install test binaries.
 if BUILD_TESTS
@@ -107,6 +98,7 @@ uninstall-hook: uninstall-old
 
 clean-local:
 	rm -f ArmoryDB
+	rm -f BIP150KeyManager
 	rm -f lib/*
 if BUILD_CLIENT
 	rm -f CppBlockUtils.py

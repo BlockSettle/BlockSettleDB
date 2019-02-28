@@ -47,6 +47,7 @@ stamp-h1
 
 Makefile
 ArmoryDB
+BIP150KeyManager
 /armoryengine/ArmoryBuild.py
 
 /cppForSwig/BIP150KeyManager
