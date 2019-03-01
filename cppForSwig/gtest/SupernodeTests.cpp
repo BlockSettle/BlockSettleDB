@@ -3684,17 +3684,25 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync_ManyLargeWallets)
       return result;
    };
 
-   auto&& _scrAddrVec1 = createNAddresses(20000);
+   auto&& _scrAddrVec1 = createNAddresses(2000);
    _scrAddrVec1.push_back(TestChain::scrAddrA);
 
-   auto&& _scrAddrVec2 = createNAddresses(30000);
-   _scrAddrVec2.push_back(TestChain::scrAddrB);
+   auto&& _scrAddrVec2 = createNAddresses(3);
 
-   auto&& _scrAddrVec3 = createNAddresses(15000);
-   _scrAddrVec3.push_back(TestChain::scrAddrC);
+   auto&& _scrAddrVec3 = createNAddresses(1500);
+   _scrAddrVec3.push_back(TestChain::scrAddrB);
 
-   auto&& _scrAddrVec4 = createNAddresses(40000);
-   _scrAddrVec4.push_back(TestChain::scrAddrE);
+   auto&& _scrAddrVec4 = createNAddresses(4);
+
+   auto&& _scrAddrVec5 = createNAddresses(4000);
+   _scrAddrVec5.push_back(TestChain::scrAddrC);
+
+   auto&& _scrAddrVec6 = createNAddresses(2);
+
+   auto&& _scrAddrVec7 = createNAddresses(4000);
+   _scrAddrVec7.push_back(TestChain::scrAddrE);
+
+   auto&& _scrAddrVec8 = createNAddresses(2);
 
    theBDMt_->start(config.initMode_);
 
@@ -3723,6 +3731,22 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync_ManyLargeWallets)
       auto&& wallet4 = bdvObj->instantiateWallet("wallet4");
       walletRegIDs.push_back(
          wallet4.registerAddresses(_scrAddrVec4, false));
+
+      auto&& wallet5 = bdvObj->instantiateWallet("wallet5");
+      walletRegIDs.push_back(
+         wallet5.registerAddresses(_scrAddrVec5, false));
+
+      auto&& wallet6 = bdvObj->instantiateWallet("wallet6");
+      walletRegIDs.push_back(
+         wallet6.registerAddresses(_scrAddrVec6, false));
+
+      auto&& wallet7 = bdvObj->instantiateWallet("wallet7");
+      walletRegIDs.push_back(
+         wallet7.registerAddresses(_scrAddrVec7, false));
+
+      auto&& wallet8 = bdvObj->instantiateWallet("wallet8");
+      walletRegIDs.push_back(
+         wallet8.registerAddresses(_scrAddrVec8, false));
 
       //wait on registration ack
       pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);

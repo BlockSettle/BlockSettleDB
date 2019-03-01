@@ -388,7 +388,7 @@ bool WebSocketMessagePartial::parsePacket(const BinaryDataRef& dataRef)
    }
 
    default:
-      LOGERR << "invalid packet size";
+      LOGERR << "invalid packet type";
    }
 
    return false;
