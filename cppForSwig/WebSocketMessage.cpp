@@ -403,6 +403,8 @@ bool WebSocketMessagePartial::parseSinglePacket(const BinaryDataRef& bdr)
    nbytes payload
    */
 
+   if (id_ != UINT32_MAX)
+      return false;
    BinaryRefReader brr(bdr);
 
    type_ = brr.get_uint8_t();
