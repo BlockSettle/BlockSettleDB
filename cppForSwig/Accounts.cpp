@@ -625,7 +625,7 @@ const SecureBinaryData& AssetAccount::getChaincode() const
 void AddressAccount::make_new(
    shared_ptr<AccountType> accType,
    shared_ptr<DecryptedDataContainer> decrData,
-   unique_ptr<Cypher> cypher)
+   unique_ptr<Cipher> cipher)
 {
    reset();
 
@@ -661,7 +661,7 @@ void AddressAccount::make_new(
          auto& root = accType->getPrivateRoot();
          firstAsset = derScheme->computeNextPrivateEntry(
             decrData,
-            root, move(cypher),
+            root, move(cipher),
             full_account_id, 0);
       }
 
@@ -690,7 +690,7 @@ void AddressAccount::make_new(
       //asset account lambda
       auto createNewAccount = [&accBip32, &decrData, this](
          unsigned node_id,
-         unique_ptr<Cypher> cypher_copy)->shared_ptr<AssetAccount>
+         unique_ptr<Cipher> cipher_copy)->shared_ptr<AssetAccount>
       {
          auto&& account_id = WRITE_UINT32_BE(node_id);
          auto&& full_account_id = ID_ + account_id;
@@ -730,11 +730,11 @@ void AddressAccount::make_new(
 
             //encrypt private root
             auto&& encrypted_root =
-               decrData->encryptData(cypher_copy.get(), node.getPrivateKey());
+               decrData->encryptData(cipher_copy.get(), node.getPrivateKey());
 
             //create assets
             auto priv_asset = make_shared<Asset_PrivateKey>(
-               -1, encrypted_root, move(cypher_copy));
+               -1, encrypted_root, move(cipher_copy));
             rootAsset = make_shared<AssetEntry_Single>(
                -1, full_account_id,
                pubkey,
@@ -765,7 +765,7 @@ void AddressAccount::make_new(
       {
          auto account_obj = createNewAccount(
             node,
-            move(cypher->getCopy()));
+            move(cipher->getCopy()));
          addAccount(account_obj);
       }
 
@@ -810,13 +810,13 @@ void AddressAccount::make_new(
          ReentrantLock lock(decrData.get());
 
          //encrypt private root
-         auto&& cypher_copy = cypher->getCopy();
+         auto&& cipher_copy = cipher->getCopy();
          auto&& encrypted_root =
-            decrData->encryptData(cypher_copy.get(), root);
+            decrData->encryptData(cipher_copy.get(), root);
 
          //create assets
          auto priv_asset = make_shared<Asset_PrivateKey>(
-            -1, encrypted_root, move(cypher_copy));
+            -1, encrypted_root, move(cipher_copy));
          auto rootAsset = make_shared<AssetEntry_Single>(
             -1, full_account_id,
             rootpub,

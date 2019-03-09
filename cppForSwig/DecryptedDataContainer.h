@@ -111,7 +111,7 @@ public:
    const SecureBinaryData& getDecryptedPrivateKey(
       std::shared_ptr<Asset_PrivateKey> data);
    SecureBinaryData encryptData(
-      Cypher* const cypher, const SecureBinaryData& data);
+      Cipher* const cipher, const SecureBinaryData& data);
 
 
    void populateEncryptionKey(

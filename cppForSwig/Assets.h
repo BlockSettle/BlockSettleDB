@@ -75,7 +75,7 @@ enum ScriptHashType
 struct DecryptedEncryptionKey
 {
    friend class DecryptedDataContainer;
-   friend class Cypher_AES;
+   friend class Cipher_AES;
    friend class AssetWallet_Single;
 
 private:
@@ -190,19 +190,19 @@ struct Asset_EncryptedData : public Asset
 
 protected:
    const SecureBinaryData data_;
-   std::unique_ptr<Cypher> cypher_;
+   std::unique_ptr<Cipher> cipher_;
 
 public:
-   Asset_EncryptedData(SecureBinaryData& data, std::unique_ptr<Cypher> cypher)
+   Asset_EncryptedData(SecureBinaryData& data, std::unique_ptr<Cipher> cipher)
       : Asset(AssetType_EncryptedData), data_(std::move(data))
    {
       if (data_.getSize() == 0)
          return;
 
-      if (cypher == nullptr)
-         throw AssetException("null cypher for privkey");
+      if (cipher == nullptr)
+         throw AssetException("null cipher for privkey");
 
-      cypher_ = std::move(cypher);
+      cipher_ = std::move(cipher);
    }
 
    //virtual
@@ -215,17 +215,17 @@ public:
       return (data_.getSize() != 0);
    }
 
-   std::unique_ptr<Cypher> copyCypher(void) const
+   std::unique_ptr<Cipher> copyCipher(void) const
    {
-      if (cypher_ == nullptr)
+      if (cipher_ == nullptr)
          return nullptr;
 
-      return cypher_->getCopy();
+      return cipher_->getCopy();
    }
 
    const SecureBinaryData& getIV(void) const
    {
-      return cypher_->getIV();
+      return cipher_->getIV();
    }
 
    const SecureBinaryData& getEncryptedData(void) const
@@ -235,7 +235,7 @@ public:
 
    const BinaryData& getEncryptionKeyID(void) const
    {
-      return cypher_->getEncryptionKeyId();
+      return cipher_->getEncryptionKeyId();
    }
 
    //static
@@ -256,8 +256,8 @@ private:
 
 public:
    Asset_EncryptionKey(BinaryData& id, SecureBinaryData& data,
-      std::unique_ptr<Cypher> cypher) :
-      Asset_EncryptedData(data, std::move(cypher)), id_(std::move(id))
+      std::unique_ptr<Cipher> cipher) :
+      Asset_EncryptedData(data, std::move(cipher)), id_(std::move(id))
    {}
 
    BinaryData serialize(void) const;
@@ -280,8 +280,8 @@ private:
 
 public:
    Asset_PrivateKey(int id,
-      SecureBinaryData& data, std::unique_ptr<Cypher> cypher) :
-      Asset_EncryptedData(data, std::move(cypher)), id_(id)
+      SecureBinaryData& data, std::unique_ptr<Cipher> cipher) :
+      Asset_EncryptedData(data, std::move(cipher)), id_(id)
    {}
 
    BinaryData serialize(void) const;

@@ -313,7 +313,7 @@ protected:
       std::shared_ptr<WalletMeta>,
       std::shared_ptr<KeyDerivationFunction> masterKdf,
       DecryptedEncryptionKey& masterEncryptionKey,
-      std::unique_ptr<Cypher>,
+      std::unique_ptr<Cipher>,
       const SecureBinaryData& passphrase,
       const SecureBinaryData& privateRoot,
       std::set<std::shared_ptr<AccountType>> accountTypes,

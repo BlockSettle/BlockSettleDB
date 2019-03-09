@@ -250,7 +250,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    masterEncryptionKey.deriveKey(kdfPtr);
    auto&& masterEncryptionKeyId = masterEncryptionKey.getId(kdfPtr->getId());
 
-   auto cypher = make_unique<Cypher_AES>(kdfPtr->getId(), 
+   auto cipher = make_unique<Cipher_AES>(kdfPtr->getId(), 
       masterEncryptionKeyId);
 
    SecureBinaryData dummy1, dummy2;
@@ -268,7 +268,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
       wltMetaPtr,
       kdfPtr,
       masterEncryptionKey,
-      move(cypher),
+      move(cipher),
       passphrase, 
       privateRoot, 
       move(accountTypes),
@@ -414,7 +414,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    masterEncryptionKey.deriveKey(kdfPtr);
    auto&& masterEncryptionKeyId = masterEncryptionKey.getId(kdfPtr->getId());
 
-   auto cypher = make_unique<Cypher_AES>(kdfPtr->getId(),
+   auto cipher = make_unique<Cipher_AES>(kdfPtr->getId(),
       masterEncryptionKeyId);
 
    //address accounts
@@ -446,7 +446,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
       wltMetaPtr,
       kdfPtr,
       masterEncryptionKey,
-      move(cypher),
+      move(cipher),
       passphrase,
       rootNode.getPrivateKey(),
       move(accountTypes),
@@ -528,7 +528,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
    masterEncryptionKey.deriveKey(kdfPtr);
    auto&& masterEncryptionKeyId = masterEncryptionKey.getId(kdfPtr->getId());
 
-   auto cypher = make_unique<Cypher_AES>(kdfPtr->getId(),
+   auto cipher = make_unique<Cipher_AES>(kdfPtr->getId(),
       masterEncryptionKeyId);
 
    //address accounts
@@ -557,7 +557,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
          wltMetaPtr,
          kdfPtr,
          masterEncryptionKey,
-         move(cypher),
+         move(cipher),
          passphrase,
          node.getPrivateKey(),
          move(accountTypes),
@@ -822,7 +822,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    shared_ptr<WalletMeta> metaPtr,
    shared_ptr<KeyDerivationFunction> masterKdf,
    DecryptedEncryptionKey& masterEncryptionKey,
-   unique_ptr<Cypher> cypher,
+   unique_ptr<Cipher> cipher,
    const SecureBinaryData& passphrase,
    const SecureBinaryData& privateRoot,
    set<shared_ptr<AccountType>> accountTypes,
@@ -831,16 +831,16 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    //create root AssetEntry
    auto&& pubkey = CryptoECDSA().ComputePublicKey(privateRoot);
 
-   //copy cypher to cycle the IV then encrypt the private root
+   //copy cipher to cycle the IV then encrypt the private root
    masterEncryptionKey.deriveKey(masterKdf);
    auto&& masterEncryptionKeyId = masterEncryptionKey.getId(masterKdf->getId());
-   auto&& rootCypher = cypher->getCopy(masterEncryptionKeyId);
-   auto&& encryptedRoot = rootCypher->encrypt(
+   auto&& rootCipher = cipher->getCopy(masterEncryptionKeyId);
+   auto&& encryptedRoot = rootCipher->encrypt(
       &masterEncryptionKey, masterKdf->getId(), privateRoot);
 
    //create encrypted object
    auto rootAsset = make_shared<Asset_PrivateKey>(
-      -1, encryptedRoot, move(rootCypher));
+      -1, encryptedRoot, move(rootCipher));
 
    auto rootAssetEntry = make_shared<AssetEntry_Single>(
       -1, BinaryData(),
@@ -875,14 +875,14 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
 
    topEncryptionKey->deriveKey(masterKdf);
    auto&& topEncryptionKeyId = topEncryptionKey->getId(masterKdf->getId());
-   auto&& masterKeyCypher = cypher->getCopy(topEncryptionKeyId);
-   auto&& encrMasterKey = masterKeyCypher->encrypt(
+   auto&& masterKeyCipher = cipher->getCopy(topEncryptionKeyId);
+   auto&& encrMasterKey = masterKeyCipher->encrypt(
       topEncryptionKey.get(),
       masterKdf->getId(),
       masterEncryptionKey.getData());
 
    auto masterKeyPtr = make_shared<Asset_EncryptionKey>(masterEncryptionKeyId,
-      encrMasterKey, move(masterKeyCypher));
+      encrMasterKey, move(masterKeyCipher));
 
    auto walletPtr = make_shared<AssetWallet_Single>(metaPtr);
 
@@ -948,10 +948,10 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
                walletPtr->dbEnv_,
                walletPtr->db_);
 
-            auto&& cypher_copy = cypher->getCopy();
+            auto&& cipher_copy = cipher->getCopy();
             account_ptr->make_new(accountType,
                walletPtr->decryptedData_,
-               move(cypher_copy));
+               move(cipher_copy));
 
             //commit to disk
             account_ptr->commit();

@@ -325,7 +325,7 @@ Asset_EncryptedData::~Asset_EncryptedData()
 unique_ptr<DecryptedEncryptionKey> Asset_EncryptionKey::decrypt(
    const SecureBinaryData& key) const
 {
-   auto decryptedData = cypher_->decrypt(key, data_);
+   auto decryptedData = cipher_->decrypt(key, data_);
    auto decrPtr = make_unique<DecryptedEncryptionKey>(decryptedData);
    return move(decrPtr);
 }
@@ -334,7 +334,7 @@ unique_ptr<DecryptedEncryptionKey> Asset_EncryptionKey::decrypt(
 unique_ptr<DecryptedPrivateKey> Asset_PrivateKey::decrypt(
    const SecureBinaryData& key) const
 {
-   auto&& decryptedData = cypher_->decrypt(key, data_);
+   auto&& decryptedData = cipher_->decrypt(key, data_);
    auto decrPtr = make_unique<DecryptedPrivateKey>(id_, decryptedData);
    return move(decrPtr);
 }
@@ -364,9 +364,9 @@ BinaryData Asset_PrivateKey::serialize() const
    bw.put_var_int(data_.getSize());
    bw.put_BinaryData(data_);
 
-   auto&& cypherData = cypher_->serialize();
-   bw.put_var_int(cypherData.getSize());
-   bw.put_BinaryData(cypherData);
+   auto&& cipherData = cipher_->serialize();
+   bw.put_var_int(cipherData.getSize());
+   bw.put_BinaryData(cipherData);
 
    BinaryWriter finalBw;
    finalBw.put_var_int(bw.getSize());
@@ -384,9 +384,9 @@ BinaryData Asset_EncryptionKey::serialize() const
    bw.put_var_int(data_.getSize());
    bw.put_BinaryData(data_);
 
-   auto&& cypherData = cypher_->serialize();
-   bw.put_var_int(cypherData.getSize());
-   bw.put_BinaryData(cypherData);
+   auto&& cipherData = cipher_->serialize();
+   bw.put_var_int(cipherData.getSize());
+   bw.put_BinaryData(cipherData);
 
    BinaryWriter finalBw;
    finalBw.put_var_int(bw.getSize());
@@ -402,7 +402,7 @@ bool Asset_PrivateKey::isSame(Asset_EncryptedData* const asset) const
       return false;
 
    return id_ == asset_ed->id_ && data_ == asset_ed->data_ &&
-      cypher_->isSame(asset_ed->cypher_.get());
+      cipher_->isSame(asset_ed->cipher_.get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -413,7 +413,7 @@ bool Asset_EncryptionKey::isSame(Asset_EncryptedData* const asset) const
       return false;
 
    return id_ == asset_ed->id_ && data_ == asset_ed->data_ &&
-      cypher_->isSame(asset_ed->cypher_.get());
+      cipher_->isSame(asset_ed->cipher_.get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -454,14 +454,14 @@ shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
       auto len = brr.get_var_int();
       auto&& data = brr.get_SecureBinaryData(len);
 
-      //cypher
+      //cipher
       len = brr.get_var_int();
       if (len > brr.getSizeRemaining())
          throw runtime_error("invalid serialized encrypted data len");
-      auto&& cypher = Cypher::deserialize(brr);
+      auto&& cipher = Cipher::deserialize(brr);
 
       //ptr
-      assetPtr = make_shared<Asset_PrivateKey>(id, data, move(cypher));
+      assetPtr = make_shared<Asset_PrivateKey>(id, data, move(cipher));
 
       break;
    }
@@ -476,14 +476,14 @@ shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
       len = brr.get_var_int();
       auto&& data = brr.get_SecureBinaryData(len);
 
-      //cypher
+      //cipher
       len = brr.get_var_int();
       if (len > brr.getSizeRemaining())
          throw runtime_error("invalid serialized encrypted data len");
-      auto&& cypher = Cypher::deserialize(brr);
+      auto&& cipher = Cipher::deserialize(brr);
 
       //ptr
-      assetPtr = make_shared<Asset_EncryptionKey>(id, data, move(cypher));
+      assetPtr = make_shared<Asset_EncryptionKey>(id, data, move(cipher));
 
       break;
    }
