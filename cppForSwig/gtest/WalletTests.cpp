@@ -902,6 +902,91 @@ TEST_F(WalletsTest, BIP32_Public_Chain)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, BIP32_ArmoryDefault)
+{
+   vector<unsigned> derivationPath = {
+   0x80000050,
+   0x800005de,
+   0x8000465a,
+   501};
+
+   auto&& seed = CryptoPRNG::generateRandom(32);
+
+   //create empty wallet
+   SecureBinaryData passphrase("password");
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_, seed, derivationPath, passphrase, 5);
+
+   auto accId = assetWlt->getMainAccountID();
+   auto accRoot = assetWlt->getAccountRoot(accId);
+   auto accRootPtr = dynamic_pointer_cast<AssetEntry_BIP32Root>(accRoot);
+
+   BIP32_Node node;
+   node.initFromSeed(seed);
+   for (auto id : derivationPath)
+      node.derivePrivate(id);
+   node.derivePrivate(0);
+
+   EXPECT_EQ(accRootPtr->getPubKey()->getCompressedKey(), node.getPublicKey());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, BIP32_Chain_AddAccount)
+{
+   vector<unsigned> derivationPath1 = { 
+      0x80000050, 
+      0x800005de, 
+      0x8000465a,
+      501
+   };
+
+   //random seed
+   auto&& seed = CryptoPRNG::generateRandom(32);
+
+   //create empty wallet
+   SecureBinaryData passphrase("password");
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
+      homedir_, seed, passphrase);
+
+   //this is a hard derivation scenario, the wallet needs to be able to 
+   //decrypt its root's private key
+   auto passphraseLbd = [&passphrase](const BinaryData&)->SecureBinaryData
+   {
+      return passphrase;
+   };
+   assetWlt->setPassphrasePromptLambda(passphraseLbd);
+
+   //add bip32 account for derivationPath1
+   auto accountPtr = assetWlt->createBIP32Account(nullptr, derivationPath1);
+
+
+   //derive bip32 node
+   BIP32_Node seedNode;
+   seedNode.initFromSeed(seed);
+   for (auto& derId : derivationPath1)
+      seedNode.derivePrivate(derId);
+   
+   auto outerNode = seedNode;
+   outerNode.derivePrivate(0);
+
+   //check vs wallet account root
+   auto accountRoot = assetWlt->getAccountRoot(accountPtr);
+   auto accountRoot_BIP32 = 
+      dynamic_pointer_cast<AssetEntry_BIP32Root>(accountRoot);
+   auto& pubkeyAcc = accountRoot_BIP32->getPubKey()->getCompressedKey();
+   EXPECT_EQ(pubkeyAcc, outerNode.getPublicKey());
+
+   {
+      //check encryption for the added account works
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& accountPrivKey =
+         assetWlt->getDecryptedValue(accountRoot_BIP32->getPrivKey());
+
+      EXPECT_EQ(accountPrivKey, outerNode.getPrivateKey());
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class WalletMetaDataTest : public ::testing::Test
