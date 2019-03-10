@@ -711,9 +711,11 @@ void AddressAccount::make_new(
             chaincode = node.moveChaincode();
             auto pubkey = node.movePublicKey();
 
-            rootAsset = make_shared<AssetEntry_Single>(
+            rootAsset = make_shared<AssetEntry_BIP32Root>(
                -1, full_account_id,
-               pubkey, nullptr);
+               pubkey, nullptr,
+               chaincode,
+               node.getDepth(), node.getLeafID());
          }
          else
          {
@@ -735,10 +737,11 @@ void AddressAccount::make_new(
             //create assets
             auto priv_asset = make_shared<Asset_PrivateKey>(
                -1, encrypted_root, move(cipher_copy));
-            rootAsset = make_shared<AssetEntry_Single>(
+            rootAsset = make_shared<AssetEntry_BIP32Root>(
                -1, full_account_id,
-               pubkey,
-               priv_asset);
+               pubkey, priv_asset, 
+               chaincode,
+               node.getDepth(), node.getLeafID());
          }
 
          //der scheme
@@ -786,10 +789,11 @@ void AddressAccount::make_new(
       {
          //wo
          auto rootPub = accType->getPublicRoot();
-         auto rootAsset = make_shared<AssetEntry_Single>(
+         auto chaincode = accType->getChaincode();
+         auto rootAsset = make_shared<AssetEntry_BIP32Root>(
             -1, full_account_id,
-            rootPub,
-            nullptr);
+            rootPub, nullptr, chaincode,
+            accBip32->getDepth(), accBip32->getLeafID());
 
          auto chaincode_copy = accType->getChaincode();
          auto derScheme = make_shared<DerivationScheme_BIP32>(
@@ -807,6 +811,10 @@ void AddressAccount::make_new(
          auto& root = accType->getPrivateRoot();
          auto&& rootpub = CryptoECDSA().ComputePublicKey(root);
 
+         auto chaincode = accType->getChaincode();
+         if (chaincode.getSize() == 0)
+            throw AccountException("missing chaincode");
+
          ReentrantLock lock(decrData.get());
 
          //encrypt private root
@@ -817,10 +825,10 @@ void AddressAccount::make_new(
          //create assets
          auto priv_asset = make_shared<Asset_PrivateKey>(
             -1, encrypted_root, move(cipher_copy));
-         auto rootAsset = make_shared<AssetEntry_Single>(
+         auto rootAsset = make_shared<AssetEntry_BIP32Root>(
             -1, full_account_id,
-            rootpub,
-            priv_asset);
+            rootpub, priv_asset, chaincode,
+            accBip32->getDepth(), accBip32->getLeafID());
 
          auto chaincode_copy = accType->getChaincode();
          auto derScheme = make_shared<DerivationScheme_BIP32>(
@@ -1255,13 +1263,20 @@ BinaryData AccountType_BIP32::getAccountID() const
    BinaryData accountID;
    if (isWatchingOnly())
    {
-      auto&& pub_hash160 = BtcUtils::getHash160(derivedRoot_);
+      //this ensures address accounts of different types based on the same
+      //bip32 root do not end up with the same id
+      auto rootCopy = derivedRoot_;
+      rootCopy.getPtr()[0] ^= (uint8_t)type_;
+
+      auto&& pub_hash160 = BtcUtils::getHash160(rootCopy);
       accountID = move(pub_hash160.getSliceCopy(0, 4));
    }
    else
    {
-      //compute ID
+      
       auto&& root_pub = CryptoECDSA().ComputePublicKey(derivedRoot_);
+      root_pub.getPtr()[0] ^= (uint8_t)type_;
+
       auto&& pub_hash160 = BtcUtils::getHash160(root_pub);
       accountID = move(pub_hash160.getSliceCopy(0, 4));
    }

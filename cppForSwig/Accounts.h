@@ -427,6 +427,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 class AddressAccount : public Lockable
 {
+   friend class AssetWallet;
    friend class AssetWallet_Single;
 
 private:

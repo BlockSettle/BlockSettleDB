@@ -60,7 +60,8 @@ enum MetaType
 enum AssetEntryType
 {
    AssetEntryType_Single = 0x01,
-   AssetEntryType_Multisig
+   AssetEntryType_Multisig,
+   AssetEntryType_BIP32Root
 };
 
 enum ScriptHashType
@@ -317,7 +318,7 @@ public:
    const BinaryData& getAccountID(void) const { return accountID_; }
    const BinaryData& getID(void) const { return ID_; }
 
-   const AssetEntryType getType(void) const { return type_; }
+   virtual const AssetEntryType getType(void) const { return type_; }
    bool needsCommit(void) const { return needsCommit_; }
    void doNotCommit(void) { needsCommit_ = false; }
    BinaryData getDbKey(void) const;
@@ -376,13 +377,66 @@ public:
    std::shared_ptr<Asset_PrivateKey> getPrivKey(void) const { return privkey_; }
 
    //virtual
-   BinaryData serialize(void) const;
+   virtual BinaryData serialize(void) const;
    bool hasPrivateKey(void) const;
    const BinaryData& getPrivateEncryptionKeyId(void) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class AssetEntry_Multisig : public AssetEntry
+class AssetEntry_BIP32Root : public AssetEntry_Single
+{
+private:
+   const uint8_t depth_;
+   const unsigned leafID_;
+   const SecureBinaryData chaincode_;
+
+public:
+   //tors
+   AssetEntry_BIP32Root(int id, const BinaryData& accountID,
+      SecureBinaryData& pubkey,
+      std::shared_ptr<Asset_PrivateKey> privkey,
+      const SecureBinaryData& chaincode,
+      uint8_t depth, unsigned leafID) :
+      AssetEntry_Single(id, accountID, pubkey, privkey),
+      chaincode_(chaincode),
+      depth_(depth), leafID_(leafID)
+   {}
+
+   AssetEntry_BIP32Root(int id, const BinaryData& accountID,
+      SecureBinaryData& pubkeyUncompressed,
+      SecureBinaryData& pubkeyCompressed,
+      std::shared_ptr<Asset_PrivateKey> privkey,
+      const SecureBinaryData& chaincode,
+      uint8_t depth, unsigned leafID) :
+      AssetEntry_Single(id, accountID,
+         pubkeyUncompressed, pubkeyCompressed, privkey),
+      chaincode_(chaincode),
+      depth_(depth), leafID_(leafID)
+   {}
+
+   AssetEntry_BIP32Root(int id, const BinaryData& accountID,
+      std::shared_ptr<Asset_PublicKey> pubkey,
+      std::shared_ptr<Asset_PrivateKey> privkey,
+      const SecureBinaryData& chaincode,
+      uint8_t depth, unsigned leafID) :
+      AssetEntry_Single(id, accountID, pubkey, privkey),
+      chaincode_(chaincode),
+      depth_(depth), leafID_(leafID)
+   {}
+
+   //local
+   uint8_t getDepth(void) const { return depth_; }
+   unsigned getLeafID(void) const { return leafID_; }
+   const SecureBinaryData& getChaincode(void) const { return chaincode_; }
+
+   //virtual
+   BinaryData serialize(void) const;
+   const AssetEntryType getType(void) const override 
+   { return AssetEntryType_BIP32Root; }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class AssetEntry_Multisig : protected AssetEntry
 {
    friend class AddressEntry_Multisig;
 
