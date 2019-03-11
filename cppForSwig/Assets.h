@@ -436,7 +436,7 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class AssetEntry_Multisig : protected AssetEntry
+class AssetEntry_Multisig : public AssetEntry
 {
    friend class AddressEntry_Multisig;
 
