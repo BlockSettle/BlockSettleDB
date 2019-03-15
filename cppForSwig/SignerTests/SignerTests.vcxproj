@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{3445AD6D-D432-400C-88AA-CF08DAD15D68}</ProjectGuid>
+    <RootNamespace>SignerTests</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;NOMINMAX;LIBBTC_ONLY;UNIT_TESTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <AdditionalIncludeDirectories>../../../lws/include;../chacha20poly1305;..\leveldb_windows_port\win32_posix;../libbtc/include;../libbtc/src/secp256k1/include;../lmdb/libraries/liblmdb;..\protobuf\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4146;</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>LMDB_Win_d.lib;libbtc_win_d.lib;cryptopp_d.lib;ws2_32.lib;protobuf_win_d.lib;websockets_static.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>../../../lws/lib/Debug;$(SolutionDir)libs\$(Platform)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Accounts.cpp" />
+    <ClCompile Include="..\Addresses.cpp" />
+    <ClCompile Include="..\AssetEncryption.cpp" />
+    <ClCompile Include="..\Assets.cpp" />
+    <ClCompile Include="..\AsyncClient.cpp" />
+    <ClCompile Include="..\AuthorizedPeers.cpp" />
+    <ClCompile Include="..\BDM_mainthread.cpp" />
+    <ClCompile Include="..\BDM_Server.cpp" />
+    <ClCompile Include="..\bech32\ref\c++\bech32.cpp" />
+    <ClCompile Include="..\bech32\ref\c++\segwit_addr.cpp" />
+    <ClCompile Include="..\BinaryData.cpp" />
+    <ClCompile Include="..\BIP150_151.cpp" />
+    <ClCompile Include="..\BIP32_Node.cpp" />
+    <ClCompile Include="..\BitcoinP2P.cpp" />
+    <ClCompile Include="..\Blockchain.cpp" />
+    <ClCompile Include="..\BlockchainScanner.cpp" />
+    <ClCompile Include="..\BlockchainScanner_Super.cpp" />
+    <ClCompile Include="..\BlockDataManagerConfig.cpp" />
+    <ClCompile Include="..\BlockDataMap.cpp" />
+    <ClCompile Include="..\BlockDataViewer.cpp" />
+    <ClCompile Include="..\BlockObj.cpp" />
+    <ClCompile Include="..\BlockUtils.cpp" />
+    <ClCompile Include="..\BtcUtils.cpp" />
+    <ClCompile Include="..\BtcWallet.cpp" />
+    <ClCompile Include="..\chacha20poly1305\chacha.c" />
+    <ClCompile Include="..\chacha20poly1305\chachapoly_aead.c" />
+    <ClCompile Include="..\chacha20poly1305\poly1305.c" />
+    <ClCompile Include="..\ClientClasses.cpp" />
+    <ClCompile Include="..\CoinSelection.cpp" />
+    <ClCompile Include="..\DatabaseBuilder.cpp" />
+    <ClCompile Include="..\DBUtils.cpp" />
+    <ClCompile Include="..\DecryptedDataContainer.cpp" />
+    <ClCompile Include="..\DerivationScheme.cpp" />
+    <ClCompile Include="..\EncryptionUtils.cpp" />
+    <ClCompile Include="..\EncryptionUtils_libbtc.cpp" />
+    <ClCompile Include="..\gtest\gtest-all.cc" />
+    <ClCompile Include="..\gtest\SignerTests.cpp" />
+    <ClCompile Include="..\gtest\TestUtils.cpp" />
+    <ClCompile Include="..\HistoryPager.cpp" />
+    <ClCompile Include="..\hkdf.cpp" />
+    <ClCompile Include="..\HttpMessage.cpp" />
+    <ClCompile Include="..\JSON_codec.cpp" />
+    <ClCompile Include="..\KDF.cpp" />
+    <ClCompile Include="..\LedgerEntry.cpp" />
+    <ClCompile Include="..\leveldb_windows_port\win32_posix\dirent_win32.cpp" />
+    <ClCompile Include="..\leveldb_windows_port\win32_posix\mman.cpp" />
+    <ClCompile Include="..\leveldb_windows_port\win32_posix\win32_posix.cc" />
+    <ClCompile Include="..\lmdb_wrapper.cpp" />
+    <ClCompile Include="..\log.cpp" />
+    <ClCompile Include="..\NetworkConfig.cpp" />
+    <ClCompile Include="..\nodeRPC.cpp" />
+    <ClCompile Include="..\Progress.cpp" />
+    <ClCompile Include="..\ReentrantLock.cpp" />
+    <ClCompile Include="..\ScrAddrFilter.cpp" />
+    <ClCompile Include="..\ScrAddrObj.cpp" />
+    <ClCompile Include="..\Script.cpp" />
+    <ClCompile Include="..\ScriptRecipient.cpp" />
+    <ClCompile Include="..\SecureBinaryData.cpp" />
+    <ClCompile Include="..\Server.cpp" />
+    <ClCompile Include="..\Signer.cpp" />
+    <ClCompile Include="..\SocketObject.cpp" />
+    <ClCompile Include="..\SshParser.cpp" />
+    <ClCompile Include="..\StoredBlockObj.cpp" />
+    <ClCompile Include="..\StringSockets.cpp" />
+    <ClCompile Include="..\SwigClient.cpp" />
+    <ClCompile Include="..\Transactions.cpp" />
+    <ClCompile Include="..\TxClasses.cpp" />
+    <ClCompile Include="..\TxEvalState.cpp" />
+    <ClCompile Include="..\txio.cpp" />
+    <ClCompile Include="..\UniversalTimer.cpp" />
+    <ClCompile Include="..\WalletManager.cpp" />
+    <ClCompile Include="..\Wallets.cpp" />
+    <ClCompile Include="..\WebSocketClient.cpp" />
+    <ClCompile Include="..\WebSocketMessage.cpp" />
+    <ClCompile Include="..\Win_TranslatePath.cpp" />
+    <ClCompile Include="..\ZeroConf.cpp" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

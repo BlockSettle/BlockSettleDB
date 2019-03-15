@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{8B5B0700-3F4F-4B06-8B8C-47AF9FCD1897}</ProjectGuid>
+    <RootNamespace>libbtcwin</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <TargetName>$(ProjectName)_d</TargetName>
+    <OutDir>$(SolutionDir)libs\x64</OutDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)libs\x64</OutDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>../libbtc/include;../libbtc/src/secp256k1;../../../mpir_win;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;USE_NUM_GMP;USE_FIELD_10X26;USE_FIELD_INV_BUILTIN;USE_SCALAR_8X32;USE_SCALAR_INV_BUILTIN;ENABLE_MODULE_RECOVERY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>../../../mpir_win;../libbtc/include;../libbtc/src/secp256k1;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;USE_NUM_GMP;USE_FIELD_10X26;USE_FIELD_INV_BUILTIN;USE_SCALAR_8X32;USE_SCALAR_INV_BUILTIN;ENABLE_MODULE_RECOVERY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\libbtc\src\aes256_cbc.c" />
+    <ClCompile Include="..\libbtc\src\base58.c" />
+    <ClCompile Include="..\libbtc\src\bip32.c" />
+    <ClCompile Include="..\libbtc\src\buffer.c" />
+    <ClCompile Include="..\libbtc\src\chainparams.c" />
+    <ClCompile Include="..\libbtc\src\commontools.c" />
+    <ClCompile Include="..\libbtc\src\cstr.c" />
+    <ClCompile Include="..\libbtc\src\ctaes.c" />
+    <ClCompile Include="..\libbtc\src\ecc_key.c" />
+    <ClCompile Include="..\libbtc\src\ecc_libsecp256k1.c" />
+    <ClCompile Include="..\libbtc\src\memory.c" />
+    <ClCompile Include="..\libbtc\src\random.c" />
+    <ClCompile Include="..\libbtc\src\ripemd160.c" />
+    <ClCompile Include="..\libbtc\src\script.c" />
+    <ClCompile Include="..\libbtc\src\secp256k1\src\secp256k1.c" />
+    <ClCompile Include="..\libbtc\src\segwit_addr.c" />
+    <ClCompile Include="..\libbtc\src\serialize.c" />
+    <ClCompile Include="..\libbtc\src\sha2.c" />
+    <ClCompile Include="..\libbtc\src\utils.c" />
+    <ClCompile Include="..\libbtc\src\vector.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\libbtc\include\btc\aes256_cbc.h" />
+    <ClInclude Include="..\libbtc\include\btc\base58.h" />
+    <ClInclude Include="..\libbtc\include\btc\bip32.h" />
+    <ClInclude Include="..\libbtc\include\btc\block.h" />
+    <ClInclude Include="..\libbtc\include\btc\blockchain.h" />
+    <ClInclude Include="..\libbtc\include\btc\btc.h" />
+    <ClInclude Include="..\libbtc\include\btc\buffer.h" />
+    <ClInclude Include="..\libbtc\include\btc\cstr.h" />
+    <ClInclude Include="..\libbtc\include\btc\ctaes.h" />
+    <ClInclude Include="..\libbtc\include\btc\ecc.h" />
+    <ClInclude Include="..\libbtc\include\btc\ecc_key.h" />
+    <ClInclude Include="..\libbtc\include\btc\hash.h" />
+    <ClInclude Include="..\libbtc\include\btc\memory.h" />
+    <ClInclude Include="..\libbtc\include\btc\portable_endian.h" />
+    <ClInclude Include="..\libbtc\include\btc\protocol.h" />
+    <ClInclude Include="..\libbtc\include\btc\random.h" />
+    <ClInclude Include="..\libbtc\include\btc\ripemd160.h" />
+    <ClInclude Include="..\libbtc\include\btc\segwit_addr.h" />
+    <ClInclude Include="..\libbtc\include\btc\serialize.h" />
+    <ClInclude Include="..\libbtc\include\btc\sha2.h" />
+    <ClInclude Include="..\libbtc\include\btc\tool.h" />
+    <ClInclude Include="..\libbtc\include\btc\utils.h" />
+    <ClInclude Include="..\libbtc\include\btc\vector.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
