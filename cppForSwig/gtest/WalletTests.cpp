@@ -957,8 +957,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
    //add bip32 account for derivationPath1
-   auto accountPtr = assetWlt->createBIP32Account(nullptr, derivationPath1);
-
+   auto accountID = assetWlt->createBIP32Account(nullptr, derivationPath1);
 
    //derive bip32 node
    BIP32_Node seedNode;
@@ -970,20 +969,75 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    outerNode.derivePrivate(0);
 
    //check vs wallet account root
-   auto accountRoot = assetWlt->getAccountRoot(accountPtr);
+   auto accountRoot = assetWlt->getAccountRoot(accountID);
    auto accountRoot_BIP32 = 
       dynamic_pointer_cast<AssetEntry_BIP32Root>(accountRoot);
    auto& pubkeyAcc = accountRoot_BIP32->getPubKey()->getCompressedKey();
    EXPECT_EQ(pubkeyAcc, outerNode.getPublicKey());
 
    {
-      //check encryption for the added account works
-      auto lock = assetWlt->lockDecryptedContainer();
-      auto& accountPrivKey =
-         assetWlt->getDecryptedValue(accountRoot_BIP32->getPrivKey());
+      /*check encryption for the added account works*/
 
-      EXPECT_EQ(accountPrivKey, outerNode.getPrivateKey());
+      //try to fetch without locking wallet
+      try
+      {
+         auto& accountPrivKey =
+            assetWlt->getDecryptedValue(accountRoot_BIP32->getPrivKey());
+         
+         //should not get here
+         ASSERT_TRUE(false);
+      }
+      catch (DecryptedDataContainerException&)
+      {}
+
+      //now with the lock
+      try
+      {
+         auto lock = assetWlt->lockDecryptedContainer();
+         auto& accountPrivKey =
+            assetWlt->getDecryptedValue(accountRoot_BIP32->getPrivKey());
+
+         EXPECT_EQ(accountPrivKey, outerNode.getPrivateKey());
+      }
+      catch (...)
+      {
+         //should not get here
+         ASSERT_TRUE(false);
+      }
    }
+
+   //path 2
+   vector<unsigned> derivationPath2 = {
+      0x80000244,
+      0x8000be7a,
+      0x80002000,
+      304
+   };
+
+   auto accountTypePtr =
+      make_shared<AccountType_BIP32_Custom>(derivationPath2);
+   accountTypePtr->setAddressTypes({ AddressEntryType_P2WPKH, AddressEntryType_P2PK });
+   accountTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
+   accountTypePtr->setNodes({ 50, 60 });
+   accountTypePtr->setOuterAccountID(WRITE_UINT32_BE(50));
+   accountTypePtr->setInnerAccountID(WRITE_UINT32_BE(60));
+
+   //add bip32 custom account for derivationPath2
+   accountID = assetWlt->createBIP32Account(
+      nullptr, derivationPath2, accountTypePtr);
+
+   BIP32_Node seedNode2;
+   seedNode2.initFromSeed(seed);
+   for (auto& derId : derivationPath2)
+      seedNode2.derivePrivate(derId);
+   seedNode2.derivePrivate(50);
+
+   //check vs wallet account root
+   accountRoot = assetWlt->getAccountRoot(accountID);
+   accountRoot_BIP32 =
+      dynamic_pointer_cast<AssetEntry_BIP32Root>(accountRoot);
+   auto& pubkey2 = accountRoot_BIP32->getPubKey()->getCompressedKey();
+   EXPECT_EQ(pubkey2, seedNode2.getPublicKey());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

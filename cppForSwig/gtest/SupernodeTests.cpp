@@ -3756,6 +3756,19 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync_ManyLargeWallets)
       pCallback->waitOnSignal(BDMAction_Ready);
       bdvObj->unregisterFromDB();
    }
+
+   //cleanup
+   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, nullptr);
+   bdvObj2->addPublicKey(serverPubkey);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
+   WebSocketServer::waitOnShutdown();
+
+   delete theBDMt_;
+   theBDMt_ = nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

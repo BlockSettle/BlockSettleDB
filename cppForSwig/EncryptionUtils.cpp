@@ -270,12 +270,15 @@ SecureBinaryData SerializePublicKey(BTC_PUBKEY const & pubKey)
    
 /////////////////////////////////////////////////////////////////////////////
 SecureBinaryData CryptoECDSA::ComputePublicKey(
-   SecureBinaryData const & cppPrivKey) const
+   SecureBinaryData const & cppPrivKey, bool compressed) const
 {
    BTC_PRIVKEY pk = ParsePrivateKey(cppPrivKey);
    BTC_PUBKEY  pub;
    pk.MakePublicKey(pub);
-   return SerializePublicKey(pub);
+   auto&& pubkey = SerializePublicKey(pub);
+   if (compressed)
+      pubkey = move(CompressPoint(pubkey));
+   return pubkey;
 }
 
 /////////////////////////////////////////////////////////////////////////////
