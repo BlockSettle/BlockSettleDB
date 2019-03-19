@@ -363,7 +363,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
          root->getDepth(), root->getLeafID(),
          pubkey, chaincode);
       for (auto& path : derPath)
-         bip32Node.derivePrivate(path);
+         bip32Node.derivePublic(path);
 
       auto derivedKey = bip32Node.movePublicKey();
       auto derivedCode = bip32Node.moveChaincode();
