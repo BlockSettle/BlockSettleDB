@@ -1092,6 +1092,21 @@ shared_ptr<AssetEntry> AddressAccount::getAssetForID(const BinaryData& ID) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AssetEntry> AddressAccount::getAssetForID(unsigned ID, 
+   bool outer) const
+{
+   BinaryDataRef accountID(outerAccount_);
+   if (!outer)
+      accountID.setRef(innerAccount_);
+
+   auto iter = assetAccounts_.find(accountID);
+   if (iter == assetAccounts_.end())
+      throw AccountException("unknown account ID");
+
+   return iter->second->getAssetForID(WRITE_UINT32_BE(ID));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 const pair<BinaryData, AddressEntryType>& 
    AddressAccount::getAssetIDPairForAddr(const BinaryData& scrAddr)
 {
@@ -1367,6 +1382,14 @@ BinaryData AccountType_BIP32_Custom::getInnerAccountID(void) const
       return innerAccount_;
 
    return WRITE_UINT32_BE(UINT32_MAX);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unsigned AccountType_BIP32_Custom::getAddressLookup() const
+{
+   if (addressLookup_ == UINT32_MAX)
+      throw AccountException("uninitialiazed address lookup");
+   return addressLookup_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

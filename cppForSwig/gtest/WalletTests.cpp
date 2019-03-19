@@ -1021,6 +1021,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    accountTypePtr->setNodes({ 50, 60 });
    accountTypePtr->setOuterAccountID(WRITE_UINT32_BE(50));
    accountTypePtr->setInnerAccountID(WRITE_UINT32_BE(60));
+   accountTypePtr->setAddressLookup(100);
 
    //add bip32 custom account for derivationPath2
    accountID = assetWlt->createBIP32Account(
@@ -1038,6 +1039,17 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
       dynamic_pointer_cast<AssetEntry_BIP32Root>(accountRoot);
    auto& pubkey2 = accountRoot_BIP32->getPubKey()->getCompressedKey();
    EXPECT_EQ(pubkey2, seedNode2.getPublicKey());
+
+   //grab address 32, check vs derivation
+   auto accountPtr = assetWlt->getAccountForID(accountID);
+   auto assetPtr = accountPtr->getAssetForID(32, true);
+
+   auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
+   ASSERT_NE(assetSingle, nullptr);
+
+   seedNode2.derivePublic(32);
+   EXPECT_EQ(assetSingle->getPubKey()->getCompressedKey(), 
+      seedNode2.getPublicKey());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -298,6 +298,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
       accountTypePtr->setMain(true);
 
    auto accountPtr = createAccount(accountTypePtr);
+   accountPtr->extendPrivateChain(decryptedData_, DERIVATION_LOOKUP);
    return accountPtr->getID();
 }
 
@@ -373,6 +374,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
    }
 
    auto accountPtr = createAccount(accTypePtr);
+   accountPtr->extendPrivateChain(decryptedData_, accTypePtr->getAddressLookup());
    return accountPtr->getID();
 }
 
