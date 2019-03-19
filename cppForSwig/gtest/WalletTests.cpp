@@ -1015,7 +1015,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    };
 
    auto accountTypePtr =
-      make_shared<AccountType_BIP32_Custom>(derivationPath2);
+      make_shared<AccountType_BIP32_Custom>();
    accountTypePtr->setAddressTypes({ AddressEntryType_P2WPKH, AddressEntryType_P2PK });
    accountTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
    accountTypePtr->setNodes({ 50, 60 });

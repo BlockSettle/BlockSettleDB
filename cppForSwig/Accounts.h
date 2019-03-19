@@ -197,7 +197,7 @@ public:
 ////////////////////
 struct AccountType_BIP32 : public AccountType
 {   
-   friend class AccountType_BIP32_Custom;
+   friend struct AccountType_BIP32_Custom;
 private:
    const std::vector<unsigned> derivationPath_;
    unsigned depth_ = 0;
@@ -352,8 +352,9 @@ public:
          depth, leafId)
    {}
 
-   AccountType_BIP32_Custom(std::vector<unsigned> derPath) :
-      AccountType_BIP32(AccountTypeEnum_BIP32_Custom, derPath, 0, 0)
+   AccountType_BIP32_Custom(void) :
+      AccountType_BIP32(AccountTypeEnum_BIP32_Custom, 
+         std::vector<unsigned>(), 0, 0)
    {}
 
    /***
