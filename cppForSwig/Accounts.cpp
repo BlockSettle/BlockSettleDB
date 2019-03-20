@@ -691,8 +691,10 @@ void AddressAccount::make_new(
             decrData->encryptData(cipher_copy.get(), node.getPrivateKey());
 
          //create assets
+         auto privKeyID = full_account_id;
+         privKeyID.append(WRITE_UINT32_LE(UINT32_MAX));
          auto priv_asset = make_shared<Asset_PrivateKey>(
-            -1, encrypted_root, move(cipher_copy));
+            privKeyID, encrypted_root, move(cipher_copy));
          rootAsset = make_shared<AssetEntry_BIP32Root>(
             -1, full_account_id,
             pubkey, priv_asset,

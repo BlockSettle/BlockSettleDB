@@ -1110,7 +1110,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
 
    //create encrypted object
    auto rootAsset = make_shared<Asset_PrivateKey>(
-      -1, encryptedRoot, move(rootCipher));
+      WRITE_UINT32_BE(UINT32_MAX), encryptedRoot, move(rootCipher));
 
    bool isBip32 = false;
    unsigned armory135AccCount = 0;
