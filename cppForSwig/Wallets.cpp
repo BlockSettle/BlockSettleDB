@@ -799,11 +799,14 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
    auto&& masterID_long = BtcUtils::getHMAC256(
       pubkey, SecureBinaryData(hmacMasterMsg));
    auto&& masterID = BtcUtils::computeID(masterID_long);
-   string masterIDStr(masterID.getCharPtr(), masterID.getSize());
+   string masterIDStr(masterID.getCharPtr());
 
    //create wallet file and dbenv
    stringstream pathSS;
-   pathSS << folder << "/armory_" << masterIDStr << "_wallet.lmdb";
+   pathSS << folder;
+   if (*folder.rbegin() != '/')
+      pathSS << "/";
+   pathSS << "armory_" << masterIDStr << "_wallet.lmdb";
    auto dbenv = getEnvFromFile(pathSS.str(), 2);
 
    initWalletMetaDB(dbenv, masterIDStr);
