@@ -378,7 +378,7 @@ TEST_F(WalletsTest, Encryption_Test)
    //check public keys are, for sanity
 
    //close wallet object
-   auto filename = assetWlt->getFilename();
+   auto filename = assetWlt->getDbFilename();
    assetWlt.reset();
 
    //parse file for the presence of pubkeys and absence of priv keys
@@ -631,7 +631,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    auto&& chaincode = BtcUtils::computeChainCode_Armory135(wltRoot);
    auto&& privkey_ex =
       CryptoECDSA().ComputeChainedPrivateKey(wltRoot, chaincode);
-   auto filename = assetWlt->getFilename();
+   auto filename = assetWlt->getDbFilename();
 
 
    //grab all IVs and encrypted private keys
@@ -1057,7 +1057,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    }
 
    //close wallet, reload it, check again
-   auto filename = assetWlt->getFilename();
+   auto filename = assetWlt->getDbFilename();
    assetWlt.reset();
 
    auto assetWlt2 = AssetWallet::loadMainWalletFromFile(filename);

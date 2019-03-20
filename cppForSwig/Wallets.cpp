@@ -1810,6 +1810,23 @@ const string& AssetWallet::getDbFilename(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::shutdown()
+{
+   if (db_ != nullptr)
+   {
+      db_->close();
+      delete db_;
+      db_ = nullptr;
+   }
+
+   if (dbEnv_ != nullptr)
+   {
+      dbEnv_->close();
+      dbEnv_ = nullptr;
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 AddressEntryType AssetWallet::getAddrTypeForAccount(const BinaryData& ID)
 {
    auto acc = getAccountForID(ID);
@@ -1872,15 +1889,6 @@ shared_ptr<AddressEntry> AssetWallet::getAddressEntryForID(
 
    auto asset = getAssetForID(ID);
    return getAddressEntryForAsset(asset, aeType);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const string& AssetWallet::getFilename() const
-{
-   if (dbEnv_ == nullptr)
-      throw runtime_error("null dbenv");
-
-   return dbEnv_->getFilename();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
