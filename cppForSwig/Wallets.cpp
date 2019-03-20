@@ -631,7 +631,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
       rootNode.getPrivateKey(),
       rootNode.getChaincode(),
       move(accountTypes),
-      lookup - 1);
+      lookup);
 
    //set as main
    {
@@ -743,7 +743,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
          node.getPrivateKey(),
          node.getChaincode(),
          move(accountTypes),
-         lookup - 1);
+         lookup);
    }
    else
    {
@@ -762,7 +762,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
          wltMetaPtr,
          pubkey_copy,
          move(accountTypes),
-         lookup - 1);
+         lookup);
    }
 
    //set as main

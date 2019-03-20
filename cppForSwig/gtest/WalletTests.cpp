@@ -933,9 +933,9 @@ TEST_F(WalletsTest, BIP32_ArmoryDefault)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, BIP32_Chain_AddAccount)
 {
-   vector<unsigned> derivationPath1 = { 
-      0x80000050, 
-      0x800005de, 
+   vector<unsigned> derivationPath1 = {
+      0x80000050,
+      0x800005de,
       0x8000465a,
       501
    };
@@ -964,7 +964,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    seedNode.initFromSeed(seed);
    for (auto& derId : derivationPath1)
       seedNode.derivePrivate(derId);
-   
+
    auto outerNode = seedNode;
    outerNode.derivePrivate(0);
 
@@ -1082,6 +1082,29 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
       ASSERT_NE(assetSingle, nullptr);
       EXPECT_EQ(assetSingle->getPubKey()->getCompressedKey(),
          seedNode2.getPublicKey());
+   }
+
+   //check private keys in both accounts within same decryption lock
+   wltSingle2->setPassphrasePromptLambda(passphraseLbd);
+
+   {
+      auto lock = wltSingle2->lockDecryptedContainer();
+
+      //check first account
+      auto accountRoot = wltSingle2->getAccountRoot(accountID1);
+      auto accountRoot_BIP32 =
+         dynamic_pointer_cast<AssetEntry_BIP32Root>(accountRoot);
+      auto& privKey = wltSingle2->getDecryptedValue(accountRoot_BIP32->getPrivKey());
+      EXPECT_EQ(privKey, outerNode.getPrivateKey());
+
+      //check 2nd account
+      auto accountPtr = wltSingle2->getAccountForID(accountID2);
+      auto assetPtr = accountPtr->getAssetForID(32, true);
+
+      auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
+      ASSERT_NE(assetSingle, nullptr);
+      auto& privKey2 = wltSingle2->getDecryptedValue(assetSingle->getPrivKey());
+      EXPECT_EQ(privKey2, seedNode2.getPrivateKey());
    }
 }
 

@@ -405,7 +405,7 @@ void AssetAccount::extendPrivateChain(
    ReentrantLock lock(this);
    auto lastIndex = getLastComputedIndex();
 
-   unsigned assetIndex = 0;
+   unsigned assetIndex = UINT32_MAX;
    if (assetPtr != nullptr)
       assetIndex = assetPtr->getIndex();
 
