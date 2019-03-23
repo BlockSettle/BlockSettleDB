@@ -315,7 +315,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
    if (root == nullptr)
       throw AccountException("no valid root to create BIP32 account from");
 
-   bool isDerived = true;
+   bool isDerived = false;
    if (root->getPrivKey() != nullptr)
    {
       //try to decrypt the root's private to get full derivation
@@ -344,6 +344,8 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
          accTypePtr->setChaincode(derivedCode);
          accTypePtr->setPrivateKey(derivedKey);
          accTypePtr->setPublicKey(pubkey);
+
+         isDerived = true;
       }
       catch (exception&)
       {

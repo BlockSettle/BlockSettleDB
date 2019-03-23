@@ -460,6 +460,7 @@ public:
 
    size_t getAssetCount(void) const { return assets_.size(); }
    int getLastComputedIndex(void) const;
+   unsigned getHighestUsedIndex(void) const { return lastUsedIndex_; }
    std::shared_ptr<AssetEntry> getLastAssetWithPrivateKey(void) const;
 
    std::shared_ptr<AssetEntry> getNewAsset(void);
