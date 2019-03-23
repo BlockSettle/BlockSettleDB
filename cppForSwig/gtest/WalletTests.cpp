@@ -977,7 +977,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
       EXPECT_EQ(pubkeyAcc, outerNode.getPublicKey());
 
       {
-         /*check encryption for the added account works*/
+         //check encryption for the added account works
 
          //try to fetch without locking wallet
          try
@@ -1105,6 +1105,90 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
       ASSERT_NE(assetSingle, nullptr);
       auto& privKey2 = wltSingle2->getDecryptedValue(assetSingle->getPrivKey());
       EXPECT_EQ(privKey2, seedNode2.getPrivateKey());
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
+{
+   vector<unsigned> derPath = {
+      0x80000050,
+      0x80005421,
+      0x80000024,
+      785
+   };
+
+   SecureBinaryData passphrase("password");
+
+   //create regular wallet
+   auto&& seed = CryptoPRNG::generateRandom(32);
+   auto wlt = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_, seed, derPath, passphrase, 10);
+
+   //create WO copy
+   auto woCopyPath = AssetWallet::forkWathcingOnly(wlt->getDbFilename());
+   auto woWlt = AssetWallet::loadMainWalletFromFile(woCopyPath);
+   auto woSingle = dynamic_pointer_cast<AssetWallet_Single>(woWlt);
+
+   //check WO roots have no private keys
+   {
+      EXPECT_TRUE(woSingle->isWatchingOnly());
+
+      auto mainAccountID = woSingle->getMainAccountID();
+      auto mainAccount = woSingle->getAccountForID(mainAccountID);
+      auto root = mainAccount->getOutterAssetRoot();
+      auto rootSingle = dynamic_pointer_cast<AssetEntry_BIP32Root>(root);
+      EXPECT_EQ(rootSingle->getPrivKey(), nullptr);
+   }
+
+   //compare keys
+   for (unsigned i = 0; i < 10; i++)
+   {
+      auto assetFull = wlt->getMainAccountAssetForIndex(i);
+      auto assetFullSingle = dynamic_pointer_cast<AssetEntry_Single>(assetFull);
+
+      auto assetWo = woSingle->getMainAccountAssetForIndex(i);
+      auto assetWoSingle = dynamic_pointer_cast<AssetEntry_Single>(assetWo);
+      
+      //compare keys
+      EXPECT_EQ(assetFullSingle->getPubKey()->getCompressedKey(),
+         assetWoSingle->getPubKey()->getCompressedKey());
+
+      //check wo wallet has no private key
+      EXPECT_FALSE(assetWoSingle->hasPrivateKey());
+      EXPECT_EQ(assetWoSingle->getPrivKey(), nullptr);
+   }
+
+   //extend chains, check new stuff derives properly
+   {
+      auto passphraseLBD = [&passphrase](const BinaryData&)->SecureBinaryData
+      {
+         return passphrase;
+      };
+
+      wlt->setPassphrasePromptLambda(passphraseLBD);
+      auto lock = wlt->lockDecryptedContainer();
+      wlt->extendPrivateChain(10);
+   }
+
+   woWlt->extendPublicChain(10);
+
+   //compare keys
+   for (unsigned i = 10; i < 20; i++)
+   {
+      auto assetFull = wlt->getMainAccountAssetForIndex(i);
+      auto assetFullSingle = dynamic_pointer_cast<AssetEntry_Single>(assetFull);
+
+      auto assetWo = woSingle->getMainAccountAssetForIndex(i);
+      auto assetWoSingle = dynamic_pointer_cast<AssetEntry_Single>(assetWo);
+
+      //compare keys
+      EXPECT_EQ(assetFullSingle->getPubKey()->getCompressedKey(),
+         assetWoSingle->getPubKey()->getCompressedKey());
+
+      //check wo wallet has no private key
+      EXPECT_FALSE(assetWoSingle->hasPrivateKey());
+      EXPECT_EQ(assetWoSingle->getPrivKey(), nullptr);
    }
 }
 

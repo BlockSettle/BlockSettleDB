@@ -617,6 +617,9 @@ public:
    //Lockable virtuals
    void initAfterLock(void) {}
    void cleanUpBeforeUnlock(void) {}
+
+   std::shared_ptr<AddressAccount> getWatchingOnlyCopy(
+      std::shared_ptr<LMDBEnv>, LMDB*) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -675,6 +678,8 @@ public:
    void readFromDisk(const BinaryData& key);
    void commit(void);
    void updateOnDisk(void);
+   std::shared_ptr<MetaDataAccount> copy(
+      std::shared_ptr<LMDBEnv>, LMDB* db) const;
 
    //setup methods
    void reset(void);
