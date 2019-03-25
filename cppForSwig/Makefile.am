@@ -193,12 +193,17 @@ PROTOBUF_H = protobuf/AddressBook.pb.h \
 # Protobuf files required for distribution but not installation.
 dist_noinst_DATA = $(PROTOBUF_PROTO)
 
-# LMDB (DB used by Armory)
+# LMDB (DB used by Armory). On macOS, don't use SYSV semaphores (the default),
+# which cause crashes due to mutex lock/unlock issues. Use POSIX semaphores
+# (same as Linux).
 noinst_LTLIBRARIES += $(LIBLMDB)
 liblmdb_la_SOURCES = lmdb/libraries/liblmdb/lmdbpp.cpp \
 		lmdb/libraries/liblmdb/mdb.c \
 		lmdb/libraries/liblmdb/midl.c
 liblmdb_la_CPPFLAGS = -Ilmdb/libraries/liblmdb -fPIC
+if BUILD_DARWIN
+liblmdb_la_CPPFLAGS += -DMDB_USE_POSIX_SEM=1
+endif
 liblmdb_la_LDFLAGS = -static
 
 # libArmoryCommon - Required by all Armory programs/libraries.
