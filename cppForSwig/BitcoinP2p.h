@@ -516,6 +516,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 class BitcoinP2P
 {
+   friend class NodeUnitTest;
 private:
    const std::string addr_;
    const std::string port_;
@@ -599,7 +600,7 @@ public:
    virtual void shutdown(void);
    void sendMessage(Payload&&);
 
-   std::shared_ptr<Payload> getTx(const InvEntry&, uint32_t timeout);
+   virtual std::shared_ptr<Payload> getTx(const InvEntry&, uint32_t timeout);
 
    void registerInvTxLambda(std::function<void(std::vector<InvEntry>)> func)
    {
@@ -626,11 +627,34 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 class NodeUnitTest : public BitcoinP2P
 {
+   struct MempoolObject
+   {
+      BinaryData rawTx_;
+      BinaryData hash_;
+      unsigned order_;
+   };
+
+   std::map<BinaryDataRef, MempoolObject> mempool_;
+   std::atomic<unsigned> counter_;
+
 public:
    NodeUnitTest(const std::string& addr, const std::string& port, uint32_t magic_word) :
       BitcoinP2P(addr, port, magic_word)
+   {
+      counter_.store(0, std::memory_order_relaxed);
+   }
+
+   //virtuals
+   void connectToNode(bool async)
    {}
 
+   void shutdown(void)
+   {
+      //clean up remaining lambdas
+      BitcoinP2P::shutdown();
+   }
+
+   //locals
    void mockNewBlock(void)
    {
       InvEntry ie;
@@ -642,13 +666,45 @@ public:
       processInvBlock(move(vecIE));
    }
 
-   void connectToNode(bool async)
-   {}
-
-   void shutdown(void)
+   void pushZC(const std::vector<BinaryData>& txVec)
    {
-      //clean up remaining lambdas
-      BitcoinP2P::shutdown();
+      std::vector<InvEntry> invVec;
+
+      //save tx to fake mempool
+      for (auto& tx : txVec)
+      {
+         MempoolObject obj;
+         obj.rawTx_ = tx;
+         obj.hash_ = BtcUtils::getHash256(tx);
+         obj.order_ = counter_.fetch_add(1, std::memory_order_relaxed);
+
+         auto objPair = std::make_pair(obj.hash_.getRef(), std::move(obj));
+         auto insertIter = mempool_.insert(move(objPair));
+         if (!insertIter.second)
+            return;
+
+         //notify the zc parser
+         InvEntry ie;
+         ie.invtype_ = Inv_Msg_Witness_Tx;
+         std::memcpy(ie.hash, insertIter.first->second.hash_.getPtr(), 32);
+         invVec.emplace_back(ie);
+      }
+
+      invTxLambda_(invVec);
+   }
+
+   std::shared_ptr<Payload> getTx(const InvEntry& ie, uint32_t timeout)
+   {
+      //find tx in mempool
+      BinaryDataRef hashRef(ie.hash, 32);
+      auto iter = mempool_.find(hashRef);
+      if (iter == mempool_.end())
+         return nullptr;
+
+      //create payload and return
+      auto payload = std::make_shared<Payload_Tx>(
+         iter->second.rawTx_.getPtr(), iter->second.rawTx_.getSize());
+      return payload;
    }
 };
 

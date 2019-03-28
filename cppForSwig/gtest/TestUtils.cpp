@@ -495,7 +495,18 @@ namespace DBTestUtils
    /////////////////////////////////////////////////////////////////////////////
    void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec)
    {
-      auto zcConf = bdmt->bdm()->zeroConfCont_;
+      auto nodePtr = bdmt->bdm()->networkNode_;
+      auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
+
+      std::vector<BinaryData> txVec;
+      for (auto& newzc : zcVec.zcVec_)
+      {
+         BinaryData bdTx(newzc.getPtr(), newzc.getSize());
+         txVec.push_back(bdTx);
+      }
+
+      nodeUnitTest->pushZC(txVec);
+      /*auto zcConf = bdmt->bdm()->zeroConfCont_;
 
       ZeroConfContainer::ZcActionStruct newzcstruct;
       newzcstruct.action_ = Zc_NewTx;
@@ -514,7 +525,7 @@ namespace DBTestUtils
       newzcstruct.batch_ = make_shared<ZeroConfBatch>();
       newzcstruct.batch_->txMap_ = move(newzcmap);
       newzcstruct.batch_->isReadyPromise_.set_value(true);
-      zcConf->newZcStack_.push_back(move(newzcstruct));
+      zcConf->newZcStack_.push_back(move(newzcstruct));*/
    }
 
    /////////////////////////////////////////////////////////////////////////////
