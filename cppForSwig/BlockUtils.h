@@ -120,10 +120,7 @@ class BlockDataManager
 {
 private:
    BlockDataManagerConfig config_;
-   
-   class BitcoinQtBlockFiles;
-   std::shared_ptr<BitcoinQtBlockFiles> readBlockHeaders_;
-   
+      
    // This is our permanent link to the two databases used
    LMDBBlockDatabase* iface_ = nullptr;
    

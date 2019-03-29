@@ -167,6 +167,7 @@
     <ClCompile Include="..\EncryptionUtils.cpp" />
     <ClCompile Include="..\EncryptionUtils_libbtc.cpp" />
     <ClCompile Include="..\gtest\gtest-all.cc" />
+    <ClCompile Include="..\gtest\NodeUnitTest.cpp" />
     <ClCompile Include="..\gtest\SupernodeTests.cpp" />
     <ClCompile Include="..\gtest\TestUtils.cpp" />
     <ClCompile Include="..\HistoryPager.cpp" />
@@ -214,6 +215,7 @@
   <ItemGroup>
     <ClInclude Include="..\bech32\ref\c++\bech32.h" />
     <ClInclude Include="..\bech32\ref\c++\segwit_addr.h" />
+    <ClInclude Include="..\gtest\NodeUnitTest.h" />
     <ClInclude Include="..\ScrAddrFilter.h" />
     <ClInclude Include="..\ZeroConf.h" />
   </ItemGroup>

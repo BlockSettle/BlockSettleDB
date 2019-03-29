@@ -252,6 +252,9 @@
     <ClCompile Include="..\ScriptRecipient.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\gtest\NodeUnitTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\bech32\ref\c++\bech32.h">
@@ -264,6 +267,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\ScrAddrFilter.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gtest\NodeUnitTest.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -392,6 +392,9 @@
     <ClCompile Include="..\ScriptRecipient.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\gtest\NodeUnitTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\protobuf\AddressData.proto">

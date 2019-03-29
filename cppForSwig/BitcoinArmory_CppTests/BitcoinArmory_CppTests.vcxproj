@@ -258,6 +258,7 @@
     <ClCompile Include="..\EncryptionUtils_libbtc.cpp" />
     <ClCompile Include="..\gtest\CppBlockUtilsTests.cpp" />
     <ClCompile Include="..\gtest\gtest-all.cc" />
+    <ClCompile Include="..\gtest\NodeUnitTest.cpp" />
     <ClCompile Include="..\gtest\TestUtils.cpp" />
     <ClCompile Include="..\HistoryPager.cpp" />
     <ClCompile Include="..\hkdf.cpp" />

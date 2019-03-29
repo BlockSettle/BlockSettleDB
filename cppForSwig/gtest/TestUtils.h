@@ -51,6 +51,8 @@
 #include "../BitcoinP2p.h"
 #include "btc/ecc.h"
 
+#include "NodeUnitTest.h"
+
 #ifdef _MSC_VER
 #ifdef mlock
 #undef mlock
@@ -131,6 +133,7 @@ namespace DBTestUtils
    void waitOnWalletRefresh(Clients* clients, const std::string& bdvId,
       const BinaryData& wltId);
    void triggerNewBlockNotification(BlockDataManagerThread* bdmt);
+   void mineNewBlock(BlockDataManagerThread* bdmt, const BinaryData& h160);
 
    struct ZcVector
    {

@@ -2499,6 +2499,8 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
    //wait on signals
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
    auto dbAssetWlt = bdvPtr->getWalletOrLockbox(assetWlt->getID());
 
@@ -2806,7 +2808,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
    //first zc should be replaced, hence the ledger should be empty
    auto zcledger3 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
    EXPECT_EQ(zcledger3.getValue(), 27 * COIN);
-   //EXPECT_EQ(zcledger3.getTxTime(), 14000000);
+   EXPECT_EQ(zcledger3.getBlockNum(), UINT32_MAX);
    EXPECT_TRUE(zcledger3.isOptInRBF());
 
    //second zc should be replaced
@@ -2816,8 +2818,50 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
    //third zc should be valid
    auto zcledger9 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash3);
    EXPECT_EQ(zcledger9.getValue(), -6 * COIN);
-   //EXPECT_EQ(zcledger9.getTxTime(), 17000000);
+   EXPECT_EQ(zcledger9.getBlockNum(), UINT32_MAX);
    EXPECT_TRUE(zcledger9.isOptInRBF());
+
+   //mine a new block
+   DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA);
+   DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
+
+   //check chain is 1 block longer
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 4);
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 100 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
+
+   //check new wallet balances
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[1]);
+   EXPECT_EQ(scrObj->getFullBalance(), 15 * COIN);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[2]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[3]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[4]);
+   EXPECT_EQ(scrObj->getFullBalance(), 6 * COIN);
+
+   //check all zc are mined with 1 conf
+   zcledger3 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
+   EXPECT_EQ(zcledger3.getValue(), 27 * COIN);
+   EXPECT_EQ(zcledger3.getBlockNum(), 4);
+   EXPECT_FALSE(zcledger3.isOptInRBF());
+
+   zcledger9 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash3);
+   EXPECT_EQ(zcledger9.getValue(), -6 * COIN);
+   EXPECT_EQ(zcledger9.getBlockNum(), 4);
+   EXPECT_FALSE(zcledger9.isOptInRBF());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

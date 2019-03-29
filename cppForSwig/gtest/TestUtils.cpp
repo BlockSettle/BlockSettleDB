@@ -493,6 +493,15 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
+   void mineNewBlock(BlockDataManagerThread* bdmt, const BinaryData& h160)
+   {
+      auto nodePtr = bdmt->bdm()->networkNode_;
+      auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
+
+      nodeUnitTest->mineNewBlock(h160);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
    void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec)
    {
       auto nodePtr = bdmt->bdm()->networkNode_;
