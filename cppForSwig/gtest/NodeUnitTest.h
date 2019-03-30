@@ -21,7 +21,7 @@
 #include "../ScriptRecipient.h"
 #include "../BlockDataMap.h"
 
-class NodeUnitTest : public BitcoinP2P
+class NodeUnitTest : protected BitcoinP2P
 {
    struct MempoolObject
    {
@@ -35,15 +35,13 @@ class NodeUnitTest : public BitcoinP2P
    std::map<BinaryDataRef, MempoolObject> mempool_;
    std::atomic<unsigned> counter_;
    
-   std::shared_ptr<Blockchain> blockchain_;
-   std::shared_ptr<BlockFiles> filesPtr_;
+   std::shared_ptr<Blockchain> blockchain_ = nullptr;
+   std::shared_ptr<BlockFiles> filesPtr_ = nullptr;
 
 public:
    NodeUnitTest(
       const std::string& addr, const std::string& port, 
-      uint32_t magic_word, 
-      std::shared_ptr<Blockchain> bcPtr,
-      std::shared_ptr<BlockFiles> filesPtr);
+      uint32_t magic_word);
 
    //virtuals
    void connectToNode(bool async) {}
@@ -59,6 +57,10 @@ public:
    void mineNewBlock(const BinaryData& h160);
    void pushZC(const std::vector<BinaryData>& txVec);
    std::shared_ptr<Payload> getTx(const InvEntry& ie, uint32_t timeout);
+
+   //set
+   void setBlockchain(std::shared_ptr<Blockchain>);
+   void setBlockFiles(std::shared_ptr<BlockFiles>);
 };
 
 #endif

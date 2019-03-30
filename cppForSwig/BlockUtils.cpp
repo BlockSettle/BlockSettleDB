@@ -20,7 +20,6 @@
 #include "util.h"
 #include "BlockchainScanner.h"
 #include "DatabaseBuilder.h"
-#include "gtest/NodeUnitTest.h"
 
 using namespace std;
 
@@ -241,19 +240,26 @@ BlockDataManager::BlockDataManager(
       openDatabase();
       auto& magicBytes = NetworkConfig::getMagicBytes();
       
-      if (bdmConfig.nodeType_ == Node_BTC)
+      if (bdmConfig.nodePtr_ == nullptr)
       {
          networkNode_ = make_shared<BitcoinP2P>("127.0.0.1", config_.btcPort_,
             *(uint32_t*)magicBytes.getPtr());
+      }
+      else 
+      {
+         networkNode_ = bdmConfig.nodePtr_;
+      }
+
+      if (bdmConfig.getServiceType() != SERVICE_UNITTEST)
+      {
          nodeRPC_ = make_shared<NodeRPC>(config_);
       }
-      else if (bdmConfig.nodeType_ == Node_UnitTest)
+      else
       {
-         networkNode_ = make_shared<NodeUnitTest>("127.0.0.1", config_.btcPort_,
-            *(uint32_t*)magicBytes.getPtr(), blockchain_, blockFiles_);
          nodeRPC_ = make_shared<NodeRPC_UnitTest>(config_);
       }
-      else
+
+      if(networkNode_ == nullptr)
       {
          throw DbErrorMsg("invalid node type in bdmConfig");
       }

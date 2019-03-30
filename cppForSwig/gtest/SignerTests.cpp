@@ -22,8 +22,16 @@ protected:
 
    void initBDM(void)
    {
+      auto& magicBytes = NetworkConfig::getMagicBytes();
+      config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0",
+         *(uint32_t*)magicBytes.getPtr());
+
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
+
+      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(config.nodePtr_);
+      nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
+      nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 
       auto mockedShutdown = [](void)->void {};
       clients_ = new Clients(theBDMt_, mockedShutdown);
@@ -62,7 +70,6 @@ protected:
       config.threadCount_ = 3;
 
       NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-      config.nodeType_ = Node_UnitTest;
 
       wallet1id = BinaryData("wallet1");
       wallet2id = BinaryData("wallet2");

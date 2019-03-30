@@ -224,8 +224,16 @@ protected:
 
    void initBDM(void)
    {
+      auto& magicBytes = NetworkConfig::getMagicBytes();
+      config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0",
+         *(uint32_t*)magicBytes.getPtr());
+
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
+
+      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(config.nodePtr_);
+      nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
+      nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 
       auto mockedShutdown = [](void)->void {};
       clients_ = new Clients(theBDMt_, mockedShutdown);
@@ -258,8 +266,6 @@ protected:
       config.blkFileLocation_ = blkdir_;
       config.dbDir_ = ldbdir_;
       config.threadCount_ = 3;
-
-      config.nodeType_ = Node_UnitTest;
 
       unsigned port_int = 50000 + rand() % 10000;
       stringstream port_ss;
@@ -1292,8 +1298,16 @@ protected:
 
    void initBDM(void)
    {
+      auto& magicBytes = NetworkConfig::getMagicBytes();
+      config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0",
+         *(uint32_t*)magicBytes.getPtr());
+
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
+
+      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(config.nodePtr_);
+      nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
+      nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 
       auto mockedShutdown = [](void)->void {};
       clients_ = new Clients(theBDMt_, mockedShutdown);
@@ -1326,8 +1340,6 @@ protected:
       config.blkFileLocation_ = blkdir_;
       config.dbDir_ = ldbdir_;
       config.threadCount_ = 3;
-
-      config.nodeType_ = Node_UnitTest;
 
       unsigned port_int = 50000 + rand() % 10000;
       stringstream port_ss;
@@ -2960,8 +2972,16 @@ protected:
 
    void initBDM(void)
    {
+      auto& magicBytes = NetworkConfig::getMagicBytes();
+      config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0",
+         *(uint32_t*)magicBytes.getPtr());
+
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
+
+      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(config.nodePtr_);
+      nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
+      nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 
       auto mockedShutdown = [](void)->void {};
       clients_ = new Clients(theBDMt_, mockedShutdown);
@@ -2995,7 +3015,6 @@ protected:
       config.dbDir_ = ldbdir_;
       config.threadCount_ = 3;
       config.dataDir_ = homedir_;
-      config.nodeType_ = Node_UnitTest;
       config.ephemeralPeers_ = false;
 
       unsigned port_int = 50000 + rand() % 10000;

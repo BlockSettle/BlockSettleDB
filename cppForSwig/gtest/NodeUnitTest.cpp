@@ -7,15 +7,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "NodeUnitTest.h"
-#include "../NetworkConfig.h"
 
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 NodeUnitTest::NodeUnitTest(const string& addr, const string& port,
-   uint32_t magic_word, shared_ptr<Blockchain> bcPtr, 
-   shared_ptr<BlockFiles> filesPtr) :
-   BitcoinP2P(addr, port, magic_word), blockchain_(bcPtr), filesPtr_(filesPtr)
+   uint32_t magic_word) :
+   BitcoinP2P(addr, port, magic_word)
 {
    counter_.store(1, memory_order_relaxed);
 }
@@ -133,7 +131,7 @@ void NodeUnitTest::mineNewBlock(const BinaryData& h160)
       BinaryWriter bwHeader;
 
       //magic byte
-      bwHeader.put_BinaryData(NetworkConfig::getMagicBytes());
+      bwHeader.put_uint32_t(getMagicWord());
 
       //block size
       bwHeader.put_uint32_t(bwBlock.getSize());
@@ -217,7 +215,7 @@ void NodeUnitTest::pushZC(const vector<BinaryData>& txVec)
       invVec.emplace_back(ie);
    }
 
-   invTxLambda_(invVec);
+   processInvTx(invVec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -233,4 +231,16 @@ shared_ptr<Payload> NodeUnitTest::getTx(const InvEntry& ie, uint32_t timeout)
    auto payload = make_shared<Payload_Tx>(
       iter->second.rawTx_.getPtr(), iter->second.rawTx_.getSize());
    return payload;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::setBlockchain(std::shared_ptr<Blockchain> bcPtr)
+{
+   blockchain_ = bcPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::setBlockFiles(std::shared_ptr<BlockFiles> filesPtr)
+{
+   filesPtr_ = filesPtr;
 }

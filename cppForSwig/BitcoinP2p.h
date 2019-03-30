@@ -516,7 +516,6 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 class BitcoinP2P
 {
-   friend class NodeUnitTest;
 private:
    const std::string addr_;
    const std::string port_;
@@ -563,6 +562,7 @@ public:
 
 protected:
    void processInvBlock(std::vector<InvEntry>);
+   void processInvTx(std::vector<InvEntry>);
 
 private:
    void connectLoop(void);
@@ -579,7 +579,6 @@ private:
    void replyPong(std::unique_ptr<Payload>);
 
    void processInv(std::unique_ptr<Payload>);
-   void processInvTx(std::vector<InvEntry>);
    void processGetData(std::unique_ptr<Payload>);
    void processGetTx(std::unique_ptr<Payload>);
    void processReject(std::unique_ptr<Payload>);
@@ -622,6 +621,8 @@ public:
    {
       return invBlockStack_;
    }
+
+   uint32_t getMagicWord(void) const { return magic_word_; }
 };
 
 #endif

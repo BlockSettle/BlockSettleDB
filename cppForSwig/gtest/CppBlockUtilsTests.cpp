@@ -5824,7 +5824,7 @@ TEST_F(BlockDir, HeadersFirst)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodeType_ = Node_UnitTest;
+   config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0", 0);
    
    // Put the first 5 blocks out of order
    TestUtils::setBlocks({ "0", "1", "2", "4", "3", "5" }, blk0dat_);
@@ -5875,7 +5875,7 @@ TEST_F(BlockDir, HeadersFirstUpdate)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodeType_ = Node_UnitTest;
+   config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0", 0);
 
    // Put the first 5 blocks out of order
    TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
@@ -5932,7 +5932,7 @@ TEST_F(BlockDir, HeadersFirstReorg)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodeType_ = Node_UnitTest;
+   config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0", 0);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
 
@@ -6007,7 +6007,7 @@ TEST_F(BlockDir, HeadersFirstUpdateTwice)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodeType_ = Node_UnitTest;
+   config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0", 0);
 
    TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
    
@@ -6067,7 +6067,7 @@ TEST_F(BlockDir, BlockFileSplit)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodeType_ = Node_UnitTest;
+   config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0", 0);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
    
@@ -6121,7 +6121,7 @@ TEST_F(BlockDir, BlockFileSplitUpdate)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodeType_ = Node_UnitTest;
+   config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0", 0);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
       
@@ -6181,8 +6181,16 @@ protected:
 
    void initBDM(void)
    {
+      auto& magicBytes = NetworkConfig::getMagicBytes();
+      config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0",
+         *(uint32_t*)magicBytes.getPtr());
+
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
+
+      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(config.nodePtr_);
+      nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
+      nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 
       auto mockedShutdown = [](void)->void {};
       clients_ = new Clients(theBDMt_, mockedShutdown);
@@ -6218,8 +6226,7 @@ protected:
       config.threadCount_ = 3;
 
       NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-      config.nodeType_ = Node_UnitTest;
-      
+
       unsigned port_int = 50000 + rand() % 10000;
       stringstream port_ss;
       port_ss << port_int;
@@ -6242,6 +6249,7 @@ protected:
          clients_->shutdown();
       }
 
+      config.nodePtr_.reset();
       delete clients_;
       delete theBDMt_;
 
@@ -10189,7 +10197,7 @@ protected:
       config.dataDir_ = homedir_;
 
       NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-      config.nodeType_ = Node_UnitTest;
+      config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0", 0);
 
       unsigned port_int = 50000 + rand() % 10000;
       stringstream port_ss;
