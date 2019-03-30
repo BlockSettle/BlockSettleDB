@@ -17,7 +17,7 @@ endif
 noinst_LTLIBRARIES += gtest/libgtest.la
 gtest_libgtest_la_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
 gtest_libgtest_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
-gtest_libgtest_la_SOURCES = gtest/TestUtils.cpp gtest/gtest-all.cc
+gtest_libgtest_la_SOURCES = gtest/TestUtils.cpp gtest/NodeUnitTest.cpp gtest/gtest-all.cc
 gtest_libgtest_la_LIBADD = $(LIBARMORYCOMMON) $(LIBARMORYCLI) \
 				$(LIBCRYPTOPP) \
 				$(LIBBTC)
@@ -36,34 +36,34 @@ gtest_ContainerTests_LDADD = gtest/libgtest.la $(LIBARMORYCOMMON) \
 gtest_ContainerTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/ContainerTests
 
-# DB1kIterTest
-bin_PROGRAMS += gtest/DB1kIterTest
-gtest_DB1kIterTest_SOURCES = gtest/DB1kIterTest.cpp
-gtest_DB1kIterTest_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
-gtest_DB1kIterTest_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
-gtest_DB1kIterTest_LDADD = gtest/libgtest.la $(LIBARMORYCOMMON) \
-		 $(LIBARMORYCLI) \
-		 $(LIBCRYPTOPP) \
-		 $(LIBBTC) \
-		 $(LIBCHACHA20POLY1305) \
-		 $(LIBLMDB) \
-		 $(LIBPROTOBUF_STATIC) \
-		 $(LIBWEBSOCKETS_STATIC)
-if BUILD_OPENSSL_SUPPORT
-gtest_DB1kIterTest_LDADD += $(LIBSSL_STATIC) \
-		 $(LIBCRYPTO_STATIC)
-endif
-if BUILD_LIBUV_SUPPORT
-gtest_DB1kIterTest_LDADD += $(LIBUV_STATIC)
-endif
-if BUILD_LIBEVENT_SUPPORT
-gtest_DB1kIterTest_LDADD += $(LIBEVENT_STATIC)
-endif
-if BUILD_LIBCAP_SUPPORT
-gtest_DB1kIterTest_LDADD += $(LIBCAP_LIBS)
-endif
-gtest_DB1kIterTest_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
-TESTS += gtest/DB1kIterTest
+# DB1kIterTest - useless test
+#bin_PROGRAMS += gtest/DB1kIterTest
+#gtest_DB1kIterTest_SOURCES = gtest/DB1kIterTest.cpp
+#gtest_DB1kIterTest_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
+#gtest_DB1kIterTest_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+#gtest_DB1kIterTest_LDADD = gtest/libgtest.la $(LIBARMORYCOMMON) \
+#		 $(LIBARMORYCLI) \
+#		 $(LIBCRYPTOPP) \
+#		 $(LIBBTC) \
+#		 $(LIBCHACHA20POLY1305) \
+#		 $(LIBLMDB) \
+#		 $(LIBPROTOBUF_STATIC) \
+#		 $(LIBWEBSOCKETS_STATIC)
+#if BUILD_OPENSSL_SUPPORT
+#gtest_DB1kIterTest_LDADD += $(LIBSSL_STATIC) \
+#		 $(LIBCRYPTO_STATIC)
+#endif
+#if BUILD_LIBUV_SUPPORT
+#gtest_DB1kIterTest_LDADD += $(LIBUV_STATIC)
+#endif
+#if BUILD_LIBEVENT_SUPPORT
+#gtest_DB1kIterTest_LDADD += $(LIBEVENT_STATIC)
+#endif
+#if BUILD_LIBCAP_SUPPORT
+#gtest_DB1kIterTest_LDADD += $(LIBCAP_LIBS)
+#endif
+#gtest_DB1kIterTest_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
+#TESTS += gtest/DB1kIterTest
 
 # BIP151RekeyTest
 bin_PROGRAMS += gtest/BIP151RekeyTest

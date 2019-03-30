@@ -11,9 +11,8 @@
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
-NodeUnitTest::NodeUnitTest(const string& addr, const string& port,
-   uint32_t magic_word) :
-   BitcoinP2P(addr, port, magic_word)
+NodeUnitTest::NodeUnitTest(uint32_t magic_word) :
+   BitcoinP2P("", "", magic_word)
 {
    counter_.store(1, memory_order_relaxed);
 }

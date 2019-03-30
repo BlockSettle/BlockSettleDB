@@ -21,7 +21,7 @@
 #include "../ScriptRecipient.h"
 #include "../BlockDataMap.h"
 
-class NodeUnitTest : protected BitcoinP2P
+class NodeUnitTest : public BitcoinP2P
 {
    struct MempoolObject
    {
@@ -39,9 +39,7 @@ class NodeUnitTest : protected BitcoinP2P
    std::shared_ptr<BlockFiles> filesPtr_ = nullptr;
 
 public:
-   NodeUnitTest(
-      const std::string& addr, const std::string& port, 
-      uint32_t magic_word);
+   NodeUnitTest(uint32_t magic_word);
 
    //virtuals
    void connectToNode(bool async) {}

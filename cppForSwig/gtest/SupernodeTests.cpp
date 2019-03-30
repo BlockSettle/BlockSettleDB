@@ -225,7 +225,7 @@ protected:
    void initBDM(void)
    {
       auto& magicBytes = NetworkConfig::getMagicBytes();
-      config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0",
+      config.nodePtr_ = make_shared<NodeUnitTest>(
          *(uint32_t*)magicBytes.getPtr());
 
       theBDMt_ = new BlockDataManagerThread(config);
@@ -1299,13 +1299,12 @@ protected:
    void initBDM(void)
    {
       auto& magicBytes = NetworkConfig::getMagicBytes();
-      config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0",
-         *(uint32_t*)magicBytes.getPtr());
+      auto nodePtr = make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr());
+      config.nodePtr_ = nodePtr;
 
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
 
-      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(config.nodePtr_);
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 
@@ -2973,13 +2972,14 @@ protected:
    void initBDM(void)
    {
       auto& magicBytes = NetworkConfig::getMagicBytes();
-      config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0",
+      auto nodePtr = make_shared<NodeUnitTest>(
          *(uint32_t*)magicBytes.getPtr());
+         
+      config.nodePtr_ = dynamic_pointer_cast<BitcoinP2P>(nodePtr);
 
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
 
-      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(config.nodePtr_);
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 

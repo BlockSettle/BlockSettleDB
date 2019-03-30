@@ -562,9 +562,9 @@ public:
 
 protected:
    void processInvBlock(std::vector<InvEntry>);
-   void processInvTx(std::vector<InvEntry>);
 
 private:
+   void init(void);
    void connectLoop(void);
 
    //void pollSocketThread();
@@ -623,6 +623,7 @@ public:
    }
 
    uint32_t getMagicWord(void) const { return magic_word_; }
+   void processInvTx(std::vector<InvEntry>);   
 };
 
 #endif

@@ -23,8 +23,7 @@ protected:
    void initBDM(void)
    {
       auto& magicBytes = NetworkConfig::getMagicBytes();
-      config.nodePtr_ = make_shared<NodeUnitTest>("127.0.0.1", "0",
-         *(uint32_t*)magicBytes.getPtr());
+      config.nodePtr_ = make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr());
 
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
