@@ -49,9 +49,9 @@ protected:
       homedir_ = string("./fakehomedir");
       ldbdir_ = string("./ldbtestdir");
 
-      rmdir(blkdir_);
-      rmdir(homedir_);
-      rmdir(ldbdir_);
+      DBUtils::removeDirectory(blkdir_);
+      DBUtils::removeDirectory(homedir_);
+      DBUtils::removeDirectory(ldbdir_);
 
       mkdir(blkdir_);
       mkdir(homedir_);
@@ -91,16 +91,12 @@ protected:
       theBDMt_ = nullptr;
       clients_ = nullptr;
 
-      rmdir(blkdir_);
-      rmdir(homedir_);
+      DBUtils::removeDirectory(blkdir_);
+      DBUtils::removeDirectory(homedir_);
+      DBUtils::removeDirectory("./ldbtestdir");
 
-#ifdef _MSC_VER
-      rmdir("./ldbtestdir");
       mkdir("./ldbtestdir");
-#else
-      string delstr = ldbdir_ + "/*";
-      rmdir(delstr);
-#endif
+
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
    }

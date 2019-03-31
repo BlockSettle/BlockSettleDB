@@ -227,14 +227,14 @@ protected:
    {
       LOGDISABLESTDOUT();
       homedir_ = string("./fakehomedir");
-      rmdir(homedir_);
+      DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
    }
 
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
-      rmdir(homedir_);
+      DBUtils::removeDirectory(homedir_);
    }
 };
 
@@ -1206,14 +1206,14 @@ protected:
    {
       LOGDISABLESTDOUT();
       homedir_ = string("./fakehomedir");
-      rmdir(homedir_);
+      DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
    }
 
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
-      rmdir(homedir_);
+      DBUtils::removeDirectory(homedir_);
    }
 };
 

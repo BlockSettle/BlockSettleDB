@@ -175,6 +175,7 @@
     <ClInclude Include="..\AuthorizedPeers.h" />
     <ClInclude Include="..\chacha20poly1305\chacha.h" />
     <ClInclude Include="..\chacha20poly1305\chachapoly_aead.h" />
+    <ClInclude Include="..\DBUtils.h" />
     <ClInclude Include="..\NetworkConfig.h" />
     <ClInclude Include="..\Addresses.h" />
     <ClInclude Include="..\AsyncClient.h" />

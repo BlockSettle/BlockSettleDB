@@ -249,9 +249,9 @@ protected:
       homedir_ = string("./fakehomedir");
       ldbdir_ = string("./ldbtestdir");
 
-      rmdir(blkdir_);
-      rmdir(homedir_);
-      rmdir(ldbdir_);
+      DBUtils::removeDirectory(blkdir_);
+      DBUtils::removeDirectory(homedir_);
+      DBUtils::removeDirectory(ldbdir_);
 
       mkdir(blkdir_);
       mkdir(homedir_);
@@ -293,16 +293,12 @@ protected:
       DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
       EXPECT_EQ(DatabaseContainer_Sharded::txShardMap_.size(), 0);
 
-      rmdir(blkdir_);
-      rmdir(homedir_);
+      DBUtils::removeDirectory(blkdir_);
+      DBUtils::removeDirectory(homedir_);
+      DBUtils::removeDirectory("./ldbtestdir");
 
-#ifdef _MSC_VER
-      rmdir("./ldbtestdir");
       mkdir("./ldbtestdir");
-#else
-      string delstr = ldbdir_ + "/*";
-      rmdir(delstr);
-#endif
+
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
    }
@@ -1322,9 +1318,9 @@ protected:
       homedir_ = string("./fakehomedir");
       ldbdir_ = string("./ldbtestdir");
 
-      rmdir(blkdir_);
-      rmdir(homedir_);
-      rmdir(ldbdir_);
+      DBUtils::removeDirectory(blkdir_);
+      DBUtils::removeDirectory(homedir_);
+      DBUtils::removeDirectory(ldbdir_);
 
       mkdir(blkdir_);
       mkdir(homedir_);
@@ -1368,16 +1364,12 @@ protected:
       DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
       EXPECT_EQ(DatabaseContainer_Sharded::txShardMap_.size(), 0);
 
-      rmdir(blkdir_);
-      rmdir(homedir_);
+      DBUtils::removeDirectory(blkdir_);
+      DBUtils::removeDirectory(homedir_);
+      DBUtils::removeDirectory("./ldbtestdir");
 
-#ifdef _MSC_VER
-      rmdir("./ldbtestdir");
       mkdir("./ldbtestdir");
-#else
-      string delstr = ldbdir_ + "/*";
-      rmdir(delstr);
-#endif
+
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
       }
@@ -2997,9 +2989,9 @@ protected:
       homedir_ = string("./fakehomedir");
       ldbdir_ = string("./ldbtestdir");
 
-      rmdir(blkdir_);
-      rmdir(homedir_);
-      rmdir(ldbdir_);
+      DBUtils::removeDirectory(blkdir_);
+      DBUtils::removeDirectory(homedir_);
+      DBUtils::removeDirectory(ldbdir_);
 
       mkdir(blkdir_);
       mkdir(homedir_);
@@ -3063,16 +3055,12 @@ protected:
       DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
       EXPECT_EQ(DatabaseContainer_Sharded::txShardMap_.size(), 0);
 
-      rmdir(blkdir_);
-      rmdir(homedir_);
+      DBUtils::removeDirectory(blkdir_);
+      DBUtils::removeDirectory(homedir_);
+      DBUtils::removeDirectory("./ldbtestdir");
 
-#ifdef _MSC_VER
-      rmdir("./ldbtestdir");
       mkdir("./ldbtestdir");
-#else
-      string delstr = ldbdir_ + "/*";
-      rmdir(delstr);
-#endif
+
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
    }

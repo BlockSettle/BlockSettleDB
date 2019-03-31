@@ -76,7 +76,6 @@
 #define READHEX BinaryData::CreateFromHex
 
 #if ! defined(_MSC_VER) && ! defined(__MINGW32__)
-   void rmdir(std::string src);
    void mkdir(std::string newdir);
 #endif
 

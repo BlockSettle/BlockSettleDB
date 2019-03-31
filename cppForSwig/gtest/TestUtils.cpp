@@ -12,14 +12,6 @@ using namespace std;
 using namespace ::Codec_BDVCommand;
 
 #if ! defined(_MSC_VER) && ! defined(__MINGW32__)
-   /////////////////////////////////////////////////////////////////////////////
-   void rmdir(string src)
-   {
-      char* syscmd = new char[4096];
-      sprintf(syscmd, "rm -rf %s", src.c_str());
-      system(syscmd);
-      delete[] syscmd;
-   }
 
    /////////////////////////////////////////////////////////////////////////////
    void mkdir(string newdir)
