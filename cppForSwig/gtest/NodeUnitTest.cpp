@@ -32,6 +32,13 @@ void NodeUnitTest::mockNewBlock(void)
 ////////////////////////////////////////////////////////////////////////////////
 void NodeUnitTest::mineNewBlock(const BinaryData& h160)
 {
+   Recipient_P2PKH recipient(h160, 50 * COIN);
+   mineNewBlock(&recipient);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::mineNewBlock(ScriptRecipient* recipient)
+{
    //create coinbase tx
    BinaryWriter bwCoinbase;
    {
@@ -56,8 +63,7 @@ void NodeUnitTest::mineNewBlock(const BinaryData& h160)
       bwCoinbase.put_var_int(1);
 
       //output script
-      Recipient_P2PKH output(h160, 50 * COIN);
-      auto& outputScript = output.getSerializedScript();
+      auto& outputScript = recipient->getSerializedScript();
       bwCoinbase.put_BinaryData(outputScript);
 
       //locktime
