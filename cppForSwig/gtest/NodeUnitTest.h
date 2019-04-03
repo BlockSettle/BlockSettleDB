@@ -51,9 +51,9 @@ public:
    }
 
    //locals
-   void mockNewBlock(void);
-   void mineNewBlock(const BinaryData& h160);
-   void mineNewBlock(ScriptRecipient*);
+   void notifyNewBlock(void);
+   void mineNewBlock(unsigned count, const BinaryData& h160);
+   void mineNewBlock(unsigned, ScriptRecipient*);
    void pushZC(const std::vector<BinaryData>& txVec);
    std::shared_ptr<Payload> getTx(const InvEntry& ie, uint32_t timeout);
 

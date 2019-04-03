@@ -18,7 +18,7 @@ NodeUnitTest::NodeUnitTest(uint32_t magic_word) :
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void NodeUnitTest::mockNewBlock(void)
+void NodeUnitTest::notifyNewBlock(void)
 {
    InvEntry ie;
    ie.invtype_ = Inv_Msg_Block;
@@ -30,129 +30,147 @@ void NodeUnitTest::mockNewBlock(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void NodeUnitTest::mineNewBlock(const BinaryData& h160)
+void NodeUnitTest::mineNewBlock(unsigned count, const BinaryData& h160)
 {
    Recipient_P2PKH recipient(h160, 50 * COIN);
-   mineNewBlock(&recipient);
+   mineNewBlock(count, &recipient);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void NodeUnitTest::mineNewBlock(ScriptRecipient* recipient)
+void NodeUnitTest::mineNewBlock(unsigned count, ScriptRecipient* recipient)
 {
-   //create coinbase tx
-   BinaryWriter bwCoinbase;
+   BinaryData prevHash;
+   uint32_t timestamp;
+   BinaryData diffBits;
    {
-      //version
-      bwCoinbase.put_uint32_t(1);
-
-      //input count
-      bwCoinbase.put_var_int(1);
-
-      //outpoint
-      BinaryData outpoint(36);
-      memset(outpoint.getPtr(), 0, outpoint.getSize());
-      bwCoinbase.put_BinaryData(outpoint);
-
-      //txin script
-      bwCoinbase.put_var_int(0);
-
-      //sequence
-      bwCoinbase.put_uint32_t(UINT32_MAX);
-
-      //output count
-      bwCoinbase.put_var_int(1);
-
-      //output script
-      auto& outputScript = recipient->getSerializedScript();
-      bwCoinbase.put_BinaryData(outputScript);
-
-      //locktime
-      bwCoinbase.put_uint32_t(0);
-   }
-
-   MempoolObject coinbaseObj;
-   coinbaseObj.rawTx_ = bwCoinbase.getData();
-   coinbaseObj.hash_ = BtcUtils::getHash256(coinbaseObj.rawTx_);
-   coinbaseObj.order_ = 0;
-
-   //grab all tx in the mempool, respect ordering
-   vector<MempoolObject> mempoolV;
-   mempoolV.push_back(coinbaseObj);
-   for (auto& obj : mempool_)
-      mempoolV.push_back(obj.second);
-   sort(mempoolV.begin(), mempoolV.end());
-
-
-   //compute merkle
-   vector<BinaryData> txHashes;
-   for (auto& obj : mempoolV)
-      txHashes.push_back(obj.hash_);
-   auto merkleRoot = BtcUtils::calculateMerkleRoot(txHashes);
-
-   //build block
-   BinaryWriter bwBlock;
-
-   {
-      /* build header */
       auto top = blockchain_->top();
-
-      //version
-      bwBlock.put_uint32_t(1);
-
-      //previous hash
-      bwBlock.put_BinaryData(top->getThisHash());
-
-      //merkle root
-      bwBlock.put_BinaryData(merkleRoot);
-
-      //timestamp
-      bwBlock.put_uint32_t(top->getTimestamp() + 600);
-
-      //diff bits
-      bwBlock.put_BinaryData(top->getDiffBits());
-
-      //nonce
-      bwBlock.put_uint32_t(0);
+      prevHash = top->getThisHash();
+      timestamp = top->getTimestamp();
+      diffBits  = top->getDiffBits();
    }
 
+   for (unsigned i = 0; i < count; i++)
    {
-      /* serialize block */
+      //create coinbase tx
+      BinaryWriter bwCoinbase;
+      {
+         //version
+         bwCoinbase.put_uint32_t(1);
 
-      //tx count
-      bwBlock.put_var_int(mempoolV.size());
+         //input count
+         bwCoinbase.put_var_int(1);
 
-      //tx
-      for (auto& txObj : mempoolV)
-         bwBlock.put_BinaryData(txObj.rawTx_);
-   }
+         //outpoint
+         BinaryData outpoint(36);
+         memset(outpoint.getPtr(), 0, outpoint.getSize());
+         bwCoinbase.put_BinaryData(outpoint);
 
-   {
-      /* append to blocks data file */
+         //txin script
+         bwCoinbase.put_var_int(0);
 
-      //get file stream
-      auto lastFileName = filesPtr_->getLastFileName();
-      auto fStream = ofstream(lastFileName, ios::binary | ios::app);
+         //sequence
+         bwCoinbase.put_uint32_t(UINT32_MAX);
 
-      BinaryWriter bwHeader;
+         //output count
+         bwCoinbase.put_var_int(1);
 
-      //magic byte
-      bwHeader.put_uint32_t(getMagicWord());
+         //output script
+         auto& outputScript = recipient->getSerializedScript();
+         bwCoinbase.put_BinaryData(outputScript);
 
-      //block size
-      bwHeader.put_uint32_t(bwBlock.getSize());
+         //locktime
+         bwCoinbase.put_uint32_t(0);
+      }
 
-      fStream.write(
-         (const char*)bwHeader.getDataRef().getPtr(), bwHeader.getSize());
+      MempoolObject coinbaseObj;
+      coinbaseObj.rawTx_ = bwCoinbase.getData();
+      coinbaseObj.hash_ = BtcUtils::getHash256(coinbaseObj.rawTx_);
+      coinbaseObj.order_ = 0;
 
-      //block data
-      fStream.write(
-         (const char*)bwBlock.getDataRef().getPtr(), bwBlock.getSize());
+      //grab all tx in the mempool, respect ordering
+      vector<MempoolObject> mempoolV;
+      mempoolV.push_back(coinbaseObj);
+      for (auto& obj : mempool_)
+         mempoolV.push_back(obj.second);
+      sort(mempoolV.begin(), mempoolV.end());
 
-      fStream.close();
+      //clear mempool
+      mempool_.clear();
+
+      //compute merkle
+      vector<BinaryData> txHashes;
+      for (auto& obj : mempoolV)
+         txHashes.push_back(obj.hash_);
+      auto merkleRoot = BtcUtils::calculateMerkleRoot(txHashes);
+
+      //build block
+      BinaryWriter bwBlock;
+
+      {
+         /* build header */
+
+         //version
+         bwBlock.put_uint32_t(1);
+
+         //previous hash
+         bwBlock.put_BinaryData(prevHash);
+
+         //merkle root
+         bwBlock.put_BinaryData(merkleRoot);
+
+         //timestamp
+         bwBlock.put_uint32_t(timestamp + 600);
+
+         //diff bits
+         bwBlock.put_BinaryData(diffBits);
+
+         //nonce
+         bwBlock.put_uint32_t(0);
+
+         //update prev hash and timestamp for the next block
+         prevHash = BtcUtils::getHash256(bwBlock.getDataRef());
+         timestamp += 600;
+      }
+
+      {
+         /* serialize block */
+
+         //tx count
+         bwBlock.put_var_int(mempoolV.size());
+
+         //tx
+         for (auto& txObj : mempoolV)
+            bwBlock.put_BinaryData(txObj.rawTx_);
+      }
+
+      {
+         /* append to blocks data file */
+
+         //get file stream
+         auto lastFileName = filesPtr_->getLastFileName();
+         auto fStream = ofstream(lastFileName, ios::binary | ios::app);
+
+         BinaryWriter bwHeader;
+
+         //magic byte
+         bwHeader.put_uint32_t(getMagicWord());
+
+         //block size
+         bwHeader.put_uint32_t(bwBlock.getSize());
+
+         fStream.write(
+            (const char*)bwHeader.getDataRef().getPtr(), bwHeader.getSize());
+
+         //block data
+         fStream.write(
+            (const char*)bwBlock.getDataRef().getPtr(), bwBlock.getSize());
+
+         fStream.close();
+      }
    }
 
    //push notification
-   mockNewBlock();
+   notifyNewBlock();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

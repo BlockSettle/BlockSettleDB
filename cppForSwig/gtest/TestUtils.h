@@ -132,7 +132,8 @@ namespace DBTestUtils
    void waitOnWalletRefresh(Clients* clients, const std::string& bdvId,
       const BinaryData& wltId);
    void triggerNewBlockNotification(BlockDataManagerThread* bdmt);
-   void mineNewBlock(BlockDataManagerThread* bdmt, const BinaryData& h160);
+   void mineNewBlock(BlockDataManagerThread* bdmt, const BinaryData& h160,
+      unsigned count);
 
    struct ZcVector
    {

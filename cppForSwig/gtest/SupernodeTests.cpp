@@ -2825,15 +2825,15 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
    EXPECT_TRUE(zcledger9.isOptInRBF());
 
    //mine a new block
-   DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA);
+   DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA, 3);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
-   //check chain is 1 block longer
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 4);
+   //check chain is 3 block longer
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 6);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 100 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 200 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);

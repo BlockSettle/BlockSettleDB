@@ -9353,7 +9353,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
    EXPECT_EQ(zc3_count, 1);
 
    //mine a new block
-   DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB);
+   DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB, 1);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
    //check chain is 1 block longer

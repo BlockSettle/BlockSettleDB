@@ -481,16 +481,17 @@ namespace DBTestUtils
       auto nodePtr = bdmt->bdm()->networkNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
 
-      nodeUnitTest->mockNewBlock();
+      nodeUnitTest->notifyNewBlock();
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   void mineNewBlock(BlockDataManagerThread* bdmt, const BinaryData& h160)
+   void mineNewBlock(BlockDataManagerThread* bdmt, const BinaryData& h160, 
+      unsigned count)
    {
       auto nodePtr = bdmt->bdm()->networkNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
 
-      nodeUnitTest->mineNewBlock(h160);
+      nodeUnitTest->mineNewBlock(count, h160);
    }
 
    /////////////////////////////////////////////////////////////////////////////
