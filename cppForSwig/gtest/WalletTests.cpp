@@ -917,8 +917,8 @@ TEST_F(WalletsTest, BIP32_ArmoryDefault)
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_, seed, derivationPath, passphrase, 5);
 
-   auto accId = assetWlt->getMainAccountID();
-   auto accRoot = assetWlt->getAccountRoot(accId);
+   auto rootAccId = assetWlt->getMainAccountID();
+   auto accRoot = assetWlt->getAccountRoot(rootAccId);
    auto accRootPtr = dynamic_pointer_cast<AssetEntry_BIP32Root>(accRoot);
 
    BIP32_Node node;
@@ -928,6 +928,25 @@ TEST_F(WalletsTest, BIP32_ArmoryDefault)
    node.derivePrivate(0);
 
    EXPECT_EQ(accRootPtr->getPubKey()->getCompressedKey(), node.getPublicKey());
+
+   auto accIDs = assetWlt->getAccountIDs();
+   BinaryData accID;
+   for (auto& id : accIDs)
+   {
+      if (id != rootAccId)
+      {
+         accID = id;
+         break;
+      }
+   }
+
+   auto accPtr = assetWlt->getAccountForID(accID);
+   auto addrPtr = accPtr->getNewAddress(
+      AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
+   auto assetID = assetWlt->getAssetIDForAddr(addrPtr->getPrefixedHash());
+   accID.append(WRITE_UINT32_BE(0x10000000));
+   accID.append(WRITE_UINT32_BE(0));
+   EXPECT_EQ(assetID.first, accID);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
