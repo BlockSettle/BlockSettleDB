@@ -94,14 +94,14 @@ void NodeUnitTest::mineNewBlock(unsigned count, ScriptRecipient* recipient)
          mempoolV.push_back(obj.second);
       sort(mempoolV.begin(), mempoolV.end());
 
-      //clear mempool
-      mempool_.clear();
-
       //compute merkle
       vector<BinaryData> txHashes;
       for (auto& obj : mempoolV)
          txHashes.push_back(obj.hash_);
       auto merkleRoot = BtcUtils::calculateMerkleRoot(txHashes);
+
+      //clear mempool
+      mempool_.clear();
 
       //build block
       BinaryWriter bwBlock;
@@ -182,8 +182,9 @@ void NodeUnitTest::pushZC(const vector<BinaryData>& txVec)
    for (auto& tx : txVec)
    {
       MempoolObject obj;
+      Tx txNew(tx);
       obj.rawTx_ = tx;
-      obj.hash_ = BtcUtils::getHash256(tx);
+      obj.hash_ = txNew.getThisHash();
       obj.order_ = counter_.fetch_add(1, memory_order_relaxed);
 
       /***
@@ -191,7 +192,6 @@ void NodeUnitTest::pushZC(const vector<BinaryData>& txVec)
       tests will not push conflicting transactions that aren't legit RBF
       ***/
 
-      Tx txNew(tx);
       auto poolIter = mempool_.begin();
       while(poolIter != mempool_.end())
       {
