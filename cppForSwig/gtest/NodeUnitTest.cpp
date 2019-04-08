@@ -66,7 +66,8 @@ void NodeUnitTest::mineNewBlock(unsigned count, ScriptRecipient* recipient)
          bwCoinbase.put_BinaryData(outpoint);
 
          //txin script
-         bwCoinbase.put_var_int(0);
+         bwCoinbase.put_var_int(4);
+         bwCoinbase.put_uint32_t(counter_.fetch_add(1, memory_order_relaxed));
 
          //sequence
          bwCoinbase.put_uint32_t(UINT32_MAX);
