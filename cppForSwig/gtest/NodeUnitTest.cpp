@@ -37,17 +37,23 @@ void NodeUnitTest::mineNewBlock(unsigned count, const BinaryData& h160)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void NodeUnitTest::mineNewBlock(unsigned count, ScriptRecipient* recipient)
+std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
+   unsigned count, ScriptRecipient* recipient)
 {
    BinaryData prevHash;
    uint32_t timestamp;
    BinaryData diffBits;
+   unsigned blockHeight;
+   
    {
       auto top = blockchain_->top();
       prevHash = top->getThisHash();
       timestamp = top->getTimestamp();
       diffBits  = top->getDiffBits();
+      blockHeight = top->getBlockHeight() + 1;
    }
+
+   std::map<unsigned, BinaryData> result;
 
    for (unsigned i = 0; i < count; i++)
    {
@@ -87,6 +93,8 @@ void NodeUnitTest::mineNewBlock(unsigned count, ScriptRecipient* recipient)
       coinbaseObj.rawTx_ = bwCoinbase.getData();
       coinbaseObj.hash_ = BtcUtils::getHash256(coinbaseObj.rawTx_);
       coinbaseObj.order_ = 0;
+
+      result.insert(make_pair(blockHeight++, coinbaseObj.hash_));
 
       //grab all tx in the mempool, respect ordering
       vector<MempoolObject> mempoolV;
@@ -172,6 +180,8 @@ void NodeUnitTest::mineNewBlock(unsigned count, ScriptRecipient* recipient)
 
    //push notification
    notifyNewBlock();
+
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
