@@ -57,6 +57,7 @@ protected:
       mkdir(ldbdir_);
 
       BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
+      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
 
       // Put the first 5 blocks into the blkdir
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);

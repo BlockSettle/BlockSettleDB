@@ -259,6 +259,8 @@ protected:
 
       // Put the first 5 blocks into the blkdir
       BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
+      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
+
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
 
@@ -1328,6 +1330,8 @@ protected:
 
       // Put the first 5 blocks into the blkdir
       BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
+      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
+
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
 
@@ -2998,7 +3002,9 @@ protected:
       mkdir(ldbdir_);
 
       // Put the first 5 blocks into the blkdir
-      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
+      BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
+      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
+
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
 
@@ -3086,8 +3092,6 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 
    //randomized peer keys, in ram only
    config.ephemeralPeers_ = true;
-
-   BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -3510,9 +3514,6 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 {
-   BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
-
-   //
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
 
    //run clients from websocketserver object instead
@@ -3697,8 +3698,6 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync_ManyLargeWallets)
 
    //randomized peer keys, in ram only
    config.ephemeralPeers_ = true;
-
-   BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);

@@ -5786,6 +5786,7 @@ protected:
       
       NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
+      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
 
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
       wallet1id = BinaryData("wallet1");
@@ -6202,6 +6203,7 @@ protected:
       mkdir(ldbdir_);
 
       BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
+      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
 
       // Put the first 5 blocks into the blkdir
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
@@ -10167,7 +10169,8 @@ protected:
       mkdir(homedir_);
       mkdir(ldbdir_);
 
-      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
+      BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
+      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
 
       // Put the first 5 blocks into the blkdir
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
@@ -10268,7 +10271,6 @@ TEST_F(WebSocketTests, WebSocketStack)
       startupBIP150CTX(4, true);
    }
    
-   BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    clients_->exitRequestLoop();
@@ -10513,7 +10515,6 @@ TEST_F(WebSocketTests, WebSocketStack)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_Reconnect)
 {
-   BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
    startupBIP150CTX(4, true);
 
    //
@@ -10792,9 +10793,6 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, GrabAddrLedger_PostReg)
 {
-   BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    //run clients from server object instead
@@ -10856,9 +10854,6 @@ TEST_F(WebSocketTests, GrabAddrLedger_PostReg)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ManyZC)
 {
-   BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    //run clients from websocketserver object instead
