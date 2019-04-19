@@ -538,13 +538,6 @@ shared_ptr<AssetEntry> AssetAccount::getNewAsset()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AddressEntry> AssetAccount::getNewAddress(AddressEntryType aeType)
-{
-   auto asset = getNewAsset();
-   return AddressEntry::instantiate(asset, aeType);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry> AssetAccount::getAssetForID(const BinaryData& ID) const
 {
    if (ID.getSize() < 4)
@@ -872,6 +865,8 @@ void AddressAccount::reset()
    addressTypes_.clear();
    addressHashes_.clear();
    ID_.clear();
+
+   addresses_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -991,6 +986,45 @@ void AddressAccount::readFromDisk(const BinaryData& key)
    }
 
    ID_ = key.getSliceCopy(1, key.getSize() - 1);
+
+   //instantiated address types
+   BinaryWriter bwKey;
+   bwKey.put_uint8_t(ADDRESS_TYPE_PREFIX);
+   bwKey.put_BinaryData(getID());
+
+   BinaryDataRef keyBdr = bwKey.getDataRef();
+   CharacterArrayRef carKey2(keyBdr.getSize(), keyBdr.getPtr());
+
+   auto dbIter = db_->begin();
+   dbIter.seek(carKey2, LMDB::Iterator::Seek_GE);
+   while (dbIter.isValid())
+   {
+      auto& key = dbIter.key();
+      BinaryDataRef key_bdr((uint8_t*)key.mv_data, key.mv_size);
+      if (!key_bdr.startsWith(keyBdr))
+         break;
+
+      if (key.mv_size != 13)
+      {
+         LOGWARN << "unexpected address entry type key size!";
+         ++dbIter;
+         continue;
+      }
+
+      auto& data = dbIter.value();
+      if (data.mv_size != 4)
+      {
+         LOGWARN << "unexpected address entry type val size!";
+         ++dbIter;
+         continue;
+      }
+
+      auto aeType = AddressEntryType(*(uint32_t*)data.mv_data);
+      auto assetID = key_bdr.getSliceCopy(1, 12);
+      addresses_.insert(make_pair(assetID, aeType));
+      
+      ++dbIter;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1067,12 +1101,26 @@ shared_ptr<AddressEntry> AddressAccount::getNewAddress(
    if (aeIter == addressTypes_.end())
       throw AccountException("invalid address type for this account");
 
-   return iter->second->getNewAddress(aeType);
+   auto assetPtr = iter->second->getNewAsset();
+   auto addrPtr = AddressEntry::instantiate(assetPtr, aeType);
+   
+   //keep track of the address type for this asset if it doesnt use the 
+   //account default
+   if (aeType != defaultAddressEntryType_)
+   {
+      //update on disk
+      updateAddressSet(addrPtr);
+   }
+
+   return addrPtr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 bool AddressAccount::hasAddressType(AddressEntryType aeType)
 {
+   if (aeType == AddressEntryType_Default)
+      return true;
+
    auto iter = addressTypes_.find(aeType);
    return iter != addressTypes_.end();
 }
@@ -1233,6 +1281,149 @@ shared_ptr<AddressAccount> AddressAccount::getWatchingOnlyCopy(
 
    return woAcc;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+void AddressAccount::updateAddressSet(shared_ptr<AddressEntry> addrPtr)
+{
+   /***
+   AddressAccount keeps track instantiated address types with a simple 
+   key-val scheme:
+
+   (ADDRESS_PREFIX|Asset's ID):(AddressEntry type)
+
+   Addresses using the account's default type are not recorded. Their type is 
+   infered on load by AssetAccounts' highest used index and the lack of explicit 
+   type entry.
+   ***/
+
+   //sanity check
+   if (addrPtr->getType() == AddressEntryType_Default)
+      throw AccountException("invalid address entry type");
+
+   auto id = addrPtr->getID();
+   if (id.getSize() != 12)
+      int abc = 0;
+
+   auto iter = addresses_.find(addrPtr->getID());
+   if (iter != addresses_.end())
+   {
+      //skip if type is entry already exist and new type matches old one
+      if (iter->second == addrPtr->getType())
+         return;
+
+      //delete entry is new type matches default account type
+      if (addrPtr->getType() == defaultAddressEntryType_)
+      {
+         addresses_.erase(iter);
+         deleteAddressType(addrPtr);
+         return;
+      }
+   }
+
+   //otherwise write address type to disk
+   addresses_[addrPtr->getID()] = addrPtr->getType();
+   writeAddressType(addrPtr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AddressAccount::writeAddressType(shared_ptr<AddressEntry> addrPtr)
+{
+   ReentrantLock lock(this);
+
+   BinaryWriter bwKey;
+   bwKey.put_uint8_t(ADDRESS_TYPE_PREFIX);
+   bwKey.put_BinaryData(addrPtr->getID());
+
+   BinaryWriter bwData;
+   bwData.put_uint32_t(addrPtr->getType());
+
+   CharacterArrayRef carKey(bwKey.getSize(), bwKey.getData().getCharPtr());
+   CharacterArrayRef carData(bwData.getSize(), bwData.getData().getCharPtr());
+
+   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
+   db_->insert(carKey, carData);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AddressAccount::deleteAddressType(shared_ptr<AddressEntry> addrPtr)
+{
+   ReentrantLock lock(this);
+
+   BinaryWriter bwKey;
+   bwKey.put_uint8_t(ADDRESS_TYPE_PREFIX);
+   bwKey.put_BinaryData(addrPtr->getID());
+
+   CharacterArrayRef carKey(bwKey.getSize(), bwKey.getData().getCharPtr());
+
+   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
+   db_->erase(carKey);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AddressEntry> AddressAccount::getAddressEntryForID(
+   const BinaryDataRef& ID) const
+{
+   //sanity check
+   if (ID.getSize() != 12)
+      throw AccountException("invalid asset id");
+
+   //get the asset account
+   auto accIDRef = ID.getSliceRef(4, 4);
+   auto accIter = assetAccounts_.find(accIDRef);
+   if (accIter == assetAccounts_.end())
+      throw AccountException("unknown account id");
+
+   //does this ID exist?
+   BinaryRefReader brr(ID);
+   brr.advance(8);
+   auto id_int = brr.get_uint32_t(BE);
+
+   if (id_int > accIter->second->getHighestUsedIndex())
+      throw AccountException("trying to access an unrequested asset");
+
+   AddressEntryType aeType = defaultAddressEntryType_;
+   //is there an address entry with this ID?
+   auto addrIter = addresses_.find(ID);
+   if (addrIter != addresses_.end())
+      aeType = addrIter->second;
+
+   auto assetPtr = accIter->second->getAssetForIndex(id_int);
+   auto addrPtr = AddressEntry::instantiate(assetPtr, aeType);
+   return addrPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+map<BinaryData, shared_ptr<AddressEntry>> AddressAccount::getUsedAddressMap()
+   const
+{
+   /***
+   Expensive call, as addresses are built on the fly
+   ***/
+
+   map<BinaryData, shared_ptr<AddressEntry>> result;
+
+   for (auto& account : assetAccounts_)
+   {
+      auto usedIndex = account.second->getHighestUsedIndex();
+      for (unsigned i = 0; i < usedIndex; i++)
+      {
+         auto assetPtr = account.second->getAssetForIndex(i);
+         auto& assetID = assetPtr->getID();
+
+         shared_ptr<AddressEntry> addrPtr;
+         auto iter = addresses_.find(assetID);
+         if (iter == addresses_.end())
+            addrPtr = AddressEntry::instantiate(assetPtr, defaultAddressEntryType_);
+         else
+            addrPtr = AddressEntry::instantiate(assetPtr, iter->second);
+
+         result.insert(make_pair(assetID, addrPtr));
+      }
+   }
+
+   return result;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

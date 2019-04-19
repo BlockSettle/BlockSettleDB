@@ -229,7 +229,7 @@ TEST_F(SignerTest, Signer_Test)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(SignerTest, SpendTest_P2PKH_SizeEstimates)
+TEST_F(SignerTest, SpendTest_SizeEstimates)
 {
    //create spender lamba
    auto getSpenderPtr = [](
@@ -370,7 +370,7 @@ TEST_F(SignerTest, SpendTest_P2PKH_SizeEstimates)
       {
          //deal with change, no fee
          auto changeVal = total - spendVal;
-         auto addr2 = assetWlt->getNewAddress();
+         auto addr2 = assetWlt->getNewChangeAddress();
          signer.addRecipient(addr2->getRecipient(changeVal));
          addrVec.push_back(addr2->getPrefixedHash());
       }
@@ -468,7 +468,7 @@ TEST_F(SignerTest, SpendTest_P2PKH_SizeEstimates)
          //deal with change
          auto changeVal = total - spendVal - csi.getFlatFee();
          feeVal = csi.getFlatFee();
-         auto addr3 = assetWlt->getNewAddress(
+         auto addr3 = assetWlt->getNewChangeAddress(
             AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH));
          signer2.addRecipient(addr3->getRecipient(changeVal));
          addrVec.push_back(addr3->getPrefixedHash());

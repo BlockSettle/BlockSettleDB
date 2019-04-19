@@ -1212,6 +1212,65 @@ TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, AddressEntryTypes)
+{
+   //create wallet
+   vector<unsigned> derPath = {
+      0x80000050,
+      0x80005421,
+      0x80000024,
+      785
+   };
+
+   SecureBinaryData passphrase("password");
+
+   //create regular wallet
+   auto&& seed = CryptoPRNG::generateRandom(32);
+   auto wlt = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_, seed, derPath, passphrase, 10);
+
+   //grab a bunch of addresses of various types
+   set<BinaryData> addrHashes;
+
+   //5 default addresses
+   for (unsigned i = 0; i < 5; i++)
+   {
+      auto addrPtr = wlt->getNewAddress();
+      addrHashes.insert(addrPtr->getAddress());
+   }
+
+   //5 p2wpkh
+   for (unsigned i = 0; i < 5; i++)
+   {
+      auto addrPtr = wlt->getNewAddress(AddressEntryType_P2WPKH);
+      addrHashes.insert(addrPtr->getAddress());
+   }
+
+   //5 nested p2wpkh change addresses
+   for (unsigned i = 0; i < 5; i++)
+   {
+      auto addrPtr = wlt->getNewChangeAddress(AddressEntryType(
+         AddressEntryType_P2SH | AddressEntryType_P2WPKH));
+      addrHashes.insert(addrPtr->getAddress());
+   }
+
+   //shut down wallet
+   auto filename = wlt->getDbFilename();
+   wlt.reset();
+
+   //load from file
+   auto loaded = AssetWallet::loadMainWalletFromFile(filename);
+
+   //check used address list from loaded wallet matches grabbed addresses
+   auto usedAddressMap = loaded->getUsedAddressMap();
+   set<BinaryData> usedAddrHashes;
+   for (auto& addrPair : usedAddressMap)
+      usedAddrHashes.insert(addrPair.second->getAddress());
+
+   EXPECT_EQ(addrHashes, usedAddrHashes);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class WalletMetaDataTest : public ::testing::Test
