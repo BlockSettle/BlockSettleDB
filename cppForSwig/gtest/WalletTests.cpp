@@ -1254,7 +1254,7 @@ TEST_F(WalletsTest, AddressEntryTypes)
       addrHashes.insert(addrPtr->getAddress());
    }
 
-   //shut down wallet
+   //shutdown wallet
    auto filename = wlt->getDbFilename();
    wlt.reset();
 
@@ -1262,12 +1262,30 @@ TEST_F(WalletsTest, AddressEntryTypes)
    auto loaded = AssetWallet::loadMainWalletFromFile(filename);
 
    //check used address list from loaded wallet matches grabbed addresses
-   auto usedAddressMap = loaded->getUsedAddressMap();
-   set<BinaryData> usedAddrHashes;
-   for (auto& addrPair : usedAddressMap)
-      usedAddrHashes.insert(addrPair.second->getAddress());
+   {
+      auto usedAddressMap = loaded->getUsedAddressMap();
+      set<BinaryData> usedAddrHashes;
+      for (auto& addrPair : usedAddressMap)
+         usedAddrHashes.insert(addrPair.second->getAddress());
 
-   EXPECT_EQ(addrHashes, usedAddrHashes);
+      EXPECT_EQ(addrHashes, usedAddrHashes);
+   }
+
+   //shutdown wallet
+   loaded.reset();
+
+   //create WO copy
+   auto woFilename = AssetWallet::forkWathcingOnly(filename);
+   auto woLoaded = AssetWallet::loadMainWalletFromFile(woFilename);
+
+   {
+      auto usedAddressMap = woLoaded->getUsedAddressMap();
+      set<BinaryData> usedAddrHashes;
+      for (auto& addrPair : usedAddressMap)
+         usedAddrHashes.insert(addrPair.second->getAddress());
+
+      EXPECT_EQ(addrHashes, usedAddrHashes);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

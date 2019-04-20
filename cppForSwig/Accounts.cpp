@@ -916,6 +916,10 @@ void AddressAccount::commit()
    CharacterArrayRef carData(bwData.getSize(), bwData.getData().getCharPtr());
 
    db_->insert(carKey, carData);
+
+   //commit instantiated address types
+   for (auto& addrPair : addresses_)
+      writeAddressType(addrPair.first, addrPair.second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1109,7 +1113,7 @@ shared_ptr<AddressEntry> AddressAccount::getNewAddress(
    if (aeType != defaultAddressEntryType_)
    {
       //update on disk
-      updateAddressSet(addrPtr);
+      updateInstantiatedAddressType(addrPtr);
    }
 
    return addrPtr;
@@ -1241,7 +1245,7 @@ shared_ptr<AddressAccount> AddressAccount::getWatchingOnlyCopy(
    //address
    woAcc->defaultAddressEntryType_ = defaultAddressEntryType_;
    woAcc->addressTypes_ = addressTypes_;
-   woAcc->addressHashes_ = addressHashes_;
+   woAcc->addresses_ = addresses_;
 
    //account ids
    woAcc->outerAccount_ = outerAccount_;
@@ -1283,16 +1287,17 @@ shared_ptr<AddressAccount> AddressAccount::getWatchingOnlyCopy(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::updateAddressSet(shared_ptr<AddressEntry> addrPtr)
+void AddressAccount::updateInstantiatedAddressType(
+   shared_ptr<AddressEntry> addrPtr)
 {
    /***
-   AddressAccount keeps track instantiated address types with a simple 
+   AddressAccount keeps track instantiated address types with a simple
    key-val scheme:
 
    (ADDRESS_PREFIX|Asset's ID):(AddressEntry type)
 
-   Addresses using the account's default type are not recorded. Their type is 
-   infered on load by AssetAccounts' highest used index and the lack of explicit 
+   Addresses using the account's default type are not recorded. Their type is
+   infered on load by AssetAccounts' highest used index and the lack of explicit
    type entry.
    ***/
 
@@ -1300,42 +1305,46 @@ void AddressAccount::updateAddressSet(shared_ptr<AddressEntry> addrPtr)
    if (addrPtr->getType() == AddressEntryType_Default)
       throw AccountException("invalid address entry type");
 
-   auto id = addrPtr->getID();
-   if (id.getSize() != 12)
-      int abc = 0;
-
-   auto iter = addresses_.find(addrPtr->getID());
+   updateInstantiatedAddressType(addrPtr->getID(), addrPtr->getType());
+}
+  
+////////////////////////////////////////////////////////////////////////////////
+void AddressAccount::updateInstantiatedAddressType(
+   const BinaryData& id, AddressEntryType aeType)
+{
+   auto iter = addresses_.find(id);
    if (iter != addresses_.end())
    {
       //skip if type is entry already exist and new type matches old one
-      if (iter->second == addrPtr->getType())
+      if (iter->second == aeType)
          return;
 
       //delete entry is new type matches default account type
-      if (addrPtr->getType() == defaultAddressEntryType_)
+      if (aeType == defaultAddressEntryType_)
       {
          addresses_.erase(iter);
-         deleteAddressType(addrPtr);
+         eraseInstantiatedAddressType(id);
          return;
       }
    }
 
    //otherwise write address type to disk
-   addresses_[addrPtr->getID()] = addrPtr->getType();
-   writeAddressType(addrPtr);
+   addresses_[id] = aeType;
+   writeAddressType(id, aeType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::writeAddressType(shared_ptr<AddressEntry> addrPtr)
+void AddressAccount::writeAddressType(
+   const BinaryData& id, AddressEntryType aeType)
 {
    ReentrantLock lock(this);
 
    BinaryWriter bwKey;
    bwKey.put_uint8_t(ADDRESS_TYPE_PREFIX);
-   bwKey.put_BinaryData(addrPtr->getID());
+   bwKey.put_BinaryData(id);
 
    BinaryWriter bwData;
-   bwData.put_uint32_t(addrPtr->getType());
+   bwData.put_uint32_t(aeType);
 
    CharacterArrayRef carKey(bwKey.getSize(), bwKey.getData().getCharPtr());
    CharacterArrayRef carData(bwData.getSize(), bwData.getData().getCharPtr());
@@ -1345,13 +1354,13 @@ void AddressAccount::writeAddressType(shared_ptr<AddressEntry> addrPtr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::deleteAddressType(shared_ptr<AddressEntry> addrPtr)
+void AddressAccount::eraseInstantiatedAddressType(const BinaryData& id)
 {
    ReentrantLock lock(this);
 
    BinaryWriter bwKey;
    bwKey.put_uint8_t(ADDRESS_TYPE_PREFIX);
-   bwKey.put_BinaryData(addrPtr->getID());
+   bwKey.put_BinaryData(id);
 
    CharacterArrayRef carKey(bwKey.getSize(), bwKey.getData().getCharPtr());
 

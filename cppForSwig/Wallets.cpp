@@ -2131,7 +2131,7 @@ string AssetWallet::forkWathcingOnly(const string& filename)
    string masterIdStr(masterID.getCharPtr(), masterID.getSize());
    initWalletMetaDB(dbEnvPtr, masterIdStr);
 
-
+   //open meta db
    {
       LMDBEnv::Transaction tx(dbEnvPtr.get(), LMDB::ReadWrite);
       metaDb.open(dbEnvPtr.get(), WALLETMETA_DBNAME);

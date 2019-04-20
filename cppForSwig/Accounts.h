@@ -516,9 +516,11 @@ private:
 
    void addAccount(std::shared_ptr<AssetAccount>);
 
-   void updateAddressSet(std::shared_ptr<AddressEntry>);
-   void writeAddressType(std::shared_ptr<AddressEntry>);
-   void deleteAddressType(std::shared_ptr<AddressEntry>);
+   void updateInstantiatedAddressType(std::shared_ptr<AddressEntry>);
+   void updateInstantiatedAddressType(
+      const BinaryData&, AddressEntryType);
+   void writeAddressType(const BinaryData&, AddressEntryType);
+   void eraseInstantiatedAddressType(const BinaryData&);
 
 public:
    AddressAccount(
