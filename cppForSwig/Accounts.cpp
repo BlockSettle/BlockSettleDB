@@ -514,9 +514,9 @@ unsigned AssetAccount::getAndBumpHighestUsedIndex()
 {
    ReentrantLock lock(this);
 
-   auto index = lastUsedIndex_++;
+   ++lastUsedIndex_;
    updateHighestUsedIndex();
-   return index;
+   return lastUsedIndex_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1414,7 +1414,10 @@ map<BinaryData, shared_ptr<AddressEntry>> AddressAccount::getUsedAddressMap()
    for (auto& account : assetAccounts_)
    {
       auto usedIndex = account.second->getHighestUsedIndex();
-      for (unsigned i = 0; i < usedIndex; i++)
+      if (usedIndex == UINT32_MAX)
+         continue;
+
+      for (unsigned i = 0; i <= usedIndex; i++)
       {
          auto assetPtr = account.second->getAssetForIndex(i);
          auto& assetID = assetPtr->getID();

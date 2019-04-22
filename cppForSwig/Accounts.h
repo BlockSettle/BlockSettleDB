@@ -408,7 +408,7 @@ private:
    std::shared_ptr<LMDBEnv> dbEnv_ = nullptr;
    LMDB* db_ = nullptr;
 
-   unsigned lastUsedIndex_ = 0;
+   unsigned lastUsedIndex_ = UINT32_MAX;
 
    //<assetID, <address type, prefixed address hash>>
    std::map<BinaryData, std::map<AddressEntryType, BinaryData>> addrHashMap_;
