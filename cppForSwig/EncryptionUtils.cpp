@@ -37,29 +37,18 @@ SecureBinaryData CryptoPRNG::generateRandom(uint32_t numBytes,
 
 /////////////////////////////////////////////////////////////////////////////
 // Implement AES encryption using AES mode, CFB
-SecureBinaryData CryptoAES::EncryptCFB(SecureBinaryData & data, 
-                                       SecureBinaryData & key,
-                                       SecureBinaryData & iv)
+SecureBinaryData CryptoAES::EncryptCFB(const SecureBinaryData & data, 
+                                       const SecureBinaryData & key,
+                                       const SecureBinaryData & iv)
 {
-   if(CRYPTO_DEBUG)
-   {
-      cout << "AES Decrypt" << endl;
-      cout << "   BinData: " << data.toHexStr() << endl;
-      cout << "   BinKey : " << key.toHexStr() << endl;
-      cout << "   BinIV  : " << iv.toHexStr() << endl;
-   }
-
-
    if(data.getSize() == 0)
       return SecureBinaryData(0);
 
    SecureBinaryData encrData(data.getSize());
 
-   // Caller can supply their own IV/entropy, or let it be generated here
-   // (variable "iv" is a reference, so check it on the way out)
-   if(iv.getSize() == 0)
-      iv = CryptoPRNG::generateRandom(BTC_AES::BLOCKSIZE);
-
+   //sanity check
+   if(iv.getSize() != BTC_AES::BLOCKSIZE)
+      throw std::runtime_error("uninitialized IV!");
 
    BTC_CFB_MODE<BTC_AES>::Encryption aes_enc( (byte*)key.getPtr(), 
                                                      key.getSize(), 
@@ -74,19 +63,10 @@ SecureBinaryData CryptoAES::EncryptCFB(SecureBinaryData & data,
 
 /////////////////////////////////////////////////////////////////////////////
 // Implement AES decryption using AES mode, CFB
-SecureBinaryData CryptoAES::DecryptCFB(SecureBinaryData & data, 
-                                       SecureBinaryData & key,
-                                       SecureBinaryData   iv  )
+SecureBinaryData CryptoAES::DecryptCFB(const SecureBinaryData & data, 
+                                       const SecureBinaryData & key,
+                                       const SecureBinaryData & iv  )
 {
-   if(CRYPTO_DEBUG)
-   {
-      cout << "AES Decrypt" << endl;
-      cout << "   BinData: " << data.toHexStr() << endl;
-      cout << "   BinKey : " << key.toHexStr() << endl;
-      cout << "   BinIV  : " << iv.toHexStr() << endl;
-   }
-
-
    if(data.getSize() == 0)
       return SecureBinaryData(0);
 
@@ -107,26 +87,16 @@ SecureBinaryData CryptoAES::DecryptCFB(SecureBinaryData & data,
 // Same as above, but only changing the AES mode of operation (CBC, not CFB)
 SecureBinaryData CryptoAES::EncryptCBC(const SecureBinaryData & data, 
                                        const SecureBinaryData & key,
-                                       SecureBinaryData & iv) const
+                                       const SecureBinaryData & iv)
 {
-   if(CRYPTO_DEBUG)
-   {
-      cout << "AES Decrypt" << endl;
-      cout << "   BinData: " << data.toHexStr() << endl;
-      cout << "   BinKey : " << key.toHexStr() << endl;
-      cout << "   BinIV  : " << iv.toHexStr() << endl;
-   }
-
    if(data.getSize() == 0)
       return SecureBinaryData(0);
 
    SecureBinaryData encrData(data.getSize());
 
-   // Caller can supply their own IV/entropy, or let it be generated here
-   // (variable "iv" is a reference, so check it on the way out)
-   if(iv.getSize() == 0)
-      iv = CryptoPRNG::generateRandom(BTC_AES::BLOCKSIZE);
-
+   //sanity check
+   if(iv.getSize() != BTC_AES::BLOCKSIZE)
+      throw std::runtime_error("uninitialized IV!");
 
    BTC_CBC_MODE<BTC_AES>::Encryption aes_enc( (byte*)key.getPtr(), 
                                                      key.getSize(), 
@@ -143,16 +113,8 @@ SecureBinaryData CryptoAES::EncryptCBC(const SecureBinaryData & data,
 // Same as above, but only changing the AES mode of operation (CBC, not CFB)
 SecureBinaryData CryptoAES::DecryptCBC(const SecureBinaryData & data, 
                                        const SecureBinaryData & key,
-                                       const SecureBinaryData & iv  ) const
+                                       const SecureBinaryData & iv  )
 {
-   if(CRYPTO_DEBUG)
-   {
-      cout << "AES Decrypt" << endl;
-      cout << "   BinData: " << data.toHexStr() << endl;
-      cout << "   BinKey : " << key.toHexStr() << endl;
-      cout << "   BinIV  : " << iv.toHexStr() << endl;
-   }
-
    if(data.getSize() == 0)
       return SecureBinaryData(0);
 

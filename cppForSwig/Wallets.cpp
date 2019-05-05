@@ -271,7 +271,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
          auto lock = lockDecryptedContainer();
 
          //decrypt root
-         auto privKey = decryptedData_->getDecryptedPrivateKey(root->getPrivKey());
+         auto privKey = decryptedData_->getDecryptedPrivateData(root->getPrivKey());
          auto chaincode = root->getChaincode();
 
          SecureBinaryData dummy;
@@ -327,7 +327,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
          auto lock = lockDecryptedContainer();
 
          //decrypt root
-         auto privKey = decryptedData_->getDecryptedPrivateKey(
+         auto privKey = decryptedData_->getDecryptedPrivateData(
             root->getPrivKey());
          auto chaincode = root->getChaincode();
 
@@ -637,6 +637,9 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
       move(accountTypes),
       lookup);
 
+   //save the seed
+   walletPtr->setSeed(seed, passphrase);
+
    //set as main
    {
       LMDB dbMeta;
@@ -858,6 +861,9 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
       rootNode.getChaincode(),
       move(accountTypes),
       0);
+
+   //save the seed
+   walletPtr->setSeed(seed, passphrase);
 
    //set as main
    {
@@ -1189,6 +1195,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    }
    else
    {
+      LOGWARN << "Wallet created without password, using default encryption key";
       topEncryptionKey = move(defaultEncryptionKeyPtr);
    }
 
@@ -1257,7 +1264,6 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
          bwKey.put_uint32_t(ROOTASSET_KEY);
 
          auto&& data = rootAssetEntry->serialize();
-
          walletPtr->putData(bwKey.getData(), data);
       }
 
@@ -1535,6 +1541,28 @@ void AssetWallet_Single::readFromFile()
 
       auto asset_root = AssetEntry::deserDBValue(-1, BinaryData(), rootAssetRef);
       root_ = dynamic_pointer_cast<AssetEntry_Single>(asset_root);
+   }
+
+   {
+      //seed
+      seed_ = nullptr;
+
+      try
+      {
+         BinaryWriter bwKey;
+         bwKey.put_uint32_t(WALLET_SEED_KEY);
+         auto rootAssetRef = getDataRefForKey(bwKey.getData());
+
+         auto seedPtr = Asset_EncryptedData::deserialize(
+            rootAssetRef.getSize(), rootAssetRef);
+         auto seedObj = dynamic_pointer_cast<EncryptedSeed>(seedPtr);
+         if (seedObj == nullptr)
+            throw WalletException("failed to deser wallet seed");
+
+         seed_ = seedObj;
+      }
+      catch(NoEntryInWalletException&)
+      {}
    }
 
    //encryption keys and kdfs
@@ -1951,10 +1979,10 @@ void AssetWallet::extendPrivateChainToIndex(
 
 ////////////////////////////////////////////////////////////////////////////////
 const SecureBinaryData& AssetWallet_Single::getDecryptedValue(
-   shared_ptr<Asset_PrivateKey> assetPtr)
+   shared_ptr<Asset_EncryptedData> assetPtr)
 {
    //have to lock the decryptedData object before calling this method
-   return decryptedData_->getDecryptedPrivateKey(assetPtr);
+   return decryptedData_->getDecryptedPrivateData(assetPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1975,9 +2003,9 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
 
 ////////////////////////////////////////////////////////////////////////////////
 const SecureBinaryData& AssetWallet_Multisig::getDecryptedValue(
-   shared_ptr<Asset_PrivateKey> assetPtr)
+   shared_ptr<Asset_EncryptedData> assetPtr)
 {
-   return decryptedData_->getDecryptedPrivateKey(assetPtr);
+   return decryptedData_->getDecryptedPrivateData(assetPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2313,4 +2341,49 @@ map<BinaryData, shared_ptr<AddressEntry>> AssetWallet::getUsedAddressMap() const
    }
 
    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AssetWallet_Single::setSeed(
+   const SecureBinaryData& seed,
+   const SecureBinaryData& passphrase)
+{
+   //copy root node cipher
+   auto rootPtr = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
+   if (rootPtr == nullptr)
+      throw WalletException("expected BIP32 root object");
+   auto cipherCopy = rootPtr->getPrivKey()->copyCipher();
+
+   //if custom passphrase, set prompt lambda prior to encryption
+   if (passphrase.getSize() > 0)
+   {
+      auto passphraseLambda =
+         [&passphrase](const BinaryData&)->SecureBinaryData
+      {
+         return passphrase;
+      };
+
+      decryptedData_->setPassphrasePromptLambda(passphraseLambda);
+   }
+
+   //create encrypted seed object
+   {
+      auto lock = lockDecryptedContainer();
+
+      auto&& cipherText = decryptedData_->encryptData(cipherCopy.get(), seed);
+      seed_ = make_shared<EncryptedSeed>(cipherText, move(cipherCopy));
+   }
+
+   //write to disk
+   {
+      BinaryWriter bwKey;
+      bwKey.put_uint32_t(WALLET_SEED_KEY);
+      auto&& serData = seed_->serialize();
+
+      LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
+      putData(bwKey.getData(), serData);
+   }
+
+   //reset prompt lambda
+   resetPassphrasePromptLambda();
 }

@@ -393,6 +393,116 @@ TEST_F(WalletsTest, Encryption_Test)
    }
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, SeedEncryption)
+{
+   //create wallet
+   vector<unsigned> derPath = {
+      0x80000050,
+      0x80005421,
+      0x80000024,
+      785
+   };
+
+   SecureBinaryData passphrase("password");
+
+   //create regular wallet
+   auto&& seed = CryptoPRNG::generateRandom(32);
+   auto wlt = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_, seed, derPath, passphrase, 10);
+
+   //check clear text seed does not exist on disk
+   auto filename = wlt->getDbFilename();
+   ASSERT_FALSE(TestUtils::searchFile(filename, seed));
+
+   //grab without passphrase lbd, should fail
+   try
+   {
+      auto lock = wlt->lockDecryptedContainer();
+      auto decryptedSeed = wlt->getDecryptedValue(wlt->getEncryptedSeed());
+      EXPECT_EQ(decryptedSeed, seed);
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException&)
+   {
+   }
+
+   //set passphrase lambda
+   auto passLbd = [&passphrase](const BinaryData&)->SecureBinaryData
+   {
+      return passphrase;
+   };
+   wlt->setPassphrasePromptLambda(passLbd);
+
+   //grab without locking, should fail
+   try
+   {
+      auto decryptedSeed = wlt->getDecryptedValue(wlt->getEncryptedSeed());
+      EXPECT_EQ(decryptedSeed, seed);
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException&)
+   {
+   }
+
+   //lock, grab and check
+   try
+   {
+      auto lock = wlt->lockDecryptedContainer();
+      auto decryptedSeed = wlt->getDecryptedValue(wlt->getEncryptedSeed());
+      EXPECT_EQ(decryptedSeed, seed);
+   }
+   catch (DecryptedDataContainerException&)
+   {
+      ASSERT_TRUE(false);
+   }
+
+   //reset passphrase lambda, grab, should fail
+   wlt->resetPassphrasePromptLambda();
+   try
+   {
+      auto lock = wlt->lockDecryptedContainer();
+      auto decryptedSeed = wlt->getDecryptedValue(wlt->getEncryptedSeed());
+      EXPECT_EQ(decryptedSeed, seed);
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException&)
+   {}
+
+   //shutdown wallet
+   wlt.reset();
+
+   //create WO
+   auto woFilename = AssetWallet::forkWathcingOnly(filename);
+
+   //check it has no seed
+   auto wo = AssetWallet::loadMainWalletFromFile(woFilename);
+   auto woWlt = dynamic_pointer_cast<AssetWallet_Single>(wo);
+
+   ASSERT_NE(woWlt, nullptr);
+   EXPECT_EQ(woWlt->getEncryptedSeed(), nullptr);
+
+   //reload wallet
+   ASSERT_EQ(wlt, nullptr);
+   auto wltReload = AssetWallet::loadMainWalletFromFile(filename);
+   wlt = dynamic_pointer_cast<AssetWallet_Single>(wltReload);
+   ASSERT_NE(wlt, nullptr);
+
+   //check seed again
+   wlt->setPassphrasePromptLambda(passLbd);
+   try
+   {
+      auto lock = wlt->lockDecryptedContainer();
+      auto decryptedSeed = wlt->getDecryptedValue(wlt->getEncryptedSeed());
+      EXPECT_EQ(decryptedSeed, seed);
+   }
+   catch (DecryptedDataContainerException&)
+   {
+      ASSERT_TRUE(false);
+   }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, LockAndExtend_Test)
 {
@@ -648,7 +758,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       const SecureBinaryData& getMasterEncryptionKey(void) const
       {
          auto keyIter = encryptionKeyMap_.begin();
-         return keyIter->second->getEncryptedData();
+         return keyIter->second->getCipherText();
       }
    };
 
@@ -675,7 +785,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       ASSERT_NE(asseti_single, nullptr);
 
       ivVec.push_back(asseti_single->getPrivKey()->getIV());
-      privateKeys.push_back(asseti_single->getPrivKey()->getEncryptedData());
+      privateKeys.push_back(asseti_single->getPrivKey()->getCipherText());
    }
 
    //make sure the IVs are unique
@@ -770,7 +880,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       ASSERT_NE(asseti_single, nullptr);
 
       newIVs.push_back(asseti_single->getPrivKey()->getIV());
-      newPrivKeys.push_back(asseti_single->getPrivKey()->getEncryptedData());
+      newPrivKeys.push_back(asseti_single->getPrivKey()->getCipherText());
    }
 
    //check only the master key and iv have changed, and that the new iv does 
