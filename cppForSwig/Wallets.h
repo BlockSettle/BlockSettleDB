@@ -26,6 +26,7 @@
 
 #include "DecryptedDataContainer.h"
 #include "Accounts.h"
+#include "BIP32_Node.h"
 
 #define WALLETTYPE_KEY        0x00000001
 #define PARENTID_KEY          0x00000002
@@ -394,6 +395,13 @@ public:
       std::shared_ptr<Asset_EncryptedData>);
 
    //static
+   static std::shared_ptr<AssetWallet_Single> createFromBIP32Node(
+      const BIP32_Node& node,
+      std::set<std::shared_ptr<AccountType>> accountTypes,
+      const SecureBinaryData& passphrase,
+      const std::string& folder,
+      unsigned lookup);
+
    static std::shared_ptr<AssetWallet_Single> createFromPrivateRoot_Armory135(
       const std::string& folder,
       const SecureBinaryData& privateRoot,

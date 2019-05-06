@@ -8,7 +8,6 @@
 
 #include "Wallets.h"
 #include "BlockDataManagerConfig.h"
-#include "BIP32_Node.h"
 
 using namespace std;
 
@@ -390,6 +389,9 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    const SecureBinaryData& passphrase,
    unsigned lookup)
 {
+   if (privateRoot.getSize() != 32)
+      throw WalletException("empty root");
+
    //compute wallet ID
    auto&& pubkey = CryptoECDSA().ComputePublicKey(privateRoot);
    
@@ -553,51 +555,11 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    const SecureBinaryData& passphrase,
    unsigned lookup)
 {
+   if (seed.getSize() == 0)
+      throw WalletException("empty seed");
+
    BIP32_Node rootNode;
    rootNode.initFromSeed(seed);
-
-   //compute wallet ID
-   auto pubkey = rootNode.getPublicKey();
-
-   //compute master ID as hmac256(root pubkey, "MetaEntry")
-   string hmacMasterMsg("MetaEntry");
-   auto&& masterID_long = BtcUtils::getHMAC256(
-      pubkey, SecureBinaryData(hmacMasterMsg));
-   auto&& masterID = BtcUtils::computeID(masterID_long);
-   string masterIDStr(masterID.getCharPtr());
-
-   //create wallet file and dbenv
-   stringstream pathSS;
-   pathSS << folder << "/armory_" << masterIDStr << "_wallet.lmdb";
-   auto dbenv = getEnvFromFile(pathSS.str(), 2);
-
-   initWalletMetaDB(dbenv, masterIDStr);
-
-   auto wltMetaPtr = make_shared<WalletMeta_Single>(dbenv);
-   wltMetaPtr->parentID_ = masterID;
-
-   {
-      //walletID
-      auto chaincode_copy = rootNode.getChaincode();
-      auto derScheme = make_shared<DerivationScheme_ArmoryLegacy>(
-         chaincode_copy);
-
-      auto asset_single = make_shared<AssetEntry_Single>(
-         ROOT_ASSETENTRY_ID, BinaryData(),
-         pubkey, nullptr);
-
-      wltMetaPtr->walletID_ = move(computeWalletID(derScheme, asset_single));
-   }
-
-   //create kdf and master encryption key
-   auto kdfPtr = make_shared<KeyDerivationFunction_Romix>();
-   auto&& masterKeySBD = CryptoPRNG::generateRandom(32);
-   DecryptedEncryptionKey masterEncryptionKey(masterKeySBD);
-   masterEncryptionKey.deriveKey(kdfPtr);
-   auto&& masterEncryptionKeyId = masterEncryptionKey.getId(kdfPtr->getId());
-
-   auto cipher = make_unique<Cipher_AES>(kdfPtr->getId(),
-      masterEncryptionKeyId);
 
    //address accounts
    set<shared_ptr<AccountType>> accountTypes;
@@ -626,33 +588,15 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
          dummy2, chaincode2,
          derivationPath, 0, 0));
 
-   auto walletPtr = initWalletDb(
-      wltMetaPtr,
-      kdfPtr,
-      masterEncryptionKey,
-      move(cipher),
-      passphrase,
-      rootNode.getPrivateKey(),
-      rootNode.getChaincode(),
-      move(accountTypes),
+   auto walletPtr = createFromBIP32Node(
+      rootNode, 
+      accountTypes, 
+      passphrase, 
+      folder, 
       lookup);
 
    //save the seed
    walletPtr->setSeed(seed, passphrase);
-
-   //set as main
-   {
-      LMDB dbMeta;
-
-      {
-         dbMeta.open(dbenv.get(), WALLETMETA_DBNAME);
-
-         LMDBEnv::Transaction metatx(dbenv.get(), LMDB::ReadWrite);
-         setMainWallet(&dbMeta, wltMetaPtr);
-      }
-
-      dbMeta.close();
-   }
 
    return walletPtr;
 }
@@ -669,6 +613,93 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
    BIP32_Node node;
    node.initFromBase58(base58);
 
+   bool isPublic = false;
+   if (node.isPublic())
+      isPublic = true;
+
+   //address accounts
+   set<shared_ptr<AccountType>> accountTypes;
+
+   /*
+   Unlike wallets setup from seeds, we do not make any assumption with those setup from
+   a xpriv/xpub and only use what's provided in derivationPath. It is the caller's
+   responsibility to run sanity checks.
+   */
+
+   if (!isPublic)
+   {
+      auto privateRootCopy = node.getPrivateKey();
+      SecureBinaryData dummy;
+      auto chainCodeCopy = node.getChaincode();
+
+      accountTypes.insert(make_shared<AccountType_BIP32_Custom>(
+         privateRootCopy, dummy, chainCodeCopy, derivationPath,
+         node.getDepth(), node.getLeafID()));
+      (*accountTypes.begin())->setMain(true);
+   }
+   else
+   {
+      //ctors move the arguments in, gotta create copies first
+      auto pubkey_copy = node.getPublicKey();
+      auto chaincode_copy = node.getChaincode();
+      SecureBinaryData dummy1;
+
+      accountTypes.insert(make_shared<AccountType_BIP32_Custom>(
+         dummy1, pubkey_copy, chaincode_copy, derivationPath,
+         node.getDepth(), node.getLeafID()));
+      (*accountTypes.begin())->setMain(true);
+   }
+
+   auto walletPtr = createFromBIP32Node(
+      node,
+      accountTypes,
+      passphrase,
+      folder, 
+      lookup);
+
+   return walletPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
+   const string& folder,
+   const SecureBinaryData& seed,
+   const SecureBinaryData& passphrase)
+{
+   if (seed.getSize() == 0)
+      throw WalletException("empty seed");
+
+   BIP32_Node rootNode;
+   rootNode.initFromSeed(seed);
+
+   //address accounts
+   set<shared_ptr<AccountType>> accountTypes;
+
+   /*
+   no accounts are setup for a blank wallet
+   */
+
+   auto walletPtr = createFromBIP32Node(
+      rootNode,
+      accountTypes,
+      passphrase,
+      folder,
+      0);
+
+   //save the seed
+   walletPtr->setSeed(seed, passphrase);
+
+   return walletPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
+   const BIP32_Node& node,
+   set<shared_ptr<AccountType>> accountTypes,
+   const SecureBinaryData& passphrase,
+   const string& folder,
+   unsigned lookup)
+{
    bool isPublic = false;
    if (node.isPublic())
       isPublic = true;
@@ -699,7 +730,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
    {
       //walletID
       auto chaincode_copy = node.getChaincode();
-      auto derScheme = 
+      auto derScheme =
          make_shared<DerivationScheme_ArmoryLegacy>(chaincode_copy);
 
       auto asset_single = make_shared<AssetEntry_Single>(
@@ -720,27 +751,10 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
       masterEncryptionKeyId);
 
    //address accounts
-   set<shared_ptr<AccountType>> accountTypes;
-
-   /*
-   Unlike wallets setup from seeds, we do not make any assumption with those setup from
-   a xpriv/xpub and only use what's provided in derivationPath. It is the caller's
-   responsibility to run sanity checks.
-   */
-
    shared_ptr<AssetWallet_Single> walletPtr = nullptr;
 
    if (!isPublic)
    {
-      auto privateRootCopy = node.getPrivateKey();
-      SecureBinaryData dummy;
-      auto chainCodeCopy = node.getChaincode();
-
-      accountTypes.insert(make_shared<AccountType_BIP32_Custom>(
-         privateRootCopy, dummy, chainCodeCopy, derivationPath,
-         node.getDepth(), node.getLeafID()));
-      (*accountTypes.begin())->setMain(true);
-
       walletPtr = initWalletDb(
          wltMetaPtr,
          kdfPtr,
@@ -756,114 +770,12 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
    {
       //ctors move the arguments in, gotta create copies first
       auto pubkey_copy = node.getPublicKey();
-      auto chaincode_copy = node.getChaincode();
-      SecureBinaryData dummy1;
-
-      accountTypes.insert(make_shared<AccountType_BIP32_Custom>(
-         dummy1, pubkey_copy, chaincode_copy, derivationPath,
-         node.getDepth(), node.getLeafID()));
-      (*accountTypes.begin())->setMain(true);
-
-      pubkey_copy = node.getPublicKey();
       walletPtr = initWalletDbFromPubRoot(
          wltMetaPtr,
          pubkey_copy,
          move(accountTypes),
          lookup);
    }
-
-   //set as main
-   {
-      LMDB dbMeta;
-
-      {
-         dbMeta.open(dbenv.get(), WALLETMETA_DBNAME);
-
-         LMDBEnv::Transaction metatx(dbenv.get(), LMDB::ReadWrite);
-         setMainWallet(&dbMeta, wltMetaPtr);
-      }
-
-      dbMeta.close();
-   }
-
-   return walletPtr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
-   const string& folder,
-   const SecureBinaryData& seed,
-   const SecureBinaryData& passphrase)
-{
-   BIP32_Node rootNode;
-   rootNode.initFromSeed(seed);
-
-   //compute wallet ID
-   auto pubkey = rootNode.getPublicKey();
-
-   //compute master ID as hmac256(root pubkey, "MetaEntry")
-   string hmacMasterMsg("MetaEntry");
-   auto&& masterID_long = BtcUtils::getHMAC256(
-      pubkey, SecureBinaryData(hmacMasterMsg));
-   auto&& masterID = BtcUtils::computeID(masterID_long);
-   string masterIDStr(masterID.getCharPtr());
-
-   //create wallet file and dbenv
-   stringstream pathSS;
-   pathSS << folder;
-   if (*folder.rbegin() != '/')
-      pathSS << "/";
-   pathSS << "armory_" << masterIDStr << "_wallet.lmdb";
-   auto dbenv = getEnvFromFile(pathSS.str(), 2);
-
-   initWalletMetaDB(dbenv, masterIDStr);
-
-   auto wltMetaPtr = make_shared<WalletMeta_Single>(dbenv);
-   wltMetaPtr->parentID_ = masterID;
-
-   {
-      //walletID
-      auto chaincode_copy = rootNode.getChaincode();
-      auto derScheme = make_shared<DerivationScheme_ArmoryLegacy>(
-         chaincode_copy);
-
-      auto asset_single = make_shared<AssetEntry_Single>(
-         ROOT_ASSETENTRY_ID, BinaryData(),
-         pubkey, nullptr);
-
-      wltMetaPtr->walletID_ = move(computeWalletID(derScheme, asset_single));
-   }
-
-   //create kdf and master encryption key
-   auto kdfPtr = make_shared<KeyDerivationFunction_Romix>();
-   auto&& masterKeySBD = CryptoPRNG::generateRandom(32);
-   DecryptedEncryptionKey masterEncryptionKey(masterKeySBD);
-   masterEncryptionKey.deriveKey(kdfPtr);
-   auto&& masterEncryptionKeyId = masterEncryptionKey.getId(kdfPtr->getId());
-
-   auto cipher = make_unique<Cipher_AES>(kdfPtr->getId(),
-      masterEncryptionKeyId);
-
-   //address accounts
-   set<shared_ptr<AccountType>> accountTypes;
-
-   /*
-   no accounts are setup for a blank wallet
-   */
-
-   auto walletPtr = initWalletDb(
-      wltMetaPtr,
-      kdfPtr,
-      masterEncryptionKey,
-      move(cipher),
-      passphrase,
-      rootNode.getPrivateKey(),
-      rootNode.getChaincode(),
-      move(accountTypes),
-      0);
-
-   //save the seed
-   walletPtr->setSeed(seed, passphrase);
 
    //set as main
    {
