@@ -1458,7 +1458,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
          auto pubkey = nodeCopy.getPublicKey();
          auto&& saltedKey = 
             CryptoECDSA().PubKeyScalarMultiply(pubkey, salt);
-         EXPECT_EQ(pubkey, addrVec[i]->getPreimage());
+         EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
       }
 
       //shut down the wallet
@@ -1488,7 +1488,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
          auto pubkey = nodeCopy.getPublicKey();
          auto&& saltedKey = 
             CryptoECDSA().PubKeyScalarMultiply(pubkey, salt);
-         EXPECT_EQ(pubkey, addrVec[i]->getPreimage());
+         EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
       }
 
       //create WO copy
@@ -1521,7 +1521,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
          auto pubkey = nodeCopy.getPublicKey();
          auto&& saltedKey = 
             CryptoECDSA().PubKeyScalarMultiply(pubkey, salt);
-         EXPECT_EQ(pubkey, addrVec[i]->getPreimage());
+         EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
       }
    }
 }
