@@ -412,21 +412,23 @@ DerivationScheme_BIP32_Salted::computeNextPrivateEntry(
    auto&& saltedPrivKey = CryptoECDSA().PrivKeyScalarMultiply(
       node.getPrivateKey(), salt_);
 
+   //compute salted pubkey
+   auto&& saltedPubKey = CryptoECDSA().ComputePublicKey(saltedPrivKey, true);
+
    //encrypt the new privkey
    auto&& newCipher = cipher->getCopy(); //copying a cypher cycles the IV
    auto&& encryptedNextPrivKey = ddc->encryptData(
       newCipher.get(), saltedPrivKey);
 
-   //instantiate new encrypted key object
+   //instantiate encrypted salted privkey object
    auto privKeyID = full_id;
    privKeyID.append(WRITE_UINT32_BE(index));
    auto nextPrivKey = make_shared<Asset_PrivateKey>(
       privKeyID, encryptedNextPrivKey, move(newCipher));
 
    //instantiate and return new asset entry
-   auto nextPubkey = node.movePublicKey();
    return make_shared<AssetEntry_Single>(
-      index, full_id, nextPubkey, nextPrivKey);   
+      index, full_id, saltedPubKey, nextPrivKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -435,9 +437,17 @@ DerivationScheme_BIP32_Salted::computeNextPublicEntry(
    const SecureBinaryData& pubKey,
    const BinaryData& full_id, unsigned index)
 {
-   auto&& nextPubkey = CryptoECDSA().ComputeChainedPublicKey(
-      pubKey, getChaincode(), nullptr);
+   //derScheme only allows for soft derivation
+   if (index > 0x7FFFFFFF)
+      throw DerivationSchemeException("illegal: hard derivation");
 
+   //compute pub key
+   BIP32_Node node;
+   node.initFromPublicKey(getDepth(), getLeafId(), pubKey, getChaincode());
+   node.derivePublic(index);
+   auto nextPubkey = node.movePublicKey();
+
+   //salt it
    auto&& saltedPubkey = CryptoECDSA().PubKeyScalarMultiply(nextPubkey, salt_);
 
    return make_shared<AssetEntry_Single>(
