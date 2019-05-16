@@ -1399,6 +1399,134 @@ TEST_F(WalletsTest, AddressEntryTypes)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, BIP32_SaltedAccount)
+{
+   vector<unsigned> derivationPath1 = {
+      0x80000050,
+      0x800005de,
+      0x8000465a,
+      501
+   };
+
+   auto&& seed = CryptoPRNG::generateRandom(32);
+   auto&& salt = CryptoPRNG::generateRandom(32);
+   string filename;
+   BinaryData accountID1;
+
+   {
+      //create empty wallet
+      SecureBinaryData passphrase("password");
+      auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
+         homedir_, seed, passphrase);
+
+      auto passphraseLbd = [&passphrase](const BinaryData&)->SecureBinaryData
+      {
+         return passphrase;
+      };
+      assetWlt->setPassphrasePromptLambda(passphraseLbd);
+
+      auto saltedAccType = 
+         make_shared<AccountType_BIP32_Salted>(salt);   
+      saltedAccType->setAddressLookup(40);
+      saltedAccType->setDefaultAddressType(
+         AddressEntryType_P2WPKH);
+      saltedAccType->setAddressTypes(
+         {AddressEntryType_P2WPKH});
+
+      //add bip32 account for derivationPath1
+      accountID1 = assetWlt->createBIP32Account(
+         nullptr, derivationPath1, saltedAccType);
+
+      auto accountSalted = assetWlt->getAccountForID(
+         accountID1);
+
+      //grab 10 addresses
+      vector<shared_ptr<AddressEntry>> addrVec;
+      for (unsigned i=0; i<10; i++)
+         addrVec.push_back(accountSalted->getNewAddress());
+
+      //derive from seed
+      BIP32_Node seedNode;
+      seedNode.initFromSeed(seed);
+      for (auto& derId : derivationPath1)
+         seedNode.derivePrivate(derId);
+
+      for(unsigned i=0; i<10; i++)
+      {
+         auto nodeCopy = seedNode;
+         nodeCopy.derivePrivate(i);
+         auto pubkey = nodeCopy.getPublicKey();
+         auto&& saltedKey = 
+            CryptoECDSA().PubKeyScalarMultiply(pubkey, salt);
+         EXPECT_EQ(pubkey, addrVec[i]->getPreimage());
+      }
+
+      //shut down the wallet
+      filename = assetWlt->getDbFilename();
+   }
+
+   {
+      auto assetWlt = AssetWallet::loadMainWalletFromFile(filename);
+      auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(assetWlt);
+      auto accountSalted = wltSingle->getAccountForID(accountID1);
+
+      //grab more 10 addresses
+      vector<shared_ptr<AddressEntry>> addrVec;
+      for (unsigned i=0; i<10; i++)
+         addrVec.push_back(accountSalted->getNewAddress());
+
+      //derive from seed
+      BIP32_Node seedNode;
+      seedNode.initFromSeed(seed);
+      for (auto& derId : derivationPath1)
+         seedNode.derivePrivate(derId);
+
+      for(unsigned i=0; i<10; i++)
+      {
+         auto nodeCopy = seedNode;
+         nodeCopy.derivePrivate(i+10);
+         auto pubkey = nodeCopy.getPublicKey();
+         auto&& saltedKey = 
+            CryptoECDSA().PubKeyScalarMultiply(pubkey, salt);
+         EXPECT_EQ(pubkey, addrVec[i]->getPreimage());
+      }
+
+      //create WO copy
+      filename = AssetWallet_Single::forkWathcingOnly(filename);
+   }
+
+   {
+      auto assetWlt = AssetWallet::loadMainWalletFromFile(filename);
+      auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(assetWlt);
+
+      ASSERT_TRUE(wltSingle->isWatchingOnly());
+
+      auto accountSalted = wltSingle->getAccountForID(accountID1);
+
+      //grab more 10 addresses
+      vector<shared_ptr<AddressEntry>> addrVec;
+      for (unsigned i=0; i<10; i++)
+         addrVec.push_back(accountSalted->getNewAddress());
+
+      //derive from seed
+      BIP32_Node seedNode;
+      seedNode.initFromSeed(seed);
+      for (auto& derId : derivationPath1)
+         seedNode.derivePrivate(derId);
+
+      for(unsigned i=0; i<10; i++)
+      {
+         auto nodeCopy = seedNode;
+         nodeCopy.derivePrivate(i+20);
+         auto pubkey = nodeCopy.getPublicKey();
+         auto&& saltedKey = 
+            CryptoECDSA().PubKeyScalarMultiply(pubkey, salt);
+         EXPECT_EQ(pubkey, addrVec[i]->getPreimage());
+      }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class WalletMetaDataTest : public ::testing::Test
