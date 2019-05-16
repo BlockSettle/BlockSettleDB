@@ -918,6 +918,9 @@ void AddressAccount::make_new(
                if (accSalted == nullptr)
                   throw AccountException("unexpected account type");
 
+               if (accSalted->getSalt().getSize() != 32)
+                  throw AccountException("invalid salt len");
+
                auto chaincode = root_obj->getChaincode();
                auto salt = accSalted->getSalt();
                derScheme = 
@@ -959,6 +962,9 @@ void AddressAccount::make_new(
             if (accSalted == nullptr)
                throw AccountException("unexpected account type");
 
+            if (accSalted->getSalt().getSize() != 32)
+               throw AccountException("invalid salt len");
+               
             auto chaincode = root_obj->getChaincode();
             auto salt = accSalted->getSalt();
             derScheme = 

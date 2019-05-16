@@ -416,11 +416,15 @@ public:
       SecureBinaryData& chainCode,
       const std::vector<unsigned>& derivationPath,
       unsigned depth, unsigned leafId,
-      SecureBinaryData& salt) :
+      const SecureBinaryData& salt) :
       AccountType_BIP32_Custom(
          privateRoot, publicRoot, chainCode, derivationPath,
          depth, leafId),
       salt_(salt)
+   {}
+
+   AccountType_BIP32_Salted(const SecureBinaryData& salt) :
+      AccountType_BIP32_Custom(), salt_(salt)
    {}
 
    AccountTypeEnum type(void) const 
