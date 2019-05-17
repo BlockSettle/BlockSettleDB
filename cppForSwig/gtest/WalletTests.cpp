@@ -1457,7 +1457,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
          nodeCopy.derivePrivate(i);
          auto pubkey = nodeCopy.getPublicKey();
          auto&& saltedKey = 
-            CryptoECDSA().PubKeyScalarMultiply(pubkey, salt);
+            CryptoECDSA::PubKeyScalarMultiply(pubkey, salt);
          EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
       }
 
@@ -1487,7 +1487,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
          nodeCopy.derivePrivate(i+10);
          auto pubkey = nodeCopy.getPublicKey();
          auto&& saltedKey = 
-            CryptoECDSA().PubKeyScalarMultiply(pubkey, salt);
+            CryptoECDSA::PubKeyScalarMultiply(pubkey, salt);
          EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
       }
 
@@ -1520,7 +1520,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
          nodeCopy.derivePrivate(i+20);
          auto pubkey = nodeCopy.getPublicKey();
          auto&& saltedKey = 
-            CryptoECDSA().PubKeyScalarMultiply(pubkey, salt);
+            CryptoECDSA::PubKeyScalarMultiply(pubkey, salt);
          EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
       }
    }

@@ -605,6 +605,62 @@ BinaryData CryptoECDSA::computeLowS(BinaryDataRef s)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+SecureBinaryData CryptoECDSA::PrivKeyScalarMultiply(
+   const SecureBinaryData& privKey,
+   const SecureBinaryData& scalar)
+{
+   static SecureBinaryData SECP256K1_ORDER_BE = SecureBinaryData().CreateFromHex(
+      "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
+
+   CryptoPP::Integer mult, origPrivExp, ecOrder;
+   mult.Decode(scalar.getPtr(), scalar.getSize(), UNSIGNED);
+   origPrivExp.Decode(privKey.getPtr(), privKey.getSize(), UNSIGNED);
+   ecOrder.Decode(
+      SECP256K1_ORDER_BE.getPtr(), SECP256K1_ORDER_BE.getSize(), UNSIGNED);
+
+   // Let Crypto++ do the EC math for us, serialize the new public key
+   CryptoPP::Integer newPrivExponent =
+      a_times_b_mod_c(mult, origPrivExp, ecOrder);
+
+   SecureBinaryData newPrivData(32);
+   newPrivExponent.Encode(newPrivData.getPtr(), newPrivData.getSize(), UNSIGNED);
+
+   return newPrivData;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+SecureBinaryData CryptoECDSA::PubKeyScalarMultiply(
+   const SecureBinaryData& pubKey,
+   const SecureBinaryData& scalar)
+{
+   // Parse the chaincode as a big-endian integer
+   CryptoPP::Integer mult;
+   mult.Decode(scalar.getPtr(), scalar.getSize(), UNSIGNED);
+
+   // "new" init as "old", to make sure it's initialized on the correct curve
+   BTC_PUBKEY oldPubKey;
+   if (pubKey.getSize() == 33)
+   {
+       auto&& uncompressedKey = UncompressPoint(pubKey);
+       oldPubKey = ParsePublicKey(uncompressedKey);
+   }
+   else
+   {
+      oldPubKey = ParsePublicKey(pubKey);
+   }
+
+   // Let Crypto++ do the EC math for us, serialize the new public key
+   BTC_PUBKEY newPubKey;
+   newPubKey.SetPublicElement(oldPubKey.ExponentiatePublicElement(mult));
+   auto&& newPubKeySbd = SerializePublicKey(newPubKey);
+   
+   if (pubKey.getSize() == 33)
+      return CompressPoint(newPubKeySbd);
+
+   return newPubKeySbd;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void CryptoSHA2::getHash256(BinaryDataRef bdr, uint8_t* digest)
 {
    CryptoPP::SHA256  sha256;

@@ -409,7 +409,7 @@ DerivationScheme_BIP32_Salted::computeNextPrivateEntry(
    node.derivePrivate(index);
 
    //salt the key
-   auto&& saltedPrivKey = CryptoECDSA().PrivKeyScalarMultiply(
+   auto&& saltedPrivKey = CryptoECDSA::PrivKeyScalarMultiply(
       node.getPrivateKey(), salt_);
 
    //compute salted pubkey
@@ -448,7 +448,7 @@ DerivationScheme_BIP32_Salted::computeNextPublicEntry(
    auto nextPubkey = node.movePublicKey();
 
    //salt it
-   auto&& saltedPubkey = CryptoECDSA().PubKeyScalarMultiply(nextPubkey, salt_);
+   auto&& saltedPubkey = CryptoECDSA::PubKeyScalarMultiply(nextPubkey, salt_);
 
    return make_shared<AssetEntry_Single>(
       index, full_id,

@@ -319,14 +319,15 @@ public:
    static SecureBinaryData UncompressPoint(SecureBinaryData const & pubKey33);
 
    ////////////////////////////////////////////////////////////////////////////////
-   SecureBinaryData PrivKeyScalarMultiply(
+   // for ECDH
+   static SecureBinaryData PrivKeyScalarMultiply(
       const SecureBinaryData& privKey,
-      const SecureBinaryData& scalar) const;
+      const SecureBinaryData& scalar);
 
    ////////////////////////////////////////////////////////////////////////////////
-   SecureBinaryData PubKeyScalarMultiply(
+   static SecureBinaryData PubKeyScalarMultiply(
       const SecureBinaryData& pubKey,
-      const SecureBinaryData& scalar) const;
+      const SecureBinaryData& scalar);
 
 #ifndef LIBBTC_ONLY
    /////////////////////////////////////////////////////////////////////////////

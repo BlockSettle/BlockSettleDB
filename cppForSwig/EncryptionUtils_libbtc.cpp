@@ -362,7 +362,7 @@ SecureBinaryData CryptoECDSA::UncompressPoint(SecureBinaryData const & pubKey33)
 ////////////////////////////////////////////////////////////////////////////////
 SecureBinaryData CryptoECDSA::PrivKeyScalarMultiply(
    const SecureBinaryData& privKey,
-   const SecureBinaryData& scalar) const
+   const SecureBinaryData& scalar)
 {
    SecureBinaryData newPrivData(privKey);
    if (!btc_ecc_private_key_tweak_mul(
@@ -375,7 +375,7 @@ SecureBinaryData CryptoECDSA::PrivKeyScalarMultiply(
 ////////////////////////////////////////////////////////////////////////////////
 SecureBinaryData CryptoECDSA::PubKeyScalarMultiply(
    const SecureBinaryData& pubKey,
-   const SecureBinaryData& scalar) const
+   const SecureBinaryData& scalar)
 {
    SecureBinaryData newPubData;
    if (pubKey.getSize() == 33)
