@@ -876,7 +876,7 @@ void AsyncClient::BlockDataViewer::getCombinedAddrTxnCounts(
    function<void(ReturnMessage<set<CombinedCounts>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getCombinedBalances, bdvID_);
+      Methods::getCombinedAddrTxnCounts, bdvID_);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& id : wltIDs)
@@ -894,7 +894,7 @@ void AsyncClient::BlockDataViewer::getCombinedSpendableTxOutListForValue(
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getCombinedBalances, bdvID_);
+      Methods::getCombinedSpendableTxOutListForValue, bdvID_);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& id : wltIDs)

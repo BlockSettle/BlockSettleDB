@@ -127,6 +127,11 @@ struct CombinedBalances
    {
       return walletId_ < rhs.walletId_;
    }
+
+   bool operator<(const BinaryData& rhs) const
+   {
+      return walletId_ < rhs;
+   }
 };
 
 ///////////////////////////////////////////////////////////////////////////////

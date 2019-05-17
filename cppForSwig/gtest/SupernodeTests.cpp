@@ -3706,7 +3706,6 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync_ManyLargeWallets)
    clients_->exitRequestLoop();
    clients_->shutdown();
 
-   auto&& firstHash = READHEX("b6b6f145742a9072fd85f96772e63a00eb4101709aa34ec5dd59e8fc904191a7");
    delete clients_;
    delete theBDMt_;
    clients_ = nullptr;
@@ -3804,6 +3803,228 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync_ManyLargeWallets)
       //go online
       bdvObj->goOnline();
       pCallback->waitOnSignal(BDMAction_Ready);
+      bdvObj->unregisterFromDB();
+   }
+
+   //cleanup
+   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, nullptr);
+   bdvObj2->addPublicKey(serverPubkey);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
+   WebSocketServer::waitOnShutdown();
+
+   delete theBDMt_;
+   theBDMt_ = nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
+{
+   struct find_by_key
+   {
+   private:
+      string key_;
+
+   public:
+      find_by_key(const string& str) : key_(str)
+      {}
+
+      bool operator()(const CombinedBalances& cbal) const
+      {
+         return cbal.walletId_ == key_;
+      }
+
+      bool operator()(const CombinedCounts& cbal) const
+      {
+         return cbal.walletId_ == key_;
+      }
+   };
+
+   //public server
+   startupBIP150CTX(4, true);
+
+   //randomized peer keys, in ram only
+   config.ephemeralPeers_ = true;
+
+   //
+   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
+
+   //run clients from websocketserver object instead
+   clients_->exitRequestLoop();
+   clients_->shutdown();
+
+   delete clients_;
+   delete theBDMt_;
+   clients_ = nullptr;
+
+   theBDMt_ = new BlockDataManagerThread(config);
+   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
+   theBDMt_->start(config.initMode_);
+
+   auto createNAddresses = [](unsigned count)->vector<BinaryData>
+   {
+      vector<BinaryData> result;
+
+      for (unsigned i = 0; i < count; i++)
+      {
+         BinaryWriter bw;
+         bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
+
+         auto&& addrData = CryptoPRNG::generateRandom(20);
+         bw.put_BinaryData(addrData);
+
+         result.push_back(bw.getData());
+      }
+
+      return result;
+   };
+
+   auto&& _scrAddrVec1 = createNAddresses(20);
+   _scrAddrVec1.push_back(TestChain::scrAddrA);
+
+   auto&& _scrAddrVec2 = createNAddresses(15);
+   _scrAddrVec2.push_back(TestChain::scrAddrB);
+
+   {
+      auto pCallback = make_shared<DBTestUtils::UTCallback>();
+      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+         BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      bdvObj->addPublicKey(serverPubkey);
+      bdvObj->connectToRemote();
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+
+      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+      vector<string> walletRegIDs;
+      walletRegIDs.push_back(
+         wallet1.registerAddresses(_scrAddrVec1, false));
+
+      auto&& wallet2 = bdvObj->instantiateWallet("wallet2");
+      walletRegIDs.push_back(
+         wallet2.registerAddresses(_scrAddrVec2, false));
+
+      //wait on registration ack
+      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+      //go online
+      bdvObj->goOnline();
+      pCallback->waitOnSignal(BDMAction_Ready);
+
+      /* balances */
+      vector<string> walletIDs;
+      walletIDs.push_back(wallet1.walletID());
+      walletIDs.push_back(wallet2.walletID());
+
+      auto promPtr = make_shared<promise<set<CombinedBalances>>>();
+      auto fut = promPtr->get_future();
+      auto balLbd = [promPtr](ReturnMessage<set<CombinedBalances>> combBal)->void
+      {
+         promPtr->set_value(combBal.get());
+      };
+
+      bdvObj->getCombinedBalances(walletIDs, balLbd);
+      auto&& balSet = fut.get();
+      ASSERT_EQ(balSet.size(), 2);
+
+      //wallet1
+      auto& iter1 = find_if(balSet.begin(), balSet.end(), find_by_key(walletIDs[0]));
+      ASSERT_NE(iter1, balSet.end());
+
+      //sizes
+      ASSERT_EQ(iter1->walletBalanceAndCount_.size(), 4);
+      ASSERT_EQ(iter1->addressBalances_.size(), 1);
+
+      //wallet balance
+      EXPECT_EQ(iter1->walletBalanceAndCount_[0], 50 * COIN);
+      EXPECT_EQ(iter1->walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->walletBalanceAndCount_[2], 50 * COIN);
+      EXPECT_EQ(iter1->walletBalanceAndCount_[3], 1);
+
+      //scrAddrA balance
+      auto addrIter1 = iter1->addressBalances_.find(TestChain::scrAddrA);
+      ASSERT_NE(addrIter1, iter1->addressBalances_.end());
+      ASSERT_EQ(addrIter1->second.size(), 3);
+      EXPECT_EQ(addrIter1->second[0], 50 * COIN);
+      EXPECT_EQ(addrIter1->second[1], 0);
+      EXPECT_EQ(addrIter1->second[2], 50 * COIN);
+
+      //wallet2
+      auto& iter2 = find_if(balSet.begin(), balSet.end(), find_by_key(walletIDs[1]));
+      ASSERT_NE(iter2, balSet.end());
+
+      //sizes
+      ASSERT_EQ(iter2->walletBalanceAndCount_.size(), 4);
+      ASSERT_EQ(iter2->addressBalances_.size(), 1);
+
+      //wallet balance
+      EXPECT_EQ(iter2->walletBalanceAndCount_[0], 70 * COIN);
+      EXPECT_EQ(iter2->walletBalanceAndCount_[1], 70 * COIN);
+      EXPECT_EQ(iter2->walletBalanceAndCount_[2], 0);
+      EXPECT_EQ(iter2->walletBalanceAndCount_[3], 12);
+
+      //scrAddrA balance
+      auto addrIter2 = iter2->addressBalances_.find(TestChain::scrAddrB);
+      ASSERT_NE(addrIter2, iter2->addressBalances_.end());
+      ASSERT_EQ(addrIter2->second.size(), 3);
+      EXPECT_EQ(addrIter2->second[0], 70 * COIN);
+      EXPECT_EQ(addrIter2->second[1], 20 * COIN);
+      EXPECT_EQ(addrIter2->second[2], 70 * COIN);
+
+      /* addr txn counts */
+      auto promPtr2 = make_shared<promise<set<CombinedCounts>>>();
+      auto fut2 = promPtr2->get_future();
+      auto countLbd = [promPtr2](ReturnMessage<set<CombinedCounts>> combCount)->void
+      {
+         promPtr2->set_value(combCount.get());
+      };
+
+      bdvObj->getCombinedAddrTxnCounts(walletIDs, countLbd);
+      auto&& countSet = fut2.get();
+      ASSERT_EQ(countSet.size(), 2);
+
+      //wallet1
+      auto& iter3 = find_if(
+         countSet.begin(), countSet.end(), find_by_key(walletIDs[0]));
+      ASSERT_NE(iter3, countSet.end());
+      ASSERT_EQ(iter3->addressTxnCounts_.size(), 1);
+
+      auto addrIter3 = iter3->addressTxnCounts_.find(TestChain::scrAddrA);
+      ASSERT_NE(addrIter3, iter3->addressTxnCounts_.end());
+      EXPECT_EQ(addrIter3->second, 1);
+
+      //wallet2
+      auto& iter4 = find_if(
+         countSet.begin(), countSet.end(), find_by_key(walletIDs[1]));
+      ASSERT_NE(iter4, countSet.end());
+      ASSERT_EQ(iter4->addressTxnCounts_.size(), 1);
+
+      auto addrIter4 = iter4->addressTxnCounts_.find(TestChain::scrAddrB);
+      ASSERT_NE(addrIter4, iter4->addressTxnCounts_.end());
+      EXPECT_EQ(addrIter4->second, 12);
+
+      /* utxos */
+      auto promPtr3 = make_shared<promise<vector<UTXO>>>();
+      auto fut3 = promPtr3->get_future();
+      auto utxoLbd = [promPtr3](ReturnMessage<vector<UTXO>> combUtxo)->void
+      {
+         promPtr3->set_value(combUtxo.get());
+      };
+
+      bdvObj->getCombinedSpendableTxOutListForValue(
+         walletIDs, UINT64_MAX, utxoLbd);
+      auto&& utxoVec = fut3.get();
+      ASSERT_EQ(utxoVec.size(), 1);
+
+      auto& utxo1 = utxoVec[0];
+      EXPECT_EQ(utxo1.getValue(), 20 * COIN);
+      EXPECT_EQ(utxo1.getRecipientScrAddr(), TestChain::scrAddrB);
+
+      /* done */
       bdvObj->unregisterFromDB();
    }
 

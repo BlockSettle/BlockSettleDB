@@ -1001,10 +1001,12 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          if (wltPtr == nullptr)
             throw runtime_error("unknown wallet or lockbox ID");
 
+         auto&& countMap = wltPtr->getAddrTxnCounts(updateID_);
+         if (countMap.size() == 0)
+            continue;
+
          auto packedBal = response->add_packedbalance();
          packedBal->set_id(id.getPtr(), id.getSize());
-
-         auto&& countMap = wltPtr->getAddrTxnCounts(updateID_);
 
          for (auto count : countMap)
          {
@@ -1078,7 +1080,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
             utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
          }
 
-         if (totalValue >= command->value() *2)
+         if (totalValue >= command->value() * 2)
             break;
       }
 
