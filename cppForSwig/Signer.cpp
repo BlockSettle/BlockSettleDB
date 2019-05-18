@@ -906,6 +906,9 @@ unsigned Signer::getTxInSequence(unsigned index) const
 ////////////////////////////////////////////////////////////////////////////////
 void Signer::sign(void)
 { 
+   //perma flag for segwit verification
+   flags_ |= SCRIPT_VERIFY_SEGWIT;
+
    //run through each spenders
    for (unsigned i = 0; i < spenders_.size(); i++)
    {
@@ -933,6 +936,7 @@ void Signer::sign(void)
          spender->getFeed(),
          proxy);
 
+      //check Script.h for signer flags
       resolver.setFlags(flags_);
 
       try
