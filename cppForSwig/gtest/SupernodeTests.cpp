@@ -3823,26 +3823,6 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync_ManyLargeWallets)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 {
-   struct find_by_key
-   {
-   private:
-      string key_;
-
-   public:
-      find_by_key(const string& str) : key_(str)
-      {}
-
-      bool operator()(const CombinedBalances& cbal) const
-      {
-         return cbal.walletId_ == key_;
-      }
-
-      bool operator()(const CombinedCounts& cbal) const
-      {
-         return cbal.walletId_ == key_;
-      }
-   };
-
    //public server
    startupBIP150CTX(4, true);
 
@@ -3920,91 +3900,91 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
       walletIDs.push_back(wallet1.walletID());
       walletIDs.push_back(wallet2.walletID());
 
-      auto promPtr = make_shared<promise<set<CombinedBalances>>>();
+      auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
       auto fut = promPtr->get_future();
-      auto balLbd = [promPtr](ReturnMessage<set<CombinedBalances>> combBal)->void
+      auto balLbd = [promPtr](
+         ReturnMessage<map<string, CombinedBalances>> combBal)->void
       {
          promPtr->set_value(combBal.get());
       };
 
       bdvObj->getCombinedBalances(walletIDs, balLbd);
-      auto&& balSet = fut.get();
-      ASSERT_EQ(balSet.size(), 2);
+      auto&& balMap = fut.get();
+      ASSERT_EQ(balMap.size(), 2);
 
       //wallet1
-      auto& iter1 = find_if(balSet.begin(), balSet.end(), find_by_key(walletIDs[0]));
-      ASSERT_NE(iter1, balSet.end());
+      auto& iter1 = balMap.find(walletIDs[0]);
+      ASSERT_NE(iter1, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter1->walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter1->addressBalances_.size(), 1);
+      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4);
+      ASSERT_EQ(iter1->second.addressBalances_.size(), 1);
 
       //wallet balance
-      EXPECT_EQ(iter1->walletBalanceAndCount_[0], 50 * COIN);
-      EXPECT_EQ(iter1->walletBalanceAndCount_[1], 0);
-      EXPECT_EQ(iter1->walletBalanceAndCount_[2], 50 * COIN);
-      EXPECT_EQ(iter1->walletBalanceAndCount_[3], 1);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[0], 50 * COIN);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[2], 50 * COIN);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 1);
 
       //scrAddrA balance
-      auto addrIter1 = iter1->addressBalances_.find(TestChain::scrAddrA);
-      ASSERT_NE(addrIter1, iter1->addressBalances_.end());
+      auto addrIter1 = iter1->second.addressBalances_.find(TestChain::scrAddrA);
+      ASSERT_NE(addrIter1, iter1->second.addressBalances_.end());
       ASSERT_EQ(addrIter1->second.size(), 3);
       EXPECT_EQ(addrIter1->second[0], 50 * COIN);
       EXPECT_EQ(addrIter1->second[1], 0);
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //wallet2
-      auto& iter2 = find_if(balSet.begin(), balSet.end(), find_by_key(walletIDs[1]));
-      ASSERT_NE(iter2, balSet.end());
+      auto& iter2 = balMap.find(walletIDs[1]);
+      ASSERT_NE(iter2, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter2->walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter2->addressBalances_.size(), 1);
+      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4);
+      ASSERT_EQ(iter2->second.addressBalances_.size(), 1);
 
       //wallet balance
-      EXPECT_EQ(iter2->walletBalanceAndCount_[0], 70 * COIN);
-      EXPECT_EQ(iter2->walletBalanceAndCount_[1], 70 * COIN);
-      EXPECT_EQ(iter2->walletBalanceAndCount_[2], 0);
-      EXPECT_EQ(iter2->walletBalanceAndCount_[3], 12);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[0], 70 * COIN);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[1], 70 * COIN);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[2], 0);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 12);
 
       //scrAddrA balance
-      auto addrIter2 = iter2->addressBalances_.find(TestChain::scrAddrB);
-      ASSERT_NE(addrIter2, iter2->addressBalances_.end());
+      auto addrIter2 = iter2->second.addressBalances_.find(TestChain::scrAddrB);
+      ASSERT_NE(addrIter2, iter2->second.addressBalances_.end());
       ASSERT_EQ(addrIter2->second.size(), 3);
       EXPECT_EQ(addrIter2->second[0], 70 * COIN);
       EXPECT_EQ(addrIter2->second[1], 20 * COIN);
       EXPECT_EQ(addrIter2->second[2], 70 * COIN);
 
       /* addr txn counts */
-      auto promPtr2 = make_shared<promise<set<CombinedCounts>>>();
+      auto promPtr2 = make_shared<promise<map<string, CombinedCounts>>>();
       auto fut2 = promPtr2->get_future();
-      auto countLbd = [promPtr2](ReturnMessage<set<CombinedCounts>> combCount)->void
+      auto countLbd = [promPtr2](
+         ReturnMessage<map<string, CombinedCounts>> combCount)->void
       {
          promPtr2->set_value(combCount.get());
       };
 
       bdvObj->getCombinedAddrTxnCounts(walletIDs, countLbd);
-      auto&& countSet = fut2.get();
-      ASSERT_EQ(countSet.size(), 2);
+      auto&& countMap = fut2.get();
+      ASSERT_EQ(countMap.size(), 2);
 
       //wallet1
-      auto& iter3 = find_if(
-         countSet.begin(), countSet.end(), find_by_key(walletIDs[0]));
-      ASSERT_NE(iter3, countSet.end());
-      ASSERT_EQ(iter3->addressTxnCounts_.size(), 1);
+      auto& iter3 = countMap.find(walletIDs[0]);
+      ASSERT_NE(iter3, countMap.end());
+      ASSERT_EQ(iter3->second.addressTxnCounts_.size(), 1);
 
-      auto addrIter3 = iter3->addressTxnCounts_.find(TestChain::scrAddrA);
-      ASSERT_NE(addrIter3, iter3->addressTxnCounts_.end());
+      auto addrIter3 = iter3->second.addressTxnCounts_.find(TestChain::scrAddrA);
+      ASSERT_NE(addrIter3, iter3->second.addressTxnCounts_.end());
       EXPECT_EQ(addrIter3->second, 1);
 
       //wallet2
-      auto& iter4 = find_if(
-         countSet.begin(), countSet.end(), find_by_key(walletIDs[1]));
-      ASSERT_NE(iter4, countSet.end());
-      ASSERT_EQ(iter4->addressTxnCounts_.size(), 1);
+      auto& iter4 = countMap.find(walletIDs[1]);
+      ASSERT_NE(iter4, countMap.end());
+      ASSERT_EQ(iter4->second.addressTxnCounts_.size(), 1);
 
-      auto addrIter4 = iter4->addressTxnCounts_.find(TestChain::scrAddrB);
-      ASSERT_NE(addrIter4, iter4->addressTxnCounts_.end());
+      auto addrIter4 = iter4->second.addressTxnCounts_.find(TestChain::scrAddrB);
+      ASSERT_NE(addrIter4, iter4->second.addressTxnCounts_.end());
       EXPECT_EQ(addrIter4->second, 12);
 
       /* utxos */

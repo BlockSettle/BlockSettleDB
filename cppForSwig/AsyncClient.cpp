@@ -855,7 +855,7 @@ pair<unsigned, unsigned> AsyncClient::BlockDataViewer::getRekeyCount() const
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BlockDataViewer::getCombinedBalances(
    const vector<string>& wltIDs,
-   function<void(ReturnMessage<set<CombinedBalances>>)> callback)
+   function<void(ReturnMessage<map<string, CombinedBalances>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getCombinedBalances, bdvID_);
@@ -873,7 +873,7 @@ void AsyncClient::BlockDataViewer::getCombinedBalances(
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BlockDataViewer::getCombinedAddrTxnCounts(
    const vector<string>& wltIDs,
-   function<void(ReturnMessage<set<CombinedCounts>>)> callback)
+   function<void(ReturnMessage<map<string, CombinedCounts>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
       Methods::getCombinedAddrTxnCounts, bdvID_);
@@ -1593,7 +1593,7 @@ void CallbackReturn_CombinedBalances::callback(
       ::Codec_AddressData::ManyCombinedData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      set<CombinedBalances> result;
+      map<string, CombinedBalances> result;
 
       for (unsigned i=0; i<msg.packedbalance_size(); i++)
       {
@@ -1618,10 +1618,10 @@ void CallbackReturn_CombinedBalances::callback(
             cbal.addressBalances_.insert(make_pair(scrAddr, abl));
          }
 
-         result.insert(cbal);
+         result.insert(make_pair(wltVals.id(), cbal));
       }
       
-      ReturnMessage<set<CombinedBalances>> rm(result);
+      ReturnMessage<map<string, CombinedBalances>> rm(result);
 
       if (runInCaller())
       {
@@ -1636,7 +1636,7 @@ void CallbackReturn_CombinedBalances::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<set<CombinedBalances>> rm(e);
+      ReturnMessage<map<string, CombinedBalances>> rm(e);
       userCallbackLambda_(move(rm));
    }  
 }
@@ -1650,7 +1650,7 @@ void CallbackReturn_CombinedCounts::callback(
       ::Codec_AddressData::ManyCombinedData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      set<CombinedCounts> result;
+      map<string, CombinedCounts> result;
 
       for (unsigned i=0; i<msg.packedbalance_size(); i++)
       {
@@ -1669,10 +1669,10 @@ void CallbackReturn_CombinedCounts::callback(
             cbal.addressTxnCounts_.insert(make_pair(scrAddr, bl));
          }
 
-         result.insert(cbal);
+         result.insert(make_pair(wltVals.id(), cbal));
       }
       
-      ReturnMessage<set<CombinedCounts>> rm(result);
+      ReturnMessage<map<string, CombinedCounts>> rm(result);
 
       if (runInCaller())
       {
@@ -1687,7 +1687,7 @@ void CallbackReturn_CombinedCounts::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<set<CombinedCounts>> rm(e);
+      ReturnMessage<map<string, CombinedCounts>> rm(e);
       userCallbackLambda_(move(rm));
    }  
 }
