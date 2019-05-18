@@ -3913,7 +3913,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
       ASSERT_EQ(balMap.size(), 2);
 
       //wallet1
-      auto& iter1 = balMap.find(walletIDs[0]);
+      auto iter1 = balMap.find(walletIDs[0]);
       ASSERT_NE(iter1, balMap.end());
 
       //sizes
@@ -3935,7 +3935,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //wallet2
-      auto& iter2 = balMap.find(walletIDs[1]);
+      auto iter2 = balMap.find(walletIDs[1]);
       ASSERT_NE(iter2, balMap.end());
 
       //sizes
@@ -3970,7 +3970,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
       ASSERT_EQ(countMap.size(), 2);
 
       //wallet1
-      auto& iter3 = countMap.find(walletIDs[0]);
+      auto iter3 = countMap.find(walletIDs[0]);
       ASSERT_NE(iter3, countMap.end());
       ASSERT_EQ(iter3->second.addressTxnCounts_.size(), 1);
 
@@ -3979,7 +3979,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
       EXPECT_EQ(addrIter3->second, 1);
 
       //wallet2
-      auto& iter4 = countMap.find(walletIDs[1]);
+      auto iter4 = countMap.find(walletIDs[1]);
       ASSERT_NE(iter4, countMap.end());
       ASSERT_EQ(iter4->second.addressTxnCounts_.size(), 1);
 
