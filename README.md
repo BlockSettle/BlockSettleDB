@@ -1,83 +1,51 @@
-# Armory
+# BlockSettle - ArmoryDB fork
+A fork of [Armory](https://github.com/goatpig/BitcoinArmory) that only produces ArmoryDB, the headless binary. For now, this repo is meant primarily to support Linux builds. macOS builds should be possible but aren't confirmed. Windows builds will require CMake files or modified versions of Visual Studio files in the upstream Armory repo.
 
-**Created by Alan Reiner on 13 July, 2011**
+## Build instructions
+### Prerequisites
+The following should be the only `apt` prerequisite you need that isn't common for devs. If anything's missing, it'll be added here later.
 
-**Forked by goatpig in February 2016**
+```
+sudo apt install protobuf
+```
 
-[Armory](https://github.com/goatpig/BitcoinArmory) is a full-featured Bitcoin client, offering a dozen innovative features not found in any other client software! Manage multiple wallets (deterministic and watching-only), print paper backups that work forever, import or sweep private keys, and keep your savings in a computer that never touches the internet, while still being able to manage incoming payments, and create outgoing payments with the help of a USB key.
+### libwebsockets
+Note that ArmoryDB requires libwebsockets. The default version of libwebsockets included by Ubuntu (as of 18.10) will not work properly with ArmoryDB. To keep things simple, this repo includes a clean copy of [v3.1.0 of libwebsockets](https://github.com/warmcat/libwebsockets/tree/v3.1.0). This must be compiled before compiling Armory. For now, the ArmoryDB build process does *not* automatically compile libwebsockets. This step must be done manually.
 
-Multi-signature transactions are accommodated under-the-hood about 80%, and will be completed and integrated into the UI soon.
+Go into the libwebsockets subdirectory and issue the following commands.
 
-**Armory has no independent networking components built in.** Instead, it relies on on the Satoshi client to securely connect to peers, validate blockchain data, and broadcast transactions for us.  Although it was initially planned to cut the umbilical cord to the Satoshi client and implement independent networking, it has turned out to be an inconvenience worth having. Reimplementing all the networking code would be fraught with bugs, security holes, and possible blockchain forking.  The reliance on Bitcoin Core right now is actually making Armory more secure!
+```
+mkdir build
+cd build
+cmake .. -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=0 -DLWS_WITH_SSL=0
+make
+```
 
-## Donations
+### ArmoryDB
+Once libwebsockets has been compiled, you may compile Armory. The following steps will work.
 
-*Will post an address eventually for donations*
+```
+./autogen.sh
+./configure
+make
+```
 
-## Building Armory From Source
+Note that this fork makes an important change. Upstream, the code requires the explicit statement of a root directory containing [libwebsockets](https://github.com/warmcat/libwebsockets/) materials. If /usr/local/lib contains libwebsockets.a, /usr/local needs to be specified. This was changed here in order to simplify the compilation process. Unless otherwise specified, Autotools will simply assume that `libwebsockets/build` is the root directory. If you wish to override with a different/newer version, `--with-own-lws=/the/preferred/directory` must be specified when configuring Armory.
 
-[Instructions for Windows](windowsbuild/Windows_build_notes.md)
-[Instructions for macOS](osxbuild/macOS_build_notes.md)
-[Instructions for Ubuntu and Arch Linux](linuxbuild/Linux_build_notes.md)
+Overall, Armory uses static linking. There will still be a few dependencies, as seen by `ldd` (Ubuntu) or `otool -L` (macOS). This should be fine. If there are any issues, they can be addressed as they're encountered.
 
-### Dependencies
+## Changes
+The following changes have been made compared to the upstream version of Armory:
 
-* GNU Compiler Collection
- Linux:   Install package `g++`
+- Everything other than the C++ files required to build ArmoryDB, along with support files (e.g., Autotools), have been removed completely.
+- The Autotools files have been modified slightly to enforce the production of only ArmoryDB.
+- Crypto++ has been removed completely. ArmoryDB *must* compile with support for [libbtc](https://github.com/libbtc/libbtc).
+- README.md has been moved to README\_upstream.md.
+- The Armory-specific "public mode" of BIP 150 is the default (i.e., verify the server but not the client). Users who wish to do two-way verification will need to invoke `ArmoryDB` with the `--fullbip150` flag, which restores ArmoryDB to the default BIP 150 behavior for the upstream ArmoryDB.
 
-* Crypto++
- Linux:   Install package `libcrypto++-dev`
- Windows: [Download](https://www.cryptopp.com/#download)
+## Possible future changes
+In the future, it may be worthwhile to do the following:
 
-* SWIG
- Linux:   Install package `swig`
- Windows: [Download](http://www.swig.org/download.html)  
- MSVS: Copy swigwin-2.x directory next to cryptopp as `swigwin`
-
-* Python 2.6/2.7
- Linux:   Install package `python-dev`
- Windows: [Download](https://www.python.org/getit/)
-
-* Python Twisted -- asynchronous networking
- Linux:   Install package `python-twisted`
- Windows: [Download](https://twistedmatrix.com/trac/wiki/Downloads)
-
-* PyQt 4 (for Python 2.X)
- Linux:   Install packages `libqtcore4`, `libqt4-dev`, `python-qt4`, and `pyqt4-dev-tools`
- Windows: [Download](https://riverbankcomputing.com/software/pyqt/download)
-
-* py2exe
- (OPTIONAL - if you want to make a standalone executable in Windows)
- Windows: [Download](http://www.py2exe.org/)
-
-* LMDB - database engine, modified to suit Armory's use cases
-[LMDB page](http://symas.com/mdb/) - No need for external installs by Armory users
-
-* libwebsockets
- Linux:   Final instructions TBA.
- Windows: Follow the "Windows binary build" directions [here](https://github.com/warmcat/libwebsockets/blob/master/README.md).
-
-* Google Protocol Buffers (protobuf)
- Linux:   Install the `protobuf` package.
- Windows: Follow the "C++ Installation - Windows" directions [here](https://github.com/google/protobuf/blob/master/src/README.md), downloading only the `protoc` binary.
-
-* macOS
- [Instructions for downloading, verifying, and running Armory on macOS](README_macOS.md).
-
-## Sample Code
-
-Armory contains tens of thousands of lines of code, between the C++ and python libraries.  This can be very confusing for someone unfamiliar with the code (you).  Below I have attempted to illustrate the CONOPS (concept of operations) that the library was designed for, so you know how to use it in your own development activities.  There is a TON of sample code in the following:
-
-* C++ -   [BlockUtilsTest.cpp](cppForSwig/BlockUtilsTest.cpp)
-* Python -   [Unit Tests](pytest/), [sample_armory_code.py](extras/sample_armory_code.py)
-
-## License
-
-Distributed partially under the GNU Affero General Public License (AGPL v3)  
-and the MIT License
-See [LICENSE file](LICENSE)
-
-## Copyright
-
-Copyright (C) 2011-2015, Armory Technologies, Inc.
-Copyright (C) 2016-2018, goatpig
+- Add the C++ test suite. It would be a simple drop-in.
+- libwebsockets is just a simple dump of a download of the given libwebsockets version. It may be desirable to switch it to a subtree model, similar to what's used for libbtc. This way, users can be assured that the committed code is exactly the same as what's in the original repo.
+- Switch to CMake. Some of the CMake functionality has been written in other BlockSettle repos. However, the files expect the ArmoryDB code to be part of a larger binary. The files would need to be rewritten to output everything to a standalone binary, and would need to be updated to cover any changes made to the Autotools files. Switching to CMake would arguably be more trouble than it's worth unless the idea is to try to upstream the CMake changes.
