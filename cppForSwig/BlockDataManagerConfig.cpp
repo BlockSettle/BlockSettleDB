@@ -25,61 +25,105 @@ using namespace std;
 // NodeStatusStruct
 //
 ////////////////////////////////////////////////////////////////////////////////
-ARMORY_DB_TYPE BlockDataManagerConfig::armoryDbType_ = ARMORY_DB_FULL;
+// ArmoryDB repo
+// Default DB type is supernode.
+ARMORY_DB_TYPE BlockDataManagerConfig::armoryDbType_ = ARMORY_DB_SUPER;
 SOCKET_SERVICE BlockDataManagerConfig::service_ = SERVICE_WEBSOCKET;
 ARMORY_OPERATION_MODE BlockDataManagerConfig::operationMode_ = OPERATION_REGULAR;
 
 ////////////////////////////////////////////////////////////////////////////////
+// ArmoryDB repo: Default directories switched - Armory -> ArmoryDB
 const string BlockDataManagerConfig::dbDirExtention_ = "/databases";
 #if defined(_WIN32)
 const string BlockDataManagerConfig::defaultDataDir_ = 
-   "~/Armory";
+   "~/ArmoryDB";
 const string BlockDataManagerConfig::defaultBlkFileLocation_ = 
    "~/Bitcoin/blocks";
 
 const string BlockDataManagerConfig::defaultTestnetDataDir_ = 
-   "~/Armory/testnet3";
+   "~/ArmoryDB/testnet3";
 const string BlockDataManagerConfig::defaultTestnetBlkFileLocation_ = 
    "~/Bitcoin/testnet3/blocks";
 
 const string BlockDataManagerConfig::defaultRegtestDataDir_ = 
-   "~/Armory/regtest";
+   "~/ArmoryDB/regtest";
 const string BlockDataManagerConfig::defaultRegtestBlkFileLocation_ = 
    "~/Bitcoin/regtest/blocks";
 #elif defined(__APPLE__)
 const string BlockDataManagerConfig::defaultDataDir_ = 
-   "~/Library/Application Support/Armory";
+   "~/Library/Application Support/ArmoryDB";
 const string BlockDataManagerConfig::defaultBlkFileLocation_ = 
    "~/Library/Application Support/Bitcoin/blocks";
 
 const string BlockDataManagerConfig::defaultTestnetDataDir_ = 
-   "~/Library/Application Support/Armory/testnet3";
+   "~/Library/Application Support/ArmoryDB/testnet3";
 const string BlockDataManagerConfig::defaultTestnetBlkFileLocation_ =   
    "~/Library/Application Support/Bitcoin/testnet3/blocks";
 
 const string BlockDataManagerConfig::defaultRegtestDataDir_ = 
-   "~/Library/Application Support/Armory/regtest";
+   "~/Library/Application Support/ArmoryDB/regtest";
 const string BlockDataManagerConfig::defaultRegtestBlkFileLocation_ = 
    "~/Library/Application Support/Bitcoin/regtest/blocks";
 #else
 const string BlockDataManagerConfig::defaultDataDir_ = 
-   "~/.armory";
+   "~/.armorydb";
 const string BlockDataManagerConfig::defaultBlkFileLocation_ = 
    "~/.bitcoin/blocks";
 
 const string BlockDataManagerConfig::defaultTestnetDataDir_ = 
-   "~/.armory/testnet3";
+   "~/.armorydb/testnet3";
 const string BlockDataManagerConfig::defaultTestnetBlkFileLocation_ = 
    "~/.bitcoin/testnet3/blocks";
 
 const string BlockDataManagerConfig::defaultRegtestDataDir_ = 
-   "~/.armory/regtest";
+   "~/.armorydb/regtest";
 const string BlockDataManagerConfig::defaultRegtestBlkFileLocation_ = 
    "~/.bitcoin/regtest/blocks";
 #endif
 
 string BlockDataManagerConfig::dataDir_ = "";
 bool BlockDataManagerConfig::ephemeralPeers_ = false;
+
+// ArmoryDB repo
+// Helper function that allows for recursive creation of a directory path.
+int mkdir_p(const char *path)
+{
+    /* Adapted from http://stackoverflow.com/a/2336245/119527 */
+    const size_t len = strlen(path);
+    char _path[PATH_MAX];
+    char *p;
+
+    errno = 0;
+
+    /* Copy string so its mutable */
+    if (len > sizeof(_path)-1) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    strcpy(_path, path);
+
+    /* Iterate the string */
+    for (p = _path + 1; *p; p++) {
+        if (*p == '/') {
+            /* Temporarily truncate */
+            *p = '\0';
+
+            if (mkdir(_path, S_IRWXU) != 0) {
+                if (errno != EEXIST)
+                    return -1;
+            }
+
+            *p = '/';
+        }
+    }
+
+    if (mkdir(_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) != 0) {
+        if (errno != EEXIST)
+            return -1;
+    }
+
+    return 0;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 BlockDataManagerConfig::BlockDataManagerConfig() :
@@ -251,6 +295,13 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
    --public: BIP150 auth will allow for anonymous requesters. While only clients
    can be anon (servers/responders are always auth'ed), both sides need to enable
    public channels for the handshake to succeed
+/////////////////////////// Altered for ArmoryDB repo //////////////////////////
+   This fork makes --public the default case. Users need not use it.
+
+   --fullbip150: BIP150 auth will not allow any anonymous participants. Both
+   sides must authenticate each other. (This is the default behavior in the
+   upstream ArmoryDB. fullbip150 is set only in this fork.)
+////////////////////////////////////////////////////////////////////////////////
 
    ***/
 
@@ -370,13 +421,25 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
       //test all paths
       auto testPath = [](const string& path, int mode)
       {
+         // ArmoryDB repo fork
+         // This if statement has changed in order to allow for automatic
+         // generation of incoming directory paths if they don't exist. mkdir()
+         // --> mkdir_p().
          if (!fileExists(path, mode))
          {
             stringstream ss;
-            ss << path << " is not a valid path";
+            ss << path << " is not a valid path. ArmoryDB will create the path.";
 
             cout << ss.str() << endl;
-            throw DbErrorMsg(ss.str());
+#ifdef _WIN32
+            if (!CreateDirectory(path.c_str(), NULL)) {
+               throw DbErrorMsg(ss.str());
+            }
+#else
+            if (mkdir_p(path.c_str()) != 0) {
+               throw DbErrorMsg(ss.str());
+            }
+#endif
          }
       };
 
@@ -391,10 +454,12 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
          }
          catch (DbErrorMsg&)
          {
+// ArmoryDB repo
+// mkdir --> mkdir_p
 #ifdef _WIN32
             CreateDirectory(dbDir_.c_str(), NULL);
 #else
-            mkdir(dbDir_.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+            mkdir_p(dbDir_.c_str());
 #endif
          }
       }
@@ -616,6 +681,15 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
    {
       startupBIP150CTX(4, true);
    }
+
+/////////////////////////// Altered for ArmoryDB repo //////////////////////////
+   // fullbip150
+   iter = args.find("fullbip150");
+   if (iter != args.end())
+   {
+      startupBIP150CTX(4, false);
+   }
+////////////////////////////////////////////////////////////////////////////////
 }
 
 ////////////////////////////////////////////////////////////////////////////////
