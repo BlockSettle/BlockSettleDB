@@ -49,3 +49,25 @@ In the future, it may be worthwhile to do the following:
 - Add the C++ test suite. It would be a simple drop-in.
 - libwebsockets is just a simple dump of a download of the given libwebsockets version. It may be desirable to switch it to a subtree model, similar to what's used for libbtc. This way, users can be assured that the committed code is exactly the same as what's in the original repo.
 - Switch to CMake. Some of the CMake functionality has been written in other BlockSettle repos. However, the files expect the ArmoryDB code to be part of a larger binary. The files would need to be rewritten to output everything to a standalone binary, and would need to be updated to cover any changes made to the Autotools files. Switching to CMake would arguably be more trouble than it's worth unless the idea is to try to upstream the CMake changes.
+
+## CMake options
+
+| **Option**                  | **Description**                                                                          | **Default**                    |
+|-----------------------------|------------------------------------------------------------------------------------------|--------------------------------|
+| WITH_HOST_CPU_FEATURES      | use -march=native and supported cpu feature flags, gcc only                              | ON                             |
+| WITH_CRYPTOPP               | use Crypto++ library for cryptography functions                                          | OFF                            |
+| WITH_CLIENT                 | build Python client                                                                      | AUTO                           |
+| WITH_GUI                    | build GUI support using Qt4 for the Python client                                        | AUTO                           |
+| ENABLE_TESTS                | build the test binaries                                                                  | OFF                            |
+| LIBBTC_WITH_WALLET          | enable libbtc wallet                                                                     | OFF                            |
+| LIBBTC_WITH_TESTS           | enable libbtc tests                                                                      | OFF                            |
+| LIBBTC_WITH_TOOLS           | build libbtc tools binaries                                                              | OFF                            |
+| LIBBTC_RANDOM_DEVICE        | device to use for random numbers                                                         | /dev/urandom                   |
+| SECP256K1_ENABLE_ASM        | enable asm routines in the secp256k1 library                                             | ON                             |
+| SECP256K1_USE_LIBGMP        | use libgmp for numeric routines in the secp256k1 library                                 | AUTO                           |
+| SECP256K1_MODULE_ECDH       | enable the ecdh module in the secp256k1 library                                          | OFF                            |
+| SECP256K1_MODULE_SCHNORR    | enable the schnorr module in the secp256k1 library                                       | OFF                            |
+| SECP256K1_ECMULT_STATIC_PRECOMPUTATION | use a statically generated ecmult table for the secp256k1 library             | OFF                            |
+| SECP256K1_ENDOMORPHISM      | use endomorphism optiomization for the secp256k1 library                                 | OFF                            |
+| SECP256K1_WITH_FIELD        | field for the secp256k1 library, can be '32bit', '64bit' or 'AUTO'                       | AUTO                           |
+| SECP256K1_WITH_SCALAR       | scalar for the secp256k1 library, can be '32bit', '64bit' or 'AUTO'                      | AUTO                           |
