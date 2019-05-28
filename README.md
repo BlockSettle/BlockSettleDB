@@ -71,3 +71,16 @@ In the future, it may be worthwhile to do the following:
 | SECP256K1_ENDOMORPHISM      | use endomorphism optiomization for the secp256k1 library                                 | OFF                            |
 | SECP256K1_WITH_FIELD        | field for the secp256k1 library, can be '32bit', '64bit' or 'AUTO'                       | AUTO                           |
 | SECP256K1_WITH_SCALAR       | scalar for the secp256k1 library, can be '32bit', '64bit' or 'AUTO'                      | AUTO                           |
+| VCPKG_TARGET_TRIPLET        | see below                                                                                | not set                        |
+
+## CMake Windows/vcpkg Build Type
+
+When building on windows, set the cmake variable `VCPKG_TARGET_TRIPLET` to
+`x64-windows` or `x86-windows` depending on whether the build is for 64 bit or
+32 bit. You must be in the appropriate Visual Studio environment as well.
+
+All vcpkg supported triplets should work, and this variable can be used to
+activate vcpkg support on other platforms.
+
+When building with the Visual Studio IDE, the build products will be located
+under `C:\Users\<your-user>\CMakeBuilds`.

@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 2.8.12) # ubuntu 14 version
 
+set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+
+set(VCPKG_DEPS protobuf openssl libwebsockets)
+
+include(Set-Toolchain-vcpkg)
+
 project(BitcoinArmory C CXX)
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -9,8 +15,6 @@ endif()
 if(POLICY CMP0077)
     cmake_policy(SET CMP0077 NEW)
 endif()
-
-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 include(ArmorySupport)
 include(PrettyCompilerColors)
@@ -38,6 +42,10 @@ if(WITH_HOST_CPU_FEATURES AND CMAKE_CXX_COMPILER_ID STREQUAL GNU)
     check_x86_cpu_features()
 
     add_compile_options(-march=native ${X86_CPU_FEATURES_COMPILER_FLAGS})
+endif()
+
+if(MSVC)
+    add_compile_definitions(NOMINMAX _WINSOCKAPI_)
 endif()
 
 add_subdirectory(cppForSwig)
