@@ -23,7 +23,7 @@ add_library(secp256k1
 )
 
 target_compile_definitions(secp256k1
-    PRIVATE -DSECP256K1_BUILD -DHAVE_CONFIG_H
+    PRIVATE SECP256K1_BUILD HAVE_CONFIG_H
 )
 
 # make the config file
@@ -46,19 +46,19 @@ test_big_endian(WORDS_BIGENDIAN)
 
 include(CheckTypeSize)
 
-check_type_size(__int128 HAVE___INT128)
+check_type_size(__int128  HAVE___INT128)
+
+check_type_size(uint128_t HAVE_UINT128_T)
 
 string_option(SECP256K1_USE_LIBGMP "use libgmp for secp256k1" AUTO)
 
 unset(LIBGMP_REQUIRED)
 unset(HAVE_LIBGMP)
 
-if(NOT SECP256K1_USE_LIBGMP STREQUAL AUTO)
-    if(SECP256K1_USE_LIBGMP)
-        set(LIBGMP_REQUIRED REQUIRED)
-    else()
-        set(HAVE_LIBGMP NO)
-    endif()
+if(SECP256K1_USE_LIBGMP AND (NOT SECP256K1_USE_LIBGMP STREQUAL AUTO))
+    set(LIBGMP_REQUIRED REQUIRED)
+elseif(NOT SECP256K1_USE_LIBGMP)
+    set(HAVE_LIBGMP NO)
 endif()
 
 unset(USE_NUM_NONE)
@@ -81,8 +81,12 @@ if(NOT DEFINED HAVE_LIBGMP)
         set(USE_NUM_GMP        ON)
         set(USE_FIELD_INV_NUM  ON)
         set(USE_SCALAR_INV_NUM ON)
+    else()
+        set(HAVE_LIBGMP OFF)
     endif()
-else()
+endif()
+
+if(NOT HAVE_LIBGMP)
     set(USE_NUM_NONE           ON)
     set(USE_FIELD_INV_BUILTIN  ON)
     set(USE_SCALAR_INV_BUILTIN ON)
@@ -135,17 +139,27 @@ string_option(SECP256K1_WITH_SCALAR "use '32bit', '64bit' or 'AUTO' scalar with 
 if(SECP256K1_WITH_FIELD STREQUAL AUTO)
     set(SECP256K1_WITH_FIELD 32bit)
 
-    if(CMAKE_C_SIZEOF_DATA_PTR EQUAL 8) # 64 bit
+    # 64 bit
+    if(CMAKE_C_SIZEOF_DATA_PTR EQUAL 8 AND (HAVE_LIBGMP OR HAVE_UINT128_T))
         set(SECP256K1_WITH_FIELD 64bit)
     endif()
+endif()
+
+if(SECP256K1_WITH_FIELD STREQUAL 64bit AND (NOT (HAVE_LIBGMP OR HAVE_UINT128_T)))
+    message(FATAL_ERROR "64bit field support requires your compiler to have the 'uint128_t' type when not using libgmp")
 endif()
 
 if(SECP256K1_WITH_SCALAR STREQUAL AUTO)
     set(SECP256K1_WITH_SCALAR 32bit)
 
-    if(CMAKE_C_SIZEOF_DATA_PTR EQUAL 8) # 64 bit
+    # 64 bit
+    if(CMAKE_C_SIZEOF_DATA_PTR EQUAL 8 AND (HAVE_LIBGMP OR HAVE_UINT128_T))
         set(SECP256K1_WITH_SCALAR 64bit)
     endif()
+endif()
+
+if(SECP256K1_WITH_SCALAR STREQUAL 64bit AND (NOT (HAVE_LIBGMP OR HAVE_UINT128_T)))
+    message(FATAL_ERROR "64bit scalar support requires your compiler to have the 'uint128_t' type when not using libgmp")
 endif()
 
 unset(USE_FIELD_5X52)
@@ -156,7 +170,6 @@ if(SECP256K1_WITH_FIELD STREQUAL 64bit)
 elseif(SECP256K1_WITH_FIELD STREQUAL 32bit)
     set(USE_FIELD_10X26 ON)
 else()
-    message("DATA_PTR: ${CMAKE_C_SIZEOF_DATA_PTR}")
     message(FATAL_ERROR "invalid value for SECP256K1_WITH_FIELD, must be '64bit', '32bit' or 'AUTO'")
 endif()
 

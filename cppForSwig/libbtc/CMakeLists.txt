@@ -140,7 +140,7 @@ target_link_libraries(btc
 )
 
 target_compile_definitions(btc
-    PUBLIC -DHAVE_CONFIG_H
+    PUBLIC HAVE_CONFIG_H
 )
 
 if(LIBBTC_WITH_TOOLS)

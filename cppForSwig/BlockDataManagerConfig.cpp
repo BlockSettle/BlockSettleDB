@@ -84,6 +84,12 @@ const string BlockDataManagerConfig::defaultRegtestBlkFileLocation_ =
 string BlockDataManagerConfig::dataDir_ = "";
 bool BlockDataManagerConfig::ephemeralPeers_ = false;
 
+#ifdef _MSC_VER
+#include <direct.h>
+#define PATH_MAX MAX_PATH
+#define mkdir(X,Y) _mkdir(X)
+#endif
+
 // ArmoryDB repo
 // Helper function that allows for recursive creation of a directory path.
 int mkdir_p(const char *path)

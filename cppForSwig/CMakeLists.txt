@@ -35,11 +35,16 @@ set(LIBARMORYCOMMON_INCLUDE_DIRECTORIES
 )
 
 set(LIBARMORYCOMMON_LINK_LIBRARIES
-    pthread
     chacha20poly1305
     btc
     lmdb
 )
+
+if(NOT MSVC)
+    list(APPEND LIBARMORYCOMMON_LINK_LIBRARIES
+        pthread
+    )
+endif()
 
 option(WITH_CRYPTOPP "use Crypto++ crypto functions" OFF)
 
@@ -56,15 +61,20 @@ if(WITH_CRYPTOPP)
     )
 else()
     list(APPEND LIBARMORYCOMMON_COMPILE_DEFINITIONS
-        PRIVATE -DLIBBTC_ONLY
+        PRIVATE LIBBTC_ONLY
     )
 
     list(APPEND LIBARMORYCOMMON_SOURCES EncryptionUtils_libbtc.cpp)
 endif()
 
-find_package(PkgConfig REQUIRED)
+if(CMAKE_TOOLCHAIN_FILE MATCHES vcpkg)
+    find_package(Libwebsockets CONFIG REQUIRED)
+    set(LIBWEBSOCKETS_LIBRARIES websockets_shared)
+else()
+    find_package(PkgConfig REQUIRED)
 
-pkg_check_modules(LIBWEBSOCKETS REQUIRED libwebsockets>=3.0.1)
+    pkg_check_modules(LIBWEBSOCKETS REQUIRED libwebsockets>=3.0.1)
+endif()
 
 list(APPEND LIBARMORYCOMMON_INCLUDE_DIRECTORIES
     PRIVATE ${LIBWEBSOCKETS_INCLUDE_DIRS}
@@ -124,7 +134,12 @@ if(LIBWEBSOCKETS_WITH_LIBCAP)
     )
 endif()
 
-pkg_check_modules(PROTOBUF REQUIRED protobuf>=2.0.0)
+if(CMAKE_TOOLCHAIN_FILE MATCHES vcpkg)
+    find_package(protobuf CONFIG REQUIRED)
+    set(PROTOBUF_LIBRARIES protobuf::libprotoc protobuf::libprotobuf)
+else()
+    pkg_check_modules(PROTOBUF REQUIRED protobuf>=2.0.0)
+endif()
 
 list(APPEND LIBARMORYCOMMON_INCLUDE_DIRECTORIES
     PRIVATE ${PROTOBUF_INCLUDE_DIRS}
@@ -212,7 +227,7 @@ add_library(ArmoryCommon
 )
 
 target_compile_definitions(ArmoryCommon
-    PUBLIC -D__STDC_LIMIT_MACROS
+    PUBLIC __STDC_LIMIT_MACROS
     ${LIBARMORYCOMMON_COMPILE_DEFINITIONS}
 )
 
@@ -248,12 +263,21 @@ set(LIBARMORYCLI_SOURCES
     ScrAddrFilter.cpp
     ScrAddrObj.cpp
     Server.cpp
-    SocketService_unix.cpp
     SshParser.cpp
     StringSockets.cpp
     txio.cpp
     ZeroConf.cpp
 )
+
+if(MSVC)
+    list(APPEND LIBARMORYCLI_SOURCES
+        SocketService_win32.cpp
+    )
+else()
+    list(APPEND LIBARMORYCLI_SOURCES
+        SocketService_unix.cpp
+    )
+endif()
 
 add_library(ArmoryCLI
     STATIC
@@ -270,13 +294,17 @@ target_compile_definitions(ArmoryCLI
 
 string_option(WITH_GUI "with GUI" AUTO)
 
-find_package(Qt4 COMPONENTS QtGui)
+find_package(Qt4 COMPONENTS QtGui QUIET)
 
 find_program(PYRCC4_EXECUTABLE   pyrcc4)
 find_program(LRELEASE_EXECUTABLE lrelease)
 
-if(WITH_GUI STREQUAL AUTO AND Qt4_FOUND AND PYRCC4_EXECUTABLE AND LRELEASE_EXECUTABLE)
-    set(WITH_GUI ON)
+if(WITH_GUI STREQUAL AUTO)
+    if(Qt4_FOUND AND PYRCC4_EXECUTABLE AND LRELEASE_EXECUTABLE)
+        set(WITH_GUI ON)
+    else()
+        set(WITH_GUI OFF)
+    endif()
 endif()
 
 if(WITH_GUI)
@@ -332,8 +360,12 @@ find_package(Python2 COMPONENTS Development)
 
 find_program(SWIG_EXECUTABLE swig)
 
-if(WITH_CLIENT STREQUAL AUTO AND Python2_Development_FOUND AND SWIG_EXECUTABLE)
-    set(WITH_CLIENT ON)
+if(WITH_CLIENT STREQUAL AUTO)
+    if(Python2_Development_FOUND AND SWIG_EXECUTABLE)
+        set(WITH_CLIENT ON)
+    else()
+        set(WITH_CLIENT OFF)
+    endif()
 endif()
 
 if(WITH_CLIENT)
