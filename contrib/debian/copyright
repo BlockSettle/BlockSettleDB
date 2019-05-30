@@ -1,0 +1,151 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: armorydb
+Source: https://github.com/BlockSettle/ArmoryDB
+
+Files: *
+Copyright: 2011-2015 Armory Technologies, Inc.
+           2016-2018 goatpig
+           2019 BlockSettle AB
+License: MIT and AGPL3+
+ Portion of the code is ATI's property, licensed under GNU Affero GPL Version 3
+ Portion of the code is goatpig's property, licensed under the MIT license
+
+ See each individual code files to determine which licenses apply
+ For code files pointing directly to LICENSE, see LICENSE-ATI
+
+Files: debian/*
+Copyright: 2019 BlockSettle AB
+License: MIT
+
+Files: libwebsockets/*
+Copyright: 2010-2018 Andy Green
+           2015-2016 Espressif Systems (Shanghai) PTE LTD
+           2000-2001 Kungliga Tekniska Hï¿½gskolan
+           2017 National Institute of Advanced Industrial Science
+License: LGPL-2.1 with exceptions and CC0 and Apache-2.0 and BSD-3-Clause
+
+Files: libwebsockets/test-apps/*
+Copyright: 2010-2018 Andy Green
+           2016 Alexander Bruines
+License: CC0-1.0
+
+Files: libwebsockets/win32port/zlib/*
+Copyright: 1995-2010 Jean-loup Gailly and Mark Adler
+License: Zlib
+
+Files: cppForSwig/bech32/*
+Copyright: 2017 Clark Moody
+           2017 Shigeyuki Azuchi
+License: Expat
+
+Files: cppForSwig/gtest/*
+Copyright: 2016-2018 goatpig
+           2003-2009 Google Inc.
+License: BSD and MIT
+           
+
+Files: cppForSwig/libbtc/*
+Copyright: 2015-2017 Jonas Schnelli
+           2013-2017 Pieter Wuille
+           2013-2015 Gregory Maxwell
+           2013-2015 Thomas Daede, Cory Fields
+           2013-2014 Diederik Huys
+           2013-2014 Pavol Rusnak
+           2013-2014 Tomas Dzetkulic
+           2000-2001 Aaron D. Gifford
+           2017 Marko Bencun
+           2015 BitPay, Inc.
+           2015 Douglas J. Bakkum
+           2015 Andrew Poelstra
+           2014 Wladimir J. van der Laan
+           2011 Sam Rushing
+License: MIT and Expat and BSD
+
+Files: cppForSwig/libbtc/src/secp256k1/src/java/*
+Copyright: 2014-2016 the libsecp256k1 contributors
+License: Apache-2.0
+
+Files: cppForSwig/libbtc/rpctest/test_framework/*
+Copyright: 2013-2016, The Bitcoin Core developers
+License: MIT
+
+Files: cppForSwig/lmdb/*
+Copyright: 2011-2018 Howard Chu, Symas Corp.
+License: OpenLDAP
+
+License: MIT
+ Permission is hereby granted, free of charge, to any person obtaining a
+ copy of this software and associated documentation files (the "Software"),
+ to deal in the Software without restriction, including without limitation
+ the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ and/or sell copies of the Software, and to permit persons to whom the
+ Software is furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included
+ in all copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
+ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
+ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+License: AGPL3+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU Affero General Public License as
+ published by the Free Software Foundation, either version 3 of the
+ License, or (at your option) any later version.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Affero General Public License <http://www.gnu.org/licenses/>
+ for more details.
+
+License: OpenLDAP
+ Redistribution and use of this software and associated documentation
+ ("Software"), with or without modification, are permitted provided
+ that the following conditions are met:
+ .
+ 1. Redistributions in source form must retain copyright statements
+    and notices,
+ .
+ 2. Redistributions in binary form must reproduce applicable copyright
+    statements and notices, this list of conditions, and the following
+    disclaimer in the documentation and/or other materials provided
+    with the distribution, and
+ .
+ 3. Redistributions must contain a verbatim copy of this document.
+ .
+ The OpenLDAP Foundation may revise this license from time to time.
+ Each revision is distinguished by a version number.  You may use
+ this Software under terms of this license revision or under the
+ terms of any subsequent revision of the license.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE OPENLDAP FOUNDATION AND ITS
+ CONTRIBUTORS ``AS IS'' AND ANY EXPRESSED OR IMPLIED WARRANTIES,
+ INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+ AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT
+ SHALL THE OPENLDAP FOUNDATION, ITS CONTRIBUTORS, OR THE AUTHOR(S)
+ OR OWNER(S) OF THE SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT,
+ INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ POSSIBILITY OF SUCH DAMAGE.
+ .
+ The names of the authors and copyright holders must not be used in
+ advertising or otherwise to promote the sale, use or other dealing
+ in this Software without specific, written prior permission.  Title
+ to copyright in this Software shall at all times remain with copyright
+ holders.
+ .
+ OpenLDAP is a registered trademark of the OpenLDAP Foundation.
+ .
+ Copyright 1999-2003 The OpenLDAP Foundation, Redwood City,
+ California, USA.  All Rights Reserved.  Permission to copy and
+ distribute verbatim copies of this document is granted.
