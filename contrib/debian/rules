@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+#export DH_VERBOSE = 1
+
+LWS_DIR = libwebsockets
+
+%:
+	dh $@ --with=autoreconf
+
+override_dh_auto_configure:
+	dh_auto_configure --sourcedirectory=$(LWS_DIR) --builddirectory=$(LWS_DIR)/build -- -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=0 -DLWS_WITH_SSL=0
+	dh_auto_configure
+
+override_dh_auto_build:
+	dh_auto_build --sourcedirectory=$(LWS_DIR) --builddirectory=$(LWS_DIR)/build
+	dh_auto_build
+
+override_dh_auto_clean:
+	dh_auto_clean
+	dh_auto_clean --sourcedirectory=$(LWS_DIR) --builddirectory=$(LWS_DIR)/build
