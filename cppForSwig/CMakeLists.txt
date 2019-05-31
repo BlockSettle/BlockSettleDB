@@ -342,6 +342,8 @@ target_link_libraries(ArmoryDB
     ArmoryCLI
 )
 
+install(TARGETS ArmoryDB DESTINATION bin)
+
 add_executable(BIP150KeyManager
     KeyManager.cpp
 )
@@ -353,6 +355,8 @@ set_target_properties(BIP150KeyManager
 target_link_libraries(BIP150KeyManager
     ArmoryCLI
 )
+
+install(TARGETS BIP150KeyManager DESTINATION bin)
 
 string_option(WITH_CLIENT "build python client" AUTO)
 
