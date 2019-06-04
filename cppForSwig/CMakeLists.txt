@@ -342,6 +342,10 @@ target_link_libraries(ArmoryDB
     ArmoryCLI
 )
 
+include(GNUInstallDirs)
+
+install(TARGETS ArmoryDB DESTINATION ${CMAKE_INSTALL_BINDIR})
+
 add_executable(BIP150KeyManager
     KeyManager.cpp
 )
@@ -354,9 +358,11 @@ target_link_libraries(BIP150KeyManager
     ArmoryCLI
 )
 
+install(TARGETS BIP150KeyManager DESTINATION ${CMAKE_INSTALL_BINDIR})
+
 string_option(WITH_CLIENT "build python client" AUTO)
 
-find_package(Python2 COMPONENTS Development)
+find_package(Python2 COMPONENTS Development QUIET)
 
 find_program(SWIG_EXECUTABLE swig)
 
@@ -369,6 +375,14 @@ if(WITH_CLIENT STREQUAL AUTO)
 endif()
 
 if(WITH_CLIENT)
+    if(NOT Python2_Development_FOUND)
+        message(FATAL_ERROR "python 2 development files not found, install python-dev")
+    endif()
+
+    if(NOT SWIG_EXECUTABLE)
+        message(FATAL_ERROR "swig not found")
+    endif()
+
     set(CPPBLOCKUTILS_SOURCES
         ${PROJECT_BINARY_DIR}/CppBlockUtils_wrap.cxx
     )
@@ -406,8 +420,22 @@ if(WITH_CLIENT)
         PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}
     )
 
+    # remove "lib" prefix
+    set_target_properties(CppBlockUtils
+        PROPERTIES PREFIX ""
+    )
+
     target_include_directories(CppBlockUtils
         PUBLIC Python2::Python
+    )
+
+    # copy CppBlockUtils.so to _CppBlockUtils.so as well, why I don't know
+    add_custom_command(
+        TARGET CppBlockUtils POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+            ${PROJECT_BINARY_DIR}/CppBlockUtils${CMAKE_SHARED_LIBRARY_SUFFIX}
+            ${PROJECT_BINARY_DIR}/_CppBlockUtils${CMAKE_SHARED_LIBRARY_SUFFIX}
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
     )
 
     if(WITH_GUI)
@@ -464,10 +492,82 @@ if(WITH_CLIENT)
             qrc_img_resources_py
             lang_lrelease
         )
+        
+        install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_LIBDIR}/armory/ui)")
+
+        install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_LIBDIR}/armory/lang)")
+
+        install(DIRECTORY ../ui DESTINATION ${CMAKE_INSTALL_LIBDIR}/armory)
+
+        install(DIRECTORY ${PROJECT_BINARY_DIR}/lang
+                DESTINATION ${CMAKE_INSTALL_LIBDIR}/armory
+                FILES_MATCHING PATTERN "*.qm"
+        )
     endif()
 
     target_link_libraries(CppBlockUtils
         ${CPPBLOCKUTILS_LINK_LIBRARIES}
+    )
+
+    # rewrite prefix for armory script
+    add_custom_command(
+        OUTPUT  ${PROJECT_BINARY_DIR}/armory
+        COMMAND ${CMAKE_COMMAND} -Dscript_file=${PROJECT_SOURCE_DIR}/dpkgfiles/armory
+                                 -Dscript_output_file=${PROJECT_BINARY_DIR}/armory
+                                 -Dscript_dir=${PROJECT_BINARY_DIR}
+                                 -Dprefix=${CMAKE_INSTALL_PREFIX}
+                                 -P ${PROJECT_SOURCE_DIR}/cmake/scripts/RewriteArmoryScriptPrefix.cmake
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+    )
+
+    add_custom_target(armory_script DEPENDS ${PROJECT_BINARY_DIR}/armory)
+
+    add_dependencies(CppBlockUtils armory_script)
+
+    install(PROGRAMS ${PROJECT_BINARY_DIR}/armory DESTINATION ${CMAKE_INSTALL_BINDIR})
+    
+    install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_LIBDIR}/armory/armoryengine)")
+
+    install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_DATAROOTDIR}/applications)") # share/applications
+
+    install(
+        TARGETS CppBlockUtils
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/armory
+    )
+
+    # copy the underscore prefixed version too
+    install(
+        FILES ${PROJECT_BINARY_DIR}/_CppBlockUtils${CMAKE_SHARED_LIBRARY_SUFFIX}
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/armory
+    )
+
+    install(FILES 
+        ../armorycolors.py
+        ../armorymodels.py
+        ../ArmoryQt.py
+        ../dynamicImport.py
+        ../guardian.py
+        ../jasvet.py
+        ../LICENSE.py
+        ../qrcodenative.py
+        ../qtdefines.py
+        ../qtdialogs.py
+        ../SDM.py
+        ../setup.py
+        ../subprocess_win.py
+        ../update_version.py
+        ../writeNSISCompilerArgs.py
+        ${PROJECT_BINARY_DIR}/CppBlockUtils.py
+        ${PROJECT_BINARY_DIR}/qrc_img_resources.py
+
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/armory
+    )
+
+    install(DIRECTORY ../armoryengine DESTINATION ${CMAKE_INSTALL_LIBDIR}/armory)
+
+    install(DIRECTORY ../img
+            DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/armory
+            PATTERN ".DS_Store" EXCLUDE
     )
 endif()
 
