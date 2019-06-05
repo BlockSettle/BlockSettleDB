@@ -3636,7 +3636,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       AddressEntryType_P2WPKH);
    mainAccType->setAddressTypes(
       { AddressEntryType_P2WPKH });
-   
+
    auto accountID2 = assetWlt->createBIP32Account(
       nullptr, { 0x80000099, 0x80000000 }, mainAccType);
 
@@ -3721,8 +3721,8 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       }
 
       //spend spendVal to newAddr
-      signer.addRecipient(newAddr1->getRecipient(14*COIN));
-      signer.addRecipient(newAddr2->getRecipient(13*COIN));
+      signer.addRecipient(newAddr1->getRecipient(14 * COIN));
+      signer.addRecipient(newAddr2->getRecipient(13 * COIN));
 
       if (total > spendVal)
       {
@@ -4640,6 +4640,298 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 
       //spend spendVal to newAddr
       signer.addRecipient(newAddr2->getRecipient(spendVal));
+
+      //sign, verify then broadcast
+      {
+         auto passlbd = [passphrase](const BinaryData&)->SecureBinaryData
+         {
+            return passphrase;
+         };
+
+         assetWlt->setPassphrasePromptLambda(passlbd);
+         auto lock = assetWlt->lockDecryptedContainer();
+         signer.sign();
+      }
+
+      EXPECT_TRUE(signer.verify());
+
+      DBTestUtils::ZcVector zcVec;
+      zcVec.push_back(signer.serialize(), 14000000);
+
+      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+   }
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 155 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
+   EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
+{
+   //ecdh account base key pair
+   auto&& privKey = READHEX(
+      "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F");
+   auto&& pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
+
+   //create spender lamba
+   auto getSpenderPtr = [](
+      const UnspentTxOut& utxo,
+      shared_ptr<ResolverFeed> feed)
+      ->shared_ptr<ScriptSpender>
+   {
+      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
+         move(utxo.txHash_), move(utxo.script_));
+
+      return make_shared<ScriptSpender>(entry, feed);
+   };
+
+   //setup bdm
+   TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
+
+   initBDM();
+
+   theBDMt_->start(config.initMode_);
+   auto&& bdvID = DBTestUtils::registerBDV(
+      clients_, NetworkConfig::getMagicBytes());
+
+   vector<BinaryData> scrAddrVec;
+   scrAddrVec.push_back(TestChain::scrAddrA);
+   scrAddrVec.push_back(TestChain::scrAddrB);
+   scrAddrVec.push_back(TestChain::scrAddrC);
+   scrAddrVec.push_back(TestChain::scrAddrD);
+   scrAddrVec.push_back(TestChain::scrAddrE);
+
+   //// create assetWlt ////
+
+   //create a root private key
+   SecureBinaryData passphrase("test");
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
+      homedir_,
+      wltRoot, //root as a rvalue
+      passphrase);
+
+   auto ecdhAccType = make_shared<AccountType_ECDH>(privKey, pubKey);
+   ecdhAccType->setDefaultAddressType(
+      AddressEntryType_P2WPKH);
+   ecdhAccType->setAddressTypes(
+      { AddressEntryType_P2WPKH });
+   ecdhAccType->setMain(true);
+
+   auto passphraseLbd = [&passphrase](const BinaryData&)->SecureBinaryData
+   {
+      return passphrase;
+   };
+
+   //add salted account
+   auto addrAccountObj = assetWlt->createAccount(ecdhAccType);
+
+   //register with db
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
+
+   //wait on signals
+   DBTestUtils::goOnline(clients_, bdvID);
+   DBTestUtils::waitOnBDMReady(clients_, bdvID);
+   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+
+   //check balances
+   const ScrAddrObj* scrObj;
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+
+   //generate some ECDH addresses
+   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 0);
+
+   auto accPtr = dynamic_pointer_cast<AssetAccount_ECDH>(
+      addrAccountObj->getOuterAccount());
+   ASSERT_NE(accPtr, nullptr);
+
+   for (unsigned i = 0; i < 5; i++)
+   {
+      auto&& salt = CryptoPRNG::generateRandom(32);
+      accPtr->addSalt(salt);
+   }
+
+   vector<shared_ptr<AddressEntry>> addrVec;
+   for (unsigned i = 0; i < 5; i++)
+      addrVec.push_back(assetWlt->getNewAddress());
+
+   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5);
+
+   {
+      ////spend 27 from wlt to newAddr
+      ////send rest back to scrAddrA
+
+      auto spendVal = 27 * COIN;
+      Signer signer;
+
+      //instantiate resolver feed overloaded object
+      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
+
+      auto addToFeed = [feed](const BinaryData& key)->void
+      {
+         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
+         feed->h160ToPubKey_.insert(datapair);
+         feed->pubKeyToPrivKey_[datapair.second] = key;
+      };
+
+      addToFeed(TestChain::privKeyAddrA);
+      addToFeed(TestChain::privKeyAddrB);
+      addToFeed(TestChain::privKeyAddrC);
+      addToFeed(TestChain::privKeyAddrD);
+      addToFeed(TestChain::privKeyAddrE);
+
+      //get utxo list for spend value
+      auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
+
+      vector<UnspentTxOut> utxoVec;
+      uint64_t tval = 0;
+      auto utxoIter = unspentVec.begin();
+      while (utxoIter != unspentVec.end())
+      {
+         tval += utxoIter->getValue();
+         utxoVec.push_back(*utxoIter);
+
+         if (tval > spendVal)
+            break;
+
+         ++utxoIter;
+      }
+
+      //create script spender objects
+      uint64_t total = 0;
+      for (auto& utxo : utxoVec)
+      {
+         total += utxo.getValue();
+         signer.addSpender(getSpenderPtr(utxo, feed));
+      }
+
+      //spend spendVal to newAddr
+      signer.addRecipient(addrVec[0]->getRecipient(spendVal));
+
+      if (total > spendVal)
+      {
+         //deal with change, no fee
+         auto changeVal = total - spendVal;
+         auto recipientChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrD.getSliceCopy(1, 20), changeVal);
+         signer.addRecipient(recipientChange);
+      }
+
+      //sign, verify then broadcast
+      signer.sign();
+      EXPECT_TRUE(signer.verify());
+
+      DBTestUtils::ZcVector zcVec;
+      zcVec.push_back(signer.serialize(), 14000000);
+
+      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+   }
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   //register new wallet
+   vector<BinaryData> hashVec;
+   hashVec.push_back(addrVec[0]->getPrefixedHash());
+   hashVec.push_back(addrVec[1]->getPrefixedHash());
+
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec, assetWlt->getID());
+   auto dbAssetWlt = bdvPtr->getWalletOrLockbox(assetWlt->getID());
+
+   //mine some blocks
+   DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
+   DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 155 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0);
+
+   //spend from the new address
+   {
+      //spend from the new address
+
+      auto spendVal = 27 * COIN;
+      Signer signer;
+
+      auto feed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+
+      //get utxo list for spend value
+      auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
+
+      vector<UnspentTxOut> utxoVec;
+      uint64_t tval = 0;
+      auto utxoIter = unspentVec.begin();
+      while (utxoIter != unspentVec.end())
+      {
+         tval += utxoIter->getValue();
+         utxoVec.push_back(*utxoIter);
+
+         if (tval > spendVal)
+            break;
+
+         ++utxoIter;
+      }
+
+      //create script spender objects
+      uint64_t total = 0;
+      for (auto& utxo : utxoVec)
+      {
+         total += utxo.getValue();
+         signer.addSpender(getSpenderPtr(utxo, feed));
+      }
+
+      //spend spendVal to newAddr
+      signer.addRecipient(addrVec[1]->getRecipient(spendVal));
 
       //sign, verify then broadcast
       {

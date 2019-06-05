@@ -74,6 +74,9 @@ void AssetAccount::commit()
    //data
    BinaryWriter bwData;
 
+   //type
+   bwData.put_uint8_t(type());
+
    //parent key size
    bwData.put_var_int(parent_id_.getSize());
 
@@ -129,6 +132,9 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
    auto carData = db->get_NoCopy(carKey);
    BinaryRefReader brr((const uint8_t*)carData.data, carData.len);
 
+   //type
+   auto type = AssetAccountTypeEnum(brr.get_uint8_t());
+
    //ids
    auto parent_id_len = brr.get_var_int();
 
@@ -139,7 +145,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
    //der scheme
    auto len = brr.get_var_int();
    auto derSchemeBDR = DBUtils::getDataRefForPacket(brr.get_BinaryDataRef(len));
-   auto derScheme = DerivationScheme::deserialize(derSchemeBDR);
+   auto derScheme = DerivationScheme::deserialize(derSchemeBDR, db);
 
    //asset count
    size_t assetCount = 0;
@@ -235,10 +241,30 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
       throw AccountException("unexpected account asset count");
 
    //instantiate object
-   shared_ptr<AssetAccount> accountPtr = make_shared<AssetAccount>(
-      account_id, parent_id,
-      rootEntry, derScheme, 
-      dbEnv, db);
+   shared_ptr<AssetAccount> accountPtr;
+   switch (type)
+   {
+   case AssetAccountTypeEnum_Plain:
+   {
+      accountPtr = make_shared<AssetAccount>(
+         account_id, parent_id,
+         rootEntry, derScheme,
+         dbEnv, db);
+      break;
+   }
+   
+   case AssetAccountTypeEnum_ECDH:
+   {
+      accountPtr = make_shared<AssetAccount_ECDH>(
+         account_id, parent_id,
+         rootEntry, derScheme,
+         dbEnv, db);
+      break;
+   }
+
+   default:
+      throw AccountException("unexpected asset account type");
+   }
 
    //fill members not covered by the ctor
    accountPtr->lastUsedIndex_ = lastUsedIndex;
@@ -338,6 +364,7 @@ vector<shared_ptr<AssetEntry>> AssetAccount::extendPublicChain(
    }
 
    case DerSchemeType_BIP32:
+   case DerSchemeType_ECDH:
    {
       //BIP32 operates from the node's root asset
       result = move(derScheme_->extendPublicChain(root_, start, end));
@@ -462,6 +489,7 @@ vector<shared_ptr<AssetEntry>> AssetAccount::extendPrivateChain(
    }
 
    case DerSchemeType_BIP32:
+   case DerSchemeType_ECDH:
    {
       //BIP32 operates from the node's root asset
       result = move(derScheme_->extendPrivateChain(ddc, root_, start, end));
@@ -528,7 +556,7 @@ shared_ptr<AssetEntry> AssetAccount::getNewAsset()
    auto entryIter = assets_.find(index);
    if (entryIter == assets_.end())
    {
-      extendPublicChain(DERIVATION_LOOKUP);
+      extendPublicChain(getLookup());
       entryIter = assets_.find(index);
       if (entryIter == assets_.end())
          throw AccountException("requested index overflows max lookup");
@@ -677,6 +705,21 @@ shared_ptr<Asset_PrivateKey> AssetAccount::fillPrivateKey(
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+//// AssetAccount_ECDH
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+unsigned AssetAccount_ECDH::addSalt(const SecureBinaryData& salt)
+{
+   auto derScheme = dynamic_pointer_cast<DerivationScheme_ECDH>(derScheme_);
+   if (derScheme == nullptr)
+      throw AccountException("unexpected derivation scheme type");
+
+   auto lock = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadWrite);
+   return derScheme->addSalt(salt, db_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //// AddressAccount
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -805,11 +848,12 @@ void AddressAccount::make_new(
    {
    case AccountTypeEnum_ArmoryLegacy:
    {
-      ID_ = accType->getAccountID();
-      auto asset_account_id = accType->getOuterAccountID();
+      auto accPtr = dynamic_pointer_cast<AccountType_ArmoryLegacy>(accType);
+      ID_ = accPtr->getAccountID();
+      auto asset_account_id = accPtr->getOuterAccountID();
 
       //chaincode has to be a copy cause the derscheme ctor moves it in
-      auto chaincode = accType->getChaincode(); 
+      auto chaincode = accPtr->getChaincode();
       auto derScheme = make_shared<DerivationScheme_ArmoryLegacy>(
          chaincode);
 
@@ -817,10 +861,10 @@ void AddressAccount::make_new(
       auto&& full_account_id = ID_ + asset_account_id;
       shared_ptr<AssetEntry_Single> firstAsset;
 
-      if (accType->isWatchingOnly())
+      if (accPtr->isWatchingOnly())
       {
          //WO
-         auto& root = accType->getPublicRoot();
+         auto& root = accPtr->getPublicRoot();
          firstAsset = derScheme->computeNextPublicEntry(
             root,
             full_account_id, 0);
@@ -830,7 +874,7 @@ void AddressAccount::make_new(
          //full wallet
          ReentrantLock lock(decrData.get());
          
-         auto& root = accType->getPrivateRoot();
+         auto& root = accPtr->getPrivateRoot();
          firstAsset = derScheme->computeNextPrivateEntry(
             decrData,
             root, move(cipher),
@@ -840,7 +884,8 @@ void AddressAccount::make_new(
       //instantiate account and set first entry
       auto asset_account = make_shared<AssetAccount>(
          asset_account_id, ID_,
-         nullptr, derScheme, //no root asset for legacy derivation scheme, using first entry instead
+         //no root asset for legacy derivation scheme, using first entry instead
+         nullptr, derScheme, 
          dbEnv_, db_);
       asset_account->assets_.insert(make_pair(0, firstAsset));
 
@@ -857,7 +902,7 @@ void AddressAccount::make_new(
       if (accBip32 == nullptr)
          throw runtime_error("unexpected account type");
 
-      ID_ = accType->getAccountID();
+      ID_ = accBip32->getAccountID();
 
       auto accType_bip32 = dynamic_pointer_cast<AccountType_BIP32>(accType);
       if (accType_bip32 == nullptr)
@@ -889,7 +934,7 @@ void AddressAccount::make_new(
       if (accBip32 == nullptr)
          throw AccountException("unexpected account type");
 
-      ID_ = accType->getAccountID();
+      ID_ = accBip32->getAccountID();
 
       auto nodes = accBip32->getNodes();
       if (nodes.size() > 0)
@@ -981,6 +1026,69 @@ void AddressAccount::make_new(
       break;
    }
 
+   case AccountTypeEnum_ECDH:
+   {
+      auto accEcdh = dynamic_pointer_cast<AccountType_ECDH>(accType);
+      if (accEcdh == nullptr)
+         throw AccountException("unexpected account type");
+
+      ID_ = accEcdh->getAccountID();
+
+      //ids
+      auto accountID = ID_;
+      accountID.append(accEcdh->getOuterAccountID());
+
+      //root asset
+      shared_ptr<AssetEntry_Single> rootAsset;
+      if (accEcdh->isWatchingOnly())
+      {
+         //WO
+         auto pubkeyCopy = accEcdh->getPubKey();
+         rootAsset = make_shared<AssetEntry_Single>(
+            -1, accountID,
+            pubkeyCopy, nullptr);
+      }
+      else
+      {
+         //full wallet
+         auto pubkey = accEcdh->getPubKey();
+         if (pubkey.getSize() == 0)
+         {
+            auto&& pubkey_unc =
+               CryptoECDSA().ComputePublicKey(accEcdh->getPrivKey());
+            pubkey = move(CryptoECDSA().CompressPoint(pubkey_unc));
+         }
+
+         ReentrantLock lock(decrData.get());
+
+         //encrypt private root
+         auto&& cipher_copy = cipher->getCopy();
+         auto&& encrypted_root =
+            decrData->encryptData(cipher_copy.get(), accEcdh->getPrivKey());
+
+         //create assets
+         auto privKeyID = accountID;
+         privKeyID.append(WRITE_UINT32_LE(UINT32_MAX));
+         auto priv_asset = make_shared<Asset_PrivateKey>(
+            privKeyID, encrypted_root, move(cipher_copy));
+         rootAsset = make_shared<AssetEntry_Single>(
+            -1, accountID,
+            pubkey, priv_asset);
+      }
+
+      //derivation scheme
+      auto derScheme = make_shared<DerivationScheme_ECDH>();
+
+      //account
+      auto assetAccount = make_shared<AssetAccount_ECDH>(
+         accEcdh->getOuterAccountID(), ID_,
+         rootAsset, derScheme,
+         dbEnv_, db_);
+
+      addAccount(assetAccount);
+      break;
+   }
+
    default:
       throw AccountException("unknown account type");
    }
@@ -1066,6 +1174,10 @@ void AddressAccount::commit()
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::addAccount(shared_ptr<AssetAccount> account)
 {
+   auto& accID = account->getID();
+   if (accID.getSize() != 4)
+      throw AccountException("invalid account id length");
+
    auto insertPair = assetAccounts_.insert(make_pair(
       account->getID(), account));
 
@@ -1401,11 +1513,37 @@ shared_ptr<AddressAccount> AddressAccount::getWatchingOnlyCopy(
          throw AccountException("invalid account root");
       auto woRoot = rootSingle->getPublicCopy();
 
-      auto woAccPtr = make_shared<AssetAccount>(
-         assetAccPtr->id_, assetAccPtr->parent_id_,
-         woRoot,
-         assetAccPtr->derScheme_,
-         dbEnv, db);
+      shared_ptr<AssetAccount> woAccPtr;
+      switch (assetAccPtr->type())
+      {
+      case AssetAccountTypeEnum_Plain:
+      {
+         woAccPtr = make_shared<AssetAccount>(
+            assetAccPtr->id_, assetAccPtr->parent_id_,
+            woRoot,
+            assetAccPtr->derScheme_,
+            dbEnv, db);
+         break;
+      }
+
+      case AssetAccountTypeEnum_ECDH:
+      {
+         woAccPtr = make_shared<AssetAccount_ECDH>(
+            assetAccPtr->id_, assetAccPtr->parent_id_,
+            woRoot,
+            assetAccPtr->derScheme_,
+            dbEnv, db);
+
+         //put derScheme salts
+         auto derSchemePtr = dynamic_pointer_cast<DerivationScheme_ECDH>(
+            assetAccPtr->derScheme_);
+         if (derSchemePtr == nullptr)
+            throw AccountException("unexpected der scheme object type");
+         derSchemePtr->putAllSalts(db);
+
+         break;
+      }
+      }
 
       woAccPtr->lastUsedIndex_ = assetAccPtr->lastUsedIndex_;
 
@@ -1600,6 +1738,27 @@ shared_ptr<Asset_PrivateKey> AddressAccount::fillPrivateKey(
 ////////////////////////////////////////////////////////////////////////////////
 AccountType::~AccountType()
 {}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// AccountType_WithRoot
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+AccountType_WithRoot::~AccountType_WithRoot()
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+void AccountType::setAddressTypes(
+   const std::set<AddressEntryType>& addrTypeSet)
+{
+   addressTypes_ = addrTypeSet;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AccountType::setDefaultAddressType(AddressEntryType addrType)
+{
+   defaultAddressEntryType_ = addrType;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1819,19 +1978,6 @@ void AccountType_BIP32_Custom::setInnerAccountID(const BinaryData& innerAccount)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32_Custom::setAddressTypes(
-   const std::set<AddressEntryType>& addrTypeSet)
-{
-   addressTypes_ = addrTypeSet;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32_Custom::setDefaultAddressType(AddressEntryType addrType)
-{
-   defaultAddressEntryType_ = addrType;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 void AccountType_BIP32_Custom::setPrivateKey(const SecureBinaryData& key)
 {
    privateRoot_ = key;
@@ -1851,6 +1997,46 @@ void AccountType_BIP32_Custom::setChaincode(const SecureBinaryData& key)
 {
    chainCode_ = key;
    derivedChaincode_ = key;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// AccountType_ECDH
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+bool AccountType_ECDH::isWatchingOnly(void) const
+{
+   return privateKey_.getSize() == 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData AccountType_ECDH::getAccountID() const
+{
+   BinaryData accountID;
+   if (isWatchingOnly())
+   {
+      //this ensures address accounts of different types based on the same
+      //bip32 root do not end up with the same id
+      auto rootCopy = publicKey_;
+      rootCopy.getPtr()[0] ^= (uint8_t)type();
+
+      auto&& pub_hash160 = BtcUtils::getHash160(rootCopy);
+      accountID = move(pub_hash160.getSliceCopy(0, 4));
+   }
+   else
+   {
+      auto&& root_pub = CryptoECDSA().ComputePublicKey(privateKey_);
+      root_pub.getPtr()[0] ^= (uint8_t)type();
+
+      auto&& pub_hash160 = BtcUtils::getHash160(root_pub);
+      accountID = move(pub_hash160.getSliceCopy(0, 4));
+   }
+
+   if (accountID == WRITE_UINT32_BE(ARMORY_LEGACY_ACCOUNTID) ||
+      accountID == WRITE_UINT32_BE(IMPORTS_ACCOUNTID))
+      throw AccountException("BIP32 account ID collision");
+
+   return accountID;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

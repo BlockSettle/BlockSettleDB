@@ -234,6 +234,8 @@ SecureBinaryData SerializePublicKey(BTC_PUBKEY const & pubKey)
 SecureBinaryData CryptoECDSA::ComputePublicKey(
    SecureBinaryData const & cppPrivKey, bool compressed) const
 {
+   if (cppPrivKey.getSize() != 32)
+      throw runtime_error("invalid priv key size");
    BTC_PRIVKEY pk = ParsePrivateKey(cppPrivKey);
    BTC_PUBKEY  pub;
    pk.MakePublicKey(pub);
