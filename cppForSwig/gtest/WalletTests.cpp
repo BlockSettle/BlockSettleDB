@@ -1527,6 +1527,175 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, ECDH_Account)
+{
+   //create blank wallet
+   string filename, woFilename;
+
+   auto&& seed = CryptoPRNG::generateRandom(32);
+   auto&& privKey = READHEX(
+      "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F");
+   auto&& pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
+   SecureBinaryData passphrase("password");
+
+   map<unsigned, SecureBinaryData> saltMap;
+
+   {
+      //create empty wallet
+      auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
+         homedir_, seed, passphrase);
+
+      auto passphraseLbd = [&passphrase](const BinaryData&)->SecureBinaryData
+      {
+         return passphrase;
+      };
+      assetWlt->setPassphrasePromptLambda(passphraseLbd);
+
+      //create account
+      auto ecdhAccType =
+         make_shared<AccountType_ECDH>(privKey, pubKey);
+      ecdhAccType->setDefaultAddressType(
+         AddressEntryType_P2WPKH);
+      ecdhAccType->setAddressTypes(
+         { AddressEntryType_P2WPKH });
+      ecdhAccType->setMain(true);
+
+      //add account
+      auto accPtr = assetWlt->createAccount(ecdhAccType);
+      auto accEcdh = dynamic_pointer_cast<AssetAccount_ECDH>(
+         accPtr->getOuterAccount());
+      if (accEcdh == nullptr)
+         throw runtime_error("unexpected account type");
+
+      //add salts
+      for (unsigned i = 0; i < 5; i++)
+      {
+         auto&& salt = CryptoPRNG::generateRandom(32);
+         auto index = accEcdh->addSalt(salt);
+         saltMap.insert(make_pair(index, salt));
+      }
+
+      //grab addresses
+      map<unsigned, BinaryData> addrMap;
+      for (unsigned i = 0; i < 5; i++)
+         addrMap.insert(make_pair(i, accPtr->getNewAddress()->getHash()));
+   
+      //derive locally, check addresses match
+      for (unsigned i = 0; i < 5; i++)
+      {
+         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey, saltMap[i]);
+         auto hash = BtcUtils::getHash160(saltedKey);
+
+         EXPECT_EQ(addrMap[i], hash);
+      }
+
+      filename = assetWlt->getDbFilename();
+   }
+
+   {
+      //reload wallet
+      auto wlt = AssetWallet::loadMainWalletFromFile(filename);
+      auto assetWlt = dynamic_pointer_cast<AssetWallet_Single>(wlt);
+      if (assetWlt == nullptr)
+         throw runtime_error("unexpected wallet type");
+
+      //check existing address set
+      auto&& addrHashSet = assetWlt->getAddrHashSet();
+      EXPECT_EQ(addrHashSet.size(), 5);
+
+      for (unsigned i = 0; i < 5; i++)
+      {
+         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey, saltMap[i]);
+         auto hash = BtcUtils::getHash160(saltedKey);
+         BinaryWriter bwAddr;
+         bwAddr.put_uint8_t(SCRIPT_PREFIX_P2WPKH);
+         bwAddr.put_BinaryData(hash);
+
+         auto iter = addrHashSet.find(bwAddr.getData());
+         EXPECT_NE(iter, addrHashSet.end());
+      }
+
+      auto accID = assetWlt->getMainAccountID();
+      auto accPtr = assetWlt->getAccountForID(accID);
+      auto accEcdh = dynamic_pointer_cast<AssetAccount_ECDH>(
+         accPtr->getOuterAccount());
+      if (accEcdh == nullptr)
+         throw runtime_error("unexpected account type");
+
+      {
+         auto&& salt = CryptoPRNG::generateRandom(32);
+         auto index = accEcdh->addSalt(salt);
+         saltMap.insert(make_pair(index, salt));
+      }
+
+      {
+         //grab another address & check it
+         auto addr = accPtr->getNewAddress()->getHash();
+         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey, saltMap[5]);
+         auto hash = BtcUtils::getHash160(saltedKey);
+
+         EXPECT_EQ(addr, hash);
+      }
+   }
+      
+   woFilename = AssetWallet::forkWathcingOnly(filename);
+
+   //same with WO
+   {
+      //reload wallet
+      auto wlt = AssetWallet::loadMainWalletFromFile(woFilename);
+      auto assetWlt = dynamic_pointer_cast<AssetWallet_Single>(wlt);
+      if (assetWlt == nullptr)
+         throw runtime_error("unexpected wallet type");
+
+      ASSERT_TRUE(assetWlt->isWatchingOnly());
+
+      //check existing address set
+      auto&& addrHashSet = assetWlt->getAddrHashSet();
+      EXPECT_EQ(addrHashSet.size(), 6);
+
+      for (unsigned i = 0; i < 6; i++)
+      {
+         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey, saltMap[i]);
+         auto hash = BtcUtils::getHash160(saltedKey);
+         BinaryWriter bwAddr;
+         bwAddr.put_uint8_t(SCRIPT_PREFIX_P2WPKH);
+         bwAddr.put_BinaryData(hash);
+
+         auto iter = addrHashSet.find(bwAddr.getData());
+         EXPECT_NE(iter, addrHashSet.end());
+      }
+
+      auto accID = assetWlt->getMainAccountID();
+      auto accPtr = assetWlt->getAccountForID(accID);
+      auto accEcdh = dynamic_pointer_cast<AssetAccount_ECDH>(
+         accPtr->getOuterAccount());
+      if (accEcdh == nullptr)
+         throw runtime_error("unexpected account type");
+
+      auto rootAsset = accEcdh->getRoot();
+      auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(rootAsset);
+      ASSERT_NE(rootSingle, nullptr);
+      EXPECT_EQ(rootSingle->getPrivKey(), nullptr);
+
+      {
+         auto&& salt = CryptoPRNG::generateRandom(32);
+         auto index = accEcdh->addSalt(salt);
+         saltMap.insert(make_pair(index, salt));
+      }
+
+      {
+         //grab another address & check it
+         auto addr = accPtr->getNewAddress()->getHash();
+         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey, saltMap[6]);
+         auto hash = BtcUtils::getHash160(saltedKey);
+
+         EXPECT_EQ(addr, hash);
+      }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class WalletMetaDataTest : public ::testing::Test
