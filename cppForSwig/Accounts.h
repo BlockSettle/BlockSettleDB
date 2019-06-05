@@ -116,7 +116,7 @@ struct AccountType
 protected:
    std::set<AddressEntryType> addressTypes_;
    AddressEntryType defaultAddressEntryType_;
-   bool isMain_;
+   bool isMain_ = false;
 
 public:
    //tors
