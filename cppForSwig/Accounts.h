@@ -522,7 +522,7 @@ private:
 
    //<assetID, <address type, prefixed address hash>>
    std::map<BinaryData, std::map<AddressEntryType, BinaryData>> addrHashMap_;
-   bool updateHashMap_ = true;
+   unsigned lastHashedAsset_ = UINT32_MAX;
 
 private:
    size_t writeAssetEntry(std::shared_ptr<AssetEntry>);
@@ -642,6 +642,9 @@ private:
 
    //<prefixed address hash, <assetID, address type>>
    std::map<BinaryData, std::pair<BinaryData, AddressEntryType>> addressHashes_;
+
+   //account id, asset id
+   std::map<BinaryData, BinaryData> topHashedAssetId_;
 
    BinaryData ID_;
    std::shared_ptr<LMDBEnv> dbEnv_ = nullptr;
