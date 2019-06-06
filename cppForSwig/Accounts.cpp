@@ -344,7 +344,6 @@ void AssetAccount::extendPublicChain(
    }
 
    updateOnDiskAssets();
-   updateHashMap_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -430,8 +429,6 @@ void AssetAccount::extendPrivateChain(
       return;
 
    ReentrantLock lock(this);
-   auto lastIndex = getLastComputedIndex();
-
    unsigned assetIndex = UINT32_MAX;
    if (assetPtr != nullptr)
       assetIndex = assetPtr->getIndex();
@@ -466,9 +463,6 @@ void AssetAccount::extendPrivateChain(
    }
 
    updateOnDiskAssets();
-
-   if (assetIndex + count > lastIndex)
-      updateHashMap_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -589,35 +583,44 @@ shared_ptr<AssetEntry> AssetAccount::getAssetForIndex(unsigned id) const
 void AssetAccount::updateAddressHashMap(
    const set<AddressEntryType>& typeSet)
 {
-   if (updateHashMap_ == false)
-      return;
+   auto assetIter = assets_.find(lastHashedAsset_);
+   if (assetIter == assets_.end())
+   {
+      assetIter = assets_.begin();
+   }
+   else
+   {
+      ++assetIter;
+      if (assetIter == assets_.end())
+         return;
+   }
 
    ReentrantLock lock(this);
 
-   for (auto asset : assets_)
+   while (assetIter != assets_.end())
    {
-      auto asset_iter = addrHashMap_.find(asset.second->getID());
-      if (asset_iter == addrHashMap_.end())
+      auto hashMapiter = addrHashMap_.find(assetIter->second->getID());
+      if (hashMapiter == addrHashMap_.end())
       {
-         asset_iter = 
-            addrHashMap_.insert(make_pair(
-               asset.second->getID(), 
-               map<AddressEntryType, BinaryData>())).first;
+         hashMapiter = addrHashMap_.insert(make_pair(
+            assetIter->second->getID(),
+            map<AddressEntryType, BinaryData>())).first;
       }
 
       for (auto ae_type : typeSet)
       {
-         if (asset_iter->second.find(ae_type) != asset_iter->second.end())
+         if (hashMapiter->second.find(ae_type) != hashMapiter->second.end())
             continue;
 
-         auto addrPtr = AddressEntry::instantiate(asset.second, ae_type);
+         auto addrPtr = AddressEntry::instantiate(assetIter->second, ae_type);
          auto& addrHash = addrPtr->getPrefixedHash();
-         addrHashMap_[asset.second->getID()].insert(
+         addrHashMap_[assetIter->second->getID()].insert(
             make_pair(ae_type, addrHash));
       }
-   }
 
-   updateHashMap_ = false;
+      lastHashedAsset_ = assetIter->first;
+      ++assetIter;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1434,16 +1437,38 @@ void AddressAccount::updateAddressHashMap()
    for (auto account : assetAccounts_)
    {
       auto& hashMap = account.second->getAddressHashMap(addressTypes_);
+      if (hashMap.size() == 0)
+         continue;
 
-      for (auto& assetHash : hashMap)
+      map<BinaryData, map<AddressEntryType, BinaryData>>::const_iterator hashMapIter;
+
+      auto idIter = topHashedAssetId_.find(account.first);
+      if (idIter == topHashedAssetId_.end())
       {
-         for (auto& hash : assetHash.second)
+         hashMapIter = hashMap.begin();
+      }
+      else
+      {
+         hashMapIter = hashMap.find(idIter->second);
+         ++hashMapIter;
+
+         if (hashMapIter == hashMap.end())
+            continue;
+      }
+
+      while (hashMapIter != hashMap.end())
+      {
+         for (auto& hash : hashMapIter->second)
          {
-            auto&& inner_pair = make_pair(assetHash.first, hash.first);
+            auto&& inner_pair = make_pair(hashMapIter->first, hash.first);
             auto&& outer_pair = make_pair(hash.second, move(inner_pair));
             addressHashes_.emplace(outer_pair);
          }
+
+         ++hashMapIter;
       }
+
+      topHashedAssetId_[account.first] = hashMap.rbegin()->first;
    }
 }
 
