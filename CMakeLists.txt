@@ -48,4 +48,7 @@ if(MSVC)
     add_compile_definitions(NOMINMAX _WINSOCKAPI_)
 endif()
 
+# we are bundling it for the time being, at least until ubuntu updates their version
+add_subdirectory(libwebsockets)
+
 add_subdirectory(cppForSwig)
