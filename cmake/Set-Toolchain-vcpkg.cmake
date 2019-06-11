@@ -24,14 +24,14 @@ if(VCPKG_TARGET_TRIPLET)
     if(WIN32)
         if(NOT EXISTS ${VCPKG_ROOT}/vcpkg.exe)
             execute_process(
-                COMMAND bootstrap-vcpkg.bat
+                COMMAND ./bootstrap-vcpkg.bat
                 WORKING_DIRECTORY ${VCPKG_ROOT}
             )
         endif()
     else()
         if(NOT EXISTS ${VCPKG_ROOT}/vcpkg)
             execute_process(
-                COMMAND bootstrap-vcpkg.sh
+                COMMAND ./bootstrap-vcpkg.sh
                 WORKING_DIRECTORY ${VCPKG_ROOT}
             )
         endif()
@@ -43,7 +43,7 @@ if(VCPKG_TARGET_TRIPLET)
 
     # build our deps
     execute_process(
-        COMMAND vcpkg install ${VCPKG_DEPS_QUALIFIED}
+        COMMAND ./vcpkg install ${VCPKG_DEPS_QUALIFIED}
         WORKING_DIRECTORY ${VCPKG_ROOT}
     )
 
