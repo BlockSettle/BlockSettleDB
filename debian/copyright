@@ -33,6 +33,10 @@ Files: libwebsockets/win32port/zlib/*
 Copyright: 1995-2010 Jean-loup Gailly and Mark Adler
 License: Zlib
 
+Files: cmake/*
+Copyright: 2019 BlockSettle AB
+License: BSD and MIT
+
 Files: cppForSwig/bech32/*
 Copyright: 2017 Clark Moody
            2017 Shigeyuki Azuchi
@@ -42,7 +46,9 @@ Files: cppForSwig/gtest/*
 Copyright: 2016-2018 goatpig
            2003-2009 Google Inc.
 License: BSD and MIT
-           
+
+Files: cppForSwig/chacha20poly1305/*
+License: public-domain
 
 Files: cppForSwig/libbtc/*
 Copyright: 2015-2017 Jonas Schnelli
@@ -69,9 +75,17 @@ Files: cppForSwig/libbtc/rpctest/test_framework/*
 Copyright: 2013-2016, The Bitcoin Core developers
 License: MIT
 
-Files: cppForSwig/lmdb/*
+Files: cppForSwig/lmdb/* cppForSwig/LMDB_Win/*
 Copyright: 2011-2018 Howard Chu, Symas Corp.
 License: OpenLDAP
+
+Files: cppForSwig/cryptopp/*
+Copyright: 1995-2010 Wei Dai
+License: CryptoPP
+
+Files cppForSwig/leveldbwin/* cppForSwig/leveldb_windows_port/*
+Copyright: 2011 The LevelDB Authors
+License: BSD-3-New
 
 License: MIT
  Permission is hereby granted, free of charge, to any person obtaining a
@@ -149,3 +163,94 @@ License: OpenLDAP
  Copyright 1999-2003 The OpenLDAP Foundation, Redwood City,
  California, USA.  All Rights Reserved.  Permission to copy and
  distribute verbatim copies of this document is granted.
+
+License: CryptoPP
+ Compilation Copyright (c) 1995-2010 by Wei Dai.  All rights reserved.
+ This copyright applies only to this software distribution package 
+ as a compilation, and does not imply a copyright on any particular 
+ file in the package.
+ 
+ All individual files in this compilation are placed in the public domain by
+ Wei Dai and other contributors.
+ 
+ I would like to thank the following authors for placing their works into
+ the public domain:
+ 
+ Joan Daemen - 3way.cpp
+ Leonard Janke - cast.cpp, seal.cpp
+ Steve Reid - cast.cpp
+ Phil Karn - des.cpp
+ Andrew M. Kuchling - md2.cpp, md4.cpp
+ Colin Plumb - md5.cpp
+ Seal Woods - rc6.cpp
+ Chris Morgan - rijndael.cpp
+ Paulo Baretto - rijndael.cpp, skipjack.cpp, square.cpp
+ Richard De Moliner - safer.cpp
+ Matthew Skala - twofish.cpp
+ Kevin Springle - camellia.cpp, shacal2.cpp, ttmac.cpp, whrlpool.cpp, ripemd.cpp
+ 
+ Permission to use, copy, modify, and distribute this compilation for
+ any purpose, including commercial applications, is hereby granted
+ without fee, subject to the following restrictions:
+ 
+ 1. Any copy or modification of this compilation in any form, except
+ in object code form as part of an application software, must include
+ the above copyright notice and this license.
+ 
+ 2. Users of this software agree that any modification or extension
+ they provide to Wei Dai will be considered public domain and not
+ copyrighted unless it includes an explicit copyright notice.
+ 
+ 3. Wei Dai makes no warranty or representation that the operation of the
+ software in this compilation will be error-free, and Wei Dai is under no
+ obligation to provide any services, by way of maintenance, update, or
+ otherwise.  THE SOFTWARE AND ANY DOCUMENTATION ARE PROVIDED "AS IS"
+ WITHOUT EXPRESS OR IMPLIED WARRANTY INCLUDING, BUT NOT LIMITED TO,
+ THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ PURPOSE. IN NO EVENT WILL WEI DAI OR ANY OTHER CONTRIBUTOR BE LIABLE FOR
+ DIRECT, INCIDENTAL OR CONSEQUENTIAL DAMAGES, EVEN IF
+ ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+ 
+ 4. Users will not use Wei Dai or any other contributor's name in any 
+ publicity or advertising, without prior written consent in each case.
+ 
+ 5. Export of this software from the United States may require a
+ specific license from the United States Government.  It is the
+ responsibility of any person or organization contemplating export
+ to obtain such a license before exporting.
+ 
+ 6. Certain parts of this software may be protected by patents.  It
+ is the users' responsibility to obtain the appropriate
+ licenses before using those parts.
+ 
+ If this compilation is used in object code form in an application
+ software, acknowledgement of the author is not required but would be
+ appreciated. The contribution of any useful modifications or extensions
+ to Wei Dai is not required but would also be appreciated.
+
+License: BSD-3-New
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+ 
+    * Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+ copyright notice, this list of conditions and the following disclaimer
+ in the documentation and/or other materials provided with the
+ distribution.
+    * Neither the name of Google Inc. nor the names of its
+ contributors may be used to endorse or promote products derived from
+ this software without specific prior written permission.
+ 
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.

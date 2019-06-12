@@ -49,6 +49,6 @@ if(MSVC)
 endif()
 
 # we are bundling it for the time being, at least until ubuntu updates their version
-add_subdirectory(libwebsockets)
+add_subdirectory(libwebsockets EXCLUDE_FROM_ALL)
 
 add_subdirectory(cppForSwig)
