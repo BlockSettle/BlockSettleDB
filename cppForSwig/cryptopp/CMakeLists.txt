@@ -209,7 +209,9 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "i.86|x86_64" AND CMAKE_CXX_COMPILER_ID STREQU
         endif()
     endif()
 
-    check_x86_cpu_features()
+    if(WITH_HOST_CPU_FEATURES)
+        check_x86_cpu_features()
+    endif()
 
     list(APPEND LIBCRYPTOPP_COMPILE_OPTIONS ${X86_CPU_FEATURES_COMPILER_FLAGS})
 else()
