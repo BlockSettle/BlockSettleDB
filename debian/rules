@@ -1,9 +1,10 @@
 #!/usr/bin/make -f
 
 export DH_VERBOSE = 1
+export DEB_BUILD_OPTIONS = parallel=$(shell nproc)
 
 %:
-	dh $@ --buildsystem=cmake --parallel
+	dh $@ --buildsystem=cmake --parallel --without autoreconf
 
 override_dh_auto_configure:
-	dh_auto_configure -- -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=0 -DLWS_WITH_SSL=0 -DWITH_CRYPTOPP=ON -DWITH_CLIENT=OFF -DWITH_GUI=OFF
+	dh_auto_configure -- -DWITH_CLIENT=OFF -DWITH_GUI=OFF -DWITH_HOST_CPU_FEATURES=OFF

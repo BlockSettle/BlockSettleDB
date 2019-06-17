@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 2.8.12) # ubuntu 14 version
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-set(VCPKG_DEPS protobuf openssl libwebsockets)
+# libwebsockets can be added here instead of bundling
+set(VCPKG_DEPS protobuf)
 
 include(Set-Toolchain-vcpkg)
 
@@ -48,7 +49,24 @@ if(MSVC)
     add_compile_definitions(NOMINMAX _WINSOCKAPI_)
 endif()
 
-# we are bundling it for the time being, at least until ubuntu updates their version
+# we are bundling libwebsockets for the time being, at least until ubuntu
+# updates their version
+
+# this is the right way to set options for sub-projects
+# we allow these to be overridden by the user
+if(NOT DEFINED LWS_SSL_CLIENT_USE_OS_CA_CERTS)
+    set(LWS_SSL_CLIENT_USE_OS_CA_CERTS OFF CACHE BOOL "disable using OS CA certs for libwebsockets" FORCE)
+endif()
+
+if(NOT DEFINED LWS_WITH_SHARED)
+    set(LWS_WITH_SHARED OFF CACHE BOOL "disable building libwebsockets as shared library" FORCE)
+endif()
+
+if(NOT DEFINED LWS_WITH_SSL)
+    set(LWS_WITH_SSL OFF CACHE BOOL "disable SSL support in libwebsockets" FORCE)
+endif()
+
 add_subdirectory(libwebsockets EXCLUDE_FROM_ALL)
 
+# this is the main project
 add_subdirectory(cppForSwig)

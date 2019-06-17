@@ -46,7 +46,7 @@ if(NOT MSVC)
     )
 endif()
 
-option(WITH_CRYPTOPP "use Crypto++ crypto functions" OFF)
+option(WITH_CRYPTOPP "use Crypto++ crypto functions" ON)
 
 unset(LIBARMORYCOMMON_SOURCES)
 unset(LIBARMORYCOMMON_COMPILE_DEFINITIONS)
