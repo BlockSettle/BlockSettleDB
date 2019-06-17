@@ -24,7 +24,7 @@ if(VCPKG_TARGET_TRIPLET)
     if(WIN32)
         if(NOT EXISTS ${VCPKG_ROOT}/vcpkg.exe)
             execute_process(
-                COMMAND ./bootstrap-vcpkg.bat
+                COMMAND bootstrap-vcpkg.bat
                 WORKING_DIRECTORY ${VCPKG_ROOT}
             )
         endif()
@@ -42,10 +42,17 @@ if(VCPKG_TARGET_TRIPLET)
     endforeach()
 
     # build our deps
-    execute_process(
-        COMMAND ./vcpkg install ${VCPKG_DEPS_QUALIFIED}
-        WORKING_DIRECTORY ${VCPKG_ROOT}
-    )
+    if(WIN32)
+        execute_process(
+            COMMAND vcpkg install ${VCPKG_DEPS_QUALIFIED}
+            WORKING_DIRECTORY ${VCPKG_ROOT}
+        )
+    else()
+        execute_process(
+            COMMAND ./vcpkg install ${VCPKG_DEPS_QUALIFIED}
+            WORKING_DIRECTORY ${VCPKG_ROOT}
+        )
+    endif()
 
     if(WIN32 AND VCPKG_TARGET_TRIPLET MATCHES x64)
         set(CMAKE_GENERATOR_PLATFORM x64 CACHE STRING "visual studio build architecture" FORCE)

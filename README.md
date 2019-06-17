@@ -39,7 +39,7 @@ On Windows the procedure is similar:
 mkdir build
 cd build
 cmake .. -DVCPKG_TARGET_TRIPLET=x64-windows
-msbuild /m
+msbuild /m ALL_BUILD.vcxproj
 ```
 
 Overall, Armory tries to use static linking. There will still be a few dependencies, as

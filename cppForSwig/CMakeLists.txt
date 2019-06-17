@@ -46,7 +46,12 @@ if(NOT MSVC)
     )
 endif()
 
-option(WITH_CRYPTOPP "use Crypto++ crypto functions" ON)
+if(WIN32)
+    # TODO: fix cryptopp build on windows
+    option(WITH_CRYPTOPP "use Crypto++ crypto functions" OFF)
+else()
+    option(WITH_CRYPTOPP "use Crypto++ crypto functions" ON)
+endif()
 
 unset(LIBARMORYCOMMON_SOURCES)
 unset(LIBARMORYCOMMON_COMPILE_DEFINITIONS)

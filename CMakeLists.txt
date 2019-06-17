@@ -2,8 +2,11 @@ cmake_minimum_required(VERSION 2.8.12) # ubuntu 14 version
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-# libwebsockets can be added here instead of bundling
-set(VCPKG_DEPS protobuf)
+if(WIN32)
+    set(VCPKG_DEPS protobuf libwebsockets)
+else()
+    set(VCPKG_DEPS protobuf)
+endif()
 
 include(Set-Toolchain-vcpkg)
 
@@ -66,7 +69,9 @@ if(NOT DEFINED LWS_WITH_SSL)
     set(LWS_WITH_SSL OFF CACHE BOOL "disable SSL support in libwebsockets" FORCE)
 endif()
 
-add_subdirectory(libwebsockets EXCLUDE_FROM_ALL)
+if(NOT WIN32)
+    add_subdirectory(libwebsockets EXCLUDE_FROM_ALL)
+endif()
 
 # this is the main project
 add_subdirectory(cppForSwig)

@@ -4,46 +4,48 @@ use_cxx11()
 
 include(CheckIncludeFileCXX)
 
-set(REQUIRED_HEADERS
-    arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h stddef.h stdlib.h
-    string.h sys/ioctl.h sys/socket.h sys/time.h unistd.h
-)
+if(NOT WIN32) # no need to do these checks on windows
+    set(REQUIRED_HEADERS
+        arpa/inet.h fcntl.h limits.h netdb.h netinet/in.h stddef.h stdlib.h
+        string.h sys/ioctl.h sys/socket.h sys/time.h unistd.h
+    )
 
-foreach(header ${REQUIRED_HEADERS})
-    check_include_file_cxx(${header} ${header}_exists)
+    foreach(header ${REQUIRED_HEADERS})
+        check_include_file_cxx(${header} ${header}_exists)
 
-    if(NOT ${header}_exists)
-        message(FATAL_ERROR "required header ${header} not found")
+        if(NOT ${header}_exists)
+            message(FATAL_ERROR "required header ${header} not found")
+        endif()
+    endforeach()
+
+    include(CheckTypeSize)
+
+    foreach(type size_t ssize_t ptrdiff_t)
+        check_type_size(${type} ${type}_exists LANGUAGE CXX)
+
+        if(NOT ${type}_exists)
+            message(FATAL_ERROR "your C++ compiler is missing the required type ${type}")
+        endif()
+    endforeach()
+
+    include(CheckFunctionExists)
+
+    set(save_libs ${CMAKE_REQUIRED_LIBRARIES})
+
+    if(NOT WIN32)
+        set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} m) # math library
     endif()
-endforeach()
 
-include(CheckTypeSize)
+    foreach(func gethostbyname gettimeofday memmove memset pow select setlocale socket)
+        check_function_exists(${func} ${func}_exists)
 
-foreach(type size_t ssize_t ptrdiff_t)
-    check_type_size(${type} ${type}_exists LANGUAGE CXX)
+        if(NOT ${func}_exists)
+            message(FATAL_ERROR "your system is missing the required C library function ${func}")
+        endif()
+    endforeach()
 
-    if(NOT ${type}_exists)
-        message(FATAL_ERROR "your C++ compiler is missing the required type ${type}")
-    endif()
-endforeach()
-
-include(CheckFunctionExists)
-
-set(save_libs ${CMAKE_REQUIRED_LIBRARIES})
-
-if(NOT WIN32)
-    set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} m) # math library
+    set(CMAKE_REQUIRED_LIBRARIES ${save_libs})
 endif()
-
-foreach(func gethostbyname gettimeofday memmove memset pow select setlocale socket)
-    check_function_exists(${func} ${func}_exists)
-
-    if(NOT ${func}_exists)
-        message(FATAL_ERROR "your system is missing the required C library function ${func}")
-    endif()
-endforeach()
-
-set(CMAKE_REQUIRED_LIBRARIES ${save_libs})
 
 set(LIBCRYPTOPP_SOURCES
     3way.cpp
