@@ -96,3 +96,4 @@ The following changes have been made compared to the upstream version of Armory:
   server but not the client). Users who wish to do two-way verification will
   need to invoke `ArmoryDB` with the `--fullbip150` flag, which restores
   ArmoryDB to the default BIP 150 behavior for the upstream ArmoryDB.
+- The default config type is changed from `FULL` to `SUPERNODE`.
