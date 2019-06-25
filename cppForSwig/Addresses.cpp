@@ -607,7 +607,7 @@ shared_ptr<AddressEntry> AddressEntry::instantiate(
    /*creates an address entry based on an asset and an address type*/
    shared_ptr<AddressEntry> addressPtr = nullptr;
 
-   bool isCompressed = aeType && ADDRESS_COMPRESSED_MASK;
+   bool isCompressed = (aeType & ADDRESS_COMPRESSED_MASK) != 0;
 
    switch (aeType & ADDRESS_TYPE_MASK)
    {
