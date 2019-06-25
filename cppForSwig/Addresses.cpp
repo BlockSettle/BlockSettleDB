@@ -372,7 +372,7 @@ const BinaryData& AddressEntry_Multisig::getScript() const
             dynamic_pointer_cast<AssetEntry_Single>(asset.second);
 
          if (assetSingle == nullptr)
-            AssetException("unexpected asset entry type");
+            throw AssetException("unexpected asset entry type");
 
          if (isCompressed())
          {
