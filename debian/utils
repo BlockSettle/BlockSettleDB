@@ -1,0 +1,47 @@
+#!/usr/bin/make -f
+
+export DEBEMAIL = hello@blocksettle.com
+export DEBFULLNAME = BlockSettle AB
+
+export DEB_VENDOR = Debian
+
+export pub_version = 0.97
+
+all:
+
+rebuild:
+	set -e; \
+	dpkg-buildpackage -us -uc -S; \
+	deb_version=`dpkg-parsechangelog --show-field Version`; \
+	cd ..; \
+	ln -sf armorydb_$${deb_version}.dsc armorydb.dsc
+
+prepare:
+	set -e; \
+	git pull; \
+	git_commit_name=HEAD; \
+	git_commit_hash="`TZ=UTC git log -1 "$${git_commit_name}" --format='%h'`"; \
+	git_commit_date="`TZ=UTC git log -1 "$${git_commit_hash}" --format='%cd' --date=short-local`"; \
+	git_commit_line="`TZ=UTC git log --reverse --format='%h' --since="$${git_commit_date}T00:00:00Z" --until="$${git_commit_date}T23:59:59Z" \
+		| grep -n "$${git_commit_hash}" | cut -f1 -d ":"`"; \
+	git_commit_date="`echo $${git_commit_date} | tr -d "-"`"; \
+	deb_version=$${pub_version}~git$${git_commit_date}.$${git_commit_line}.$${git_commit_hash}; \
+	dch --check-dirname-level 0 --newversion "$${deb_version}" "New upstream release"; \
+	dch --release ""; \
+	git commit -am "New debian package"
+
+distrib:
+	set -e; \
+	git checkout -- debian/changelog; \
+	deb_distrib="$${deb_distrib:-unstable}"; \
+	dch --local "~$${deb_distrib}" "No change backport to $${deb_distrib}" --distribution "$${deb_distrib}"; \
+	dpkg-buildpackage -us -uc -S; \
+	deb_version=`dpkg-parsechangelog --show-field Version`; \
+	cd ..; \
+	ln -sf armorydb_$${deb_version}.dsc armorydb~$${deb_distrib}.dsc
+
+backports:
+	deb_distrib=bionic $(MAKE) -f debian/utils distrib
+	deb_distrib=cosmic $(MAKE) -f debian/utils distrib
+	deb_distrib=disco $(MAKE) -f debian/utils distrib
+	deb_distrib=xenial $(MAKE) -f debian/utils distrib
