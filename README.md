@@ -52,7 +52,7 @@ is to be distributed or moved. Or somewhere in the `PATH` environment variable.
 
 TODO: use static vcpkg triplet for windows
 
-### CMake options
+### CMake Options
 
 | **Option**                  | **Description**                                                                          | **Default**                    |
 |-----------------------------|------------------------------------------------------------------------------------------|--------------------------------|
@@ -97,3 +97,27 @@ The following changes have been made compared to the upstream version of Armory:
   need to invoke `ArmoryDB` with the `--fullbip150` flag, which restores
   ArmoryDB to the default BIP 150 behavior for the upstream ArmoryDB.
 - The default config type is changed from `FULL` to `SUPERNODE`.
+
+## Merging Upstream
+
+Make sure you have the `upstream` remote in git, this will list your configured remotes:
+
+```bash
+git remote -v
+```
+
+to add it do:
+
+```bash
+git remote add upstream git@github.com:goatpig/BitcoinArmory
+```
+
+to fetch upstream changes and merge them, do:
+
+
+```bash
+git fetch --all --prune
+git merge upstream/dev
+```
+
+if you get conflicts you will need to resolve them.
