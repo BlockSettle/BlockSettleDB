@@ -3944,11 +3944,11 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 
       //wallet balance
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[0], 70 * COIN);
-      EXPECT_EQ(iter2->second.walletBalanceAndCount_[1], 70 * COIN);
-      EXPECT_EQ(iter2->second.walletBalanceAndCount_[2], 0);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[1], 20 * COIN);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[2], 70 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 12);
 
-      //scrAddrA balance
+      //scrAddrB balance
       auto addrIter2 = iter2->second.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(addrIter2, iter2->second.addressBalances_.end());
       ASSERT_EQ(addrIter2->second.size(), 3);
