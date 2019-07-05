@@ -71,6 +71,7 @@ endif()
 
 if(NOT WIN32)
     add_subdirectory(libwebsockets EXCLUDE_FROM_ALL)
+    set(LIBWEBSOCKETS_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/libwebsockets/include ${CMAKE_BINARY_DIR}/libwebsockets/include CACHE PATH "libwebsockets include dirs" FORCE)
 endif()
 
 # this is the main project

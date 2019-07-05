@@ -2363,7 +2363,8 @@ export(PACKAGE libwebsockets)
 
 # Generate the config file for the build-tree.
 set(LWS__INCLUDE_DIRS 
-    "${PROJECT_BINARY_DIR}/include")
+    "${PROJECT_SOURCE_DIR}/lib"
+    "${PROJECT_BINARY_DIR}")
 set(LIBWEBSOCKETS_INCLUDE_DIRS ${LWS__INCLUDE_DIRS} CACHE PATH "Libwebsockets include directories")
 configure_file(${PROJECT_SOURCE_DIR}/cmake/LibwebsocketsConfig.cmake.in
                 ${PROJECT_BINARY_DIR}/LibwebsocketsConfig.cmake 

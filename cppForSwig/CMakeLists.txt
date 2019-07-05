@@ -79,14 +79,14 @@ endif()
 if(TARGET websockets) # we are bundling it
     set(LIBWEBSOCKETS_LIBRARIES websockets)
 elseif(CMAKE_TOOLCHAIN_FILE MATCHES vcpkg)
-    find_package(Libwebsockets CONFIG REQUIRED)
+    find_package(libwebsockets CONFIG REQUIRED)
     set(LIBWEBSOCKETS_LIBRARIES websockets_shared)
 else()
     pkg_check_modules(LIBWEBSOCKETS REQUIRED libwebsockets>=3.0.1)
 endif()
 
-include_directories(
-    ${LIBWEBSOCKETS_INCLUDE_DIRS}
+list(APPEND LIBARMORYCOMMON_INCLUDE_DIRECTORIES
+    PUBLIC ${LIBWEBSOCKETS_INCLUDE_DIRS}
 )
 
 list(APPEND LIBARMORYCOMMON_LINK_LIBRARIES
@@ -521,7 +521,8 @@ if(WITH_CLIENT)
     # rewrite prefix for armory script
     add_custom_command(
         OUTPUT  ${PROJECT_BINARY_DIR}/armory
-        COMMAND ${CMAKE_COMMAND} -Dscript_file=${PROJECT_SOURCE_DIR}/dpkgfiles/armory
+        COMMAND ${CMAKE_COMMAND} -Dscript_name=armory
+                                 -Dscript_file=${PROJECT_SOURCE_DIR}/dpkgfiles/armory
                                  -Dscript_output_file=${PROJECT_BINARY_DIR}/armory
                                  -Dscript_dir=${PROJECT_BINARY_DIR}
                                  -Dprefix=${CMAKE_INSTALL_PREFIX}
