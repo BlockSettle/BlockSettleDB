@@ -72,19 +72,21 @@ else()
     list(APPEND LIBARMORYCOMMON_SOURCES EncryptionUtils_libbtc.cpp)
 endif()
 
+if(NOT CMAKE_TOOLCHAIN_FILE MATCHES vcpkg)
+    find_package(PkgConfig REQUIRED)
+endif()
+
 if(TARGET websockets) # we are bundling it
     set(LIBWEBSOCKETS_LIBRARIES websockets)
 elseif(CMAKE_TOOLCHAIN_FILE MATCHES vcpkg)
     find_package(Libwebsockets CONFIG REQUIRED)
     set(LIBWEBSOCKETS_LIBRARIES websockets_shared)
 else()
-    find_package(PkgConfig REQUIRED)
-
     pkg_check_modules(LIBWEBSOCKETS REQUIRED libwebsockets>=3.0.1)
 endif()
 
-list(APPEND LIBARMORYCOMMON_INCLUDE_DIRECTORIES
-    PRIVATE ${LIBWEBSOCKETS_INCLUDE_DIRS}
+include_directories(
+    ${LIBWEBSOCKETS_INCLUDE_DIRS}
 )
 
 list(APPEND LIBARMORYCOMMON_LINK_LIBRARIES
