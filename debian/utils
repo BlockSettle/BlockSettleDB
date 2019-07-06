@@ -19,6 +19,7 @@ rebuild:
 prepare:
 	set -e; \
 	git pull; \
+	git checkout -- debian/changelog; \
 	git_commit_name=HEAD; \
 	git_commit_hash="`TZ=UTC git log -1 "$${git_commit_name}" --format='%h'`"; \
 	git_commit_date="`TZ=UTC git log -1 "$${git_commit_hash}" --format='%cd' --date=short-local`"; \
@@ -28,7 +29,7 @@ prepare:
 	deb_version=$${pub_version}~git$${git_commit_date}.$${git_commit_line}.$${git_commit_hash}; \
 	dch --check-dirname-level 0 --newversion "$${deb_version}" "New upstream release"; \
 	dch --release ""; \
-	git commit -am "New debian package"
+	git commit -m "New debian package" -- debian/changelog
 
 distrib:
 	set -e; \
@@ -37,6 +38,7 @@ distrib:
 	dch --local "~$${deb_distrib}" "No change backport to $${deb_distrib}" --distribution "$${deb_distrib}"; \
 	dpkg-buildpackage -us -uc -S; \
 	deb_version=`dpkg-parsechangelog --show-field Version`; \
+	git checkout -- debian/changelog; \
 	cd ..; \
 	ln -sf armorydb_$${deb_version}.dsc armorydb~$${deb_distrib}.dsc
 
