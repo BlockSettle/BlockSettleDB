@@ -27,11 +27,9 @@
 #ifndef __LIBBTC_BTC_H__
 #define __LIBBTC_BTC_H__
 
-#include <limits.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#ifdef __linux__
+#define _BSD_SOURCE
+#endif
 
 #ifdef HAVE_CONFIG_H
 #include "libbtc-config.h"
@@ -40,6 +38,12 @@
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
+
+#include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 typedef uint8_t btc_bool; //!serialize, c/c++ save bool
 
