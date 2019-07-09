@@ -1408,10 +1408,22 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       501
    };
 
+   vector<unsigned> derivationPath2 = {
+   0x80000050,
+   0x800005de,
+   0x8000ee4f,
+   327
+   };
+
    auto&& seed = CryptoPRNG::generateRandom(32);
-   auto&& salt = CryptoPRNG::generateRandom(32);
+   auto&& salt1 = CryptoPRNG::generateRandom(32);
+   auto&& salt2 = CryptoPRNG::generateRandom(32);
+
    string filename;
    BinaryData accountID1;
+   BinaryData accountID2;
+
+   set<BinaryData> addrHashSet;
 
    {
       //create empty wallet
@@ -1425,41 +1437,82 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       };
       assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
-      auto saltedAccType = 
-         make_shared<AccountType_BIP32_Salted>(salt);   
-      saltedAccType->setAddressLookup(40);
-      saltedAccType->setDefaultAddressType(
+      //create accounts
+      auto saltedAccType1 = 
+         make_shared<AccountType_BIP32_Salted>(salt1);   
+      saltedAccType1->setAddressLookup(40);
+      saltedAccType1->setDefaultAddressType(
          AddressEntryType_P2WPKH);
-      saltedAccType->setAddressTypes(
-         {AddressEntryType_P2WPKH});
+      saltedAccType1->setAddressTypes(
+         { AddressEntryType_P2WPKH });
+
+      auto saltedAccType2 =
+         make_shared<AccountType_BIP32_Salted>(salt2);
+      saltedAccType2->setAddressLookup(40);
+      saltedAccType2->setDefaultAddressType(
+         AddressEntryType_P2WPKH);
+      saltedAccType2->setAddressTypes(
+         { AddressEntryType_P2WPKH });
 
       //add bip32 account for derivationPath1
       accountID1 = assetWlt->createBIP32Account(
-         nullptr, derivationPath1, saltedAccType);
+         nullptr, derivationPath1, saltedAccType1);
 
-      auto accountSalted = assetWlt->getAccountForID(
+      //add bip32 account for derivationPath2
+      accountID2 = assetWlt->createBIP32Account(
+         nullptr, derivationPath2, saltedAccType2);
+
+      //grab the accounts
+      auto accountSalted1 = assetWlt->getAccountForID(
          accountID1);
+      auto accountSalted2 = assetWlt->getAccountForID(
+         accountID2);
 
       //grab 10 addresses
-      vector<shared_ptr<AddressEntry>> addrVec;
-      for (unsigned i=0; i<10; i++)
-         addrVec.push_back(accountSalted->getNewAddress());
+      vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
+      for (unsigned i = 0; i < 10; i++)
+      {
+         addrVec1.push_back(accountSalted1->getNewAddress());
+         addrVec2.push_back(accountSalted2->getNewAddress());
+      }
 
       //derive from seed
-      BIP32_Node seedNode;
-      seedNode.initFromSeed(seed);
-      for (auto& derId : derivationPath1)
-         seedNode.derivePrivate(derId);
-
-      for(unsigned i=0; i<10; i++)
       {
-         auto nodeCopy = seedNode;
-         nodeCopy.derivePrivate(i);
-         auto pubkey = nodeCopy.getPublicKey();
-         auto&& saltedKey = 
-            CryptoECDSA::PubKeyScalarMultiply(pubkey, salt);
-         EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath1)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt1);
+            EXPECT_EQ(saltedKey, addrVec1[i]->getPreimage());
+         }
       }
+
+      {
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath2)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt2);
+            EXPECT_EQ(saltedKey, addrVec2[i]->getPreimage());
+         }
+      }
+
+      addrHashSet = assetWlt->getAddrHashSet();
+      ASSERT_EQ(addrHashSet.size(), 80);
 
       //shut down the wallet
       filename = assetWlt->getDbFilename();
@@ -1468,28 +1521,58 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
    {
       auto assetWlt = AssetWallet::loadMainWalletFromFile(filename);
       auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(assetWlt);
-      auto accountSalted = wltSingle->getAccountForID(accountID1);
+      
+      auto accountSalted1 = wltSingle->getAccountForID(accountID1);
+      auto accountSalted2 = wltSingle->getAccountForID(accountID2);
+
+      //check current address map
+      EXPECT_EQ(addrHashSet, assetWlt->getAddrHashSet());
 
       //grab more 10 addresses
-      vector<shared_ptr<AddressEntry>> addrVec;
-      for (unsigned i=0; i<10; i++)
-         addrVec.push_back(accountSalted->getNewAddress());
+      vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
+      for (unsigned i = 0; i < 10; i++)
+      {
+         addrVec1.push_back(accountSalted1->getNewAddress());
+         addrVec2.push_back(accountSalted2->getNewAddress());
+      }
 
       //derive from seed
-      BIP32_Node seedNode;
-      seedNode.initFromSeed(seed);
-      for (auto& derId : derivationPath1)
-         seedNode.derivePrivate(derId);
-
-      for(unsigned i=0; i<10; i++)
       {
-         auto nodeCopy = seedNode;
-         nodeCopy.derivePrivate(i+10);
-         auto pubkey = nodeCopy.getPublicKey();
-         auto&& saltedKey = 
-            CryptoECDSA::PubKeyScalarMultiply(pubkey, salt);
-         EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath1)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i + 10);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt1);
+            EXPECT_EQ(saltedKey, addrVec1[i]->getPreimage());
+         }
       }
+
+      {
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath2)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i + 10);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt2);
+            EXPECT_EQ(saltedKey, addrVec2[i]->getPreimage());
+         }
+      }
+
+      addrHashSet = assetWlt->getAddrHashSet();
+      ASSERT_EQ(addrHashSet.size(), 80);
 
       //create WO copy
       filename = AssetWallet_Single::forkWathcingOnly(filename);
@@ -1500,28 +1583,52 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(assetWlt);
 
       ASSERT_TRUE(wltSingle->isWatchingOnly());
+      EXPECT_EQ(addrHashSet, assetWlt->getAddrHashSet());
 
-      auto accountSalted = wltSingle->getAccountForID(accountID1);
+      auto accountSalted1 = wltSingle->getAccountForID(accountID1);
+      auto accountSalted2 = wltSingle->getAccountForID(accountID2);
 
       //grab more 10 addresses
-      vector<shared_ptr<AddressEntry>> addrVec;
-      for (unsigned i=0; i<10; i++)
-         addrVec.push_back(accountSalted->getNewAddress());
+      vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
+      for (unsigned i = 0; i < 10; i++)
+      {
+         addrVec1.push_back(accountSalted1->getNewAddress());
+         addrVec2.push_back(accountSalted2->getNewAddress());
+      }
 
       //derive from seed
-      BIP32_Node seedNode;
-      seedNode.initFromSeed(seed);
-      for (auto& derId : derivationPath1)
-         seedNode.derivePrivate(derId);
-
-      for(unsigned i=0; i<10; i++)
       {
-         auto nodeCopy = seedNode;
-         nodeCopy.derivePrivate(i+20);
-         auto pubkey = nodeCopy.getPublicKey();
-         auto&& saltedKey = 
-            CryptoECDSA::PubKeyScalarMultiply(pubkey, salt);
-         EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath1)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i + 20);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt1);
+            EXPECT_EQ(saltedKey, addrVec1[i]->getPreimage());
+         }
+      }
+
+      {
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath2)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i + 20);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt2);
+            EXPECT_EQ(saltedKey, addrVec2[i]->getPreimage());
+         }
       }
    }
 }
