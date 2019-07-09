@@ -143,6 +143,12 @@ target_compile_definitions(btc
     PUBLIC HAVE_CONFIG_H
 )
 
+if(CMAKE_C_COMPILER_ID STREQUAL GNU OR CMAKE_C_COMPILER_ID STREQUAL Clang)
+    target_compile_options(btc
+        PRIVATE -std=c99
+    )
+endif()
+
 if(LIBBTC_WITH_TOOLS)
     add_executable(bitcointool
         src/tools/bitcointool.c

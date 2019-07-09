@@ -5,7 +5,7 @@
 # This file is a "template" file used by various FindPython modules.
 #
 
-cmake_policy (VERSION 3.7)
+cmake_policy (VERSION 2.8.12)
 
 #
 # Initial configuration
@@ -117,7 +117,7 @@ function (_PYTHON_VALIDATE_INTERPRETER)
     endif()
   endif()
 
-  if (CMAKE_SIZEOF_VOID_P AND "Development" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
+  if (CMAKE_SIZEOF_VOID_P AND ${_PYTHON_PREFIX}_FIND_COMPONENTS MATCHES Development
       AND NOT CMAKE_CROSSCOMPILING)
     # In this case, interpreter must have same architecture as environment
     execute_process (COMMAND "${${_PYTHON_PREFIX}_EXECUTABLE}" -c
@@ -298,7 +298,7 @@ unset (_${_PYTHON_PREFIX}_CACHED_VARS)
 
 
 # first step, search for the interpreter
-if ("Interpreter" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS)
+if (${_PYTHON_PREFIX}_FIND_COMPONENTS MATCHES Interpreter)
   if (${_PYTHON_PREFIX}_FIND_REQUIRED_Interpreter)
     list (APPEND _${_PYTHON_PREFIX}_REQUIRED_VARS ${_PYTHON_PREFIX}_EXECUTABLE)
     list (APPEND _${_PYTHON_PREFIX}_CACHED_VARS ${_PYTHON_PREFIX}_EXECUTABLE)
@@ -541,7 +541,7 @@ endif()
 
 
 # second step, search for compiler (IronPython)
-if ("Compiler" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS)
+if (${_PYTHON_PREFIX}_FIND_COMPONENTS MATCHES Compiler)
   if (${_PYTHON_PREFIX}_FIND_REQUIRED_Compiler)
     list (APPEND _${_PYTHON_PREFIX}_REQUIRED_VARS ${_PYTHON_PREFIX}_COMPILER)
     list (APPEND _${_PYTHON_PREFIX}_CACHED_VARS ${_PYTHON_PREFIX}_COMPILER)
@@ -651,7 +651,7 @@ endif()
 
 # third step, search for the development artifacts
 ## Development environment is not compatible with IronPython interpreter
-if ("Development" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
+if (${_PYTHON_PREFIX}_FIND_COMPONENTS MATCHES Development
     AND NOT ${_PYTHON_PREFIX}_INTERPRETER_ID STREQUAL "IronPython")
   if (${_PYTHON_PREFIX}_FIND_REQUIRED_Development)
     list (APPEND _${_PYTHON_PREFIX}_REQUIRED_VARS ${_PYTHON_PREFIX}_LIBRARY
@@ -703,14 +703,14 @@ if ("Development" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
     list (APPEND _${_PYTHON_PREFIX}_CONFIG_NAMES "python${_${_PYTHON_PREFIX}_VERSION}-config")
     find_program (_${_PYTHON_PREFIX}_CONFIG
                   NAMES ${_${_PYTHON_PREFIX}_CONFIG_NAMES}
-                  NAMES_PER_DIR
                   HINTS ${_${_PYTHON_PREFIX}_HINTS}
                   PATH_SUFFIXES bin)
     unset (_${_PYTHON_PREFIX}_CONFIG_NAMES)
 
-    if (NOT _${_PYTHON_PREFIX}_CONFIG)
-      continue()
-    endif()
+    if (_${_PYTHON_PREFIX}_CONFIG)
+
+    unset(skip)
+
     if (DEFINED CMAKE_LIBRARY_ARCHITECTURE)
       # check that config tool match library architecture
       execute_process (COMMAND "${_${_PYTHON_PREFIX}_CONFIG}" --configdir
@@ -720,14 +720,17 @@ if ("Development" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
                        OUTPUT_STRIP_TRAILING_WHITESPACE)
       if (_${_PYTHON_PREFIX}_RESULT)
         unset (_${_PYTHON_PREFIX}_CONFIG CACHE)
-        continue()
-      endif()
-      string(FIND "${_${_PYTHON_PREFIX}_CONFIGDIR}" "${CMAKE_LIBRARY_ARCHITECTURE}" _${_PYTHON_PREFIX}_RESULT)
-      if (_${_PYTHON_PREFIX}_RESULT EQUAL -1)
-        unset (_${_PYTHON_PREFIX}_CONFIG CACHE)
-        continue()
+        set(skip TRUE)
+      else()
+        string(FIND "${_${_PYTHON_PREFIX}_CONFIGDIR}" "${CMAKE_LIBRARY_ARCHITECTURE}" _${_PYTHON_PREFIX}_RESULT)
+        if (_${_PYTHON_PREFIX}_RESULT EQUAL -1)
+          unset (_${_PYTHON_PREFIX}_CONFIG CACHE)
+          set(skip TRUE)
+        endif()
       endif()
     endif()
+
+    if(NOT skip)
 
     # retrieve root install directory
     execute_process (COMMAND "${_${_PYTHON_PREFIX}_CONFIG}" --prefix
@@ -738,8 +741,11 @@ if ("Development" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
     if (_${_PYTHON_PREFIX}_RESULT)
       # python-config is not usable
       unset (_${_PYTHON_PREFIX}_CONFIG CACHE)
-      continue()
+      set(skip TRUE)
     endif()
+
+    if(NOT skip)
+
     set (_${_PYTHON_PREFIX}_HINTS "${_${_PYTHON_PREFIX}_PREFIX}" "${${_PYTHON_PREFIX}_ROOT_DIR}" ENV ${_PYTHON_PREFIX}_ROOT_DIR)
 
     # retrieve library
@@ -799,6 +805,10 @@ if ("Development" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
 
     if (${_PYTHON_PREFIX}_LIBRARY_RELEASE AND ${_PYTHON_PREFIX}_INCLUDE_DIR)
       break()
+    endif()
+
+    endif()
+    endif()
     endif()
   endforeach()
 
@@ -1133,7 +1143,7 @@ find_package_handle_standard_args (${_PYTHON_PREFIX}
                                    HANDLE_COMPONENTS)
 
 # Create imported targets and helper functions
-if ("Interpreter" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
+if (${_PYTHON_PREFIX}_FIND_COMPONENTS MATCHES Interpreter
     AND ${_PYTHON_PREFIX}_Interpreter_FOUND
     AND NOT TARGET ${_PYTHON_PREFIX}::Interpreter)
   add_executable (${_PYTHON_PREFIX}::Interpreter IMPORTED)
@@ -1141,7 +1151,7 @@ if ("Interpreter" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
                 PROPERTY IMPORTED_LOCATION "${${_PYTHON_PREFIX}_EXECUTABLE}")
 endif()
 
-if ("Compiler" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
+if (${_PYTHON_PREFIX}_FIND_COMPONENTS MATCHES Compiler
     AND ${_PYTHON_PREFIX}_Compiler_FOUND
     AND NOT TARGET ${_PYTHON_PREFIX}::Compiler)
   add_executable (${_PYTHON_PREFIX}::Compiler IMPORTED)
@@ -1149,7 +1159,7 @@ if ("Compiler" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
                 PROPERTY IMPORTED_LOCATION "${${_PYTHON_PREFIX}_COMPILER}")
 endif()
 
-if ("Development" IN_LIST ${_PYTHON_PREFIX}_FIND_COMPONENTS
+if (${_PYTHON_PREFIX}_FIND_COMPONENTS MATCHES Development
     AND ${_PYTHON_PREFIX}_Development_FOUND AND NOT TARGET ${_PYTHON_PREFIX}::Python)
 
   if (${_PYTHON_PREFIX}_LIBRARY_RELEASE MATCHES "${CMAKE_SHARED_LIBRARY_SUFFIX}$"

@@ -33,6 +33,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef HAVE_CONFIG_H
+#include "libbtc-config.h"
+#endif
+
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+
 typedef uint8_t btc_bool; //!serialize, c/c++ save bool
 
 #ifndef true
