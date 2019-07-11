@@ -622,6 +622,7 @@ public:
    {}
 
    unsigned addSalt(const SecureBinaryData&);
+   unsigned getSaltIndex(const SecureBinaryData&) const;
 };
 
 
