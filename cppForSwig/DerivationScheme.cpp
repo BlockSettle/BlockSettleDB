@@ -772,3 +772,13 @@ DerivationScheme_ECDH::computeNextPrivateEntry(
    return make_shared<AssetEntry_Single>(
       index, accountID, saltedPubKey, nextPrivKey);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+unsigned DerivationScheme_ECDH::getSaltIndex(const SecureBinaryData& salt)
+{
+   auto iter = saltMap_.find(salt);
+   if (iter == saltMap_.end())
+      throw DerivationSchemeException("missing salt");
+
+   return iter->second;
+}

@@ -231,6 +231,7 @@ public:
    //locals
    unsigned addSalt(const SecureBinaryData&, LMDB*);
    void putAllSalts(LMDB*);
+   unsigned getSaltIndex(const SecureBinaryData&);
 };
 
 #endif
