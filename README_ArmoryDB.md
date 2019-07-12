@@ -20,7 +20,7 @@ The flags are explained below, as seen in the Armory source code. By default, li
 * db-type: Sets the db type. Database type cannot be changed in between Armory runs. Once a database has been built with a certain type, the database will always function according to the initial type; specifying another type will do nothing. Changing the database type requires rebuilding the database. (Default: DB\_SUPER)
 * dbdir: Path to folder containing the Armory database file directory. If empty, a new database will be created. (Default: Same as Armory)
 * satoshi-datadir: Path to blockchain data folder (blkXXXXX.dat files). (Default: Same as Armory)
-* public: The flag ensure the broadcast of the ArmoryDB ID Key and disable the two-sided authentication so that the Terminal ID Key doesn't need to be present in ArmoryDB prior to establishing a connection.
+* public: The flag ensures the broadcast of the ArmoryDB ID Key and disables the two-sided authentication so that the Terminal ID Key doesn't need to be present in ArmoryDB prior to establishing a connection (Default: True).
 
 The database types are as follows:
 
