@@ -1,3 +1,9 @@
+armorydb (0.97~git20190712.5.cbbcf017) unstable; urgency=medium
+
+  * New upstream release
+
+ -- BlockSettle AB <hello@blocksettle.com>  Fri, 12 Jul 2019 08:40:53 +0000
+
 armorydb (0.97~git20190307.1.b9a6268-1) unstable; urgency=medium
 
   * New upstream release
