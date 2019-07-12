@@ -17,15 +17,15 @@ The flags are explained below, as seen in the Armory source code. By default, li
 
 * cookie: Create a cookie file holding a random authentication key to allow local clients to make use of elevated commands (e.g., `shutdown`). (Default: False)
 * datadir: Path to the Armory data folder. (Default: Same as Armory)
-* db-type: Sets the db type. Database type cannot be changed in between Armory runs. Once a database has been built with a certain type, the database will always function according to the initial type; specifying another type will do nothing. Changing the database type requires rebuilding the database. (Default: DB\_FULL)
+* db-type: Sets the db type. Database type cannot be changed in between Armory runs. Once a database has been built with a certain type, the database will always function according to the initial type; specifying another type will do nothing. Changing the database type requires rebuilding the database. (Default: DB\_SUPER)
 * dbdir: Path to folder containing the Armory database file directory. If empty, a new database will be created. (Default: Same as Armory)
 * satoshi-datadir: Path to blockchain data folder (blkXXXXX.dat files). (Default: Same as Armory)
 
 The database types are as follows:
 
 * DB\_BARE: Tracks wallet history only. Smallest DB, as the DB doesn't resolve a wallet's relevant transaction hashes until requested. (In other words, database accesses will be relatively slow.) This was the default database type in Armory v0.94.
-* DB\_FULL: Tracks wallet history and resolves all relevant transaction hashes. (In other words, the database can instantly pull up relevant transaction data). ~1GB minimum size for the database. Default database type as of v0.95.
-* DB\_SUPER: Tracks the entire blockchain history. Any transaction hash can be instantly resolved into its relevant data. Not fully implemented yet, and the database will be at least ~100GB large.
+* DB\_FULL: Tracks wallet history and resolves all relevant transaction hashes. (In other words, the database can instantly pull up relevant transaction data). ~1GB minimum size for the database. This was the default database type in Armory v0.96.5.
+* DB\_SUPER: Tracks the entire blockchain history. Any transaction hash can be instantly resolved into its relevant data. Not fully implemented yet, and the database will be at least ~100GB large. Default database type.
 
 There are additional flags.
 
