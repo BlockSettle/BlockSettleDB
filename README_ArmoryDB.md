@@ -25,7 +25,7 @@ The database types are as follows:
 
 * DB\_BARE: Tracks wallet history only. Smallest DB, as the DB doesn't resolve a wallet's relevant transaction hashes until requested. (In other words, database accesses will be relatively slow.) This was the default database type in Armory v0.94.
 * DB\_FULL: Tracks wallet history and resolves all relevant transaction hashes. (In other words, the database can instantly pull up relevant transaction data). ~1GB minimum size for the database. This was the default database type in Armory v0.96.5.
-* DB\_SUPER: Tracks the entire blockchain history. Any transaction hash can be instantly resolved into its relevant data. Not fully implemented yet, and the database will be at least ~100GB large. Default database type.
+* DB\_SUPER: Tracks the entire blockchain history. Any transaction hash can be instantly resolved into its relevant data. The database will be at least ~100GB large. Default database type.
 
 There are additional flags.
 
