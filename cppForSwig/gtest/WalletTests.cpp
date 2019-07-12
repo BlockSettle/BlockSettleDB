@@ -1408,10 +1408,22 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       501
    };
 
+   vector<unsigned> derivationPath2 = {
+   0x80000050,
+   0x800005de,
+   0x8000ee4f,
+   327
+   };
+
    auto&& seed = CryptoPRNG::generateRandom(32);
-   auto&& salt = CryptoPRNG::generateRandom(32);
+   auto&& salt1 = CryptoPRNG::generateRandom(32);
+   auto&& salt2 = CryptoPRNG::generateRandom(32);
+
    string filename;
    BinaryData accountID1;
+   BinaryData accountID2;
+
+   set<BinaryData> addrHashSet;
 
    {
       //create empty wallet
@@ -1425,41 +1437,82 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       };
       assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
-      auto saltedAccType = 
-         make_shared<AccountType_BIP32_Salted>(salt);   
-      saltedAccType->setAddressLookup(40);
-      saltedAccType->setDefaultAddressType(
+      //create accounts
+      auto saltedAccType1 = 
+         make_shared<AccountType_BIP32_Salted>(salt1);   
+      saltedAccType1->setAddressLookup(40);
+      saltedAccType1->setDefaultAddressType(
          AddressEntryType_P2WPKH);
-      saltedAccType->setAddressTypes(
-         {AddressEntryType_P2WPKH});
+      saltedAccType1->setAddressTypes(
+         { AddressEntryType_P2WPKH });
+
+      auto saltedAccType2 =
+         make_shared<AccountType_BIP32_Salted>(salt2);
+      saltedAccType2->setAddressLookup(40);
+      saltedAccType2->setDefaultAddressType(
+         AddressEntryType_P2WPKH);
+      saltedAccType2->setAddressTypes(
+         { AddressEntryType_P2WPKH });
 
       //add bip32 account for derivationPath1
       accountID1 = assetWlt->createBIP32Account(
-         nullptr, derivationPath1, saltedAccType);
+         nullptr, derivationPath1, saltedAccType1);
 
-      auto accountSalted = assetWlt->getAccountForID(
+      //add bip32 account for derivationPath2
+      accountID2 = assetWlt->createBIP32Account(
+         nullptr, derivationPath2, saltedAccType2);
+
+      //grab the accounts
+      auto accountSalted1 = assetWlt->getAccountForID(
          accountID1);
+      auto accountSalted2 = assetWlt->getAccountForID(
+         accountID2);
 
       //grab 10 addresses
-      vector<shared_ptr<AddressEntry>> addrVec;
-      for (unsigned i=0; i<10; i++)
-         addrVec.push_back(accountSalted->getNewAddress());
+      vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
+      for (unsigned i = 0; i < 10; i++)
+      {
+         addrVec1.push_back(accountSalted1->getNewAddress());
+         addrVec2.push_back(accountSalted2->getNewAddress());
+      }
 
       //derive from seed
-      BIP32_Node seedNode;
-      seedNode.initFromSeed(seed);
-      for (auto& derId : derivationPath1)
-         seedNode.derivePrivate(derId);
-
-      for(unsigned i=0; i<10; i++)
       {
-         auto nodeCopy = seedNode;
-         nodeCopy.derivePrivate(i);
-         auto pubkey = nodeCopy.getPublicKey();
-         auto&& saltedKey = 
-            CryptoECDSA::PubKeyScalarMultiply(pubkey, salt);
-         EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath1)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt1);
+            EXPECT_EQ(saltedKey, addrVec1[i]->getPreimage());
+         }
       }
+
+      {
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath2)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt2);
+            EXPECT_EQ(saltedKey, addrVec2[i]->getPreimage());
+         }
+      }
+
+      addrHashSet = assetWlt->getAddrHashSet();
+      ASSERT_EQ(addrHashSet.size(), 80);
 
       //shut down the wallet
       filename = assetWlt->getDbFilename();
@@ -1468,28 +1521,58 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
    {
       auto assetWlt = AssetWallet::loadMainWalletFromFile(filename);
       auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(assetWlt);
-      auto accountSalted = wltSingle->getAccountForID(accountID1);
+      
+      auto accountSalted1 = wltSingle->getAccountForID(accountID1);
+      auto accountSalted2 = wltSingle->getAccountForID(accountID2);
+
+      //check current address map
+      EXPECT_EQ(addrHashSet, assetWlt->getAddrHashSet());
 
       //grab more 10 addresses
-      vector<shared_ptr<AddressEntry>> addrVec;
-      for (unsigned i=0; i<10; i++)
-         addrVec.push_back(accountSalted->getNewAddress());
+      vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
+      for (unsigned i = 0; i < 10; i++)
+      {
+         addrVec1.push_back(accountSalted1->getNewAddress());
+         addrVec2.push_back(accountSalted2->getNewAddress());
+      }
 
       //derive from seed
-      BIP32_Node seedNode;
-      seedNode.initFromSeed(seed);
-      for (auto& derId : derivationPath1)
-         seedNode.derivePrivate(derId);
-
-      for(unsigned i=0; i<10; i++)
       {
-         auto nodeCopy = seedNode;
-         nodeCopy.derivePrivate(i+10);
-         auto pubkey = nodeCopy.getPublicKey();
-         auto&& saltedKey = 
-            CryptoECDSA::PubKeyScalarMultiply(pubkey, salt);
-         EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath1)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i + 10);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt1);
+            EXPECT_EQ(saltedKey, addrVec1[i]->getPreimage());
+         }
       }
+
+      {
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath2)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i + 10);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt2);
+            EXPECT_EQ(saltedKey, addrVec2[i]->getPreimage());
+         }
+      }
+
+      addrHashSet = assetWlt->getAddrHashSet();
+      ASSERT_EQ(addrHashSet.size(), 80);
 
       //create WO copy
       filename = AssetWallet_Single::forkWathcingOnly(filename);
@@ -1500,28 +1583,52 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(assetWlt);
 
       ASSERT_TRUE(wltSingle->isWatchingOnly());
+      EXPECT_EQ(addrHashSet, assetWlt->getAddrHashSet());
 
-      auto accountSalted = wltSingle->getAccountForID(accountID1);
+      auto accountSalted1 = wltSingle->getAccountForID(accountID1);
+      auto accountSalted2 = wltSingle->getAccountForID(accountID2);
 
       //grab more 10 addresses
-      vector<shared_ptr<AddressEntry>> addrVec;
-      for (unsigned i=0; i<10; i++)
-         addrVec.push_back(accountSalted->getNewAddress());
+      vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
+      for (unsigned i = 0; i < 10; i++)
+      {
+         addrVec1.push_back(accountSalted1->getNewAddress());
+         addrVec2.push_back(accountSalted2->getNewAddress());
+      }
 
       //derive from seed
-      BIP32_Node seedNode;
-      seedNode.initFromSeed(seed);
-      for (auto& derId : derivationPath1)
-         seedNode.derivePrivate(derId);
-
-      for(unsigned i=0; i<10; i++)
       {
-         auto nodeCopy = seedNode;
-         nodeCopy.derivePrivate(i+20);
-         auto pubkey = nodeCopy.getPublicKey();
-         auto&& saltedKey = 
-            CryptoECDSA::PubKeyScalarMultiply(pubkey, salt);
-         EXPECT_EQ(saltedKey, addrVec[i]->getPreimage());
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath1)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i + 20);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt1);
+            EXPECT_EQ(saltedKey, addrVec1[i]->getPreimage());
+         }
+      }
+
+      {
+         BIP32_Node seedNode;
+         seedNode.initFromSeed(seed);
+         for (auto& derId : derivationPath2)
+            seedNode.derivePrivate(derId);
+
+         for (unsigned i = 0; i < 10; i++)
+         {
+            auto nodeCopy = seedNode;
+            nodeCopy.derivePrivate(i + 20);
+            auto pubkey = nodeCopy.getPublicKey();
+            auto&& saltedKey =
+               CryptoECDSA::PubKeyScalarMultiply(pubkey, salt2);
+            EXPECT_EQ(saltedKey, addrVec2[i]->getPreimage());
+         }
       }
    }
 }
@@ -1533,12 +1640,23 @@ TEST_F(WalletsTest, ECDH_Account)
    string filename, woFilename;
 
    auto&& seed = CryptoPRNG::generateRandom(32);
-   auto&& privKey = READHEX(
+
+   auto&& privKey1 = READHEX(
       "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F");
-   auto&& pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
+   auto&& pubKey1 = CryptoECDSA().ComputePublicKey(privKey1, true);
+
+   auto&& privKey2 = READHEX(
+      "101112131415161718191A1B1C1D1E1F202122232425262728292A2B2C2D2E2F");
+   auto&& pubKey2 = CryptoECDSA().ComputePublicKey(privKey2, true);
+
+
    SecureBinaryData passphrase("password");
 
-   map<unsigned, SecureBinaryData> saltMap;
+   map<unsigned, SecureBinaryData> saltMap1;
+   map<unsigned, SecureBinaryData> saltMap2;
+
+   BinaryData accID2;
+   map<unsigned, BinaryData> addrMap1, addrMap2;
 
    {
       //create empty wallet
@@ -1551,42 +1669,65 @@ TEST_F(WalletsTest, ECDH_Account)
       };
       assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
-      //create account
-      auto ecdhAccType =
-         make_shared<AccountType_ECDH>(privKey, pubKey);
-      ecdhAccType->setDefaultAddressType(
+      //create accounts
+      auto ecdhAccType1 =
+         make_shared<AccountType_ECDH>(privKey1, pubKey1);
+      ecdhAccType1->setDefaultAddressType(
          AddressEntryType_P2WPKH);
-      ecdhAccType->setAddressTypes(
+      ecdhAccType1->setAddressTypes(
          { AddressEntryType_P2WPKH });
-      ecdhAccType->setMain(true);
+      ecdhAccType1->setMain(true);
 
-      //add account
-      auto accPtr = assetWlt->createAccount(ecdhAccType);
-      auto accEcdh = dynamic_pointer_cast<AssetAccount_ECDH>(
-         accPtr->getOuterAccount());
-      if (accEcdh == nullptr)
+      auto ecdhAccType2 =
+         make_shared<AccountType_ECDH>(privKey2, pubKey2);
+      ecdhAccType2->setDefaultAddressType(
+         AddressEntryType_P2WPKH);
+      ecdhAccType2->setAddressTypes(
+         { AddressEntryType_P2WPKH });
+
+      //add accounts
+      auto accPtr1 = assetWlt->createAccount(ecdhAccType1);
+      auto accEcdh1 = dynamic_pointer_cast<AssetAccount_ECDH>(
+         accPtr1->getOuterAccount());
+      if (accEcdh1 == nullptr)
          throw runtime_error("unexpected account type");
+
+      auto accPtr2 = assetWlt->createAccount(ecdhAccType2);
+      auto accEcdh2 = dynamic_pointer_cast<AssetAccount_ECDH>(
+         accPtr2->getOuterAccount());
+      if (accEcdh2 == nullptr)
+         throw runtime_error("unexpected account type");
+      accID2 = accPtr2->getID();
 
       //add salts
       for (unsigned i = 0; i < 5; i++)
       {
          auto&& salt = CryptoPRNG::generateRandom(32);
-         auto index = accEcdh->addSalt(salt);
-         saltMap.insert(make_pair(index, salt));
+         auto index = accEcdh1->addSalt(salt);
+         saltMap1.insert(make_pair(index, salt));
+
+         salt = CryptoPRNG::generateRandom(32);
+         index = accEcdh2->addSalt(salt);
+         saltMap2.insert(make_pair(index, salt));
       }
 
       //grab addresses
-      map<unsigned, BinaryData> addrMap;
       for (unsigned i = 0; i < 5; i++)
-         addrMap.insert(make_pair(i, accPtr->getNewAddress()->getHash()));
+      {
+         addrMap1.insert(make_pair(i, accPtr1->getNewAddress()->getHash()));
+         addrMap2.insert(make_pair(i, accPtr2->getNewAddress()->getHash()));
+      }
    
       //derive locally, check addresses match
       for (unsigned i = 0; i < 5; i++)
       {
-         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey, saltMap[i]);
+         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey1, saltMap1[i]);
          auto hash = BtcUtils::getHash160(saltedKey);
+         EXPECT_EQ(addrMap1[i], hash);
 
-         EXPECT_EQ(addrMap[i], hash);
+         saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey2, saltMap2[i]);
+         hash = BtcUtils::getHash160(saltedKey);
+         EXPECT_EQ(addrMap2[i], hash);
       }
 
       filename = assetWlt->getDbFilename();
@@ -1601,17 +1742,27 @@ TEST_F(WalletsTest, ECDH_Account)
 
       //check existing address set
       auto&& addrHashSet = assetWlt->getAddrHashSet();
-      EXPECT_EQ(addrHashSet.size(), 5);
+      EXPECT_EQ(addrHashSet.size(), 10);
 
       for (unsigned i = 0; i < 5; i++)
       {
-         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey, saltMap[i]);
+         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey1, saltMap1[i]);
          auto hash = BtcUtils::getHash160(saltedKey);
          BinaryWriter bwAddr;
          bwAddr.put_uint8_t(SCRIPT_PREFIX_P2WPKH);
          bwAddr.put_BinaryData(hash);
 
          auto iter = addrHashSet.find(bwAddr.getData());
+         EXPECT_NE(iter, addrHashSet.end());
+
+         //
+         saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey2, saltMap2[i]);
+         hash = BtcUtils::getHash160(saltedKey);
+         BinaryWriter bwAddr2;
+         bwAddr2.put_uint8_t(SCRIPT_PREFIX_P2WPKH);
+         bwAddr2.put_BinaryData(hash);
+
+         iter = addrHashSet.find(bwAddr2.getData());
          EXPECT_NE(iter, addrHashSet.end());
       }
 
@@ -1625,16 +1776,48 @@ TEST_F(WalletsTest, ECDH_Account)
       {
          auto&& salt = CryptoPRNG::generateRandom(32);
          auto index = accEcdh->addSalt(salt);
-         saltMap.insert(make_pair(index, salt));
+         saltMap1.insert(make_pair(index, salt));
       }
 
       {
          //grab another address & check it
          auto addr = accPtr->getNewAddress()->getHash();
-         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey, saltMap[5]);
+         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey1, saltMap1[5]);
          auto hash = BtcUtils::getHash160(saltedKey);
 
          EXPECT_EQ(addr, hash);
+      }
+
+      {
+         //grab an existing address from its settlement id
+         auto id = accEcdh->addSalt(saltMap1[3]);
+         EXPECT_EQ(id, 3);
+
+         auto assetPtr = accEcdh->getAssetForIndex(id);
+         auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
+         auto hash = BtcUtils::getHash160(
+            assetSingle->getPubKey()->getCompressedKey());
+
+         EXPECT_EQ(addrMap1[3], hash);
+      }
+
+      auto accPtr2 = assetWlt->getAccountForID(accID2);
+
+      {
+         //same with account 2
+         auto accEcdhPtr = dynamic_pointer_cast<AssetAccount_ECDH>(
+            accPtr2->getOuterAccount());
+         ASSERT_NE(accEcdhPtr, nullptr);
+
+         auto id = accEcdhPtr->addSalt(saltMap2[2]);
+         EXPECT_EQ(id, 2);
+
+         auto assetPtr = accEcdhPtr->getAssetForIndex(id);
+         auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
+         auto hash = BtcUtils::getHash160(
+            assetSingle->getPubKey()->getCompressedKey());
+
+         EXPECT_EQ(addrMap2[2], hash);
       }
    }
       
@@ -1652,11 +1835,11 @@ TEST_F(WalletsTest, ECDH_Account)
 
       //check existing address set
       auto&& addrHashSet = assetWlt->getAddrHashSet();
-      EXPECT_EQ(addrHashSet.size(), 6);
+      EXPECT_EQ(addrHashSet.size(), 11);
 
       for (unsigned i = 0; i < 6; i++)
       {
-         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey, saltMap[i]);
+         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey1, saltMap1[i]);
          auto hash = BtcUtils::getHash160(saltedKey);
          BinaryWriter bwAddr;
          bwAddr.put_uint8_t(SCRIPT_PREFIX_P2WPKH);
@@ -1681,16 +1864,31 @@ TEST_F(WalletsTest, ECDH_Account)
       {
          auto&& salt = CryptoPRNG::generateRandom(32);
          auto index = accEcdh->addSalt(salt);
-         saltMap.insert(make_pair(index, salt));
+         saltMap1.insert(make_pair(index, salt));
       }
 
       {
          //grab another address & check it
          auto addr = accPtr->getNewAddress()->getHash();
-         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey, saltMap[6]);
+         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey1, saltMap1[6]);
          auto hash = BtcUtils::getHash160(saltedKey);
 
          EXPECT_EQ(addr, hash);
+      }
+
+      auto accID2 = assetWlt->getMainAccountID();
+      auto accPtr2 = assetWlt->getAccountForID(accID2);
+
+      for (unsigned i = 0; i < 5; i++)
+      {
+         auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey2, saltMap2[i]);
+         auto hash = BtcUtils::getHash160(saltedKey);
+         BinaryWriter bwAddr;
+         bwAddr.put_uint8_t(SCRIPT_PREFIX_P2WPKH);
+         bwAddr.put_BinaryData(hash);
+
+         auto iter = addrHashSet.find(bwAddr.getData());
+         EXPECT_NE(iter, addrHashSet.end());
       }
    }
 }
