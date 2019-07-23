@@ -672,7 +672,7 @@ TEST_F(WalletsTest, WrongPassphrase_Test)
       return SecureBinaryData("bad pass");
    };
 
-   //set passphrase lambd
+   //set passphrase lambda
    assetWlt->setPassphrasePromptLambda(badPassphrase);
 
    //try to decrypt with wrong passphrase
@@ -690,6 +690,7 @@ TEST_F(WalletsTest, WrongPassphrase_Test)
    }
    catch (DecryptedDataContainerException&)
    {
+      EXPECT_EQ(passphraseCount, 3);
    }
 
    passphraseCount = 0;
@@ -703,7 +704,7 @@ TEST_F(WalletsTest, WrongPassphrase_Test)
 
    assetWlt->setPassphrasePromptLambda(goodPassphrase);
 
-   //try to decrypt with wrong passphrase
+   //try to decrypt with wrong passphrase then right passphrase
    try
    {
       auto&& containerLock = assetWlt->lockDecryptedContainer();
@@ -725,7 +726,163 @@ TEST_F(WalletsTest, WrongPassphrase_Test)
    {
       ASSERT_TRUE(false);
    }
+
+   EXPECT_EQ(passphraseCount, 3);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
+{
+   //create wallet from priv key
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
+
+   vector<unsigned> derPath = 
+   {
+      0x80000012,
+      0x8000a48c,
+   };
+
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_,
+      wltRoot, //root as a r value
+      derPath,
+      SecureBinaryData("test"), //set passphrase to "test"
+      4); //set lookup computation to 4 entries
+
+   unsigned passphraseCount = 0;
+   auto badPassphrase = [&passphraseCount](const BinaryData&)->SecureBinaryData
+   {
+      //pass wrong passphrase once then give up
+      if (passphraseCount++ > 1)
+         return SecureBinaryData();
+      return SecureBinaryData("bad pass");
+   };
+
+   //set passphrase lambda
+   assetWlt->setPassphrasePromptLambda(badPassphrase);
+
+   //try to decrypt with wrong passphrase
+   try
+   {
+      auto containerLock = assetWlt->lockDecryptedContainer();
+      auto asset = assetWlt->getMainAccountAssetForIndex(0);
+      auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
+      if (asset_single == nullptr)
+         throw runtime_error("unexpected asset entry type");
+
+      assetWlt->getDecryptedValue(asset_single->getPrivKey());
+
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException&)
+   {
+      EXPECT_EQ(passphraseCount, 3);
+   }
+
+   passphraseCount = 0;
+   auto goodPassphrase = [&passphraseCount](const BinaryData&)->SecureBinaryData
+   {
+      //pass wrong passphrase once then the right one
+      if (passphraseCount++ > 2)
+         return SecureBinaryData("test");
+      return SecureBinaryData("another bad pass");
+   };
+
+
+   //try to decrypt with wrong passphrase then the right one
+   assetWlt->setPassphrasePromptLambda(goodPassphrase);
+   try
+   {
+      auto&& containerLock = assetWlt->lockDecryptedContainer();
+      auto asset = assetWlt->getMainAccountAssetForIndex(0);
+      auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
+      if (asset_single == nullptr)
+         throw runtime_error("unexpected asset entry type");
+
+      auto& privkey = assetWlt->getDecryptedValue(asset_single->getPrivKey());
+
+      //make sure decrypted privkey is valid
+      BIP32_Node node;
+      node.initFromSeed(wltRoot);
+
+      for (auto& der : derPath)
+         node.derivePrivate(der);
+      node.derivePrivate(0);
+      node.derivePrivate(0);
+
+      ASSERT_EQ(privkey, node.getPrivateKey());
+   }
+   catch (DecryptedDataContainerException&)
+   {
+      ASSERT_TRUE(false);
+   }
+
+   EXPECT_EQ(passphraseCount, 4);
+
+   //add another account
+   vector<unsigned> derPath2 =
+   {
+      0x800050aa,
+      0x8000c103,
+   };
+
+   auto newAccId = assetWlt->createBIP32Account(nullptr, derPath2, false);
+   auto accPtr = assetWlt->getAccountForID(newAccId);
+   ASSERT_NE(accPtr, nullptr);
+
+   //try and grab priv key with wrong passphrase
+   passphraseCount = 0;
+   assetWlt->setPassphrasePromptLambda(badPassphrase);
+
+   try
+   {
+      auto containerLock = assetWlt->lockDecryptedContainer();
+      auto asset = accPtr->getOutterAssetForIndex(5);
+      auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
+      if (asset_single == nullptr)
+         throw runtime_error("unexpected asset entry type");
+
+      assetWlt->getDecryptedValue(asset_single->getPrivKey());
+
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException&)
+   {
+      EXPECT_EQ(passphraseCount, 3);
+   }
+
+   //try to decrypt with wrong passphrase then the right one
+   passphraseCount = 0;
+   assetWlt->setPassphrasePromptLambda(goodPassphrase);
+   try
+   {
+      auto&& containerLock = assetWlt->lockDecryptedContainer();
+      auto asset = accPtr->getOutterAssetForIndex(5);
+      auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
+      if (asset_single == nullptr)
+         throw runtime_error("unexpected asset entry type");
+
+      auto& privkey = assetWlt->getDecryptedValue(asset_single->getPrivKey());
+
+      //make sure decrypted privkey is valid
+      BIP32_Node node;
+      node.initFromSeed(wltRoot);
+
+      for (auto& der : derPath2)
+         node.derivePrivate(der);
+      node.derivePrivate(0);
+      node.derivePrivate(5);
+
+      ASSERT_EQ(privkey, node.getPrivateKey());
+   }
+   catch (DecryptedDataContainerException&)
+   {
+      ASSERT_TRUE(false);
+   }
+
+   EXPECT_EQ(passphraseCount, 4);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, ChangePassphrase_Test)
