@@ -13,6 +13,12 @@ The following should be the only `apt` prerequisite you need that isn't common f
 sudo apt install libprotobuf-dev protobuf-compiler
 ```
 
+on Centos distribution, you can get protobuf dependencies as follows:
+
+```
+sudo yum install protobuf-devel
+```
+
 on mac make sure Homebrew, XCode and XCode command line tools are installed,
 and get protobuf from Homebrew:
 
