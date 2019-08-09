@@ -90,8 +90,52 @@ bool BlockDataManagerConfig::ephemeralPeers_ = false;
 #define mkdir(X,Y) _mkdir(X)
 #endif
 
-// ArmoryDB repo
+#ifdef _WIN32
 // Helper function that allows for recursive creation of a directory path.
+// We use both versions: win32 and rest of the world
+int mkdir_p(const char* path)
+{
+   char _path[MAX_PATH];
+   char* p;
+
+   errno = 0;
+
+   if (!path) return -1;
+
+   const size_t len = strlen(path);
+
+   // Copy input path
+   if (len > sizeof(_path) - 1) {
+      errno = ENAMETOOLONG;
+      return -1;
+   }
+
+   strcpy_s(_path, path);
+
+   /* Iterate the string */
+   for (p = _path; *p; p++) {
+      if ((*p == '/') || (*p == '\\')) {
+         /* Temporarily truncate */
+         *p = '\0';
+
+         // Try to create, if already exists just treat this condition as OK
+         if (!CreateDirectoryA(_path, NULL) && (GetLastError() != ERROR_ALREADY_EXISTS)) {
+            return -1;
+         }
+
+         *p = '\\';
+      }
+   }
+
+   // Try to create, if already exists just treat this condition as OK
+   if (!CreateDirectoryA(_path, NULL) && (GetLastError() != ERROR_ALREADY_EXISTS)) {
+      return -1;
+   }
+
+   return 0;
+}
+#else
+// Non windows version for mkdir_p
 int mkdir_p(const char *path)
 {
     /* Adapted from http://stackoverflow.com/a/2336245/119527 */
@@ -130,6 +174,7 @@ int mkdir_p(const char *path)
 
     return 0;
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 BlockDataManagerConfig::BlockDataManagerConfig() :
@@ -437,15 +482,10 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
             ss << path << " is not a valid path. ArmoryDB will create the path.";
 
             cout << ss.str() << endl;
-#ifdef _WIN32
-            if (!CreateDirectory(path.c_str(), NULL)) {
-               throw DbErrorMsg(ss.str());
-            }
-#else
+
             if (mkdir_p(path.c_str()) != 0) {
                throw DbErrorMsg(ss.str());
             }
-#endif
          }
       };
 
