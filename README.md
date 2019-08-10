@@ -27,20 +27,31 @@ On Windows dependencies are handled automatically with vcpkg.
 The following steps will build ArmoryDB:
 
 ```
+cd /path/to/ArmoryDB
 mkdir build
 cd build
 cmake ..
 make -j`nproc`
 ```
 
-On Windows the procedure is similar:
+On Windows the procedure is similar (tested with VS 2017):
+
+Start Native Tools Command Prompt
+For example for `Community` edition:
 
 ```
+%comspec% /k "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
+```
+
+```
+cd c:\path\to\ArmoryDB
 mkdir build
 cd build
 cmake .. -DVCPKG_TARGET_TRIPLET=x64-windows
 msbuild /m ALL_BUILD.vcxproj
 ```
+
+`vcpkg` will be installed automatically.
 
 Overall, Armory tries to use static linking. There will still be a few dependencies, as
 seen by `ldd` (Ubuntu) or `otool -L` (macOS). This should be fine. If there are
