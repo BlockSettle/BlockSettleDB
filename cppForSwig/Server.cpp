@@ -349,7 +349,7 @@ void WebSocketServer::webSocketService(int port)
    info.gid = gid;
    info.uid = uid;
    info.max_http_header_pool = 256;
-   info.options = opts | LWS_SERVER_OPTION_VALIDATE_UTF8 | LWS_SERVER_OPTION_EXPLICIT_VHOSTS;
+   info.options = opts | LWS_SERVER_OPTION_VALIDATE_UTF8 | LWS_SERVER_OPTION_EXPLICIT_VHOSTS | LWS_SERVER_OPTION_DISABLE_IPV6;
    info.timeout_secs = 0;
    info.ip_limit_ah = 24; /* for testing */
    info.ip_limit_wsi = 105; /* for testing */
