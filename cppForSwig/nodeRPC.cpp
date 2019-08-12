@@ -323,7 +323,10 @@ FeeEstimateResult NodeRPC::getFeeByte(
    if (iterStrat == estimateCachePtr->end())
       throw RpcError();
 
-   auto targetIter = iterStrat->second.lower_bound(confTarget);
+   if (iterStrat->second.empty())
+      throw RpcError();
+
+   auto targetIter = iterStrat->second.upper_bound(confTarget);
    if (targetIter != iterStrat->second.begin())
       --targetIter;
 
@@ -348,8 +351,8 @@ map<unsigned, FeeEstimateResult> NodeRPC::getFeeSchedule(const string& strategy)
 ////////////////////////////////////////////////////////////////////////////////
 void NodeRPC::aggregateFeeEstimates()
 {
-   //get fee/byte for 2-3-4-5-6-10-20 confs on both strategies
-   static vector<unsigned> confTargets = { 2, 3, 4, 5, 6, 10, 20 };
+   //get fee/byte for 2-4-6-12-24-48-144 confs on both strategies
+   vector<unsigned> confTargets = { 2, 4, 6, 12, 24, 48, 144 };
    static vector<string> strategies = { 
       FEE_STRAT_CONSERVATIVE, FEE_STRAT_ECONOMICAL };
 
