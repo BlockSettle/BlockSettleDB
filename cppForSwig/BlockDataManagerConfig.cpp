@@ -470,7 +470,7 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
       DBUtils::appendPath(logFilePath_, "dbLog.txt");
 
       //test all paths
-      auto testPath = [](const string& path, int mode)
+      auto testPath = [](const string& path, int mode, bool createIfNeeded)
       {
          // ArmoryDB repo fork
          // This if statement has changed in order to allow for automatic
@@ -478,42 +478,28 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
          // --> mkdir_p().
          if (!fileExists(path, mode))
          {
-            stringstream ss;
-            ss << path << " is not a valid path. ArmoryDB will create the path.";
+            if (!createIfNeeded) {
+               stringstream ss;
+               ss << "required path does not exist: " << path;
+               std::cerr << ss.str() << endl;
+               throw DbErrorMsg(ss.str());
+            }
 
-            cout << ss.str() << endl;
-
-            if (mkdir_p(path.c_str()) != 0) {
+            int rc = mkdir_p(path.c_str());
+            if (rc != 0) {
+               stringstream ss;
+               ss << "create path failed: " << path;
+               std::cerr << ss.str() << endl;
                throw DbErrorMsg(ss.str());
             }
          }
       };
 
-      testPath(dataDir_, 6);
+      testPath(dataDir_, 6, true);
 
-      //create dbdir if was set automatically
-      if (autoDbDir)
-      {
-         try
-         {
-            testPath(dbDir_, 0);
-         }
-         catch (DbErrorMsg&)
-         {
-// ArmoryDB repo
-// mkdir --> mkdir_p
-#ifdef _WIN32
-            CreateDirectory(dbDir_.c_str(), NULL);
-#else
-            mkdir_p(dbDir_.c_str());
-#endif
-         }
-      }
+      testPath(dbDir_, 6, true);
 
-      //now for the regular test, let it throw if it fails
-      testPath(dbDir_, 6);
-
-      testPath(blkFileLocation_, 2);
+      testPath(blkFileLocation_, 2, false);
 
       //listen port
       if (useCookie_ && !customListenPort_)
