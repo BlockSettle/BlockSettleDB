@@ -11,6 +11,7 @@
 *.lob
 *.idb
 *.pdb
+*.user
 
 build/*
 build32/*
