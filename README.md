@@ -3,6 +3,10 @@
 A fork of [Armory](https://github.com/goatpig/BitcoinArmory) that only produces
 ArmoryDB, the headless binary.
 
+For more information about Armory, see:
+
+https://btcarmory.com/docs/faq
+
 ## Build instructions
 
 ### Prerequisites
