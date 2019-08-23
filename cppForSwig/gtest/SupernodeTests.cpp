@@ -3565,7 +3565,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    };
    bdvObj->getLedgerDelegateForWallets(del1_get);
    auto&& main_delegate = del1_fut.get();
-   
+
    auto ledger_prom =
       make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
    auto ledger_fut = ledger_prom->get_future();
@@ -3621,7 +3621,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
    EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
    EXPECT_EQ(main_ledger[0].getIndex(), 1);
-   
+
    EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
    EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
    EXPECT_EQ(main_ledger[1].getIndex(), 0);
@@ -3633,6 +3633,43 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
    EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
    EXPECT_EQ(main_ledger[3].getIndex(), 0);
+
+   /*tx cache testing*/
+   //grab ZC1 from async client
+   auto zc_prom1 = make_shared<promise<Tx>>();
+   auto zc_fut1 = zc_prom1->get_future();
+   auto zc_get1 =
+      [zc_prom1](ReturnMessage<Tx> txObj)->void
+   {
+      auto&& tx = txObj.get();
+      zc_prom1->set_value(move(tx));
+   };
+
+   bdvObj->getTxByHash(ZChash1, zc_get1);
+   auto zc_obj1 = zc_fut1.get();
+   EXPECT_EQ(ZChash1, zc_obj1.getThisHash());
+   EXPECT_EQ(zc_obj1.getTxHeight(), UINT32_MAX);
+
+   //grab both zc from async client
+   auto zc_prom2 = make_shared<promise<vector<Tx>>>();
+   auto zc_fut2 = zc_prom2->get_future();
+   auto zc_get2 =
+      [zc_prom2](ReturnMessage<vector<Tx>> txObj)->void
+   {
+      auto&& txVec = txObj.get();
+      zc_prom2->set_value(move(txVec));
+   };
+
+   set<BinaryData> bothZC = { ZChash1, ZChash2 };
+   bdvObj->getTxBatchByHash(bothZC, zc_get2);
+   auto zc_obj2 = zc_fut2.get();
+
+   ASSERT_EQ(zc_obj2.size(), 2);
+   EXPECT_EQ(ZChash1, zc_obj2[0].getThisHash());
+   EXPECT_EQ(zc_obj2[0].getTxHeight(), UINT32_MAX);
+
+   EXPECT_EQ(ZChash2, zc_obj2[1].getThisHash());
+   EXPECT_EQ(zc_obj2[1].getTxHeight(), UINT32_MAX);
 
    //push an extra block
    TestUtils::appendBlocks({ "2" }, blk0dat_);
@@ -3673,6 +3710,42 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
    EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
    EXPECT_EQ(main_ledger[4].getIndex(), 0);
+
+
+   //grab ZC1 from async client
+   auto zc_prom3 = make_shared<promise<Tx>>();
+   auto zc_fut3 = zc_prom3->get_future();
+   auto zc_get3 =
+      [zc_prom3](ReturnMessage<Tx> txObj)->void
+   {
+      auto&& tx = txObj.get();
+      zc_prom3->set_value(move(tx));
+   };
+
+   bdvObj->getTxByHash(ZChash1, zc_get3);
+   auto zc_obj3 = zc_fut3.get();
+   EXPECT_EQ(ZChash1, zc_obj3.getThisHash());
+   EXPECT_EQ(zc_obj3.getTxHeight(), 2);
+
+   //grab both zc from async client
+   auto zc_prom4 = make_shared<promise<vector<Tx>>>();
+   auto zc_fut4 = zc_prom4->get_future();
+   auto zc_get4 =
+      [zc_prom4](ReturnMessage<vector<Tx>> txObj)->void
+   {
+      auto&& txVec = txObj.get();
+      zc_prom4->set_value(move(txVec));
+   };
+
+   bdvObj->getTxBatchByHash(bothZC, zc_get4);
+   auto zc_obj4 = zc_fut4.get();
+
+   ASSERT_EQ(zc_obj4.size(), 2);
+   EXPECT_EQ(ZChash1, zc_obj4[0].getThisHash());
+   EXPECT_EQ(zc_obj4[0].getTxHeight(), 2);
+
+   EXPECT_EQ(ZChash2, zc_obj4[1].getThisHash());
+   EXPECT_EQ(zc_obj4[1].getTxHeight(), 2);
 
    //disconnect
    bdvObj->unregisterFromDB();

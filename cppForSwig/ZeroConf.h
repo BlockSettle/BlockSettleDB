@@ -136,7 +136,12 @@ public:
 public:
    ParsedTx(BinaryData& key) :
       zcKey_(std::move(key))
-   {}
+   {
+      //set zc index in Tx object
+      BinaryRefReader brr(zcKey_.getRef());
+      brr.advance(2);
+      tx_.setTxIndex(brr.get_uint32_t(BE));
+   }
 
    ParsedTxStatus status(void) const { return state_; }
    bool isResolved(void) const;
