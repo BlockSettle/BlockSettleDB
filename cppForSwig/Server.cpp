@@ -234,7 +234,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT,
       instance->clientInterruptThread();
    };
 
-   unsigned parserThreads = thread::hardware_concurrency() / 4;
+   unsigned parserThreads = MAX_THREADS() / 4;
    if (parserThreads == 0)
       parserThreads = 1;
    for (unsigned i = 0; i < parserThreads; i++)

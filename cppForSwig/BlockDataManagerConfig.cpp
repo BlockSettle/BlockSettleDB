@@ -20,6 +20,20 @@
 
 using namespace std;
 
+size_t MAX_THREADS()
+{
+   size_t cpu_threads = std::thread::hardware_concurrency();
+
+   if (!cpu_threads)
+      return 1;
+   // there are only 126 LMDB locks by default
+   // FIXME: need to increase number of LMDB locks
+   else if (cpu_threads > 126)
+      return 126;
+
+   return cpu_threads;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // NodeStatusStruct
