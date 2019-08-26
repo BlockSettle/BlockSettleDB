@@ -904,7 +904,7 @@ BlockDataViewer::getAddressOutpoints(
                opdata.height_ = stxo.getHeight();
                opdata.txindex_ = stxo.txIndex_;
                opdata.value_ = stxo.getValue();
-               opdata.isspent_ = stxo.isSpent();
+               opdata.isspent_ = txiopair.second->hasTxIn();
 
                //this is a mined txout, therefor the only way it is ZC is
                //through the txin
