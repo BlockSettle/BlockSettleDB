@@ -98,9 +98,22 @@ std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
 
       //grab all tx in the mempool, respect ordering
       vector<MempoolObject> mempoolV;
+      map<BinaryDataRef, MempoolObject> purgedMempool;
       mempoolV.push_back(coinbaseObj);
       for (auto& obj : mempool_)
-         mempoolV.push_back(obj.second);
+      {
+         if (obj.second.blocksUntilMined_ == 0)
+         {
+            mempoolV.push_back(obj.second);
+         }
+         else
+         {
+            --obj.second.blocksUntilMined_;
+            auto objPair = make_pair(obj.second.hash_.getRef(), move(obj.second));
+            purgedMempool.emplace(objPair);
+         }
+      }
+
       sort(mempoolV.begin(), mempoolV.end());
 
       //compute merkle
@@ -110,7 +123,7 @@ std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
       auto merkleRoot = BtcUtils::calculateMerkleRoot(txHashes);
 
       //clear mempool
-      mempool_.clear();
+      mempool_ = move(purgedMempool);
 
       //build block
       BinaryWriter bwBlock;
@@ -185,7 +198,7 @@ std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void NodeUnitTest::pushZC(const vector<BinaryData>& txVec)
+void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec)
 {
    vector<InvEntry> invVec;
 
@@ -193,10 +206,11 @@ void NodeUnitTest::pushZC(const vector<BinaryData>& txVec)
    for (auto& tx : txVec)
    {
       MempoolObject obj;
-      Tx txNew(tx);
-      obj.rawTx_ = tx;
+      Tx txNew(tx.first);
+      obj.rawTx_ = tx.first;
       obj.hash_ = txNew.getThisHash();
       obj.order_ = counter_.fetch_add(1, memory_order_relaxed);
+      obj.blocksUntilMined_ = tx.second;
 
       /***
       cheap zc replacement code: check for outpoint reuse, assume unit
