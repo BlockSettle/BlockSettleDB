@@ -276,7 +276,7 @@ std::pair<uint32_t, uint32_t> BlockDataViewer::getHeightAndIdForTxHash(
    case 0:
    {
       //possibly zc
-      auto& keyRef = zeroConfCont_->getKeyForHash(txHash);
+      auto keyRef = zeroConfCont_->getKeyForHash(txHash);
       if (keyRef.getSize() == 0)
          break;
 
