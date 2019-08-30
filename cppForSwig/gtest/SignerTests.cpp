@@ -184,7 +184,6 @@ TEST_F(SignerTest, Signer_Test)
       feed->pubKeyToPrivKey_[datapair.second] = key;
    };
 
-   addToFeed(TestChain::privKeyAddrA);
    addToFeed(TestChain::privKeyAddrB);
    addToFeed(TestChain::privKeyAddrC);
    addToFeed(TestChain::privKeyAddrD);
@@ -325,7 +324,6 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -493,9 +491,9 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       zcVec2.push_back(signer2.serialize(), 15000000);
 
       //check fee/byte matches tx size
-      auto totalFee = total - zcVec2.zcVec_[0].getSumOfOutputs();
+      auto totalFee = total - zcVec2.zcVec_[0].first.getSumOfOutputs();
       EXPECT_EQ(totalFee, csi.getFlatFee());
-      float fee_byte = float(totalFee) / float(zcVec2.zcVec_[0].getTxWeight());
+      float fee_byte = float(totalFee) / float(zcVec2.zcVec_[0].first.getTxWeight());
       auto fee_byte_diff = fee_byte - desiredFeeByte;
 
       EXPECT_TRUE(fee_byte_diff < 2.0f);
@@ -607,9 +605,9 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       zcVec2.push_back(signer3.serialize(), 15000000);
 
       //check fee/byte matches tx size
-      auto totalFee = total - zcVec2.zcVec_[0].getSumOfOutputs();
+      auto totalFee = total - zcVec2.zcVec_[0].first.getSumOfOutputs();
       EXPECT_EQ(totalFee, csi.getFlatFee());
-      float fee_byte = float(totalFee) / float(zcVec2.zcVec_[0].getTxWeight());
+      float fee_byte = float(totalFee) / float(zcVec2.zcVec_[0].first.getTxWeight());
       auto fee_byte_diff = fee_byte - desiredFeeByte;
 
       EXPECT_TRUE(fee_byte_diff < 2.0f);
@@ -742,7 +740,6 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -1014,7 +1011,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -1303,7 +1299,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -1687,7 +1682,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -2017,7 +2011,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -2400,7 +2393,6 @@ TEST_F(SignerTest, GetUnsignedTxId)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -2765,7 +2757,6 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -3017,7 +3008,6 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -3282,7 +3272,6 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -3689,7 +3678,6 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -3957,7 +3945,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -4222,7 +4209,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -4507,7 +4493,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -4739,7 +4724,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    };
 
    //add salted account
+   assetWlt->setPassphrasePromptLambda(passphraseLbd);
    auto addrAccountObj = assetWlt->createAccount(ecdhAccType);
+   assetWlt->resetPassphrasePromptLambda();
 
    //register with db
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
@@ -4800,7 +4787,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
