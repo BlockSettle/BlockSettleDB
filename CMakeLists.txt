@@ -21,7 +21,7 @@ if(POLICY CMP0077)
 endif()
 
 include(ArmorySupport)
-include(PrettyCompilerColors)
+include(CompilerColorDiagnostics)
 
 use_cxx11()
 
