@@ -89,27 +89,27 @@ std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
          bwCoinbase.put_uint32_t(0);
       }
 
-      MempoolObject coinbaseObj;
-      coinbaseObj.rawTx_ = bwCoinbase.getData();
-      coinbaseObj.hash_ = BtcUtils::getHash256(coinbaseObj.rawTx_);
-      coinbaseObj.order_ = 0;
+      auto coinbaseObj = make_shared<MempoolObject>();
+      coinbaseObj->rawTx_ = bwCoinbase.getData();
+      coinbaseObj->hash_ = BtcUtils::getHash256(coinbaseObj->rawTx_);
+      coinbaseObj->order_ = 0;
 
-      result.insert(make_pair(blockHeight++, coinbaseObj.hash_));
+      result.insert(make_pair(blockHeight++, coinbaseObj->hash_));
 
       //grab all tx in the mempool, respect ordering
-      vector<MempoolObject> mempoolV;
-      map<BinaryDataRef, MempoolObject> purgedMempool;
+      vector<shared_ptr<MempoolObject>> mempoolV;
+      map<BinaryDataRef, shared_ptr<MempoolObject>> purgedMempool;
       mempoolV.push_back(coinbaseObj);
       for (auto& obj : mempool_)
       {
-         if (obj.second.blocksUntilMined_ == 0)
+         if (obj.second->blocksUntilMined_ == 0)
          {
             mempoolV.push_back(obj.second);
          }
          else
          {
-            --obj.second.blocksUntilMined_;
-            auto objPair = make_pair(obj.second.hash_.getRef(), move(obj.second));
+            --obj.second->blocksUntilMined_;
+            auto objPair = make_pair(obj.second->hash_.getRef(), move(obj.second));
             purgedMempool.emplace(objPair);
          }
       }
@@ -119,7 +119,7 @@ std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
       //compute merkle
       vector<BinaryData> txHashes;
       for (auto& obj : mempoolV)
-         txHashes.push_back(obj.hash_);
+         txHashes.push_back(obj->hash_);
       auto merkleRoot = BtcUtils::calculateMerkleRoot(txHashes);
 
       //clear mempool
@@ -162,7 +162,7 @@ std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
 
          //tx
          for (auto& txObj : mempoolV)
-            bwBlock.put_BinaryData(txObj.rawTx_);
+            bwBlock.put_BinaryData(txObj->rawTx_);
       }
 
       {
@@ -205,12 +205,12 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec)
    //save tx to fake mempool
    for (auto& tx : txVec)
    {
-      MempoolObject obj;
+      auto obj = make_shared<MempoolObject>();
       Tx txNew(tx.first);
-      obj.rawTx_ = tx.first;
-      obj.hash_ = txNew.getThisHash();
-      obj.order_ = counter_.fetch_add(1, memory_order_relaxed);
-      obj.blocksUntilMined_ = tx.second;
+      obj->rawTx_ = tx.first;
+      obj->hash_ = txNew.getThisHash();
+      obj->order_ = counter_.fetch_add(1, memory_order_relaxed);
+      obj->blocksUntilMined_ = tx.second;
 
       /***
       cheap zc replacement code: check for outpoint reuse, assume unit
@@ -220,7 +220,7 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec)
       auto poolIter = mempool_.begin();
       while(poolIter != mempool_.end())
       {
-         Tx txMempool(poolIter->second.rawTx_);
+         Tx txMempool(poolIter->second->rawTx_);
          if (txNew.getThisHash() == txMempool.getThisHash())
             return;
 
@@ -253,13 +253,13 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec)
          ++poolIter;
       }
 
-      auto objPair = make_pair(obj.hash_.getRef(), move(obj));
+      auto objPair = make_pair(obj->hash_.getRef(), move(obj));
       auto insertIter = mempool_.insert(move(objPair));
 
       //notify the zc parser
       InvEntry ie;
       ie.invtype_ = Inv_Msg_Witness_Tx;
-      memcpy(ie.hash, insertIter.first->second.hash_.getPtr(), 32);
+      memcpy(ie.hash, insertIter.first->second->hash_.getPtr(), 32);
       invVec.emplace_back(ie);
    }
 
@@ -277,7 +277,7 @@ shared_ptr<Payload> NodeUnitTest::getTx(const InvEntry& ie, uint32_t timeout)
 
    //create payload and return
    auto payload = make_shared<Payload_Tx>(
-      iter->second.rawTx_.getPtr(), iter->second.rawTx_.getSize());
+      iter->second->rawTx_.getPtr(), iter->second->rawTx_.getSize());
    return payload;
 }
 

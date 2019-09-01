@@ -33,7 +33,7 @@ class NodeUnitTest : public BitcoinP2P
       bool operator<(const MempoolObject& rhs) const { return order_ < rhs.order_; }
    };
 
-   std::map<BinaryDataRef, MempoolObject> mempool_;
+   std::map<BinaryDataRef, std::shared_ptr<MempoolObject>> mempool_;
    std::atomic<unsigned> counter_;
    
    std::shared_ptr<Blockchain> blockchain_ = nullptr;
