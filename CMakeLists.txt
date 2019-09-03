@@ -55,6 +55,17 @@ if(MSVC)
     add_compile_definitions(NOMINMAX _WINSOCKAPI_)
 endif()
 
+# support brew and macports
+if(APPLE)
+    if(EXISTS /usr/local/include AND EXISTS /usr/local/lib)
+        include_directories(/usr/local/include)
+        link_directories(/usr/local/lib)
+    elseif(EXISTS /opt/local/include AND EXISTS /opt/local/lib)
+        include_directories(/opt/local/include)
+        link_directories(/opt/local/lib)
+    endif()
+endif()
+
 # we are bundling libwebsockets for the time being, at least until ubuntu
 # updates their version
 
