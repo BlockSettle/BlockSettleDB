@@ -12,8 +12,8 @@ include(Set-Toolchain-vcpkg)
 
 project(BitcoinArmory C CXX)
 
-if( NOT CMAKE_BUILD_TYPE )
-    set( CMAKE_BUILD_TYPE Release CACHE STRING "Release version" FORCE )
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Release version" FORCE)
 endif()
 
 if(POLICY CMP0077)
@@ -21,6 +21,9 @@ if(POLICY CMP0077)
 endif()
 
 include(ArmorySupport)
+include(GCCToolchain)
+include(LLVMToolchain)
+include(LTO)
 include(CompilerColorDiagnostics)
 
 use_cxx11()
