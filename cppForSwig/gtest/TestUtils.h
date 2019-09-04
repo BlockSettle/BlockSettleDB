@@ -137,14 +137,14 @@ namespace DBTestUtils
 
    struct ZcVector
    {
-      std::vector<Tx> zcVec_;
+      std::vector<std::pair<Tx, unsigned>> zcVec_;
 
-      void push_back(BinaryData rawZc, unsigned zcTime)
+      void push_back(BinaryData rawZc, unsigned zcTime, unsigned blocksToMine = 0)
       {
          Tx zctx(rawZc);
          zctx.setTxTime(zcTime);
 
-         zcVec_.push_back(std::move(zctx));
+         zcVec_.push_back(std::move(std::make_pair(zctx, blocksToMine)));
       }
    };
 

@@ -500,34 +500,14 @@ namespace DBTestUtils
       auto nodePtr = bdmt->bdm()->networkNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
 
-      std::vector<BinaryData> txVec;
+      std::vector<pair<BinaryData, unsigned>> txVec;
       for (auto& newzc : zcVec.zcVec_)
       {
-         BinaryData bdTx(newzc.getPtr(), newzc.getSize());
-         txVec.push_back(bdTx);
+         BinaryData bdTx(newzc.first.getPtr(), newzc.first.getSize());
+         txVec.push_back(make_pair(bdTx, newzc.second));
       }
 
       nodeUnitTest->pushZC(txVec);
-      /*auto zcConf = bdmt->bdm()->zeroConfCont_;
-
-      ZeroConfContainer::ZcActionStruct newzcstruct;
-      newzcstruct.action_ = Zc_NewTx;
-
-      map<BinaryDataRef, shared_ptr<ParsedTx>> newzcmap;
-
-      for (auto& newzc : zcVec.zcVec_)
-      {
-         auto&& zckey = zcConf->getNewZCkey();
-         auto ptx = make_shared<ParsedTx>(zckey);
-         ptx->tx_ = move(newzc);
-         auto tx_pair = make_pair(ptx->getKeyRef(), move(ptx));
-         newzcmap.insert(move(tx_pair));
-      }
-
-      newzcstruct.batch_ = make_shared<ZeroConfBatch>();
-      newzcstruct.batch_->txMap_ = move(newzcmap);
-      newzcstruct.batch_->isReadyPromise_.set_value(true);
-      zcConf->newZcStack_.push_back(move(newzcstruct));*/
    }
 
    /////////////////////////////////////////////////////////////////////////////

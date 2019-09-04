@@ -8394,7 +8394,6 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -8497,7 +8496,6 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -8729,7 +8727,6 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -8944,7 +8941,6 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -9513,7 +9509,6 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -10923,7 +10918,6 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
       feed->pubKeyToPrivKey_[datapair.second] = key;
    };
 
-   addToFeed(TestChain::privKeyAddrA);
    addToFeed(TestChain::privKeyAddrB);
    addToFeed(TestChain::privKeyAddrC);
    addToFeed(TestChain::privKeyAddrE);
