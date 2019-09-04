@@ -216,7 +216,7 @@ TEST_F(DISABLED_PartialMerkleTest, EmptyTree)
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-/*class BlockUtilsSuper : public ::testing::Test
+class BlockUtilsSuper : public ::testing::Test
 {
 protected:
    BlockDataManagerThread *theBDMt_;
@@ -1283,7 +1283,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DoubleReorg)
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
    EXPECT_EQ(ssh.totalTxioCount_, 2);
-}*/
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // I thought I was going to do something different with this set of tests,
@@ -1390,7 +1390,7 @@ protected:
 
    BinaryData wallet1id;
 };
-/*
+
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsWithWalletTest, Test_WithWallet)
 {
@@ -1548,7 +1548,6 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -1949,7 +1948,6 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -2176,7 +2174,6 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -2548,7 +2545,6 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
          feed->pubKeyToPrivKey_[datapair.second] = key;
       };
 
-      addToFeed(TestChain::privKeyAddrA);
       addToFeed(TestChain::privKeyAddrB);
       addToFeed(TestChain::privKeyAddrC);
       addToFeed(TestChain::privKeyAddrD);
@@ -2970,7 +2966,6 @@ TEST_F(BlockUtilsWithWalletTest, ZC_MineAfter1Block)
       feed->pubKeyToPrivKey_[datapair.second] = key;
    };
 
-   addToFeed(TestChain::privKeyAddrA);
    addToFeed(TestChain::privKeyAddrB);
    addToFeed(TestChain::privKeyAddrC);
    addToFeed(TestChain::privKeyAddrD);
@@ -3140,7 +3135,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_MineAfter1Block)
 
    EXPECT_EQ(zc1.getTxHeight(), 6);
    EXPECT_EQ(zc2.getTxHeight(), 7);
-}*/
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 class WebSocketTests : public ::testing::Test
@@ -4131,7 +4126,8 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
       for (auto& utxo : utxos)
       {
          if (utxo.getRecipientScrAddr() != TestChain::scrAddrB ||
-            utxo.getScript().getSize() != 25)
+            utxo.getScript().getSize() != 25 ||
+            utxo.getValue() != 50 * COIN)
             continue;
 
          //sign
@@ -4152,14 +4148,17 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
             zcVec.push_back(signer.serialize(), 130000000, stagger++);
          }
 
-         if (stagger > loopCount)
-            break;
+         if (stagger < loopCount)
+            continue;
+
+         break;
       }
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       pCallback->waitOnSignal(BDMAction_ZC);
 
-      auto getAddrOp = [bdvObj, &_scrAddrVec1](unsigned heightOffset)->OutpointBatch
+      auto getAddrOp = [bdvObj, &_scrAddrVec1](
+         unsigned heightOffset, unsigned zcOffset)->OutpointBatch
       {
          auto promPtr = make_shared<promise<OutpointBatch>>();
          auto fut = promPtr->get_future();
@@ -4168,13 +4167,90 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
             promPtr->set_value(batch.get());
          };
 
-         bdvObj->getOutpointsForAddresses(_scrAddrVec1, heightOffset, UINT32_MAX, addrOpLbd);
+         bdvObj->getOutpointsForAddresses(_scrAddrVec1, heightOffset, zcOffset, addrOpLbd);
          return fut.get();
       };
 
-      unsigned heightOffset = 0;
-      auto&& addrOp = getAddrOp(heightOffset);
+      auto computeBalance = [](const vector<OutpointData>& data)->uint64_t
+      {
+         uint64_t total = 0;
+         for(auto& op : data)
+         { 
+            if (op.isSpent_)
+               continue;
 
+            total += op.value_;
+         }
+
+         return total;
+      };
+
+      //check current mined output state
+      unsigned heightOffset = 0;
+      auto&& addrOp = getAddrOp(heightOffset, UINT32_MAX);
+      heightOffset = addrOp.heightCutoff_ + 1;
+      ASSERT_EQ(addrOp.outpoints_.size(), 6);
+      
+      auto iterAddrA = addrOp.outpoints_.find(TestChain::scrAddrA);
+      EXPECT_NE(iterAddrA, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrA->second.size(), 1);
+      EXPECT_EQ(computeBalance(iterAddrA->second), 50 * COIN);
+
+      auto iterAddrB = addrOp.outpoints_.find(TestChain::scrAddrB);
+      EXPECT_NE(iterAddrB, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrB->second.size(), 1007);
+      EXPECT_EQ(computeBalance(iterAddrB->second), 50070 * COIN);
+
+      auto iterAddrC = addrOp.outpoints_.find(TestChain::scrAddrC);
+      EXPECT_NE(iterAddrC, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrC->second.size(), 4);
+      EXPECT_EQ(computeBalance(iterAddrC->second), 20 * COIN);
+
+      auto iterAddrD = addrOp.outpoints_.find(TestChain::scrAddrD);
+      EXPECT_NE(iterAddrD, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrD->second.size(), 4);
+      EXPECT_EQ(computeBalance(iterAddrD->second), 65 * COIN);
+
+      auto iterAddrE = addrOp.outpoints_.find(TestChain::scrAddrE);
+      EXPECT_NE(iterAddrE, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrE->second.size(), 2);
+      EXPECT_EQ(computeBalance(iterAddrE->second), 30 * COIN);
+
+      auto iterAddrF = addrOp.outpoints_.find(TestChain::scrAddrF);
+      EXPECT_NE(iterAddrF, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrF->second.size(), 4);
+      EXPECT_EQ(computeBalance(iterAddrF->second), 5 * COIN);
+
+      //check zc outputs
+      auto zcAddrOp = getAddrOp(UINT32_MAX, 0);
+      ASSERT_EQ(zcAddrOp.outpoints_.size(), loopCount + 1);
+
+      auto iterZcB = zcAddrOp.outpoints_.find(TestChain::scrAddrB);
+      ASSERT_NE(iterZcB, zcAddrOp.outpoints_.end());
+      EXPECT_EQ(iterZcB->second.size(), 10);
+
+      for (auto& opB : iterZcB->second)
+      {
+         EXPECT_EQ(opB.value_, 50 * COIN);
+         EXPECT_EQ(opB.txIndex_, 0);
+         EXPECT_TRUE(opB.isSpent_);
+      }
+
+      for (unsigned z = 0; z < loopCount; z++)
+      {
+         auto id = z % _scrAddrVec1.size();
+         auto& addr = _scrAddrVec1[id];
+         
+         auto addrIter = zcAddrOp.outpoints_.find(addr);
+         ASSERT_NE(addrIter, zcAddrOp.outpoints_.end());
+         EXPECT_EQ(addrIter->second.size(), 1);
+
+         auto& op = addrIter->second[0];
+         EXPECT_EQ(op.value_, 50 * COIN);
+         EXPECT_EQ(op.txHeight_, UINT32_MAX);
+      }
+
+      //mine the zc
       for (unsigned z = 0; z < loopCount; z++)
       {
          //mine
@@ -4182,7 +4258,44 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
          pCallback->waitOnSignal(BDMAction_NewBlock);
 
          //grab addrop
-         auto&& addr_op = getAddrOp(heightOffset);
+         auto&& addr_op = getAddrOp(heightOffset, UINT32_MAX);
+         EXPECT_EQ(addr_op.outpoints_.size(), 3);
+
+         //new coinbase to A
+         auto iterA = addr_op.outpoints_.find(TestChain::scrAddrA);
+         ASSERT_NE(iterA, addr_op.outpoints_.end());
+         EXPECT_EQ(iterA->second.size(), 1);
+
+         auto& opA = *iterA->second.begin();
+         EXPECT_EQ(opA.txIndex_, 0);
+         EXPECT_EQ(opA.txOutIndex_, 0);
+         EXPECT_EQ(opA.value_, 50 * COIN);
+         EXPECT_FALSE(opA.isSpent_);
+
+         //B coinbase input
+         auto iterB = addr_op.outpoints_.find(TestChain::scrAddrB);
+         ASSERT_NE(iterB, addr_op.outpoints_.end());
+         EXPECT_EQ(iterB->second.size(), 1);
+
+         auto& opB = *iterB->second.begin();
+         EXPECT_EQ(opB.txIndex_, 0);
+         EXPECT_EQ(opB.txOutIndex_, 0);
+         EXPECT_EQ(opB.value_, 50 * COIN);
+         EXPECT_TRUE(opB.isSpent_);
+         
+         //to recipient
+         auto id = z % _scrAddrVec1.size();
+         auto& recAddr = _scrAddrVec1[id];
+         auto iterR = addr_op.outpoints_.find(recAddr);
+         ASSERT_NE(iterR, addr_op.outpoints_.end());
+         EXPECT_EQ(iterR->second.size(), 1);
+
+         auto& opR = *iterR->second.begin();
+         EXPECT_EQ(opR.txIndex_, 1);
+         EXPECT_EQ(opR.value_, 50 * COIN);
+
+         //update cutoff
+         heightOffset = addr_op.heightCutoff_ + 1;
       }
    }
 
@@ -4388,6 +4501,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
