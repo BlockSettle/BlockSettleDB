@@ -52,7 +52,7 @@ if(WITH_HOST_CPU_FEATURES AND CMAKE_CXX_COMPILER_ID STREQUAL GNU)
 endif()
 
 if(MSVC)
-    add_compile_definitions(NOMINMAX _WINSOCKAPI_)
+    add_definitions(-DNOMINMAX -D_WINSOCKAPI_)
 endif()
 
 # support brew and macports
