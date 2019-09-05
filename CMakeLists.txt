@@ -25,6 +25,7 @@ include(GCCToolchain)
 include(LLVMToolchain)
 include(LTO)
 include(CompilerColorDiagnostics)
+include(CompilerWarnings)
 
 use_cxx11()
 
