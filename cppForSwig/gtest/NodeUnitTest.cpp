@@ -14,6 +14,7 @@ using namespace std;
 NodeUnitTest::NodeUnitTest(uint32_t magic_word) :
    BitcoinP2P("", "", magic_word)
 {
+   //0 is reserved for coinbase tx ordering in spoofed blocks
    counter_.store(1, memory_order_relaxed);
 }
 
@@ -40,23 +41,22 @@ void NodeUnitTest::mineNewBlock(unsigned count, const BinaryData& h160)
 std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
    unsigned count, ScriptRecipient* recipient)
 {
-   BinaryData prevHash;
-   uint32_t timestamp;
-   BinaryData diffBits;
-   unsigned blockHeight;
-   
+
+   if(header_.prevHash_.getSize() == 0)
    {
       auto top = blockchain_->top();
-      prevHash = top->getThisHash();
-      timestamp = top->getTimestamp();
-      diffBits  = top->getDiffBits();
-      blockHeight = top->getBlockHeight() + 1;
+      header_.prevHash_ = top->getThisHash();
+      header_.timestamp_ = top->getTimestamp();
+      header_.diffBits_  = top->getDiffBits();
+      header_.blockHeight_ = top->getBlockHeight() + 1;
    }
 
    std::map<unsigned, BinaryData> result;
 
    for (unsigned i = 0; i < count; i++)
    {
+      UnitTestBlock block;
+
       //create coinbase tx
       BinaryWriter bwCoinbase;
       {
@@ -93,8 +93,10 @@ std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
       coinbaseObj->rawTx_ = bwCoinbase.getData();
       coinbaseObj->hash_ = BtcUtils::getHash256(coinbaseObj->rawTx_);
       coinbaseObj->order_ = 0;
+      block.coinbase_ = Tx(coinbaseObj->rawTx_);
+      block.height_ = header_.blockHeight_++;
 
-      result.insert(make_pair(blockHeight++, coinbaseObj->hash_));
+      result.insert(make_pair(block.height_, coinbaseObj->hash_));
 
       //grab all tx in the mempool, respect ordering
       vector<shared_ptr<MempoolObject>> mempoolV;
@@ -114,7 +116,16 @@ std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
          }
       }
 
-      sort(mempoolV.begin(), mempoolV.end());
+      struct SortStruct
+      {
+         bool operator()(const shared_ptr<MempoolObject>& lhs,
+            const shared_ptr<MempoolObject>& rhs) const
+         {
+            return *lhs < *rhs;
+         }
+      };
+
+      sort(mempoolV.begin(), mempoolV.end(), SortStruct());
 
       //compute merkle
       vector<BinaryData> txHashes;
@@ -135,23 +146,29 @@ std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
          bwBlock.put_uint32_t(1);
 
          //previous hash
-         bwBlock.put_BinaryData(prevHash);
+         bwBlock.put_BinaryData(header_.prevHash_);
 
          //merkle root
          bwBlock.put_BinaryData(merkleRoot);
 
          //timestamp
-         bwBlock.put_uint32_t(timestamp + 600);
+         bwBlock.put_uint32_t(header_.timestamp_ + 600);
 
          //diff bits
-         bwBlock.put_BinaryData(diffBits);
+         bwBlock.put_BinaryData(header_.diffBits_);
 
          //nonce
          bwBlock.put_uint32_t(0);
 
          //update prev hash and timestamp for the next block
-         prevHash = BtcUtils::getHash256(bwBlock.getDataRef());
-         timestamp += 600;
+         header_.prevHash_ = BtcUtils::getHash256(bwBlock.getDataRef());
+
+         block.headerHash_ = header_.prevHash_;
+         block.rawHeader_ = bwBlock.getDataRef();
+         
+         block.diffBits_ = header_.diffBits_;
+         block.timestamp_ = header_.timestamp_;
+         header_.timestamp_ += 600;
       }
 
       {
@@ -162,8 +179,13 @@ std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
 
          //tx
          for (auto& txObj : mempoolV)
+         {
             bwBlock.put_BinaryData(txObj->rawTx_);
+            block.transactions_.push_back(Tx(txObj->rawTx_));
+         }
       }
+
+      blocks_.push_back(block);
 
       {
          /* append to blocks data file */
@@ -195,6 +217,18 @@ std::map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(
    notifyNewBlock();
 
    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::setReorgBranchPoint(shared_ptr<BlockHeader> header)
+{
+   if (header == nullptr)
+      throw runtime_error("null header");
+
+   header_.prevHash_ = header->getThisHash();
+   header_.blockHeight_ = header->getBlockHeight();
+   header_.timestamp_ = header->getTimestamp();
+   header_.diffBits_ = header->getDiffBits();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

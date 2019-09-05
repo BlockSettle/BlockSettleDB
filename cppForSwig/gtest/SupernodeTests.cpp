@@ -4502,6 +4502,368 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
    theBDMt_ = nullptr;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
+{
+   //instantiate resolver feed overloaded object
+   auto feed = make_shared<ResolverUtils::TestResolverFeed>();
+
+   auto addToFeed = [feed](const BinaryData& key)->void
+   {
+      auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
+      feed->h160ToPubKey_.insert(datapair);
+      feed->pubKeyToPrivKey_[datapair.second] = key;
+   };
+
+   addToFeed(TestChain::privKeyAddrB);
+   addToFeed(TestChain::privKeyAddrC);
+   addToFeed(TestChain::privKeyAddrD);
+   addToFeed(TestChain::privKeyAddrE);
+   addToFeed(TestChain::privKeyAddrF);
+
+   //public server
+   startupBIP150CTX(4, true);
+
+   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
+
+   vector<BinaryData> scrAddrVec;
+   scrAddrVec.push_back(TestChain::scrAddrA);
+   scrAddrVec.push_back(TestChain::scrAddrB);
+   scrAddrVec.push_back(TestChain::scrAddrC);
+   scrAddrVec.push_back(TestChain::scrAddrD);
+   scrAddrVec.push_back(TestChain::scrAddrE);
+   scrAddrVec.push_back(TestChain::scrAddrF);
+
+   theBDMt_->start(config.initMode_);
+
+   auto pCallback = make_shared<DBTestUtils::UTCallback>();
+   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, pCallback);
+   bdvObj->addPublicKey(serverPubkey);
+   bdvObj->connectToRemote();
+   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+
+   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+   vector<string> walletRegIDs;
+   walletRegIDs.push_back(
+      wallet1.registerAddresses(scrAddrVec, false));
+
+   //wait on registration ack
+   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+   //go online
+   bdvObj->goOnline();
+   pCallback->waitOnSignal(BDMAction_Ready);
+
+   //create tx from utxo lambda
+   auto makeTxFromUtxo = [feed](const UTXO& utxo, const BinaryData& recipient)->BinaryData
+   {
+      auto spender = make_shared<ScriptSpender>(utxo);
+      auto recPtr = make_shared<Recipient_P2PKH>(recipient.getSliceCopy(1, 20), utxo.getValue());
+
+      Signer signer;
+      signer.setFeed(feed);
+      signer.addSpender(spender);
+      signer.addRecipient(recPtr);
+
+      signer.sign();
+      return signer.serialize();
+   };
+
+   //grab utxo from db
+   auto getUtxo = [bdvObj](const BinaryData& addr)->vector<UTXO>
+   {
+      auto promPtr = make_shared<promise<vector<UTXO>>>();
+      auto fut = promPtr->get_future();
+      auto getUtxoLbd = [promPtr](ReturnMessage<vector<UTXO>> batch)->void
+      {
+         promPtr->set_value(batch.get());
+      };
+
+      bdvObj->getUTXOsForAddress(addr, false, getUtxoLbd);
+      return fut.get();
+   };
+
+   //create tx from spender address lambda
+   auto makeTx = [makeTxFromUtxo, getUtxo, bdvObj](
+      const BinaryData& payer, const BinaryData& recipient)->BinaryData
+   {
+      auto utxoVec = getUtxo(payer);
+      if (utxoVec.size() == 0)
+         throw runtime_error("unexpected utxo vec size");
+
+      auto& utxo = utxoVec[0];
+      return makeTxFromUtxo(utxo, recipient);
+   };
+
+   //grab utxo from raw tx lambda
+   auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
+   {
+      Tx tx(rawTx);
+      if (id > tx.getNumTxOut())
+         throw runtime_error("invalid txout count");
+
+      auto&& txOut = tx.getTxOutCopy(id);
+      
+      UTXO utxo;
+      utxo.unserializeRaw(txOut.serialize());
+      utxo.txOutIndex_ = id;
+      utxo.txHash_ = tx.getThisHash();
+
+      return utxo;
+   };
+
+   vector<string> walletIDs;
+   walletIDs.push_back(wallet1.walletID());
+
+   //grab combined balances lambda
+   auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
+   {
+      auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
+      auto fut = promPtr->get_future();
+      auto balLbd = [promPtr](
+         ReturnMessage<map<string, CombinedBalances>> combBal)->void
+      {
+         promPtr->set_value(combBal.get());
+      };
+
+      bdvObj->getCombinedBalances(walletIDs, balLbd);
+      auto&& balMap = fut.get();
+
+      if (balMap.size() != 1)
+         throw runtime_error("unexpected balance map size");
+
+      return balMap.begin()->second;
+   };
+
+   //check original balances
+   {
+      auto&& combineBalances = getBalances();
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+
+      auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
+      ASSERT_NE(iterA, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterA->second.size(), 3);
+      EXPECT_EQ(iterA->second[0], 50 * COIN);
+
+      auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
+      ASSERT_NE(iterB, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterB->second.size(), 3);
+      EXPECT_EQ(iterB->second[0], 70 * COIN);
+
+      auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
+      ASSERT_NE(iterC, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterC->second.size(), 3);
+      EXPECT_EQ(iterC->second[0], 20 * COIN);
+
+      auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
+      ASSERT_NE(iterD, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterD->second.size(), 3);
+      EXPECT_EQ(iterD->second[0], 65 * COIN);
+
+      auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
+      ASSERT_NE(iterE, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterE->second.size(), 3);
+      EXPECT_EQ(iterE->second[0], 30 * COIN);
+
+      auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
+      ASSERT_NE(iterF, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterF->second.size(), 3);
+      EXPECT_EQ(iterF->second[0], 5 * COIN);
+   }
+
+   BinaryData branchPointBlockHash, mainBranchBlockHash;
+   {
+      auto top = theBDMt_->bdm()->blockchain()->top();
+      branchPointBlockHash = top->getThisHash();
+   }
+
+   //main branch
+   BinaryData bd_BtoC;
+   UTXO utxoF;
+   {
+      //tx from B to C
+      bd_BtoC = makeTx(TestChain::scrAddrB, TestChain::scrAddrC);
+
+      //tx from F to A
+      auto&& utxoVec = getUtxo(TestChain::scrAddrF);
+      ASSERT_EQ(utxoVec.size(), 1);
+      utxoF = utxoVec[0];
+      auto bd_FtoD = makeTxFromUtxo(utxoF, TestChain::scrAddrA);
+
+      //broadcast
+      DBTestUtils::ZcVector zcVec;
+      zcVec.push_back(bd_BtoC, 1300000000);
+      zcVec.push_back(bd_FtoD, 1300000001);
+      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+
+      //mine
+      DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA, 1);
+      pCallback->waitOnSignal(BDMAction_NewBlock);
+
+      //zc C to E
+      auto&& utxo = getUtxoFromRawTx(bd_BtoC, 0);
+      auto bd_CtoE = makeTxFromUtxo(utxo, TestChain::scrAddrE);
+      
+      //broadcast
+      zcVec.zcVec_.clear();
+      zcVec.push_back(bd_CtoE, 1300000002);
+      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+
+      //mine
+      DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA, 1);
+      pCallback->waitOnSignal(BDMAction_NewBlock);
+
+      //check balances
+      auto&& combineBalances = getBalances();
+
+      //D doesn't change so there should only be 5 balance entries
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 5);
+
+      auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
+      ASSERT_NE(iterA, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterA->second.size(), 3);
+      EXPECT_EQ(iterA->second[0], 155 * COIN);
+
+      auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
+      ASSERT_NE(iterB, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterB->second.size(), 3);
+      EXPECT_EQ(iterB->second[0], 20 * COIN);
+
+      auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
+      ASSERT_NE(iterC, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterC->second.size(), 3);
+      EXPECT_EQ(iterC->second[0], 20 * COIN);
+
+      auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
+      ASSERT_NE(iterE, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterE->second.size(), 3);
+      EXPECT_EQ(iterE->second[0], 80 * COIN);
+
+      auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
+      ASSERT_NE(iterF, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterF->second.size(), 3);
+      EXPECT_EQ(iterF->second[0], 0 * COIN);
+
+      {
+         auto top = theBDMt_->bdm()->blockchain()->top();
+         mainBranchBlockHash = top->getThisHash();
+      }
+   }
+
+   //reorg
+   {
+      //set branching point
+      DBTestUtils::setReorgBranchingPoint(theBDMt_, branchPointBlockHash);
+
+      //tx from F to D
+      auto bd_FtoD = makeTxFromUtxo(utxoF, TestChain::scrAddrD);
+
+      //broadcast
+      DBTestUtils::ZcVector zcVec;
+      zcVec.push_back(bd_BtoC, 1300000000, 0); //repeat B to C
+      zcVec.push_back(bd_FtoD, 1300000001, 0);
+
+      //zc D to E
+      auto&& utxo = getUtxoFromRawTx(bd_FtoD, 0);
+      auto bd_DtoE = makeTxFromUtxo(utxo, TestChain::scrAddrE);
+
+      //broadcast
+      zcVec.push_back(bd_DtoE, 1300000002, 1);
+      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+
+      //mine 3 blocks to outpace original chain
+      DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB, 3);
+      pCallback->waitOnSignal(BDMAction_NewBlock);
+
+      //check balances
+      auto&& combineBalances = getBalances();
+
+      //this triggers a reorg
+      //D and F do not receive any effective change in balance from the
+      //previous top
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 4);
+
+      auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
+      ASSERT_NE(iterA, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterA->second.size(), 3);
+      EXPECT_EQ(iterA->second[0], 50 * COIN);
+
+      auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
+      ASSERT_NE(iterB, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterB->second.size(), 3);
+      EXPECT_EQ(iterB->second[0], 170 * COIN);
+
+      auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
+      ASSERT_NE(iterC, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterC->second.size(), 3);
+      EXPECT_EQ(iterC->second[0], 70 * COIN);
+
+      auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
+      ASSERT_NE(iterE, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterE->second.size(), 3);
+      EXPECT_EQ(iterE->second[0], 35 * COIN);
+   }
+
+   //back to main chain
+   {
+      //set branching point
+      DBTestUtils::setReorgBranchingPoint(theBDMt_, mainBranchBlockHash);
+
+      //mine 2 blocks to outpace forked chain
+      DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrF, 2);
+      pCallback->waitOnSignal(BDMAction_NewBlock);
+
+      //check balances
+      auto&& combineBalances = getBalances();
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 5);
+
+      auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
+      ASSERT_NE(iterA, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterA->second.size(), 3);
+      EXPECT_EQ(iterA->second[0], 155 * COIN);
+
+      auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
+      ASSERT_NE(iterB, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterB->second.size(), 3);
+      EXPECT_EQ(iterB->second[0], 20 * COIN);
+
+      auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
+      ASSERT_NE(iterC, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterC->second.size(), 3);
+      EXPECT_EQ(iterC->second[0], 20 * COIN);
+
+      auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
+      ASSERT_NE(iterE, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterE->second.size(), 3);
+      EXPECT_EQ(iterE->second[0], 80 * COIN);
+
+      auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
+      ASSERT_NE(iterF, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterF->second.size(), 3);
+      EXPECT_EQ(iterF->second[0], 100 * COIN);
+   }
+
+   //disconnect
+   bdvObj->unregisterFromDB();
+
+   //cleanup
+   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, nullptr);
+   bdvObj2->addPublicKey(serverPubkey);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
+   WebSocketServer::waitOnShutdown();
+
+   delete theBDMt_;
+   theBDMt_ = nullptr;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

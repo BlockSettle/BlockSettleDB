@@ -21,8 +21,30 @@
 #include "../ScriptRecipient.h"
 #include "../BlockDataMap.h"
 
+struct UnitTestBlock
+{
+   BinaryData rawHeader_;
+   BinaryData headerHash_;
+
+   Tx coinbase_;
+   std::vector<Tx> transactions_;
+
+   unsigned height_;
+   unsigned timestamp_;
+   BinaryData diffBits_;
+};
+
 class NodeUnitTest : public BitcoinP2P
 {
+   struct MinedHeader
+   {
+      BinaryData prevHash_;
+      unsigned blockHeight_;
+
+      unsigned timestamp_;
+      BinaryData diffBits_;
+   };
+
    struct MempoolObject
    {
       BinaryData rawTx_;
@@ -34,10 +56,13 @@ class NodeUnitTest : public BitcoinP2P
    };
 
    std::map<BinaryDataRef, std::shared_ptr<MempoolObject>> mempool_;
+   std::vector<UnitTestBlock> blocks_;
    std::atomic<unsigned> counter_;
    
    std::shared_ptr<Blockchain> blockchain_ = nullptr;
    std::shared_ptr<BlockFiles> filesPtr_ = nullptr;
+
+   MinedHeader header_;
 
 public:
    NodeUnitTest(uint32_t magic_word);
@@ -56,7 +81,10 @@ public:
    void mineNewBlock(unsigned count, const BinaryData& h160);
    std::map<unsigned, BinaryData> mineNewBlock(unsigned, ScriptRecipient*);
    std::shared_ptr<Payload> getTx(const InvEntry& ie, uint32_t timeout);
- 
+
+   std::vector<UnitTestBlock> getMinedBlocks(void) const { return blocks_; }
+   void setReorgBranchPoint(std::shared_ptr<BlockHeader>);
+
    //<raw tx, blocks to wait until mining>
    void pushZC(const std::vector<std::pair<BinaryData, unsigned>>&);
 

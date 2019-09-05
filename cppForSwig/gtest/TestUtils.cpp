@@ -495,6 +495,26 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
+   std::vector<UnitTestBlock> getMinedBlocks(BlockDataManagerThread* bdmt)
+   {
+      auto nodePtr = bdmt->bdm()->networkNode_;
+      auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
+
+      return nodeUnitTest->getMinedBlocks();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   void setReorgBranchingPoint(
+      BlockDataManagerThread* bdmt, const BinaryData& hash)
+   {
+      auto nodePtr = bdmt->bdm()->networkNode_;
+      auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
+
+      auto headerPtr = bdmt->bdm()->blockchain()->getHeaderByHash(hash);
+      nodeUnitTest->setReorgBranchPoint(headerPtr);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
    void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec)
    {
       auto nodePtr = bdmt->bdm()->networkNode_;

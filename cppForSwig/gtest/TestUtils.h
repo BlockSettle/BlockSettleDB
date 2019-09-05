@@ -166,6 +166,10 @@ namespace DBTestUtils
       Clients* clients, std::shared_ptr<::google::protobuf::Message>);
 
    /////////////////////////////////////////////////////////////////////////////
+   std::vector<UnitTestBlock> getMinedBlocks(BlockDataManagerThread*);
+   void setReorgBranchingPoint(BlockDataManagerThread*, const BinaryData&);
+
+   /////////////////////////////////////////////////////////////////////////////
    class UTCallback : public RemoteCallback
    {
       struct BdmNotif
