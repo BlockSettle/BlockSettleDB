@@ -376,7 +376,8 @@ find_package(Python2 COMPONENTS Development QUIET)
 find_program(SWIG_EXECUTABLE swig)
 
 if(WITH_CLIENT STREQUAL AUTO)
-    if(Python2_Development_FOUND AND SWIG_EXECUTABLE)
+    # currently swig sometimes fails on clang
+    if(Python2_Development_FOUND AND SWIG_EXECUTABLE AND (NOT CMAKE_CXX_COMPILER_ID STREQUAL Clang))
         set(WITH_CLIENT ON)
     else()
         set(WITH_CLIENT OFF)

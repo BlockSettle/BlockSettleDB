@@ -72,6 +72,7 @@ TODO: use static vcpkg triplet for windows
 | **Option**                  | **Description**                                                                          | **Default**                    |
 |-----------------------------|------------------------------------------------------------------------------------------|--------------------------------|
 | WITH_HOST_CPU_FEATURES      | use -march=native and supported cpu feature flags, gcc only                              | ON                             |
+| ENABLE_LTO                  | enable link-time-optimizations                                                           | OFF for Debug, ON otherwise    |
 | WITH_CRYPTOPP               | use Crypto++ library for cryptography functions                                          | OFF                            |
 | WITH_CLIENT                 | build Python client                                                                      | AUTO                           |
 | WITH_GUI                    | build GUI support using Qt4 for the Python client                                        | AUTO                           |
