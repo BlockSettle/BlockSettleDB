@@ -148,7 +148,7 @@ namespace DBTestUtils
       }
    };
 
-   void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec);
+   void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec, bool stage = false);
    std::pair<BinaryData, BinaryData> getAddrAndPubKeyFromPrivKey(BinaryData privKey);
 
    Tx getTxByHash(Clients* clients, const std::string bdvId,

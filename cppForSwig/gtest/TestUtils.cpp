@@ -491,7 +491,7 @@ namespace DBTestUtils
       auto nodePtr = bdmt->bdm()->networkNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
 
-      nodeUnitTest->mineNewBlock(count, h160);
+      nodeUnitTest->mineNewBlock(bdmt->bdm(), count, h160);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -515,7 +515,8 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec)
+   void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec, 
+      bool stage)
    {
       auto nodePtr = bdmt->bdm()->networkNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
@@ -527,7 +528,7 @@ namespace DBTestUtils
          txVec.push_back(make_pair(bdTx, newzc.second));
       }
 
-      nodeUnitTest->pushZC(txVec);
+      nodeUnitTest->pushZC(txVec, stage);
    }
 
    /////////////////////////////////////////////////////////////////////////////

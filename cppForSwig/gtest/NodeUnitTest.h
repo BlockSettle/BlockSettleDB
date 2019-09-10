@@ -36,6 +36,7 @@ struct UnitTestBlock
 
 class NodeUnitTest : public BitcoinP2P
 {
+private:
    struct MinedHeader
    {
       BinaryData prevHash_;
@@ -51,6 +52,7 @@ class NodeUnitTest : public BitcoinP2P
       BinaryData hash_;
       unsigned order_;
       unsigned blocksUntilMined_ = 0;
+      bool staged_;
 
       bool operator<(const MempoolObject& rhs) const { return order_ < rhs.order_; }
    };
@@ -78,15 +80,19 @@ public:
 
    //locals
    void notifyNewBlock(void);
-   void mineNewBlock(unsigned count, const BinaryData& h160);
-   std::map<unsigned, BinaryData> mineNewBlock(unsigned, ScriptRecipient*);
+
+   std::map<unsigned, BinaryData> mineNewBlock(
+      BlockDataManager* bdm, unsigned count, const BinaryData& h160);
+   std::map<unsigned, BinaryData> mineNewBlock(
+      BlockDataManager* bdm, unsigned, ScriptRecipient*);
+
    std::shared_ptr<Payload> getTx(const InvEntry& ie, uint32_t timeout);
 
    std::vector<UnitTestBlock> getMinedBlocks(void) const { return blocks_; }
    void setReorgBranchPoint(std::shared_ptr<BlockHeader>);
 
    //<raw tx, blocks to wait until mining>
-   void pushZC(const std::vector<std::pair<BinaryData, unsigned>>&);
+   void pushZC(const std::vector<std::pair<BinaryData, unsigned>>&, bool);
 
    //set
    void setBlockchain(std::shared_ptr<Blockchain>);
