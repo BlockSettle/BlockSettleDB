@@ -4699,6 +4699,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       zcVec.push_back(bd_BtoC, 1300000000);
       zcVec.push_back(bd_FtoD, 1300000001);
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
+      pCallback->waitOnSignal(BDMAction_ZC);
 
       //mine
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA, 1);
@@ -4712,6 +4713,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       zcVec.zcVec_.clear();
       zcVec.push_back(bd_CtoE, 1300000002);
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
+      pCallback->waitOnSignal(BDMAction_ZC);
 
       //mine
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA, 1);
@@ -4720,7 +4722,12 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       //check balances
       auto&& combineBalances = getBalances();
 
-      //D doesn't change so there should only be 5 balance entries
+      /*
+      D doesn't change so there should only be 5 balance entries
+      C value does not change but the address sees a ZC in and a
+      ZC out so the internal value change tracker counter was 
+      incremented, resulting in an entry.
+      */
       EXPECT_EQ(combineBalances.addressBalances_.size(), 5);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
@@ -4764,28 +4771,41 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
       //broadcast
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(bd_BtoC, 1300000000, 0); //repeat B to C
-      zcVec.push_back(bd_FtoD, 1300000001, 0);
+      zcVec.push_back(bd_BtoC, 1300000000, 2); //repeat B to C
+      zcVec.push_back(bd_FtoD, 1300000001, 2);
 
       //zc D to E
       auto&& utxo = getUtxoFromRawTx(bd_FtoD, 0);
       auto bd_DtoE = makeTxFromUtxo(utxo, TestChain::scrAddrE);
 
       //broadcast
-      zcVec.push_back(bd_DtoE, 1300000002, 1);
-      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+      zcVec.push_back(bd_DtoE, 1300000002, 3);
+
+      /*
+      Pass true to stage the zc. Cant broadcast that stuff until 
+      the fork is live.
+      */
+      DBTestUtils::pushNewZc(theBDMt_, zcVec, true);
 
       //mine 3 blocks to outpace original chain
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB, 3);
       pCallback->waitOnSignal(BDMAction_NewBlock);
 
+      //wait on ZC now, as the staged transactions have been pushed
+      pCallback->waitOnSignal(BDMAction_ZC);
+
       //check balances
       auto&& combineBalances = getBalances();
 
-      //this triggers a reorg
-      //D and F do not receive any effective change in balance from the
-      //previous top
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 4);
+      /*
+      This triggers a reorg.
+      F does not receive any effective change in balance from the
+      previous top.
+
+      D value does not change but this is due to a ZC spending the coins
+      out, so the internal id is updated.
+      */
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 5);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
@@ -4801,6 +4821,11 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
       ASSERT_EQ(iterC->second.size(), 3);
       EXPECT_EQ(iterC->second[0], 70 * COIN);
+
+      auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
+      ASSERT_NE(iterD, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterD->second.size(), 3);
+      EXPECT_EQ(iterD->second[0], 65 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
@@ -4819,7 +4844,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
       //check balances
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 5);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
@@ -4835,6 +4860,11 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
       ASSERT_EQ(iterC->second.size(), 3);
       EXPECT_EQ(iterC->second[0], 20 * COIN);
+
+      auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
+      ASSERT_NE(iterD, combineBalances.addressBalances_.end());
+      ASSERT_EQ(iterD->second.size(), 3);
+      EXPECT_EQ(iterD->second[0], 65 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
