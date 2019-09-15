@@ -9,6 +9,7 @@
 #ifndef _H_ASSETS
 #define _H_ASSETS
 
+#include <vector>
 #include <set>
 #include <string>
 
@@ -188,76 +189,116 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+struct CipherData
+{
+   /*
+   Cipher text and its relevant cipher object
+   */
+
+   const SecureBinaryData cipherText_;
+   std::unique_ptr<Cipher> cipher_;
+
+   CipherData(SecureBinaryData& cipherText, std::unique_ptr<Cipher> cipher) :
+      cipherText_(std::move(cipherText)), cipher_(std::move(cipher))
+   {
+      if (cipherText_.getSize() == 0)
+         throw AssetException("empty cipher text");
+
+      if (cipher_ == nullptr)
+         throw AssetException("null cipher for privkey");
+   }
+
+   BinaryData serialize(void) const;
+   bool isSame(CipherData* const) const;
+
+   static std::unique_ptr<CipherData> deserialize(BinaryRefReader&);
+};
+
+////////////////////////////////////////////////////////////////////////////////
 struct Asset_EncryptedData : public Asset
 {
    /***
-   This class is instantiated with the cipher text and related cipher object.
-   It can only be used to yield the plain text on demand, it does not generate
-   the cipher text from the plain text for you.
+   This class holds the cipher data for an encrypted key. It can yield the
+   clear text secret, provided the kdf'ed encryption key. It cannot generate
+   the cipher text.
 
-   Use Cipher::encrypt to generate the cipher text first. Pass that cipher with 
-   the resulting cipher text to this class' ctor.
+   Use Cipher::encrypt to generate the cipher text first. Pass that cipher data
+   at construction time.
+
+   Different subclasses of Asset_Encrypted data may have variable amount of 
+   cipher data entries.
    ***/
 
    friend class DecryptedDataContainer;
 
 protected:
-   const SecureBinaryData cipherText_;
-   std::unique_ptr<Cipher> cipher_;
+   std::vector<std::unique_ptr<CipherData>> cipherData_;
 
 public:
    Asset_EncryptedData(
       SecureBinaryData& cipherText, std::unique_ptr<Cipher> cipher) :
-      Asset(AssetType_EncryptedData), cipherText_(std::move(cipherText))
+      Asset(AssetType_EncryptedData)
    {
-      if (cipherText_.getSize() == 0)
-         return;
-
-      if (cipher == nullptr)
-         throw AssetException("null cipher for privkey");
-
-      cipher_ = std::move(cipher);
+      auto data = std::make_unique<CipherData>(cipherText, std::move(cipher));
+      cipherData_.push_back(std::move(data));
    }
+
+   Asset_EncryptedData(
+      std::unique_ptr<CipherData> cipherData) :
+      Asset(AssetType_EncryptedData)
+   {
+      cipherData_.push_back(std::move(cipherData));
+   }
+
+   Asset_EncryptedData(std::vector<std::unique_ptr<CipherData>> cipherVec) :
+      Asset(AssetType_EncryptedData)
+   {
+      cipherData_ = std::move(cipherVec);
+   }
+
 
    //virtual
    virtual ~Asset_EncryptedData(void) = 0;
-   virtual bool isSame(Asset_EncryptedData* const) const = 0;
+   virtual bool isSame(Asset_EncryptedData* const) const;
    virtual BinaryData getId(void) const = 0;
+
+   virtual const SecureBinaryData& getCipherText(void) const = 0;
+   virtual const SecureBinaryData& getIV(void) const = 0;
+   virtual const BinaryData& getEncryptionKeyId(void) const = 0;
 
    //local
    bool hasData(void) const
    {
-      return (cipherText_.getSize() != 0);
+      return cipherData_.size() != 0;
    }
 
-   std::unique_ptr<Cipher> copyCipher(void) const
+   std::unique_ptr<Cipher> copyCipher(unsigned id) const
    {
-      if (cipher_ == nullptr)
-         return nullptr;
+      if (id > cipherData_.size() - 1)
+         throw AssetException("no cipher for that id");
 
-      return cipher_->getCopy();
+      return cipherData_[id]->cipher_->getCopy();
    }
 
-   const SecureBinaryData& getIV(void) const
+   const CipherData* getCipherDataPtr(unsigned id) const
    {
-      return cipher_->getIV();
+      if (id > cipherData_.size() - 1)
+         throw AssetException("no cipher for that id");
+
+      return cipherData_[id].get();
    }
 
-   const SecureBinaryData& getCipherText(void) const
+   size_t getCipherDataCount(void) const
    {
-      return cipherText_;
-   }
-
-   const BinaryData& getEncryptionKeyID(void) const
-   {
-      return cipher_->getEncryptionKeyId();
+      return cipherData_.size();
    }
 
    virtual std::unique_ptr<DecryptedData> decrypt(
       const SecureBinaryData& key) const;
 
    //static
-   static std::shared_ptr<Asset_EncryptedData> deserialize(const BinaryDataRef&);
+   static std::shared_ptr<Asset_EncryptedData> deserialize(
+      const BinaryDataRef&);
    static std::shared_ptr<Asset_EncryptedData> deserialize(
       size_t len, const BinaryDataRef&);
 };
@@ -265,6 +306,9 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 struct Asset_EncryptionKey : public Asset_EncryptedData
 {
+   /*
+   Only ever 1 cipher data object
+   */
 public:
    const BinaryData id_;
 
@@ -272,14 +316,26 @@ public:
    Asset_EncryptionKey(BinaryData& id, 
       SecureBinaryData& cipherText,
       std::unique_ptr<Cipher> cipher) :
-      Asset_EncryptedData(cipherText, std::move(cipher)), id_(std::move(id))
+      Asset_EncryptedData(cipherText, std::move(cipher)), 
+      id_(std::move(id))
    {}
 
+   Asset_EncryptionKey(BinaryData& id,
+      std::vector<std::unique_ptr<CipherData>> cipherData) :
+      Asset_EncryptedData(std::move(cipherData)),
+      id_(std::move(id))
+   {}
+
+   ////
    BinaryData serialize(void) const;
    BinaryData getId(void) const { return id_; }
-
    bool isSame(Asset_EncryptedData* const) const;
 
+   const SecureBinaryData& getCipherText(void) const override;
+   const SecureBinaryData& getIV(void) const override;
+   const BinaryData& getEncryptionKeyId(void) const override;
+
+   ////
    std::unique_ptr<DecryptedData> decrypt(
       const SecureBinaryData& key) const
    {
@@ -290,6 +346,9 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 struct Asset_PrivateKey : public Asset_EncryptedData
 {
+   /*
+   May have multiple cipher data objects
+   */
 public:
    const BinaryData id_;
 
@@ -299,32 +358,47 @@ public:
       Asset_EncryptedData(data, std::move(cipher)), id_(id)
    {}
 
+   Asset_PrivateKey(const BinaryData& id,
+      std::unique_ptr<CipherData> cipherData) :
+      Asset_EncryptedData(std::move(cipherData)), id_(id)
+   {}
+
+   ////
    BinaryData serialize(void) const;
    BinaryData getId(void) const { return id_; }
-
    bool isSame(Asset_EncryptedData* const) const;
+
+   const SecureBinaryData& getCipherText(void) const override;
+   const SecureBinaryData& getIV(void) const override;
+   const BinaryData& getEncryptionKeyId(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 class EncryptedSeed : public Asset_EncryptedData
-{
-private:
-
+{   
+   /*
+   Only ever 1 cipher data object
+   */
 public:
    //tors
-
-   //setup encrypted data
    EncryptedSeed(
       SecureBinaryData cipherText, std::unique_ptr<Cipher> cipher) :
       Asset_EncryptedData(cipherText, move(cipher))
    {}
 
-   //local
-   BinaryData serialize(void) const;
-
+   EncryptedSeed(
+      std::unique_ptr<CipherData> cipher) :
+      Asset_EncryptedData(move(cipher))
+   {}
+   
    //virtual
+   BinaryData serialize(void) const;
    bool isSame(Asset_EncryptedData* const) const;
    BinaryData getId(void) const { return SEED_ID; }
+
+   const SecureBinaryData& getCipherText(void) const override;
+   const SecureBinaryData& getIV(void) const override;
+   const BinaryData& getEncryptionKeyId(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

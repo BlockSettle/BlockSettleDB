@@ -123,19 +123,20 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
    }
 
    //check cipher
-   if (dataPtr->cipher_ == nullptr)
+   if (!dataPtr->hasData())
    {
       //null cipher, data is not encrypted, create entry and return it
-      auto dataCopy = dataPtr->cipherText_;
+      auto dataCopy = dataPtr->getCipherText();
       auto&& decrKey = make_unique<DecryptedData>(
          dataPtr->getId(), dataCopy);
       return insertDecryptedData(move(decrKey));
    }
 
    //we have a valid cipher, grab the encryption key
+   auto cipherCopy = dataPtr->copyCipher(0);
    unique_ptr<DecryptedEncryptionKey> decrKey;
-   auto& encryptionKeyId = dataPtr->cipher_->getEncryptionKeyId();
-   auto& kdfId = dataPtr->cipher_->getKdfId();
+   auto& encryptionKeyId = cipherCopy->getEncryptionKeyId();
+   auto& kdfId = cipherCopy->getKdfId();
 
    populateEncryptionKey(encryptionKeyId, kdfId);
 
@@ -210,13 +211,13 @@ void DecryptedDataContainer::populateEncryptionKey(
 
          //found the encrypted key, need to decrypt it first
          populateEncryptionKey(
-            encryptedKeyPtr->cipher_->getEncryptionKeyId(),
-            encryptedKeyPtr->cipher_->getKdfId());
+            encryptedKeyPtr->cipherData_[0]->cipher_->getEncryptionKeyId(),
+            encryptedKeyPtr->cipherData_[0]->cipher_->getKdfId());
 
          //grab encryption key from map
          auto decrKeyIter =
             lockedDecryptedData_->encryptionKeys_.find(
-               encryptedKeyPtr->cipher_->getEncryptionKeyId());
+               encryptedKeyPtr->cipherData_[0]->cipher_->getEncryptionKeyId());
          if (decrKeyIter == lockedDecryptedData_->encryptionKeys_.end())
             throw DecryptedDataContainerException("failed to decrypt key");
          auto&& decryptionKey = move(decrKeyIter->second);
@@ -224,19 +225,19 @@ void DecryptedDataContainer::populateEncryptionKey(
          //derive encryption key
          decryptionKey = move(deriveEncryptionKey(
             move(decryptionKey),
-            encryptedKeyPtr->cipher_->getKdfId()));
+            encryptedKeyPtr->cipherData_[0]->cipher_->getKdfId()));
 
          //decrypt encrypted key
-         auto&& rawDecryptedKey = encryptedKeyPtr->cipher_->decrypt(
-            decryptionKey->getDerivedKey(encryptedKeyPtr->cipher_->getKdfId()),
-            encryptedKeyPtr->cipherText_);
+         auto&& rawDecryptedKey = encryptedKeyPtr->cipherData_[0]->cipher_->decrypt(
+            decryptionKey->getDerivedKey(encryptedKeyPtr->cipherData_[0]->cipher_->getKdfId()),
+            encryptedKeyPtr->cipherData_[0]->cipherText_);
 
          decryptedKey = move(make_unique<DecryptedEncryptionKey>(
             rawDecryptedKey));
 
          //move decryption key back to container
          insertDecryptedData(
-            encryptedKeyPtr->cipher_->getEncryptionKeyId(), move(decryptionKey));
+            encryptedKeyPtr->cipherData_[0]->cipher_->getEncryptionKeyId(), move(decryptionKey));
       }
    }
 
@@ -524,7 +525,7 @@ void DecryptedDataContainer::encryptEncryptionKey(
       "cannot change passphrase for unknown key");
 
    //decrypt master encryption key
-   auto& kdfId = keyIter->second->cipher_->getKdfId();
+   auto& kdfId = keyIter->second->cipherData_[0]->cipher_->getKdfId();
    populateEncryptionKey(keyID, kdfId);
 
    //grab decrypted key
@@ -536,7 +537,7 @@ void DecryptedDataContainer::encryptEncryptionKey(
    auto& decryptedKey = decryptedKeyIter->second->getData();
 
    //grab kdf for key id computation
-   auto masterKeyKdfId = keyIter->second->cipher_->getKdfId();
+   auto masterKeyKdfId = keyIter->second->cipherData_[0]->cipher_->getKdfId();
    auto kdfIter = kdfMap_.find(masterKeyKdfId);
    if (kdfIter == kdfMap_.end())
       throw DecryptedDataContainerException("failed to grab kdf");
@@ -550,7 +551,7 @@ void DecryptedDataContainer::encryptEncryptionKey(
    auto newKeyId = newEncryptionKey->getId(masterKeyKdfId);
 
    //create new cipher, pointing to the new key id
-   auto newCipher = keyIter->second->cipher_->getCopy(newKeyId);
+   auto newCipher = keyIter->second->cipherData_[0]->cipher_->getCopy(newKeyId);
 
    //add new encryption key object to container
    lockedDecryptedData_->encryptionKeys_.insert(

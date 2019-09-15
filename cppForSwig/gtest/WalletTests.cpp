@@ -906,16 +906,40 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    vector<SecureBinaryData> privateKeys;
    struct DecryptedDataContainerEx : public DecryptedDataContainer
    {
-      const SecureBinaryData& getMasterKeyIV(void) const
+      vector<SecureBinaryData> getMasterKeyIVs(void) const
       {
-         auto keyIter = encryptionKeyMap_.begin();
-         return keyIter->second->getIV();
+         vector<SecureBinaryData> result;
+         for (auto& keyPair : encryptionKeyMap_)
+         {
+            auto encrKeyPtr = dynamic_pointer_cast<Asset_EncryptionKey>(keyPair.second);
+            auto count = encrKeyPtr->getCipherDataCount();
+
+            for (unsigned i = 0; i < count; i++)
+            {
+               auto cipherData = encrKeyPtr->getCipherDataPtr(i);
+               result.push_back(cipherData->cipher_->getIV());
+            }
+         }
+
+         return result;
       }
 
-      const SecureBinaryData& getMasterEncryptionKey(void) const
+      vector<SecureBinaryData> getMasterEncryptionKeys(void) const
       {
-         auto keyIter = encryptionKeyMap_.begin();
-         return keyIter->second->getCipherText();
+         vector<SecureBinaryData> result;
+         for (auto& keyPair : encryptionKeyMap_)
+         {
+            auto encrKeyPtr = dynamic_pointer_cast<Asset_EncryptionKey>(keyPair.second);
+            auto count = encrKeyPtr->getCipherDataCount();
+
+            for (unsigned i = 0; i < count; i++)
+            {
+               auto cipherData = encrKeyPtr->getCipherDataPtr(i);
+               result.push_back(cipherData->cipherText_);
+            }
+         }
+
+         return result;
       }
    };
 
@@ -931,8 +955,12 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       auto assetWltEx = (AssetWalletEx*)assetWlt.get();
       auto decryptedDataEx =
          (DecryptedDataContainerEx*)assetWltEx->getDecryptedDataContainer().get();
-      ivVec.push_back(decryptedDataEx->getMasterKeyIV());
-      privateKeys.push_back(decryptedDataEx->getMasterEncryptionKey());
+
+      auto&& ivs = decryptedDataEx->getMasterKeyIVs();
+      ivVec.insert(ivVec.end(), ivs.begin(), ivs.end());
+
+      auto&& keys = decryptedDataEx->getMasterEncryptionKeys();
+      privateKeys.insert(privateKeys.end(), keys.begin(), keys.end());
    }
 
    for (unsigned i = 0; i < 4; i++)
@@ -1026,8 +1054,12 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       auto wltSingleEx = (AssetWalletEx*)wltSingle.get();
       auto decryptedDataEx =
          (DecryptedDataContainerEx*)wltSingleEx->getDecryptedDataContainer().get();
-      newIVs.push_back(decryptedDataEx->getMasterKeyIV());
-      newPrivKeys.push_back(decryptedDataEx->getMasterEncryptionKey());
+
+      auto&& ivs = decryptedDataEx->getMasterKeyIVs();
+      newIVs.insert(newIVs.end(), ivs.begin(), ivs.end());
+
+      auto keys = decryptedDataEx->getMasterEncryptionKeys();
+      newPrivKeys.insert(newPrivKeys.end(), keys.begin(), keys.end());
    }
 
    for (unsigned i = 0; i < 4; i++)

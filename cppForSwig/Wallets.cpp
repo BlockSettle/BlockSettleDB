@@ -2264,7 +2264,7 @@ void AssetWallet_Single::setSeed(
    auto rootPtr = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
    if (rootPtr == nullptr)
       throw WalletException("expected BIP32 root object");
-   auto cipherCopy = rootPtr->getPrivKey()->copyCipher();
+   auto cipherCopy = rootPtr->getPrivKey()->copyCipher(0);
 
    //if custom passphrase, set prompt lambda prior to encryption
    if (passphrase.getSize() > 0)
