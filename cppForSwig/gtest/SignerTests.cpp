@@ -3608,7 +3608,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    saltedAccType->setAddressTypes(
       { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
 
-   auto passphraseLbd = [&passphrase](const BinaryData&)->SecureBinaryData
+   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
    {
       return passphrase;
    };
@@ -3815,7 +3815,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const BinaryData&)->SecureBinaryData
+         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
          {
             return passphrase;
          };
@@ -4080,7 +4080,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const BinaryData&)->SecureBinaryData
+         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
          {
             return passphrase;
          };
@@ -4344,7 +4344,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const BinaryData&)->SecureBinaryData
+         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
          {
             return passphrase;
          };
@@ -4432,7 +4432,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       { AddressEntryType_P2WPKH });
    saltedAccType->setMain(true);
 
-   auto passphraseLbd = [&passphrase](const BinaryData&)->SecureBinaryData
+   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
    {
       return passphrase;
    };
@@ -4628,7 +4628,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const BinaryData&)->SecureBinaryData
+         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
          {
             return passphrase;
          };
@@ -4718,7 +4718,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       { AddressEntryType_P2WPKH });
    ecdhAccType->setMain(true);
 
-   auto passphraseLbd = [&passphrase](const BinaryData&)->SecureBinaryData
+   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
    {
       return passphrase;
    };
@@ -4921,7 +4921,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const BinaryData&)->SecureBinaryData
+         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
          {
             return passphrase;
          };
