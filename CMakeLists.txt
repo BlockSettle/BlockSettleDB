@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12) # ubuntu 14 version
+cmake_minimum_required(VERSION 3.5) # ubuntu 16 version
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
@@ -22,8 +22,6 @@ endif()
 
 include(ArmorySupport)
 include(PrettyCompilerColors)
-
-use_cxx11()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 

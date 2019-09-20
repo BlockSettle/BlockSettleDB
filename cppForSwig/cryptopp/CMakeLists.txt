@@ -1,7 +1,5 @@
 include(ArmorySupport)
 
-use_cxx11()
-
 include(CheckIncludeFileCXX)
 
 if(NOT WIN32) # no need to do these checks on windows

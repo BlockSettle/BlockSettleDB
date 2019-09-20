@@ -21,23 +21,6 @@ macro(string_option opt doc_string initial_value)
     set(${opt} ${${opt}} CACHE STRING ${doc_string})
 endmacro()
 
-# This is from:
-# https://stackoverflow.com/a/31010221
-macro(use_cxx11)
-    if (CMAKE_VERSION VERSION_LESS 3.1)
-	if(CMAKE_CXX_COMPILER_ID STREQUAL GNU OR CMAKE_CXX_COMPILER_ID STREQUAL Clang)
-	    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
-	endif()
-    else()
-        # Fix behavior of CMAKE_CXX_STANDARD when targeting macOS.
-        if(POLICY CMP0025)
-            cmake_policy(SET CMP0025 NEW)
-        endif()
-
-	set(CMAKE_CXX_STANDARD 11)
-    endif()
-endmacro(use_cxx11)
-
 unset(X86_CPU_FEATURES_COMPILER_FLAGS)
 
 # check for x86 cpu features and sets X86_CPU_FEATURES_COMPILER_FLAGS for gcc/clang
