@@ -148,7 +148,7 @@ namespace DBTestUtils
       }
    };
 
-   void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec);
+   void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec, bool stage = false);
    std::pair<BinaryData, BinaryData> getAddrAndPubKeyFromPrivKey(BinaryData privKey);
 
    Tx getTxByHash(Clients* clients, const std::string bdvId,
@@ -164,6 +164,10 @@ namespace DBTestUtils
 
    std::shared_ptr<::google::protobuf::Message> processCommand(
       Clients* clients, std::shared_ptr<::google::protobuf::Message>);
+
+   /////////////////////////////////////////////////////////////////////////////
+   std::vector<UnitTestBlock> getMinedBlocks(BlockDataManagerThread*);
+   void setReorgBranchingPoint(BlockDataManagerThread*, const BinaryData&);
 
    /////////////////////////////////////////////////////////////////////////////
    class UTCallback : public RemoteCallback

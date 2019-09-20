@@ -491,11 +491,32 @@ namespace DBTestUtils
       auto nodePtr = bdmt->bdm()->networkNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
 
-      nodeUnitTest->mineNewBlock(count, h160);
+      nodeUnitTest->mineNewBlock(bdmt->bdm(), count, h160);
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec)
+   std::vector<UnitTestBlock> getMinedBlocks(BlockDataManagerThread* bdmt)
+   {
+      auto nodePtr = bdmt->bdm()->networkNode_;
+      auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
+
+      return nodeUnitTest->getMinedBlocks();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   void setReorgBranchingPoint(
+      BlockDataManagerThread* bdmt, const BinaryData& hash)
+   {
+      auto nodePtr = bdmt->bdm()->networkNode_;
+      auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
+
+      auto headerPtr = bdmt->bdm()->blockchain()->getHeaderByHash(hash);
+      nodeUnitTest->setReorgBranchPoint(headerPtr);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec, 
+      bool stage)
    {
       auto nodePtr = bdmt->bdm()->networkNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
@@ -507,7 +528,7 @@ namespace DBTestUtils
          txVec.push_back(make_pair(bdTx, newzc.second));
       }
 
-      nodeUnitTest->pushZC(txVec);
+      nodeUnitTest->pushZC(txVec, stage);
    }
 
    /////////////////////////////////////////////////////////////////////////////
