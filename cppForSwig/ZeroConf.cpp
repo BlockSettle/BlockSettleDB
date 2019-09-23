@@ -290,7 +290,7 @@ void ZeroConfContainer::preprocessZcMap(
    };
 
    vector<thread> parserThreads;
-   for (unsigned i = 1; i < thread::hardware_concurrency(); i++)
+   for (unsigned i = 1; i < MAX_THREADS(); i++)
       parserThreads.push_back(thread(parserLdb));
    parserLdb();
 

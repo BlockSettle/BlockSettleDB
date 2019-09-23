@@ -28,6 +28,8 @@
 #define DEFAULT_ZCTHREAD_COUNT 100
 #define WEBSOCKET_PORT 7681
 
+size_t MAX_THREADS();
+
 class BitcoinP2P;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +68,7 @@ public:
    bool customBtcPort_ = false;
 
    unsigned ramUsage_ = 4;
-   unsigned threadCount_ = std::thread::hardware_concurrency();
+   unsigned threadCount_ = MAX_THREADS();
    unsigned zcThreadCount_ = DEFAULT_ZCTHREAD_COUNT;
 
    std::exception_ptr exceptionPtr_ = nullptr;

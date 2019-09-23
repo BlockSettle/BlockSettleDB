@@ -2052,7 +2052,7 @@ void Clients::init(BlockDataManagerThread* bdmT,
    unsigned innerThreadCount = 2;
    if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER &&
       BlockDataManagerConfig::getOperationMode() != OPERATION_UNITTEST)
-      innerThreadCount = thread::hardware_concurrency();
+      innerThreadCount = MAX_THREADS();
    for (unsigned i = 0; i < innerThreadCount; i++)
    {
       controlThreads_.push_back(thread(innerthread));
