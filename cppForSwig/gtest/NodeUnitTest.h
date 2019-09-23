@@ -16,6 +16,7 @@
 #include "../BinaryData.h"
 #include "../BtcUtils.h"
 
+#include "../BlockUtils.h"
 #include "../BitcoinP2p.h"
 #include "../Blockchain.h"
 #include "../ScriptRecipient.h"
