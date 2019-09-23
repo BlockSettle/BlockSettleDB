@@ -4083,6 +4083,9 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
    _scrAddrVec1.push_back(TestChain::scrAddrE);
    _scrAddrVec1.push_back(TestChain::scrAddrF);
 
+   set<BinaryData> scrAddrSet;
+   scrAddrSet.insert(_scrAddrVec1.begin(), _scrAddrVec1.end());
+
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
@@ -4157,7 +4160,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       pCallback->waitOnSignal(BDMAction_ZC);
 
-      auto getAddrOp = [bdvObj, &_scrAddrVec1](
+      auto getAddrOp = [bdvObj, &scrAddrSet](
          unsigned heightOffset, unsigned zcOffset)->OutpointBatch
       {
          auto promPtr = make_shared<promise<OutpointBatch>>();
@@ -4167,7 +4170,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
             promPtr->set_value(batch.get());
          };
 
-         bdvObj->getOutpointsForAddresses(_scrAddrVec1, heightOffset, zcOffset, addrOpLbd);
+         bdvObj->getOutpointsForAddresses(scrAddrSet, heightOffset, zcOffset, addrOpLbd);
          return fut.get();
       };
 
@@ -4789,7 +4792,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
       //mine 3 blocks to outpace original chain
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB, 3);
-      pCallback->waitOnSignal(BDMAction_NewBlock);
+      EXPECT_EQ(pCallback->waitOnReorg(), 5);
 
       //wait on ZC now, as the staged transactions have been pushed
       pCallback->waitOnSignal(BDMAction_ZC);
@@ -4840,7 +4843,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
       //mine 2 blocks to outpace forked chain
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrF, 2);
-      pCallback->waitOnSignal(BDMAction_NewBlock);
+      EXPECT_EQ(pCallback->waitOnReorg(), 5);
 
       //check balances
       auto&& combineBalances = getBalances();

@@ -176,6 +176,7 @@ namespace DBTestUtils
       {
          BDMAction action_;
          std::vector<BinaryData> idVec_;
+         unsigned reorgHeight_ = UINT32_MAX;
       };
 
    private:
@@ -185,28 +186,23 @@ namespace DBTestUtils
       UTCallback() : RemoteCallback()
       {}
 
-      void run(BDMAction action, void* ptr, int block = 0)
+      void run(BdmNotification bdmNotif)
       {
          auto notif = make_unique<BdmNotif>();
-         notif->action_ = action;
+         notif->action_ = bdmNotif.action_;
 
-         if (action == BDMAction_Refresh)
+         if (bdmNotif.action_ == BDMAction_Refresh)
          {
-            notif->idVec_ = *((std::vector<BinaryData>*)ptr);
-
-            for(auto& id : notif->idVec_)
-               std::string str(id.toCharPtr(), id.getSize());
+            notif->idVec_ = bdmNotif.ids_;
          }
-         else if (action == BDMAction_ZC)
+         else if (bdmNotif.action_ == BDMAction_ZC)
          {
-            if (ptr == nullptr)
-               return;
-
-            auto leVecPtr = (std::vector<::ClientClasses::LedgerEntry>*)ptr;
-            for (auto& le : *leVecPtr)
-            {
-               notif->idVec_.push_back(le.getTxHash().toHexStr());
-            }
+            for (auto& le : bdmNotif.ledgers_)
+               notif->idVec_.push_back(le->getTxHash().toHexStr());
+         }
+         else if (bdmNotif.action_ == BDMAction_NewBlock)
+         {
+            notif->reorgHeight_ = bdmNotif.branchHeight_;
          }
 
          actionStack_.push_back(move(notif));
@@ -218,6 +214,19 @@ namespace DBTestUtils
 
       void disconnected()
       {}
+
+      unsigned waitOnReorg(void)
+      {
+         while (1)
+         {
+            auto&& action = actionStack_.pop_front();
+            if (action->action_ == BDMAction_NewBlock)
+            {
+               if (action->reorgHeight_ != UINT32_MAX)
+                  return action->reorgHeight_;
+            }
+         }
+      }
 
       void waitOnSignal(BDMAction signal, std::string id = "")
       {
@@ -258,7 +267,6 @@ namespace DBTestUtils
             if (count >= ids.size())
                break;
 
-            auto queuesize = actionStack_.count();
             auto&& action = actionStack_.pop_front();
             if (action->action_ == signal)
             {
