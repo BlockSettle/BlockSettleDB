@@ -3752,9 +3752,22 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    DBTestUtils::ZcVector rawZcVec;
    rawZcVec.push_back(ZC1, 1300000000);
    rawZcVec.push_back(ZC2, 1310000000);
-
    DBTestUtils::pushNewZc(theBDMt_, rawZcVec);
-   pCallback->waitOnSignal(BDMAction_ZC);
+   
+   {
+      set<BinaryData> zcHashes = { ZChash1, ZChash2 };
+      set<BinaryData> scrAddrSet;
+
+      Tx zctx1(ZC1);
+      for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
+         scrAddrSet.insert(zctx1.getScrAddrForTxOut(i));
+
+      Tx zctx2(ZC2);
+      for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
+         scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
+
+      pCallback->waitOnZc(zcHashes, scrAddrSet);
+   }
 
    //get the new ledgers
    auto ledger2_prom =

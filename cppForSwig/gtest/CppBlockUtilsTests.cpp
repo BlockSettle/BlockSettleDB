@@ -10395,8 +10395,10 @@ TEST_F(WebSocketTests, WebSocketStack)
    zcVec.push_back(rawLBZC, 14100000);
 
    vector<string> hashVec;
-   hashVec.push_back(BtcUtils::getHash256(rawZC).toHexStr());
-   hashVec.push_back(BtcUtils::getHash256(rawLBZC).toHexStr());
+   auto hash1 = BtcUtils::getHash256(rawZC);
+   auto hash2 = BtcUtils::getHash256(rawLBZC);
+   hashVec.push_back(string(hash1.getCharPtr(), hash1.getSize()));
+   hashVec.push_back(string(hash2.getCharPtr(), hash2.getSize()));
 
    DBTestUtils::pushNewZc(theBDMt_, zcVec);
    pCallback->waitOnManySignals(BDMAction_ZC, hashVec);
@@ -10496,7 +10498,7 @@ TEST_F(WebSocketTests, WebSocketStack)
    auto rekeyCount = bdvObj->getRekeyCount();
 
    EXPECT_EQ(rekeyCount.first, 2);
-   EXPECT_EQ(rekeyCount.second, 1);
+   EXPECT_EQ(rekeyCount.second, 2);
 
    //cleanup
    bdvObj->shutdown(config.cookie_);
@@ -10996,7 +10998,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
       auto&& ZCHash = BtcUtils::getHash256(rawTx);
       allZcHash.push_back(ZCHash);
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
-      pCallback->waitOnSignal(BDMAction_ZC, ZCHash.toHexStr());
+      pCallback->waitOnSignal(BDMAction_ZC, string(ZCHash.toCharPtr(), ZCHash.getSize()));
    }
 
    //grab ledger, check all zc hash are in there
