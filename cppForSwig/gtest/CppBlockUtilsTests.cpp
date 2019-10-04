@@ -9569,6 +9569,9 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       ZCHash1 = move(BtcUtils::getHash256(rawTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+      EXPECT_EQ(ledgerVec.first.size(), 2);
+      EXPECT_EQ(ledgerVec.second.size(), 0);
+
       for (auto& ledger : ledgerVec.first)
          EXPECT_EQ(ledger.getTxHash(), ZCHash1);
    }
@@ -9652,6 +9655,9 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       ZCHash2 = move(BtcUtils::getHash256(rawTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec3);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+      EXPECT_EQ(ledgerVec.first.size(), 2);
+      EXPECT_EQ(ledgerVec.second.size(), 0);
+
       for (auto& ledger : ledgerVec.first)
          EXPECT_EQ(ledger.getTxHash(), ZCHash2);
    }
@@ -9772,6 +9778,10 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       ZCHash3 = move(BtcUtils::getHash256(rawTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec2);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+      EXPECT_EQ(ledgerVec.first.size(), 2);
+      EXPECT_EQ(ledgerVec.second.size(), 1);
+
+
       for (auto& ledger : ledgerVec.first)
          EXPECT_EQ(ledger.getTxHash(), ZCHash3);
 
@@ -10498,7 +10508,7 @@ TEST_F(WebSocketTests, WebSocketStack)
    auto rekeyCount = bdvObj->getRekeyCount();
 
    EXPECT_EQ(rekeyCount.first, 2);
-   EXPECT_EQ(rekeyCount.second, 2);
+   EXPECT_EQ(rekeyCount.second, 1);
 
    //cleanup
    bdvObj->shutdown(config.cookie_);
