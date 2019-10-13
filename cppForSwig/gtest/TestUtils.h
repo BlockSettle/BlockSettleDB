@@ -153,6 +153,8 @@ namespace DBTestUtils
 
    Tx getTxByHash(Clients* clients, const std::string bdvId,
       const BinaryData& txHash);
+   std::vector<UTXO> getUtxoForAddress(Clients* clients, const std::string bdvId, 
+      const BinaryData& addr, bool withZc);
 
    void addTxioToSsh(StoredScriptHistory&, const std::map<BinaryData, std::shared_ptr<TxIOPair>>&);
    void prettyPrintSsh(StoredScriptHistory& ssh);

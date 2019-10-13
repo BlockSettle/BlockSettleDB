@@ -568,6 +568,40 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
+   std::vector<UTXO> getUtxoForAddress(Clients* clients, const string bdvId, 
+      const BinaryData& scrAddr, bool withZc)
+   {
+      auto message = make_shared<BDVCommand>();
+      message->set_method(Methods::getUTXOsForAddress);
+      message->set_bdvid(bdvId);
+      message->set_scraddr(scrAddr.getCharPtr(), scrAddr.getSize());
+      message->set_flag(withZc);
+
+      auto&& result = processCommand(clients, message);
+      auto response =
+         dynamic_pointer_cast<::Codec_Utxo::ManyUtxo>(result);
+      if (response == nullptr)
+         throw runtime_error("getUtxoForAddress failed");
+      
+      vector<UTXO> utxovec(response->value_size());
+      for (int i = 0; i < response->value_size(); i++)
+      {
+         auto& proto_utxo = response->value(i);
+         auto& utxo = utxovec[i];
+
+         utxo.value_ = proto_utxo.value();
+         utxo.script_.copyFrom(proto_utxo.script());
+         utxo.txHeight_ = proto_utxo.txheight();
+         utxo.txIndex_ = proto_utxo.txindex();
+         utxo.txOutIndex_ = proto_utxo.txoutindex();
+         utxo.txHash_.copyFrom(proto_utxo.txhash());
+      }
+
+      return utxovec;
+   }
+
+
+   /////////////////////////////////////////////////////////////////////////////
    void addTxioToSsh(
       StoredScriptHistory& ssh, 
       const map<BinaryData, shared_ptr<TxIOPair>>& txioMap)
