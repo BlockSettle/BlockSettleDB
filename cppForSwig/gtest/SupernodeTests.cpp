@@ -5169,6 +5169,108 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    theBDMt_ = nullptr;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WebSocketTests, WebSocketStack_GetTxHash)
+{
+   //instantiate resolver feed overloaded object
+   auto feed = make_shared<ResolverUtils::TestResolverFeed>();
+
+   auto addToFeed = [feed](const BinaryData& key)->void
+   {
+      auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
+      feed->h160ToPubKey_.insert(datapair);
+      feed->pubKeyToPrivKey_[datapair.second] = key;
+   };
+
+   addToFeed(TestChain::privKeyAddrB);
+   addToFeed(TestChain::privKeyAddrC);
+   addToFeed(TestChain::privKeyAddrD);
+   addToFeed(TestChain::privKeyAddrE);
+   addToFeed(TestChain::privKeyAddrF);
+
+   //public server
+   startupBIP150CTX(4, true);
+
+   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
+
+   vector<BinaryData> scrAddrVec;
+   scrAddrVec.push_back(TestChain::scrAddrA);
+   scrAddrVec.push_back(TestChain::scrAddrB);
+   scrAddrVec.push_back(TestChain::scrAddrC);
+   scrAddrVec.push_back(TestChain::scrAddrD);
+   scrAddrVec.push_back(TestChain::scrAddrE);
+   scrAddrVec.push_back(TestChain::scrAddrF);
+
+   theBDMt_->start(config.initMode_);
+
+   auto pCallback = make_shared<DBTestUtils::UTCallback>();
+   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      BlockDataManagerConfig::ephemeralPeers_, pCallback);
+   bdvObj->addPublicKey(serverPubkey);
+   bdvObj->connectToRemote();
+   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+
+   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+   vector<string> walletRegIDs;
+   walletRegIDs.push_back(
+      wallet1.registerAddresses(scrAddrVec, false));
+
+   //wait on registration ack
+   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+   //go online
+   bdvObj->goOnline();
+   pCallback->waitOnSignal(BDMAction_Ready);
+
+   //grab existing tx
+   auto&& ZC1 = TestUtils::getTx(5, 2); //block 5, tx 2
+   auto&& hash1 = BtcUtils::getHash256(ZC1);
+   
+   auto getTxLbd = [bdvObj](const BinaryData& hash)->ReturnMessage<Tx>
+   {
+      auto promPtr = make_shared<promise<ReturnMessage<Tx>>>();
+      auto fut = promPtr->get_future();
+      auto lbd = [promPtr](ReturnMessage<Tx> txObj)
+      {
+         promPtr->set_value(txObj);
+      };
+
+      bdvObj->getTxByHash(hash, lbd);
+      return fut.get();
+   };
+
+   auto&& txObj1 = getTxLbd(hash1);
+   auto&& txObj2 = getTxLbd(READHEX("000102030405060708090A0B0C0D0E0F000102030405060708090A0B0C0D0E0F"));
+
+   try
+   {
+      auto&& tx = txObj1.get();
+      auto hash = BtcUtils::getHash256(tx.serialize());
+      EXPECT_EQ(hash, hash1);
+   }
+   catch (exception&)
+   {
+      ASSERT_FALSE(true);
+   }
+
+   try
+   {
+      auto&& tx = txObj2.get();
+      auto hash = BtcUtils::getHash256(tx.serialize());
+      ASSERT_FALSE(true);
+   }
+   catch (ClientMessageError& e)
+   {
+      EXPECT_EQ(string(e.what()), string("Error processing command: 80\n"));
+   }
+   catch (...)
+   {
+      ASSERT_FALSE(true);
+   }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
