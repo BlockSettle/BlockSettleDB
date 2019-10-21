@@ -10,23 +10,24 @@
 #define _WALLETS_H
 
 #include <atomic>
-#include <mutex>
 #include <thread>
 #include <memory>
 #include <set>
 #include <map>
 #include <string>
 
+#include "WalletFileInterface.h"
+
 #include "ReentrantLock.h"
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
-#include "lmdbpp.h"
 #include "Script.h"
 #include "Signer.h"
 
 #include "DecryptedDataContainer.h"
 #include "Accounts.h"
 #include "BIP32_Node.h"
+
 
 #define WALLETTYPE_KEY        0x00000001
 #define PARENTID_KEY          0x00000002
@@ -42,8 +43,8 @@
 
 #define WALLETMETA_DBNAME "WalletHeader"
 
-#define VERSION_MAJOR      2
-#define VERSION_MINOR      1
+#define VERSION_MAJOR      3
+#define VERSION_MINOR      0
 #define VERSION_REVISION   0
  
 class WalletException : public std::runtime_error
@@ -63,8 +64,6 @@ public:
 class NoEntryInWalletException
 {};
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 enum WalletMetaType
 {
@@ -76,7 +75,8 @@ enum WalletMetaType
 ////
 struct WalletMeta
 {
-   std::shared_ptr<LMDBEnv> dbEnv_;
+   std::shared_ptr<WalletDBInterface> iface_;
+
    WalletMetaType type_;
    BinaryData parentID_;
    BinaryData walletID_;
@@ -93,8 +93,8 @@ struct WalletMeta
    SecureBinaryData masterEncryptionKeyId_;
 
    //tors
-   WalletMeta(std::shared_ptr<LMDBEnv> env, WalletMetaType type) :
-      dbEnv_(env), type_(type)
+   WalletMeta(std::shared_ptr<WalletDBInterface> iface, WalletMetaType type) :
+      iface_(iface), type_(type)
    {
       versionMajor_ = VERSION_MAJOR;
       versionMinor_ = VERSION_MINOR;
@@ -115,12 +115,16 @@ struct WalletMeta
       return idStr;
    }
 
+   std::shared_ptr<WalletDBInterface> iface(void) const { return iface_; }
+
+   //serialization
    BinaryData serializeVersion(void) const;
    void unseralizeVersion(BinaryRefReader&);
 
    BinaryData serializeEncryptionKey(void) const;
    void unserializeEncryptionKey(BinaryRefReader&);
    
+   //encryption keys
    const SecureBinaryData& getDefaultEncryptionKey(void) const 
    { return defaultEncryptionKey_; }
    const BinaryData& getDefaultEncryptionKeyId(void) const
@@ -131,7 +135,8 @@ struct WalletMeta
    virtual bool shouldLoad(void) const = 0;
 
    //static
-   static std::shared_ptr<WalletMeta> deserialize(std::shared_ptr<LMDBEnv> env,
+   static std::shared_ptr<WalletMeta> deserialize(
+      std::shared_ptr<WalletDBInterface>,
       BinaryDataRef key, BinaryDataRef val);
 };
 
@@ -139,8 +144,8 @@ struct WalletMeta
 struct WalletMeta_Single : public WalletMeta
 {
    //tors
-   WalletMeta_Single(std::shared_ptr<LMDBEnv> dbEnv) :
-      WalletMeta(dbEnv, WalletMetaType_Single)
+   WalletMeta_Single(std::shared_ptr<WalletDBInterface> iface) :
+      WalletMeta(iface, WalletMetaType_Single)
    {}
 
    //virtual
@@ -152,8 +157,8 @@ struct WalletMeta_Single : public WalletMeta
 struct WalletMeta_Multisig : public WalletMeta
 {
    //tors
-   WalletMeta_Multisig(std::shared_ptr<LMDBEnv> dbEnv) :
-      WalletMeta(dbEnv, WalletMetaType_Multisig)
+   WalletMeta_Multisig(std::shared_ptr<WalletDBInterface> iface) :
+      WalletMeta(iface, WalletMetaType_Multisig)
    {}
 
    //virtual
@@ -165,8 +170,8 @@ struct WalletMeta_Multisig : public WalletMeta
 struct WalletMeta_Subwallet : public WalletMeta
 {
    //tors
-   WalletMeta_Subwallet(std::shared_ptr<LMDBEnv> dbEnv) :
-      WalletMeta(dbEnv, WalletMetaType_Subwallet)
+   WalletMeta_Subwallet(std::shared_ptr<WalletDBInterface> iface) :
+      WalletMeta(iface, WalletMetaType_Subwallet)
    {}
 
    //virtual
@@ -185,8 +190,7 @@ private:
    virtual void cleanUpBeforeUnlock(void) {}
 
 protected:
-   std::shared_ptr<LMDBEnv> dbEnv_ = nullptr;
-   LMDB* db_ = nullptr;
+   std::shared_ptr<WalletDBInterface> iface_;
    const std::string dbName_;
 
    std::shared_ptr<DecryptedDataContainer> decryptedData_;
@@ -201,23 +205,23 @@ protected:
 protected:
    //tors
    AssetWallet(std::shared_ptr<WalletMeta> metaPtr) :
-      dbEnv_(metaPtr->dbEnv_), dbName_(metaPtr->dbName_)
+      iface_(metaPtr->iface()), dbName_(metaPtr->dbName_)
    {
-      db_ = new LMDB(dbEnv_.get(), dbName_);
+      iface_->openDB(dbName_);
       decryptedData_ = std::make_shared<DecryptedDataContainer>(
-         dbEnv_.get(), db_,
+         iface_, dbName_,
          metaPtr->getDefaultEncryptionKey(),
          metaPtr->getDefaultEncryptionKeyId(),
          metaPtr->defaultKdfId_, metaPtr->masterEncryptionKeyId_);
    }
 
-   static std::shared_ptr<LMDBEnv> getEnvFromFile(
+   static std::shared_ptr<WalletDBInterface> getIfaceFromFile(
       const std::string& path, unsigned dbCount = 3)
    {
-      auto env = std::make_shared<LMDBEnv>(dbCount);
-      env->open(path, MDB_WRITEMAP);
+      auto iface = std::make_shared<WalletDBInterface>();
+      iface->setupEnv(path, dbCount);
 
-      return env;
+      return iface;
    }
 
    //local
@@ -239,16 +243,22 @@ protected:
    virtual void readFromFile(void) = 0;
 
    //static
-   static BinaryDataRef getDataRefForKey(const BinaryData& key, LMDB* db);
+   static BinaryDataRef getDataRefForKey(const BinaryData& key, 
+      std::shared_ptr<WalletDBInterface>, const std::string&);
    static unsigned getDbCountAndNames(
-      std::shared_ptr<LMDBEnv> dbEnv,
+      std::shared_ptr<WalletDBInterface>,
       std::map<BinaryData, std::shared_ptr<WalletMeta>>&,
       BinaryData& masterID, 
       BinaryData& mainWalletID);
-   static void putDbName(LMDB* db, std::shared_ptr<WalletMeta>);
-   static void setMainWallet(LMDB* db, std::shared_ptr<WalletMeta>);
-   static void putData(LMDB* db, const BinaryData& key, const BinaryData& data);
-   static void initWalletMetaDB(std::shared_ptr<LMDBEnv>, const std::string&);
+   static void putDbName(std::shared_ptr<WalletDBInterface>, 
+      std::shared_ptr<WalletMeta>);
+   static void setMainWallet(
+      std::shared_ptr<WalletDBInterface>, std::shared_ptr<WalletMeta>);
+   static void putData(
+      std::shared_ptr<WalletDBInterface>, const std::string&,
+      const BinaryData& key, const BinaryData& data);
+   static void initWalletMetaDB(
+      std::shared_ptr<WalletDBInterface>, const std::string&);
 
 public:
    //tors
@@ -298,7 +308,6 @@ public:
    std::shared_ptr<AddressAccount> getAccountForID(const BinaryData& ID) const;
    
    const std::string& getDbFilename(void) const;
-   std::shared_ptr<LMDBEnv> getDbEnv(void) const { return dbEnv_; }
 
    std::set<BinaryData> getAccountIDs(void) const;
    std::map<BinaryData, std::shared_ptr<AddressEntry>> 
@@ -359,7 +368,7 @@ protected:
 
 private:
    static void copyPublicData(
-      std::shared_ptr<AssetWallet_Single>, std::shared_ptr<LMDBEnv>);
+      std::shared_ptr<AssetWallet_Single>, std::shared_ptr<WalletDBInterface>);
    void setSeed(const SecureBinaryData&, const SecureBinaryData&);
 
 public:

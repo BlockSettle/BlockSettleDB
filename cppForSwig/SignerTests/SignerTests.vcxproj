@@ -194,6 +194,7 @@
     <ClCompile Include="..\TxEvalState.cpp" />
     <ClCompile Include="..\txio.cpp" />
     <ClCompile Include="..\UniversalTimer.cpp" />
+    <ClCompile Include="..\WalletFileInterface.cpp" />
     <ClCompile Include="..\WalletManager.cpp" />
     <ClCompile Include="..\Wallets.cpp" />
     <ClCompile Include="..\WebSocketClient.cpp" />

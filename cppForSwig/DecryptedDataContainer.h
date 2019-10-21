@@ -10,10 +10,12 @@
 #define _H_DECRYPTED_DATA_CONTAINER
 
 #include <functional>
+
+#include "WalletFileInterface.h"
+
 #include "Assets.h"
 #include "ReentrantLock.h"
 #include "BinaryData.h"
-#include "lmdbpp.h"
 
 #define ENCRYPTIONKEY_PREFIX        0xC0
 #define ENCRYPTIONKEY_PREFIX_TEMP   0xCC
@@ -64,8 +66,8 @@ private:
 
    std::vector<OtherLockedContainer> otherLocks_;
 
-   LMDBEnv* dbEnv_;
-   LMDB* dbPtr_;
+   std::shared_ptr<WalletDBInterface> iface_;
+   const std::string dbName_;
 
    /*
    The default encryption key is used to encrypt the master encryption in
@@ -74,8 +76,8 @@ private:
    but does not effectively result in the wallet being protected by encryption,
    since the default encryption key is written on disk in plain text.
 
-   This is mostly to allow for the entire container to be encrypted head to toe
-   without implementing large caveats to handle unencrypted use cases.
+   This is mostly to allow for all private keys to be encrypted without 
+   implementing large caveats to handle unencrypted use cases.
    */
    const SecureBinaryData defaultEncryptionKey_;
    const SecureBinaryData defaultEncryptionKeyId_;
@@ -106,12 +108,14 @@ private:
    }
 
 public:
-   DecryptedDataContainer(LMDBEnv* dbEnv, LMDB* dbPtr,
+   DecryptedDataContainer(
+      std::shared_ptr<WalletDBInterface> iface,
+      const std::string dbName,
       const SecureBinaryData& defaultEncryptionKey,
       const BinaryData& defaultEncryptionKeyId,
       const SecureBinaryData& defaultKdfId,
       const SecureBinaryData& masterKeyId) :
-      dbEnv_(dbEnv), dbPtr_(dbPtr),
+      iface_(iface), dbName_(dbName),
       defaultEncryptionKey_(defaultEncryptionKey),
       defaultEncryptionKeyId_(defaultEncryptionKeyId),
       defaultKdfId_(defaultKdfId),
@@ -124,8 +128,7 @@ public:
       std::shared_ptr<Asset_EncryptedData> data);
    SecureBinaryData encryptData(
       Cipher* const cipher, const SecureBinaryData& data);
-
-
+   
    void populateEncryptionKey(const std::map<BinaryData, BinaryData>&);
 
    void addKdf(std::shared_ptr<KeyDerivationFunction> kdfPtr)
