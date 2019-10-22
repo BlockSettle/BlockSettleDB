@@ -226,8 +226,6 @@ protected:
 
    //local
    BinaryDataRef getDataRefForKey(const BinaryData& key) const;
-   void putData(const BinaryData& key, const BinaryData& data);
-   void putData(BinaryWriter& key, BinaryWriter& data);
 
    //address type methods
    AddressEntryType getAddrTypeForAccount(const BinaryData& ID);
@@ -254,9 +252,6 @@ protected:
       std::shared_ptr<WalletMeta>);
    static void setMainWallet(
       std::shared_ptr<WalletDBInterface>, std::shared_ptr<WalletMeta>);
-   static void putData(
-      std::shared_ptr<WalletDBInterface>, const std::string&,
-      const BinaryData& key, const BinaryData& data);
    static void initWalletMetaDB(
       std::shared_ptr<WalletDBInterface>, const std::string&);
 

@@ -23,10 +23,12 @@ size_t AssetAccount::writeAssetEntry(shared_ptr<AssetEntry> entryPtr)
    if (!entryPtr->needsCommit())
       return SIZE_MAX;
 
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+
    auto&& serializedEntry = entryPtr->serialize();
    auto&& dbKey = entryPtr->getDbKey();
 
-   iface_->putData(dbName_, dbKey, serializedEntry);
+   tx.insert(dbKey, serializedEntry);
 
    entryPtr->doNotCommit();
    return serializedEntry.getSize();
@@ -35,7 +37,7 @@ size_t AssetAccount::writeAssetEntry(shared_ptr<AssetEntry> entryPtr)
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::updateOnDiskAssets()
 {
-   auto&& tx = iface_->beginTransaction(LMDB::ReadWrite);
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
    for (auto& entryPtr : assets_)
       writeAssetEntry(entryPtr.second);
 
@@ -54,7 +56,8 @@ void AssetAccount::updateAssetCount()
    BinaryWriter bwData;
    bwData.put_var_int(assets_.size());
 
-   iface_->putData(dbName_, bwKey.getData(), bwData.getData());
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx.insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +91,8 @@ void AssetAccount::commit()
       writeAssetEntry(asset.second);
 
    //commit serialized account data
-   iface_->putData(dbName_, bwKey.getData(), bwData.getData());
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx.insert(bwKey.getData(), bwData.getData());
 
    updateAssetCount();
    updateHighestUsedIndex();
@@ -182,7 +186,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key,
    {
       auto& assetDbKey = bwAssetKey.getData();
       auto dbIter = iface->getIterator(dbName);
-      dbIter.seek(assetDbKey, LMDB::Iterator::Seek_GE);
+      dbIter.seek(assetDbKey);
 
       while (dbIter.isValid())
       {
@@ -498,8 +502,8 @@ void AssetAccount::updateHighestUsedIndex()
    BinaryWriter bwData;
    bwData.put_var_int(lastUsedIndex_);
 
-   auto&& tx = iface_->beginTransaction(LMDB::ReadWrite);
-   iface_->putData(dbName_, bwKey.getData(), bwData.getData());
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx.insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1131,7 +1135,7 @@ void AddressAccount::commit()
    //asset accounts count
    bwData.put_var_int(assetAccounts_.size());
 
-   auto&& tx = iface_->beginTransaction(LMDB::ReadWrite);
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
 
    //asset accounts
    for (auto& account : assetAccounts_)
@@ -1144,7 +1148,7 @@ void AddressAccount::commit()
    }
 
    //commit address account data to disk
-   iface_->putData(dbName_, bwKey.getData(), bwData.getData());
+   tx.insert(bwKey.getData(), bwData.getData());
 
    //commit instantiated address types
    for (auto& addrPair : addresses_)
@@ -1226,7 +1230,7 @@ void AddressAccount::readFromDisk(const BinaryData& key)
    auto keyBdr = bwKey.getDataRef();
 
    auto dbIter = iface_->getIterator(dbName_);
-   dbIter.seek(bwKey.getData(), LMDB::Iterator::Seek_GE);
+   dbIter.seek(bwKey.getData());
    while (dbIter.isValid())
    {
       auto&& key = dbIter.key();
@@ -1619,8 +1623,8 @@ void AddressAccount::writeAddressType(
    BinaryWriter bwData;
    bwData.put_uint32_t(aeType);
 
-   auto&& tx = iface_->beginTransaction(LMDB::ReadWrite);
-   iface_->putData(dbName_, bwKey.getData(), bwData.getData());
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx.insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1632,7 +1636,8 @@ void AddressAccount::eraseInstantiatedAddressType(const BinaryData& id)
    bwKey.put_uint8_t(ADDRESS_TYPE_PREFIX);
    bwKey.put_BinaryData(id);
 
-   iface_->erase(dbName_, bwKey.getData());
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx.erase(bwKey.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2073,8 +2078,8 @@ void MetaDataAccount::commit()
       writeAssetToDisk(asset.second);
 
    //commit serialized account data
-   auto&& tx = iface_->beginTransaction(LMDB::ReadWrite);
-   iface_->putData(dbName_, bwKey.getData(), bwData.getData());
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx.insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2088,14 +2093,15 @@ bool MetaDataAccount::writeAssetToDisk(shared_ptr<MetaData> assetPtr)
    auto&& key = assetPtr->getDbKey();
    auto&& data = assetPtr->serialize();
 
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
    if (data.getSize() != 0)
    {
-      iface_->putData(dbName_, key, data);
+      tx.insert(key, data);
       return true;
    }
    else
    {
-      iface_->erase(dbName_, key);
+      tx.erase(key);
       return false;
    }
 }
@@ -2112,7 +2118,7 @@ void MetaDataAccount::updateOnDisk(void)
    if (!needsCommit)
       return;
 
-   auto&& tx = iface_->beginTransaction(LMDB::ReadWrite);
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
    auto iter = assets_.begin();
    while (iter != assets_.end())
    {
@@ -2188,7 +2194,7 @@ void MetaDataAccount::readFromDisk(const BinaryData& key)
    auto& assetDbKey = bwAssetKey.getData();
 
    auto dbIter = iface_->getIterator(dbName_);
-   dbIter.seek(assetDbKey, LMDB::Iterator::Seek_GE);
+   dbIter.seek(assetDbKey);
 
    while (dbIter.isValid())
    {

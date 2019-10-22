@@ -387,7 +387,7 @@ void DecryptedDataContainer::updateKeyOnDisk(
 void DecryptedDataContainer::updateKeyOnDiskNoPrefix(
    const BinaryData& dbKey, shared_ptr<Asset_EncryptedData> dataPtr)
 {
-   /*caller needs to manage db tx*/
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
 
    //check if data is on disk already
    auto&& dataRef = iface_->getDataRef(dbName_, dbKey);
@@ -406,13 +406,13 @@ void DecryptedDataContainer::updateKeyOnDiskNoPrefix(
    }
 
    auto&& serializedData = dataPtr->serialize();
-   iface_->putData(dbName_, dbKey, serializedData);
+   tx.insert(dbKey, serializedData);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::updateOnDisk()
 {
-   //wallet needs to create the db read/write tx
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
 
    //encryption keys
    for (auto& key : encryptionKeyMap_)
@@ -442,20 +442,20 @@ void DecryptedDataContainer::updateOnDisk()
       }
 
       auto&& serializedData = key.second->serialize();
-      iface_->putData(dbName_, dbKey, serializedData);
+      tx.insert(dbKey, serializedData);
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::deleteKeyFromDisk(const BinaryData& key)
 {
-
    //sanity checks
    if (!ownsLock())
       throw DecryptedDataContainerException("unlocked/does not own lock");
 
    //wipe it
-   iface_->wipe(dbName_, key);
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx.wipe(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -467,7 +467,7 @@ void DecryptedDataContainer::readFromDisk()
 
       BinaryWriter bwEncrKey;
       bwEncrKey.put_uint8_t(ENCRYPTIONKEY_PREFIX);
-      dbIter.seek(bwEncrKey.getData(), LMDB::Iterator::Seek_GE);
+      dbIter.seek(bwEncrKey.getData());
 
       while (dbIter.isValid())
       {
@@ -618,12 +618,12 @@ void DecryptedDataContainer::encryptEncryptionKey(
 
    {
       //write new encrypted key as temp key within it's own transaction
-      auto&& tx = iface_->beginTransaction(LMDB::ReadWrite);
+      auto&& tx = iface_->beginWriteTransaction(dbName_);
       updateKeyOnDiskNoPrefix(temp_key, encryptedKey);
    }
 
    {
-      auto&& tx = iface_->beginTransaction(LMDB::ReadWrite);
+      auto&& tx = iface_->beginWriteTransaction(dbName_);
 
       //wipe old key from disk
       deleteKeyFromDisk(perm_key);
@@ -634,7 +634,7 @@ void DecryptedDataContainer::encryptEncryptionKey(
 
    {
       //wipe temp entry
-      auto&& tx = iface_->beginTransaction(LMDB::ReadWrite);
+      auto&& tx = iface_->beginWriteTransaction(dbName_);
       deleteKeyFromDisk(temp_key);
    }
 }

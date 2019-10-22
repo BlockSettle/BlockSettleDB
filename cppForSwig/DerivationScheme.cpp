@@ -99,7 +99,7 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data,
       BinaryDataRef keyBdr = bwKey.getDataRef();
 
       auto dbIter = iface->getIterator(dbName);
-      dbIter.seek(keyBdr, LMDB::Iterator::Seek_GE);
+      dbIter.seek(keyBdr);
       while (dbIter.isValid())
       {
          auto&& key = dbIter.key();
@@ -604,8 +604,8 @@ void DerivationScheme_ECDH::putSalt(unsigned id, const SecureBinaryData& salt,
    bwData.put_var_int(salt.getSize());
    bwData.put_BinaryData(salt);
 
-   auto&& tx = iface->beginTransaction(LMDB::ReadWrite);
-   iface->putData(dbName, bwKey.getData(), bwData.getData());
+   auto&& tx = iface->beginWriteTransaction(dbName);
+   tx.insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

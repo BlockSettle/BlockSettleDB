@@ -646,8 +646,16 @@ void LMDB::wipe(const CharacterArrayRef& key)
       throw LMDBException("Failed to insert: need transaction");
    lock.unlock();
 
+   MDB_val mdb_data_obj;
+   try
+   {
+      mdb_data_obj = value(key);
+   }
+   catch (NoValue&)
+   {
+      return;
+   }
 
-   MDB_val mdb_data_obj = value(key);
    MDB_val mkey = { key.len, const_cast<char*>(key.data) };
    int rc = mdb_del(txnIter->second.txn_, dbi, &mkey, 0); // , MDB_WIPE_DATA);
    if (rc != MDB_SUCCESS && rc != MDB_NOTFOUND)
