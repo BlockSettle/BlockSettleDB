@@ -425,8 +425,8 @@ void BtcWallet::updateAfterReorg(uint32_t lastValidBlockHeight)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BtcWallet::scanWalletZeroConf(const ScanWalletStruct& scanInfo,
-   int32_t updateID)
+map<BinaryData, TxIOPair> BtcWallet::scanWalletZeroConf(
+   const ScanWalletStruct& scanInfo, int32_t updateID)
 {
    /***
    Scanning ZC will update the scrAddr ledger with the ZC txio. Ledgers require
@@ -451,18 +451,24 @@ void BtcWallet::scanWalletZeroConf(const ScanWalletStruct& scanInfo,
       return false;
    };
 
+   map<BinaryData, TxIOPair> result;
    auto addrMap = scrAddrMap_.get();
    validZcKeys_.clear();
 
    for (auto& saPair : *addrMap)
    {
-      saPair.second->scanZC(scanInfo.saStruct_, isZcFromWallet, updateID);
+      auto&& saResult = saPair.second->scanZC(
+         scanInfo.saStruct_, isZcFromWallet, updateID);
       for (auto& zckeypair : saPair.second->validZCKeys_)
       {
          validZcKeys_.insert(
             move(zckeypair.first.getSliceCopy(0, 6)));
       }
+
+      result.insert(saResult.begin(), saResult.end());
    }
+
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -485,16 +491,12 @@ bool BtcWallet::scanWallet(ScanWalletStruct& scanInfo, int32_t updateID)
       //top block didnt change, only have to check for new ZC
       if (bdvPtr_->isZcEnabled())
       {
-         scanWalletZeroConf(scanInfo, updateID);
-
-         if (scanInfo.saStruct_.newKeysAndScrAddr_ != nullptr)
+         auto&& zcTxios = scanWalletZeroConf(scanInfo, updateID);
+         if (scanInfo.saStruct_.newKeysAndScrAddr_ != nullptr &&
+            zcTxios.size() > 0)
          {
-            //compute zc ledgers
-            auto&& txioMap =
-               getTxioForRange(scanInfo.endBlock_ + 1, UINT32_MAX);
-
             auto&& ledgerMap = updateWalletLedgersFromTxio(
-               txioMap, scanInfo.endBlock_ + 1, UINT32_MAX);
+               zcTxios, scanInfo.endBlock_ + 1, UINT32_MAX);
 
             for (auto& zckey : *scanInfo.saStruct_.newKeysAndScrAddr_)
             {
@@ -502,7 +504,7 @@ bool BtcWallet::scanWallet(ScanWalletStruct& scanInfo, int32_t updateID)
                if (iter == ledgerMap.end())
                   continue;
 
-               auto& walletZcLedgers = 
+               auto& walletZcLedgers =
                   scanInfo.saStruct_.zcLedgers_[walletID()];
                walletZcLedgers.insert(*iter);
             }

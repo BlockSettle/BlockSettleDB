@@ -153,6 +153,8 @@ namespace DBTestUtils
 
    Tx getTxByHash(Clients* clients, const std::string bdvId,
       const BinaryData& txHash);
+   std::vector<UTXO> getUtxoForAddress(Clients* clients, const std::string bdvId, 
+      const BinaryData& addr, bool withZc);
 
    void addTxioToSsh(StoredScriptHistory&, const std::map<BinaryData, std::shared_ptr<TxIOPair>>&);
    void prettyPrintSsh(StoredScriptHistory& ssh);
@@ -176,6 +178,7 @@ namespace DBTestUtils
       {
          BDMAction action_;
          std::vector<BinaryData> idVec_;
+         std::set<BinaryData> addrSet_;
          unsigned reorgHeight_ = UINT32_MAX;
       };
 
@@ -198,7 +201,13 @@ namespace DBTestUtils
          else if (bdmNotif.action_ == BDMAction_ZC)
          {
             for (auto& le : bdmNotif.ledgers_)
-               notif->idVec_.push_back(le->getTxHash().toHexStr());
+            {
+               notif->idVec_.push_back(le->getTxHash());
+
+               auto addrVec = le->getScrAddrList();
+               for (auto& addrRef : addrVec)
+                  notif->addrSet_.insert(addrRef);
+            }
          }
          else if (bdmNotif.action_ == BDMAction_NewBlock)
          {
@@ -276,6 +285,34 @@ namespace DBTestUtils
                      ++count;
                }
             }         
+         }
+      }
+
+      void waitOnZc(
+         const std::set<BinaryData>& hashes, 
+         std::set<BinaryData> scrAddrSet)
+      {
+         while (1)
+         {
+            auto&& action = actionStack_.pop_front();
+            if (action->action_ != BDMAction_ZC)
+               continue;
+
+            bool hasHashes = true;
+            for (auto& txHash : action->idVec_)
+            {
+               if (hashes.find(txHash) == hashes.end())
+               {
+                  hasHashes = false;
+                  break;
+               }
+            }
+
+            if (!hasHashes)
+               continue;
+
+            if (action->addrSet_ == scrAddrSet)
+               break;
          }
       }
    };
