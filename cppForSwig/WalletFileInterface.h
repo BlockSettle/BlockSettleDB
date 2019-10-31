@@ -21,6 +21,15 @@
 #include "BinaryData.h"
 
 ////////////////////////////////////////////////////////////////////////////////
+class NoDataInDB : std::runtime_error
+{
+public:
+   NoDataInDB(void) :
+      runtime_error("")
+   {}
+};
+
+////////////////////////////////////////////////////////////////////////////////
 struct InsertData
 {
    BinaryData key_;
@@ -83,14 +92,22 @@ private:
 
       std::function<void(const BinaryData&, const BinaryData&)> insertLbd_;
       std::function<void(const BinaryData&, bool)> eraseLbd_;
+      std::function<const std::shared_ptr<InsertData>&(const BinaryData&)> 
+         getDataLbd_;
    };
 
 private:
    std::shared_ptr<DBInterface> dbPtr_;
    bool commit_ = false;
 
-   //using shared_ptr to reduce cost of copies when resizing the vector
+   /*
+   insertVec tracks the order in which instertion and deletion take place
+   keyToMapData keeps tracks of the final effect for each key
+
+   using shared_ptr to reduce cost of copies when resizing the vector
+   */
    std::vector<std::shared_ptr<InsertData>> insertVec_;
+   std::map<BinaryData, unsigned> keyToDataMap_;
 
    //<dbName, <thread id, <counter, mode>>>
    static std::map<std::string, std::map<std::thread::id, ParentTx>> txMap_;
@@ -98,18 +115,27 @@ private:
 
    std::function<void(const BinaryData&, const BinaryData&)> insertLbd_;
    std::function<void(const BinaryData&, bool)> eraseLbd_;
+   std::function<const std::shared_ptr<InsertData>&(const BinaryData&)> 
+      getDataLbd_;
 
 private:
    static bool insertTx(WalletIfaceTransaction*);
    static bool eraseTx(WalletIfaceTransaction*);
 
+   const std::shared_ptr<InsertData>& getInsertDataForKey(const BinaryData&) const;
+
 public:
    WalletIfaceTransaction(std::shared_ptr<DBInterface> dbPtr, bool mode);
    ~WalletIfaceTransaction(void);
 
+   //write routines
    void insert(const BinaryData&, const BinaryData&);
    void erase(const BinaryData&);
    void wipe(const BinaryData&);
+
+   //get routines
+   const BinaryDataRef getDataRef(const BinaryData&) const;
+   WalletIfaceIterator getIterator() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,12 +183,6 @@ public:
    void openDB(const std::string& dbName);
 
    const std::string& getFilename(void) const;
-
-   //data routines
-   BinaryDataRef getDataRef(const std::string&, const BinaryData&);
-
-   //iterators
-   WalletIfaceIterator getIterator(const std::string&) const;
 
    //transactions
    WalletIfaceTransaction beginWriteTransaction(const std::string&);

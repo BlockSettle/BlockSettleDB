@@ -850,7 +850,8 @@ void AssetWallet::initWalletMetaDB(
    BinaryWriter bwKey;
    bwKey.put_uint32_t(MASTERID_KEY);
 
-   auto val = iface->getDataRef(WALLETMETA_DBNAME, bwKey.getData());
+   auto&& tx = iface->beginWriteTransaction(WALLETMETA_DBNAME);
+   auto val = tx.getDataRef(bwKey.getData());
    if (val.getSize() != 0)
    {
       //the master key is already set, this is an existing wallet, abort
@@ -864,7 +865,6 @@ void AssetWallet::initWalletMetaDB(
    idRef.setRef(masterID);
    bwData.put_BinaryDataRef(idRef);
 
-   auto&& tx = iface->beginWriteTransaction(WALLETMETA_DBNAME);
    tx.insert(bwKey.getData(), bwData.getData());
 }
 
@@ -891,8 +891,7 @@ unsigned AssetWallet::getDbCountAndNames(
 
          try
          {
-            masterID = getDataRefForKey(
-               bwKey.getData(), iface, WALLETMETA_DBNAME);
+            masterID = getDataRefForKey(tx, bwKey.getData());
          }
          catch (NoEntryInWalletException&)
          {
@@ -907,8 +906,7 @@ unsigned AssetWallet::getDbCountAndNames(
 
          try
          {
-            mainWalletID = getDataRefForKey(
-               bwKey.getData(), iface, WALLETMETA_DBNAME);
+            mainWalletID = getDataRefForKey(tx, bwKey.getData());
          }
          catch (NoEntryInWalletException&)
          {
@@ -917,7 +915,7 @@ unsigned AssetWallet::getDbCountAndNames(
       }
 
       //meta map
-      auto dbIter = iface->getIterator(WALLETMETA_DBNAME);
+      auto dbIter = tx.getIterator();
 
       BinaryWriter bwKey;
       bwKey.put_uint8_t(WALLETMETA_PREFIX);
@@ -1317,19 +1315,13 @@ void AssetWallet::putHeaderData(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef AssetWallet::getDataRefForKey(const BinaryData& key) const
+BinaryDataRef AssetWallet::getDataRefForKey(
+   const WalletIfaceTransaction& tx, const BinaryData& key)
 {
    /** The reference lifetime is tied to the db tx lifetime. The caller has to
    maintain the tx for as long as the data ref needs to be valid **/
 
-   return getDataRefForKey(key, iface_, dbName_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef AssetWallet::getDataRefForKey(const BinaryData& key, 
-   std::shared_ptr<WalletDBInterface> iface, const std::string& dbName)
-{
-   auto ref = iface->getDataRef(dbName, key);
+   auto ref = tx.getDataRef(key);
 
    if (ref.getSize() == 0)
       throw NoEntryInWalletException();
@@ -1351,7 +1343,7 @@ void AssetWallet_Single::readFromFile()
       BinaryWriter bwKey;
       bwKey.put_uint32_t(PARENTID_KEY);
 
-      auto parentIdRef = getDataRefForKey(bwKey.getData());
+      auto parentIdRef = getDataRefForKey(tx, bwKey.getData());
       parentID_ = parentIdRef;
    }
 
@@ -1359,7 +1351,7 @@ void AssetWallet_Single::readFromFile()
       //walletId
       BinaryWriter bwKey;
       bwKey.put_uint32_t(WALLETID_KEY);
-      auto walletIdRef = getDataRefForKey(bwKey.getData());
+      auto walletIdRef = getDataRefForKey(tx, bwKey.getData());
 
       walletID_ = walletIdRef;
    }
@@ -1371,7 +1363,7 @@ void AssetWallet_Single::readFromFile()
 
       try
       {
-         auto account_id = getDataRefForKey(bwKey.getData());
+         auto account_id = getDataRefForKey(tx, bwKey.getData());
 
          mainAccount_ = account_id;
       }
@@ -1383,7 +1375,7 @@ void AssetWallet_Single::readFromFile()
       //root asset
       BinaryWriter bwKey;
       bwKey.put_uint32_t(ROOTASSET_KEY);
-      auto rootAssetRef = getDataRefForKey(bwKey.getData());
+      auto rootAssetRef = getDataRefForKey(tx, bwKey.getData());
 
       auto asset_root = AssetEntry::deserDBValue(-1, BinaryData(), rootAssetRef);
       root_ = dynamic_pointer_cast<AssetEntry_Single>(asset_root);
@@ -1397,7 +1389,7 @@ void AssetWallet_Single::readFromFile()
       {
          BinaryWriter bwKey;
          bwKey.put_uint32_t(WALLET_SEED_KEY);
-         auto rootAssetRef = getDataRefForKey(bwKey.getData());
+         auto rootAssetRef = getDataRefForKey(tx, bwKey.getData());
 
          auto seedPtr = Asset_EncryptedData::deserialize(
             rootAssetRef.getSize(), rootAssetRef);
@@ -1418,7 +1410,7 @@ void AssetWallet_Single::readFromFile()
       //accounts
       BinaryWriter bwPrefix;
       bwPrefix.put_uint8_t(ADDRESS_ACCOUNT_PREFIX);
-      auto dbIter = iface_->getIterator(dbName_);
+      auto dbIter = tx.getIterator();
       dbIter.seek(bwPrefix.getDataRef());
 
       while (dbIter.isValid())
@@ -1457,12 +1449,14 @@ void AssetWallet_Multisig::readFromFile()
       throw WalletException("uninitialized wallet object");
 
    {
+      auto&& tx = iface_->beginReadTransaction(dbName_);
+
       {
          //parentId
          BinaryWriter bwKey;
          bwKey.put_uint32_t(PARENTID_KEY);
 
-         auto parentIdRef = getDataRefForKey(bwKey.getData());
+         auto parentIdRef = getDataRefForKey(tx, bwKey.getData());
          parentID_ = parentIdRef;
       }
 
@@ -1470,7 +1464,7 @@ void AssetWallet_Multisig::readFromFile()
          //walletId
          BinaryWriter bwKey;
          bwKey.put_uint32_t(WALLETID_KEY);
-         auto walletIdRef = getDataRefForKey(bwKey.getData());
+         auto walletIdRef = getDataRefForKey(tx, bwKey.getData());
 
          walletID_ = walletIdRef;
       }
@@ -1480,7 +1474,7 @@ void AssetWallet_Multisig::readFromFile()
          {
             BinaryWriter bwKey;
             bwKey.put_uint8_t(ASSETENTRY_PREFIX);
-            auto lookupRef = getDataRefForKey(bwKey.getData());
+            auto lookupRef = getDataRefForKey(tx, bwKey.getData());
 
             BinaryRefReader brr(lookupRef);
             chainLength_ = brr.get_uint32_t();
@@ -1913,10 +1907,12 @@ void AssetWallet::addMetaAccount(MetaAccountType type)
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::loadMetaAccounts()
 {
+   auto&& tx = iface_->beginReadTransaction(dbName_);
+
    //accounts
    BinaryWriter bwPrefix;
    bwPrefix.put_uint8_t(META_ACCOUNT_PREFIX);
-   auto dbIter = iface_->getIterator(dbName_);
+   auto dbIter = tx.getIterator();
    dbIter.seek(bwPrefix.getDataRef());
 
    while (dbIter.isValid())

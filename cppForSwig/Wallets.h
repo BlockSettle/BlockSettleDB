@@ -224,8 +224,7 @@ protected:
       return iface;
    }
 
-   //local
-   BinaryDataRef getDataRefForKey(const BinaryData& key) const;
+   //locals
 
    //address type methods
    AddressEntryType getAddrTypeForAccount(const BinaryData& ID);
@@ -241,8 +240,8 @@ protected:
    virtual void readFromFile(void) = 0;
 
    //static
-   static BinaryDataRef getDataRefForKey(const BinaryData& key, 
-      std::shared_ptr<WalletDBInterface>, const std::string&);
+   static BinaryDataRef getDataRefForKey(
+      const WalletIfaceTransaction&, const BinaryData& key);
    static unsigned getDbCountAndNames(
       std::shared_ptr<WalletDBInterface>,
       std::map<BinaryData, std::shared_ptr<WalletMeta>>&,

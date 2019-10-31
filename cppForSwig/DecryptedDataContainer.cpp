@@ -390,7 +390,7 @@ void DecryptedDataContainer::updateKeyOnDiskNoPrefix(
    auto&& tx = iface_->beginWriteTransaction(dbName_);
 
    //check if data is on disk already
-   auto&& dataRef = iface_->getDataRef(dbName_, dbKey);
+   auto&& dataRef = tx.getDataRef(dbName_);
 
    if (dataRef.getSize() != 0)
    {
@@ -426,7 +426,7 @@ void DecryptedDataContainer::updateOnDisk()
       dbKey.append(key.first);
 
       //fetch from db
-      auto&& dataRef = iface_->getDataRef(dbName_, dbKey);
+      auto&& dataRef = tx.getDataRef(dbKey);
 
       if (dataRef.getSize() != 0)
       {
@@ -463,7 +463,8 @@ void DecryptedDataContainer::readFromDisk()
 {
    {
       //encryption key and kdf entries
-      auto dbIter = iface_->getIterator(dbName_);
+      auto&& tx = iface_->beginReadTransaction(dbName_);
+      auto dbIter = tx.getIterator();
 
       BinaryWriter bwEncrKey;
       bwEncrKey.put_uint8_t(ENCRYPTIONKEY_PREFIX);

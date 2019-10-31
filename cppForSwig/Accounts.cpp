@@ -112,6 +112,8 @@ void AssetAccount::putData(
 shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key, 
    shared_ptr<WalletDBInterface> iface, const string& dbName)
 {
+   auto&& tx = iface->beginReadTransaction(dbName);
+
    //sanity checks
    if (iface == nullptr || dbName.size() == 0)
       throw AccountException("invalid db pointers");
@@ -122,7 +124,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key,
    if (key.getPtr()[0] != ASSET_ACCOUNT_PREFIX)
       throw AccountException("unexpected prefix for AssetAccount key");
 
-   auto&& diskDataRef = iface->getDataRef(dbName, key);
+   auto&& diskDataRef = tx.getDataRef(key);
    BinaryRefReader brr(diskDataRef);
 
    //type
@@ -148,7 +150,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key,
       bwKey_assetcount.put_BinaryDataRef(key.getSliceRef(
          1, key.getSize() - 1));
 
-      auto&& assetcount = iface->getDataRef(dbName, bwKey_assetcount.getData());
+      auto&& assetcount = tx.getDataRef(bwKey_assetcount.getData());
       if (assetcount.getSize() == 0)
          throw AccountException("missing asset count entry");
 
@@ -164,8 +166,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key,
       bwKey_lastusedindex.put_BinaryDataRef(key.getSliceRef(
          1, key.getSize() - 1));
 
-      auto&& lastusedindex = iface->getDataRef(
-         dbName, bwKey_lastusedindex.getData());
+      auto&& lastusedindex = tx.getDataRef(bwKey_lastusedindex.getData());
       if (lastusedindex.getSize() == 0)
          throw AccountException("missing last used entry");
 
@@ -185,7 +186,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key,
    //get all assets
    {
       auto& assetDbKey = bwAssetKey.getData();
-      auto dbIter = iface->getIterator(dbName);
+      auto dbIter = tx.getIterator();
       dbIter.seek(assetDbKey);
 
       while (dbIter.isValid())
@@ -1186,7 +1187,8 @@ void AddressAccount::readFromDisk(const BinaryData& key)
    reset();
 
    //get data from disk  
-   auto&& diskDataRef = iface_->getDataRef(dbName_, key);
+   auto&& tx = iface_->beginReadTransaction(dbName_);
+   auto&& diskDataRef = tx.getDataRef(key);
    BinaryRefReader brr(diskDataRef);
 
    //outer and inner accounts
@@ -1229,7 +1231,7 @@ void AddressAccount::readFromDisk(const BinaryData& key)
    bwKey.put_BinaryData(getID());
    auto keyBdr = bwKey.getDataRef();
 
-   auto dbIter = iface_->getIterator(dbName_);
+   auto dbIter = tx.getIterator();
    dbIter.seek(bwKey.getData());
    while (dbIter.isValid())
    {
@@ -2153,9 +2155,11 @@ void MetaDataAccount::readFromDisk(const BinaryData& key)
    if (key.getPtr()[0] != META_ACCOUNT_PREFIX)
       throw AccountException("unexpected prefix for AssetAccount key");
 
+   auto&& tx = iface_->beginReadTransaction(dbName_);
+
    CharacterArrayRef carKey(key.getSize(), key.getCharPtr());
 
-   auto diskDataRef = iface_->getDataRef(dbName_, key);
+   auto diskDataRef = tx.getDataRef(key);
    BinaryRefReader brr(diskDataRef);
 
    //wipe object prior to loading from disk
@@ -2193,7 +2197,7 @@ void MetaDataAccount::readFromDisk(const BinaryData& key)
    bwAssetKey.put_BinaryData(ID_);
    auto& assetDbKey = bwAssetKey.getData();
 
-   auto dbIter = iface_->getIterator(dbName_);
+   auto dbIter = tx.getIterator();
    dbIter.seek(assetDbKey);
 
    while (dbIter.isValid())

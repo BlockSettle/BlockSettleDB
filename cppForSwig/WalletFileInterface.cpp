@@ -127,33 +127,12 @@ void WalletDBInterface::openDB(const string& dbName)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-WalletIfaceIterator WalletDBInterface::getIterator(const string& dbName) const
-{
-   auto iter = dbMap_.find(dbName);
-   if (iter == dbMap_.end())
-      throw WalletInterfaceException("invalid db name");
-
-   return WalletIfaceIterator(iter->second);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 const string& WalletDBInterface::getFilename() const
 {
    if (dbEnv_ == nullptr)
       throw WalletInterfaceException("null dbEnv");
 
    return dbEnv_->getFilename();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef WalletDBInterface::getDataRef(const string& dbName, 
-   const BinaryData& key)
-{
-   auto iter = dbMap_.find(dbName);
-   if (iter == dbMap_.end())
-      throw WalletInterfaceException("invalid db name");
-
-   return iter->second->getDataRef(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -338,7 +317,17 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
             dataPtr->key_ = key;
             dataPtr->value_ = val;
 
+            auto vecSize = txPtr->insertVec_.size();
             txPtr->insertVec_.emplace_back(dataPtr);
+
+            /*
+            Insert the index for this data object in the key map.
+            Replace the index if it's already there as we want to track
+            the final effect for each key.
+            */
+            auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));
+            if (!insertPair.second)
+               insertPair.first->second = vecSize;
          };
 
          auto eraseLbd = [thrId, txPtr](const BinaryData& key, bool wipe)
@@ -351,21 +340,38 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
             dataPtr->write_ = false; //set to false to signal deletion
             dataPtr->wipe_ = wipe;
 
+            auto vecSize = txPtr->insertVec_.size();
             txPtr->insertVec_.emplace_back(dataPtr);
+
+            auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));
+            if (!insertPair.second)
+               insertPair.first->second = vecSize;
+         };
+
+         auto getDataLbd = [thrId, txPtr](const BinaryData& key)->
+            const shared_ptr<InsertData>&
+         {
+            auto iter = txPtr->keyToDataMap_.find(key);
+            if (iter == txPtr->keyToDataMap_.end())
+               throw NoDataInDB();
+
+            return txPtr->insertVec_[iter->second];
          };
 
          txPtr->insertLbd_ = insertLbd;
          txPtr->eraseLbd_ = eraseLbd;
+         txPtr->getDataLbd_ = getDataLbd;
 
          ptx.insertLbd_ = insertLbd;
          ptx.eraseLbd_ = eraseLbd;
+         ptx.getDataLbd_ = getDataLbd;
       }
 
       txMap.insert(make_pair(thrId, ptx));
       return true;
    }
    
-   /*we have already a tx for this thread, we will nest the new one within it*/
+   /*we already have a tx for this thread, we will nest the new one within it*/
    
    //make sure the commit type between parent and nested tx match
    if (iter->second.commit_ != txPtr->commit_)
@@ -374,6 +380,7 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
    //set lambdas
    txPtr->insertLbd_ = iter->second.insertLbd_;
    txPtr->eraseLbd_ = iter->second.eraseLbd_;
+   txPtr->getDataLbd_ = iter->second.getDataLbd_;
 
    //increment counter
    ++iter->second.counter_;
@@ -440,3 +447,52 @@ void WalletIfaceTransaction::wipe(const BinaryData& key)
    eraseLbd_(key, true);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+WalletIfaceIterator WalletIfaceTransaction::getIterator() const
+{
+   if (commit_)
+      throw WalletInterfaceException("cannot iterate over a write transaction");
+
+   return WalletIfaceIterator(dbPtr_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const BinaryDataRef WalletIfaceTransaction::getDataRef(
+   const BinaryData& key) const
+{
+   if (commit_)
+   {
+      /*
+      A write transaction may carry data that overwrites the db object data map.
+      Check the modification map first.
+      */
+
+      try
+      {
+         auto& dataPtr = getInsertDataForKey(key);
+         if (!dataPtr->write_)
+            return BinaryDataRef();
+
+         return dataPtr->value_.getRef();
+      }
+      catch (NoDataInDB&)
+      {
+         /*
+         Will throw if there's no data in the write tx.
+         Look for it in the db instead.
+         */
+      }
+   }
+
+   return dbPtr_->getDataRef(key);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const std::shared_ptr<InsertData>& WalletIfaceTransaction::getInsertDataForKey(
+   const BinaryData& key) const
+{
+   if (!getDataLbd_)
+      throw WalletInterfaceException("tx is missing get lbd");
+
+   return getDataLbd_(key);
+}

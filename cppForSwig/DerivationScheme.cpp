@@ -98,7 +98,8 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data,
       bwKey.put_BinaryData(id);
       BinaryDataRef keyBdr = bwKey.getDataRef();
 
-      auto dbIter = iface->getIterator(dbName);
+      auto&& tx = iface->beginReadTransaction(dbName);
+      auto dbIter = tx.getIterator();
       dbIter.seek(keyBdr);
       while (dbIter.isValid())
       {
