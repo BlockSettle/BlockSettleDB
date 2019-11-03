@@ -226,6 +226,7 @@ protected:
    virtual void SetUp()
    {
       LOGDISABLESTDOUT();
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       homedir_ = string("./fakehomedir");
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);

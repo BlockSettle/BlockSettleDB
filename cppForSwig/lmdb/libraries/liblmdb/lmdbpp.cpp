@@ -650,6 +650,8 @@ void LMDB::wipe(const CharacterArrayRef& key)
    try
    {
       mdb_data_obj = value(key);
+      if (mdb_data_obj.mv_data != nullptr)
+         memset(mdb_data_obj.mv_data, 0, mdb_data_obj.mv_size); 
    }
    catch (NoValue&)
    {
@@ -664,8 +666,6 @@ void LMDB::wipe(const CharacterArrayRef& key)
       throw LMDBException("Failed to erase (" + errorString(rc) + ")");
    }
 
-    if (mdb_data_obj.mv_data != nullptr)
-      memset(mdb_data_obj.mv_data, 0, mdb_data_obj.mv_size); 
 }
 
 MDB_val LMDB::value(const CharacterArrayRef& key) const

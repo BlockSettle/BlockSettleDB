@@ -62,10 +62,14 @@ private:
    LMDB db_;
 
    std::map<BinaryData, BinaryData> dataMap_;
+   std::map<BinaryData, BinaryData> dataKeyToDbKey_;
+   std::atomic<unsigned> dbKeyCounter_ = { 0 };
 
 private:
    void update(const std::vector<std::shared_ptr<InsertData>>&);
    void wipe(const BinaryData&);
+   bool resolveDataKey(const BinaryData&, BinaryData&);
+   BinaryData getNewDbKey(void);
 
 public:
    DBInterface(std::shared_ptr<LMDBEnv>, const std::string&);

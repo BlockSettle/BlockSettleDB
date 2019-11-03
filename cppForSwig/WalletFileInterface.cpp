@@ -34,23 +34,49 @@ void DBInterface::loadAllEntries()
 {
    auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadOnly);
 
+   int prevDbKey = -1;
    auto iter = db_.begin();
    while (iter.isValid())
    {
       auto key_mval = iter.key();
+      if (key_mval.mv_size != 4)
+         throw WalletInterfaceException("invalid dbkey");
+
       auto val_mval = iter.value();
 
       BinaryDataRef key_bdr((const uint8_t*)key_mval.mv_data, key_mval.mv_size);
       BinaryDataRef val_bdr((const uint8_t*)val_mval.mv_data, val_mval.mv_size);
 
-      BinaryData key_bd(key_bdr);
-      BinaryData val_bd(val_bdr);
+      //dbkeys should be consecutive integers
+      int dbKeyInt = READ_UINT32_BE(key_bdr);
+      if (dbKeyInt - prevDbKey != 1)
+         throw WalletInterfaceException("db key gap");
+      prevDbKey = dbKeyInt;
 
-      auto&& keyval = make_pair(move(key_bd), move(val_bd));
-      dataMap_.emplace(keyval);
+      BinaryRefReader brr(val_bdr);
+      auto len = brr.get_var_int();
+      auto&& dataKey = brr.get_BinaryData(len);
+      len = brr.get_var_int();
+      auto&& dataVal = brr.get_BinaryData(len);
+
+      if (brr.getSizeRemaining() != 0)
+         throw WalletInterfaceException("loose data entry");
+
+      if (dataVal != BinaryData("erased"))
+      {
+         auto&& dataPair = make_pair(dataKey, move(dataVal));
+         dataMap_.emplace(dataPair);
+
+         auto&& keyPair = make_pair(move(dataKey), move(key_bdr.copy()));
+         auto insertIter = dataKeyToDbKey_.emplace(keyPair);
+         if (!insertIter.second)
+            throw WalletInterfaceException("duplicated db entry");
+      }
 
       iter.advance();
    }
+
+   dbKeyCounter_.store(prevDbKey + 1, memory_order_relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,6 +111,33 @@ void DBInterface::wipe(const BinaryData& key)
 {
    CharacterArrayRef carKey(key.getSize(), key.getPtr());
    db_.wipe(carKey);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool DBInterface::resolveDataKey(const BinaryData& dataKey,
+   BinaryData& dbKey)
+{
+   /*
+   Return the dbKey for the data key if it exists, otherwise increment the
+   dbKeyCounter and construct a key from that.
+   */
+
+   auto iter = dataKeyToDbKey_.find(dataKey);
+   if (iter != dataKeyToDbKey_.end())
+   {
+      dbKey = iter->second;
+      return true;
+   }
+
+   dbKey = getNewDbKey();
+   return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData DBInterface::getNewDbKey()
+{
+   auto dbKeyInt = dbKeyCounter_.fetch_add(1, memory_order_relaxed);
+   return WRITE_UINT32_BE(dbKeyInt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,8 +277,9 @@ WalletIfaceTransaction::~WalletIfaceTransaction()
    auto tx = LMDBEnv::Transaction(dbPtr_->dbEnv_.get(), LMDB::ReadWrite);
    for (auto& dataPtr : insertVec_)
    {
-      CharacterArrayRef carKey(dataPtr->key_.getSize(), dataPtr->key_.getPtr());
-      if (!dataPtr->write_)
+      BinaryData dbKey;
+      auto keyExists = dbPtr_->resolveDataKey(dataPtr->key_, dbKey);
+      if (keyExists)
       {
          /***
             This operation abuses the no copy read feature in lmdb. Since all data is
@@ -262,15 +316,49 @@ WalletIfaceTransaction::~WalletIfaceTransaction()
          dbPtr_->wipe(key);
          */
 
-         if(!dataPtr->wipe_)
-            dbPtr_->db_.erase(carKey);
-         else
-            dbPtr_->db_.wipe(carKey);
+         //wipe the key
+         CharacterArrayRef carKey(dbKey.getSize(), dbKey.getPtr());
+         dbPtr_->db_.wipe(carKey);
 
-         continue;
+         //write in the erased place holder
+         BinaryWriter bw;
+         bw.put_var_int(dataPtr->key_.getSize());
+         bw.put_BinaryData(dataPtr->key_);
+
+         bw.put_var_int(6);
+         bw.put_BinaryData(BinaryData("erased"));
+
+         CharacterArrayRef carData(bw.getSize(), bw.getDataRef().getPtr());
+         dbPtr_->db_.insert(carKey, carData);
+
+         //move on to next piece of data if there is nothing to write
+         if (!dataPtr->write_)
+         {
+            //update dataKeyToDbKey
+            dbPtr_->dataKeyToDbKey_.erase(dataPtr->key_);
+            continue;
+         }
+
+         //grab a fresh key
+         dbKey = dbPtr_->getNewDbKey();
       }
 
-      CharacterArrayRef carVal(dataPtr->value_.getSize(), dataPtr->value_.getPtr());
+      //sanity check
+      if (!dataPtr->write_)
+         throw WalletInterfaceException("key marked for deletion when it does not exist");
+
+      //update dataKeyToDbKey
+      dbPtr_->dataKeyToDbKey_[dataPtr->key_] = dbKey;
+
+      //bundle key and val together, key by dbkey
+      BinaryWriter dbVal;
+      dbVal.put_var_int(dataPtr->key_.getSize());
+      dbVal.put_BinaryData(dataPtr->key_);
+      dbVal.put_var_int(dataPtr->value_.getSize());
+      dbVal.put_BinaryData(dataPtr->value_);
+
+      CharacterArrayRef carKey(dbKey.getSize(), dbKey.getPtr());
+      CharacterArrayRef carVal(dbVal.getSize(), dbVal.getDataRef().getPtr());
       dbPtr_->db_.insert(carKey, carVal);
    }
 
@@ -317,7 +405,7 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
             dataPtr->key_ = key;
             dataPtr->value_ = val;
 
-            auto vecSize = txPtr->insertVec_.size();
+            unsigned vecSize = txPtr->insertVec_.size();
             txPtr->insertVec_.emplace_back(dataPtr);
 
             /*
@@ -340,7 +428,7 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
             dataPtr->write_ = false; //set to false to signal deletion
             dataPtr->wipe_ = wipe;
 
-            auto vecSize = txPtr->insertVec_.size();
+            unsigned vecSize = txPtr->insertVec_.size();
             txPtr->insertVec_.emplace_back(dataPtr);
 
             auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));

@@ -941,8 +941,7 @@ unsigned AssetWallet::getDbCountAndNames(
 
             dbcount++;
             if (metaPtr->shouldLoad())
-               metaMap.insert(make_pair(
-               metaPtr->getWalletID(), metaPtr));
+               metaMap.insert(make_pair(metaPtr->getWalletID(), metaPtr));
          }
          catch (exception& e)
          {
