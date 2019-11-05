@@ -35,6 +35,10 @@ typedef int SOCKET;
 ////////////////////////////////////////////////////////////////////////////////
 #include <string>
 
+#ifdef _WIN32
+#include <stdexcept>
+#endif
+
 struct SocketError : public std::runtime_error
 {
 public:
