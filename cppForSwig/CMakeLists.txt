@@ -1,5 +1,7 @@
 set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_subdirectory(chacha20poly1305)
 add_subdirectory(lmdb/libraries/liblmdb)
@@ -292,6 +294,9 @@ add_library(ArmoryCLI
     STATIC
     ${LIBARMORYCLI_SOURCES}
 )
+
+set_target_properties(ArmoryCLI PROPERTIES CXX_STANDARD 14)
+target_compile_features(ArmoryCLI PUBLIC cxx_std_11)
 
 target_link_libraries(ArmoryCLI
     ArmoryCommon
