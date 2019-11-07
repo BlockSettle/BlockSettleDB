@@ -65,11 +65,21 @@ private:
    std::map<BinaryData, BinaryData> dataKeyToDbKey_;
    std::atomic<unsigned> dbKeyCounter_ = { 0 };
 
+   BinaryData macKey_ = { "abcd" };
+
 private:
    void update(const std::vector<std::shared_ptr<InsertData>>&);
    void wipe(const BinaryData&);
    bool resolveDataKey(const BinaryData&, BinaryData&);
    BinaryData getNewDbKey(void);
+
+   //serialization methods
+   static BinaryData createDataPacket(const BinaryData& dbKey,
+      const BinaryData& dataKey, const BinaryData& dataVal,
+      const BinaryData& macKey);
+   static std::pair<BinaryData, BinaryData> readDataPacket(
+      const BinaryData& dbKey, const BinaryData& dataPacket,
+      const BinaryData& macKey);
 
 public:
    DBInterface(std::shared_ptr<LMDBEnv>, const std::string&);

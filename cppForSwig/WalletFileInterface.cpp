@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "WalletFileInterface.h"
+#include "BtcUtils.h"
 
 using namespace std;
 
@@ -53,24 +54,16 @@ void DBInterface::loadAllEntries()
          throw WalletInterfaceException("db key gap");
       prevDbKey = dbKeyInt;
 
-      BinaryRefReader brr(val_bdr);
-      auto len = brr.get_var_int();
-      auto&& dataKey = brr.get_BinaryData(len);
-      len = brr.get_var_int();
-      auto&& dataVal = brr.get_BinaryData(len);
+      auto dataPair = readDataPacket(key_bdr, val_bdr, macKey_);
 
-      if (brr.getSizeRemaining() != 0)
-         throw WalletInterfaceException("loose data entry");
-
-      if (dataVal != BinaryData("erased"))
+      if (dataPair.second != BinaryData("erased"))
       {
-         auto&& dataPair = make_pair(dataKey, move(dataVal));
-         dataMap_.emplace(dataPair);
-
-         auto&& keyPair = make_pair(move(dataKey), move(key_bdr.copy()));
+         auto&& keyPair = make_pair(dataPair.first, move(key_bdr.copy()));
          auto insertIter = dataKeyToDbKey_.emplace(keyPair);
          if (!insertIter.second)
             throw WalletInterfaceException("duplicated db entry");
+
+         dataMap_.emplace(dataPair);
       }
 
       iter.advance();
@@ -138,6 +131,77 @@ BinaryData DBInterface::getNewDbKey()
 {
    auto dbKeyInt = dbKeyCounter_.fetch_add(1, memory_order_relaxed);
    return WRITE_UINT32_BE(dbKeyInt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
+   const BinaryData& dataKey, const BinaryData& dataVal,
+   const BinaryData& macKey)
+{
+   //concatenate dataKey and dataVal
+   BinaryWriter bw;
+   bw.put_var_int(dataKey.getSize());
+   bw.put_BinaryData(dataKey);
+   bw.put_var_int(dataVal.getSize());
+   bw.put_BinaryData(dataVal);
+
+   //save the writer state for later
+   auto bwData = bw.getData();
+
+   //concatenate the dbKey
+   bw.put_BinaryData(dbKey);
+
+   //hmac it
+   auto&& hmac = BtcUtils::getHMAC256(macKey, bw.getData());
+
+   //append the hmac to the concatenated data
+   bwData.append(hmac);
+
+   //padding
+
+   return bwData;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+pair<BinaryData, BinaryData> DBInterface::readDataPacket(
+   const BinaryData& dbKey, const BinaryData& dataPacket,
+   const BinaryData& macKey)
+{
+   BinaryRefReader brr(dataPacket.getRef());
+
+   //grab data key
+   auto len = brr.get_var_int();
+   auto dataKey = brr.get_BinaryData(len);
+
+   //grab data val
+   len = brr.get_var_int();
+   auto dataVal = brr.get_BinaryData(len);
+
+   //mark the position
+   auto pos = brr.getPosition();
+
+   //grab hmac
+   auto hmac = brr.get_BinaryData(32);
+
+   //sanity check
+   if (brr.getSizeRemaining() != 0)
+      throw WalletInterfaceException("loose data entry");
+
+   //reset reader & grab data packet
+   brr.resetPosition();
+   auto data = brr.get_BinaryData(pos);
+
+   //append db key
+   data.append(dbKey);
+
+   //compute hmac
+   auto computedHmac = BtcUtils::getHMAC256(macKey, data);
+
+   //check hmac
+   if (computedHmac != hmac)
+      throw WalletInterfaceException("mac mismatch");
+
+   return make_pair(dataKey, dataVal);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -300,35 +364,14 @@ WalletIfaceTransaction::~WalletIfaceTransaction()
             The condition should be enforced by the caller regardless.
          ***/
 
-         //check db only has one RW tx
-         /*if (!dbEnv_->isRWLockExclusive())
-         {
-            throw DecryptedDataContainerException(
-               "need exclusive RW lock to delete entries");
-         }*/
-         //check data exists
-
-         /*auto dataRef = dbPtr_->getDataRef(key);
-         if (dataRef.getSize() == 0)
-            return;
-
-         //wipe it
-         dbPtr_->wipe(key);
-         */
-
          //wipe the key
          CharacterArrayRef carKey(dbKey.getSize(), dbKey.getPtr());
          dbPtr_->db_.wipe(carKey);
 
          //write in the erased place holder
-         BinaryWriter bw;
-         bw.put_var_int(dataPtr->key_.getSize());
-         bw.put_BinaryData(dataPtr->key_);
-
-         bw.put_var_int(6);
-         bw.put_BinaryData(BinaryData("erased"));
-
-         CharacterArrayRef carData(bw.getSize(), bw.getDataRef().getPtr());
+         auto&& dbVal = DBInterface::createDataPacket(
+            dbKey, dataPtr->key_, BinaryData("erased"), dbPtr_->macKey_);
+         CharacterArrayRef carData(dbVal.getSize(), dbVal.getPtr());
          dbPtr_->db_.insert(carKey, carData);
 
          //move on to next piece of data if there is nothing to write
@@ -351,14 +394,11 @@ WalletIfaceTransaction::~WalletIfaceTransaction()
       dbPtr_->dataKeyToDbKey_[dataPtr->key_] = dbKey;
 
       //bundle key and val together, key by dbkey
-      BinaryWriter dbVal;
-      dbVal.put_var_int(dataPtr->key_.getSize());
-      dbVal.put_BinaryData(dataPtr->key_);
-      dbVal.put_var_int(dataPtr->value_.getSize());
-      dbVal.put_BinaryData(dataPtr->value_);
-
+      auto&& dbVal = DBInterface::createDataPacket(
+         dbKey, dataPtr->key_, dataPtr->value_, dbPtr_->macKey_);
       CharacterArrayRef carKey(dbKey.getSize(), dbKey.getPtr());
-      CharacterArrayRef carVal(dbVal.getSize(), dbVal.getDataRef().getPtr());
+      CharacterArrayRef carVal(dbVal.getSize(), dbVal.getPtr());
+
       dbPtr_->db_.insert(carKey, carVal);
    }
 
