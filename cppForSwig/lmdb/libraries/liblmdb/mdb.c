@@ -43,6 +43,11 @@
 #include <windows.h>
 #include <wchar.h>				/* get wcscpy() */
 
+// Compile fix
+#ifndef  NTSTATUS
+#define NTSTATUS LONG
+#endif
+
 /* We use native NT APIs to setup the memory map, so that we can
  * let the DB file grow incrementally instead of always preallocating
  * the full size. These APIs are defined in <wdm.h> and <ntifs.h>
