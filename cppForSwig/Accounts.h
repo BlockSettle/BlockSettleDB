@@ -536,7 +536,6 @@ private:
    void commit(void);
    void updateAssetCount(void);
 
-   void extendPublicChain(unsigned);
    void extendPublicChainToIndex(unsigned);
    void extendPublicChain(std::shared_ptr<AssetEntry>, unsigned);
    std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
@@ -583,6 +582,9 @@ public:
 
    std::shared_ptr<AssetEntry> getAssetForID(const BinaryData&) const;
    std::shared_ptr<AssetEntry> getAssetForIndex(unsigned id) const;
+
+   // temporary moved from private to public session to allow the build of old code
+   void extendPublicChain(unsigned);
 
    void updateAddressHashMap(const std::set<AddressEntryType>&);
    const std::map<BinaryData, std::map<AddressEntryType, BinaryData>>&
