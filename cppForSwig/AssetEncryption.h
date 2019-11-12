@@ -160,10 +160,10 @@ public:
    virtual std::unique_ptr<Cipher> getCopy(void) const = 0;
    virtual std::unique_ptr<Cipher> getCopy(const BinaryData& keyId) const = 0;
 
-   virtual SecureBinaryData encrypt(const SecureBinaryData& key,
-      const SecureBinaryData& data) const = 0;
    virtual SecureBinaryData encrypt(DecryptedEncryptionKey* const key,
       const BinaryData& kdfId, const SecureBinaryData& data) const = 0;
+   virtual SecureBinaryData encrypt(DecryptedEncryptionKey* const key,
+      const BinaryData& kdfId, DecryptedEncryptionKey* const data) const = 0;
 
    virtual SecureBinaryData decrypt(const SecureBinaryData& key,
       const SecureBinaryData& data) const = 0;
@@ -193,19 +193,20 @@ public:
    BinaryData serialize(void) const;
    std::unique_ptr<Cipher> getCopy(void) const;
    std::unique_ptr<Cipher> getCopy(const BinaryData& keyId) const;
-   
-   unsigned getBlockSize(void) const;
+      bool isSame(Cipher* const) const;
 
-   SecureBinaryData encrypt(const SecureBinaryData& key,
-      const SecureBinaryData& data) const;
+   //encrypt
    SecureBinaryData encrypt(DecryptedEncryptionKey* const key,
       const BinaryData& kdfId, const SecureBinaryData& data) const;
+   SecureBinaryData encrypt(DecryptedEncryptionKey* const key,
+      const BinaryData& kdfId, DecryptedEncryptionKey* const data) const;
 
-
+   //decrypt
    SecureBinaryData decrypt(const SecureBinaryData& key,
       const SecureBinaryData& data) const;
 
-   bool isSame(Cipher* const) const;
+   //utils
+   unsigned getBlockSize(void) const;
 };
 
 #endif

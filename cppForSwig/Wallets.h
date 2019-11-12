@@ -28,155 +28,14 @@
 #include "Accounts.h"
 #include "BIP32_Node.h"
 
-
-#define WALLETTYPE_KEY        0x00000001
-#define PARENTID_KEY          0x00000002
-#define WALLETID_KEY          0x00000003
-#define ROOTASSET_KEY         0x00000007
-#define MAIN_ACCOUNT_KEY      0x00000008
-#define WALLET_SEED_KEY       0x00000009
-
-#define MASTERID_KEY          0x000000A0
-#define MAINWALLET_KEY        0x000000A1
-
-#define WALLETMETA_PREFIX     0xB0
-
-#define WALLETMETA_DBNAME "WalletHeader"
-
-#define VERSION_MAJOR      3
-#define VERSION_MINOR      0
-#define VERSION_REVISION   0
+#include "WalletHeader.h"
  
-class WalletException : public std::runtime_error
-{
-public:
-   WalletException(const std::string& msg) : std::runtime_error(msg)
-   {}
-};
-
+////
 class NoAssetException : public std::runtime_error
 {
 public:
    NoAssetException(const std::string& msg) : std::runtime_error(msg)
    {}
-};
-
-class NoEntryInWalletException
-{};
-
-////////////////////////////////////////////////////////////////////////////////
-enum WalletMetaType
-{
-   WalletMetaType_Single,
-   WalletMetaType_Multisig,
-   WalletMetaType_Subwallet
-};
-
-////
-struct WalletMeta
-{
-   std::shared_ptr<WalletDBInterface> iface_;
-
-   WalletMetaType type_;
-   BinaryData parentID_;
-   BinaryData walletID_;
-   std::string dbName_;
-
-   uint8_t versionMajor_ = 0;
-   uint16_t versionMinor_ = 0;
-   uint16_t revision_ = 0;
-
-   SecureBinaryData defaultEncryptionKey_;
-   SecureBinaryData defaultEncryptionKeyId_;
-
-   SecureBinaryData defaultKdfId_;
-   SecureBinaryData masterEncryptionKeyId_;
-
-   //tors
-   WalletMeta(std::shared_ptr<WalletDBInterface> iface, WalletMetaType type) :
-      iface_(iface), type_(type)
-   {
-      versionMajor_ = VERSION_MAJOR;
-      versionMinor_ = VERSION_MINOR;
-      revision_ = VERSION_REVISION;
-   }
-
-   virtual ~WalletMeta(void) = 0;
-   
-   //local
-   BinaryData getDbKey(void);
-   const BinaryData& getWalletID(void) const { return walletID_; }
-   std::string getWalletIDStr(void) const
-   {
-      if (walletID_.getSize() == 0)
-         throw WalletException("empty wallet id");
-
-      std::string idStr(walletID_.getCharPtr(), walletID_.getSize());
-      return idStr;
-   }
-
-   std::shared_ptr<WalletDBInterface> iface(void) const { return iface_; }
-
-   //serialization
-   BinaryData serializeVersion(void) const;
-   void unseralizeVersion(BinaryRefReader&);
-
-   BinaryData serializeEncryptionKey(void) const;
-   void unserializeEncryptionKey(BinaryRefReader&);
-   
-   //encryption keys
-   const SecureBinaryData& getDefaultEncryptionKey(void) const 
-   { return defaultEncryptionKey_; }
-   const BinaryData& getDefaultEncryptionKeyId(void) const
-   { return defaultEncryptionKeyId_; }
-
-   //virtual
-   virtual BinaryData serialize(void) const = 0;
-   virtual bool shouldLoad(void) const = 0;
-
-   //static
-   static std::shared_ptr<WalletMeta> deserialize(
-      std::shared_ptr<WalletDBInterface>,
-      BinaryDataRef key, BinaryDataRef val);
-};
-
-////
-struct WalletMeta_Single : public WalletMeta
-{
-   //tors
-   WalletMeta_Single(std::shared_ptr<WalletDBInterface> iface) :
-      WalletMeta(iface, WalletMetaType_Single)
-   {}
-
-   //virtual
-   BinaryData serialize(void) const;
-   bool shouldLoad(void) const;
-};
-
-////
-struct WalletMeta_Multisig : public WalletMeta
-{
-   //tors
-   WalletMeta_Multisig(std::shared_ptr<WalletDBInterface> iface) :
-      WalletMeta(iface, WalletMetaType_Multisig)
-   {}
-
-   //virtual
-   BinaryData serialize(void) const;
-   bool shouldLoad(void) const;
-};
-
-////
-struct WalletMeta_Subwallet : public WalletMeta
-{
-   //tors
-   WalletMeta_Subwallet(std::shared_ptr<WalletDBInterface> iface) :
-      WalletMeta(iface, WalletMetaType_Subwallet)
-   {}
-
-   //virtual
-   BinaryData serialize(void) const;
-   bool shouldLoad(void) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -199,27 +58,28 @@ protected:
    BinaryData mainAccount_;
 
    ////
-   BinaryData parentID_;
    BinaryData walletID_;
    
 protected:
    //tors
-   AssetWallet(std::shared_ptr<WalletMeta> metaPtr) :
-      iface_(metaPtr->iface()), dbName_(metaPtr->dbName_)
+   AssetWallet(std::shared_ptr<WalletDBInterface> iface,
+      std::shared_ptr<WalletHeader> headerPtr) :
+      iface_(iface), 
+      dbName_(headerPtr->dbName_),
+      walletID_(headerPtr->walletID_)
    {
-      iface_->openDB(dbName_);
       decryptedData_ = std::make_shared<DecryptedDataContainer>(
          iface_, dbName_,
-         metaPtr->getDefaultEncryptionKey(),
-         metaPtr->getDefaultEncryptionKeyId(),
-         metaPtr->defaultKdfId_, metaPtr->masterEncryptionKeyId_);
+         headerPtr->getDefaultEncryptionKey(),
+         headerPtr->getDefaultEncryptionKeyId(),
+         headerPtr->defaultKdfId_, headerPtr->masterEncryptionKeyId_);
    }
 
    static std::shared_ptr<WalletDBInterface> getIfaceFromFile(
-      const std::string& path, unsigned dbCount = 3)
+      const std::string& path)
    {
       auto iface = std::make_shared<WalletDBInterface>();
-      iface->setupEnv(path, dbCount);
+      iface->setupEnv(path);
 
       return iface;
    }
@@ -232,27 +92,12 @@ protected:
    void loadMetaAccounts(void);
 
    //virtual
-   virtual void putHeaderData(
-      const BinaryData& parentID,
-      const BinaryData& walletID);
-
    virtual void updateHashMap(void);
    virtual void readFromFile(void) = 0;
 
    //static
    static BinaryDataRef getDataRefForKey(
-      const WalletIfaceTransaction&, const BinaryData& key);
-   static unsigned getDbCountAndNames(
-      std::shared_ptr<WalletDBInterface>,
-      std::map<BinaryData, std::shared_ptr<WalletMeta>>&,
-      BinaryData& masterID, 
-      BinaryData& mainWalletID);
-   static void putDbName(std::shared_ptr<WalletDBInterface>, 
-      std::shared_ptr<WalletMeta>);
-   static void setMainWallet(
-      std::shared_ptr<WalletDBInterface>, std::shared_ptr<WalletMeta>);
-   static void initWalletMetaDB(
-      std::shared_ptr<WalletDBInterface>, const std::string&);
+      std::shared_ptr<DBIfaceTransaction>, const BinaryData& key);
 
 public:
    //tors
@@ -315,9 +160,8 @@ public:
    virtual const SecureBinaryData& getDecryptedValue(
       std::shared_ptr<Asset_EncryptedData>) = 0;
 
-   static std::string forkWathcingOnly(const std::string&);
-
    //static
+   static std::string forkWathcingOnly(const std::string&);
    static std::shared_ptr<AssetWallet> loadMainWalletFromFile(
       const std::string& path);
 };
@@ -335,15 +179,11 @@ protected:
 protected:
    //virtual
    void readFromFile(void);
-   void putHeaderData(const BinaryData& parentID,
-      const BinaryData& walletID);
 
    //static
    static std::shared_ptr<AssetWallet_Single> initWalletDb(
-      std::shared_ptr<WalletMeta>,
-      std::shared_ptr<KeyDerivationFunction> masterKdf,
-      DecryptedEncryptionKey& masterEncryptionKey,
-      std::unique_ptr<Cipher>,
+      std::shared_ptr<WalletDBInterface> iface,
+      const BinaryData& masterID, const BinaryData& walletID,
       const SecureBinaryData& passphrase,
       const SecureBinaryData& privateRoot,
       const SecureBinaryData& chaincode,
@@ -351,7 +191,8 @@ protected:
       unsigned lookup);
 
    static std::shared_ptr<AssetWallet_Single> initWalletDbFromPubRoot(
-      std::shared_ptr<WalletMeta> metaPtr,
+      std::shared_ptr<WalletDBInterface> iface,
+      const BinaryData& masterID, const BinaryData& walletID,
       SecureBinaryData& pubRoot,
       std::set<std::shared_ptr<AccountType>> accountTypes,
       unsigned lookup);
@@ -367,8 +208,9 @@ private:
 
 public:
    //tors
-   AssetWallet_Single(std::shared_ptr<WalletMeta> metaPtr) :
-      AssetWallet(metaPtr)
+   AssetWallet_Single(std::shared_ptr<WalletDBInterface> iface,
+      std::shared_ptr<WalletHeader> metaPtr) :
+      AssetWallet(iface, metaPtr)
    {}
 
    //locals
@@ -461,8 +303,9 @@ protected:
 
 public:
    //tors
-   AssetWallet_Multisig(std::shared_ptr<WalletMeta> metaPtr) :
-      AssetWallet(metaPtr)
+   AssetWallet_Multisig(std::shared_ptr<WalletDBInterface> iface,
+      std::shared_ptr<WalletHeader> metaPtr) :
+      AssetWallet(iface, metaPtr)
    {}
 
    //virtual

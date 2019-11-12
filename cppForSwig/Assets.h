@@ -85,6 +85,7 @@ struct DecryptedEncryptionKey
    friend class DecryptedDataContainer;
    friend class Cipher_AES;
    friend class AssetWallet_Single;
+   friend class AssetWallet;
 
 private:
    const SecureBinaryData rawKey_;

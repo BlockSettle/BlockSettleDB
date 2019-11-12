@@ -338,7 +338,8 @@ SecureBinaryData DecryptedDataContainer::encryptData(
       cipher->getEncryptionKeyId());
    auto& derivedKey = keyIter->second->getDerivedKey(cipher->getKdfId());
 
-   return move(cipher->encrypt(derivedKey, data));
+   return move(cipher->encrypt(
+      keyIter->second.get(), cipher->getKdfId(), data));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -390,7 +391,7 @@ void DecryptedDataContainer::updateKeyOnDiskNoPrefix(
    auto&& tx = iface_->beginWriteTransaction(dbName_);
 
    //check if data is on disk already
-   auto&& dataRef = tx.getDataRef(dbName_);
+   auto&& dataRef = tx->getDataRef(dbKey);
 
    if (dataRef.getSize() != 0)
    {
@@ -406,7 +407,7 @@ void DecryptedDataContainer::updateKeyOnDiskNoPrefix(
    }
 
    auto&& serializedData = dataPtr->serialize();
-   tx.insert(dbKey, serializedData);
+   tx->insert(dbKey, serializedData);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,7 +427,7 @@ void DecryptedDataContainer::updateOnDisk()
       dbKey.append(key.first);
 
       //fetch from db
-      auto&& dataRef = tx.getDataRef(dbKey);
+      auto&& dataRef = tx->getDataRef(dbKey);
 
       if (dataRef.getSize() != 0)
       {
@@ -442,7 +443,7 @@ void DecryptedDataContainer::updateOnDisk()
       }
 
       auto&& serializedData = key.second->serialize();
-      tx.insert(dbKey, serializedData);
+      tx->insert(dbKey, serializedData);
    }
 }
 
@@ -455,7 +456,7 @@ void DecryptedDataContainer::deleteKeyFromDisk(const BinaryData& key)
 
    //wipe it
    auto&& tx = iface_->beginWriteTransaction(dbName_);
-   tx.wipe(key);
+   tx->wipe(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -464,16 +465,16 @@ void DecryptedDataContainer::readFromDisk()
    {
       //encryption key and kdf entries
       auto&& tx = iface_->beginReadTransaction(dbName_);
-      auto dbIter = tx.getIterator();
+      auto dbIter = tx->getIterator();
 
       BinaryWriter bwEncrKey;
       bwEncrKey.put_uint8_t(ENCRYPTIONKEY_PREFIX);
-      dbIter.seek(bwEncrKey.getData());
+      dbIter->seek(bwEncrKey.getData());
 
-      while (dbIter.isValid())
+      while (dbIter->isValid())
       {
-         auto iterkey = dbIter.key();
-         auto itervalue = dbIter.value();
+         auto iterkey = dbIter->key();
+         auto itervalue = dbIter->value();
 
          if (iterkey.getSize() < 2)
             throw runtime_error("empty db key");
@@ -507,7 +508,7 @@ void DecryptedDataContainer::readFromDisk()
          }
          }
 
-         dbIter.advance();
+         dbIter->advance();
       }
    }
 }

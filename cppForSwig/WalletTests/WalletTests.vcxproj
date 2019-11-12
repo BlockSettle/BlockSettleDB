@@ -199,6 +199,7 @@
     <ClCompile Include="..\txio.cpp" />
     <ClCompile Include="..\UniversalTimer.cpp" />
     <ClCompile Include="..\WalletFileInterface.cpp" />
+    <ClCompile Include="..\WalletHeader.cpp" />
     <ClCompile Include="..\WalletManager.cpp" />
     <ClCompile Include="..\Wallets.cpp" />
     <ClCompile Include="..\WebSocketClient.cpp" />
@@ -274,6 +275,7 @@
     <ClInclude Include="..\UniversalTimer.h" />
     <ClInclude Include="..\util.h" />
     <ClInclude Include="..\WalletFileInterface.h" />
+    <ClInclude Include="..\WalletHeader.h" />
     <ClInclude Include="..\WalletManager.h" />
     <ClInclude Include="..\Wallets.h" />
     <ClInclude Include="..\WebSocketClient.h" />

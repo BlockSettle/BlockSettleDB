@@ -99,11 +99,11 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data,
       BinaryDataRef keyBdr = bwKey.getDataRef();
 
       auto&& tx = iface->beginReadTransaction(dbName);
-      auto dbIter = tx.getIterator();
-      dbIter.seek(keyBdr);
-      while (dbIter.isValid())
+      auto dbIter = tx->getIterator();
+      dbIter->seek(keyBdr);
+      while (dbIter->isValid())
       {
-         auto&& key = dbIter.key();
+         auto&& key = dbIter->key();
          if (!key.startsWith(keyBdr) || 
              key.getSize() != keyBdr.getSize() + 4)
             break;
@@ -111,13 +111,13 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data,
          auto saltIdBdr = key.getSliceCopy(keyBdr.getSize(), 4);
          auto saltId = READ_UINT32_BE(saltIdBdr);
 
-         auto value = dbIter.value();
+         auto value = dbIter->value();
          BinaryRefReader bdrData(value);
          auto len = bdrData.get_var_int();
          auto&& salt = bdrData.get_SecureBinaryData(len);
 
          saltMap.emplace(make_pair(move(salt), saltId));
-         dbIter.advance();
+         dbIter->advance();
       }
 
       derScheme = make_shared<DerivationScheme_ECDH>(id, saltMap);
@@ -606,7 +606,7 @@ void DerivationScheme_ECDH::putSalt(unsigned id, const SecureBinaryData& salt,
    bwData.put_BinaryData(salt);
 
    auto&& tx = iface->beginWriteTransaction(dbName);
-   tx.insert(bwKey.getData(), bwData.getData());
+   tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,7 +28,7 @@ size_t AssetAccount::writeAssetEntry(shared_ptr<AssetEntry> entryPtr)
    auto&& serializedEntry = entryPtr->serialize();
    auto&& dbKey = entryPtr->getDbKey();
 
-   tx.insert(dbKey, serializedEntry);
+   tx->insert(dbKey, serializedEntry);
 
    entryPtr->doNotCommit();
    return serializedEntry.getSize();
@@ -57,7 +57,7 @@ void AssetAccount::updateAssetCount()
    bwData.put_var_int(assets_.size());
 
    auto&& tx = iface_->beginWriteTransaction(dbName_);
-   tx.insert(bwKey.getData(), bwData.getData());
+   tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +92,7 @@ void AssetAccount::commit()
 
    //commit serialized account data
    auto&& tx = iface_->beginWriteTransaction(dbName_);
-   tx.insert(bwKey.getData(), bwData.getData());
+   tx->insert(bwKey.getData(), bwData.getData());
 
    updateAssetCount();
    updateHighestUsedIndex();
@@ -124,7 +124,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key,
    if (key.getPtr()[0] != ASSET_ACCOUNT_PREFIX)
       throw AccountException("unexpected prefix for AssetAccount key");
 
-   auto&& diskDataRef = tx.getDataRef(key);
+   auto&& diskDataRef = tx->getDataRef(key);
    BinaryRefReader brr(diskDataRef);
 
    //type
@@ -150,7 +150,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key,
       bwKey_assetcount.put_BinaryDataRef(key.getSliceRef(
          1, key.getSize() - 1));
 
-      auto&& assetcount = tx.getDataRef(bwKey_assetcount.getData());
+      auto&& assetcount = tx->getDataRef(bwKey_assetcount.getData());
       if (assetcount.getSize() == 0)
          throw AccountException("missing asset count entry");
 
@@ -166,7 +166,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key,
       bwKey_lastusedindex.put_BinaryDataRef(key.getSliceRef(
          1, key.getSize() - 1));
 
-      auto&& lastusedindex = tx.getDataRef(bwKey_lastusedindex.getData());
+      auto&& lastusedindex = tx->getDataRef(bwKey_lastusedindex.getData());
       if (lastusedindex.getSize() == 0)
          throw AccountException("missing last used entry");
 
@@ -186,13 +186,13 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key,
    //get all assets
    {
       auto& assetDbKey = bwAssetKey.getData();
-      auto dbIter = tx.getIterator();
-      dbIter.seek(assetDbKey);
+      auto dbIter = tx->getIterator();
+      dbIter->seek(assetDbKey);
 
-      while (dbIter.isValid())
+      while (dbIter->isValid())
       {
-         auto&& key_bdr = dbIter.key();
-         auto&& value_bdr = dbIter.value();
+         auto&& key_bdr = dbIter->key();
+         auto&& value_bdr = dbIter->value();
 
          //check key isnt prefix
          if (key_bdr == assetDbKey)
@@ -212,7 +212,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key,
          else
             rootEntry = assetPtr;
 
-         dbIter.advance();
+         dbIter->advance();
       } 
    }
 
@@ -504,7 +504,7 @@ void AssetAccount::updateHighestUsedIndex()
    bwData.put_var_int(lastUsedIndex_);
 
    auto&& tx = iface_->beginWriteTransaction(dbName_);
-   tx.insert(bwKey.getData(), bwData.getData());
+   tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1149,7 +1149,7 @@ void AddressAccount::commit()
    }
 
    //commit address account data to disk
-   tx.insert(bwKey.getData(), bwData.getData());
+   tx->insert(bwKey.getData(), bwData.getData());
 
    //commit instantiated address types
    for (auto& addrPair : addresses_)
@@ -1188,7 +1188,7 @@ void AddressAccount::readFromDisk(const BinaryData& key)
 
    //get data from disk  
    auto&& tx = iface_->beginReadTransaction(dbName_);
-   auto&& diskDataRef = tx.getDataRef(key);
+   auto&& diskDataRef = tx->getDataRef(key);
    BinaryRefReader brr(diskDataRef);
 
    //outer and inner accounts
@@ -1231,26 +1231,26 @@ void AddressAccount::readFromDisk(const BinaryData& key)
    bwKey.put_BinaryData(getID());
    auto keyBdr = bwKey.getDataRef();
 
-   auto dbIter = tx.getIterator();
-   dbIter.seek(bwKey.getData());
-   while (dbIter.isValid())
+   auto dbIter = tx->getIterator();
+   dbIter->seek(bwKey.getData());
+   while (dbIter->isValid())
    {
-      auto&& key = dbIter.key();
+      auto&& key = dbIter->key();
       if (!key.startsWith(keyBdr))
          break;
 
       if (key.getSize() != 13)
       {
          LOGWARN << "unexpected address entry type key size!";
-         dbIter.advance();
+         dbIter->advance();
          continue;
       }
 
-      auto&& data = dbIter.value();
+      auto&& data = dbIter->value();
       if (data.getSize() != 4)
       {
          LOGWARN << "unexpected address entry type val size!";
-         dbIter.advance();
+         dbIter->advance();
          continue;
       }
 
@@ -1258,7 +1258,7 @@ void AddressAccount::readFromDisk(const BinaryData& key)
       auto assetID = key.getSliceCopy(1, 12);
       addresses_.insert(make_pair(assetID, aeType));
       
-      dbIter.advance();
+      dbIter->advance();
    }
 }
 
@@ -1626,7 +1626,7 @@ void AddressAccount::writeAddressType(
    bwData.put_uint32_t(aeType);
 
    auto&& tx = iface_->beginWriteTransaction(dbName_);
-   tx.insert(bwKey.getData(), bwData.getData());
+   tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1639,7 +1639,7 @@ void AddressAccount::eraseInstantiatedAddressType(const BinaryData& id)
    bwKey.put_BinaryData(id);
 
    auto&& tx = iface_->beginWriteTransaction(dbName_);
-   tx.erase(bwKey.getData());
+   tx->erase(bwKey.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2081,7 +2081,7 @@ void MetaDataAccount::commit()
 
    //commit serialized account data
    auto&& tx = iface_->beginWriteTransaction(dbName_);
-   tx.insert(bwKey.getData(), bwData.getData());
+   tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2098,12 +2098,12 @@ bool MetaDataAccount::writeAssetToDisk(shared_ptr<MetaData> assetPtr)
    auto&& tx = iface_->beginWriteTransaction(dbName_);
    if (data.getSize() != 0)
    {
-      tx.insert(key, data);
+      tx->insert(key, data);
       return true;
    }
    else
    {
-      tx.erase(key);
+      tx->erase(key);
       return false;
    }
 }
@@ -2159,7 +2159,7 @@ void MetaDataAccount::readFromDisk(const BinaryData& key)
 
    CharacterArrayRef carKey(key.getSize(), key.getCharPtr());
 
-   auto diskDataRef = tx.getDataRef(key);
+   auto diskDataRef = tx->getDataRef(key);
    BinaryRefReader brr(diskDataRef);
 
    //wipe object prior to loading from disk
@@ -2197,13 +2197,13 @@ void MetaDataAccount::readFromDisk(const BinaryData& key)
    bwAssetKey.put_BinaryData(ID_);
    auto& assetDbKey = bwAssetKey.getData();
 
-   auto dbIter = tx.getIterator();
-   dbIter.seek(assetDbKey);
+   auto dbIter = tx->getIterator();
+   dbIter->seek(assetDbKey);
 
-   while (dbIter.isValid())
+   while (dbIter->isValid())
    {
-      auto&& key = dbIter.key();
-      auto&& data = dbIter.value();
+      auto&& key = dbIter->key();
+      auto&& data = dbIter->value();
 
       //check key isnt prefix
       if (key == assetDbKey)
@@ -2223,7 +2223,7 @@ void MetaDataAccount::readFromDisk(const BinaryData& key)
       catch (exception&)
       {}
 
-      dbIter.advance();
+      dbIter->advance();
    }
 }
 
