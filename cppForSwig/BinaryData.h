@@ -1576,6 +1576,12 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
+   void put_String(const std::string& str)
+   {
+      theString_.append((const uint8_t*)str.c_str(), str.size());
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
    template<typename T>
    void put_BitPacker(BitPacker<T> & bp) { put_BinaryData(bp.getBinaryData()); }
 

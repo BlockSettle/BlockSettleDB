@@ -20,6 +20,10 @@ using namespace std;
 //// DBInterface
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+const BinaryData DBInterface::erasurePalceHolder_ =
+BinaryData(ERASURE_PLACE_HOLDER);
+
+////////////////////////////////////////////////////////////////////////////////
 DBInterface::DBInterface(
    std::shared_ptr<LMDBEnv> dbEnv, const std::string& dbName, 
    const SecureBinaryData& macKey) :
@@ -51,6 +55,7 @@ void DBInterface::loadAllEntries()
 {
    auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadOnly);
 
+   set<unsigned> gaps;
    int prevDbKey = -1;
    auto iter = db_.begin();
    while (iter.isValid())
@@ -64,15 +69,56 @@ void DBInterface::loadAllEntries()
       BinaryDataRef key_bdr((const uint8_t*)key_mval.mv_data, key_mval.mv_size);
       BinaryDataRef val_bdr((const uint8_t*)val_mval.mv_data, val_mval.mv_size);
 
-      //dbkeys should be consecutive integers
+      //dbkeys should be consecutive integers, mark gaps
       int dbKeyInt = READ_UINT32_BE(key_bdr);
       if (dbKeyInt - prevDbKey != 1)
-         throw WalletInterfaceException("db key gap");
+      {
+         for (unsigned i = prevDbKey + 1; i < dbKeyInt; i++)
+            gaps.insert(i);
+      }
+
+      //set lowest seen integer key
       prevDbKey = dbKeyInt;
 
+      //grab the data
       auto dataPair = readDataPacket(key_bdr, val_bdr, macKey_);
 
-      if (dataPair.second != BinaryData("erased"))
+      //check if it packet is an erasure place holder
+      bool erased = false;
+
+      //placeholder have empty dbkeys
+      if (dataPair.first.getSize() == 0)
+      {
+         if (dataPair.second.getSize() > erasurePalceHolder_.getSize())
+         {
+            BinaryRefReader brr(dataPair.second.getRef());
+            auto placeHolder = brr.get_BinaryDataRef(erasurePalceHolder_.getSize());
+            if (placeHolder == erasurePalceHolder_)
+            {
+               auto len = brr.get_var_int();
+               if (len == 4)
+               {
+                  auto key = brr.get_BinaryData(4);
+                  auto gapInt = READ_UINT32_BE(key);
+
+                  auto gapIter = gaps.find(gapInt);
+                  if (gapIter == gaps.end())
+                  {
+                     throw WalletInterfaceException(
+                        "erasure place holder for missing gap");
+                  }
+
+                  gaps.erase(gapIter);
+                  erased = true;
+               }
+            }
+         }
+
+         if (!erased)
+            throw WalletInterfaceException("empty data key");
+      }
+
+      if (!erased)
       {
          auto&& keyPair = make_pair(dataPair.first, move(key_bdr.copy()));
          auto insertIter = dataKeyToDbKey_.emplace(keyPair);
@@ -86,6 +132,9 @@ void DBInterface::loadAllEntries()
    }
 
    dbKeyCounter_.store(prevDbKey + 1, memory_order_relaxed);
+
+   if(gaps.size() != 0)
+      throw WalletInterfaceException("unfilled dbkey gaps!");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -970,11 +1019,22 @@ WalletIfaceTransaction::~WalletIfaceTransaction()
          CharacterArrayRef carKey(dbKey.getSize(), dbKey.getPtr());
          dbPtr_->db_.wipe(carKey);
 
-         //write in the erased place holder
+         //create erasure place holder packet
+         BinaryWriter erasedBw;
+         erasedBw.put_String("erased");
+         erasedBw.put_var_int(dbKey.getSize());
+         erasedBw.put_BinaryData(dbKey);
+
+         //get new key
+         dbKey = dbPtr_->getNewDbKey();
+
+         //commit erasure packet
          auto&& dbVal = DBInterface::createDataPacket(
-            dbKey, dataPtr->key_, BinaryData("erased"), dbPtr_->macKey_);
+            dbKey, BinaryData(), erasedBw.getData(), dbPtr_->macKey_);
+
          CharacterArrayRef carData(dbVal.getSize(), dbVal.getPtr());
-         dbPtr_->db_.insert(carKey, carData);
+         CharacterArrayRef carKey2(dbKey.getSize(), dbKey.getPtr());
+         dbPtr_->db_.insert(carKey2, carData);
 
          //move on to next piece of data if there is nothing to write
          if (!dataPtr->write_)
@@ -984,7 +1044,7 @@ WalletIfaceTransaction::~WalletIfaceTransaction()
             continue;
          }
 
-         //grab a fresh key
+         //grab a fresh key for the follow up write
          dbKey = dbPtr_->getNewDbKey();
       }
 

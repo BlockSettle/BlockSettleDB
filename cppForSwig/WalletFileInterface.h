@@ -22,6 +22,7 @@
 #include "SecureBinaryData.h"
 
 #define CONTROL_DB_NAME "control_db"
+#define ERASURE_PLACE_HOLDER "erased"
 
 ////////////////////////////////////////////////////////////////////////////////
 class NoDataInDB : std::runtime_error
@@ -74,6 +75,8 @@ private:
    std::atomic<unsigned> dbKeyCounter_ = { 0 };
 
    const SecureBinaryData macKey_;
+
+   static const BinaryData erasurePalceHolder_;
 
 private:
    void update(const std::vector<std::shared_ptr<InsertData>>&);
