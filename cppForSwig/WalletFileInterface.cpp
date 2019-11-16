@@ -20,14 +20,17 @@ using namespace std;
 //// DBInterface
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData DBInterface::erasurePalceHolder_ =
+const BinaryData DBInterface::erasurePlaceHolder_ =
 BinaryData(ERASURE_PLACE_HOLDER);
+
+const BinaryData DBInterface::keyCycleFlag_ =
+BinaryData(KEY_CYCLE_FLAG);
 
 ////////////////////////////////////////////////////////////////////////////////
 DBInterface::DBInterface(
-   std::shared_ptr<LMDBEnv> dbEnv, const std::string& dbName, 
-   const SecureBinaryData& macKey) :
-   dbEnv_(dbEnv), dbName_(dbName), macKey_(macKey)
+   std::shared_ptr<LMDBEnv> dbEnv, const std::string& dbName,
+   const SecureBinaryData& controlSalt) :
+   dbEnv_(dbEnv), dbName_(dbName), controlSalt_(controlSalt)
 {
    auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadWrite);
    db_.open(dbEnv_.get(), dbName_);
@@ -51,90 +54,160 @@ void DBInterface::reset(shared_ptr<LMDBEnv> envPtr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DBInterface::loadAllEntries()
+void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
 {
-   auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadOnly);
-
+   //to keep track of dbkey gaps
    set<unsigned> gaps;
-   int prevDbKey = -1;
-   auto iter = db_.begin();
-   while (iter.isValid())
+   SecureBinaryData decrKey, macKey;
+
+   auto&& saltedRoot = BtcUtils::getHMAC256(rootKey, controlSalt_);
+
+   //key derivation method
+   auto computeKeyPair = [&saltedRoot, &decrKey, &macKey](unsigned hmacKeyInt)
    {
-      auto key_mval = iter.key();
-      if (key_mval.mv_size != 4)
-         throw WalletInterfaceException("invalid dbkey");
+      SecureBinaryData hmacKey((uint8_t*)&hmacKeyInt, 4);
+      auto hmacVal = BtcUtils::getHMAC512(saltedRoot, hmacKey);
 
-      auto val_mval = iter.value();
+      //first half is the encryption key, second half is the hmac key
+      BinaryRefReader brr(hmacVal.getRef());
+      decrKey = move(brr.get_SecureBinaryData(32));
+      macKey = move(brr.get_SecureBinaryData(32));
+   };
 
-      BinaryDataRef key_bdr((const uint8_t*)key_mval.mv_data, key_mval.mv_size);
-      BinaryDataRef val_bdr((const uint8_t*)val_mval.mv_data, val_mval.mv_size);
+   //init first decryption key pair
+   unsigned decrKeyCounter = 0;
+   computeKeyPair(decrKeyCounter);
 
-      //dbkeys should be consecutive integers, mark gaps
-      int dbKeyInt = READ_UINT32_BE(key_bdr);
-      if (dbKeyInt - prevDbKey != 1)
+   //meta data handling lbd
+   auto processMetaDataPacket = [&gaps, computeKeyPair, &decrKeyCounter]
+   (const BinaryData& packet)->bool
+   {
+      if (packet.getSize() > erasurePlaceHolder_.getSize())
       {
-         for (unsigned i = prevDbKey + 1; i < dbKeyInt; i++)
-            gaps.insert(i);
-      }
+         BinaryRefReader brr(packet.getRef());
+         auto placeHolder = 
+            brr.get_BinaryDataRef(erasurePlaceHolder_.getSize());
 
-      //set lowest seen integer key
-      prevDbKey = dbKeyInt;
-
-      //grab the data
-      auto dataPair = readDataPacket(key_bdr, val_bdr, macKey_);
-
-      //check if it packet is an erasure place holder
-      bool erased = false;
-
-      //placeholder have empty dbkeys
-      if (dataPair.first.getSize() == 0)
-      {
-         if (dataPair.second.getSize() > erasurePalceHolder_.getSize())
+         if (placeHolder == erasurePlaceHolder_)
          {
-            BinaryRefReader brr(dataPair.second.getRef());
-            auto placeHolder = brr.get_BinaryDataRef(erasurePalceHolder_.getSize());
-            if (placeHolder == erasurePalceHolder_)
+            auto len = brr.get_var_int();
+            if (len == 4)
             {
-               auto len = brr.get_var_int();
-               if (len == 4)
+               auto key = brr.get_BinaryData(4);
+               auto gapInt = READ_UINT32_BE(key);
+
+               auto gapIter = gaps.find(gapInt);
+               if (gapIter == gaps.end())
                {
-                  auto key = brr.get_BinaryData(4);
-                  auto gapInt = READ_UINT32_BE(key);
-
-                  auto gapIter = gaps.find(gapInt);
-                  if (gapIter == gaps.end())
-                  {
-                     throw WalletInterfaceException(
-                        "erasure place holder for missing gap");
-                  }
-
-                  gaps.erase(gapIter);
-                  erased = true;
+                  throw WalletInterfaceException(
+                     "erasure place holder for missing gap");
                }
+
+               gaps.erase(gapIter);
+               return true;
             }
          }
-
-         if (!erased)
-            throw WalletInterfaceException("empty data key");
       }
 
-      if (!erased)
+      if (packet == keyCycleFlag_)
       {
+         //cycle key
+         ++decrKeyCounter;
+         computeKeyPair(decrKeyCounter);
+         return true;
+      }
+
+      return false;
+   };
+
+   /*****/
+
+   {
+      //read all db entries
+      auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadOnly);
+
+      int prevDbKey = -1;
+      auto iter = db_.begin();
+      while (iter.isValid())
+      {
+         auto key_mval = iter.key();
+         if (key_mval.mv_size != 4)
+            throw WalletInterfaceException("invalid dbkey");
+
+         auto val_mval = iter.value();
+
+         BinaryDataRef key_bdr((const uint8_t*)key_mval.mv_data, key_mval.mv_size);
+         BinaryDataRef val_bdr((const uint8_t*)val_mval.mv_data, val_mval.mv_size);
+
+         //dbkeys should be consecutive integers, mark gaps
+         int dbKeyInt = READ_UINT32_BE(key_bdr);
+         if (dbKeyInt - prevDbKey != 1)
+         {
+            for (unsigned i = prevDbKey + 1; i < dbKeyInt; i++)
+               gaps.insert(i);
+         }
+
+         //set lowest seen integer key
+         prevDbKey = dbKeyInt;
+
+         //grab the data
+         auto dataPair = readDataPacket(key_bdr, val_bdr, macKey);
+
+         /*
+         Check if it packet is meta data.
+         Meta data entries have an empty data key.
+         */
+         if (dataPair.first.getSize() == 0)
+         {
+            if (!processMetaDataPacket(dataPair.second))
+               throw WalletInterfaceException("empty data key");
+
+            iter.advance();
+            continue;
+         }
+
          auto&& keyPair = make_pair(dataPair.first, move(key_bdr.copy()));
          auto insertIter = dataKeyToDbKey_.emplace(keyPair);
          if (!insertIter.second)
             throw WalletInterfaceException("duplicated db entry");
 
          dataMap_.emplace(dataPair);
+         iter.advance();
       }
 
-      iter.advance();
+      //sanity check
+      if (gaps.size() != 0)
+         throw WalletInterfaceException("unfilled dbkey gaps!");
+
+      //set dbkey counter
+      dbKeyCounter_.store(prevDbKey + 1, memory_order_relaxed);
    }
 
-   dbKeyCounter_.store(prevDbKey + 1, memory_order_relaxed);
+   {
+      /*
+      Append a key cycling flag to the this DB. All data written during
+      this session will use the next key in line. This flag will signify
+      the next wallet load to cycle the key accordingly to decrypt this
+      new data correctly.
+      */
+      auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadWrite);
 
-   if(gaps.size() != 0)
-      throw WalletInterfaceException("unfilled dbkey gaps!");
+      auto flagKey = getNewDbKey();
+      auto flagPacket = createDataPacket(
+         flagKey, BinaryData(), keyCycleFlag_, macKey);
+
+      CharacterArrayRef carKey(flagKey.getSize(), flagKey.getPtr());
+      CharacterArrayRef carVal(flagPacket.getSize(), flagPacket.getPtr());
+
+      db_.insert(carKey, carVal);
+   }
+
+   //cycle to next key for this session
+   ++decrKeyCounter;
+   computeKeyPair(decrKeyCounter);
+
+   //set mac key for the current session
+   macKey_ = move(macKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -306,21 +379,22 @@ void WalletDBInterface::setupEnv(const string& path)
       isNew = true;
    }
 
-   //get control decrypted data container
-   auto decrData = loadDataContainer(controlHeader);
+   //load control decrypted data container
+   loadDataContainer(controlHeader);
 
-   //get control seed
-   auto seed = loadSeed(controlHeader);
+   //load control seed
+   loadSeed(controlHeader);
 
    //decrypt control seed
-   {
-      auto lock = ReentrantLock(decrData.get());
-      macKey_ = decrData->getDecryptedPrivateData(seed);
-   }
+   lockControlContainer();
+   auto& rootEncrKey = decryptedData_->getDecryptedPrivateData(controlSeed_);
 
    //load wallet header db
    {
-      openDB(WALLETHEADER_DBNAME);
+      auto headrPtr = make_shared<WalletHeader_Control>();
+      headrPtr->dbName_ = WALLETHEADER_DBNAME;
+      headrPtr->controlSalt_ = controlHeader->controlSalt_;
+      openDB(headrPtr, rootEncrKey);
       auto dbPtr = dbMap_.find(WALLETHEADER_DBNAME)->second;
    }
 
@@ -341,7 +415,9 @@ void WalletDBInterface::setupEnv(const string& path)
 
    //open all dbs listed in header map
    for (auto& headerPtr : headerMap_)
-      openDB(headerPtr.second->dbName_);
+      openDB(headerPtr.second, rootEncrKey);
+
+   unlockControlContainer();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -362,8 +438,6 @@ BinaryDataRef WalletDBInterface::getDataRefForKey(
 ////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::loadHeaders()
 {
-   openDB(WALLETHEADER_DBNAME);
-
    auto&& tx = beginReadTransaction(WALLETHEADER_DBNAME);
 
    {
@@ -459,17 +533,19 @@ void WalletDBInterface::shutdown()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletDBInterface::openDB(const string& dbName)
+void WalletDBInterface::openDB(std::shared_ptr<WalletHeader> headerPtr,
+   const SecureBinaryData& encrRootKey)
 {
-   auto iter = dbMap_.find(dbName);
+   auto iter = dbMap_.find(headerPtr->dbName_);
    if (iter != dbMap_.end())
       return;
 
-   auto dbiPtr = make_shared<DBInterface>(dbEnv_, dbName, macKey_);
-   dbMap_.insert(make_pair(dbName, dbiPtr));
+   auto dbiPtr = make_shared<DBInterface>(
+      dbEnv_, headerPtr->dbName_, headerPtr->controlSalt_);
+   dbMap_.insert(make_pair(headerPtr->dbName_, dbiPtr));
 
    //load all entries in db
-   dbiPtr->loadAllEntries();
+   dbiPtr->loadAllEntries(encrRootKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -544,23 +620,20 @@ void MockDeleteWalletDBInterface(WalletDBInterface* wdbi)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<DecryptedDataContainer> WalletDBInterface::loadDataContainer(
-   shared_ptr<WalletHeader> headerPtr)
+void WalletDBInterface::loadDataContainer(shared_ptr<WalletHeader> headerPtr)
 {
    //grab decrypted data object
    shared_ptr<WalletDBInterface> ifacePtr(this, MockDeleteWalletDBInterface);
-   auto decryptedData = make_shared<DecryptedDataContainer>(
+   decryptedData_ = make_unique<DecryptedDataContainer>(
       ifacePtr, headerPtr->dbName_,
       headerPtr->getDefaultEncryptionKey(),
       headerPtr->getDefaultEncryptionKeyId(),
       headerPtr->defaultKdfId_, headerPtr->masterEncryptionKeyId_);
-   decryptedData->readFromDisk();
-   return decryptedData;
+   decryptedData_->readFromDisk();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<EncryptedSeed> WalletDBInterface::loadSeed(
-   shared_ptr<WalletHeader> headerPtr)
+void WalletDBInterface::loadSeed(shared_ptr<WalletHeader> headerPtr)
 {
    auto&& tx = beginReadTransaction(headerPtr->dbName_);
 
@@ -570,11 +643,9 @@ shared_ptr<EncryptedSeed> WalletDBInterface::loadSeed(
 
    auto seedPtr = Asset_EncryptedData::deserialize(
       rootAssetRef.getSize(), rootAssetRef);
-   auto seedObj = dynamic_pointer_cast<EncryptedSeed>(seedPtr);
-   if (seedObj == nullptr)
+   controlSeed_ = dynamic_pointer_cast<EncryptedSeed>(seedPtr);
+   if (controlSeed_ == nullptr)
       throw WalletException("failed to deser wallet seed");
-
-   return seedObj;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -675,6 +746,11 @@ MasterKeyStruct WalletDBInterface::initWalletHeaderObject(
    */
    headerPtr->masterEncryptionKeyId_ = mks.masterKey_->getId();
    headerPtr->defaultKdfId_ = mks.kdf_->getId();
+
+   /*
+   setup control salt
+   */
+   headerPtr->controlSalt_ = CryptoPRNG::generateRandom(32);
 
    return move(mks);
 }
@@ -793,6 +869,10 @@ void WalletDBInterface::addHeader(std::shared_ptr<WalletHeader> headerPtr)
    auto iter = headerMap_.insert(make_pair(headerPtr->walletID_, headerPtr));
    if (!iter.second)
       throw WalletInterfaceException("header already in map");
+
+   if (dbMap_.size() + 2 > dbCount_)
+      throw WalletInterfaceException("dbCount is too low");
+
    putHeader(headerPtr);
 
    auto& dbName = headerPtr->dbName_;
@@ -803,7 +883,10 @@ void WalletDBInterface::addHeader(std::shared_ptr<WalletHeader> headerPtr)
    if (dbIter != dbMap_.end())
       return;
 
-   auto dbiPtr = make_shared<DBInterface>(dbEnv_, dbName, macKey_);
+   auto dbiPtr = make_shared<DBInterface>(
+      dbEnv_, dbName, headerPtr->controlSalt_);
+   auto& rootEncrKey = decryptedData_->getDecryptedPrivateData(controlSeed_);
+   dbiPtr->loadAllEntries(rootEncrKey);
    dbMap_.insert(make_pair(dbName, dbiPtr));
 }
 
@@ -870,6 +953,24 @@ void WalletDBInterface::setDbCount(unsigned count, bool doLock)
    }
 
    dbCount_ = count;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::lockControlContainer()
+{
+   if (controlLock_ != nullptr)
+      throw WalletInterfaceException("control container already locked");
+   
+   controlLock_ = make_unique<ReentrantLock>(decryptedData_.get());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::unlockControlContainer()
+{
+   if (controlLock_ == nullptr)
+      throw WalletInterfaceException("control container isn't locked");
+
+   controlLock_.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

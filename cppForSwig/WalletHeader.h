@@ -69,6 +69,8 @@ struct WalletHeader
    SecureBinaryData defaultKdfId_;
    SecureBinaryData masterEncryptionKeyId_;
 
+   SecureBinaryData controlSalt_;
+
    //tors
    WalletHeader(WalletHeaderType type) :
       type_(type)
@@ -98,6 +100,9 @@ struct WalletHeader
 
    BinaryData serializeEncryptionKey(void) const;
    void unserializeEncryptionKey(BinaryRefReader&);
+
+   BinaryData serializeControlSalt(void) const;
+   void unserializeControlSalt(BinaryRefReader&);
 
    //encryption keys
    const SecureBinaryData& getDefaultEncryptionKey(void) const

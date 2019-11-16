@@ -687,7 +687,9 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    }
 
    //put wallet db name in meta db
+   iface->lockControlContainer();
    iface->addHeader(headerPtr);
+   iface->unlockControlContainer();
 
    //insert the original entries
    {
@@ -774,9 +776,13 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
    headerPtr->walletID_ = walletID;
    headerPtr->masterID_ = masterID;
    headerPtr->dbName_ = string(walletID.getCharPtr(), walletID.getSize());
+   headerPtr->controlSalt_ = CryptoPRNG::generateRandom(32);
 
    auto walletPtr = make_shared<AssetWallet_Single>(iface, headerPtr);
+
+   iface->lockControlContainer();
    iface->addHeader(headerPtr);
+   iface->unlockControlContainer();
 
    /**insert the original entries**/
    {
@@ -1470,8 +1476,10 @@ string AssetWallet::forkWathcingOnly(const string& filename)
 
    //open original wallet db & new 
    auto originIface = getIfaceFromFile(filename);
+
    auto woIface = getIfaceFromFile(newname);
    woIface->setDbCount(originIface->getDbCount());
+   woIface->lockControlContainer();
 
    //cycle through wallet metas, copy wallet structure and assets
    for (auto& metaPtr : originIface->getHeaderMap())
@@ -1480,6 +1488,7 @@ string AssetWallet::forkWathcingOnly(const string& filename)
       {
       case WalletHeaderType_Single:
       {
+
          woIface->addHeader(metaPtr.second);
 
          //load wallet
@@ -1506,6 +1515,7 @@ string AssetWallet::forkWathcingOnly(const string& filename)
 
    //close dbs
    originIface.reset();
+   woIface->unlockControlContainer();
    woIface.reset();
 
    //return the file name of the wo wallet

@@ -88,12 +88,30 @@ void WalletHeader::unserializeEncryptionKey(BinaryRefReader& brr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+BinaryData WalletHeader::serializeControlSalt() const
+{
+   BinaryWriter bw;
+   bw.put_var_int(controlSalt_.getSize());
+   bw.put_BinaryData(controlSalt_);
+
+   return bw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletHeader::unserializeControlSalt(BinaryRefReader& brr)
+{
+   auto len = brr.get_var_int();
+   controlSalt_ = brr.get_SecureBinaryData(len);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 BinaryData WalletHeader_Single::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint32_t(type_);
    bw.put_BinaryData(serializeVersion());
    bw.put_BinaryData(serializeEncryptionKey());
+   bw.put_BinaryData(serializeControlSalt());
 
    BinaryWriter final_bw;
    final_bw.put_var_int(bw.getSize());
@@ -115,6 +133,7 @@ BinaryData WalletHeader_Multisig::serialize() const
    bw.put_uint32_t(type_);
    bw.put_BinaryData(serializeVersion());
    bw.put_BinaryData(serializeEncryptionKey());
+   bw.put_BinaryData(serializeControlSalt());
 
    BinaryWriter final_bw;
    final_bw.put_var_int(bw.getSize());
@@ -152,6 +171,7 @@ BinaryData WalletHeader_Control::serialize() const
    bw.put_uint32_t(type_);
    bw.put_BinaryData(serializeVersion());
    bw.put_BinaryData(serializeEncryptionKey());
+   bw.put_BinaryData(serializeControlSalt());
 
    BinaryWriter final_bw;
    final_bw.put_var_int(bw.getSize());
@@ -183,37 +203,40 @@ shared_ptr<WalletHeader> WalletHeader::deserialize(
    BinaryRefReader brrVal(val);
    auto wltType = (WalletHeaderType)brrVal.get_uint32_t();
 
-   shared_ptr<WalletHeader> wltMetaPtr;
+   shared_ptr<WalletHeader> wltHeaderPtr;
 
    switch (wltType)
    {
    case WalletHeaderType_Single:
    {
-      wltMetaPtr = make_shared<WalletHeader_Single>();
-      wltMetaPtr->unseralizeVersion(brrVal);
-      wltMetaPtr->unserializeEncryptionKey(brrVal);
+      wltHeaderPtr = make_shared<WalletHeader_Single>();
+      wltHeaderPtr->unseralizeVersion(brrVal);
+      wltHeaderPtr->unserializeEncryptionKey(brrVal);
+      wltHeaderPtr->unserializeControlSalt(brrVal);      
       break;
    }
 
    case WalletHeaderType_Subwallet:
    {
-      wltMetaPtr = make_shared<WalletHeader_Subwallet>();
+      wltHeaderPtr = make_shared<WalletHeader_Subwallet>();
       break;
    }
 
    case WalletHeaderType_Multisig:
    {
-      wltMetaPtr = make_shared<WalletHeader_Multisig>();
-      wltMetaPtr->unseralizeVersion(brrVal);
-      wltMetaPtr->unserializeEncryptionKey(brrVal);
+      wltHeaderPtr = make_shared<WalletHeader_Multisig>();
+      wltHeaderPtr->unseralizeVersion(brrVal);
+      wltHeaderPtr->unserializeEncryptionKey(brrVal);
+      wltHeaderPtr->unserializeControlSalt(brrVal);
       break;
    }
 
    case WalletHeaderType_Control:
    {
-      wltMetaPtr = make_shared<WalletHeader_Control>();
-      wltMetaPtr->unseralizeVersion(brrVal);
-      wltMetaPtr->unserializeEncryptionKey(brrVal);
+      wltHeaderPtr = make_shared<WalletHeader_Control>();
+      wltHeaderPtr->unseralizeVersion(brrVal);
+      wltHeaderPtr->unserializeEncryptionKey(brrVal);
+      wltHeaderPtr->unserializeControlSalt(brrVal);
       break;
    }
 
@@ -221,7 +244,7 @@ shared_ptr<WalletHeader> WalletHeader::deserialize(
       throw WalletException("invalid wallet type");
    }
 
-   wltMetaPtr->dbName_ = move(dbname);
-   wltMetaPtr->walletID_ = brrKey.get_BinaryData(brrKey.getSizeRemaining());
-   return wltMetaPtr;
+   wltHeaderPtr->dbName_ = move(dbname);
+   wltHeaderPtr->walletID_ = brrKey.get_BinaryData(brrKey.getSizeRemaining());
+   return wltHeaderPtr;
 }

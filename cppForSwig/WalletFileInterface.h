@@ -20,9 +20,11 @@
 #include "lmdbpp.h"
 #include "BinaryData.h"
 #include "SecureBinaryData.h"
+#include "ReentrantLock.h"
 
 #define CONTROL_DB_NAME "control_db"
 #define ERASURE_PLACE_HOLDER "erased"
+#define KEY_CYCLE_FLAG "cycle"
 
 ////////////////////////////////////////////////////////////////////////////////
 class NoDataInDB : std::runtime_error
@@ -55,6 +57,7 @@ public:
    {}
 };
 
+////////////////////////////////////////////////////////////////////////////////
 class DBIfaceIterator;
 class WalletIfaceIterator;
 class WalletIfaceTransaction;
@@ -74,9 +77,11 @@ private:
    std::map<BinaryData, BinaryData> dataKeyToDbKey_;
    std::atomic<unsigned> dbKeyCounter_ = { 0 };
 
-   const SecureBinaryData macKey_;
+   const SecureBinaryData controlSalt_;
+   SecureBinaryData macKey_;
 
-   static const BinaryData erasurePalceHolder_;
+   static const BinaryData erasurePlaceHolder_;
+   static const BinaryData keyCycleFlag_;
 
 private:
    void update(const std::vector<std::shared_ptr<InsertData>>&);
@@ -93,12 +98,12 @@ private:
       const BinaryData& macKey);
 
 public:
-   DBInterface(std::shared_ptr<LMDBEnv>, const std::string&, 
-      const SecureBinaryData&);
+   DBInterface(std::shared_ptr<LMDBEnv>, 
+      const std::string&, const SecureBinaryData&);
    ~DBInterface(void);
 
    ////
-   void loadAllEntries(void);
+   void loadAllEntries(const SecureBinaryData&);
    void reset(std::shared_ptr<LMDBEnv>);
    void close(void) { db_.close(); }
 
@@ -297,7 +302,6 @@ private:
 
    //encryption objects
    std::shared_ptr<LMDB> controlDb_;
-   SecureBinaryData macKey_;
 
    //wallet structure
    std::map<BinaryData, std::shared_ptr<WalletHeader>> headerMap_;
@@ -307,20 +311,22 @@ private:
    std::string path_;
    unsigned dbCount_ = 0;
 
+   std::unique_ptr<DecryptedDataContainer> decryptedData_;
+   std::unique_ptr<ReentrantLock> controlLock_;
+   std::shared_ptr<EncryptedSeed> controlSeed_;
+
 private:
-      //load methods
+   //control objects loading
    std::shared_ptr<WalletHeader> loadControlHeader();
-   std::shared_ptr<DecryptedDataContainer> loadDataContainer(
-      std::shared_ptr<WalletHeader>);
-   std::shared_ptr<EncryptedSeed> loadSeed(
-      std::shared_ptr<WalletHeader>);
+   void loadDataContainer(std::shared_ptr<WalletHeader>);
+   void loadSeed(std::shared_ptr<WalletHeader>);
    void loadHeaders(void);
 
    //utils
    BinaryDataRef getDataRefForKey(
       std::shared_ptr<DBIfaceTransaction> tx, const BinaryData& key);
    void setDbCount(unsigned, bool);
-   void openDB(const std::string& dbName);
+   void openDB(std::shared_ptr<WalletHeader>, const SecureBinaryData&);
 
    //header methods
    void openControlDb(void);
@@ -357,6 +363,10 @@ public:
    //transactions
    std::shared_ptr<DBIfaceTransaction> beginWriteTransaction(const std::string&);
    std::shared_ptr<DBIfaceTransaction> beginReadTransaction(const std::string&);
+
+   //utils
+   void lockControlContainer(void);
+   void unlockControlContainer(void);
 };
 
 #endif
