@@ -15,6 +15,7 @@
 #include <map>
 #include <string>
 #include <mutex>
+#include <functional>
 
 #include "make_unique.h"
 #include "lmdbpp.h"
