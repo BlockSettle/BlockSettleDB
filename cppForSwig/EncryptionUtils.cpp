@@ -143,6 +143,13 @@ BTC_PRIVKEY CryptoECDSA::ParsePrivateKey(SecureBinaryData const & privKeyData)
 }
 
 /////////////////////////////////////////////////////////////////////////////
+bool CryptoECDSA::checkPrivKeyIsValid(const SecureBinaryData& privKey)
+{
+   auto&& cppPrivKey = ParsePrivateKey(privKey);
+   return cppPrivKey.Validate();
+}
+
+/////////////////////////////////////////////////////////////////////////////
 BTC_PUBKEY ParsePublicKey(SecureBinaryData const & pubKeyX32B,
    SecureBinaryData const & pubKeyY32B)
 {

@@ -243,10 +243,18 @@ public:
    CryptoECDSA(void) {}
 
    /////////////////////////////////////////////////////////////////////////////
-   static SecureBinaryData CreateNewPrivateKey(
+   static bool checkPrivKeyIsValid(const SecureBinaryData& privKey);
+
+   /////////////////////////////////////////////////////////////////////////////
+   static SecureBinaryData createNewPrivateKey(
       SecureBinaryData extraEntropy = SecureBinaryData())
    {
-      return CryptoPRNG::generateRandom(32, extraEntropy);
+      while(true)
+      {
+         auto&& privKey = CryptoPRNG::generateRandom(32, extraEntropy);
+         if (checkPrivKeyIsValid(privKey))
+            return privKey;
+      }
    }
    
    /////////////////////////////////////////////////////////////////////////////
