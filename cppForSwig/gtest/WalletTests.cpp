@@ -388,6 +388,7 @@ TEST_F(WalletsTest, Encryption_Test)
       ASSERT_FALSE(TestUtils::searchFile(filename, privkey));
    }
 
+   /** Can't do these checks anymore as whole wallet is encrypted **/
    for (auto& pubkey : publicKeys)
    {
       ASSERT_TRUE(TestUtils::searchFile(filename, pubkey));
@@ -1156,6 +1157,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    ASSERT_FALSE(TestUtils::searchFile(filename, ivVec[0]));
    ASSERT_FALSE(TestUtils::searchFile(filename, privateKeys[0]));
 
+   /** Can't do these checks anymore, as whole wallet is encrypted **/
    ASSERT_TRUE(TestUtils::searchFile(filename, newIVs[0]));
    ASSERT_TRUE(TestUtils::searchFile(filename, newPrivKeys[0]));
 }

@@ -58,20 +58,25 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
 {
    //to keep track of dbkey gaps
    set<unsigned> gaps;
-   SecureBinaryData decrKey, macKey;
+   SecureBinaryData decrPrivKey;
+   SecureBinaryData macKey;
 
    auto&& saltedRoot = BtcUtils::getHMAC256(rootKey, controlSalt_);
 
    //key derivation method
-   auto computeKeyPair = [&saltedRoot, &decrKey, &macKey](unsigned hmacKeyInt)
+   auto computeKeyPair = [&saltedRoot, &decrPrivKey, &macKey](unsigned hmacKeyInt)
    {
       SecureBinaryData hmacKey((uint8_t*)&hmacKeyInt, 4);
       auto hmacVal = BtcUtils::getHMAC512(saltedRoot, hmacKey);
 
       //first half is the encryption key, second half is the hmac key
       BinaryRefReader brr(hmacVal.getRef());
-      decrKey = move(brr.get_SecureBinaryData(32));
+      decrPrivKey = move(brr.get_SecureBinaryData(32));
       macKey = move(brr.get_SecureBinaryData(32));
+
+      //decryption private key sanity check
+      if (!CryptoECDSA::checkPrivKeyIsValid(decrPrivKey))
+         throw WalletInterfaceException("invalid decryptin private key");
    };
 
    //init first decryption key pair
@@ -151,10 +156,11 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
          prevDbKey = dbKeyInt;
 
          //grab the data
-         auto dataPair = readDataPacket(key_bdr, val_bdr, macKey);
+         auto dataPair = readDataPacket(
+            key_bdr, val_bdr, decrPrivKey, macKey);
 
          /*
-         Check if it packet is meta data.
+         Check if packet is meta data.
          Meta data entries have an empty data key.
          */
          if (dataPair.first.getSize() == 0)
@@ -193,8 +199,9 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
       auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadWrite);
 
       auto flagKey = getNewDbKey();
+      auto&& encrPubKey = CryptoECDSA().ComputePublicKey(decrPrivKey, true);;
       auto flagPacket = createDataPacket(
-         flagKey, BinaryData(), keyCycleFlag_, macKey);
+         flagKey, BinaryData(), keyCycleFlag_, encrPubKey, macKey);
 
       CharacterArrayRef carKey(flagKey.getSize(), flagKey.getPtr());
       CharacterArrayRef carVal(flagPacket.getSize(), flagPacket.getPtr());
@@ -207,6 +214,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
    computeKeyPair(decrKeyCounter);
 
    //set mac key for the current session
+   encrPubKey_ = CryptoECDSA().ComputePublicKey(decrPrivKey, true);
    macKey_ = move(macKey);
 }
 
@@ -274,70 +282,129 @@ BinaryData DBInterface::getNewDbKey()
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
    const BinaryData& dataKey, const BinaryData& dataVal,
-   const BinaryData& macKey)
+   const SecureBinaryData& encrPubKey, const SecureBinaryData& macKey)
 {
-   //concatenate dataKey and dataVal
-   BinaryWriter bw;
-   bw.put_var_int(dataKey.getSize());
-   bw.put_BinaryData(dataKey);
-   bw.put_var_int(dataVal.getSize());
-   bw.put_BinaryData(dataVal);
+   /* authentitcation leg */
+      //concatenate dataKey and dataVal to create payload
+      BinaryWriter bw;
+      bw.put_var_int(dataKey.getSize());
+      bw.put_BinaryData(dataKey);
+      bw.put_var_int(dataVal.getSize());
+      bw.put_BinaryData(dataVal);
 
-   //save the writer state for later
-   auto bwData = bw.getData();
+      //append dbKey to payload
+      BinaryWriter bwHmac;
+      bwHmac.put_BinaryData(bw.getData());
+      bwHmac.put_BinaryData(dbKey);
 
-   //concatenate the dbKey
-   bw.put_BinaryData(dbKey);
+      //hmac (payload | dbKey)
+      auto&& hmac = BtcUtils::getHMAC256(macKey, bwHmac.getData());
 
-   //hmac it
-   auto&& hmac = BtcUtils::getHMAC256(macKey, bw.getData());
+      //append payload to hmac
+      BinaryWriter bwData;
+      bwData.put_BinaryData(hmac);
+      bwData.put_BinaryData(bw.getData());
 
-   //append the hmac to the concatenated data
-   bwData.append(hmac);
+      //pad payload to modulo blocksize
 
-   //padding
+   /* encryption key generation */
+      //generate local encryption private key
+      auto&& localPrivKey = CryptoECDSA().createNewPrivateKey();
+      
+      //generate compressed pubkey
+      auto&& localPubKey = CryptoECDSA().ComputePublicKey(localPrivKey, true);
 
-   return bwData;
+      //ECDH local private key with encryption public key
+      auto&& ecdhPubKey = 
+         CryptoECDSA::PubKeyScalarMultiply(encrPubKey, localPrivKey);
+
+      //hash256 the key as stand in for KDF
+      auto&& encrKey = BtcUtils::hash256(ecdhPubKey);
+
+   /* encryption leg */
+      //generate IV
+      auto&& iv = CryptoPRNG::generateRandom(
+         Cipher::getBlockSize(CipherType_AES));
+
+      //AES_CBC (hmac | payload)
+      auto&& cipherText = CryptoAES::EncryptCBC(
+         bwData.getData(), encrKey, iv);
+
+      //build IES packet
+      BinaryWriter encrPacket;
+      encrPacket.put_BinaryData(localPubKey); 
+      encrPacket.put_BinaryData(iv);
+      encrPacket.put_BinaryData(cipherText);
+
+   return encrPacket.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 pair<BinaryData, BinaryData> DBInterface::readDataPacket(
    const BinaryData& dbKey, const BinaryData& dataPacket,
-   const BinaryData& macKey)
+   const SecureBinaryData& decrPrivKey, const SecureBinaryData& macKey)
 {
-   BinaryRefReader brr(dataPacket.getRef());
+   /* decryption key */
+      //recover public key
+      BinaryRefReader brrCipher(dataPacket.getRef());
 
-   //grab data key
-   auto len = brr.get_var_int();
-   auto dataKey = brr.get_BinaryData(len);
+      //public key
+      auto&& localPubKey = brrCipher.get_SecureBinaryData(33);
 
-   //grab data val
-   len = brr.get_var_int();
-   auto dataVal = brr.get_BinaryData(len);
+      //ECDH with decryption private key
+      auto&& ecdhPubKey = 
+         CryptoECDSA::PubKeyScalarMultiply(localPubKey, decrPrivKey);
 
-   //mark the position
-   auto pos = brr.getPosition();
+      //kdf
+      auto&& decrKey = BtcUtils::getHash256(ecdhPubKey);
 
-   //grab hmac
-   auto hmac = brr.get_BinaryData(32);
+   /* decryption leg */
+      //get iv
+      auto&& iv = brrCipher.get_SecureBinaryData(
+         Cipher::getBlockSize(CipherType_AES));
 
-   //sanity check
-   if (brr.getSizeRemaining() != 0)
-      throw WalletInterfaceException("loose data entry");
+      //get cipher text
+      auto&& cipherText = brrCipher.get_SecureBinaryData(
+         brrCipher.getSizeRemaining());
+      
+      //decrypt
+      auto&& plainText = CryptoAES::DecryptCBC(cipherText, decrKey, iv);
 
-   //reset reader & grab data packet
-   brr.resetPosition();
-   auto data = brr.get_BinaryData(pos);
+   /* authentication leg */
+      BinaryRefReader brrPlain(plainText.getRef());
+      
+      //grab hmac
+      auto hmac = brrPlain.get_BinaryData(32);
 
-   //append db key
-   data.append(dbKey);
+      //grab data key
+      auto len = brrPlain.get_var_int();
+      auto dataKey = brrPlain.get_BinaryData(len);
 
-   //compute hmac
-   auto computedHmac = BtcUtils::getHMAC256(macKey, data);
+      //grab data val
+      len = brrPlain.get_var_int();
+      auto dataVal = brrPlain.get_BinaryData(len);
 
-   //check hmac
-   if (computedHmac != hmac)
-      throw WalletInterfaceException("mac mismatch");
+      //mark the position
+      auto pos = brrPlain.getPosition() - 32;
+
+      //sanity check
+      if (brrPlain.getSizeRemaining() != 0)
+         throw WalletInterfaceException("loose data entry");
+
+      //reset reader & grab data packet
+      brrPlain.resetPosition();
+      brrPlain.advance(32);
+      auto data = brrPlain.get_BinaryData(pos);
+
+      //append db key
+      data.append(dbKey);
+
+      //compute hmac
+      auto computedHmac = BtcUtils::getHMAC256(macKey, data);
+
+      //check hmac
+      if (computedHmac != hmac)
+         throw WalletInterfaceException("mac mismatch");
 
    return make_pair(dataKey, dataVal);
 }
@@ -1131,7 +1198,8 @@ WalletIfaceTransaction::~WalletIfaceTransaction()
 
          //commit erasure packet
          auto&& dbVal = DBInterface::createDataPacket(
-            dbKey, BinaryData(), erasedBw.getData(), dbPtr_->macKey_);
+            dbKey, BinaryData(), erasedBw.getData(), 
+            dbPtr_->encrPubKey_, dbPtr_->macKey_);
 
          CharacterArrayRef carData(dbVal.getSize(), dbVal.getPtr());
          CharacterArrayRef carKey2(dbKey.getSize(), dbKey.getPtr());
@@ -1158,7 +1226,8 @@ WalletIfaceTransaction::~WalletIfaceTransaction()
 
       //bundle key and val together, key by dbkey
       auto&& dbVal = DBInterface::createDataPacket(
-         dbKey, dataPtr->key_, dataPtr->value_, dbPtr_->macKey_);
+         dbKey, dataPtr->key_, dataPtr->value_, 
+         dbPtr_->encrPubKey_, dbPtr_->macKey_);
       CharacterArrayRef carKey(dbKey.getSize(), dbKey.getPtr());
       CharacterArrayRef carVal(dbVal.getSize(), dbVal.getPtr());
 

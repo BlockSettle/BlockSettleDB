@@ -79,6 +79,7 @@ private:
    std::atomic<unsigned> dbKeyCounter_ = { 0 };
 
    const SecureBinaryData controlSalt_;
+   SecureBinaryData encrPubKey_;
    SecureBinaryData macKey_;
 
    static const BinaryData erasurePlaceHolder_;
@@ -93,10 +94,10 @@ private:
    //serialization methods
    static BinaryData createDataPacket(const BinaryData& dbKey,
       const BinaryData& dataKey, const BinaryData& dataVal,
-      const BinaryData& macKey);
+      const SecureBinaryData&, const SecureBinaryData&);
    static std::pair<BinaryData, BinaryData> readDataPacket(
       const BinaryData& dbKey, const BinaryData& dataPacket,
-      const BinaryData& macKey);
+      const SecureBinaryData&, const SecureBinaryData&);
 
 public:
    DBInterface(std::shared_ptr<LMDBEnv>, 
