@@ -217,6 +217,1071 @@ TEST_F(DerivationTests, ArmoryChain_Tests)
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+class WalletInterfaceTest : public ::testing::Test
+{
+protected:
+   string homedir_;
+   string dbPath_;
+   BinaryData allZeroes16_;
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void SetUp()
+   {
+      LOGDISABLESTDOUT();
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      dbPath_ = homedir_;
+      DBUtils::appendPath(dbPath_, "wallet_test.wallet");
+
+      allZeroes16_ = READHEX("00000000000000000000000000000000");
+      if(allZeroes16_.getSize() != 16)
+         throw runtime_error("failed to setup proper zeroed benchmark value");
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void TearDown(void)
+   {
+      DBUtils::removeDirectory(homedir_);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   map<BinaryData, BinaryData> getAllEntries(shared_ptr<LMDBEnv> dbEnv, LMDB& db)
+   {
+      map<BinaryData, BinaryData> keyValMap;
+      
+      auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadOnly);
+      auto iter = db.begin();
+      while(iter.isValid())
+      {
+         auto keyData = iter.key();
+         auto valData = iter.value();
+
+         BinaryData keyBd((uint8_t*)keyData.mv_data, keyData.mv_size);
+         BinaryData valBd((uint8_t*)valData.mv_data, valData.mv_size);
+
+         keyValMap.insert(make_pair(keyBd, valBd));
+         iter.advance();
+      }
+
+      return keyValMap;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   struct BadKeyException
+   {};
+
+   ////
+   set<unsigned> tallyGaps(const map<BinaryData, BinaryData>& keyValMap)
+   {
+      set<unsigned> gaps;
+      int prevKeyInt = -1;
+
+      for(auto& keyVal : keyValMap)
+      {
+         if(keyVal.first.getSize() != 4)
+            throw BadKeyException();
+
+         int keyInt = READ_UINT32_BE(keyVal.first);
+         if(keyInt - prevKeyInt != 1)
+         {
+            for(unsigned i=prevKeyInt + 1; i<keyInt; i++)
+               gaps.insert(i);
+         }
+
+         prevKeyInt = keyInt;
+      }
+
+      return gaps;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   struct IESPacket
+   {
+      SecureBinaryData pubKey_;
+      SecureBinaryData iv_;
+      SecureBinaryData cipherText_;
+
+      BinaryData dbKey_;
+   };
+
+   ////
+   IESPacket getIESData(const pair<BinaryData, BinaryData>& keyVal)
+   {
+      IESPacket result;
+
+      BinaryRefReader brr(keyVal.second.getRef());
+      result.pubKey_ = brr.get_SecureBinaryData(33);
+      result.iv_ = brr.get_SecureBinaryData(16);
+      result.cipherText_ = brr.get_SecureBinaryData(brr.getSizeRemaining());
+
+      result.dbKey_ = keyVal.first;
+
+      return result;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   pair<SecureBinaryData, SecureBinaryData> generateKeyPair(
+      const SecureBinaryData& saltedRoot, unsigned ctr)
+   {
+      SecureBinaryData hmacKey((uint8_t*)&ctr, 4);
+      auto hmacVal = BtcUtils::getHMAC512(hmacKey, saltedRoot);
+
+      //first half is the encryption key, second half is the hmac key
+      BinaryRefReader brr(hmacVal.getRef());
+      auto&& decrPrivKey = brr.get_SecureBinaryData(32);
+      auto&& macKey = brr.get_SecureBinaryData(32);
+
+      //decryption private key sanity check
+      if (!CryptoECDSA::checkPrivKeyIsValid(decrPrivKey))
+         throw WalletInterfaceException("invalid decryption private key");
+
+      return make_pair(move(decrPrivKey), move(macKey));
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   struct LooseEntryException
+   {};
+
+   struct HMACMismatchException
+   {};
+
+   ////
+   BinaryData computeHmac(const BinaryData& dbKey, 
+      const BinaryData& dataKey, const BinaryData& dataVal,
+      const SecureBinaryData& macKey)
+   {
+      BinaryWriter bw;
+      bw.put_var_int(dataKey.getSize());
+      bw.put_BinaryData(dataKey);
+
+      bw.put_var_int(dataVal.getSize());
+      bw.put_BinaryData(dataVal);
+
+      bw.put_BinaryData(dbKey);
+      
+      return BtcUtils::getHMAC256(macKey, bw.getData());
+   }
+
+   ////
+   pair<BinaryData, BinaryData> decryptPair(const IESPacket& packet,
+      const SecureBinaryData& privKey, const SecureBinaryData& macKey)
+   {
+      //generate decryption key
+      auto ecdhPubKey = 
+         CryptoECDSA::PubKeyScalarMultiply(packet.pubKey_, privKey);
+      auto decrKey = BtcUtils::hash256(ecdhPubKey);
+
+      //decrypt packet
+      auto payload = CryptoAES::DecryptCBC(packet.cipherText_, decrKey, packet.iv_);
+
+      //break down payload
+      BinaryRefReader brr(payload.getRef());
+      auto&& hmac = brr.get_SecureBinaryData(32);
+      auto len = brr.get_var_int();
+      auto&& dataKey = brr.get_BinaryData(len);
+      len = brr.get_var_int();
+      auto&& dataVal = brr.get_BinaryData(len);
+
+      //sanity check
+      if (brr.getSizeRemaining() > 0)
+         throw LooseEntryException();
+
+      //compute hmac
+      auto&& computedHmac = computeHmac(
+         packet.dbKey_, dataKey, dataVal, macKey);
+      
+      if (computedHmac != hmac)
+         throw HMACMismatchException();
+
+      return make_pair(dataKey, dataVal);
+   }
+
+   ////
+   pair<BinaryData, BinaryData> decryptPair(const IESPacket& packet,
+      const pair<SecureBinaryData, SecureBinaryData>& keyPair)
+   {
+      return decryptPair(packet, keyPair.first, keyPair.second);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   BinaryData getErasurePacket(unsigned dbKeyInt)
+   {
+      BinaryWriter packet;
+      packet.put_String("erased");
+      packet.put_var_int(4);
+      packet.put_uint32_t(dbKeyInt, BE);
+
+      return packet.getData();
+   }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletInterfaceTest, EncryptionTest)
+{
+   auto dbEnv = make_shared<LMDBEnv>();
+   dbEnv->open(dbPath_, 1);
+   auto filename = dbEnv->getFilename();
+   ASSERT_EQ(filename, dbPath_);
+
+   auto&& controlSalt = CryptoPRNG::generateRandom(32);
+   auto&& rawRoot = CryptoPRNG::generateRandom(32);
+   string dbName("test");
+
+   auto dbIface = make_shared<DBInterface>(dbEnv, dbName, controlSalt);
+
+   //sanity check
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   dbIface->loadAllEntries(rawRoot);
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+
+   //generate data
+   auto&& key1 = CryptoPRNG::generateRandom(20);
+   auto&& key2 = CryptoPRNG::generateRandom(15);
+   auto&& key3 = CryptoPRNG::generateRandom(12);
+
+   auto&& val1 = CryptoPRNG::generateRandom(64);
+   auto&& val2 = CryptoPRNG::generateRandom(64);
+   auto&& val3 = CryptoPRNG::generateRandom(240);
+   auto&& val4 = CryptoPRNG::generateRandom(16);
+   auto&& val5 = CryptoPRNG::generateRandom(120);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   {
+      //write data
+      WalletIfaceTransaction tx(dbIface, true);
+      tx.insert(key1, val1);
+      tx.insert(key2, val2);
+      tx.insert(key3, val3);
+
+      //replace key3 value within same tx
+      tx.insert(key3, val4);
+   }
+
+   //check entry count
+   ASSERT_EQ(dbIface->getEntryCount(), 3);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   //close dbIface
+   dbIface->close();
+   dbIface.reset();
+
+   //open LMDB object
+   LMDB dbObj;
+   {
+      auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+      dbObj.open(dbEnv.get(), dbName);
+   }
+
+   //grab all entries in db
+   auto&& keyValMap = getAllEntries(dbEnv, dbObj);
+   EXPECT_EQ(keyValMap.size(), 4);
+
+   //check gaps
+   ASSERT_EQ(tallyGaps(keyValMap).size(), 0);
+
+   //convert to IES packets
+   vector<IESPacket> packets;
+   for(auto& keyVal : keyValMap)
+   {
+      auto&& iesPacket = getIESData(keyVal);
+      packets.push_back(iesPacket);
+   }
+
+   //check cryptographic material
+   for(unsigned i=0; i<packets.size(); i++)
+   {
+      auto& packet = packets[i];
+
+      ASSERT_TRUE(CryptoECDSA().VerifyPublicKeyValid(packet.pubKey_));
+      ASSERT_NE(packet.iv_, allZeroes16_);
+
+      for(unsigned y=0; y<packets.size(); y++)
+      {
+         if (y==i)
+            continue;
+
+         auto packetY = packets[y];
+         ASSERT_NE(packet.iv_, packetY.iv_);
+         ASSERT_NE(packet.pubKey_, packetY.pubKey_);
+      }
+   }
+
+   /* decryption leg */
+
+   //generate seed
+   auto&& saltedRoot = BtcUtils::getHMAC256(controlSalt, rawRoot);
+
+   //generate first key pair
+   auto&& firstKeyPair = generateKeyPair(saltedRoot, 0);
+
+   pair<SecureBinaryData, SecureBinaryData> currentKeyPair;
+   try
+   {
+      auto& packet = packets[0];
+
+      //check cylce flag is first entry in db
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+
+      //check first entry is a cycle flag
+      auto&& dataPair = decryptPair(packet, firstKeyPair);
+      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+
+      //cycle key pair
+      currentKeyPair = generateKeyPair(saltedRoot, 1);
+   }
+   catch(...)
+   {
+      ASSERT_FALSE(true);
+   }
+
+   //decrypt the other values with wrong key pair
+   vector<pair<BinaryData, BinaryData>> decryptedPairs;
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), i);
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, firstKeyPair);
+         decryptedPairs.push_back(dataPair);
+         ASSERT_FALSE(true);
+      }
+      catch(...)
+      {
+         continue;
+      }
+   }
+
+   //decrypt the other values with proper key pair
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), i);
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, currentKeyPair);
+         decryptedPairs.push_back(dataPair);
+      }
+      catch(...)
+      {
+         ASSERT_FALSE(true);
+      }
+   }
+
+   //check decrypted values
+   EXPECT_EQ(decryptedPairs[0].first, key1);
+   EXPECT_EQ(decryptedPairs[0].second, val1);
+
+   EXPECT_EQ(decryptedPairs[1].first, key2);
+   EXPECT_EQ(decryptedPairs[1].second, val2);
+
+   EXPECT_EQ(decryptedPairs[2].first, key3);
+   EXPECT_EQ(decryptedPairs[2].second, val4);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
+{
+   auto dbEnv = make_shared<LMDBEnv>();
+   dbEnv->open(dbPath_, 1);
+   auto filename = dbEnv->getFilename();
+   ASSERT_EQ(filename, dbPath_);
+
+   auto&& controlSalt = CryptoPRNG::generateRandom(32);
+   auto&& rawRoot = CryptoPRNG::generateRandom(32);
+   string dbName("test");
+
+   auto dbIface = make_shared<DBInterface>(dbEnv, dbName, controlSalt);
+
+   //sanity check
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   dbIface->loadAllEntries(rawRoot);
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+
+   //generate data
+   auto&& key1 = CryptoPRNG::generateRandom(20);
+   auto&& key2 = CryptoPRNG::generateRandom(15);
+   auto&& key3 = CryptoPRNG::generateRandom(12);
+
+   auto&& val1 = CryptoPRNG::generateRandom(64);
+   auto&& val2 = CryptoPRNG::generateRandom(64);
+   auto&& val3 = CryptoPRNG::generateRandom(32);
+   auto&& val4 = CryptoPRNG::generateRandom(16);
+   auto&& val5 = CryptoPRNG::generateRandom(120);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   {
+      //write data
+      WalletIfaceTransaction tx(dbIface, true);
+      tx.insert(key1, val1);
+      tx.insert(key2, val2);
+      tx.insert(key3, val3);
+   }
+
+   //check entry count
+   ASSERT_EQ(dbIface->getEntryCount(), 3);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   {
+      //amend db in new transaction
+      WalletIfaceTransaction tx(dbIface, true);
+      tx.erase(key2);
+
+      tx.erase(key3);
+      tx.insert(key3, val4);
+
+      auto key2Data = tx.getDataRef(key2);
+      EXPECT_EQ(key2Data.getSize(), 0);
+
+      auto key3Data = tx.getDataRef(key3);
+      EXPECT_EQ(key3Data, val4);
+   }
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   //check entry count
+   ASSERT_EQ(dbIface->getEntryCount(), 2);
+
+   //close dbIface
+   dbIface->close();
+   dbIface.reset();
+
+   //open LMDB object
+   LMDB dbObj;
+   {
+      auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+      dbObj.open(dbEnv.get(), dbName);
+   }
+
+   //grab all entries in db
+   auto&& keyValMap = getAllEntries(dbEnv, dbObj);
+   EXPECT_EQ(keyValMap.size(), 5);
+
+   //check gaps
+   {
+      auto&& gaps = tallyGaps(keyValMap);
+      ASSERT_EQ(gaps.size(), 2);
+
+      auto gapsIter = gaps.begin();
+      EXPECT_EQ(*gapsIter, 2);
+      
+      ++gapsIter;
+      EXPECT_EQ(*gapsIter, 3);
+
+      ++gapsIter;
+      EXPECT_EQ(gapsIter, gaps.end());
+   }
+
+   //convert to IES packets
+   vector<IESPacket> packets;
+   for(auto& keyVal : keyValMap)
+   {
+      auto&& iesPacket = getIESData(keyVal);
+      packets.push_back(iesPacket);
+   }
+
+   //check cryptographic material
+   for(unsigned i=0; i<packets.size(); i++)
+   {
+      auto& packet = packets[i];
+
+      ASSERT_TRUE(CryptoECDSA().VerifyPublicKeyValid(packet.pubKey_));
+      ASSERT_NE(packet.iv_, allZeroes16_);
+
+      for(unsigned y=0; y<packets.size(); y++)
+      {
+         if (y==i)
+            continue;
+
+         auto packetY = packets[y];
+         ASSERT_NE(packet.iv_, packetY.iv_);
+         ASSERT_NE(packet.pubKey_, packetY.pubKey_);
+      }
+   }
+
+   /* decryption leg */
+
+   //generate seed
+   auto&& saltedRoot = BtcUtils::getHMAC256(controlSalt, rawRoot);
+
+   //generate first key pair
+   auto&& firstKeyPair = generateKeyPair(saltedRoot, 0);
+
+   pair<SecureBinaryData, SecureBinaryData> currentKeyPair;
+   try
+   {
+      auto& packet = packets[0];
+
+      //check cylce flag is first entry in db
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+
+      //check first entry is a cycle flag
+      auto&& dataPair = decryptPair(packet, firstKeyPair);
+      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+
+      //cycle key pair
+      currentKeyPair = generateKeyPair(saltedRoot, 1);
+   }
+   catch(...)
+   {
+      ASSERT_FALSE(true);
+   }
+
+   //decrypt the other values with wrong key pair
+   vector<pair<BinaryData, BinaryData>> decryptedPairs;
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, firstKeyPair);
+         decryptedPairs.push_back(dataPair);
+         ASSERT_FALSE(true);
+      }
+      catch(...)
+      {
+         continue;
+      }
+   }
+
+   //decrypt the other values with proper key pair
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, currentKeyPair);
+         decryptedPairs.push_back(dataPair);
+      }
+      catch(...)
+      {
+         ASSERT_FALSE(true);
+      }
+   }
+
+   //check decrypted values
+   EXPECT_EQ(decryptedPairs[0].first, key1);
+   EXPECT_EQ(decryptedPairs[0].second, val1);
+
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(2));
+
+   EXPECT_EQ(decryptedPairs[2].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[2].second, getErasurePacket(3));   
+
+   EXPECT_EQ(decryptedPairs[3].first, key3);
+   EXPECT_EQ(decryptedPairs[3].second, val4);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
+{
+   auto dbEnv = make_shared<LMDBEnv>();
+   dbEnv->open(dbPath_, 1);
+   auto filename = dbEnv->getFilename();
+   ASSERT_EQ(filename, dbPath_);
+
+   auto&& controlSalt = CryptoPRNG::generateRandom(32);
+   auto&& rawRoot = CryptoPRNG::generateRandom(32);
+   string dbName("test");
+
+   auto dbIface = make_shared<DBInterface>(dbEnv, dbName, controlSalt);
+
+   //sanity check
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   dbIface->loadAllEntries(rawRoot);
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+
+   //generate data
+   auto&& key1 = CryptoPRNG::generateRandom(20);
+   auto&& key2 = CryptoPRNG::generateRandom(15);
+   auto&& key3 = CryptoPRNG::generateRandom(12);
+
+   auto&& val1 = CryptoPRNG::generateRandom(64);
+   auto&& val2 = CryptoPRNG::generateRandom(64);
+   auto&& val3 = CryptoPRNG::generateRandom(32);
+   auto&& val4 = CryptoPRNG::generateRandom(16);
+   auto&& val5 = CryptoPRNG::generateRandom(120);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   {
+      //write data
+      WalletIfaceTransaction tx(dbIface, true);
+      tx.insert(key1, val1);
+      tx.insert(key2, val2);
+      tx.insert(key3, val3);
+   }
+
+   //check entry count
+   ASSERT_EQ(dbIface->getEntryCount(), 3);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   {
+      //amend db in new transaction
+      WalletIfaceTransaction tx(dbIface, true);
+      
+      tx.erase(key3);
+      tx.insert(key3, val4);
+      tx.erase(key2);
+
+      auto key2Data = tx.getDataRef(key2);
+      EXPECT_EQ(key2Data.getSize(), 0);
+
+      auto key3Data = tx.getDataRef(key3);
+      EXPECT_EQ(key3Data, val4);
+   }
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   //check entry count
+   ASSERT_EQ(dbIface->getEntryCount(), 2);
+
+   //close dbIface
+   dbIface->close();
+   dbIface.reset();
+
+   //open LMDB object
+   LMDB dbObj;
+   {
+      auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+      dbObj.open(dbEnv.get(), dbName);
+   }
+
+   //grab all entries in db
+   auto&& keyValMap = getAllEntries(dbEnv, dbObj);
+   EXPECT_EQ(keyValMap.size(), 5);
+
+   //check gaps
+   {
+      auto&& gaps = tallyGaps(keyValMap);
+      ASSERT_EQ(gaps.size(), 2);
+
+      auto gapsIter = gaps.begin();
+      EXPECT_EQ(*gapsIter, 2);
+      
+      ++gapsIter;
+      EXPECT_EQ(*gapsIter, 3);
+
+      ++gapsIter;
+      EXPECT_EQ(gapsIter, gaps.end());
+   }
+
+   //convert to IES packets
+   vector<IESPacket> packets;
+   for(auto& keyVal : keyValMap)
+   {
+      auto&& iesPacket = getIESData(keyVal);
+      packets.push_back(iesPacket);
+   }
+
+   //check cryptographic material
+   for(unsigned i=0; i<packets.size(); i++)
+   {
+      auto& packet = packets[i];
+
+      ASSERT_TRUE(CryptoECDSA().VerifyPublicKeyValid(packet.pubKey_));
+      ASSERT_NE(packet.iv_, allZeroes16_);
+
+      for(unsigned y=0; y<packets.size(); y++)
+      {
+         if (y==i)
+            continue;
+
+         auto packetY = packets[y];
+         ASSERT_NE(packet.iv_, packetY.iv_);
+         ASSERT_NE(packet.pubKey_, packetY.pubKey_);
+      }
+   }
+
+   /* decryption leg */
+
+   //generate seed
+   auto&& saltedRoot = BtcUtils::getHMAC256(controlSalt, rawRoot);
+
+   //generate first key pair
+   auto&& firstKeyPair = generateKeyPair(saltedRoot, 0);
+
+   pair<SecureBinaryData, SecureBinaryData> currentKeyPair;
+   try
+   {
+      auto& packet = packets[0];
+
+      //check cylce flag is first entry in db
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+
+      //check first entry is a cycle flag
+      auto&& dataPair = decryptPair(packet, firstKeyPair);
+      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+
+      //cycle key pair
+      currentKeyPair = generateKeyPair(saltedRoot, 1);
+   }
+   catch(...)
+   {
+      ASSERT_FALSE(true);
+   }
+
+   //decrypt the other values with wrong key pair
+   vector<pair<BinaryData, BinaryData>> decryptedPairs;
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, firstKeyPair);
+         decryptedPairs.push_back(dataPair);
+         ASSERT_FALSE(true);
+      }
+      catch(...)
+      {
+         continue;
+      }
+   }
+
+   //decrypt the other values with proper key pair
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, currentKeyPair);
+         decryptedPairs.push_back(dataPair);
+      }
+      catch(...)
+      {
+         ASSERT_FALSE(true);
+      }
+   }
+
+   //check decrypted values
+   EXPECT_EQ(decryptedPairs[0].first, key1);
+   EXPECT_EQ(decryptedPairs[0].second, val1);
+
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(3));
+
+   EXPECT_EQ(decryptedPairs[2].first, key3);
+   EXPECT_EQ(decryptedPairs[2].second, val4);   
+   
+   EXPECT_EQ(decryptedPairs[3].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[3].second, getErasurePacket(2));   
+
+   //cycle dbEnv
+   dbObj.close();
+   dbEnv->close();
+   dbEnv->open(filename, 1);
+
+   //reopen db
+   dbIface = make_shared<DBInterface>(dbEnv, dbName, controlSalt);
+
+   //sanity check
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   dbIface->loadAllEntries(rawRoot);
+   ASSERT_EQ(dbIface->getEntryCount(), 2);
+
+   {
+      //read db values
+      WalletIfaceTransaction tx(dbIface, false);
+      
+      auto key1Data = tx.getDataRef(key1);
+      EXPECT_EQ(key1Data, val1);
+
+      auto key2Data = tx.getDataRef(key2);
+      EXPECT_EQ(key2Data.getSize(), 0);
+
+      auto key3Data = tx.getDataRef(key3);
+      EXPECT_EQ(key3Data, val4);     
+   }
+
+   auto key4 = CryptoPRNG::generateRandom(30);
+   auto val6 = CryptoPRNG::generateRandom(154);
+
+   {
+      //amend db in new transaction
+      WalletIfaceTransaction tx(dbIface, true);
+      
+      tx.insert(key2, val5);
+      tx.insert(key4, val3);
+      tx.insert(key3, val6);
+      tx.wipe(key1);
+
+      auto key1Data = tx.getDataRef(key1);
+      EXPECT_EQ(key1Data.getSize(), 0);
+
+      auto key2Data = tx.getDataRef(key2);
+      EXPECT_EQ(key2Data, val5);
+
+      auto key3Data = tx.getDataRef(key3);
+      EXPECT_EQ(key3Data, val6);
+
+      auto key4Data = tx.getDataRef(key4);
+      EXPECT_EQ(key4Data, val3);
+   }
+
+   //close dbIface
+   dbIface->close();
+   dbIface.reset();
+
+   //open LMDB object
+   LMDB dbObj2;
+   {
+      auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+      dbObj2.open(dbEnv.get(), dbName);
+   }
+
+   //grab all entries in db
+   keyValMap = getAllEntries(dbEnv, dbObj2);
+   EXPECT_EQ(keyValMap.size(), 9);
+
+   //check gaps
+   {
+      auto&& gaps = tallyGaps(keyValMap);
+      ASSERT_EQ(gaps.size(), 4);
+
+      auto gapsIter = gaps.begin();
+      EXPECT_EQ(*gapsIter, 1);
+      
+      ++gapsIter;
+      EXPECT_EQ(*gapsIter, 2);
+
+      ++gapsIter;
+      EXPECT_EQ(*gapsIter, 3);
+
+      ++gapsIter;
+      EXPECT_EQ(*gapsIter, 5);
+
+      ++gapsIter;
+      EXPECT_EQ(gapsIter, gaps.end());
+   }
+
+   //convert to IES packets
+   packets.clear();
+   for(auto& keyVal : keyValMap)
+   {
+      auto&& iesPacket = getIESData(keyVal);
+      packets.push_back(iesPacket);
+   }
+
+   //check cryptographic material
+   for(unsigned i=0; i<packets.size(); i++)
+   {
+      auto& packet = packets[i];
+
+      ASSERT_TRUE(CryptoECDSA().VerifyPublicKeyValid(packet.pubKey_));
+      ASSERT_NE(packet.iv_, allZeroes16_);
+
+      for(unsigned y=0; y<packets.size(); y++)
+      {
+         if (y==i)
+            continue;
+
+         auto packetY = packets[y];
+         ASSERT_NE(packet.iv_, packetY.iv_);
+         ASSERT_NE(packet.pubKey_, packetY.pubKey_);
+      }
+   }
+
+   /* 2nd decryption leg */
+
+   try
+   {
+      auto& packet = packets[0];
+
+      //check cylce flag is first entry in db
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+
+      //check first entry is a cycle flag
+      auto&& dataPair = decryptPair(packet, firstKeyPair);
+      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+   }
+   catch(...)
+   {
+      ASSERT_FALSE(true);
+   }
+
+   //decrypt the other values
+   decryptedPairs.clear();
+   for (unsigned i=1; i<4; i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, currentKeyPair);
+         decryptedPairs.push_back(dataPair);
+      }
+      catch(...)
+      {
+         ASSERT_FALSE(true);
+      }
+   }
+
+   {
+      //check packets[2] is a cycle flag
+      ASSERT_EQ(decryptedPairs[2].first.getSize(), 0);
+      ASSERT_EQ(decryptedPairs[2].second, BinaryData("cycle"));
+
+      //cycle key
+      currentKeyPair = generateKeyPair(saltedRoot, 2);
+   }
+
+   //decrypt last set of values with cycled keys
+   for (unsigned i=4; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, currentKeyPair);
+         decryptedPairs.push_back(dataPair);
+      }
+      catch(...)
+      {
+         ASSERT_FALSE(true);
+      }
+   }
+
+   //check decrypted values
+   EXPECT_EQ(decryptedPairs[0].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[0].second, getErasurePacket(3));
+   
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(2));   
+
+   EXPECT_EQ(decryptedPairs[3].first, key2);
+   EXPECT_EQ(decryptedPairs[3].second, val5);   
+
+   EXPECT_EQ(decryptedPairs[4].first, key4);
+   EXPECT_EQ(decryptedPairs[4].second, val3);   
+
+   EXPECT_EQ(decryptedPairs[5].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[5].second, getErasurePacket(5));
+
+   EXPECT_EQ(decryptedPairs[6].first, key3);
+   EXPECT_EQ(decryptedPairs[6].second, val6);   
+
+   EXPECT_EQ(decryptedPairs[7].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[7].second, getErasurePacket(1));
+}
+
+//wrong passphrase test
+
+//increase db count test
+
+//tampering tests
+
+//entry padding length test
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 class WalletsTest : public ::testing::Test
 {
 protected:
