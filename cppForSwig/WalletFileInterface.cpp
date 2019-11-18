@@ -61,13 +61,13 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
    SecureBinaryData decrPrivKey;
    SecureBinaryData macKey;
 
-   auto&& saltedRoot = BtcUtils::getHMAC256(rootKey, controlSalt_);
+   auto&& saltedRoot = BtcUtils::getHMAC256(controlSalt_, rootKey);
 
    //key derivation method
    auto computeKeyPair = [&saltedRoot, &decrPrivKey, &macKey](unsigned hmacKeyInt)
    {
       SecureBinaryData hmacKey((uint8_t*)&hmacKeyInt, 4);
-      auto hmacVal = BtcUtils::getHMAC512(saltedRoot, hmacKey);
+      auto hmacVal = BtcUtils::getHMAC512(hmacKey, saltedRoot);
 
       //first half is the encryption key, second half is the hmac key
       BinaryRefReader brr(hmacVal.getRef());
@@ -1158,8 +1158,22 @@ WalletIfaceTransaction::~WalletIfaceTransaction()
 
    //need to commit all this data to the underlying db object
    auto tx = LMDBEnv::Transaction(dbPtr_->dbEnv_.get(), LMDB::ReadWrite);
-   for (auto& dataPtr : insertVec_)
+   for (unsigned i=0; i < insertVec_.size(); i++)
    {
+      auto dataPtr = insertVec_[i];
+
+      //is this operation is the last for this data key?
+      auto effectIter = keyToDataMap_.find(dataPtr->key_);
+      if (effectIter == keyToDataMap_.end())
+      {   
+         throw WalletInterfaceException(
+            "insert operation is not mapped to data key!");
+      }
+
+      //skip if this isn't the last effect
+      if (i != effectIter->second)
+         continue;
+
       BinaryData dbKey;
       auto keyExists = dbPtr_->resolveDataKey(dataPtr->key_, dbKey);
       if (keyExists)

@@ -112,6 +112,7 @@ public:
    ////
    const BinaryDataRef getDataRef(const BinaryData&) const;
    const std::string& getName(void) const { return dbName_; }
+   unsigned getEntryCount(void) const { return dataMap_.size(); }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
