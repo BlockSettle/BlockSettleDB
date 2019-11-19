@@ -1386,19 +1386,21 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          txhash (32) | txout count (varint) | txout index #1 (varint) | txout index #2 ...
          
       out:
-         vector of spender hashes as Codec_CommonTypes::ManyBinaryData
+         vector of pair<spender hash, spender height> as 
+         Codec_CommonTypes::ManyBinaryDataAndHeight
          
          The hashes are order as the outputs appear in the argument map:
             hash #0
-               id #0 -> spender hash #0
-               id #1 -> spender hash #1
+               id #0 -> spender hash & height #0
+               id #1 -> spender hash & height #1
             hash #1
-               id #0 -> spender hash #2
+               id #0 -> spender hash & height #2
             hash #3
-               id #0 -> spender hash #3
-               id #1 -> spender hash #4
+               id #0 -> spender hash & height #3
+               id #1 -> spender hash & height #4
 
-         outputs that aren't spent have are passed an empty spender hash.
+         outputs that aren't spent have are passed a <hash, height> pair with an empty
+         spender hash and height set to 0.
       */
 
       if(command->bindata_size() == 0)
@@ -1454,13 +1456,13 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       }
 
       //resolve spender dbkeys to tx hashes
-      vector<BinaryData> hashes;
-      map<BinaryData, BinaryData> cache;
+      vector<pair<BinaryData, unsigned>> hashes;
+      map<BinaryData, pair<BinaryData, unsigned>> cache;
       for (auto& key : spenderKeys)
       {
          if (key.getSize() == 0)
          {
-            hashes.emplace_back(BinaryData());
+            hashes.emplace_back(make_pair(BinaryData(), 0));
             continue;
          }
 
@@ -1473,16 +1475,19 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          }
 
          auto&& hash = db_->getHashForDBKey(keyShort);
-         cache.insert(make_pair(keyShort, hash));
-         hashes.emplace_back(hash);
+         auto height = DBUtils::hgtxToHeight(key.getSliceRef(0, 4));
+         auto hashPair = make_pair(move(hash), height);
+         cache.insert(make_pair(keyShort, hashPair));
+         hashes.emplace_back(hashPair);
       }
 
       //create response object
-      auto response = make_shared<::Codec_CommonTypes::ManyBinaryData>();
-      for (auto& hash : hashes)
+      auto response = make_shared<::Codec_CommonTypes::ManyBinaryDataAndHeight>();
+      for (auto& hashPair : hashes)
       {
          auto val = response->add_value();
-         val->set_data(hash.getPtr(), hash.getSize());
+         val->set_data(hashPair.first.getPtr(), hashPair.first.getSize());
+         val->set_height(hashPair.second);
       }
 
       return response;
