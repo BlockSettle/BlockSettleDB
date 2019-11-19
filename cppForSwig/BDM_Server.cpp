@@ -640,7 +640,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for getTxBatchByHash");
 
       vector<Tx> result;
-      for (unsigned i = 0; i < command->bindata_size(); i++)
+      for (int i = 0; i < command->bindata_size(); i++)
       {
          Tx tx;
          auto& txHash = command->bindata(i);
@@ -1412,7 +1412,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          //grab all spentness data for these outputs
          auto&& spentness_tx = db_->beginTransaction(SPENTNESS, LMDB::ReadOnly);
 
-         for (unsigned i = 0; i < command->bindata_size(); i++)
+         for (int i = 0; i < command->bindata_size(); i++)
          {
             auto& rawOutputs = command->bindata(i);
             if (rawOutputs.size() < 33)
@@ -1512,7 +1512,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          auto&& stxo_tx = db_->beginTransaction(STXO, LMDB::ReadOnly);
 
          //grab all spentness data for these outputs
-         for (unsigned i = 0; i < command->bindata_size(); i++)
+         for (int i = 0; i < command->bindata_size(); i++)
          {
             auto& rawOutputs = command->bindata(i);
             if (rawOutputs.size() < 33)
