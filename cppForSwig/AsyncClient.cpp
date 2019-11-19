@@ -553,8 +553,9 @@ void BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx,
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getSpentnessForOutputs(
    const map<BinaryData, set<unsigned>>& outputs,
-   std::function<void(ReturnMessage<
-      std::map<BinaryData, std::map<unsigned, BinaryData>>>)> callback)
+   function<void(ReturnMessage<
+      map<BinaryData, map<unsigned, 
+      pair<BinaryData, unsigned>>>>)> callback)
 {
    auto payload = make_payload(Methods::getSpentnessForOutputs, bdvID_);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -2038,25 +2039,25 @@ void CallbackReturn_SpentnessData::callback(
    {
       unsigned i = 0;
 
-      ::Codec_CommonTypes::ManyBinaryData msg;
+      ::Codec_CommonTypes::ManyBinaryDataAndHeight msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      map<BinaryData, map<unsigned, BinaryData>> result;
+      map<BinaryData, map<unsigned, pair<BinaryData, unsigned>>> result;
       for (auto& hashPair : outputs_)
       {
          auto iter = result.insert(
-            make_pair(hashPair.first, map<unsigned, BinaryData>())).first;
+            make_pair(hashPair.first, map<unsigned, pair<BinaryData, unsigned>>())).first;
 
          for (auto& id : hashPair.second)
          {
             auto& val = msg.value(i++);
             BinaryDataRef hashRef; hashRef.setRef(val.data());
 
-            iter->second.insert(make_pair(id, hashRef));
+            iter->second.insert(make_pair(id, make_pair(hashRef, val.height())));
          }
       }
 
-      ReturnMessage<map<BinaryData, map<unsigned, BinaryData>>> rm(result);
+      ReturnMessage<map<BinaryData, map<unsigned, pair<BinaryData, unsigned>>>> rm(result);
 
       if (runInCaller())
       {
@@ -2071,7 +2072,7 @@ void CallbackReturn_SpentnessData::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<map<BinaryData, map<unsigned, BinaryData>>> rm(e);
+      ReturnMessage<map<BinaryData, map<unsigned, pair<BinaryData, unsigned>>>> rm(e);
       userCallbackLambda_(move(rm));
    }
 }

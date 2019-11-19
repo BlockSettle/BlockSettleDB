@@ -42,3 +42,14 @@ message ManyTxWithMetaData
 {
 	repeated TxWithMetaData tx = 1;
 }
+
+message BinaryDataAndHeight
+{
+	optional bytes data = 1;
+	required uint32 height = 2;
+}
+
+message ManyBinaryDataAndHeight
+{
+	repeated BinaryDataAndHeight value = 1;
+}

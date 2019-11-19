@@ -477,7 +477,8 @@ namespace AsyncClient
 
       void getSpentnessForOutputs(const std::map<BinaryData, std::set<unsigned>>&,
          std::function<void(
-            ReturnMessage<std::map<BinaryData, std::map<unsigned, BinaryData>>>)>);
+            ReturnMessage<std::map<BinaryData, std::map<unsigned, 
+            std::pair<BinaryData, unsigned>>>>)>);
       void getOutputsForOutpoints(const std::map<BinaryData, std::set<unsigned>>&,
          std::function<void(ReturnMessage<std::vector<UTXO>>)>);
 
@@ -906,14 +907,15 @@ private:
    const std::map<BinaryData, std::set<unsigned>> outputs_;
 
    std::function<void(
-   ReturnMessage<std::map<BinaryData, std::map<unsigned, BinaryData>>>)>
+   ReturnMessage<std::map<BinaryData, std::map<unsigned, 
+   std::pair<BinaryData, unsigned>>>>)>
       userCallbackLambda_;
 
 public:
    CallbackReturn_SpentnessData(
       const std::map<BinaryData, std::set<unsigned>>& outputs,
       std::function<void(ReturnMessage<
-         std::map<BinaryData, std::map<unsigned, BinaryData>>>)> lbd) :
+         std::map<BinaryData, std::map<unsigned, std::pair<BinaryData, unsigned>>>>)> lbd) :
       outputs_(outputs), userCallbackLambda_(lbd)
    {}
 
