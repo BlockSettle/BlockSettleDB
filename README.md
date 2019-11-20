@@ -1,13 +1,49 @@
-# BlockSettle - `ArmoryDB` fork
+# BlockSettle - `ArmoryDB` Headless Runtime
 
-A fork of [Armory](https://github.com/goatpig/BitcoinArmory) that only produces
-`ArmoryDB`, the headless binary.
+This is a fork of [ArmoryDB](https://github.com/goatpig/BitcoinArmory) that produces
+a headless runtime of `ArmoryDB`. The wallet and trading platfrom from [blocksettle.com](http://blocksettle.com/) fully supports this version of ArmoryDB, and provides all the required UI tools to interact with the backend.
 
-## `ArmoryDB`
+## Install ArmoryDB.
+BlockSettle provides binary distribution of the runtime for few platforms, including Ubuntu, Windows, and MacOS.
 
-For more information about `ArmoryDB` and the command-line parameters, see:
+### Ubuntu 
+To install the binary release on Ubuntu, 
+```bash
+sudo add-apt-repository ppa:blocksettle/armorydb
+sudo apt-get update
 
-https://btcarmory.com/docs/faq
+sudo apt-get install armorydb
+```
+For more information and other available packages please visit our Launchpad page [launchpad.net/BlockSettle] (https://launchpad.net/~blocksettle/+archive/ubuntu/armorydb )
+
+## Running `ArmoryDB`
+Before you can run Armorydb you have to make sure you have successfully setup bitcoin core on your system and it is fully synced. You can download the bitcoin core for your distribution from [bitcoin.org](https://bitcoin.org/en/download). You can select between "testnet" and "mainnet" depending on what you want to do. Optionally if you whish to save your bitcoin core settings you can use [Bitcoin Core Config Generator](https://jlopp.github.io/bitcoin-core-config-generator/) to easily create a fully functional bitcon.conf file online. Please note that the following parameters are important. 
+
+* enable server=1 or --server
+* disablewallert=0 
+* --rest.
+* --testnet or --mainnet.
+
+and example command would look like this.
+```bash
+./bitcoind --server --testnet --rest
+#if you saved all your settings to bitcoin.conf
+./bitcoind --conf=/home/<your_path>/.bitcon/bitcon.conf 
+```
+### ArmoryDB connection design
+
+ArmoryDB *must* run alongside the Bitcoin Core node. This is because ArmoryDB
+does a memory map on the blockchain files. This can only be done if ArmoryDB
+and the node are running on the same OS and, ideally, on the same storage
+device. The IP address of the Core node is hardcoded (localhost) and can't be
+changed without recompiling Armory (and changing the design at your own risk!).
+Only the node's port can be changed via the `satoshirpc-port` parameter. This
+design may change in the future.
+
+It is possible for Armory and other clients to talk to ArmoryDB remotely.
+Possibilities for reaching ArmoryDB include placing ArmoryDB behind an HTTP
+daemon or logging into the ArmoryDB machine remotely via VPN. Talking to
+ArmoryDB is done via JSON-encoded packets, as seen in the `armoryd` project.
 
 `ArmoryDB` works by reading the blockchain downloaded by Bitcoin Core and
 finding any transactions relevant to the wallets loaded into Armory. This means
@@ -17,6 +53,10 @@ scanned for that wallet, ArmoryDB will keep an eye on the blockchain. Any
 transactions relevant to the addresses controlled by wallets/lockboxes will be
 resolved. In addition, as Armory builds its own mempool by talking to the Core
 node, any relevant zero-confirmation transactions will be resolved by ArmoryDB.
+
+### Start ArmoryDB headless Server.
+By default it will try to connect to your running bitcoin core RPC API, and also read data from your bitcoin core block files on your disk. If your bitcoin core configuration differs from the default and you have setup data directories on non standard locations, then you will also have to tell armorydb using command-line parameters or using a config file where it can locate the block files downloaded by bitcoin core. The supported parameters are listed at [Armorydb FAQ](https://btcarmory.com/docs/faq)
+
 
 The database types are as follows:
 
@@ -37,30 +77,15 @@ ArmoryDB config file (`armorydb.conf`). The file will set the parameters every
 time ArmoryDB is started. Command line flags, including flags used by Armory,
 will override config values. (Changing Armory's default values will require
 recompilation.) An example file that mirrors the default parameters used by
-Armory can be seen below. Yeah!
+Armory can be seen below.
 
 ```
-db-type="DB_FULL"
+db-type="DB_SUPER"
 cookie=1
 satoshi-datadir="/home/snakamoto/.bitcoin/blocks""
 datadir="/home/snakamoto/Armory/"
 dbdir="/home/snakamoto/Armory/databases"
 ```
-
-## ArmoryDB connection design
-
-ArmoryDB *must* run alongside the Bitcoin Core node. This is because ArmoryDB
-does a memory map on the blockchain files. This can only be done if ArmoryDB
-and the node are running on the same OS and, ideally, on the same storage
-device. The IP address of the Core node is hardcoded (localhost) and can't be
-changed without recompiling Armory (and changing the design at your own risk!).
-Only the node's port can be changed via the `satoshirpc-port` parameter. This
-design may be changed in the future.
-
-It is possible for Armory and other clients to talk to ArmoryDB remotely.
-Possibilities for reaching ArmoryDB include placing ArmoryDB behind an HTTP
-daemon or logging into the ArmoryDB machine remotely via VPN. Talking to
-ArmoryDB is done via JSON-encoded packets, as seen in the `armoryd` project.
 
 ## Build instructions
 
@@ -80,9 +105,15 @@ and get protobuf from Homebrew:
 brew install protobuf
 ```
 
-On Windows dependencies are handled automatically with vcpkg.
+On Windows dependencies are handled automatically with vcpkg.Addtinally a proper development setup would include the following.
+* Install Visual Studio 2019 Community Edition
+* This build was done using windows10 1809 build - activated licence.
+* Only Desktop Development with C++ needs to be installed.
+* Git has to be setup or you can install it with visual studio additional components. 
+* Windows 10 SDK at least one version (in our case 10.0.18363.xx)( these numbers can disappear so just for reference if it's a recent enough installation.)
+* Also double check MSVC build tools are installed. 
 
-### ArmoryDB
+### ArmoryDB build instructions for Ubuntu/MacOS
 
 The following steps will build ArmoryDB:
 
@@ -93,21 +124,30 @@ cd build
 cmake ..
 make -j`nproc`
 ```
+### ArmoryDB build instructions for Windows 10.
 
-On Windows the procedure is similar (tested with VS 2017):
+- Clone and Setup ArmodyDB and Build Environment.
 
-Start Native Tools Command Prompt
-For example for `Community` edition:
+```bash
+%comspec% /k "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
+cd c:\projects\
 
-```
-%comspec% /k "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
-```
-
-```
-cd c:\path\to\ArmoryDB
+git clone https://github.com/BlockSettle/ArmoryDB.git
+cd c:\projects\ArmoryDB
 mkdir build
-cd build
-cmake .. -DVCPKG_TARGET_TRIPLET=x64-windows
+```
+- Build VCPKG inside the build root.
+
+```bash
+git clone https://github.com/Microsoft/vcpkg.git
+cd vcpkg
+bootstrap-vcpkg.bat
+vcpkg integrate install
+vcpkg install libwebsockets --head
+```
+- Build ArmodyDB on Windows 10
+```bash
+cmake .. -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS="/MP" -DCMAKE_C_FLAGS="/MP" -verbosity:quiet
 msbuild -m -p:BuildInParallel=true ALL_BUILD.vcxproj
 ```
 
@@ -207,3 +247,4 @@ if you get conflicts you will need to resolve them.
 
 Distributed under the MIT License. See the [LICENSE file](LICENSE-MIT) for more
 information.
+
