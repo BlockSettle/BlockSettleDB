@@ -1293,7 +1293,11 @@ void CallbackReturn_TxBatch::callback(
          auto& txHash = iter->first;
          auto& txObj = msg.tx(i);
 
-         if (txObj.has_rawtx() && !iter->second)
+         //invalid tx, no data to deser
+         if(txObj.txindex() == UINT32_MAX)
+            continue;
+
+         if (!iter->second)
          {
             BinaryDataRef ref;
             ref.setRef(txObj.rawtx());
