@@ -1848,6 +1848,73 @@ protected:
    {
       DBUtils::removeDirectory(homedir_);
    }
+
+   /////////////////////////////////////////////////////////////////////////////
+   unsigned checkDb(DBIfaceTransaction* tx, 
+      const vector<SecureBinaryData>& data)
+   {
+      auto binaryParse = [](const BinaryDataRef& a, const BinaryDataRef& b)->bool
+      {
+         unsigned ctr = 0;
+         while (ctr + a.getSize() <= b.getSize())
+         {
+            if (b.getPtr()[ctr] == a.getPtr()[0])
+            {
+               if (b.getSliceRef(ctr, a.getSize()) == a)
+                  return true;
+            }
+            
+            ++ctr;
+         }
+
+         return false;
+      };
+
+      auto parseDb = [tx, &binaryParse](const SecureBinaryData& val)->bool
+      {
+         auto iter = tx->getIterator();
+         while (iter->isValid())
+         {
+            auto key = iter->key();
+            if (key.getSize() >= val.getSize())
+            {
+               if (binaryParse(val.getRef(), key))
+                  return true;
+            }     
+
+            auto value = iter->value();    
+            if (value.getSize() >= val.getSize())
+            {
+               if (binaryParse(val.getRef(), value))
+                  return true;
+            }     
+
+            iter->advance();
+         }
+
+         return false;
+      };
+
+      set<BinaryData> dataSet;
+      for (auto& val : data)
+         dataSet.insert(val);
+
+      auto setIter = dataSet.begin();
+      while (setIter != dataSet.end())
+      {
+         if (parseDb(*setIter))
+         {
+            dataSet.erase(setIter++);
+            continue;
+         }
+
+         ++setIter;
+      }
+
+      return data.size() - dataSet.size();
+   };
+
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2016,16 +2083,45 @@ TEST_F(WalletsTest, Encryption_Test)
    auto filename = assetWlt->getDbFilename();
    assetWlt.reset();
 
-   //parse file for the presence of pubkeys and absence of priv keys
+   //open db env for wallet
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData("control");
+   };
+
+   WalletDBInterface dbIface;
+   dbIface.setupEnv(filename, passLbd);
+   string dbName;
+   
+   {
+      auto tx = dbIface.beginReadTransaction(WALLETHEADER_DBNAME);
+      BinaryWriter bwKey;
+      bwKey.put_uint32_t(MAINWALLET_KEY);
+      auto mainIdRef = tx->getDataRef(bwKey.getData());
+      
+      BinaryRefReader brr(mainIdRef);
+      auto len = brr.get_var_int();
+      auto mainIdBd = brr.get_BinaryData(len);
+      dbName = string(mainIdBd.getCharPtr(), mainIdBd.getSize());
+   }
+
+   auto tx = dbIface.beginReadTransaction(dbName);
+
+   ASSERT_EQ(checkDb(tx.get(), privateKeys), 0);
+   ASSERT_EQ(checkDb(tx.get(), publicKeys), 4);
+
+   /*
+   Parse file for the presence of keys, neither should be visible as 
+   the whole thing is encrypted
+   */
    for (auto& privkey : privateKeys)
    {
       ASSERT_FALSE(TestUtils::searchFile(filename, privkey));
    }
 
-   /** Can't do these checks anymore as whole wallet is encrypted **/
    for (auto& pubkey : publicKeys)
    {
-      ASSERT_TRUE(TestUtils::searchFile(filename, pubkey));
+      ASSERT_FALSE(TestUtils::searchFile(filename, pubkey));
    }
 }
 
@@ -3107,8 +3203,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
          ASSERT_FALSE(true);
       }
       catch (...)
-      {
-      }
+      {}
 
       //try to decrypt with new passphrase instead
       wltSingle->setPassphrasePromptLambda(newPassphrasePrompt);
@@ -3118,13 +3213,46 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       ASSERT_EQ(decryptedKey, privkey_ex);
    }
 
-   //check old iv and key are not on disk anymore
+   //check on file values
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData("control");
+   };
+
+   WalletDBInterface dbIface;
+   dbIface.setupEnv(filename, passLbd);
+   string dbName;
+   
+   {
+      auto tx = dbIface.beginReadTransaction(WALLETHEADER_DBNAME);
+      BinaryWriter bwKey;
+      bwKey.put_uint32_t(MAINWALLET_KEY);
+      auto mainIdRef = tx->getDataRef(bwKey.getData());
+      
+      BinaryRefReader brr(mainIdRef);
+      auto len = brr.get_var_int();
+      auto mainIdBd = brr.get_BinaryData(len);
+      dbName = string(mainIdBd.getCharPtr(), mainIdBd.getSize());
+   }
+
+   auto tx = dbIface.beginReadTransaction(dbName);
+
+   ASSERT_EQ(checkDb(tx.get(), { privateKeys[0] }), 0);
+   ASSERT_EQ(checkDb(tx.get(), privateKeys), 4);
+   ASSERT_EQ(checkDb(tx.get(), { ivVec[0] }), 0);
+   ASSERT_EQ(checkDb(tx.get(), ivVec), 4);
+
+   ASSERT_EQ(checkDb(tx.get(), { newPrivKeys[0] }), 1);
+   ASSERT_EQ(checkDb(tx.get(), newPrivKeys), 5);
+   ASSERT_EQ(checkDb(tx.get(), { newIVs[0] }), 1);
+   ASSERT_EQ(checkDb(tx.get(), newIVs), 5);
+
+   //check values aren't on file
    ASSERT_FALSE(TestUtils::searchFile(filename, ivVec[0]));
    ASSERT_FALSE(TestUtils::searchFile(filename, privateKeys[0]));
 
-   /** Can't do these checks anymore, as whole wallet is encrypted **/
-   ASSERT_TRUE(TestUtils::searchFile(filename, newIVs[0]));
-   ASSERT_TRUE(TestUtils::searchFile(filename, newPrivKeys[0]));
+   ASSERT_FALSE(TestUtils::searchFile(filename, newIVs[0]));
+   ASSERT_FALSE(TestUtils::searchFile(filename, newPrivKeys[0]));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
