@@ -40,18 +40,31 @@ SecureBinaryData CryptoAES::EncryptCFB(const SecureBinaryData & data,
    if(data.getSize() == 0)
       return SecureBinaryData(0);
 
-   SecureBinaryData encrData(data.getSize());
+   size_t packet_count = data.getSize() / AES_BLOCK_SIZE + 1;
+
+   SecureBinaryData encrData(packet_count * AES_BLOCK_SIZE);
 
    //sanity check
    if(iv.getSize() != AES_BLOCK_SIZE)
-      throw std::runtime_error("uninitialized IV!");
+      throw std::runtime_error("invalid IV size!");
 
    //set to cbc until i implement cbf in libbtc
-   aes256_cbc_encrypt(
-      key.getPtr(), iv.getPtr(), 
-      data.getPtr(), data.getSize(), 
+   auto result = aes256_cbc_encrypt(
+      key.getPtr(), iv.getPtr(),
+      data.getPtr(), data.getSize(),
       1, //pad with 0s if the data is not aligned with 16 bytes blocks
       encrData.getPtr());
+      
+   if (result == 0)
+   {
+      LOGERR << "AES CBC encryption failed!";
+      throw std::runtime_error("AES CBC encryption failed!");
+   }
+   else if (result != encrData.getSize())
+   {
+      LOGERR << "Encrypted data size mismatch!";
+      throw std::runtime_error("Encrypted data size mismatch!");
+   }
 
    return encrData;
 }
@@ -67,6 +80,7 @@ SecureBinaryData CryptoAES::DecryptCFB(const SecureBinaryData & data,
 
    SecureBinaryData unencrData(data.getSize());
 
+   //set to cbc until i implement cbf in libbtc
    aes256_cbc_decrypt(
       key.getPtr(), iv.getPtr(), 
       data.getPtr(), data.getSize(), 
@@ -91,14 +105,24 @@ SecureBinaryData CryptoAES::EncryptCBC(const SecureBinaryData & data,
 
    //sanity check
    if (iv.getSize() != AES_BLOCK_SIZE)
-      throw std::runtime_error("uninitialized IV!");
+      throw std::runtime_error("invalid IV size!");
 
-   //set to cbc until i implement cbf in libbtc
-   aes256_cbc_encrypt(
+   auto result = aes256_cbc_encrypt(
       key.getPtr(), iv.getPtr(),
       data.getPtr(), data.getSize(),
       1, //pad with 0s if the data is not aligned with 16 bytes blocks
       encrData.getPtr());
+      
+   if (result == 0)
+   {
+      LOGERR << "AES CBC encryption failed!";
+      throw std::runtime_error("AES CBC encryption failed!");
+   }
+   else if (result != encrData.getSize())
+   {
+      LOGERR << "Encrypted data size mismatch!";
+      throw std::runtime_error("Encrypted data size mismatch!");
+   }
 
    return encrData;
 }
