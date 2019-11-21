@@ -22,14 +22,11 @@
 #include "BinaryData.h"
 #include "SecureBinaryData.h"
 #include "ReentrantLock.h"
+#include "EncryptionUtils.h"
 
 #define CONTROL_DB_NAME "control_db"
 #define ERASURE_PLACE_HOLDER "erased"
 #define KEY_CYCLE_FLAG "cycle"
-
-////////////////////////////////////////////////////////////////////////////////
-typedef std::function<SecureBinaryData(const std::set<BinaryData>&)> 
-   PassphraseLambda;
 
 ////////////////////////////////////////////////////////////////////////////////
 class NoDataInDB : std::runtime_error
@@ -182,7 +179,7 @@ private:
 
 public:
    WalletIfaceTransaction(DBInterface* dbPtr, bool mode);
-   ~WalletIfaceTransaction(void);
+   ~WalletIfaceTransaction(void); //throw
 
    //write routines
    void insert(const BinaryData&, const BinaryData&) override;

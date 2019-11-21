@@ -55,9 +55,11 @@
 
 #include <iostream>
 #include <vector>
+#include <set>
 #include <map>
 #include <cmath>
 #include <algorithm>
+#include <functional>
 
 #include "BinaryData.h"
 #include "UniversalTimer.h"
@@ -111,6 +113,9 @@
 #define AES_MAX_KEY_LEN AES_BLOCK_SIZE*2
 #endif
 
+////////////////////////////////////////////////////////////////////////////////
+typedef std::function<SecureBinaryData(const std::set<BinaryData>&)> 
+   PassphraseLambda;
 
 ////////////////////////////////////////////////////////////////////////////////
 class CryptoSHA2
