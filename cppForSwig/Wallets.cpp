@@ -83,7 +83,7 @@ BinaryData AssetWallet::getMainWalletID(shared_ptr<WalletDBInterface> iface)
    try
    {
       auto&& tx = iface->beginWriteTransaction(WALLETHEADER_DBNAME);   
-      return getDataRefForKey(tx, bwKey.getData());
+      return getDataRefForKey(tx.get(), bwKey.getData());
    }
    catch (NoEntryInWalletException&)
    {
@@ -99,7 +99,7 @@ BinaryData AssetWallet::getMasterID(shared_ptr<WalletDBInterface> iface)
    bwKey.put_uint32_t(MASTERID_KEY);
 
    auto tx = iface->beginReadTransaction(WALLETHEADER_DBNAME);
-   return getDataRefForKey(tx, bwKey.getData());
+   return getDataRefForKey(tx.get(), bwKey.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1001,7 +1001,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef AssetWallet::getDataRefForKey(
-   shared_ptr<DBIfaceTransaction> tx, const BinaryData& key)
+   DBIfaceTransaction* tx, const BinaryData& key)
 {
    /** The reference lifetime is tied to the db tx lifetime. The caller has to
    maintain the tx for as long as the data ref needs to be valid **/
@@ -1030,7 +1030,7 @@ void AssetWallet_Single::readFromFile()
 
       try
       {
-         auto account_id = getDataRefForKey(tx, bwKey.getData());
+         auto account_id = getDataRefForKey(tx.get(), bwKey.getData());
 
          mainAccount_ = account_id;
       }
@@ -1042,7 +1042,7 @@ void AssetWallet_Single::readFromFile()
       //root asset
       BinaryWriter bwKey;
       bwKey.put_uint32_t(ROOTASSET_KEY);
-      auto rootAssetRef = getDataRefForKey(tx, bwKey.getData());
+      auto rootAssetRef = getDataRefForKey(tx.get(), bwKey.getData());
 
       auto asset_root = AssetEntry::deserDBValue(-1, BinaryData(), rootAssetRef);
       root_ = dynamic_pointer_cast<AssetEntry_Single>(asset_root);
@@ -1056,7 +1056,7 @@ void AssetWallet_Single::readFromFile()
       {
          BinaryWriter bwKey;
          bwKey.put_uint32_t(WALLET_SEED_KEY);
-         auto rootAssetRef = getDataRefForKey(tx, bwKey.getData());
+         auto rootAssetRef = getDataRefForKey(tx.get(), bwKey.getData());
 
          auto seedUPtr = Asset_EncryptedData::deserialize(
             rootAssetRef.getSize(), rootAssetRef);
@@ -1123,7 +1123,7 @@ void AssetWallet_Multisig::readFromFile()
          //walletId
          BinaryWriter bwKey;
          bwKey.put_uint32_t(WALLETID_KEY);
-         auto walletIdRef = getDataRefForKey(tx, bwKey.getData());
+         auto walletIdRef = getDataRefForKey(tx.get(), bwKey.getData());
 
          walletID_ = walletIdRef;
       }
@@ -1133,7 +1133,7 @@ void AssetWallet_Multisig::readFromFile()
          {
             BinaryWriter bwKey;
             bwKey.put_uint8_t(ASSETENTRY_PREFIX);
-            auto lookupRef = getDataRefForKey(tx, bwKey.getData());
+            auto lookupRef = getDataRefForKey(tx.get(), bwKey.getData());
 
             BinaryRefReader brr(lookupRef);
             chainLength_ = brr.get_uint32_t();

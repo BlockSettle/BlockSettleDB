@@ -501,7 +501,7 @@ void WalletDBInterface::setupEnv(const string& path,
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef WalletDBInterface::getDataRefForKey(
-   shared_ptr<DBIfaceTransaction> tx, const BinaryData& key)
+   DBIfaceTransaction* tx, const BinaryData& key)
 {
    /** The reference lifetime is tied to the db tx lifetime. The caller has to
    maintain the tx for as long as the data ref needs to be valid **/
@@ -629,7 +629,7 @@ const string& WalletDBInterface::getFilename() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<DBIfaceTransaction> WalletDBInterface::beginWriteTransaction(
+unique_ptr<DBIfaceTransaction> WalletDBInterface::beginWriteTransaction(
    const string& dbName)
 {
    auto iter = dbMap_.find(dbName);
@@ -637,18 +637,18 @@ shared_ptr<DBIfaceTransaction> WalletDBInterface::beginWriteTransaction(
    {
       if (dbName == CONTROL_DB_NAME)
       {
-         return make_shared<RawIfaceTransaction>(
+         return make_unique<RawIfaceTransaction>(
             dbEnv_.get(), controlDb_.get(), true);
       }
 
       throw WalletInterfaceException("invalid db name");
    }
 
-   return make_shared<WalletIfaceTransaction>(iter->second.get(), true);
+   return make_unique<WalletIfaceTransaction>(iter->second.get(), true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<DBIfaceTransaction> WalletDBInterface::beginReadTransaction(
+unique_ptr<DBIfaceTransaction> WalletDBInterface::beginReadTransaction(
    const string& dbName)
 {
    auto iter = dbMap_.find(dbName);
@@ -656,14 +656,14 @@ shared_ptr<DBIfaceTransaction> WalletDBInterface::beginReadTransaction(
    {
       if (dbName == CONTROL_DB_NAME)
       {
-         return make_shared<RawIfaceTransaction>(
+         return make_unique<RawIfaceTransaction>(
             dbEnv_.get(), controlDb_.get(), false);
       }
 
       throw WalletInterfaceException("invalid db name");
    }
 
-   return make_shared<WalletIfaceTransaction>(iter->second.get(), false);
+   return make_unique<WalletIfaceTransaction>(iter->second.get(), false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -676,7 +676,7 @@ shared_ptr<WalletHeader> WalletDBInterface::loadControlHeader()
    auto& headerKey = bw.getData();
 
    auto&& tx = beginReadTransaction(CONTROL_DB_NAME);
-   auto headerVal = getDataRefForKey(tx, headerKey);
+   auto headerVal = getDataRefForKey(tx.get(), headerKey);
    if (headerVal.getSize() == 0)
       throw WalletInterfaceException("missing control db entry");
 
@@ -716,7 +716,7 @@ void WalletDBInterface::loadSeed(shared_ptr<WalletHeader> headerPtr)
 
    BinaryWriter bwKey;
    bwKey.put_uint32_t(WALLET_SEED_KEY);
-   auto rootAssetRef = getDataRefForKey(tx, bwKey.getData());
+   auto rootAssetRef = getDataRefForKey(tx.get(), bwKey.getData());
 
    auto seedPtr = Asset_EncryptedData::deserialize(
       rootAssetRef.getSize(), rootAssetRef);

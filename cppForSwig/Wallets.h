@@ -108,7 +108,7 @@ protected:
 
    //static
    static BinaryDataRef getDataRefForKey(
-      std::shared_ptr<DBIfaceTransaction>, const BinaryData& key);
+      DBIfaceTransaction*, const BinaryData& key);
 
 public:
    //tors

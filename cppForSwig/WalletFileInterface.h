@@ -329,7 +329,7 @@ private:
 
    //utils
    BinaryDataRef getDataRefForKey(
-      std::shared_ptr<DBIfaceTransaction> tx, const BinaryData& key);
+      DBIfaceTransaction* tx, const BinaryData& key);
    void setDbCount(unsigned, bool);
    void openDB(std::shared_ptr<WalletHeader>, const SecureBinaryData&);
 
@@ -365,8 +365,8 @@ public:
    void setDbCount(unsigned);
 
    //transactions
-   std::shared_ptr<DBIfaceTransaction> beginWriteTransaction(const std::string&);
-   std::shared_ptr<DBIfaceTransaction> beginReadTransaction(const std::string&);
+   std::unique_ptr<DBIfaceTransaction> beginWriteTransaction(const std::string&);
+   std::unique_ptr<DBIfaceTransaction> beginReadTransaction(const std::string&);
 
    //utils
    void lockControlContainer(const PassphraseLambda&);
