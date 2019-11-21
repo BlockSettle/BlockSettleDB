@@ -1154,6 +1154,12 @@ WalletIfaceTransaction::WalletIfaceTransaction(
 ////////////////////////////////////////////////////////////////////////////////
 WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
 {
+   close();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletIfaceTransaction::close()
+{
    LMDBEnv::Transaction tx;
 
    {

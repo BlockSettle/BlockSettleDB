@@ -419,6 +419,153 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletInterfaceTest, WalletIfaceTransaction)
+{
+   //utils
+   auto checkVals = [](WalletIfaceTransaction& tx, 
+      map<BinaryData, BinaryData>& keyValMap)->bool
+   {
+      for (auto& keyVal : keyValMap)
+      {
+         auto val = tx.getDataRef(keyVal.first);
+         if (val != keyVal.second)
+            return false;
+      }
+      
+      return true;
+   };
+
+   //setup db env
+   auto dbEnv = make_shared<LMDBEnv>();
+   dbEnv->open(dbPath_, 1);
+   auto filename = dbEnv->getFilename();
+   ASSERT_EQ(filename, dbPath_);
+
+   auto&& controlSalt = CryptoPRNG::generateRandom(32);
+   auto&& rawRoot = CryptoPRNG::generateRandom(32);
+   string dbName("test");
+
+   //setup db
+   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+   dbIface->loadAllEntries(rawRoot); 
+
+   //commit some values
+   map<BinaryData, BinaryData> keyValMap;
+   for (unsigned i=0; i<50; i++)
+   {
+      keyValMap.insert(make_pair(
+         CryptoPRNG::generateRandom(20),
+         CryptoPRNG::generateRandom(80)
+      ));
+   }
+
+   {
+      //add the values
+      WalletIfaceTransaction tx(dbIface.get(), true);
+      for (auto& keyVal : keyValMap)
+         tx.insert(keyVal.first, keyVal.second);
+      
+      //try to grab them from the live write tx
+      EXPECT_TRUE(checkVals(tx, keyValMap));
+
+      //try to create read tx, should fail
+      try
+      {
+         WalletIfaceTransaction readTx(dbIface.get(), false);
+         ASSERT_TRUE(false);
+      }
+      catch (WalletInterfaceException& e)
+      {
+         EXPECT_EQ(e.what(), string("failed to create db tx"));
+      }
+
+      //check data map isn't affected
+      EXPECT_TRUE(checkVals(tx, keyValMap));
+
+      //create nested write tx, shouldn't affect anything
+      {
+         WalletIfaceTransaction txInner(dbIface.get(), true);
+
+         //check data map isn't affected
+         EXPECT_TRUE(checkVals(tx, keyValMap));
+
+         //should be able to check modification map from this tx
+         EXPECT_TRUE(checkVals(txInner, keyValMap));
+      }
+
+      //check closing inner tx has no effect on parent
+      EXPECT_TRUE(checkVals(tx, keyValMap));
+   }
+
+   {
+      //check data them from read tx
+      WalletIfaceTransaction tx(dbIface.get(), false);
+      EXPECT_TRUE(checkVals(tx, keyValMap));
+
+      //check them from nested read tx
+      {
+         WalletIfaceTransaction tx2(dbIface.get(), false);
+         EXPECT_TRUE(checkVals(tx2, keyValMap));
+         EXPECT_TRUE(checkVals(tx, keyValMap));
+      }
+
+      //closing nested tx shouldn't affect parent
+      EXPECT_TRUE(checkVals(tx, keyValMap));
+
+      //should fail to open write tx while read tx is live
+      try
+      {
+         WalletIfaceTransaction tx(dbIface.get(), true);
+         ASSERT_TRUE(false);
+      }
+      catch (WalletInterfaceException& e)
+      {
+         EXPECT_EQ(e.what(), string("failed to create db tx"));
+      }
+
+      //failed write tx shouldn't affect read tx
+      EXPECT_TRUE(checkVals(tx, keyValMap));
+   }
+
+   {
+      //modify db
+      WalletIfaceTransaction tx(dbIface.get(), true);
+
+      {
+         auto iter = keyValMap.begin();
+         for (unsigned i=0; i<10; i++)
+            ++iter;
+         iter->second = CryptoPRNG::generateRandom(35);
+         tx.insert(iter->first, iter->second);
+
+         for (unsigned i=0; i<10; i++)
+            ++iter;
+         iter->second = CryptoPRNG::generateRandom(70);
+         tx.insert(iter->first, iter->second);
+      }
+
+      auto pair1 = make_pair(
+         CryptoPRNG::generateRandom(40),
+         CryptoPRNG::generateRandom(80));
+      auto pair2 = make_pair(
+         CryptoPRNG::generateRandom(20),
+         CryptoPRNG::generateRandom(16));
+
+      tx.insert(pair1.first, pair1.second);
+      tx.insert(pair2.first, pair2.second);
+
+      //check data
+      EXPECT_TRUE(checkVals(tx, keyValMap));
+   }
+
+   //check data after commit
+   WalletIfaceTransaction tx(dbIface.get(), false);
+   EXPECT_TRUE(checkVals(tx, keyValMap));
+}
+
+//TODO: WalletIfaceTransaction multithreaded test
+
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletInterfaceTest, EncryptionTest)
 {
    auto dbEnv = make_shared<LMDBEnv>();
@@ -1669,8 +1816,6 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
 //entry padding length test
 
 //wiping tests
-
-//WalletIfaceTransaction tests
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

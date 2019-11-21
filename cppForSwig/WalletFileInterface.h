@@ -174,8 +174,10 @@ private:
 private:
    static bool insertTx(WalletIfaceTransaction*);
    static bool eraseTx(WalletIfaceTransaction*);
-
-   const std::shared_ptr<InsertData>& getInsertDataForKey(const BinaryData&) const;
+   
+   void close(void);
+   const std::shared_ptr<InsertData>& getInsertDataForKey(
+      const BinaryData&) const;
 
 public:
    WalletIfaceTransaction(DBInterface* dbPtr, bool mode);
