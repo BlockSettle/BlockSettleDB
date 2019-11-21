@@ -1120,7 +1120,7 @@ DBIfaceTransaction::txMap_;
 mutex DBIfaceTransaction::txMutex_;
 
 ////////////////////////////////////////////////////////////////////////////////
-DBIfaceTransaction::~DBIfaceTransaction()
+DBIfaceTransaction::~DBIfaceTransaction() noexcept(false)
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1152,7 +1152,7 @@ WalletIfaceTransaction::WalletIfaceTransaction(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-WalletIfaceTransaction::~WalletIfaceTransaction()
+WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
 {
    LMDBEnv::Transaction tx;
 

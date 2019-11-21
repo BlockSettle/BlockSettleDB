@@ -138,7 +138,7 @@ protected:
 
 public:
    DBIfaceTransaction(void) {}
-   virtual ~DBIfaceTransaction(void) = 0;
+   virtual ~DBIfaceTransaction(void) noexcept(false) = 0;
 
    virtual void insert(const BinaryData&, const BinaryData&) = 0;
    virtual void erase(const BinaryData&) = 0;
@@ -179,7 +179,7 @@ private:
 
 public:
    WalletIfaceTransaction(DBInterface* dbPtr, bool mode);
-   ~WalletIfaceTransaction(void); //throw
+   ~WalletIfaceTransaction(void) noexcept(false);
 
    //write routines
    void insert(const BinaryData&, const BinaryData&) override;
@@ -210,7 +210,7 @@ public:
       txPtr_ = make_unique<LMDBEnv::Transaction>(dbEnv, type);
    }
 
-   ~RawIfaceTransaction(void)
+   ~RawIfaceTransaction(void) noexcept(false)
    {
       txPtr_.reset();
    }
