@@ -21,7 +21,7 @@
 #include "WebSocketMessage.h"
 #include "BlockDataManagerConfig.h"
 #include "ClientClasses.h"
-#include "AsyncClient.h"
+#include "AsyncClient.h" //TODO <-- nuke this
 
 #include "BIP150_151.h"
 #include "AuthorizedPeers.h"
@@ -144,8 +144,8 @@ private:
 
 public:
    WebSocketClient(const std::string& addr, const std::string& port,
-      const std::string& datadir, const bool& ephemeralPeers,
-      std::shared_ptr<RemoteCallback> cbPtr);
+      const std::string& datadir, const PassphraseLambda&, 
+      const bool& ephemeralPeers, std::shared_ptr<RemoteCallback> cbPtr);
 
    ~WebSocketClient()
    {

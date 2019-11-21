@@ -119,6 +119,8 @@ ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	txio.cpp \
 	ZeroConf.cpp
 ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
+	WalletHeader.cpp \
+	WalletFileInterface.cpp \
 	Addresses.cpp \
 	AssetEncryption.cpp \
 	Assets.cpp \

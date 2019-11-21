@@ -217,18 +217,1485 @@ TEST_F(DerivationTests, ArmoryChain_Tests)
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-class WalletsTest : public ::testing::Test
+class WalletInterfaceTest : public ::testing::Test
 {
 protected:
    string homedir_;
+   string dbPath_;
+   BinaryData allZeroes16_;
 
    /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
       LOGDISABLESTDOUT();
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       homedir_ = string("./fakehomedir");
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
+
+      dbPath_ = homedir_;
+      DBUtils::appendPath(dbPath_, "wallet_test.wallet");
+
+      allZeroes16_ = READHEX("00000000000000000000000000000000");
+      if(allZeroes16_.getSize() != 16)
+         throw runtime_error("failed to setup proper zeroed benchmark value");
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void TearDown(void)
+   {
+      DBUtils::removeDirectory(homedir_);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   map<BinaryData, BinaryData> getAllEntries(shared_ptr<LMDBEnv> dbEnv, LMDB& db)
+   {
+      map<BinaryData, BinaryData> keyValMap;
+      
+      auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadOnly);
+      auto iter = db.begin();
+      while(iter.isValid())
+      {
+         auto keyData = iter.key();
+         auto valData = iter.value();
+
+         BinaryData keyBd((uint8_t*)keyData.mv_data, keyData.mv_size);
+         BinaryData valBd((uint8_t*)valData.mv_data, valData.mv_size);
+
+         keyValMap.insert(make_pair(keyBd, valBd));
+         iter.advance();
+      }
+
+      return keyValMap;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   struct BadKeyException
+   {};
+
+   ////
+   set<unsigned> tallyGaps(const map<BinaryData, BinaryData>& keyValMap)
+   {
+      set<unsigned> gaps;
+      int prevKeyInt = -1;
+
+      for(auto& keyVal : keyValMap)
+      {
+         if(keyVal.first.getSize() != 4)
+            throw BadKeyException();
+
+         int keyInt = READ_UINT32_BE(keyVal.first);
+         if(keyInt - prevKeyInt != 1)
+         {
+            for(unsigned i=prevKeyInt + 1; i<keyInt; i++)
+               gaps.insert(i);
+         }
+
+         prevKeyInt = keyInt;
+      }
+
+      return gaps;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   struct IESPacket
+   {
+      SecureBinaryData pubKey_;
+      SecureBinaryData iv_;
+      SecureBinaryData cipherText_;
+
+      BinaryData dbKey_;
+   };
+
+   ////
+   IESPacket getIESData(const pair<BinaryData, BinaryData>& keyVal)
+   {
+      IESPacket result;
+
+      BinaryRefReader brr(keyVal.second.getRef());
+      result.pubKey_ = brr.get_SecureBinaryData(33);
+      result.iv_ = brr.get_SecureBinaryData(16);
+      result.cipherText_ = brr.get_SecureBinaryData(brr.getSizeRemaining());
+
+      result.dbKey_ = keyVal.first;
+
+      return result;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   pair<SecureBinaryData, SecureBinaryData> generateKeyPair(
+      const SecureBinaryData& saltedRoot, unsigned ctr)
+   {
+      SecureBinaryData hmacKey((uint8_t*)&ctr, 4);
+      auto hmacVal = BtcUtils::getHMAC512(hmacKey, saltedRoot);
+
+      //first half is the encryption key, second half is the hmac key
+      BinaryRefReader brr(hmacVal.getRef());
+      auto&& decrPrivKey = brr.get_SecureBinaryData(32);
+      auto&& macKey = brr.get_SecureBinaryData(32);
+
+      //decryption private key sanity check
+      if (!CryptoECDSA::checkPrivKeyIsValid(decrPrivKey))
+         throw WalletInterfaceException("invalid decryption private key");
+
+      return make_pair(move(decrPrivKey), move(macKey));
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   struct LooseEntryException
+   {};
+
+   struct HMACMismatchException
+   {};
+
+   ////
+   BinaryData computeHmac(const BinaryData& dbKey, 
+      const BinaryData& dataKey, const BinaryData& dataVal,
+      const SecureBinaryData& macKey)
+   {
+      BinaryWriter bw;
+      bw.put_var_int(dataKey.getSize());
+      bw.put_BinaryData(dataKey);
+
+      bw.put_var_int(dataVal.getSize());
+      bw.put_BinaryData(dataVal);
+
+      bw.put_BinaryData(dbKey);
+      
+      return BtcUtils::getHMAC256(macKey, bw.getData());
+   }
+
+   ////
+   pair<BinaryData, BinaryData> decryptPair(const IESPacket& packet,
+      const SecureBinaryData& privKey, const SecureBinaryData& macKey)
+   {
+      //generate decryption key
+      auto ecdhPubKey = 
+         CryptoECDSA::PubKeyScalarMultiply(packet.pubKey_, privKey);
+      auto decrKey = BtcUtils::hash256(ecdhPubKey);
+
+      //decrypt packet
+      auto payload = CryptoAES::DecryptCBC(packet.cipherText_, decrKey, packet.iv_);
+
+      //break down payload
+      BinaryRefReader brr(payload.getRef());
+      auto&& hmac = brr.get_SecureBinaryData(32);
+      auto len = brr.get_var_int();
+      auto&& dataKey = brr.get_BinaryData(len);
+      len = brr.get_var_int();
+      auto&& dataVal = brr.get_BinaryData(len);
+
+      //sanity check
+      if (brr.getSizeRemaining() > 0)
+         throw LooseEntryException();
+
+      //compute hmac
+      auto&& computedHmac = computeHmac(
+         packet.dbKey_, dataKey, dataVal, macKey);
+      
+      if (computedHmac != hmac)
+         throw HMACMismatchException();
+
+      return make_pair(dataKey, dataVal);
+   }
+
+   ////
+   pair<BinaryData, BinaryData> decryptPair(const IESPacket& packet,
+      const pair<SecureBinaryData, SecureBinaryData>& keyPair)
+   {
+      return decryptPair(packet, keyPair.first, keyPair.second);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   BinaryData getErasurePacket(unsigned dbKeyInt)
+   {
+      BinaryWriter packet;
+      packet.put_String("erased");
+      packet.put_var_int(4);
+      packet.put_uint32_t(dbKeyInt, BE);
+
+      return packet.getData();
+   }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletInterfaceTest, EncryptionTest)
+{
+   auto dbEnv = make_shared<LMDBEnv>();
+   dbEnv->open(dbPath_, 1);
+   auto filename = dbEnv->getFilename();
+   ASSERT_EQ(filename, dbPath_);
+
+   auto&& controlSalt = CryptoPRNG::generateRandom(32);
+   auto&& rawRoot = CryptoPRNG::generateRandom(32);
+   string dbName("test");
+
+   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+
+   //sanity check
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   dbIface->loadAllEntries(rawRoot);
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+
+   //generate data
+   auto&& key1 = CryptoPRNG::generateRandom(20);
+   auto&& key2 = CryptoPRNG::generateRandom(15);
+   auto&& key3 = CryptoPRNG::generateRandom(12);
+
+   auto&& val1 = CryptoPRNG::generateRandom(64);
+   auto&& val2 = CryptoPRNG::generateRandom(64);
+   auto&& val3 = CryptoPRNG::generateRandom(240);
+   auto&& val4 = CryptoPRNG::generateRandom(16);
+   auto&& val5 = CryptoPRNG::generateRandom(120);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   {
+      //write data
+      WalletIfaceTransaction tx(dbIface.get(), true);
+      tx.insert(key1, val1);
+      tx.insert(key2, val2);
+      tx.insert(key3, val3);
+
+      //replace key3 value within same tx
+      tx.insert(key3, val4);
+   }
+
+   //check entry count
+   ASSERT_EQ(dbIface->getEntryCount(), 3);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   //close dbIface
+   dbIface->close();
+   dbIface.reset();
+
+   //open LMDB object
+   LMDB dbObj;
+   {
+      auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+      dbObj.open(dbEnv.get(), dbName);
+   }
+
+   //grab all entries in db
+   auto&& keyValMap = getAllEntries(dbEnv, dbObj);
+   EXPECT_EQ(keyValMap.size(), 4);
+
+   //check gaps
+   ASSERT_EQ(tallyGaps(keyValMap).size(), 0);
+
+   //convert to IES packets
+   vector<IESPacket> packets;
+   for(auto& keyVal : keyValMap)
+   {
+      auto&& iesPacket = getIESData(keyVal);
+      packets.push_back(iesPacket);
+   }
+
+   //check cryptographic material
+   for(unsigned i=0; i<packets.size(); i++)
+   {
+      auto& packet = packets[i];
+
+      ASSERT_TRUE(CryptoECDSA().VerifyPublicKeyValid(packet.pubKey_));
+      ASSERT_NE(packet.iv_, allZeroes16_);
+
+      for(unsigned y=0; y<packets.size(); y++)
+      {
+         if (y==i)
+            continue;
+
+         auto packetY = packets[y];
+         ASSERT_NE(packet.iv_, packetY.iv_);
+         ASSERT_NE(packet.pubKey_, packetY.pubKey_);
+      }
+   }
+
+   /* decryption leg */
+
+   //generate seed
+   auto&& saltedRoot = BtcUtils::getHMAC256(controlSalt, rawRoot);
+
+   //generate first key pair
+   auto&& firstKeyPair = generateKeyPair(saltedRoot, 0);
+
+   pair<SecureBinaryData, SecureBinaryData> currentKeyPair;
+   try
+   {
+      auto& packet = packets[0];
+
+      //check cylce flag is first entry in db
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+
+      //check first entry is a cycle flag
+      auto&& dataPair = decryptPair(packet, firstKeyPair);
+      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+
+      //cycle key pair
+      currentKeyPair = generateKeyPair(saltedRoot, 1);
+   }
+   catch(...)
+   {
+      ASSERT_FALSE(true);
+   }
+
+   //decrypt the other values with wrong key pair
+   vector<pair<BinaryData, BinaryData>> decryptedPairs;
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), i);
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, firstKeyPair);
+         decryptedPairs.push_back(dataPair);
+         ASSERT_FALSE(true);
+      }
+      catch(...)
+      {
+         continue;
+      }
+   }
+
+   //decrypt the other values with proper key pair
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), i);
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, currentKeyPair);
+         decryptedPairs.push_back(dataPair);
+      }
+      catch(...)
+      {
+         ASSERT_FALSE(true);
+      }
+   }
+
+   //check decrypted values
+   EXPECT_EQ(decryptedPairs[0].first, key1);
+   EXPECT_EQ(decryptedPairs[0].second, val1);
+
+   EXPECT_EQ(decryptedPairs[1].first, key2);
+   EXPECT_EQ(decryptedPairs[1].second, val2);
+
+   EXPECT_EQ(decryptedPairs[2].first, key3);
+   EXPECT_EQ(decryptedPairs[2].second, val4);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
+{
+   auto dbEnv = make_shared<LMDBEnv>();
+   dbEnv->open(dbPath_, 1);
+   auto filename = dbEnv->getFilename();
+   ASSERT_EQ(filename, dbPath_);
+
+   auto&& controlSalt = CryptoPRNG::generateRandom(32);
+   auto&& rawRoot = CryptoPRNG::generateRandom(32);
+   string dbName("test");
+
+   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+
+   //sanity check
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   dbIface->loadAllEntries(rawRoot);
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+
+   //generate data
+   auto&& key1 = CryptoPRNG::generateRandom(20);
+   auto&& key2 = CryptoPRNG::generateRandom(15);
+   auto&& key3 = CryptoPRNG::generateRandom(12);
+
+   auto&& val1 = CryptoPRNG::generateRandom(64);
+   auto&& val2 = CryptoPRNG::generateRandom(64);
+   auto&& val3 = CryptoPRNG::generateRandom(32);
+   auto&& val4 = CryptoPRNG::generateRandom(16);
+   auto&& val5 = CryptoPRNG::generateRandom(120);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   {
+      //write data
+      WalletIfaceTransaction tx(dbIface.get(), true);
+      tx.insert(key1, val1);
+      tx.insert(key2, val2);
+      tx.insert(key3, val3);
+   }
+
+   //check entry count
+   ASSERT_EQ(dbIface->getEntryCount(), 3);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   {
+      //amend db in new transaction
+      WalletIfaceTransaction tx(dbIface.get(), true);
+      tx.erase(key2);
+
+      tx.erase(key3);
+      tx.insert(key3, val4);
+
+      auto key2Data = tx.getDataRef(key2);
+      EXPECT_EQ(key2Data.getSize(), 0);
+
+      auto key3Data = tx.getDataRef(key3);
+      EXPECT_EQ(key3Data, val4);
+   }
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   //check entry count
+   ASSERT_EQ(dbIface->getEntryCount(), 2);
+
+   //close dbIface
+   dbIface->close();
+   dbIface.reset();
+
+   //open LMDB object
+   LMDB dbObj;
+   {
+      auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+      dbObj.open(dbEnv.get(), dbName);
+   }
+
+   //grab all entries in db
+   auto&& keyValMap = getAllEntries(dbEnv, dbObj);
+   EXPECT_EQ(keyValMap.size(), 5);
+
+   //check gaps
+   {
+      auto&& gaps = tallyGaps(keyValMap);
+      ASSERT_EQ(gaps.size(), 2);
+
+      auto gapsIter = gaps.begin();
+      EXPECT_EQ(*gapsIter, 2);
+      
+      ++gapsIter;
+      EXPECT_EQ(*gapsIter, 3);
+
+      ++gapsIter;
+      EXPECT_EQ(gapsIter, gaps.end());
+   }
+
+   //convert to IES packets
+   vector<IESPacket> packets;
+   for(auto& keyVal : keyValMap)
+   {
+      auto&& iesPacket = getIESData(keyVal);
+      packets.push_back(iesPacket);
+   }
+
+   //check cryptographic material
+   for(unsigned i=0; i<packets.size(); i++)
+   {
+      auto& packet = packets[i];
+
+      ASSERT_TRUE(CryptoECDSA().VerifyPublicKeyValid(packet.pubKey_));
+      ASSERT_NE(packet.iv_, allZeroes16_);
+
+      for(unsigned y=0; y<packets.size(); y++)
+      {
+         if (y==i)
+            continue;
+
+         auto packetY = packets[y];
+         ASSERT_NE(packet.iv_, packetY.iv_);
+         ASSERT_NE(packet.pubKey_, packetY.pubKey_);
+      }
+   }
+
+   /* decryption leg */
+
+   //generate seed
+   auto&& saltedRoot = BtcUtils::getHMAC256(controlSalt, rawRoot);
+
+   //generate first key pair
+   auto&& firstKeyPair = generateKeyPair(saltedRoot, 0);
+
+   pair<SecureBinaryData, SecureBinaryData> currentKeyPair;
+   try
+   {
+      auto& packet = packets[0];
+
+      //check cylce flag is first entry in db
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+
+      //check first entry is a cycle flag
+      auto&& dataPair = decryptPair(packet, firstKeyPair);
+      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+
+      //cycle key pair
+      currentKeyPair = generateKeyPair(saltedRoot, 1);
+   }
+   catch(...)
+   {
+      ASSERT_FALSE(true);
+   }
+
+   //decrypt the other values with wrong key pair
+   vector<pair<BinaryData, BinaryData>> decryptedPairs;
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, firstKeyPair);
+         decryptedPairs.push_back(dataPair);
+         ASSERT_FALSE(true);
+      }
+      catch(...)
+      {
+         continue;
+      }
+   }
+
+   //decrypt the other values with proper key pair
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, currentKeyPair);
+         decryptedPairs.push_back(dataPair);
+      }
+      catch(...)
+      {
+         ASSERT_FALSE(true);
+      }
+   }
+
+   //check decrypted values
+   EXPECT_EQ(decryptedPairs[0].first, key1);
+   EXPECT_EQ(decryptedPairs[0].second, val1);
+
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(2));
+
+   EXPECT_EQ(decryptedPairs[2].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[2].second, getErasurePacket(3));   
+
+   EXPECT_EQ(decryptedPairs[3].first, key3);
+   EXPECT_EQ(decryptedPairs[3].second, val4);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
+{
+   auto dbEnv = make_shared<LMDBEnv>();
+   dbEnv->open(dbPath_, 1);
+   auto filename = dbEnv->getFilename();
+   ASSERT_EQ(filename, dbPath_);
+
+   auto&& controlSalt = CryptoPRNG::generateRandom(32);
+   auto&& rawRoot = CryptoPRNG::generateRandom(32);
+   string dbName("test");
+
+   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+
+   //sanity check
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   dbIface->loadAllEntries(rawRoot);
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+
+   //generate data
+   auto&& key1 = CryptoPRNG::generateRandom(20);
+   auto&& key2 = CryptoPRNG::generateRandom(15);
+   auto&& key3 = CryptoPRNG::generateRandom(12);
+
+   auto&& val1 = CryptoPRNG::generateRandom(64);
+   auto&& val2 = CryptoPRNG::generateRandom(64);
+   auto&& val3 = CryptoPRNG::generateRandom(32);
+   auto&& val4 = CryptoPRNG::generateRandom(16);
+   auto&& val5 = CryptoPRNG::generateRandom(120);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   {
+      //write data
+      WalletIfaceTransaction tx(dbIface.get(), true);
+      tx.insert(key1, val1);
+      tx.insert(key2, val2);
+      tx.insert(key3, val3);
+   }
+
+   //check entry count
+   ASSERT_EQ(dbIface->getEntryCount(), 3);
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   {
+      //amend db in new transaction
+      WalletIfaceTransaction tx(dbIface.get(), true);
+      
+      tx.erase(key3);
+      tx.insert(key3, val4);
+      tx.erase(key2);
+
+      auto key2Data = tx.getDataRef(key2);
+      EXPECT_EQ(key2Data.getSize(), 0);
+
+      auto key3Data = tx.getDataRef(key3);
+      EXPECT_EQ(key3Data, val4);
+   }
+
+   //check file content
+   {
+      ASSERT_FALSE(TestUtils::searchFile(filename, key1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, key3));
+
+      ASSERT_FALSE(TestUtils::searchFile(filename, val1));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val2));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val3));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val4));
+      ASSERT_FALSE(TestUtils::searchFile(filename, val5));
+   }
+
+   //check entry count
+   ASSERT_EQ(dbIface->getEntryCount(), 2);
+
+   //close dbIface
+   dbIface->close();
+   dbIface.reset();
+
+   //open LMDB object
+   LMDB dbObj;
+   {
+      auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+      dbObj.open(dbEnv.get(), dbName);
+   }
+
+   //grab all entries in db
+   auto&& keyValMap = getAllEntries(dbEnv, dbObj);
+   EXPECT_EQ(keyValMap.size(), 5);
+
+   //check gaps
+   {
+      auto&& gaps = tallyGaps(keyValMap);
+      ASSERT_EQ(gaps.size(), 2);
+
+      auto gapsIter = gaps.begin();
+      EXPECT_EQ(*gapsIter, 2);
+      
+      ++gapsIter;
+      EXPECT_EQ(*gapsIter, 3);
+
+      ++gapsIter;
+      EXPECT_EQ(gapsIter, gaps.end());
+   }
+
+   //convert to IES packets
+   vector<IESPacket> packets;
+   for(auto& keyVal : keyValMap)
+   {
+      auto&& iesPacket = getIESData(keyVal);
+      packets.push_back(iesPacket);
+   }
+
+   //check cryptographic material
+   for(unsigned i=0; i<packets.size(); i++)
+   {
+      auto& packet = packets[i];
+
+      ASSERT_TRUE(CryptoECDSA().VerifyPublicKeyValid(packet.pubKey_));
+      ASSERT_NE(packet.iv_, allZeroes16_);
+
+      for(unsigned y=0; y<packets.size(); y++)
+      {
+         if (y==i)
+            continue;
+
+         auto packetY = packets[y];
+         ASSERT_NE(packet.iv_, packetY.iv_);
+         ASSERT_NE(packet.pubKey_, packetY.pubKey_);
+      }
+   }
+
+   /* decryption leg */
+
+   //generate seed
+   auto&& saltedRoot = BtcUtils::getHMAC256(controlSalt, rawRoot);
+
+   //generate first key pair
+   auto&& firstKeyPair = generateKeyPair(saltedRoot, 0);
+
+   pair<SecureBinaryData, SecureBinaryData> currentKeyPair;
+   try
+   {
+      auto& packet = packets[0];
+
+      //check cylce flag is first entry in db
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+
+      //check first entry is a cycle flag
+      auto&& dataPair = decryptPair(packet, firstKeyPair);
+      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+
+      //cycle key pair
+      currentKeyPair = generateKeyPair(saltedRoot, 1);
+   }
+   catch(...)
+   {
+      ASSERT_FALSE(true);
+   }
+
+   //decrypt the other values with wrong key pair
+   vector<pair<BinaryData, BinaryData>> decryptedPairs;
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, firstKeyPair);
+         decryptedPairs.push_back(dataPair);
+         ASSERT_FALSE(true);
+      }
+      catch(...)
+      {
+         continue;
+      }
+   }
+
+   //decrypt the other values with proper key pair
+   for (unsigned i=1; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, currentKeyPair);
+         decryptedPairs.push_back(dataPair);
+      }
+      catch(...)
+      {
+         ASSERT_FALSE(true);
+      }
+   }
+
+   //check decrypted values
+   EXPECT_EQ(decryptedPairs[0].first, key1);
+   EXPECT_EQ(decryptedPairs[0].second, val1);
+
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(3));
+
+   EXPECT_EQ(decryptedPairs[2].first, key3);
+   EXPECT_EQ(decryptedPairs[2].second, val4);   
+   
+   EXPECT_EQ(decryptedPairs[3].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[3].second, getErasurePacket(2));   
+
+   //cycle dbEnv
+   dbObj.close();
+   dbEnv->close();
+   dbEnv->open(filename, 1);
+
+   //reopen db
+   dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+
+   //sanity check
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   dbIface->loadAllEntries(rawRoot);
+   ASSERT_EQ(dbIface->getEntryCount(), 2);
+
+   {
+      //read db values
+      WalletIfaceTransaction tx(dbIface.get(), false);
+      
+      auto key1Data = tx.getDataRef(key1);
+      EXPECT_EQ(key1Data, val1);
+
+      auto key2Data = tx.getDataRef(key2);
+      EXPECT_EQ(key2Data.getSize(), 0);
+
+      auto key3Data = tx.getDataRef(key3);
+      EXPECT_EQ(key3Data, val4);     
+   }
+
+   auto key4 = CryptoPRNG::generateRandom(30);
+   auto val6 = CryptoPRNG::generateRandom(154);
+
+   {
+      //amend db in new transaction
+      WalletIfaceTransaction tx(dbIface.get(), true);
+      
+      tx.insert(key2, val5);
+      tx.insert(key4, val3);
+      tx.insert(key3, val6);
+      tx.wipe(key1);
+
+      auto key1Data = tx.getDataRef(key1);
+      EXPECT_EQ(key1Data.getSize(), 0);
+
+      auto key2Data = tx.getDataRef(key2);
+      EXPECT_EQ(key2Data, val5);
+
+      auto key3Data = tx.getDataRef(key3);
+      EXPECT_EQ(key3Data, val6);
+
+      auto key4Data = tx.getDataRef(key4);
+      EXPECT_EQ(key4Data, val3);
+   }
+
+   //close dbIface
+   dbIface->close();
+   dbIface.reset();
+
+   //open LMDB object
+   LMDB dbObj2;
+   {
+      auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+      dbObj2.open(dbEnv.get(), dbName);
+   }
+
+   //grab all entries in db
+   keyValMap = getAllEntries(dbEnv, dbObj2);
+   EXPECT_EQ(keyValMap.size(), 9);
+
+   //check gaps
+   {
+      auto&& gaps = tallyGaps(keyValMap);
+      ASSERT_EQ(gaps.size(), 4);
+
+      auto gapsIter = gaps.begin();
+      EXPECT_EQ(*gapsIter, 1);
+      
+      ++gapsIter;
+      EXPECT_EQ(*gapsIter, 2);
+
+      ++gapsIter;
+      EXPECT_EQ(*gapsIter, 3);
+
+      ++gapsIter;
+      EXPECT_EQ(*gapsIter, 5);
+
+      ++gapsIter;
+      EXPECT_EQ(gapsIter, gaps.end());
+   }
+
+   //convert to IES packets
+   packets.clear();
+   for(auto& keyVal : keyValMap)
+   {
+      auto&& iesPacket = getIESData(keyVal);
+      packets.push_back(iesPacket);
+   }
+
+   //check cryptographic material
+   for(unsigned i=0; i<packets.size(); i++)
+   {
+      auto& packet = packets[i];
+
+      ASSERT_TRUE(CryptoECDSA().VerifyPublicKeyValid(packet.pubKey_));
+      ASSERT_NE(packet.iv_, allZeroes16_);
+
+      for(unsigned y=0; y<packets.size(); y++)
+      {
+         if (y==i)
+            continue;
+
+         auto packetY = packets[y];
+         ASSERT_NE(packet.iv_, packetY.iv_);
+         ASSERT_NE(packet.pubKey_, packetY.pubKey_);
+      }
+   }
+
+   /* 2nd decryption leg */
+
+   try
+   {
+      auto& packet = packets[0];
+
+      //check cylce flag is first entry in db
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+
+      //check first entry is a cycle flag
+      auto&& dataPair = decryptPair(packet, firstKeyPair);
+      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+   }
+   catch(...)
+   {
+      ASSERT_FALSE(true);
+   }
+
+   //decrypt the other values
+   decryptedPairs.clear();
+   for (unsigned i=1; i<4; i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, currentKeyPair);
+         decryptedPairs.push_back(dataPair);
+      }
+      catch(...)
+      {
+         ASSERT_FALSE(true);
+      }
+   }
+
+   {
+      //check packets[2] is a cycle flag
+      ASSERT_EQ(decryptedPairs[2].first.getSize(), 0);
+      ASSERT_EQ(decryptedPairs[2].second, BinaryData("cycle"));
+
+      //cycle key
+      currentKeyPair = generateKeyPair(saltedRoot, 2);
+   }
+
+   //decrypt last set of values with cycled keys
+   for (unsigned i=4; i<packets.size(); i++)
+   {
+      auto packet = packets[i];
+
+      try
+      {
+         auto&& dataPair = decryptPair(packet, currentKeyPair);
+         decryptedPairs.push_back(dataPair);
+      }
+      catch(...)
+      {
+         ASSERT_FALSE(true);
+      }
+   }
+
+   //check decrypted values
+   EXPECT_EQ(decryptedPairs[0].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[0].second, getErasurePacket(3));
+   
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(2));   
+
+   EXPECT_EQ(decryptedPairs[3].first, key2);
+   EXPECT_EQ(decryptedPairs[3].second, val5);   
+
+   EXPECT_EQ(decryptedPairs[4].first, key4);
+   EXPECT_EQ(decryptedPairs[4].second, val3);   
+
+   EXPECT_EQ(decryptedPairs[5].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[5].second, getErasurePacket(5));
+
+   EXPECT_EQ(decryptedPairs[6].first, key3);
+   EXPECT_EQ(decryptedPairs[6].second, val6);   
+
+   EXPECT_EQ(decryptedPairs[7].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[7].second, getErasurePacket(1));
+
+   dbObj2.close();
+   dbEnv->close();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletInterfaceTest, Passphrase_Test)
+{
+   //passphrase lambdas
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData("abcd");
+   };
+
+   auto passEmpty = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData();
+   };
+
+   {
+      //create wallet iface
+      WalletDBInterface dbIface;
+      dbIface.setupEnv(dbPath_, passLbd);
+
+      //close iface
+      dbIface.shutdown();
+   }
+
+   {
+      //try to open iface with wrong passphrase
+      try
+      {
+         WalletDBInterface dbIface;
+         dbIface.setupEnv(dbPath_, passEmpty);
+         ASSERT_TRUE(false);
+      }
+      catch (DecryptedDataContainerException& e)
+      {
+         EXPECT_EQ(e.what(), string("empty passphrase"));
+      }
+
+      //open with proper passphrase
+      try
+      {
+         WalletDBInterface dbIface;
+         dbIface.setupEnv(dbPath_, passLbd);
+         dbIface.shutdown();
+      }
+      catch(...)
+      {
+         ASSERT_FALSE(true);
+      }
+   }
+
+   auto dbPath2 = homedir_;
+   DBUtils::appendPath(dbPath2, "db2_test");
+
+   {
+      //create wallet iface with empty passphrase lambda
+      WalletDBInterface dbIface;
+      dbIface.setupEnv(dbPath2, passEmpty);
+
+      //close iface
+      dbIface.shutdown();
+   }
+
+   {
+      auto passLbd2 = [](const set<BinaryData>&)->SecureBinaryData
+      {
+         throw runtime_error("shouldn't get here");
+      };
+
+      //reopen iface, check it won't hit the passphrase lambda
+      WalletDBInterface dbIface;
+      try
+      {
+         dbIface.setupEnv(dbPath2, passLbd2);
+         dbIface.shutdown();
+      }
+      catch (...)
+      {
+         ASSERT_TRUE(false);
+      }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletInterfaceTest, DbCount_Test)
+{
+   //lambdas
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData("abcd");
+   };
+
+   auto checkDbValues = [](WalletDBInterface& iface, string dbName, 
+      map<BinaryData, BinaryData> dataMap)->bool
+   {
+      auto tx = iface.beginReadTransaction(dbName);
+
+      auto dbIter = tx->getIterator();
+      while (dbIter->isValid())
+      {
+         auto key = dbIter->key();
+         auto val = dbIter->value();
+
+         auto dataIter = dataMap.find(key);
+         if(dataIter != dataMap.end())
+         {
+            if(dataIter->second == val)
+               dataMap.erase(dataIter);
+         }
+
+         dbIter->advance();
+      }
+
+      return dataMap.size() == 0;
+   };
+
+   //create wallet dbEnv
+   WalletDBInterface dbIface;
+   dbIface.setupEnv(dbPath_, passLbd);
+
+   //add db
+   {
+      EXPECT_EQ(dbIface.getDbCount(), 0);
+
+      auto headerPtr = make_shared<WalletHeader_Custom>();
+      headerPtr->walletID_ = BinaryData("db1");
+
+      dbIface.lockControlContainer(passLbd);
+      dbIface.addHeader(headerPtr);
+      dbIface.unlockControlContainer();
+      EXPECT_EQ(dbIface.getDbCount(), 1);
+   }
+
+   {
+      auto dbHeader = dbIface.getWalletHeader("db1");
+      ASSERT_EQ(dbHeader->getDbName(), "db1");
+      ASSERT_NE(dynamic_pointer_cast<WalletHeader_Custom>(dbHeader), nullptr);
+   }
+
+   //set db1 values
+   map<BinaryData, BinaryData> db1Values;
+   for (unsigned i=0; i<10; i++)
+   {
+      db1Values.insert(make_pair(
+         CryptoPRNG::generateRandom(10),
+         CryptoPRNG::generateRandom(30)));
+   }
+   
+   {
+      auto tx = dbIface.beginWriteTransaction("db1");
+      for (auto& keyVal : db1Values)
+         tx->insert(keyVal.first, keyVal.second);
+   }
+
+   //check db1 values
+   EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
+
+   //increase db count to 2
+   dbIface.setDbCount(2);
+
+   //check values of first db are still valid
+   EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
+
+   //modify first db, check it works
+   {
+      auto tx = dbIface.beginWriteTransaction("db1");
+      auto db1Iter = db1Values.begin();
+      db1Iter++; db1Iter++;
+      db1Iter->second = CryptoPRNG::generateRandom(18);
+      tx->insert(db1Iter->first, db1Iter->second);
+      
+      db1Iter++; db1Iter++;
+      db1Iter->second = CryptoPRNG::generateRandom(42);
+      tx->insert(db1Iter->first, db1Iter->second);
+
+      auto dataPair = make_pair(
+         CryptoPRNG::generateRandom(14),
+         CryptoPRNG::generateRandom(80));
+      tx->insert(dataPair.first, dataPair.second);
+      db1Values.insert(dataPair);
+   }
+
+   //check modifcations held
+   EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
+  
+   //add new db
+   {
+      EXPECT_EQ(dbIface.getDbCount(), 1);
+      auto headerPtr = make_shared<WalletHeader_Custom>();
+      headerPtr->walletID_ = BinaryData("db2");
+
+      dbIface.lockControlContainer(passLbd);
+      dbIface.addHeader(headerPtr);
+      dbIface.unlockControlContainer();
+      EXPECT_EQ(dbIface.getDbCount(), 2);
+   }
+
+   //check db1 modifcations held
+   EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
+
+   //set db2 values
+   map<BinaryData, BinaryData> db2Values;
+   for (unsigned i=0; i<15; i++)
+   {
+      db2Values.insert(make_pair(
+         CryptoPRNG::generateRandom(12),
+         CryptoPRNG::generateRandom(38)));
+   }
+
+   {
+      auto tx = dbIface.beginWriteTransaction("db2");
+      for (auto& keyVal : db2Values)
+         tx->insert(keyVal.first, keyVal.second);
+   }
+
+   //check values
+   EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
+   EXPECT_TRUE(checkDbValues(dbIface, "db2", db2Values));
+
+   //try to add db, should fail
+   try
+   {
+      EXPECT_EQ(dbIface.getDbCount(), 2);
+      auto headerPtr = make_shared<WalletHeader_Custom>();
+      headerPtr->walletID_ = BinaryData("db3");
+
+      dbIface.lockControlContainer(passLbd);
+      dbIface.addHeader(headerPtr);
+      ASSERT_TRUE(false);
+   }
+   catch (WalletInterfaceException& e)
+   {
+      EXPECT_EQ(e.what(), string("dbCount is too low"));
+      dbIface.unlockControlContainer();
+      EXPECT_EQ(dbIface.getDbCount(), 2);
+   }
+
+   //shutdown db env
+   dbIface.shutdown();
+
+   //check dbIface is dead
+   try
+   {
+      auto tx = dbIface.beginReadTransaction(CONTROL_DB_NAME);
+      ASSERT_TRUE(false);
+   }
+   catch (LMDBException& e)
+   {
+      EXPECT_EQ(e.what(), string("null LMDBEnv"));
+   }
+
+   try
+   {
+      auto tx = dbIface.beginReadTransaction("db1");
+      ASSERT_TRUE(false);
+   } 
+   catch (WalletInterfaceException& e)
+   {
+      EXPECT_EQ(e.what(), string("invalid db name"));
+   }
+
+   try
+   {
+      dbIface.lockControlContainer(passLbd);
+      ASSERT_TRUE(false);
+   }
+   catch (LockableException& e)
+   {      
+      EXPECT_EQ(e.what(), string("null lockable ptr"));
+   }
+
+   //setup db env anew
+   dbIface.setupEnv(dbPath_, passLbd);
+
+   try
+   {
+      //try to increase db count while a tx is live, should fail
+      auto tx = dbIface.beginReadTransaction("db1");
+      dbIface.setDbCount(5);
+   }
+   catch (WalletInterfaceException& e)
+   {
+      EXPECT_EQ(e.what(), string("live transactions, cannot change dbCount"));
+   }
+
+   //increase db count
+   dbIface.setDbCount(5);
+   EXPECT_EQ(dbIface.getDbCount(), 2);
+
+   //check db1 values
+   EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
+
+   //check db2 values
+   EXPECT_TRUE(checkDbValues(dbIface, "db2", db2Values));
+
+   //add 3rd db
+   {
+      auto headerPtr = make_shared<WalletHeader_Custom>();
+      headerPtr->walletID_ = BinaryData("db3");
+
+      dbIface.lockControlContainer(passLbd);
+      dbIface.addHeader(headerPtr);
+      dbIface.unlockControlContainer();
+      EXPECT_EQ(dbIface.getDbCount(), 3);
+   }
+
+   //modify db2
+   {
+      auto tx = dbIface.beginWriteTransaction("db2");
+      auto db2Iter = db2Values.begin();
+      db2Iter++; db2Iter++; db2Iter++;
+      db2Iter->second = CryptoPRNG::generateRandom(22);
+      tx->insert(db2Iter->first, db2Iter->second);
+      
+      db2Iter++;
+      db2Iter->second = CryptoPRNG::generateRandom(16);
+      tx->insert(db2Iter->first, db2Iter->second);
+
+      auto dataPair = make_pair(
+         CryptoPRNG::generateRandom(36),
+         CryptoPRNG::generateRandom(124));
+      tx->insert(dataPair.first, dataPair.second);
+      db2Values.insert(dataPair);
+   }
+
+   //set db3 values
+   map<BinaryData, BinaryData> db3Values;
+   for (unsigned i=0; i<20; i++)
+   {
+      db3Values.insert(make_pair(
+         CryptoPRNG::generateRandom(24),
+         CryptoPRNG::generateRandom(48)));
+   }
+
+   {
+      auto tx = dbIface.beginWriteTransaction("db3");
+      for (auto& keyVal : db3Values)
+         tx->insert(keyVal.first, keyVal.second);
+   }
+
+   //check values
+   EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
+   EXPECT_TRUE(checkDbValues(dbIface, "db2", db2Values));
+   EXPECT_TRUE(checkDbValues(dbIface, "db3", db3Values));
+
+   //try to overwrite db3
+   try
+   {
+      EXPECT_EQ(dbIface.getDbCount(), 3);
+      auto headerPtr = make_shared<WalletHeader_Custom>();
+      headerPtr->walletID_ = BinaryData("db3");
+
+      dbIface.lockControlContainer(passLbd);
+      dbIface.addHeader(headerPtr);
+      ASSERT_FALSE(true);
+   }
+   catch (WalletInterfaceException& e)
+   {
+      dbIface.unlockControlContainer();
+      EXPECT_EQ(e.what(), string("header already in map"));
+   }
+
+   //check values
+   EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
+   EXPECT_TRUE(checkDbValues(dbIface, "db2", db2Values));
+   EXPECT_TRUE(checkDbValues(dbIface, "db3", db3Values));
+
+   //try to shutdown env with live tx, should fail
+   try
+   {
+      auto tx = dbIface.beginReadTransaction("db2");
+      dbIface.shutdown();
+      ASSERT_FALSE(true);
+   }
+   catch (WalletInterfaceException& e)
+   {
+      EXPECT_EQ(e.what(), string("live transactions, cannot shutdown env"));
+   }
+
+   //shutdown env
+   dbIface.shutdown();
+
+   //setup db env anew
+   dbIface.setupEnv(dbPath_, passLbd);
+
+   //check db values
+   EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
+   EXPECT_TRUE(checkDbValues(dbIface, "db2", db2Values));
+   EXPECT_TRUE(checkDbValues(dbIface, "db3", db3Values));
+}
+
+//TODO
+//tampering tests
+
+//entry padding length test
+
+//wiping tests
+
+//WalletIfaceTransaction tests
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+class WalletsTest : public ::testing::Test
+{
+protected:
+   string homedir_;
+   SecureBinaryData controlPass_;
+   function<SecureBinaryData(const set<BinaryData>&)> controlLbd_;
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void SetUp()
+   {
+      LOGDISABLESTDOUT();
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      controlPass_ = SecureBinaryData("control");
+      controlLbd_ = [this](const set<BinaryData>&)->SecureBinaryData
+      {
+         return controlPass_;
+      };
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -251,6 +1718,7 @@ TEST_F(WalletsTest, CreateCloseOpen_Test)
          homedir_,
          move(wltRoot), //root as a r value
          SecureBinaryData("passphrase"), 
+         SecureBinaryData("control"),
          4); //set lookup computation to 4 entries
 
       //get AddrVec
@@ -266,7 +1734,11 @@ TEST_F(WalletsTest, CreateCloseOpen_Test)
    }
 
    //load all wallets in homedir
-   WalletManager wltMgr(homedir_);
+   auto controlLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData("control");
+   };
+   WalletManager wltMgr(homedir_, controlLbd);
 
    class WalletContainerEx : public WalletContainer
    {
@@ -302,7 +1774,9 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
       homedir_,
       move(wltRoot), //root as a r value
       SecureBinaryData("passphrase"),
+      SecureBinaryData("control"),
       4); //set lookup computation to 4 entries
+   auto filename = assetWlt->getDbFilename();
 
    //get AddrVec
    auto&& hashSet = assetWlt->getAddrHashSet();
@@ -318,12 +1792,27 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
       homedir_,
       pubRoot,
       chainCode,
+      SecureBinaryData("control"),
       4);
 
    //get AddrVec
    auto&& hashSetWO = woWallet->getAddrHashSet();
 
    ASSERT_EQ(hashSet, hashSetWO);
+   auto woFilename = woWallet->getDbFilename();
+   woWallet.reset();
+   unlink(woFilename.c_str());
+
+   //fork WO from full wallet
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData("control");
+   };
+   auto forkFilename = AssetWallet_Single::forkWatchingOnly(filename, passLbd);
+
+   auto woFork = AssetWallet::loadMainWalletFromFile(forkFilename, passLbd);
+   auto hashSetFork = woFork->getAddrHashSet();
+   ASSERT_EQ(hashSet, hashSetFork);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -336,6 +1825,7 @@ TEST_F(WalletsTest, Encryption_Test)
       homedir_,
       wltRoot, //root as a r value
       SecureBinaryData("passphrase"),
+      SecureBinaryData("control"),
       4); //set lookup computation to 4 entries
 
    //derive private chain from root
@@ -387,6 +1877,7 @@ TEST_F(WalletsTest, Encryption_Test)
       ASSERT_FALSE(TestUtils::searchFile(filename, privkey));
    }
 
+   /** Can't do these checks anymore as whole wallet is encrypted **/
    for (auto& pubkey : publicKeys)
    {
       ASSERT_TRUE(TestUtils::searchFile(filename, pubkey));
@@ -410,7 +1901,7 @@ TEST_F(WalletsTest, SeedEncryption)
    //create regular wallet
    auto&& seed = CryptoPRNG::generateRandom(32);
    auto wlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, derPath, passphrase, 10);
+      homedir_, seed, derPath, passphrase, SecureBinaryData("control"), 10);
 
    //check clear text seed does not exist on disk
    auto filename = wlt->getDbFilename();
@@ -425,8 +1916,7 @@ TEST_F(WalletsTest, SeedEncryption)
       ASSERT_TRUE(false);
    }
    catch (DecryptedDataContainerException&)
-   {
-   }
+   {}
 
    //set passphrase lambda
    auto passLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
@@ -443,8 +1933,7 @@ TEST_F(WalletsTest, SeedEncryption)
       ASSERT_TRUE(false);
    }
    catch (DecryptedDataContainerException&)
-   {
-   }
+   {}
 
    //lock, grab and check
    try
@@ -474,10 +1963,10 @@ TEST_F(WalletsTest, SeedEncryption)
    wlt.reset();
 
    //create WO
-   auto woFilename = AssetWallet::forkWathcingOnly(filename);
+   auto woFilename = AssetWallet::forkWatchingOnly(filename, controlLbd_);
 
    //check it has no seed
-   auto wo = AssetWallet::loadMainWalletFromFile(woFilename);
+   auto wo = AssetWallet::loadMainWalletFromFile(woFilename, controlLbd_);
    auto woWlt = dynamic_pointer_cast<AssetWallet_Single>(wo);
 
    ASSERT_NE(woWlt, nullptr);
@@ -485,7 +1974,7 @@ TEST_F(WalletsTest, SeedEncryption)
 
    //reload wallet
    ASSERT_EQ(wlt, nullptr);
-   auto wltReload = AssetWallet::loadMainWalletFromFile(filename);
+   auto wltReload = AssetWallet::loadMainWalletFromFile(filename, controlLbd_);
    wlt = dynamic_pointer_cast<AssetWallet_Single>(wltReload);
    ASSERT_NE(wlt, nullptr);
 
@@ -512,6 +2001,7 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       homedir_,
       wltRoot, //root as a r value
       SecureBinaryData("passphrase"), //set passphrase to "test"
+      controlPass_,
       4); //set lookup computation to 4 entries
 
    auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
@@ -626,7 +2116,7 @@ TEST_F(WalletsTest, LockAndExtend_Test)
    auto wltID = assetWlt->getID();
    assetWlt.reset();
 
-   WalletManager wltMgr(homedir_);
+   WalletManager wltMgr(homedir_, controlLbd_);
 
    class WalletContainerEx : public WalletContainer
    {
@@ -659,7 +2149,336 @@ TEST_F(WalletsTest, LockAndExtend_Test)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WalletsTest, WrongPassphrase_Test)
+TEST_F(WalletsTest, ControlPassphrase_Test)
+{
+   auto goodPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData("control");
+   };
+
+   auto noPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData();
+   };
+
+   auto checkSubDbValues = [](
+      shared_ptr<AssetWallet> wlt,
+      const string& dbName,
+      map<BinaryData, BinaryData> dataMap)->bool
+   {
+      auto tx = wlt->beginSubDBTransaction(dbName, false);
+      auto iter = tx->getIterator();
+
+      while (iter->isValid())
+      {
+         auto key = iter->key();
+         auto mapIter = dataMap.find(key);
+         if (mapIter != dataMap.end())
+         {
+            if (mapIter->second == iter->value())
+               dataMap.erase(mapIter);
+         }
+
+         iter->advance();
+      }
+
+      return dataMap.size() == 0;
+   };
+
+   //create wallet with control passphrase
+   map<BinaryData, BinaryData> subDbData;
+   for (unsigned i=0; i<20; i++)
+   {
+      subDbData.insert(make_pair(
+         CryptoPRNG::generateRandom(20),
+         CryptoPRNG::generateRandom(124)));
+   }
+
+   string filename;
+   set<BinaryData> addrSet;
+   {
+      auto&& wltRoot = CryptoPRNG::generateRandom(32);
+      auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+         homedir_,
+         wltRoot, //root as a r value
+         SecureBinaryData("test"), //set passphrase to "test"
+         SecureBinaryData("control"), //control passphrase
+         4); //set lookup computation to 4 entries
+      filename = assetWlt->getDbFilename();
+      addrSet = assetWlt->getAddrHashSet();
+      ASSERT_EQ(addrSet.size(), 16);
+
+      unsigned count = 0;
+      auto badPassLbd = [&count](const set<BinaryData>&)->SecureBinaryData
+      {
+         while (count++ < 3)
+            return CryptoPRNG::generateRandom(15);
+         return SecureBinaryData();
+      };
+
+      //with bad pass
+      try
+      {
+         assetWlt->addSubDB("test-subdb", badPassLbd);
+         ASSERT_TRUE(false);
+      }
+      catch (exception& e)
+      {
+         EXPECT_EQ(e.what(), string("empty passphrase"));
+      }
+
+      //with good pass
+      assetWlt->addSubDB("test-subdb", goodPassLbd);
+      
+      //set some subdb values
+      {
+         auto&& tx = assetWlt->beginSubDBTransaction("test-subdb", true);
+         for (auto& keyVal : subDbData)
+            tx->insert(keyVal.first, keyVal.second);
+      }
+
+      EXPECT_TRUE(checkSubDbValues(assetWlt, "test-subdb", subDbData));
+   }
+
+   {
+      unsigned badPassCtr = 0;
+      auto badPassLbd = [&badPassCtr](const set<BinaryData>&)->SecureBinaryData
+      {
+         if(badPassCtr++ > 3)
+            return SecureBinaryData();
+         return CryptoPRNG::generateRandom(20);
+      };
+
+      try
+      {
+         auto assetWlt = AssetWallet::loadMainWalletFromFile(
+            filename, badPassLbd);
+         ASSERT_TRUE(false);
+      }
+      catch(DecryptedDataContainerException& e)
+      {
+         EXPECT_EQ(e.what(), string("empty passphrase"));
+      }
+
+      try
+      {
+         auto assetWlt = AssetWallet::loadMainWalletFromFile(
+            filename, noPassLbd);
+         ASSERT_TRUE(false);
+      }
+      catch(DecryptedDataContainerException& e)
+      {
+         EXPECT_EQ(e.what(), string("empty passphrase"));
+      }
+
+      auto assetWlt = AssetWallet::loadMainWalletFromFile(
+         filename, goodPassLbd);
+      auto loadedAddrSet = assetWlt->getAddrHashSet();
+
+      //wallet values
+      EXPECT_EQ(addrSet, loadedAddrSet);
+      EXPECT_TRUE(checkSubDbValues(assetWlt, "test-subdb", subDbData));
+   }
+
+   //create WO copy with different passphrase
+   {
+      BinaryData wltPassID;
+      try
+      {
+         //try with bad pass, should fail
+         auto badPassLbd = [&wltPassID](const set<BinaryData>& ids)->SecureBinaryData
+         {
+            if (wltPassID.getSize() == 0)
+            {
+               if (ids.size() != 1)
+                  throw range_error("");
+               wltPassID = *ids.begin();
+               return CryptoPRNG::generateRandom(10);
+            }
+
+            return SecureBinaryData(0);
+         };
+         auto woFilename = AssetWallet::forkWatchingOnly(filename, badPassLbd);
+         ASSERT_TRUE(false);
+      }
+      catch (DecryptedDataContainerException& e)
+      {
+         EXPECT_EQ(e.what(), string("empty passphrase"));
+      }
+
+      //set different pass for WO fork
+      auto passShift = [&wltPassID](const set<BinaryData>& ids)->SecureBinaryData
+      {
+         if (ids.size() == 1 && *ids.begin() == wltPassID)
+            return SecureBinaryData("control");
+         return SecureBinaryData("newwopass");
+      };
+      auto woFilename = AssetWallet::forkWatchingOnly(filename, passShift); 
+
+      //try to open WO with old pass, should fail
+      try
+      {
+         unsigned ctr = 0;
+         auto oldPassLbd = [&ctr](const set<BinaryData>&)->SecureBinaryData
+         {
+            while (ctr++ < 2)
+               return CryptoPRNG::generateRandom(18);
+            return SecureBinaryData();
+         };
+         auto woWlt = AssetWallet::loadMainWalletFromFile(woFilename, oldPassLbd);
+      }
+      catch (DecryptedDataContainerException& e)
+      {
+         EXPECT_EQ(e.what(), string("empty passphrase"));
+      }
+
+      auto newPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+      {
+         return SecureBinaryData("newwopass");
+      };
+      auto woWlt = AssetWallet::loadMainWalletFromFile(woFilename, passShift);
+      auto loadedAddrSet = woWlt->getAddrHashSet();
+      EXPECT_EQ(addrSet, loadedAddrSet);
+   }
+
+   /***********/
+
+   //create wallet with no passphrase
+   auto emptyPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      throw runtime_error("shouldn't get here");
+   };
+
+   string filename2;
+   {
+      auto&& wltRoot = CryptoPRNG::generateRandom(32);
+      auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
+         homedir_,
+         wltRoot, //root as a r value
+         { 0x80000044, 0x865f0000, 4884 },
+         SecureBinaryData("test"), //set passphrase to "test"
+         SecureBinaryData(), //empty control passphrase
+         4); //set lookup computation to 4 entries
+      filename2 = assetWlt->getDbFilename();
+      addrSet = assetWlt->getAddrHashSet();
+      ASSERT_EQ(addrSet.size(), 32);
+
+      //with good pass
+      try
+      {
+         assetWlt->addSubDB("test-subdb", emptyPassLbd);
+      }
+      catch (runtime_error&)
+      {
+         ASSERT_FALSE(true);
+      }
+
+      //set some subdb values
+      {
+         auto&& tx = assetWlt->beginSubDBTransaction("test-subdb", true);
+         for (auto& keyVal : subDbData)
+            tx->insert(keyVal.first, keyVal.second);
+      }
+
+      EXPECT_TRUE(checkSubDbValues(assetWlt, "test-subdb", subDbData));
+   }
+
+   //try to load, check passphrase lambda is never hit
+   {
+      auto assetWlt = AssetWallet::loadMainWalletFromFile(
+         filename2, emptyPassLbd);
+      auto loadedAddrSet = assetWlt->getAddrHashSet();
+
+      //wallet values
+      EXPECT_EQ(addrSet, loadedAddrSet);
+      EXPECT_TRUE(checkSubDbValues(assetWlt, "test-subdb", subDbData));
+   }
+
+   /***********/
+
+   {
+      //create WO copy (lambda that returns empty pass)
+      auto woFilename = 
+         AssetWallet_Single::forkWatchingOnly(filename2, noPassLbd);
+
+      //check WO wallet has no passphrase
+      auto wltWO = AssetWallet::loadMainWalletFromFile(
+         woFilename, emptyPassLbd);
+      auto loadedAddrSet = wltWO->getAddrHashSet();
+
+      //wallet values
+      EXPECT_EQ(addrSet, loadedAddrSet);
+
+      //subdb won't be copied
+      try
+      {
+         auto tx = wltWO->beginSubDBTransaction("test-subdb", false);
+         ASSERT_FALSE(true);
+      }
+      catch (WalletInterfaceException& e)
+      {
+         EXPECT_EQ(e.what(), string("invalid db name"));
+      }
+
+      //cleanup this WO
+      wltWO.reset();
+      unlink(woFilename.c_str());
+   }
+
+   /***********/
+   
+   {
+      auto newPass = [](const set<BinaryData>&)->SecureBinaryData
+      {
+         return SecureBinaryData("newpass");
+      };
+
+      //create WO with different pass
+      auto woFilename = 
+         AssetWallet_Single::forkWatchingOnly(filename2, newPass);
+
+      unsigned count = 0;
+      auto wrongPass = [&count](const set<BinaryData>&)->SecureBinaryData
+      {
+         while (count++ < 5)
+            return CryptoPRNG::generateRandom(12);
+         return SecureBinaryData();
+      };
+
+      try
+      {
+         auto wltWO = AssetWallet::loadMainWalletFromFile(
+         woFilename, wrongPass);
+         ASSERT_TRUE(false);
+      }
+      catch (DecryptedDataContainerException& e)
+      {
+         EXPECT_EQ(e.what(), string("empty passphrase"));
+      }
+
+      //check WO works with different pass
+      auto wltWO = AssetWallet::loadMainWalletFromFile(
+         woFilename, newPass);
+      auto loadedAddrSet = wltWO->getAddrHashSet();
+
+      //wallet values
+      EXPECT_EQ(addrSet, loadedAddrSet);
+
+      //subdb won't be copied
+      try
+      {
+         auto tx = wltWO->beginSubDBTransaction("test-subdb", false);
+         ASSERT_FALSE(true);
+      }
+      catch (WalletInterfaceException& e)
+      {
+         EXPECT_EQ(e.what(), string("invalid db name"));
+      }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, SignPassphrase_Test)
 {
    //create wallet from priv key
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
@@ -667,6 +2486,7 @@ TEST_F(WalletsTest, WrongPassphrase_Test)
       homedir_,
       wltRoot, //root as a r value
       SecureBinaryData("test"), //set passphrase to "test"
+      SecureBinaryData("control"), //control passphrase
       4); //set lookup computation to 4 entries
 
    unsigned passphraseCount = 0;
@@ -753,6 +2573,7 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       wltRoot, //root as a r value
       derPath,
       SecureBinaryData("test"), //set passphrase to "test"
+      SecureBinaryData("control"),
       4); //set lookup computation to 4 entries
 
    unsigned passphraseCount = 0;
@@ -898,6 +2719,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       homedir_,
       wltRoot, //root as a r value
       SecureBinaryData("test"), //set passphrase to "test"
+      SecureBinaryData("control"),
       4); //set lookup computation to 4 entries
 
    auto&& chaincode = BtcUtils::computeChainCode_Armory135(wltRoot);
@@ -1065,7 +2887,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    auto walletID = assetWlt->getID();
    assetWlt.reset();
 
-   WalletManager wltMgr(homedir_);
+   WalletManager wltMgr(homedir_, controlLbd_);
 
    class WalletContainerEx : public WalletContainer
    {
@@ -1155,6 +2977,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    ASSERT_FALSE(TestUtils::searchFile(filename, ivVec[0]));
    ASSERT_FALSE(TestUtils::searchFile(filename, privateKeys[0]));
 
+   /** Can't do these checks anymore, as whole wallet is encrypted **/
    ASSERT_TRUE(TestUtils::searchFile(filename, newIVs[0]));
    ASSERT_TRUE(TestUtils::searchFile(filename, newPrivKeys[0]));
 }
@@ -1168,6 +2991,7 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
       homedir_,
       wltRoot, //root as a r value
       SecureBinaryData("test"), //set passphrase to "test"
+      controlPass_,
       4); //set lookup computation to 4 entries
 
    auto passLbd1 = [](const set<BinaryData>&)->SecureBinaryData
@@ -1266,6 +3090,7 @@ TEST_F(WalletsTest, BIP32_Chain)
       b58, //root as a r value
       derivationPath,
       SecureBinaryData("test"), //set passphrase to "test"
+      controlPass_,
       4); //set lookup computation to 4 entries
 
    auto passphrasePrompt = [](const set<BinaryData>&)->SecureBinaryData
@@ -1313,6 +3138,7 @@ TEST_F(WalletsTest, BIP32_Public_Chain)
       b58, //root as a r value
       derivationPath_Soft,
       SecureBinaryData(), //set passphrase to "test"
+      controlPass_,
       4); //set lookup computation to 4 entries
 
    auto accID = assetWlt->getMainAccountID();
@@ -1341,7 +3167,7 @@ TEST_F(WalletsTest, BIP32_ArmoryDefault)
    //create empty wallet
    SecureBinaryData passphrase("password");
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, derivationPath, passphrase, 5);
+      homedir_, seed, derivationPath, passphrase, controlPass_, 5);
 
    auto rootAccId = assetWlt->getMainAccountID();
    auto accRoot = assetWlt->getAccountRoot(rootAccId);
@@ -1391,7 +3217,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    //create empty wallet
    SecureBinaryData passphrase("password");
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-      homedir_, seed, passphrase);
+      homedir_, seed, passphrase, controlPass_);
 
    //this is a hard derivation scenario, the wallet needs to be able to 
    //decrypt its root's private key
@@ -1505,7 +3331,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    auto filename = assetWlt->getDbFilename();
    assetWlt.reset();
 
-   auto assetWlt2 = AssetWallet::loadMainWalletFromFile(filename);
+   auto assetWlt2 = AssetWallet::loadMainWalletFromFile(filename, controlLbd_);
    auto wltSingle2 = dynamic_pointer_cast<AssetWallet_Single>(assetWlt2);
    ASSERT_NE(wltSingle2, nullptr);
 
@@ -1568,11 +3394,13 @@ TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
    //create regular wallet
    auto&& seed = CryptoPRNG::generateRandom(32);
    auto wlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, derPath, passphrase, 10);
+      homedir_, seed, derPath, passphrase, controlPass_, 10);
 
    //create WO copy
-   auto woCopyPath = AssetWallet::forkWathcingOnly(wlt->getDbFilename());
-   auto woWlt = AssetWallet::loadMainWalletFromFile(woCopyPath);
+   auto woCopyPath = AssetWallet::forkWatchingOnly(
+      wlt->getDbFilename(), controlLbd_);
+   auto woWlt = AssetWallet::loadMainWalletFromFile(
+      woCopyPath, controlLbd_);
    auto woSingle = dynamic_pointer_cast<AssetWallet_Single>(woWlt);
 
    //check WO roots have no private keys
@@ -1653,7 +3481,7 @@ TEST_F(WalletsTest, AddressEntryTypes)
    //create regular wallet
    auto&& seed = CryptoPRNG::generateRandom(32);
    auto wlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, derPath, passphrase, 10);
+      homedir_, seed, derPath, passphrase, controlPass_, 10);
 
    //grab a bunch of addresses of various types
    set<BinaryData> addrHashes;
@@ -1685,7 +3513,8 @@ TEST_F(WalletsTest, AddressEntryTypes)
    wlt.reset();
 
    //load from file
-   auto loaded = AssetWallet::loadMainWalletFromFile(filename);
+   auto loaded = AssetWallet::loadMainWalletFromFile(
+      filename, controlLbd_);
 
    //check used address list from loaded wallet matches grabbed addresses
    {
@@ -1701,8 +3530,10 @@ TEST_F(WalletsTest, AddressEntryTypes)
    loaded.reset();
 
    //create WO copy
-   auto woFilename = AssetWallet::forkWathcingOnly(filename);
-   auto woLoaded = AssetWallet::loadMainWalletFromFile(woFilename);
+   auto woFilename = AssetWallet::forkWatchingOnly(
+      filename, controlLbd_);
+   auto woLoaded = AssetWallet::loadMainWalletFromFile(
+      woFilename, controlLbd_);
 
    {
       auto usedAddressMap = woLoaded->getUsedAddressMap();
@@ -1745,7 +3576,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       //create empty wallet
       SecureBinaryData passphrase("password");
       auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-         homedir_, seed, passphrase);
+         homedir_, seed, passphrase, controlPass_);
 
       auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
       {
@@ -1835,7 +3666,8 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
    }
 
    {
-      auto assetWlt = AssetWallet::loadMainWalletFromFile(filename);
+      auto assetWlt = AssetWallet::loadMainWalletFromFile(
+         filename, controlLbd_);
       auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(assetWlt);
       
       auto accountSalted1 = wltSingle->getAccountForID(accountID1);
@@ -1891,11 +3723,13 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       ASSERT_EQ(addrHashSet.size(), 80);
 
       //create WO copy
-      filename = AssetWallet_Single::forkWathcingOnly(filename);
+      filename = AssetWallet_Single::forkWatchingOnly(
+         filename, controlLbd_);
    }
 
    {
-      auto assetWlt = AssetWallet::loadMainWalletFromFile(filename);
+      auto assetWlt = AssetWallet::loadMainWalletFromFile(
+         filename, controlLbd_);
       auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(assetWlt);
 
       ASSERT_TRUE(wltSingle->isWatchingOnly());
@@ -1977,7 +3811,7 @@ TEST_F(WalletsTest, ECDH_Account)
    {
       //create empty wallet
       auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-         homedir_, seed, passphrase);
+         homedir_, seed, passphrase, controlPass_);
 
       auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
       {
@@ -2051,7 +3885,8 @@ TEST_F(WalletsTest, ECDH_Account)
 
    {
       //reload wallet
-      auto wlt = AssetWallet::loadMainWalletFromFile(filename);
+      auto wlt = AssetWallet::loadMainWalletFromFile(
+         filename, controlLbd_);
       auto assetWlt = dynamic_pointer_cast<AssetWallet_Single>(wlt);
       if (assetWlt == nullptr)
          throw runtime_error("unexpected wallet type");
@@ -2137,12 +3972,14 @@ TEST_F(WalletsTest, ECDH_Account)
       }
    }
       
-   woFilename = AssetWallet::forkWathcingOnly(filename);
+   woFilename = AssetWallet::forkWatchingOnly(
+      filename, controlLbd_);
 
    //same with WO
    {
       //reload wallet
-      auto wlt = AssetWallet::loadMainWalletFromFile(woFilename);
+      auto wlt = AssetWallet::loadMainWalletFromFile(
+         woFilename, controlLbd_);
       auto assetWlt = dynamic_pointer_cast<AssetWallet_Single>(wlt);
       if (assetWlt == nullptr)
          throw runtime_error("unexpected wallet type");
@@ -2237,7 +4074,12 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletMetaDataTest, AuthPeers)
 {
-   auto authPeers = make_unique<AuthorizedPeers>(homedir_, "test.peers");
+   auto peerPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData("authpeerpass");
+   };
+   auto authPeers = make_unique<AuthorizedPeers>(
+      homedir_, "test.peers", peerPassLbd);
 
    //auth meta account expects valid pubkeys
    auto&& privKey1 = CryptoPRNG::generateRandom(32);
@@ -2312,7 +4154,7 @@ TEST_F(WalletMetaDataTest, AuthPeers)
 
    //delete auth peer object, reload and test again
    authPeers.reset();
-   authPeers = make_unique<AuthorizedPeers>(homedir_, "test.peers");
+   authPeers = make_unique<AuthorizedPeers>(homedir_, "test.peers", peerPassLbd);
 
    {
       //check peer object has expected values
@@ -2547,7 +4389,7 @@ TEST_F(WalletMetaDataTest, AuthPeers)
 
    //delete auth peer object, reload and test again
    authPeers.reset();
-   authPeers = make_unique<AuthorizedPeers>(homedir_, "test.peers");
+   authPeers = make_unique<AuthorizedPeers>(homedir_, "test.peers", peerPassLbd);
 
    {
       //check peer object has expected values

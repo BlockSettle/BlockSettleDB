@@ -18,7 +18,8 @@ using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 AuthorizedPeers::AuthorizedPeers(
-   const string& datadir, const string& filename)
+   const string& datadir, const string& filename, 
+   const PassphraseLambda& passLbd)
 {
    auto path = datadir;
    DBUtils::appendPath(path, filename);
@@ -26,12 +27,12 @@ AuthorizedPeers::AuthorizedPeers(
    try
    {
       //try to load wallet
-      loadWallet(path);
+      loadWallet(path, passLbd);
    }
    catch (PeerFileMissing&)
    {
       //the wallet hasn't be setup to begin with, create it
-      createWallet(datadir, filename);
+      createWallet(datadir, filename, passLbd);
    }
 
    if (wallet_ == nullptr)
@@ -133,16 +134,19 @@ AuthorizedPeers::AuthorizedPeers()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AuthorizedPeers::loadWallet(const string& path)
+void AuthorizedPeers::loadWallet(
+   const string& path, const PassphraseLambda& passLbd)
 {
    if (!DBUtils::fileExists(path, 6))
       throw PeerFileMissing();
 
-   wallet_ = AssetWallet::loadMainWalletFromFile(path);
+   wallet_ = AssetWallet::loadMainWalletFromFile(path, passLbd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AuthorizedPeers::createWallet(const string& baseDir, const string& filename)
+void AuthorizedPeers::createWallet(
+   const string& baseDir, const string& filename, 
+   const PassphraseLambda& passLbd)
 {
    //Default peers wallet password. Asset wallets always encrypt private keys, 
    //have to provide a password at creation.
@@ -162,8 +166,9 @@ void AuthorizedPeers::createWallet(const string& baseDir, const string& filename
    string b58str(b58.toCharPtr(), b58.getSize());
 
    //initializing wallet from xpriv, use customized derivation path
+   auto&& controlPassphrase = passLbd(set<BinaryData>());
    wallet_ = AssetWallet_Single::createFromBase58_BIP32(
-      baseDir, b58str, derPath, password, 2);
+      baseDir, b58str, derPath, password, controlPassphrase, 2);
    
    //add the peers meta account
    wallet_->addMetaAccount(MetaAccount_AuthPeers);
@@ -186,7 +191,7 @@ void AuthorizedPeers::createWallet(const string& baseDir, const string& filename
    remove(currentname.c_str());
 
    //load from new file path in order to have valid db object
-   wallet_ = AssetWallet::loadMainWalletFromFile(path);
+   wallet_ = AssetWallet::loadMainWalletFromFile(path, passLbd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,203 +13,13 @@ using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-//// WalletMeta
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-WalletMeta::~WalletMeta()
-{}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryData WalletMeta::getDbKey()
-{
-   if (walletID_.getSize() == 0)
-      throw WalletException("empty master ID");
-
-   BinaryWriter bw;
-   bw.put_uint8_t(WALLETMETA_PREFIX);
-   bw.put_BinaryData(walletID_);
-
-   return bw.getData();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryData WalletMeta::serializeVersion() const
-{
-   BinaryWriter bw;
-   bw.put_uint8_t(versionMajor_);
-   bw.put_uint16_t(versionMinor_);
-   bw.put_uint16_t(revision_);
-
-   return bw.getData();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void WalletMeta::unseralizeVersion(BinaryRefReader& brr)
-{
-   versionMajor_ = brr.get_uint8_t();
-   versionMinor_ = brr.get_uint16_t();
-   revision_ = brr.get_uint16_t();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryData WalletMeta::serializeEncryptionKey() const
-{
-   BinaryWriter bw;
-   bw.put_var_int(defaultEncryptionKeyId_.getSize());
-   bw.put_BinaryData(defaultEncryptionKeyId_);
-   bw.put_var_int(defaultEncryptionKey_.getSize());
-   bw.put_BinaryData(defaultEncryptionKey_);
-
-   bw.put_var_int(defaultKdfId_.getSize());
-   bw.put_BinaryData(defaultKdfId_);
-   bw.put_var_int(masterEncryptionKeyId_.getSize());
-   bw.put_BinaryData(masterEncryptionKeyId_);
-
-
-   return bw.getData();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void WalletMeta::unserializeEncryptionKey(BinaryRefReader& brr)
-{
-   auto len = brr.get_var_int();
-   defaultEncryptionKeyId_ = move(brr.get_BinaryData(len));
-   
-   len = brr.get_var_int();
-   defaultEncryptionKey_ = move(brr.get_BinaryData(len));
-
-   len = brr.get_var_int();
-   defaultKdfId_ = move(brr.get_BinaryData(len));
-
-   len = brr.get_var_int();
-   masterEncryptionKeyId_ = move(brr.get_BinaryData(len));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryData WalletMeta_Single::serialize() const
-{
-   BinaryWriter bw;
-   bw.put_uint32_t(type_);
-   bw.put_BinaryData(serializeVersion());
-   bw.put_BinaryData(serializeEncryptionKey());
-
-   BinaryWriter final_bw;
-   final_bw.put_var_int(bw.getSize());
-   final_bw.put_BinaryDataRef(bw.getDataRef());
-
-   return final_bw.getData();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool WalletMeta_Single::shouldLoad() const
-{
-   return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryData WalletMeta_Multisig::serialize() const
-{
-   BinaryWriter bw;
-   bw.put_uint32_t(type_);
-   bw.put_BinaryData(serializeVersion());
-   bw.put_BinaryData(serializeEncryptionKey());
-
-   BinaryWriter final_bw;
-   final_bw.put_var_int(bw.getSize());
-   final_bw.put_BinaryDataRef(bw.getDataRef());
-
-   return final_bw.getData();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool WalletMeta_Multisig::shouldLoad() const
-{
-   return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryData WalletMeta_Subwallet::serialize() const
-{
-   BinaryWriter bw;
-   bw.put_var_int(4);
-   bw.put_uint32_t(type_);
-
-   return bw.getData();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool WalletMeta_Subwallet::shouldLoad() const
-{
-   return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-shared_ptr<WalletMeta> WalletMeta::deserialize(
-   shared_ptr<LMDBEnv> env, BinaryDataRef key, BinaryDataRef val)
-{
-   if (key.getSize() < 2)
-      throw WalletException("invalid meta key");
-
-   BinaryRefReader brrKey(key);
-   auto prefix = brrKey.get_uint8_t();
-   if (prefix != WALLETMETA_PREFIX)
-      throw WalletException("invalid wallet meta prefix");
-
-   string dbname((char*)brrKey.getCurrPtr(), brrKey.getSizeRemaining());
-
-   BinaryRefReader brrVal(val);
-   auto wltType = (WalletMetaType)brrVal.get_uint32_t();
-
-   shared_ptr<WalletMeta> wltMetaPtr;
-
-   switch (wltType)
-   {
-   case WalletMetaType_Single:
-   {
-      wltMetaPtr = make_shared<WalletMeta_Single>(env);
-      wltMetaPtr->unseralizeVersion(brrVal);
-      wltMetaPtr->unserializeEncryptionKey(brrVal);
-      break;
-   }
-
-   case WalletMetaType_Subwallet:
-   {
-      wltMetaPtr = make_shared<WalletMeta_Subwallet>(env);
-      break;
-   }
-
-   case WalletMetaType_Multisig:
-   {
-      wltMetaPtr = make_shared<WalletMeta_Multisig>(env);
-      wltMetaPtr->unseralizeVersion(brrVal);
-      wltMetaPtr->unserializeEncryptionKey(brrVal);
-      break;
-   }
-
-   default:
-      throw WalletException("invalid wallet type");
-   }
-
-   wltMetaPtr->dbName_ = move(dbname);
-   wltMetaPtr->walletID_ = brrKey.get_BinaryData(brrKey.getSizeRemaining());
-   return wltMetaPtr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
 //// AssetWallet
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 AssetWallet::~AssetWallet()
 {
    accounts_.clear();
-
-   if (db_ != nullptr)
-   {
-      db_->close();
-      delete db_;
-      db_ = nullptr;
-   }
+   iface_.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,14 +31,13 @@ shared_ptr<AddressAccount> AssetWallet::createAccount(
       decryptedData_->getMasterEncryptionKeyId());
 
    //instantiate AddressAccount object from AccountType
-   auto account_ptr = make_shared<AddressAccount>(dbEnv_, db_);
+   auto account_ptr = make_shared<AddressAccount>(iface_, dbName_);
    account_ptr->make_new(accountType, decryptedData_, move(cipher));
    auto accID = account_ptr->getID();
    if (accounts_.find(accID) != accounts_.end())
       throw WalletException("already have an address account with this path");
 
    //commit to disk
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
    account_ptr->commit();
 
    if (accountType->isMain())
@@ -241,11 +50,112 @@ shared_ptr<AddressAccount> AssetWallet::createAccount(
       BinaryWriter bwData;
       bwData.put_var_int(mainAccount_.getSize());
       bwData.put_BinaryData(mainAccount_);
-      putData(bwKey.getData(), bwData.getData());
+
+      auto&& tx = iface_->beginWriteTransaction(dbName_);
+      tx->insert(bwKey.getData(), bwData.getData());
    }
 
    accounts_.insert(make_pair(accID, account_ptr));
    return account_ptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::setMainWallet(
+   shared_ptr<WalletDBInterface> iface, const BinaryData& walletID)
+{
+   BinaryWriter bwKey;
+   bwKey.put_uint32_t(MAINWALLET_KEY);
+
+   BinaryWriter bwData;
+   bwData.put_var_int(walletID.getSize());
+   bwData.put_BinaryData(walletID);
+
+   auto&& tx = iface->beginWriteTransaction(WALLETHEADER_DBNAME);
+   tx->insert(bwKey.getData(), bwData.getData());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData AssetWallet::getMainWalletID(shared_ptr<WalletDBInterface> iface)
+{
+   BinaryWriter bwKey;
+   bwKey.put_uint32_t(MAINWALLET_KEY);
+
+   try
+   {
+      auto&& tx = iface->beginWriteTransaction(WALLETHEADER_DBNAME);   
+      return getDataRefForKey(tx.get(), bwKey.getData());
+   }
+   catch (NoEntryInWalletException&)
+   {
+      LOGERR << "main wallet ID is not set!";
+      throw WalletException("main wallet ID is not set!");
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData AssetWallet::getMasterID(shared_ptr<WalletDBInterface> iface)
+{
+   BinaryWriter bwKey;
+   bwKey.put_uint32_t(MASTERID_KEY);
+
+   auto tx = iface->beginReadTransaction(WALLETHEADER_DBNAME);
+   return getDataRefForKey(tx.get(), bwKey.getData());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::checkMasterID(const BinaryData& masterID)
+{
+   try
+   {
+      /*
+      Grab ID from disk, check it matches arg.
+      */
+
+      auto fromDisk = getMasterID(iface_);
+
+      //sanity check
+      if (fromDisk.getSize() == 0)
+      {
+         LOGERR << "empty master ID";
+         throw WalletException("empty master ID");
+      }
+
+      //only compare disk value with arg if the arg isn't empty
+      if (masterID.getSize() != 0 && masterID != fromDisk)
+      {
+         LOGERR << "masterID mismatch, aborting";
+         throw WalletException("masterID mismatch, aborting");
+      }
+
+      //set masterID_ from disk value
+      masterID_ = fromDisk;
+      return;
+   }
+   catch(NoEntryInWalletException&)
+   {}
+      
+   /*
+   This wallet has no masterID entry if we got this far, let's set it.
+   */
+
+   //sanity check
+   if (masterID.getSize() == 0)
+   {
+      LOGERR << "cannot set empty master ID";
+      throw WalletException("cannot set empty master ID");
+   }
+
+   BinaryWriter bwKey;
+   bwKey.put_uint32_t(MASTERID_KEY);
+
+   BinaryWriter bwVal;
+   bwVal.put_var_int(masterID.getSize());
+   bwVal.put_BinaryData(masterID);
+
+   auto tx = iface_->beginWriteTransaction(WALLETHEADER_DBNAME);
+   tx->insert(bwKey.getData(), bwVal.getData());
+
+   masterID_ = masterID;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,6 +208,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
    if (isMain || accounts_.size() == 0)
       accountTypePtr->setMain(true);
 
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
    auto accountPtr = createAccount(accountTypePtr);
    accountPtr->extendPrivateChain(decryptedData_, DERIVATION_LOOKUP);
    return accountPtr->getID();
@@ -387,6 +298,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    const string& folder,
    const SecureBinaryData& privateRoot,
    const SecureBinaryData& passphrase,
+   const SecureBinaryData& controlPassphrase,
    unsigned lookup)
 {
    if (privateRoot.getSize() != 32)
@@ -402,16 +314,21 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    auto&& masterID = BtcUtils::computeID(masterID_long);
    string masterIDStr(masterID.getCharPtr());
 
+   /*
+   Create control passphrase lambda. It gets wiped after the wallet is setup
+   */
+   auto controlPassLbd = 
+      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
+   {
+      return controlPassphrase;
+   };
+
    //create wallet file and dbenv
    stringstream pathSS;
    pathSS << folder << "/armory_" << masterIDStr << "_wallet.lmdb";
-   auto dbenv = getEnvFromFile(pathSS.str(), 2);
+   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
 
-   initWalletMetaDB(dbenv, masterIDStr);
-
-   auto wltMetaPtr = make_shared<WalletMeta_Single>(dbenv);
-   wltMetaPtr->parentID_ = masterID;
-
+   BinaryData walletID;
    {
       //walletID
       auto&& chaincode = BtcUtils::computeChainCode_Armory135(privateRoot);
@@ -422,19 +339,9 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
          ROOT_ASSETENTRY_ID, BinaryData(), 
          pubkey, nullptr);
 
-      wltMetaPtr->walletID_ = move(computeWalletID(derScheme, asset_single));
+      walletID = move(computeWalletID(derScheme, asset_single));
    }
    
-   //create kdf and master encryption key
-   auto kdfPtr = make_shared<KeyDerivationFunction_Romix>();
-   auto&& masterKeySBD = CryptoPRNG::generateRandom(32);
-   DecryptedEncryptionKey masterEncryptionKey(masterKeySBD);
-   masterEncryptionKey.deriveKey(kdfPtr);
-   auto&& masterEncryptionKeyId = masterEncryptionKey.getId(kdfPtr->getId());
-
-   auto cipher = make_unique<Cipher_AES>(kdfPtr->getId(), 
-      masterEncryptionKeyId);
-
    SecureBinaryData dummy1, dummy2;
    auto&& privateRootCopy = privateRoot.copy();
 
@@ -448,29 +355,17 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    
    SecureBinaryData dummy;
    auto walletPtr = initWalletDb(
-      wltMetaPtr,
-      kdfPtr,
-      masterEncryptionKey,
-      move(cipher),
+      iface,
+      masterID, walletID,
       passphrase, 
+      controlPassphrase,
       privateRoot, 
       dummy,
       move(accountTypes),
       lookup - 1);
 
    //set as main
-   {
-      LMDB dbMeta;
-
-      {
-         dbMeta.open(dbenv.get(), WALLETMETA_DBNAME);
-
-        LMDBEnv::Transaction metatx(dbenv.get(), LMDB::ReadWrite);
-        setMainWallet(&dbMeta, wltMetaPtr);
-      }
-
-      dbMeta.close();
-   }
+   setMainWallet(iface, walletID);
 
    return walletPtr;
 }
@@ -481,6 +376,7 @@ createFromPublicRoot_Armory135(
    const string& folder,
    SecureBinaryData& pubRoot,
    SecureBinaryData& chainCode,
+   const SecureBinaryData& controlPassphrase,
    unsigned lookup)
 {
    //compute master ID as hmac256(root pubkey, "MetaEntry")
@@ -490,16 +386,21 @@ createFromPublicRoot_Armory135(
    auto&& masterID = BtcUtils::computeID(masterID_long);
    string masterIDStr(masterID.getCharPtr());
 
+   /*
+   Create control passphrase lambda. It gets wiped after the wallet is setup
+   */
+   auto controlPassLbd = 
+      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
+   {
+      return controlPassphrase;
+   };
+
    //create wallet file and dbenv
    stringstream pathSS;
    pathSS << folder << "/armory_" << masterIDStr << "_WatchingOnly.lmdb";
-   auto dbenv = getEnvFromFile(pathSS.str(), 2);
+   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
 
-   initWalletMetaDB(dbenv, masterIDStr);
-
-   auto wltMetaPtr = make_shared<WalletMeta_Single>(dbenv);
-   wltMetaPtr->parentID_ = masterID;
-
+   BinaryData walletID;
    {
       //walletID
       auto chainCode_copy = chainCode;
@@ -510,7 +411,7 @@ createFromPublicRoot_Armory135(
          ROOT_ASSETENTRY_ID, BinaryData(),
          pubRoot, nullptr);
 
-      wltMetaPtr->walletID_ = move(computeWalletID(derScheme, asset_single));
+      walletID = move(computeWalletID(derScheme, asset_single));
    }
 
    //address accounts
@@ -525,24 +426,15 @@ createFromPublicRoot_Armory135(
    (*accountTypes.begin())->setMain(true);
 
    auto walletPtr = initWalletDbFromPubRoot(
-      wltMetaPtr,
+      iface, 
+      controlPassphrase,
+      masterID, walletID,
       pubRoot, 
       accountTypes,
       lookup - 1);
 
    //set as main
-   {
-      LMDB dbMeta;
-
-      {
-         dbMeta.open(dbenv.get(), WALLETMETA_DBNAME);
-
-         LMDBEnv::Transaction metatx(dbenv.get(), LMDB::ReadWrite);
-         setMainWallet(&dbMeta, wltMetaPtr);
-      }
-
-      dbMeta.close();
-   }
+   setMainWallet(iface, walletID);
 
    return walletPtr;
 }
@@ -553,6 +445,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    const SecureBinaryData& seed,
    const vector<unsigned>& derivationPath,
    const SecureBinaryData& passphrase,
+   const SecureBinaryData& controlPassphrase,
    unsigned lookup)
 {
    if (seed.getSize() == 0)
@@ -592,6 +485,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
       rootNode, 
       accountTypes, 
       passphrase, 
+      controlPassphrase,
       folder, 
       lookup);
 
@@ -607,6 +501,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
    const SecureBinaryData& base58,
    const vector<unsigned>& derivationPath,
    const SecureBinaryData& passphrase,
+   const SecureBinaryData& controlPassphrase,
    unsigned lookup)
 {
    //setup node
@@ -654,6 +549,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
       node,
       accountTypes,
       passphrase,
+      controlPassphrase,      
       folder, 
       lookup);
 
@@ -664,7 +560,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
 shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
    const string& folder,
    const SecureBinaryData& seed,
-   const SecureBinaryData& passphrase)
+   const SecureBinaryData& passphrase,
+   const SecureBinaryData& controlPassphrase)
 {
    if (seed.getSize() == 0)
       throw WalletException("empty seed");
@@ -683,6 +580,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
       rootNode,
       accountTypes,
       passphrase,
+      controlPassphrase,      
       folder,
       0);
 
@@ -697,6 +595,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
    const BIP32_Node& node,
    set<shared_ptr<AccountType>> accountTypes,
    const SecureBinaryData& passphrase,
+   const SecureBinaryData& controlPassphrase,
    const string& folder,
    unsigned lookup)
 {
@@ -727,6 +626,15 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
    auto&& masterID = BtcUtils::computeID(masterID_long);
    string masterIDStr(masterID.getCharPtr());
 
+   /*
+   Create control passphrase lambda. It gets wiped after the wallet is setup
+   */
+   auto controlPassLbd = 
+      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
+   {
+      return controlPassphrase;
+   };
+
    //create wallet file and dbenv
    stringstream pathSS;
    if (!isPublic)
@@ -734,23 +642,21 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
    else
       pathSS << folder << "/BlockSettle_" << walletIdStr << "_WatchingOnly.lmdb";
 
-   auto dbenv = getEnvFromFile(pathSS.str(), 2);
-   initWalletMetaDB(dbenv, masterIDStr);
+   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
 
-   auto wltMetaPtr = make_shared<WalletMeta_Single>(dbenv);
-   wltMetaPtr->parentID_ = masterID;
+   BinaryData walletID;
+   {
+      //walletID
+      auto chaincode_copy = node.getChaincode();
+      auto derScheme =
+         make_shared<DerivationScheme_ArmoryLegacy>(chaincode_copy);
 
-   wltMetaPtr->walletID_ = std::move(walletIdRaw);
+      auto asset_single = make_shared<AssetEntry_Single>(
+         ROOT_ASSETENTRY_ID, BinaryData(),
+         pubkey, nullptr);
 
-   //create kdf and master encryption key
-   auto kdfPtr = make_shared<KeyDerivationFunction_Romix>();
-   auto&& masterKeySBD = CryptoPRNG::generateRandom(32);
-   DecryptedEncryptionKey masterEncryptionKey(masterKeySBD);
-   masterEncryptionKey.deriveKey(kdfPtr);
-   auto&& masterEncryptionKeyId = masterEncryptionKey.getId(kdfPtr->getId());
-
-   auto cipher = make_unique<Cipher_AES>(kdfPtr->getId(),
-      masterEncryptionKeyId);
+      walletID = move(computeWalletID(derScheme, asset_single));
+   }
 
    //address accounts
    shared_ptr<AssetWallet_Single> walletPtr = nullptr;
@@ -758,11 +664,10 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
    if (!isPublic)
    {
       walletPtr = initWalletDb(
-         wltMetaPtr,
-         kdfPtr,
-         masterEncryptionKey,
-         move(cipher),
+         iface,
+         masterID, walletID,
          passphrase,
+         controlPassphrase,
          node.getPrivateKey(),
          node.getChaincode(),
          move(accountTypes),
@@ -773,71 +678,47 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
       //ctors move the arguments in, gotta create copies first
       auto pubkey_copy = node.getPublicKey();
       walletPtr = initWalletDbFromPubRoot(
-         wltMetaPtr,
+         iface,
+         controlPassphrase,
+         masterID, walletID,
          pubkey_copy,
          move(accountTypes),
          lookup);
    }
 
    //set as main
-   {
-      LMDB dbMeta;
-
-      {
-         dbMeta.open(dbenv.get(), WALLETMETA_DBNAME);
-
-         LMDBEnv::Transaction metatx(dbenv.get(), LMDB::ReadWrite);
-         setMainWallet(&dbMeta, wltMetaPtr);
-      }
-
-      dbMeta.close();
-   }
+   setMainWallet(iface, walletID);
 
    return walletPtr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetWallet> AssetWallet::loadMainWalletFromFile(const string& path)
+shared_ptr<AssetWallet> AssetWallet::loadMainWalletFromFile(
+   const string& path, const PassphraseLambda& passLbd)
 {
-   auto dbenv = getEnvFromFile(path.c_str(), 1);
-
-   unsigned count;
-   map<BinaryData, shared_ptr<WalletMeta>> metaMap;
-   BinaryData masterID;
-   BinaryData mainWalletID;
-
-   //db count and names
-   count = getDbCountAndNames(
-      dbenv, metaMap, masterID, mainWalletID);
-
-   //close env, reopen env with proper count
-   dbenv.reset();
-
-   auto metaIter = metaMap.find(mainWalletID);
-   if (metaIter == metaMap.end())
-      throw WalletException("invalid main wallet id");
-
-   auto mainWltMeta = metaIter->second;
-   metaMap.clear();
-
-   mainWltMeta->dbEnv_ = getEnvFromFile(path.c_str(), count + 1);
+   auto iface = getIfaceFromFile(path.c_str(), passLbd);
+   auto mainWalletID = getMainWalletID(iface);
+   string mainWalletIDstr(mainWalletID.getCharPtr(), mainWalletID.getSize());
+   auto headerPtr = iface->getWalletHeader(mainWalletIDstr);
 
    shared_ptr<AssetWallet> wltPtr;
 
-   switch (mainWltMeta->type_)
+   switch (headerPtr->type_)
    {
-   case WalletMetaType_Single:
+   case WalletHeaderType_Single:
    {
-      auto wltSingle = make_shared<AssetWallet_Single>(mainWltMeta);
+      auto wltSingle = make_shared<AssetWallet_Single>(
+         iface, headerPtr, BinaryData());
       wltSingle->readFromFile();
 
       wltPtr = wltSingle;
       break;
    }
 
-   case WalletMetaType_Multisig:
+   case WalletHeaderType_Multisig:
    {
-      auto wltMS = make_shared<AssetWallet_Multisig>(mainWltMeta);
+      auto wltMS = make_shared<AssetWallet_Multisig>(
+         iface, headerPtr, BinaryData());
       wltMS->readFromFile();
 
       wltPtr = wltMS;
@@ -849,156 +730,6 @@ shared_ptr<AssetWallet> AssetWallet::loadMainWalletFromFile(const string& path)
    }
 
    return wltPtr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void AssetWallet::putDbName(LMDB* db, shared_ptr<WalletMeta> wltMetaPtr)
-{
-   auto&& key = wltMetaPtr->getDbKey();
-   auto&& val = wltMetaPtr->serialize();
-
-   putData(db, key, val);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void AssetWallet::setMainWallet(LMDB* db, shared_ptr<WalletMeta> wltMetaPtr)
-{
-   BinaryWriter bwKey;
-   bwKey.put_uint32_t(MAINWALLET_KEY);
-
-   BinaryWriter bwData;
-   bwData.put_var_int(wltMetaPtr->walletID_.getSize());
-   bwData.put_BinaryData(wltMetaPtr->walletID_);
-
-   putData(db, bwKey.getData(), bwData.getData());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void AssetWallet::initWalletMetaDB(
-   shared_ptr<LMDBEnv> dbenv, const string& masterID)
-{
-   LMDB db;
-   {
-      db.open(dbenv.get(), WALLETMETA_DBNAME);
-
-      BinaryWriter bwKey;
-      bwKey.put_uint32_t(MASTERID_KEY);
-
-      LMDBEnv::Transaction tx(dbenv.get(), LMDB::ReadWrite);
-      CharacterArrayRef carKey(bwKey.getSize(), bwKey.getDataRef().getPtr());
-      auto val = db.get_NoCopy(carKey);
-      if (val.len != 0)
-      {
-         //the master key is already set, this is an existing wallet, abort
-         throw WalletException("trying to init an already existing wallet");
-      }
-
-      BinaryWriter bwData;
-      bwData.put_var_int(masterID.size());
-
-      BinaryDataRef idRef;
-      idRef.setRef(masterID);
-      bwData.put_BinaryDataRef(idRef);
-
-      putData(&db, bwKey.getData(), bwData.getData());
-   }
-
-   db.close();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-unsigned AssetWallet::getDbCountAndNames(shared_ptr<LMDBEnv> dbEnv,
-   map<BinaryData, shared_ptr<WalletMeta>>& metaMap,
-   BinaryData& masterID, BinaryData& mainWalletID)
-{
-   if (dbEnv == nullptr)
-      throw WalletException("invalid dbenv");
-
-   unsigned dbcount = 0;
-
-   LMDB db;
-   db.open(dbEnv.get(), WALLETMETA_DBNAME);
-
-   {
-      LMDBEnv::Transaction tx(dbEnv.get(), LMDB::ReadOnly);
-
-      {
-         //masterID
-         BinaryWriter bwKey;
-         bwKey.put_uint32_t(MASTERID_KEY);
-
-         try
-         {
-            masterID = getDataRefForKey(bwKey.getData(), &db);
-         }
-         catch (NoEntryInWalletException&)
-         {
-            throw runtime_error("missing masterID entry");
-         }
-      }
-
-      {
-         //mainWalletID
-         BinaryWriter bwKey;
-         bwKey.put_uint32_t(MAINWALLET_KEY);
-
-         try
-         {
-            mainWalletID = getDataRefForKey(bwKey.getData(), &db);
-         }
-         catch (NoEntryInWalletException&)
-         {
-            throw runtime_error("missing main wallet entry");
-         }
-      }
-
-      //meta map
-      auto dbIter = db.begin();
-
-      BinaryWriter bwKey;
-      bwKey.put_uint8_t(WALLETMETA_PREFIX);
-      CharacterArrayRef keyRef(bwKey.getSize(), bwKey.getData().getPtr());
-
-      dbIter.seek(keyRef, LMDB::Iterator::Seek_GE);
-
-      while (dbIter.isValid())
-      {
-         auto iterkey = dbIter.key();
-         auto itervalue = dbIter.value();
-
-         BinaryDataRef keyBDR((uint8_t*)iterkey.mv_data, iterkey.mv_size);
-         BinaryDataRef valueBDR((uint8_t*)itervalue.mv_data, itervalue.mv_size);
-
-         //check value's advertized size is packet size and strip it
-         BinaryRefReader brrVal(valueBDR);
-         auto valsize = brrVal.get_var_int();
-         if (valsize != brrVal.getSizeRemaining())
-            throw WalletException("entry val size mismatch");
-
-         try
-         {
-            auto metaPtr = WalletMeta::deserialize(
-               dbEnv,
-               keyBDR,
-               brrVal.get_BinaryDataRef(brrVal.getSizeRemaining()));
-
-            dbcount++;
-            if (metaPtr->shouldLoad())
-               metaMap.insert(make_pair(
-               metaPtr->getWalletID(), metaPtr));
-         }
-         catch (exception& e)
-         {
-            LOGERR << e.what();
-            break;
-         }
-
-         dbIter.advance();
-      }
-   }
-
-   db.close();
-   return dbcount + 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1019,25 +750,33 @@ BinaryData AssetWallet_Single::computeWalletID(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
-   shared_ptr<WalletMeta> metaPtr,
-   shared_ptr<KeyDerivationFunction> masterKdf,
-   DecryptedEncryptionKey& masterEncryptionKey,
-   unique_ptr<Cipher> cipher,
+   shared_ptr<WalletDBInterface> iface,
+   const BinaryData& masterID, const BinaryData& walletID,
    const SecureBinaryData& passphrase,
+   const SecureBinaryData& controlPassphrase,
    const SecureBinaryData& privateRoot,
    const SecureBinaryData& chaincode,
    set<shared_ptr<AccountType>> accountTypes,
    unsigned lookup)
 {
-   //create root AssetEntry
-   auto&& pubkey = CryptoECDSA().ComputePublicKey(privateRoot);
+   auto headerPtr = make_shared<WalletHeader_Single>();
+   headerPtr->walletID_ = walletID;
+
+   //init headerPtr object
+   auto&& masterKeyStruct = 
+      WalletDBInterface::initWalletHeaderObject(headerPtr, passphrase);
+
+   //get a cipher for the master encryption key
+   auto cipher = masterKeyStruct.cipher_->getCopy(
+      headerPtr->masterEncryptionKeyId_);
 
    //copy cipher to cycle the IV then encrypt the private root
-   masterEncryptionKey.deriveKey(masterKdf);
-   auto&& masterEncryptionKeyId = masterEncryptionKey.getId(masterKdf->getId());
-   auto&& rootCipher = cipher->getCopy(masterEncryptionKeyId);
+   auto rootCipher = cipher->getCopy();
    auto&& encryptedRoot = rootCipher->encrypt(
-      &masterEncryptionKey, masterKdf->getId(), privateRoot);
+      masterKeyStruct.decryptedMasterKey_.get(), cipher->getKdfId(), privateRoot);
+
+   //compute public root
+   auto&& pubkey = CryptoECDSA().ComputePublicKey(privateRoot);
 
    //create encrypted object
    auto rootAsset = make_shared<Asset_PrivateKey>(
@@ -1050,7 +789,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
       switch (account->type())
       {
       case AccountTypeEnum_ArmoryLegacy:
-      {  
+      {
          ++armory135AccCount;
          break;
       }
@@ -1068,8 +807,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
       isBip32 = true;
 
    shared_ptr<AssetEntry_Single> rootAssetEntry;
-   if(isBip32)
-   { 
+   if (isBip32)
+   {
       if (chaincode.getSize() == 0)
          throw WalletException("emtpy chaincode for bip32 root");
 
@@ -1085,53 +824,11 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
          pubkey, rootAsset);
    }
 
-   if (metaPtr->dbName_.size() == 0)
-   {
-      string walletIDStr(metaPtr->getWalletIDStr());
-      metaPtr->dbName_ = walletIDStr;
-   }
-
-   //encrypt master key, create object and set it
-   metaPtr->defaultEncryptionKey_ = move(CryptoPRNG::generateRandom(32));
-   auto defaultKey = metaPtr->getDefaultEncryptionKey();
-   auto defaultEncryptionKeyPtr = make_unique<DecryptedEncryptionKey>(defaultKey);
-   defaultEncryptionKeyPtr->deriveKey(masterKdf);
-   metaPtr->defaultEncryptionKeyId_ =
-      defaultEncryptionKeyPtr->getId(masterKdf->getId());
-
-   //encrypt master encryption key with passphrase if present, otherwise use default
-   unique_ptr<DecryptedEncryptionKey> topEncryptionKey;
-   if (passphrase.getSize() > 0)
-   {
-      //copy passphrase
-      auto&& passphraseCopy = passphrase.copy();
-      topEncryptionKey = make_unique<DecryptedEncryptionKey>(passphraseCopy);
-   }
-   else
-   {
-      LOGWARN << "Wallet created without password, using default encryption key";
-      topEncryptionKey = move(defaultEncryptionKeyPtr);
-   }
-
-   topEncryptionKey->deriveKey(masterKdf);
-   auto&& topEncryptionKeyId = topEncryptionKey->getId(masterKdf->getId());
-   auto&& masterKeyCipher = cipher->getCopy(topEncryptionKeyId);
-   auto&& encrMasterKey = masterKeyCipher->encrypt(
-      topEncryptionKey.get(),
-      masterKdf->getId(),
-      masterEncryptionKey.getData());
-
-   auto masterKeyPtr = make_shared<Asset_EncryptionKey>(masterEncryptionKeyId,
-      encrMasterKey, move(masterKeyCipher));
-
-   metaPtr->masterEncryptionKeyId_ = masterKeyPtr->getId();
-   metaPtr->defaultKdfId_ = masterKdf->getId();
-
-   auto walletPtr = make_shared<AssetWallet_Single>(metaPtr);
+   auto walletPtr = make_shared<AssetWallet_Single>(iface, headerPtr, masterID);
 
    //add kdf & master key
-   walletPtr->decryptedData_->addKdf(masterKdf);
-   walletPtr->decryptedData_->addEncryptionKey(masterKeyPtr);
+   walletPtr->decryptedData_->addKdf(masterKeyStruct.kdf_);
+   walletPtr->decryptedData_->addEncryptionKey(masterKeyStruct.masterKey_);
 
    //set passphrase lambda if necessary
    if (passphrase.getSize() > 0)
@@ -1146,26 +843,20 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
       walletPtr->decryptedData_->setPassphrasePromptLambda(passphraseLambda);
    }
 
-
+   auto controlPassLbd = 
+      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
    {
-      LMDB metadb;
+      return controlPassphrase;
+   };
 
-      {
-         metadb.open(walletPtr->dbEnv_.get(), WALLETMETA_DBNAME);
-
-         LMDBEnv::Transaction tx(walletPtr->dbEnv_.get(), LMDB::ReadWrite);
-         putDbName(&metadb, metaPtr);
-      }
-
-      metadb.close();
-   }
-
+   //put wallet db name in meta db
+   iface->lockControlContainer(controlPassLbd);
+   iface->addHeader(headerPtr);
+   iface->unlockControlContainer();
 
    //insert the original entries
    {
-      LMDBEnv::Transaction tx(walletPtr->dbEnv_.get(), LMDB::ReadWrite);
-      walletPtr->putHeaderData(
-         metaPtr->parentID_, metaPtr->walletID_);
+      auto&& tx = iface->beginWriteTransaction(walletPtr->dbName_);
 
       {
          //decrypted data container
@@ -1178,7 +869,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
          bwKey.put_uint32_t(ROOTASSET_KEY);
 
          auto&& data = rootAssetEntry->serialize();
-         walletPtr->putData(bwKey.getData(), data);
+         tx->insert(bwKey.getData(), data);
       }
 
       {
@@ -1187,8 +878,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
          {
             //instantiate AddressAccount object from AccountType
             auto account_ptr = make_shared<AddressAccount>(
-               walletPtr->dbEnv_,
-               walletPtr->db_);
+               iface, walletPtr->dbName_);
 
             auto&& cipher_copy = cipher->getCopy();
             account_ptr->make_new(accountType,
@@ -1211,7 +901,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
             BinaryWriter bwData;
             bwData.put_var_int(walletPtr->mainAccount_.getSize());
             bwData.put_BinaryData(walletPtr->mainAccount_);
-            walletPtr->putData(bwKey.getData(), bwData.getData());
+            tx->insert(bwKey.getData(), bwData.getData());
          }
       }
    }
@@ -1224,7 +914,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
       if (lookup == UINT32_MAX)
          lookup = DERIVATION_LOOKUP;
 
-      if(lookup != 0)
+      if (lookup != 0)
          walletPtr->extendPrivateChain(lookup);
    }
 
@@ -1234,7 +924,9 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
-   shared_ptr<WalletMeta> metaPtr,
+   shared_ptr<WalletDBInterface> iface,
+   const SecureBinaryData& controlPassphrase,
+   const BinaryData& masterID, const BinaryData& walletID,
    SecureBinaryData& pubRoot,
    set<shared_ptr<AccountType>> accountTypes,
    unsigned lookup)
@@ -1244,32 +936,25 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
       -1, BinaryData(),
       pubRoot, nullptr);
 
-   if (metaPtr->dbName_.size() == 0)
+   auto headerPtr = make_shared<WalletHeader_Single>();
+   headerPtr->walletID_ = walletID;
+   headerPtr->controlSalt_ = CryptoPRNG::generateRandom(32);
+
+   auto walletPtr = make_shared<AssetWallet_Single>(iface, headerPtr, masterID);
+
+   auto controlPassLbd = 
+      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
    {
-      string walletIDStr(metaPtr->getWalletIDStr());
-      metaPtr->dbName_ = walletIDStr;
-   }
+      return controlPassphrase;
+   };
 
-   auto walletPtr = make_shared<AssetWallet_Single>(metaPtr);
-
-   {
-      LMDB metadb;
-
-      {
-         metadb.open(walletPtr->dbEnv_.get(), WALLETMETA_DBNAME);
-
-         LMDBEnv::Transaction tx(walletPtr->dbEnv_.get(), LMDB::ReadWrite);
-         putDbName(&metadb, metaPtr);
-      }
-
-      metadb.close();
-   }
+   iface->lockControlContainer(controlPassLbd);
+   iface->addHeader(headerPtr);
+   iface->unlockControlContainer();
 
    /**insert the original entries**/
    {
-      LMDBEnv::Transaction tx(walletPtr->dbEnv_.get(), LMDB::ReadWrite);
-      walletPtr->putHeaderData(
-         metaPtr->parentID_, metaPtr->walletID_);
+      auto&& tx = iface->beginWriteTransaction(walletPtr->dbName_);
 
       {
          //root asset
@@ -1278,7 +963,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
 
          auto&& data = rootAssetEntry->serialize();
 
-         walletPtr->putData(bwKey.getData(), data);
+         tx->insert(bwKey.getData(), data);
       }
 
       {
@@ -1287,9 +972,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
          {
             //instantiate AddressAccount object from AccountType
             auto account_ptr = make_shared<AddressAccount>(
-               walletPtr->dbEnv_,
-               walletPtr->db_);
-
+               iface, walletPtr->dbName_);
             account_ptr->make_new(accountType, nullptr, nullptr);
 
             //commit to disk
@@ -1308,7 +991,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
             BinaryWriter bwData;
             bwData.put_var_int(walletPtr->mainAccount_.getSize());
             bwData.put_BinaryData(walletPtr->mainAccount_);
-            walletPtr->putData(bwKey.getData(), bwData.getData());
+            tx->insert(bwKey.getData(), bwData.getData());
          }
       }
    }
@@ -1330,107 +1013,28 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetWallet_Single::putHeaderData(
-   const BinaryData& parentID,
-   const BinaryData& walletID)
-{
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
-
-   {
-      //wallet type
-      BinaryWriter bwKey;
-      bwKey.put_uint32_t(WALLETTYPE_KEY);
-
-      BinaryWriter bwData;
-      bwData.put_var_int(4);
-      bwData.put_uint32_t(WalletMetaType_Single);
-
-      putData(bwKey, bwData);
-   }
-
-   AssetWallet::putHeaderData(parentID, walletID);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void AssetWallet::putHeaderData(
-   const BinaryData& parentID,
-   const BinaryData& walletID)
-{
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
-
-   {
-      //parent ID
-      BinaryWriter bwKey;
-      bwKey.put_uint32_t(PARENTID_KEY);
-
-      BinaryWriter bwData;
-      bwData.put_var_int(parentID.getSize());
-      bwData.put_BinaryData(parentID);
-
-      putData(bwKey, bwData);
-   }
-
-   {
-      //wallet ID
-      BinaryWriter bwKey;
-      bwKey.put_uint32_t(WALLETID_KEY);
-
-      BinaryWriter bwData;
-      bwData.put_var_int(walletID.getSize());
-      bwData.put_BinaryData(walletID);
-
-      putData(bwKey, bwData);
-   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef AssetWallet::getDataRefForKey(const BinaryData& key) const
+BinaryDataRef AssetWallet::getDataRefForKey(
+   DBIfaceTransaction* tx, const BinaryData& key)
 {
    /** The reference lifetime is tied to the db tx lifetime. The caller has to
    maintain the tx for as long as the data ref needs to be valid **/
 
-   return getDataRefForKey(key, db_);
-}
+   auto ref = tx->getDataRef(key);
 
-////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef AssetWallet::getDataRefForKey(const BinaryData& key, LMDB* db)
-{
-   CharacterArrayRef keyRef(key.getSize(), key.getPtr());
-   auto ref = db->get_NoCopy(keyRef);
-
-   if (ref.data == nullptr)
+   if (ref.getSize() == 0)
       throw NoEntryInWalletException();
 
-   return DBUtils::getDataRefForPacket(
-      BinaryDataRef((uint8_t*)ref.data, ref.len));
+   return DBUtils::getDataRefForPacket(ref);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet_Single::readFromFile()
 {
    //sanity check
-   if (dbEnv_ == nullptr || db_ == nullptr)
+   if (iface_ == nullptr)
       throw WalletException("uninitialized wallet object");
 
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadOnly);
-
-   {
-      //parentId
-      BinaryWriter bwKey;
-      bwKey.put_uint32_t(PARENTID_KEY);
-
-      auto parentIdRef = getDataRefForKey(bwKey.getData());
-      parentID_ = parentIdRef;
-   }
-
-   {
-      //walletId
-      BinaryWriter bwKey;
-      bwKey.put_uint32_t(WALLETID_KEY);
-      auto walletIdRef = getDataRefForKey(bwKey.getData());
-
-      walletID_ = walletIdRef;
-   }
+   auto&& tx = iface_->beginReadTransaction(dbName_);
 
    {
       //main account
@@ -1439,7 +1043,7 @@ void AssetWallet_Single::readFromFile()
 
       try
       {
-         auto account_id = getDataRefForKey(bwKey.getData());
+         auto account_id = getDataRefForKey(tx.get(), bwKey.getData());
 
          mainAccount_ = account_id;
       }
@@ -1451,7 +1055,7 @@ void AssetWallet_Single::readFromFile()
       //root asset
       BinaryWriter bwKey;
       bwKey.put_uint32_t(ROOTASSET_KEY);
-      auto rootAssetRef = getDataRefForKey(bwKey.getData());
+      auto rootAssetRef = getDataRefForKey(tx.get(), bwKey.getData());
 
       auto asset_root = AssetEntry::deserDBValue(-1, BinaryData(), rootAssetRef);
       root_ = dynamic_pointer_cast<AssetEntry_Single>(asset_root);
@@ -1465,11 +1069,12 @@ void AssetWallet_Single::readFromFile()
       {
          BinaryWriter bwKey;
          bwKey.put_uint32_t(WALLET_SEED_KEY);
-         auto rootAssetRef = getDataRefForKey(bwKey.getData());
+         auto rootAssetRef = getDataRefForKey(tx.get(), bwKey.getData());
 
-         auto seedPtr = Asset_EncryptedData::deserialize(
+         auto seedUPtr = Asset_EncryptedData::deserialize(
             rootAssetRef.getSize(), rootAssetRef);
-         auto seedObj = dynamic_pointer_cast<EncryptedSeed>(seedPtr);
+         shared_ptr<Asset_EncryptedData> seedSPtr(move(seedUPtr));
+         auto seedObj = dynamic_pointer_cast<EncryptedSeed>(seedSPtr);
          if (seedObj == nullptr)
             throw WalletException("failed to deser wallet seed");
 
@@ -1486,23 +1091,19 @@ void AssetWallet_Single::readFromFile()
       //accounts
       BinaryWriter bwPrefix;
       bwPrefix.put_uint8_t(ADDRESS_ACCOUNT_PREFIX);
-      CharacterArrayRef account_prefix(
-         bwPrefix.getSize(), bwPrefix.getData().getCharPtr());
+      auto dbIter = tx->getIterator();
+      dbIter->seek(bwPrefix.getDataRef());
 
-      auto dbIter = db_->begin();
-      dbIter.seek(account_prefix, LMDB::Iterator::Seek_GE);
-
-      while (dbIter.isValid())
+      while (dbIter->isValid())
       {
          //iterate through account keys
-         auto& key = dbIter.key();
-         BinaryData key_bd((uint8_t*)key.mv_data, key.mv_size);
+         auto&& key = dbIter->key();
 
          try
          {
             //instantiate account object and read data on disk
-            auto addressAccount = make_shared<AddressAccount>(dbEnv_, db_);
-            addressAccount->readFromDisk(key_bd);
+            auto addressAccount = make_shared<AddressAccount>(iface_, dbName_);
+            addressAccount->readFromDisk(key);
 
             //insert
             accounts_.insert(make_pair(addressAccount->getID(), addressAccount));
@@ -1514,7 +1115,7 @@ void AssetWallet_Single::readFromFile()
             break;
          }
 
-         ++dbIter;
+         dbIter->advance();
       }
 
       loadMetaAccounts();
@@ -1525,26 +1126,17 @@ void AssetWallet_Single::readFromFile()
 void AssetWallet_Multisig::readFromFile()
 {
    //sanity check
-   if (dbEnv_ == nullptr || db_ == nullptr)
+   if (iface_ == nullptr)
       throw WalletException("uninitialized wallet object");
 
    {
-      LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadOnly);
-
-      {
-         //parentId
-         BinaryWriter bwKey;
-         bwKey.put_uint32_t(PARENTID_KEY);
-
-         auto parentIdRef = getDataRefForKey(bwKey.getData());
-         parentID_ = parentIdRef;
-      }
+      auto&& tx = iface_->beginReadTransaction(dbName_);
 
       {
          //walletId
          BinaryWriter bwKey;
          bwKey.put_uint32_t(WALLETID_KEY);
-         auto walletIdRef = getDataRefForKey(bwKey.getData());
+         auto walletIdRef = getDataRefForKey(tx.get(), bwKey.getData());
 
          walletID_ = walletIdRef;
       }
@@ -1554,7 +1146,7 @@ void AssetWallet_Multisig::readFromFile()
          {
             BinaryWriter bwKey;
             bwKey.put_uint8_t(ASSETENTRY_PREFIX);
-            auto lookupRef = getDataRefForKey(bwKey.getData());
+            auto lookupRef = getDataRefForKey(tx.get(), bwKey.getData());
 
             BinaryRefReader brr(lookupRef);
             chainLength_ = brr.get_uint32_t();
@@ -1571,10 +1163,11 @@ void AssetWallet_Multisig::readFromFile()
          stringstream ss;
          ss << "Subwallet-" << i;
 
-         auto subWltMeta = make_shared<WalletMeta_Subwallet>(dbEnv_);
-         subWltMeta->dbName_ = ss.str();
+         auto subWltMeta = make_shared<WalletHeader_Subwallet>();
+         subWltMeta->walletID_ = BinaryData(ss.str());
 
-         auto subwalletPtr = make_shared<AssetWallet_Single>(subWltMeta);
+         auto subwalletPtr = make_shared<AssetWallet_Single>(
+            iface_, subWltMeta, masterID_);
          subwalletPtr->readFromFile();
          walletPtrs[subwalletPtr->getID()] = subwalletPtr;
 
@@ -1582,29 +1175,6 @@ void AssetWallet_Multisig::readFromFile()
 
       loadMetaAccounts();
    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void AssetWallet::putData(const BinaryData& key, const BinaryData& data)
-{
-   /** the caller is responsible for the db transaction **/
-   putData(db_, key, data);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void AssetWallet::putData(
-   LMDB* db, const BinaryData& key, const BinaryData& data)
-{
-   CharacterArrayRef keyRef(key.getSize(), key.getPtr());
-   CharacterArrayRef dataRef(data.getSize(), data.getPtr());
-
-   db->insert(keyRef, dataRef);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void AssetWallet::putData(BinaryWriter& key, BinaryWriter& data)
-{
-   putData(key.getData(), data.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1748,26 +1318,18 @@ shared_ptr<AddressAccount> AssetWallet::getAccountForID(
 ////////////////////////////////////////////////////////////////////////////////
 const string& AssetWallet::getDbFilename(void) const
 { 
-   if (dbEnv_ == nullptr)
+   if (iface_ == nullptr)
       throw WalletException("uninitialized db environment");
-   return dbEnv_->getFilename(); 
+   return iface_->getFilename(); 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::shutdown()
 {
-   if (db_ != nullptr)
-   {
-      db_->close();
-      delete db_;
-      db_ = nullptr;
-   }
+   if (iface_ == nullptr)
+      return;
 
-   if (dbEnv_ != nullptr)
-   {
-      dbEnv_->close();
-      dbEnv_ = nullptr;
-   }
+   iface_.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2004,7 +1566,7 @@ shared_ptr<AssetEntry> AssetWallet_Single::getAccountRoot(
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::addMetaAccount(MetaAccountType type)
 {
-   auto account_ptr = make_shared<MetaDataAccount>(dbEnv_, db_);
+   auto account_ptr = make_shared<MetaDataAccount>(iface_, dbName_);
    account_ptr->make_new(type);
 
    //do not overwrite existing account of the same type
@@ -2018,26 +1580,24 @@ void AssetWallet::addMetaAccount(MetaAccountType type)
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::loadMetaAccounts()
 {
+   auto&& tx = iface_->beginReadTransaction(dbName_);
+
    //accounts
    BinaryWriter bwPrefix;
    bwPrefix.put_uint8_t(META_ACCOUNT_PREFIX);
-   CharacterArrayRef account_prefix(
-      bwPrefix.getSize(), bwPrefix.getData().getCharPtr());
+   auto dbIter = tx->getIterator();
+   dbIter->seek(bwPrefix.getDataRef());
 
-   auto dbIter = db_->begin();
-   dbIter.seek(account_prefix, LMDB::Iterator::Seek_GE);
-
-   while (dbIter.isValid())
+   while (dbIter->isValid())
    {
       //iterate through account keys
-      auto& key = dbIter.key();
-      BinaryData key_bd((uint8_t*)key.mv_data, key.mv_size);
+      auto&& key = dbIter->key();
 
       try
       {
          //instantiate account object and read data on disk
-         auto metaAccount = make_shared<MetaDataAccount>(dbEnv_, db_);
-         metaAccount->readFromDisk(key_bd);
+         auto metaAccount = make_shared<MetaDataAccount>(iface_, dbName_);
+         metaAccount->readFromDisk(key);
 
          //insert
          metaDataAccounts_.insert(
@@ -2050,7 +1610,7 @@ void AssetWallet::loadMetaAccounts()
          break;
       }
 
-      ++dbIter;
+      dbIter->advance();
    }
 }
 
@@ -2071,7 +1631,8 @@ bool AssetWallet_Single::isWatchingOnly() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-string AssetWallet::forkWathcingOnly(const string& filename)
+string AssetWallet::forkWatchingOnly(
+   const string& filename, const PassphraseLambda& passLbd)
 {
    //strip '_wallet' extention
    auto underscoreIndex = filename.find_last_of("_");
@@ -2082,58 +1643,32 @@ string AssetWallet::forkWathcingOnly(const string& filename)
 
    //check file does not exist
    if (DBUtils::fileExists(newname, 0))
-      throw WalletException("filename already exists");
+      throw WalletException("WO wallet filename already exists");
 
-   //read meta data header
-   map<BinaryData, shared_ptr<WalletMeta>> metaMap;
-   BinaryData masterID;
-   BinaryData mainWalletID;
+   //open original wallet db & new 
+   auto originIface = getIfaceFromFile(filename, passLbd);
+   auto masterID = getMasterID(originIface);
 
-   auto originDbEnv = getEnvFromFile(filename, 1);
-   auto count = getDbCountAndNames(
-      originDbEnv, metaMap, masterID, mainWalletID);
-   originDbEnv = getEnvFromFile(filename, count + 1);
-
-   //create WO dbEnv
-   auto dbEnvPtr = getEnvFromFile(newname, count + 1);
-   LMDB metaDb;
-
-   //set master id
-   string masterIdStr(masterID.getCharPtr(), masterID.getSize());
-   initWalletMetaDB(dbEnvPtr, masterIdStr);
-
-   //open meta db
-   {
-      LMDBEnv::Transaction tx(dbEnvPtr.get(), LMDB::ReadWrite);
-      metaDb.open(dbEnvPtr.get(), WALLETMETA_DBNAME);
-   }
+   auto woIface = getIfaceFromFile(newname, passLbd);
+   woIface->setDbCount(originIface->getDbCount());
+   woIface->lockControlContainer(passLbd);
 
    //cycle through wallet metas, copy wallet structure and assets
-   for (auto& metaPtr : metaMap)
+   for (auto& metaPtr : originIface->getHeaderMap())
    {
       switch (metaPtr.second->type_)
       {
-      case WalletMetaType_Single:
+      case WalletHeaderType_Single:
       {
-         {
-            //copy wallet meta
-            LMDBEnv::Transaction tx(dbEnvPtr.get(), LMDB::ReadWrite);
-
-            auto&& key = metaPtr.second->getDbKey();
-            auto&& val = metaPtr.second->serialize();
-
-            CharacterArrayRef carKey(key.getSize(), key.getPtr());
-            CharacterArrayRef carVal(val.getSize(), val.getPtr());
-            metaDb.insert(carKey, carVal);
-         }
+         woIface->addHeader(metaPtr.second);
 
          //load wallet
-         metaPtr.second->dbEnv_ = originDbEnv;
-         auto wltSingle = make_shared<AssetWallet_Single>(metaPtr.second);
+         auto wltSingle = make_shared<AssetWallet_Single>(
+            originIface, metaPtr.second, masterID);
          wltSingle->readFromFile();
 
          //copy content
-         AssetWallet_Single::copyPublicData(wltSingle, dbEnvPtr);
+         AssetWallet_Single::copyPublicData(wltSingle, woIface);
 
          //close the wallet
          wltSingle.reset();
@@ -2141,31 +1676,18 @@ string AssetWallet::forkWathcingOnly(const string& filename)
       }
 
       default:
-         throw WalletException(
-            "WO forking for this kind of wallet not yet implemented");
+         LOGWARN << "wallet contains header types that \
+            aren't covered by WO forking";
       }
    }
 
-   {
-      //set main wallet
-      LMDBEnv::Transaction tx(dbEnvPtr.get(), LMDB::ReadWrite);
-
-      BinaryWriter bwKey;
-      bwKey.put_uint32_t(MAINWALLET_KEY);
-
-      BinaryWriter bwData;
-      bwData.put_var_int(mainWalletID.getSize());
-      bwData.put_BinaryData(mainWalletID);
-
-      CharacterArrayRef carKey(bwKey.getSize(), bwKey.getDataRef().getPtr());
-      CharacterArrayRef carVal(bwData.getSize(), bwData.getDataRef().getPtr());
-      metaDb.insert(carKey, carVal);
-   }
+   //set main wallet id
+   setMainWallet(woIface, getMainWalletID(originIface));
 
    //close dbs
-   metaDb.close();
-   dbEnvPtr.reset();
-   originDbEnv.reset();
+   originIface.reset();
+   woIface->unlockControlContainer();
+   woIface.reset();
 
    //return the file name of the wo wallet
    return newname;
@@ -2174,15 +1696,11 @@ string AssetWallet::forkWathcingOnly(const string& filename)
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet_Single::copyPublicData(
    shared_ptr<AssetWallet_Single> wlt,
-   shared_ptr<LMDBEnv> dbEnvPtr)
+   std::shared_ptr<WalletDBInterface> iface)
 {
-   LMDB db;
-
    {
-      LMDBEnv::Transaction tx(dbEnvPtr.get(), LMDB::ReadWrite);
-
       //open the relevant db name
-      db.open(dbEnvPtr.get(), wlt->dbName_);
+      auto&& tx = iface->beginWriteTransaction(wlt->dbName_);
 
       {
          //copy root
@@ -2191,19 +1709,17 @@ void AssetWallet_Single::copyPublicData(
          //commit root
          BinaryWriter bwKey;
          bwKey.put_uint32_t(ROOTASSET_KEY);
-         CharacterArrayRef carKey(bwKey.getSize(), bwKey.getDataRef().getPtr());
 
          auto&& data = rootCopy->serialize();
-         CharacterArrayRef carData(data.getSize(), data.getPtr());
 
-         db.insert(carKey, carData);
+         tx->insert(bwKey.getData(), data);
       }
 
       {
          //address accounts
          for (auto& addrAccPtr : wlt->accounts_)
          {
-            auto woAcc = addrAccPtr.second->getWatchingOnlyCopy(dbEnvPtr, &db);
+            auto woAcc = addrAccPtr.second->getWatchingOnlyCopy(iface, wlt->dbName_);
             woAcc->commit();
          }
       }
@@ -2212,35 +1728,32 @@ void AssetWallet_Single::copyPublicData(
          //meta accounts
          for (auto& metaAccPtr : wlt->metaDataAccounts_)
          {
-            auto accCopy = metaAccPtr.second->copy(dbEnvPtr, &db);
+            auto accCopy = metaAccPtr.second->copy(iface, wlt->dbName_);
             accCopy->commit();
          }
       }
    }
 
+   //header data
    {
-      //header data
-      auto metaPtr = make_shared<WalletMeta_Single>(dbEnvPtr);
-      metaPtr->dbName_ = wlt->dbName_;
-      AssetWallet_Single wltWO(metaPtr);
-      wltWO.putHeaderData(wlt->parentID_, wlt->walletID_);
+      auto headerPtr = make_shared<WalletHeader_Single>();
+      headerPtr->walletID_ = wlt->walletID_;
+      AssetWallet_Single wltWO(iface, headerPtr, wlt->masterID_);
+
+      auto&& tx = wltWO.iface_->beginWriteTransaction(wltWO.dbName_);
 
       if (wlt->mainAccount_.getSize() > 0)
       {
          //main account
-         LMDBEnv::Transaction tx(dbEnvPtr.get(), LMDB::ReadWrite);
-
          BinaryWriter bwKey;
          bwKey.put_uint32_t(MAIN_ACCOUNT_KEY);
 
          BinaryWriter bwData;
          bwData.put_var_int(wlt->mainAccount_.getSize());
          bwData.put_BinaryData(wlt->mainAccount_);
-         wltWO.putData(bwKey.getData(), bwData.getData());
+         tx->insert(bwKey.getData(), bwData.getData());
       }
    }
-
-   db.close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2304,14 +1817,48 @@ void AssetWallet_Single::setSeed(
 
    //write to disk
    {
+      auto&& tx = iface_->beginWriteTransaction(dbName_);
+
       BinaryWriter bwKey;
       bwKey.put_uint32_t(WALLET_SEED_KEY);
       auto&& serData = seed_->serialize();
 
-      LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
-      putData(bwKey.getData(), serData);
+      tx->insert(bwKey.getData(), serData);
    }
 
    //reset prompt lambda
    resetPassphrasePromptLambda();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::addSubDB(
+   const std::string& dbName, const PassphraseLambda& passLbd)
+{
+   if (iface_->getFreeDbCount() == 0)
+      iface_->setDbCount(iface_->getDbCount() + 1);
+
+   auto headerPtr = make_shared<WalletHeader_Custom>();
+   headerPtr->walletID_ = BinaryData(dbName);
+
+   try
+   {   
+      iface_->lockControlContainer(passLbd);
+      iface_->addHeader(headerPtr);
+      iface_->unlockControlContainer();
+   }
+   catch (...)
+   {
+      iface_->unlockControlContainer();
+      rethrow_exception(current_exception());
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<DBIfaceTransaction> AssetWallet::beginSubDBTransaction(
+   const string& dbName, bool write)
+{
+   if (!write)
+      return iface_->beginReadTransaction(dbName);
+   else
+      return iface_->beginWriteTransaction(dbName);
 }

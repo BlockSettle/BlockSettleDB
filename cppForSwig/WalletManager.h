@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //
+//  Copyright (C) 2016-19, goatpig                                            //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -682,14 +682,16 @@ private:
    SwigClient::BlockDataViewer bdv_;
 
 private:
-   void loadWallets();
+   void loadWallets(
+      const std::function<SecureBinaryData(const std::set<BinaryData>&)>&);
    SwigClient::BlockDataViewer& getBDVObj(void);
 
 public:
-   WalletManager(const std::string& path) :
+   WalletManager(const std::string& path,
+      const std::function<SecureBinaryData(const std::set<BinaryData>&)>& passLbd) :
       path_(path)
    {
-      loadWallets();
+      loadWallets(passLbd);
    }
 
    bool hasWallet(const std::string& id)
@@ -710,6 +712,7 @@ public:
    void duplicateWOWallet(
       const SecureBinaryData& pubRoot,
       const SecureBinaryData& chainCode,
+      const SecureBinaryData& controlPassphrase,
       unsigned chainLength);
 
    WalletContainer& getCppWallet(const std::string& id);

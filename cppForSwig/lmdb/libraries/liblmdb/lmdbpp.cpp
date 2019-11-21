@@ -394,6 +394,8 @@ void LMDBEnv::setMapSize(size_t sz)
 LMDBEnv::Transaction::Transaction(LMDBEnv *_env, LMDB::Mode mode)
    : env(_env), mode_(mode)
 {
+   if (env == nullptr)
+      throw LMDBException("null LMDBEnv");
    tid_ = std::this_thread::get_id();
    begin();
 }
@@ -646,8 +648,20 @@ void LMDB::wipe(const CharacterArrayRef& key)
       throw LMDBException("Failed to insert: need transaction");
    lock.unlock();
 
+   /*  
+   MDB_val mdb_data_obj;
+   try
+   {
+      mdb_data_obj = value(key);
+      if (mdb_data_obj.mv_data != nullptr)
+         memset(mdb_data_obj.mv_data, 0, mdb_data_obj.mv_size); 
+   }
+   catch (NoValue&)
+   {
+      return;
+   }
+   */
 
-   MDB_val mdb_data_obj = value(key);
    MDB_val mkey = { key.len, const_cast<char*>(key.data) };
    int rc = mdb_del(txnIter->second.txn_, dbi, &mkey, 0); // , MDB_WIPE_DATA);
    if (rc != MDB_SUCCESS && rc != MDB_NOTFOUND)
@@ -656,8 +670,6 @@ void LMDB::wipe(const CharacterArrayRef& key)
       throw LMDBException("Failed to erase (" + errorString(rc) + ")");
    }
 
-    if (mdb_data_obj.mv_data != nullptr)
-      memset(mdb_data_obj.mv_data, 0, mdb_data_obj.mv_size); 
 }
 
 MDB_val LMDB::value(const CharacterArrayRef& key) const

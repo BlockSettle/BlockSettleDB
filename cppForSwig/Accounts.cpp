@@ -23,14 +23,12 @@ size_t AssetAccount::writeAssetEntry(shared_ptr<AssetEntry> entryPtr)
    if (!entryPtr->needsCommit())
       return SIZE_MAX;
 
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+
    auto&& serializedEntry = entryPtr->serialize();
    auto&& dbKey = entryPtr->getDbKey();
 
-   CharacterArrayRef keyRef(dbKey.getSize(), dbKey.getPtr());
-   CharacterArrayRef dataRef(serializedEntry.getSize(), serializedEntry.getPtr());
-
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
-   db_->insert(keyRef, dataRef);
+   tx->insert(dbKey, serializedEntry);
 
    entryPtr->doNotCommit();
    return serializedEntry.getSize();
@@ -39,8 +37,7 @@ size_t AssetAccount::writeAssetEntry(shared_ptr<AssetEntry> entryPtr)
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::updateOnDiskAssets()
 {
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
-
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
    for (auto& entryPtr : assets_)
       writeAssetEntry(entryPtr.second);
 
@@ -59,8 +56,8 @@ void AssetAccount::updateAssetCount()
    BinaryWriter bwData;
    bwData.put_var_int(assets_.size());
 
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
-   putData(db_, bwKey.getData(), bwData.getData());
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,9 +81,7 @@ void AssetAccount::commit()
    auto&& derSchemeSerData = derScheme_->serialize();
    bwData.put_var_int(derSchemeSerData.getSize());
    bwData.put_BinaryData(derSchemeSerData);
-   
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
-   
+     
    //commit root asset if there is one
    if (root_ != nullptr)
       writeAssetEntry(root_);
@@ -96,7 +91,8 @@ void AssetAccount::commit()
       writeAssetEntry(asset.second);
 
    //commit serialized account data
-   putData(db_, bwKey.getData(), bwData.getData());
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx->insert(bwKey.getData(), bwData.getData());
 
    updateAssetCount();
    updateHighestUsedIndex();
@@ -113,11 +109,13 @@ void AssetAccount::putData(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
-   const BinaryData& key, shared_ptr<LMDBEnv> dbEnv, LMDB* db)
+shared_ptr<AssetAccount> AssetAccount::loadFromDisk(const BinaryData& key, 
+   shared_ptr<WalletDBInterface> iface, const string& dbName)
 {
+   auto&& tx = iface->beginReadTransaction(dbName);
+
    //sanity checks
-   if (dbEnv == nullptr || db == nullptr)
+   if (iface == nullptr || dbName.size() == 0)
       throw AccountException("invalid db pointers");
 
    if (key.getSize() == 0)
@@ -126,11 +124,8 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
    if (key.getPtr()[0] != ASSET_ACCOUNT_PREFIX)
       throw AccountException("unexpected prefix for AssetAccount key");
 
-   LMDBEnv::Transaction tx(dbEnv.get(), LMDB::ReadOnly);
-   CharacterArrayRef carKey(key.getSize(), key.getCharPtr());
-
-   auto carData = db->get_NoCopy(carKey);
-   BinaryRefReader brr((const uint8_t*)carData.data, carData.len);
+   auto&& diskDataRef = tx->getDataRef(key);
+   BinaryRefReader brr(diskDataRef);
 
    //type
    auto type = AssetAccountTypeEnum(brr.get_uint8_t());
@@ -145,7 +140,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
    //der scheme
    auto len = brr.get_var_int();
    auto derSchemeBDR = DBUtils::getDataRefForPacket(brr.get_BinaryDataRef(len));
-   auto derScheme = DerivationScheme::deserialize(derSchemeBDR, db);
+   auto derScheme = DerivationScheme::deserialize(derSchemeBDR, iface, dbName);
 
    //asset count
    size_t assetCount = 0;
@@ -154,17 +149,12 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
       bwKey_assetcount.put_uint8_t(ASSET_COUNT_PREFIX);
       bwKey_assetcount.put_BinaryDataRef(key.getSliceRef(
          1, key.getSize() - 1));
-      CharacterArrayRef carKey_assetcount(
-         bwKey_assetcount.getSize(),
-         bwKey_assetcount.getData().getCharPtr());
 
-      auto&& car_assetcount = db->get_NoCopy(carKey_assetcount);
-      if (car_assetcount.len == 0)
+      auto&& assetcount = tx->getDataRef(bwKey_assetcount.getData());
+      if (assetcount.getSize() == 0)
          throw AccountException("missing asset count entry");
 
-      BinaryDataRef bdr_assetcount(
-         (uint8_t*)car_assetcount.data, car_assetcount.len);
-      BinaryRefReader brr_assetcount(bdr_assetcount);
+      BinaryRefReader brr_assetcount(assetcount);
       assetCount = brr_assetcount.get_var_int();
    }
 
@@ -175,17 +165,12 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
       bwKey_lastusedindex.put_uint8_t(ASSET_TOP_INDEX_PREFIX);
       bwKey_lastusedindex.put_BinaryDataRef(key.getSliceRef(
          1, key.getSize() - 1));
-      CharacterArrayRef carKey_lastusedindex(
-         bwKey_lastusedindex.getSize(),
-         bwKey_lastusedindex.getData().getCharPtr());
 
-      auto&& car_lastusedindex = db->get_NoCopy(carKey_lastusedindex);
-      if (car_lastusedindex.len == 0)
+      auto&& lastusedindex = tx->getDataRef(bwKey_lastusedindex.getData());
+      if (lastusedindex.getSize() == 0)
          throw AccountException("missing last used entry");
 
-      BinaryDataRef bdr_lastusedindex(
-         (uint8_t*)car_lastusedindex.data, car_lastusedindex.len);
-      BinaryRefReader brr_lastusedindex(bdr_lastusedindex);
+      BinaryRefReader brr_lastusedindex(lastusedindex);
       lastUsedIndex = brr_lastusedindex.get_var_int();
    }
 
@@ -201,18 +186,13 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
    //get all assets
    {
       auto& assetDbKey = bwAssetKey.getData();
-      CharacterArrayRef carAssetKey(
-         assetDbKey.getSize(), assetDbKey.getCharPtr());
+      auto dbIter = tx->getIterator();
+      dbIter->seek(assetDbKey);
 
-      auto dbIter = db->begin();
-      dbIter.seek(carAssetKey, LMDB::Iterator::Seek_GE);
-
-      while (dbIter.isValid())
+      while (dbIter->isValid())
       {
-         BinaryDataRef key_bdr(
-            (const uint8_t*)dbIter.key().mv_data, dbIter.key().mv_size);
-         BinaryDataRef value_bdr(
-            (const uint8_t*)dbIter.value().mv_data, dbIter.value().mv_size);
+         auto&& key_bdr = dbIter->key();
+         auto&& value_bdr = dbIter->value();
 
          //check key isnt prefix
          if (key_bdr == assetDbKey)
@@ -232,7 +212,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
          else
             rootEntry = assetPtr;
 
-         ++dbIter;
+         dbIter->advance();
       } 
    }
 
@@ -249,7 +229,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
       accountPtr = make_shared<AssetAccount>(
          account_id, parent_id,
          rootEntry, derScheme,
-         dbEnv, db);
+         iface, dbName);
       break;
    }
    
@@ -258,7 +238,7 @@ shared_ptr<AssetAccount> AssetAccount::loadFromDisk(
       accountPtr = make_shared<AssetAccount_ECDH>(
          account_id, parent_id,
          rootEntry, derScheme,
-         dbEnv, db);
+         iface, dbName);
       break;
    }
 
@@ -327,8 +307,6 @@ void AssetAccount::extendPublicChain(
    auto&& assetVec = extendPublicChain(assetPtr,
       assetPtr->getIndex() + 1, 
       assetPtr->getIndex() + count);
-
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
 
    {
       for (auto& asset : assetVec)
@@ -436,8 +414,6 @@ void AssetAccount::extendPrivateChain(
    auto&& assetVec = extendPrivateChain(ddc, assetPtr, 
       assetIndex + 1, assetIndex + count);
 
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
-
    {
       for (auto& asset : assetVec)
       {
@@ -519,7 +495,6 @@ shared_ptr<AssetEntry> AssetAccount::getLastAssetWithPrivateKey() const
 void AssetAccount::updateHighestUsedIndex()
 {
    ReentrantLock lock(this);
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
 
    BinaryWriter bwKey;
    bwKey.put_uint8_t(ASSET_TOP_INDEX_PREFIX);
@@ -528,7 +503,8 @@ void AssetAccount::updateHighestUsedIndex()
    BinaryWriter bwData;
    bwData.put_var_int(lastUsedIndex_);
 
-   putData(db_, bwKey.getData(), bwData.getData());
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -717,8 +693,7 @@ unsigned AssetAccount_ECDH::addSalt(const SecureBinaryData& salt)
    if (derScheme == nullptr)
       throw AccountException("unexpected derivation scheme type");
 
-   auto lock = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadWrite);
-   return derScheme->addSalt(salt, db_);
+   return derScheme->addSalt(salt, iface_, dbName_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -852,7 +827,7 @@ void AddressAccount::make_new(
       auto asset_account = make_shared<AssetAccount>(
          account_id, ID_,
          rootAsset, derScheme,
-         dbEnv_, db_);
+         iface_, dbName_);
 
       return asset_account;
    };
@@ -899,7 +874,7 @@ void AddressAccount::make_new(
          asset_account_id, ID_,
          //no root asset for legacy derivation scheme, using first entry instead
          nullptr, derScheme, 
-         dbEnv_, db_);
+         iface_, dbName_);
       asset_account->assets_.insert(make_pair(0, firstAsset));
 
       //add the asset account
@@ -1096,7 +1071,7 @@ void AddressAccount::make_new(
       auto assetAccount = make_shared<AssetAccount_ECDH>(
          accEcdh->getOuterAccountID(), ID_,
          rootAsset, derScheme,
-         dbEnv_, db_);
+         iface_, dbName_);
 
       addAccount(assetAccount);
       break;
@@ -1161,7 +1136,7 @@ void AddressAccount::commit()
    //asset accounts count
    bwData.put_var_int(assetAccounts_.size());
 
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
 
    //asset accounts
    for (auto& account : assetAccounts_)
@@ -1174,10 +1149,7 @@ void AddressAccount::commit()
    }
 
    //commit address account data to disk
-   CharacterArrayRef carKey(bwKey.getSize(), bwKey.getData().getCharPtr());
-   CharacterArrayRef carData(bwData.getSize(), bwData.getData().getCharPtr());
-
-   db_->insert(carKey, carData);
+   tx->insert(bwKey.getData(), bwData.getData());
 
    //commit instantiated address types
    for (auto& addrPair : addresses_)
@@ -1208,20 +1180,16 @@ void AddressAccount::readFromDisk(const BinaryData& key)
    if (key.getPtr()[0] != ADDRESS_ACCOUNT_PREFIX)
       throw AccountException("unexpected key prefix for AddressAccount");
 
-   if (dbEnv_ == nullptr || db_ == nullptr)
+   if (iface_ == nullptr || dbName_.size() == 0)
       throw AccountException("unintialized AddressAccount object");
 
    //wipe object prior to loading from disk
    reset();
 
-   //get data from disk
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadOnly);
-   
-   CharacterArrayRef carKey(key.getSize(), key.getCharPtr());
-   auto&& carData = db_->get_NoCopy(carKey);
-
-   BinaryDataRef bdr((const uint8_t*)carData.data, carData.len);
-   BinaryRefReader brr(bdr);
+   //get data from disk  
+   auto&& tx = iface_->beginReadTransaction(dbName_);
+   auto&& diskDataRef = tx->getDataRef(key);
+   BinaryRefReader brr(diskDataRef);
 
    //outer and inner accounts
    size_t len, count;
@@ -1251,7 +1219,7 @@ void AddressAccount::readFromDisk(const BinaryData& key)
       bw_asset_key.put_BinaryData(brr.get_BinaryData(len));
 
       auto accountPtr = AssetAccount::loadFromDisk(
-         bw_asset_key.getData(), dbEnv_, db_);
+         bw_asset_key.getData(), iface_, dbName_);
       assetAccounts_.insert(make_pair(accountPtr->id_, accountPtr));
    }
 
@@ -1261,39 +1229,36 @@ void AddressAccount::readFromDisk(const BinaryData& key)
    BinaryWriter bwKey;
    bwKey.put_uint8_t(ADDRESS_TYPE_PREFIX);
    bwKey.put_BinaryData(getID());
+   auto keyBdr = bwKey.getDataRef();
 
-   BinaryDataRef keyBdr = bwKey.getDataRef();
-   CharacterArrayRef carKey2(keyBdr.getSize(), keyBdr.getPtr());
-
-   auto dbIter = db_->begin();
-   dbIter.seek(carKey2, LMDB::Iterator::Seek_GE);
-   while (dbIter.isValid())
+   auto dbIter = tx->getIterator();
+   dbIter->seek(bwKey.getData());
+   while (dbIter->isValid())
    {
-      auto& key = dbIter.key();
-      BinaryDataRef key_bdr((uint8_t*)key.mv_data, key.mv_size);
-      if (!key_bdr.startsWith(keyBdr))
+      auto&& key = dbIter->key();
+      if (!key.startsWith(keyBdr))
          break;
 
-      if (key.mv_size != 13)
+      if (key.getSize() != 13)
       {
          LOGWARN << "unexpected address entry type key size!";
-         ++dbIter;
+         dbIter->advance();
          continue;
       }
 
-      auto& data = dbIter.value();
-      if (data.mv_size != 4)
+      auto&& data = dbIter->value();
+      if (data.getSize() != 4)
       {
          LOGWARN << "unexpected address entry type val size!";
-         ++dbIter;
+         dbIter->advance();
          continue;
       }
 
-      auto aeType = AddressEntryType(*(uint32_t*)data.mv_data);
-      auto assetID = key_bdr.getSliceCopy(1, 12);
+      auto aeType = AddressEntryType(*(uint32_t*)data.getPtr());
+      auto assetID = key.getSliceCopy(1, 12);
       addresses_.insert(make_pair(assetID, aeType));
       
-      ++dbIter;
+      dbIter->advance();
    }
 }
 
@@ -1523,9 +1488,9 @@ shared_ptr<AssetEntry> AddressAccount::getOutterAssetRoot() const
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressAccount> AddressAccount::getWatchingOnlyCopy(
-   shared_ptr<LMDBEnv> dbEnv, LMDB* db) const
+   shared_ptr<WalletDBInterface> iface, const string& dbName) const
 {
-   auto woAcc = make_shared<AddressAccount>(dbEnv, db);
+   auto woAcc = make_shared<AddressAccount>(iface, dbName);
 
    //id
    woAcc->ID_ = ID_;
@@ -1543,10 +1508,19 @@ shared_ptr<AddressAccount> AddressAccount::getWatchingOnlyCopy(
    for (auto& assetAccPair : assetAccounts_)
    {
       auto assetAccPtr = assetAccPair.second;
-      auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(assetAccPtr->root_);
-      if (rootSingle == nullptr)
-         throw AccountException("invalid account root");
-      auto woRoot = rootSingle->getPublicCopy();
+
+      shared_ptr<AssetEntry> woRoot = nullptr;
+      if (assetAccPtr->root_ != nullptr)
+      {
+         /*
+         Only check account root type if it has a root to begin with. Some
+         accounts do not carry roots (e.g. from Armory135 wallets)
+         */
+         auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(assetAccPtr->root_);
+         if (rootSingle == nullptr)
+            throw AccountException("invalid account root");
+         woRoot = rootSingle->getPublicCopy();
+      }
 
       shared_ptr<AssetAccount> woAccPtr;
       switch (assetAccPtr->type())
@@ -1557,7 +1531,7 @@ shared_ptr<AddressAccount> AddressAccount::getWatchingOnlyCopy(
             assetAccPtr->id_, assetAccPtr->parent_id_,
             woRoot,
             assetAccPtr->derScheme_,
-            dbEnv, db);
+            iface, dbName);
          break;
       }
 
@@ -1567,14 +1541,14 @@ shared_ptr<AddressAccount> AddressAccount::getWatchingOnlyCopy(
             assetAccPtr->id_, assetAccPtr->parent_id_,
             woRoot,
             assetAccPtr->derScheme_,
-            dbEnv, db);
+            iface, dbName);
 
          //put derScheme salts
          auto derSchemePtr = dynamic_pointer_cast<DerivationScheme_ECDH>(
             assetAccPtr->derScheme_);
          if (derSchemePtr == nullptr)
             throw AccountException("unexpected der scheme object type");
-         derSchemePtr->putAllSalts(db);
+         derSchemePtr->putAllSalts(iface, dbName);
 
          break;
       }
@@ -1660,11 +1634,8 @@ void AddressAccount::writeAddressType(
    BinaryWriter bwData;
    bwData.put_uint32_t(aeType);
 
-   CharacterArrayRef carKey(bwKey.getSize(), bwKey.getData().getCharPtr());
-   CharacterArrayRef carData(bwData.getSize(), bwData.getData().getCharPtr());
-
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
-   db_->insert(carKey, carData);
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1676,10 +1647,8 @@ void AddressAccount::eraseInstantiatedAddressType(const BinaryData& id)
    bwKey.put_uint8_t(ADDRESS_TYPE_PREFIX);
    bwKey.put_BinaryData(id);
 
-   CharacterArrayRef carKey(bwKey.getSize(), bwKey.getData().getCharPtr());
-
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
-   db_->erase(carKey);
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx->erase(bwKey.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2107,8 +2076,6 @@ void MetaDataAccount::commit()
 {
    ReentrantLock lock(this);
 
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
-
    BinaryWriter bwKey;
    bwKey.put_uint8_t(META_ACCOUNT_PREFIX);
    bwKey.put_BinaryData(ID_);
@@ -2122,9 +2089,8 @@ void MetaDataAccount::commit()
       writeAssetToDisk(asset.second);
 
    //commit serialized account data
-   CharacterArrayRef carKey(bwKey.getSize(), bwKey.getData().getCharPtr());
-   CharacterArrayRef carData(bwData.getSize(), bwData.getData().getCharPtr());
-   db_->insert(carKey, carData);
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2134,22 +2100,19 @@ bool MetaDataAccount::writeAssetToDisk(shared_ptr<MetaData> assetPtr)
       return true;
    
    assetPtr->needsCommit_ = false;
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
 
    auto&& key = assetPtr->getDbKey();
    auto&& data = assetPtr->serialize();
 
-   CharacterArrayRef carKey(key.getSize(), key.getCharPtr());
-
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
    if (data.getSize() != 0)
    {
-      CharacterArrayRef carData(data.getSize(), data.getCharPtr());
-      db_->insert(carKey, carData);
+      tx->insert(key, data);
       return true;
    }
    else
    {
-      db_->erase(carKey);
+      tx->erase(key);
       return false;
    }
 }
@@ -2166,7 +2129,7 @@ void MetaDataAccount::updateOnDisk(void)
    if (!needsCommit)
       return;
 
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadWrite);
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
    auto iter = assets_.begin();
    while (iter != assets_.end())
    {
@@ -2192,7 +2155,7 @@ void MetaDataAccount::reset()
 void MetaDataAccount::readFromDisk(const BinaryData& key)
 {
    //sanity checks
-   if (dbEnv_ == nullptr || db_ == nullptr)
+   if (iface_ == nullptr || dbName_.size() == 0)
       throw AccountException("invalid db pointers");
 
    if (key.getSize() != 5)
@@ -2201,11 +2164,12 @@ void MetaDataAccount::readFromDisk(const BinaryData& key)
    if (key.getPtr()[0] != META_ACCOUNT_PREFIX)
       throw AccountException("unexpected prefix for AssetAccount key");
 
-   LMDBEnv::Transaction tx(dbEnv_.get(), LMDB::ReadOnly);
+   auto&& tx = iface_->beginReadTransaction(dbName_);
+
    CharacterArrayRef carKey(key.getSize(), key.getCharPtr());
 
-   auto carData = db_->get_NoCopy(carKey);
-   BinaryRefReader brr((const uint8_t*)carData.data, carData.len);
+   auto diskDataRef = tx->getDataRef(key);
+   BinaryRefReader brr(diskDataRef);
 
    //wipe object prior to loading from disk
    reset();
@@ -2241,37 +2205,34 @@ void MetaDataAccount::readFromDisk(const BinaryData& key)
    bwAssetKey.put_uint8_t(prefix);
    bwAssetKey.put_BinaryData(ID_);
    auto& assetDbKey = bwAssetKey.getData();
-   CharacterArrayRef carIter(assetDbKey.getSize(), assetDbKey.getCharPtr());
 
-   auto dbIter = db_->begin();
-   dbIter.seek(carIter, LMDB::Iterator::Seek_GE);
+   auto dbIter = tx->getIterator();
+   dbIter->seek(assetDbKey);
 
-   while (dbIter.isValid())
+   while (dbIter->isValid())
    {
-      BinaryDataRef key_bdr(
-         (const uint8_t*)dbIter.key().mv_data, dbIter.key().mv_size);
-      BinaryDataRef value_bdr(
-         (const uint8_t*)dbIter.value().mv_data, dbIter.value().mv_size);
+      auto&& key = dbIter->key();
+      auto&& data = dbIter->value();
 
       //check key isnt prefix
-      if (key_bdr == assetDbKey)
+      if (key == assetDbKey)
          continue;
 
       //check key starts with prefix
-      if (!key_bdr.startsWith(assetDbKey))
+      if (!key.startsWith(assetDbKey))
          break;
 
       //deser asset
       try
       {
-         auto assetPtr = MetaData::deserialize(key_bdr, value_bdr);
+         auto assetPtr = MetaData::deserialize(key, data);
          assets_.insert(make_pair(
             assetPtr->index_, assetPtr));
       }
       catch (exception&)
       {}
 
-      ++dbIter;
+      dbIter->advance();
    }
 }
 
@@ -2297,9 +2258,9 @@ void MetaDataAccount::eraseMetaDataByIndex(unsigned id)
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<MetaDataAccount> MetaDataAccount::copy(
-   shared_ptr<LMDBEnv> dbEnv, LMDB* db) const
+   shared_ptr<WalletDBInterface> iface, const string& dbName) const
 {
-   auto copyPtr = make_shared<MetaDataAccount>(dbEnv, db);
+   auto copyPtr = make_shared<MetaDataAccount>(iface, dbName);
    
    copyPtr->type_ = type_;
    copyPtr->ID_ = ID_;

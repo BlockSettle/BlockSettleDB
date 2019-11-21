@@ -266,6 +266,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       homedir_,
       move(wltRoot), //root as a r value
       SecureBinaryData(),
+      SecureBinaryData(),
       5); //set lookup computation to 5 entries
 
    //register with db
@@ -679,6 +680,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
+      SecureBinaryData(),
       5); //set lookup computation to 3 entries
 
    //register with db
@@ -925,6 +927,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
+      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    wltRoot = move(CryptoPRNG::generateRandom(32));
@@ -932,12 +935,14 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
+      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    wltRoot = move(CryptoPRNG::generateRandom(32));
    auto assetWlt_3 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
+      SecureBinaryData(),
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
@@ -1204,6 +1209,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
+      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    wltRoot = move(CryptoPRNG::generateRandom(32));
@@ -1211,12 +1217,14 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
+      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    wltRoot = move(CryptoPRNG::generateRandom(32));
    auto assetWlt_3 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
+      SecureBinaryData(),
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
@@ -1606,11 +1614,13 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       homedir_,
       CryptoPRNG::generateRandom(32), //root as rvalue
       SecureBinaryData(),
+      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(CryptoPRNG::generateRandom(32)), //root as rvalue
+      SecureBinaryData(),
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
@@ -1935,12 +1945,14 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       homedir_,
       CryptoPRNG::generateRandom(32), //root as rvalue
       SecureBinaryData(), //empty passphrase
+      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(CryptoPRNG::generateRandom(32)), //root as rvalue
       SecureBinaryData(), //empty passphrase
+      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    //register with db
@@ -2316,12 +2328,14 @@ TEST_F(SignerTest, GetUnsignedTxId)
       homedir_,
       CryptoPRNG::generateRandom(32), //root as rvalue
       SecureBinaryData(), //empty passphrase
+      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(CryptoPRNG::generateRandom(32)), //root as rvalue
       SecureBinaryData(), //empty passphrase
+      SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
    //register with db
@@ -2699,6 +2713,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       homedir_,
       move(wltRoot), //root as a r value
       SecureBinaryData(),
+      SecureBinaryData(),
       3); //lookup computation
 
    //register with db
@@ -2949,6 +2964,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
+      SecureBinaryData(),
       SecureBinaryData(),
       3); //lookup computation
 
@@ -3207,7 +3223,8 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
-      5); //set lookup computation to 3 entries
+      SecureBinaryData(),
+      5); //set lookup computation to 5 entries
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec;
@@ -3334,7 +3351,12 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    assetWlt.reset();
 
    //reload it
-   auto loadedWlt = AssetWallet::loadMainWalletFromFile(fName);
+   auto controlPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData();
+   };
+   auto loadedWlt = AssetWallet::loadMainWalletFromFile(
+      fName, controlPassLbd);
    assetWlt = dynamic_pointer_cast<AssetWallet_Single>(loadedWlt);
 
    //check balances
@@ -3596,6 +3618,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
       homedir_,
       wltRoot, //root as a rvalue
+      SecureBinaryData(),
       passphrase);
 
    //salted account
@@ -3894,6 +3917,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       homedir_,
       move(wltRoot), //root as a rvalue
       passphrase,
+      SecureBinaryData("control"),
       5); //set lookup computation to 5 entries
 
    //register with db
@@ -4158,6 +4182,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       move(wltRoot), //root as a rvalue
       { 0x80000065, 0x80000020 },
       passphrase,
+      SecureBinaryData("contorl"),
       5); //set lookup computation to 5 entries
 
    //register with db
@@ -4420,7 +4445,8 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
       homedir_,
       wltRoot, //root as a rvalue
-      passphrase);
+      passphrase,
+      SecureBinaryData("control"));
 
    auto&& salt = CryptoPRNG::generateRandom(32);
    auto saltedAccType =
@@ -4709,7 +4735,8 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
       homedir_,
       wltRoot, //root as a rvalue
-      passphrase);
+      passphrase,
+      SecureBinaryData("control"));
 
    auto ecdhAccType = make_shared<AccountType_ECDH>(privKey, pubKey);
    ecdhAccType->setDefaultAddressType(

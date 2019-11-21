@@ -57,8 +57,9 @@ private:
    std::map<SecureBinaryData, std::pair<std::string, unsigned>> peerRootKeys_;
 
 private:
-   void loadWallet(const std::string&);
-   void createWallet(const std::string&, const std::string&);
+   void loadWallet(const std::string&, const PassphraseLambda&);
+   void createWallet(const std::string&, const std::string&, 
+      const PassphraseLambda&);
 
    void addPeer(
       const SecureBinaryData&, const std::initializer_list<std::string>&);
@@ -68,7 +69,8 @@ private:
    void erasePeerRootKey(const SecureBinaryData&);
 
 public:
-   AuthorizedPeers(const std::string&, const std::string&);
+   AuthorizedPeers(
+      const std::string&, const std::string&, const PassphraseLambda&);
    AuthorizedPeers(void);
 
    const std::map<std::string, btc_pubkey>& getPeerNameMap(void) const;

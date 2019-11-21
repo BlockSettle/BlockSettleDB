@@ -22,8 +22,8 @@ DerivationScheme::~DerivationScheme()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<DerivationScheme> DerivationScheme::deserialize(
-   BinaryDataRef data, LMDB* db)
+shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data, 
+   shared_ptr<WalletDBInterface> iface, const string& dbName)
 {
    BinaryRefReader brr(data);
 
@@ -96,31 +96,28 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(
       BinaryWriter bwKey;
       bwKey.put_uint8_t(ECDH_SALT_PREFIX);
       bwKey.put_BinaryData(id);
-
       BinaryDataRef keyBdr = bwKey.getDataRef();
-      CharacterArrayRef carKey(keyBdr.getSize(), keyBdr.getPtr());
 
-      auto dbIter = db->begin();
-      dbIter.seek(carKey, LMDB::Iterator::Seek_GE);
-      while (dbIter.isValid())
+      auto&& tx = iface->beginReadTransaction(dbName);
+      auto dbIter = tx->getIterator();
+      dbIter->seek(keyBdr);
+      while (dbIter->isValid())
       {
-         auto& key = dbIter.key();
-         BinaryDataRef key_bdr((uint8_t*)key.mv_data, key.mv_size);
-         if (!key_bdr.startsWith(keyBdr) || 
-             key_bdr.getSize() != keyBdr.getSize() + 4)
+         auto&& key = dbIter->key();
+         if (!key.startsWith(keyBdr) || 
+             key.getSize() != keyBdr.getSize() + 4)
             break;
 
-         auto saltIdBdr = key_bdr.getSliceCopy(keyBdr.getSize(), 4);
+         auto saltIdBdr = key.getSliceCopy(keyBdr.getSize(), 4);
          auto saltId = READ_UINT32_BE(saltIdBdr);
 
-         auto value = dbIter.value();
-         BinaryDataRef value_bdr((uint8_t*)value.mv_data, value.mv_size);
-         BinaryRefReader bdrData(value_bdr);
+         auto value = dbIter->value();
+         BinaryRefReader bdrData(value);
          auto len = bdrData.get_var_int();
          auto&& salt = bdrData.get_SecureBinaryData(len);
 
          saltMap.emplace(make_pair(move(salt), saltId));
-         ++dbIter;
+         dbIter->advance();
       }
 
       derScheme = make_shared<DerivationScheme_ECDH>(id, saltMap);
@@ -569,7 +566,8 @@ BinaryData DerivationScheme_ECDH::serialize() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unsigned DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt, LMDB* db)
+unsigned DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt, 
+   shared_ptr<WalletDBInterface> iface, const string& dbName)
 {
    if (salt.getSize() != 32)
       throw DerivationSchemeException("salt is too small");
@@ -587,15 +585,15 @@ unsigned DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt, LMDB* db)
       throw DerivationSchemeException("failed to insert salt");
 
    //update on disk
-   putSalt(id, salt, db);
+   putSalt(id, salt, iface, dbName);
 
    //return insert index
    return id;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DerivationScheme_ECDH::putSalt(
-   unsigned id, const SecureBinaryData& salt, LMDB* db)
+void DerivationScheme_ECDH::putSalt(unsigned id, const SecureBinaryData& salt, 
+   shared_ptr<WalletDBInterface> iface, const string& dbName)
 {
    //update on disk
    BinaryWriter bwKey;
@@ -607,17 +605,17 @@ void DerivationScheme_ECDH::putSalt(
    bwData.put_var_int(salt.getSize());
    bwData.put_BinaryData(salt);
 
-   CharacterArrayRef carKey(bwKey.getSize(), bwKey.getDataRef().getPtr());
-   CharacterArrayRef carData(bwData.getSize(), bwData.getDataRef().getPtr());
-   db->insert(carKey, carData);
+   auto&& tx = iface->beginWriteTransaction(dbName);
+   tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DerivationScheme_ECDH::putAllSalts(LMDB* db)
+void DerivationScheme_ECDH::putAllSalts(
+   shared_ptr<WalletDBInterface> iface, const string& dbName)
 {
    //expects live read-write db tx
    for (auto& saltPair : saltMap_)
-      putSalt(saltPair.second, saltPair.first, db);
+      putSalt(saltPair.second, saltPair.first, iface, dbName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -82,7 +82,14 @@ unique_ptr<DecryptedEncryptionKey> decrKey, const BinaryData& kdfid) const
 
 ////////////////////////////////////////////////////////////////////////////////
 const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
-   shared_ptr<Asset_EncryptedData> dataPtr)
+   const shared_ptr<Asset_EncryptedData>& dataPtr)
+{
+   return getDecryptedPrivateData(dataPtr.get());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
+   const Asset_EncryptedData* dataPtr)
 {
    //sanity check
    if (!ownsLock())
@@ -91,6 +98,9 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
    if (lockedDecryptedData_ == nullptr)
       throw DecryptedDataContainerException(
       "nullptr lock! how did we get this far?");
+
+   if (dataPtr == nullptr)
+      throw DecryptedDataContainerException("null data");
 
    auto insertDecryptedData = [this](unique_ptr<DecryptedData> decrKey)->
       const SecureBinaryData&
@@ -338,7 +348,8 @@ SecureBinaryData DecryptedDataContainer::encryptData(
       cipher->getEncryptionKeyId());
    auto& derivedKey = keyIter->second->getDerivedKey(cipher->getKdfId());
 
-   return move(cipher->encrypt(derivedKey, data));
+   return move(cipher->encrypt(
+      keyIter->second.get(), cipher->getKdfId(), data));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -387,17 +398,15 @@ void DecryptedDataContainer::updateKeyOnDisk(
 void DecryptedDataContainer::updateKeyOnDiskNoPrefix(
    const BinaryData& dbKey, shared_ptr<Asset_EncryptedData> dataPtr)
 {
-   /*caller needs to manage db tx*/
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
 
    //check if data is on disk already
-   CharacterArrayRef keyRef(dbKey.getSize(), dbKey.getPtr());
-   auto&& dataRef = dbPtr_->get_NoCopy(keyRef);
+   auto&& dataRef = tx->getDataRef(dbKey);
 
-   if (dataRef.len != 0)
+   if (dataRef.getSize() != 0)
    {
-      BinaryDataRef bdr((uint8_t*)dataRef.data, dataRef.len);
       //already have this key, is it the same data?
-      auto onDiskData = Asset_EncryptedData::deserialize(bdr);
+      auto onDiskData = Asset_EncryptedData::deserialize(dataRef);
 
       //data has not changed, no need to commit
       if (onDiskData->isSame(dataPtr.get()))
@@ -408,16 +417,13 @@ void DecryptedDataContainer::updateKeyOnDiskNoPrefix(
    }
 
    auto&& serializedData = dataPtr->serialize();
-   CharacterArrayRef dataRef_Put(
-      serializedData.getSize(), serializedData.getPtr());
-   dbPtr_->insert(keyRef, dataRef_Put);
-
+   tx->insert(dbKey, serializedData);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::updateOnDisk()
 {
-   //wallet needs to create the db read/write tx
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
 
    //encryption keys
    for (auto& key : encryptionKeyMap_)
@@ -431,14 +437,12 @@ void DecryptedDataContainer::updateOnDisk()
       dbKey.append(key.first);
 
       //fetch from db
-      CharacterArrayRef keyRef(dbKey.getSize(), dbKey.getPtr());
-      auto&& dataRef = dbPtr_->get_NoCopy(keyRef);
+      auto&& dataRef = tx->getDataRef(dbKey);
 
-      if (dataRef.len != 0)
+      if (dataRef.getSize() != 0)
       {
-         BinaryDataRef bdr((uint8_t*)dataRef.data, dataRef.len);
          //already have this key, is it the same data?
-         auto onDiskData = KeyDerivationFunction::deserialize(bdr);
+         auto onDiskData = KeyDerivationFunction::deserialize(dataRef);
 
          //data has not changed, not commiting to disk
          if (onDiskData->isSame(key.second.get()))
@@ -449,68 +453,20 @@ void DecryptedDataContainer::updateOnDisk()
       }
 
       auto&& serializedData = key.second->serialize();
-      CharacterArrayRef dataRef_Put(
-         serializedData.getSize(), serializedData.getPtr());
-      dbPtr_->insert(keyRef, dataRef_Put);
+      tx->insert(dbKey, serializedData);
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::deleteKeyFromDisk(const BinaryData& key)
 {
-   /***
-   This operation abuses the no copy read feature in lmdb. Since all data is
-   mmap'd, a no copy read is a pointer to the data on disk. Therefor modifying
-   that data will result in a modification on disk.
-
-   This is done under 3 conditions:
-   1) The decrypted data container is locked.
-   2) The calling threads owns a ReadWrite transaction on the lmdb object
-   3) There are no active ReadOnly transactions on the lmdb object
-
-   1. is a no brainer, 2. guarantees the changes are flushed to disk once the
-   tx is released. RW tx are locked, therefor only one is active at any given
-   time, by LMDB design.
-
-   3. is to guarantee there are no readers when the change takes place. Needs
-   some LMDB C++ wrapper modifications to be able to check from the db object.
-   The condition should be enforced by the caller regardless.
-   ***/
-
    //sanity checks
    if (!ownsLock())
       throw DecryptedDataContainerException("unlocked/does not own lock");
 
-   //check db only has one RW tx
-   /*if (!dbEnv_->isRWLockExclusive())
-   {
-   throw DecryptedDataContainerException(
-   "need exclusive RW lock to delete entries");
-   }
-
-   //check we own the RW tx
-   if (dbEnv_->ownsLock() != LMDB_RWLOCK)
-   {
-   throw DecryptedDataContainerException(
-   "need exclusive RW lock to delete entries");
-   }*/
-
-   CharacterArrayRef keyRef(key.getSize(), key.getCharPtr());
-
-   //check data exist son disk to begin with
-   {
-      auto dataRef = dbPtr_->get_NoCopy(keyRef);
-
-      //data is empty, nothing to wipe
-      if (dataRef.len == 0)
-      {
-         throw DecryptedDataContainerException(
-            "tried to wipe non existent entry");
-      }
-   }
-
    //wipe it
-   dbPtr_->wipe(keyRef);
+   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   tx->wipe(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -518,36 +474,32 @@ void DecryptedDataContainer::readFromDisk()
 {
    {
       //encryption key and kdf entries
-      auto dbIter = dbPtr_->begin();
+      auto&& tx = iface_->beginReadTransaction(dbName_);
+      auto dbIter = tx->getIterator();
 
       BinaryWriter bwEncrKey;
       bwEncrKey.put_uint8_t(ENCRYPTIONKEY_PREFIX);
+      dbIter->seek(bwEncrKey.getData());
 
-      CharacterArrayRef keyRef(bwEncrKey.getSize(), bwEncrKey.getData().getPtr());
-
-      dbIter.seek(keyRef, LMDB::Iterator::Seek_GE);
-
-      while (dbIter.isValid())
+      while (dbIter->isValid())
       {
-         auto iterkey = dbIter.key();
-         auto itervalue = dbIter.value();
+         auto iterkey = dbIter->key();
+         auto itervalue = dbIter->value();
 
-         if (iterkey.mv_size < 2)
+         if (iterkey.getSize() < 2)
             throw runtime_error("empty db key");
 
-         if (itervalue.mv_size < 1)
+         if (itervalue.getSize() < 1)
             throw runtime_error("empty value");
 
-         BinaryDataRef keyBDR((uint8_t*)iterkey.mv_data + 1, iterkey.mv_size - 1);
-         BinaryDataRef valueBDR((uint8_t*)itervalue.mv_data, itervalue.mv_size);
-
-         auto prefix = (uint8_t*)iterkey.mv_data;
+         auto prefix = (uint8_t*)iterkey.getPtr();
          switch (*prefix)
          {
          case ENCRYPTIONKEY_PREFIX:
          {
-            auto keyPtr = Asset_EncryptedData::deserialize(valueBDR);
-            auto encrKeyPtr = dynamic_pointer_cast<Asset_EncryptionKey>(keyPtr);
+            auto keyUPtr = Asset_EncryptedData::deserialize(itervalue);
+            shared_ptr<Asset_EncryptedData> keySPtr(move(keyUPtr));
+            auto encrKeyPtr = dynamic_pointer_cast<Asset_EncryptionKey>(keySPtr);
             if (encrKeyPtr == nullptr)
                throw runtime_error("empty keyptr");
 
@@ -558,8 +510,8 @@ void DecryptedDataContainer::readFromDisk()
 
          case KDF_PREFIX:
          {
-            auto kdfPtr = KeyDerivationFunction::deserialize(valueBDR);
-            if (keyBDR != kdfPtr->getId())
+            auto kdfPtr = KeyDerivationFunction::deserialize(itervalue);
+            if (iterkey.getSliceRef(1, iterkey.getSize() - 1) != kdfPtr->getId())
                throw runtime_error("kdf id mismatch");
 
             addKdf(kdfPtr);
@@ -567,7 +519,7 @@ void DecryptedDataContainer::readFromDisk()
          }
          }
 
-         dbIter.advance();
+         dbIter->advance();
       }
    }
 }
@@ -679,12 +631,12 @@ void DecryptedDataContainer::encryptEncryptionKey(
 
    {
       //write new encrypted key as temp key within it's own transaction
-      LMDBEnv::Transaction tempTx(dbEnv_, LMDB::ReadWrite);
+      auto&& tx = iface_->beginWriteTransaction(dbName_);
       updateKeyOnDiskNoPrefix(temp_key, encryptedKey);
    }
 
    {
-      LMDBEnv::Transaction permTx(dbEnv_, LMDB::ReadWrite);
+      auto&& tx = iface_->beginWriteTransaction(dbName_);
 
       //wipe old key from disk
       deleteKeyFromDisk(perm_key);
@@ -694,9 +646,8 @@ void DecryptedDataContainer::encryptEncryptionKey(
    }
 
    {
-      LMDBEnv::Transaction permTx(dbEnv_, LMDB::ReadWrite);
-
       //wipe temp entry
+      auto&& tx = iface_->beginWriteTransaction(dbName_);
       deleteKeyFromDisk(temp_key);
    }
 }

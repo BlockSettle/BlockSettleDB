@@ -111,7 +111,12 @@ int processArgs(map<string, string> args)
    if (filename.size() == 0)
       throw runtime_error("missing client or server argument!");
 
-   AuthorizedPeers authPeers(datadir, filename);
+   auto yoloPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      //TODO: implement prompt passphrase prompting
+      return SecureBinaryData();
+   };
+   AuthorizedPeers authPeers(datadir, filename, yoloPassLbd);
 
    /*mutually exclusive args from here on*/
 

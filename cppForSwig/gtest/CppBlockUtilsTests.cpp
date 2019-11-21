@@ -8337,6 +8337,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       homedir_,
       move(wltRoot), //root as a r value
       SecureBinaryData(),
+      SecureBinaryData(),
       10); //set lookup computation to 5 entries
       
    //register with db
@@ -8883,7 +8884,8 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
       homedir_,
       move(wltRoot), //root as a r value
       SecureBinaryData(),
-      3); //set lookup computation to 5 entries
+      SecureBinaryData(),
+      3); //set lookup computation to 3 entries
 
    //register with db
    vector<BinaryData> addrVec;
@@ -9120,6 +9122,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
       homedir_,
       move(wltRoot),
       SecureBinaryData(), //empty passphrase
+      SecureBinaryData(),
       5);
 
    //register with db
@@ -9452,7 +9455,8 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       homedir_,
       move(wltRoot), //root as a r value
       SecureBinaryData(),
-      10); //set lookup computation to 5 entries
+      SecureBinaryData(),      
+      10); //set lookup computation to 10 entries
 
            //register with db
    vector<BinaryData> addrVec;
@@ -10146,6 +10150,7 @@ class WebSocketTests : public ::testing::Test
 protected:
    BlockDataManagerThread *theBDMt_;
    Clients* clients_;
+   PassphraseLambda authPeersPassLbd_;
 
    void initBDM(void)
    {
@@ -10204,8 +10209,15 @@ protected:
       startupBIP150CTX(4, false);
 
       //setup auth peers for server and client
-      AuthorizedPeers serverPeers(homedir_, SERVER_AUTH_PEER_FILENAME);
-      AuthorizedPeers clientPeers(homedir_, CLIENT_AUTH_PEER_FILENAME);
+      authPeersPassLbd_ = [](const set<BinaryData>&)->SecureBinaryData
+      {
+         return SecureBinaryData("");
+      };
+
+      AuthorizedPeers serverPeers(
+         homedir_, SERVER_AUTH_PEER_FILENAME, authPeersPassLbd_);
+      AuthorizedPeers clientPeers(
+         homedir_, CLIENT_AUTH_PEER_FILENAME, authPeersPassLbd_);
 
       //share public keys between client and server
       auto& serverPubkey = serverPeers.getOwnPublicKey();
@@ -10271,7 +10283,8 @@ TEST_F(WebSocketTests, WebSocketStack)
 {
    //anon client
    {
-      AuthorizedPeers serverPeers(homedir_, SERVER_AUTH_PEER_FILENAME);
+      AuthorizedPeers serverPeers(
+         homedir_, SERVER_AUTH_PEER_FILENAME, authPeersPassLbd_);
       serverPeers.eraseName("127.0.0.1");
       startupBIP150CTX(4, true);
    }
@@ -10287,14 +10300,14 @@ TEST_F(WebSocketTests, WebSocketStack)
 
    theBDMt_ = new BlockDataManagerThread(config);
    WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      BlockDataManagerConfig::ephemeralPeers_, true);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
 
    theBDMt_->start(config.initMode_);
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
@@ -10538,7 +10551,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
 
    theBDMt_ = new BlockDataManagerThread(config);
    WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      BlockDataManagerConfig::ephemeralPeers_, true);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
 
 
    auto pubkeyPrompt = [this](const BinaryData& pubkey, const string& name)->bool
@@ -10574,7 +10587,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         true, pCallback);
+         authPeersPassLbd_, true, pCallback);
       bdvObj->setCheckServerKeyPromptLambda(pubkeyPrompt);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -10700,7 +10713,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         true, pCallback);
+         authPeersPassLbd_, true, pCallback);
       bdvObj->setCheckServerKeyPromptLambda(pubkeyPrompt);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -10786,7 +10799,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
 
    auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-     true, nullptr);
+     authPeersPassLbd_, true, nullptr);
    bdvObj2->setCheckServerKeyPromptLambda(pubkeyPrompt);
    bdvObj2->connectToRemote();
 
@@ -10812,13 +10825,13 @@ TEST_F(WebSocketTests, GrabAddrLedger_PostReg)
 
    theBDMt_ = new BlockDataManagerThread(config);
    WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      BlockDataManagerConfig::ephemeralPeers_, true);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
    theBDMt_->start(config.initMode_);
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
@@ -10873,14 +10886,14 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
 
    theBDMt_ = new BlockDataManagerThread(config);
    WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      BlockDataManagerConfig::ephemeralPeers_, true);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
 
    theBDMt_->start(config.initMode_);
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
    auto& bdvID = bdvObj->getID();
