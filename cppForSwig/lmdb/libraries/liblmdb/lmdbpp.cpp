@@ -394,6 +394,8 @@ void LMDBEnv::setMapSize(size_t sz)
 LMDBEnv::Transaction::Transaction(LMDBEnv *_env, LMDB::Mode mode)
    : env(_env), mode_(mode)
 {
+   if (env == nullptr)
+      throw LMDBException("null LMDBEnv");
    tid_ = std::this_thread::get_id();
    begin();
 }
