@@ -28,6 +28,10 @@
 #define KEY_CYCLE_FLAG "cycle"
 
 ////////////////////////////////////////////////////////////////////////////////
+typedef std::function<SecureBinaryData(const std::set<BinaryData>&)> 
+   PassphraseLambda;
+
+////////////////////////////////////////////////////////////////////////////////
 class NoDataInDB : std::runtime_error
 {
 public:
@@ -71,7 +75,7 @@ class DBInterface
 
 private:
    const std::string dbName_;
-   std::shared_ptr<LMDBEnv> dbEnv_ = nullptr;
+   LMDBEnv* dbEnv_ = nullptr;
    LMDB db_;
 
    std::map<BinaryData, BinaryData> dataMap_;
@@ -100,13 +104,13 @@ private:
       const SecureBinaryData&, const SecureBinaryData&);
 
 public:
-   DBInterface(std::shared_ptr<LMDBEnv>, 
+   DBInterface(LMDBEnv*, 
       const std::string&, const SecureBinaryData&);
    ~DBInterface(void);
 
    ////
    void loadAllEntries(const SecureBinaryData&);
-   void reset(std::shared_ptr<LMDBEnv>);
+   void reset(LMDBEnv*);
    void close(void) { db_.close(); }
 
    ////
@@ -118,22 +122,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 class DBIfaceTransaction
 {
-public:
-   DBIfaceTransaction(void) {}
-   virtual ~DBIfaceTransaction(void) = 0;
-
-   virtual void insert(const BinaryData&, const BinaryData&) = 0;
-   virtual void erase(const BinaryData&) = 0;
-   virtual void wipe(const BinaryData&) = 0;
-
-   virtual const BinaryDataRef getDataRef(const BinaryData&) const = 0;
-   virtual std::shared_ptr<DBIfaceIterator> getIterator() const = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-class WalletIfaceTransaction : public DBIfaceTransaction
-{
-private:
+protected:
    struct ParentTx
    {
       unsigned counter_ = 1;
@@ -145,8 +134,30 @@ private:
          getDataLbd_;
    };
 
+protected:
+   //<dbName, <thread id, <counter, mode>>>
+   static std::map<std::string, std::map<std::thread::id, ParentTx>> txMap_;
+   static std::mutex txMutex_;
+
+public:
+   DBIfaceTransaction(void) {}
+   virtual ~DBIfaceTransaction(void) = 0;
+
+   virtual void insert(const BinaryData&, const BinaryData&) = 0;
+   virtual void erase(const BinaryData&) = 0;
+   virtual void wipe(const BinaryData&) = 0;
+
+   virtual const BinaryDataRef getDataRef(const BinaryData&) const = 0;
+   virtual std::shared_ptr<DBIfaceIterator> getIterator() const = 0;
+
+   static bool hasTx(void);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class WalletIfaceTransaction : public DBIfaceTransaction
+{
 private:
-   std::shared_ptr<DBInterface> dbPtr_;
+   DBInterface* dbPtr_;
    bool commit_ = false;
 
    /*
@@ -157,10 +168,6 @@ private:
    */
    std::vector<std::shared_ptr<InsertData>> insertVec_;
    std::map<BinaryData, unsigned> keyToDataMap_;
-
-   //<dbName, <thread id, <counter, mode>>>
-   static std::map<std::string, std::map<std::thread::id, ParentTx>> txMap_;
-   static std::mutex txMutex_;
 
    std::function<void(const BinaryData&, const BinaryData&)> insertLbd_;
    std::function<void(const BinaryData&, bool)> eraseLbd_;
@@ -174,7 +181,7 @@ private:
    const std::shared_ptr<InsertData>& getInsertDataForKey(const BinaryData&) const;
 
 public:
-   WalletIfaceTransaction(std::shared_ptr<DBInterface> dbPtr, bool mode);
+   WalletIfaceTransaction(DBInterface* dbPtr, bool mode);
    ~WalletIfaceTransaction(void);
 
    //write routines
@@ -191,19 +198,19 @@ public:
 class RawIfaceTransaction : public DBIfaceTransaction
 {
 private:
-   std::shared_ptr<LMDB> dbPtr_;
+   LMDB* dbPtr_;
    std::unique_ptr<LMDBEnv::Transaction> txPtr_;
 
 public:
-   RawIfaceTransaction(std::shared_ptr<LMDBEnv> dbEnv, 
-      std::shared_ptr<LMDB> dbPtr, bool write) :
+   RawIfaceTransaction(LMDBEnv* dbEnv, 
+      LMDB* dbPtr, bool write) :
       DBIfaceTransaction(), dbPtr_(dbPtr)
    {
       auto type = LMDB::ReadOnly;
       if (write)
          type = LMDB::ReadWrite;
 
-      txPtr_ = make_unique<LMDBEnv::Transaction>(dbEnv.get(), type);
+      txPtr_ = make_unique<LMDBEnv::Transaction>(dbEnv, type);
    }
 
    ~RawIfaceTransaction(void)
@@ -240,11 +247,11 @@ public:
 class WalletIfaceIterator : public DBIfaceIterator
 {
 private:
-   const std::shared_ptr<DBInterface> dbPtr_;
+   const DBInterface* dbPtr_;
    std::map<BinaryData, BinaryData>::const_iterator iterator_;
 
 public:
-   WalletIfaceIterator(const std::shared_ptr<DBInterface>& dbPtr) :
+   WalletIfaceIterator(const DBInterface* dbPtr) :
       dbPtr_(dbPtr)
    {
       if (dbPtr_ == nullptr)
@@ -265,11 +272,11 @@ public:
 class RawIfaceIterator : public DBIfaceIterator
 {
 private:
-   const std::shared_ptr<LMDB> dbPtr_;
+   LMDB* dbPtr_;
    LMDB::Iterator iterator_;
 
 public:
-   RawIfaceIterator(const std::shared_ptr<LMDB>& dbPtr) :
+   RawIfaceIterator(LMDB* dbPtr) :
       dbPtr_(dbPtr)
    {
       if (dbPtr_ == nullptr)
@@ -298,25 +305,23 @@ struct MasterKeyStruct;
 class WalletDBInterface
 {
 private:
-   std::mutex setupMutex_;
+   mutable std::mutex setupMutex_;
 
-   std::shared_ptr<LMDBEnv> dbEnv_ = nullptr;
-   std::map<std::string, std::shared_ptr<DBInterface>> dbMap_;
+   std::unique_ptr<LMDBEnv> dbEnv_ = nullptr;
+   std::map<std::string, std::unique_ptr<DBInterface>> dbMap_;
 
    //encryption objects
-   std::shared_ptr<LMDB> controlDb_;
+   std::unique_ptr<LMDB> controlDb_;
 
    //wallet structure
    std::map<BinaryData, std::shared_ptr<WalletHeader>> headerMap_;
-   BinaryData masterID_;
-   BinaryData mainWalletID_;
 
    std::string path_;
    unsigned dbCount_ = 0;
 
    std::unique_ptr<DecryptedDataContainer> decryptedData_;
    std::unique_ptr<ReentrantLock> controlLock_;
-   std::shared_ptr<EncryptedSeed> controlSeed_;
+   std::unique_ptr<EncryptedSeed> controlSeed_;
 
 private:
    //control objects loading
@@ -334,7 +339,7 @@ private:
    //header methods
    void openControlDb(void);
    std::shared_ptr<WalletHeader_Control> setupControlDB(
-      const SecureBinaryData&);
+      const PassphraseLambda&);
    void putHeader(std::shared_ptr<WalletHeader>);
 
 public:
@@ -343,7 +348,7 @@ public:
    ~WalletDBInterface(void) { shutdown(); }
 
    //setup
-   void setupEnv(const std::string& path);
+   void setupEnv(const std::string& path, const PassphraseLambda&);
    void shutdown(void);
 
    const std::string& getFilename(void) const;
@@ -352,15 +357,14 @@ public:
    static MasterKeyStruct initWalletHeaderObject(
       std::shared_ptr<WalletHeader>, const SecureBinaryData&);
    void addHeader(std::shared_ptr<WalletHeader>);
-   std::shared_ptr<WalletHeader> getMainWalletHeader(void);
+   std::shared_ptr<WalletHeader> getWalletHeader(
+      const std::string&) const;
    const std::map<BinaryData, std::shared_ptr<WalletHeader>>& 
       getHeaderMap(void) const;
 
-   //main wallet
-   void setMainWallet(const BinaryData&);
-
    //db count
    unsigned getDbCount(void) const;
+   unsigned getFreeDbCount(void) const;
    void setDbCount(unsigned);
 
    //transactions
@@ -368,7 +372,7 @@ public:
    std::shared_ptr<DBIfaceTransaction> beginReadTransaction(const std::string&);
 
    //utils
-   void lockControlContainer(void);
+   void lockControlContainer(const PassphraseLambda&);
    void unlockControlContainer(void);
 };
 

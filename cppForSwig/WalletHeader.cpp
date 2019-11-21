@@ -187,6 +187,26 @@ bool WalletHeader_Control::shouldLoad() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+BinaryData WalletHeader_Custom::serialize() const
+{
+   BinaryWriter bw;
+   bw.put_uint32_t(type_);
+   bw.put_BinaryData(serializeVersion());
+
+   BinaryWriter final_bw;
+   final_bw.put_var_int(bw.getSize());
+   final_bw.put_BinaryDataRef(bw.getDataRef());
+
+   return final_bw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool WalletHeader_Custom::shouldLoad() const
+{
+   return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 shared_ptr<WalletHeader> WalletHeader::deserialize(
    BinaryDataRef key, BinaryDataRef val)
 {
@@ -240,11 +260,17 @@ shared_ptr<WalletHeader> WalletHeader::deserialize(
       break;
    }
 
+   case WalletHeaderType_Custom:
+   {
+      wltHeaderPtr = make_shared<WalletHeader_Custom>();
+      wltHeaderPtr->unseralizeVersion(brrVal);
+      break;
+   }
+
    default:
       throw WalletException("invalid wallet type");
    }
 
-   wltHeaderPtr->dbName_ = move(dbname);
    wltHeaderPtr->walletID_ = brrKey.get_BinaryData(brrKey.getSizeRemaining());
    return wltHeaderPtr;
 }

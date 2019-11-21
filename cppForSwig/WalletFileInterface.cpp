@@ -28,12 +28,12 @@ BinaryData(KEY_CYCLE_FLAG);
 
 ////////////////////////////////////////////////////////////////////////////////
 DBInterface::DBInterface(
-   std::shared_ptr<LMDBEnv> dbEnv, const std::string& dbName,
+   LMDBEnv* dbEnv, const std::string& dbName,
    const SecureBinaryData& controlSalt) :
    dbEnv_(dbEnv), dbName_(dbName), controlSalt_(controlSalt)
 {
-   auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadWrite);
-   db_.open(dbEnv_.get(), dbName_);
+   auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadWrite);
+   db_.open(dbEnv_, dbName_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,14 +43,14 @@ DBInterface::~DBInterface()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DBInterface::reset(shared_ptr<LMDBEnv> envPtr)
+void DBInterface::reset(LMDBEnv* envPtr)
 {
    if (db_.isOpen())
       db_.close();
 
    dbEnv_ = envPtr;
-   auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadWrite);
-   db_.open(dbEnv_.get(), dbName_);
+   auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadWrite);
+   db_.open(dbEnv_, dbName_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,7 +129,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
 
    {
       //read all db entries
-      auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadOnly);
+      auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadOnly);
 
       int prevDbKey = -1;
       auto iter = db_.begin();
@@ -196,7 +196,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
       the next wallet load to cycle the key accordingly to decrypt this
       new data correctly.
       */
-      auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadWrite);
+      auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadWrite);
 
       auto flagKey = getNewDbKey();
       auto&& encrPubKey = CryptoECDSA().ComputePublicKey(decrPrivKey, true);;
@@ -414,8 +414,13 @@ pair<BinaryData, BinaryData> DBInterface::readDataPacket(
 //// WalletDBInterface
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-void WalletDBInterface::setupEnv(const string& path)
+void WalletDBInterface::setupEnv(const string& path,
+   const PassphraseLambda& passLbd)
 {
+   //sanity check
+   if (!passLbd)
+      throw WalletInterfaceException("null passphrase lambda");
+
    auto lock = unique_lock<mutex>(setupMutex_);
    if (dbEnv_ != nullptr)
       return;
@@ -423,7 +428,7 @@ void WalletDBInterface::setupEnv(const string& path)
    path_ = path;
 
    //open env for control and meta dbs
-   dbEnv_ = std::make_shared<LMDBEnv>(2);
+   dbEnv_ = make_unique<LMDBEnv>(2);
    dbEnv_->open(path, MDB_WRITEMAP);
 
    //open control db
@@ -442,7 +447,7 @@ void WalletDBInterface::setupEnv(const string& path)
    catch (NoEntryInWalletException&)
    {
       //no control header, this is a fresh wallet, set it up
-      controlHeader = setupControlDB(SecureBinaryData());
+      controlHeader = setupControlDB(passLbd);
       isNew = true;
    }
 
@@ -452,17 +457,23 @@ void WalletDBInterface::setupEnv(const string& path)
    //load control seed
    loadSeed(controlHeader);
 
+   /*
+   The passphrase prompt will be called a 3rd time out of 3 in this 
+   scope to decrypt the control seed and generate the encrypted 
+   header DB.
+   */
+
    //decrypt control seed
-   lockControlContainer();
-   auto& rootEncrKey = decryptedData_->getDecryptedPrivateData(controlSeed_);
+   lockControlContainer(passLbd);
+   auto& rootEncrKey = 
+      decryptedData_->getDecryptedPrivateData(controlSeed_.get());
 
    //load wallet header db
    {
       auto headrPtr = make_shared<WalletHeader_Control>();
-      headrPtr->dbName_ = WALLETHEADER_DBNAME;
+      headrPtr->walletID_ = BinaryData(WALLETHEADER_DBNAME);
       headrPtr->controlSalt_ = controlHeader->controlSalt_;
       openDB(headrPtr, rootEncrKey);
-      auto dbPtr = dbMap_.find(WALLETHEADER_DBNAME)->second;
    }
 
    //load wallet header objects
@@ -484,6 +495,7 @@ void WalletDBInterface::setupEnv(const string& path)
    for (auto& headerPtr : headerMap_)
       openDB(headerPtr.second, rootEncrKey);
 
+   //clean up
    unlockControlContainer();
 }
 
@@ -507,36 +519,6 @@ void WalletDBInterface::loadHeaders()
 {
    auto&& tx = beginReadTransaction(WALLETHEADER_DBNAME);
 
-   {
-      //masterID
-      BinaryWriter bwKey;
-      bwKey.put_uint32_t(MASTERID_KEY);
-
-      try
-      {
-         masterID_ = getDataRefForKey(tx, bwKey.getData());
-      }
-      catch (NoEntryInWalletException&)
-      {
-         throw WalletInterfaceException("missing masterID entry");
-      }
-   }
-
-   {
-      //mainWalletID
-      BinaryWriter bwKey;
-      bwKey.put_uint32_t(MAINWALLET_KEY);
-
-      try
-      {
-         mainWalletID_ = getDataRefForKey(tx, bwKey.getData());
-      }
-      catch (NoEntryInWalletException&)
-      {
-         throw WalletInterfaceException("missing main wallet entry");
-      }
-   }
-
    //meta map
    auto dbIter = tx->getIterator();
 
@@ -559,7 +541,7 @@ void WalletDBInterface::loadHeaders()
       {
          auto headerPtr = WalletHeader::deserialize(
             iterkey, brrVal.get_BinaryDataRef(brrVal.getSizeRemaining()));
-         headerPtr->masterID_ = masterID_;
+         //headerPtr->masterID_ = masterID_;
 
          if (headerPtr->shouldLoad())
             headerMap_.insert(make_pair(headerPtr->getWalletID(), headerPtr));
@@ -580,7 +562,7 @@ void WalletDBInterface::openControlDb(void)
    if (controlDb_ != nullptr)
       throw WalletInterfaceException("controlDb is not null");
 
-   controlDb_ = make_shared<LMDB>();
+   controlDb_ = make_unique<LMDB>();
    auto tx = LMDBEnv::Transaction(dbEnv_.get(), LMDB::ReadWrite);
    controlDb_->open(dbEnv_.get(), CONTROL_DB_NAME);
 }
@@ -589,30 +571,52 @@ void WalletDBInterface::openControlDb(void)
 void WalletDBInterface::shutdown()
 {
    auto lock = unique_lock<mutex>(setupMutex_);
+   if (DBIfaceTransaction::hasTx())
+      throw WalletInterfaceException("live transactions, cannot shutdown env");
+
    if (controlDb_ != nullptr)
    {
       controlDb_->close();
       controlDb_.reset();
    }
 
+   controlLock_.reset();
+   decryptedData_.reset();
+   controlSeed_.reset();
+
    dbMap_.clear();
-   dbEnv_->close();
+
+   if (dbEnv_ != nullptr)
+   {
+      dbEnv_->close();
+      dbEnv_.reset();
+   }
+
+   dbCount_ = 0;
+   path_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::openDB(std::shared_ptr<WalletHeader> headerPtr,
    const SecureBinaryData& encrRootKey)
 {
-   auto iter = dbMap_.find(headerPtr->dbName_);
+   auto&& dbName = headerPtr->getDbName();
+   auto iter = dbMap_.find(dbName);
    if (iter != dbMap_.end())
       return;
 
-   auto dbiPtr = make_shared<DBInterface>(
-      dbEnv_, headerPtr->dbName_, headerPtr->controlSalt_);
-   dbMap_.insert(make_pair(headerPtr->dbName_, dbiPtr));
-
-   //load all entries in db
+   //create db object
+   auto dbiPtr = make_unique<DBInterface>(
+      dbEnv_.get(), dbName, headerPtr->controlSalt_);
+   
+   /*
+   Load all db entries in RAM. This call also decrypts the on disk data.
+   */
    dbiPtr->loadAllEntries(encrRootKey);
+
+   //insert in dbMap
+   dbMap_.insert(make_pair(dbName, move(dbiPtr)));
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -632,12 +636,15 @@ shared_ptr<DBIfaceTransaction> WalletDBInterface::beginWriteTransaction(
    if (iter == dbMap_.end())
    {
       if (dbName == CONTROL_DB_NAME)
-         return make_shared<RawIfaceTransaction>(dbEnv_, controlDb_, true);
+      {
+         return make_shared<RawIfaceTransaction>(
+            dbEnv_.get(), controlDb_.get(), true);
+      }
 
       throw WalletInterfaceException("invalid db name");
    }
 
-   return make_shared<WalletIfaceTransaction>(iter->second, true);
+   return make_shared<WalletIfaceTransaction>(iter->second.get(), true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -648,12 +655,15 @@ shared_ptr<DBIfaceTransaction> WalletDBInterface::beginReadTransaction(
    if (iter == dbMap_.end())
    {
       if (dbName == CONTROL_DB_NAME)
-         return make_shared<RawIfaceTransaction>(dbEnv_, controlDb_, false);
+      {
+         return make_shared<RawIfaceTransaction>(
+            dbEnv_.get(), controlDb_.get(), false);
+      }
 
       throw WalletInterfaceException("invalid db name");
    }
 
-   return make_shared<WalletIfaceTransaction>(iter->second, false);
+   return make_shared<WalletIfaceTransaction>(iter->second.get(), false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -692,7 +702,7 @@ void WalletDBInterface::loadDataContainer(shared_ptr<WalletHeader> headerPtr)
    //grab decrypted data object
    shared_ptr<WalletDBInterface> ifacePtr(this, MockDeleteWalletDBInterface);
    decryptedData_ = make_unique<DecryptedDataContainer>(
-      ifacePtr, headerPtr->dbName_,
+      ifacePtr, headerPtr->getDbName(),
       headerPtr->getDefaultEncryptionKey(),
       headerPtr->getDefaultEncryptionKeyId(),
       headerPtr->defaultKdfId_, headerPtr->masterEncryptionKeyId_);
@@ -702,7 +712,7 @@ void WalletDBInterface::loadDataContainer(shared_ptr<WalletHeader> headerPtr)
 ////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::loadSeed(shared_ptr<WalletHeader> headerPtr)
 {
-   auto&& tx = beginReadTransaction(headerPtr->dbName_);
+   auto&& tx = beginReadTransaction(headerPtr->getDbName());
 
    BinaryWriter bwKey;
    bwKey.put_uint32_t(WALLET_SEED_KEY);
@@ -710,9 +720,12 @@ void WalletDBInterface::loadSeed(shared_ptr<WalletHeader> headerPtr)
 
    auto seedPtr = Asset_EncryptedData::deserialize(
       rootAssetRef.getSize(), rootAssetRef);
-   controlSeed_ = dynamic_pointer_cast<EncryptedSeed>(seedPtr);
-   if (controlSeed_ == nullptr)
+   auto ptrCast = dynamic_cast<EncryptedSeed*>(seedPtr.get());
+   if (ptrCast == nullptr)
       throw WalletException("failed to deser wallet seed");
+
+   controlSeed_ = unique_ptr<EncryptedSeed>(ptrCast);
+   seedPtr.release();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -732,12 +745,6 @@ MasterKeyStruct WalletDBInterface::initWalletHeaderObject(
      disk. Its purpose is to prevent divergence in implemenation between
      encrypted and unencrypted wallets.
    */
-
-   if (headerPtr->dbName_.size() == 0)
-   {
-      string walletIDStr(headerPtr->getWalletIDStr());
-      headerPtr->dbName_ = walletIDStr;
-   }
 
    MasterKeyStruct mks;
 
@@ -824,8 +831,11 @@ MasterKeyStruct WalletDBInterface::initWalletHeaderObject(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<WalletHeader_Control> WalletDBInterface::setupControlDB(
-   const SecureBinaryData& passphrase)
+   const PassphraseLambda& passLbd)
 {
+   //prompt for passphrase
+   SecureBinaryData passphrase = passLbd(set<BinaryData>());
+
    //create control meta object
    auto headerPtr = make_shared<WalletHeader_Control>();
    headerPtr->walletID_ = BinaryData(CONTROL_DB_NAME);
@@ -842,17 +852,12 @@ shared_ptr<WalletHeader_Control> WalletDBInterface::setupControlDB(
    decryptedData->addEncryptionKey(keyStruct.masterKey_);
    decryptedData->addKdf(keyStruct.kdf_);
 
-   //if custom passphrase, set prompt lambda prior to encryption
-   if (passphrase.getSize() > 0)
-   {
-      auto passphraseLambda =
-         [&passphrase](const set<BinaryData>&)->SecureBinaryData
-      {
-         return passphrase;
-      };
-
-      decryptedData->setPassphrasePromptLambda(passphraseLambda);
-   }
+   /*
+   The lambda will be called to trigger the encryption of the control seed.
+   This will be the second out of 3 calls to the passphrase lambda during
+   wallet creation.
+   */
+   decryptedData->setPassphrasePromptLambda(passLbd);
 
    {
       //create encrypted seed object
@@ -887,80 +892,45 @@ shared_ptr<WalletHeader_Control> WalletDBInterface::setupControlDB(
 ////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::putHeader(shared_ptr<WalletHeader> headerPtr)
 {
-   //masterID
-   if(headerPtr->masterID_.getSize() == 0)
-      throw WalletException("header has no master id");
-
-   BinaryWriter bwKey;
-   bwKey.put_uint32_t(MASTERID_KEY);
-
-   auto&& tx = beginWriteTransaction(WALLETHEADER_DBNAME);
-   auto idVal = tx->getDataRef(bwKey.getData());
-   if (idVal.getSize() == 0)
-   {
-      BinaryWriter bwData;
-      bwData.put_var_int(headerPtr->masterID_.getSize());
-      bwData.put_BinaryDataRef(headerPtr->masterID_);
-      tx->insert(bwKey.getData(), bwData.getData());
-   }
-   else if(idVal != headerPtr->masterID_)
-   {
-      //the master key is already set, this is an existing wallet, abort
-      throw WalletException("trying to init an already existing wallet");
-   }
-
-   //header data
    auto&& key = headerPtr->getDbKey();
    auto&& val = headerPtr->serialize();
-   tx->insert(key, val);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void WalletDBInterface::setMainWallet(const BinaryData& walletID)
-{
-   BinaryWriter bwKey;
-   bwKey.put_uint32_t(MAINWALLET_KEY);
-
-   BinaryWriter bwData;
-   bwData.put_var_int(walletID.getSize());
-   bwData.put_BinaryData(walletID);
 
    auto&& tx = beginWriteTransaction(WALLETHEADER_DBNAME);
-   tx->insert(bwKey.getData(), bwData.getData());
+   tx->insert(key, val);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::addHeader(std::shared_ptr<WalletHeader> headerPtr)
 {
    auto lock = unique_lock<mutex>(setupMutex_);
-   auto iter = headerMap_.insert(make_pair(headerPtr->walletID_, headerPtr));
-   if (!iter.second)
+   
+   auto iter = headerMap_.find(headerPtr->walletID_);
+   if (iter != headerMap_.end())
       throw WalletInterfaceException("header already in map");
-
+   
    if (dbMap_.size() + 2 > dbCount_)
       throw WalletInterfaceException("dbCount is too low");
-
-   putHeader(headerPtr);
-
-   auto& dbName = headerPtr->dbName_;
+ 
+   auto&& dbName = headerPtr->getDbName();
    if (dbName.size() == 0)
       throw WalletInterfaceException("empty dbname");
 
-   auto dbIter = dbMap_.find(dbName);
-   if (dbIter != dbMap_.end())
-      return;
-
-   auto dbiPtr = make_shared<DBInterface>(
-      dbEnv_, dbName, headerPtr->controlSalt_);
-   auto& rootEncrKey = decryptedData_->getDecryptedPrivateData(controlSeed_);
+   auto& rootEncrKey = 
+      decryptedData_->getDecryptedPrivateData(controlSeed_.get());
+   auto dbiPtr = make_unique<DBInterface>(
+      dbEnv_.get(), dbName, headerPtr->controlSalt_);
    dbiPtr->loadAllEntries(rootEncrKey);
-   dbMap_.insert(make_pair(dbName, dbiPtr));
+   
+   putHeader(headerPtr);
+   dbMap_.insert(make_pair(dbName, move(dbiPtr)));
+   headerMap_.insert(make_pair(headerPtr->walletID_, headerPtr));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<WalletHeader> WalletDBInterface::getMainWalletHeader()
+shared_ptr<WalletHeader> WalletDBInterface::getWalletHeader(
+   const string& name) const
 {
-   auto iter = headerMap_.find(mainWalletID_);
+   auto iter = headerMap_.find(name);
    if (iter == headerMap_.end())
       throw WalletException("missing main wallet header");
    return iter->second;
@@ -976,7 +946,19 @@ WalletDBInterface::getHeaderMap() const
 ////////////////////////////////////////////////////////////////////////////////
 unsigned WalletDBInterface::getDbCount() const
 {
+   auto lock = unique_lock<mutex>(setupMutex_);
    return headerMap_.size();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unsigned WalletDBInterface::getFreeDbCount() const
+{
+   auto lock = unique_lock<mutex>(setupMutex_);
+   auto count = headerMap_.size() + 2;
+   if (count >= dbCount_)
+      return 0;
+
+   return dbCount_ - count;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -989,7 +971,13 @@ void WalletDBInterface::setDbCount(unsigned count)
 ////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::setDbCount(unsigned count, bool doLock)
 {
-   if (count == dbCount_)
+   if (DBIfaceTransaction::hasTx())
+   {
+      throw WalletInterfaceException(
+         "live transactions, cannot change dbCount");
+   }
+
+   if (count <= dbCount_)
       return;
 
    auto lock = unique_lock<mutex>(setupMutex_, defer_lock);
@@ -1010,25 +998,26 @@ void WalletDBInterface::setDbCount(unsigned count, bool doLock)
    dbEnv_.reset();
 
    //reopen with new dbCount
-   dbEnv_ = std::make_shared<LMDBEnv>(count);
+   dbEnv_ = make_unique<LMDBEnv>(count);
    dbEnv_->open(path_, MDB_WRITEMAP);
 
    for (auto& dbPtr : dbMap_)
    {
       auto&& tx = beginWriteTransaction(dbPtr.first);
-      dbPtr.second->reset(dbEnv_);
+      dbPtr.second->reset(dbEnv_.get());
    }
 
    dbCount_ = count;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletDBInterface::lockControlContainer()
+void WalletDBInterface::lockControlContainer(const PassphraseLambda& passLbd)
 {
    if (controlLock_ != nullptr)
       throw WalletInterfaceException("control container already locked");
    
    controlLock_ = make_unique<ReentrantLock>(decryptedData_.get());
+   decryptedData_->setPassphrasePromptLambda(passLbd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1037,6 +1026,7 @@ void WalletDBInterface::unlockControlContainer()
    if (controlLock_ == nullptr)
       throw WalletInterfaceException("control container isn't locked");
 
+   decryptedData_->resetPassphraseLambda();
    controlLock_.reset();
 }
 
@@ -1124,22 +1114,37 @@ BinaryDataRef RawIfaceIterator::value() const
 //// DBIfaceTransaction
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+map<string, map<thread::id, DBIfaceTransaction::ParentTx>> 
+DBIfaceTransaction::txMap_;
+
+mutex DBIfaceTransaction::txMutex_;
+
+////////////////////////////////////////////////////////////////////////////////
 DBIfaceTransaction::~DBIfaceTransaction()
 {}
+
+////////////////////////////////////////////////////////////////////////////////
+bool DBIfaceTransaction::hasTx()
+{
+   auto lock = unique_lock<mutex>(txMutex_);
+   for (auto& txPair : txMap_)
+   {
+      if (txPair.second.size() > 0)
+         return true;
+   }
+
+   return false;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// WalletIfaceTransaction
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-map<string, map<thread::id, WalletIfaceTransaction::ParentTx>> 
-WalletIfaceTransaction::txMap_;
-
-mutex WalletIfaceTransaction::txMutex_;
 
 ////////////////////////////////////////////////////////////////////////////////
 WalletIfaceTransaction::WalletIfaceTransaction(
-   shared_ptr<DBInterface> dbPtr, bool mode) :
+   DBInterface* dbPtr, bool mode) :
    DBIfaceTransaction(), dbPtr_(dbPtr), commit_(mode)
 {
    if (!insertTx(this))
@@ -1149,15 +1154,21 @@ WalletIfaceTransaction::WalletIfaceTransaction(
 ////////////////////////////////////////////////////////////////////////////////
 WalletIfaceTransaction::~WalletIfaceTransaction()
 {
-   if (!eraseTx(this))
-      return;
+   LMDBEnv::Transaction tx;
 
-   //this is the top tx, check if it has to commit
-   if (!commit_)
-      return;
+   {
+      auto lock = unique_lock<mutex>(txMutex_);
+      if (!eraseTx(this))
+         return;
 
-   //need to commit all this data to the underlying db object
-   auto tx = LMDBEnv::Transaction(dbPtr_->dbEnv_.get(), LMDB::ReadWrite);
+      if (!commit_)
+         return;
+
+      tx = move(LMDBEnv::Transaction(dbPtr_->dbEnv_, LMDB::ReadWrite));
+   }
+
+   
+   //this is the top tx, need to commit all this data to the db object
    for (unsigned i=0; i < insertVec_.size(); i++)
    {
       auto dataPtr = insertVec_[i];
@@ -1366,9 +1377,7 @@ bool WalletIfaceTransaction::eraseTx(WalletIfaceTransaction* txPtr)
 {
    if (txPtr == nullptr)
       throw WalletInterfaceException("null tx ptr");
-
-   auto lock = unique_lock<mutex>(txMutex_);
-   
+      
    //we have to have this db name in the tx map
    auto dbIter = txMap_.find(txPtr->dbPtr_->getName());
    if (dbIter == txMap_.end())

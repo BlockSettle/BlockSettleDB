@@ -48,16 +48,15 @@ enum WalletHeaderType
    WalletHeaderType_Single,
    WalletHeaderType_Multisig,
    WalletHeaderType_Subwallet,
-   WalletHeaderType_Control
+   WalletHeaderType_Control,
+   WalletHeaderType_Custom
 };
 
 ////
 struct WalletHeader
 {
    WalletHeaderType type_;
-   BinaryData masterID_;
    BinaryData walletID_;
-   std::string dbName_;
 
    uint8_t versionMajor_ = 0;
    uint16_t versionMinor_ = 0;
@@ -93,6 +92,8 @@ struct WalletHeader
       std::string idStr(walletID_.getCharPtr(), walletID_.getSize());
       return idStr;
    }
+
+   std::string getDbName(void) const { return getWalletIDStr(); }
 
    //serialization
    BinaryData serializeVersion(void) const;
@@ -168,6 +169,19 @@ struct WalletHeader_Control : public WalletHeader
    //tors
    WalletHeader_Control() :
       WalletHeader(WalletHeaderType_Control)
+   {}
+
+   //virtual
+   BinaryData serialize(void) const;
+   bool shouldLoad(void) const;
+};
+
+////
+struct WalletHeader_Custom : public WalletHeader
+{
+   //tors
+   WalletHeader_Custom() :
+      WalletHeader(WalletHeaderType_Custom)
    {}
 
    //virtual
