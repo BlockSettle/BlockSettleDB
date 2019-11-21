@@ -24,7 +24,8 @@ PythonSigner::~PythonSigner()
 //// WalletManager
 ////
 ////////////////////////////////////////////////////////////////////////////////
-void WalletManager::loadWallets()
+void WalletManager::loadWallets(
+   const function<SecureBinaryData(const set<BinaryData>&)>& passLbd)
 {
    auto getBDVLambda = [this](void)->SwigClient::BlockDataViewer&
    {
@@ -67,7 +68,7 @@ void WalletManager::loadWallets()
    {
       try
       {
-         auto wltPtr = AssetWallet::loadMainWalletFromFile(wltPath);
+         auto wltPtr = AssetWallet::loadMainWalletFromFile(wltPath, passLbd);
          WalletContainer wltCont(wltPtr->getID(), getBDVLambda);
          wltCont.wallet_ = wltPtr;
 
@@ -86,13 +87,14 @@ void WalletManager::loadWallets()
 void WalletManager::duplicateWOWallet(
    const SecureBinaryData& pubRoot,
    const SecureBinaryData& chainCode,
+   const SecureBinaryData& controlPassphrase,
    unsigned chainLength)
 {
    auto root = pubRoot;
    auto cc = chainCode;
 
    auto newWO = AssetWallet_Single::createFromPublicRoot_Armory135(
-      path_, root, cc, chainLength);
+      path_, root, cc, controlPassphrase, chainLength);
 
    auto getBDVLambda = [this](void)->SwigClient::BlockDataViewer&
    {
