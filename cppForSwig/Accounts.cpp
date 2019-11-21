@@ -1508,10 +1508,19 @@ shared_ptr<AddressAccount> AddressAccount::getWatchingOnlyCopy(
    for (auto& assetAccPair : assetAccounts_)
    {
       auto assetAccPtr = assetAccPair.second;
-      auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(assetAccPtr->root_);
-      if (rootSingle == nullptr)
-         throw AccountException("invalid account root");
-      auto woRoot = rootSingle->getPublicCopy();
+
+      shared_ptr<AssetEntry> woRoot = nullptr;
+      if (assetAccPtr->root_ != nullptr)
+      {
+         /*
+         Only check account root type if it has a root to begin with. Some
+         accounts do not carry roots (e.g. from Armory135 wallets)
+         */
+         auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(assetAccPtr->root_);
+         if (rootSingle == nullptr)
+            throw AccountException("invalid account root");
+         woRoot = rootSingle->getPublicCopy();
+      }
 
       shared_ptr<AssetAccount> woAccPtr;
       switch (assetAccPtr->type())
