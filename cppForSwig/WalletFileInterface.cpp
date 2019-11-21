@@ -1114,8 +1114,8 @@ BinaryDataRef RawIfaceIterator::value() const
 //// DBIfaceTransaction
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-map<string, map<thread::id, DBIfaceTransaction::ParentTx>> 
-DBIfaceTransaction::txMap_;
+map<string, shared_ptr<DBIfaceTransaction::DbTxStruct>> 
+   DBIfaceTransaction::txMap_;
 
 mutex DBIfaceTransaction::txMutex_;
 
@@ -1129,7 +1129,7 @@ bool DBIfaceTransaction::hasTx()
    auto lock = unique_lock<mutex>(txMutex_);
    for (auto& txPair : txMap_)
    {
-      if (txPair.second.size() > 0)
+      if (txPair.second->txCount() > 0)
          return true;
    }
 
@@ -1172,8 +1172,7 @@ void WalletIfaceTransaction::close()
 
       tx = move(LMDBEnv::Transaction(dbPtr_->dbEnv_, LMDB::ReadWrite));
    }
-
-   
+  
    //this is the top tx, need to commit all this data to the db object
    for (unsigned i=0; i < insertVec_.size(); i++)
    {
@@ -1280,12 +1279,13 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
    auto dbIter = txMap_.find(txPtr->dbPtr_->getName());
    if (dbIter == txMap_.end())
    {
-      dbIter = txMap_.insert(
-         make_pair(txPtr->dbPtr_->getName(), map<thread::id, ParentTx>())
-      ).first;
+      auto structPtr = make_shared<DbTxStruct>();
+      dbIter = txMap_.insert(make_pair(
+         txPtr->dbPtr_->getName(), structPtr)).first;
    }
 
-   auto& txMap = dbIter->second;
+   auto& txStruct = dbIter->second;
+   auto& txMap = txStruct->txMap_;
 
    //save tx by thread id
    auto thrId = this_thread::get_id();
@@ -1299,6 +1299,8 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
 
       if (txPtr->commit_)
       {
+         ptx.writeLock_ = make_unique<unique_lock<mutex>>(txStruct->writeMutex_);
+
          auto insertLbd = [thrId, txPtr](const BinaryData& key, const BinaryData& val)
          {
             if (thrId != this_thread::get_id())
@@ -1358,7 +1360,8 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
          ptx.getDataLbd_ = getDataLbd;
       }
 
-      txMap.insert(make_pair(thrId, ptx));
+      txMap.insert(make_pair(thrId, move(ptx)));
+      ++txStruct->txCount_;
       return true;
    }
    
@@ -1374,6 +1377,7 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
    txPtr->getDataLbd_ = iter->second.getDataLbd_;
 
    //increment counter
+   ++txStruct->txCount_;
    ++iter->second.counter_;
    return true;
 }
@@ -1383,13 +1387,14 @@ bool WalletIfaceTransaction::eraseTx(WalletIfaceTransaction* txPtr)
 {
    if (txPtr == nullptr)
       throw WalletInterfaceException("null tx ptr");
-      
+   
    //we have to have this db name in the tx map
    auto dbIter = txMap_.find(txPtr->dbPtr_->getName());
    if (dbIter == txMap_.end())
       throw WalletInterfaceException("missing db name in tx map");
 
-   auto& txMap = dbIter->second;
+   auto& txStruct = dbIter->second;
+   auto& txMap = txStruct->txMap_;
 
    //thread id has to be present too
    auto thrId = this_thread::get_id();
@@ -1397,6 +1402,7 @@ bool WalletIfaceTransaction::eraseTx(WalletIfaceTransaction* txPtr)
    if (iter == txMap.end())
       throw WalletInterfaceException("missing thread id in tx map");
 
+   --txStruct->txCount_;
    if (iter->second.counter_ > 1)
    {
       //this is a nested tx, decrement and return false

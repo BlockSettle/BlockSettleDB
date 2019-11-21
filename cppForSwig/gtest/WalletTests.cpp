@@ -419,7 +419,7 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WalletInterfaceTest, WalletIfaceTransaction)
+TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 {
    //utils
    auto checkVals = [](WalletIfaceTransaction& tx, 
