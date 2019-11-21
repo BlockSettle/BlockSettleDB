@@ -4074,7 +4074,12 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletMetaDataTest, AuthPeers)
 {
-   auto authPeers = make_unique<AuthorizedPeers>(homedir_, "test.peers");
+   auto peerPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData("authpeerpass");
+   };
+   auto authPeers = make_unique<AuthorizedPeers>(
+      homedir_, "test.peers", peerPassLbd);
 
    //auth meta account expects valid pubkeys
    auto&& privKey1 = CryptoPRNG::generateRandom(32);
@@ -4149,7 +4154,7 @@ TEST_F(WalletMetaDataTest, AuthPeers)
 
    //delete auth peer object, reload and test again
    authPeers.reset();
-   authPeers = make_unique<AuthorizedPeers>(homedir_, "test.peers");
+   authPeers = make_unique<AuthorizedPeers>(homedir_, "test.peers", peerPassLbd);
 
    {
       //check peer object has expected values
@@ -4384,7 +4389,7 @@ TEST_F(WalletMetaDataTest, AuthPeers)
 
    //delete auth peer object, reload and test again
    authPeers.reset();
-   authPeers = make_unique<AuthorizedPeers>(homedir_, "test.peers");
+   authPeers = make_unique<AuthorizedPeers>(homedir_, "test.peers", peerPassLbd);
 
    {
       //check peer object has expected values

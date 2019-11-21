@@ -172,8 +172,8 @@ public:
       void *user, void *in, size_t len);
 
    static void start(BlockDataManagerThread* bdmT,
-      const std::string& datadir, const bool& ephemeralPeers,
-      const bool& async);
+      const std::string& datadir, const PassphraseLambda&,
+      const bool& ephemeralPeers, const bool& async);
    static void shutdown(void);
    static void waitOnShutdown(void);
    static SecureBinaryData getPublicKey(void);

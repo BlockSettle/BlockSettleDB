@@ -74,8 +74,13 @@ int main(int argc, char* argv[])
    if (!bdmConfig.checkChain_)
    {
       //process incoming connections
-      server.start(&bdmThread, BlockDataManagerConfig::getDataDir()
-         , BlockDataManagerConfig::ephemeralPeers_, false);
+      auto yoloPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+      {
+         //TODO: implement terminal pass prompt
+         return SecureBinaryData();
+      };
+      server.start(&bdmThread, BlockDataManagerConfig::getDataDir(),
+         yoloPassLbd, BlockDataManagerConfig::ephemeralPeers_, false);
    }
    else
    {

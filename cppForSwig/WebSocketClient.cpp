@@ -26,8 +26,8 @@ static struct lws_protocols protocols[] = {
 
 ////////////////////////////////////////////////////////////////////////////////
 WebSocketClient::WebSocketClient(const string& addr, const string& port,
-   const string& datadir, const bool& ephemeralPeers,
-   shared_ptr<RemoteCallback> cbPtr) :
+   const string& datadir, const PassphraseLambda& passLbd, 
+   const bool& ephemeralPeers, shared_ptr<RemoteCallback> cbPtr) :
    SocketPrototype(addr, port, false), callbackPtr_(cbPtr)
 {
    count_.store(0, std::memory_order_relaxed);
@@ -37,7 +37,7 @@ WebSocketClient::WebSocketClient(const string& addr, const string& port,
    if (!ephemeralPeers)
    {
       authPeers_ = make_shared<AuthorizedPeers>(
-         datadir, filename);
+         datadir, filename, passLbd);
    }
    else
    {
