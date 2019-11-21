@@ -89,8 +89,7 @@ protected:
    std::map<BinaryData, std::shared_ptr<Asset_EncryptedData>> encryptionKeyMap_;
 
 private:
-   std::function<SecureBinaryData(
-      const std::set<BinaryData>&)> getPassphraseLambda_;
+   PassphraseLambda getPassphraseLambda_;
 
 private:
    std::unique_ptr<DecryptedEncryptionKey> deriveEncryptionKey(
@@ -125,7 +124,10 @@ public:
    }
 
    const SecureBinaryData& getDecryptedPrivateData(
-      std::shared_ptr<Asset_EncryptedData> data);
+      const std::shared_ptr<Asset_EncryptedData>& data);
+   const SecureBinaryData& getDecryptedPrivateData(
+      const Asset_EncryptedData* data);
+
    SecureBinaryData encryptData(
       Cipher* const cipher, const SecureBinaryData& data);
    
@@ -151,8 +153,7 @@ public:
 
    void deleteKeyFromDisk(const BinaryData& key);
 
-   void setPassphrasePromptLambda(
-      std::function<SecureBinaryData(const std::set<BinaryData>&)> lambda)
+   void setPassphrasePromptLambda(const PassphraseLambda& lambda)
    {
       getPassphraseLambda_ = lambda;
    }

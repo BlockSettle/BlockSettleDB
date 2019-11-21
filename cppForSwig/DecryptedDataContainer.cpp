@@ -82,7 +82,14 @@ unique_ptr<DecryptedEncryptionKey> decrKey, const BinaryData& kdfid) const
 
 ////////////////////////////////////////////////////////////////////////////////
 const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
-   shared_ptr<Asset_EncryptedData> dataPtr)
+   const shared_ptr<Asset_EncryptedData>& dataPtr)
+{
+   return getDecryptedPrivateData(dataPtr.get());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
+   const Asset_EncryptedData* dataPtr)
 {
    //sanity check
    if (!ownsLock())
@@ -91,6 +98,9 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
    if (lockedDecryptedData_ == nullptr)
       throw DecryptedDataContainerException(
       "nullptr lock! how did we get this far?");
+
+   if (dataPtr == nullptr)
+      throw DecryptedDataContainerException("null data");
 
    auto insertDecryptedData = [this](unique_ptr<DecryptedData> decrKey)->
       const SecureBinaryData&
@@ -487,8 +497,9 @@ void DecryptedDataContainer::readFromDisk()
          {
          case ENCRYPTIONKEY_PREFIX:
          {
-            auto keyPtr = Asset_EncryptedData::deserialize(itervalue);
-            auto encrKeyPtr = dynamic_pointer_cast<Asset_EncryptionKey>(keyPtr);
+            auto keyUPtr = Asset_EncryptedData::deserialize(itervalue);
+            shared_ptr<Asset_EncryptedData> keySPtr(move(keyUPtr));
+            auto encrKeyPtr = dynamic_pointer_cast<Asset_EncryptionKey>(keySPtr);
             if (encrKeyPtr == nullptr)
                throw runtime_error("empty keyptr");
 
