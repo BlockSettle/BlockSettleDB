@@ -8337,6 +8337,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       homedir_,
       move(wltRoot), //root as a r value
       SecureBinaryData(),
+      SecureBinaryData(),
       10); //set lookup computation to 5 entries
       
    //register with db
@@ -8883,7 +8884,8 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
       homedir_,
       move(wltRoot), //root as a r value
       SecureBinaryData(),
-      3); //set lookup computation to 5 entries
+      SecureBinaryData(),
+      3); //set lookup computation to 3 entries
 
    //register with db
    vector<BinaryData> addrVec;
@@ -9120,6 +9122,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
       homedir_,
       move(wltRoot),
       SecureBinaryData(), //empty passphrase
+      SecureBinaryData(),
       5);
 
    //register with db
@@ -9452,7 +9455,8 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       homedir_,
       move(wltRoot), //root as a r value
       SecureBinaryData(),
-      10); //set lookup computation to 5 entries
+      SecureBinaryData(),      
+      10); //set lookup computation to 10 entries
 
            //register with db
    vector<BinaryData> addrVec;

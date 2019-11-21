@@ -2153,6 +2153,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
+      SecureBinaryData(),
       3); //set lookup computation to 3 entries
    auto addr1_ptr = assetWlt->getNewAddress();
    auto addr2_ptr = assetWlt->getNewAddress();
@@ -2338,6 +2339,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
+      SecureBinaryData(), 
       3); //set lookup computation to 3 entries
 
    wltRoot = move(CryptoPRNG::generateRandom(32));
@@ -2345,6 +2347,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
+      SecureBinaryData(), 
       3); //set lookup computation to 3 entries
 
    wltRoot = move(CryptoPRNG::generateRandom(32));
@@ -2352,6 +2355,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       homedir_,
       move(wltRoot), //root as a rvalue
       SecureBinaryData(),
+      SecureBinaryData(), 
       3); //set lookup computation to 3 entries
 
           //create 2-of-3 multisig asset entry from 3 different wallets
@@ -2745,6 +2749,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
       homedir_,
       move(wltRoot), //root as a r value
       SecureBinaryData(),
+      SecureBinaryData(), 
       10); //set lookup computation to 5 entries
 
            //register with db
