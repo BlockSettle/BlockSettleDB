@@ -135,7 +135,7 @@ protected:
    struct DbTxStruct
    {
       unsigned txCount_ = 0;
-      std::map<std::thread::id, ParentTx> txMap_;
+      std::map<std::thread::id, std::shared_ptr<ParentTx>> txMap_;
       std::mutex writeMutex_;
 
       unsigned txCount(void) const { return txCount_; }
@@ -143,7 +143,7 @@ protected:
 
 protected:
    //<dbName, <thread id, <counter, mode>>>
-   static std::map<std::string, std::shared_ptr<DbTxStruct>> txMap_;
+   static std::map<std::string, std::shared_ptr<DbTxStruct>> dbMap_;
    static std::mutex txMutex_;
 
 public:
@@ -183,7 +183,7 @@ private:
 
 private:
    static bool insertTx(WalletIfaceTransaction*);
-   static bool eraseTx(WalletIfaceTransaction*);
+   static std::unique_ptr<std::unique_lock<std::mutex>> eraseTx(WalletIfaceTransaction*);
    
    void close(void);
    const std::shared_ptr<InsertData>& getInsertDataForKey(

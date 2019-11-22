@@ -1115,7 +1115,7 @@ BinaryDataRef RawIfaceIterator::value() const
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 map<string, shared_ptr<DBIfaceTransaction::DbTxStruct>> 
-   DBIfaceTransaction::txMap_;
+   DBIfaceTransaction::dbMap_;
 
 mutex DBIfaceTransaction::txMutex_;
 
@@ -1127,9 +1127,9 @@ DBIfaceTransaction::~DBIfaceTransaction() noexcept(false)
 bool DBIfaceTransaction::hasTx()
 {
    auto lock = unique_lock<mutex>(txMutex_);
-   for (auto& txPair : txMap_)
+   for (auto& dbPair : dbMap_)
    {
-      if (txPair.second->txCount() > 0)
+      if (dbPair.second->txCount() > 0)
          return true;
    }
 
@@ -1161,13 +1161,13 @@ WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
 void WalletIfaceTransaction::close()
 {
    LMDBEnv::Transaction tx;
+   unique_ptr<unique_lock<mutex>> writeTxLock = nullptr;
 
    {
       auto lock = unique_lock<mutex>(txMutex_);
-      if (!eraseTx(this))
-         return;
-
-      if (!commit_)
+      writeTxLock = move(eraseTx(this));
+         
+      if (writeTxLock == nullptr || !commit_)
          return;
 
       tx = move(LMDBEnv::Transaction(dbPtr_->dbEnv_, LMDB::ReadWrite));
@@ -1276,11 +1276,11 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
 
    auto lock = unique_lock<mutex>(txMutex_);
 
-   auto dbIter = txMap_.find(txPtr->dbPtr_->getName());
-   if (dbIter == txMap_.end())
+   auto dbIter = dbMap_.find(txPtr->dbPtr_->getName());
+   if (dbIter == dbMap_.end())
    {
       auto structPtr = make_shared<DbTxStruct>();
-      dbIter = txMap_.insert(make_pair(
+      dbIter = dbMap_.insert(make_pair(
          txPtr->dbPtr_->getName(), structPtr)).first;
    }
 
@@ -1290,107 +1290,112 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
    //save tx by thread id
    auto thrId = this_thread::get_id();
    auto iter = txMap.find(thrId);
-   if (iter == txMap.end())
+   if (iter != txMap.end())
    {
-      //this is the parent tx, create the lambdas and setup the struct
+      /*we already have a tx for this thread, we will nest the new one within it*/
       
-      ParentTx ptx;
-      ptx.commit_ = txPtr->commit_;
+      //make sure the commit type between parent and nested tx match
+      if (iter->second->commit_ != txPtr->commit_)
+         return false;
 
-      if (txPtr->commit_)
-      {
-         ptx.writeLock_ = make_unique<unique_lock<mutex>>(txStruct->writeMutex_);
+      //set lambdas
+      txPtr->insertLbd_ = iter->second->insertLbd_;
+      txPtr->eraseLbd_ = iter->second->eraseLbd_;
+      txPtr->getDataLbd_ = iter->second->getDataLbd_;
 
-         auto insertLbd = [thrId, txPtr](const BinaryData& key, const BinaryData& val)
-         {
-            if (thrId != this_thread::get_id())
-               throw WalletInterfaceException("insert operation thread id mismatch");
-
-            auto dataPtr = make_shared<InsertData>();
-            dataPtr->key_ = key;
-            dataPtr->value_ = val;
-
-            unsigned vecSize = txPtr->insertVec_.size();
-            txPtr->insertVec_.emplace_back(dataPtr);
-
-            /*
-            Insert the index for this data object in the key map.
-            Replace the index if it's already there as we want to track
-            the final effect for each key.
-            */
-            auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));
-            if (!insertPair.second)
-               insertPair.first->second = vecSize;
-         };
-
-         auto eraseLbd = [thrId, txPtr](const BinaryData& key, bool wipe)
-         {
-            if (thrId != this_thread::get_id())
-               throw WalletInterfaceException("insert operation thread id mismatch");
-
-            auto dataPtr = make_shared<InsertData>();
-            dataPtr->key_ = key;
-            dataPtr->write_ = false; //set to false to signal deletion
-            dataPtr->wipe_ = wipe;
-
-            unsigned vecSize = txPtr->insertVec_.size();
-            txPtr->insertVec_.emplace_back(dataPtr);
-
-            auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));
-            if (!insertPair.second)
-               insertPair.first->second = vecSize;
-         };
-
-         auto getDataLbd = [thrId, txPtr](const BinaryData& key)->
-            const shared_ptr<InsertData>&
-         {
-            auto iter = txPtr->keyToDataMap_.find(key);
-            if (iter == txPtr->keyToDataMap_.end())
-               throw NoDataInDB();
-
-            return txPtr->insertVec_[iter->second];
-         };
-
-         txPtr->insertLbd_ = insertLbd;
-         txPtr->eraseLbd_ = eraseLbd;
-         txPtr->getDataLbd_ = getDataLbd;
-
-         ptx.insertLbd_ = insertLbd;
-         ptx.eraseLbd_ = eraseLbd;
-         ptx.getDataLbd_ = getDataLbd;
-      }
-
-      txMap.insert(make_pair(thrId, move(ptx)));
+      //increment counter
       ++txStruct->txCount_;
+      ++iter->second->counter_;
       return true;
    }
-   
-   /*we already have a tx for this thread, we will nest the new one within it*/
-   
-   //make sure the commit type between parent and nested tx match
-   if (iter->second.commit_ != txPtr->commit_)
-      return false;
 
-   //set lambdas
-   txPtr->insertLbd_ = iter->second.insertLbd_;
-   txPtr->eraseLbd_ = iter->second.eraseLbd_;
-   txPtr->getDataLbd_ = iter->second.getDataLbd_;
-
-   //increment counter
+   //this is the parent tx, create the lambdas and setup the struct
+   auto ptx = make_shared<ParentTx>();
+   ptx->commit_ = txPtr->commit_;
+      
+   txMap.insert(make_pair(thrId, ptx));
    ++txStruct->txCount_;
-   ++iter->second.counter_;
+
+   //release the dbMap lock
+   lock.unlock();
+
+   if (txPtr->commit_)
+   {
+      //write tx, lock db write mutex
+      ptx->writeLock_ = make_unique<unique_lock<mutex>>(txStruct->writeMutex_);
+
+      auto insertLbd = [thrId, txPtr](const BinaryData& key, const BinaryData& val)
+      {
+         if (thrId != this_thread::get_id())
+            throw WalletInterfaceException("insert operation thread id mismatch");
+
+         auto dataPtr = make_shared<InsertData>();
+         dataPtr->key_ = key;
+         dataPtr->value_ = val;
+
+         unsigned vecSize = txPtr->insertVec_.size();
+         txPtr->insertVec_.emplace_back(dataPtr);
+
+         /*
+         Insert the index for this data object in the key map.
+         Replace the index if it's already there as we want to track
+         the final effect for each key.
+         */
+         auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));
+         if (!insertPair.second)
+            insertPair.first->second = vecSize;
+      };
+
+      auto eraseLbd = [thrId, txPtr](const BinaryData& key, bool wipe)
+      {
+         if (thrId != this_thread::get_id())
+            throw WalletInterfaceException("insert operation thread id mismatch");
+
+         auto dataPtr = make_shared<InsertData>();
+         dataPtr->key_ = key;
+         dataPtr->write_ = false; //set to false to signal deletion
+         dataPtr->wipe_ = wipe;
+
+         unsigned vecSize = txPtr->insertVec_.size();
+         txPtr->insertVec_.emplace_back(dataPtr);
+
+         auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));
+         if (!insertPair.second)
+            insertPair.first->second = vecSize;
+      };
+
+      auto getDataLbd = [thrId, txPtr](const BinaryData& key)->
+         const shared_ptr<InsertData>&
+      {
+         auto iter = txPtr->keyToDataMap_.find(key);
+         if (iter == txPtr->keyToDataMap_.end())
+            throw NoDataInDB();
+
+         return txPtr->insertVec_[iter->second];
+      };
+
+      txPtr->insertLbd_ = insertLbd;
+      txPtr->eraseLbd_ = eraseLbd;
+      txPtr->getDataLbd_ = getDataLbd;
+
+      ptx->insertLbd_ = insertLbd;
+      ptx->eraseLbd_ = eraseLbd;
+      ptx->getDataLbd_ = getDataLbd;
+   }
+
    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool WalletIfaceTransaction::eraseTx(WalletIfaceTransaction* txPtr)
+unique_ptr<unique_lock<mutex>> WalletIfaceTransaction::eraseTx(
+   WalletIfaceTransaction* txPtr)
 {
    if (txPtr == nullptr)
       throw WalletInterfaceException("null tx ptr");
    
-   //we have to have this db name in the tx map
-   auto dbIter = txMap_.find(txPtr->dbPtr_->getName());
-   if (dbIter == txMap_.end())
+   //we should have this db name in the tx map
+   auto dbIter = dbMap_.find(txPtr->dbPtr_->getName());
+   if (dbIter == dbMap_.end())
       throw WalletInterfaceException("missing db name in tx map");
 
    auto& txStruct = dbIter->second;
@@ -1403,16 +1408,17 @@ bool WalletIfaceTransaction::eraseTx(WalletIfaceTransaction* txPtr)
       throw WalletInterfaceException("missing thread id in tx map");
 
    --txStruct->txCount_;
-   if (iter->second.counter_ > 1)
+   if (iter->second->counter_ > 1)
    {
       //this is a nested tx, decrement and return false
-      --iter->second.counter_;
-      return false;
+      --iter->second->counter_;
+      return nullptr;
    }
 
    //counter is 1, this is the parent tx, clean up the entry and return true
+   auto lockPtr = move(iter->second->writeLock_);
    txMap.erase(iter);
-   return true;
+   return move(lockPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
