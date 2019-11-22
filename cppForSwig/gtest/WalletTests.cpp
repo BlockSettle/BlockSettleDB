@@ -375,7 +375,8 @@ protected:
       auto decrKey = BtcUtils::hash256(ecdhPubKey);
 
       //decrypt packet
-      auto payload = CryptoAES::DecryptCBC(packet.cipherText_, decrKey, packet.iv_);
+      auto payload = CryptoAES::DecryptCBC(
+         packet.cipherText_, decrKey, packet.iv_);
 
       //break down payload
       BinaryRefReader brr(payload.getRef());
@@ -405,6 +406,7 @@ protected:
    {
       return decryptPair(packet, keyPair.first, keyPair.second);
    }
+
 
    /////////////////////////////////////////////////////////////////////////////
    BinaryData getErasurePacket(unsigned dbKeyInt)
@@ -2061,12 +2063,194 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    EXPECT_TRUE(checkDbValues(dbIface, "db3", db3Values));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletInterfaceTest, WipeEntries_Test)
+{
+   //TODO: wiping mid write tx is pointless, use mdb_env_copy2 with 
+   //MDB_CP_COMPACTto compact the db and skip the freed data
+   //setup env
+   auto dbEnv = make_shared<LMDBEnv>(3);
+   dbEnv->open(dbPath_, MDB_WRITEMAP);
+   auto filename = dbEnv->getFilename();
+   ASSERT_EQ(filename, dbPath_);
+
+   auto&& controlSalt = CryptoPRNG::generateRandom(32);
+   auto&& rawRoot = CryptoPRNG::generateRandom(32);
+   string dbName("test");
+
+   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+
+   //sanity check
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   dbIface->loadAllEntries(rawRoot);
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+
+   map<BinaryData, BinaryData> dataMap1;
+   for (unsigned i=0; i<30; i++)
+   {
+      dataMap1.insert(make_pair(
+         CryptoPRNG::generateRandom(20),
+         CryptoPRNG::generateRandom(64)));
+   }
+
+   {
+      //commit data
+      WalletIfaceTransaction tx(dbIface.get(), true);
+      for (auto keyVal : dataMap1)
+         tx.insert(keyVal.first, keyVal.second);
+   }
+
+   //close db iface before lower level access
+   dbIface->close();
+   
+   //replacement map
+   map<BinaryData, BinaryData> replaceMap;
+   {
+      auto iter = dataMap1.begin();
+      for (unsigned i=0; i<10; i++)
+         ++iter;
+
+      replaceMap.insert(make_pair(iter->first, 
+         CryptoPRNG::generateRandom(60)));
+      
+      ++iter;
+      replaceMap.insert(make_pair(iter->first, 
+         CryptoPRNG::generateRandom(70)));
+
+      ++iter; ++iter; ++iter; ++iter;
+      replaceMap.insert(make_pair(iter->first, 
+         CryptoPRNG::generateRandom(80)));
+
+      ++iter;
+      replaceMap.insert(make_pair(iter->first, 
+         CryptoPRNG::generateRandom(90)));
+
+      ++iter;
+      replaceMap.insert(make_pair(iter->first, 
+         CryptoPRNG::generateRandom(100)));
+   }
+
+   //match the on disk encrypted data to the decrypted keypairs
+   map<BinaryData, IESPacket> dataKeyToCipherText;
+   {
+      //open LMDB object
+      LMDB dbObj;
+      {
+         auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+         dbObj.open(dbEnv.get(), dbName);
+      }
+
+      //grab all entries in db
+      auto&& keyValMap = getAllEntries(dbEnv, dbObj);
+      EXPECT_EQ(keyValMap.size(), 31);
+
+      //convert to IES packets
+      vector<IESPacket> packets;
+      for(auto& keyVal : keyValMap)
+      {
+         auto&& iesPacket = getIESData(keyVal);
+         packets.push_back(iesPacket);
+      }
+
+      //generate seed
+      auto&& saltedRoot = BtcUtils::getHMAC256(controlSalt, rawRoot);
+
+      //generate first key pair
+      auto&& currentKeyPair = generateKeyPair(saltedRoot, 1);
+
+      //decrypt the other values with proper key pair
+      for (unsigned i=1; i<packets.size(); i++)
+      {
+         auto packet = packets[i];
+         ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), i);
+
+         try
+         {
+            auto&& dataPair = decryptPair(packet, currentKeyPair);
+            dataKeyToCipherText.insert(make_pair(
+               dataPair.first, packet));
+
+            //check decrypted data matches
+            auto iter = dataMap1.find(dataPair.first);
+            ASSERT_NE(iter, dataMap1.end());
+            EXPECT_EQ(dataPair.second, iter->second);
+         }
+         catch(...)
+         {
+            ASSERT_FALSE(true);
+         }
+      }
+   }
+
+   //check packets are on disk
+   for (auto& packetPair : dataKeyToCipherText)
+   {
+      EXPECT_TRUE(TestUtils::searchFile(
+         filename, packetPair.second.cipherText_));
+   }
+
+   //reopen db iface
+   dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+   dbIface->loadAllEntries(rawRoot);
+
+   //replace a couple entries
+   {
+      //commit data
+      WalletIfaceTransaction tx(dbIface.get(), true);
+      for (auto keyVal : replaceMap)
+         tx.insert(keyVal.first, keyVal.second);
+   }
+
+   //check final db state
+   auto finalMap = replaceMap;
+   finalMap.insert(dataMap1.begin(), dataMap1.end());
+   {
+      WalletIfaceTransaction tx(dbIface.get(), false);
+      auto iter = tx.getIterator();
+      
+      while(iter->isValid())
+      {
+         auto key = iter->key();
+         auto mapIter = finalMap.find(key);
+         ASSERT_NE(mapIter, finalMap.end());
+
+         if (mapIter->second.getRef() == iter->value())
+            finalMap.erase(mapIter);
+
+         iter->advance();
+      }
+
+      EXPECT_EQ(finalMap.size(), 0);
+   }
+
+   //shutdown db
+   dbIface->close();
+   dbEnv->close();
+
+   //check data on file
+   for (auto& packetPair : dataKeyToCipherText)
+   {
+      auto iter = replaceMap.find(packetPair.first);
+      if (iter == replaceMap.end())
+      {
+         continue;
+         //untouched keys should have same ciphertext
+         EXPECT_TRUE(TestUtils::searchFile(
+            filename, packetPair.second.cipherText_));
+      }
+      else
+      {
+         //modified keys should have a different ciphertext
+         EXPECT_FALSE(TestUtils::searchFile(
+            filename, packetPair.second.cipherText_));
+      }
+   }
+}
+
 //TODO
 //tampering tests
 
 //entry padding length test
-
-//wiping tests
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -2375,7 +2559,6 @@ TEST_F(WalletsTest, Encryption_Test)
       ASSERT_FALSE(TestUtils::searchFile(filename, pubkey));
    }
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, SeedEncryption)

@@ -648,9 +648,9 @@ void LMDB::wipe(const CharacterArrayRef& key)
       throw LMDBException("Failed to insert: need transaction");
    lock.unlock();
 
-   MDB_val mdb_data_obj;
    try
    {
+      MDB_val mdb_data_obj;
       mdb_data_obj = value(key);
       if (mdb_data_obj.mv_data != nullptr)
          memset(mdb_data_obj.mv_data, 0, mdb_data_obj.mv_size); 
@@ -690,7 +690,11 @@ CharacterArrayRef LMDB::get_NoCopy(const CharacterArrayRef& key) const
    if (txnIter == env->txForThreads_.end())
       throw std::runtime_error("Need transaction to get data");
    
-   lock.unlock();
+   /*
+   TODO: this is slow, set get routines within the tx directly to avoid 
+   locking the txmap
+   */
+   lock.unlock(); 
 
    MDB_val mkey = { key.len, const_cast<char*>(key.data) };
    MDB_val mdata = { 0, 0 };
