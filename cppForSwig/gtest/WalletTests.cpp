@@ -437,7 +437,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 
    //setup db env
    auto dbEnv = make_shared<LMDBEnv>();
-   dbEnv->open(dbPath_, 1);
+   dbEnv->open(dbPath_, MDB_WRITEMAP);
    auto filename = dbEnv->getFilename();
    ASSERT_EQ(filename, dbPath_);
 
@@ -566,10 +566,11 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 //TODO: WalletIfaceTransaction multithreaded test
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WalletInterfaceTest, EncryptionTest)
+TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 {
-   auto dbEnv = make_shared<LMDBEnv>();
-   dbEnv->open(dbPath_, 1);
+   //setup env
+   auto dbEnv = make_shared<LMDBEnv>(3);
+   dbEnv->open(dbPath_, MDB_WRITEMAP);
    auto filename = dbEnv->getFilename();
    ASSERT_EQ(filename, dbPath_);
 
@@ -580,6 +581,256 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
    auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
 
    //sanity check
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   dbIface->loadAllEntries(rawRoot);
+   ASSERT_EQ(dbIface->getEntryCount(), 0);
+
+   map<BinaryData, BinaryData> dataMap1;
+   for (unsigned i=0; i<30; i++)
+   {
+      dataMap1.insert(make_pair(
+         CryptoPRNG::generateRandom(20),
+         CryptoPRNG::generateRandom(64)));
+   }
+
+   map<BinaryData, BinaryData> dataMap2;
+   for (unsigned i=0; i<10; i++)
+   {
+      dataMap2.insert(make_pair(
+         CryptoPRNG::generateRandom(25),
+         CryptoPRNG::generateRandom(64)));
+   }
+
+   map<BinaryData, BinaryData> modifiedMap;
+   {
+      auto iter = dataMap1.begin();
+      for (unsigned i=0; i<8; i++)
+         ++iter;
+
+      modifiedMap.insert(make_pair(
+         iter->first, 
+         CryptoPRNG::generateRandom(48)));
+
+      ++iter; ++iter;
+      modifiedMap.insert(make_pair(
+         iter->first, 
+         CryptoPRNG::generateRandom(60)));
+
+      ++iter; ++iter; ++iter;
+      modifiedMap.insert(make_pair(
+         iter->first, 
+         CryptoPRNG::generateRandom(87)));
+   }
+
+   dataMap2.insert(modifiedMap.begin(), modifiedMap.end());
+
+   auto checkDbValues = [](DBIfaceTransaction* tx, 
+      map<BinaryData, BinaryData> dataMap)->unsigned
+   {
+      auto iter = dataMap.begin();
+      while (iter != dataMap.end())
+      {
+         auto dbData = tx->getDataRef(iter->first);
+         if (dbData == iter->second.getRef())
+         {
+            dataMap.erase(iter++);
+            continue;
+         }
+
+         ++iter;
+      }
+
+      return dataMap.size();
+   };
+
+   auto finalMap = dataMap2;
+   finalMap.insert(dataMap1.begin(), dataMap1.end());
+
+   auto writeThread2 = [&](void)->void
+   {
+      WalletIfaceTransaction tx(dbIface.get(), true);
+      
+      //check dataMap1 is in
+      EXPECT_EQ(checkDbValues(&tx, dataMap1), 0);
+
+      for (auto& dataPair : dataMap2)
+         tx.insert(dataPair.first, dataPair.second);
+
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+   };
+
+   thread* writeThr;
+
+   {
+      //create write tx in main thread
+      WalletIfaceTransaction tx(dbIface.get(), true);
+
+      //fire second thread with another write tx
+      writeThr = new thread(writeThread2);
+
+      //check db is empty
+      EXPECT_EQ(checkDbValues(&tx, dataMap1), dataMap1.size());
+
+      //modify db through main thread
+      for (auto& dataPair : dataMap1)
+         tx.insert(dataPair.first, dataPair.second);
+
+      //check values
+      EXPECT_EQ(checkDbValues(&tx, dataMap1), 0);
+   }
+
+   //wait on 2nd thread
+   writeThr->join();
+   delete writeThr;
+
+   {
+      //check db is consistent with main thread -> 2nd thread modification order
+      WalletIfaceTransaction tx(dbIface.get(), false);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+   }
+
+   /***********/
+   
+   //check concurrent writes to different dbs do not hold each other up
+   auto&& controlSalt2 = CryptoPRNG::generateRandom(32);
+   string dbName2("test2");
+
+   auto dbIface2 = make_shared<DBInterface>(dbEnv.get(), dbName2, controlSalt2);
+
+   //setup new db
+   ASSERT_EQ(dbIface2->getEntryCount(), 0);
+   dbIface2->loadAllEntries(rawRoot);
+   ASSERT_EQ(dbIface2->getEntryCount(), 0);
+
+   map<BinaryData, BinaryData> dataMap3;
+   for (unsigned i=0; i<30; i++)
+   {
+      dataMap3.insert(make_pair(
+         CryptoPRNG::generateRandom(20),
+         CryptoPRNG::generateRandom(64)));
+   }
+
+   map<BinaryData, BinaryData> dataMap4;
+   for (unsigned i=0; i<10; i++)
+   {
+      dataMap4.insert(make_pair(
+         CryptoPRNG::generateRandom(25),
+         CryptoPRNG::generateRandom(64)));
+   }
+
+   auto writeThread3 = [&](void)->void
+   {
+      WalletIfaceTransaction tx(dbIface2.get(), true);
+
+      //check db is empty
+      EXPECT_EQ(checkDbValues(&tx, dataMap3), dataMap3.size());
+
+      //write data
+      for (auto& dataPair : dataMap3)
+         tx.insert(dataPair.first, dataPair.second);
+
+      //verify it
+      EXPECT_EQ(checkDbValues(&tx, dataMap3), 0);
+   };
+
+   //start main thread write on first db
+   {
+      //create write tx in main thread
+      WalletIfaceTransaction tx(dbIface.get(), true);
+
+      thread writeThr2(writeThread3);
+
+      //write content
+      for (auto& dataPair : dataMap4)
+         tx.insert(dataPair.first, dataPair.second);
+
+      //verify
+      finalMap.insert(dataMap4.begin(), dataMap4.end());
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      
+      //wait on write thread before closing this tx
+      writeThr2.join();
+
+      //check db2 state
+      WalletIfaceTransaction tx2(dbIface2.get(), false);
+      EXPECT_EQ(checkDbValues(&tx2, dataMap3), 0);
+   }
+
+   /***********/
+
+   //check read tx consistency while write tx is live
+   map<BinaryData, BinaryData> dataMap5;
+   for (unsigned i=0; i<10; i++)
+   {
+      dataMap5.insert(make_pair(
+         CryptoPRNG::generateRandom(25),
+         CryptoPRNG::generateRandom(64)));
+   }
+
+   {
+      auto iter = finalMap.begin();
+      for (unsigned i=0; i<25; i++)
+         ++iter;
+      
+      dataMap5.insert(make_pair(
+         iter->first,
+         CryptoPRNG::generateRandom(50)));
+
+      ++iter; ++iter;
+      dataMap5.insert(make_pair(
+         iter->first,
+         CryptoPRNG::generateRandom(65)));
+   }
+
+   auto finalMap2 = dataMap5;
+   finalMap2.insert(finalMap.begin(), finalMap.end());
+
+   auto writeThread4 = [&](void)->void
+   {
+      WalletIfaceTransaction tx(dbIface.get(), true);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+
+      for (auto& dataPair : dataMap5)
+         tx.insert(dataPair.first, dataPair.second);
+
+      EXPECT_EQ(checkDbValues(&tx, finalMap2), 0);
+   };
+
+   //create read tx
+   {
+      WalletIfaceTransaction tx(dbIface.get(), false);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+
+      //create write thread
+      thread writeThr4(writeThread4);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+
+      writeThr4.join();
+
+      //data for this read tx should be unchanged
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+   }
+
+   //final check
+   WalletIfaceTransaction tx(dbIface.get(), false);
+   EXPECT_EQ(checkDbValues(&tx, finalMap2), 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletInterfaceTest, EncryptionTest)
+{
+   auto dbEnv = make_shared<LMDBEnv>();
+   dbEnv->open(dbPath_, MDB_WRITEMAP);
+   auto filename = dbEnv->getFilename();
+   ASSERT_EQ(filename, dbPath_);
+
+   auto&& controlSalt = CryptoPRNG::generateRandom(32);
+   auto&& rawRoot = CryptoPRNG::generateRandom(32);
+   string dbName("test");
+
+   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+
+   //setup new db
    ASSERT_EQ(dbIface->getEntryCount(), 0);
    dbIface->loadAllEntries(rawRoot);
    ASSERT_EQ(dbIface->getEntryCount(), 0);
@@ -760,7 +1011,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
 TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
 {
    auto dbEnv = make_shared<LMDBEnv>();
-   dbEnv->open(dbPath_, 1);
+   dbEnv->open(dbPath_, MDB_WRITEMAP);
    auto filename = dbEnv->getFilename();
    ASSERT_EQ(filename, dbPath_);
 
@@ -992,7 +1243,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
 TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 {
    auto dbEnv = make_shared<LMDBEnv>();
-   dbEnv->open(dbPath_, 1);
+   dbEnv->open(dbPath_, MDB_WRITEMAP);
    auto filename = dbEnv->getFilename();
    ASSERT_EQ(filename, dbPath_);
 
@@ -1222,7 +1473,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    //cycle dbEnv
    dbObj.close();
    dbEnv->close();
-   dbEnv->open(filename, 1);
+   dbEnv->open(filename, MDB_WRITEMAP);
 
    //reopen db
    dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
