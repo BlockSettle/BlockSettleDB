@@ -10,6 +10,8 @@
 #include "Assets.h"
 #include "make_unique.h"
 
+#define CIPHER_VERSION 0x00000001
+
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,33 +174,44 @@ SecureBinaryData Cipher::generateIV(void) const
 unique_ptr<Cipher> Cipher::deserialize(BinaryRefReader& brr)
 {
    unique_ptr<Cipher> cipher;
-   auto prefix = brr.get_uint8_t();
-   if (prefix != CIPHER_BYTE)
-      throw runtime_error("invalid serialized cipher prefix");
+   auto version = brr.get_uint32_t();
 
-   auto type = brr.get_uint8_t();
-
-   auto len = brr.get_var_int();
-   auto&& kdfId = brr.get_BinaryData(len);
-
-   len = brr.get_var_int();
-   auto&& encryptionKeyId = brr.get_BinaryData(len);
-
-   len = brr.get_var_int();
-   auto&& iv = SecureBinaryData(brr.get_BinaryDataRef(len));
-
-   switch (type)
+   switch (version)
    {
-   case CipherType_AES:
+   case 0x00000001:
    {
-      cipher = move(make_unique<Cipher_AES>(
-         kdfId, encryptionKeyId, iv));
+      auto prefix = brr.get_uint8_t();
+      if (prefix != CIPHER_BYTE)
+         throw runtime_error("invalid serialized cipher prefix");
 
-      break;
+      auto type = brr.get_uint8_t();
+
+      auto len = brr.get_var_int();
+      auto&& kdfId = brr.get_BinaryData(len);
+
+      len = brr.get_var_int();
+      auto&& encryptionKeyId = brr.get_BinaryData(len);
+
+      len = brr.get_var_int();
+      auto&& iv = SecureBinaryData(brr.get_BinaryDataRef(len));
+
+      switch (type)
+      {
+      case CipherType_AES:
+      {
+         cipher = move(make_unique<Cipher_AES>(
+            kdfId, encryptionKeyId, iv));
+
+         break;
+      }
+
+      default:
+         throw CipherException("unexpected cipher type");
+      }
    }
 
    default:
-      throw CipherException("unexpected cipher type");
+      throw CipherException("unkonwn cipher version");
    }
 
    return move(cipher);
@@ -208,6 +221,8 @@ unique_ptr<Cipher> Cipher::deserialize(BinaryRefReader& brr)
 BinaryData Cipher_AES::serialize() const
 {
    BinaryWriter bw;
+   bw.put_uint32_t(CIPHER_VERSION);
+
    bw.put_uint8_t(CIPHER_BYTE);
    bw.put_uint8_t(getType());
 
