@@ -13,10 +13,11 @@
 #include <set>
 #include <memory>
 
+#include "WalletFileInterface.h"
+
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
 #include "Assets.h"
-#include "lmdbpp.h"
 
 class DecryptedDataContainer;
 
@@ -75,7 +76,7 @@ public:
 
    //static
    static std::shared_ptr<DerivationScheme> deserialize(
-      BinaryDataRef, LMDB*);
+      BinaryDataRef, std::shared_ptr<WalletDBInterface>, const std::string&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,7 +208,8 @@ private:
       const SecureBinaryData& privKey, std::unique_ptr<Cipher>,
       const BinaryData& full_id, unsigned index);
 
-   void putSalt(unsigned, const SecureBinaryData&, LMDB*);
+   void putSalt(unsigned, const SecureBinaryData&,
+      std::shared_ptr<WalletDBInterface>, const std::string&);
 
 public:
    DerivationScheme_ECDH(void) :
@@ -229,8 +231,9 @@ public:
    const SecureBinaryData& getChaincode(void) const override;
 
    //locals
-   unsigned addSalt(const SecureBinaryData&, LMDB*);
-   void putAllSalts(LMDB*);
+   unsigned addSalt(const SecureBinaryData&, 
+      std::shared_ptr<WalletDBInterface>, const std::string&);
+   void putAllSalts(std::shared_ptr<WalletDBInterface>, const std::string&);
    unsigned getSaltIndex(const SecureBinaryData&);
 };
 

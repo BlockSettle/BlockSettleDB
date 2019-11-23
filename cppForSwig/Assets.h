@@ -85,6 +85,7 @@ struct DecryptedEncryptionKey
    friend class DecryptedDataContainer;
    friend class Cipher_AES;
    friend class AssetWallet_Single;
+   friend class AssetWallet;
 
 private:
    const SecureBinaryData rawKey_;
@@ -306,9 +307,9 @@ public:
       const SecureBinaryData& key) const;
 
    //static
-   static std::shared_ptr<Asset_EncryptedData> deserialize(
+   static std::unique_ptr<Asset_EncryptedData> deserialize(
       const BinaryDataRef&);
-   static std::shared_ptr<Asset_EncryptedData> deserialize(
+   static std::unique_ptr<Asset_EncryptedData> deserialize(
       size_t len, const BinaryDataRef&);
 };
 

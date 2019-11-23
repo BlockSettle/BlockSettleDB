@@ -13,9 +13,10 @@
 #include <map>
 #include <memory>
 
+#include "WalletFileInterface.h"
+
 #include "ReentrantLock.h"
 #include "BinaryData.h"
-#include "lmdbpp.h"
 #include "EncryptionUtils.h"
 #include "Assets.h"
 #include "Addresses.h"
@@ -513,12 +514,12 @@ private:
    BinaryData id_;
    BinaryData parent_id_;
 
+   std::shared_ptr<WalletDBInterface> iface_;
+   const std::string dbName_;
+
    std::shared_ptr<AssetEntry> root_;
    std::shared_ptr<DerivationScheme> derScheme_;
    std::map<unsigned, std::shared_ptr<AssetEntry>> assets_;
-
-   std::shared_ptr<LMDBEnv> dbEnv_ = nullptr;
-   LMDB* db_ = nullptr;
 
    unsigned lastUsedIndex_ = UINT32_MAX;
 
@@ -569,10 +570,11 @@ public:
       const BinaryData& parentID,
       std::shared_ptr<AssetEntry> root,
       std::shared_ptr<DerivationScheme> scheme,
-      std::shared_ptr<LMDBEnv> dbEnv, LMDB* db) :
+      std::shared_ptr<WalletDBInterface> iface, 
+      const std::string& dbName) :
       id_(ID), parent_id_(parentID),
       root_(root), derScheme_(scheme),
-      dbEnv_(dbEnv), db_(db)
+      iface_(iface), dbName_(dbName)
    {}
 
    size_t getAssetCount(void) const { return assets_.size(); }
@@ -596,8 +598,8 @@ public:
 
    //static
    static void putData(LMDB* db, const BinaryData& key, const BinaryData& data);
-   static std::shared_ptr<AssetAccount> loadFromDisk(
-      const BinaryData& key, std::shared_ptr<LMDBEnv>, LMDB*);
+   static std::shared_ptr<AssetAccount> loadFromDisk(const BinaryData& key, 
+      std::shared_ptr<WalletDBInterface>, const std::string&);
 
    //Lockable virtuals
    void initAfterLock(void) {}
@@ -619,8 +621,9 @@ public:
       const BinaryData& parentID,
       std::shared_ptr<AssetEntry> root,
       std::shared_ptr<DerivationScheme> scheme,
-      std::shared_ptr<LMDBEnv> dbEnv, LMDB* db) :
-      AssetAccount(ID, parentID, root, scheme, dbEnv, db)
+      std::shared_ptr<WalletDBInterface> iface, 
+      const std::string& dbName) :
+      AssetAccount(ID, parentID, root, scheme, iface, dbName)
    {}
 
    unsigned addSalt(const SecureBinaryData&);
@@ -652,8 +655,9 @@ private:
    std::map<BinaryData, BinaryData> topHashedAssetId_;
 
    BinaryData ID_;
-   std::shared_ptr<LMDBEnv> dbEnv_ = nullptr;
-   LMDB* db_ = nullptr;
+
+   std::shared_ptr<WalletDBInterface> iface_;
+   const std::string dbName_;
 
 private:
    void commit(void); //used for initial commit to disk
@@ -671,9 +675,9 @@ private:
       const BinaryData& id);
 
 public:
-   AddressAccount(
-      std::shared_ptr<LMDBEnv> dbEnv, LMDB* db) :
-      dbEnv_(dbEnv), db_(db)
+   AddressAccount(std::shared_ptr<WalletDBInterface> iface,
+      const std::string& dbName) :
+      iface_(iface), dbName_(dbName)
    {}
 
    const BinaryData& getID(void) const { return ID_; }
@@ -732,10 +736,8 @@ public:
    const BinaryData& getOuterAccountID(void) const { return outerAccount_; }
    const BinaryData& getInnerAccountID(void) const { return innerAccount_; }
 
-   std::shared_ptr<LMDBEnv> getDbEnv(void) const { return dbEnv_; }
-
    std::shared_ptr<AddressAccount> getWatchingOnlyCopy(
-      std::shared_ptr<LMDBEnv>, LMDB*) const;
+      std::shared_ptr<WalletDBInterface>, const std::string&) const;
 
    std::shared_ptr<AddressEntry> getAddressEntryForID(
       const BinaryDataRef&) const;
@@ -757,8 +759,9 @@ class MetaDataAccount : public Lockable
 private:
    MetaAccountType type_ = MetaAccount_Unset;
    BinaryData ID_;
-   std::shared_ptr<LMDBEnv> dbEnv_ = nullptr;
-   LMDB* db_ = nullptr;
+
+   std::shared_ptr<WalletDBInterface> iface_;
+   const std::string dbName_;
 
    std::map<unsigned, std::shared_ptr<MetaData>> assets_;
 
@@ -766,8 +769,9 @@ private:
    bool writeAssetToDisk(std::shared_ptr<MetaData>);
 
 public:
-   MetaDataAccount(std::shared_ptr<LMDBEnv> dbEnv, LMDB* db) :
-      dbEnv_(dbEnv), db_(db)
+   MetaDataAccount(std::shared_ptr<WalletDBInterface> iface,
+      const std::string& dbName) :
+      iface_(iface), dbName_(dbName)
    {}
 
    //Lockable virtuals
@@ -779,7 +783,7 @@ public:
    void commit(void);
    void updateOnDisk(void);
    std::shared_ptr<MetaDataAccount> copy(
-      std::shared_ptr<LMDBEnv>, LMDB* db) const;
+      std::shared_ptr<WalletDBInterface>, const std::string&) const;
 
    //setup methods
    void reset(void);

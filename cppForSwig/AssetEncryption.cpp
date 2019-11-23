@@ -236,24 +236,25 @@ unique_ptr<Cipher> Cipher_AES::getCopy(const BinaryData& keyId) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-SecureBinaryData Cipher_AES::encrypt(const SecureBinaryData& key,
-   const SecureBinaryData& data) const
-{
-   CryptoAES aes_cipher;
-   return aes_cipher.EncryptCBC(data, key, iv_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 SecureBinaryData Cipher_AES::encrypt(DecryptedEncryptionKey* const key,
    const BinaryData& kdfId, const SecureBinaryData& data) const
 {
    if (key == nullptr)
-      throw runtime_error("empty ptr");
+      throw runtime_error("null key ptr");
 
    auto& encryptionKey = key->getDerivedKey(kdfId);
 
    CryptoAES aes_cipher;
    return aes_cipher.EncryptCBC(data, encryptionKey, iv_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+SecureBinaryData Cipher_AES::encrypt(DecryptedEncryptionKey* const key,
+   const BinaryData& kdfId, DecryptedEncryptionKey* const data) const
+{
+   if (data == nullptr)
+      throw runtime_error("null data ptr");
+   return encrypt(key, kdfId, data->getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

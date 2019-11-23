@@ -229,9 +229,11 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
             if (privKeyPtr != nullptr)
                throw AssetException("multiple priv keys for entry");
 
-            privKeyPtr = dynamic_pointer_cast<Asset_PrivateKey>(
-               Asset_EncryptedData::deserialize(datapair.first, datapair.second));
+            auto keyUPtr = Asset_EncryptedData::deserialize(
+               datapair.first, datapair.second);
+            shared_ptr<Asset_EncryptedData> keySPtr(move(keyUPtr));
 
+            privKeyPtr = dynamic_pointer_cast<Asset_PrivateKey>(keySPtr);
             if (privKeyPtr == nullptr)
                throw AssetException("deserialized to unexpected type");
             break;
@@ -569,7 +571,7 @@ bool Asset_EncryptionKey::isSame(Asset_EncryptedData* const asset) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
+unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
    const BinaryDataRef& data)
 {
    BinaryRefReader brr(data);
@@ -580,7 +582,7 @@ shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
+unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
    size_t totalLen, const BinaryDataRef& data)
 {
    BinaryRefReader brr(data);
@@ -590,7 +592,7 @@ shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
       throw runtime_error("invalid serialized encrypted data len");
 
    //return ptr
-   shared_ptr<Asset_EncryptedData> assetPtr = nullptr;
+   unique_ptr<Asset_EncryptedData> assetPtr = nullptr;
 
    //prefix
    auto prefix = brr.get_uint8_t();
@@ -613,7 +615,7 @@ shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
       auto cipherData = CipherData::deserialize(cipherBrr);
 
       //ptr
-      assetPtr = make_shared<Asset_PrivateKey>(id, move(cipherData));
+      assetPtr = make_unique<Asset_PrivateKey>(id, move(cipherData));
 
       break;
    }
@@ -642,7 +644,7 @@ shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
       }
 
       //ptr
-      assetPtr = make_shared<Asset_EncryptionKey>(id, move(cipherMap));
+      assetPtr = make_unique<Asset_EncryptionKey>(id, move(cipherMap));
 
       break;
    }
@@ -659,7 +661,7 @@ shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
       auto cipherData = CipherData::deserialize(cipherBrr);
 
       //ptr
-      assetPtr = make_shared<EncryptedSeed>(move(cipherData));
+      assetPtr = make_unique<EncryptedSeed>(move(cipherData));
 
       break;
    }
@@ -668,7 +670,7 @@ shared_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
       throw runtime_error("unexpected encrypted data prefix");
    }
 
-   return assetPtr;
+   return move(assetPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
