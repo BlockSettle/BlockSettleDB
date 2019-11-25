@@ -11,6 +11,11 @@
 #include "DecryptedDataContainer.h"
 #include "BIP32_Node.h"
 
+#define DERSCHEME_LEGACY_VERSION 0x00000001
+#define DERSCHEME_BIP32_VERSION  0x00000001
+#define DERSCHEME_SALTED_VERSION 0x00000001
+#define DERSCHEME_ECDH_VERSION   0x00000001
+
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +32,9 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data,
 {
    BinaryRefReader brr(data);
 
+   //version
+   auto version = brr.get_uint32_t();
+
    //get derivation scheme type
    auto schemeType = brr.get_uint8_t();
 
@@ -36,91 +44,135 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data,
    {
    case DERIVATIONSCHEME_LEGACY:
    {
-      //get chaincode;
-      auto len = brr.get_var_int();
-      auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
-      derScheme = make_shared<DerivationScheme_ArmoryLegacy>(
-         chainCode);
+      switch (version)
+      {
+      case 0x00000001:
+      {
+         //get chaincode;
+         auto len = brr.get_var_int();
+         auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
+         derScheme = make_shared<DerivationScheme_ArmoryLegacy>(
+            chainCode);
+
+         break;
+      }
+
+      default:
+         throw DerivationSchemeException("unsupported legacy scheme version");
+      }
 
       break;
    }
 
    case DERIVATIONSCHEME_BIP32:
    {
-      //chaincode;
-      auto len = brr.get_var_int();
-      auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
+      switch (version)
+      {
+      case 0x00000001:
+      {
+         //chaincode;
+         auto len = brr.get_var_int();
+         auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
 
-      //bip32 node meta data
-      auto depth = brr.get_uint32_t();
-      auto leafID = brr.get_uint32_t();
+         //bip32 node meta data
+         auto depth = brr.get_uint32_t();
+         auto leafID = brr.get_uint32_t();
 
-      //instantiate object
-      derScheme = make_shared<DerivationScheme_BIP32>(
-         chainCode, depth, leafID);
+         //instantiate object
+         derScheme = make_shared<DerivationScheme_BIP32>(
+            chainCode, depth, leafID);
+
+         break;
+      }
+
+      default:
+         throw DerivationSchemeException("unsupported bip32 scheme version");
+      }
 
       break;
    }
 
    case DERIVATIONSCHEME_BIP32_SALTED:
    {
-      //chaincode;
-      auto len = brr.get_var_int();
-      auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
+      switch (version)
+      {
+      case 0x00000001:
+      {
+         //chaincode;
+         auto len = brr.get_var_int();
+         auto&& chainCode = SecureBinaryData(brr.get_BinaryDataRef(len));
 
-      //bip32 node meta data
-      auto depth = brr.get_uint32_t();
-      auto leafID = brr.get_uint32_t();
+         //bip32 node meta data
+         auto depth = brr.get_uint32_t();
+         auto leafID = brr.get_uint32_t();
 
-      //salt
-      len = brr.get_var_int();
-      auto&& salt = SecureBinaryData(brr.get_BinaryDataRef(len));
+         //salt
+         len = brr.get_var_int();
+         auto&& salt = SecureBinaryData(brr.get_BinaryDataRef(len));
 
-      //instantiate object
-      derScheme = make_shared<DerivationScheme_BIP32_Salted>(
-         salt, chainCode, depth, leafID);
+         //instantiate object
+         derScheme = make_shared<DerivationScheme_BIP32_Salted>(
+            salt, chainCode, depth, leafID);
+
+         break;
+      }
+
+      default:
+         throw DerivationSchemeException("unsupported salted scheme version");
+      }
 
       break;
-
    }
 
    case DERIVATIONSCHEME_BIP32_ECDH:
    {
-      //id
-      auto len = brr.get_var_int();
-      auto id = brr.get_BinaryData(len);
-
-      //saltMap
-      map<SecureBinaryData, unsigned> saltMap;
-
-      BinaryWriter bwKey;
-      bwKey.put_uint8_t(ECDH_SALT_PREFIX);
-      bwKey.put_BinaryData(id);
-      BinaryDataRef keyBdr = bwKey.getDataRef();
-
-      auto&& tx = iface->beginReadTransaction(dbName);
-      auto dbIter = tx->getIterator();
-      dbIter->seek(keyBdr);
-      while (dbIter->isValid())
+      switch (version)
       {
-         auto&& key = dbIter->key();
-         if (!key.startsWith(keyBdr) || 
-             key.getSize() != keyBdr.getSize() + 4)
-            break;
+      case 0x00000001:
+      {
+         //id
+         auto len = brr.get_var_int();
+         auto id = brr.get_BinaryData(len);
 
-         auto saltIdBdr = key.getSliceCopy(keyBdr.getSize(), 4);
-         auto saltId = READ_UINT32_BE(saltIdBdr);
+         //saltMap
+         map<SecureBinaryData, unsigned> saltMap;
 
-         auto value = dbIter->value();
-         BinaryRefReader bdrData(value);
-         auto len = bdrData.get_var_int();
-         auto&& salt = bdrData.get_SecureBinaryData(len);
+         BinaryWriter bwKey;
+         bwKey.put_uint8_t(ECDH_SALT_PREFIX);
+         bwKey.put_BinaryData(id);
+         BinaryDataRef keyBdr = bwKey.getDataRef();
 
-         saltMap.emplace(make_pair(move(salt), saltId));
-         dbIter->advance();
+         auto&& tx = iface->beginReadTransaction(dbName);
+         auto dbIter = tx->getIterator();
+         dbIter->seek(keyBdr);
+         while (dbIter->isValid())
+         {
+            auto&& key = dbIter->key();
+            if (!key.startsWith(keyBdr) || 
+               key.getSize() != keyBdr.getSize() + 4)
+               break;
+
+            auto saltIdBdr = key.getSliceCopy(keyBdr.getSize(), 4);
+            auto saltId = READ_UINT32_BE(saltIdBdr);
+
+            auto value = dbIter->value();
+            BinaryRefReader bdrData(value);
+            auto len = bdrData.get_var_int();
+            auto&& salt = bdrData.get_SecureBinaryData(len);
+
+            saltMap.emplace(make_pair(move(salt), saltId));
+            dbIter->advance();
+         }
+
+         derScheme = make_shared<DerivationScheme_ECDH>(id, saltMap);
+
+         break;
       }
 
-      derScheme = make_shared<DerivationScheme_ECDH>(id, saltMap);
+      default:
+         throw DerivationSchemeException("unsupported ecdh scheme version");
+      }
+
       break;
    }
 
@@ -268,6 +320,7 @@ vector<shared_ptr<AssetEntry>>
 BinaryData DerivationScheme_ArmoryLegacy::serialize() const
 {
    BinaryWriter bw;
+   bw.put_uint32_t(DERSCHEME_LEGACY_VERSION);
    bw.put_uint8_t(DERIVATIONSCHEME_LEGACY);
    bw.put_var_int(chainCode_.getSize());
    bw.put_BinaryData(chainCode_);
@@ -414,6 +467,7 @@ vector<shared_ptr<AssetEntry>> DerivationScheme_BIP32::extendPublicChain(
 BinaryData DerivationScheme_BIP32::serialize() const
 {
    BinaryWriter bw;
+   bw.put_uint32_t(DERSCHEME_BIP32_VERSION);
    bw.put_uint8_t(DERIVATIONSCHEME_BIP32);
    bw.put_var_int(chainCode_.getSize());
    bw.put_BinaryData(chainCode_);
@@ -500,6 +554,7 @@ DerivationScheme_BIP32_Salted::computeNextPublicEntry(
 BinaryData DerivationScheme_BIP32_Salted::serialize() const
 {
    BinaryWriter bw;
+   bw.put_uint32_t(DERSCHEME_SALTED_VERSION);
    bw.put_uint8_t(DERIVATIONSCHEME_BIP32_SALTED);
    bw.put_var_int(getChaincode().getSize());
    bw.put_BinaryData(getChaincode());
@@ -551,6 +606,7 @@ const SecureBinaryData& DerivationScheme_ECDH::getChaincode() const
 BinaryData DerivationScheme_ECDH::serialize() const
 {
    BinaryWriter bw;
+   bw.put_uint32_t(DERSCHEME_ECDH_VERSION);
    bw.put_uint8_t(DERIVATIONSCHEME_BIP32_ECDH);
 
    //id
