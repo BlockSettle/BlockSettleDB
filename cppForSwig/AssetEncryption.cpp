@@ -10,7 +10,8 @@
 #include "Assets.h"
 #include "make_unique.h"
 
-#define CIPHER_VERSION 0x00000001
+#define CIPHER_VERSION     0x00000001
+#define KDF_ROMIX_VERSION  0x00000001
 
 using namespace std;
 
@@ -67,6 +68,9 @@ shared_ptr<KeyDerivationFunction> KeyDerivationFunction::deserialize(
    //return ptr
    shared_ptr<KeyDerivationFunction> kdfPtr = nullptr;
 
+   //version
+   auto version = brr.get_uint32_t();
+
    //check prefix
    auto prefix = brr.get_uint16_t();
 
@@ -74,18 +78,29 @@ shared_ptr<KeyDerivationFunction> KeyDerivationFunction::deserialize(
    {
    case KDF_ROMIX_PREFIX:
    {
-      //iterations
-      auto iterations = brr.get_uint32_t();
+      switch (version)
+      {
+      case 0x00000001:
+      {
+         //iterations
+         auto iterations = brr.get_uint32_t();
 
-      //memTarget
-      auto memTarget = brr.get_uint32_t();
+         //memTarget
+         auto memTarget = brr.get_uint32_t();
 
-      //salt
-      auto len = brr.get_var_int();
-      SecureBinaryData salt(move(brr.get_BinaryData(len)));
+         //salt
+         auto len = brr.get_var_int();
+         SecureBinaryData salt(move(brr.get_BinaryData(len)));
 
-      kdfPtr = make_shared<KeyDerivationFunction_Romix>(
-         iterations, memTarget, salt);
+         kdfPtr = make_shared<KeyDerivationFunction_Romix>(
+            iterations, memTarget, salt);
+         break;
+      }
+
+      default:
+         throw runtime_error("unsupported kdf version");
+      }
+
       break;
    }
 
@@ -100,6 +115,7 @@ shared_ptr<KeyDerivationFunction> KeyDerivationFunction::deserialize(
 BinaryData KeyDerivationFunction_Romix::serialize() const
 {
    BinaryWriter bw;
+   bw.put_uint32_t(KDF_ROMIX_VERSION);
    bw.put_uint16_t(KDF_ROMIX_PREFIX);
    bw.put_uint32_t(iterations_);
    bw.put_uint32_t(memTarget_);
@@ -208,10 +224,12 @@ unique_ptr<Cipher> Cipher::deserialize(BinaryRefReader& brr)
       default:
          throw CipherException("unexpected cipher type");
       }
+
+      break;
    }
 
    default:
-      throw CipherException("unkonwn cipher version");
+      throw CipherException("unknown cipher version");
    }
 
    return move(cipher);
