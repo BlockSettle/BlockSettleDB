@@ -430,6 +430,10 @@ void WalletDBInterface::setupEnv(const string& path,
    //open env for control and meta dbs
    dbEnv_ = make_unique<LMDBEnv>(2);
    dbEnv_->open(path, MDB_WRITEMAP);
+   // Increase wallet size from 1 mb to 50 mb to prevent signer crashes with
+   // with "MDB_MAP_FULL: Environment mapsize limit reached" error
+   // when there are a lot of used addresses
+   dbEnv_->setMapSize(50*1024*1024);
 
    //open control db
    openControlDb();
