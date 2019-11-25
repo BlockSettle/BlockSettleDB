@@ -41,22 +41,69 @@ public:
 class NoEntryInWalletException
 {};
 
-////////////////////////////////////////////////////////////////////////////////
-struct InsertData
-{
-   BinaryData key_;
-   SecureBinaryData value_;
-   bool write_ = true;
-   bool wipe_ = false;
-};
-
-////////////////////////////////////////////////////////////////////////////////
+////
 class WalletInterfaceException : public std::runtime_error
 {
 public:
    WalletInterfaceException(const std::string& err) :
       std::runtime_error(err)
    {}
+};
+
+////////////////////////////////////////////////////////////////////////////////
+struct BothBinaryDatas
+{
+public:
+   BinaryData bd_;
+   SecureBinaryData sbd_;
+
+public:
+   BothBinaryDatas(void)
+   {}
+
+   BothBinaryDatas(BinaryData& bd) :
+      bd_(std::move(bd))
+   {}
+
+   BothBinaryDatas(const BinaryData& bd) :
+      bd_(bd)
+   {}
+
+   BothBinaryDatas(SecureBinaryData& sbd) :
+      sbd_(std::move(sbd))
+   {}
+
+   const BinaryDataRef getRef(void) const
+   {
+      if (bd_.getSize() != 0)
+      {
+         return bd_.getRef();
+      }
+      else if (sbd_.getSize() != 0)
+      {
+         return sbd_.getRef();
+      }
+
+      return BinaryDataRef();
+      //throw WalletInterfaceException("empty data object");
+   }
+
+   size_t getSize(void) const
+   {
+      if (bd_.getSize() != 0)
+         return bd_.getSize();
+      else 
+         return sbd_.getSize();
+   }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+struct InsertData
+{
+   BinaryData key_;
+   BothBinaryDatas value_;
+   bool write_ = true;
+   bool wipe_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +114,7 @@ class WalletIfaceTransaction;
 ////
 struct IfaceDataMap
 {
-   std::map<BinaryData, SecureBinaryData> dataMap_;
+   std::map<BinaryData, BothBinaryDatas> dataMap_;
    std::map<BinaryData, BinaryData> dataKeyToDbKey_;
    unsigned dbKeyCounter_ = 0;
 
@@ -103,10 +150,10 @@ private:
 
    //serialization methods
    static BinaryData createDataPacket(const BinaryData& dbKey,
-      const BinaryData& dataKey, const SecureBinaryData& dataVal,
+      const BinaryData& dataKey, const BothBinaryDatas& dataVal,
       const SecureBinaryData&, const SecureBinaryData&,
       unsigned encrVersion);
-   static std::pair<BinaryData, SecureBinaryData> readDataPacket(
+   static std::pair<BinaryData, BothBinaryDatas> readDataPacket(
       const BinaryData& dbKey, const BinaryData& dataPacket,
       const SecureBinaryData&, const SecureBinaryData&,
       unsigned encrVersion);
@@ -136,7 +183,7 @@ protected:
       bool commit_;
       std::unique_ptr<std::unique_lock<std::mutex>> writeLock_;
 
-      std::function<void(const BinaryData&, const SecureBinaryData&)> insertLbd_;
+      std::function<void(const BinaryData&, BothBinaryDatas&)> insertLbd_;
       std::function<void(const BinaryData&, bool)> eraseLbd_;
       std::function<const std::shared_ptr<InsertData>&(const BinaryData&)> 
          getDataLbd_;
@@ -162,7 +209,9 @@ public:
    DBIfaceTransaction(void) {}
    virtual ~DBIfaceTransaction(void) noexcept(false) = 0;
 
+   virtual void insert(const BinaryData&, BinaryData&) = 0;
    virtual void insert(const BinaryData&, const BinaryData&) = 0;
+   virtual void insert(const BinaryData&, SecureBinaryData&) = 0;
    virtual void erase(const BinaryData&) = 0;
    virtual void wipe(const BinaryData&) = 0;
 
@@ -189,7 +238,7 @@ private:
    std::vector<std::shared_ptr<InsertData>> insertVec_;
    std::map<BinaryData, unsigned> keyToDataMap_;
 
-   std::function<void(const BinaryData&, const SecureBinaryData&)> insertLbd_;
+   std::function<void(const BinaryData&, BothBinaryDatas&)> insertLbd_;
    std::function<void(const BinaryData&, bool)> eraseLbd_;
    std::function<const std::shared_ptr<InsertData>&(const BinaryData&)> 
       getDataLbd_;
@@ -210,7 +259,9 @@ public:
    ~WalletIfaceTransaction(void) noexcept(false);
 
    //write routines
+   void insert(const BinaryData&, BinaryData&) override;
    void insert(const BinaryData&, const BinaryData&) override;
+   void insert(const BinaryData&, SecureBinaryData&) override;
    void erase(const BinaryData&) override;
    void wipe(const BinaryData&) override;
 
@@ -244,7 +295,9 @@ public:
    }
 
    //write routines
+   void insert(const BinaryData&, BinaryData&) override;
    void insert(const BinaryData&, const BinaryData&) override;
+   void insert(const BinaryData&, SecureBinaryData&) override;
    void erase(const BinaryData&) override;
    void wipe(const BinaryData&) override;
 
@@ -273,7 +326,7 @@ class WalletIfaceIterator : public DBIfaceIterator
 {
 private:
    const WalletIfaceTransaction* txPtr_;
-   std::map<BinaryData, SecureBinaryData>::const_iterator iterator_;
+   std::map<BinaryData, BothBinaryDatas>::const_iterator iterator_;
 
 public:
    WalletIfaceIterator(const WalletIfaceTransaction* tx) :

@@ -135,7 +135,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
 
    //meta data handling lbd
    auto processMetaDataPacket = [&gaps, &computeKeyPair, &decrKeyCounter]
-   (const BinaryData& packet)->bool
+   (const BothBinaryDatas& packet)->bool
    {
       if (packet.getSize() > erasurePlaceHolder_.getSize())
       {
@@ -164,7 +164,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
          }
       }
 
-      if (packet == keyCycleFlag_)
+      if (packet.getRef() == keyCycleFlag_.getRef())
       {
          //cycle key
          ++decrKeyCounter;
@@ -255,9 +255,10 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
       auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadWrite);
 
       auto flagKey = dataMapPtr_->getNewDbKey();
-      auto&& encrPubKey = CryptoECDSA().ComputePublicKey(decrPrivKey, true);;
+      BothBinaryDatas keyFlagBd(keyCycleFlag_);
+      auto&& encrPubKey = CryptoECDSA().ComputePublicKey(decrPrivKey, true);
       auto flagPacket = createDataPacket(flagKey, BinaryData(), 
-         keyCycleFlag_, encrPubKey, macKey, encrVersion_);
+         keyFlagBd, encrPubKey, macKey, encrVersion_);
 
       CharacterArrayRef carKey(flagKey.getSize(), flagKey.getPtr());
       CharacterArrayRef carVal(flagPacket.getSize(), flagPacket.getPtr());
@@ -283,7 +284,7 @@ void DBInterface::wipe(const BinaryData& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
-   const BinaryData& dataKey, const SecureBinaryData& dataVal,
+   const BinaryData& dataKey, const BothBinaryDatas& dataVal,
    const SecureBinaryData& encrPubKey, const SecureBinaryData& macKey,
    unsigned encrVersion)
 {
@@ -299,7 +300,7 @@ BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
       bw.put_var_int(dataKey.getSize());
       bw.put_BinaryData(dataKey);
       bw.put_var_int(dataVal.getSize());
-      bw.put_BinaryData(dataVal);
+      bw.put_BinaryDataRef(dataVal.getRef());
 
       //append dbKey to payload
       BinaryWriter bwHmac;
@@ -355,13 +356,13 @@ BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-pair<BinaryData, SecureBinaryData> DBInterface::readDataPacket(
+pair<BinaryData, BothBinaryDatas> DBInterface::readDataPacket(
    const BinaryData& dbKey, const BinaryData& dataPacket,
    const SecureBinaryData& decrPrivKey, const SecureBinaryData& macKey,
    unsigned encrVersion)
 {
    BinaryData dataKey;
-   SecureBinaryData dataVal;
+   BothBinaryDatas dataVal;
 
    switch (encrVersion)
    {
@@ -1369,14 +1370,14 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
       //write tx, lock db write mutex
       ptx->writeLock_ = make_unique<unique_lock<mutex>>(txStruct->writeMutex_);
 
-      auto insertLbd = [thrId, txPtr](const BinaryData& key, const SecureBinaryData& val)
+      auto insertLbd = [thrId, txPtr](const BinaryData& key, BothBinaryDatas& val)
       {
          if (thrId != this_thread::get_id())
             throw WalletInterfaceException("insert operation thread id mismatch");
 
          auto dataPtr = make_shared<InsertData>();
          dataPtr->key_ = key;
-         dataPtr->value_ = val;
+         dataPtr->value_ = move(val);
 
          unsigned vecSize = txPtr->insertVec_.size();
          txPtr->insertVec_.emplace_back(dataPtr);
@@ -1471,12 +1472,35 @@ unique_ptr<unique_lock<mutex>> WalletIfaceTransaction::eraseTx(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletIfaceTransaction::insert(const BinaryData& key, const BinaryData& val)
+void WalletIfaceTransaction::insert(const BinaryData& key, BinaryData& val)
 {
    if (!insertLbd_)
       throw WalletInterfaceException("insert lambda is not set");
 
-   insertLbd_(key, val);
+   BothBinaryDatas bbdVal(val);
+   insertLbd_(key, bbdVal);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletIfaceTransaction::insert(
+   const BinaryData& key, const BinaryData& val)
+{
+   if (!insertLbd_)
+      throw WalletInterfaceException("insert lambda is not set");
+
+   BothBinaryDatas bbdVal(val);
+   insertLbd_(key, bbdVal);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletIfaceTransaction::insert(
+   const BinaryData& key, SecureBinaryData& val)
+{
+   if (!insertLbd_)
+      throw WalletInterfaceException("insert lambda is not set");
+
+   BothBinaryDatas bbdVal(val);
+   insertLbd_(key, bbdVal);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1555,7 +1579,23 @@ const std::shared_ptr<InsertData>& WalletIfaceTransaction::getInsertDataForKey(
 //// RawIfaceTransaction
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+void RawIfaceTransaction::insert(const BinaryData& key, BinaryData& val)
+{
+   CharacterArrayRef carKey(key.getSize(), key.getPtr());
+   CharacterArrayRef carVal(val.getSize(), val.getPtr());
+   dbPtr_->insert(carKey, carVal);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void RawIfaceTransaction::insert(const BinaryData& key, const BinaryData& val)
+{
+   CharacterArrayRef carKey(key.getSize(), key.getPtr());
+   CharacterArrayRef carVal(val.getSize(), val.getPtr());
+   dbPtr_->insert(carKey, carVal);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void RawIfaceTransaction::insert(const BinaryData& key, SecureBinaryData& val)
 {
    CharacterArrayRef carKey(key.getSize(), key.getPtr());
    CharacterArrayRef carVal(val.getSize(), val.getPtr());

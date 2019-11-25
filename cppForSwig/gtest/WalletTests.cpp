@@ -465,7 +465,8 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
    {
       //add the values
       WalletIfaceTransaction tx(dbIface.get(), true);
-      for (auto& keyVal : keyValMap)
+      auto mapToWrite = keyValMap;
+      for (auto& keyVal : mapToWrite)
          tx.insert(keyVal.first, keyVal.second);
       
       //try to grab them from the live write tx
@@ -535,16 +536,20 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
       WalletIfaceTransaction tx(dbIface.get(), true);
 
       {
+         //nest tx
+         WalletIfaceTransaction tx(dbIface.get(), true);
          auto iter = keyValMap.begin();
          for (unsigned i=0; i<10; i++)
             ++iter;
          iter->second = CryptoPRNG::generateRandom(35);
-         tx.insert(iter->first, iter->second);
+         auto valToWrite = iter->second;
+         tx.insert(iter->first, valToWrite);
 
          for (unsigned i=0; i<10; i++)
             ++iter;
          iter->second = CryptoPRNG::generateRandom(70);
-         tx.insert(iter->first, iter->second);
+         auto valToWrite2 = iter->second;
+         tx.insert(iter->first, valToWrite2);
       }
 
       auto pair1 = make_pair(
@@ -676,7 +681,8 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
       EXPECT_EQ(checkDbValues(&tx, dataMap1), dataMap1.size());
 
       //modify db through main thread
-      for (auto& dataPair : dataMap1)
+      auto mapToWrite = dataMap1;
+      for (auto& dataPair : mapToWrite)
          tx.insert(dataPair.first, dataPair.second);
 
       //check values
@@ -731,7 +737,8 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
       EXPECT_EQ(checkDbValues(&tx, dataMap3), dataMap3.size());
 
       //write data
-      for (auto& dataPair : dataMap3)
+      auto mapToWrite = dataMap3;
+      for (auto& dataPair : mapToWrite)
          tx.insert(dataPair.first, dataPair.second);
 
       //verify it
@@ -746,7 +753,8 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
       thread writeThr2(writeThread3);
 
       //write content
-      for (auto& dataPair : dataMap4)
+      auto mapToWrite = dataMap4;
+      for (auto& dataPair : mapToWrite)
          tx.insert(dataPair.first, dataPair.second);
 
       //verify
@@ -868,12 +876,16 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
    {
       //write data
       WalletIfaceTransaction tx(dbIface.get(), true);
-      tx.insert(key1, val1);
-      tx.insert(key2, val2);
-      tx.insert(key3, val3);
+      auto valToWrite = val1;
+      tx.insert(key1, valToWrite);
+      valToWrite = val2;
+      tx.insert(key2, valToWrite);
+      valToWrite = val3;
+      tx.insert(key3, valToWrite);
 
       //replace key3 value within same tx
-      tx.insert(key3, val4);
+      valToWrite = val4;
+      tx.insert(key3, valToWrite);
    }
 
    //check entry count
@@ -1060,9 +1072,12 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
    {
       //write data
       WalletIfaceTransaction tx(dbIface.get(), true);
-      tx.insert(key1, val1);
-      tx.insert(key2, val2);
-      tx.insert(key3, val3);
+      auto valToWrite = val1;
+      tx.insert(key1, valToWrite);
+      valToWrite = val2;
+      tx.insert(key2, valToWrite);
+      valToWrite = val3;
+      tx.insert(key3, valToWrite);
    }
 
    //check entry count
@@ -1087,7 +1102,8 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
       tx.erase(key2);
 
       tx.erase(key3);
-      tx.insert(key3, val4);
+      auto valToWrite = val4;
+      tx.insert(key3, valToWrite);
 
       auto key2Data = tx.getDataRef(key2);
       EXPECT_EQ(key2Data.getSize(), 0);
@@ -1293,9 +1309,12 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    {
       //write data
       WalletIfaceTransaction tx(dbIface.get(), true);
-      tx.insert(key1, val1);
-      tx.insert(key2, val2);
-      tx.insert(key3, val3);
+      auto valToWrite = val1;
+      tx.insert(key1, valToWrite);
+      valToWrite = val2;
+      tx.insert(key2, valToWrite);
+      valToWrite = val3;
+      tx.insert(key3, valToWrite);
    }
 
    //check entry count
@@ -1319,7 +1338,8 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       WalletIfaceTransaction tx(dbIface.get(), true);
       
       tx.erase(key3);
-      tx.insert(key3, val4);
+      auto valToWrite = val4;
+      tx.insert(key3, valToWrite);
       tx.erase(key2);
 
       auto key2Data = tx.getDataRef(key2);
@@ -1513,9 +1533,12 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       //amend db in new transaction
       WalletIfaceTransaction tx(dbIface.get(), true);
       
-      tx.insert(key2, val5);
-      tx.insert(key4, val3);
-      tx.insert(key3, val6);
+      auto valToWrite = val5;
+      tx.insert(key2, valToWrite);
+      valToWrite = val3;
+      tx.insert(key4, valToWrite);
+      valToWrite = val6;
+      tx.insert(key3, valToWrite);
       tx.wipe(key1);
 
       auto key1Data = tx.getDataRef(key1);
@@ -1829,7 +1852,8 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    
    {
       auto tx = dbIface.beginWriteTransaction("db1");
-      for (auto& keyVal : db1Values)
+      auto mapToWrite = db1Values;
+      for (auto& keyVal : mapToWrite)
          tx->insert(keyVal.first, keyVal.second);
    }
 
@@ -1848,16 +1872,19 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
       auto db1Iter = db1Values.begin();
       db1Iter++; db1Iter++;
       db1Iter->second = CryptoPRNG::generateRandom(18);
-      tx->insert(db1Iter->first, db1Iter->second);
+      auto valToWrite = db1Iter->second;
+      tx->insert(db1Iter->first, valToWrite);
       
       db1Iter++; db1Iter++;
       db1Iter->second = CryptoPRNG::generateRandom(42);
-      tx->insert(db1Iter->first, db1Iter->second);
+      valToWrite = db1Iter->second;
+      tx->insert(db1Iter->first, valToWrite);
 
       auto dataPair = make_pair(
          CryptoPRNG::generateRandom(14),
          CryptoPRNG::generateRandom(80));
-      tx->insert(dataPair.first, dataPair.second);
+      valToWrite = dataPair.second;
+      tx->insert(dataPair.first, valToWrite);
       db1Values.insert(dataPair);
    }
 
@@ -1890,7 +1917,8 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
 
    {
       auto tx = dbIface.beginWriteTransaction("db2");
-      for (auto& keyVal : db2Values)
+      auto mapToWrite = db2Values;
+      for (auto& keyVal : mapToWrite)
          tx->insert(keyVal.first, keyVal.second);
    }
 
@@ -1991,16 +2019,19 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
       auto db2Iter = db2Values.begin();
       db2Iter++; db2Iter++; db2Iter++;
       db2Iter->second = CryptoPRNG::generateRandom(22);
-      tx->insert(db2Iter->first, db2Iter->second);
+      auto valToWrite = db2Iter->second;
+      tx->insert(db2Iter->first, valToWrite);
       
       db2Iter++;
       db2Iter->second = CryptoPRNG::generateRandom(16);
-      tx->insert(db2Iter->first, db2Iter->second);
+      valToWrite = db2Iter->second;
+      tx->insert(db2Iter->first, valToWrite);
 
       auto dataPair = make_pair(
          CryptoPRNG::generateRandom(36),
          CryptoPRNG::generateRandom(124));
-      tx->insert(dataPair.first, dataPair.second);
+      valToWrite = dataPair.second;
+      tx->insert(dataPair.first, valToWrite);
       db2Values.insert(dataPair);
    }
 
@@ -2015,7 +2046,8 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
 
    {
       auto tx = dbIface.beginWriteTransaction("db3");
-      for (auto& keyVal : db3Values)
+      auto mapToWrite = db3Values;
+      for (auto& keyVal : mapToWrite)
          tx->insert(keyVal.first, keyVal.second);
    }
 
@@ -2917,7 +2949,8 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       //set some subdb values
       {
          auto&& tx = assetWlt->beginSubDBTransaction("test-subdb", true);
-         for (auto& keyVal : subDbData)
+         auto mapToWrite = subDbData;
+         for (auto& keyVal : mapToWrite)
             tx->insert(keyVal.first, keyVal.second);
       }
 
@@ -3060,7 +3093,8 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       //set some subdb values
       {
          auto&& tx = assetWlt->beginSubDBTransaction("test-subdb", true);
-         for (auto& keyVal : subDbData)
+         auto mapToWrite = subDbData;
+         for (auto& keyVal : mapToWrite)
             tx->insert(keyVal.first, keyVal.second);
       }
 
