@@ -77,8 +77,9 @@ BinaryData(KEY_CYCLE_FLAG);
 ////////////////////////////////////////////////////////////////////////////////
 DBInterface::DBInterface(
    LMDBEnv* dbEnv, const std::string& dbName,
-   const SecureBinaryData& controlSalt) :
-   dbEnv_(dbEnv), dbName_(dbName), controlSalt_(controlSalt)
+   const SecureBinaryData& controlSalt, unsigned encrVersion) :
+   dbEnv_(dbEnv), dbName_(dbName), controlSalt_(controlSalt), 
+   encrVersion_(encrVersion)
 {
    auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadWrite);
    db_.open(dbEnv_, dbName_);
@@ -209,7 +210,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
 
          //grab the data
          auto dataPair = readDataPacket(
-            key_bdr, val_bdr, decrPrivKey, macKey);
+            key_bdr, val_bdr, decrPrivKey, macKey, encrVersion_);
 
          /*
          Check if packet is meta data.
@@ -255,8 +256,8 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
 
       auto flagKey = dataMapPtr_->getNewDbKey();
       auto&& encrPubKey = CryptoECDSA().ComputePublicKey(decrPrivKey, true);;
-      auto flagPacket = createDataPacket(
-         flagKey, BinaryData(), keyCycleFlag_, encrPubKey, macKey);
+      auto flagPacket = createDataPacket(flagKey, BinaryData(), 
+         keyCycleFlag_, encrPubKey, macKey, encrVersion_);
 
       CharacterArrayRef carKey(flagKey.getSize(), flagKey.getPtr());
       CharacterArrayRef carVal(flagPacket.getSize(), flagPacket.getPtr());
@@ -282,9 +283,16 @@ void DBInterface::wipe(const BinaryData& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
-   const BinaryData& dataKey, const BinaryData& dataVal,
-   const SecureBinaryData& encrPubKey, const SecureBinaryData& macKey)
+   const BinaryData& dataKey, const SecureBinaryData& dataVal,
+   const SecureBinaryData& encrPubKey, const SecureBinaryData& macKey,
+   unsigned encrVersion)
 {
+   BinaryWriter encrPacket;
+
+   switch (encrVersion)
+   {
+   case 0x00000001:
+   {
    /* authentitcation leg */
       //concatenate dataKey and dataVal to create payload
       BinaryWriter bw;
@@ -332,19 +340,33 @@ BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
          bwData.getData(), encrKey, iv);
 
       //build IES packet
-      BinaryWriter encrPacket;
       encrPacket.put_BinaryData(localPubKey); 
       encrPacket.put_BinaryData(iv);
       encrPacket.put_BinaryData(cipherText);
+
+      break;
+   }
+
+   default:
+      throw WalletInterfaceException("unsupported encryption version");
+   }
 
    return encrPacket.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-pair<BinaryData, BinaryData> DBInterface::readDataPacket(
+pair<BinaryData, SecureBinaryData> DBInterface::readDataPacket(
    const BinaryData& dbKey, const BinaryData& dataPacket,
-   const SecureBinaryData& decrPrivKey, const SecureBinaryData& macKey)
+   const SecureBinaryData& decrPrivKey, const SecureBinaryData& macKey,
+   unsigned encrVersion)
 {
+   BinaryData dataKey;
+   SecureBinaryData dataVal;
+
+   switch (encrVersion)
+   {
+   case 0x00000001:
+   {
    /* decryption key */
       //recover public key
       BinaryRefReader brrCipher(dataPacket.getRef());
@@ -379,11 +401,11 @@ pair<BinaryData, BinaryData> DBInterface::readDataPacket(
 
       //grab data key
       auto len = brrPlain.get_var_int();
-      auto dataKey = brrPlain.get_BinaryData(len);
+      dataKey = move(brrPlain.get_BinaryData(len));
 
       //grab data val
       len = brrPlain.get_var_int();
-      auto dataVal = brrPlain.get_BinaryData(len);
+      dataVal = move(brrPlain.get_SecureBinaryData(len));
 
       //mark the position
       auto pos = brrPlain.getPosition() - 32;
@@ -406,6 +428,13 @@ pair<BinaryData, BinaryData> DBInterface::readDataPacket(
       //check hmac
       if (computedHmac != hmac)
          throw WalletInterfaceException("mac mismatch");
+
+      break;
+   }
+
+   default:
+      throw WalletInterfaceException("unsupported encryption version");
+   }
 
    return make_pair(dataKey, dataVal);
 }
@@ -481,7 +510,8 @@ void WalletDBInterface::setupEnv(const string& path,
       auto headrPtr = make_shared<WalletHeader_Control>();
       headrPtr->walletID_ = BinaryData(WALLETHEADER_DBNAME);
       headrPtr->controlSalt_ = controlHeader->controlSalt_;
-      openDB(headrPtr, rootEncrKey);
+      encryptionVersion_ = headrPtr->encryptionVersion_;
+      openDB(headrPtr, rootEncrKey, encryptionVersion_);
    }
 
    //load wallet header objects
@@ -501,7 +531,7 @@ void WalletDBInterface::setupEnv(const string& path,
 
    //open all dbs listed in header map
    for (auto& headerPtr : headerMap_)
-      openDB(headerPtr.second, rootEncrKey);
+      openDB(headerPtr.second, rootEncrKey, encryptionVersion_);
 
    //clean up
    unlockControlContainer();
@@ -606,7 +636,7 @@ void WalletDBInterface::shutdown()
 
 ////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::openDB(std::shared_ptr<WalletHeader> headerPtr,
-   const SecureBinaryData& encrRootKey)
+   const SecureBinaryData& encrRootKey, unsigned encrVersion)
 {
    auto&& dbName = headerPtr->getDbName();
    auto iter = dbMap_.find(dbName);
@@ -615,7 +645,7 @@ void WalletDBInterface::openDB(std::shared_ptr<WalletHeader> headerPtr,
 
    //create db object
    auto dbiPtr = make_unique<DBInterface>(
-      dbEnv_.get(), dbName, headerPtr->controlSalt_);
+      dbEnv_.get(), dbName, headerPtr->controlSalt_, encrVersion);
    
    /*
    Load all db entries in RAM. This call also decrypts the on disk data.
@@ -926,7 +956,7 @@ void WalletDBInterface::addHeader(std::shared_ptr<WalletHeader> headerPtr)
    auto& rootEncrKey = 
       decryptedData_->getDecryptedPrivateData(controlSeed_.get());
    auto dbiPtr = make_unique<DBInterface>(
-      dbEnv_.get(), dbName, headerPtr->controlSalt_);
+      dbEnv_.get(), dbName, headerPtr->controlSalt_, encryptionVersion_);
    dbiPtr->loadAllEntries(rootEncrKey);
    
    putHeader(headerPtr);
@@ -1239,7 +1269,7 @@ void WalletIfaceTransaction::close()
          //commit erasure packet
          auto&& dbVal = DBInterface::createDataPacket(
             dbKey, BinaryData(), erasedBw.getData(), 
-            dbPtr_->encrPubKey_, dbPtr_->macKey_);
+            dbPtr_->encrPubKey_, dbPtr_->macKey_, dbPtr_->encrVersion_);
 
          CharacterArrayRef carData(dbVal.getSize(), dbVal.getPtr());
          CharacterArrayRef carKey2(dbKey.getSize(), dbKey.getPtr());
@@ -1267,7 +1297,7 @@ void WalletIfaceTransaction::close()
       //bundle key and val together, key by dbkey
       auto&& dbVal = DBInterface::createDataPacket(
          dbKey, dataPtr->key_, dataPtr->value_, 
-         dbPtr_->encrPubKey_, dbPtr_->macKey_);
+         dbPtr_->encrPubKey_, dbPtr_->macKey_, dbPtr_->encrVersion_);
       CharacterArrayRef carKey(dbKey.getSize(), dbKey.getPtr());
       CharacterArrayRef carVal(dbVal.getSize(), dbVal.getPtr());
 
@@ -1339,7 +1369,7 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
       //write tx, lock db write mutex
       ptx->writeLock_ = make_unique<unique_lock<mutex>>(txStruct->writeMutex_);
 
-      auto insertLbd = [thrId, txPtr](const BinaryData& key, const BinaryData& val)
+      auto insertLbd = [thrId, txPtr](const BinaryData& key, const SecureBinaryData& val)
       {
          if (thrId != this_thread::get_id())
             throw WalletInterfaceException("insert operation thread id mismatch");

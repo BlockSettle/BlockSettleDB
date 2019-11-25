@@ -448,7 +448,8 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
    string dbName("test");
 
    //setup db
-   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+   auto dbIface = make_shared<DBInterface>(
+      dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
    dbIface->loadAllEntries(rawRoot); 
 
    //commit some values
@@ -580,7 +581,8 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
    auto&& rawRoot = CryptoPRNG::generateRandom(32);
    string dbName("test");
 
-   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+   auto dbIface = make_shared<DBInterface>(
+      dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
    ASSERT_EQ(dbIface->getEntryCount(), 0);
@@ -697,7 +699,8 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
    auto&& controlSalt2 = CryptoPRNG::generateRandom(32);
    string dbName2("test2");
 
-   auto dbIface2 = make_shared<DBInterface>(dbEnv.get(), dbName2, controlSalt2);
+   auto dbIface2 = make_shared<DBInterface>(
+      dbEnv.get(), dbName2, controlSalt2, ENCRYPTION_TOPLAYER_VERSION);
 
    //setup new db
    ASSERT_EQ(dbIface2->getEntryCount(), 0);
@@ -830,7 +833,8 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
    auto&& rawRoot = CryptoPRNG::generateRandom(32);
    string dbName("test");
 
-   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+   auto dbIface = make_shared<DBInterface>(
+      dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //setup new db
    ASSERT_EQ(dbIface->getEntryCount(), 0);
@@ -1021,7 +1025,8 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
    auto&& rawRoot = CryptoPRNG::generateRandom(32);
    string dbName("test");
 
-   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+   auto dbIface = make_shared<DBInterface>(
+      dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
    ASSERT_EQ(dbIface->getEntryCount(), 0);
@@ -1253,7 +1258,8 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    auto&& rawRoot = CryptoPRNG::generateRandom(32);
    string dbName("test");
 
-   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+   auto dbIface = make_shared<DBInterface>(
+      dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
    ASSERT_EQ(dbIface->getEntryCount(), 0);
@@ -1478,7 +1484,8 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    dbEnv->open(filename, MDB_WRITEMAP);
 
    //reopen db
-   dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+   dbIface = make_shared<DBInterface>(
+      dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
    ASSERT_EQ(dbIface->getEntryCount(), 0);
@@ -2078,7 +2085,8 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
    auto&& rawRoot = CryptoPRNG::generateRandom(32);
    string dbName("test");
 
-   auto dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+   auto dbIface = make_shared<DBInterface>(
+      dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
    ASSERT_EQ(dbIface->getEntryCount(), 0);
@@ -2190,7 +2198,8 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
    }
 
    //reopen db iface
-   dbIface = make_shared<DBInterface>(dbEnv.get(), dbName, controlSalt);
+   dbIface = make_shared<DBInterface>(
+      dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
    dbIface->loadAllEntries(rawRoot);
 
    //replace a couple entries

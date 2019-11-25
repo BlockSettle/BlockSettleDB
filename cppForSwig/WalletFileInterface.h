@@ -45,7 +45,7 @@ class NoEntryInWalletException
 struct InsertData
 {
    BinaryData key_;
-   BinaryData value_;
+   SecureBinaryData value_;
    bool write_ = true;
    bool wipe_ = false;
 };
@@ -67,7 +67,7 @@ class WalletIfaceTransaction;
 ////
 struct IfaceDataMap
 {
-   std::map<BinaryData, BinaryData> dataMap_;
+   std::map<BinaryData, SecureBinaryData> dataMap_;
    std::map<BinaryData, BinaryData> dataKeyToDbKey_;
    unsigned dbKeyCounter_ = 0;
 
@@ -96,20 +96,24 @@ private:
    static const BinaryData erasurePlaceHolder_;
    static const BinaryData keyCycleFlag_;
 
+   const unsigned encrVersion_;
+
 private:
    void wipe(const BinaryData&);
 
    //serialization methods
    static BinaryData createDataPacket(const BinaryData& dbKey,
-      const BinaryData& dataKey, const BinaryData& dataVal,
-      const SecureBinaryData&, const SecureBinaryData&);
-   static std::pair<BinaryData, BinaryData> readDataPacket(
+      const BinaryData& dataKey, const SecureBinaryData& dataVal,
+      const SecureBinaryData&, const SecureBinaryData&,
+      unsigned encrVersion);
+   static std::pair<BinaryData, SecureBinaryData> readDataPacket(
       const BinaryData& dbKey, const BinaryData& dataPacket,
-      const SecureBinaryData&, const SecureBinaryData&);
+      const SecureBinaryData&, const SecureBinaryData&,
+      unsigned encrVersion);
 
 public:
    DBInterface(LMDBEnv*, 
-      const std::string&, const SecureBinaryData&);
+      const std::string&, const SecureBinaryData&, unsigned encrVersion);
    ~DBInterface(void);
 
    ////
@@ -132,7 +136,7 @@ protected:
       bool commit_;
       std::unique_ptr<std::unique_lock<std::mutex>> writeLock_;
 
-      std::function<void(const BinaryData&, const BinaryData&)> insertLbd_;
+      std::function<void(const BinaryData&, const SecureBinaryData&)> insertLbd_;
       std::function<void(const BinaryData&, bool)> eraseLbd_;
       std::function<const std::shared_ptr<InsertData>&(const BinaryData&)> 
          getDataLbd_;
@@ -185,7 +189,7 @@ private:
    std::vector<std::shared_ptr<InsertData>> insertVec_;
    std::map<BinaryData, unsigned> keyToDataMap_;
 
-   std::function<void(const BinaryData&, const BinaryData&)> insertLbd_;
+   std::function<void(const BinaryData&, const SecureBinaryData&)> insertLbd_;
    std::function<void(const BinaryData&, bool)> eraseLbd_;
    std::function<const std::shared_ptr<InsertData>&(const BinaryData&)> 
       getDataLbd_;
@@ -269,7 +273,7 @@ class WalletIfaceIterator : public DBIfaceIterator
 {
 private:
    const WalletIfaceTransaction* txPtr_;
-   std::map<BinaryData, BinaryData>::const_iterator iterator_;
+   std::map<BinaryData, SecureBinaryData>::const_iterator iterator_;
 
 public:
    WalletIfaceIterator(const WalletIfaceTransaction* tx) :
@@ -344,6 +348,8 @@ private:
    std::unique_ptr<ReentrantLock> controlLock_;
    std::unique_ptr<EncryptedSeed> controlSeed_;
 
+   unsigned encryptionVersion_ = UINT32_MAX;
+
 private:
    //control objects loading
    std::shared_ptr<WalletHeader> loadControlHeader();
@@ -355,7 +361,8 @@ private:
    BinaryDataRef getDataRefForKey(
       DBIfaceTransaction* tx, const BinaryData& key);
    void setDbCount(unsigned, bool);
-   void openDB(std::shared_ptr<WalletHeader>, const SecureBinaryData&);
+   void openDB(std::shared_ptr<WalletHeader>, 
+      const SecureBinaryData&, unsigned encrVersion);
 
    //header methods
    void openControlDb(void);
