@@ -464,7 +464,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 
    {
       //add the values
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       auto mapToWrite = keyValMap;
       for (auto& keyVal : mapToWrite)
          tx.insert(keyVal.first, keyVal.second);
@@ -475,7 +475,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
       //try to create read tx, should fail
       try
       {
-         WalletIfaceTransaction readTx(dbIface.get(), false);
+         WalletIfaceTransaction readTx(nullptr, dbIface.get(), false);
          ASSERT_TRUE(false);
       }
       catch (WalletInterfaceException& e)
@@ -488,7 +488,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 
       //create nested write tx, shouldn't affect anything
       {
-         WalletIfaceTransaction txInner(dbIface.get(), true);
+         WalletIfaceTransaction txInner(nullptr, dbIface.get(), true);
 
          //check data map isn't affected
          EXPECT_TRUE(checkVals(tx, keyValMap));
@@ -503,12 +503,12 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 
    {
       //check data them from read tx
-      WalletIfaceTransaction tx(dbIface.get(), false);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
       EXPECT_TRUE(checkVals(tx, keyValMap));
 
       //check them from nested read tx
       {
-         WalletIfaceTransaction tx2(dbIface.get(), false);
+         WalletIfaceTransaction tx2(nullptr, dbIface.get(), false);
          EXPECT_TRUE(checkVals(tx2, keyValMap));
          EXPECT_TRUE(checkVals(tx, keyValMap));
       }
@@ -519,7 +519,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
       //should fail to open write tx while read tx is live
       try
       {
-         WalletIfaceTransaction tx(dbIface.get(), true);
+         WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
          ASSERT_TRUE(false);
       }
       catch (WalletInterfaceException& e)
@@ -533,11 +533,11 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 
    {
       //modify db
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
 
       {
          //nest tx
-         WalletIfaceTransaction tx(dbIface.get(), true);
+         WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
          auto iter = keyValMap.begin();
          for (unsigned i=0; i<10; i++)
             ++iter;
@@ -567,11 +567,9 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
    }
 
    //check data after commit
-   WalletIfaceTransaction tx(dbIface.get(), false);
+   WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
    EXPECT_TRUE(checkVals(tx, keyValMap));
 }
-
-//TODO: WalletIfaceTransaction multithreaded test
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
@@ -657,7 +655,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    auto writeThread2 = [&](void)->void
    {
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       
       //check dataMap1 is in
       EXPECT_EQ(checkDbValues(&tx, dataMap1), 0);
@@ -672,7 +670,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    {
       //create write tx in main thread
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
 
       //fire second thread with another write tx
       writeThr = new thread(writeThread2);
@@ -695,7 +693,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    {
       //check db is consistent with main thread -> 2nd thread modification order
-      WalletIfaceTransaction tx(dbIface.get(), false);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
       EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
    }
 
@@ -731,7 +729,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    auto writeThread3 = [&](void)->void
    {
-      WalletIfaceTransaction tx(dbIface2.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface2.get(), true);
 
       //check db is empty
       EXPECT_EQ(checkDbValues(&tx, dataMap3), dataMap3.size());
@@ -748,7 +746,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
    //start main thread write on first db
    {
       //create write tx in main thread
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
 
       thread writeThr2(writeThread3);
 
@@ -765,7 +763,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
       writeThr2.join();
 
       //check db2 state
-      WalletIfaceTransaction tx2(dbIface2.get(), false);
+      WalletIfaceTransaction tx2(nullptr, dbIface2.get(), false);
       EXPECT_EQ(checkDbValues(&tx2, dataMap3), 0);
    }
 
@@ -800,7 +798,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    auto writeThread4 = [&](void)->void
    {
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
 
       for (auto& dataPair : dataMap5)
@@ -811,7 +809,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    //create read tx
    {
-      WalletIfaceTransaction tx(dbIface.get(), false);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
       EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
 
       //create write thread
@@ -825,7 +823,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
    }
 
    //final check
-   WalletIfaceTransaction tx(dbIface.get(), false);
+   WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
    EXPECT_EQ(checkDbValues(&tx, finalMap2), 0);
 }
 
@@ -875,7 +873,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
 
    {
       //write data
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       auto valToWrite = val1;
       tx.insert(key1, valToWrite);
       valToWrite = val2;
@@ -1071,7 +1069,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
 
    {
       //write data
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       auto valToWrite = val1;
       tx.insert(key1, valToWrite);
       valToWrite = val2;
@@ -1098,7 +1096,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
 
    {
       //amend db in new transaction
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       tx.erase(key2);
 
       tx.erase(key3);
@@ -1308,7 +1306,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    {
       //write data
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       auto valToWrite = val1;
       tx.insert(key1, valToWrite);
       valToWrite = val2;
@@ -1335,7 +1333,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    {
       //amend db in new transaction
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       
       tx.erase(key3);
       auto valToWrite = val4;
@@ -1514,7 +1512,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    {
       //read db values
-      WalletIfaceTransaction tx(dbIface.get(), false);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
       
       auto key1Data = tx.getDataRef(key1);
       EXPECT_EQ(key1Data, val1);
@@ -1531,7 +1529,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    {
       //amend db in new transaction
-      WalletIfaceTransaction tx(dbIface.get(), true);
+      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       
       auto valToWrite = val5;
       tx.insert(key2, valToWrite);
@@ -2105,25 +2103,20 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletInterfaceTest, WipeEntries_Test)
 {
-   //TODO: wiping mid write tx is pointless, use mdb_env_copy2 with 
-   //MDB_CP_COMPACTto compact the db and skip the freed data
-   //setup env
-   auto dbEnv = make_shared<LMDBEnv>(3);
-   dbEnv->open(dbPath_, MDB_WRITEMAP);
-   auto filename = dbEnv->getFilename();
-   ASSERT_EQ(filename, dbPath_);
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData();
+   };
 
-   auto&& controlSalt = CryptoPRNG::generateRandom(32);
-   auto&& rawRoot = CryptoPRNG::generateRandom(32);
+   auto iface = make_shared<WalletDBInterface>();
+   iface->setupEnv(dbPath_, passLbd);
+
    string dbName("test");
-
-   auto dbIface = make_shared<DBInterface>(
-      dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
-
-   //sanity check
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
-   dbIface->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   auto dbHeader = make_shared<WalletHeader_Custom>();
+   dbHeader->walletID_ = BinaryData(dbName);
+   iface->lockControlContainer(passLbd);
+   iface->addHeader(dbHeader);
+   iface->unlockControlContainer();
 
    map<BinaryData, BinaryData> dataMap1;
    for (unsigned i=0; i<30; i++)
@@ -2135,14 +2128,191 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
 
    {
       //commit data
-      WalletIfaceTransaction tx(dbIface.get(), true);
-      for (auto keyVal : dataMap1)
-         tx.insert(keyVal.first, keyVal.second);
+      auto tx = iface->beginWriteTransaction(dbName);
+      auto mapToWrite = dataMap1;
+      for (auto keyVal : mapToWrite)
+         tx->insert(keyVal.first, keyVal.second);
    }
 
-   //close db iface before lower level access
-   dbIface->close();
+   //open raw db
+   auto dbEnv = make_shared<LMDBEnv>(3);
+   dbEnv->open(dbPath_, MDB_WRITEMAP);
+   auto filename = dbEnv->getFilename();
+   ASSERT_EQ(filename, dbPath_);
+
+   //grab control root
+   SecureBinaryData controlRoot;
+   SecureBinaryData controlSalt;
+   {
+      //open control db
+      LMDB dbCtrl;
+      auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+      dbCtrl.open(dbEnv.get(), CONTROL_DB_NAME);
+
+      //grab control header
+      shared_ptr<WalletHeader_Control> controlHeader;
+      {
+         BinaryWriter bw;
+         bw.put_uint8_t(WALLETHEADER_PREFIX);
+         bw.put_BinaryData(BinaryData(CONTROL_DB_NAME));       
+         CharacterArrayRef carKey(bw.getSize(), bw.getData().getPtr());
+         auto rawVal = dbCtrl.get_NoCopy(carKey);
+         
+         BinaryDataRef refVal((const uint8_t*)rawVal.data, rawVal.len);
+         BinaryRefReader brrVal(refVal);
+         auto len = brrVal.get_var_int();
+         auto headerVal = brrVal.get_BinaryDataRef(len);
+         controlHeader = dynamic_pointer_cast<WalletHeader_Control>(
+            WalletHeader::deserialize(bw.getData(), headerVal));
+         
+         controlSalt = controlHeader->controlSalt_;
+      }
+
+      //grab DecryptedDataContainer
+      auto decryptedData = make_unique<DecryptedDataContainer>(
+            iface, controlHeader->getDbName(),
+            controlHeader->getDefaultEncryptionKey(),
+            controlHeader->getDefaultEncryptionKeyId(),
+            controlHeader->defaultKdfId_, controlHeader->masterEncryptionKeyId_);
+      {
+         RawIfaceTransaction txInner(dbEnv.get(), &dbCtrl, true);
+         decryptedData->readFromDisk(&txInner);
+      }
+
+      //grab seed
+      unique_ptr<EncryptedSeed> controlSeed;
+      {
+         BinaryWriter bw;
+         bw.put_uint32_t(WALLET_SEED_KEY);
+         CharacterArrayRef carKey(bw.getSize(), bw.getData().getPtr());
+         auto rawVal = dbCtrl.get_NoCopy(carKey);
+         
+         BinaryDataRef refVal((const uint8_t*)rawVal.data, rawVal.len);
+         BinaryRefReader brrVal(refVal);
+         auto len = brrVal.get_var_int();
+         auto seedVal = brrVal.get_BinaryDataRef(len);
+
+         auto seedPtr = Asset_EncryptedData::deserialize(
+            seedVal.getSize(), seedVal);
+         auto ptrCast = dynamic_cast<EncryptedSeed*>(seedPtr.get());
+         if (ptrCast == nullptr)
+            throw WalletException("failed to deser wallet seed");
+         controlSeed = unique_ptr<EncryptedSeed>(ptrCast);
+
+         seedPtr.release();
+      }
+
+      {
+         ReentrantLock lock(decryptedData.get());
+         controlRoot = decryptedData->getDecryptedPrivateData(controlSeed.get());
+      }
+   }
    
+   iface->shutdown();
+   
+   //grab db salt
+   SecureBinaryData dbSalt;
+   {
+      LMDB headerDb;
+      {
+         auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+         headerDb.open(dbEnv.get(), WALLETHEADER_DBNAME);
+      }
+
+      auto&& keyValMap = getAllEntries(dbEnv, headerDb);
+      
+      vector<IESPacket> packets;
+      for(auto& keyVal : keyValMap)
+      {
+         auto&& iesPacket = getIESData(keyVal);
+         packets.push_back(iesPacket);
+      }
+
+      //generate seed
+      auto&& saltedRoot = BtcUtils::getHMAC256(controlSalt, controlRoot);
+
+      //generate first key pair
+      auto&& currentKeyPair = generateKeyPair(saltedRoot, 1);
+
+      //decrypt the other values with proper key pair
+      map<BinaryData, BinaryData> decrKeyValMap;
+      for (unsigned i=1; i<packets.size(); i++)
+      {
+         auto packet = packets[i];
+         ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), i);
+
+         try
+         {
+            auto&& dataPair = decryptPair(packet, currentKeyPair);
+            decrKeyValMap.insert(dataPair);
+         }
+         catch(...)
+         {
+            ASSERT_FALSE(true);
+         }
+      }
+
+      BinaryWriter bwKey;
+      bwKey.put_uint8_t(WALLETHEADER_PREFIX);
+      bwKey.put_String(dbName);
+
+      auto iter = decrKeyValMap.find(bwKey.getData());
+      BinaryRefReader brr(iter->second);
+      auto len = brr.get_var_int();
+      auto headerRef = brr.get_BinaryData(len);
+      auto headerPtr = WalletHeader::deserialize(iter->first, headerRef);
+
+      dbSalt = headerPtr->controlSalt_;
+   }
+
+   //grab the entries
+   map<BinaryData, IESPacket> dataKeyToCipherText;
+   {
+      LMDB headerDb;
+      {
+         auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
+         headerDb.open(dbEnv.get(), dbName);
+      }
+
+      auto&& keyValMap = getAllEntries(dbEnv, headerDb);
+      
+      vector<IESPacket> packets;
+      for(auto& keyVal : keyValMap)
+      {
+         auto&& iesPacket = getIESData(keyVal);
+         packets.push_back(iesPacket);
+      }
+
+      //generate seed
+      auto&& saltedRoot = BtcUtils::getHMAC256(dbSalt, controlRoot);
+
+      //generate first key pair
+      auto&& currentKeyPair = generateKeyPair(saltedRoot, 1);
+
+      //decrypt the other values with proper key pair
+      for (unsigned i=1; i<packets.size(); i++)
+      {
+         auto packet = packets[i];
+         ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), i);
+
+         try
+         {
+            auto&& dataPair = decryptPair(packet, currentKeyPair);
+            dataKeyToCipherText.insert(make_pair(dataPair.first, packet));
+
+            //check decrypted data matches
+            auto iter = dataMap1.find(dataPair.first);
+            ASSERT_NE(iter, dataMap1.end());
+            EXPECT_EQ(dataPair.second, iter->second);
+
+         }
+         catch(...)
+         {
+            ASSERT_FALSE(true);
+         }
+      }
+   }
+
    //replacement map
    map<BinaryData, BinaryData> replaceMap;
    {
@@ -2170,58 +2340,6 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
          CryptoPRNG::generateRandom(100)));
    }
 
-   //match the on disk encrypted data to the decrypted keypairs
-   map<BinaryData, IESPacket> dataKeyToCipherText;
-   {
-      //open LMDB object
-      LMDB dbObj;
-      {
-         auto tx = LMDBEnv::Transaction(dbEnv.get(), LMDB::ReadWrite);
-         dbObj.open(dbEnv.get(), dbName);
-      }
-
-      //grab all entries in db
-      auto&& keyValMap = getAllEntries(dbEnv, dbObj);
-      EXPECT_EQ(keyValMap.size(), 31);
-
-      //convert to IES packets
-      vector<IESPacket> packets;
-      for(auto& keyVal : keyValMap)
-      {
-         auto&& iesPacket = getIESData(keyVal);
-         packets.push_back(iesPacket);
-      }
-
-      //generate seed
-      auto&& saltedRoot = BtcUtils::getHMAC256(controlSalt, rawRoot);
-
-      //generate first key pair
-      auto&& currentKeyPair = generateKeyPair(saltedRoot, 1);
-
-      //decrypt the other values with proper key pair
-      for (unsigned i=1; i<packets.size(); i++)
-      {
-         auto packet = packets[i];
-         ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), i);
-
-         try
-         {
-            auto&& dataPair = decryptPair(packet, currentKeyPair);
-            dataKeyToCipherText.insert(make_pair(
-               dataPair.first, packet));
-
-            //check decrypted data matches
-            auto iter = dataMap1.find(dataPair.first);
-            ASSERT_NE(iter, dataMap1.end());
-            EXPECT_EQ(dataPair.second, iter->second);
-         }
-         catch(...)
-         {
-            ASSERT_FALSE(true);
-         }
-      }
-   }
-
    //check packets are on disk
    for (auto& packetPair : dataKeyToCipherText)
    {
@@ -2230,24 +2348,24 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
    }
 
    //reopen db iface
-   dbIface = make_shared<DBInterface>(
-      dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
-   dbIface->loadAllEntries(rawRoot);
+   iface = make_shared<WalletDBInterface>();
+   iface->setupEnv(dbPath_, passLbd);
 
    //replace a couple entries
    {
       //commit data
-      WalletIfaceTransaction tx(dbIface.get(), true);
-      for (auto keyVal : replaceMap)
-         tx.insert(keyVal.first, keyVal.second);
+      auto tx = iface->beginWriteTransaction(dbName);
+      auto mapToWrite = replaceMap;
+      for (auto keyVal : mapToWrite)
+         tx->insert(keyVal.first, keyVal.second);
    }
 
    //check final db state
    auto finalMap = replaceMap;
    finalMap.insert(dataMap1.begin(), dataMap1.end());
    {
-      WalletIfaceTransaction tx(dbIface.get(), false);
-      auto iter = tx.getIterator();
+      auto tx = iface->beginReadTransaction(dbName);
+      auto iter = tx->getIterator();
       
       while(iter->isValid())
       {
@@ -2265,8 +2383,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
    }
 
    //shutdown db
-   dbIface->close();
-   dbEnv->close();
+   iface.reset();
 
    //check data on file
    for (auto& packetPair : dataKeyToCipherText)

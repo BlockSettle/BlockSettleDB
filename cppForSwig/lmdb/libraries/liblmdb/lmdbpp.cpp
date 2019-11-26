@@ -351,7 +351,7 @@ void LMDBEnv::open(const char *filename, unsigned flags)
    if (rc != MDB_SUCCESS)
       throw LMDBException("Failed to set max dbs (" + errorString(rc) + ")");
    
-   rc = mdb_env_open(dbenv, filename, MDB_NOSYNC | MDB_NOSUBDIR | flags, 0600);
+   rc = mdb_env_open(dbenv, filename, /*MDB_NOSYNC | */MDB_NOSUBDIR | flags, 0600);
    if (rc != MDB_SUCCESS)
    {
       std::stringstream ss;
@@ -390,6 +390,20 @@ void LMDBEnv::setMapSize(size_t sz)
       throw LMDBException(ss.str());
    }
 }
+
+void LMDBEnv::compactCopy(const std::string& fname)
+{
+   auto rc = mdb_env_copy2(dbenv, fname.c_str(), MDB_NOTLS | MDB_CP_COMPACT);
+   if (rc != MDB_SUCCESS)
+   {
+      std::stringstream ss;
+      ss << "failed to copy env, returned following error string: " << 
+         errorString(rc) << std::endl;
+      std::cout << ss.str();
+      throw LMDBException(ss.str());
+   }
+}
+
 
 LMDBEnv::Transaction::Transaction(LMDBEnv *_env, LMDB::Mode mode)
    : env(_env), mode_(mode)

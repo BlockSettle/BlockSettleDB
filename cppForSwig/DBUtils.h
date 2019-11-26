@@ -149,7 +149,7 @@ public:
 
    static bool fileExists(const std::string& path, int mode);
 
-   static FileMap getMmapOfFile(const std::string&);
+   static FileMap getMmapOfFile(const std::string&, bool write = false);
    
    static int removeDirectory(const std::string&);
    static struct stat getPathStat(const std::string& path);
@@ -160,6 +160,7 @@ public:
 
    static void appendPath(std::string& base, const std::string& add);
    static void expandPath(std::string& path);
+   static std::string getBaseDir(const std::string& path);
 
    static BinaryDataRef getDataRefForPacket(const BinaryDataRef& packet);
 };

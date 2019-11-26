@@ -276,13 +276,6 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DBInterface::wipe(const BinaryData& key)
-{
-   CharacterArrayRef carKey(key.getSize(), key.getPtr());
-   db_.wipe(carKey);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
    const BinaryData& dataKey, const BothBinaryDatas& dataVal,
    const SecureBinaryData& encrPubKey, const SecureBinaryData& macKey,
@@ -467,7 +460,7 @@ void WalletDBInterface::setupEnv(const string& path,
 
    //open env for control and meta dbs
    dbEnv_ = make_unique<LMDBEnv>(2);
-   dbEnv_->open(path, MDB_WRITEMAP);
+   dbEnv_->open(path, MDB_WRITEMAP | MDB_NOTLS);
 
    //open control db
    openControlDb();
@@ -683,7 +676,7 @@ unique_ptr<DBIfaceTransaction> WalletDBInterface::beginWriteTransaction(
       throw WalletInterfaceException("invalid db name");
    }
 
-   return make_unique<WalletIfaceTransaction>(iter->second.get(), true);
+   return make_unique<WalletIfaceTransaction>(this, iter->second.get(), true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -702,7 +695,7 @@ unique_ptr<DBIfaceTransaction> WalletDBInterface::beginReadTransaction(
       throw WalletInterfaceException("invalid db name");
    }
 
-   return make_unique<WalletIfaceTransaction>(iter->second.get(), false);
+   return make_unique<WalletIfaceTransaction>(this, iter->second.get(), false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1008,6 +1001,32 @@ void WalletDBInterface::setDbCount(unsigned count)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::openEnv()
+{
+   dbEnv_ = make_unique<LMDBEnv>(dbCount_);
+   dbEnv_->open(path_, MDB_WRITEMAP | MDB_NOTLS);
+
+   for (auto& dbPtr : dbMap_)
+      dbPtr.second->reset(dbEnv_.get());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::closeEnv()
+{
+   if (controlDb_ != nullptr)
+   {
+      controlDb_->close();
+      controlDb_.reset();
+   }
+
+   for (auto& dbPtr : dbMap_)
+      dbPtr.second->close();
+
+   dbEnv_->close();
+   dbEnv_.reset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::setDbCount(unsigned count, bool doLock)
 {
    if (DBIfaceTransaction::hasTx())
@@ -1024,29 +1043,11 @@ void WalletDBInterface::setDbCount(unsigned count, bool doLock)
       lock.lock();
 
    //close env
-   if (controlDb_ != nullptr)
-   {
-      controlDb_->close();
-      controlDb_.reset();
-   }
-
-   for (auto& dbPtr : dbMap_)
-      dbPtr.second->close();
-
-   dbEnv_->close();
-   dbEnv_.reset();
+   closeEnv();
 
    //reopen with new dbCount
-   dbEnv_ = make_unique<LMDBEnv>(count);
-   dbEnv_->open(path_, MDB_WRITEMAP);
-
-   for (auto& dbPtr : dbMap_)
-   {
-      auto&& tx = beginWriteTransaction(dbPtr.first);
-      dbPtr.second->reset(dbEnv_.get());
-   }
-
    dbCount_ = count;
+   openEnv();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1183,8 +1184,8 @@ bool DBIfaceTransaction::hasTx()
 
 ////////////////////////////////////////////////////////////////////////////////
 WalletIfaceTransaction::WalletIfaceTransaction(
-   DBInterface* dbPtr, bool mode) :
-   DBIfaceTransaction(), dbPtr_(dbPtr), commit_(mode)
+   WalletDBInterface* ifacePtr, DBInterface* dbPtr, bool mode) :
+   DBIfaceTransaction(), ifacePtr_(ifacePtr), dbPtr_(dbPtr), commit_(mode)
 {
    if (!insertTx(this))
       throw WalletInterfaceException("failed to create db tx");
@@ -1193,13 +1194,13 @@ WalletIfaceTransaction::WalletIfaceTransaction(
 ////////////////////////////////////////////////////////////////////////////////
 WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
 {
-   close();
+   closeTx();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletIfaceTransaction::close()
+void WalletIfaceTransaction::closeTx()
 {
-   LMDBEnv::Transaction tx;
+   unique_ptr<LMDBEnv::Transaction> tx;
    unique_ptr<unique_lock<mutex>> writeTxLock = nullptr;
 
    {
@@ -1209,11 +1210,12 @@ void WalletIfaceTransaction::close()
       if (writeTxLock == nullptr || !commit_)
          return;
 
-      tx = move(LMDBEnv::Transaction(dbPtr_->dbEnv_, LMDB::ReadWrite));
+      tx = make_unique<LMDBEnv::Transaction>(dbPtr_->dbEnv_, LMDB::ReadWrite);
    }
 
    auto dataMapCopy = make_shared<IfaceDataMap>(*dataMapPtr_);
-  
+   bool needsWiped = false;
+
    //this is the top tx, need to commit all this data to the db object
    for (unsigned i=0; i < insertVec_.size(); i++)
    {
@@ -1256,7 +1258,8 @@ void WalletIfaceTransaction::close()
 
          //wipe the key
          CharacterArrayRef carKey(dbKey.getSize(), dbKey.getPtr());
-         dbPtr_->db_.wipe(carKey);
+         dbPtr_->db_.erase(carKey);
+         needsWiped = true;
 
          //create erasure place holder packet
          BinaryWriter erasedBw;
@@ -1311,6 +1314,77 @@ void WalletIfaceTransaction::close()
    //swap in the data struct
    atomic_store_explicit(
       &dbPtr_->dataMapPtr_, dataMapCopy, memory_order_release);
+
+   if (!needsWiped)
+      return;
+
+   if (ifacePtr_ == nullptr)
+      return;
+
+   /*
+   To wipe this file of its deleted entries, we perform a LMDB copact copy
+   of the dbEnv, which will skip free/loose data pages and only copy the
+   currently valid data in the db. We then swap files and delete the 
+   original.
+   */
+
+   //close the write tx, we still hold the write mutex
+   tx.reset();
+
+   //create copy name
+   auto fullDbPath = ifacePtr_->getFilename();
+   auto basePath = DBUtils::getBaseDir(fullDbPath);
+   string copyName;
+   while (true)
+   {
+      stringstream ss;
+      ss << "compactCopy-" << CryptoPRNG::generateRandom(12).toHexStr();
+      auto fullpath = basePath;
+      DBUtils::appendPath(fullpath, ss.str());
+      
+      if (!DBUtils::fileExists(fullpath, 0))
+      {
+         copyName = fullpath;
+         break;
+      }
+   }
+
+   //copy
+   dbPtr_->dbEnv_->compactCopy(copyName);
+
+   //close current env
+   ifacePtr_->closeEnv();
+
+   //swap files
+   string swapPath;
+   while (true)
+   {
+      stringstream ss;
+      ss << "swapOld-" << CryptoPRNG::generateRandom(12).toHexStr();
+      auto fullpath = basePath;
+      DBUtils::appendPath(fullpath, ss.str());
+
+      if (DBUtils::fileExists(fullpath, 0))
+         continue;
+
+      swapPath = fullpath;
+
+      //rename old file to swap
+      rename(fullDbPath.c_str(), swapPath.c_str());
+
+      //rename new file to old
+      rename(copyName.c_str(), fullDbPath.c_str());
+      break;
+   }
+
+   //reset dbEnv to new file
+   ifacePtr_->openEnv();
+
+   //wipe old file
+   auto oldFileMap = DBUtils::getMmapOfFile(swapPath, true);
+   memset(oldFileMap.filePtr_, 0, oldFileMap.size_);
+   oldFileMap.unmap();
+   unlink(swapPath.c_str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1612,8 +1686,7 @@ void RawIfaceTransaction::erase(const BinaryData& key)
 ////////////////////////////////////////////////////////////////////////////////
 void RawIfaceTransaction::wipe(const BinaryData& key)
 {
-   CharacterArrayRef carKey(key.getSize(), key.getPtr());
-   dbPtr_->wipe(carKey);
+   throw WalletInterfaceException("deprecated");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

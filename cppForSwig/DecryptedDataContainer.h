@@ -145,6 +145,7 @@ public:
 
    void updateOnDisk(void);
    void readFromDisk(void);
+   void readFromDisk(DBIfaceTransaction* tx);
 
    void updateKeyOnDiskNoPrefix(
       const BinaryData&, std::shared_ptr<Asset_EncryptedData>);

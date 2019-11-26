@@ -472,55 +472,59 @@ void DecryptedDataContainer::deleteKeyFromDisk(const BinaryData& key)
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::readFromDisk()
 {
+   auto&& tx = iface_->beginReadTransaction(dbName_);
+   readFromDisk(tx.get());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void DecryptedDataContainer::readFromDisk(DBIfaceTransaction* tx)
+{
+   //encryption key and kdf entries
+   auto dbIter = tx->getIterator();
+
+   BinaryWriter bwEncrKey;
+   bwEncrKey.put_uint8_t(ENCRYPTIONKEY_PREFIX);
+   dbIter->seek(bwEncrKey.getData());
+
+   while (dbIter->isValid())
    {
-      //encryption key and kdf entries
-      auto&& tx = iface_->beginReadTransaction(dbName_);
-      auto dbIter = tx->getIterator();
+      auto iterkey = dbIter->key();
+      auto itervalue = dbIter->value();
 
-      BinaryWriter bwEncrKey;
-      bwEncrKey.put_uint8_t(ENCRYPTIONKEY_PREFIX);
-      dbIter->seek(bwEncrKey.getData());
+      if (iterkey.getSize() < 2)
+         throw runtime_error("empty db key");
 
-      while (dbIter->isValid())
+      if (itervalue.getSize() < 1)
+         throw runtime_error("empty value");
+
+      auto prefix = (uint8_t*)iterkey.getPtr();
+      switch (*prefix)
       {
-         auto iterkey = dbIter->key();
-         auto itervalue = dbIter->value();
+      case ENCRYPTIONKEY_PREFIX:
+      {
+         auto keyUPtr = Asset_EncryptedData::deserialize(itervalue);
+         shared_ptr<Asset_EncryptedData> keySPtr(move(keyUPtr));
+         auto encrKeyPtr = dynamic_pointer_cast<Asset_EncryptionKey>(keySPtr);
+         if (encrKeyPtr == nullptr)
+            throw runtime_error("empty keyptr");
 
-         if (iterkey.getSize() < 2)
-            throw runtime_error("empty db key");
+         addEncryptionKey(encrKeyPtr);
 
-         if (itervalue.getSize() < 1)
-            throw runtime_error("empty value");
-
-         auto prefix = (uint8_t*)iterkey.getPtr();
-         switch (*prefix)
-         {
-         case ENCRYPTIONKEY_PREFIX:
-         {
-            auto keyUPtr = Asset_EncryptedData::deserialize(itervalue);
-            shared_ptr<Asset_EncryptedData> keySPtr(move(keyUPtr));
-            auto encrKeyPtr = dynamic_pointer_cast<Asset_EncryptionKey>(keySPtr);
-            if (encrKeyPtr == nullptr)
-               throw runtime_error("empty keyptr");
-
-            addEncryptionKey(encrKeyPtr);
-
-            break;
-         }
-
-         case KDF_PREFIX:
-         {
-            auto kdfPtr = KeyDerivationFunction::deserialize(itervalue);
-            if (iterkey.getSliceRef(1, iterkey.getSize() - 1) != kdfPtr->getId())
-               throw runtime_error("kdf id mismatch");
-
-            addKdf(kdfPtr);
-            break;
-         }
-         }
-
-         dbIter->advance();
+         break;
       }
+
+      case KDF_PREFIX:
+      {
+         auto kdfPtr = KeyDerivationFunction::deserialize(itervalue);
+         if (iterkey.getSliceRef(1, iterkey.getSize() - 1) != kdfPtr->getId())
+            throw runtime_error("kdf id mismatch");
+
+         addKdf(kdfPtr);
+         break;
+      }
+      }
+
+      dbIter->advance();
    }
 }
 

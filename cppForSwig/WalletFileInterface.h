@@ -146,8 +146,6 @@ private:
    const unsigned encrVersion_;
 
 private:
-   void wipe(const BinaryData&);
-
    //serialization methods
    static BinaryData createDataPacket(const BinaryData& dbKey,
       const BinaryData& dataKey, const BothBinaryDatas& dataVal,
@@ -222,11 +220,16 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+class WalletDBInterface;
+
+////
 class WalletIfaceTransaction : public DBIfaceTransaction
 {
    friend class WalletIfaceIterator;
+
 private:
    DBInterface* dbPtr_;
+   WalletDBInterface* ifacePtr_;
    bool commit_ = false;
 
    /*
@@ -250,12 +253,12 @@ private:
    static std::unique_ptr<std::unique_lock<std::mutex>> eraseTx(
       WalletIfaceTransaction*);
    
-   void close(void);
+   void closeTx(void);
    const std::shared_ptr<InsertData>& getInsertDataForKey(
       const BinaryData&) const;
 
 public:
-   WalletIfaceTransaction(DBInterface* dbPtr, bool mode);
+   WalletIfaceTransaction(WalletDBInterface*, DBInterface* dbPtr, bool mode);
    ~WalletIfaceTransaction(void) noexcept(false);
 
    //write routines
@@ -382,6 +385,8 @@ struct MasterKeyStruct;
 ////
 class WalletDBInterface
 {
+   friend class WalletIfaceTransaction;
+
 private:
    mutable std::mutex setupMutex_;
 
@@ -422,6 +427,9 @@ private:
    std::shared_ptr<WalletHeader_Control> setupControlDB(
       const PassphraseLambda&);
    void putHeader(std::shared_ptr<WalletHeader>);
+
+   void openEnv(void);
+   void closeEnv(void);
 
 public:
    //tors
