@@ -3137,9 +3137,7 @@ void DBPair::open(const string& path, const string& dbName)
    if (isOpen())
       return;
    
-   unsigned flags = 0;
-   /*if (dbName == "subssh")
-      flags |= MDB_WRITEMAP | MDB_MAPASYNC;*/
+   unsigned flags = MDB_NOSYNC;
 
    env_.open(path, flags);
    auto map_size = env_.getMapSize();

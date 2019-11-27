@@ -5415,7 +5415,7 @@ TEST_F(LMDBTest, PutGetDelete)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(LMDBTest, STxOutPutGet)
+TEST_F(LMDBTest, DISABLED_STxOutPutGet)
 {
    BinaryData TXP     = WRITE_UINT8_BE((uint8_t)DB_PREFIX_TXDATA);
    BinaryData stxoVal = READHEX("2420") + rawTxOut0_;
@@ -5600,132 +5600,6 @@ TEST_F(LMDBTest, PutGetStoredTxHints)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(LMDBTest, WipeEntry)
-{
-   //create db
-
-   LMDBEnv dbEnv;
-   dbEnv.open("wipe_test_db", MDB_WRITEMAP);
-   auto filename = dbEnv.getFilename();
-   LMDB db;
-
-   {
-      LMDBEnv::Transaction tx(&dbEnv, LMDB::ReadWrite);
-      db.open(&dbEnv, "test_db");
-   }
-
-   BinaryData key1("key1");
-   BinaryData val1("val1_test");
-   CharacterArrayRef test_key_1(key1.getSize(), key1.getCharPtr());
-   CharacterArrayRef test_val_1(val1.getSize(), val1.getCharPtr());
-
-   {
-      //write test entry
-      LMDBEnv::Transaction tx(&dbEnv, LMDB::ReadWrite);
-      db.insert(test_key_1, test_val_1);
-   }
-
-   //check test entry is on disk
-   EXPECT_TRUE(TestUtils::searchFile(filename, val1));
-
-   {
-      //delete test entry
-      LMDBEnv::Transaction tx(&dbEnv, LMDB::ReadWrite);
-      db.erase(test_key_1);
-   }
-
-   //check data is still on disk
-   EXPECT_TRUE(TestUtils::searchFile(filename, val1));
-
-   //second test entry
-   BinaryData key2("key2");
-   BinaryData val2("val2_test_larger_packet");
-   CharacterArrayRef test_key_2(key2.getSize(), key2.getCharPtr());
-   CharacterArrayRef test_val_2(val2.getSize(), val2.getCharPtr());
-
-   {
-      //write second test entry
-      LMDBEnv::Transaction tx(&dbEnv, LMDB::ReadWrite);
-      db.insert(test_key_2, test_val_2);
-   }
-
-   //check it's on disk
-   EXPECT_TRUE(TestUtils::searchFile(filename, val1));
-   EXPECT_TRUE(TestUtils::searchFile(filename, val2));
-
-   {
-      //wipe second test entry
-      LMDBEnv::Transaction tx(&dbEnv, LMDB::ReadWrite);
-      db.wipe(test_key_2);
-   }
-
-   //check it's not on disk
-   EXPECT_TRUE(TestUtils::searchFile(filename, val1));
-   EXPECT_FALSE(TestUtils::searchFile(filename, val2));
-
-   {
-      //check keys are deleted
-      LMDBEnv::Transaction tx(&dbEnv, LMDB::ReadOnly);
-      
-      auto getdata1 = db.get_NoCopy(test_key_1);
-      EXPECT_EQ(getdata1.len, 0);
-
-      auto getdata2 = db.get_NoCopy(test_key_2);
-      EXPECT_EQ(getdata2.len, 0);
-   }
-
-   //add data, wipe, rewrite
-   BinaryData key3("key3");
-   BinaryData val3("val3_test_larger_packet");
-   BinaryData val4("val4-test");
-
-   CharacterArrayRef test_key_3(key3.getSize(), key3.getCharPtr());
-   CharacterArrayRef test_val_3(val3.getSize(), val3.getCharPtr());
-   CharacterArrayRef test_val_4(val4.getSize(), val4.getCharPtr());
-
-
-   {
-      //write second test entry
-      LMDBEnv::Transaction tx(&dbEnv, LMDB::ReadWrite);
-      db.insert(test_key_3, test_val_3);
-   }
-
-   //check it's on disk
-   EXPECT_TRUE(TestUtils::searchFile(filename, val3));
-
-   {
-      //wipe third test entry
-      LMDBEnv::Transaction tx(&dbEnv, LMDB::ReadWrite);
-      db.wipe(test_key_3);
-
-      //rewrite third test key with different data
-      db.insert(test_key_3, test_val_4);
-   }
-
-   //check key is valid, data behind it is valid
-   {
-      //check keys are deleted
-      LMDBEnv::Transaction tx(&dbEnv, LMDB::ReadOnly);
-
-      auto getdata = db.get_NoCopy(test_key_3);
-      string str1(getdata.data, getdata.len);
-      string str2(test_val_4.data, test_val_4.len);
-      EXPECT_EQ(str1, str2);
-   }
-
-   //check on disk
-   EXPECT_FALSE(TestUtils::searchFile(filename, val3));
-   EXPECT_TRUE(TestUtils::searchFile(filename, val4));
-
-   db.close();
-   dbEnv.close();
-
-   remove(filename.c_str());
-   filename.append("-lock");
-   remove(filename.c_str());
-}
-
-////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class TxRefTest : public ::testing::Test
 {
@@ -5777,13 +5651,24 @@ protected:
    BinaryData wallet1id;
 
    /////////////////////////////////////////////////////////////////////////////
+   void cleanUp()
+   {
+      DBUtils::removeDirectory(blkdir_);
+      DBUtils::removeDirectory(homedir_);
+      DBUtils::removeDirectory("./ldbtestdir");
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
       LOGDISABLESTDOUT();
-      
+            
+      cleanUp();
+
       mkdir(blkdir_);
       mkdir(homedir_);
-      
+      mkdir("./ldbtestdir");
+   
       NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
       BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
@@ -5795,9 +5680,7 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
-      DBUtils::removeDirectory(blkdir_);
-      DBUtils::removeDirectory(homedir_);
-      DBUtils::removeDirectory("./ldbtestdir");
+      cleanUp();
 
       mkdir("./ldbtestdir");
 

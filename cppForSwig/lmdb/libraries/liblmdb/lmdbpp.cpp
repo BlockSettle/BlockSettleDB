@@ -351,7 +351,7 @@ void LMDBEnv::open(const char *filename, unsigned flags)
    if (rc != MDB_SUCCESS)
       throw LMDBException("Failed to set max dbs (" + errorString(rc) + ")");
    
-   rc = mdb_env_open(dbenv, filename, MDB_NOSYNC | MDB_NOSUBDIR | flags, 0600);
+   rc = mdb_env_open(dbenv, filename, MDB_NOSUBDIR | flags, 0600);
    if (rc != MDB_SUCCESS)
    {
       std::stringstream ss;
@@ -390,6 +390,20 @@ void LMDBEnv::setMapSize(size_t sz)
       throw LMDBException(ss.str());
    }
 }
+
+void LMDBEnv::compactCopy(const std::string& fname)
+{
+   auto rc = mdb_env_copy2(dbenv, fname.c_str(), MDB_CP_COMPACT);
+   if (rc != MDB_SUCCESS)
+   {
+      std::stringstream ss;
+      ss << "failed to copy env, returned following error string: " << 
+         errorString(rc) << std::endl;
+      std::cout << ss.str();
+      throw LMDBException(ss.str());
+   }
+}
+
 
 LMDBEnv::Transaction::Transaction(LMDBEnv *_env, LMDB::Mode mode)
    : env(_env), mode_(mode)
@@ -648,10 +662,9 @@ void LMDB::wipe(const CharacterArrayRef& key)
       throw LMDBException("Failed to insert: need transaction");
    lock.unlock();
 
-   /*  
-   MDB_val mdb_data_obj;
    try
    {
+      MDB_val mdb_data_obj;
       mdb_data_obj = value(key);
       if (mdb_data_obj.mv_data != nullptr)
          memset(mdb_data_obj.mv_data, 0, mdb_data_obj.mv_size); 
@@ -659,8 +672,7 @@ void LMDB::wipe(const CharacterArrayRef& key)
    catch (NoValue&)
    {
       return;
-   }
-   */
+   }   
 
    MDB_val mkey = { key.len, const_cast<char*>(key.data) };
    int rc = mdb_del(txnIter->second.txn_, dbi, &mkey, 0); // , MDB_WIPE_DATA);
@@ -692,7 +704,11 @@ CharacterArrayRef LMDB::get_NoCopy(const CharacterArrayRef& key) const
    if (txnIter == env->txForThreads_.end())
       throw std::runtime_error("Need transaction to get data");
    
-   lock.unlock();
+   /*
+   TODO: this is slow, set get routines within the tx directly to avoid 
+   locking the txmap
+   */
+   lock.unlock(); 
 
    MDB_val mkey = { key.len, const_cast<char*>(key.data) };
    MDB_val mdata = { 0, 0 };

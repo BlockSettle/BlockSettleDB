@@ -33,6 +33,7 @@
 #define VERSION_MAJOR      3
 #define VERSION_MINOR      0
 #define VERSION_REVISION   0
+#define ENCRYPTION_TOPLAYER_VERSION 1
 
 ////////////////////////////////////////////////////////////////////////////////
 class WalletException : public std::runtime_error
@@ -58,10 +59,6 @@ struct WalletHeader
    WalletHeaderType type_;
    BinaryData walletID_;
 
-   uint8_t versionMajor_ = 0;
-   uint16_t versionMinor_ = 0;
-   uint16_t revision_ = 0;
-
    SecureBinaryData defaultEncryptionKey_;
    SecureBinaryData defaultEncryptionKeyId_;
 
@@ -73,11 +70,7 @@ struct WalletHeader
    //tors
    WalletHeader(WalletHeaderType type) :
       type_(type)
-   {
-      versionMajor_ = VERSION_MAJOR;
-      versionMinor_ = VERSION_MINOR;
-      revision_ = VERSION_REVISION;
-   }
+   {}
 
    virtual ~WalletHeader(void) = 0;
 
@@ -96,9 +89,6 @@ struct WalletHeader
    std::string getDbName(void) const { return getWalletIDStr(); }
 
    //serialization
-   BinaryData serializeVersion(void) const;
-   void unseralizeVersion(BinaryRefReader&);
-
    BinaryData serializeEncryptionKey(void) const;
    void unserializeEncryptionKey(BinaryRefReader&);
 
@@ -166,10 +156,27 @@ struct WalletHeader_Subwallet : public WalletHeader
 ////
 struct WalletHeader_Control : public WalletHeader
 {
+   friend class WalletHeader;
+public:
+   uint8_t versionMajor_ = 0;
+   uint16_t versionMinor_ = 0;
+   uint16_t revision_ = 0;
+   unsigned encryptionVersion_ = 0;
+
+private:
+   BinaryData serializeVersion(void) const;
+   void unseralizeVersion(BinaryRefReader&);
+
+public:
    //tors
    WalletHeader_Control() :
       WalletHeader(WalletHeaderType_Control)
-   {}
+   {
+      versionMajor_ = VERSION_MAJOR;
+      versionMinor_ = VERSION_MINOR;
+      revision_ = VERSION_REVISION;
+      encryptionVersion_ = ENCRYPTION_TOPLAYER_VERSION;
+   }
 
    //virtual
    BinaryData serialize(void) const;

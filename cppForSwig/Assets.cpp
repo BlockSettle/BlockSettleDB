@@ -11,6 +11,23 @@
 #include "ScriptRecipient.h"
 #include "make_unique.h"
 
+#define ASSET_VERSION                  0x00000001
+#define CIPHER_DATA_VERSION            0x00000001
+
+#define ASSETENTRY_SINGLE_VERSION      0x00000001
+#define ASSETENTRY_BIP32ROOT_VERSION   0x00000001
+
+#define ENCRYPTED_SEED_VERSION         0x00000001
+#define ENCRYPTION_KEY_VERSION         0x00000001
+
+#define PRIVKEY_VERSION                0x00000001
+#define PUBKEY_COMPRESSED_VERSION      0x00000001
+#define PUBKEY_UNCOMPRESSED_VERSION    0x00000001
+
+#define PEER_PUBLICDATA_VERSION        0x00000001
+#define PEER_ROOTKEY_VERSION           0x00000001
+#define PEER_ROOTSIG_VERSION           0x00000001
+
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +107,8 @@ bool CipherData::isSame(CipherData* const rhs) const
 BinaryData CipherData::serialize(void) const
 {
    BinaryWriter bw;
+   bw.put_uint32_t(CIPHER_DATA_VERSION);
+
    bw.put_var_int(cipherText_.getSize());
    bw.put_BinaryData(cipherText_);
 
@@ -103,19 +122,36 @@ BinaryData CipherData::serialize(void) const
 ////////////////////////////////////////////////////////////////////////////////
 unique_ptr<CipherData> CipherData::deserialize(BinaryRefReader& brr)
 {
-   auto len = brr.get_var_int();
-   if (len > brr.getSizeRemaining())
-      throw AssetException("invalid ciphertext length");
+   unique_ptr<CipherData> cipherDataPtr = nullptr;
 
-   auto&& cipherText = brr.get_SecureBinaryData(len);
+   auto version = brr.get_uint32_t();
+   switch (version)
+   {
+   case 0x00000001:
+   {
+      auto len = brr.get_var_int();
+      if (len > brr.getSizeRemaining())
+         throw AssetException("invalid ciphertext length");
 
-   len = brr.get_var_int();
-   if (len > brr.getSizeRemaining())
-      throw AssetException("invalid cipher length");
+      auto&& cipherText = brr.get_SecureBinaryData(len);
 
-   auto&& cipher = Cipher::deserialize(brr);
+      len = brr.get_var_int();
+      if (len > brr.getSizeRemaining())
+         throw AssetException("invalid cipher length");
 
-   return make_unique<CipherData>(cipherText, move(cipher));
+      auto&& cipher = Cipher::deserialize(brr);
+      cipherDataPtr = make_unique<CipherData>(cipherText, move(cipher));
+
+      break;
+   }
+
+   default:
+      throw AssetException("unsupported cipher data version");
+   }
+
+   if (cipherDataPtr == nullptr)
+      throw AssetException("failed to deser cipher data");
+   return cipherDataPtr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,6 +204,7 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
 {
    BinaryRefReader brrVal(value);
 
+   auto version = brrVal.get_uint32_t();
    auto val = brrVal.get_uint8_t();
    auto entryType = AssetEntryType(val & 0x0F);
 
@@ -190,57 +227,91 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
       for (auto& datapair : dataVec)
       {
          BinaryRefReader brrData(datapair.second);
+         auto version = brrData.get_uint32_t();
          auto keybyte = brrData.get_uint8_t();
 
          switch (keybyte)
          {
          case PUBKEY_UNCOMPRESSED_BYTE:
          {
-            if (datapair.first != 66)
-               throw AssetException("invalid size for uncompressed pub key");
+            switch (version)
+            {
+            case 0x00000001:
+            {
+               if (datapair.first != 70)
+                  throw AssetException("invalid size for uncompressed pub key");
 
-            if (pubKeyUncompressed.getSize() != 0)
-               throw AssetException("multiple pub keys for entry");
+               if (pubKeyUncompressed.getSize() != 0)
+                  throw AssetException("multiple pub keys for entry");
 
-            pubKeyUncompressed = move(SecureBinaryData(
-               brrData.get_BinaryDataRef(
-                  brrData.getSizeRemaining())));
+               pubKeyUncompressed = move(SecureBinaryData(
+                  brrData.get_BinaryDataRef(
+                     brrData.getSizeRemaining())));
+
+               break;
+            }
+
+            default:
+               throw AssetException("unsupported pubkey version");
+            }
 
             break;
          }
 
          case PUBKEY_COMPRESSED_BYTE:
          {
-            if (datapair.first != 34)
-               throw AssetException("invalid size for compressed pub key");
+            switch (version)
+            {
+            case 0x00000001:
+            {
+               if (datapair.first != 38)
+                  throw AssetException("invalid size for compressed pub key");
 
-            if (pubKeyCompressed.getSize() != 0)
-               throw AssetException("multiple pub keys for entry");
+               if (pubKeyCompressed.getSize() != 0)
+                  throw AssetException("multiple pub keys for entry");
 
-            pubKeyCompressed = move(SecureBinaryData(
-               brrData.get_BinaryDataRef(
-                  brrData.getSizeRemaining())));
+               pubKeyCompressed = move(SecureBinaryData(
+                  brrData.get_BinaryDataRef(
+                     brrData.getSizeRemaining())));
+
+               break;
+            }
+
+            default:
+               throw AssetException("unsupported pubkey version");
+            }
 
             break;
          }
 
          case PRIVKEY_BYTE:
          {
-            if (privKeyPtr != nullptr)
-               throw AssetException("multiple priv keys for entry");
+            switch (version)
+            {
+            case 0x00000001:
+            {
+               if (privKeyPtr != nullptr)
+                  throw AssetException("multiple priv keys for entry");
 
-            auto keyUPtr = Asset_EncryptedData::deserialize(
-               datapair.first, datapair.second);
-            shared_ptr<Asset_EncryptedData> keySPtr(move(keyUPtr));
+               auto keyUPtr = Asset_EncryptedData::deserialize(
+                  datapair.first, datapair.second);
+               shared_ptr<Asset_EncryptedData> keySPtr(move(keyUPtr));
 
-            privKeyPtr = dynamic_pointer_cast<Asset_PrivateKey>(keySPtr);
-            if (privKeyPtr == nullptr)
-               throw AssetException("deserialized to unexpected type");
+               privKeyPtr = dynamic_pointer_cast<Asset_PrivateKey>(keySPtr);
+               if (privKeyPtr == nullptr)
+                  throw AssetException("deserialized to unexpected type");
+               break;
+            }
+
+            default:
+               throw AssetException("unsupported privkey version");
+            }
+
             break;
          }
 
          default:
-            throw AssetException("unknown key type byte");
+            throw AssetException("unsupported key type byte");
          }
       }
    };
@@ -249,41 +320,63 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
    {
    case AssetEntryType_Single:
    {
-      shared_ptr<Asset_PrivateKey> privKeyPtr;
-      SecureBinaryData pubKeyCompressed;
-      SecureBinaryData pubKeyUncompressed;
+      switch (version)
+      {
+      case 0x00000001:
+      {
+         shared_ptr<Asset_PrivateKey> privKeyPtr;
+         SecureBinaryData pubKeyCompressed;
+         SecureBinaryData pubKeyUncompressed;
 
-      getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
+         getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
 
-      auto addrEntry = make_shared<AssetEntry_Single>(
-         index, account_id,
-         pubKeyUncompressed, pubKeyCompressed, privKeyPtr);
+         auto addrEntry = make_shared<AssetEntry_Single>(
+            index, account_id,
+            pubKeyUncompressed, pubKeyCompressed, privKeyPtr);
 
-      addrEntry->doNotCommit();
-      return addrEntry;
+         addrEntry->doNotCommit();
+         return addrEntry;
+      }
+
+      default:
+         throw AssetException("unsupported asset single version");
+      }
+
+      break;
    }
 
    case AssetEntryType_BIP32Root:
    {
-      auto depth = brrVal.get_uint8_t();
-      auto leafid = brrVal.get_uint32_t();
-      auto fingerprint = brrVal.get_uint32_t();
-      auto cclen = brrVal.get_var_int();
-      auto&& chaincode = brrVal.get_BinaryData(cclen);
+      switch (version)
+      {
+      case 0x00000001:
+      {
+         auto depth = brrVal.get_uint8_t();
+         auto leafid = brrVal.get_uint32_t();
+         auto fingerprint = brrVal.get_uint32_t();
+         auto cclen = brrVal.get_var_int();
+         auto&& chaincode = brrVal.get_BinaryData(cclen);
 
-      shared_ptr<Asset_PrivateKey> privKeyPtr;
-      SecureBinaryData pubKeyCompressed;
-      SecureBinaryData pubKeyUncompressed;
+         shared_ptr<Asset_PrivateKey> privKeyPtr;
+         SecureBinaryData pubKeyCompressed;
+         SecureBinaryData pubKeyUncompressed;
 
-      getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
+         getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
 
-      auto rootEntry = make_shared<AssetEntry_BIP32Root>(
-         index, account_id,
-         pubKeyUncompressed, pubKeyCompressed, privKeyPtr,
-         chaincode, depth, leafid, fingerprint);
+         auto rootEntry = make_shared<AssetEntry_BIP32Root>(
+            index, account_id,
+            pubKeyUncompressed, pubKeyCompressed, privKeyPtr,
+            chaincode, depth, leafid, fingerprint);
 
-      rootEntry->doNotCommit();
-      return rootEntry;
+         rootEntry->doNotCommit();
+         return rootEntry;
+      }
+
+      default:
+         throw AssetException("unsupported bip32 root version");
+      }
+
+      break;
    }
 
    default:
@@ -298,6 +391,9 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
 BinaryData AssetEntry_Single::serialize() const
 {
    BinaryWriter bw;
+
+   bw.put_uint32_t(ASSETENTRY_SINGLE_VERSION);
+
    auto entryType = getType();
    bw.put_uint8_t(entryType);
 
@@ -317,6 +413,9 @@ BinaryData AssetEntry_Single::serialize() const
 BinaryData AssetEntry_BIP32Root::serialize() const
 {
    BinaryWriter bw;
+
+   bw.put_uint32_t(ASSETENTRY_BIP32ROOT_VERSION);
+
    auto entryType = getType();
    bw.put_uint8_t(entryType);
 
@@ -489,13 +588,24 @@ BinaryData Asset_PublicKey::serialize() const
 {
    BinaryWriter bw;
 
-   bw.put_var_int(uncompressed_.getSize() + 1);
-   bw.put_uint8_t(PUBKEY_UNCOMPRESSED_BYTE);
-   bw.put_BinaryData(uncompressed_);
+   if (uncompressed_.getSize() == 65)
+   {
+      bw.put_var_int(uncompressed_.getSize() + 5);
+      bw.put_uint32_t(PUBKEY_UNCOMPRESSED_VERSION);
+      bw.put_uint8_t(PUBKEY_UNCOMPRESSED_BYTE);
+      bw.put_BinaryData(uncompressed_);
+   }
 
-   bw.put_var_int(compressed_.getSize() + 1);
-   bw.put_uint8_t(PUBKEY_COMPRESSED_BYTE);
-   bw.put_BinaryData(compressed_);
+   if (compressed_.getSize() == 33)
+   {
+      bw.put_var_int(compressed_.getSize() + 5);
+      bw.put_uint32_t(PUBKEY_COMPRESSED_VERSION);
+      bw.put_uint8_t(PUBKEY_COMPRESSED_BYTE);
+      bw.put_BinaryData(compressed_);
+   }
+
+   if (bw.getSize() == 0)
+      throw AssetException("empty pubkey");
 
    return bw.getData();
 }
@@ -504,6 +614,7 @@ BinaryData Asset_PublicKey::serialize() const
 BinaryData Asset_PrivateKey::serialize() const
 {
    BinaryWriter bw;
+   bw.put_uint32_t(PRIVKEY_VERSION);
    bw.put_uint8_t(PRIVKEY_BYTE);
    bw.put_var_int(id_.getSize());
    bw.put_BinaryData(id_);
@@ -525,6 +636,7 @@ BinaryData Asset_PrivateKey::serialize() const
 BinaryData Asset_EncryptionKey::serialize() const
 {
    BinaryWriter bw;
+   bw.put_uint32_t(ENCRYPTION_KEY_VERSION);
    bw.put_uint8_t(ENCRYPTIONKEY_BYTE);
    bw.put_var_int(id_.getSize());
    bw.put_BinaryData(id_);
@@ -589,10 +701,13 @@ unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
 
    //check size
    if (totalLen != brr.getSizeRemaining())
-      throw runtime_error("invalid serialized encrypted data len");
+      throw AssetException("invalid serialized encrypted data len");
 
    //return ptr
    unique_ptr<Asset_EncryptedData> assetPtr = nullptr;
+
+   //version
+   auto version = brr.get_uint32_t();
 
    //prefix
    auto prefix = brr.get_uint8_t();
@@ -601,74 +716,107 @@ unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
    {
    case PRIVKEY_BYTE:
    {
-      //id
-      auto len = brr.get_var_int();
-      auto&& id = brr.get_BinaryData(len);
+      switch(version)
+      {
+      case 0x00000001:
+      {
+         //id
+         auto len = brr.get_var_int();
+         auto&& id = brr.get_BinaryData(len);
 
-      //cipher data
-      len = brr.get_var_int();
-      if (len > brr.getSizeRemaining())
-         throw runtime_error("invalid serialized encrypted data len");
+         //cipher data
+         len = brr.get_var_int();
+         if (len > brr.getSizeRemaining())
+            throw AssetException("invalid serialized encrypted data len");
 
-      auto cipherBdr = brr.get_BinaryDataRef(len);
-      BinaryRefReader cipherBrr(cipherBdr);
-      auto cipherData = CipherData::deserialize(cipherBrr);
+         auto cipherBdr = brr.get_BinaryDataRef(len);
+         BinaryRefReader cipherBrr(cipherBdr);
+         auto cipherData = CipherData::deserialize(cipherBrr);
 
-      //ptr
-      assetPtr = make_unique<Asset_PrivateKey>(id, move(cipherData));
+         //ptr
+         assetPtr = make_unique<Asset_PrivateKey>(id, move(cipherData));
+
+         break;
+      }
+
+      default: 
+         throw AssetException("unsupported privkey version");
+      }
 
       break;
    }
 
    case ENCRYPTIONKEY_BYTE:
    {
-      //id
-      auto len = brr.get_var_int();
-      auto&& id = brr.get_BinaryData(len);
-
-      //cipher data
-      map<BinaryData, unique_ptr<CipherData>> cipherMap;
-      auto count = brr.get_var_int();
-      for (unsigned i = 0; i < count; i++)
+      switch (version)
       {
-         len = brr.get_var_int();
-         if (len > brr.getSizeRemaining())
-            throw runtime_error("invalid serialized encrypted data len");
+      case 0x00000001:
+      {
+         //id
+         auto len = brr.get_var_int();
+         auto&& id = brr.get_BinaryData(len);
 
-         auto cipherBdr = brr.get_BinaryDataRef(len);
-         BinaryRefReader cipherBrr(cipherBdr);
+         //cipher data
+         map<BinaryData, unique_ptr<CipherData>> cipherMap;
+         auto count = brr.get_var_int();
+         for (unsigned i = 0; i < count; i++)
+         {
+            len = brr.get_var_int();
+            if (len > brr.getSizeRemaining())
+               throw AssetException("invalid serialized encrypted data len");
 
-         auto cipherData = CipherData::deserialize(cipherBrr);
-         cipherMap.insert(make_pair(
-            cipherData->cipher_->getEncryptionKeyId(), std::move(cipherData)));
+            auto cipherBdr = brr.get_BinaryDataRef(len);
+            BinaryRefReader cipherBrr(cipherBdr);
+
+            auto cipherData = CipherData::deserialize(cipherBrr);
+            cipherMap.insert(make_pair(
+               cipherData->cipher_->getEncryptionKeyId(), std::move(cipherData)));
+         }
+
+         //ptr
+         assetPtr = make_unique<Asset_EncryptionKey>(id, move(cipherMap));
+         break;
       }
 
-      //ptr
-      assetPtr = make_unique<Asset_EncryptionKey>(id, move(cipherMap));
+      default:
+         throw AssetException("unsupported encryption key version");
+      }
 
       break;
    }
 
    case WALLET_SEED_BYTE:
    {
-      //cipher data
-      auto len = brr.get_var_int();
-      if (len > brr.getSizeRemaining())
-         throw runtime_error("invalid serialized encrypted data len");
+      switch (version)
+      {
+      case 0x00000001:
+      {
+         auto len = brr.get_var_int();
+         if (len > brr.getSizeRemaining())
+            throw AssetException("invalid serialized encrypted data len");
 
-      auto cipherBdr = brr.get_BinaryDataRef(len);
-      BinaryRefReader cipherBrr(cipherBdr);
-      auto cipherData = CipherData::deserialize(cipherBrr);
+         auto cipherBdr = brr.get_BinaryDataRef(len);
+         BinaryRefReader cipherBrr(cipherBdr);
+         auto cipherData = CipherData::deserialize(cipherBrr);
 
-      //ptr
-      assetPtr = make_unique<EncryptedSeed>(move(cipherData));
+         //ptr
+         assetPtr = make_unique<EncryptedSeed>(move(cipherData));
+         break;
+      }
+
+      default:
+         throw AssetException("unsupported seed version");
+      }
 
       break;
    }
 
    default:
-      throw runtime_error("unexpected encrypted data prefix");
+      throw AssetException("unexpected encrypted data prefix");
    }
+
+   if (assetPtr == nullptr)
+      throw AssetException("failed to deserialize encrypted asset");
 
    return move(assetPtr);
 }
@@ -677,6 +825,7 @@ unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
 BinaryData EncryptedSeed::serialize() const
 {
    BinaryWriter bw;
+   bw.put_uint32_t(ENCRYPTED_SEED_VERSION);
    bw.put_uint8_t(WALLET_SEED_BYTE);
 
    if (cipherData_.size() != 1)
@@ -905,6 +1054,7 @@ BinaryData PeerPublicData::serialize() const
 
    BinaryWriter bw;
 
+   bw.put_uint32_t(PEER_PUBLICDATA_VERSION);
    bw.put_var_int(publicKey_.getSize());
    bw.put_BinaryData(publicKey_);
 
@@ -929,25 +1079,39 @@ BinaryData PeerPublicData::serialize() const
 void PeerPublicData::deserializeDBValue(const BinaryDataRef& data)
 {
    BinaryRefReader brrData(data);
+
    auto len = brrData.get_var_int();
    if (len != brrData.getSizeRemaining())
       throw AssetException("size mismatch in metadata entry");
 
-   auto keyLen = brrData.get_var_int();
-   publicKey_ = brrData.get_BinaryData(keyLen);
-   
-   //check pubket is valid
-   if(!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
-      throw AssetException("invalid pubkey in peer metadata");
+   auto version = brrData.get_uint32_t();
 
-   auto count = brrData.get_var_int();
-   for (unsigned i = 0; i < count; i++)
+   switch (version)
    {
-      auto nameLen = brrData.get_var_int();
-      auto bdrName = brrData.get_BinaryDataRef(nameLen);
+   case 0x00000001:
+   {
+      auto keyLen = brrData.get_var_int();
+      publicKey_ = brrData.get_BinaryData(keyLen);
+      
+      //check pubket is valid
+      if(!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
+         throw AssetException("invalid pubkey in peer metadata");
 
-      string name((char*)bdrName.getPtr(), nameLen);
-      names_.emplace(name);
+      auto count = brrData.get_var_int();
+      for (unsigned i = 0; i < count; i++)
+      {
+         auto nameLen = brrData.get_var_int();
+         auto bdrName = brrData.get_BinaryDataRef(nameLen);
+
+         string name((char*)bdrName.getPtr(), nameLen);
+         names_.emplace(name);
+      }
+
+      break;
+   }
+
+   default:
+      throw AssetException("unsupported peer data version");
    }
 }
 
@@ -1020,6 +1184,7 @@ BinaryData PeerRootKey::serialize() const
       return BinaryData();
 
    BinaryWriter bw;
+   bw.put_uint32_t(PEER_ROOTKEY_VERSION);
    bw.put_var_int(publicKey_.getSize());
    bw.put_BinaryData(publicKey_);
 
@@ -1046,19 +1211,32 @@ void PeerRootKey::deserializeDBValue(const BinaryDataRef& data)
    if (len != brrData.getSizeRemaining())
       throw AssetException("size mismatch in metadata entry");
 
-   auto keyLen = brrData.get_var_int();
-   publicKey_ = brrData.get_BinaryData(keyLen);
+   auto version = brrData.get_uint32_t();
 
-   //check pubket is valid
-   if (!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
-      throw AssetException("invalid pubkey in peer metadata");
+   switch (version)
+   {
+   case 0x00000001:
+   {
+      auto keyLen = brrData.get_var_int();
+      publicKey_ = brrData.get_BinaryData(keyLen);
 
-   auto descLen = brrData.get_var_int();
-   if (descLen == 0)
-      return;
+      //check pubket is valid
+      if (!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
+         throw AssetException("invalid pubkey in peer metadata");
 
-   auto descBdr = brrData.get_BinaryDataRef(descLen);
-   description_ = string(descBdr.toCharPtr(), descBdr.getSize());
+      auto descLen = brrData.get_var_int();
+      if (descLen == 0)
+         return;
+
+      auto descBdr = brrData.get_BinaryDataRef(descLen);
+      description_ = string(descBdr.toCharPtr(), descBdr.getSize());
+
+      break;
+   }
+
+   default:
+      throw AssetException("unsupported peer rootkey version");
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1118,6 +1296,7 @@ BinaryData PeerRootSignature::serialize() const
       return BinaryData();
 
    BinaryWriter bw;
+   bw.put_uint32_t(PEER_ROOTSIG_VERSION);
    bw.put_var_int(publicKey_.getSize());
    bw.put_BinaryData(publicKey_);
 
@@ -1139,15 +1318,28 @@ void PeerRootSignature::deserializeDBValue(const BinaryDataRef& data)
    if (len != brrData.getSizeRemaining())
       throw AssetException("size mismatch in metadata entry");
 
-   auto keyLen = brrData.get_var_int();
-   publicKey_ = brrData.get_BinaryData(keyLen);
+   auto version = brrData.get_uint32_t();
 
-   //check pubket is valid
-   if (!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
-      throw AssetException("invalid pubkey in peer metadata");
+   switch (version)
+   {
+   case 0x00000001:
+   {
+      auto keyLen = brrData.get_var_int();
+      publicKey_ = brrData.get_BinaryData(keyLen);
 
-   len = brrData.get_var_int();
-   signature_ = brrData.get_BinaryDataRef(len);
+      //check pubket is valid
+      if (!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
+         throw AssetException("invalid pubkey in peer metadata");
+
+      len = brrData.get_var_int();
+      signature_ = brrData.get_BinaryDataRef(len);
+
+      break;
+   }
+
+   default:
+      throw AssetException("unsupported peer rootsig version");
+   }
 
    //cannot check sig is valid until full peer account is loaded
 }
