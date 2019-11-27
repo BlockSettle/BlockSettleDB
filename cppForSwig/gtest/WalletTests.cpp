@@ -439,7 +439,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 
    //setup db env
    auto dbEnv = make_shared<LMDBEnv>();
-   dbEnv->open(dbPath_, MDB_WRITEMAP);
+   dbEnv->open(dbPath_, 0);
    auto filename = dbEnv->getFilename();
    ASSERT_EQ(filename, dbPath_);
 
@@ -576,7 +576,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 {
    //setup env
    auto dbEnv = make_shared<LMDBEnv>(3);
-   dbEnv->open(dbPath_, MDB_WRITEMAP);
+   dbEnv->open(dbPath_, 0);
    auto filename = dbEnv->getFilename();
    ASSERT_EQ(filename, dbPath_);
 
@@ -831,7 +831,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 TEST_F(WalletInterfaceTest, EncryptionTest)
 {
    auto dbEnv = make_shared<LMDBEnv>();
-   dbEnv->open(dbPath_, MDB_WRITEMAP);
+   dbEnv->open(dbPath_, 0);
    auto filename = dbEnv->getFilename();
    ASSERT_EQ(filename, dbPath_);
 
@@ -1027,7 +1027,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
 TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
 {
    auto dbEnv = make_shared<LMDBEnv>();
-   dbEnv->open(dbPath_, MDB_WRITEMAP);
+   dbEnv->open(dbPath_, 0);
    auto filename = dbEnv->getFilename();
    ASSERT_EQ(filename, dbPath_);
 
@@ -1264,7 +1264,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
 TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 {
    auto dbEnv = make_shared<LMDBEnv>();
-   dbEnv->open(dbPath_, MDB_WRITEMAP);
+   dbEnv->open(dbPath_, 0);
    auto filename = dbEnv->getFilename();
    ASSERT_EQ(filename, dbPath_);
 
@@ -1499,7 +1499,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    //cycle dbEnv
    dbObj.close();
    dbEnv->close();
-   dbEnv->open(filename, MDB_WRITEMAP);
+   dbEnv->open(filename, 0);
 
    //reopen db
    dbIface = make_shared<DBInterface>(
@@ -2136,7 +2136,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
 
    //open raw db
    auto dbEnv = make_shared<LMDBEnv>(3);
-   dbEnv->open(dbPath_, MDB_WRITEMAP);
+   dbEnv->open(dbPath_, 0);
    auto filename = dbEnv->getFilename();
    ASSERT_EQ(filename, dbPath_);
 
