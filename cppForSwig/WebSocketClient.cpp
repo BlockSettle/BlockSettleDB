@@ -207,25 +207,25 @@ bool WebSocketClient::connectToRemote()
 
    auto serviceLBD = [this](void)->void
    {
+      auto readLBD = [this](void)->void
+      {
+         this->readService();
+      };
+
+      readThr_ = thread(readLBD);
+
+      auto writeLBD = [this](void)->void
+      {
+         this->writeService();
+      };
+
+      writeThr_ = thread(writeLBD);
+
       auto contextPtr = init();
       this->service(contextPtr);
    };
 
    serviceThr_ = thread(serviceLBD);
-
-   auto readLBD = [this](void)->void
-   {
-      this->readService();
-   };
-
-   readThr_ = thread(readLBD);
-
-   auto writeLBD = [this](void)->void
-   {
-      this->writeService();
-   };
-
-   writeThr_ = thread(writeLBD);
 
    return connectedFut.get();
 }
