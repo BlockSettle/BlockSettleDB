@@ -457,10 +457,10 @@ void WalletDBInterface::setupEnv(const string& path,
       return;
 
    path_ = path;
+   dbCount_ = 2;
 
    //open env for control and meta dbs
-   dbEnv_ = make_unique<LMDBEnv>(2);
-   dbEnv_->open(path, MDB_WRITEMAP | MDB_NOTLS);
+   openDbEnv();
 
    //open control db
    openControlDb();
@@ -1001,10 +1001,20 @@ void WalletDBInterface::setDbCount(unsigned count)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::openDbEnv()
+{
+   if (dbEnv_ != nullptr)
+      throw WalletInterfaceException("dbEnv already instantiated");
+
+   dbEnv_ = make_unique<LMDBEnv>(dbCount_);
+   dbEnv_->open(path_, MDB_NOTLS);
+   dbEnv_->setMapSize(100*1024*1024ULL);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::openEnv()
 {
-   dbEnv_ = make_unique<LMDBEnv>(dbCount_);
-   dbEnv_->open(path_, MDB_WRITEMAP | MDB_NOTLS);
+   openDbEnv();
 
    for (auto& dbPtr : dbMap_)
       dbPtr.second->reset(dbEnv_.get());

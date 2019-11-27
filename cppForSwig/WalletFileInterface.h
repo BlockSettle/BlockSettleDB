@@ -428,6 +428,7 @@ private:
       const PassphraseLambda&);
    void putHeader(std::shared_ptr<WalletHeader>);
 
+   void openDbEnv(void);
    void openEnv(void);
    void closeEnv(void);
 
