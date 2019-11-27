@@ -17,6 +17,54 @@ using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+//// IfaceDataMap
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+void IfaceDataMap::update(const std::vector<std::shared_ptr<InsertData>>& vec)
+{
+   for (auto& dataPtr : vec)
+   {
+      if (!dataPtr->write_)
+      {
+         dataMap_.erase(dataPtr->key_);
+         continue;
+      }
+
+      auto insertIter = dataMap_.insert(make_pair(dataPtr->key_, dataPtr->value_));
+      if (!insertIter.second)
+         insertIter.first->second = dataPtr->value_;
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool IfaceDataMap::resolveDataKey(const BinaryData& dataKey,
+   BinaryData& dbKey)
+{
+   /*
+   Return the dbKey for the data key if it exists, otherwise increment the
+   dbKeyCounter and construct a key from that.
+   */
+
+   auto iter = dataKeyToDbKey_.find(dataKey);
+   if (iter != dataKeyToDbKey_.end())
+   {
+      dbKey = iter->second;
+      return true;
+   }
+
+   dbKey = getNewDbKey();
+   return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData IfaceDataMap::getNewDbKey()
+{
+   auto dbKeyInt = dbKeyCounter_++;
+   return WRITE_UINT32_BE(dbKeyInt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //// DBInterface
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,11 +77,13 @@ BinaryData(KEY_CYCLE_FLAG);
 ////////////////////////////////////////////////////////////////////////////////
 DBInterface::DBInterface(
    LMDBEnv* dbEnv, const std::string& dbName,
-   const SecureBinaryData& controlSalt) :
-   dbEnv_(dbEnv), dbName_(dbName), controlSalt_(controlSalt)
+   const SecureBinaryData& controlSalt, unsigned encrVersion) :
+   dbEnv_(dbEnv), dbName_(dbName), controlSalt_(controlSalt), 
+   encrVersion_(encrVersion)
 {
    auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadWrite);
    db_.open(dbEnv_, dbName_);
+   dataMapPtr_ = make_shared<IfaceDataMap>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,8 +134,8 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
    computeKeyPair(decrKeyCounter);
 
    //meta data handling lbd
-   auto processMetaDataPacket = [&gaps, computeKeyPair, &decrKeyCounter]
-   (const BinaryData& packet)->bool
+   auto processMetaDataPacket = [&gaps, &computeKeyPair, &decrKeyCounter]
+   (const BothBinaryDatas& packet)->bool
    {
       if (packet.getSize() > erasurePlaceHolder_.getSize())
       {
@@ -114,7 +164,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
          }
       }
 
-      if (packet == keyCycleFlag_)
+      if (packet.getRef() == keyCycleFlag_.getRef())
       {
          //cycle key
          ++decrKeyCounter;
@@ -128,6 +178,9 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
    /*****/
 
    {
+      //setup transactional data struct
+      auto dataMapPtr = make_shared<IfaceDataMap>();
+
       //read all db entries
       auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadOnly);
 
@@ -157,7 +210,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
 
          //grab the data
          auto dataPair = readDataPacket(
-            key_bdr, val_bdr, decrPrivKey, macKey);
+            key_bdr, val_bdr, decrPrivKey, macKey, encrVersion_);
 
          /*
          Check if packet is meta data.
@@ -173,11 +226,11 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
          }
 
          auto&& keyPair = make_pair(dataPair.first, move(key_bdr.copy()));
-         auto insertIter = dataKeyToDbKey_.emplace(keyPair);
+         auto insertIter = dataMapPtr->dataKeyToDbKey_.emplace(keyPair);
          if (!insertIter.second)
             throw WalletInterfaceException("duplicated db entry");
 
-         dataMap_.emplace(dataPair);
+         dataMapPtr->dataMap_.emplace(dataPair);
          iter.advance();
       }
 
@@ -186,7 +239,10 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
          throw WalletInterfaceException("unfilled dbkey gaps!");
 
       //set dbkey counter
-      dbKeyCounter_.store(prevDbKey + 1, memory_order_relaxed);
+      dataMapPtr->dbKeyCounter_ = prevDbKey + 1;
+
+      //set the data map
+      atomic_store_explicit(&dataMapPtr_, dataMapPtr, memory_order_release);
    }
 
    {
@@ -198,10 +254,11 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
       */
       auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadWrite);
 
-      auto flagKey = getNewDbKey();
-      auto&& encrPubKey = CryptoECDSA().ComputePublicKey(decrPrivKey, true);;
-      auto flagPacket = createDataPacket(
-         flagKey, BinaryData(), keyCycleFlag_, encrPubKey, macKey);
+      auto flagKey = dataMapPtr_->getNewDbKey();
+      BothBinaryDatas keyFlagBd(keyCycleFlag_);
+      auto&& encrPubKey = CryptoECDSA().ComputePublicKey(decrPrivKey, true);
+      auto flagPacket = createDataPacket(flagKey, BinaryData(), 
+         keyFlagBd, encrPubKey, macKey, encrVersion_);
 
       CharacterArrayRef carKey(flagKey.getSize(), flagKey.getPtr());
       CharacterArrayRef carVal(flagPacket.getSize(), flagPacket.getPtr());
@@ -219,78 +276,24 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryDataRef DBInterface::getDataRef(const BinaryData& key) const
-{
-   auto iter = dataMap_.find(key);
-   if (iter == dataMap_.end())
-      return BinaryDataRef();
-
-   return iter->second.getRef();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void DBInterface::update(const std::vector<std::shared_ptr<InsertData>>& vec)
-{
-   for (auto& dataPtr : vec)
-   {
-      if (!dataPtr->write_)
-      {
-         dataMap_.erase(dataPtr->key_);
-         continue;
-      }
-
-      auto insertIter = dataMap_.insert(make_pair(dataPtr->key_, dataPtr->value_));
-      if (!insertIter.second)
-         insertIter.first->second = dataPtr->value_;
-   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void DBInterface::wipe(const BinaryData& key)
-{
-   CharacterArrayRef carKey(key.getSize(), key.getPtr());
-   db_.wipe(carKey);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool DBInterface::resolveDataKey(const BinaryData& dataKey,
-   BinaryData& dbKey)
-{
-   /*
-   Return the dbKey for the data key if it exists, otherwise increment the
-   dbKeyCounter and construct a key from that.
-   */
-
-   auto iter = dataKeyToDbKey_.find(dataKey);
-   if (iter != dataKeyToDbKey_.end())
-   {
-      dbKey = iter->second;
-      return true;
-   }
-
-   dbKey = getNewDbKey();
-   return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryData DBInterface::getNewDbKey()
-{
-   auto dbKeyInt = dbKeyCounter_.fetch_add(1, memory_order_relaxed);
-   return WRITE_UINT32_BE(dbKeyInt);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
-   const BinaryData& dataKey, const BinaryData& dataVal,
-   const SecureBinaryData& encrPubKey, const SecureBinaryData& macKey)
+   const BinaryData& dataKey, const BothBinaryDatas& dataVal,
+   const SecureBinaryData& encrPubKey, const SecureBinaryData& macKey,
+   unsigned encrVersion)
 {
+   BinaryWriter encrPacket;
+
+   switch (encrVersion)
+   {
+   case 0x00000001:
+   {
    /* authentitcation leg */
       //concatenate dataKey and dataVal to create payload
       BinaryWriter bw;
       bw.put_var_int(dataKey.getSize());
       bw.put_BinaryData(dataKey);
       bw.put_var_int(dataVal.getSize());
-      bw.put_BinaryData(dataVal);
+      bw.put_BinaryDataRef(dataVal.getRef());
 
       //append dbKey to payload
       BinaryWriter bwHmac;
@@ -331,19 +334,33 @@ BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
          bwData.getData(), encrKey, iv);
 
       //build IES packet
-      BinaryWriter encrPacket;
       encrPacket.put_BinaryData(localPubKey); 
       encrPacket.put_BinaryData(iv);
       encrPacket.put_BinaryData(cipherText);
+
+      break;
+   }
+
+   default:
+      throw WalletInterfaceException("unsupported encryption version");
+   }
 
    return encrPacket.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-pair<BinaryData, BinaryData> DBInterface::readDataPacket(
+pair<BinaryData, BothBinaryDatas> DBInterface::readDataPacket(
    const BinaryData& dbKey, const BinaryData& dataPacket,
-   const SecureBinaryData& decrPrivKey, const SecureBinaryData& macKey)
+   const SecureBinaryData& decrPrivKey, const SecureBinaryData& macKey,
+   unsigned encrVersion)
 {
+   BinaryData dataKey;
+   BothBinaryDatas dataVal;
+
+   switch (encrVersion)
+   {
+   case 0x00000001:
+   {
    /* decryption key */
       //recover public key
       BinaryRefReader brrCipher(dataPacket.getRef());
@@ -378,11 +395,11 @@ pair<BinaryData, BinaryData> DBInterface::readDataPacket(
 
       //grab data key
       auto len = brrPlain.get_var_int();
-      auto dataKey = brrPlain.get_BinaryData(len);
+      dataKey = move(brrPlain.get_BinaryData(len));
 
       //grab data val
       len = brrPlain.get_var_int();
-      auto dataVal = brrPlain.get_BinaryData(len);
+      dataVal = move(brrPlain.get_SecureBinaryData(len));
 
       //mark the position
       auto pos = brrPlain.getPosition() - 32;
@@ -406,7 +423,21 @@ pair<BinaryData, BinaryData> DBInterface::readDataPacket(
       if (computedHmac != hmac)
          throw WalletInterfaceException("mac mismatch");
 
+      break;
+   }
+
+   default:
+      throw WalletInterfaceException("unsupported encryption version");
+   }
+
    return make_pair(dataKey, dataVal);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unsigned DBInterface::getEntryCount(void) const
+{
+   auto dbMapPtr = atomic_load_explicit(&dataMapPtr_, memory_order_acquire);
+   return dbMapPtr->dataMap_.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,14 +457,10 @@ void WalletDBInterface::setupEnv(const string& path,
       return;
 
    path_ = path;
+   dbCount_ = 2;
 
    //open env for control and meta dbs
-   dbEnv_ = make_unique<LMDBEnv>(2);
-   dbEnv_->open(path, MDB_WRITEMAP);
-   // Increase wallet size from 1 mb to 50 mb to prevent signer crashes with
-   // with "MDB_MAP_FULL: Environment mapsize limit reached" error
-   // when there are a lot of used addresses
-   dbEnv_->setMapSize(50*1024*1024);
+   openDbEnv();
 
    //open control db
    openControlDb();
@@ -477,7 +504,8 @@ void WalletDBInterface::setupEnv(const string& path,
       auto headrPtr = make_shared<WalletHeader_Control>();
       headrPtr->walletID_ = BinaryData(WALLETHEADER_DBNAME);
       headrPtr->controlSalt_ = controlHeader->controlSalt_;
-      openDB(headrPtr, rootEncrKey);
+      encryptionVersion_ = headrPtr->encryptionVersion_;
+      openDB(headrPtr, rootEncrKey, encryptionVersion_);
    }
 
    //load wallet header objects
@@ -497,7 +525,7 @@ void WalletDBInterface::setupEnv(const string& path,
 
    //open all dbs listed in header map
    for (auto& headerPtr : headerMap_)
-      openDB(headerPtr.second, rootEncrKey);
+      openDB(headerPtr.second, rootEncrKey, encryptionVersion_);
 
    //clean up
    unlockControlContainer();
@@ -602,7 +630,7 @@ void WalletDBInterface::shutdown()
 
 ////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::openDB(std::shared_ptr<WalletHeader> headerPtr,
-   const SecureBinaryData& encrRootKey)
+   const SecureBinaryData& encrRootKey, unsigned encrVersion)
 {
    auto&& dbName = headerPtr->getDbName();
    auto iter = dbMap_.find(dbName);
@@ -611,7 +639,7 @@ void WalletDBInterface::openDB(std::shared_ptr<WalletHeader> headerPtr,
 
    //create db object
    auto dbiPtr = make_unique<DBInterface>(
-      dbEnv_.get(), dbName, headerPtr->controlSalt_);
+      dbEnv_.get(), dbName, headerPtr->controlSalt_, encrVersion);
    
    /*
    Load all db entries in RAM. This call also decrypts the on disk data.
@@ -648,7 +676,7 @@ unique_ptr<DBIfaceTransaction> WalletDBInterface::beginWriteTransaction(
       throw WalletInterfaceException("invalid db name");
    }
 
-   return make_unique<WalletIfaceTransaction>(iter->second.get(), true);
+   return make_unique<WalletIfaceTransaction>(this, iter->second.get(), true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -667,7 +695,7 @@ unique_ptr<DBIfaceTransaction> WalletDBInterface::beginReadTransaction(
       throw WalletInterfaceException("invalid db name");
    }
 
-   return make_unique<WalletIfaceTransaction>(iter->second.get(), false);
+   return make_unique<WalletIfaceTransaction>(this, iter->second.get(), false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -922,7 +950,7 @@ void WalletDBInterface::addHeader(std::shared_ptr<WalletHeader> headerPtr)
    auto& rootEncrKey = 
       decryptedData_->getDecryptedPrivateData(controlSeed_.get());
    auto dbiPtr = make_unique<DBInterface>(
-      dbEnv_.get(), dbName, headerPtr->controlSalt_);
+      dbEnv_.get(), dbName, headerPtr->controlSalt_, encryptionVersion_);
    dbiPtr->loadAllEntries(rootEncrKey);
    
    putHeader(headerPtr);
@@ -973,6 +1001,42 @@ void WalletDBInterface::setDbCount(unsigned count)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::openDbEnv()
+{
+   if (dbEnv_ != nullptr)
+      throw WalletInterfaceException("dbEnv already instantiated");
+
+   dbEnv_ = make_unique<LMDBEnv>(dbCount_);
+   dbEnv_->open(path_, MDB_NOTLS);
+   dbEnv_->setMapSize(100*1024*1024ULL);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::openEnv()
+{
+   openDbEnv();
+
+   for (auto& dbPtr : dbMap_)
+      dbPtr.second->reset(dbEnv_.get());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::closeEnv()
+{
+   if (controlDb_ != nullptr)
+   {
+      controlDb_->close();
+      controlDb_.reset();
+   }
+
+   for (auto& dbPtr : dbMap_)
+      dbPtr.second->close();
+
+   dbEnv_->close();
+   dbEnv_.reset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::setDbCount(unsigned count, bool doLock)
 {
    if (DBIfaceTransaction::hasTx())
@@ -989,29 +1053,11 @@ void WalletDBInterface::setDbCount(unsigned count, bool doLock)
       lock.lock();
 
    //close env
-   if (controlDb_ != nullptr)
-   {
-      controlDb_->close();
-      controlDb_.reset();
-   }
-
-   for (auto& dbPtr : dbMap_)
-      dbPtr.second->close();
-
-   dbEnv_->close();
-   dbEnv_.reset();
+   closeEnv();
 
    //reopen with new dbCount
-   dbEnv_ = make_unique<LMDBEnv>(count);
-   dbEnv_->open(path_, MDB_WRITEMAP);
-
-   for (auto& dbPtr : dbMap_)
-   {
-      auto&& tx = beginWriteTransaction(dbPtr.first);
-      dbPtr.second->reset(dbEnv_.get());
-   }
-
    dbCount_ = count;
+   openEnv();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1049,13 +1095,13 @@ DBIfaceIterator::~DBIfaceIterator()
 ////////////////////////////////////////////////////////////////////////////////
 bool WalletIfaceIterator::isValid() const
 {
-   return iterator_ != dbPtr_->dataMap_.end();
+   return iterator_ != txPtr_->dataMapPtr_->dataMap_.end();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void WalletIfaceIterator::seek(const BinaryDataRef& key)
 {
-   iterator_ = dbPtr_->dataMap_.lower_bound(key);
+   iterator_ = txPtr_->dataMapPtr_->dataMap_.lower_bound(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1118,8 +1164,8 @@ BinaryDataRef RawIfaceIterator::value() const
 //// DBIfaceTransaction
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-map<string, map<thread::id, DBIfaceTransaction::ParentTx>> 
-DBIfaceTransaction::txMap_;
+map<string, shared_ptr<DBIfaceTransaction::DbTxStruct>> 
+   DBIfaceTransaction::dbMap_;
 
 mutex DBIfaceTransaction::txMutex_;
 
@@ -1131,9 +1177,9 @@ DBIfaceTransaction::~DBIfaceTransaction() noexcept(false)
 bool DBIfaceTransaction::hasTx()
 {
    auto lock = unique_lock<mutex>(txMutex_);
-   for (auto& txPair : txMap_)
+   for (auto& dbPair : dbMap_)
    {
-      if (txPair.second.size() > 0)
+      if (dbPair.second->txCount() > 0)
          return true;
    }
 
@@ -1148,8 +1194,8 @@ bool DBIfaceTransaction::hasTx()
 
 ////////////////////////////////////////////////////////////////////////////////
 WalletIfaceTransaction::WalletIfaceTransaction(
-   DBInterface* dbPtr, bool mode) :
-   DBIfaceTransaction(), dbPtr_(dbPtr), commit_(mode)
+   WalletDBInterface* ifacePtr, DBInterface* dbPtr, bool mode) :
+   DBIfaceTransaction(), ifacePtr_(ifacePtr), dbPtr_(dbPtr), commit_(mode)
 {
    if (!insertTx(this))
       throw WalletInterfaceException("failed to create db tx");
@@ -1158,20 +1204,28 @@ WalletIfaceTransaction::WalletIfaceTransaction(
 ////////////////////////////////////////////////////////////////////////////////
 WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
 {
-   LMDBEnv::Transaction tx;
+   closeTx();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletIfaceTransaction::closeTx()
+{
+   unique_ptr<LMDBEnv::Transaction> tx;
+   unique_ptr<unique_lock<mutex>> writeTxLock = nullptr;
 
    {
       auto lock = unique_lock<mutex>(txMutex_);
-      if (!eraseTx(this))
+      writeTxLock = move(eraseTx(this));
+         
+      if (writeTxLock == nullptr || !commit_)
          return;
 
-      if (!commit_)
-         return;
-
-      tx = move(LMDBEnv::Transaction(dbPtr_->dbEnv_, LMDB::ReadWrite));
+      tx = make_unique<LMDBEnv::Transaction>(dbPtr_->dbEnv_, LMDB::ReadWrite);
    }
 
-   
+   auto dataMapCopy = make_shared<IfaceDataMap>(*dataMapPtr_);
+   bool needsWiped = false;
+
    //this is the top tx, need to commit all this data to the db object
    for (unsigned i=0; i < insertVec_.size(); i++)
    {
@@ -1190,7 +1244,7 @@ WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
          continue;
 
       BinaryData dbKey;
-      auto keyExists = dbPtr_->resolveDataKey(dataPtr->key_, dbKey);
+      auto keyExists = dataMapCopy->resolveDataKey(dataPtr->key_, dbKey);
       if (keyExists)
       {
          /***
@@ -1214,7 +1268,8 @@ WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
 
          //wipe the key
          CharacterArrayRef carKey(dbKey.getSize(), dbKey.getPtr());
-         dbPtr_->db_.wipe(carKey);
+         dbPtr_->db_.erase(carKey);
+         needsWiped = true;
 
          //create erasure place holder packet
          BinaryWriter erasedBw;
@@ -1223,12 +1278,12 @@ WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
          erasedBw.put_BinaryData(dbKey);
 
          //get new key
-         dbKey = dbPtr_->getNewDbKey();
+         dbKey = dataMapCopy->getNewDbKey();
 
          //commit erasure packet
          auto&& dbVal = DBInterface::createDataPacket(
             dbKey, BinaryData(), erasedBw.getData(), 
-            dbPtr_->encrPubKey_, dbPtr_->macKey_);
+            dbPtr_->encrPubKey_, dbPtr_->macKey_, dbPtr_->encrVersion_);
 
          CharacterArrayRef carData(dbVal.getSize(), dbVal.getPtr());
          CharacterArrayRef carKey2(dbKey.getSize(), dbKey.getPtr());
@@ -1238,12 +1293,12 @@ WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
          if (!dataPtr->write_)
          {
             //update dataKeyToDbKey
-            dbPtr_->dataKeyToDbKey_.erase(dataPtr->key_);
+            dataMapCopy->dataKeyToDbKey_.erase(dataPtr->key_);
             continue;
          }
 
          //grab a fresh key for the follow up write
-         dbKey = dbPtr_->getNewDbKey();
+         dbKey = dataMapCopy->getNewDbKey();
       }
 
       //sanity check
@@ -1251,12 +1306,12 @@ WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
          throw WalletInterfaceException("key marked for deletion when it does not exist");
 
       //update dataKeyToDbKey
-      dbPtr_->dataKeyToDbKey_[dataPtr->key_] = dbKey;
+      dataMapCopy->dataKeyToDbKey_[dataPtr->key_] = dbKey;
 
       //bundle key and val together, key by dbkey
       auto&& dbVal = DBInterface::createDataPacket(
          dbKey, dataPtr->key_, dataPtr->value_, 
-         dbPtr_->encrPubKey_, dbPtr_->macKey_);
+         dbPtr_->encrPubKey_, dbPtr_->macKey_, dbPtr_->encrVersion_);
       CharacterArrayRef carKey(dbKey.getSize(), dbKey.getPtr());
       CharacterArrayRef carVal(dbVal.getSize(), dbVal.getPtr());
 
@@ -1264,7 +1319,82 @@ WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
    }
 
    //update db data map
-   dbPtr_->update(insertVec_);
+   dataMapCopy->update(insertVec_);
+
+   //swap in the data struct
+   atomic_store_explicit(
+      &dbPtr_->dataMapPtr_, dataMapCopy, memory_order_release);
+
+   if (!needsWiped)
+      return;
+
+   if (ifacePtr_ == nullptr)
+      return;
+
+   /*
+   To wipe this file of its deleted entries, we perform a LMDB copact copy
+   of the dbEnv, which will skip free/loose data pages and only copy the
+   currently valid data in the db. We then swap files and delete the 
+   original.
+   */
+
+   //close the write tx, we still hold the write mutex
+   tx.reset();
+
+   //create copy name
+   auto fullDbPath = ifacePtr_->getFilename();
+   auto basePath = DBUtils::getBaseDir(fullDbPath);
+   string copyName;
+   while (true)
+   {
+      stringstream ss;
+      ss << "compactCopy-" << CryptoPRNG::generateRandom(12).toHexStr();
+      auto fullpath = basePath;
+      DBUtils::appendPath(fullpath, ss.str());
+      
+      if (!DBUtils::fileExists(fullpath, 0))
+      {
+         copyName = fullpath;
+         break;
+      }
+   }
+
+   //copy
+   dbPtr_->dbEnv_->compactCopy(copyName);
+
+   //close current env
+   ifacePtr_->closeEnv();
+
+   //swap files
+   string swapPath;
+   while (true)
+   {
+      stringstream ss;
+      ss << "swapOld-" << CryptoPRNG::generateRandom(12).toHexStr();
+      auto fullpath = basePath;
+      DBUtils::appendPath(fullpath, ss.str());
+
+      if (DBUtils::fileExists(fullpath, 0))
+         continue;
+
+      swapPath = fullpath;
+
+      //rename old file to swap
+      rename(fullDbPath.c_str(), swapPath.c_str());
+
+      //rename new file to old
+      rename(copyName.c_str(), fullDbPath.c_str());
+      break;
+   }
+
+   //reset dbEnv to new file
+   ifacePtr_->openEnv();
+
+   //wipe old file
+   auto oldFileMap = DBUtils::getMmapOfFile(swapPath, true);
+   memset(oldFileMap.filePtr_, 0, oldFileMap.size_);
+   oldFileMap.unmap();
+   unlink(swapPath.c_str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1275,119 +1405,135 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
 
    auto lock = unique_lock<mutex>(txMutex_);
 
-   auto dbIter = txMap_.find(txPtr->dbPtr_->getName());
-   if (dbIter == txMap_.end())
+   auto dbIter = dbMap_.find(txPtr->dbPtr_->getName());
+   if (dbIter == dbMap_.end())
    {
-      dbIter = txMap_.insert(
-         make_pair(txPtr->dbPtr_->getName(), map<thread::id, ParentTx>())
-      ).first;
+      auto structPtr = make_shared<DbTxStruct>();
+      dbIter = dbMap_.insert(make_pair(
+         txPtr->dbPtr_->getName(), structPtr)).first;
    }
 
-   auto& txMap = dbIter->second;
+   auto& txStruct = dbIter->second;
+   auto& txMap = txStruct->txMap_;
 
    //save tx by thread id
    auto thrId = this_thread::get_id();
    auto iter = txMap.find(thrId);
-   if (iter == txMap.end())
+   if (iter != txMap.end())
    {
-      //this is the parent tx, create the lambdas and setup the struct
+      /*we already have a tx for this thread, we will nest the new one within it*/
       
-      ParentTx ptx;
-      ptx.commit_ = txPtr->commit_;
+      //make sure the commit type between parent and nested tx match
+      if (iter->second->commit_ != txPtr->commit_)
+         return false;
 
-      if (txPtr->commit_)
-      {
-         auto insertLbd = [thrId, txPtr](const BinaryData& key, const BinaryData& val)
-         {
-            if (thrId != this_thread::get_id())
-               throw WalletInterfaceException("insert operation thread id mismatch");
+      //set lambdas
+      txPtr->insertLbd_ = iter->second->insertLbd_;
+      txPtr->eraseLbd_ = iter->second->eraseLbd_;
+      txPtr->getDataLbd_ = iter->second->getDataLbd_;
+      txPtr->dataMapPtr_ = iter->second->dataMapPtr_;
 
-            auto dataPtr = make_shared<InsertData>();
-            dataPtr->key_ = key;
-            dataPtr->value_ = val;
-
-            unsigned vecSize = txPtr->insertVec_.size();
-            txPtr->insertVec_.emplace_back(dataPtr);
-
-            /*
-            Insert the index for this data object in the key map.
-            Replace the index if it's already there as we want to track
-            the final effect for each key.
-            */
-            auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));
-            if (!insertPair.second)
-               insertPair.first->second = vecSize;
-         };
-
-         auto eraseLbd = [thrId, txPtr](const BinaryData& key, bool wipe)
-         {
-            if (thrId != this_thread::get_id())
-               throw WalletInterfaceException("insert operation thread id mismatch");
-
-            auto dataPtr = make_shared<InsertData>();
-            dataPtr->key_ = key;
-            dataPtr->write_ = false; //set to false to signal deletion
-            dataPtr->wipe_ = wipe;
-
-            unsigned vecSize = txPtr->insertVec_.size();
-            txPtr->insertVec_.emplace_back(dataPtr);
-
-            auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));
-            if (!insertPair.second)
-               insertPair.first->second = vecSize;
-         };
-
-         auto getDataLbd = [thrId, txPtr](const BinaryData& key)->
-            const shared_ptr<InsertData>&
-         {
-            auto iter = txPtr->keyToDataMap_.find(key);
-            if (iter == txPtr->keyToDataMap_.end())
-               throw NoDataInDB();
-
-            return txPtr->insertVec_[iter->second];
-         };
-
-         txPtr->insertLbd_ = insertLbd;
-         txPtr->eraseLbd_ = eraseLbd;
-         txPtr->getDataLbd_ = getDataLbd;
-
-         ptx.insertLbd_ = insertLbd;
-         ptx.eraseLbd_ = eraseLbd;
-         ptx.getDataLbd_ = getDataLbd;
-      }
-
-      txMap.insert(make_pair(thrId, ptx));
+      //increment counter
+      ++txStruct->txCount_;
+      ++iter->second->counter_;
       return true;
    }
-   
-   /*we already have a tx for this thread, we will nest the new one within it*/
-   
-   //make sure the commit type between parent and nested tx match
-   if (iter->second.commit_ != txPtr->commit_)
-      return false;
 
-   //set lambdas
-   txPtr->insertLbd_ = iter->second.insertLbd_;
-   txPtr->eraseLbd_ = iter->second.eraseLbd_;
-   txPtr->getDataLbd_ = iter->second.getDataLbd_;
+   //this is the parent tx, create the lambdas and setup the struct
+   auto ptx = make_shared<ParentTx>();
+   ptx->commit_ = txPtr->commit_;
+      
+   txMap.insert(make_pair(thrId, ptx));
+   ++txStruct->txCount_;
 
-   //increment counter
-   ++iter->second.counter_;
+   //release the dbMap lock
+   lock.unlock();
+
+   if (txPtr->commit_)
+   {
+      //write tx, lock db write mutex
+      ptx->writeLock_ = make_unique<unique_lock<mutex>>(txStruct->writeMutex_);
+
+      auto insertLbd = [thrId, txPtr](const BinaryData& key, BothBinaryDatas& val)
+      {
+         if (thrId != this_thread::get_id())
+            throw WalletInterfaceException("insert operation thread id mismatch");
+
+         auto dataPtr = make_shared<InsertData>();
+         dataPtr->key_ = key;
+         dataPtr->value_ = move(val);
+
+         unsigned vecSize = txPtr->insertVec_.size();
+         txPtr->insertVec_.emplace_back(dataPtr);
+
+         /*
+         Insert the index for this data object in the key map.
+         Replace the index if it's already there as we want to track
+         the final effect for each key.
+         */
+         auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));
+         if (!insertPair.second)
+            insertPair.first->second = vecSize;
+      };
+
+      auto eraseLbd = [thrId, txPtr](const BinaryData& key, bool wipe)
+      {
+         if (thrId != this_thread::get_id())
+            throw WalletInterfaceException("insert operation thread id mismatch");
+
+         auto dataPtr = make_shared<InsertData>();
+         dataPtr->key_ = key;
+         dataPtr->write_ = false; //set to false to signal deletion
+         dataPtr->wipe_ = wipe;
+
+         unsigned vecSize = txPtr->insertVec_.size();
+         txPtr->insertVec_.emplace_back(dataPtr);
+
+         auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));
+         if (!insertPair.second)
+            insertPair.first->second = vecSize;
+      };
+
+      auto getDataLbd = [thrId, txPtr](const BinaryData& key)->
+         const shared_ptr<InsertData>&
+      {
+         auto iter = txPtr->keyToDataMap_.find(key);
+         if (iter == txPtr->keyToDataMap_.end())
+            throw NoDataInDB();
+
+         return txPtr->insertVec_[iter->second];
+      };
+
+      txPtr->insertLbd_ = insertLbd;
+      txPtr->eraseLbd_ = eraseLbd;
+      txPtr->getDataLbd_ = getDataLbd;
+
+      ptx->insertLbd_ = insertLbd;
+      ptx->eraseLbd_ = eraseLbd;
+      ptx->getDataLbd_ = getDataLbd;
+   }
+
+   ptx->dataMapPtr_ = atomic_load_explicit(
+      &txPtr->dbPtr_->dataMapPtr_, memory_order_acquire);
+   txPtr->dataMapPtr_ = ptx->dataMapPtr_;
+   
    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool WalletIfaceTransaction::eraseTx(WalletIfaceTransaction* txPtr)
+unique_ptr<unique_lock<mutex>> WalletIfaceTransaction::eraseTx(
+   WalletIfaceTransaction* txPtr)
 {
    if (txPtr == nullptr)
       throw WalletInterfaceException("null tx ptr");
-      
-   //we have to have this db name in the tx map
-   auto dbIter = txMap_.find(txPtr->dbPtr_->getName());
-   if (dbIter == txMap_.end())
+   
+   //we should have this db name in the tx map
+   auto dbIter = dbMap_.find(txPtr->dbPtr_->getName());
+   if (dbIter == dbMap_.end())
       throw WalletInterfaceException("missing db name in tx map");
 
-   auto& txMap = dbIter->second;
+   auto& txStruct = dbIter->second;
+   auto& txMap = txStruct->txMap_;
 
    //thread id has to be present too
    auto thrId = this_thread::get_id();
@@ -1395,25 +1541,50 @@ bool WalletIfaceTransaction::eraseTx(WalletIfaceTransaction* txPtr)
    if (iter == txMap.end())
       throw WalletInterfaceException("missing thread id in tx map");
 
-   if (iter->second.counter_ > 1)
+   --txStruct->txCount_;
+   if (iter->second->counter_ > 1)
    {
       //this is a nested tx, decrement and return false
-      --iter->second.counter_;
-      return false;
+      --iter->second->counter_;
+      return nullptr;
    }
 
    //counter is 1, this is the parent tx, clean up the entry and return true
+   auto lockPtr = move(iter->second->writeLock_);
    txMap.erase(iter);
-   return true;
+   return move(lockPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletIfaceTransaction::insert(const BinaryData& key, const BinaryData& val)
+void WalletIfaceTransaction::insert(const BinaryData& key, BinaryData& val)
 {
    if (!insertLbd_)
       throw WalletInterfaceException("insert lambda is not set");
 
-   insertLbd_(key, val);
+   BothBinaryDatas bbdVal(val);
+   insertLbd_(key, bbdVal);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletIfaceTransaction::insert(
+   const BinaryData& key, const BinaryData& val)
+{
+   if (!insertLbd_)
+      throw WalletInterfaceException("insert lambda is not set");
+
+   BothBinaryDatas bbdVal(val);
+   insertLbd_(key, bbdVal);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletIfaceTransaction::insert(
+   const BinaryData& key, SecureBinaryData& val)
+{
+   if (!insertLbd_)
+      throw WalletInterfaceException("insert lambda is not set");
+
+   BothBinaryDatas bbdVal(val);
+   insertLbd_(key, bbdVal);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1440,7 +1611,7 @@ std::shared_ptr<DBIfaceIterator> WalletIfaceTransaction::getIterator() const
    if (commit_)
       throw WalletInterfaceException("cannot iterate over a write transaction");
 
-   return make_shared<WalletIfaceIterator>(dbPtr_);
+   return make_shared<WalletIfaceIterator>(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1471,7 +1642,10 @@ const BinaryDataRef WalletIfaceTransaction::getDataRef(
       }
    }
 
-   return dbPtr_->getDataRef(key);
+   auto iter = dataMapPtr_->dataMap_.find(key);
+   if (iter == dataMapPtr_->dataMap_.end())
+      return BinaryDataRef();
+   return iter->second.getRef();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1489,7 +1663,23 @@ const std::shared_ptr<InsertData>& WalletIfaceTransaction::getInsertDataForKey(
 //// RawIfaceTransaction
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+void RawIfaceTransaction::insert(const BinaryData& key, BinaryData& val)
+{
+   CharacterArrayRef carKey(key.getSize(), key.getPtr());
+   CharacterArrayRef carVal(val.getSize(), val.getPtr());
+   dbPtr_->insert(carKey, carVal);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void RawIfaceTransaction::insert(const BinaryData& key, const BinaryData& val)
+{
+   CharacterArrayRef carKey(key.getSize(), key.getPtr());
+   CharacterArrayRef carVal(val.getSize(), val.getPtr());
+   dbPtr_->insert(carKey, carVal);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void RawIfaceTransaction::insert(const BinaryData& key, SecureBinaryData& val)
 {
    CharacterArrayRef carKey(key.getSize(), key.getPtr());
    CharacterArrayRef carVal(val.getSize(), val.getPtr());
@@ -1506,8 +1696,7 @@ void RawIfaceTransaction::erase(const BinaryData& key)
 ////////////////////////////////////////////////////////////////////////////////
 void RawIfaceTransaction::wipe(const BinaryData& key)
 {
-   CharacterArrayRef carKey(key.getSize(), key.getPtr());
-   dbPtr_->wipe(carKey);
+   throw WalletInterfaceException("deprecated");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

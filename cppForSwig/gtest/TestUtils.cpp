@@ -46,7 +46,7 @@ namespace TestUtils
          if (*sample == *data_head)
          {
             BinaryDataRef bdr(filemap.filePtr_ + i, data.getSize());
-            if (bdr == data)
+            if (bdr == data.getRef())
             {
                result = true;
                break;

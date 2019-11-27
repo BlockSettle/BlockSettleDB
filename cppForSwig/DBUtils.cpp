@@ -336,7 +336,7 @@ void FileMap::unmap()
 }
 
 /////////////////////////////////////////////////////////////////////////////
-FileMap DBUtils::getMmapOfFile(const string& path)
+FileMap DBUtils::getMmapOfFile(const string& path, bool write)
 {
    int fd = 0;
    if (!DBUtils::fileExists(path, 2))
@@ -347,7 +347,11 @@ FileMap DBUtils::getMmapOfFile(const string& path)
    try
    {
 #ifdef _WIN32
-      fd = _open(path.c_str(), _O_RDONLY | _O_BINARY);
+      auto flag = _O_RDONLY | _O_BINARY;
+      if (write)
+         flag = _O_RDWR | _O_BINARY;
+      
+      fd = _open(path.c_str(), flag);
       if (fd == -1)
          throw runtime_error("failed to open file");
 
@@ -362,7 +366,10 @@ FileMap DBUtils::getMmapOfFile(const string& path)
 
       _lseek(fd, 0, SEEK_SET);
 #else
-      fd = open(path.c_str(), O_RDONLY);
+      auto flag = O_RDONLY;
+      if (write)
+         flag = O_RDWR;
+      fd = open(path.c_str(), flag);
       if (fd == -1)
          throw runtime_error("failed to open file");
 
@@ -387,8 +394,10 @@ FileMap DBUtils::getMmapOfFile(const string& path)
       uint32_t sizelo = size & 0xffffffff;
       uint32_t sizehi = size >> 16 >> 16;
 
-
-      mh = CreateFileMapping(fileHandle, NULL, PAGE_READONLY,
+      auto mmapflag = PAGE_READONLY;
+      if (write)
+         mmapflag = PAGE_READWRITE;
+      mh = CreateFileMapping(fileHandle, NULL, mmapflag,
          sizehi, sizelo, NULL);
       if (!mh)
       {
@@ -399,7 +408,10 @@ FileMap DBUtils::getMmapOfFile(const string& path)
          throw runtime_error(errStr.str());
       }
 
-      fMap.filePtr_ = (uint8_t*)MapViewOfFileEx(mh, FILE_MAP_READ, 0, 0, size, NULL);
+      auto viewFlag = FILE_MAP_READ;
+      if (write)
+         viewFlag = FILE_MAP_ALL_ACCESS;
+      fMap.filePtr_ = (uint8_t*)MapViewOfFileEx(mh, viewFlag, 0, 0, size, NULL);
       if (fMap.filePtr_ == nullptr)
       {
          auto errorCode = GetLastError();
@@ -412,7 +424,10 @@ FileMap DBUtils::getMmapOfFile(const string& path)
       CloseHandle(mh);
       _close(fd);
 #else
-      fMap.filePtr_ = (uint8_t*)mmap(0, size, PROT_READ, MAP_SHARED,
+      auto mapFlag = PROT_READ;
+      if (write)
+         mapFlag |= PROT_WRITE;
+      fMap.filePtr_ = (uint8_t*)mmap(0, size, mapFlag, MAP_SHARED,
          fd, 0);
       if (fMap.filePtr_ == MAP_FAILED) {
          fMap.filePtr_ = NULL;
@@ -625,4 +640,25 @@ void DBUtils::expandPath(string& path)
 
    appendPath(userPath, path.substr(1));
    path = move(userPath);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string DBUtils::getBaseDir(const string& path)
+{
+   //crawl back until folder market is hit
+   int pos = -1;
+   for (int i=path.size() - 1; i>-1; i--)
+   {
+      auto charPtr = path.c_str() + i;
+      if (*charPtr == '/' || *charPtr == '\\')
+      {
+         pos = i;
+         break;
+      }
+   }
+
+   if (pos == -1)
+      return string();
+
+   return path.substr(0, pos);
 }

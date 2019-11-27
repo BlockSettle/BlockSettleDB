@@ -46,7 +46,6 @@ public:
 #define ROOT_ASSETENTRY_ID       0xFFFFFFFF
 #define SEED_ID                  READHEX("0x5EEDDEE55EEDDEE5");
 
-
 ////////////////////////////////////////////////////////////////////////////////
 enum AssetType
 {
