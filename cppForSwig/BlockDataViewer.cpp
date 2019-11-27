@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2011-2015, Armory Technologies, Inc.                        //
+//  Copyright (C) 2011-2019, Armory Technologies, Inc.                        //
 //  Distributed under the GNU Affero General Public License (AGPL v3)         //
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
@@ -827,12 +827,14 @@ BlockDataViewer::getAddressOutpoints(
    if (zcCutoff != UINT32_MAX)
    {
       auto zcSnapshot = zc_->getSnapshot();
+      if (zcSnapshot == nullptr)
+         return outpointMap;
+         
       for (auto& scrAddr : scrAddrSet)
       {
          auto addrIter = zcSnapshot->txioMap_.find(scrAddr);
          if (addrIter == zcSnapshot->txioMap_.end())
             continue;
-
 
          for (auto& txiopair : *addrIter->second)
          {
@@ -1086,6 +1088,8 @@ void WalletGroup::registerAddresses(
       return;
   
    auto walletID = msg->walletid();
+   if (walletID.size() == 0)
+      return;
    BinaryDataRef walletIDRef; walletIDRef.setRef(walletID);
 
    auto theWallet = getOrSetWallet(walletIDRef);
@@ -1096,7 +1100,7 @@ void WalletGroup::registerAddresses(
    }
 
    BinaryData id;
-   if (msg->has_hash())
+   if (msg->has_hash() && msg->hash().size() != 0)
    {
       auto idstr = msg->hash();
       id.copyFrom(idstr);
@@ -1120,6 +1124,9 @@ void WalletGroup::registerAddresses(
    for (int i=0; i<msg->bindata_size(); i++)
    {
       auto& scrAddr = msg->bindata(i);
+      if (scrAddr.size() == 0)
+         continue;
+
       BinaryDataRef scrAddrRef; scrAddrRef.setRef(scrAddr);
 
       if (addrMap->find(scrAddrRef) != addrMap->end())
