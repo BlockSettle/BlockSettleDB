@@ -48,12 +48,8 @@ if(NOT MSVC)
     )
 endif()
 
-if(WIN32)
-    # TODO: fix cryptopp build on windows
-    option(WITH_CRYPTOPP "use Crypto++ crypto functions" OFF)
-else()
-    option(WITH_CRYPTOPP "use Crypto++ crypto functions" ON)
-endif()
+# TODO: fix cryptopp build
+option(WITH_CRYPTOPP "use Crypto++ crypto functions" OFF)
 
 unset(LIBARMORYCOMMON_SOURCES)
 unset(LIBARMORYCOMMON_COMPILE_DEFINITIONS)
@@ -192,7 +188,9 @@ list(APPEND LIBARMORYCOMMON_SOURCES
     TxEvalState.cpp
     txio.cpp
     UniversalTimer.cpp
+    WalletHeader.cpp
     WalletManager.cpp
+    WalletFileInterface.cpp
     Wallets.cpp
     WebSocketClient.cpp
     WebSocketMessage.cpp
