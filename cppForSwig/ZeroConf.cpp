@@ -48,8 +48,29 @@ Tx ZeroConfContainer::getTxByHash(const BinaryData& txHash) const
    if (txiter == txmap.end())
       return Tx();
 
-   return txiter->second->tx_;
+   auto txCopy = txiter->second->tx_;
+   
+   //get zc outpoints id
+   for (unsigned i=0; i<txCopy.getNumTxIn(); i++)
+   {
+      auto&& txin = txCopy.getTxInCopy(i);
+      auto&& op = txin.getOutPoint();
+
+      auto opIter = txhashmap.find(op.getTxHashRef());
+      if (opIter == txhashmap.end())
+      {
+         txCopy.pushBackOpId(0);
+         continue;
+      }
+
+      BinaryRefReader brr(opIter->second);
+      brr.advance(2);
+      txCopy.pushBackOpId(brr.get_uint32_t(BE));
+   }
+
+   return txCopy;
 }
+
 ///////////////////////////////////////////////////////////////////////////////
 bool ZeroConfContainer::hasTxByHash(const BinaryData& txHash) const
 {
@@ -1029,6 +1050,9 @@ void ZeroConfContainer::preprocessTx(ParsedTx& tx) const
       auto scriptLen = brr.get_var_int();
       auto scriptRef = brr.get_BinaryDataRef(scriptLen);
       txOut.scrAddr_ = move(BtcUtils::getTxOutScrAddr(scriptRef));
+
+      txOut.offset_ = offset;
+      txOut.len_ = len;
    }
 
    tx.isRBF_ = tx.tx_.isRBF();

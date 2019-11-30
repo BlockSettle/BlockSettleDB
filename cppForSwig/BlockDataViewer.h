@@ -209,6 +209,9 @@ public:
       getAddressOutpoints(const std::set<BinaryDataRef>&, 
          unsigned&, unsigned&) const;
 
+   std::vector<std::pair<StoredTxOut, BinaryDataRef>> getOutputsForOutpoints(
+      const std::map<BinaryDataRef, std::set<unsigned>>&, bool) const;
+
 protected:
    std::atomic<bool> rescanZC_;
 

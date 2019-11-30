@@ -336,6 +336,14 @@ public:
    //returns tx weight in bytes
    size_t getTxWeight(void) const;
 
+   const std::vector<uint32_t> getOpIdVec(void) const
+   { return outpointIdVec_; }
+
+   void pushBackOpId(uint32_t id) 
+   { outpointIdVec_.push_back(id); }
+
+   unsigned getZcIndex(void) const;
+
 private:
    // Full copy of the serialized tx
    BinaryData    dataCopy_;
@@ -352,6 +360,7 @@ private:
    std::vector<size_t> offsetsTxIn_;
    std::vector<size_t> offsetsTxOut_;
    std::vector<size_t> offsetsWitness_;
+   std::vector<uint32_t> outpointIdVec_;
 
    uint32_t      txTime_ = 0;
 

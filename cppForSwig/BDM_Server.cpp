@@ -716,6 +716,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
          txPtr->set_height(tx.getTxHeight());
          txPtr->set_txindex(tx.getTxIndex());
+
+         for (auto& opID : tx.getOpIdVec())
+            txPtr->add_opid(opID);
       }
 
       return response;
@@ -1459,7 +1462,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
                id #0 -> spender hash & height #3
                id #1 -> spender hash & height #4
 
-         outputs that aren't spent have are passed a <hash, height> pair with an empty
+         outputs that aren't spent are passed as a <hash, height> pair with an empty
          spender hash and height set to 0.
       */
 
@@ -1553,26 +1556,35 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       return response;
    }
 
-   case Methods::getOutputsForOutpoints:
+   case Methods::getSpentnessForZcOutputs:
    {
       /*
-      in:
-         output hash & id concatenated as:
+      in: 
+         zc output hash & id concatenated as: 
          txhash (32) | txout count (varint) | txout index #1 (varint) | txout index #2 ...
-
+         
       out:
-         vector<UTXO>
+         vector of pair<spender hash, spender height> as 
+         Codec_CommonTypes::ManyBinaryDataAndHeight
+         
+         The hashes are order as the outputs appear in the argument map:
+            hash #0
+               id #0 -> spender hash & height #0
+               id #1 -> spender hash & height #1
+            hash #1
+               id #0 -> spender hash & height #2
+            hash #3
+               id #0 -> spender hash & height #3
+               id #1 -> spender hash & height #4
+
+         outputs that aren't spent are passed as a <hash, height> pair with an empty
+         spender hash and height set to 0.
       */
 
-      if (command->bindata_size() == 0)
-         throw runtime_error("expected bindata for getSpentnessForOutputs");
-
-      auto response = make_shared<::Codec_Utxo::ManyUtxo>();
-
+      vector<pair<BinaryData, unsigned>> hashes;
       {
-         auto&& stxo_tx = db_->beginTransaction(STXO, LMDB::ReadOnly);
-
-         //grab all spentness data for these outputs
+         //grab all spentness data for these zc outputs
+         auto snapshot = zc_->getSnapshot();
          for (int i = 0; i < command->bindata_size(); i++)
          {
             auto& rawOutputs = command->bindata(i);
@@ -1580,33 +1592,141 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
                throw runtime_error("malformed output data");
 
             BinaryRefReader brr((const uint8_t*)rawOutputs.c_str(), rawOutputs.size());
-            auto txHashref = brr.get_BinaryDataRef(32);
+            auto txHashRef = brr.get_BinaryDataRef(32);
 
-            //get dbkey for this txhash
-            auto&& dbkey = db_->getDBKeyForHash(txHashref);
+            //get zctx
+            auto zcIter = snapshot->txHashToDBKey_.find(txHashRef);
+            if (zcIter == snapshot->txHashToDBKey_.end())
+               throw runtime_error("invalid zc hash");
 
+            auto txIter = snapshot->txMap_.find(zcIter->second);
+            if (txIter == snapshot->txMap_.end())
+               throw runtime_error("invalid zc hash");
+
+            auto& tx = txIter->second;
+
+            //TODO: harden loops running on count from client msg
+
+            //run through txout indices
+            auto outputCount = brr.get_var_int();
+            for (size_t y = 0; y < outputCount; y++)
+            {
+               //get output scrAddr
+               auto txOutIdx = brr.get_var_int();
+               auto& scrAddr = tx->outputs_[txOutIdx].scrAddr_;
+
+               //get txiopair for this scrAddr
+               auto txioMapIter = snapshot->txioMap_.find(scrAddr);
+               if (txioMapIter == snapshot->txioMap_.end())
+               {
+                  hashes.push_back({BinaryData(), 0});
+                  continue;
+               }
+
+               //create dbkey for output
+               BinaryWriter bwKey;
+               bwKey.put_BinaryData(tx->getKeyRef());
+               bwKey.put_uint16_t((uint16_t)y, BE);
+
+               //grab txio
+               auto txioIter = txioMapIter->second->find(bwKey.getData());
+               if (txioIter == txioMapIter->second->end())
+               {
+                  hashes.push_back({BinaryData(), 0});
+                  continue;
+               }
+
+               auto txRef = txioIter->second->getTxRefOfInput();
+               auto spenderKey = txRef.getDBKeyRef();
+               if (spenderKey.getSize() == 0)
+               {
+                  hashes.push_back({BinaryData(), 0});
+                  continue;
+               }
+
+               //we have a spender in this txio, resolve the hash               
+               auto spenderIter = snapshot->txMap_.find(spenderKey);
+               if (spenderIter == snapshot->txMap_.end())
+               {
+                  hashes.push_back({BinaryData(), 0});
+                  continue;
+               }
+
+               pair<BinaryData, unsigned> spenderPair;
+               spenderPair.first = spenderIter->second->getTxHash();
+               spenderPair.second = txioIter->second->getIndexOfInput();
+               hashes.emplace_back(spenderPair);
+            }
+         }
+      } 
+      
+      //create response object
+      auto response = make_shared<::Codec_CommonTypes::ManyBinaryDataAndHeight>();
+      for (auto& hashPair : hashes)
+      {
+         auto val = response->add_value();
+         val->set_data(hashPair.first.getPtr(), hashPair.first.getSize());
+         val->set_height(hashPair.second);
+      }
+
+      return response;     
+   }
+
+   case Methods::getOutputsForOutpoints:
+   {
+      /*
+      in:
+         output hash & id concatenated as:
+         txhash (32) | txout count (varint) | txout index #1 (varint) | txout index #2 ...
+         flag as bool: true to get zc outputs as well
+      out:
+         vector<UTXO>
+      */
+
+      if (command->bindata_size() == 0)
+         throw runtime_error("expected bindata for getSpentnessForOutputs");
+
+      bool withZc = command->flag();
+      vector<pair<StoredTxOut, BinaryDataRef>> result;
+      {
+         map<BinaryDataRef, set<unsigned>> outpointMap;
+         //grab the outputs pointed to by these outpoints
+         for (int i = 0; i < command->bindata_size(); i++)
+         {
+            auto& rawOutputs = command->bindata(i);
+            if (rawOutputs.size() < 33)
+               throw runtime_error("malformed output data");
+
+            BinaryRefReader brr((const uint8_t*)rawOutputs.c_str(), rawOutputs.size());
+            auto txHashRef = brr.get_BinaryDataRef(32);
+
+            auto& opSet = outpointMap[txHashRef];
             auto outputCount = brr.get_var_int();
             for (unsigned y = 0; y < outputCount; y++)
             {
                //set txout index
-               uint16_t txOutId = brr.get_var_int();;
-               StoredTxOut stxo;
-               auto stxoKey = dbkey;
-               stxoKey.append(WRITE_UINT16_BE(txOutId));
-
-               db_->getStoredTxOut(stxo, stxoKey);
-
-               auto utxoPtr = response->add_value();
-               utxoPtr->set_value(stxo.getValue());
-               utxoPtr->set_script(stxo.getScriptRef().getPtr(),
-                  stxo.getScriptRef().getSize());
-               utxoPtr->set_txheight(stxo.getHeight());
-               utxoPtr->set_txindex(stxo.txIndex_);
-               utxoPtr->set_txoutindex(stxo.txOutIndex_);
-               utxoPtr->set_txhash(txHashref.getPtr(), txHashref.getSize());
+               uint16_t txOutId = brr.get_var_int();
+               opSet.insert(txOutId);
             }
          }
+
+         result = move(getOutputsForOutpoints(outpointMap, withZc));
       }
+
+      auto response = make_shared<::Codec_Utxo::ManyUtxo>();
+      for (auto& stxoPair : result)
+      {
+         auto& stxo = stxoPair.first;
+         auto utxoPtr = response->add_value();
+         utxoPtr->set_value(stxo.getValue());
+         auto scriptRef = stxo.getScriptRef();
+         utxoPtr->set_script(scriptRef.getPtr(), scriptRef.getSize());
+         utxoPtr->set_txheight(stxo.getHeight());
+         utxoPtr->set_txindex(stxo.txIndex_);
+         utxoPtr->set_txoutindex(stxo.txOutIndex_);
+         utxoPtr->set_txhash(
+            stxoPair.second.getPtr(), stxoPair.second.getSize());
+      }   
 
       return response;
    }

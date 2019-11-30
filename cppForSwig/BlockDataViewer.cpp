@@ -237,7 +237,25 @@ Tx BlockDataViewer::getTxByHash(BinaryData const & txhash) const
 {
    StoredTx stx;
    if (db_->getStoredTx_byHash(txhash, &stx))
-      return stx.getTxCopy();
+   {
+      auto tx = stx.getTxCopy();
+      for (unsigned i=0; i<tx.getNumTxIn(); i++)
+      {
+         auto&& txin = tx.getTxInCopy(i);
+         auto&& op = txin.getOutPoint();
+         auto&& dbkey = db_->getDBKeyForHash(op.getTxHash());
+
+         auto hgtx = dbkey.getSliceRef(0, 4);
+         unsigned height;
+         auto block_id = DBUtils::hgtxToHeight(hgtx);
+         auto header = bc_->getHeaderById(block_id);
+         height = header->getBlockHeight();
+         
+         tx.pushBackOpId(height);
+      }
+
+      return tx;
+   }
    else
       return zeroConfCont_->getTxByHash(txhash);
 }
@@ -1033,6 +1051,87 @@ vector<UTXO> BlockDataViewer::getUtxosForAddress(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+vector<pair<StoredTxOut, BinaryDataRef>> BlockDataViewer::getOutputsForOutpoints(
+   const map<BinaryDataRef, set<unsigned>>& outpoints, bool withZc) const
+{
+   vector<pair<StoredTxOut, BinaryDataRef>> result;
+   shared_ptr<ZeroConfSharedStateSnapshot> zcSS = nullptr;
+   BinaryData zckey;
+   if (withZc)
+   {
+      zckey = DBUtils::heightAndDupToHgtx(0xFFFFFFFF, 0xFF);
+      zcSS = zc_->getSnapshot();
+   }
+   
+   auto&& stxo_tx = db_->beginTransaction(STXO, LMDB::ReadOnly);
+
+   for (auto& opSet : outpoints)
+   {
+      //get dbkey for this txhash
+      auto&& dbkey = db_->getDBKeyForHash(opSet.first);
+      if (dbkey.getSize() == 6)
+      {
+         for (auto& op : opSet.second)
+         {
+            //set txout index
+            pair<StoredTxOut, BinaryDataRef> stxoPair;
+            stxoPair.second = opSet.first;
+            
+            auto& stxo = stxoPair.first;
+            stxo.txOutIndex_ = op;
+            auto stxoKey = dbkey;
+            stxoKey.append(WRITE_UINT16_BE(op));
+
+            if (!db_->getStoredTxOut(stxo, stxoKey))
+               throw runtime_error("invalid outpoint");
+               
+            result.emplace_back(stxoPair);
+         }
+
+         continue;
+      }
+
+      if (!withZc || zcSS == nullptr)
+         throw runtime_error("invalid outpoint");
+
+      auto keyIter = zcSS->txHashToDBKey_.find(opSet.first);
+      if (keyIter == zcSS->txHashToDBKey_.end())
+         throw runtime_error("invalid outpoint");
+
+      auto zcIter = zcSS->txMap_.find(keyIter->second);
+      if (zcIter == zcSS->txMap_.end())
+         throw runtime_error("invalid outpoint");
+
+      auto& tx = zcIter->second;
+
+      for (auto& op : opSet.second)
+      {
+         //set txout index
+         pair<StoredTxOut, BinaryDataRef> stxoPair;
+         stxoPair.second = opSet.first;
+            
+         auto& stxo = stxoPair.first;
+         stxo.txOutIndex_ = op;
+         if (tx->outputs_.size() <= op)
+            throw runtime_error("invalid outpoint");
+
+         const auto& output = tx->outputs_[op];
+         BinaryRefReader brr(tx->tx_.getPtr(), tx->tx_.getSize());
+         brr.advance(output.offset_);
+         auto txOutRef = brr.get_BinaryDataRef(output.len_);
+            
+         stxo.unserialize(txOutRef);
+         stxo.blockHeight_ = UINT32_MAX;
+         stxo.txIndex_ = UINT16_MAX;
+         stxo.hgtX_ = zckey;
+         result.emplace_back(stxoPair);
+      }
+   }
+
+   return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 //// WalletGroup
 ////////////////////////////////////////////////////////////////////////////////
 WalletGroup::~WalletGroup()
@@ -1306,6 +1405,7 @@ vector<LedgerEntry> WalletGroup::getHistoryPage(
          const map<BinaryData, TxIOPair>& txioMap,
          uint32_t startBlock, uint32_t endBlock)->map<BinaryData, LedgerEntry>
       {
+         auto& txiomap = txioMap; //to avoid the compiler warning
          map<BinaryData, LedgerEntry> result;
          unsigned i = 0;
          for (auto& wlt_pair : localWalletMap)
