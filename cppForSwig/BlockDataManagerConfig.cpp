@@ -83,7 +83,7 @@ bool BlockDataManagerConfig::ephemeralPeers_ = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 BlockDataManagerConfig::BlockDataManagerConfig() :
-   cookie_(CryptoPRNG::generateRandom(32).toHexStr())
+   cookie_(BtcUtils::fortuna_.generateRandom(32).toHexStr())
 {
    selectNetwork(NETWORK_MODE_MAINNET);
 }

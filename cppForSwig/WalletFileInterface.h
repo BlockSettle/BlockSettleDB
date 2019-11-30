@@ -144,6 +144,7 @@ private:
    static const BinaryData keyCycleFlag_;
 
    const unsigned encrVersion_;
+   PRNG_Fortuna fortuna_;
 
 private:
    //serialization methods

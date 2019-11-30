@@ -202,13 +202,13 @@ void BlockDataViewer::shutdownNode(const string& cookie)
 ///////////////////////////////////////////////////////////////////////////////
 AsyncClient::BtcWallet BlockDataViewer::instantiateWallet(const string& id)
 {
-   return BtcWallet(*this, id);
+   return move(BtcWallet(*this, id));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 Lockbox BlockDataViewer::instantiateLockbox(const string& id)
 {
-   return Lockbox(*this, id);
+   return move(Lockbox(*this, id));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -706,7 +706,7 @@ string AsyncClient::BtcWallet::registerAddresses(
    command->set_flag(isNew);
    command->set_walletid(walletID_);
 
-   auto&& registrationId = CryptoPRNG::generateRandom(5).toHexStr();
+   auto&& registrationId = BtcUtils::fortuna_.generateRandom(5).toHexStr();
    command->set_hash(registrationId);
 
    for (auto& addr : addrVec)
@@ -724,7 +724,7 @@ string AsyncClient::BtcWallet::setUnconfirmedTarget(unsigned confTarget)
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
 
-   auto&& registrationId = CryptoPRNG::generateRandom(5).toHexStr();
+   auto&& registrationId = BtcUtils::fortuna_.generateRandom(5).toHexStr();
    command->set_hash(registrationId);
    command->set_height(confTarget);
 
@@ -916,7 +916,7 @@ string AsyncClient::Lockbox::registerAddresses(
    command->set_flag(isNew);
    command->set_walletid(walletID_);
    
-   auto&& registrationId = CryptoPRNG::generateRandom(5).toHexStr();
+   auto&& registrationId = BtcUtils::fortuna_.generateRandom(5).toHexStr();
    command->set_hash(registrationId);
 
    for (auto& addr : addrVec)

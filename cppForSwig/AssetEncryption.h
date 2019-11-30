@@ -107,6 +107,7 @@ class Cipher
    ***/
 
 private:
+   const static PRNG_Fortuna fortuna_;
    const CipherType type_;
 
 protected:

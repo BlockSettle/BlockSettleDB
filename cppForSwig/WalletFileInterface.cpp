@@ -326,7 +326,7 @@ BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
 
    /* encryption leg */
       //generate IV
-      auto&& iv = CryptoPRNG::generateRandom(
+      auto&& iv = BtcUtils::fortuna_.generateRandom(
          Cipher::getBlockSize(CipherType_AES));
 
       //AES_CBC (hmac | payload)
@@ -1348,7 +1348,7 @@ void WalletIfaceTransaction::closeTx()
    while (true)
    {
       stringstream ss;
-      ss << "compactCopy-" << CryptoPRNG::generateRandom(12).toHexStr();
+      ss << "compactCopy-" << dbPtr_->fortuna_.generateRandom(16).toHexStr();
       auto fullpath = basePath;
       DBUtils::appendPath(fullpath, ss.str());
       
@@ -1370,7 +1370,7 @@ void WalletIfaceTransaction::closeTx()
    while (true)
    {
       stringstream ss;
-      ss << "swapOld-" << CryptoPRNG::generateRandom(12).toHexStr();
+      ss << "swapOld-" << dbPtr_->fortuna_.generateRandom(16).toHexStr();
       auto fullpath = basePath;
       DBUtils::appendPath(fullpath, ss.str());
 
