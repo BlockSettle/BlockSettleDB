@@ -103,7 +103,6 @@ struct InsertData
    BinaryData key_;
    BothBinaryDatas value_;
    bool write_ = true;
-   bool wipe_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,10 +179,10 @@ protected:
    {
       unsigned counter_ = 1;
       bool commit_;
-      std::unique_ptr<std::unique_lock<std::mutex>> writeLock_;
+      std::unique_ptr<std::unique_lock<std::recursive_mutex>> writeLock_;
 
       std::function<void(const BinaryData&, BothBinaryDatas&)> insertLbd_;
-      std::function<void(const BinaryData&, bool)> eraseLbd_;
+      std::function<void(const BinaryData&)> eraseLbd_;
       std::function<const std::shared_ptr<InsertData>&(const BinaryData&)> 
          getDataLbd_;
       
@@ -194,10 +193,11 @@ protected:
    {
       unsigned txCount_ = 0;
       std::map<std::thread::id, std::shared_ptr<ParentTx>> txMap_;
-      std::mutex writeMutex_;
-
       unsigned txCount(void) const { return txCount_; }
    };
+
+public:
+   static std::recursive_mutex writeMutex_;
 
 protected:
    //<dbName, <thread id, <counter, mode>>>
@@ -212,7 +212,6 @@ public:
    virtual void insert(const BinaryData&, const BinaryData&) = 0;
    virtual void insert(const BinaryData&, SecureBinaryData&) = 0;
    virtual void erase(const BinaryData&) = 0;
-   virtual void wipe(const BinaryData&) = 0;
 
    virtual const BinaryDataRef getDataRef(const BinaryData&) const = 0;
    virtual std::shared_ptr<DBIfaceIterator> getIterator() const = 0;
@@ -243,7 +242,7 @@ private:
    std::map<BinaryData, unsigned> keyToDataMap_;
 
    std::function<void(const BinaryData&, BothBinaryDatas&)> insertLbd_;
-   std::function<void(const BinaryData&, bool)> eraseLbd_;
+   std::function<void(const BinaryData&)> eraseLbd_;
    std::function<const std::shared_ptr<InsertData>&(const BinaryData&)> 
       getDataLbd_;
 
@@ -251,7 +250,7 @@ private:
 
 private:
    static bool insertTx(WalletIfaceTransaction*);
-   static std::unique_ptr<std::unique_lock<std::mutex>> eraseTx(
+   static std::unique_ptr<std::unique_lock<std::recursive_mutex>> eraseTx(
       WalletIfaceTransaction*);
    
    void closeTx(void);
@@ -267,7 +266,6 @@ public:
    void insert(const BinaryData&, const BinaryData&) override;
    void insert(const BinaryData&, SecureBinaryData&) override;
    void erase(const BinaryData&) override;
-   void wipe(const BinaryData&) override;
 
    //get routines
    const BinaryDataRef getDataRef(const BinaryData&) const override;
@@ -303,7 +301,6 @@ public:
    void insert(const BinaryData&, const BinaryData&) override;
    void insert(const BinaryData&, SecureBinaryData&) override;
    void erase(const BinaryData&) override;
-   void wipe(const BinaryData&) override;
 
    //get routines
    const BinaryDataRef getDataRef(const BinaryData&) const override;
@@ -386,6 +383,7 @@ struct MasterKeyStruct;
 ////
 class WalletDBInterface
 {
+   friend class DBIfaceTransaction;
    friend class WalletIfaceTransaction;
 
 private:
@@ -408,6 +406,7 @@ private:
    std::unique_ptr<EncryptedSeed> controlSeed_;
 
    unsigned encryptionVersion_ = UINT32_MAX;
+   PRNG_Fortuna fortuna_;
 
 private:
    //control objects loading
@@ -432,6 +431,8 @@ private:
    void openDbEnv(void);
    void openEnv(void);
    void closeEnv(void);
+
+   void compactFile();
 
 public:
    //tors
@@ -465,6 +466,8 @@ public:
    //utils
    void lockControlContainer(const PassphraseLambda&);
    void unlockControlContainer(void);
+   void changeMasterPassphrase(
+      const SecureBinaryData& newPassphrase, const PassphraseLambda& passLbd);
 };
 
 #endif

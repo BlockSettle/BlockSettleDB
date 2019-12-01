@@ -696,77 +696,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
       WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
       EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
    }
-
-   /***********/
    
-   //check concurrent writes to different dbs do not hold each other up
-   auto&& controlSalt2 = CryptoPRNG::generateRandom(32);
-   string dbName2("test2");
-
-   auto dbIface2 = make_shared<DBInterface>(
-      dbEnv.get(), dbName2, controlSalt2, ENCRYPTION_TOPLAYER_VERSION);
-
-   //setup new db
-   ASSERT_EQ(dbIface2->getEntryCount(), 0);
-   dbIface2->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface2->getEntryCount(), 0);
-
-   map<BinaryData, BinaryData> dataMap3;
-   for (unsigned i=0; i<30; i++)
-   {
-      dataMap3.insert(make_pair(
-         CryptoPRNG::generateRandom(20),
-         CryptoPRNG::generateRandom(64)));
-   }
-
-   map<BinaryData, BinaryData> dataMap4;
-   for (unsigned i=0; i<10; i++)
-   {
-      dataMap4.insert(make_pair(
-         CryptoPRNG::generateRandom(25),
-         CryptoPRNG::generateRandom(64)));
-   }
-
-   auto writeThread3 = [&](void)->void
-   {
-      WalletIfaceTransaction tx(nullptr, dbIface2.get(), true);
-
-      //check db is empty
-      EXPECT_EQ(checkDbValues(&tx, dataMap3), dataMap3.size());
-
-      //write data
-      auto mapToWrite = dataMap3;
-      for (auto& dataPair : mapToWrite)
-         tx.insert(dataPair.first, dataPair.second);
-
-      //verify it
-      EXPECT_EQ(checkDbValues(&tx, dataMap3), 0);
-   };
-
-   //start main thread write on first db
-   {
-      //create write tx in main thread
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
-
-      thread writeThr2(writeThread3);
-
-      //write content
-      auto mapToWrite = dataMap4;
-      for (auto& dataPair : mapToWrite)
-         tx.insert(dataPair.first, dataPair.second);
-
-      //verify
-      finalMap.insert(dataMap4.begin(), dataMap4.end());
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
-      
-      //wait on write thread before closing this tx
-      writeThr2.join();
-
-      //check db2 state
-      WalletIfaceTransaction tx2(nullptr, dbIface2.get(), false);
-      EXPECT_EQ(checkDbValues(&tx2, dataMap3), 0);
-   }
-
    /***********/
 
    //check read tx consistency while write tx is live
@@ -1537,7 +1467,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       tx.insert(key4, valToWrite);
       valToWrite = val6;
       tx.insert(key3, valToWrite);
-      tx.wipe(key1);
+      tx.erase(key1);
 
       auto key1Data = tx.getDataRef(key1);
       EXPECT_EQ(key1Data.getSize(), 0);
@@ -3847,6 +3777,143 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
 
    ASSERT_FALSE(TestUtils::searchFile(filename, newIVs[0]));
    ASSERT_FALSE(TestUtils::searchFile(filename, newPrivKeys[0]));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, ChangeControlPassphrase_Test)
+{
+      
+   SecureBinaryData newPass("newpass");
+
+   //create wallet
+   string filename;
+   {
+      auto&& wltRoot = CryptoPRNG::generateRandom(32);
+      auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
+         homedir_,
+         wltRoot, //root as a r value
+         { 0x80000064, 0x80000080, 0 },
+         SecureBinaryData("test"), //set passphrase to "test"
+         SecureBinaryData("control"),
+         40); //set lookup computation to 4 entries
+
+      filename = assetWlt->getDbFilename();
+
+      //change control pass
+      auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+      {
+         return SecureBinaryData("control");
+      };
+      assetWlt->changeControlPassphrase(newPass, passLbd);
+
+      //close wallet by scoping out
+   }
+
+   //open with old pass, should fail
+   unsigned oldCounter = 0;
+   auto oldPassLbd = [&oldCounter](const set<BinaryData>&)->SecureBinaryData
+   {
+      while (oldCounter++ < 10)
+         return SecureBinaryData("control");
+      return SecureBinaryData();
+   };
+
+   try
+   {
+      auto wlt = AssetWallet::loadMainWalletFromFile(filename, oldPassLbd);
+      ASSERT_FALSE(true);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("empty passphrase"));
+      EXPECT_EQ(oldCounter, 11);
+   }
+
+   //open with any/empty pass, should fail
+   unsigned counter = 0;
+   auto anyPassLbd = [&counter](const set<BinaryData>&)->SecureBinaryData
+   {
+      while (counter++ < 10)
+         return BtcUtils::fortuna_.generateRandom(20);
+      return SecureBinaryData();
+   };
+
+   try
+   {
+      auto wlt = AssetWallet::loadMainWalletFromFile(filename, anyPassLbd);
+      ASSERT_FALSE(true);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("empty passphrase"));
+      EXPECT_EQ(counter, 11);
+   }
+
+   //open with new pass, should work
+   auto newPassLbd = [&newPass](const set<BinaryData>&)->SecureBinaryData
+   {
+      return newPass;
+   };
+
+   try
+   {
+      auto wlt = AssetWallet::loadMainWalletFromFile(filename, newPassLbd);
+      //change pass again from the loaded wallet
+      SecureBinaryData newPass2("second-pass");
+      wlt->changeControlPassphrase(newPass2, newPassLbd);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      ASSERT_FALSE(true);
+   }
+
+   //open with old pass, should fail
+   oldCounter = 0;
+   auto oldPassLbd2 = [&oldCounter, &newPass](const set<BinaryData>&)->SecureBinaryData
+   {
+      while (oldCounter++ < 10)
+         return newPass;
+      return SecureBinaryData();
+   };
+
+   try
+   {
+      auto wlt = AssetWallet::loadMainWalletFromFile(filename, oldPassLbd2);
+      ASSERT_FALSE(true);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("empty passphrase"));
+      EXPECT_EQ(oldCounter, 11);
+   }
+
+   //open with any/empty pass, should fail
+   counter = 0;
+   try
+   {
+      auto wlt = AssetWallet::loadMainWalletFromFile(filename, anyPassLbd);
+      ASSERT_FALSE(true);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("empty passphrase"));
+      EXPECT_EQ(counter, 11);
+   }
+
+   //open with new pass, should work
+   auto newPassLbd2 = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData("second-pass");
+   };
+
+   try
+   {
+      auto wlt = AssetWallet::loadMainWalletFromFile(filename, newPassLbd2);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      ASSERT_FALSE(true);
+   }  
 }
 
 ////////////////////////////////////////////////////////////////////////////////

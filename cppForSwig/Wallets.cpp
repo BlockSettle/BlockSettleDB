@@ -775,6 +775,13 @@ map<BinaryData, shared_ptr<AddressEntry>> AssetWallet::getUsedAddressMap() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::changeControlPassphrase(
+   const SecureBinaryData& newPassphrase, const PassphraseLambda& passLbd)
+{
+   iface_->changeMasterPassphrase(newPassphrase, passLbd);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// AssetWallet_Single
 ////////////////////////////////////////////////////////////////////////////////
@@ -1607,8 +1614,8 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
 void AssetWallet_Single::changeMasterPassphrase(
    const SecureBinaryData& newPassphrase)
 {
-   auto&& masterKeyId = root_->getPrivateEncryptionKeyId();
-   auto&& kdfId = root_->getKdfId();
+   auto&& masterKeyId = decryptedData_->getMasterEncryptionKeyId();
+   auto&& kdfId = decryptedData_->getDefaultKdfId();
 
    decryptedData_->encryptEncryptionKey(
       masterKeyId, kdfId, newPassphrase, true);
