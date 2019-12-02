@@ -65,6 +65,7 @@ enum Methods
 	getOutpointsForAddresses = 82;
 	getUTXOsForAddress = 83;
 	getSpentnessForOutputs = 84;
+	getSpentnessForZcOutputs = 85;
 
 	getNodeStatus = 90;
 	estimateFee = 91;

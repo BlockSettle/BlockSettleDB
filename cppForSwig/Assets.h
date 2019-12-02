@@ -521,10 +521,10 @@ public:
 class AssetEntry_BIP32Root : public AssetEntry_Single
 {
 private:
+   const SecureBinaryData chaincode_;
    const uint8_t depth_;
    const unsigned leafID_;
    const unsigned fingerPrint_;
-   const SecureBinaryData chaincode_;
 
 public:
    //tors

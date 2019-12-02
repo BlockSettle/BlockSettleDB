@@ -192,7 +192,7 @@ int mkdir_p(const char *path)
 
 ////////////////////////////////////////////////////////////////////////////////
 BlockDataManagerConfig::BlockDataManagerConfig() :
-   cookie_(CryptoPRNG::generateRandom(32).toHexStr())
+   cookie_(BtcUtils::fortuna_.generateRandom(32).toHexStr())
 {
    selectNetwork(NETWORK_MODE_MAINNET);
 }

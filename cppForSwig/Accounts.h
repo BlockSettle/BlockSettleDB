@@ -514,13 +514,13 @@ private:
    BinaryData id_;
    BinaryData parent_id_;
 
+   std::shared_ptr<AssetEntry> root_;
+   std::shared_ptr<DerivationScheme> derScheme_;
+
    std::shared_ptr<WalletDBInterface> iface_;
    const std::string dbName_;
 
-   std::shared_ptr<AssetEntry> root_;
-   std::shared_ptr<DerivationScheme> derScheme_;
    std::map<unsigned, std::shared_ptr<AssetEntry>> assets_;
-
    unsigned lastUsedIndex_ = UINT32_MAX;
 
    //<assetID, <address type, prefixed address hash>>

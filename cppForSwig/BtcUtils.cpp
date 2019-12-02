@@ -16,6 +16,7 @@ using namespace std;
 const BinaryData BtcUtils::BadAddress_ = BinaryData::CreateFromHex("0000000000000000000000000000000000000000");
 const BinaryData BtcUtils::EmptyHash_  = BinaryData::CreateFromHex("0000000000000000000000000000000000000000000000000000000000000000");
 const string BtcUtils::base64Chars_ = string("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
+const PRNG_Fortuna BtcUtils::fortuna_;
 
 ////////////////////////////////////////////////////////////////////////////////
 const map<char, uint8_t> BtcUtils::base64Vals_ = {

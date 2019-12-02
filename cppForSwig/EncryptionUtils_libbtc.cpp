@@ -11,14 +11,17 @@
 #include "btc/ecc.h"
 #include "btc/sha2.h"
 #include "btc/ripemd160.h"
+#include "btc/ctaes.h"
 
 using namespace std;
 
 #define CRYPTO_DEBUG false
 
 /////////////////////////////////////////////////////////////////////////////
+//// CryptoPRNG
+/////////////////////////////////////////////////////////////////////////////
 SecureBinaryData CryptoPRNG::generateRandom(uint32_t numBytes,
-   SecureBinaryData extraEntropy)
+   const SecureBinaryData& extraEntropy)
 {
    SecureBinaryData sbd(numBytes);
    btc_random_init();
@@ -31,6 +34,105 @@ SecureBinaryData CryptoPRNG::generateRandom(uint32_t numBytes,
    return sbd;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+//// PRNG_Fortuna
+/////////////////////////////////////////////////////////////////////////////
+PRNG_Fortuna::PRNG_Fortuna()
+{
+   reseed();
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void PRNG_Fortuna::reseed() const
+{
+   nBytes_.store(0, memory_order_relaxed);
+   auto rng = CryptoPRNG::generateRandom(32);
+
+   unsigned char digest[32];
+   sha256_Raw(rng.getPtr(), rng.getSize(), digest);
+   sha256_Raw(digest, 32, digest);
+
+   auto newKey = make_shared<SecureBinaryData>(digest, 32);
+   atomic_store_explicit(&key_, newKey, memory_order_relaxed);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+SecureBinaryData PRNG_Fortuna::generateRandom(uint32_t numBytes,
+   const SecureBinaryData& extraEntropy) const
+{
+   size_t blockCount = numBytes / AES_BLOCK_SIZE;
+   size_t spill = numBytes % AES_BLOCK_SIZE;
+   SecureBinaryData result(numBytes);
+
+   unsigned char plainText[AES_BLOCK_SIZE];
+   memset(&plainText, 0, AES_BLOCK_SIZE);
+
+   //setup AES object, seed with key_
+   auto keyPtr = atomic_load_explicit(&key_, memory_order_relaxed);
+   AES256_ctx aes_ctx;
+   AES256_init(&aes_ctx, keyPtr->getPtr());
+
+   //main body
+   for (unsigned i=0; i<blockCount; i++)
+   {
+      //set counters in plain text block
+      for (unsigned y=0; y<4; y++)
+      {
+         auto ptr = (uint32_t*)plainText;
+         *ptr = counter_.fetch_add(1, memory_order_relaxed);
+      }
+
+      //encrypt counters with key
+      auto resultPtr = result.getPtr() + (i * AES_BLOCK_SIZE);
+      AES256_encrypt(&aes_ctx, 1, resultPtr, plainText);
+
+      //xor with extra entropy if available
+      if (extraEntropy.getSize() >= (i + 1) * AES_BLOCK_SIZE)
+      {
+         auto entropyPtr = extraEntropy.getPtr() + (i * AES_BLOCK_SIZE);
+         for (unsigned z=0; z<AES_BLOCK_SIZE; z++)
+            resultPtr[z] ^= entropyPtr[z];
+      }
+   }
+
+   //return if we have no spill
+   if (spill > 0)
+   {
+      //deal with spill block
+      for (unsigned y=0; y<4; y++)
+      {
+         auto ptr = (uint32_t*)plainText;
+         *ptr = counter_.fetch_add(1, memory_order_relaxed);
+      }
+
+      unsigned char lastBlock[AES_BLOCK_SIZE];
+      AES256_encrypt(&aes_ctx, 1, lastBlock, plainText); 
+      
+      if (extraEntropy.getSize() >= numBytes)
+      {
+         auto entropyPtr = 
+            extraEntropy.getPtr() + blockCount * AES_BLOCK_SIZE;
+
+         for (unsigned z=0; z<spill; z++)
+            lastBlock[z] ^= entropyPtr[z];
+      }
+
+      memcpy(result.getPtr() + blockCount * AES_BLOCK_SIZE,
+         lastBlock, spill);
+   }
+
+   //update size counter
+   nBytes_.fetch_add(numBytes, memory_order_relaxed);
+
+   //reseed after 1MB
+   if (nBytes_.load(memory_order_relaxed) >= 1048576)
+      reseed();
+
+   return result;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//// CryptoAES
 /////////////////////////////////////////////////////////////////////////////
 // Implement AES encryption using AES mode, CFB
 SecureBinaryData CryptoAES::EncryptCFB(const SecureBinaryData & data, 
@@ -215,6 +317,8 @@ bool CryptoECDSA::VerifyPublicKeyValid(SecureBinaryData const & pubKey)
    return btc_pubkey_is_valid(&key);
 }
 
+/////////////////////////////////////////////////////////////////////////////
+//// CryptoECDSA
 /////////////////////////////////////////////////////////////////////////////
 // Use the secp256k1 curve to sign data of an arbitrary length.
 // Input:  Data to sign  (const SecureBinaryData&)
@@ -444,6 +548,8 @@ SecureBinaryData CryptoECDSA::PubKeyScalarMultiply(
    return result;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+//// CryptoSHA2
 ////////////////////////////////////////////////////////////////////////////////
 void CryptoSHA2::getHash256(BinaryDataRef bdr, uint8_t* digest)
 {
@@ -479,6 +585,8 @@ void CryptoSHA2::getHMAC512(BinaryDataRef data, BinaryDataRef msg,
       digest);
 }
 
+/////////////////////////////////////////////////////////////////////////////
+//// CryptoHASH160
 ////////////////////////////////////////////////////////////////////////////////
 void CryptoHASH160::getHash160(BinaryDataRef bdr, uint8_t* digest)
 {

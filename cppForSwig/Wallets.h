@@ -170,6 +170,9 @@ public:
    std::shared_ptr<DBIfaceTransaction> beginSubDBTransaction(
       const std::string&, bool);
 
+   void changeControlPassphrase(const SecureBinaryData& newPassphrase,
+      const PassphraseLambda&);
+
    //virtual
    virtual std::set<BinaryData> getAddrHashSet();
    virtual const SecureBinaryData& getDecryptedValue(

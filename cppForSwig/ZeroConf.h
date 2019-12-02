@@ -111,6 +111,9 @@ struct ParsedTxOut
    BinaryData scrAddr_;
    uint64_t value_ = UINT64_MAX;
 
+   size_t offset_;
+   size_t len_;
+
    bool isInitialized(void) const
    {
       return scrAddr_.getSize() != 0 && value_ != UINT64_MAX; \

@@ -79,7 +79,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
 
       //is it a ledger from a delegate?
-      if (command->has_delegateid())
+      if (command->has_delegateid() && command->delegateid().size() != 0)
       {
          auto delegateIter = delegateMap_.find(command->delegateid());
          if (delegateIter != delegateMap_.end())
@@ -94,7 +94,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
             return toLedgerEntryVector(retVal);
          }
       }
-      else if(command->has_walletid())
+      else if(command->has_walletid() && command->walletid().size() != 0)
       {
          auto& wltID = command->walletid();
          BinaryDataRef wltIDRef; wltIDRef.setRef(wltID);
@@ -117,7 +117,12 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
    case Methods::getPageCountForLedgerDelegate:
    {
-      if (!command->has_delegateid())
+      /*
+         in: delegateID 
+         out: Codec_CommonTypes::OneUnsigned
+      */
+
+      if (!command->has_delegateid() || command->delegateid().size() == 0)
          throw runtime_error(
             "invalid command for getPageCountForLedgerDelegate");
 
@@ -145,8 +150,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       out: void, registration completion is signaled by callback
       */
-      if (!command->has_walletid())
-         throw runtime_error("invalid command for registerWallet");
+      if (!command->has_walletid() || command->walletid().size() == 0)
+         throw runtime_error("malformed registerWallet command");
 
       this->registerWallet(command);
       break;
@@ -156,8 +161,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
    {
       /* see registerWallet */
 
-      if (!command->has_walletid())
-         throw runtime_error("invalid command for registerLockbox");
+      if (!command->has_walletid() || command->walletid().size() == 0)
+         throw runtime_error("malformed registerLockbox command");
 
       this->registerLockbox(command);
       break;
@@ -208,9 +213,13 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for getLedgerDelegateForScrAddr");
 
       auto& walletId = command->walletid();
+      if (walletId.size() == 0)
+         throw runtime_error("invalid wallet id size");
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       auto& scrAddr = command->scraddr();
+      if (scrAddr.size() == 0 || scrAddr.size() > 33) 
+         throw runtime_error("invalid addr size");
       BinaryData addr; addr.copyFrom(scrAddr);
 
       auto&& ledgerdelegate =
@@ -236,6 +245,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for getBalancesAndCount");
 
       auto& walletId = command->walletid();
+      if (walletId.size() == 0)
+         throw runtime_error("invalid wallet id size");
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
@@ -274,6 +285,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for setWalletConfTarget");
 
       auto& walletId = command->walletid();
+      if (walletId.size() == 0)
+         throw runtime_error("invalid wallet id size");
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
@@ -306,6 +319,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for getSpendableTxOutListForValue");
 
       auto& walletId = command->walletid();
+      if (walletId.size() == 0)
+         throw runtime_error("invalid wallet id size");
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
@@ -349,6 +364,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for getSpendableZCList");
 
       auto& walletId = command->walletid();
+      if (walletId.size() == 0)
+         throw runtime_error("invalid wallet id size");
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
@@ -391,6 +408,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for getSpendableZCList");
 
       auto& walletId = command->walletid();
+      if (walletId.size() == 0)
+         throw runtime_error("invalid size for wallet id");
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
@@ -434,6 +453,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for getSpendableZCList");
 
       auto& walletId = command->walletid();
+      if (walletId.size() == 0)
+         throw runtime_error("invalid wallet id size");
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
@@ -448,7 +469,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("unknown wallet or lockbox ID");
 
       auto& scrAddr = command->scraddr();
+      if (scrAddr.size() == 0 || scrAddr.size() > 33)
+         throw runtime_error("invalid addr size");
       BinaryDataRef scrAddrRef((uint8_t*)scrAddr.data(), scrAddr.size());
+
       auto addrObj = wltPtr->getScrAddrObjByKey(scrAddrRef);
 
       auto spentByZC = [this](const BinaryData& dbkey)->bool
@@ -488,6 +512,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       };
 
       auto&& rawTx = command->bindata(0);
+      if (rawTx.size() == 0)
+         throw runtime_error("invalid tx size");
       BinaryData rawTxBD((uint8_t*)rawTx.data(), rawTx.size());
       thread thr(broadcastLBD, move(rawTxBD));
       if (thr.joinable())
@@ -507,6 +533,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for getSpendableZCList");
 
       auto& walletId = command->walletid();
+      if (walletId.size() == 0)
+         throw runtime_error("invalid wallet id size");
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
@@ -545,6 +573,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for getSpendableZCList");
 
       auto& walletId = command->walletid();
+      if (walletId.size() == 0)
+         throw runtime_error("invalid wallet id size");
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
@@ -595,6 +625,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       Tx retval;
       auto& txHash = command->hash();
+      if (txHash.size() != 32)
+         throw runtime_error("invalid hash size");
       BinaryDataRef txHashRef; txHashRef.setRef(txHash);
 
       if (!heightOnly)
@@ -684,6 +716,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
          txPtr->set_height(tx.getTxHeight());
          txPtr->set_txindex(tx.getTxIndex());
+
+         for (auto& opID : tx.getOpIdVec())
+            txPtr->add_opid(opID);
       }
 
       return response;
@@ -702,6 +737,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       auto& scrAddr = command->scraddr();
       BinaryDataRef scrAddrRef; scrAddrRef.setRef(scrAddr);
+      if (scrAddrRef.getSize() == 0 || scrAddrRef.getSize() > 33)
+         throw runtime_error("invalid addr size");
+
       auto&& retval = this->getAddrFullBalance(scrAddrRef);
 
       auto response = make_shared<::Codec_CommonTypes::OneUnsigned>();
@@ -721,6 +759,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       auto& scrAddr = command->scraddr();
       BinaryDataRef scrAddrRef; scrAddrRef.setRef(scrAddr);
+      if (scrAddrRef.getSize() == 0 || scrAddrRef.getSize() > 33)
+         throw runtime_error("invalid addr size");
+
       auto&& retval = this->getAddrFullBalance(scrAddrRef);
 
       auto response = make_shared<::Codec_CommonTypes::OneUnsigned>();
@@ -757,6 +798,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for createAddressBook");
 
       auto& walletId = command->walletid();
+      if (walletId.size() == 0)
+         throw runtime_error("invalid wallet id size");
       BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
       auto wltPtr = getWalletOrLockbox(walletIdRef);
       if (wltPtr == nullptr)
@@ -789,8 +832,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& val = command->bindata(i);
-         BinaryData valRef((uint8_t*)val.data(), val.size());
-         bdVec.push_back(valRef);
+         if (val.size() == 0)
+            continue;
+         BinaryData valBd((uint8_t*)val.data(), val.size());
+         bdVec.push_back(valBd);
       }
 
       this->updateWalletsLedgerFilter(bdVec);
@@ -892,8 +937,11 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
-         BinaryData idRef((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idRef);
+         if (id.size() == 0)
+            continue;
+
+         BinaryData idBd((uint8_t*)id.data(), id.size());
+         wltIDs.push_back(idBd);
       }
 
       auto orderingFlag = command->flag();
@@ -932,6 +980,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for broadcastThroughRPC");
 
       auto& rawTx = command->bindata(0);
+      if (rawTx.size() == 0)
+         throw runtime_error("invalid tx size");
       BinaryDataRef rawTxRef; rawTxRef.setRef(rawTx);
 
       auto&& response =
@@ -958,6 +1008,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          throw runtime_error("invalid command for getHeaderByHash");
 
       auto& txHash = command->hash();
+      if (txHash.size() != 32)
+         throw runtime_error("invalid hash size");
       BinaryDataRef txHashRef; txHashRef.setRef(txHash);
 
       auto&& dbKey = this->db_->getDBKeyForHash(txHashRef);
@@ -1005,8 +1057,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
-         BinaryData idRef((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idRef);
+         if (id.size() == 0)
+            continue;
+         BinaryData idBd((uint8_t*)id.data(), id.size());
+         wltIDs.push_back(idBd);
       }
       
       uint32_t height = getTopBlockHeader()->getBlockHeight();
@@ -1063,8 +1117,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
-         BinaryData idRef((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idRef);
+         if (id.size() == 0)
+            continue;
+         BinaryData idBd((uint8_t*)id.data(), id.size());
+         wltIDs.push_back(idBd);
       }
 
       auto response = make_shared<::Codec_AddressData::ManyCombinedData>();
@@ -1125,8 +1181,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
-         BinaryData idRef((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idRef);
+         if (id.size() == 0)
+            continue;
+         BinaryData idBd((uint8_t*)id.data(), id.size());
+         wltIDs.push_back(idBd);
       }
 
       auto response = make_shared<::Codec_Utxo::ManyUtxo>();
@@ -1187,8 +1245,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
-         BinaryData idRef((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idRef);
+         if (id.size() == 0)
+            continue;
+         BinaryData idBd((uint8_t*)id.data(), id.size());
+         wltIDs.push_back(idBd);
       }
 
       auto response = make_shared<::Codec_Utxo::ManyUtxo>();
@@ -1226,7 +1286,6 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
    {
       /*
       in:
-         value
          wallet ids as bindata[]
       out:
          enough UTXOs to cover value twice, as Codec_Utxo::ManyUtxo
@@ -1241,8 +1300,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
-         BinaryData idRef((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idRef);
+         if (id.size() == 0)
+            continue;
+         BinaryData idBd((uint8_t*)id.data(), id.size());
+         wltIDs.push_back(idBd);
       }
 
       auto response = make_shared<::Codec_Utxo::ManyUtxo>();
@@ -1287,8 +1348,10 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& scrAddr = command->bindata(i);
-         BinaryDataRef scrAddrRef; scrAddrRef.setRef(scrAddr);
+         if (scrAddr.size() == 0 || scrAddr.size() > 33)
+            continue;
          
+         BinaryDataRef scrAddrRef; scrAddrRef.setRef(scrAddr);
          scrAddrSet.insert(scrAddrRef);
       }
 
@@ -1354,7 +1417,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       */
 
       auto& addr = command->scraddr();
-      if (addr.size() == 0)
+      if (addr.size() == 0 || addr.size() > 33)
          throw runtime_error("expected address for getUTXOsForAddress");
 
       BinaryDataRef scrAddr;
@@ -1399,7 +1462,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
                id #0 -> spender hash & height #3
                id #1 -> spender hash & height #4
 
-         outputs that aren't spent have are passed a <hash, height> pair with an empty
+         outputs that aren't spent are passed as a <hash, height> pair with an empty
          spender hash and height set to 0.
       */
 
@@ -1492,26 +1555,36 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       return response;
    }
-   case Methods::getOutputsForOutpoints:
+
+   case Methods::getSpentnessForZcOutputs:
    {
       /*
-      in:
-         output hash & id concatenated as:
+      in: 
+         zc output hash & id concatenated as: 
          txhash (32) | txout count (varint) | txout index #1 (varint) | txout index #2 ...
-
+         
       out:
-         vector<UTXO>
+         vector of pair<spender hash, spender height> as 
+         Codec_CommonTypes::ManyBinaryDataAndHeight
+         
+         The hashes are order as the outputs appear in the argument map:
+            hash #0
+               id #0 -> spender hash & height #0
+               id #1 -> spender hash & height #1
+            hash #1
+               id #0 -> spender hash & height #2
+            hash #3
+               id #0 -> spender hash & height #3
+               id #1 -> spender hash & height #4
+
+         outputs that aren't spent are passed as a <hash, height> pair with an empty
+         spender hash and height set to 0.
       */
 
-      if (command->bindata_size() == 0)
-         throw runtime_error("expected bindata for getSpentnessForOutputs");
-
-      auto response = make_shared<::Codec_Utxo::ManyUtxo>();
-
+      vector<pair<BinaryData, unsigned>> hashes;
       {
-         auto&& stxo_tx = db_->beginTransaction(STXO, LMDB::ReadOnly);
-
-         //grab all spentness data for these outputs
+         //grab all spentness data for these zc outputs
+         auto snapshot = zc_->getSnapshot();
          for (int i = 0; i < command->bindata_size(); i++)
          {
             auto& rawOutputs = command->bindata(i);
@@ -1519,33 +1592,141 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
                throw runtime_error("malformed output data");
 
             BinaryRefReader brr((const uint8_t*)rawOutputs.c_str(), rawOutputs.size());
-            auto txHashref = brr.get_BinaryDataRef(32);
+            auto txHashRef = brr.get_BinaryDataRef(32);
 
-            //get dbkey for this txhash
-            auto&& dbkey = db_->getDBKeyForHash(txHashref);
+            //get zctx
+            auto zcIter = snapshot->txHashToDBKey_.find(txHashRef);
+            if (zcIter == snapshot->txHashToDBKey_.end())
+               throw runtime_error("invalid zc hash");
 
+            auto txIter = snapshot->txMap_.find(zcIter->second);
+            if (txIter == snapshot->txMap_.end())
+               throw runtime_error("invalid zc hash");
+
+            auto& tx = txIter->second;
+
+            //TODO: harden loops running on count from client msg
+
+            //run through txout indices
+            auto outputCount = brr.get_var_int();
+            for (size_t y = 0; y < outputCount; y++)
+            {
+               //get output scrAddr
+               auto txOutIdx = brr.get_var_int();
+               auto& scrAddr = tx->outputs_[txOutIdx].scrAddr_;
+
+               //get txiopair for this scrAddr
+               auto txioMapIter = snapshot->txioMap_.find(scrAddr);
+               if (txioMapIter == snapshot->txioMap_.end())
+               {
+                  hashes.push_back({BinaryData(), 0});
+                  continue;
+               }
+
+               //create dbkey for output
+               BinaryWriter bwKey;
+               bwKey.put_BinaryData(tx->getKeyRef());
+               bwKey.put_uint16_t((uint16_t)y, BE);
+
+               //grab txio
+               auto txioIter = txioMapIter->second->find(bwKey.getData());
+               if (txioIter == txioMapIter->second->end())
+               {
+                  hashes.push_back({BinaryData(), 0});
+                  continue;
+               }
+
+               auto txRef = txioIter->second->getTxRefOfInput();
+               auto spenderKey = txRef.getDBKeyRef();
+               if (spenderKey.getSize() == 0)
+               {
+                  hashes.push_back({BinaryData(), 0});
+                  continue;
+               }
+
+               //we have a spender in this txio, resolve the hash               
+               auto spenderIter = snapshot->txMap_.find(spenderKey);
+               if (spenderIter == snapshot->txMap_.end())
+               {
+                  hashes.push_back({BinaryData(), 0});
+                  continue;
+               }
+
+               pair<BinaryData, unsigned> spenderPair;
+               spenderPair.first = spenderIter->second->getTxHash();
+               spenderPair.second = txioIter->second->getIndexOfInput();
+               hashes.emplace_back(spenderPair);
+            }
+         }
+      } 
+      
+      //create response object
+      auto response = make_shared<::Codec_CommonTypes::ManyBinaryDataAndHeight>();
+      for (auto& hashPair : hashes)
+      {
+         auto val = response->add_value();
+         val->set_data(hashPair.first.getPtr(), hashPair.first.getSize());
+         val->set_height(hashPair.second);
+      }
+
+      return response;     
+   }
+
+   case Methods::getOutputsForOutpoints:
+   {
+      /*
+      in:
+         output hash & id concatenated as:
+         txhash (32) | txout count (varint) | txout index #1 (varint) | txout index #2 ...
+         flag as bool: true to get zc outputs as well
+      out:
+         vector<UTXO>
+      */
+
+      if (command->bindata_size() == 0)
+         throw runtime_error("expected bindata for getSpentnessForOutputs");
+
+      bool withZc = command->flag();
+      vector<pair<StoredTxOut, BinaryDataRef>> result;
+      {
+         map<BinaryDataRef, set<unsigned>> outpointMap;
+         //grab the outputs pointed to by these outpoints
+         for (int i = 0; i < command->bindata_size(); i++)
+         {
+            auto& rawOutputs = command->bindata(i);
+            if (rawOutputs.size() < 33)
+               throw runtime_error("malformed output data");
+
+            BinaryRefReader brr((const uint8_t*)rawOutputs.c_str(), rawOutputs.size());
+            auto txHashRef = brr.get_BinaryDataRef(32);
+
+            auto& opSet = outpointMap[txHashRef];
             auto outputCount = brr.get_var_int();
             for (unsigned y = 0; y < outputCount; y++)
             {
                //set txout index
-               uint16_t txOutId = brr.get_var_int();;
-               StoredTxOut stxo;
-               auto stxoKey = dbkey;
-               stxoKey.append(WRITE_UINT16_BE(txOutId));
-
-               db_->getStoredTxOut(stxo, stxoKey);
-
-               auto utxoPtr = response->add_value();
-               utxoPtr->set_value(stxo.getValue());
-               utxoPtr->set_script(stxo.getScriptRef().getPtr(),
-                  stxo.getScriptRef().getSize());
-               utxoPtr->set_txheight(stxo.getHeight());
-               utxoPtr->set_txindex(stxo.txIndex_);
-               utxoPtr->set_txoutindex(stxo.txOutIndex_);
-               utxoPtr->set_txhash(txHashref.getPtr(), txHashref.getSize());
+               uint16_t txOutId = brr.get_var_int();
+               opSet.insert(txOutId);
             }
          }
+
+         result = move(getOutputsForOutpoints(outpointMap, withZc));
       }
+
+      auto response = make_shared<::Codec_Utxo::ManyUtxo>();
+      for (auto& stxoPair : result)
+      {
+         auto& stxo = stxoPair.first;
+         auto utxoPtr = response->add_value();
+         utxoPtr->set_value(stxo.getValue());
+         auto scriptRef = stxo.getScriptRef();
+         utxoPtr->set_script(scriptRef.getPtr(), scriptRef.getSize());
+         utxoPtr->set_txheight(stxo.getHeight());
+         utxoPtr->set_txindex(stxo.txIndex_);
+         utxoPtr->set_txoutindex(stxo.txOutIndex_);
+         utxoPtr->set_txhash(
+            stxoPair.second.getPtr(), stxoPair.second.getSize());
+      }   
 
       return response;
    }
@@ -1669,6 +1850,9 @@ void BDV_Server_Object::init()
          for (int i = 0; i < wlt.second.command_->bindata_size(); i++)
          {
             auto& addrStr = wlt.second.command_->bindata(i);
+            if (addrStr.size() == 0)
+               continue;
+
             BinaryDataRef addrRef; addrRef.setRef(addrStr);
             batch->scrAddrSet_.insert(move(addrRef));
          }
@@ -1903,9 +2087,13 @@ void BDV_Server_Object::registerWallet(
 {
    if (isReadyFuture_.wait_for(chrono::seconds(0)) != future_status::ready)
    {
+      //sanity check
+      if (!command->has_hash() || command->hash().size() == 0)
+         throw runtime_error("invalid registerWallet command");
+
       //only run this code if the bdv maintenance thread hasn't started yet
       unique_lock<mutex> lock(registerWalletMutex_);
-
+      
       //save data
       auto& wltregstruct = wltRegMap_[command->hash()];
       wltregstruct.command_ = command;
@@ -1929,8 +2117,11 @@ void BDV_Server_Object::registerLockbox(
 {
    if (isReadyFuture_.wait_for(chrono::seconds(0)) != future_status::ready)
    {
-      //only run this code if the bdv maintenance thread hasn't started yet
+      //sanity check
+      if (!command->has_hash() || command->hash().size() == 0)
+         throw runtime_error("invalid registerWallet command");
 
+      //only run this code if the bdv maintenance thread hasn't started yet
       unique_lock<mutex> lock(registerWalletMutex_);
 
       //save data
@@ -2354,7 +2545,7 @@ shared_ptr<Message> Clients::registerBDV(
    }
 
    if (bdvID.size() == 0)
-      bdvID = CryptoPRNG::generateRandom(10).toHexStr();
+      bdvID = BtcUtils::fortuna_.generateRandom(10).toHexStr();
    auto newBDV = make_shared<BDV_Server_Object>(bdvID, bdmT_);
 
    auto notiflbd = [this](unique_ptr<BDV_Notification> notifPtr)

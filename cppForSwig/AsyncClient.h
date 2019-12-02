@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2018, goatpig.                                              //
+//  Copyright (C) 2018-19, goatpig.                                           //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
 //                                                                            //
@@ -480,7 +480,12 @@ namespace AsyncClient
          std::function<void(
             ReturnMessage<std::map<BinaryData, std::map<unsigned, 
             std::pair<BinaryData, unsigned>>>>)>);
-      void getOutputsForOutpoints(const std::map<BinaryData, std::set<unsigned>>&,
+      void getSpentnessForZcOutputs(const std::map<BinaryData, std::set<unsigned>>&,
+         std::function<void(
+            ReturnMessage<std::map<BinaryData, std::map<unsigned, 
+            std::pair<BinaryData, unsigned>>>>)>);
+      void getOutputsForOutpoints(
+         const std::map<BinaryData, std::set<unsigned>>&, bool,
          std::function<void(ReturnMessage<std::vector<UTXO>>)>);
 
       //tx

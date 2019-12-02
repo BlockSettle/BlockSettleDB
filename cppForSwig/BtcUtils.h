@@ -286,7 +286,8 @@ class BtcUtils
    static const std::map<char, uint8_t> base64Vals_;
 
 public:
-   static const BinaryData        EmptyHash_;
+   static const BinaryData EmptyHash_;
+   const static PRNG_Fortuna fortuna_;
    
    // Block of code to be called by SWIG -- i.e. made available to python
    BtcUtils(void) {}

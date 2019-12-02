@@ -31,11 +31,13 @@ message TxWithMetaData
 {
 	required uint32 height = 1;
 	required uint32 txindex = 2;
-	
+
 	optional bytes rawTx = 10;
 
 	optional bool isRBF = 20;
 	optional bool isChainedZC = 21;
+
+	repeated uint32 opID = 22;
 }
 
 message ManyTxWithMetaData

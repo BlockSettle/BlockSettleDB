@@ -84,12 +84,14 @@ struct PendingMessage
 ///////////////////////////////////////////////////////////////////////////////
 struct ClientConnection
 {
+public:
+   struct lws *wsiPtr_ = nullptr;
+
 private:
    const uint64_t id_;
    BinaryData readLeftOverData_;
 
 public:
-   struct lws *wsiPtr_ = nullptr;
    std::shared_ptr<Queue<SerializedMessage>> serializedStack_;
    SerializedMessage currentWriteMsg_;
    std::shared_ptr<std::atomic<int>> count_;

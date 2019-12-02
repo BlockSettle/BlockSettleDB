@@ -464,9 +464,9 @@ void DecryptedDataContainer::deleteKeyFromDisk(const BinaryData& key)
    if (!ownsLock())
       throw DecryptedDataContainerException("unlocked/does not own lock");
 
-   //wipe it
+   //erase key, db interface will wipe it from file
    auto&& tx = iface_->beginWriteTransaction(dbName_);
-   tx->wipe(key);
+   tx->erase(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -544,7 +544,7 @@ void DecryptedDataContainer::encryptEncryptionKey(
    of the encryption lock.
    
    Pre-existing locks may have the relevant key already decrypted, and the 
-   passphrase that was used to decrypt with will be replaced, which may not
+   passphrase that was used to decrypt it with will be replaced, which may not
    reflect the user's intent.
 
    Therefor, this method tries to SingleLock itself, and will fail if a lock is
@@ -558,14 +558,18 @@ void DecryptedDataContainer::encryptEncryptionKey(
       throw DecryptedDataContainerException("unlocked/does not own lock");
 
    if (lockedDecryptedData_ == nullptr)
+   {
       throw DecryptedDataContainerException(
-      "nullptr lock! how did we get this far?");
+         "nullptr lock! how did we get this far?");
+   }
 
    //grab encryption key object
    auto keyIter = encryptionKeyMap_.find(keyID);
    if (keyIter == encryptionKeyMap_.end())
+   {
       throw DecryptedDataContainerException(
-      "cannot change passphrase for unknown key");
+         "cannot change passphrase for unknown key");
+   }
    auto encryptedKey = dynamic_pointer_cast<Asset_EncryptionKey>(keyIter->second);
 
    //decrypt master encryption key
