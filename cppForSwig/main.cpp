@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig.                                              //
+//  Copyright (C) 2016-19, goatpig.                                           //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
 //                                                                            //
@@ -16,6 +16,7 @@ using namespace std;
 #include "BlockDataManagerConfig.h"
 #include "BDM_mainthread.h"
 #include "BDM_Server.h"
+#include "TerminalPassphrasePrompt.h"
 
 int main(int argc, char* argv[])
 {
@@ -74,13 +75,9 @@ int main(int argc, char* argv[])
    if (!bdmConfig.checkChain_)
    {
       //process incoming connections
-      auto yoloPassLbd = [](const set<BinaryData>&)->SecureBinaryData
-      {
-         //TODO: implement terminal pass prompt
-         return SecureBinaryData();
-      };
+      auto&& passLbd = TerminalPassphrasePrompt::getLambda("peers db");
       server.start(&bdmThread, BlockDataManagerConfig::getDataDir(),
-         yoloPassLbd, BlockDataManagerConfig::ephemeralPeers_, false);
+         passLbd, BlockDataManagerConfig::ephemeralPeers_, false);
    }
    else
    {

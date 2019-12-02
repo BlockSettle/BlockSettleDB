@@ -13,6 +13,7 @@
 #include "btc/ecc.h"
 #include "EncryptionUtils.h"
 #include "AuthorizedPeers.h"
+#include "TerminalPassphrasePrompt.h"
 
 #define SERVER_FILE "server.peers"
 #define CLIENT_FILE "client.peers"
@@ -57,6 +58,7 @@ string stripQuotes(const string& input)
    return input.substr(start, len);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 map<string, string> parseArgs(int argc, char* argv[])
 {
    map<string, string> args;
@@ -86,6 +88,7 @@ map<string, string> parseArgs(int argc, char* argv[])
    return args;
 }
 
+////////////////////////////////////////////////////////////////////////////////
 int processArgs(map<string, string> args)
 {
    //look for datadir
@@ -110,13 +113,46 @@ int processArgs(map<string, string> args)
 
    if (filename.size() == 0)
       throw runtime_error("missing client or server argument!");
+   
+   //construct full path
+   auto fullpath = datadir;
+   DBUtils::appendPath(fullpath, filename);
 
-   auto yoloPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   //is this a passphrase change operation?
+   iter = args.find("change-pass");
+   if (iter != args.end())
    {
-      //TODO: implement prompt passphrase prompting
-      return SecureBinaryData();
-   };
-   AuthorizedPeers authPeers(datadir, filename, yoloPassLbd);
+      AuthorizedPeers::changeMasterPassphrase(fullpath);
+      exit(0);
+   }
+
+   bool noPass = false;
+   iter = args.find("no-pass");
+   if (iter != args.end())
+      noPass = true;
+
+   if (DBUtils::fileExists(fullpath, 6))
+   {
+      cout << "Loading peers db from " << fullpath << endl;
+   }
+   else
+   {
+      cout << "Missing peers db, creating a fresh one now." << endl;
+   }
+
+   //passphrase lbd
+   PassphraseLambda passLbd;
+   if (!noPass)
+   {
+      passLbd = TerminalPassphrasePrompt::getLambda("peers db");
+   }
+   else
+   {
+      passLbd = [](const set<BinaryData>&)->SecureBinaryData 
+      { return SecureBinaryData(); };
+   }
+
+   AuthorizedPeers authPeers(datadir, filename, passLbd);
 
    /*mutually exclusive args from here on*/
 
