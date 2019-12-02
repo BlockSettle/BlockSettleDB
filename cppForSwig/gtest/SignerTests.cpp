@@ -12,6 +12,150 @@
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
+class PRNGTest : public ::testing::Test
+{
+protected:
+
+   virtual void SetUp()
+   {}
+
+   virtual void TearDown()
+   {}
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(PRNGTest, FortunaTest)
+{
+   unsigned sampleSize = 1000000;
+
+   auto checkPools = [](
+      const set<SecureBinaryData>& p1,
+      const set<SecureBinaryData>& p2, 
+      size_t sampleSize, size_t len)
+      ->vector<unsigned>
+   {
+      unsigned collisionP1 = 0;
+      unsigned collisionP2 = 0;
+      unsigned collisions = 0;
+      unsigned offSizes = 0;
+      if (p1.size() != sampleSize)
+         collisionP1 = sampleSize - p1.size();
+
+      if (p2.size() != sampleSize)
+         collisionP2 = sampleSize - p2.size();
+
+      for (auto& data : p1)
+      {
+         if (data.getSize() != len)
+            ++offSizes;
+         
+         auto iter = p2.find(data);
+         if (iter != p2.end())
+            ++collisions;
+      }
+
+      for (auto& data : p2)
+      {
+         if (data.getSize() != len)
+            ++offSizes;
+      }
+
+      return { collisionP1, collisionP2, collisions, offSizes };
+   };
+
+   PRNG_Fortuna prng1;
+   PRNG_Fortuna prng2;
+
+   //conscutive
+   set<SecureBinaryData> pool1, pool2;
+   for (unsigned i=0; i<sampleSize; i++)
+      pool1.insert(prng1.generateRandom(32));
+
+   for (unsigned i=0; i<sampleSize; i++)
+      pool2.insert(prng2.generateRandom(32));
+
+   auto check1 = checkPools(pool1, pool2, sampleSize, 32);
+   EXPECT_EQ(check1[0], 0);
+   EXPECT_EQ(check1[1], 0);
+   EXPECT_EQ(check1[2], 0);
+   EXPECT_EQ(check1[3], 0);
+
+   //interlaced
+   set<SecureBinaryData> pool3, pool4;
+   auto thread2 = [&pool4, &prng2, &sampleSize]
+   {
+      for (unsigned i=0; i<sampleSize; i++)
+         pool4.insert(prng2.generateRandom(32));
+   };
+
+   thread thr2(thread2);
+
+   for (unsigned i=0; i<sampleSize; i++)
+      pool3.insert(prng1.generateRandom(32));
+
+   thr2.join();
+
+   auto check2 = checkPools(pool3, pool4, sampleSize, 32);
+   EXPECT_EQ(check2[0], 0);
+   EXPECT_EQ(check2[1], 0);
+   EXPECT_EQ(check2[2], 0);
+   EXPECT_EQ(check2[3], 0);
+
+   //cross checks
+   auto check3 = checkPools(pool1, pool3, sampleSize, 32);
+   EXPECT_EQ(check3[0], 0);
+   EXPECT_EQ(check3[1], 0);
+   EXPECT_EQ(check3[2], 0);
+   EXPECT_EQ(check3[3], 0);
+
+   auto check4 = checkPools(pool1, pool4, sampleSize, 32);
+   EXPECT_EQ(check4[0], 0);
+   EXPECT_EQ(check4[1], 0);
+   EXPECT_EQ(check4[2], 0);
+   EXPECT_EQ(check4[3], 0);
+
+   auto check5 = checkPools(pool2, pool3, sampleSize, 32);
+   EXPECT_EQ(check5[0], 0);
+   EXPECT_EQ(check5[1], 0);
+   EXPECT_EQ(check5[2], 0);
+   EXPECT_EQ(check5[3], 0);
+
+   auto check6 = checkPools(pool2, pool4, sampleSize, 32);
+   EXPECT_EQ(check6[0], 0);
+   EXPECT_EQ(check6[1], 0);
+   EXPECT_EQ(check6[2], 0);
+   EXPECT_EQ(check6[3], 0);
+
+   //odd size pulls
+   set<SecureBinaryData> pool5, pool6;
+   for (unsigned i=0; i<100; i++)
+      pool5.insert(prng1.generateRandom(15));
+
+   for (unsigned i=0; i<100; i++)
+      pool6.insert(prng2.generateRandom(15));
+
+   auto check7 = checkPools(pool5, pool6, 100, 15);
+   EXPECT_EQ(check7[0], 0);
+   EXPECT_EQ(check7[1], 0);
+   EXPECT_EQ(check7[2], 0);
+   EXPECT_EQ(check7[3], 0);
+
+   //
+   set<SecureBinaryData> pool7, pool8;
+   for (unsigned i=0; i<100; i++)
+      pool7.insert(prng1.generateRandom(70));
+
+   for (unsigned i=0; i<100; i++)
+      pool8.insert(prng2.generateRandom(70));
+
+   auto check8 = checkPools(pool7, pool8, 100, 70);
+   EXPECT_EQ(check8[0], 0);
+   EXPECT_EQ(check8[1], 0);
+   EXPECT_EQ(check8[2], 0);
+   EXPECT_EQ(check8[3], 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class SignerTest : public ::testing::Test

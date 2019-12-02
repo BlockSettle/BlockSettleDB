@@ -142,7 +142,38 @@ class CryptoPRNG
 {
 public:
    static SecureBinaryData generateRandom(uint32_t numBytes,
-      SecureBinaryData extraEntropy = SecureBinaryData());
+      const SecureBinaryData& extraEntropy = SecureBinaryData());
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class PRNG_Fortuna
+{
+   /*
+   Not gonna bother with the entropy pooling, the crypto lib already offers
+   a PRNG.
+
+   This is an extra layer for applications that need a lot of rng but aren't 
+   critical to safety. It's also useful for RNG pulls that are presented to the
+   outside world, like session IDs, as it won't leak bytes directly from our
+   entropy source (the crypto lib PRNG).
+
+   Use the crypto lib's PRNG directly to generate wallet seeds instead.
+   */
+   private:
+      mutable std::shared_ptr<SecureBinaryData> key_;
+      mutable std::atomic<unsigned> counter_ = { 1 };
+      mutable std::atomic<unsigned> nBytes_;
+
+   private:
+      PRNG_Fortuna(const PRNG_Fortuna&) = delete; // no copies
+      void reseed(void) const;
+
+   public:
+   PRNG_Fortuna(void);
+   PRNG_Fortuna(PRNG_Fortuna&&) = default;
+
+   SecureBinaryData generateRandom(uint32_t numBytes, 
+      const SecureBinaryData& extraEntropy = SecureBinaryData()) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

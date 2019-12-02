@@ -481,6 +481,18 @@ size_t Tx::getTxWeight() const
 }
 
 /////////////////////////////////////////////////////////////////////////////
+unsigned Tx::getZcIndex(void) const
+{
+   if (txHeight_ != UINT32_MAX)
+      throw runtime_error("tx is confirmed");
+
+   if (txIndex_ == UINT32_MAX)
+      throw runtime_error("tx is uninitialized");
+
+   return txIndex_;
+}
+
+/////////////////////////////////////////////////////////////////////////////
 void Tx::pprint(ostream & os, int nIndent, bool pBigendian)
 {
    string indent = "";

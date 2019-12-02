@@ -304,7 +304,7 @@ target_compile_definitions(ArmoryCLI
     PUBLIC -D__STDC_LIMIT_MACROS
 )
 
-string_option(WITH_GUI "with GUI" AUTO)
+string_option(WITH_GUI "with GUI" OFF)
 
 find_package(Qt4 COMPONENTS QtGui QUIET)
 
@@ -372,7 +372,7 @@ target_link_libraries(BIP150KeyManager
 
 install(TARGETS BIP150KeyManager DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-string_option(WITH_CLIENT "build python client" AUTO)
+string_option(WITH_CLIENT "build python client" OFF)
 
 find_package(Python2 COMPONENTS Development QUIET)
 

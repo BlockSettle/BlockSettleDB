@@ -326,7 +326,7 @@ BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
 
    /* encryption leg */
       //generate IV
-      auto&& iv = CryptoPRNG::generateRandom(
+      auto&& iv = BtcUtils::fortuna_.generateRandom(
          Cipher::getBlockSize(CipherType_AES));
 
       //AES_CBC (hmac | payload)
@@ -1081,6 +1081,112 @@ void WalletDBInterface::unlockControlContainer()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::changeMasterPassphrase(
+   const SecureBinaryData& newPassphrase, const PassphraseLambda& passLbd)
+{
+   try
+   {
+      openControlDb();
+      
+      /*
+      No need to set the control db after opening it, decryptedData_ is 
+      instantiated with the db's shared_ptr, which is not cleaned up
+      after the controldb is shut down.
+      */
+   }
+   catch(WalletInterfaceException&)
+   {
+      //control db is already opened, nothing to do
+   }
+   
+   //hold tx write mutex until the file is compacted
+   unique_lock<recursive_mutex> lock(DBIfaceTransaction::writeMutex_);
+
+   //set the lambda to unlock the control encryption key
+   decryptedData_->setPassphrasePromptLambda(passLbd);
+
+   //change the passphrase
+   auto& masterKeyId = decryptedData_->getMasterEncryptionKeyId();
+   auto& kdfId = decryptedData_->getDefaultKdfId();
+   decryptedData_->encryptEncryptionKey(masterKeyId, kdfId, newPassphrase);   
+
+   //clear the lambda
+   decryptedData_->resetPassphraseLambda();
+
+   //wipe the db
+   compactFile();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::compactFile()
+{
+   /*
+   To wipe this file of its deleted entries, we perform a LMDB compact copy
+   of the dbEnv, which will skip free/loose data pages and only copy the
+   currently valid data in the db. We then swap files and delete the 
+   original.
+   */
+
+   //lock the write mutex before alterning the underlying file
+   unique_lock<recursive_mutex> lock(DBIfaceTransaction::writeMutex_);
+
+   //create copy name
+   auto fullDbPath = getFilename();
+   auto basePath = DBUtils::getBaseDir(fullDbPath);
+   string copyName;
+   while (true)
+   {
+      stringstream ss;
+      ss << "compactCopy-" << fortuna_.generateRandom(16).toHexStr();
+      auto fullpath = basePath;
+      DBUtils::appendPath(fullpath, ss.str());
+      
+      if (!DBUtils::fileExists(fullpath, 0))
+      {
+         copyName = fullpath;
+         break;
+      }
+   }
+
+   //copy
+   dbEnv_->compactCopy(copyName);
+
+   //close current env
+   closeEnv();
+
+   //swap files
+   string swapPath;
+   while (true)
+   {
+      stringstream ss;
+      ss << "swapOld-" << fortuna_.generateRandom(16).toHexStr();
+      auto fullpath = basePath;
+      DBUtils::appendPath(fullpath, ss.str());
+
+      if (DBUtils::fileExists(fullpath, 0))
+         continue;
+
+      swapPath = fullpath;
+
+      //rename old file to swap
+      rename(fullDbPath.c_str(), swapPath.c_str());
+
+      //rename new file to old
+      rename(copyName.c_str(), fullDbPath.c_str());
+      break;
+   }
+
+   //reset dbEnv to new file
+   openEnv();
+
+   //wipe old file
+   auto oldFileMap = DBUtils::getMmapOfFile(swapPath, true);
+   memset(oldFileMap.filePtr_, 0, oldFileMap.size_);
+   oldFileMap.unmap();
+   unlink(swapPath.c_str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// DBIfaceIterator
 ////////////////////////////////////////////////////////////////////////////////
@@ -1168,6 +1274,7 @@ map<string, shared_ptr<DBIfaceTransaction::DbTxStruct>>
    DBIfaceTransaction::dbMap_;
 
 mutex DBIfaceTransaction::txMutex_;
+recursive_mutex DBIfaceTransaction::writeMutex_;
 
 ////////////////////////////////////////////////////////////////////////////////
 DBIfaceTransaction::~DBIfaceTransaction() noexcept(false)
@@ -1211,7 +1318,7 @@ WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
 void WalletIfaceTransaction::closeTx()
 {
    unique_ptr<LMDBEnv::Transaction> tx;
-   unique_ptr<unique_lock<mutex>> writeTxLock = nullptr;
+   unique_ptr<unique_lock<recursive_mutex>> writeTxLock = nullptr;
 
    {
       auto lock = unique_lock<mutex>(txMutex_);
@@ -1331,70 +1438,11 @@ void WalletIfaceTransaction::closeTx()
    if (ifacePtr_ == nullptr)
       return;
 
-   /*
-   To wipe this file of its deleted entries, we perform a LMDB copact copy
-   of the dbEnv, which will skip free/loose data pages and only copy the
-   currently valid data in the db. We then swap files and delete the 
-   original.
-   */
-
    //close the write tx, we still hold the write mutex
    tx.reset();
 
-   //create copy name
-   auto fullDbPath = ifacePtr_->getFilename();
-   auto basePath = DBUtils::getBaseDir(fullDbPath);
-   string copyName;
-   while (true)
-   {
-      stringstream ss;
-      ss << "compactCopy-" << CryptoPRNG::generateRandom(12).toHexStr();
-      auto fullpath = basePath;
-      DBUtils::appendPath(fullpath, ss.str());
-      
-      if (!DBUtils::fileExists(fullpath, 0))
-      {
-         copyName = fullpath;
-         break;
-      }
-   }
-
-   //copy
-   dbPtr_->dbEnv_->compactCopy(copyName);
-
-   //close current env
-   ifacePtr_->closeEnv();
-
-   //swap files
-   string swapPath;
-   while (true)
-   {
-      stringstream ss;
-      ss << "swapOld-" << CryptoPRNG::generateRandom(12).toHexStr();
-      auto fullpath = basePath;
-      DBUtils::appendPath(fullpath, ss.str());
-
-      if (DBUtils::fileExists(fullpath, 0))
-         continue;
-
-      swapPath = fullpath;
-
-      //rename old file to swap
-      rename(fullDbPath.c_str(), swapPath.c_str());
-
-      //rename new file to old
-      rename(copyName.c_str(), fullDbPath.c_str());
-      break;
-   }
-
-   //reset dbEnv to new file
-   ifacePtr_->openEnv();
-
-   //wipe old file
-   auto oldFileMap = DBUtils::getMmapOfFile(swapPath, true);
-   memset(oldFileMap.filePtr_, 0, oldFileMap.size_);
-   oldFileMap.unmap();
-   unlink(swapPath.c_str());
+   //wipe delete entries from file
+   ifacePtr_->compactFile();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1452,7 +1500,7 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
    if (txPtr->commit_)
    {
       //write tx, lock db write mutex
-      ptx->writeLock_ = make_unique<unique_lock<mutex>>(txStruct->writeMutex_);
+      ptx->writeLock_ = make_unique<unique_lock<recursive_mutex>>(writeMutex_);
 
       auto insertLbd = [thrId, txPtr](const BinaryData& key, BothBinaryDatas& val)
       {
@@ -1476,7 +1524,7 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
             insertPair.first->second = vecSize;
       };
 
-      auto eraseLbd = [thrId, txPtr](const BinaryData& key, bool wipe)
+      auto eraseLbd = [thrId, txPtr](const BinaryData& key)
       {
          if (thrId != this_thread::get_id())
             throw WalletInterfaceException("insert operation thread id mismatch");
@@ -1484,7 +1532,6 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
          auto dataPtr = make_shared<InsertData>();
          dataPtr->key_ = key;
          dataPtr->write_ = false; //set to false to signal deletion
-         dataPtr->wipe_ = wipe;
 
          unsigned vecSize = txPtr->insertVec_.size();
          txPtr->insertVec_.emplace_back(dataPtr);
@@ -1521,7 +1568,7 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<unique_lock<mutex>> WalletIfaceTransaction::eraseTx(
+unique_ptr<unique_lock<recursive_mutex>> WalletIfaceTransaction::eraseTx(
    WalletIfaceTransaction* txPtr)
 {
    if (txPtr == nullptr)
@@ -1593,16 +1640,7 @@ void WalletIfaceTransaction::erase(const BinaryData& key)
    if (!eraseLbd_)
       throw WalletInterfaceException("erase lambda is not set");
 
-   eraseLbd_(key, false);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void WalletIfaceTransaction::wipe(const BinaryData& key)
-{
-   if (!eraseLbd_)
-      throw WalletInterfaceException("erase lambda is not set");
-
-   eraseLbd_(key, true);
+   eraseLbd_(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1691,12 +1729,6 @@ void RawIfaceTransaction::erase(const BinaryData& key)
 {
    CharacterArrayRef carKey(key.getSize(), key.getPtr());
    dbPtr_->erase(carKey);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void RawIfaceTransaction::wipe(const BinaryData& key)
-{
-   throw WalletInterfaceException("deprecated");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
