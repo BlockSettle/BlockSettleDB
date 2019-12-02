@@ -405,7 +405,7 @@ int BIP151Session::decPayload(const uint8_t* cipherData,
 {
    int retVal = -1;
    uint32_t decryptedLen = 0;
-   if (cipherSize < POLY1305MACLEN + 4 || cipherSize > (plainSize + POLY1305MACLEN))
+   if (cipherSize < POLY1305MACLEN + AUTHASSOCDATAFIELDLEN || cipherSize > (plainSize + POLY1305MACLEN))
       return retVal;
 
    chacha20poly1305_get_length(&sessionCTX_,
@@ -414,7 +414,7 @@ int BIP151Session::decPayload(const uint8_t* cipherData,
                                cipherData,
                                cipherSize);
    //sanity check
-   if (decryptedLen + POLY1305MACLEN > cipherSize)
+   if (decryptedLen > cipherSize - POLY1305MACLEN - AUTHASSOCDATAFIELDLEN)
       return decryptedLen;
 
    if(chacha20poly1305_crypt(&sessionCTX_,
