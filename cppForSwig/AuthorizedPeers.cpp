@@ -14,6 +14,8 @@
 #include "AuthorizedPeers.h"
 #include "btc/ecc.h"
 
+#include "TerminalPassphrasePrompt.h"
+
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,7 +193,13 @@ void AuthorizedPeers::createWallet(
    remove(currentname.c_str());
 
    //load from new file path in order to have valid db object
-   wallet_ = AssetWallet::loadMainWalletFromFile(path, passLbd);
+   //capture the controlPass in local lambda to avoid prompting the user again
+   auto passLbdCycle = [&controlPassphrase](const set<BinaryData>&)
+      ->SecureBinaryData
+   {
+      return controlPassphrase;
+   };
+   wallet_ = AssetWallet::loadMainWalletFromFile(path, passLbdCycle);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -588,4 +596,33 @@ void AuthorizedPeers::erasePeerRootKey(const SecureBinaryData& key)
    }
 
    peerRootKeys_.erase(iter);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AuthorizedPeers::changeMasterPassphrase(const string& path)
+{
+   auto promptPtr = TerminalPassphrasePrompt::getLambda("peers db");
+   
+   //hijack the terminal prompt lambda to recover
+   //the current passphrase at load time
+   SecureBinaryData currentPass;
+   auto promptWrap = [&currentPass, promptPtr](const set<BinaryData>& idSet)
+      ->SecureBinaryData
+   {
+      currentPass = move(promptPtr(idSet));
+      return currentPass;
+   };
+
+   //load the wallet with the hijacked lambda
+   auto wlt = AssetWallet::loadMainWalletFromFile(path, promptWrap);
+
+   //grab new pass
+   auto&& newPass = promptPtr({ BinaryData("change-pass") });
+
+   //create lambda with the hijacked passphrase
+   auto oldPassLbd = [&currentPass](const set<BinaryData>&)->SecureBinaryData
+   {
+      return currentPass;
+   };
+   wlt->changeControlPassphrase(newPass, oldPassLbd);
 }

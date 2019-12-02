@@ -183,6 +183,7 @@ list(APPEND LIBARMORYCOMMON_SOURCES
     SocketObject.cpp
     StoredBlockObj.cpp
     SwigClient.cpp
+    TerminalPassphrasePrompt.cpp
     Transactions.cpp
     TxClasses.cpp
     TxEvalState.cpp
