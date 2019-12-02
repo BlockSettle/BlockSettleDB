@@ -117,7 +117,8 @@ ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	SshParser.cpp \
 	StringSockets.cpp \
 	txio.cpp \
-	ZeroConf.cpp
+	ZeroConf.cpp \
+	TerminalPassphrasePrompt.cpp
 ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	WalletHeader.cpp \
 	WalletFileInterface.cpp \
