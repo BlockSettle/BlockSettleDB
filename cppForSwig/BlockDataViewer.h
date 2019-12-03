@@ -61,7 +61,6 @@ struct OpData
 
 class BlockDataViewer
 {
-
 public:
    BlockDataViewer(BlockDataManager* bdm);
    ~BlockDataViewer(void);
@@ -83,7 +82,9 @@ public:
    bool hasWallet(const BinaryData& ID) const;
 
    Tx                getTxByHash(BinaryData const & txHash) const;
-   std::pair<uint32_t, uint32_t> getHeightAndIdForTxHash(const BinaryDataRef&) const;
+   
+   std::tuple<uint32_t, uint32_t, std::vector<unsigned>> 
+                     getTxMetaData(const BinaryDataRef&, bool) const;
 
    TxOut             getPrevTxOut(TxIn & txin) const;
    Tx                getPrevTx(TxIn & txin) const;
