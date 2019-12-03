@@ -243,15 +243,7 @@ Tx BlockDataViewer::getTxByHash(BinaryData const & txhash) const
       {
          auto&& txin = tx.getTxInCopy(i);
          auto&& op = txin.getOutPoint();
-         auto&& dbkey = db_->getDBKeyForHash(op.getTxHash());
-
-         auto hgtx = dbkey.getSliceRef(0, 4);
-         unsigned height;
-         auto block_id = DBUtils::hgtxToHeight(hgtx);
-         auto header = bc_->getHeaderById(block_id);
-         height = header->getBlockHeight();
-         
-         tx.pushBackOpId(height);
+         tx.pushBackOpId(db_->getHeightForTxHash(op.getTxHashRef()));
       }
 
       return tx;
@@ -260,11 +252,14 @@ Tx BlockDataViewer::getTxByHash(BinaryData const & txhash) const
       return zeroConfCont_->getTxByHash(txhash);
 }
 
-/////////////////////////////////////////////////////////////////////////////
-std::pair<uint32_t, uint32_t> BlockDataViewer::getHeightAndIdForTxHash(
-   const BinaryDataRef& txHash) const
+////////////////////////////////////////////////////////////////////////////////
+tuple<uint32_t, uint32_t, vector<unsigned>> 
+BlockDataViewer::getTxMetaData(
+   const BinaryDataRef& txHash, bool withOpId) const
 {
-   pair<uint32_t, uint32_t> heightAndId = { UINT32_MAX, UINT32_MAX };
+   unsigned txHeight = UINT32_MAX;
+   unsigned txIndex = UINT32_MAX;
+   vector<unsigned> opIds;
 
    auto dbKey = db_->getDBKeyForHash(txHash);
    switch (dbKey.getSize())
@@ -273,22 +268,36 @@ std::pair<uint32_t, uint32_t> BlockDataViewer::getHeightAndIdForTxHash(
    {
       BinaryRefReader brr(dbKey.getRef());
       brr.advance(4);
-      heightAndId.second = brr.get_uint16_t(BE);
+      txIndex = brr.get_uint16_t(BE);
 
       auto hgtx = dbKey.getSliceRef(0, 4);
       if (db_->getDbType() == ARMORY_DB_SUPER)
       {
-         if (DBUtils::hgtxToDupID(hgtx) == 0x7F)
-         {
-            auto block_id = DBUtils::hgtxToHeight(hgtx);
-            auto header = bc_->getHeaderById(block_id);
-
-            heightAndId.first = header->getBlockHeight();
-            return heightAndId;
-         }
+         auto block_id = DBUtils::hgtxToHeight(hgtx);
+         auto header = bc_->getHeaderById(block_id);
+         txHeight = header->getBlockHeight();
+      }
+      else
+      {
+         txHeight = DBUtils::hgtxToHeight(hgtx);
       }
 
-      heightAndId.first = DBUtils::hgtxToHeight(hgtx);
+      //resolve outpoint heights too
+      StoredTx stx;
+      if (!db_->getStoredTx_byDBKey(stx, dbKey))
+         throw runtime_error("missing tx");
+      
+      if (withOpId)
+      {
+         auto tx = stx.getTxCopy();
+         for (unsigned i=0; i<tx.getNumTxIn(); i++)
+         {
+            auto&& txin = tx.getTxInCopy(i);
+            auto&& op = txin.getOutPoint();
+            opIds.push_back(db_->getHeightForTxHash(op.getTxHashRef()));
+         }    
+      }
+
       break;
    }
    case 0:
@@ -300,7 +309,8 @@ std::pair<uint32_t, uint32_t> BlockDataViewer::getHeightAndIdForTxHash(
 
       BinaryRefReader brr(keyRef);
       brr.advance(2);
-      heightAndId.second = brr.get_uint32_t(BE);
+      txIndex = brr.get_uint32_t(BE);
+
       break;
    }
 
@@ -308,7 +318,7 @@ std::pair<uint32_t, uint32_t> BlockDataViewer::getHeightAndIdForTxHash(
       throw runtime_error("unexpected db key size");
    }
 
-   return heightAndId;
+   return make_tuple(txHeight, txIndex, move(opIds));
 }
 
 

@@ -1349,6 +1349,10 @@ void CallbackReturn_TxBatch::callback(
             auto& txFromCache = cache_->getTx(txHash);
             txFromCache.setTxHeight(txObj.height());
             txFromCache.setTxIndex(txObj.txindex());
+
+            for (int y = 0; y<txObj.opid_size(); y++)
+               txFromCache.pushBackOpId(txObj.opid(y));
+
             tx = txFromCache;
          }
 

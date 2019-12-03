@@ -339,7 +339,7 @@ public:
    const std::vector<uint32_t> getOpIdVec(void) const
    { return outpointIdVec_; }
 
-   void pushBackOpId(uint32_t id) 
+   void pushBackOpId(uint32_t id) const
    { outpointIdVec_.push_back(id); }
 
    unsigned getZcIndex(void) const;
@@ -360,7 +360,7 @@ private:
    std::vector<size_t> offsetsTxIn_;
    std::vector<size_t> offsetsTxOut_;
    std::vector<size_t> offsetsWitness_;
-   std::vector<uint32_t> outpointIdVec_;
+   mutable std::vector<uint32_t> outpointIdVec_;
 
    uint32_t      txTime_ = 0;
 
