@@ -637,9 +637,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       }
       else
       {
-         auto&& heightAndId = getHeightAndIdForTxHash(txHashRef);
-         retval.setTxHeight(heightAndId.first);
-         retval.setTxIndex(heightAndId.second);
+         auto&& txData = getTxMetaData(txHashRef, false);
+         retval.setTxHeight(get<0>(txData));
+         retval.setTxIndex(get<1>(txData));
       }
       
       auto response = make_shared<::Codec_CommonTypes::TxWithMetaData>();
@@ -695,9 +695,13 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          }
          else
          {
-            auto&& heightAndId = getHeightAndIdForTxHash(txHashRef);
-            tx.setTxHeight(heightAndId.first);
-            tx.setTxIndex(heightAndId.second);
+            auto&& txData = getTxMetaData(txHashRef, true);
+            tx.setTxHeight(get<0>(txData));
+            tx.setTxIndex(get<1>(txData));
+
+            auto& opIds = get<2>(txData);
+            for (auto& id : opIds)
+               tx.pushBackOpId(id);
          }
 
          result.emplace_back(tx);
