@@ -898,6 +898,8 @@ public:
       uint16_t txi = UINT16_MAX,
       uint16_t txo = UINT16_MAX) const;
 
+   unsigned getHeightForTxHash(const BinaryDataRef& hash) const;
+
    /////////////////////////////////////////////////////////////////////////////
    // Put value based on BinaryDataRefs key and value
    void putValue(DB_SELECT db, BinaryDataRef key, BinaryDataRef value);
