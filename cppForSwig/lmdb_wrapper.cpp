@@ -878,6 +878,23 @@ BinaryData LMDBBlockDatabase::getDBKeyForHash(const BinaryData& txhash,
 }
 
 /////////////////////////////////////////////////////////////////////////////
+unsigned LMDBBlockDatabase::getHeightForTxHash(
+   const BinaryDataRef& hash) const
+{
+   auto&& dbkey = getDBKeyForHash(hash);
+   auto hgtx = dbkey.getSliceRef(0, 4);
+
+   if (getDbType() == ARMORY_DB_SUPER)
+   {
+      auto block_id = DBUtils::hgtxToHeight(hgtx);
+      auto header = blockchainPtr_->getHeaderById(block_id);
+      return header->getBlockHeight();
+   }
+
+   return DBUtils::hgtxToHeight(hgtx);
+}
+
+/////////////////////////////////////////////////////////////////////////////
 // Put value based on BinaryData key.  If batch writing, pass in the batch
 void LMDBBlockDatabase::putValue(DB_SELECT db, 
                                   BinaryDataRef key, 
