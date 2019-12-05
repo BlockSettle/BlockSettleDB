@@ -244,7 +244,7 @@ private:
 
 public:
    Payload_Verack() {}
-   Payload_Verack(std::vector<uint8_t>* dataptr)
+   Payload_Verack(std::vector<uint8_t>*)
    {}
 
    PayloadType type(void) const { return Payload_verack; }

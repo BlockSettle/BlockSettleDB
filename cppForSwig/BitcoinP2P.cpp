@@ -1439,7 +1439,7 @@ void  BitcoinP2PSocket::respond(vector<uint8_t>& packet)
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinP2PSocket::pushPayload(
    unique_ptr<Socket_WritePayload> write_payload,
-   shared_ptr<Socket_ReadPayload> read_payload)
+   shared_ptr<Socket_ReadPayload>)
 {
    if (write_payload == nullptr)
       return;
