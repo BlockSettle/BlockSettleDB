@@ -1406,7 +1406,7 @@ vector<LedgerEntry> WalletGroup::getHistoryPage(
       }
 
       auto getTxio = [&localWalletMap](
-         uint32_t start, uint32_t end)->map<BinaryData, TxIOPair>
+         uint32_t, uint32_t)->map<BinaryData, TxIOPair>
       {
          return map<BinaryData, TxIOPair>();
       };
