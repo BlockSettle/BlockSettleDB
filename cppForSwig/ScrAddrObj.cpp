@@ -295,9 +295,9 @@ bool ScrAddrObj::purgeZC(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScrAddrObj::updateAfterReorg(uint32_t lastValidBlockHeight)
+/*void ScrAddrObj::updateAfterReorg(uint32_t lastValidBlockHeight)
 {
-   /*auto txioIter = relevantTxIO_.begin();
+   auto txioIter = relevantTxIO_.begin();
 
    uint32_t height;
    while (txioIter != relevantTxIO_.end())
@@ -333,8 +333,8 @@ void ScrAddrObj::updateAfterReorg(uint32_t lastValidBlockHeight)
       }
       else
          relevantTxIO_.erase(txioIter++);
-   }*/
-}
+   }
+}*/
 
 ////////////////////////////////////////////////////////////////////////////////
 map<BinaryData, LedgerEntry> ScrAddrObj::updateLedgers(
@@ -357,8 +357,7 @@ uint64_t ScrAddrObj::getTxioCountFromSSH(void) const
 ///////////////////////////////////////////////////////////////////////////////
 map<BinaryData, TxIOPair> ScrAddrObj::getHistoryForScrAddr(
    uint32_t startBlock, uint32_t endBlock,
-   bool update,
-   bool withMultisig) const
+   bool, bool withMultisig) const
 {
    map<BinaryData, TxIOPair> outMap;
 
@@ -453,7 +452,7 @@ void ScrAddrObj::mapHistory()
 {
    //create history map
    auto getSummary = [this]()->map<uint32_t, uint32_t>
-      { return db_->getSSHSummary(this->getScrAddr(), UINT32_MAX); };
+      { return db_->getSSHSummary(this->getScrAddr()); };
 
    hist_.mapHistory(getSummary); 
 }
