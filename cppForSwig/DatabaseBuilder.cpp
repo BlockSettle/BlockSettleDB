@@ -952,7 +952,7 @@ void DatabaseBuilder::commitAllStxos(
                move(DBUtils::getBlkDataKeyNoPrefix(id, 0xFF, i, y));
             auto txoutDataRef = txns[i]->getTxOutRef(y);
 
-            StoredTxOut::serializeDBValue(bwPair.second, ARMORY_DB_SUPER, false,
+            StoredTxOut::serializeDBValue(bwPair.second,
                0, isCoinbase, txoutDataRef, TXOUT_UNSPENT, BinaryDataRef());
             serializedStxos.push_back(move(bwPair));
          }

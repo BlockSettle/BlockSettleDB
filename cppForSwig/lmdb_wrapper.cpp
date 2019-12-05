@@ -2281,7 +2281,7 @@ void LMDBBlockDatabase::putStoredTxOut( StoredTxOut const & stxo)
    SCOPED_TIMER("putStoredTx");
 
    BinaryData ldbKey = stxo.getDBKey(false);
-   BinaryData bw = serializeDBValue(stxo, getDbType());
+   BinaryData bw = serializeDBValue(stxo);
    putValue(STXO, DB_PREFIX_TXDATA, ldbKey, bw);
 }
 
@@ -2290,7 +2290,7 @@ void LMDBBlockDatabase::putStoredZcTxOut(StoredTxOut const & stxo,
 {
    SCOPED_TIMER("putStoredTx");
 
-   BinaryData bw = serializeDBValue(stxo, getDbType());
+   BinaryData bw = serializeDBValue(stxo);
    putValue(ZERO_CONF, DB_PREFIX_ZCDATA, zcKey, bw);
 }
 

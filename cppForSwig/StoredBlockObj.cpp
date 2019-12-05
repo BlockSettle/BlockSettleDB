@@ -1089,18 +1089,15 @@ void StoredTxOut::unserializeDBValue(BinaryRefReader & brr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void StoredTxOut::serializeDBValue(BinaryWriter & bw, ARMORY_DB_TYPE dbType,
-                                   bool forceSaveSpentness) const
+void StoredTxOut::serializeDBValue(BinaryWriter & bw) const
 {
-   serializeDBValue(bw, dbType, forceSaveSpentness,
-      txVersion_, isCoinbase_, dataCopy_.getRef(), 
+   serializeDBValue(bw, txVersion_, isCoinbase_, dataCopy_.getRef(), 
       spentness_, spentByTxInKey_.getRef());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void StoredTxOut::serializeDBValue(
    BinaryWriter& bw,
-   ARMORY_DB_TYPE dbType, bool forceSaveSpentness,
    uint16_t txVersion, bool isCoinbase,
    const BinaryDataRef dataRef, 
    TXOUT_SPENTNESS spentness, BinaryDataRef spentByTxin)
@@ -1113,7 +1110,7 @@ void StoredTxOut::serializeDBValue(
    bitpack.putBits((uint16_t)txVersion, 2);
    bitpack.putBits((uint16_t)spentness, 2);
    bitpack.putBit(isCoinbase);
-   bitpack.putBits((uint16_t)dbType, 2);
+   bitpack.putBits(0, 2);
 
    bw.put_BitPacker(bitpack);
    bw.put_BinaryData(dataRef);  // 8-byte value, var_int sz, pkscript
@@ -1965,8 +1962,7 @@ void StoredSubHistory::getSummary(BinaryRefReader & brr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void StoredSubHistory::serializeDBValue(BinaryWriter & bw,
-                                        ARMORY_DB_TYPE dbType) const
+void StoredSubHistory::serializeDBValue(BinaryWriter & bw) const
 {
    size_t len = BtcUtils::get_varint_len(txioMap_.size());
    for (const auto& txioPair : txioMap_)
@@ -2335,8 +2331,7 @@ void StoredSubHistory::compressMany(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void StoredUndoData::unserializeDBValue(BinaryRefReader & brr, 
-   ARMORY_DB_TYPE dbType)
+void StoredUndoData::unserializeDBValue(BinaryRefReader & brr)
 {
    brr.get_BinaryData(blockHash_, 32);
 
@@ -2379,8 +2374,7 @@ void StoredUndoData::unserializeDBValue(BinaryRefReader & brr,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void StoredUndoData::serializeDBValue(
-   BinaryWriter & bw, ARMORY_DB_TYPE dbType) const
+void StoredUndoData::serializeDBValue(BinaryWriter & bw) const
 {
    bw.put_BinaryData(blockHash_);
 
@@ -2404,7 +2398,7 @@ void StoredUndoData::serializeDBValue(
 
       // Store the standard flags that go with StoredTxOuts, minus spentness
       BitPacker<uint8_t> bitpack;
-      bitpack.putBits( (uint8_t)dbType,  4);
+      bitpack.putBits( 0,  4);
       bitpack.putBits( (uint8_t)stxo.txVersion_,            2);
       bitpack.putBit(           stxo.isCoinbase_);
 
@@ -2433,19 +2427,19 @@ void StoredUndoData::serializeDBValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 void StoredUndoData::unserializeDBValue(
-   BinaryData const & bd, ARMORY_DB_TYPE dbType)
+   BinaryData const & bd)
 {
    BinaryRefReader brr(bd);
-   unserializeDBValue(brr, dbType);
+   unserializeDBValue(brr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void StoredUndoData::unserializeDBValue(
-   BinaryDataRef bdr, ARMORY_DB_TYPE dbType)
+   BinaryDataRef bdr)
                                   
 {
    BinaryRefReader brr(bdr);
-   unserializeDBValue(brr, dbType);
+   unserializeDBValue(brr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

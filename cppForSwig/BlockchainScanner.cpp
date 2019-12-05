@@ -768,8 +768,7 @@ void BlockchainScanner::writeBlockData()
                subsshkey.put_BinaryData(subssh.first);
 
                auto& bw = serializedSubSSH[subsshkey.getDataRef()];
-               subssh.second.serializeDBValue(
-                  bw, ARMORY_DB_BARE);
+               subssh.second.serializeDBValue(bw);
             }
          }
 
@@ -778,8 +777,7 @@ void BlockchainScanner::writeBlockData()
             for (auto& utxo : utxomap.second)
             {
                auto& bw = serializedStxo[utxo.second.getDBKey()];
-               utxo.second.serializeDBValue(
-                  bw, ARMORY_DB_BARE, true);
+               utxo.second.serializeDBValue(bw);
             }
          }
       }
@@ -792,8 +790,7 @@ void BlockchainScanner::writeBlockData()
          auto& bw = serializedStxo[stxo.getDBKey()];
          if (bw.getSize() > 0)
             bw.reset();
-         stxo.serializeDBValue(
-            bw, ARMORY_DB_BARE, true);
+         stxo.serializeDBValue(bw);
       }
 
       //write data
