@@ -716,7 +716,7 @@ shared_ptr<WalletHeader> WalletDBInterface::loadControlHeader()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MockDeleteWalletDBInterface(WalletDBInterface* wdbi)
+void MockDeleteWalletDBInterface(WalletDBInterface*)
 {
    /*
    To create the DecryptedDataContainer for the control header, we need to pass 

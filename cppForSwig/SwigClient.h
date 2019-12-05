@@ -77,7 +77,7 @@ namespace SwigClient
 
       uint64_t getTxioCount(void) const;
 
-      std::vector<UTXO> getSpendableTxOutList(bool);
+      std::vector<UTXO> getSpendableTxOutList(void);
       const BinaryData& getScrAddr(void) const;
       const BinaryData& getAddrHash(void) const;
 

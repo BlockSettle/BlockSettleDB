@@ -71,7 +71,7 @@ public:
    NodeUnitTest(uint32_t magic_word);
 
    //virtuals
-   void connectToNode(bool async) {}
+   void connectToNode(bool) {}
 
    void shutdown(void)
    {

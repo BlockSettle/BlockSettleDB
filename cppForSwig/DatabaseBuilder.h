@@ -56,7 +56,7 @@ private:
    void verifyTransactions(void);
    void commitAllTxHints(
       const std::map<uint32_t, BlockData>&, const std::set<unsigned>&);
-   void commitAllStxos(std::shared_ptr<BlockDataFileMap>,
+   void commitAllStxos(
       const std::map<uint32_t, BlockData>&, const std::set<unsigned>&);
 
    void repairTxFilters(const std::set<unsigned>&);

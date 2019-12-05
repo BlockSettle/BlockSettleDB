@@ -368,7 +368,7 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<Payload> NodeUnitTest::getTx(const InvEntry& ie, uint32_t timeout)
+shared_ptr<Payload> NodeUnitTest::getTx(const InvEntry& ie, uint32_t)
 {
    //find tx in mempool
    BinaryDataRef hashRef(ie.hash, 32);

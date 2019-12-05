@@ -971,7 +971,7 @@ public:
       return feedPtr_->getByVal(key);
    }
 
-   const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& key)
+   const SecureBinaryData& getPrivKeyForPubkey(const BinaryData&)
    {
       throw std::runtime_error("invalid value");
    }

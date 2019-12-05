@@ -474,7 +474,7 @@ ClientClasses::NodeStatusStruct::make_new(
 // ProgressData
 //
 ///////////////////////////////////////////////////////////////////////////////
-::ClientClasses::ProgressData::ProgressData(BinaryDataRef bdr)
+::ClientClasses::ProgressData::ProgressData(BinaryDataRef)
 {
    auto msg = make_shared<::Codec_NodeStatus::ProgressData>();
    ptr_ = msg.get();

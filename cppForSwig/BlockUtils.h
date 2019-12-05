@@ -185,13 +185,11 @@ private:
    void pollNodeStatus() const;
    
 public:
-   Blockchain::ReorganizationState readBlkFileUpdate(
-      const BlkFileUpdateCallbacks &callbacks=BlkFileUpdateCallbacks());
+   Blockchain::ReorganizationState readBlkFileUpdate(void);
 
    BinaryData applyBlockRangeToDB(ProgressCallback, 
-                            uint32_t blk0, uint32_t blk1,
-                            ScrAddrFilter& scrAddrData,
-                            bool updateSDBI = true);
+                            uint32_t blk0,
+                            ScrAddrFilter& scrAddrData);
 
    uint32_t getTopBlockHeight() const {return blockchain_->top()->getBlockHeight();}
       

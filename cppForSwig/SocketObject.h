@@ -50,7 +50,7 @@ public:
       dataStack_(datastack)
    {}
 
-   void callback(const BinaryDataRef& bdr) 
+   void callback(const BinaryDataRef&) 
    { dataStack_->terminate(nullptr); }
 };
 

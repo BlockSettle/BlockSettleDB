@@ -250,7 +250,7 @@ namespace AsyncClient
 
       uint64_t getTxioCount(void) const { return count_; }
 
-      void getSpendableTxOutList(bool, std::function<void(ReturnMessage<std::vector<UTXO>>)>);
+      void getSpendableTxOutList(std::function<void(ReturnMessage<std::vector<UTXO>>)>);
       const BinaryData& getScrAddr(void) const { return scrAddr_; }
       const BinaryData& getAddrHash(void) const { return addrHash_; }
 
@@ -381,7 +381,7 @@ namespace AsyncClient
 
       //utility
       static std::unique_ptr<WritePayload_Protobuf> make_payload(
-         ::Codec_BDVCommand::Methods, const std::string&);
+         ::Codec_BDVCommand::Methods);
       static std::unique_ptr<WritePayload_Protobuf> make_payload(
          ::Codec_BDVCommand::StaticMethods);
       

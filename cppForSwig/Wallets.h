@@ -647,7 +647,7 @@ public:
    }
 
    //virtual
-   BinaryData getByVal(const BinaryData& key)
+   BinaryData getByVal(const BinaryData&)
    {
       //find id for the key
       throw std::runtime_error("no preimages in multisig feed");

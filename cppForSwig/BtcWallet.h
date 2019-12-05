@@ -81,7 +81,7 @@ public:
    uint64_t getWltTotalTxnCount(void) const;
 
    void prepareTxOutHistory(uint64_t val);
-   void prepareFullTxOutHistory(bool ignoreZC);
+   void prepareFullTxOutHistory(void);
    std::vector<UnspentTxOut> getSpendableTxOutListForValue(uint64_t val = UINT64_MAX);
    std::vector<UnspentTxOut> getSpendableTxOutListZC(void);
    std::vector<UnspentTxOut> getRBFTxOutList(void);
@@ -118,7 +118,7 @@ private:
    bool scanWallet(ScanWalletStruct&, int32_t);
 
    //wallet side reorg processing
-   void updateAfterReorg(uint32_t lastValidBlockHeight);
+   //void updateAfterReorg(uint32_t lastValidBlockHeight);
    std::map<BinaryData, TxIOPair> scanWalletZeroConf(
       const ScanWalletStruct&, int32_t);
 

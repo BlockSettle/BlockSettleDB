@@ -116,7 +116,7 @@ public:
    void         serializeDBValue(BinaryWriter &    bw ) const;
    void       unserializeDBValue(BinaryData const & bd);
    void       unserializeDBValue(BinaryDataRef      bd);
-   void       unserializeDBKey(BinaryDataRef key) {}
+   void       unserializeDBKey(BinaryDataRef) {}
 
    void pprintOneLine(uint32_t indent=3);
 
@@ -154,15 +154,13 @@ public:
    void unserialize(BinaryRefReader & brr);
 
    void       unserializeDBValue(BinaryRefReader &  brr);
-   void       serializeDBValue(BinaryWriter & bw, ARMORY_DB_TYPE dbType,
-               bool forceSaveSpent = false) const;
+   void       serializeDBValue(BinaryWriter & bw) const;
    void       unserializeDBValue(BinaryData const & bd);
    void       unserializeDBValue(BinaryDataRef      bd);
    void       unserializeDBKey(BinaryDataRef key);
 
    static void serializeDBValue(
       BinaryWriter&,
-      ARMORY_DB_TYPE, bool,
       uint16_t txversion, bool isCoinbase,
       const BinaryDataRef dataRef,
       TXOUT_SPENTNESS spentness, BinaryDataRef spentByTxin);
@@ -441,7 +439,7 @@ public:
    bool isNull(void) { return !isInitialized(); }
 
    void       unserializeDBValue(BinaryRefReader & brr);
-   void       serializeDBValue(BinaryWriter    & bw, ARMORY_DB_TYPE dbType) const;
+   void       serializeDBValue(BinaryWriter    & bw) const;
    void       unserializeDBValue(BinaryData const & bd);
    void       unserializeDBValue(BinaryDataRef      bd);
    void       unserializeDBKey(BinaryDataRef key, bool withPrefix=true);
@@ -576,10 +574,10 @@ public:
    bool isInitialized(void) { return (outPointsAddedByBlock_.size() > 0);}
    bool isNull(void) { return !isInitialized(); }
 
-   void       unserializeDBValue(BinaryRefReader & brr, ARMORY_DB_TYPE dbType);
-   void         serializeDBValue(BinaryWriter    & bw, ARMORY_DB_TYPE dbType) const;
-   void       unserializeDBValue(BinaryData const & bd, ARMORY_DB_TYPE dbType);
-   void       unserializeDBValue(BinaryDataRef      bd, ARMORY_DB_TYPE dbType);
+   void       unserializeDBValue(BinaryRefReader & brr);
+   void         serializeDBValue(BinaryWriter    & bw) const;
+   void       unserializeDBValue(BinaryData const & bd);
+   void       unserializeDBValue(BinaryDataRef      bd);
 
    BinaryData getDBKey(bool withPrefix=true) const;
 

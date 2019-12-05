@@ -181,8 +181,6 @@ void BlockchainScanner_Super::scan()
    if (commit_tID.joinable())
       commit_tID.join();
 
-   DatabaseContainer_Sharded::clearThreadShardTx(committhr_id);
-
    TIMER_STOP("scan");
    if (topBlock->getBlockHeight() - scanFrom > 100)
    {
@@ -1338,7 +1336,6 @@ void BlockchainScanner_Super::undo(Blockchain::ReorganizationState& reorgState)
       db_->putStoredDBInfo(SSH, sdbi, 0);
    }
 
-   DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
    ShardedSshParser sshParser(db_, *undoneHeights.begin(), 
       totalThreadCount_, false);
    sshParser.undo();

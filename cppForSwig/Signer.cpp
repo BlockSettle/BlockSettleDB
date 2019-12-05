@@ -1565,7 +1565,7 @@ shared_ptr<ScriptSpender> Signer::convertSpender(
 //// Signer_BCH
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<SigHashData> Signer_BCH::getSigHashDataForSpender(bool sw) const
+shared_ptr<SigHashData> Signer_BCH::getSigHashDataForSpender(bool) const
 {
    shared_ptr<SigHashData> SHD;
    if (sigHashDataObject_ == nullptr)

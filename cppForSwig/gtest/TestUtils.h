@@ -217,8 +217,8 @@ namespace DBTestUtils
          actionStack_.push_back(move(notif));
       }
 
-      void progress(BDMPhase phase, const std::vector<std::string> &walletIdVec,
-         float progress, unsigned secondsRem, unsigned progressNumeric)
+      void progress(BDMPhase, const std::vector<std::string> &,
+         float ,unsigned , unsigned)
       {}
 
       void disconnected()

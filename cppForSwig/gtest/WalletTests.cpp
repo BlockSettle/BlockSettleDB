@@ -45,6 +45,7 @@ TEST_F(AddressTests, bech32_Tests)
       READHEX("0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798");
    BinaryData p2wpkhScrAddr("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4");
    BinaryData p2wshAddr("bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3");
+   BinaryData invalidSwAddr("bca0w508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kw5rljs90234567789035");
 
    auto pubkey_hash = BtcUtils::getHash160(pubkey);
    auto&& scrAddr_p2wpkh = BtcUtils::scrAddrToSegWitAddress(pubkey_hash);
@@ -64,6 +65,17 @@ TEST_F(AddressTests, bech32_Tests)
 
    auto&& script_hash2 = BtcUtils::segWitAddressToScrAddr(scrAddr_p2wsh);
    EXPECT_EQ(script_hash, script_hash2);
+
+   //buffer overrun issue check
+   try
+   {
+      auto&& script_hash3 = BtcUtils::segWitAddressToScrAddr(invalidSwAddr);
+      ASSERT_TRUE(false);
+   }
+   catch (runtime_error& e)
+   {
+      EXPECT_EQ(e.what(), string("failed to decode sw address!"));
+   }
 }
 
 

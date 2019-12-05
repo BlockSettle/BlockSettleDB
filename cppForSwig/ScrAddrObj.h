@@ -155,8 +155,7 @@ private:
          utxoList_.clear();
       }
 
-      void addZcUTXOs(const std::map<BinaryData, TxIOPair>& txioMap,
-         std::function<bool(const BinaryData&)> isFromWallet)
+      void addZcUTXOs(const std::map<BinaryData, TxIOPair>& txioMap)
       {
          BinaryData ZCheader(WRITE_UINT16_LE(0xFFFF));
 
@@ -167,9 +166,6 @@ private:
 
             if (txio.second.hasTxIn())
                continue;
-
-            /*if (!isFromWallet(txio.second.getDBKeyOfOutput().getSliceCopy(0, 6)))
-               continue;*/
 
             utxoList_.insert(txio);
          }
@@ -222,8 +218,6 @@ public:
       const std::map<BinaryData, BinaryDataRef>& invalidatedTxOutKeys,
       const std::map<BinaryData, BinaryData>& minedKeys);
 
-   void updateAfterReorg(uint32_t lastValidBlockHeight);
-
    std::map<BinaryData, LedgerEntry> updateLedgers(
                       const std::map<BinaryData, TxIOPair>& txioMap,
                       uint32_t startBlock, uint32_t endBlock) const;
@@ -263,8 +257,8 @@ public:
    void resetTxOutHistory(void) { utxos_.reset(); }
 
    void addZcUTXOs(const std::map<BinaryData, TxIOPair>& txioMap,
-      std::function<bool(const BinaryData&)> isFromWallet)
-   { utxos_.addZcUTXOs(txioMap, isFromWallet); }
+      std::function<bool(const BinaryData&)>)
+   { utxos_.addZcUTXOs(txioMap); }
 
    uint32_t getBlockInVicinity(uint32_t blk) const;
    uint32_t getPageIdForBlockHeight(uint32_t blk) const;
