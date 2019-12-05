@@ -327,9 +327,8 @@ bool CryptoECDSA::VerifyPublicKeyValid(SecureBinaryData const & pubKey)
 // Output: None
 // Return: The signature of the data  (SecureBinaryData)
 SecureBinaryData CryptoECDSA::SignData(SecureBinaryData const & binToSign, 
-   SecureBinaryData const & cppPrivKey, const bool& detSign)
+   SecureBinaryData const & cppPrivKey, const bool&)
 {
-
    // We trick the Crypto++ ECDSA module by passing it a single-hashed
    // message, it will do the second hash before it signs it.  This is 
    // exactly what we need.
