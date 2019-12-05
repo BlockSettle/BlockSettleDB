@@ -292,9 +292,6 @@ protected:
       theBDMt_ = nullptr;
       clients_ = nullptr;
       
-      DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
-      EXPECT_EQ(DatabaseContainer_Sharded::txShardMap_.size(), 0);
-
       DBUtils::removeDirectory(blkdir_);
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory("./ldbtestdir");
@@ -1623,9 +1620,6 @@ protected:
 
       theBDMt_ = nullptr;
       clients_ = nullptr;
-
-      DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
-      EXPECT_EQ(DatabaseContainer_Sharded::txShardMap_.size(), 0);
 
       DBUtils::removeDirectory(blkdir_);
       DBUtils::removeDirectory(homedir_);
@@ -3500,9 +3494,6 @@ protected:
       delete theBDMt_;
       theBDMt_ = nullptr;
 
-      DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
-      EXPECT_EQ(DatabaseContainer_Sharded::txShardMap_.size(), 0);
-
       DBUtils::removeDirectory(blkdir_);
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory("./ldbtestdir");
@@ -5078,6 +5069,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       //mine 3 blocks to outpace original chain
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB, 3);
       EXPECT_EQ(pCallback->waitOnReorg(), 5);
+      cout << "had reorg" << endl;
 
       //wait on ZC now, as the staged transactions have been pushed
       pCallback->waitOnSignal(BDMAction_ZC);

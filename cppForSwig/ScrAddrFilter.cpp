@@ -340,8 +340,6 @@ void ScrAddrFilter::registrationThread()
       auto&& scaSet = updateAddrMap(batch->scrAddrSet_, 0);
       batch->callback_(scaSet);
    }
-
-   DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

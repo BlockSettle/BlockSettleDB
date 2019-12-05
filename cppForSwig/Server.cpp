@@ -303,8 +303,6 @@ void WebSocketServer::shutdown()
    }
 
    instance->threads_.clear();
-   DatabaseContainer_Sharded::clearThreadShardTx(idVec);
-
    instance_.store(nullptr, memory_order_relaxed);
    delete instance;
    
@@ -443,8 +441,6 @@ void WebSocketServer::commandThread()
       iter->second.readQueue_->push_back(move(packetPtr->data_));
       clientConnectionInterruptQueue_.push_back(move(packetPtr->bdvID_));
    }
-
-   DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

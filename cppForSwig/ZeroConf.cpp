@@ -1894,8 +1894,6 @@ void ZeroConfContainer::shutdown()
       if (parser.joinable())
          parser.join();
    }
-
-   DatabaseContainer_Sharded::clearThreadShardTx(idVec);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
