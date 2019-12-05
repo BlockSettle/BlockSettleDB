@@ -51,8 +51,8 @@ static struct lws_protocols protocols[] = {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-int callback_http(struct lws *wsi, enum lws_callback_reasons reason,
-   void *user, void *in, size_t len)
+int callback_http(struct lws *, enum lws_callback_reasons,
+   void *, void *, size_t)
 {
    return 0;
 }
