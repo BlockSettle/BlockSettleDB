@@ -316,7 +316,7 @@ void ScrAddrFilter::registrationThread()
       walletIDs.push_back(batch->walletID_);
       auto saf = getNew(SIDESCAN_ID);
       saf->updateAddrMap(addrSet, 0);
-      saf->applyBlockRangeToDB(0, topBlockHeight, walletIDs, true);
+      saf->applyBlockRangeToDB(0, walletIDs, true);
 
       //merge with main address filter
       set<BinaryDataRef> newAddrSet;
@@ -328,8 +328,7 @@ void ScrAddrFilter::registrationThread()
 
       //final scan to sync all addresses to same height
       auto newTopBlock  = blockchain()->top()->getBlockHeight();
-      applyBlockRangeToDB(
-         topBlockHeight + 1, newTopBlock + 1, walletIDs, false);
+      applyBlockRangeToDB(topBlockHeight + 1, walletIDs, false);
       
       //cleanup
       saf->cleanUpSdbis();
