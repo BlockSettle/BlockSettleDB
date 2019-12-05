@@ -125,7 +125,7 @@ class CallbackReturn_WebSocket : public CallbackReturn
    bool runInCaller_ = false;
 
 private:
-   void callback(BinaryDataRef bdr) {}
+   void callback(BinaryDataRef) {}
 
 public:
    virtual void callback(const WebSocketMessagePartial&) = 0;

@@ -321,7 +321,7 @@ private:
    // Don't allow copying or assignment -- becuase I never implemented them
    // I don't want anyone using them by accident!
    //PartialMerkleTree(PartialMerkleTree const & pmt2) {}
-   PartialMerkleTree& operator=(PartialMerkleTree const & pmt2) {}
+   PartialMerkleTree& operator=(PartialMerkleTree const &) {}
 };
 
 

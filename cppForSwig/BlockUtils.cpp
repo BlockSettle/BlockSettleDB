@@ -144,7 +144,7 @@ protected:
    }
    
    virtual BinaryData applyBlockRangeToDB(
-      uint32_t startBlock, uint32_t endBlock, 
+      uint32_t startBlock, 
       const vector<string>& wltIDs, bool reportProgress
    )
    {
@@ -193,7 +193,7 @@ protected:
          bdm_->notificationStack_.push_back(move(notifPtr));
       };
 
-      return bdm_->applyBlockRangeToDB(progress, startBlock, endBlock, *this, false);
+      return bdm_->applyBlockRangeToDB(progress, startBlock, *this);
    }
    
    shared_ptr<Blockchain> blockchain(void) const
@@ -315,9 +315,8 @@ BlockDataManager::~BlockDataManager()
 /////////////////////////////////////////////////////////////////////////////
 BinaryData BlockDataManager::applyBlockRangeToDB(
    ProgressCallback prog, 
-   uint32_t blk0, uint32_t blk1, 
-   ScrAddrFilter& scrAddrData,
-   bool updateSDBI)
+   uint32_t blk0, 
+   ScrAddrFilter& scrAddrData)
 {
    // Start scanning and timer
    BlockchainScanner bcs(blockchain_, iface_, &scrAddrData, 
@@ -424,9 +423,7 @@ void BlockDataManager::loadDiskState(const ProgressCallback &progress,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-Blockchain::ReorganizationState BlockDataManager::readBlkFileUpdate(
-   const BlockDataManager::BlkFileUpdateCallbacks& callbacks
-)
+Blockchain::ReorganizationState BlockDataManager::readBlkFileUpdate()
 { 
    return dbBuilder_->update();
 }

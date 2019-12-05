@@ -195,7 +195,7 @@ BinaryData TxIn::getSenderScrAddrIfAvail(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void TxIn::pprint(ostream & os, int nIndent, bool pBigendian) const
+void TxIn::pprint(ostream & os, int nIndent, bool) const
 {
    string indent = "";
    for (int i = 0; i<nIndent; i++)
@@ -518,7 +518,7 @@ void Tx::pprint(ostream & os, int nIndent, bool pBigendian)
 // supposed to be not NULL.  I'd like to try to force a segfault here, if it
 // is going to happen, instead of letting it kill my program where I don't 
 // know what happened.
-void Tx::pprintAlot(ostream & os)
+void Tx::pprintAlot(ostream &)
 {
    cout << "Tx hash:   " << thisHash_.toHexStr(true) << endl;
 

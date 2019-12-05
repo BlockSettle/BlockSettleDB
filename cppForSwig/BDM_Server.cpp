@@ -1910,8 +1910,6 @@ void BDV_Server_Object::init()
    auto newBlockNotif = notif->mutable_newblock();
    newBlockNotif->set_height(blockchain().top()->getBlockHeight());
    cb_->callback(message);
-
-   DatabaseContainer_Sharded::clearThreadShardTx(this_thread::get_id());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2500,8 +2498,6 @@ void Clients::shutdown()
    bdmT_->bdm()->disableZeroConf();
    bdmT_->bdm()->getScrAddrFilter()->shutdown();
    bdmT_->cleanUp();
-
-   DatabaseContainer_Sharded::clearThreadShardTx(idVec);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

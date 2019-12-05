@@ -248,7 +248,7 @@ public:
       count_.store(0, std::memory_order_relaxed);
    }
 
-   virtual T pop_front(bool rethrow = true)
+   virtual T pop_front()
    {
 	   auto tailPtr = tail_.load();
 
@@ -342,7 +342,7 @@ public:
 		count_.store(0, std::memory_order_relaxed);
    }
 
-   virtual T pop_front(bool rethrow = true)
+   virtual T pop_front()
    {
 		std::unique_lock<std::mutex> lock(mu_);
 		if (queue_.size() == 0)
@@ -443,7 +443,7 @@ public:
 				//try to pop_front
 				try
 				{
-					auto&& retval = Queue<T>::pop_front(false);
+					auto&& retval = Queue<T>::pop_front();
 					waiting_.fetch_sub(1, std::memory_order_relaxed);
 
                std::unique_lock<std::mutex> lock(condVarMutex_);

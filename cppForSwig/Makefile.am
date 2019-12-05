@@ -34,7 +34,7 @@ SUBDIRS = libbtc chacha20poly1305 $(MAYBE_BUILD)
 # Unit test flags.
 UNIT_TEST_CXXFLAGS=
 if BUILD_TESTS
-UNIT_TEST_CXXFLAGS += -DUNIT_TESTS
+UNIT_TEST_CXXFLAGS += -DUNIT_TESTS -Wunused-parameter
 endif
 
 # Flag used to determine if the code will *only* use libbtc, and not Crypto++.

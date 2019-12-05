@@ -187,7 +187,7 @@ void BtcWallet::prepareTxOutHistory(uint64_t val)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BtcWallet::prepareFullTxOutHistory(bool ignoreZC)
+void BtcWallet::prepareFullTxOutHistory()
 {
    auto spentByZC = [this](BinaryData dbkey)->bool
    { return this->bdvPtr_->isTxOutSpentByZC(dbkey); };
@@ -414,7 +414,7 @@ vector<AddressBookEntry> BtcWallet::createAddressBook(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BtcWallet::updateAfterReorg(uint32_t lastValidBlockHeight)
+/*void BtcWallet::updateAfterReorg(uint32_t lastValidBlockHeight)
 {
    auto addrMap = scrAddrMap_.get();
 
@@ -422,7 +422,7 @@ void BtcWallet::updateAfterReorg(uint32_t lastValidBlockHeight)
    {
       scrAddr.second->updateAfterReorg(lastValidBlockHeight);
    }
-}
+}*/
 
 ////////////////////////////////////////////////////////////////////////////////
 map<BinaryData, TxIOPair> BtcWallet::scanWalletZeroConf(
@@ -477,8 +477,8 @@ bool BtcWallet::scanWallet(ScanWalletStruct& scanInfo, int32_t updateID)
    if (scanInfo.action_ != BDV_ZC)
    {
       //new top block
-      if (scanInfo.reorg_)
-         updateAfterReorg(scanInfo.startBlock_);
+      /*if (scanInfo.reorg_)
+         updateAfterReorg(scanInfo.startBlock_);*/
          
       auto&& tx = bdvPtr_->getDB()->beginTransaction(SSH, LMDB::ReadOnly);
       balance_ = getFullBalanceFromDB(updateID);

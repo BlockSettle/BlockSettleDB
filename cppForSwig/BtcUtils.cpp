@@ -9,7 +9,7 @@
 #include "BtcUtils.h"
 #include "EncryptionUtils.h"
 #include "BlockDataManagerConfig.h"
-#include "bech32/ref/c++/segwit_addr.h"
+#include "btc/segwit_addr.h"
 
 using namespace std;
 
@@ -500,54 +500,69 @@ string BtcUtils::base64_decode(const string& in)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+const string BtcUtils::swHeaderMain_ = string(SEGWIT_ADDRESS_MAINNET_HEADER);
+const string BtcUtils::swHeaderTest_ = string(SEGWIT_ADDRESS_TESTNET_HEADER);
+
+////////////////////////////////////////////////////////////////////////////////
 BinaryData BtcUtils::scrAddrToSegWitAddress(const BinaryData& scrAddr)
 {
    //hardcoded for version 0 witness programs for now
-   string header;
+   const string* headerPtr;
 
    if (NetworkConfig::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160)
-      header = move(string(SEGWIT_ADDRESS_MAINNET_HEADER));
-   else if (NetworkConfig::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160_TESTNET &&
-      NetworkConfig::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160_TESTNET)
-      header = move(string(SEGWIT_ADDRESS_TESTNET_HEADER));
+      headerPtr = &swHeaderMain_;
+   else if (NetworkConfig::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160_TESTNET)
+      headerPtr = &swHeaderTest_;
    else
       throw runtime_error("invalid network for segwit address");
 
-   auto&& result = segwit_addr::encode(
-      header, 0, scrAddr.getDataVector());
-
-   if (result.size() == 0)
+   //73 + header size + 1 for null terminator
+   BinaryData result(74 + headerPtr->size()); 
+   if (segwit_addr_encode(
+      result.getCharPtr(), headerPtr->c_str(), 0, 
+      scrAddr.getPtr(), scrAddr.getSize()) == 0)
+   {
       throw runtime_error("failed to encode to sw address!");
+   }
 
-   return BinaryData(result);
+   //adjust result size by looking for the null terminator
+   auto len = strlen(result.toCharPtr());
+   result.resize(len);
+
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData BtcUtils::segWitAddressToScrAddr(const BinaryData& swAddr)
 {
-   string header;
+   const string* headerPtr;
 
    if (NetworkConfig::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160)
-      header = move(string(SEGWIT_ADDRESS_MAINNET_HEADER));
+      headerPtr = &swHeaderMain_;
    else if (NetworkConfig::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160_TESTNET)
-      header = move(string(SEGWIT_ADDRESS_TESTNET_HEADER));
+      headerPtr = &swHeaderTest_;
    else
       throw runtime_error("invalid network for segwit address");
 
-   string swAddr_str(swAddr.getCharPtr(), swAddr.getSize());
-   auto&& result = segwit_addr::decode(header, swAddr_str);
-
-   if (result.first == -1)
+   int ver;
+   size_t len;
+   BinaryData result(40);
+   if (segwit_addr_decode(&ver, result.getPtr(), &len, 
+      headerPtr->c_str(), swAddr.getCharPtr()) == 0) 
+   {
       throw runtime_error("failed to decode sw address!");
+   }
 
-   if (result.second.size() == 0)
+   if (len == 0)
       throw runtime_error("empty sw program buffer");
 
-   if (result.first != 0)
+   if (ver != 0)
       throw runtime_error("only supporting sw version 0 for now");
 
-   BinaryData scrAddr(&result.second[0], result.second.size());
-   return scrAddr;
+   //resize result
+   result.resize(len);
+   
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

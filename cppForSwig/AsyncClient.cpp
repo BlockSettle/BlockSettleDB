@@ -22,8 +22,7 @@ using namespace ::Codec_BDVCommand;
 // BlockDataViewer
 //
 ///////////////////////////////////////////////////////////////////////////////
-unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(
-   Methods method, const string& bdvid)
+unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(Methods method)
 {
    auto payload = make_unique<WritePayload_Protobuf>();
    auto message = make_unique<BDVCommand>();
@@ -154,7 +153,7 @@ void BlockDataViewer::unregisterFromDB()
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::goOnline()
 {
-   auto payload = make_payload(Methods::goOnline, bdvID_);
+   auto payload = make_payload(Methods::goOnline);
    sock_->pushPayload(move(payload), nullptr);
 }
 
@@ -215,7 +214,7 @@ Lockbox BlockDataViewer::instantiateLockbox(const string& id)
 void BlockDataViewer::getLedgerDelegateForWallets(
    function<void(ReturnMessage<LedgerDelegate>)> callback)
 {
-   auto payload = make_payload(Methods::getLedgerDelegateForWallets, bdvID_);
+   auto payload = make_payload(Methods::getLedgerDelegateForWallets);
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_LedgerDelegate>(sock_, bdvID_, callback);
@@ -226,7 +225,7 @@ void BlockDataViewer::getLedgerDelegateForWallets(
 void BlockDataViewer::getLedgerDelegateForLockboxes(
    function<void(ReturnMessage<LedgerDelegate>)> callback)
 {
-   auto payload = make_payload(Methods::getLedgerDelegateForLockboxes, bdvID_);
+   auto payload = make_payload(Methods::getLedgerDelegateForLockboxes);
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_LedgerDelegate>(sock_, bdvID_, callback);
@@ -246,7 +245,7 @@ void BlockDataViewer::broadcastZC(const BinaryData& rawTx)
    Tx tx(rawTx);
    cache_->insertTx(txHash, tx);
 
-   auto payload = make_payload(Methods::broadcastZC, bdvID_);
+   auto payload = make_payload(Methods::broadcastZC);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->add_bindata(rawTx.getPtr(), rawTx.getSize());
 
@@ -306,7 +305,7 @@ void BlockDataViewer::getTxByHash(const BinaryData& txHash,
    catch(NoMatch&)
    {}
 
-   auto payload = make_payload(Methods::getTxByHash, bdvID_);
+   auto payload = make_payload(Methods::getTxByHash);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_hash(bdRef.getPtr(), bdRef.getSize());
    command->set_flag(heightOnly);
@@ -322,7 +321,7 @@ void BlockDataViewer::getTxBatchByHash(const set<BinaryData>& hashes,
    function<void(ReturnMessage<vector<Tx>>)> callback)
 {
    //only accepts hashes in binary format
-   auto payload = make_payload(Methods::getTxBatchByHash, bdvID_);
+   auto payload = make_payload(Methods::getTxBatchByHash);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    std::map<BinaryData, bool> hashesToFetch;
@@ -407,7 +406,7 @@ void BlockDataViewer::getRawHeaderForTxHash(const BinaryData& txHash,
    catch(NoMatch&)
    { }
 
-   auto payload = make_payload(Methods::getHeaderByHash, bdvID_);
+   auto payload = make_payload(Methods::getHeaderByHash);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->add_bindata(txHash.getPtr(), txHash.getSize());
 
@@ -431,7 +430,7 @@ void BlockDataViewer::getHeaderByHeight(unsigned height,
    catch(NoMatch&)
    { }
 
-   auto payload = make_payload(Methods::getHeaderByHeight, bdvID_);
+   auto payload = make_payload(Methods::getHeaderByHeight);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_height(height);
 
@@ -448,7 +447,7 @@ void BlockDataViewer::getLedgerDelegateForScrAddr(
    const string& walletID, const BinaryData& scrAddr,
    function<void(ReturnMessage<LedgerDelegate>)> callback)
 {
-   auto payload = make_payload(Methods::getLedgerDelegateForScrAddr, bdvID_);
+   auto payload = make_payload(Methods::getLedgerDelegateForScrAddr);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID);
    command->set_scraddr(scrAddr.getPtr(), scrAddr.getSize());
@@ -463,7 +462,7 @@ void BlockDataViewer::getLedgerDelegateForScrAddr(
 void BlockDataViewer::updateWalletsLedgerFilter(
    const vector<BinaryData>& wltIdVec)
 {
-   auto payload = make_payload(Methods::updateWalletsLedgerFilter, bdvID_);
+   auto payload = make_payload(Methods::updateWalletsLedgerFilter);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    for (auto bd : wltIdVec)
       command->add_bindata(bd.getPtr(), bd.getSize());
@@ -476,7 +475,7 @@ void BlockDataViewer::getNodeStatus(
    function<void(
       ReturnMessage<shared_ptr<::ClientClasses::NodeStatusStruct>>)> callback)
 {
-   auto payload = make_payload(Methods::getNodeStatus, bdvID_);
+   auto payload = make_payload(Methods::getNodeStatus);
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_NodeStatusStruct>(callback);
@@ -488,7 +487,7 @@ void BlockDataViewer::estimateFee(unsigned blocksToConfirm,
    const string& strategy, 
    function<void(ReturnMessage<ClientClasses::FeeEstimateStruct>)> callback)
 {
-   auto payload = make_payload(Methods::estimateFee, bdvID_);
+   auto payload = make_payload(Methods::estimateFee);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_value(blocksToConfirm);
    command->add_bindata(strategy);
@@ -503,7 +502,7 @@ void BlockDataViewer::estimateFee(unsigned blocksToConfirm,
 void BlockDataViewer::getFeeSchedule(const string& strategy, function<void(
    ReturnMessage<map<unsigned, ClientClasses::FeeEstimateStruct>>)> callback)
 {
-   auto payload = make_payload(Methods::getFeeSchedule, bdvID_);
+   auto payload = make_payload(Methods::getFeeSchedule);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->add_bindata(strategy);
 
@@ -519,7 +518,7 @@ void BlockDataViewer::getHistoryForWalletSelection(
    const vector<string>& wldIDs, const string& orderingStr,
    function<void(ReturnMessage<vector<::ClientClasses::LedgerEntry>>)> callback)
 {
-   auto payload = make_payload(Methods::getHistoryForWalletSelection, bdvID_);
+   auto payload = make_payload(Methods::getHistoryForWalletSelection);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    if (orderingStr == "ascending")
       command->set_flag(true);
@@ -541,7 +540,7 @@ void BlockDataViewer::getHistoryForWalletSelection(
 void BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx,
    function<void(ReturnMessage<string>)> callback)
 {
-   auto payload = make_payload(Methods::broadcastThroughRPC, bdvID_);
+   auto payload = make_payload(Methods::broadcastThroughRPC);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->add_bindata(rawTx.getPtr(), rawTx.getSize());
 
@@ -558,7 +557,7 @@ void BlockDataViewer::getSpentnessForOutputs(
       map<BinaryData, map<unsigned, 
       pair<BinaryData, unsigned>>>>)> callback)
 {
-   auto payload = make_payload(Methods::getSpentnessForOutputs, bdvID_);
+   auto payload = make_payload(Methods::getSpentnessForOutputs);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& hashPair : outputs)
@@ -586,7 +585,7 @@ void BlockDataViewer::getSpentnessForZcOutputs(
       map<BinaryData, map<unsigned, 
       pair<BinaryData, unsigned>>>>)> callback)
 {
-   auto payload = make_payload(Methods::getSpentnessForZcOutputs, bdvID_);
+   auto payload = make_payload(Methods::getSpentnessForZcOutputs);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& hashPair : outputs)
@@ -623,7 +622,7 @@ void BlockDataViewer::getOutputsForOutpoints(
    const map<BinaryData, set<unsigned>>& outpoints, bool withZc,
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
-   auto payload = make_payload(Methods::getOutputsForOutpoints, bdvID_);
+   auto payload = make_payload(Methods::getOutputsForOutpoints);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& hashPair : outpoints)
@@ -660,8 +659,7 @@ LedgerDelegate::LedgerDelegate(shared_ptr<SocketPrototype> sock,
 void LedgerDelegate::getHistoryPage(uint32_t id, 
    function<void(ReturnMessage<vector<::ClientClasses::LedgerEntry>>)> callback)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::getHistoryPage, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::getHistoryPage);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_delegateid(delegateID_);
    command->set_pageid(id);
@@ -677,7 +675,7 @@ void LedgerDelegate::getPageCount(
    function<void(ReturnMessage<uint64_t>)> callback) const
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getPageCountForLedgerDelegate, bdvID_);
+      Methods::getPageCountForLedgerDelegate);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_delegateid(delegateID_);
 
@@ -700,8 +698,7 @@ AsyncClient::BtcWallet::BtcWallet(const BlockDataViewer& bdv, const string& id) 
 string AsyncClient::BtcWallet::registerAddresses(
    const vector<BinaryData>& addrVec, bool isNew)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::registerWallet, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::registerWallet);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_flag(isNew);
    command->set_walletid(walletID_);
@@ -719,8 +716,7 @@ string AsyncClient::BtcWallet::registerAddresses(
 ///////////////////////////////////////////////////////////////////////////////
 string AsyncClient::BtcWallet::setUnconfirmedTarget(unsigned confTarget)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::setWalletConfTarget, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::setWalletConfTarget);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
 
@@ -736,8 +732,7 @@ string AsyncClient::BtcWallet::setUnconfirmedTarget(unsigned confTarget)
 void AsyncClient::BtcWallet::getBalancesAndCount(uint32_t blockheight, 
    function<void(ReturnMessage<vector<uint64_t>>)> callback)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::getBalancesAndCount, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::getBalancesAndCount);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
    command->set_height(blockheight);
@@ -753,7 +748,7 @@ void AsyncClient::BtcWallet::getSpendableTxOutListForValue(uint64_t val,
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getSpendableTxOutListForValue, bdvID_);
+      Methods::getSpendableTxOutListForValue);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
    command->set_value(val);
@@ -768,8 +763,7 @@ void AsyncClient::BtcWallet::getSpendableTxOutListForValue(uint64_t val,
 void AsyncClient::BtcWallet::getSpendableZCList(
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::getSpendableZCList, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::getSpendableZCList);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
 
@@ -783,8 +777,7 @@ void AsyncClient::BtcWallet::getSpendableZCList(
 void AsyncClient::BtcWallet::getRBFTxOutList(
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::getRBFTxOutList, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::getRBFTxOutList);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
 
@@ -798,8 +791,7 @@ void AsyncClient::BtcWallet::getRBFTxOutList(
 void AsyncClient::BtcWallet::getAddrTxnCountsFromDB(
    function<void(ReturnMessage<map<BinaryData, uint32_t>>)> callback)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::getAddrTxnCounts, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::getAddrTxnCounts);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
 
@@ -813,8 +805,7 @@ void AsyncClient::BtcWallet::getAddrTxnCountsFromDB(
 void AsyncClient::BtcWallet::getAddrBalancesFromDB(
    function<void(ReturnMessage<map<BinaryData, vector<uint64_t>>>)> callback)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::getAddrBalances, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::getAddrBalances);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
 
@@ -828,8 +819,7 @@ void AsyncClient::BtcWallet::getAddrBalancesFromDB(
 void AsyncClient::BtcWallet::getHistoryPage(uint32_t id,
    function<void(ReturnMessage<vector<::ClientClasses::LedgerEntry>>)> callback)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::getHistoryPage, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::getHistoryPage);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
    command->set_pageid(id);
@@ -848,8 +838,7 @@ void AsyncClient::BtcWallet::getLedgerEntryForTxHash(
    //get history page with a hash as argument instead of an int will return 
    //the ledger entry for the tx instead of a page
 
-   auto payload = BlockDataViewer::make_payload(
-      Methods::getHistoryPage, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::getHistoryPage);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
    command->set_hash(txhash.getPtr(), txhash.getSize());
@@ -872,8 +861,7 @@ ScrAddrObj AsyncClient::BtcWallet::getScrAddrObjByKey(const BinaryData& scrAddr,
 void AsyncClient::BtcWallet::createAddressBook(
    function<void(ReturnMessage<vector<AddressBookEntry>>)> callback) const
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::createAddressBook, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::createAddressBook);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
 
@@ -910,8 +898,7 @@ void Lockbox::getBalancesAndCountFromDB(uint32_t topBlockHeight)
 string AsyncClient::Lockbox::registerAddresses(
    const vector<BinaryData>& addrVec, bool isNew)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::registerLockbox, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::registerLockbox);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_flag(isNew);
    command->set_walletid(walletID_);
@@ -948,11 +935,11 @@ ScrAddrObj::ScrAddrObj(AsyncClient::BtcWallet* wlt, const BinaryData& scrAddr,
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
-void ScrAddrObj::getSpendableTxOutList(bool ignoreZC, 
+void ScrAddrObj::getSpendableTxOutList(
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getSpendableTxOutListForAddr, bdvID_);
+      Methods::getSpendableTxOutListForAddr);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
    command->set_scraddr(scrAddr_.getPtr(), scrAddr_.getSize());
@@ -976,8 +963,7 @@ AsyncClient::Blockchain::Blockchain(const BlockDataViewer& bdv) :
 void AsyncClient::Blockchain::getHeaderByHash(const BinaryData& hash,
    function<void(ReturnMessage<ClientClasses::BlockHeader>)> callback)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::getHeaderByHash, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::getHeaderByHash);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_hash(hash.getPtr(), hash.getSize());
 
@@ -991,8 +977,7 @@ void AsyncClient::Blockchain::getHeaderByHash(const BinaryData& hash,
 void AsyncClient::Blockchain::getHeaderByHeight(unsigned height,
    function<void(ReturnMessage<ClientClasses::BlockHeader>)> callback)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::getHeaderByHeight, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::getHeaderByHeight);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_height(height);
    
@@ -1017,8 +1002,7 @@ void AsyncClient::BlockDataViewer::getCombinedBalances(
    const vector<string>& wltIDs,
    function<void(ReturnMessage<map<string, CombinedBalances>>)> callback)
 {
-   auto payload = BlockDataViewer::make_payload(
-      Methods::getCombinedBalances, bdvID_);
+   auto payload = BlockDataViewer::make_payload(Methods::getCombinedBalances);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& id : wltIDs)
@@ -1036,7 +1020,7 @@ void AsyncClient::BlockDataViewer::getCombinedAddrTxnCounts(
    function<void(ReturnMessage<map<string, CombinedCounts>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getCombinedAddrTxnCounts, bdvID_);
+      Methods::getCombinedAddrTxnCounts);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& id : wltIDs)
@@ -1054,7 +1038,7 @@ void AsyncClient::BlockDataViewer::getCombinedSpendableTxOutListForValue(
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getCombinedSpendableTxOutListForValue, bdvID_);
+      Methods::getCombinedSpendableTxOutListForValue);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& id : wltIDs)
@@ -1074,7 +1058,7 @@ void AsyncClient::BlockDataViewer::getCombinedSpendableZcOutputs(
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getCombinedSpendableZcOutputs, bdvID_);
+      Methods::getCombinedSpendableZcOutputs);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& id : wltIDs)
@@ -1092,7 +1076,7 @@ void AsyncClient::BlockDataViewer::getCombinedRBFTxOuts(
    function<void(ReturnMessage<vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getCombinedRBFTxOuts, bdvID_);
+      Methods::getCombinedRBFTxOuts);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& id : wltIDs)
@@ -1111,7 +1095,7 @@ void AsyncClient::BlockDataViewer::getOutpointsForAddresses(
    std::function<void(ReturnMessage<OutpointBatch>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getOutpointsForAddresses, bdvID_);
+      Methods::getOutpointsForAddresses);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    for (auto& id : addrVec)
@@ -1132,7 +1116,7 @@ void AsyncClient::BlockDataViewer::getUTXOsForAddress(
    std::function<void(ReturnMessage<std::vector<UTXO>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(
-      Methods::getUTXOsForAddress, bdvID_);
+      Methods::getUTXOsForAddress);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
    command->set_scraddr(scrAddr.getCharPtr(), scrAddr.getSize());

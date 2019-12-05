@@ -721,7 +721,7 @@ ScrAddrObj::ScrAddrObj(AsyncClient::ScrAddrObj& asyncAddr) :
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
-vector<UTXO> ScrAddrObj::getSpendableTxOutList(bool ignoreZC)
+vector<UTXO> ScrAddrObj::getSpendableTxOutList()
 {
    auto prom = make_shared<promise<vector<UTXO>>>();
    auto fut = prom->get_future();
@@ -739,7 +739,7 @@ vector<UTXO> ScrAddrObj::getSpendableTxOutList(bool ignoreZC)
       }
    };
 
-   asyncAddr_.getSpendableTxOutList(ignoreZC, resultLBD);
+   asyncAddr_.getSpendableTxOutList(resultLBD);
    return move(fut.get());
 }
 

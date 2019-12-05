@@ -43,10 +43,6 @@
 
 class Blockchain;
 
-////////////////////////////////////////////////////////////////////////////////
-struct InvalidShardException
-{};
-
 ////
 struct FilterException : public std::runtime_error
 {
@@ -79,13 +75,6 @@ struct SshAccessorException : public std::runtime_error
 struct SpentnessAccessorException : public std::runtime_error
 {
    SpentnessAccessorException(const std::string& err) : std::runtime_error(err)
-   {}
-};
-
-////
-struct DbShardedException : public std::runtime_error
-{
-   DbShardedException(const std::string& err) : std::runtime_error(err)
    {}
 };
 
@@ -310,18 +299,6 @@ public:
    DbTransaction_Single(LMDBEnv::Transaction&& dbtx) :
       dbtx_(std::move(dbtx))
    {}
-};
-
-////////
-class DbTransaction_Sharded : public DbTransaction
-{
-private:
-   const std::thread::id threadId_;
-   LMDBEnv* envPtr_ = nullptr;
-
-public:
-   DbTransaction_Sharded(LMDBEnv*, LMDB::Mode);
-   ~DbTransaction_Sharded(void);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -643,180 +620,6 @@ struct ShardFilter_Spentness : public ShardFilter
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-struct SHARDTX
-{
-   std::map<LMDBEnv*, LMDB::Mode> modes_;
-   std::unique_ptr<std::map<LMDBEnv*, std::map<unsigned, std::unique_ptr<LMDBEnv::Transaction>>>> txMap_;
-   std::map<LMDBEnv*, unsigned> levels_;
-
-   SHARDTX(void)
-   {
-      txMap_ = 
-         make_unique<std::map<LMDBEnv*, std::map<unsigned, std::unique_ptr<LMDBEnv::Transaction>>>>();
-   }
-
-   ~SHARDTX(void)
-   {
-      txMap_.reset();
-   }
-
-   void beginShardTx(LMDBEnv* env, std::shared_ptr<DBPair> dbPtr)
-   {
-      auto txIter = txMap_->find(env);
-      if (txIter == txMap_->end())
-         throw DbTxException("missing tx for sharded db");
-
-      if (txIter->second.find(dbPtr->getId()) == txIter->second.end())
-      {
-         auto modeIter = modes_.find(env);
-         if(modeIter == modes_.end())
-            throw DbTxException("missing mode for sharded db");
-
-         auto tx = 
-            make_unique<LMDBEnv::Transaction>(dbPtr->beginTransaction(modeIter->second));
-         txIter->second.insert(make_pair(dbPtr->getId(), move(tx)));
-      }
-   }
-
-   void begin(LMDBEnv* env, LMDB::Mode mode)
-   {
-      auto levelIter = levels_.find(env);
-      if (levelIter == levels_.end())
-      {
-         levelIter = levels_.insert(std::make_pair(env, 0)).first;
-      }
-
-      auto modeIter = modes_.find(env);
-      if (levelIter->second == 0)
-      {
-         if (modeIter == modes_.end())
-            modes_.insert(std::make_pair(env, mode));
-         else
-            modeIter->second = mode;
-      }
-      else
-      {
-         if (modeIter == modes_.end())
-            throw DbTxException("missing mode entry for tx");
-         if (modeIter->second != mode && modeIter->second == LMDB::ReadOnly)
-            throw DbTxException("cannot open RW tx with active RO tx");
-      }
-
-      auto txIter = txMap_->find(env);
-      if (txIter == txMap_->end())
-      {
-         txMap_->insert(
-            std::make_pair(env, std::map<unsigned, std::unique_ptr<LMDBEnv::Transaction>>()));
-      }
-
-      ++levelIter->second;
-   }
-
-   void end(LMDBEnv* env)
-   {
-      auto levelIter = levels_.find(env);
-      if (levelIter != levels_.end())
-      {
-         if (levelIter->second == 1)
-         {
-            auto txIter = txMap_->find(env);
-            if (txIter != txMap_->end())
-               txMap_->erase(txIter);
-
-            auto modeIter = modes_.find(env);
-            if (modeIter != modes_.end())
-               modes_.erase(modeIter);
-
-            levels_.erase(levelIter);
-            return;
-         }
-
-         --levelIter->second;
-      }
-   }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-class DatabaseContainer_Sharded : public DatabaseContainer, public Lockable
-{
-   friend class ShardedSshParser;
-   friend class LMDBBlockDatabase;
-   friend class LDBIter_Sharded;
-   friend class BlockchainScanner_Super;
-
-private:
-   mutable TransactionalMap<unsigned, std::shared_ptr<DBPair>> dbMap_;
-   std::unique_ptr<ShardFilter> filterPtr_;
-   std::mutex addMapMutex_;
-
-public:
-   static TransactionalMap<std::thread::id, std::shared_ptr<SHARDTX>> txShardMap_;
-
-private:
-   std::shared_ptr<DBPair> getShard(unsigned) const;
-   std::shared_ptr<DBPair> getShard(unsigned, bool) const;
-   std::shared_ptr<DBPair> addShard(unsigned) const;
-   void openShard(unsigned id) const;
-
-   void updateShardCounter(unsigned) const;
-
-   void loadFilter(void);
-   void putFilter(void);
-
-   std::string getShardPath(unsigned) const;
-   void lockShard(unsigned) const;
-
-   void initAfterLock(void) {}
-   void cleanUpBeforeUnlock(void) {}
-
-public:
-   DatabaseContainer_Sharded(DB_SELECT dbSelect) :
-      DatabaseContainer(dbSelect)
-   {}
-
-   DatabaseContainer_Sharded(DB_SELECT dbSelect,
-      std::unique_ptr<ShardFilter> filter) :
-      DatabaseContainer(dbSelect), filterPtr_(move(filter))
-   {}
-
-
-   ~DatabaseContainer_Sharded(void)
-   {
-      close();
-   }
-
-   //virtuals
-   StoredDBInfo open(void);
-   void close(void);
-   void eraseOnDisk(void);
-
-   StoredDBInfo getStoredDBInfo(uint32_t id);
-   void putStoredDBInfo(StoredDBInfo const & sdbi, uint32_t id);
-
-   std::unique_ptr<DbTransaction> beginTransaction(LMDB::Mode) const;
-   std::unique_ptr<LDBIter> getIterator();
-
-   BinaryDataRef getValue(BinaryDataRef key) const;
-   void putValue(BinaryDataRef key, BinaryDataRef value);
-   void deleteValue(BinaryDataRef key);
-
-   //locals
-   std::pair<unsigned, unsigned> getShardBounds(unsigned) const;
-   unsigned getShardIdForHeight(unsigned) const;
-   unsigned getShardIdForKey(BinaryDataRef key) const;
-   unsigned getTopShardId(void) const;
-   void closeShardsById(unsigned);
-
-   static void clearThreadShardTx(std::thread::id id)
-   { txShardMap_.erase(id); }
-   
-   static void clearThreadShardTx(std::vector<std::thread::id>& idVec)
-   { txShardMap_.erase(idVec); }
-};
-
-////////////////////////////////////////////////////////////////////////////////
 class LMDBBlockDatabase
 {
    friend class ShardedSshParser;
@@ -916,8 +719,7 @@ public:
       const std::function<void(std::shared_ptr<BlockHeader>, uint32_t, uint8_t)> &callback
       );
 
-   std::map<uint32_t, uint32_t> getSSHSummary(BinaryDataRef scrAddrStr,
-      uint32_t endBlock);
+   std::map<uint32_t, uint32_t> getSSHSummary(BinaryDataRef scrAddrStr);
 
    uint32_t getStxoCountForTx(const BinaryData & dbKey6) const;
    void resetHistoryForAddressVector(const std::vector<BinaryData>&);

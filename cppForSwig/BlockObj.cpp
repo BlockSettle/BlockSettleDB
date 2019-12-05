@@ -77,7 +77,7 @@ void BlockHeader::pprint(ostream & os, int nIndent, bool pBigendian) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BlockHeader::pprintAlot(ostream & os)
+void BlockHeader::pprintAlot(ostream &)
 {
    cout << "Header:   " << getBlockHeight() << endl;
    cout << "Hash:     " << getThisHash().toHexStr(true)  << endl;
@@ -156,7 +156,7 @@ uint16_t TxRef::getBlockTxIndex(void) const
 
 
 /////////////////////////////////////////////////////////////////////////////
-void TxRef::pprint(ostream & os, int nIndent) const
+void TxRef::pprint(ostream & os, int) const
 {
    os << "TxRef Information:" << endl;
    //os << "   Hash:      " << getThisHash().toHexStr() << endl;

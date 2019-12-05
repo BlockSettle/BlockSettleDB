@@ -2249,7 +2249,7 @@ TEST(BinaryReadWriteTest, ReaderEndian)
                            "ab""fdffff""fe013200aa""ffff00ff00ff00ff00");
 
    BinaryReader br(in);
-   auto val8 = br.get_uint8_t(LE);
+   auto val8 = br.get_uint8_t();
    EXPECT_EQ(val8, 1);                       
 
    auto val16 = br.get_uint16_t(LE);
@@ -2267,7 +2267,7 @@ TEST(BinaryReadWriteTest, ReaderEndian)
    EXPECT_EQ(br.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryRefReader brr(in);
-   val8 = brr.get_uint8_t(LE);
+   val8 = brr.get_uint8_t();
    EXPECT_EQ(val8, 1);
 
    val16 = brr.get_uint16_t(LE);
@@ -2284,7 +2284,7 @@ TEST(BinaryReadWriteTest, ReaderEndian)
    EXPECT_EQ(brr.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryReader br2(in);
-   EXPECT_EQ(br2.get_uint8_t(ENDIAN_LITTLE), 1);
+   EXPECT_EQ(br2.get_uint8_t(), 1);
    EXPECT_EQ(br2.get_uint16_t(ENDIAN_LITTLE), 1);
    EXPECT_EQ(br2.get_uint32_t(ENDIAN_LITTLE), 0xaa003201);
    EXPECT_EQ(br2.get_uint64_t(ENDIAN_LITTLE), 0x00ff00ff00ff00ffULL);
@@ -2294,7 +2294,7 @@ TEST(BinaryReadWriteTest, ReaderEndian)
    EXPECT_EQ(br2.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryRefReader brr2(in);
-   EXPECT_EQ(brr2.get_uint8_t(ENDIAN_LITTLE), 1);
+   EXPECT_EQ(brr2.get_uint8_t(), 1);
    EXPECT_EQ(brr2.get_uint16_t(ENDIAN_LITTLE), 1);
    EXPECT_EQ(brr2.get_uint32_t(ENDIAN_LITTLE), 0xaa003201);
    EXPECT_EQ(brr2.get_uint64_t(ENDIAN_LITTLE), 0x00ff00ff00ff00ffULL);
@@ -2304,7 +2304,7 @@ TEST(BinaryReadWriteTest, ReaderEndian)
    EXPECT_EQ(brr2.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryReader brBE(in);
-   EXPECT_EQ(brBE.get_uint8_t(BE), 1);                       
+   EXPECT_EQ(brBE.get_uint8_t(), 1);                       
    EXPECT_EQ(brBE.get_uint16_t(BE), 0x0100);                      
    EXPECT_EQ(brBE.get_uint32_t(BE), 0x013200aa);
    EXPECT_EQ(brBE.get_uint64_t(BE), 0xff00ff00ff00ff00ULL);  
@@ -2314,7 +2314,7 @@ TEST(BinaryReadWriteTest, ReaderEndian)
    EXPECT_EQ(brBE.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryRefReader brrBE(in);
-   EXPECT_EQ(brrBE.get_uint8_t(BE), 1);                       
+   EXPECT_EQ(brrBE.get_uint8_t(), 1);                       
    EXPECT_EQ(brrBE.get_uint16_t(BE), 0x0100);                      
    EXPECT_EQ(brrBE.get_uint32_t(BE), 0x013200aa);
    EXPECT_EQ(brrBE.get_uint64_t(BE), 0xff00ff00ff00ff00ULL);  
@@ -2324,7 +2324,7 @@ TEST(BinaryReadWriteTest, ReaderEndian)
    EXPECT_EQ(brrBE.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryReader brBE2(in);
-   EXPECT_EQ(brBE2.get_uint8_t(ENDIAN_BIG), 1);                       
+   EXPECT_EQ(brBE2.get_uint8_t(), 1);                       
    EXPECT_EQ(brBE2.get_uint16_t(ENDIAN_BIG), 0x0100);
    EXPECT_EQ(brBE2.get_uint32_t(ENDIAN_BIG), 0x013200aa);
    EXPECT_EQ(brBE2.get_uint64_t(ENDIAN_BIG), 0xff00ff00ff00ff00ULL);
@@ -2334,7 +2334,7 @@ TEST(BinaryReadWriteTest, ReaderEndian)
    EXPECT_EQ(brBE2.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryRefReader brrBE2(in);
-   EXPECT_EQ(brrBE2.get_uint8_t(ENDIAN_BIG), 1);
+   EXPECT_EQ(brrBE2.get_uint8_t(), 1);
    EXPECT_EQ(brrBE2.get_uint16_t(ENDIAN_BIG), 0x0100);
    EXPECT_EQ(brrBE2.get_uint32_t(ENDIAN_BIG), 0x013200aa);
    EXPECT_EQ(brrBE2.get_uint64_t(ENDIAN_BIG), 0xff00ff00ff00ff00ULL);
@@ -4201,8 +4201,8 @@ TEST_F(StoredBlockObjTest, STxOutSerDBValue_1)
    //
    // For this example:  DBVer=0, TxVer=1, TxSer=FRAGGED[1]
    //   0000   01    00   0  --- ----
-   EXPECT_EQ(serializeDBValue(stxo0, ARMORY_DB_FULL),  
-      READHEX("1420") + rawTxOut0_);
+   EXPECT_EQ(serializeDBValue(stxo0),  
+      READHEX("1400") + rawTxOut0_);
 }
    
 
@@ -4223,8 +4223,8 @@ TEST_F(StoredBlockObjTest, STxOutSerDBValue_2)
    stxo0.spentness_ = TXOUT_SPENT;
    stxo0.spentByTxInKey_ = spentStr;
    EXPECT_EQ(
-      serializeDBValue(stxo0, ARMORY_DB_FULL),
-      READHEX("1520")+rawTxOut0_+spentStr
+      serializeDBValue(stxo0),
+      READHEX("1500")+rawTxOut0_+spentStr
    );
 }
 
@@ -4247,8 +4247,8 @@ TEST_F(StoredBlockObjTest, STxOutSerDBValue_3)
    stxo0.spentness_ = TXOUT_SPENT;
    stxo0.spentByTxInKey_ = spentStr;
    EXPECT_EQ(
-      serializeDBValue(stxo0, ARMORY_DB_FULL),
-      READHEX("15a0") + rawTxOut0_ + spentStr
+      serializeDBValue(stxo0),
+      READHEX("1580") + rawTxOut0_ + spentStr
    );
 }
 
@@ -4377,7 +4377,7 @@ TEST_F(StoredBlockObjTest, SUndoDataSer)
    sud.blockHeight_ = 123000; // unused for this test
    sud.duplicateID_ = 15;     // unused for this test
 
-   BinaryData flags = READHEX("14");
+   BinaryData flags = READHEX("04");
    BinaryData str2  = WRITE_UINT32_LE(2);
    BinaryData str5  = WRITE_UINT32_LE(5);
    BinaryData answer = 
@@ -4389,7 +4389,7 @@ TEST_F(StoredBlockObjTest, SUndoDataSer)
                op0.serialize() +
                op1.serialize();
 
-   EXPECT_EQ(serializeDBValue(sud, ARMORY_DB_FULL), answer);
+   EXPECT_EQ(serializeDBValue(sud), answer);
 }
 
 
@@ -4431,7 +4431,7 @@ TEST_F(StoredBlockObjTest, SUndoDataUnser)
       "bbbbffffbbbbffffbbbb02000000");
 
    StoredUndoData sud;
-   sud.unserializeDBValue(sudToUnser, ARMORY_DB_FULL);
+   sud.unserializeDBValue(sudToUnser);
 
    ASSERT_EQ(sud.outPointsAddedByBlock_.size(), 2);
    ASSERT_EQ(sud.stxOutsRemovedByBlock_.size(), 2);
@@ -4738,8 +4738,8 @@ TEST_F(StoredBlockObjTest, SScriptHistorySer)
    expSub1 = READHEX("01""00""0100000000000000""0001""0001");
    expSub2 = READHEX("01""00""0002000000000000""0002""0002");
    EXPECT_EQ(serializeDBValue(ssh, ARMORY_DB_BARE), expect);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")], ARMORY_DB_BARE), expSub1);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")], ARMORY_DB_BARE), expSub2);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")]), expSub1);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")]), expSub2);
 
    /////////////////////////////////////////////////////////////////////////////
    // Added another TxIO to the second subSSH
@@ -4752,8 +4752,8 @@ TEST_F(StoredBlockObjTest, SScriptHistorySer)
                        "00""0002000000000000""0002""0002"
                        "00""0000030000000000""0004""0004");
    EXPECT_EQ(serializeDBValue(ssh, ARMORY_DB_BARE), expect);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")], ARMORY_DB_BARE), expSub1);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")], ARMORY_DB_BARE), expSub2);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")]), expSub1);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")]), expSub2);
 
    /////////////////////////////////////////////////////////////////////////////
    // Now we explicitly delete a TxIO (with pruning, this should be basically
@@ -4766,8 +4766,8 @@ TEST_F(StoredBlockObjTest, SScriptHistorySer)
    expSub2 = READHEX("01"
                        "00""0000030000000000""0004""0004");
    EXPECT_EQ(serializeDBValue(ssh, ARMORY_DB_BARE), expect);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")], ARMORY_DB_BARE), expSub1);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")], ARMORY_DB_BARE), expSub2);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")]), expSub1);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")]), expSub2);
    
    /////////////////////////////////////////////////////////////////////////////
    // Insert a multisig TxIO -- this should increment totalTxioCount_, but not 
@@ -4782,8 +4782,8 @@ TEST_F(StoredBlockObjTest, SScriptHistorySer)
                        "00""0000030000000000""0004""0004"
                        "10""0000000400000000""0006""0006");
    EXPECT_EQ(serializeDBValue(ssh, ARMORY_DB_BARE), expect);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")], ARMORY_DB_BARE), expSub1);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")], ARMORY_DB_BARE), expSub2);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")]), expSub1);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")]), expSub2);
    
    /////////////////////////////////////////////////////////////////////////////
    // Remove the multisig
@@ -4794,8 +4794,8 @@ TEST_F(StoredBlockObjTest, SScriptHistorySer)
    expSub2 = READHEX("01"
                        "00""0000030000000000""0004""0004");
    EXPECT_EQ(serializeDBValue(ssh, ARMORY_DB_BARE), expect);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")], ARMORY_DB_BARE), expSub1);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")], ARMORY_DB_BARE), expSub2);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")]), expSub1);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")]), expSub2);
 
    /////////////////////////////////////////////////////////////////////////////
    // Remove a full subSSH (it shouldn't be deleted, though, that will be done
@@ -4806,8 +4806,8 @@ TEST_F(StoredBlockObjTest, SScriptHistorySer)
    expSub2 = READHEX("01"
                        "00""0000030000000000""0004""0004");
    EXPECT_EQ(serializeDBValue(ssh, ARMORY_DB_BARE), expect);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")], ARMORY_DB_BARE), expSub1);
-   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")], ARMORY_DB_BARE), expSub2);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("0000ff00")]), expSub1);
+   EXPECT_EQ(serializeDBValue(ssh.subHistMap_[READHEX("00010000")]), expSub2);
    
 }
 
@@ -5442,8 +5442,8 @@ TEST_F(LMDBTest, DISABLED_STxOutPutGet)
    StoredTxOut stxoGet;
    iface_->getStoredTxOut(stxoGet, 123000, 15, 7, 1);
    EXPECT_EQ(
-      serializeDBValue(stxoGet, ARMORY_DB_FULL),
-      serializeDBValue(stxo0, ARMORY_DB_FULL)
+      serializeDBValue(stxoGet),
+      serializeDBValue(stxo0)
    );
 
    //iface_->validDupByHeight_[123000] = 15;
@@ -5464,13 +5464,13 @@ TEST_F(LMDBTest, DISABLED_STxOutPutGet)
 
    iface_->getStoredTxOut(stxoGet, 123000, 15, 7, 1);
    EXPECT_EQ(
-      serializeDBValue(stxoGet, ARMORY_DB_FULL),
-      serializeDBValue(stxo0, ARMORY_DB_FULL)
+      serializeDBValue(stxoGet),
+      serializeDBValue(stxo0)
    );
    iface_->getStoredTxOut(stxoGet, 200333,  3, 7, 1);
    EXPECT_EQ(
-      serializeDBValue(stxoGet, ARMORY_DB_FULL),
-      serializeDBValue(stxo1, ARMORY_DB_FULL)
+      serializeDBValue(stxoGet),
+      serializeDBValue(stxo1)
    );
 
    addOutPairB(stxoKey, stxoVal);

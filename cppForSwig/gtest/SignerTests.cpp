@@ -560,7 +560,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       auto spendVal = 18 * COIN;
       Signer signer2;
 
-      auto getUtxos = [dbAssetWlt](uint64_t val)->vector<UTXO>
+      auto getUtxos = [dbAssetWlt](uint64_t)->vector<UTXO>
       {
          auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
 
@@ -677,7 +677,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       Signer signer3;
       signer3.setFlags(SCRIPT_VERIFY_SEGWIT);
 
-      auto getUtxos = [dbAssetWlt](uint64_t val)->vector<UTXO>
+      auto getUtxos = [dbAssetWlt](uint64_t)->vector<UTXO>
       {
          auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
 

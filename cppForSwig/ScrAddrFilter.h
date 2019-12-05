@@ -216,7 +216,7 @@ public:
 protected:
    virtual std::shared_ptr<ScrAddrFilter> getNew(unsigned) = 0;
    virtual BinaryData applyBlockRangeToDB(
-      uint32_t startBlock, uint32_t endBlock, const std::vector<std::string>& wltIDs,
+      uint32_t startBlock, const std::vector<std::string>& wltIDs,
       bool reportProgress)=0;
    virtual std::shared_ptr<Blockchain> blockchain(void) const = 0;
    virtual bool bdmIsRunning(void) const = 0;

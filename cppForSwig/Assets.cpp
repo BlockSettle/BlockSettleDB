@@ -877,7 +877,7 @@ const BinaryData& Asset_EncryptionKey::getKdfId(void) const
 
 ////////////////////////////////////////////////////////////////////////////////
 unique_ptr<DecryptedData> Asset_EncryptionKey::decrypt(
-   const SecureBinaryData& key) const
+   const SecureBinaryData&) const
 {
    throw std::runtime_error("illegal for encryption keys");
 }

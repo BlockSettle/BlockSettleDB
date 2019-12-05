@@ -211,15 +211,15 @@ public:
 class NullStream : public LogStream
 {
 public:
-   LogStream& operator<<(const char * str)   { return *this; }
-   LogStream& operator<<(std::string const & str) { return *this; }
-   LogStream& operator<<(int i)              { return *this; }
-   LogStream& operator<<(unsigned int i)     { return *this; }
-   LogStream& operator<<(unsigned long long int i)     { return *this; }
-   LogStream& operator<<(float f)            { return *this; }
-   LogStream& operator<<(double d)           { return *this; }
+   LogStream& operator<<(const char *)   { return *this; }
+   LogStream& operator<<(std::string const &) { return *this; }
+   LogStream& operator<<(int)              { return *this; }
+   LogStream& operator<<(unsigned int)     { return *this; }
+   LogStream& operator<<(unsigned long long int)     { return *this; }
+   LogStream& operator<<(float)            { return *this; }
+   LogStream& operator<<(double)           { return *this; }
 #if !defined(_MSC_VER) && !defined(__MINGW32__) && defined(__LP64__)
-   LogStream& operator<<(size_t i)           { return *this; }
+   LogStream& operator<<(size_t)           { return *this; }
 #endif
 
    void FlushStreams(void) {}
