@@ -451,7 +451,7 @@ bool DatabaseBuilder::addBlocksToDB(BlockDataLoader& bdl,
    {
       commitAllTxHints(bdMap, insertedBlocks);
       if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
-         commitAllStxos(blockfilemappointer, bdMap, insertedBlocks);
+         commitAllStxos(bdMap, insertedBlocks);
    }
 
    return true;
@@ -907,7 +907,6 @@ void DatabaseBuilder::commitAllTxHints(
 
 /////////////////////////////////////////////////////////////////////////////
 void DatabaseBuilder::commitAllStxos(
-   shared_ptr<BlockDataFileMap> blockDataPtr,
    const map<uint32_t, BlockData>& bdMap,
    const set<unsigned>& insertedBlocks)
 {
