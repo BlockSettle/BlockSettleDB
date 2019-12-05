@@ -442,7 +442,7 @@ bool LDBIter_Sharded::advance(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool LDBIter_Sharded::seekTo(BinaryDataRef key)
+bool LDBIter_Sharded::seekTo(BinaryDataRef)
 {
    throw DBIterException("not supported for shared db iterator");
 }
@@ -462,7 +462,7 @@ bool LDBIter_Sharded::seekToExact(BinaryDataRef key)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-bool LDBIter_Sharded::seekToBefore(BinaryDataRef key)
+bool LDBIter_Sharded::seekToBefore(BinaryDataRef)
 {
    throw DBIterException("not supported for shared db iterator");
 }
@@ -1280,7 +1280,7 @@ uint64_t LMDBBlockDatabase::getBalanceForScrAddr(BinaryDataRef scrAddr, bool wit
 bool LMDBBlockDatabase::getFullUTXOMapForSSH( 
                                 StoredScriptHistory & ssh,
                                 map<BinaryData, UnspentTxOut> & mapToFill,
-                                bool withMultisig)
+                                bool)
 {
    //TODO: deprecate. replace with paged version once new coin control is
    //implemented
@@ -2812,8 +2812,8 @@ void LMDBBlockDatabase::printAllDatabaseEntries(DB_SELECT db)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-map<uint32_t, uint32_t> LMDBBlockDatabase::getSSHSummary(BinaryDataRef scrAddrStr,
-   uint32_t endBlock)
+map<uint32_t, uint32_t> LMDBBlockDatabase::getSSHSummary(
+   BinaryDataRef scrAddrStr)
 {
    map<uint32_t, uint32_t> SSHsummary;
 

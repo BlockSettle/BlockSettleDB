@@ -916,8 +916,7 @@ public:
       const std::function<void(std::shared_ptr<BlockHeader>, uint32_t, uint8_t)> &callback
       );
 
-   std::map<uint32_t, uint32_t> getSSHSummary(BinaryDataRef scrAddrStr,
-      uint32_t endBlock);
+   std::map<uint32_t, uint32_t> getSSHSummary(BinaryDataRef scrAddrStr);
 
    uint32_t getStxoCountForTx(const BinaryData & dbKey6) const;
    void resetHistoryForAddressVector(const std::vector<BinaryData>&);
