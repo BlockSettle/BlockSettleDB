@@ -2037,8 +2037,13 @@ public:
    static std::string base64_encode(const std::string&);
    static std::string base64_decode(const std::string&);
 
+   ////
+   static const std::string swHeaderMain_;
+   static const std::string swHeaderTest_;
    static BinaryData scrAddrToSegWitAddress(const BinaryData& scrAddr);
    static BinaryData segWitAddressToScrAddr(const BinaryData& swAddr);
+   
+   ////
    static int get_varint_len(const int64_t& value);
 };
    
