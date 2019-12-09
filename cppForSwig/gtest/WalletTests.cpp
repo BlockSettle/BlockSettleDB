@@ -2289,6 +2289,9 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
          filename, packetPair.second.cipherText_));
    }
 
+   dbEnv->close();
+   dbEnv.reset();
+
    //reopen db iface
    iface = make_shared<WalletDBInterface>();
    iface->setupEnv(dbPath_, passLbd);

@@ -1169,10 +1169,19 @@ void WalletDBInterface::compactFile()
       swapPath = fullpath;
 
       //rename old file to swap
-      rename(fullDbPath.c_str(), swapPath.c_str());
+      if (rename(fullDbPath.c_str(), swapPath.c_str()) != 0)
+      {
+         throw WalletInterfaceException(
+            "failed to swap file during wipe operation");
+      }
 
       //rename new file to old
-      rename(copyName.c_str(), fullDbPath.c_str());
+      if (rename(copyName.c_str(), fullDbPath.c_str()) != 0)
+      {
+         throw WalletInterfaceException(
+            "failed to swap file during wipe operation");
+      }
+
       break;
    }
 
@@ -1183,7 +1192,21 @@ void WalletDBInterface::compactFile()
    auto oldFileMap = DBUtils::getMmapOfFile(swapPath, true);
    memset(oldFileMap.filePtr_, 0, oldFileMap.size_);
    oldFileMap.unmap();
-   unlink(swapPath.c_str());
+
+   int unlinkResult;
+#ifdef _WIN32
+   unlinkResult = _unlink(swapPath.c_str());
+#else
+   unlinkResult = unlink(swapPath.c_str());
+#endif
+
+   if (unlinkResult != 0)
+   {
+      throw WalletInterfaceException(
+         "failed to delete file during wipe operation");
+   }
+
+   //TODO: lock sharing rights on wallet files
 }
 
 ////////////////////////////////////////////////////////////////////////////////
