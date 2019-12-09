@@ -196,8 +196,6 @@ list(APPEND LIBARMORYCOMMON_SOURCES
     WebSocketClient.cpp
     WebSocketMessage.cpp
     DBUtils.cpp
-    bech32/ref/c++/bech32.cpp
-    bech32/ref/c++/segwit_addr.cpp
 )
 
 set(PROTOBUF_FILES
@@ -506,7 +504,7 @@ if(WITH_CLIENT)
             qrc_img_resources_py
             lang_lrelease
         )
-        
+
         install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_LIBDIR}/armory/ui)")
 
         install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_LIBDIR}/armory/lang)")
@@ -540,7 +538,7 @@ if(WITH_CLIENT)
     add_dependencies(CppBlockUtils armory_script)
 
     install(PROGRAMS ${PROJECT_BINARY_DIR}/armory DESTINATION ${CMAKE_INSTALL_BINDIR})
-    
+
     install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_LIBDIR}/armory/armoryengine)")
 
     install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_DATAROOTDIR}/applications)") # share/applications
@@ -556,7 +554,7 @@ if(WITH_CLIENT)
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/armory
     )
 
-    install(FILES 
+    install(FILES
         ../armorycolors.py
         ../armorymodels.py
         ../ArmoryQt.py
