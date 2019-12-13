@@ -1603,7 +1603,7 @@ protected:
 
       initBDM();
 
-      wallet1id = BinaryData(string("wallet1"));
+      wallet1id = "wallet1";
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -1641,7 +1641,7 @@ protected:
    string ldbdir_;
    string blk0dat_;
 
-   BinaryData wallet1id;
+   string wallet1id;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2353,22 +2353,22 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       3); //set lookup computation to 3 entries
 
           //create 2-of-3 multisig asset entry from 3 different wallets
-   map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
+   map<string, shared_ptr<AssetEntry>> asset_single_map;
    auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
-   BinaryData wltid1_bd(assetWlt_1->getID());
+   auto wltid1_bd = assetWlt_1->getID();
    asset_single_map.insert(make_pair(wltid1_bd, asset1));
 
    auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
-   BinaryData wltid2_bd(assetWlt_2->getID());
+   auto wltid2_bd = assetWlt_2->getID();
    asset_single_map.insert(make_pair(wltid2_bd, asset2));
 
    auto asset4_singlesig = assetWlt_2->getNewAddress();
 
    auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
-   BinaryData wltid3_bd(assetWlt_3->getID());
+   auto wltid3_bd = assetWlt_3->getID();
    asset_single_map.insert(make_pair(wltid3_bd, asset3));
 
-   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData("test"),
+   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
       asset_single_map, 2, 3);
    auto addr_ms_raw = make_shared<AddressEntry_Multisig>(ae_ms, true);
    auto addr_p2wsh = make_shared<AddressEntry_P2WSH>(addr_ms_raw);
@@ -2393,8 +2393,8 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   auto ms_wlt = bdvPtr->getWalletOrLockbox(BinaryData("ms_entry"));
-   auto wlt_singleSig = bdvPtr->getWalletOrLockbox(BinaryData(assetWlt_2->getID()));
+   auto ms_wlt = bdvPtr->getWalletOrLockbox("ms_entry");
+   auto wlt_singleSig = bdvPtr->getWalletOrLockbox(assetWlt_2->getID());
 
 
    //check balances
@@ -3464,7 +3464,7 @@ protected:
       //setup auth peers for server and client
       authPeersPassLbd_ = [](const set<BinaryData>&)->SecureBinaryData
       {
-         return SecureBinaryData("authpeerpass");
+         return SecureBinaryData::fromString("authpeerpass");
       };
 
       AuthorizedPeers serverPeers(
@@ -3481,7 +3481,7 @@ protected:
       clientPeers.addPeer(serverPubkey, serverAddr.str());
       serverPeers.addPeer(clientPubkey, "127.0.0.1");
 
-      wallet1id = BinaryData(string("wallet1"));
+      wallet1id = "wallet1";
 
       initBDM();
    }
@@ -3514,7 +3514,7 @@ protected:
    string ldbdir_;
    string blk0dat_;
 
-   BinaryData wallet1id;
+   string wallet1id;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

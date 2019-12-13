@@ -214,10 +214,10 @@ protected:
 
       NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
 
-      wallet1id = BinaryData("wallet1");
-      wallet2id = BinaryData("wallet2");
-      LB1ID = BinaryData(TestChain::lb1B58ID);
-      LB2ID = BinaryData(TestChain::lb2B58ID);
+      wallet1id = "wallet1";
+      wallet2id = "wallet2";
+      LB1ID = TestChain::lb1B58ID;
+      LB2ID = TestChain::lb2B58ID;
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -257,10 +257,10 @@ protected:
    string ldbdir_;
    string blk0dat_;
 
-   BinaryData wallet1id;
-   BinaryData wallet2id;
-   BinaryData LB1ID;
-   BinaryData LB2ID;
+   string wallet1id;
+   string wallet2id;
+   string LB1ID;
+   string LB2ID;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -519,7 +519,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       }
 
       //add op_return output for coverage
-      BinaryData opreturn_msg("testing op_return");
+      auto opreturn_msg = BinaryData::fromString("testing op_return");
       signer.addRecipient(make_shared<Recipient_OPRETURN>(opreturn_msg));
 
       //sign, verify then broadcast
@@ -1091,20 +1091,20 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       3); //set lookup computation to 3 entries
 
    //create 1-of-3 multisig asset entry from 3 different wallets
-   map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
+   map<string, shared_ptr<AssetEntry>> asset_single_map;
    auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
-   BinaryData wltid1_bd(assetWlt_1->getID());
+   auto wltid1_bd = assetWlt_1->getID();
    asset_single_map.insert(make_pair(wltid1_bd, asset1));
 
    auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
-   BinaryData wltid2_bd(assetWlt_2->getID());
+   auto wltid2_bd = assetWlt_2->getID();
    asset_single_map.insert(make_pair(wltid2_bd, asset2));
 
    auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
-   BinaryData wltid3_bd(assetWlt_3->getID());
+   auto wltid3_bd = assetWlt_3->getID();
    asset_single_map.insert(make_pair(wltid3_bd, asset3));
 
-   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData("test"),
+   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
       asset_single_map, 1, 3);
    auto addr_ms_raw = make_shared<AddressEntry_Multisig>(ae_ms, true);
    auto addr_p2wsh = make_shared<AddressEntry_P2WSH>(addr_ms_raw);
@@ -1123,7 +1123,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   auto ms_wlt = bdvPtr->getWalletOrLockbox(BinaryData("ms_entry"));
+   auto ms_wlt = bdvPtr->getWalletOrLockbox("ms_entry");
 
 
    //check balances
@@ -1203,7 +1203,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       }
 
       //add op_return output for coverage
-      BinaryData opreturn_msg("testing op_return 0123");
+      auto opreturn_msg = BinaryData::fromString("testing op_return 0123");
       signer.addRecipient(make_shared<Recipient_OPRETURN>(opreturn_msg));
 
       //sign, verify then broadcast
@@ -1272,7 +1272,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       }
 
       //add op_return output for coverage
-      BinaryData opreturn_msg("testing op_return 0123");
+      auto opreturn_msg = BinaryData::fromString("testing op_return 0123");
       signer2.addRecipient(make_shared<Recipient_OPRETURN>(opreturn_msg));
 
       //sign, verify & return signed tx
@@ -1373,22 +1373,22 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       3); //set lookup computation to 3 entries
 
    //create 2-of-3 multisig asset entry from 3 different wallets
-   map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
+   map<string, shared_ptr<AssetEntry>> asset_single_map;
    auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
-   BinaryData wltid1_bd(assetWlt_1->getID());
+   auto wltid1_bd = assetWlt_1->getID();
    asset_single_map.insert(make_pair(wltid1_bd, asset1));
 
    auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
-   BinaryData wltid2_bd(assetWlt_2->getID());
+   auto wltid2_bd = assetWlt_2->getID();
    asset_single_map.insert(make_pair(wltid2_bd, asset2));
 
    auto asset4_singlesig = assetWlt_2->getNewAddress();
 
    auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
-   BinaryData wltid3_bd(assetWlt_3->getID());
+   auto wltid3_bd = assetWlt_3->getID();
    asset_single_map.insert(make_pair(wltid3_bd, asset3));
 
-   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData("test"),
+   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
       asset_single_map, 2, 3);
    auto addr_ms_raw = make_shared<AddressEntry_Multisig>(ae_ms, true);
    auto addr_p2wsh = make_shared<AddressEntry_P2WSH>(addr_ms_raw);
@@ -1413,8 +1413,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   auto ms_wlt = bdvPtr->getWalletOrLockbox(BinaryData("ms_entry"));
-   auto wlt_singleSig = bdvPtr->getWalletOrLockbox(BinaryData(assetWlt_2->getID()));
+   auto ms_wlt = bdvPtr->getWalletOrLockbox("ms_entry");
+   auto wlt_singleSig = bdvPtr->getWalletOrLockbox(assetWlt_2->getID());
 
 
    //check balances
@@ -3290,7 +3290,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       }
 
       //add opreturn for coverage
-      BinaryData opreturn_msg("op_return message testing");
+      auto opreturn_msg = BinaryData::fromString("op_return message testing");
       signer2.addRecipient(make_shared<Recipient_OPRETURN>(opreturn_msg));
 
       //sign, verify & broadcast
@@ -3757,7 +3757,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    //// create assetWlt ////
 
    //create a root private key
-   SecureBinaryData passphrase("test");
+   auto passphrase = SecureBinaryData::fromString("test");
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
       homedir_,
@@ -4055,13 +4055,13 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    //// create assetWlt ////
 
    //create a root private key
-   SecureBinaryData passphrase("test");
+   auto passphrase = SecureBinaryData::fromString("test");
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
       passphrase,
-      SecureBinaryData("control"),
+      SecureBinaryData::fromString("control"),
       5); //set lookup computation to 5 entries
 
    //register with db
@@ -4319,14 +4319,14 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    //// create assetWlt ////
 
    //create a root private key
-   SecureBinaryData passphrase("test");
+   auto passphrase = SecureBinaryData::fromString("test");
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       move(wltRoot), //root as a rvalue
       { 0x80000065, 0x80000020 },
       passphrase,
-      SecureBinaryData("contorl"),
+      SecureBinaryData::fromString("control"),
       5); //set lookup computation to 5 entries
 
    //register with db
@@ -4584,13 +4584,13 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    //// create assetWlt ////
 
    //create a root private key
-   SecureBinaryData passphrase("test");
+   auto passphrase = SecureBinaryData::fromString("test");
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
       homedir_,
       wltRoot, //root as a rvalue
       passphrase,
-      SecureBinaryData("control"));
+      SecureBinaryData::fromString("control"));
 
    auto&& salt = CryptoPRNG::generateRandom(32);
    auto saltedAccType =
@@ -4874,13 +4874,13 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    //// create assetWlt ////
 
    //create a root private key
-   SecureBinaryData passphrase("test");
+   auto passphrase = SecureBinaryData::fromString("test");
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
       homedir_,
       wltRoot, //root as a rvalue
       passphrase,
-      SecureBinaryData("control"));
+      SecureBinaryData::fromString("control"));
 
    auto ecdhAccType = make_shared<AccountType_ECDH>(privKey, pubKey);
    ecdhAccType->setDefaultAddressType(
