@@ -69,10 +69,10 @@ BinaryData IfaceDataMap::getNewDbKey()
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 const BinaryData DBInterface::erasurePlaceHolder_ =
-BinaryData(ERASURE_PLACE_HOLDER);
+   BinaryData::fromString(ERASURE_PLACE_HOLDER);
 
 const BinaryData DBInterface::keyCycleFlag_ =
-BinaryData(KEY_CYCLE_FLAG);
+   BinaryData::fromString(KEY_CYCLE_FLAG);
 
 ////////////////////////////////////////////////////////////////////////////////
 DBInterface::DBInterface(
@@ -502,7 +502,7 @@ void WalletDBInterface::setupEnv(const string& path,
    //load wallet header db
    {
       auto headrPtr = make_shared<WalletHeader_Control>();
-      headrPtr->walletID_ = BinaryData(WALLETHEADER_DBNAME);
+      headrPtr->walletID_ = WALLETHEADER_DBNAME;
       headrPtr->controlSalt_ = controlHeader->controlSalt_;
       encryptionVersion_ = headrPtr->encryptionVersion_;
       openDB(headrPtr, rootEncrKey, encryptionVersion_);
@@ -704,7 +704,7 @@ shared_ptr<WalletHeader> WalletDBInterface::loadControlHeader()
    //grab meta object
    BinaryWriter bw;
    bw.put_uint8_t(WALLETHEADER_PREFIX);
-   bw.put_BinaryData(BinaryData(CONTROL_DB_NAME));
+   bw.put_String(CONTROL_DB_NAME);
    auto& headerKey = bw.getData();
 
    auto&& tx = beginReadTransaction(CONTROL_DB_NAME);
@@ -870,7 +870,7 @@ shared_ptr<WalletHeader_Control> WalletDBInterface::setupControlDB(
 
    //create control meta object
    auto headerPtr = make_shared<WalletHeader_Control>();
-   headerPtr->walletID_ = BinaryData(CONTROL_DB_NAME);
+   headerPtr->walletID_ = CONTROL_DB_NAME;
    auto keyStruct = initWalletHeaderObject(headerPtr, passphrase);
 
    //setup controlDB decrypted data container
@@ -969,8 +969,8 @@ shared_ptr<WalletHeader> WalletDBInterface::getWalletHeader(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const map<BinaryData, shared_ptr<WalletHeader>>& 
-WalletDBInterface::getHeaderMap() const
+const map<string, shared_ptr<WalletHeader>>& 
+   WalletDBInterface::getHeaderMap() const
 {
    return headerMap_;
 }

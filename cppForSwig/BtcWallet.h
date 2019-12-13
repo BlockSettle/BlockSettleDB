@@ -50,7 +50,7 @@ class BtcWallet
 
 public:
 
-   BtcWallet(BlockDataViewer* bdv, BinaryData ID)
+   BtcWallet(BlockDataViewer* bdv, const std::string ID)
       : bdvPtr_(bdv), walletID_(ID)
    {}
 
@@ -95,8 +95,8 @@ public:
    const ScrAddrObj* getScrAddrObjByKey(const BinaryData& key) const;
    ScrAddrObj& getScrAddrObjRef(const BinaryData& key);
 
-   void setWalletID(BinaryData const & wltId) { walletID_ = wltId; }
-   const BinaryData& walletID() const { return walletID_; }
+   void setWalletID(const std::string &wltId) { walletID_ = wltId; }
+   const std::string& walletID() const { return walletID_; }
 
    std::shared_ptr<std::map<BinaryData, LedgerEntry>> getHistoryPage(uint32_t);
    std::vector<LedgerEntry> getHistoryPageAsVector(uint32_t);
@@ -158,7 +158,7 @@ private:
    HistoryPager                  histPages_;
 
    //wallet id
-   BinaryData                    walletID_;
+   std::string walletID_;
 
    uint64_t                      balance_ = 0;
 

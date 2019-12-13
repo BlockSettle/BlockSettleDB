@@ -396,7 +396,7 @@ private:
    std::unique_ptr<LMDB> controlDb_;
 
    //wallet structure
-   std::map<BinaryData, std::shared_ptr<WalletHeader>> headerMap_;
+   std::map<std::string, std::shared_ptr<WalletHeader>> headerMap_;
 
    std::string path_;
    unsigned dbCount_ = 0;
@@ -451,7 +451,7 @@ public:
    void addHeader(std::shared_ptr<WalletHeader>);
    std::shared_ptr<WalletHeader> getWalletHeader(
       const std::string&) const;
-   const std::map<BinaryData, std::shared_ptr<WalletHeader>>& 
+   const std::map<std::string, std::shared_ptr<WalletHeader>>& 
       getHeaderMap(void) const;
 
    //db count

@@ -74,7 +74,7 @@ AuthorizedPeers::AuthorizedPeers(
       //create & set password lambda
       auto passphrasePrompt = [](const set<BinaryData>&)->SecureBinaryData
       {
-         return SecureBinaryData(PEERS_WALLET_PASSWORD);
+         return SecureBinaryData::fromString(PEERS_WALLET_PASSWORD);
       };
 
       wallet_->setPassphrasePromptLambda(passphrasePrompt);
@@ -152,7 +152,7 @@ void AuthorizedPeers::createWallet(
 {
    //Default peers wallet password. Asset wallets always encrypt private keys, 
    //have to provide a password at creation.
-   SecureBinaryData password(PEERS_WALLET_PASSWORD);
+   auto&& password = SecureBinaryData::fromString(PEERS_WALLET_PASSWORD);
 
    //Default peers wallet derivation path. Using m/'account/'0.
    vector<unsigned> derPath;
@@ -165,12 +165,11 @@ void AuthorizedPeers::createWallet(
    BIP32_Node root;
    root.initFromSeed(seed);
    auto b58 = root.getBase58();
-   string b58str(b58.toCharPtr(), b58.getSize());
 
    //initializing wallet from xpriv, use customized derivation path
    auto&& controlPassphrase = passLbd(set<BinaryData>());
    wallet_ = AssetWallet_Single::createFromBase58_BIP32(
-      baseDir, b58str, derPath, password, controlPassphrase, 2);
+      baseDir, b58, derPath, password, controlPassphrase, 2);
    
    //add the peers meta account
    wallet_->addMetaAccount(MetaAccount_AuthPeers);
@@ -617,7 +616,7 @@ void AuthorizedPeers::changeMasterPassphrase(const string& path)
    auto wlt = AssetWallet::loadMainWalletFromFile(path, promptWrap);
 
    //grab new pass
-   auto&& newPass = promptPtr({ BinaryData("change-pass") });
+   auto&& newPass = promptPtr({ BinaryData::fromString("change-pass") });
 
    //create lambda with the hijacked passphrase
    auto oldPassLbd = [&currentPass](const set<BinaryData>&)->SecureBinaryData

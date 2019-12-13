@@ -79,7 +79,7 @@ public:
    void       unregisterLockbox(const std::string& ID);
 
    void scanWallets(std::shared_ptr<BDV_Notification>);
-   bool hasWallet(const BinaryData& ID) const;
+   bool hasWallet(const std::string &ID) const;
 
    Tx                getTxByHash(BinaryData const & txHash) const;
    
@@ -165,10 +165,10 @@ public:
    const BlockDataManagerConfig& config() const { return bdmPtr_->config(); }
 
    WalletGroup getStandAloneWalletGroup(
-      const std::vector<BinaryData>& wltIDs, HistoryOrdering order);
+      const std::vector<std::string>& wltIDs, HistoryOrdering order);
 
-   void updateWalletsLedgerFilter(const std::vector<BinaryData>& walletsList);
-   void updateLockboxesLedgerFilter(const std::vector<BinaryData>& walletsList);
+   void updateWalletsLedgerFilter(const std::vector<std::string>& walletsList);
+   void updateLockboxesLedgerFilter(const std::vector<std::string>& walletsList);
 
    uint32_t getBlockTimeByHeight(uint32_t) const;
    uint32_t getClosestBlockHeightForTime(uint32_t);
@@ -176,7 +176,7 @@ public:
    LedgerDelegate getLedgerDelegateForWallets();
    LedgerDelegate getLedgerDelegateForLockboxes();
    LedgerDelegate getLedgerDelegateForScrAddr(
-      const BinaryData& wltID, const BinaryData& scrAddr);
+      const std::string& wltID, const BinaryData& scrAddr);
 
    TxOut getTxOutCopy(const BinaryData& txHash, uint16_t index) const;
    TxOut getTxOutCopy(const BinaryData& dbKey) const;
@@ -195,7 +195,7 @@ public:
    bool isRBF(const BinaryData& txHash) const;
    bool hasScrAddress(const BinaryDataRef&) const;
 
-   std::shared_ptr<BtcWallet> getWalletOrLockbox(const BinaryData& id) const;
+   std::shared_ptr<BtcWallet> getWalletOrLockbox(const std::string& id) const;
 
    std::tuple<uint64_t, uint64_t> getAddrFullBalance(const BinaryData&);
 
@@ -260,12 +260,12 @@ public:
 
    ~WalletGroup();
 
-   std::shared_ptr<BtcWallet> getOrSetWallet(const BinaryDataRef&);
+   std::shared_ptr<BtcWallet> getOrSetWallet(const std::string&);
    void registerAddresses(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
    void unregisterWallet(const std::string& IDstr);
 
-   bool hasID(const BinaryData& ID) const;
-   std::shared_ptr<BtcWallet> getWalletByID(const BinaryData& ID) const;
+   bool hasID(const std::string &ID) const;
+   std::shared_ptr<BtcWallet> getWalletByID(const std::string& ID) const;
 
    void reset();
    
@@ -282,16 +282,16 @@ private:
    std::map<uint32_t, uint32_t> computeWalletsSSHSummary(
       bool forcePaging, bool pageAnyway);
    bool pageHistory(bool forcePaging, bool pageAnyway);
-   void updateLedgerFilter(const std::vector<BinaryData>& walletsVec);
+   void updateLedgerFilter(const std::vector<std::string>& walletsVec);
 
    void scanWallets(ScanWalletStruct&, int32_t);
-   std::map<BinaryData, std::shared_ptr<BtcWallet> > getWalletMap(void) const;
+   std::map<std::string, std::shared_ptr<BtcWallet> > getWalletMap(void) const;
 
    uint32_t getBlockInVicinity(uint32_t) const;
    uint32_t getPageIdForBlockHeight(uint32_t) const;
 
 private:
-   std::map<BinaryData, std::shared_ptr<BtcWallet> > wallets_;
+   std::map<std::string, std::shared_ptr<BtcWallet> > wallets_;
    mutable ReadWriteLock lock_;
 
    //The globalLedger (used to render the main transaction ledger) is
@@ -311,7 +311,7 @@ private:
    std::mutex globalLedgerLock_;
 
    std::set<BinaryData> validZcSet_;
-   std::set<BinaryData> wltFilterSet_;
+   std::set<std::string> wltFilterSet_;
 };
 
 #endif

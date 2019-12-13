@@ -217,7 +217,6 @@ namespace AsyncClient
       const std::string bdvID_;
       const std::string walletID_;
       const BinaryData scrAddr_;
-      BinaryData addrHash_;
       const std::shared_ptr<SocketPrototype> sock_;
 
       const uint64_t fullBalance_;
@@ -229,9 +228,9 @@ namespace AsyncClient
       std::string comment_;
 
    private:
-      ScrAddrObj(const BinaryData& addr, const BinaryData& addrHash, int index) :
+      ScrAddrObj(const BinaryData& scrAddr, int index) :
          bdvID_(std::string()), walletID_(std::string()),
-         scrAddr_(addr), addrHash_(addrHash),
+         scrAddr_(scrAddr),
          sock_(nullptr), 
          fullBalance_(0), spendableBalance_(0), unconfirmedBalance_(0),
          count_(0), index_(index)
@@ -252,7 +251,6 @@ namespace AsyncClient
 
       void getSpendableTxOutList(std::function<void(ReturnMessage<std::vector<UTXO>>)>);
       const BinaryData& getScrAddr(void) const { return scrAddr_; }
-      const BinaryData& getAddrHash(void) const { return addrHash_; }
 
       void setComment(const std::string& comment) { comment_ = comment; }
       const std::string& getComment(void) const { return comment_; }

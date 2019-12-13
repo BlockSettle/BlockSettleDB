@@ -494,7 +494,7 @@ const BinaryData& AssetEntry_Multisig::getPrivateEncryptionKeyId(void) const
    if (!hasPrivateKey())
       throw runtime_error("no private key in this asset");
 
-   map<BinaryData, const BinaryData&> idMap;
+   set<BinaryDataRef> idSet;
 
    for (auto& asset_pair : assetMap_)
    {
@@ -503,23 +503,13 @@ const BinaryData& AssetEntry_Multisig::getPrivateEncryptionKeyId(void) const
       if (asset_single == nullptr)
          throw runtime_error("unexpected asset entry type");
 
-      idMap.insert(make_pair(
-         asset_pair.first, asset_pair.second->getPrivateEncryptionKeyId()));
+      idSet.insert(asset_pair.second->getPrivateEncryptionKeyId());
    }
 
-   auto iditer = idMap.begin();
-   auto& idref = iditer->second;
-   ++iditer;
+   if (idSet.size() != 1)
+      throw runtime_error("wallets use different encryption keys");
 
-   while (iditer != idMap.end())
-   {
-      if (idref != iditer->second)
-         throw runtime_error("wallets use different encryption keys");
-
-      ++iditer;
-   }
-
-   return idref;
+   return *(idSet.begin());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

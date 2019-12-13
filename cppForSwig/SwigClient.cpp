@@ -774,12 +774,6 @@ const BinaryData& ScrAddrObj::getScrAddr(void) const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-const BinaryData& ScrAddrObj::getAddrHash(void) const
-{
-   return asyncAddr_.getAddrHash();
-}
-
-///////////////////////////////////////////////////////////////////////////////
 void ScrAddrObj::setComment(const string& comment)
 {
    return asyncAddr_.setComment(comment);

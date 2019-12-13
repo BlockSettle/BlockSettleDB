@@ -728,7 +728,7 @@ ScrAddrObj& BtcWallet::getScrAddrObjRef(const BinaryData& key)
 
    std::ostringstream ss;
    ss << "no ScrAddr matches key " << key.toHexStr() << 
-      " in Wallet " << walletID_.toBinStr();
+      " in Wallet " << walletID_;
    LOGERR << ss.str();
    throw std::runtime_error(ss.str());
 }
@@ -775,7 +775,10 @@ void BtcWallet::needsRefresh(bool refresh)
 { 
    //notify BDV
    if (refresh && isRegistered_)
-      bdvPtr_->flagRefresh(BDV_refreshAndRescan, walletID_, nullptr);
+   {
+      bdvPtr_->flagRefresh(
+         BDV_refreshAndRescan, BinaryData::fromString(walletID_), nullptr);
+   }
 
    //call custom callback
    doneRegisteringCallback_();
@@ -801,6 +804,9 @@ void BtcWallet::setConfTarget(unsigned confTarget, const string& hash)
    if(confTarget != confTarget_)
       confTarget_ = confTarget;
 
-   if(hash.size() != 0)
-      bdvPtr_->flagRefresh(BDV_refreshSkipRescan, hash, nullptr);
+   if (hash.size() != 0)
+   {
+      auto&& hashBd = BinaryData::fromString(hash);
+      bdvPtr_->flagRefresh(BDV_refreshSkipRescan, hashBd, nullptr);
+   }
 }

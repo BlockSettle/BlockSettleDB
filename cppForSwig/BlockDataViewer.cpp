@@ -213,7 +213,7 @@ void BlockDataViewer::scanWallets(shared_ptr<BDV_Notification> action)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool BlockDataViewer::hasWallet(const BinaryData& ID) const
+bool BlockDataViewer::hasWallet(const string& ID) const
 {
    return groups_[group_wallet].hasID(ID);
 }
@@ -223,11 +223,9 @@ void BlockDataViewer::registerAddresses(
    shared_ptr<::Codec_BDVCommand::BDVCommand> msg)
 {
    auto& walletID = msg->walletid();
-   BinaryDataRef bdr; bdr.setRef(walletID);
-
    for (auto& group : groups_)
    {
-      if (group.hasID(bdr))
+      if (group.hasID(walletID))
          group.registerAddresses(msg);
    }
 }
@@ -419,14 +417,14 @@ vector<LedgerEntry> BlockDataViewer::getLockboxesHistoryPage(uint32_t pageId,
 
 ////////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::updateWalletsLedgerFilter(
-   const vector<BinaryData>& walletsList)
+   const vector<string>& walletsList)
 {
    groups_[group_wallet].updateLedgerFilter(walletsList);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::updateLockboxesLedgerFilter(
-   const vector<BinaryData>& walletsList)
+   const vector<string>& walletsList)
 {
    groups_[group_lockbox].updateLedgerFilter(walletsList);
 }
@@ -470,7 +468,7 @@ shared_ptr<BlockHeader> BlockDataViewer::getHeaderByHash(
 
 ////////////////////////////////////////////////////////////////////////////////
 WalletGroup BlockDataViewer::getStandAloneWalletGroup(
-   const vector<BinaryData>& wltIDs, HistoryOrdering order)
+   const vector<string>& wltIDs, HistoryOrdering order)
 {
    WalletGroup wg(this, this->saf_);
    wg.order_ = order;
@@ -547,7 +545,7 @@ LedgerDelegate BlockDataViewer::getLedgerDelegateForLockboxes()
 
 ////////////////////////////////////////////////////////////////////////////////
 LedgerDelegate BlockDataViewer::getLedgerDelegateForScrAddr(
-   const BinaryData& wltID, const BinaryData& scrAddr)
+   const string& wltID, const BinaryData& scrAddr)
 {
    BtcWallet* wlt = nullptr;
    for (auto& group : groups_)
@@ -724,7 +722,7 @@ bool BlockDataViewer::hasScrAddress(const BinaryDataRef& scrAddr) const
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<BtcWallet> BlockDataViewer::getWalletOrLockbox(
-   const BinaryData& id) const
+   const string& id) const
 {
    auto wallet = groups_[group_wallet].getWalletByID(id);
    if (wallet != nullptr)
@@ -1151,7 +1149,7 @@ WalletGroup::~WalletGroup()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<BtcWallet> WalletGroup::getOrSetWallet(const BinaryDataRef& id)
+shared_ptr<BtcWallet> WalletGroup::getOrSetWallet(const string& id)
 {
    ReadWriteLock::WriteLock wl(lock_);
    shared_ptr<BtcWallet> theWallet;
@@ -1174,19 +1172,15 @@ shared_ptr<BtcWallet> WalletGroup::getOrSetWallet(const BinaryDataRef& id)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletGroup::unregisterWallet(const string& IDstr)
+void WalletGroup::unregisterWallet(const string& id)
 {
    ReadWriteLock::WriteLock wl(lock_);
 
-   BinaryData id(IDstr);
+   auto wltIter = wallets_.find(id);
+   if (wltIter == wallets_.end())
+      return;
 
-   {
-      auto wltIter = wallets_.find(id);
-      if (wltIter == wallets_.end())
-         return;
-   }
-
-   wallets_.erase(id);
+   wallets_.erase(wltIter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1199,9 +1193,8 @@ void WalletGroup::registerAddresses(
    auto walletID = msg->walletid();
    if (walletID.size() == 0)
       return;
-   BinaryDataRef walletIDRef; walletIDRef.setRef(walletID);
 
-   auto theWallet = getOrSetWallet(walletIDRef);
+   auto theWallet = getOrSetWallet(walletID);
    if (theWallet == nullptr)
    {
       LOGWARN << "failed to get or set wallet";
@@ -1301,7 +1294,7 @@ void WalletGroup::registerAddresses(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool WalletGroup::hasID(const BinaryData& ID) const
+bool WalletGroup::hasID(const string& ID) const
 {
    ReadWriteLock::ReadLock rl(lock_);
    return wallets_.find(ID) != wallets_.end();
@@ -1388,8 +1381,8 @@ vector<LedgerEntry> WalletGroup::getHistoryPage(
    {
       ReadWriteLock::ReadLock rl(lock_);
 
-      set<BinaryData> localFilterSet;
-      map<BinaryData, shared_ptr<BtcWallet>> localWalletMap;
+      set<string> localFilterSet;
+      map<string, shared_ptr<BtcWallet>> localWalletMap;
       for (auto& wlt_pair : wallets_)
       {
          if (!wlt_pair.second->uiFilter_)
@@ -1462,11 +1455,11 @@ vector<LedgerEntry> WalletGroup::getHistoryPage(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletGroup::updateLedgerFilter(const vector<BinaryData>& walletsList)
+void WalletGroup::updateLedgerFilter(const vector<string>& walletsList)
 {
    ReadWriteLock::ReadLock rl(lock_);
 
-   vector<BinaryData> enabledIDs;
+   vector<string> enabledIDs;
    for (auto& wlt_pair : wallets_)
    {
       if (wlt_pair.second->uiFilter_)
@@ -1510,14 +1503,14 @@ void WalletGroup::scanWallets(ScanWalletStruct& scanData,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-map<BinaryData, shared_ptr<BtcWallet> > WalletGroup::getWalletMap(void) const
+map<string, shared_ptr<BtcWallet> > WalletGroup::getWalletMap(void) const
 {
    ReadWriteLock::ReadLock rl(lock_);
    return wallets_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<BtcWallet> WalletGroup::getWalletByID(const BinaryData& ID) const
+shared_ptr<BtcWallet> WalletGroup::getWalletByID(const string& ID) const
 {
    auto iter = wallets_.find(ID);
    if (iter != wallets_.end())

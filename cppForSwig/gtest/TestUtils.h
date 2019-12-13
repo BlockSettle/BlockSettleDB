@@ -162,7 +162,7 @@ namespace DBTestUtils
    LedgerEntry getLedgerEntryFromAddr(ScrAddrObj*, const BinaryData&);
 
    void updateWalletsLedgerFilter(
-      Clients*, const std::string&, const std::vector<BinaryData>&);
+      Clients*, const std::string&, const std::vector<std::string> &);
 
    std::shared_ptr<::google::protobuf::Message> processCommand(
       Clients* clients, std::shared_ptr<::google::protobuf::Message>);

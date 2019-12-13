@@ -97,8 +97,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       else if(command->has_walletid() && command->walletid().size() != 0)
       {
          auto& wltID = command->walletid();
-         BinaryDataRef wltIDRef; wltIDRef.setRef(wltID);
-         auto theWallet = getWalletOrLockbox(wltIDRef);
+         auto theWallet = getWalletOrLockbox(wltID);
          if (theWallet != nullptr)
          {
             BinaryDataRef txHash;
@@ -215,7 +214,6 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto& walletId = command->walletid();
       if (walletId.size() == 0)
          throw runtime_error("invalid wallet id size");
-      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       auto& scrAddr = command->scraddr();
       if (scrAddr.size() == 0 || scrAddr.size() > 33) 
@@ -223,7 +221,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       BinaryData addr; addr.copyFrom(scrAddr);
 
       auto&& ledgerdelegate =
-         this->getLedgerDelegateForScrAddr(walletIdRef, addr);
+         this->getLedgerDelegateForScrAddr(walletId, addr);
       string id = addr.toHexStr();
 
       this->delegateMap_.insert(make_pair(id, ledgerdelegate));
@@ -247,12 +245,11 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto& walletId = command->walletid();
       if (walletId.size() == 0)
          throw runtime_error("invalid wallet id size");
-      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (auto& group : this->groups_)
       {
-         auto wltIter = group.wallets_.find(walletIdRef);
+         auto wltIter = group.wallets_.find(walletId);
          if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -287,12 +284,11 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto& walletId = command->walletid();
       if (walletId.size() == 0)
          throw runtime_error("invalid wallet id size");
-      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (auto& group : this->groups_)
       {
-         auto wltIter = group.wallets_.find(walletIdRef);
+         auto wltIter = group.wallets_.find(walletId);
          if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -321,12 +317,11 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto& walletId = command->walletid();
       if (walletId.size() == 0)
          throw runtime_error("invalid wallet id size");
-      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (auto& group : this->groups_)
       {
-         auto wltIter = group.wallets_.find(walletIdRef);
+         auto wltIter = group.wallets_.find(walletId);
          if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -366,12 +361,11 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto& walletId = command->walletid();
       if (walletId.size() == 0)
          throw runtime_error("invalid wallet id size");
-      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (auto& group : this->groups_)
       {
-         auto wltIter = group.wallets_.find(walletIdRef);
+         auto wltIter = group.wallets_.find(walletId);
          if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -410,12 +404,11 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto& walletId = command->walletid();
       if (walletId.size() == 0)
          throw runtime_error("invalid size for wallet id");
-      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (auto& group : this->groups_)
       {
-         auto wltIter = group.wallets_.find(walletIdRef);
+         auto wltIter = group.wallets_.find(walletId);
          if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -455,12 +448,11 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto& walletId = command->walletid();
       if (walletId.size() == 0)
          throw runtime_error("invalid wallet id size");
-      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (auto& group : this->groups_)
       {
-         auto wltIter = group.wallets_.find(walletIdRef);
+         auto wltIter = group.wallets_.find(walletId);
          if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -535,12 +527,11 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto& walletId = command->walletid();
       if (walletId.size() == 0)
          throw runtime_error("invalid wallet id size");
-      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (auto& group : this->groups_)
       {
-         auto wltIter = group.wallets_.find(walletIdRef);
+         auto wltIter = group.wallets_.find(walletId);
          if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -575,12 +566,11 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto& walletId = command->walletid();
       if (walletId.size() == 0)
          throw runtime_error("invalid wallet id size");
-      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
 
       shared_ptr<BtcWallet> wltPtr = nullptr;
       for (auto& group : this->groups_)
       {
-         auto wltIter = group.wallets_.find(walletIdRef);
+         auto wltIter = group.wallets_.find(walletId);
          if (wltIter != group.wallets_.end())
             wltPtr = wltIter->second;
       }
@@ -804,8 +794,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto& walletId = command->walletid();
       if (walletId.size() == 0)
          throw runtime_error("invalid wallet id size");
-      BinaryDataRef walletIdRef; walletIdRef.setRef(walletId);
-      auto wltPtr = getWalletOrLockbox(walletIdRef);
+
+      auto wltPtr = getWalletOrLockbox(walletId);
       if (wltPtr == nullptr)
          throw runtime_error("invalid id");
 
@@ -832,14 +822,13 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       in: vector of wallet ids to display in wallet ledger delegate, as bindata
       out: void
       */
-      vector<BinaryData> bdVec;
+      vector<string> bdVec;
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& val = command->bindata(i);
          if (val.size() == 0)
             continue;
-         BinaryData valBd((uint8_t*)val.data(), val.size());
-         bdVec.push_back(valBd);
+         bdVec.push_back(val);
       }
 
       this->updateWalletsLedgerFilter(bdVec);
@@ -937,15 +926,14 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       if (!command->has_flag())
          throw runtime_error("invalid command for getHistoryForWalletSelection");
 
-      vector<BinaryData> wltIDs;
+      vector<string> wltIDs;
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
          if (id.size() == 0)
             continue;
 
-         BinaryData idBd((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idBd);
+         wltIDs.push_back(id);
       }
 
       auto orderingFlag = command->flag();
@@ -1057,14 +1045,13 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          }
       */
 
-      vector<BinaryData> wltIDs;
+      vector<string> wltIDs;
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
          if (id.size() == 0)
             continue;
-         BinaryData idBd((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idBd);
+         wltIDs.push_back(id);
       }
       
       uint32_t height = getTopBlockHeader()->getBlockHeight();
@@ -1086,7 +1073,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          auto combinedData = response->add_packedbalance();
          
          //wallet balances and count
-         combinedData->set_id(id.getPtr(), id.getSize());
+         combinedData->set_id(id);
          combinedData->add_idbalances(wltPtr->getFullBalance());
          combinedData->add_idbalances(wltPtr->getSpendableBalance(height));
          combinedData->add_idbalances(wltPtr->getUnconfirmedBalance(height));
@@ -1117,14 +1104,13 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       out: transaction count for each address in each wallet, 
            as Codec_AddressData::CombinedData
       */
-      vector<BinaryData> wltIDs;
+      vector<string> wltIDs;
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
          if (id.size() == 0)
             continue;
-         BinaryData idBd((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idBd);
+         wltIDs.push_back(id);
       }
 
       auto response = make_shared<::Codec_AddressData::ManyCombinedData>();
@@ -1147,7 +1133,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
             continue;
 
          auto packedBal = response->add_packedbalance();
-         packedBal->set_id(id.getPtr(), id.getSize());
+         packedBal->set_id(id);
 
          for (auto count : countMap)
          {
@@ -1181,14 +1167,13 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
             "invalid command for getCombinedSpendableTxOutListForValue");
       }
 
-      vector<BinaryData> wltIDs;
+      vector<string> wltIDs;
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
          if (id.size() == 0)
             continue;
-         BinaryData idBd((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idBd);
+         wltIDs.push_back(id);
       }
 
       auto response = make_shared<::Codec_Utxo::ManyUtxo>();
@@ -1245,14 +1230,13 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       UTXOs returned for the other wallets.
       */
 
-      vector<BinaryData> wltIDs;
+      vector<string> wltIDs;
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
          if (id.size() == 0)
             continue;
-         BinaryData idBd((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idBd);
+         wltIDs.push_back(id);
       }
 
       auto response = make_shared<::Codec_Utxo::ManyUtxo>();
@@ -1300,14 +1284,13 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       UTXOs returned for the other wallets.
       */
 
-      vector<BinaryData> wltIDs;
+      vector<string> wltIDs;
       for (int i = 0; i < command->bindata_size(); i++)
       {
          auto& id = command->bindata(i);
          if (id.size() == 0)
             continue;
-         BinaryData idBd((uint8_t*)id.data(), id.size());
-         wltIDs.push_back(idBd);
+         wltIDs.push_back(id);
       }
 
       auto response = make_shared<::Codec_Utxo::ManyUtxo>();
@@ -2102,7 +2085,8 @@ void BDV_Server_Object::registerWallet(
       wltregstruct.type_ = TypeWallet;
 
       auto notif = make_unique<BDV_Notification_Refresh>(
-         getID(), BDV_registrationCompleted, command->hash());
+         getID(), BDV_registrationCompleted, 
+         BinaryData::fromString(command->hash()));
       notifLambda_(move(notif));
 
       return;
@@ -2132,7 +2116,8 @@ void BDV_Server_Object::registerLockbox(
       wltregstruct.type_ = TypeLockbox;
 
       auto notif = make_unique<BDV_Notification_Refresh>(
-         getID(), BDV_registrationCompleted, command->hash());
+         getID(), BDV_registrationCompleted, 
+         BinaryData::fromString(command->hash()));
       notifLambda_(move(notif));
       return;
    }
@@ -2151,13 +2136,12 @@ void BDV_Server_Object::populateWallets(map<string, walletRegStruct>& wltMap)
    for (auto& wlt : wltMap)
    {
       auto& walletId = wlt.second.command_->walletid();
-      BinaryDataRef bdr; bdr.setRef(walletId);
 
       shared_ptr<BtcWallet> theWallet;
       if (wlt.second.type_ == TypeWallet)
-         theWallet = groups_[group_wallet].getOrSetWallet(bdr);
+         theWallet = groups_[group_wallet].getOrSetWallet(walletId);
       else
-         theWallet = groups_[group_lockbox].getOrSetWallet(bdr);
+         theWallet = groups_[group_lockbox].getOrSetWallet(walletId);
 
       if (theWallet == nullptr)
       {

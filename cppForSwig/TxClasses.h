@@ -38,7 +38,7 @@ public:
       for (auto& scrAddr : scrAddrVec)
       {
          auto&& addr58 = BtcUtils::scrAddrToBase58(scrAddr);
-         addrVec_.push_back(std::string(addr58.getCharPtr(), addr58.getSize()));
+         addrVec_.push_back(addr58);
       }
    }
 

@@ -928,8 +928,10 @@ ScrAddrObj::ScrAddrObj(shared_ptr<SocketPrototype> sock, const string& bdvId,
 
 ///////////////////////////////////////////////////////////////////////////////
 ScrAddrObj::ScrAddrObj(AsyncClient::BtcWallet* wlt, const BinaryData& scrAddr,
-   int index, uint64_t full, uint64_t spendabe, uint64_t unconf, uint32_t count) :
-   bdvID_(wlt->bdvID_), walletID_(wlt->walletID_), scrAddr_(scrAddr), sock_(wlt->sock_),
+   int index, uint64_t full, uint64_t spendabe, uint64_t unconf, 
+   uint32_t count) :
+   bdvID_(wlt->bdvID_), walletID_(wlt->walletID_), 
+   scrAddr_(scrAddr), sock_(wlt->sock_),
    fullBalance_(full), spendableBalance_(spendabe),
    unconfirmedBalance_(unconf), count_(count), index_(index)
 {}
@@ -1792,7 +1794,8 @@ void CallbackReturn_VectorAddressBookEntry::callback(
 
          for (int y = 0; y < entry.txhash_size(); y++)
          {
-            BinaryData bd(entry.txhash(y));
+            auto& txhash = entry.txhash(y);
+            BinaryData bd(txhash.c_str(), txhash.size());
             abe.txHashList_.push_back(move(bd));
          }
 
@@ -1908,7 +1911,7 @@ void CallbackReturn_CombinedBalances::callback(
          auto wltVals = msg.packedbalance(i);
 
          CombinedBalances cbal;
-         cbal.walletId_ = wltVals.id();
+         cbal.walletId_.copyFrom(wltVals.id());
 
          for (unsigned y=0; y<wltVals.idbalances_size(); y++)
             cbal.walletBalanceAndCount_.push_back(wltVals.idbalances(y));
@@ -1916,8 +1919,7 @@ void CallbackReturn_CombinedBalances::callback(
          for (unsigned y=0; y<wltVals.addrdata_size(); y++)
          {
             auto addrBals = wltVals.addrdata(y);
-               
-            BinaryData scrAddr(addrBals.scraddr());
+            auto&& scrAddr = BinaryData::fromString(addrBals.scraddr());
 
             vector<uint64_t> abl;
             for (unsigned z=0; z<addrBals.value_size(); z++)
@@ -1965,13 +1967,12 @@ void CallbackReturn_CombinedCounts::callback(
          auto wltVals = msg.packedbalance(i);
 
          CombinedCounts cbal;
-         cbal.walletId_ = wltVals.id();
+         cbal.walletId_.copyFrom(wltVals.id());
 
          for (unsigned y=0; y<wltVals.addrdata_size(); y++)
          {
             auto addrBals = wltVals.addrdata(y);
-               
-            BinaryData scrAddr(addrBals.scraddr());
+            auto&& scrAddr = BinaryData::fromString(addrBals.scraddr());
 
             uint64_t bl = addrBals.value(0);
             cbal.addressTxnCounts_.insert(make_pair(scrAddr, bl));
@@ -2016,7 +2017,7 @@ void CallbackReturn_AddrOutpoints::callback(
       for (unsigned i = 0; i < msg.addroutpoints_size(); i++)
       {
          auto& addrOutpoints = msg.addroutpoints(i);
-         BinaryData scrAddr(addrOutpoints.scraddr());
+         auto&& scrAddr = BinaryData::fromString(addrOutpoints.scraddr());
 
          vector<OutpointData> outpointVec(addrOutpoints.outpoints_size());
          for (unsigned y = 0; y < addrOutpoints.outpoints_size(); y++)
@@ -2031,7 +2032,7 @@ void CallbackReturn_AddrOutpoints::callback(
             opData.isSpent_ = outpoint.isspent();
             opData.txIndex_ = outpoint.txindex();
             if(opData.isSpent_)
-               opData.spenderHash_ = outpoint.spenderhash();
+               opData.spenderHash_.copyFrom(outpoint.spenderhash());
          }
 
          result.outpoints_.insert(make_pair(scrAddr, outpointVec));

@@ -35,12 +35,12 @@ WalletHeader::~WalletHeader()
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData WalletHeader::getDbKey()
 {
-   if (walletID_.getSize() == 0)
+   if (walletID_.size() == 0)
       throw WalletException("empty master ID");
 
    BinaryWriter bw;
    bw.put_uint8_t(WALLETHEADER_PREFIX);
-   bw.put_BinaryData(walletID_);
+   bw.put_String(walletID_);
 
    return bw.getData();
 }
@@ -383,6 +383,6 @@ shared_ptr<WalletHeader> WalletHeader::deserialize(
       throw WalletException("invalid wallet type");
    }
 
-   wltHeaderPtr->walletID_ = brrKey.get_BinaryData(brrKey.getSizeRemaining());
+   wltHeaderPtr->walletID_ = brrKey.get_String(brrKey.getSizeRemaining());
    return wltHeaderPtr;
 }

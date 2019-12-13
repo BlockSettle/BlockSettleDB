@@ -583,13 +583,13 @@ private:
    //map<AssetWalletID, AssetEntryPtr>
    //ordering by wallet ids guarantees the ms script hash can be 
    //reconstructed deterministically
-   const std::map<BinaryData, std::shared_ptr<AssetEntry>> assetMap_;
+   const std::map<std::string, std::shared_ptr<AssetEntry>> assetMap_;
 
    const unsigned m_;
    const unsigned n_;
 
 private:
-   const std::map<BinaryData, std::shared_ptr<AssetEntry>> getAssetMap(void) const
+   const std::map<std::string, std::shared_ptr<AssetEntry>> getAssetMap(void) const
    {
       return assetMap_;
    }
@@ -597,7 +597,7 @@ private:
 public:
    //tors
    AssetEntry_Multisig(int id, const BinaryData& accountID,
-      const std::map<BinaryData, std::shared_ptr<AssetEntry>>& assetMap,
+      const std::map<std::string, std::shared_ptr<AssetEntry>>& assetMap,
       unsigned m, unsigned n) :
       AssetEntry(AssetEntryType_Multisig, id, accountID),
       assetMap_(assetMap), m_(m), n_(n)
