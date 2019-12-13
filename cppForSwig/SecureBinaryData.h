@@ -68,10 +68,6 @@ public:
    {
       lockData();
    }
-   SecureBinaryData(std::string const & str) : BinaryData(str)
-   {
-      lockData();
-   }
    SecureBinaryData(BinaryDataRef const & bdRef) : BinaryData(bdRef)
    {
       lockData();
@@ -146,6 +142,12 @@ public:
       }
    }
 
+   static SecureBinaryData fromString(const std::string& str)
+   {
+      SecureBinaryData sbd(str.size());
+      memcpy(sbd.getPtr(), str.c_str(), str.size());
+      return sbd;
+   }
 };
 
 #endif

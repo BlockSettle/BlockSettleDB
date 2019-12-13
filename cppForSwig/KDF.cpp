@@ -51,7 +51,7 @@ void KdfRomix::computeKdfParams(double targetComputeSec, uint32_t maxMemReqts)
    // to compute the KDF is less than the target time.  A maximum can be 
    // specified, in case the target system is likely to be memory-limited
    // more than compute-speed limited
-   SecureBinaryData testKey("This is an example key to test KDF iteration speed");
+   auto&& testKey = SecureBinaryData::fromString("This is an example key to test KDF iteration speed");
 
    // Start the search for a memory value at 1kB
    memoryReqtBytes_ = 1024;
@@ -85,7 +85,9 @@ void KdfRomix::computeKdfParams(double targetComputeSec, uint32_t maxMemReqts)
       TIMER_RESTART("KDF_Time_Search");
       for (uint32_t i = 0; i < numTest; i++)
       {
-         SecureBinaryData _testKey("This is an example key to test KDF iteration speed");
+         auto&& _testKey = SecureBinaryData::fromString(
+            "This is an example key to test KDF iteration speed");
+
          _testKey = DeriveKey_OneIter(_testKey);
       }
       TIMER_STOP("KDF_Time_Search");

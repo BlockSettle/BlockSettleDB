@@ -864,7 +864,7 @@ vector<BinaryData> ConfigFile::fleshOutArgs(
    auto newArgsIter = newArgs.begin();
    while (newArgsIter != newArgs.end())
    {
-      BinaryData bdStr(*newArgsIter);
+      auto&& bdStr = BinaryData::fromString(*newArgsIter);
       fleshedOutArgs.push_back(move(bdStr));
       ++newArgsIter;
    }

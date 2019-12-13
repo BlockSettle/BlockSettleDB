@@ -96,7 +96,7 @@ SecureBinaryData TerminalPassphrasePrompt::promptNewPass()
             continue;
         }
         
-        return SecureBinaryData(pass1);
+        return SecureBinaryData::fromString(pass1);
     }
 }
 
@@ -143,7 +143,7 @@ SecureBinaryData TerminalPassphrasePrompt::promptForPassphrase(
     setEcho(true);
     cout << endl;
 
-    return SecureBinaryData(pass1);
+    return SecureBinaryData::fromString(pass1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

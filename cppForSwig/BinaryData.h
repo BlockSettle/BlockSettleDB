@@ -110,16 +110,15 @@ public:
    explicit BinaryData(size_t sz)              { alloc(sz);              }
    BinaryData(uint8_t const * inData, size_t sz)      
                                                { copyFrom(inData, sz);   }
-   BinaryData(uint8_t const * dstart, uint8_t const * dend ) 
+   BinaryData(char const * inData, size_t sz)  { copyFrom(inData, sz);   }
+   BinaryData(uint8_t const * dstart, uint8_t const * dend )
                                                { copyFrom(dstart, dend); }
-   BinaryData(std::string const & str)              { copyFrom(str);          }
    BinaryData(BinaryData const & bd)           { copyFrom(bd);           }
 
-   BinaryData(BinaryData && copy)
-      { data_ = move(copy.data_);           }
+   BinaryData(BinaryData && copy) { data_ = move(copy.data_); }
 
    BinaryData(BinaryDataRef const & bdRef);
-   size_t getSize(void) const               { return data_.size(); }
+   size_t getSize(void) const { return data_.size(); }
 
    ~BinaryData(void)
    {
@@ -195,11 +194,21 @@ public:
    // We allocate space as necesssary
    void copyFrom(uint8_t const * start, uint8_t const * end) 
                   { copyFrom( start, (end-start)); }  // [start, end)
-   void copyFrom(std::string const & str)
-                  { copyFrom( (uint8_t*)str.data(), str.size()); } 
+   
+   void copyFrom(const std::string& str)
+   {
+      copyFrom(str.c_str(), str.size());
+   }
+
    void copyFrom(BinaryData const & bd)                      
                   { copyFrom( bd.getPtr(), bd.getSize() ); }
    void copyFrom(BinaryDataRef const & bdr);
+   
+   void copyFrom(char const * inData, size_t sz)
+   {
+      copyFrom((uint8_t*)inData, sz);
+   }
+
    void copyFrom(uint8_t const * inData, size_t sz)          
    { 
       if(inData==NULL || sz == 0)
@@ -314,12 +323,6 @@ public:
          return false;
 
       return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
-
-      // Why did I do this before?
-      //for(unsigned int i=0; i<getSize(); i++)
-         //if( data_[i] != bd2.data_[i] )
-            //return false;
-      //return true;
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -501,10 +504,6 @@ public:
    template<typename INTTYPE>
    static INTTYPE StrToIntLE(uint8_t const * ptr)
    {
-      /*INTTYPE out = 0;
-      for(uint8_t i=0; i<sizeof(INTTYPE); i++)
-         out |= ((INTTYPE)ptr[i]) << (8*i);*/
-
       auto intPtr = (INTTYPE*)ptr;
 
       return *intPtr;
@@ -521,6 +520,14 @@ public:
          out |= ((INTTYPE)ptr[i]) << (8*((SZ-1)-i));
 
       return out;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   static BinaryData fromString(const std::string& str)
+   {
+      BinaryData data;
+      data.copyFrom(str);
+      return data;
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -836,11 +843,6 @@ public:
          return true;
       
       return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
-
-      //for(unsigned int i=0; i<nBytes_; i++)
-         //if( ptr_[i] != bd2.ptr_[i] )
-            //return false;
-      //return true;
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -852,11 +854,6 @@ public:
          return true;
 
       return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
-
-      //for(unsigned int i=0; i<nBytes_; i++)
-         //if( ptr_[i] != bd2[i])
-            //return false;
-      //return true;
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -1284,6 +1281,13 @@ public:
       pos_.fetch_add(nBytes, std::memory_order_relaxed);
    }
 
+   /////////////////////////////////////////////////////////////////////////////
+   std::string get_String(uint32_t nBytes)
+   {
+      std::string strOut(bdRef_.toCharPtr() + pos_, nBytes);
+      pos_.fetch_add(nBytes, std::memory_order_relaxed);
+      return strOut;
+   }
 
    /////////////////////////////////////////////////////////////////////////////
    void     resetPosition(void)           { pos_ = 0; }
