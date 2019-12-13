@@ -34,7 +34,7 @@ const map<char, uint8_t> BtcUtils::base64Vals_ = {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData BtcUtils::computeID(const SecureBinaryData& pubkey)
+string BtcUtils::computeID(const SecureBinaryData& pubkey)
 {
    BinaryDataRef bdr(pubkey);
    auto&& h160 = getHash160(bdr);
@@ -52,9 +52,7 @@ BinaryData BtcUtils::computeID(const SecureBinaryData& pubkey)
       bwReverse.put_uint8_t(ptr[data.getSize() - 1 - i]);
    }
 
-   auto&& b58_5bytes = BtcUtils::base58_encode(bwReverse.getDataRef());
-
-   return b58_5bytes;
+   return BtcUtils::base58_encode(bwReverse.getDataRef());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -504,7 +502,7 @@ const string BtcUtils::swHeaderMain_ = string(SEGWIT_ADDRESS_MAINNET_HEADER);
 const string BtcUtils::swHeaderTest_ = string(SEGWIT_ADDRESS_TESTNET_HEADER);
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData BtcUtils::scrAddrToSegWitAddress(const BinaryData& scrAddr)
+string BtcUtils::scrAddrToSegWitAddress(const BinaryData& scrAddr)
 {
    //hardcoded for version 0 witness programs for now
    const string* headerPtr;
@@ -516,24 +514,27 @@ BinaryData BtcUtils::scrAddrToSegWitAddress(const BinaryData& scrAddr)
    else
       throw runtime_error("invalid network for segwit address");
 
-   //73 + header size + 1 for null terminator
-   BinaryData result(74 + headerPtr->size()); 
+   //73 + header size
+   string result;
+   result.resize(73 + headerPtr->size());
    if (segwit_addr_encode(
-      result.getCharPtr(), headerPtr->c_str(), 0, 
+      (char*)result.c_str(), headerPtr->c_str(), 0, 
       scrAddr.getPtr(), scrAddr.getSize()) == 0)
    {
       throw runtime_error("failed to encode to sw address!");
    }
 
    //adjust result size by looking for the null terminator
-   auto len = strlen(result.toCharPtr());
-   result.resize(len);
+   auto len = strnlen(result.c_str(), result.size());
+   if (len == 0 || len == result.size())
+      throw runtime_error("failed to encode to sw address!");
 
+   result.resize(len);
    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData BtcUtils::segWitAddressToScrAddr(const BinaryData& swAddr)
+BinaryData BtcUtils::segWitAddressToScrAddr(const string& swAddr)
 {
    const string* headerPtr;
 
@@ -548,7 +549,7 @@ BinaryData BtcUtils::segWitAddressToScrAddr(const BinaryData& swAddr)
    size_t len;
    BinaryData result(40);
    if (segwit_addr_decode(&ver, result.getPtr(), &len, 
-      headerPtr->c_str(), swAddr.getCharPtr()) == 0) 
+      headerPtr->c_str(), swAddr.c_str()) == 0) 
    {
       throw runtime_error("failed to decode sw address!");
    }

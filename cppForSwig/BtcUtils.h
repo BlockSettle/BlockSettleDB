@@ -1715,7 +1715,7 @@ public:
    }
    */
    
-   static BinaryData scrAddrToBase58(const BinaryData& scrAddr)
+   static std::string scrAddrToBase58(const BinaryData& scrAddr)
    {
       /***
       make sure the scrAddr is prepended with the version byte
@@ -1731,7 +1731,7 @@ public:
       return base58_encode(scriptNhash);
    }
 
-   static BinaryData base58toScrAddr(const BinaryData& b58Addr)
+   static BinaryData base58toScrAddr(const std::string &b58Addr)
    {
       //decode
       auto&& scriptNhash = base58_decode(b58Addr);
@@ -1757,44 +1757,46 @@ public:
       return BinaryData(scriptRef);
    }
 
-   static BinaryData base58_encode(const BinaryData& payload)
+   static std::string base58_encode(const BinaryData& payload)
    {
       size_t size = payload.getSize() * 2;
-      BinaryData b58_str(size);
+      size_t return_size;
+      std::string b58_str;
+      b58_str.resize(size);
       if (!btc_base58_encode(
-         b58_str.getCharPtr(), &size,
+         (char*)b58_str.c_str(), &return_size,
          payload.getPtr(), payload.getSize()) || 
-         size > b58_str.getSize())
+         return_size > size)
       {
          throw std::runtime_error("failed to encode b58 string");
       }
 
-      if(size < b58_str.getSize())
-         b58_str.resize(size);
+      if (return_size == 0)
+         throw std::runtime_error("failed to encode b58 string");
+
+      if (return_size < size)
+         b58_str.resize(return_size - 1);
       return b58_str;
    }
 
-   static BinaryData base58_decode(const BinaryData& b58)
+   static BinaryData base58_decode(const std::string& b58)
    {
       //sanity checks
-      if (b58.getSize() == 0)
+      if (b58.size() == 0)
          throw std::range_error("empty BinaryData");
 
-      if (b58.getPtr()[b58.getSize() - 1] != 0)
-         throw std::runtime_error("b58 string has to be 0 terminated");
+      size_t size = b58.size();
+      uint8_t* result = new uint8_t[size];
 
-      uint8_t* result = new uint8_t[b58.getSize()];
-      size_t size = b58.getSize();
-
-      if (!btc_base58_decode(result, &size, b58.getCharPtr()) ||
-         size > b58.getSize())
+      if (!btc_base58_decode(result, &size, b58.c_str()) ||
+         size > b58.size())
       {
          delete[] result;
          throw std::runtime_error("failed to decode b58 string");
       }
 
       BinaryData result_bd(size);
-      memcpy(result_bd.getPtr(), result + b58.getSize() - size, size);
+      memcpy(result_bd.getPtr(), result + b58.size() - size, size);
 
       delete[] result;
       return result_bd;
@@ -1901,7 +1903,7 @@ public:
       throw std::runtime_error(ss.str());
    }
 
-   static BinaryData computeID(const SecureBinaryData& pubkey);
+   static std::string computeID(const SecureBinaryData& pubkey);
 
    static BinaryData getHMAC256(
       const SecureBinaryData& key,
@@ -2040,8 +2042,8 @@ public:
    ////
    static const std::string swHeaderMain_;
    static const std::string swHeaderTest_;
-   static BinaryData scrAddrToSegWitAddress(const BinaryData& scrAddr);
-   static BinaryData segWitAddressToScrAddr(const BinaryData& swAddr);
+   static std::string scrAddrToSegWitAddress(const BinaryData& scrAddr);
+   static BinaryData segWitAddressToScrAddr(const std::string& swAddr);
    
    ////
    static int get_varint_len(const int64_t& value);

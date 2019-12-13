@@ -48,7 +48,7 @@ class AddressEntry
 protected:
    const AddressEntryType type_;
 
-   mutable BinaryData address_;
+   mutable std::string address_;
    mutable BinaryData hash_;
    mutable BinaryData prefixedHash_;
    mutable BinaryData script_;
@@ -67,7 +67,7 @@ public:
    //virtual
    virtual const BinaryData& getID(void) const = 0;
 
-   virtual const BinaryData& getAddress() const = 0;
+   virtual const std::string& getAddress() const = 0;
    virtual std::shared_ptr<ScriptRecipient> getRecipient(uint64_t) const = 0;
    
    virtual const BinaryData& getHash(void) const = 0;
@@ -125,7 +125,7 @@ public:
 
    //virtual
    const BinaryData& getID(void) const;
-   const BinaryData& getAddress(void) const;
+   const std::string& getAddress(void) const;
 
    const BinaryData& getPrefixedHash(void) const;
    const BinaryData& getHash(void) const;
@@ -154,7 +154,7 @@ public:
 
    //virtual
    const BinaryData& getID(void) const;
-   const BinaryData& getAddress(void) const;
+   const std::string& getAddress(void) const;
 
    const BinaryData& getHash(void) const;
    const BinaryData& getPrefixedHash(void) const;
@@ -183,7 +183,7 @@ public:
 
    //virtual
    const BinaryData& getID(void) const;
-   const BinaryData& getAddress(void) const;
+   const std::string& getAddress(void) const;
 
    const BinaryData& getHash(void) const;
    const BinaryData& getPrefixedHash(void) const;
@@ -213,7 +213,7 @@ public:
 
    //virtual
    const BinaryData& getID(void) const;
-   const BinaryData& getAddress(void) const;
+   const std::string& getAddress(void) const;
 
    const BinaryData& getHash(void) const;
    const BinaryData& getPrefixedHash(void) const;
@@ -260,7 +260,7 @@ public:
 
    //virtual
    const BinaryData& getID(void) const;
-   const BinaryData& getAddress(void) const;
+   const std::string& getAddress(void) const;
 
    const BinaryData& getHash(void) const;
    const BinaryData& getPrefixedHash(void) const;
@@ -294,7 +294,7 @@ public:
 
    //virtual
    const BinaryData& getID(void) const;
-   const BinaryData& getAddress(void) const;
+   const std::string& getAddress(void) const;
 
    const BinaryData& getHash(void) const;
    const BinaryData& getPrefixedHash(void) const;
