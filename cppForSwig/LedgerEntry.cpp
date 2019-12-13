@@ -22,31 +22,15 @@ map<BinaryData, LedgerEntry> LedgerEntry::EmptyLedgerMap_;
 BinaryData LedgerEntry::EmptyID_ = BinaryData(0);
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData const & LedgerEntry::getScrAddr(void) const
-{ 
-   if (ID_.getSize() == 21) return ID_;
-   return EmptyID_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 string LedgerEntry::getWalletID(void) const
 {
-   if (ID_.getSize() != 21) return ID_.toBinStr();
-   return string();
+   return ID_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void LedgerEntry::setScrAddr(BinaryData const & bd)
-{ 
-   if(bd.getSize() == 21) 
-      ID_ = bd; 
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void LedgerEntry::setWalletID(BinaryData const & bd)
+void LedgerEntry::setWalletID(const string& str)
 {
-   if (bd.getSize() != 21)
-      ID_ = bd;
+   ID_ = str;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,7 +58,7 @@ bool LedgerEntry::operator==(LedgerEntry const & le2) const
 void LedgerEntry::pprint(void)
 {
    cout << "LedgerEntry: " << endl;
-   cout << "   ScrAddr : " << getScrAddr().copySwapEndian().toHexStr() << endl;
+   cout << "   ID      : " << getWalletID() << endl;
    cout << "   Value   : " << getValue()/1e8 << endl;
    cout << "   BlkNum  : " << getBlockNum() << endl;
    cout << "   TxHash  : " << getTxHash().copySwapEndian().toHexStr() << endl;
@@ -155,7 +139,7 @@ void LedgerEntry::purgeLedgerVectorFromHeight(
 //////////////////////////////////////////////////////////////////////////////
 map<BinaryData, LedgerEntry> LedgerEntry::computeLedgerMap(
    const map<BinaryData, TxIOPair>& txioMap,
-   uint32_t startBlock, uint32_t endBlock, const BinaryDataRef ID,
+   uint32_t startBlock, uint32_t endBlock, const string& ID,
    const LMDBBlockDatabase* db, const Blockchain* bc, 
    const ZeroConfContainer* zc)
 {
@@ -360,7 +344,9 @@ void LedgerEntry::fillMessage(::Codec_LedgerEntry::LedgerEntry* msg)
       return;
    }
 
-   msg->set_id(ID_.getPtr(), ID_.getSize());
+   if (ID_.size() > 0)
+      msg->set_id(ID_); 
+
    msg->set_balance(value_);
    msg->set_txheight(blockNum_);
 

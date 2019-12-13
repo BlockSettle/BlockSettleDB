@@ -63,7 +63,6 @@ class LedgerEntry
 {
 public:
    LedgerEntry(void) :
-      ID_(0),
       value_(0),
       blockNum_(UINT32_MAX),
       txHash_(BtcUtils::EmptyHash_),
@@ -75,7 +74,7 @@ public:
       isOptInRBF_(false),
       usesWitness_(false) {}
 
-   LedgerEntry(BinaryData const & ID,
+   LedgerEntry(const std::string & ID,
                int64_t val, 
                uint32_t blkNum, 
                BinaryData const & txhash, 
@@ -100,7 +99,6 @@ public:
       usesWitness_(usesWitness),
       isChainedZC_(isChainedZC) {}
 
-   BinaryData const &  getScrAddr(void) const;
    std::string         getWalletID(void) const;
    int64_t             getValue(void) const     { return value_;         }
    uint32_t            getBlockNum(void) const  { return blockNum_;      }
@@ -116,8 +114,7 @@ public:
 
    SCRIPT_PREFIX getScriptType(void) const {return (SCRIPT_PREFIX)ID_[0];}
 
-   void setScrAddr(BinaryData const & bd);
-   void setWalletID(BinaryData const & bd);
+   void setWalletID(const std::string& bd);
    void changeBlkNum(uint32_t newHgt) {blockNum_ = newHgt; }
       
    bool operator<(LedgerEntry const & le2) const;
@@ -135,7 +132,7 @@ public:
    static std::map<BinaryData, LedgerEntry> computeLedgerMap(
                                 const std::map<BinaryData, TxIOPair>& txioMap,
                                 uint32_t startBlock, uint32_t endBlock,
-                                const BinaryDataRef ID,
+                                const std::string& ID,
                                 const LMDBBlockDatabase* db,
                                 const Blockchain* bc,
                                 const ZeroConfContainer* zc);
@@ -154,7 +151,7 @@ public:
 private:
    
    //holds either a scrAddr or a walletId
-   BinaryData       ID_;
+   std::string      ID_;
    int64_t          value_;
    uint32_t         blockNum_;
    BinaryData       txHash_;
