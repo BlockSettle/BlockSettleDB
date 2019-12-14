@@ -350,7 +350,7 @@ TEST_F(AddressEntryTest, P2SH)
 
    //p2sh-p2wsh-ms
    {
-      map<string, SecureBinaryData> pubKeys;
+      map<BinaryData, SecureBinaryData> pubKeys;
 
       for (unsigned i = 0; i < 3; i++)
       {
@@ -360,11 +360,11 @@ TEST_F(AddressEntryTest, P2SH)
          stringstream ss;
          ss << "wallet" << i;
 
-         auto dataPair = make_pair(ss.str(), move(pubKey));
+         auto dataPair = make_pair(BinaryData::fromString(ss.str()), move(pubKey));
          pubKeys.emplace(dataPair);
       }
 
-      map<string, shared_ptr<AssetEntry>> assetMap;
+      map<BinaryData, shared_ptr<AssetEntry>> assetMap;
       unsigned i = 0;
       for (auto pubKey : pubKeys)
       {
@@ -405,7 +405,7 @@ TEST_F(AddressEntryTest, P2SH)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(AddressEntryTest, P2WSH)
 {
-   map<string, SecureBinaryData> pubKeys;
+   map<BinaryData, SecureBinaryData> pubKeys;
 
    for (unsigned i = 0; i < 3; i++)
    {
@@ -415,11 +415,11 @@ TEST_F(AddressEntryTest, P2WSH)
       stringstream ss;
       ss << "wallet" << i;
 
-      auto dataPair = make_pair(ss.str(), move(pubKey));
+      auto dataPair = make_pair(BinaryData::fromString(ss.str()), move(pubKey));
       pubKeys.emplace(dataPair);
    }
 
-   map<string, shared_ptr<AssetEntry>> assetMap;
+   map<BinaryData, shared_ptr<AssetEntry>> assetMap;
    unsigned i = 0;
    for (auto pubKey : pubKeys)
    {
