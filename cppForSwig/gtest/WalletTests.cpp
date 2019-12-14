@@ -228,6 +228,234 @@ TEST_F(DerivationTests, ArmoryChain_Tests)
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+class AddressEntryTest : public ::testing::Test
+{
+protected:
+   virtual void SetUp()
+   {
+      LOGDISABLESTDOUT();
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+   }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(AddressEntryTest, P2PKH)
+{
+   auto privKey = CryptoPRNG::generateRandom(32);
+   auto pubKey = CryptoECDSA().ComputePublicKey(privKey, false);
+
+   auto pubKeyCopy = pubKey; //assetentry ctor moves in crypto assets
+   auto assetPtr = 
+      make_shared<AssetEntry_Single>(0, BinaryData(), pubKeyCopy, nullptr);
+
+   //uncompressed
+   AddressEntry_P2PKH address(assetPtr, false);
+   auto addrStr = address.getAddress();
+
+   auto scrAddrUnc = BtcUtils::getHash160(pubKey);
+   BinaryWriter bw;
+   bw.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+   bw.put_BinaryData(scrAddrUnc);
+   auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
+
+   EXPECT_EQ(addrB58, addrStr);
+
+   //compressed
+   AddressEntry_P2PKH addressCmp(assetPtr, true);
+   auto addrStrCmp = addressCmp.getAddress();
+   auto pubKeyCmp = CryptoECDSA().CompressPoint(pubKey);
+
+   auto scrAddrCmp = BtcUtils::getHash160(pubKeyCmp);
+   BinaryWriter bwCmp;
+   bwCmp.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+   bwCmp.put_BinaryData(scrAddrCmp);
+   auto addrB58Cmp = BtcUtils::scrAddrToBase58(bwCmp.getData());
+
+   EXPECT_EQ(addrB58Cmp, addrStrCmp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(AddressEntryTest, P2WPKH)
+{
+   auto privKey = CryptoPRNG::generateRandom(32);
+   auto pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
+
+   auto pubKeyCopy = pubKey; //assetentry ctor moves in crypto assets
+   auto assetPtr =
+      make_shared<AssetEntry_Single>(0, BinaryData(), pubKeyCopy, nullptr);
+
+   //sw enforces compressed pubkeys
+   AddressEntry_P2WPKH address(assetPtr);
+   auto addrStr = address.getAddress();
+
+   auto scrAddr = BtcUtils::getHash160(pubKey);
+   auto addrBech32 = BtcUtils::scrAddrToSegWitAddress(scrAddr);
+
+   EXPECT_EQ(addrBech32, addrStr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(AddressEntryTest, P2SH)
+{
+   auto privKey = CryptoPRNG::generateRandom(32);
+   auto pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
+
+   auto pubKeyCopy = pubKey; //assetentry ctor moves in crypto assets
+   auto assetPtr =
+      make_shared<AssetEntry_Single>(0, BinaryData(), pubKeyCopy, nullptr);
+
+   {
+      //p2sh-p2pk
+      auto address = make_shared<AddressEntry_P2PK>(assetPtr, true);
+      AddressEntry_P2SH nested(address);
+      auto addrStr = nested.getAddress();
+
+      BinaryWriter bwScript;
+      bwScript.put_uint8_t(33);
+      bwScript.put_BinaryData(pubKey);
+      bwScript.put_uint8_t(OP_CHECKSIG);
+
+      auto scriptHash = BtcUtils::getHash160(bwScript.getData());
+      
+      BinaryWriter bw;
+      bw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bw.put_BinaryData(scriptHash);
+      auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
+
+      EXPECT_EQ(addrB58, addrStr);
+   }
+
+   //p2sh-p2wpkh
+   {
+      auto address = make_shared<AddressEntry_P2WPKH>(assetPtr);
+      AddressEntry_P2SH nested(address);
+      auto addrStr = nested.getAddress();
+
+      auto pubkeyHash = BtcUtils::getHash160(pubKey);
+
+      BinaryWriter bwScript;
+      bwScript.put_uint8_t(0);
+      bwScript.put_uint8_t(20);
+      bwScript.put_BinaryData(pubkeyHash);
+   
+      auto scriptHash = BtcUtils::getHash160(bwScript.getData());
+
+      BinaryWriter bw;
+      bw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bw.put_BinaryData(scriptHash);
+      auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
+
+      EXPECT_EQ(addrB58, addrStr);
+   }
+
+   //p2sh-p2wsh-ms
+   {
+      map<string, SecureBinaryData> pubKeys;
+
+      for (unsigned i = 0; i < 3; i++)
+      {
+         auto privKey = CryptoPRNG::generateRandom(32);
+         auto pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
+
+         stringstream ss;
+         ss << "wallet" << i;
+
+         auto dataPair = make_pair(ss.str(), move(pubKey));
+         pubKeys.emplace(dataPair);
+      }
+
+      map<string, shared_ptr<AssetEntry>> assetMap;
+      unsigned i = 0;
+      for (auto pubKey : pubKeys)
+      {
+         auto asset = make_shared<AssetEntry_Single>(
+            i++, BinaryData(), pubKey.second, nullptr);
+
+         assetMap.emplace(make_pair(pubKey.first, asset));
+      }
+
+      auto assetMs = make_shared<AssetEntry_Multisig>(
+         0, BinaryData(), assetMap, 2, 3);
+      auto addressMs = make_shared<AddressEntry_Multisig>(assetMs, true);
+      auto nested = make_shared<AddressEntry_P2SH>(addressMs);
+      auto addr = nested->getAddress();
+
+      BinaryWriter bw;
+      bw.put_uint8_t(OP_2);
+
+      for (auto& pubKey : pubKeys)
+      {
+         bw.put_uint8_t(33);
+         bw.put_BinaryData(pubKey.second);
+      }
+
+      bw.put_uint8_t(OP_3);
+      bw.put_uint8_t(OP_CHECKMULTISIG);
+
+      auto scriptHash = BtcUtils::getHash160(bw.getData());
+      BinaryWriter bwScrAddr;
+      bwScrAddr.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bwScrAddr.put_BinaryData(scriptHash);
+      auto addrB58 = BtcUtils::scrAddrToBase58(bwScrAddr.getData());
+
+      EXPECT_EQ(addrB58, addr);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(AddressEntryTest, P2WSH)
+{
+   map<string, SecureBinaryData> pubKeys;
+
+   for (unsigned i = 0; i < 3; i++)
+   {
+      auto privKey = CryptoPRNG::generateRandom(32);
+      auto pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
+
+      stringstream ss;
+      ss << "wallet" << i;
+
+      auto dataPair = make_pair(ss.str(), move(pubKey));
+      pubKeys.emplace(dataPair);
+   }
+
+   map<string, shared_ptr<AssetEntry>> assetMap;
+   unsigned i = 0;
+   for (auto pubKey : pubKeys)
+   {
+      auto asset = make_shared<AssetEntry_Single>(
+         i++, BinaryData(), pubKey.second, nullptr);
+
+      assetMap.emplace(make_pair(pubKey.first, asset));
+   }
+
+   auto assetMs = make_shared<AssetEntry_Multisig>(
+      0, BinaryData(), assetMap, 2, 3);
+   auto addressMs = make_shared<AddressEntry_Multisig>(assetMs, true);
+   auto nested = make_shared<AddressEntry_P2WSH>(addressMs);
+   auto addr = nested->getAddress();
+
+   BinaryWriter bw;
+   bw.put_uint8_t(OP_2);
+
+   for (auto& pubKey : pubKeys)
+   {
+      bw.put_uint8_t(33);
+      bw.put_BinaryData(pubKey.second);
+   }
+
+   bw.put_uint8_t(OP_3);
+   bw.put_uint8_t(OP_CHECKMULTISIG);
+
+   auto scriptHash = BtcUtils::getSha256(bw.getData());
+   auto addrBech32 = BtcUtils::scrAddrToSegWitAddress(scriptHash);
+
+   EXPECT_EQ(addr, addrBech32);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 class WalletInterfaceTest : public ::testing::Test
 {
 protected:
