@@ -549,9 +549,6 @@ public:
       return data_;
    }
 
-public:
-   static BinaryData EmptyBinData_;
-
 protected:
    std::vector<uint8_t> data_;
 
