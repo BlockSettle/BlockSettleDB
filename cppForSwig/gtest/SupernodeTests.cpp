@@ -2353,20 +2353,20 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       3); //set lookup computation to 3 entries
 
           //create 2-of-3 multisig asset entry from 3 different wallets
-   map<string, shared_ptr<AssetEntry>> asset_single_map;
+   map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
    auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
    auto wltid1_bd = assetWlt_1->getID();
-   asset_single_map.insert(make_pair(wltid1_bd, asset1));
+   asset_single_map.insert(make_pair(BinaryData::fromString(wltid1_bd), asset1));
 
    auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
    auto wltid2_bd = assetWlt_2->getID();
-   asset_single_map.insert(make_pair(wltid2_bd, asset2));
+   asset_single_map.insert(make_pair(BinaryData::fromString(wltid2_bd), asset2));
 
    auto asset4_singlesig = assetWlt_2->getNewAddress();
 
    auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
    auto wltid3_bd = assetWlt_3->getID();
-   asset_single_map.insert(make_pair(wltid3_bd, asset3));
+   asset_single_map.insert(make_pair(BinaryData::fromString(wltid3_bd), asset3));
 
    auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
       asset_single_map, 2, 3);
