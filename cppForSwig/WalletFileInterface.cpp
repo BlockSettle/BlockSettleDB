@@ -15,6 +15,15 @@
 
 using namespace std;
 
+#define COMPACT_FILE_SWAP_NAME "swapOld"
+#define COMPACT_FILE_COPY_NAME "compactCopy"
+#define COMPACT_FILE_FOLDER    "_delete_me"
+
+#ifdef _WIN32
+#include "leveldb_windows_port/win32_posix/win32_posix.h"
+#define mkdir mkdir_win32
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// IfaceDataMap
@@ -1133,12 +1142,21 @@ void WalletDBInterface::compactFile()
    //create copy name
    auto fullDbPath = getFilename();
    auto basePath = DBUtils::getBaseDir(fullDbPath);
+
+   auto swapFolder = basePath;
+   DBUtils::appendPath(swapFolder, string(COMPACT_FILE_FOLDER));
+   if (!DBUtils::fileExists(swapFolder, 0))
+   {
+      if (mkdir(swapFolder) != 0)
+         throw WalletInterfaceException("could not create wallet swap folder");
+   }
+
    string copyName;
    while (true)
    {
       stringstream ss;
-      ss << "compactCopy-" << fortuna_.generateRandom(16).toHexStr();
-      auto fullpath = basePath;
+      ss << COMPACT_FILE_COPY_NAME << "-" << fortuna_.generateRandom(16).toHexStr();
+      auto fullpath = swapFolder;
       DBUtils::appendPath(fullpath, ss.str());
       
       if (!DBUtils::fileExists(fullpath, 0))
@@ -1156,11 +1174,13 @@ void WalletDBInterface::compactFile()
 
    //swap files
    string swapPath;
+
+
    while (true)
    {
       stringstream ss;
-      ss << "swapOld-" << fortuna_.generateRandom(16).toHexStr();
-      auto fullpath = basePath;
+      ss << COMPACT_FILE_SWAP_NAME << "-" << fortuna_.generateRandom(16).toHexStr();
+      auto fullpath = swapFolder;
       DBUtils::appendPath(fullpath, ss.str());
 
       if (DBUtils::fileExists(fullpath, 0))
