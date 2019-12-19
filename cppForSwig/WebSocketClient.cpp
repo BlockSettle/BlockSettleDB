@@ -272,6 +272,56 @@ void WebSocketClient::cleanUp()
    }
    
    readPackets_.clear();
+
+   //create error message to send to all outsanding read callbacks
+   ::Codec_NodeStatus::BDV_Error errMsg;
+   errMsg.set_type(1);
+   errMsg.set_error("LWS client disconnected");
+
+   BinaryData errPacket(errMsg.ByteSize());
+   if (!errMsg.SerializeToArray(
+      errPacket.getPtr(), errPacket.getSize()))
+   {
+      throw LWS_Error("error during shutdown");
+   }
+
+   BinaryWriter msgBW;
+   msgBW.put_uint32_t(5 + errPacket.getSize());
+   msgBW.put_uint8_t(WS_MSGTYPE_SINGLEPACKET);
+   msgBW.put_uint32_t(0);
+   msgBW.put_BinaryData(errPacket, errPacket.getSize());
+
+   WebSocketMessagePartial errObj;
+   errObj.parsePacket(msgBW.getDataRef());
+
+   //trigger callbacks for all outstanding query operations
+   vector<thread> threads;
+   {
+      auto readMap = readPackets_.get();
+      for (auto& readPair : *readMap)
+      {
+         auto& msgObjPtr = readPair.second;
+         auto callbackPtr = dynamic_cast<CallbackReturn_WebSocket*>(
+            msgObjPtr->payload_->callbackReturn_.get());
+         if (callbackPtr == nullptr)
+            continue;
+
+         //run in its own thread
+         auto callbackLbd = [callbackPtr, &errObj]()
+         {
+            callbackPtr->callback(errObj);
+         };
+
+         threads.push_back(thread(callbackLbd));
+      }
+   }
+
+   //wait on callback threads
+   for (auto& thr : threads)
+   {
+      if (thr.joinable())
+         thr.join();
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
