@@ -701,19 +701,14 @@ void AssetWallet::loadMetaAccounts()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<MetaDataAccount> AssetWallet::getMetaAccount(MetaAccountType type)
+shared_ptr<MetaDataAccount> AssetWallet::getMetaAccount(
+   MetaAccountType type) const
 {
    auto iter = metaDataAccounts_.find(type);
 
    if (iter == metaDataAccounts_.end())
       throw WalletException("no meta account for this type");
    return iter->second;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool AssetWallet_Single::isWatchingOnly() const
-{
-   return !root_->hasPrivateKey();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -812,6 +807,40 @@ void AssetWallet::changeControlPassphrase(
 {
    iface_->changeMasterPassphrase(newPassphrase, passLbd);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::setComment(const BinaryData& key, const string& comment)
+{
+   auto accPtr = getMetaAccount(MetaAccountType::MetaAccount_Comments);
+   CommentAssetConversion::setAsset(accPtr.get(), key, comment);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const string& AssetWallet::getComment(const BinaryData& key) const
+{
+   auto accPtr = getMetaAccount(MetaAccountType::MetaAccount_Comments);
+   auto assetPtr = CommentAssetConversion::getByKey(accPtr.get(), key);
+
+   if (assetPtr == nullptr)
+      throw WalletException("no comment for key");
+
+   return assetPtr->getValue();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::deleteComment(const BinaryData& key)
+{
+   auto accPtr = getMetaAccount(MetaAccountType::MetaAccount_Comments);
+   CommentAssetConversion::deleteAsset(accPtr.get(), key);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+map<BinaryData, string> AssetWallet::getCommentMap() const
+{
+   auto accPtr = getMetaAccount(MetaAccountType::MetaAccount_Comments);
+   return CommentAssetConversion::getCommentMap(accPtr.get());
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1492,6 +1521,9 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
                walletPtr->mainAccount_ = account_ptr->getID();
          }
 
+         //comment account
+         walletPtr->addMetaAccount(MetaAccountType::MetaAccount_Comments);
+
          //main account
          if (walletPtr->mainAccount_.getSize() > 0)
          {
@@ -1822,6 +1854,12 @@ void AssetWallet_Single::setSeed(
 
    //reset prompt lambda
    resetPassphrasePromptLambda();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool AssetWallet_Single::isWatchingOnly() const
+{
+   return !root_->hasPrivateKey();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

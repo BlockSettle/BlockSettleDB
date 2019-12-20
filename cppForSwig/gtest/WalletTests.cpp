@@ -5967,6 +5967,87 @@ TEST_F(WalletMetaDataTest, AuthPeers_Ephemeral)
    }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletMetaDataTest, Comments)
+{
+   vector<unsigned> derPath = {
+      0x80000050,
+      0x80005421,
+      0x80000024,
+      785
+   };
+
+   auto&& passphrase = SecureBinaryData::fromString("password");
+   auto&& controlPass = SecureBinaryData::fromString("control");
+
+   auto controlLbd = [controlPass](const set<BinaryData>&)->SecureBinaryData
+   {
+      return controlPass;
+   };
+
+   //comments
+   map<BinaryData, string> commentMap;
+   commentMap.insert(make_pair(READHEX("aabbccdd"), "comment1"));
+   commentMap.insert(make_pair(READHEX("eeff0011"), "comment2"));
+   commentMap.insert(make_pair(READHEX("22334455"), "comment3"));
+
+   //create regular wallet
+   string filename;
+   {
+      auto&& seed = CryptoPRNG::generateRandom(32);
+      auto wlt = AssetWallet_Single::createFromSeed_BIP32(
+         homedir_, seed, derPath, passphrase, controlPass, 10);
+      filename = wlt->getDbFilename();
+
+      //set comments
+      for (auto& commentPair : commentMap)
+         wlt->setComment(commentPair.first, commentPair.second);
+
+      //check comments
+      for (auto& commentPair : commentMap)
+         EXPECT_EQ(wlt->getComment(commentPair.first), commentPair.second);
+   }
+
+   {
+      //shut down wallet and reload it
+      auto wlt = AssetWallet::loadMainWalletFromFile(filename, controlLbd);
+      auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wlt);
+      ASSERT_NE(wltSingle, nullptr);
+
+      //check loaded comments
+      auto grabMap = wltSingle->getCommentMap();
+      EXPECT_EQ(grabMap, commentMap);
+
+      //update a comment
+      commentMap[READHEX("22334455")] = "comment4";
+      wlt->setComment(READHEX("22334455"), "comment4");
+
+      //delete a comment
+      commentMap.erase(READHEX("eeff0011"));
+      wlt->deleteComment(READHEX("eeff0011"));
+
+      //add a comment
+      commentMap.insert(make_pair(READHEX("66778899aa"), "comment5"));
+      wlt->setComment(READHEX("66778899aa"), "comment5");
+
+      //check
+      grabMap = wltSingle->getCommentMap();
+      EXPECT_EQ(grabMap, commentMap);
+   }
+
+   {
+      //create WO copy
+      auto woCopyPath = AssetWallet::forkWatchingOnly(
+         filename, controlLbd);
+      auto woWlt = AssetWallet::loadMainWalletFromFile(
+         woCopyPath, controlLbd);
+      auto woSingle = dynamic_pointer_cast<AssetWallet_Single>(woWlt);
+      
+      //check loaded comments
+      auto grabMap = woSingle->getCommentMap();
+      EXPECT_EQ(grabMap, commentMap);
+   }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

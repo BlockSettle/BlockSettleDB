@@ -159,7 +159,7 @@ public:
    }
 
    void addMetaAccount(MetaAccountType);
-   std::shared_ptr<MetaDataAccount> getMetaAccount(MetaAccountType);
+   std::shared_ptr<MetaDataAccount> getMetaAccount(MetaAccountType) const;
    std::shared_ptr<AddressAccount> getAccountForID(const BinaryData& ID) const;
    
    const std::string& getDbFilename(void) const;
@@ -177,6 +177,11 @@ public:
 
    void changeControlPassphrase(const SecureBinaryData& newPassphrase,
       const PassphraseLambda&);
+
+   void setComment(const BinaryData&, const std::string&);
+   const std::string& getComment(const BinaryData&) const;
+   std::map<BinaryData, std::string> getCommentMap(void) const;
+   void deleteComment(const BinaryData&);
 
    //virtual
    virtual std::set<BinaryData> getAddrHashSet();

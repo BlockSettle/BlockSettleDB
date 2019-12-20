@@ -28,6 +28,8 @@
 #define PEER_ROOTKEY_VERSION           0x00000001
 #define PEER_ROOTSIG_VERSION           0x00000001
 
+#define COMMENT_DATA_VERSION           0x00000001
+
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -986,7 +988,9 @@ shared_ptr<MetaData> MetaData::deserialize(
    {
    case METADATA_COMMENTS_PREFIX:
    {
-      throw AssetException("comments metadata not implemented yet");
+      resultPtr = make_shared<CommentData>(accountID, index);
+      resultPtr->deserializeDBValue(data);
+      break;
    }
 
    case METADATA_AUTHPEER_PREFIX:
@@ -1083,7 +1087,7 @@ void PeerPublicData::deserializeDBValue(const BinaryDataRef& data)
       auto keyLen = brrData.get_var_int();
       publicKey_ = brrData.get_BinaryData(keyLen);
       
-      //check pubket is valid
+      //check pubkey is valid
       if(!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
          throw AssetException("invalid pubkey in peer metadata");
 
@@ -1210,7 +1214,7 @@ void PeerRootKey::deserializeDBValue(const BinaryDataRef& data)
       auto keyLen = brrData.get_var_int();
       publicKey_ = brrData.get_BinaryData(keyLen);
 
-      //check pubket is valid
+      //check pubkey is valid
       if (!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
          throw AssetException("invalid pubkey in peer metadata");
 
@@ -1317,7 +1321,7 @@ void PeerRootSignature::deserializeDBValue(const BinaryDataRef& data)
       auto keyLen = brrData.get_var_int();
       publicKey_ = brrData.get_BinaryData(keyLen);
 
-      //check pubket is valid
+      //check pubkey is valid
       if (!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
          throw AssetException("invalid pubkey in peer metadata");
 
@@ -1361,6 +1365,91 @@ shared_ptr<MetaData> PeerRootSignature::copy() const
    auto copyPtr = make_shared<PeerRootSignature>(getAccountID(), getIndex());
    copyPtr->publicKey_ = publicKey_;
    copyPtr->signature_ = signature_;
+
+   return copyPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// CommentData
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+BinaryData CommentData::getDbKey() const
+{
+   if (accountID_.getSize() != 4)
+      throw AssetException("invalid accountID");
+
+   BinaryWriter bw;
+   bw.put_uint8_t(METADATA_COMMENTS_PREFIX);
+   bw.put_BinaryData(accountID_);
+   bw.put_uint32_t(index_, BE);
+
+   return bw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData CommentData::serialize() const
+{
+   //returning an empty serialized string will cause the key to be deleted
+   if (commentStr_.size() == 0)
+      return BinaryData();
+
+   BinaryWriter bw;
+   bw.put_uint32_t(COMMENT_DATA_VERSION);
+   bw.put_var_int(key_.getSize());
+   bw.put_BinaryData(key_);
+
+   bw.put_var_int(commentStr_.size());
+   bw.put_String(commentStr_);
+
+   BinaryWriter bwWithSize;
+   bwWithSize.put_var_int(bw.getSize());
+   bwWithSize.put_BinaryDataRef(bw.getDataRef());
+
+   return bwWithSize.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CommentData::deserializeDBValue(const BinaryDataRef& data)
+{
+   BinaryRefReader brrData(data);
+   auto len = brrData.get_var_int();
+   if (len != brrData.getSizeRemaining())
+      throw AssetException("size mismatch in metadata entry");
+
+   auto version = brrData.get_uint32_t();
+
+   switch (version)
+   {
+   case 0x00000001:
+   {
+      len = brrData.get_var_int();
+      key_ = brrData.get_BinaryData(len);
+
+      len = brrData.get_var_int();
+      commentStr_ = brrData.get_String(len);
+
+      break;
+   }
+
+   default:
+      throw AssetException("unsupported comment version");
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CommentData::clear()
+{
+   commentStr_.clear();
+   flagForCommit();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<MetaData> CommentData::copy() const
+{
+   auto copyPtr = make_shared<CommentData>(getAccountID(), getIndex());
+   copyPtr->commentStr_ = commentStr_;
+   copyPtr->key_ = key_;
 
    return copyPtr;
 }

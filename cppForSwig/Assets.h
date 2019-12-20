@@ -750,4 +750,31 @@ public:
    const SecureBinaryData& getSig(void) const { return signature_; }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+class CommentData : public MetaData
+{
+private:
+   std::string commentStr_;
+   BinaryData key_;
+
+public:
+   CommentData(const BinaryData& accountID, unsigned index) :
+      MetaData(MetaType_AuthorizedPeer, accountID, index)
+   {}
+
+   //virtuals
+   BinaryData serialize(void) const;
+   BinaryData getDbKey(void) const;
+   void deserializeDBValue(const BinaryDataRef&);
+   void clear(void);
+   std::shared_ptr<MetaData> copy(void) const;
+
+   //locals
+   const std::string& getValue(void) const { return commentStr_; }
+   void setValue(const std::string& val) { commentStr_ = val; }
+   
+   const BinaryData& getKey(void) const { return key_; }
+   void setKey(const BinaryData& val) { key_ = val; }
+};
+
 #endif
