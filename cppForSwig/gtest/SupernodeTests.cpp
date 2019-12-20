@@ -3248,7 +3248,6 @@ TEST_F(BlockUtilsWithWalletTest, ZC_MineAfter1Block)
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
 
    uint64_t balanceWlt;
-   uint64_t balanceDB;
 
    balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrA)->getFullBalance();
    EXPECT_EQ(balanceWlt, 50 * COIN);
@@ -5292,6 +5291,318 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxHash)
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
+{
+   auto feed = make_shared<ResolverUtils::TestResolverFeed>();
+   auto addToFeed = [feed](const BinaryData& key)->void
+   {
+      auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
+      feed->h160ToPubKey_.insert(datapair);
+      feed->pubKeyToPrivKey_[datapair.second] = key;
+   };
+
+   addToFeed(TestChain::privKeyAddrB);
+
+   //public server
+   startupBIP150CTX(4, true);
+
+   //
+   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
+   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
+   theBDMt_->start(config.initMode_);
+
+   auto createNAddresses = [](unsigned count)->vector<BinaryData>
+   {
+      vector<BinaryData> result;
+
+      for (unsigned i = 0; i < count; i++)
+      {
+         BinaryWriter bw;
+         bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
+
+         auto&& addrData = CryptoPRNG::generateRandom(20);
+         bw.put_BinaryData(addrData);
+
+         result.push_back(bw.getData());
+      }
+
+      return result;
+   };
+
+   auto&& _scrAddrVec1 = createNAddresses(20);
+   _scrAddrVec1.push_back(TestChain::scrAddrA);
+   _scrAddrVec1.push_back(TestChain::scrAddrB);
+   _scrAddrVec1.push_back(TestChain::scrAddrC);
+   _scrAddrVec1.push_back(TestChain::scrAddrD);
+   _scrAddrVec1.push_back(TestChain::scrAddrE);
+   _scrAddrVec1.push_back(TestChain::scrAddrF);
+
+   set<BinaryData> scrAddrSet;
+   scrAddrSet.insert(_scrAddrVec1.begin(), _scrAddrVec1.end());
+
+   {
+      auto pCallback = make_shared<DBTestUtils::UTCallback>();
+      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      bdvObj->addPublicKey(serverPubkey);
+      bdvObj->connectToRemote();
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+
+      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+      vector<string> walletRegIDs;
+      walletRegIDs.push_back(
+         wallet1.registerAddresses(_scrAddrVec1, false));
+
+      //wait on registration ack
+      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+      //go online
+      bdvObj->goOnline();
+      pCallback->waitOnSignal(BDMAction_Ready);
+
+      //mine
+      DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB, 1000);
+      pCallback->waitOnSignal(BDMAction_NewBlock);
+
+      //get utxos
+      auto utxo_prom = make_shared<promise<vector<UTXO>>>();
+      auto utxo_fut = utxo_prom->get_future();
+      auto utxo_get = [utxo_prom](ReturnMessage<vector<UTXO>> utxoV)->void
+      {
+         utxo_prom->set_value(move(utxoV.get()));
+      };
+      wallet1.getSpendableTxOutListForValue(UINT64_MAX, utxo_get);
+      auto&& utxos = utxo_fut.get();
+
+      DBTestUtils::ZcVector zcVec;
+
+      //get utxo
+      unsigned loopCount = 10;
+      unsigned stagger = 0;
+      for (auto& utxo : utxos)
+      {
+         if (utxo.getRecipientScrAddr() != TestChain::scrAddrB ||
+            utxo.getScript().getSize() != 25 ||
+            utxo.getValue() != 50 * COIN)
+            continue;
+
+         //sign
+         {
+            auto spenderA = make_shared<ScriptSpender>(utxo);
+            Signer signer;
+            signer.addSpender(spenderA);
+
+            auto id = stagger % _scrAddrVec1.size();
+
+            auto recipient = std::make_shared<Recipient_P2PKH>(
+               _scrAddrVec1[id].getSliceCopy(1, 20), utxo.getValue());
+            signer.addRecipient(recipient);
+
+            signer.setFeed(feed);
+            signer.sign();
+            auto rawTx = signer.serialize();
+            zcVec.push_back(signer.serialize(), 130000000, stagger++);
+         }
+
+         if (stagger < loopCount)
+            continue;
+
+         break;
+      }
+
+      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+      pCallback->waitOnSignal(BDMAction_ZC);
+
+      auto getAddrOp = [bdvObj, &scrAddrSet](
+         unsigned heightOffset, unsigned zcOffset)->OutpointBatch
+      {
+         auto promPtr = make_shared<promise<OutpointBatch>>();
+         auto fut = promPtr->get_future();
+         auto addrOpLbd = [promPtr](ReturnMessage<OutpointBatch> batch)->void
+         {
+            promPtr->set_value(batch.get());
+         };
+
+         bdvObj->getOutpointsForAddresses(scrAddrSet, heightOffset, zcOffset, addrOpLbd);
+         return fut.get();
+      };
+
+      auto computeBalance = [](const vector<OutpointData>& data)->uint64_t
+      {
+         uint64_t total = 0;
+         for (auto& op : data)
+         {
+            if (op.isSpent_)
+               continue;
+
+            total += op.value_;
+         }
+
+         return total;
+      };
+
+      //check current mined output state
+      unsigned heightOffset = 0;
+      auto&& addrOp = getAddrOp(heightOffset, UINT32_MAX);
+      heightOffset = addrOp.heightCutoff_ + 1;
+      ASSERT_EQ(addrOp.outpoints_.size(), 6);
+
+      auto iterAddrA = addrOp.outpoints_.find(TestChain::scrAddrA);
+      EXPECT_NE(iterAddrA, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrA->second.size(), 1);
+      EXPECT_EQ(computeBalance(iterAddrA->second), 50 * COIN);
+
+      auto iterAddrB = addrOp.outpoints_.find(TestChain::scrAddrB);
+      EXPECT_NE(iterAddrB, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrB->second.size(), 1007);
+      EXPECT_EQ(computeBalance(iterAddrB->second), 50070 * COIN);
+
+      auto iterAddrC = addrOp.outpoints_.find(TestChain::scrAddrC);
+      EXPECT_NE(iterAddrC, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrC->second.size(), 4);
+      EXPECT_EQ(computeBalance(iterAddrC->second), 20 * COIN);
+
+      auto iterAddrD = addrOp.outpoints_.find(TestChain::scrAddrD);
+      EXPECT_NE(iterAddrD, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrD->second.size(), 4);
+      EXPECT_EQ(computeBalance(iterAddrD->second), 65 * COIN);
+
+      auto iterAddrE = addrOp.outpoints_.find(TestChain::scrAddrE);
+      EXPECT_NE(iterAddrE, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrE->second.size(), 2);
+      EXPECT_EQ(computeBalance(iterAddrE->second), 30 * COIN);
+
+      auto iterAddrF = addrOp.outpoints_.find(TestChain::scrAddrF);
+      EXPECT_NE(iterAddrF, addrOp.outpoints_.end());
+      EXPECT_EQ(iterAddrF->second.size(), 4);
+      EXPECT_EQ(computeBalance(iterAddrF->second), 5 * COIN);
+
+      //check zc outputs
+      auto zcAddrOp = getAddrOp(UINT32_MAX, 0);
+      ASSERT_EQ(zcAddrOp.outpoints_.size(), loopCount + 1);
+
+      auto iterZcB = zcAddrOp.outpoints_.find(TestChain::scrAddrB);
+      ASSERT_NE(iterZcB, zcAddrOp.outpoints_.end());
+      EXPECT_EQ(iterZcB->second.size(), 10);
+
+      for (unsigned z = 0; z < loopCount; z++)
+      {
+         auto id = z % _scrAddrVec1.size();
+         auto& addr = _scrAddrVec1[id];
+
+         auto addrIter = zcAddrOp.outpoints_.find(addr);
+         ASSERT_NE(addrIter, zcAddrOp.outpoints_.end());
+         EXPECT_EQ(addrIter->second.size(), 1);
+
+         auto& op = addrIter->second[0];
+         EXPECT_EQ(op.value_, 50 * COIN);
+         EXPECT_EQ(op.txHeight_, UINT32_MAX);
+      }
+
+      //grab spentness
+      auto getSpentness = [bdvObj](map<BinaryData, set<unsigned>> query)->
+         map<BinaryData, map<unsigned, pair<BinaryData, unsigned>>>
+      {
+         auto prom =
+            make_shared<promise<map<BinaryData, map<unsigned, pair<BinaryData, unsigned>>>>>();
+         auto fut = prom->get_future();
+         auto lbd = [prom](ReturnMessage<std::map<BinaryData, std::map<unsigned,
+            std::pair<BinaryData, unsigned>>>> msg)
+         {
+            try
+            {
+               prom->set_value(msg.get());
+            }
+            catch (ClientMessageError&)
+            {
+               prom->set_exception(current_exception());
+            }
+         };
+
+         bdvObj->getSpentnessForOutputs(query, lbd);
+         return fut.get();
+      };
+
+      map<BinaryData, set<unsigned>> spentnessToGet;
+      for (auto& opPair : addrOp.outpoints_)
+      {
+         for (auto& op : opPair.second)
+         {
+            auto iter = spentnessToGet.find(op.txHash_);
+            if (iter == spentnessToGet.end())
+            {
+               iter = spentnessToGet.insert(
+                  make_pair(op.txHash_, set<unsigned>())).first;
+            }
+
+            iter->second.insert(op.txOutIndex_);
+         }
+      }
+
+      auto spentnessData = getSpentness(spentnessToGet);
+
+      //check spentness data vs addr outpoint data
+      for (auto& opPair : addrOp.outpoints_)
+      {
+         for (auto& op : opPair.second)
+         {
+            if (op.isSpent_)
+            {
+               auto iter = spentnessData.find(op.txHash_);
+               EXPECT_NE(iter, spentnessData.end());
+
+               auto idIter = iter->second.find(op.txOutIndex_);
+               EXPECT_NE(idIter, iter->second.end());
+
+               EXPECT_EQ(idIter->second.first, op.spenderHash_);
+            }
+            else
+            {
+               auto iter = spentnessData.find(op.txHash_);
+               EXPECT_NE(iter, spentnessData.end());
+
+               auto idIter = iter->second.find(op.txOutIndex_);
+               EXPECT_NE(idIter, iter->second.end());
+
+               EXPECT_EQ(idIter->second.first.getSize(), 0);
+               EXPECT_EQ(idIter->second.second, 0);
+            }
+         }
+      }
+
+      //sneak in bad size hash, should throw
+      spentnessToGet.insert(make_pair(READHEX("0011223344"), set<unsigned>()));
+
+      try
+      {
+         auto spentnessData2 = getSpentness(spentnessToGet);
+         ASSERT_FALSE(true);
+      }
+      catch (ClientMessageError& e)
+      {
+         EXPECT_EQ(e.what(), string("Error processing command: 84\n"));
+      }
+   }
+
+   //cleanup
+   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+   bdvObj2->addPublicKey(serverPubkey);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
+   WebSocketServer::waitOnShutdown();
+
+   delete theBDMt_;
+   theBDMt_ = nullptr;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

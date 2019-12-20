@@ -1533,6 +1533,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       //create response object
       auto response = make_shared<::Codec_CommonTypes::ManyBinaryDataAndHeight>();
+      response->set_count(hashes.size());
       for (auto& hashPair : hashes)
       {
          auto val = response->add_value();
@@ -1649,6 +1650,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       
       //create response object
       auto response = make_shared<::Codec_CommonTypes::ManyBinaryDataAndHeight>();
+      response->set_count(hashes.size());
       for (auto& hashPair : hashes)
       {
          auto val = response->add_value();
