@@ -186,15 +186,15 @@ public:
       }
    }
 
-   LogStream& operator<<(const char * str)   { if(!noStdout_) std::cout << str;  if(fout_.is_open()) fout_ << str; return *this; }
-   LogStream& operator<<(std::string const & str) { if(!noStdout_) std::cout << str.c_str(); if(fout_.is_open()) fout_ << str.c_str(); return *this; }
-   LogStream& operator<<(int i)              { if(!noStdout_) std::cout << i;    if(fout_.is_open()) fout_ << i; return *this; }
-   LogStream& operator<<(unsigned int i)     { if(!noStdout_) std::cout << i;    if(fout_.is_open()) fout_ << i; return *this; }
-   LogStream& operator<<(unsigned long long int i) { if(!noStdout_) std::cout << i;    if(fout_.is_open()) fout_ << i; return *this; }
-   LogStream& operator<<(float f)            { if(!noStdout_) std::cout << f;    if(fout_.is_open()) fout_ << f; return *this; }
-   LogStream& operator<<(double d)           { if(!noStdout_) std::cout << d;    if(fout_.is_open()) fout_ << d; return *this; }
+   LogStream& operator<<(const char * str) override;
+   LogStream& operator<<(std::string const & str) override;
+   LogStream& operator<<(int i) override;
+   LogStream& operator<<(unsigned int i) override;
+   LogStream& operator<<(unsigned long long int i) override;
+   LogStream& operator<<(float f) override;
+   LogStream& operator<<(double d) override;
 #if !defined(_MSC_VER) && !defined(__MINGW32__) && defined(__LP64__)
-   LogStream& operator<<(size_t i)           { if(!noStdout_) std::cout << i;    if(fout_.is_open()) fout_ << i; return *this; }
+   LogStream& operator<<(size_t i) override;
 #endif
 
    void FlushStreams(void) {std::cout.flush(); fout_.flush();}
@@ -205,21 +205,22 @@ public:
    std::ofstream fout_;
    std::string   fname_;
    bool     noStdout_;
+   std::mutex mu_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 class NullStream : public LogStream
 {
 public:
-   LogStream& operator<<(const char *)   { return *this; }
-   LogStream& operator<<(std::string const &) { return *this; }
-   LogStream& operator<<(int)              { return *this; }
-   LogStream& operator<<(unsigned int)     { return *this; }
-   LogStream& operator<<(unsigned long long int)     { return *this; }
-   LogStream& operator<<(float)            { return *this; }
-   LogStream& operator<<(double)           { return *this; }
+   LogStream& operator<<(const char *) override { return *this; }
+   LogStream& operator<<(std::string const &) override { return *this; }
+   LogStream& operator<<(int) override { return *this; }
+   LogStream& operator<<(unsigned int) override { return *this; }
+   LogStream& operator<<(unsigned long long int) override { return *this; }
+   LogStream& operator<<(float) override { return *this; }
+   LogStream& operator<<(double) override { return *this; }
 #if !defined(_MSC_VER) && !defined(__MINGW32__) && defined(__LP64__)
-   LogStream& operator<<(size_t)           { return *this; }
+   LogStream& operator<<(size_t) override { return *this; }
 #endif
 
    void FlushStreams(void) {}
