@@ -38,8 +38,8 @@ int main(int argc, char* argv[])
    BlockDataManagerConfig bdmConfig;
    bdmConfig.parseArgs(argc, argv);
    
-   cout << "logging in " << bdmConfig.logFilePath_ << endl;
-   STARTLOGGING(bdmConfig.logFilePath_, LogLvlDebug);
+   //cout << "logging in " << bdmConfig.logFilePath_ << endl;
+   STARTLOGGING("", LogLvlDebug);
    if (!bdmConfig.useCookie_)
       LOGENABLESTDOUT();
    else
