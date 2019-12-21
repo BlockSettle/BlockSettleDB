@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
    bdmConfig.parseArgs(argc, argv);
    
    //cout << "logging in " << bdmConfig.logFilePath_ << endl;
-   //STARTLOGGING(bdmConfig.logFilePath_, LogLvlDebug);
+   STARTLOGGING("", LogLvlDebug);
    if (!bdmConfig.useCookie_)
       LOGENABLESTDOUT();
    else
