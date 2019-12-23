@@ -54,16 +54,26 @@ SecureBinaryData TerminalPassphrasePrompt::promptNewPass()
         cout << "Enter new password: ";
 
         setEcho(false);
-        cin >> pass1;
+        std::getline(cin, pass1);
         setEcho(true);
         cout << endl;
+
+        if (cin.fail()) {
+           cerr << "Can't read password...";
+           std::exit(1);
+        }
 
         cout << "Repeat new password: ";
 
         setEcho(false);
-        cin >> pass2;
+        std::getline(cin, pass2);
         setEcho(true);
         cout << endl;
+
+        if (cin.fail()) {
+           cerr << "Can't read password...";
+           std::exit(1);
+        }
 
         if (pass1 != pass2)
         {
@@ -80,6 +90,11 @@ SecureBinaryData TerminalPassphrasePrompt::promptNewPass()
                 string yn;
                 cout << "Do you wish to continue (Y/n)? ";
                 cin >> yn;
+
+                if (cin.fail()) {
+                   cerr << "Can't read answer...";
+                   std::exit(1);
+                }
 
                 if (yn == "n")
                 {
