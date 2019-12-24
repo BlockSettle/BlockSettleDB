@@ -175,7 +175,8 @@ public:
    std::shared_ptr<DBIfaceTransaction> beginSubDBTransaction(
       const std::string&, bool);
 
-   void changeControlPassphrase(const SecureBinaryData& newPassphrase,
+   void changeControlPassphrase(
+      const std::function<SecureBinaryData(void)>&,
       const PassphraseLambda&);
 
    void setComment(const BinaryData&, const std::string&);
@@ -249,8 +250,8 @@ public:
    {}
 
    //locals
-   void addPassphrase(const SecureBinaryData&);
-   void changeMasterPassphrase(const SecureBinaryData&);
+   void addPassphrase(const std::function<SecureBinaryData(void)>&);
+   void changePrivateKeyPassphrase(const std::function<SecureBinaryData(void)>&);
 
    std::shared_ptr<AssetEntry_Single> getRoot(void) const { return root_; }
    const SecureBinaryData& getPublicRoot(void) const;

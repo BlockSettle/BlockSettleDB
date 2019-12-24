@@ -598,30 +598,20 @@ void AuthorizedPeers::erasePeerRootKey(const SecureBinaryData& key)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AuthorizedPeers::changeMasterPassphrase(const string& path)
+void AuthorizedPeers::changeControlPassphrase(const string& path)
 {
+   //get a terminal prompt lambda
    auto promptPtr = TerminalPassphrasePrompt::getLambda("peers db");
    
-   //hijack the terminal prompt lambda to recover
-   //the current passphrase at load time
-   SecureBinaryData currentPass;
-   auto promptWrap = [&currentPass, promptPtr](const set<BinaryData>& idSet)
-      ->SecureBinaryData
-   {
-      currentPass = move(promptPtr(idSet));
-      return currentPass;
+   //load the wallet
+   auto wlt = AssetWallet::loadMainWalletFromFile(path, promptPtr);
+
+   //change passphrase lambda
+   auto changeLbd = [&promptPtr](void)->SecureBinaryData
+   {      
+      return promptPtr({ BinaryData::fromString("change-pass") });
    };
 
-   //load the wallet with the hijacked lambda
-   auto wlt = AssetWallet::loadMainWalletFromFile(path, promptWrap);
-
-   //grab new pass
-   auto&& newPass = promptPtr({ BinaryData::fromString("change-pass") });
-
-   //create lambda with the hijacked passphrase
-   auto oldPassLbd = [&currentPass](const set<BinaryData>&)->SecureBinaryData
-   {
-      return currentPass;
-   };
-   wlt->changeControlPassphrase(newPass, oldPassLbd);
+   //change the passphrase
+   wlt->changeControlPassphrase(changeLbd, promptPtr);
 }

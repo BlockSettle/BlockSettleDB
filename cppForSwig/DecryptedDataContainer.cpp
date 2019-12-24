@@ -531,7 +531,7 @@ void DecryptedDataContainer::readFromDisk(DBIfaceTransaction* tx)
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::encryptEncryptionKey(
    const BinaryData& keyID, const BinaryData& kdfID,
-   const SecureBinaryData& newPassphrase, bool replace)
+   const function<SecureBinaryData(void)>& newPassLbd, bool replace)
 {
    /***
    Encrypts an encryption key with newPassphrase. 
@@ -589,10 +589,12 @@ void DecryptedDataContainer::encryptEncryptionKey(
       throw DecryptedDataContainerException("failed to grab kdf");
 
    //copy passphrase cause the ctor will move the data in
-   auto newPassphraseCopy = newPassphrase;
+   auto&& newPassphrase = newPassLbd();
+   if (newPassphrase.getSize() == 0)
+      throw DecryptedDataContainerException("cannot set an empty passphrase");
 
    //kdf the key to get its id
-   auto newEncryptionKey = make_unique<DecryptedEncryptionKey>(newPassphraseCopy);
+   auto newEncryptionKey = make_unique<DecryptedEncryptionKey>(newPassphrase);
    newEncryptionKey->deriveKey(kdfIter->second);
    auto newKeyId = newEncryptionKey->getId(kdfID);
 

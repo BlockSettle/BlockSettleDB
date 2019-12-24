@@ -120,7 +120,7 @@ public:
    const btc_pubkey& getOwnPublicKey(void) const;
 
    //takes path to peers db, passphrase lambdas are handled internally
-   static void changeMasterPassphrase(const std::string&);
+   static void changeControlPassphrase(const std::string&);
 };
 
 #endif

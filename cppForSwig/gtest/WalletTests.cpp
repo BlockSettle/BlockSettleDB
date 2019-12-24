@@ -3841,6 +3841,11 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
          return SecureBinaryData();
    };
 
+   auto newPassLbd = [&newPassphrase](void)->SecureBinaryData
+   {
+      return newPassphrase;
+   };
+
    {
       //set passphrase prompt lambda
       assetWlt->setPassphrasePromptLambda(passphrasePrompt);
@@ -3851,7 +3856,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       try
       {
          //change passphrase
-         assetWlt->changeMasterPassphrase(newPassphrase);
+         assetWlt->changePrivateKeyPassphrase(newPassLbd);
          ASSERT_TRUE(false);
       }
       catch (AlreadyLocked&)
@@ -3863,7 +3868,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       try
       {
          //change passphrase
-         assetWlt->changeMasterPassphrase(newPassphrase);
+         assetWlt->changePrivateKeyPassphrase(newPassLbd);
       }
       catch (AlreadyLocked&)
       {
@@ -4047,7 +4052,12 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
       {
          return SecureBinaryData::fromString("control");
       };
-      assetWlt->changeControlPassphrase(newPass, passLbd);
+
+      auto newPass1Lbd = [newPass](void)->SecureBinaryData
+      {
+         return newPass;
+      };
+      assetWlt->changeControlPassphrase(newPass1Lbd, passLbd);
 
       //close wallet by scoping out
    }
@@ -4103,7 +4113,12 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
       auto wlt = AssetWallet::loadMainWalletFromFile(filename, newPassLbd);
       //change pass again from the loaded wallet
       auto&& newPass2 = SecureBinaryData::fromString("second-pass");
-      wlt->changeControlPassphrase(newPass2, newPassLbd);
+      auto newPass2Lbd = [newPass2](void)->SecureBinaryData
+      {
+         return newPass2;
+      };
+
+      wlt->changeControlPassphrase(newPass2Lbd, newPassLbd);
    }
    catch (DecryptedDataContainerException&)
    {
@@ -4181,6 +4196,11 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
       return SecureBinaryData::fromString("abcdedfg");
    };
 
+   auto newPassLbd = [](void)->SecureBinaryData
+   {
+      return SecureBinaryData::fromString("abcdedfg");
+   };
+
    {
       //try to change passphrase by locking container first, should fail
       assetWlt->setPassphrasePromptLambda(passLbd1);
@@ -4188,7 +4208,7 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
 
       try
       {
-         assetWlt->addPassphrase(SecureBinaryData::fromString("abcdedfg"));
+         assetWlt->addPassphrase(newPassLbd);
          ASSERT_TRUE(false);
       }
       catch (AlreadyLocked&)
@@ -4199,7 +4219,7 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
       //try without locking first, should work
       try
       {
-         assetWlt->addPassphrase(SecureBinaryData::fromString("abcdedfg"));
+         assetWlt->addPassphrase(newPassLbd);
       }
       catch (AlreadyLocked&)
       {

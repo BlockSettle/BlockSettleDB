@@ -1094,8 +1094,9 @@ void WalletDBInterface::unlockControlContainer()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletDBInterface::changeMasterPassphrase(
-   const SecureBinaryData& newPassphrase, const PassphraseLambda& passLbd)
+void WalletDBInterface::changeControlPassphrase(
+   const function<SecureBinaryData(void)>& newPassLbd, 
+   const PassphraseLambda& passLbd)
 {
    try
    {
@@ -1121,7 +1122,7 @@ void WalletDBInterface::changeMasterPassphrase(
    //change the passphrase
    auto& masterKeyId = decryptedData_->getMasterEncryptionKeyId();
    auto& kdfId = decryptedData_->getDefaultKdfId();
-   decryptedData_->encryptEncryptionKey(masterKeyId, kdfId, newPassphrase);   
+   decryptedData_->encryptEncryptionKey(masterKeyId, kdfId, newPassLbd);
 
    //clear the lambda
    decryptedData_->resetPassphraseLambda();

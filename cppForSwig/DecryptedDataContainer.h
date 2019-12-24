@@ -163,7 +163,7 @@ public:
 
    void encryptEncryptionKey(
       const BinaryData& keyID, const BinaryData& kdfID, 
-      const SecureBinaryData& newPassphrase, bool replace = true);
+      const std::function<SecureBinaryData(void)>&, bool replace = true);
 
    void lockOther(std::shared_ptr<DecryptedDataContainer> other);
 

@@ -803,9 +803,10 @@ map<BinaryData, shared_ptr<AddressEntry>> AssetWallet::getUsedAddressMap() const
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::changeControlPassphrase(
-   const SecureBinaryData& newPassphrase, const PassphraseLambda& passLbd)
+   const function<SecureBinaryData(void)>& newPassLbd, 
+   const PassphraseLambda& passLbd)
 {
-   iface_->changeMasterPassphrase(newPassphrase, passLbd);
+   iface_->changeControlPassphrase(newPassLbd, passLbd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1669,24 +1670,25 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetWallet_Single::changeMasterPassphrase(
-   const SecureBinaryData& newPassphrase)
+void AssetWallet_Single::changePrivateKeyPassphrase(
+   const std::function<SecureBinaryData(void)>& newPassLbd)
 {
    auto&& masterKeyId = decryptedData_->getMasterEncryptionKeyId();
    auto&& kdfId = decryptedData_->getDefaultKdfId();
 
    decryptedData_->encryptEncryptionKey(
-      masterKeyId, kdfId, newPassphrase, true);
+      masterKeyId, kdfId, newPassLbd, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetWallet_Single::addPassphrase(const SecureBinaryData& newPassphrase)
+void AssetWallet_Single::addPassphrase(
+   const function<SecureBinaryData(void)>& newPassLbd)
 {
    auto&& masterKeyId = root_->getPrivateEncryptionKeyId();
    auto&& masterKdfId = root_->getKdfId();
 
    decryptedData_->encryptEncryptionKey(
-      masterKeyId, masterKdfId, newPassphrase, false);
+      masterKeyId, masterKdfId, newPassLbd, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
