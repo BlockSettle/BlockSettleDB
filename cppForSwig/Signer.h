@@ -292,6 +292,7 @@ public:
    BinaryDataRef serialize(void) const;
    
    bool verify(void);
+   bool verifyPartial(void);
    bool verifyRawTx(const BinaryData& rawTx,
       const std::map<BinaryData, std::map<unsigned, BinaryData> >& rawUTXOs);
 

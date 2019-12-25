@@ -1270,6 +1270,17 @@ bool Signer::verify(void)
    return evalState.isValid();
 }
 
+bool Signer::verifyPartial(void)
+{
+   for (auto& spender : spenders_)
+   {
+      if (spender->resolved())
+         return true;
+   }
+
+   return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 bool Signer::verifyRawTx(const BinaryData& rawTx, 
    const map<BinaryData, map<unsigned, BinaryData>>& rawUTXOs)
