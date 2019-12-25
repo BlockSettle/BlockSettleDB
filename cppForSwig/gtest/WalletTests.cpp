@@ -3251,7 +3251,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       unsigned badPassCtr = 0;
       auto badPassLbd = [&badPassCtr](const set<BinaryData>&)->SecureBinaryData
       {
-         if(badPassCtr++ > 3)
+         if (badPassCtr++ > 3)
             return SecureBinaryData();
          return CryptoPRNG::generateRandom(20);
       };
@@ -3276,6 +3276,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       catch(DecryptedDataContainerException& e)
       {
          EXPECT_EQ(e.what(), string("empty passphrase"));
+         EXPECT_EQ(badPassCtr, 5);
       }
 
       auto assetWlt = AssetWallet::loadMainWalletFromFile(
@@ -3462,6 +3463,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       catch (DecryptedDataContainerException& e)
       {
          EXPECT_EQ(e.what(), string("empty passphrase"));
+         EXPECT_EQ(count, 6);
       }
 
       //check WO works with different pass
@@ -3482,6 +3484,37 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       {
          EXPECT_EQ(e.what(), string("invalid db name"));
       }
+
+      //delete control passphrase
+
+      //with wrong pass
+      try
+      {
+         count = 0;
+         wltWO->eraseControlPassphrase(wrongPass);
+         ASSERT_TRUE(false);
+      }
+      catch (DecryptedDataContainerException& e)
+      {
+         EXPECT_EQ(e.what(), string("empty passphrase"));
+         EXPECT_EQ(count, 6);
+      }
+
+      //with right pass
+      wltWO->eraseControlPassphrase(newPass);
+
+      //shutdown wallet
+      wltWO.reset();
+
+      //check pass is gone
+
+      wltWO = AssetWallet::loadMainWalletFromFile(
+         woFilename, emptyPassLbd);
+
+      loadedAddrSet = wltWO->getAddrHashSet();
+
+      //wallet values
+      EXPECT_EQ(addrSet, loadedAddrSet);
    }
 }
 
@@ -4028,6 +4061,203 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
+{
+   //create wallet from priv key
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
+   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+      homedir_,
+      wltRoot, //root as a r value
+      SecureBinaryData(), //set passphrase to "test"
+      SecureBinaryData::fromString("control"),
+      4); //set lookup computation to 4 entries
+
+   auto&& chaincode = BtcUtils::computeChainCode_Armory135(wltRoot);
+   auto&& privkey_ex =
+      CryptoECDSA().ComputeChainedPrivateKey(wltRoot, chaincode);
+   auto filename = assetWlt->getDbFilename();
+
+   auto newPass = SecureBinaryData::fromString("newpass");
+
+   auto asset0 = assetWlt->getMainAccountAssetForIndex(0);
+   auto asset0_single = dynamic_pointer_cast<AssetEntry_Single>(asset0);
+   ASSERT_NE(asset0_single, nullptr);
+
+   //check the wallet has no passphrase
+   auto emptyPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData();
+   };
+
+   assetWlt->setPassphrasePromptLambda(emptyPassLbd);
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //try to add passhrase to an unencrypted wallet, should fail
+   auto changePassLbd = [&newPass](void)->SecureBinaryData
+   {
+      return newPass;
+   };
+
+   try
+   {
+      assetWlt->addPrivateKeyPassphrase(changePassLbd);
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("cannot add passphrase to unencrypted wallet"));
+   }
+
+   //encrypt with new pass
+   assetWlt->changePrivateKeyPassphrase(changePassLbd);
+  
+   //check the wallet can't be decrypted without a passphrase anymore
+   try
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("empty passphrase"));
+   }
+
+   //check the new pass works
+   auto newPassLbd = [&newPass](const set<BinaryData>&)->SecureBinaryData
+   {
+      return newPass;
+   };
+
+   assetWlt->setPassphrasePromptLambda(newPassLbd);
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //try to add the same passphrase
+   try
+   {
+      assetWlt->addPrivateKeyPassphrase(changePassLbd);
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("cipher data already present in encryption key"));
+   }
+
+   //check pass still works
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //add another passphrase
+   auto newPass2 = SecureBinaryData::fromString("another pass");
+   auto changePass2Lbd = [&newPass2](void)->SecureBinaryData
+   {
+      return newPass2;
+   };
+   assetWlt->addPrivateKeyPassphrase(changePass2Lbd);
+
+   //check old pass works
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //check new pass works
+   auto newPass2Lbd = [&newPass2](const set<BinaryData>&)->SecureBinaryData
+   {
+      return newPass2;
+   };
+
+   assetWlt->setPassphrasePromptLambda(newPass2Lbd);
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //delete old pass
+   assetWlt->setPassphrasePromptLambda(newPassLbd);
+   assetWlt->erasePrivateKeyPassphrase();
+
+   //check old pass fails
+   unsigned counter = 0;
+   auto newPassLbdFail = [&counter, &newPass](const set<BinaryData>&)->SecureBinaryData
+   {
+      while (counter++ < 4)
+         return newPass;
+      return SecureBinaryData();
+   };
+   assetWlt->setPassphrasePromptLambda(newPassLbdFail);
+
+   try
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("empty passphrase"));
+      EXPECT_EQ(counter, 5);
+   }
+
+   //check new pass works
+   assetWlt->setPassphrasePromptLambda(newPass2Lbd);
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //delete new pass
+   assetWlt->setPassphrasePromptLambda(newPass2Lbd);
+   assetWlt->erasePrivateKeyPassphrase();
+
+   counter = 0;
+   auto emptyPassLbd2 = [&counter](const set<BinaryData>&)->SecureBinaryData
+   {
+      ++counter;
+      return SecureBinaryData();
+   };
+   assetWlt->setPassphrasePromptLambda(emptyPassLbd2);
+
+   //check wallet is unencrypted
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+      EXPECT_EQ(counter, 0);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, ChangeControlPassphrase_Test)
 {
       
@@ -4208,7 +4438,7 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
 
       try
       {
-         assetWlt->addPassphrase(newPassLbd);
+         assetWlt->addPrivateKeyPassphrase(newPassLbd);
          ASSERT_TRUE(false);
       }
       catch (AlreadyLocked&)
@@ -4219,7 +4449,7 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
       //try without locking first, should work
       try
       {
-         assetWlt->addPassphrase(newPassLbd);
+         assetWlt->addPrivateKeyPassphrase(newPassLbd);
       }
       catch (AlreadyLocked&)
       {

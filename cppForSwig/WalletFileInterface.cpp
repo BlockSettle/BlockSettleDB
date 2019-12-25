@@ -1132,6 +1132,42 @@ void WalletDBInterface::changeControlPassphrase(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::eraseControlPassphrase(const PassphraseLambda& passLbd)
+{
+   try
+   {
+      openControlDb();
+
+      /*
+      No need to set the control db after opening it, decryptedData_ is
+      instantiated with the db's shared_ptr, which is not cleaned up
+      after the controldb is shut down.
+      */
+   }
+   catch (WalletInterfaceException&)
+   {
+      //control db is already opened, nothing to do
+   }
+
+   //hold tx write mutex until the file is compacted
+   unique_lock<recursive_mutex> lock(DBIfaceTransaction::writeMutex_);
+
+   //set the lambda to unlock the control encryption key
+   decryptedData_->setPassphrasePromptLambda(passLbd);
+
+   //erase the passphrase
+   auto& masterKeyId = decryptedData_->getMasterEncryptionKeyId();
+   auto& kdfId = decryptedData_->getDefaultKdfId();
+   decryptedData_->eraseEncryptionKey(masterKeyId, kdfId);
+
+   //clear the lambda
+   decryptedData_->resetPassphraseLambda();
+
+   //wipe the db
+   compactFile();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::compactFile()
 {
    /*

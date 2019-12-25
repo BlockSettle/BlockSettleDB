@@ -810,6 +810,12 @@ void AssetWallet::changeControlPassphrase(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::eraseControlPassphrase(const PassphraseLambda& passLbd)
+{
+   iface_->eraseControlPassphrase(passLbd);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::setComment(const BinaryData& key, const string& comment)
 {
    auto accPtr = getMetaAccount(MetaAccountType::MetaAccount_Comments);
@@ -1681,7 +1687,7 @@ void AssetWallet_Single::changePrivateKeyPassphrase(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetWallet_Single::addPassphrase(
+void AssetWallet_Single::addPrivateKeyPassphrase(
    const function<SecureBinaryData(void)>& newPassLbd)
 {
    auto&& masterKeyId = root_->getPrivateEncryptionKeyId();
@@ -1689,6 +1695,15 @@ void AssetWallet_Single::addPassphrase(
 
    decryptedData_->encryptEncryptionKey(
       masterKeyId, masterKdfId, newPassLbd, false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AssetWallet_Single::erasePrivateKeyPassphrase()
+{
+   auto&& masterKeyId = root_->getPrivateEncryptionKeyId();
+   auto&& masterKdfId = root_->getKdfId();
+
+   decryptedData_->eraseEncryptionKey(masterKeyId, masterKdfId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

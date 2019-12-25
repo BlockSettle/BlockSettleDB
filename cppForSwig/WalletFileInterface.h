@@ -466,9 +466,11 @@ public:
    //utils
    void lockControlContainer(const PassphraseLambda&);
    void unlockControlContainer(void);
+
    void changeControlPassphrase(
       const std::function<SecureBinaryData(void)>& newPassLbd, 
       const PassphraseLambda& passLbd);
+   void eraseControlPassphrase(const PassphraseLambda& passLbd);
 };
 
 #endif

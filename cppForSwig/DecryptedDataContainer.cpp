@@ -173,21 +173,23 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DecryptedDataContainer::populateEncryptionKey(
+BinaryData DecryptedDataContainer::populateEncryptionKey(
    const map<BinaryData, BinaryData>& keyMap)
 {
    /*
    This method looks for existing encryption keys in the container. It will 
-   return the key decrypted encryption key is present, or populate the 
+   return the decrypted encryption key if present, or populate the 
    container until it cannot find precursors (an encryption key may be 
-   encrypted by another encrpytion). At which point, it will prompt the user
+   encrypted by another encryption). At which point, it will prompt the user
    for a passphrase.
 
    keyMap: <keyId, kdfId> for all eligible key|kdf pairs. These are listed by 
-   the encrypted data that you're looking to decrypt
+   the encrypted data object that you're looking to decrypt.
+
+   Returns the id of the key from the keyMap used for decryption.
    */
 
-   BinaryData keyId, kdfId;
+   BinaryData keyId, kdfId, decryptId;
 
    //sanity check
    if (!ownsLock())
@@ -257,7 +259,7 @@ void DecryptedDataContainer::populateEncryptionKey(
                   cipherDataPtr->cipher_->getEncryptionKeyId(), cipherDataPtr->cipher_->getKdfId()));
             }
 
-            populateEncryptionKey(parentKeyMap);
+            decryptId = populateEncryptionKey(parentKeyMap);
 
             //grab encryption key from map
             bool done = false;
@@ -323,6 +325,11 @@ void DecryptedDataContainer::populateEncryptionKey(
 
    //insert into map
    insertDecryptedData(keyId, move(decryptedKey));
+
+   if (decryptId.getSize() != 0)
+      return decryptId;
+
+   return keyId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -575,7 +582,7 @@ void DecryptedDataContainer::encryptEncryptionKey(
    //decrypt master encryption key
    map<BinaryData, BinaryData> encrKeyMap;
    encrKeyMap.insert(make_pair(keyID, kdfID));
-   populateEncryptionKey(encrKeyMap);
+   auto decryptionKeyId = populateEncryptionKey(encrKeyMap);
 
    //grab decrypted key
    auto decryptedKeyIter = lockedDecryptedData_->encryptionKeys_.find(keyID);
@@ -588,7 +595,7 @@ void DecryptedDataContainer::encryptEncryptionKey(
    if (kdfIter == kdfMap_.end())
       throw DecryptedDataContainerException("failed to grab kdf");
 
-   //copy passphrase cause the ctor will move the data in
+   //grab passphrase through the lambda
    auto&& newPassphrase = newPassLbd();
    if (newPassphrase.getSize() == 0)
       throw DecryptedDataContainerException("cannot set an empty passphrase");
@@ -598,15 +605,8 @@ void DecryptedDataContainer::encryptEncryptionKey(
    newEncryptionKey->deriveKey(kdfIter->second);
    auto newKeyId = newEncryptionKey->getId(kdfID);
 
-   //TODO: figure out which passphrase unlocked the key
-   Cipher* cipherPtr = nullptr;
-   for (auto& keyPair : lockedDecryptedData_->encryptionKeys_)
-   {
-       cipherPtr = encryptedKey->getCipherPtrForId(keyPair.first);
-       if (cipherPtr != nullptr)
-          break;
-   }
-
+   //get cipher for the key used to decrypt the wallet
+   auto cipherPtr = encryptedKey->getCipherPtrForId(decryptionKeyId);
    if (cipherPtr == nullptr)
       throw DecryptedDataContainerException("failed to find encryption key");
 
@@ -629,11 +629,133 @@ void DecryptedDataContainer::encryptEncryptionKey(
       if (!encryptedKey->removeCipherData(cipherPtr->getEncryptionKeyId()))
          throw DecryptedDataContainerException("failed to erase old encryption key");
    }
+   else
+   {
+      //check we arent adding a passphrase to an unencrypted wallet
+      if (decryptionKeyId == defaultEncryptionKeyId_)
+      {
+         throw DecryptedDataContainerException(
+            "cannot add passphrase to unencrypted wallet");
+      }
+   }
 
-   //add new cipher data object to the encrypted key object
+   //add new cipher data to the encrypted key object
    if (!encryptedKey->addCipherData(move(newCipherData)))
-      throw DecryptedDataContainerException("cipher data already present in encryption key");
+   {
+      throw DecryptedDataContainerException(
+         "cipher data already present in encryption key");
+   }
 
+   auto&& temp_key = WRITE_UINT8_BE(ENCRYPTIONKEY_PREFIX_TEMP);
+   temp_key.append(keyID);
+   auto&& perm_key = WRITE_UINT8_BE(ENCRYPTIONKEY_PREFIX);
+   perm_key.append(keyID);
+
+   {
+      //write new encrypted key as temp key within it's own transaction
+      auto&& tx = iface_->beginWriteTransaction(dbName_);
+      updateKeyOnDiskNoPrefix(temp_key, encryptedKey);
+   }
+
+   {
+      auto&& tx = iface_->beginWriteTransaction(dbName_);
+
+      //wipe old key from disk
+      deleteKeyFromDisk(perm_key);
+
+      //write new key to disk
+      updateKeyOnDiskNoPrefix(perm_key, encryptedKey);
+   }
+
+   {
+      //wipe temp entry
+      auto&& tx = iface_->beginWriteTransaction(dbName_);
+      deleteKeyFromDisk(temp_key);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void DecryptedDataContainer::eraseEncryptionKey(
+   const BinaryData& keyID, const BinaryData& kdfID)
+{
+   /***
+   Removes a passphrase from an encrypted key designated by keyID. 
+   
+   The passphrase used to decrypt the wallet will be erased. If it is the last 
+   passphrase used to encrypt the key, the key will be encrypted with the 
+   default passphrase in turn.
+
+   Has same locking requirements as encryptEncryptionKey.
+   ***/
+
+   SingleLock lock(this);
+
+   //sanity check
+   if (!ownsLock())
+      throw DecryptedDataContainerException("unlocked/does not own lock");
+
+   if (lockedDecryptedData_ == nullptr)
+   {
+      throw DecryptedDataContainerException(
+         "nullptr lock! how did we get this far?");
+   }
+
+   //grab encryption key object
+   auto keyIter = encryptionKeyMap_.find(keyID);
+   if (keyIter == encryptionKeyMap_.end())
+   {
+      throw DecryptedDataContainerException(
+         "cannot change passphrase for unknown key");
+   }
+   auto encryptedKey = dynamic_pointer_cast<Asset_EncryptionKey>(keyIter->second);
+
+   //decrypt master encryption key
+   map<BinaryData, BinaryData> encrKeyMap;
+   encrKeyMap.insert(make_pair(keyID, kdfID));
+   auto decryptionKeyId = populateEncryptionKey(encrKeyMap);
+
+   //check key was decrypted
+   auto decryptedKeyIter = lockedDecryptedData_->encryptionKeys_.find(keyID);
+   if (decryptedKeyIter == lockedDecryptedData_->encryptionKeys_.end())
+      throw DecryptedDataContainerException("failed to decrypt key");
+
+   //sanity check on kdfID
+   auto kdfIter = kdfMap_.find(kdfID);
+   if (kdfIter == kdfMap_.end())
+      throw DecryptedDataContainerException("failed to grab kdf");
+
+   //get cipher for the key used to decrypt the wallet
+   auto cipherPtr = encryptedKey->getCipherPtrForId(decryptionKeyId);
+   if (cipherPtr == nullptr)
+      throw DecryptedDataContainerException("failed to find encryption key");
+
+   //if the key only has 1 cipher data object left, reencrypt with the default 
+   //passphrase
+   if (encryptedKey->getCipherDataCount() == 1)
+   {
+      //create new cipher, pointing to the default key id
+      auto newCipher = cipherPtr->getCopy(defaultEncryptionKeyId_);
+
+      //encrypt master key
+      auto& decryptedKey = decryptedKeyIter->second->getData();
+      auto&& newEncryptedKey = encryptData(newCipher.get(), decryptedKey);
+
+      //create new encrypted container
+      auto newCipherData = make_unique<CipherData>(newEncryptedKey, move(newCipher));
+
+      //add new cipher data to the encrypted key object
+      if (!encryptedKey->addCipherData(move(newCipherData)))
+      {
+         throw DecryptedDataContainerException(
+            "cipher data already present in encryption key");
+      }
+   }
+
+   //remove cipher data from the encrypted key object
+   if (!encryptedKey->removeCipherData(cipherPtr->getEncryptionKeyId()))
+      throw DecryptedDataContainerException("failed to erase old encryption key");
+
+   //update on disk
    auto&& temp_key = WRITE_UINT8_BE(ENCRYPTIONKEY_PREFIX_TEMP);
    temp_key.append(keyID);
    auto&& perm_key = WRITE_UINT8_BE(ENCRYPTIONKEY_PREFIX);

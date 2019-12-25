@@ -178,6 +178,7 @@ public:
    void changeControlPassphrase(
       const std::function<SecureBinaryData(void)>&,
       const PassphraseLambda&);
+   void eraseControlPassphrase(const PassphraseLambda&);
 
    void setComment(const BinaryData&, const std::string&);
    const std::string& getComment(const BinaryData&) const;
@@ -250,8 +251,9 @@ public:
    {}
 
    //locals
-   void addPassphrase(const std::function<SecureBinaryData(void)>&);
+   void addPrivateKeyPassphrase(const std::function<SecureBinaryData(void)>&);
    void changePrivateKeyPassphrase(const std::function<SecureBinaryData(void)>&);
+   void erasePrivateKeyPassphrase(void);
 
    std::shared_ptr<AssetEntry_Single> getRoot(void) const { return root_; }
    const SecureBinaryData& getPublicRoot(void) const;
