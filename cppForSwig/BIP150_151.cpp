@@ -414,7 +414,7 @@ int BIP151Session::decPayload(const uint8_t* cipherData,
                                cipherData,
                                cipherSize);
    //sanity check
-   if (decryptedLen > cipherSize - POLY1305MACLEN - AUTHASSOCDATAFIELDLEN)
+   if (decryptedLen + POLY1305MACLEN + AUTHASSOCDATAFIELDLEN > cipherSize)
       return decryptedLen;
 
    if(chacha20poly1305_crypt(&sessionCTX_,
