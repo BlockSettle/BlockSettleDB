@@ -22,6 +22,9 @@ using namespace std;
 #ifdef _WIN32
 #include "leveldb_windows_port/win32_posix/win32_posix.h"
 #define mkdir mkdir_win32
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1188,8 +1191,13 @@ void WalletDBInterface::compactFile()
    DBUtils::appendPath(swapFolder, string(COMPACT_FILE_FOLDER));
    if (!DBUtils::fileExists(swapFolder, 0))
    {
+      #ifdef _WIN32
       if (mkdir(swapFolder) != 0)
          throw WalletInterfaceException("could not create wallet swap folder");
+      #else
+      if (mkdir(swapFolder.c_str(), S_IWUSR | S_IRUSR | S_IXUSR) != 0)
+         throw WalletInterfaceException("could not create wallet swap folder");
+      #endif
    }
 
    string copyName;

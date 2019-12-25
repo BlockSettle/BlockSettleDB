@@ -156,9 +156,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	WalletManager.cpp \
 	Wallets.cpp \
 	WebSocketClient.cpp \
-	WebSocketMessage.cpp \
-	bech32/ref/c++/bech32.cpp \
-	bech32/ref/c++/segwit_addr.cpp
+	WebSocketMessage.cpp
 
 if ! USE_CRYPTOPP
 ARMORYCOMMON_SOURCE_FILES += EncryptionUtils_libbtc.cpp
