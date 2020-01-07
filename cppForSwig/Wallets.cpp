@@ -1306,9 +1306,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
       ROOT_ASSETENTRY_ID, BinaryData(),
       pubkey, nullptr);
 
-   BinaryData walletIdRaw = computeWalletID(derScheme, asset_single);
-   // Remove trailing \0 chars if needed
-   std::string walletIdStr = walletIdRaw.toBinStr().c_str();
+   string walletId = computeWalletID(derScheme, asset_single);
 
    //compute master ID as hmac256(root pubkey, "MetaEntry")
    auto hmacMasterMsg = SecureBinaryData::fromString("MetaEntry");
@@ -1327,9 +1325,9 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
    //create wallet file and dbenv
    stringstream pathSS;
    if (!isPublic)
-      pathSS << folder << "/BlockSettle_" << walletIdStr << "_wallet.lmdb";
+      pathSS << folder << "/BlockSettle_" << walletId << "_wallet.lmdb";
    else
-      pathSS << folder << "/BlockSettle_" << walletIdStr << "_WatchingOnly.lmdb";
+      pathSS << folder << "/BlockSettle_" << walletId << "_WatchingOnly.lmdb";
 
    auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
 
