@@ -2434,3 +2434,94 @@ unsigned AuthPeerAssetConversion::addRootPeer(MetaDataAccount* account,
 
    return index;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// CommentAssetConversion
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<CommentData> CommentAssetConversion::getByKey(
+   MetaDataAccount* account, const BinaryData& key)
+{
+   ReentrantLock lock(account);
+
+   if (account == nullptr || account->type_ != MetaAccount_Comments)
+      throw AccountException("invalid metadata account ptr");
+
+   for (auto& asset : account->assets_)
+   {
+      auto objPtr = dynamic_pointer_cast<CommentData>(asset.second);
+      if (objPtr == nullptr)
+         continue;
+
+      if (objPtr->getKey() == key)
+         return objPtr;
+   }
+
+   return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int CommentAssetConversion::setAsset(MetaDataAccount* account,
+   const BinaryData& key, const std::string& comment)
+{
+   ReentrantLock lock(account);
+
+   if (account == nullptr || account->type_ != MetaAccount_Comments)
+      throw AccountException("invalid metadata account ptr");
+
+   auto metaObject = getByKey(account, key);
+
+   if (metaObject == nullptr)
+   {
+      auto& accountID = account->ID_;
+      auto index = account->assets_.size();
+      metaObject = make_shared<CommentData>(accountID, index);
+      metaObject->setKey(key);
+
+      account->assets_.emplace(make_pair(index, metaObject));
+   }
+
+   metaObject->setValue(comment);
+
+   metaObject->flagForCommit();
+   account->updateOnDisk();
+
+   return metaObject->getIndex();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+int CommentAssetConversion::deleteAsset(
+   MetaDataAccount* account, const BinaryData& key)
+{
+   auto metaObject = getByKey(account, key);
+   if (metaObject == nullptr)
+      return -1;
+
+   metaObject->clear();
+   account->updateOnDisk();
+
+   return metaObject->getIndex();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+map<BinaryData, string> CommentAssetConversion::getCommentMap(
+   MetaDataAccount* account)
+{
+   ReentrantLock lock(account);
+
+   if (account == nullptr || account->type_ != MetaAccount_Comments)
+      throw AccountException("invalid metadata account ptr");
+
+   map<BinaryData, string> result;
+   for (auto& asset : account->assets_)
+   {
+      auto objPtr = dynamic_pointer_cast<CommentData>(asset.second);
+      if (objPtr == nullptr)
+         continue;
+
+      result.insert(make_pair(objPtr->getKey(), objPtr->getValue()));
+   }
+
+   return result;
+}

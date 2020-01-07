@@ -74,7 +74,7 @@ AuthorizedPeers::AuthorizedPeers(
       //create & set password lambda
       auto passphrasePrompt = [](const set<BinaryData>&)->SecureBinaryData
       {
-         return SecureBinaryData(PEERS_WALLET_PASSWORD);
+         return SecureBinaryData::fromString(PEERS_WALLET_PASSWORD);
       };
 
       wallet_->setPassphrasePromptLambda(passphrasePrompt);
@@ -152,7 +152,7 @@ void AuthorizedPeers::createWallet(
 {
    //Default peers wallet password. Asset wallets always encrypt private keys, 
    //have to provide a password at creation.
-   SecureBinaryData password(PEERS_WALLET_PASSWORD);
+   auto&& password = SecureBinaryData::fromString(PEERS_WALLET_PASSWORD);
 
    //Default peers wallet derivation path. Using m/'account/'0.
    vector<unsigned> derPath;
@@ -165,12 +165,11 @@ void AuthorizedPeers::createWallet(
    BIP32_Node root;
    root.initFromSeed(seed);
    auto b58 = root.getBase58();
-   string b58str(b58.toCharPtr(), b58.getSize());
 
    //initializing wallet from xpriv, use customized derivation path
    auto&& controlPassphrase = passLbd(set<BinaryData>());
    wallet_ = AssetWallet_Single::createFromBase58_BIP32(
-      baseDir, b58str, derPath, password, controlPassphrase, 2);
+      baseDir, b58, derPath, password, controlPassphrase, 2);
    
    //add the peers meta account
    wallet_->addMetaAccount(MetaAccount_AuthPeers);
@@ -599,30 +598,20 @@ void AuthorizedPeers::erasePeerRootKey(const SecureBinaryData& key)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AuthorizedPeers::changeMasterPassphrase(const string& path)
+void AuthorizedPeers::changeControlPassphrase(const string& path)
 {
+   //get a terminal prompt lambda
    auto promptPtr = TerminalPassphrasePrompt::getLambda("peers db");
    
-   //hijack the terminal prompt lambda to recover
-   //the current passphrase at load time
-   SecureBinaryData currentPass;
-   auto promptWrap = [&currentPass, promptPtr](const set<BinaryData>& idSet)
-      ->SecureBinaryData
-   {
-      currentPass = move(promptPtr(idSet));
-      return currentPass;
+   //load the wallet
+   auto wlt = AssetWallet::loadMainWalletFromFile(path, promptPtr);
+
+   //change passphrase lambda
+   auto changeLbd = [&promptPtr](void)->SecureBinaryData
+   {      
+      return promptPtr({ BinaryData::fromString("change-pass") });
    };
 
-   //load the wallet with the hijacked lambda
-   auto wlt = AssetWallet::loadMainWalletFromFile(path, promptWrap);
-
-   //grab new pass
-   auto&& newPass = promptPtr({ BinaryData("change-pass") });
-
-   //create lambda with the hijacked passphrase
-   auto oldPassLbd = [&currentPass](const set<BinaryData>&)->SecureBinaryData
-   {
-      return currentPass;
-   };
-   wlt->changeControlPassphrase(newPass, oldPassLbd);
+   //change the passphrase
+   wlt->changeControlPassphrase(changeLbd, promptPtr);
 }

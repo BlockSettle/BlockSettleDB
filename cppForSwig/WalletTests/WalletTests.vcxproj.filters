@@ -198,12 +198,6 @@
     <ClCompile Include="..\leveldb_windows_port\win32_posix\dirent_win32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\bech32\ref\c++\bech32.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\bech32\ref\c++\segwit_addr.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\KDF.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -256,6 +250,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\WalletHeader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\TerminalPassphrasePrompt.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

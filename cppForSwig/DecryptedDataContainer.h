@@ -131,7 +131,7 @@ public:
    SecureBinaryData encryptData(
       Cipher* const cipher, const SecureBinaryData& data);
    
-   void populateEncryptionKey(const std::map<BinaryData, BinaryData>&);
+   BinaryData populateEncryptionKey(const std::map<BinaryData, BinaryData>&);
 
    void addKdf(std::shared_ptr<KeyDerivationFunction> kdfPtr)
    {
@@ -163,7 +163,9 @@ public:
 
    void encryptEncryptionKey(
       const BinaryData& keyID, const BinaryData& kdfID, 
-      const SecureBinaryData& newPassphrase, bool replace = true);
+      const std::function<SecureBinaryData(void)>&, bool replace = true);
+   void eraseEncryptionKey(
+      const BinaryData& keyID, const BinaryData& kdfID);
 
    void lockOther(std::shared_ptr<DecryptedDataContainer> other);
 

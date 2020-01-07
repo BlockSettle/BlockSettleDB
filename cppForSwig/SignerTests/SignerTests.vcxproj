@@ -131,8 +131,6 @@
     <ClCompile Include="..\AuthorizedPeers.cpp" />
     <ClCompile Include="..\BDM_mainthread.cpp" />
     <ClCompile Include="..\BDM_Server.cpp" />
-    <ClCompile Include="..\bech32\ref\c++\bech32.cpp" />
-    <ClCompile Include="..\bech32\ref\c++\segwit_addr.cpp" />
     <ClCompile Include="..\BinaryData.cpp" />
     <ClCompile Include="..\BIP150_151.cpp" />
     <ClCompile Include="..\BIP32_Node.cpp" />
@@ -189,6 +187,7 @@
     <ClCompile Include="..\StoredBlockObj.cpp" />
     <ClCompile Include="..\StringSockets.cpp" />
     <ClCompile Include="..\SwigClient.cpp" />
+    <ClCompile Include="..\TerminalPassphrasePrompt.cpp" />
     <ClCompile Include="..\Transactions.cpp" />
     <ClCompile Include="..\TxClasses.cpp" />
     <ClCompile Include="..\TxEvalState.cpp" />

@@ -71,9 +71,9 @@ const BinaryData& AddressEntry_P2PKH::getPrefixedHash() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_P2PKH::getAddress() const
+const string& AddressEntry_P2PKH::getAddress() const
 {
-   if (address_.getSize() == 0)
+   if (address_.size() == 0)
       address_ = move(BtcUtils::scrAddrToBase58(getPrefixedHash()));
 
    return address_;
@@ -148,7 +148,7 @@ const BinaryData& AddressEntry_P2PK::getPrefixedHash() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_P2PK::getAddress() const
+const string& AddressEntry_P2PK::getAddress() const
 {
    throw AddressException("native P2PK doesnt have an address format");
    return address_;
@@ -242,10 +242,10 @@ const BinaryData& AddressEntry_P2WPKH::getPrefixedHash() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_P2WPKH::getAddress() const
+const string& AddressEntry_P2WPKH::getAddress() const
 {
    //prefixed has for SW is only for the db, using plain hash for SW
-   if (address_.getSize() == 0)
+   if (address_.size() == 0)
       address_ = move(BtcUtils::scrAddrToSegWitAddress(getHash()));
    return address_;
 }
@@ -300,7 +300,7 @@ const BinaryData& AddressEntry_Multisig::getPrefixedHash() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_Multisig::getAddress() const
+const string& AddressEntry_Multisig::getAddress() const
 {
    throw AddressException("no address format for native multisig");
    return address_;
@@ -481,9 +481,9 @@ const BinaryData& AddressEntry_P2SH::getScript() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_P2SH::getAddress() const
+const string& AddressEntry_P2SH::getAddress() const
 {
-   if (address_.getSize() == 0)
+   if (address_.size() == 0)
       address_ = move(BtcUtils::scrAddrToBase58(getPrefixedHash()));
 
    return address_;
@@ -545,10 +545,10 @@ const BinaryData& AddressEntry_P2WSH::getPrefixedHash() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_P2WSH::getAddress() const
+const string& AddressEntry_P2WSH::getAddress() const
 {
    //prefixed has for SW is only for the db, using plain hash for SW
-   if (address_.getSize() == 0)
+   if (address_.size() == 0)
       address_ = move(BtcUtils::scrAddrToSegWitAddress(getHash()));
    return address_;
 }

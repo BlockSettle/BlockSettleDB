@@ -48,8 +48,8 @@ private:
    virtual void initAfterLock(void) {}
    virtual void cleanUpBeforeUnlock(void) {}
    
-   static BinaryData getMasterID(std::shared_ptr<WalletDBInterface>);
-   void checkMasterID(const BinaryData& masterID);
+   static std::string getMasterID(std::shared_ptr<WalletDBInterface>);
+   void checkMasterID(const std::string& masterID);
 
 protected:
    std::shared_ptr<WalletDBInterface> iface_;
@@ -61,14 +61,14 @@ protected:
    BinaryData mainAccount_;
 
    ////
-   BinaryData walletID_;
-   BinaryData masterID_;
+   std::string walletID_;
+   std::string masterID_;
    
 protected:
    //tors
    AssetWallet(std::shared_ptr<WalletDBInterface> iface,
       std::shared_ptr<WalletHeader> headerPtr, 
-      const BinaryData& masterID) :
+      const std::string& masterID) :
       iface_(iface), 
       dbName_(headerPtr->getDbName()),
       walletID_(headerPtr->walletID_)
@@ -134,9 +134,14 @@ public:
    void extendPrivateChain(unsigned);
    void extendPrivateChainToIndex(const BinaryData&, unsigned);
 
-   bool hasScrAddr(const BinaryData& scrAddr);
+   bool hasScrAddr(const BinaryData& scrAddr) const;
+   bool hasAddrStr(const std::string& scrAddr) const;
+
    const std::pair<BinaryData, AddressEntryType>& 
-      getAssetIDForAddr(const BinaryData& scrAddr);
+      getAssetIDForAddrStr(const std::string& scrAddr) const;
+   const std::pair<BinaryData, AddressEntryType>&
+      getAssetIDForScrAddr(const BinaryData& scrAddr) const;
+
    AddressEntryType getAddrTypeForID(const BinaryData& ID);
    std::shared_ptr<AddressEntry> 
       getAddressEntryForID(const BinaryData&) const;
@@ -154,7 +159,7 @@ public:
    }
 
    void addMetaAccount(MetaAccountType);
-   std::shared_ptr<MetaDataAccount> getMetaAccount(MetaAccountType);
+   std::shared_ptr<MetaDataAccount> getMetaAccount(MetaAccountType) const;
    std::shared_ptr<AddressAccount> getAccountForID(const BinaryData& ID) const;
    
    const std::string& getDbFilename(void) const;
@@ -170,8 +175,15 @@ public:
    std::shared_ptr<DBIfaceTransaction> beginSubDBTransaction(
       const std::string&, bool);
 
-   void changeControlPassphrase(const SecureBinaryData& newPassphrase,
+   void changeControlPassphrase(
+      const std::function<SecureBinaryData(void)>&,
       const PassphraseLambda&);
+   void eraseControlPassphrase(const PassphraseLambda&);
+
+   void setComment(const BinaryData&, const std::string&);
+   const std::string& getComment(const BinaryData&) const;
+   std::map<BinaryData, std::string> getCommentMap(void) const;
+   void deleteComment(const BinaryData&);
 
    //virtual
    virtual std::set<BinaryData> getAddrHashSet();
@@ -180,8 +192,8 @@ public:
 
    //static
    static void setMainWallet(
-      std::shared_ptr<WalletDBInterface>, const BinaryData&);
-   static BinaryData getMainWalletID(std::shared_ptr<WalletDBInterface>);
+      std::shared_ptr<WalletDBInterface>, const std::string&);
+   static std::string getMainWalletID(std::shared_ptr<WalletDBInterface>);
   
    static std::string forkWatchingOnly(
       const std::string&, const PassphraseLambda&);
@@ -206,7 +218,7 @@ protected:
    //static
    static std::shared_ptr<AssetWallet_Single> initWalletDb(
       std::shared_ptr<WalletDBInterface> iface,
-      const BinaryData& masterID, const BinaryData& walletID,
+      const std::string& masterID, const std::string& walletID,
       const SecureBinaryData& passphrase,
       const SecureBinaryData& controlPassphrase,
       const SecureBinaryData& privateRoot,
@@ -217,12 +229,12 @@ protected:
    static std::shared_ptr<AssetWallet_Single> initWalletDbFromPubRoot(
       std::shared_ptr<WalletDBInterface> iface,
       const SecureBinaryData& controlPassphrase,
-      const BinaryData& masterID, const BinaryData& walletID,
+      const std::string& masterID, const std::string& walletID,
       SecureBinaryData& pubRoot,
       std::set<std::shared_ptr<AccountType>> accountTypes,
       unsigned lookup);
 
-   static BinaryData computeWalletID(
+   static std::string computeWalletID(
       std::shared_ptr<DerivationScheme>,
       std::shared_ptr<AssetEntry>);
 
@@ -234,13 +246,14 @@ private:
 public:
    //tors
    AssetWallet_Single(std::shared_ptr<WalletDBInterface> iface,
-      std::shared_ptr<WalletHeader> metaPtr, const BinaryData& masterID) :
+      std::shared_ptr<WalletHeader> metaPtr, const std::string& masterID) :
       AssetWallet(iface, metaPtr, masterID)
    {}
 
    //locals
-   void addPassphrase(const SecureBinaryData&);
-   void changeMasterPassphrase(const SecureBinaryData&);
+   void addPrivateKeyPassphrase(const std::function<SecureBinaryData(void)>&);
+   void changePrivateKeyPassphrase(const std::function<SecureBinaryData(void)>&);
+   void erasePrivateKeyPassphrase(void);
 
    std::shared_ptr<AssetEntry_Single> getRoot(void) const { return root_; }
    const SecureBinaryData& getPublicRoot(void) const;
@@ -335,7 +348,7 @@ protected:
 public:
    //tors
    AssetWallet_Multisig(std::shared_ptr<WalletDBInterface> iface,
-      std::shared_ptr<WalletHeader> metaPtr, const BinaryData& masterID) :
+      std::shared_ptr<WalletHeader> metaPtr, const std::string& masterID) :
       AssetWallet(iface, metaPtr, masterID)
    {}
 

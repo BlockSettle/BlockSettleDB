@@ -87,11 +87,13 @@ LedgerEntry::LedgerEntry(
 
 
 ///////////////////////////////////////////////////////////////////////////////
-const string& LedgerEntry::getID() const
+string LedgerEntry::getID() const
 {
    if (ptr_ == nullptr)
       throw runtime_error("uninitialized ledger entry");
-   return ptr_->id();
+   if (ptr_->has_id())
+      return ptr_->id();
+   return string();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -317,7 +319,7 @@ bool RemoteCallback::processNotifications(
          }
          else
          {
-            bdmNotif.ids_.push_back(BinaryData("wallet_filter_changed"));
+            bdmNotif.ids_.push_back(BinaryData::fromString("wallet_filter_changed"));
          }
 
          run(move(bdmNotif));

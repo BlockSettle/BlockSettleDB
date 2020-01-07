@@ -48,11 +48,11 @@ void PRNG_Fortuna::reseed() const
    nBytes_.store(0, memory_order_relaxed);
    auto rng = CryptoPRNG::generateRandom(32);
 
+   auto newKey = make_shared<SecureBinaryData>(32);
    unsigned char digest[32];
    sha256_Raw(rng.getPtr(), rng.getSize(), digest);
-   sha256_Raw(digest, 32, digest);
+   sha256_Raw(digest, 32, newKey->getPtr());
 
-   auto newKey = make_shared<SecureBinaryData>(digest, 32);
    atomic_store_explicit(&key_, newKey, memory_order_relaxed);
 }
 

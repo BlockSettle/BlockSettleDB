@@ -12,8 +12,6 @@
 
 using namespace std;
 
-BinaryData BinaryData::EmptyBinData_(0);
-
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData::BinaryData(BinaryDataRef const & bdRef) 
 { 

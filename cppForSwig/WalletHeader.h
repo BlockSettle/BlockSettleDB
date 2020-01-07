@@ -57,7 +57,7 @@ enum WalletHeaderType
 struct WalletHeader
 {
    WalletHeaderType type_;
-   BinaryData walletID_;
+   std::string walletID_;
 
    SecureBinaryData defaultEncryptionKey_;
    SecureBinaryData defaultEncryptionKeyId_;
@@ -76,17 +76,8 @@ struct WalletHeader
 
    //local
    BinaryData getDbKey(void);
-   const BinaryData& getWalletID(void) const { return walletID_; }
-   std::string getWalletIDStr(void) const
-   {
-      if (walletID_.getSize() == 0)
-         throw WalletException("empty wallet id");
-
-      std::string idStr(walletID_.getCharPtr(), walletID_.getSize());
-      return idStr;
-   }
-
-   std::string getDbName(void) const { return getWalletIDStr(); }
+   const std::string& getWalletID(void) const { return walletID_; }
+   std::string getDbName(void) const { return walletID_; }
 
    //serialization
    BinaryData serializeEncryptionKey(void) const;
@@ -156,7 +147,7 @@ struct WalletHeader_Subwallet : public WalletHeader
 ////
 struct WalletHeader_Control : public WalletHeader
 {
-   friend class WalletHeader;
+   friend struct WalletHeader;
 public:
    uint8_t versionMajor_ = 0;
    uint16_t versionMinor_ = 0;

@@ -697,13 +697,13 @@ namespace DBTestUtils
 
    /////////////////////////////////////////////////////////////////////////////
    void updateWalletsLedgerFilter(
-      Clients* clients, const string& bdvId, const vector<BinaryData>& idVec)
+      Clients* clients, const string& bdvId, const vector<string>& idVec)
    {
       auto message = make_shared<BDVCommand>();
       message->set_method(Methods::updateWalletsLedgerFilter);
       message->set_bdvid(bdvId);
       for (auto id : idVec)
-         message->add_bindata(id.getPtr(), id.getSize());
+         message->add_bindata(id);
 
       processCommand(clients, message);
    }

@@ -122,7 +122,7 @@ int processArgs(map<string, string> args)
    iter = args.find("change-pass");
    if (iter != args.end())
    {
-      AuthorizedPeers::changeMasterPassphrase(fullpath);
+      AuthorizedPeers::changeControlPassphrase(fullpath);
       exit(0);
    }
 

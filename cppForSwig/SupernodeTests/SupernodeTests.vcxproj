@@ -82,7 +82,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;UNIT_TESTS;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;UNIT_TESTS;NOMINMAX;LIBBTC_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\leveldb_windows_port\win32_posix;..\cryptopp;../lmdb/libraries/liblmdb;../../../lws/include;..\protobuf\src;../libbtc/include;../libbtc/src/secp256k1/include;../chacha20poly1305;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
@@ -139,8 +139,6 @@
     <ClCompile Include="..\AuthorizedPeers.cpp" />
     <ClCompile Include="..\BDM_mainthread.cpp" />
     <ClCompile Include="..\BDM_Server.cpp" />
-    <ClCompile Include="..\bech32\ref\c++\bech32.cpp" />
-    <ClCompile Include="..\bech32\ref\c++\segwit_addr.cpp" />
     <ClCompile Include="..\BinaryData.cpp" />
     <ClCompile Include="..\BIP150_151.cpp" />
     <ClCompile Include="..\BIP32_Node.cpp" />
@@ -199,12 +197,15 @@
     <ClCompile Include="..\StoredBlockObj.cpp" />
     <ClCompile Include="..\StringSockets.cpp" />
     <ClCompile Include="..\SwigClient.cpp" />
+    <ClCompile Include="..\TerminalPassphrasePrompt.cpp" />
     <ClCompile Include="..\TransactionBatch.cpp" />
     <ClCompile Include="..\Transactions.cpp" />
     <ClCompile Include="..\TxClasses.cpp" />
     <ClCompile Include="..\TxEvalState.cpp" />
     <ClCompile Include="..\txio.cpp" />
     <ClCompile Include="..\UniversalTimer.cpp" />
+    <ClCompile Include="..\WalletFileInterface.cpp" />
+    <ClCompile Include="..\WalletHeader.cpp" />
     <ClCompile Include="..\WalletManager.cpp" />
     <ClCompile Include="..\Wallets.cpp" />
     <ClCompile Include="..\WebSocketClient.cpp" />

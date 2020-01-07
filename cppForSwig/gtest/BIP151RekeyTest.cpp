@@ -103,7 +103,7 @@ TEST_F(BIP151RekeyTest, rekeyRequired)
 
    // Our packet is 17 bytes. Over the course of 1Gb (not 1 Gib!), we need
    // 58,823,530 loops before we have to rekey.
-   BinaryData cmd("fake");
+   auto cmd = BinaryData::fromString("fake");
    std::array<uint8_t, 4> payload = {0xde, 0xad, 0xbe, 0xef};
    BinaryData testMsgData(17);
    size_t finalMsgSize;

@@ -342,7 +342,7 @@ map<BinaryData, LedgerEntry> ScrAddrObj::updateLedgers(
                                uint32_t startBlock, uint32_t endBlock) const
 {
    return LedgerEntry::computeLedgerMap(txioMap, startBlock, endBlock,
-                                 scrAddr_, db_, bc_, zc_);
+                                 string(), db_, bc_, zc_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
