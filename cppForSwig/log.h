@@ -197,7 +197,7 @@ public:
    LogStream& operator<<(size_t i) override;
 #endif
 
-   void FlushStreams(void) {std::cout.flush(); fout_.flush();}
+   void FlushStreams(void) {std::cout.flush(); if (fout_.is_open()) fout_.flush();}
 
    void newline(void) { *this << "\n"; }
    void close(void) { fout_.close(); }
@@ -370,7 +370,7 @@ public:
       lg << buffer_.str();
 
       //flush streams
-      //Log::GetInstance().FlushStreams();
+      Log::GetInstance().FlushStreams();
    }
 
 private:
