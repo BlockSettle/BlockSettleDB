@@ -1673,7 +1673,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       */
 
       if (command->bindata_size() == 0)
-         throw runtime_error("expected bindata for getSpentnessForOutputs");
+         throw runtime_error("expected bindata for getOutputsForOutpoints");
 
       bool withZc = command->flag();
       vector<pair<StoredTxOut, BinaryDataRef>> result;
