@@ -344,7 +344,7 @@ TEST_F(BIP150_151Test, checkData_151_Only)
 
    // Get that the size of the encrypted packet will be correct. The message
    // buffer is intentionally missized at first.
-   BinaryData cmd("fake");
+   auto&& cmd = BinaryData::fromString("fake");
    std::array<uint8_t, 4> payload = {0xde, 0xad, 0xbe, 0xef};
    BinaryData testMsgData(50);
    size_t finalMsgSize;
@@ -1173,7 +1173,7 @@ TEST_F(BinaryDataTest, Constructor)
    BinaryData c(ptr, 2);
    BinaryData d(ptr, 4);
    BinaryData e(b);
-   BinaryData f(string("xyza"));
+   auto&& f = BinaryData::fromString("xyza");
 
    EXPECT_EQ(a.getSize(), 0);
    EXPECT_EQ(b.getSize(), 4);
@@ -1674,8 +1674,8 @@ TEST_F(BinaryDataRefTest, Constructor)
    BinaryDataRef e((uint8_t*)bd4_.getPtr(), (uint8_t*)bd4_.getPtr()+4);
    BinaryDataRef f(bd0_);
    BinaryDataRef g(bd4_);
-   BinaryDataRef h(str0_);
-   BinaryDataRef i(str4_);
+   auto&& h = BinaryData::fromString(str0_);
+   auto&& i = BinaryData::fromString(str4_);
 
    EXPECT_TRUE(a.getPtr()==NULL);
    EXPECT_EQ(a.getSize(), 0);
@@ -5648,7 +5648,7 @@ protected:
    const string ldbdir_  = "./ldbtestdir";
    
    string blk0dat_;
-   BinaryData wallet1id;
+   string wallet1id;
 
    /////////////////////////////////////////////////////////////////////////////
    void cleanUp()
@@ -5674,7 +5674,7 @@ protected:
       BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
 
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
-      wallet1id = BinaryData("wallet1");
+      wallet1id = "wallet1";
    }
    
    /////////////////////////////////////////////////////////////////////////////
@@ -6104,10 +6104,10 @@ protected:
       port_ss << port_int;
       config.listenPort_ = port_ss.str();
 
-      wallet1id = BinaryData("wallet1");
-      wallet2id = BinaryData("wallet2");
-      LB1ID = BinaryData(TestChain::lb1B58ID);
-      LB2ID = BinaryData(TestChain::lb2B58ID);
+      wallet1id = "wallet1";
+      wallet2id = "wallet2";
+      LB1ID = TestChain::lb1B58ID;
+      LB2ID = TestChain::lb2B58ID;
 
       initBDM();
    }
@@ -6148,10 +6148,10 @@ protected:
    string ldbdir_;
    string blk0dat_;
 
-   BinaryData wallet1id;
-   BinaryData wallet2id;
-   BinaryData LB1ID;
-   BinaryData LB2ID;
+   string wallet1id;
+   string wallet2id;
+   string LB1ID;
+   string LB2ID;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -9820,7 +9820,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_CheckWalletFilters)
    EXPECT_EQ(wlt1_count, 11);
    EXPECT_EQ(wlt2_count, 9);
 
-   vector<BinaryData> idVec;
+   vector<string> idVec;
    idVec.push_back(wallet1id);
    DBTestUtils::updateWalletsLedgerFilter(clients_, bdvID, idVec);
    BinaryData emptyBD;
@@ -10083,10 +10083,10 @@ protected:
       port_ss << port_int;
       config.listenPort_ = port_ss.str();
 
-      wallet1id = BinaryData("wallet1");
-      wallet2id = BinaryData("wallet2");
-      LB1ID = BinaryData(TestChain::lb1B58ID);
-      LB2ID = BinaryData(TestChain::lb2B58ID);
+      wallet1id = "wallet1";
+      wallet2id = "wallet2";
+      LB1ID = TestChain::lb1B58ID;
+      LB2ID = TestChain::lb2B58ID;
 
       startupBIP151CTX();
       startupBIP150CTX(4, false);
@@ -10094,7 +10094,7 @@ protected:
       //setup auth peers for server and client
       authPeersPassLbd_ = [](const set<BinaryData>&)->SecureBinaryData
       {
-         return SecureBinaryData("");
+         return SecureBinaryData();
       };
 
       AuthorizedPeers serverPeers(
@@ -10153,10 +10153,10 @@ protected:
    string ldbdir_;
    string blk0dat_;
 
-   BinaryData wallet1id;
-   BinaryData wallet2id;
-   BinaryData LB1ID;
-   BinaryData LB2ID;
+   string wallet1id;
+   string wallet2id;
+   string LB1ID;
+   string LB2ID;
    BinaryData serverPubkey_;
    string serverAddr_;
 };

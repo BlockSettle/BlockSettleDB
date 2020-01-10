@@ -755,6 +755,7 @@ public:
 class MetaDataAccount : public Lockable
 {
    friend struct AuthPeerAssetConversion;
+   friend struct CommentAssetConversion;
 
 private:
    MetaAccountType type_ = MetaAccount_Unset;
@@ -824,4 +825,17 @@ struct AuthPeerAssetConversion
       const SecureBinaryData&, const std::string&);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+struct CommentAssetConversion
+{
+   static std::shared_ptr<CommentData> getByKey(MetaDataAccount*,
+      const BinaryData&);
+
+   static int setAsset(MetaDataAccount*, const BinaryData&,
+      const std::string&);
+
+   static int deleteAsset(MetaDataAccount*, const BinaryData&);
+
+   static std::map<BinaryData, std::string> getCommentMap(MetaDataAccount*);
+};
 #endif

@@ -12,7 +12,7 @@
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
 
-#define CHANGE_PASS_FLAG BinaryData("change-pass")
+#define CHANGE_PASS_FLAG BinaryData::fromString("change-pass")
 
 class TerminalPassphrasePrompt
 {

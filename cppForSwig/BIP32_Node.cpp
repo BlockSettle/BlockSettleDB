@@ -65,33 +65,30 @@ SecureBinaryData BIP32_Node::encodeBase58() const
       throw std::runtime_error("invalid chaincode for BIP32 ser");
 
    size_t result_len = 200;
-   char* result_char = new char[result_len];
-   memset(result_char, 0, result_len);
-
+   SecureBinaryData result(result_len);
    btc_hdnode node;
    setupNode(&node);
 
    if (!isPublic())
    {
       btc_hdnode_serialize_private(
-         &node, NetworkConfig::get_chain_params(), result_char, result_len);
+         &node, NetworkConfig::get_chain_params(), (char*)result.getPtr(), result_len);
    }
    else if (pubkey_.getSize() == BTC_ECKEY_COMPRESSED_LENGTH)
    {
       btc_hdnode_serialize_public(
-         &node, NetworkConfig::get_chain_params(), result_char, result_len);
+         &node, NetworkConfig::get_chain_params(), (char*)result.getPtr(), result_len);
    }
    else
    {
-      delete[] result_char;
       throw std::runtime_error("uninitialized BIP32 object, cannot encode");
    }
 
-   if (strlen(result_char) == 0)
+   auto finalLen = strnlen(result.toCharPtr(), result_len);
+   if (finalLen == 0 || finalLen == result_len)
       throw std::runtime_error("failed to serialized bip32 string");
 
-   SecureBinaryData result((uint8_t*)result_char, strlen(result_char));
-   delete[] result_char;
+   result.resize(finalLen);
    return result;
 }
 

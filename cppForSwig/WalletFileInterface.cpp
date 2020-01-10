@@ -15,6 +15,18 @@
 
 using namespace std;
 
+#define COMPACT_FILE_SWAP_NAME "swapOld"
+#define COMPACT_FILE_COPY_NAME "compactCopy"
+#define COMPACT_FILE_FOLDER    "_delete_me"
+
+#ifdef _WIN32
+#include "leveldb_windows_port/win32_posix/win32_posix.h"
+#define mkdir mkdir_win32
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// IfaceDataMap
@@ -69,10 +81,10 @@ BinaryData IfaceDataMap::getNewDbKey()
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 const BinaryData DBInterface::erasurePlaceHolder_ =
-BinaryData(ERASURE_PLACE_HOLDER);
+   BinaryData::fromString(ERASURE_PLACE_HOLDER);
 
 const BinaryData DBInterface::keyCycleFlag_ =
-BinaryData(KEY_CYCLE_FLAG);
+   BinaryData::fromString(KEY_CYCLE_FLAG);
 
 ////////////////////////////////////////////////////////////////////////////////
 DBInterface::DBInterface(
@@ -506,7 +518,7 @@ void WalletDBInterface::setupEnv(const string& path,
    //load wallet header db
    {
       auto headrPtr = make_shared<WalletHeader_Control>();
-      headrPtr->walletID_ = BinaryData(WALLETHEADER_DBNAME);
+      headrPtr->walletID_ = WALLETHEADER_DBNAME;
       headrPtr->controlSalt_ = controlHeader->controlSalt_;
       encryptionVersion_ = headrPtr->encryptionVersion_;
       openDB(headrPtr, rootEncrKey, encryptionVersion_);
@@ -708,7 +720,7 @@ shared_ptr<WalletHeader> WalletDBInterface::loadControlHeader()
    //grab meta object
    BinaryWriter bw;
    bw.put_uint8_t(WALLETHEADER_PREFIX);
-   bw.put_BinaryData(BinaryData(CONTROL_DB_NAME));
+   bw.put_String(CONTROL_DB_NAME);
    auto& headerKey = bw.getData();
 
    auto&& tx = beginReadTransaction(CONTROL_DB_NAME);
@@ -874,7 +886,7 @@ shared_ptr<WalletHeader_Control> WalletDBInterface::setupControlDB(
 
    //create control meta object
    auto headerPtr = make_shared<WalletHeader_Control>();
-   headerPtr->walletID_ = BinaryData(CONTROL_DB_NAME);
+   headerPtr->walletID_ = CONTROL_DB_NAME;
    auto keyStruct = initWalletHeaderObject(headerPtr, passphrase);
 
    //setup controlDB decrypted data container
@@ -973,8 +985,8 @@ shared_ptr<WalletHeader> WalletDBInterface::getWalletHeader(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const map<BinaryData, shared_ptr<WalletHeader>>& 
-WalletDBInterface::getHeaderMap() const
+const map<string, shared_ptr<WalletHeader>>& 
+   WalletDBInterface::getHeaderMap() const
 {
    return headerMap_;
 }
@@ -1085,8 +1097,9 @@ void WalletDBInterface::unlockControlContainer()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletDBInterface::changeMasterPassphrase(
-   const SecureBinaryData& newPassphrase, const PassphraseLambda& passLbd)
+void WalletDBInterface::changeControlPassphrase(
+   const function<SecureBinaryData(void)>& newPassLbd, 
+   const PassphraseLambda& passLbd)
 {
    try
    {
@@ -1112,7 +1125,43 @@ void WalletDBInterface::changeMasterPassphrase(
    //change the passphrase
    auto& masterKeyId = decryptedData_->getMasterEncryptionKeyId();
    auto& kdfId = decryptedData_->getDefaultKdfId();
-   decryptedData_->encryptEncryptionKey(masterKeyId, kdfId, newPassphrase);   
+   decryptedData_->encryptEncryptionKey(masterKeyId, kdfId, newPassLbd);
+
+   //clear the lambda
+   decryptedData_->resetPassphraseLambda();
+
+   //wipe the db
+   compactFile();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::eraseControlPassphrase(const PassphraseLambda& passLbd)
+{
+   try
+   {
+      openControlDb();
+
+      /*
+      No need to set the control db after opening it, decryptedData_ is
+      instantiated with the db's shared_ptr, which is not cleaned up
+      after the controldb is shut down.
+      */
+   }
+   catch (WalletInterfaceException&)
+   {
+      //control db is already opened, nothing to do
+   }
+
+   //hold tx write mutex until the file is compacted
+   unique_lock<recursive_mutex> lock(DBIfaceTransaction::writeMutex_);
+
+   //set the lambda to unlock the control encryption key
+   decryptedData_->setPassphrasePromptLambda(passLbd);
+
+   //erase the passphrase
+   auto& masterKeyId = decryptedData_->getMasterEncryptionKeyId();
+   auto& kdfId = decryptedData_->getDefaultKdfId();
+   decryptedData_->eraseEncryptionKey(masterKeyId, kdfId);
 
    //clear the lambda
    decryptedData_->resetPassphraseLambda();
@@ -1137,12 +1186,26 @@ void WalletDBInterface::compactFile()
    //create copy name
    auto fullDbPath = getFilename();
    auto basePath = DBUtils::getBaseDir(fullDbPath);
+
+   auto swapFolder = basePath;
+   DBUtils::appendPath(swapFolder, string(COMPACT_FILE_FOLDER));
+   if (!DBUtils::fileExists(swapFolder, 0))
+   {
+      #ifdef _WIN32
+      if (mkdir(swapFolder) != 0)
+         throw WalletInterfaceException("could not create wallet swap folder");
+      #else
+      if (mkdir(swapFolder.c_str(), S_IWUSR | S_IRUSR | S_IXUSR) != 0)
+         throw WalletInterfaceException("could not create wallet swap folder");
+      #endif
+   }
+
    string copyName;
    while (true)
    {
       stringstream ss;
-      ss << "compactCopy-" << fortuna_.generateRandom(16).toHexStr();
-      auto fullpath = basePath;
+      ss << COMPACT_FILE_COPY_NAME << "-" << fortuna_.generateRandom(16).toHexStr();
+      auto fullpath = swapFolder;
       DBUtils::appendPath(fullpath, ss.str());
       
       if (!DBUtils::fileExists(fullpath, 0))
@@ -1160,11 +1223,13 @@ void WalletDBInterface::compactFile()
 
    //swap files
    string swapPath;
+
+
    while (true)
    {
       stringstream ss;
-      ss << "swapOld-" << fortuna_.generateRandom(16).toHexStr();
-      auto fullpath = basePath;
+      ss << COMPACT_FILE_SWAP_NAME << "-" << fortuna_.generateRandom(16).toHexStr();
+      auto fullpath = swapFolder;
       DBUtils::appendPath(fullpath, ss.str());
 
       if (DBUtils::fileExists(fullpath, 0))
@@ -1173,10 +1238,19 @@ void WalletDBInterface::compactFile()
       swapPath = fullpath;
 
       //rename old file to swap
-      rename(fullDbPath.c_str(), swapPath.c_str());
+      if (rename(fullDbPath.c_str(), swapPath.c_str()) != 0)
+      {
+         throw WalletInterfaceException(
+            "failed to swap file during wipe operation");
+      }
 
       //rename new file to old
-      rename(copyName.c_str(), fullDbPath.c_str());
+      if (rename(copyName.c_str(), fullDbPath.c_str()) != 0)
+      {
+         throw WalletInterfaceException(
+            "failed to swap file during wipe operation");
+      }
+
       break;
    }
 
@@ -1187,7 +1261,21 @@ void WalletDBInterface::compactFile()
    auto oldFileMap = DBUtils::getMmapOfFile(swapPath, true);
    memset(oldFileMap.filePtr_, 0, oldFileMap.size_);
    oldFileMap.unmap();
-   unlink(swapPath.c_str());
+
+   int unlinkResult;
+#ifdef _WIN32
+   unlinkResult = _unlink(swapPath.c_str());
+#else
+   unlinkResult = unlink(swapPath.c_str());
+#endif
+
+   if (unlinkResult != 0)
+   {
+      throw WalletInterfaceException(
+         "failed to delete file during wipe operation");
+   }
+
+   //TODO: lock sharing rights on wallet files
 }
 
 ////////////////////////////////////////////////////////////////////////////////

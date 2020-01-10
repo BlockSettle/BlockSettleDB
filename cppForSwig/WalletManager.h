@@ -220,32 +220,6 @@ public:
 
       return swigWallet_->createAddressBook();
    }
-   /*
-   BinaryData getNestedSWAddrForID(const BinaryData& ID)
-   {
-      auto addrPtr = wallet_->getAddressEntryForID(ID,
-         AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH));
-      return addrPtr->getAddress();
-   }
-
-   BinaryData getNestedP2PKAddrForIndex(const BinaryData& ID)
-   {
-      auto addrPtr = wallet_->getAddressEntryForID(ID,
-         AddressEntryType(
-            AddressEntryType_P2PK | 
-            AddressEntryType_Compressed | 
-            AddressEntryType_P2SH
-            ));
-      return addrPtr->getAddress();
-   }
-
-   BinaryData getP2PKHAddrForIndex(const BinaryData& ID)
-   {
-      auto addrPtr = wallet_->getAddressEntryForID(ID,
-         AddressEntryType(AddressEntryType_P2PKH));
-      return addrPtr->getAddress();
-   }
-   */
 
    void extendAddressChain(unsigned count)
    {
@@ -257,19 +231,31 @@ public:
       wallet_->extendPublicChainToIndex(id, count);
    }
 
-   bool hasScrAddr(const BinaryData& scrAddr)
+   bool hasAddress(const BinaryData& addr)
    {
-      return wallet_->hasScrAddr(scrAddr);
+      return wallet_->hasScrAddr(addr);
    }
 
-   const std::pair<BinaryData, AddressEntryType>& getAssetIDForAddr(const BinaryData& scrAddr)
+   bool hasAddress(const std::string& addr)
    {
-      return wallet_->getAssetIDForAddr(scrAddr);
+      return wallet_->hasAddrStr(addr);
+   }
+
+   const std::pair<BinaryData, AddressEntryType>& getAssetIDForAddr(
+      const std::string& addrStr) const
+   {
+      return wallet_->getAssetIDForAddrStr(addrStr);
+   }
+
+   const std::pair<BinaryData, AddressEntryType>& getAssetIDForAddr(
+      const BinaryData& scrAddr) const
+   {
+      return wallet_->getAssetIDForScrAddr(scrAddr);
    }
 
    const BinaryData& getScriptHashPreimage(const BinaryData& hash)
    {
-      auto& assetID = wallet_->getAssetIDForAddr(hash);
+      auto& assetID = wallet_->getAssetIDForScrAddr(hash);
       auto addrPtr = wallet_->getAddressEntryForID(assetID.first);
       return addrPtr->getPreimage();
    }
@@ -304,16 +290,14 @@ public:
       if (swigWallet_ != nullptr)
       {
          AsyncClient::ScrAddrObj saObj(
-            &swigWallet_->asyncWallet_, addrPtr->getAddress(), index,
+            &swigWallet_->asyncWallet_, addrPtr->getPrefixedHash(), index,
             full, spend, unconf, count);
-         saObj.addrHash_ = addrPtr->getPrefixedHash();
 
          return SwigClient::ScrAddrObj(saObj);
       }
       else
       {
-         AsyncClient::ScrAddrObj saObj(
-            addrPtr->getAddress(), addrPtr->getPrefixedHash(), index);
+         AsyncClient::ScrAddrObj saObj(addrPtr->getPrefixedHash(), index);
 
          return SwigClient::ScrAddrObj(saObj);
       }
@@ -666,8 +650,7 @@ public:
       auto data_str = signerPtr_->getPublicDataForKey(val_str);
       if (data_str.size() == 0)
          throw std::runtime_error("invalid value");
-      BinaryData data_bd(data_str);
-      return data_bd;
+      return BinaryData::fromString(data_str);
    }
 };
 

@@ -25,13 +25,12 @@ protected:
 TEST_F(AddressTests, base58_Tests)
 {
    BinaryData h_160 = READHEX("00010966776006953d5567439e5e39f86a0d273bee");
-   BinaryData scrAddr("16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM");
-   scrAddr.append(0x00);
+   string addStr("16UwLL9Risc3QfPqBUvKofHmBQ7wMtjvM");
 
    auto&& encoded = BtcUtils::scrAddrToBase58(h_160);
-   EXPECT_EQ(encoded, scrAddr);
+   EXPECT_EQ(encoded, addStr);
 
-   auto&& decoded = BtcUtils::base58toScrAddr(scrAddr);
+   auto&& decoded = BtcUtils::base58toScrAddr(addStr);
    EXPECT_EQ(decoded, h_160);
 
    decoded = BtcUtils::base58toScrAddr(encoded);
@@ -43,9 +42,9 @@ TEST_F(AddressTests, bech32_Tests)
 {
    BinaryData pubkey =
       READHEX("0279BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798");
-   BinaryData p2wpkhScrAddr("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4");
-   BinaryData p2wshAddr("bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3");
-   BinaryData invalidSwAddr("bca0w508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kw5rljs90234567789035");
+   string p2wpkhScrAddr("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4");
+   string p2wshAddr("bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3");
+   string invalidSwAddr("bca0w508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kw5rljs90234567789035");
 
    auto pubkey_hash = BtcUtils::getHash160(pubkey);
    auto&& scrAddr_p2wpkh = BtcUtils::scrAddrToSegWitAddress(pubkey_hash);
@@ -99,7 +98,7 @@ TEST_F(DerivationTests, BIP32_Tests)
    {
       //priv ser & deser
       {
-         SecureBinaryData ext_prv(
+         auto&& ext_prv = SecureBinaryData::fromString(
             "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi");
 
          //ser
@@ -121,7 +120,7 @@ TEST_F(DerivationTests, BIP32_Tests)
 
       //pub ser & deser
       {
-         SecureBinaryData ext_pub(
+         auto&& ext_pub = SecureBinaryData::fromString(
             "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8");
 
          //deser
@@ -143,7 +142,7 @@ TEST_F(DerivationTests, BIP32_Tests)
 
       //priv ser & deser
       {
-         SecureBinaryData ext_prv(
+         auto&& ext_prv = SecureBinaryData::fromString(
             "xprv9uHRZZhk6KAJC1avXpDAp4MDc3sQKNxDiPvvkX8Br5ngLNv1TxvUxt4cV1rGL5hj6KCesnDYUhd7oWgT11eZG7XnxHrnYeSvkzY7d2bhkJ7");
 
          //ser
@@ -161,7 +160,7 @@ TEST_F(DerivationTests, BIP32_Tests)
 
       //pub ser & deser
       {
-         SecureBinaryData ext_pub(
+         auto&& ext_pub = SecureBinaryData::fromString(
             "xpub68Gmy5EdvgibQVfPdqkBBCHxA5htiqg55crXYuXoQRKfDBFA1WEjWgP6LHhwBZeNK1VTsfTFUHCdrfp1bgwQ9xv5ski8PX9rL2dZXvgGDnw");
 
          BIP32_Node publicCopy = serObj.getPublicCopy();
@@ -224,6 +223,234 @@ TEST_F(DerivationTests, ArmoryChain_Tests)
       "04b883039aa4d0c7903ce5ed26596f06af0698f91f804c19be027896fa67d1d14d45f85994cc38077a8bc8e980db41f736e0b1a8e41e34fd0e18dfd970fd7e681b");
    EXPECT_EQ(pubkey4.toHexStr(), 
       "0436e30c6b3295df86d8085d3171bfb11608943c4282a0bf98e841088a14e33cda8412dcf74fb6c8cb89dd00f208ca2c03a437b93730e8d92b45d6841e07ae4e6f");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+class AddressEntryTest : public ::testing::Test
+{
+protected:
+   virtual void SetUp()
+   {
+      LOGDISABLESTDOUT();
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+   }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(AddressEntryTest, P2PKH)
+{
+   auto privKey = CryptoPRNG::generateRandom(32);
+   auto pubKey = CryptoECDSA().ComputePublicKey(privKey, false);
+
+   auto pubKeyCopy = pubKey; //assetentry ctor moves in crypto assets
+   auto assetPtr = 
+      make_shared<AssetEntry_Single>(0, BinaryData(), pubKeyCopy, nullptr);
+
+   //uncompressed
+   AddressEntry_P2PKH address(assetPtr, false);
+   auto addrStr = address.getAddress();
+
+   auto scrAddrUnc = BtcUtils::getHash160(pubKey);
+   BinaryWriter bw;
+   bw.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+   bw.put_BinaryData(scrAddrUnc);
+   auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
+
+   EXPECT_EQ(addrB58, addrStr);
+
+   //compressed
+   AddressEntry_P2PKH addressCmp(assetPtr, true);
+   auto addrStrCmp = addressCmp.getAddress();
+   auto pubKeyCmp = CryptoECDSA().CompressPoint(pubKey);
+
+   auto scrAddrCmp = BtcUtils::getHash160(pubKeyCmp);
+   BinaryWriter bwCmp;
+   bwCmp.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+   bwCmp.put_BinaryData(scrAddrCmp);
+   auto addrB58Cmp = BtcUtils::scrAddrToBase58(bwCmp.getData());
+
+   EXPECT_EQ(addrB58Cmp, addrStrCmp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(AddressEntryTest, P2WPKH)
+{
+   auto privKey = CryptoPRNG::generateRandom(32);
+   auto pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
+
+   auto pubKeyCopy = pubKey; //assetentry ctor moves in crypto assets
+   auto assetPtr =
+      make_shared<AssetEntry_Single>(0, BinaryData(), pubKeyCopy, nullptr);
+
+   //sw enforces compressed pubkeys
+   AddressEntry_P2WPKH address(assetPtr);
+   auto addrStr = address.getAddress();
+
+   auto scrAddr = BtcUtils::getHash160(pubKey);
+   auto addrBech32 = BtcUtils::scrAddrToSegWitAddress(scrAddr);
+
+   EXPECT_EQ(addrBech32, addrStr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(AddressEntryTest, P2SH)
+{
+   auto privKey = CryptoPRNG::generateRandom(32);
+   auto pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
+
+   auto pubKeyCopy = pubKey; //assetentry ctor moves in crypto assets
+   auto assetPtr =
+      make_shared<AssetEntry_Single>(0, BinaryData(), pubKeyCopy, nullptr);
+
+   {
+      //p2sh-p2pk
+      auto address = make_shared<AddressEntry_P2PK>(assetPtr, true);
+      AddressEntry_P2SH nested(address);
+      auto addrStr = nested.getAddress();
+
+      BinaryWriter bwScript;
+      bwScript.put_uint8_t(33);
+      bwScript.put_BinaryData(pubKey);
+      bwScript.put_uint8_t(OP_CHECKSIG);
+
+      auto scriptHash = BtcUtils::getHash160(bwScript.getData());
+      
+      BinaryWriter bw;
+      bw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bw.put_BinaryData(scriptHash);
+      auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
+
+      EXPECT_EQ(addrB58, addrStr);
+   }
+
+   //p2sh-p2wpkh
+   {
+      auto address = make_shared<AddressEntry_P2WPKH>(assetPtr);
+      AddressEntry_P2SH nested(address);
+      auto addrStr = nested.getAddress();
+
+      auto pubkeyHash = BtcUtils::getHash160(pubKey);
+
+      BinaryWriter bwScript;
+      bwScript.put_uint8_t(0);
+      bwScript.put_uint8_t(20);
+      bwScript.put_BinaryData(pubkeyHash);
+   
+      auto scriptHash = BtcUtils::getHash160(bwScript.getData());
+
+      BinaryWriter bw;
+      bw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bw.put_BinaryData(scriptHash);
+      auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
+
+      EXPECT_EQ(addrB58, addrStr);
+   }
+
+   //p2sh-p2wsh-ms
+   {
+      map<BinaryData, SecureBinaryData> pubKeys;
+
+      for (unsigned i = 0; i < 3; i++)
+      {
+         auto privKey = CryptoPRNG::generateRandom(32);
+         auto pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
+
+         stringstream ss;
+         ss << "wallet" << i;
+
+         auto dataPair = make_pair(BinaryData::fromString(ss.str()), move(pubKey));
+         pubKeys.emplace(dataPair);
+      }
+
+      map<BinaryData, shared_ptr<AssetEntry>> assetMap;
+      unsigned i = 0;
+      for (auto pubKey : pubKeys)
+      {
+         auto asset = make_shared<AssetEntry_Single>(
+            i++, BinaryData(), pubKey.second, nullptr);
+
+         assetMap.emplace(make_pair(pubKey.first, asset));
+      }
+
+      auto assetMs = make_shared<AssetEntry_Multisig>(
+         0, BinaryData(), assetMap, 2, 3);
+      auto addressMs = make_shared<AddressEntry_Multisig>(assetMs, true);
+      auto nested = make_shared<AddressEntry_P2SH>(addressMs);
+      auto addr = nested->getAddress();
+
+      BinaryWriter bw;
+      bw.put_uint8_t(OP_2);
+
+      for (auto& pubKey : pubKeys)
+      {
+         bw.put_uint8_t(33);
+         bw.put_BinaryData(pubKey.second);
+      }
+
+      bw.put_uint8_t(OP_3);
+      bw.put_uint8_t(OP_CHECKMULTISIG);
+
+      auto scriptHash = BtcUtils::getHash160(bw.getData());
+      BinaryWriter bwScrAddr;
+      bwScrAddr.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bwScrAddr.put_BinaryData(scriptHash);
+      auto addrB58 = BtcUtils::scrAddrToBase58(bwScrAddr.getData());
+
+      EXPECT_EQ(addrB58, addr);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(AddressEntryTest, P2WSH)
+{
+   map<BinaryData, SecureBinaryData> pubKeys;
+
+   for (unsigned i = 0; i < 3; i++)
+   {
+      auto privKey = CryptoPRNG::generateRandom(32);
+      auto pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
+
+      stringstream ss;
+      ss << "wallet" << i;
+
+      auto dataPair = make_pair(BinaryData::fromString(ss.str()), move(pubKey));
+      pubKeys.emplace(dataPair);
+   }
+
+   map<BinaryData, shared_ptr<AssetEntry>> assetMap;
+   unsigned i = 0;
+   for (auto pubKey : pubKeys)
+   {
+      auto asset = make_shared<AssetEntry_Single>(
+         i++, BinaryData(), pubKey.second, nullptr);
+
+      assetMap.emplace(make_pair(pubKey.first, asset));
+   }
+
+   auto assetMs = make_shared<AssetEntry_Multisig>(
+      0, BinaryData(), assetMap, 2, 3);
+   auto addressMs = make_shared<AddressEntry_Multisig>(assetMs, true);
+   auto nested = make_shared<AddressEntry_P2WSH>(addressMs);
+   auto addr = nested->getAddress();
+
+   BinaryWriter bw;
+   bw.put_uint8_t(OP_2);
+
+   for (auto& pubKey : pubKeys)
+   {
+      bw.put_uint8_t(33);
+      bw.put_BinaryData(pubKey.second);
+   }
+
+   bw.put_uint8_t(OP_3);
+   bw.put_uint8_t(OP_CHECKMULTISIG);
+
+   auto scriptHash = BtcUtils::getSha256(bw.getData());
+   auto addrBech32 = BtcUtils::scrAddrToSegWitAddress(scriptHash);
+
+   EXPECT_EQ(addr, addrBech32);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -908,7 +1135,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
       ASSERT_EQ(dataPair.first.getSize(), 0);
-      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+      ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
 
       //cycle key pair
       currentKeyPair = generateKeyPair(saltedRoot, 1);
@@ -1144,7 +1371,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
       ASSERT_EQ(dataPair.first.getSize(), 0);
-      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+      ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
 
       //cycle key pair
       currentKeyPair = generateKeyPair(saltedRoot, 1);
@@ -1381,7 +1608,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
       ASSERT_EQ(dataPair.first.getSize(), 0);
-      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+      ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
 
       //cycle key pair
       currentKeyPair = generateKeyPair(saltedRoot, 1);
@@ -1569,7 +1796,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
       ASSERT_EQ(dataPair.first.getSize(), 0);
-      ASSERT_EQ(dataPair.second, BinaryData("cycle"));
+      ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
    }
    catch(...)
    {
@@ -1596,7 +1823,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    {
       //check packets[2] is a cycle flag
       ASSERT_EQ(decryptedPairs[2].first.getSize(), 0);
-      ASSERT_EQ(decryptedPairs[2].second, BinaryData("cycle"));
+      ASSERT_EQ(decryptedPairs[2].second, BinaryData::fromString("cycle"));
 
       //cycle key
       currentKeyPair = generateKeyPair(saltedRoot, 2);
@@ -1650,7 +1877,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
    //passphrase lambdas
    auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("abcd");
+      return SecureBinaryData::fromString("abcd");
    };
 
    auto passEmpty = [](const set<BinaryData>&)->SecureBinaryData
@@ -1731,7 +1958,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    //lambdas
    auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("abcd");
+      return SecureBinaryData::fromString("abcd");
    };
 
    auto checkDbValues = [](WalletDBInterface& iface, string dbName, 
@@ -1767,7 +1994,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
       EXPECT_EQ(dbIface.getDbCount(), 0);
 
       auto headerPtr = make_shared<WalletHeader_Custom>();
-      headerPtr->walletID_ = BinaryData("db1");
+      headerPtr->walletID_ = "db1";
 
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
@@ -1835,7 +2062,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    {
       EXPECT_EQ(dbIface.getDbCount(), 1);
       auto headerPtr = make_shared<WalletHeader_Custom>();
-      headerPtr->walletID_ = BinaryData("db2");
+      headerPtr->walletID_ = "db2";
 
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
@@ -1871,7 +2098,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    {
       EXPECT_EQ(dbIface.getDbCount(), 2);
       auto headerPtr = make_shared<WalletHeader_Custom>();
-      headerPtr->walletID_ = BinaryData("db3");
+      headerPtr->walletID_ = "db3";
 
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
@@ -1945,7 +2172,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    //add 3rd db
    {
       auto headerPtr = make_shared<WalletHeader_Custom>();
-      headerPtr->walletID_ = BinaryData("db3");
+      headerPtr->walletID_ = "db3";
 
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
@@ -2001,7 +2228,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    {
       EXPECT_EQ(dbIface.getDbCount(), 3);
       auto headerPtr = make_shared<WalletHeader_Custom>();
-      headerPtr->walletID_ = BinaryData("db3");
+      headerPtr->walletID_ = "db3";
 
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
@@ -2055,7 +2282,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
 
    string dbName("test");
    auto dbHeader = make_shared<WalletHeader_Custom>();
-   dbHeader->walletID_ = BinaryData(dbName);
+   dbHeader->walletID_ = dbName;
    iface->lockControlContainer(passLbd);
    iface->addHeader(dbHeader);
    iface->unlockControlContainer();
@@ -2096,7 +2323,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
       {
          BinaryWriter bw;
          bw.put_uint8_t(WALLETHEADER_PREFIX);
-         bw.put_BinaryData(BinaryData(CONTROL_DB_NAME));       
+         bw.put_BinaryData(BinaryData::fromString(CONTROL_DB_NAME));
          CharacterArrayRef carKey(bw.getSize(), bw.getData().getPtr());
          auto rawVal = dbCtrl.get_NoCopy(carKey);
          
@@ -2289,6 +2516,9 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
          filename, packetPair.second.cipherText_));
    }
 
+   dbEnv->close();
+   dbEnv.reset();
+
    //reopen db iface
    iface = make_shared<WalletDBInterface>();
    iface->setupEnv(dbPath_, passLbd);
@@ -2371,7 +2601,7 @@ protected:
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
-      controlPass_ = SecureBinaryData("control");
+      controlPass_ = SecureBinaryData::fromString("control");
       controlLbd_ = [this](const set<BinaryData>&)->SecureBinaryData
       {
          return controlPass_;
@@ -2464,8 +2694,8 @@ TEST_F(WalletsTest, CreateCloseOpen_Test)
       auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
          homedir_,
          move(wltRoot), //root as a r value
-         SecureBinaryData("passphrase"), 
-         SecureBinaryData("control"),
+         SecureBinaryData::fromString("passphrase"), 
+         SecureBinaryData::fromString("control"),
          4); //set lookup computation to 4 entries
 
       //get AddrVec
@@ -2483,7 +2713,7 @@ TEST_F(WalletsTest, CreateCloseOpen_Test)
    //load all wallets in homedir
    auto controlLbd = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("control");
+      return SecureBinaryData::fromString("control");
    };
    WalletManager wltMgr(homedir_, controlLbd);
 
@@ -2520,8 +2750,8 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
-      SecureBinaryData("passphrase"),
-      SecureBinaryData("control"),
+      SecureBinaryData::fromString("passphrase"),
+      SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
    auto filename = assetWlt->getDbFilename();
 
@@ -2539,7 +2769,7 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
       homedir_,
       pubRoot,
       chainCode,
-      SecureBinaryData("control"),
+      SecureBinaryData::fromString("control"),
       4);
 
    //get AddrVec
@@ -2553,7 +2783,7 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
    //fork WO from full wallet
    auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("control");
+      return SecureBinaryData::fromString("control");
    };
    auto forkFilename = AssetWallet_Single::forkWatchingOnly(filename, passLbd);
 
@@ -2571,8 +2801,8 @@ TEST_F(WalletsTest, Encryption_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
-      SecureBinaryData("passphrase"),
-      SecureBinaryData("control"),
+      SecureBinaryData::fromString("passphrase"),
+      SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
 
    //derive private chain from root
@@ -2621,7 +2851,7 @@ TEST_F(WalletsTest, Encryption_Test)
    //open db env for wallet
    auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("control");
+      return SecureBinaryData::fromString("control");
    };
 
    WalletDBInterface dbIface;
@@ -2671,12 +2901,13 @@ TEST_F(WalletsTest, SeedEncryption)
       785
    };
 
-   SecureBinaryData passphrase("password");
+   auto&& passphrase = SecureBinaryData::fromString("password");
 
    //create regular wallet
    auto&& seed = CryptoPRNG::generateRandom(32);
    auto wlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, derPath, passphrase, SecureBinaryData("control"), 10);
+      homedir_, seed, derPath, passphrase, 
+      SecureBinaryData::fromString("control"), 10);
 
    //check clear text seed does not exist on disk
    auto filename = wlt->getDbFilename();
@@ -2775,13 +3006,13 @@ TEST_F(WalletsTest, LockAndExtend_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
-      SecureBinaryData("passphrase"), //set passphrase to "test"
+      SecureBinaryData::fromString("passphrase"), //set passphrase to "test"
       controlPass_,
       4); //set lookup computation to 4 entries
 
    auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("passphrase");
+      return SecureBinaryData::fromString("passphrase");
    };
    assetWlt->setPassphrasePromptLambda(passLbd);
 
@@ -2928,7 +3159,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
 {
    auto goodPassLbd = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("control");
+      return SecureBinaryData::fromString("control");
    };
 
    auto noPassLbd = [](const set<BinaryData>&)->SecureBinaryData
@@ -2976,8 +3207,8 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
          homedir_,
          wltRoot, //root as a r value
-         SecureBinaryData("test"), //set passphrase to "test"
-         SecureBinaryData("control"), //control passphrase
+         SecureBinaryData::fromString("test"), //set passphrase to "test"
+         SecureBinaryData::fromString("control"), //control passphrase
          4); //set lookup computation to 4 entries
       filename = assetWlt->getDbFilename();
       addrSet = assetWlt->getAddrHashSet();
@@ -3020,7 +3251,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       unsigned badPassCtr = 0;
       auto badPassLbd = [&badPassCtr](const set<BinaryData>&)->SecureBinaryData
       {
-         if(badPassCtr++ > 3)
+         if (badPassCtr++ > 3)
             return SecureBinaryData();
          return CryptoPRNG::generateRandom(20);
       };
@@ -3045,6 +3276,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       catch(DecryptedDataContainerException& e)
       {
          EXPECT_EQ(e.what(), string("empty passphrase"));
+         EXPECT_EQ(badPassCtr, 5);
       }
 
       auto assetWlt = AssetWallet::loadMainWalletFromFile(
@@ -3086,8 +3318,8 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       auto passShift = [&wltPassID](const set<BinaryData>& ids)->SecureBinaryData
       {
          if (ids.size() == 1 && *ids.begin() == wltPassID)
-            return SecureBinaryData("control");
-         return SecureBinaryData("newwopass");
+            return SecureBinaryData::fromString("control");
+         return SecureBinaryData::fromString("newwopass");
       };
       auto woFilename = AssetWallet::forkWatchingOnly(filename, passShift); 
 
@@ -3110,7 +3342,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
 
       auto newPassLbd = [](const set<BinaryData>&)->SecureBinaryData
       {
-         return SecureBinaryData("newwopass");
+         return SecureBinaryData::fromString("newwopass");
       };
       auto woWlt = AssetWallet::loadMainWalletFromFile(woFilename, passShift);
       auto loadedAddrSet = woWlt->getAddrHashSet();
@@ -3132,7 +3364,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
          homedir_,
          wltRoot, //root as a r value
          { 0x80000044, 0x865f0000, 4884 },
-         SecureBinaryData("test"), //set passphrase to "test"
+         SecureBinaryData::fromString("test"), //set passphrase to "test"
          SecureBinaryData(), //empty control passphrase
          4); //set lookup computation to 4 entries
       filename2 = assetWlt->getDbFilename();
@@ -3207,7 +3439,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
    {
       auto newPass = [](const set<BinaryData>&)->SecureBinaryData
       {
-         return SecureBinaryData("newpass");
+         return SecureBinaryData::fromString("newpass");
       };
 
       //create WO with different pass
@@ -3231,6 +3463,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       catch (DecryptedDataContainerException& e)
       {
          EXPECT_EQ(e.what(), string("empty passphrase"));
+         EXPECT_EQ(count, 6);
       }
 
       //check WO works with different pass
@@ -3251,6 +3484,37 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       {
          EXPECT_EQ(e.what(), string("invalid db name"));
       }
+
+      //delete control passphrase
+
+      //with wrong pass
+      try
+      {
+         count = 0;
+         wltWO->eraseControlPassphrase(wrongPass);
+         ASSERT_TRUE(false);
+      }
+      catch (DecryptedDataContainerException& e)
+      {
+         EXPECT_EQ(e.what(), string("empty passphrase"));
+         EXPECT_EQ(count, 6);
+      }
+
+      //with right pass
+      wltWO->eraseControlPassphrase(newPass);
+
+      //shutdown wallet
+      wltWO.reset();
+
+      //check pass is gone
+
+      wltWO = AssetWallet::loadMainWalletFromFile(
+         woFilename, emptyPassLbd);
+
+      loadedAddrSet = wltWO->getAddrHashSet();
+
+      //wallet values
+      EXPECT_EQ(addrSet, loadedAddrSet);
    }
 }
 
@@ -3262,8 +3526,8 @@ TEST_F(WalletsTest, SignPassphrase_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
-      SecureBinaryData("test"), //set passphrase to "test"
-      SecureBinaryData("control"), //control passphrase
+      SecureBinaryData::fromString("test"), //set passphrase to "test"
+      SecureBinaryData::fromString("control"), //control passphrase
       4); //set lookup computation to 4 entries
 
    unsigned passphraseCount = 0;
@@ -3272,7 +3536,7 @@ TEST_F(WalletsTest, SignPassphrase_Test)
       //pass wrong passphrase once then give up
       if (passphraseCount++ > 1)
          return SecureBinaryData();
-      return SecureBinaryData("bad pass");
+      return SecureBinaryData::fromString("bad pass");
    };
 
    //set passphrase lambda
@@ -3301,8 +3565,8 @@ TEST_F(WalletsTest, SignPassphrase_Test)
    {
       //pass wrong passphrase once then the right one
       if (passphraseCount++ > 1)
-         return SecureBinaryData("test");
-      return SecureBinaryData("another bad pass");
+         return SecureBinaryData::fromString("test");
+      return SecureBinaryData::fromString("another bad pass");
    };
 
    assetWlt->setPassphrasePromptLambda(goodPassphrase);
@@ -3349,8 +3613,8 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       homedir_,
       wltRoot, //root as a r value
       derPath,
-      SecureBinaryData("test"), //set passphrase to "test"
-      SecureBinaryData("control"),
+      SecureBinaryData::fromString("test"), //set passphrase to "test"
+      SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
 
    unsigned passphraseCount = 0;
@@ -3359,7 +3623,7 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       //pass wrong passphrase once then give up
       if (passphraseCount++ > 1)
          return SecureBinaryData();
-      return SecureBinaryData("bad pass");
+      return SecureBinaryData::fromString("bad pass");
    };
 
    //set passphrase lambda
@@ -3388,8 +3652,8 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
    {
       //pass wrong passphrase once then the right one
       if (passphraseCount++ > 2)
-         return SecureBinaryData("test");
-      return SecureBinaryData("another bad pass");
+         return SecureBinaryData::fromString("test");
+      return SecureBinaryData::fromString("another bad pass");
    };
 
 
@@ -3495,8 +3759,8 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
-      SecureBinaryData("test"), //set passphrase to "test"
-      SecureBinaryData("control"),
+      SecureBinaryData::fromString("test"), //set passphrase to "test"
+      SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
 
    auto&& chaincode = BtcUtils::computeChainCode_Armory135(wltRoot);
@@ -3599,15 +3863,20 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    }
 
    //change passphrase
-   SecureBinaryData newPassphrase("new pass");
+   auto&& newPassphrase = SecureBinaryData::fromString("new pass");
 
    unsigned counter = 0;
    auto passphrasePrompt = [&counter](const set<BinaryData>&)->SecureBinaryData
    {
       if (counter++ == 0)
-         return SecureBinaryData("test");
+         return SecureBinaryData::fromString("test");
       else
          return SecureBinaryData();
+   };
+
+   auto newPassLbd = [&newPassphrase](void)->SecureBinaryData
+   {
+      return newPassphrase;
    };
 
    {
@@ -3620,7 +3889,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       try
       {
          //change passphrase
-         assetWlt->changeMasterPassphrase(newPassphrase);
+         assetWlt->changePrivateKeyPassphrase(newPassLbd);
          ASSERT_TRUE(false);
       }
       catch (AlreadyLocked&)
@@ -3632,7 +3901,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       try
       {
          //change passphrase
-         assetWlt->changeMasterPassphrase(newPassphrase);
+         assetWlt->changePrivateKeyPassphrase(newPassLbd);
       }
       catch (AlreadyLocked&)
       {
@@ -3752,7 +4021,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    //check on file values
    auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("control");
+      return SecureBinaryData::fromString("control");
    };
 
    WalletDBInterface dbIface;
@@ -3792,10 +4061,207 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
+{
+   //create wallet from priv key
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
+   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+      homedir_,
+      wltRoot, //root as a r value
+      SecureBinaryData(), //set passphrase to "test"
+      SecureBinaryData::fromString("control"),
+      4); //set lookup computation to 4 entries
+
+   auto&& chaincode = BtcUtils::computeChainCode_Armory135(wltRoot);
+   auto&& privkey_ex =
+      CryptoECDSA().ComputeChainedPrivateKey(wltRoot, chaincode);
+   auto filename = assetWlt->getDbFilename();
+
+   auto newPass = SecureBinaryData::fromString("newpass");
+
+   auto asset0 = assetWlt->getMainAccountAssetForIndex(0);
+   auto asset0_single = dynamic_pointer_cast<AssetEntry_Single>(asset0);
+   ASSERT_NE(asset0_single, nullptr);
+
+   //check the wallet has no passphrase
+   auto emptyPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData();
+   };
+
+   assetWlt->setPassphrasePromptLambda(emptyPassLbd);
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //try to add passhrase to an unencrypted wallet, should fail
+   auto changePassLbd = [&newPass](void)->SecureBinaryData
+   {
+      return newPass;
+   };
+
+   try
+   {
+      assetWlt->addPrivateKeyPassphrase(changePassLbd);
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("cannot add passphrase to unencrypted wallet"));
+   }
+
+   //encrypt with new pass
+   assetWlt->changePrivateKeyPassphrase(changePassLbd);
+  
+   //check the wallet can't be decrypted without a passphrase anymore
+   try
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("empty passphrase"));
+   }
+
+   //check the new pass works
+   auto newPassLbd = [&newPass](const set<BinaryData>&)->SecureBinaryData
+   {
+      return newPass;
+   };
+
+   assetWlt->setPassphrasePromptLambda(newPassLbd);
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //try to add the same passphrase
+   try
+   {
+      assetWlt->addPrivateKeyPassphrase(changePassLbd);
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("cipher data already present in encryption key"));
+   }
+
+   //check pass still works
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //add another passphrase
+   auto newPass2 = SecureBinaryData::fromString("another pass");
+   auto changePass2Lbd = [&newPass2](void)->SecureBinaryData
+   {
+      return newPass2;
+   };
+   assetWlt->addPrivateKeyPassphrase(changePass2Lbd);
+
+   //check old pass works
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //check new pass works
+   auto newPass2Lbd = [&newPass2](const set<BinaryData>&)->SecureBinaryData
+   {
+      return newPass2;
+   };
+
+   assetWlt->setPassphrasePromptLambda(newPass2Lbd);
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //delete old pass
+   assetWlt->setPassphrasePromptLambda(newPassLbd);
+   assetWlt->erasePrivateKeyPassphrase();
+
+   //check old pass fails
+   unsigned counter = 0;
+   auto newPassLbdFail = [&counter, &newPass](const set<BinaryData>&)->SecureBinaryData
+   {
+      while (counter++ < 4)
+         return newPass;
+      return SecureBinaryData();
+   };
+   assetWlt->setPassphrasePromptLambda(newPassLbdFail);
+
+   try
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+      ASSERT_TRUE(false);
+   }
+   catch (DecryptedDataContainerException& e)
+   {
+      EXPECT_EQ(e.what(), string("empty passphrase"));
+      EXPECT_EQ(counter, 5);
+   }
+
+   //check new pass works
+   assetWlt->setPassphrasePromptLambda(newPass2Lbd);
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+   }
+
+   //delete new pass
+   assetWlt->setPassphrasePromptLambda(newPass2Lbd);
+   assetWlt->erasePrivateKeyPassphrase();
+
+   counter = 0;
+   auto emptyPassLbd2 = [&counter](const set<BinaryData>&)->SecureBinaryData
+   {
+      ++counter;
+      return SecureBinaryData();
+   };
+   assetWlt->setPassphrasePromptLambda(emptyPassLbd2);
+
+   //check wallet is unencrypted
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto& decryptedKey =
+         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+
+      ASSERT_EQ(decryptedKey, privkey_ex);
+      EXPECT_EQ(counter, 0);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, ChangeControlPassphrase_Test)
 {
       
-   SecureBinaryData newPass("newpass");
+   auto&& newPass = SecureBinaryData::fromString("newpass");
 
    //create wallet
    string filename;
@@ -3805,8 +4271,8 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
          homedir_,
          wltRoot, //root as a r value
          { 0x80000064, 0x80000080, 0 },
-         SecureBinaryData("test"), //set passphrase to "test"
-         SecureBinaryData("control"),
+         SecureBinaryData::fromString("test"), //set passphrase to "test"
+         SecureBinaryData::fromString("control"),
          40); //set lookup computation to 4 entries
 
       filename = assetWlt->getDbFilename();
@@ -3814,9 +4280,14 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
       //change control pass
       auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
       {
-         return SecureBinaryData("control");
+         return SecureBinaryData::fromString("control");
       };
-      assetWlt->changeControlPassphrase(newPass, passLbd);
+
+      auto newPass1Lbd = [newPass](void)->SecureBinaryData
+      {
+         return newPass;
+      };
+      assetWlt->changeControlPassphrase(newPass1Lbd, passLbd);
 
       //close wallet by scoping out
    }
@@ -3826,7 +4297,7 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
    auto oldPassLbd = [&oldCounter](const set<BinaryData>&)->SecureBinaryData
    {
       while (oldCounter++ < 10)
-         return SecureBinaryData("control");
+         return SecureBinaryData::fromString("control");
       return SecureBinaryData();
    };
 
@@ -3871,10 +4342,15 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
    {
       auto wlt = AssetWallet::loadMainWalletFromFile(filename, newPassLbd);
       //change pass again from the loaded wallet
-      SecureBinaryData newPass2("second-pass");
-      wlt->changeControlPassphrase(newPass2, newPassLbd);
+      auto&& newPass2 = SecureBinaryData::fromString("second-pass");
+      auto newPass2Lbd = [newPass2](void)->SecureBinaryData
+      {
+         return newPass2;
+      };
+
+      wlt->changeControlPassphrase(newPass2Lbd, newPassLbd);
    }
-   catch (DecryptedDataContainerException& e)
+   catch (DecryptedDataContainerException&)
    {
       ASSERT_FALSE(true);
    }
@@ -3915,14 +4391,14 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
    //open with new pass, should work
    auto newPassLbd2 = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("second-pass");
+      return SecureBinaryData::fromString("second-pass");
    };
 
    try
    {
       auto wlt = AssetWallet::loadMainWalletFromFile(filename, newPassLbd2);
    }
-   catch (DecryptedDataContainerException& e)
+   catch (DecryptedDataContainerException&)
    {
       ASSERT_FALSE(true);
    }  
@@ -3936,18 +4412,23 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
-      SecureBinaryData("test"), //set passphrase to "test"
+      SecureBinaryData::fromString("test"), //set passphrase to "test"
       controlPass_,
       4); //set lookup computation to 4 entries
 
    auto passLbd1 = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("test");
+      return SecureBinaryData::fromString("test");
    };
 
    auto passLbd2 = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("abcdedfg");
+      return SecureBinaryData::fromString("abcdedfg");
+   };
+
+   auto newPassLbd = [](void)->SecureBinaryData
+   {
+      return SecureBinaryData::fromString("abcdedfg");
    };
 
    {
@@ -3957,7 +4438,7 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
 
       try
       {
-         assetWlt->addPassphrase(SecureBinaryData("abcdedfg"));
+         assetWlt->addPrivateKeyPassphrase(newPassLbd);
          ASSERT_TRUE(false);
       }
       catch (AlreadyLocked&)
@@ -3968,7 +4449,7 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
       //try without locking first, should work
       try
       {
-         assetWlt->addPassphrase(SecureBinaryData("abcdedfg"));
+         assetWlt->addPrivateKeyPassphrase(newPassLbd);
       }
       catch (AlreadyLocked&)
       {
@@ -4035,13 +4516,13 @@ TEST_F(WalletsTest, BIP32_Chain)
       homedir_,
       b58, //root as a r value
       derivationPath,
-      SecureBinaryData("test"), //set passphrase to "test"
+      SecureBinaryData::fromString("test"), //set passphrase to "test"
       controlPass_,
       4); //set lookup computation to 4 entries
 
    auto passphrasePrompt = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("test");
+      return SecureBinaryData::fromString("test");
    };
 
    assetWlt->setPassphrasePromptLambda(passphrasePrompt);
@@ -4055,7 +4536,8 @@ TEST_F(WalletsTest, BIP32_Chain)
       assetWlt->getDecryptedValue(assetSingle->getPrivKey());
 
    BIP32_Node privNode;
-   SecureBinaryData priv_b58("xprvA2JDeKCSNNZky6uBCviVfJSKyQ1mDYahRjijr5idH2WwLsEd4Hsb2Tyh8RfQMuPh7f7RtyzTtdrbdqqsunu5Mm3wDvUAKRHSC34sJ7in334");
+   auto&& priv_b58 = 
+      SecureBinaryData::fromString("xprvA2JDeKCSNNZky6uBCviVfJSKyQ1mDYahRjijr5idH2WwLsEd4Hsb2Tyh8RfQMuPh7f7RtyzTtdrbdqqsunu5Mm3wDvUAKRHSC34sJ7in334");
    privNode.initFromBase58(priv_b58);
 
    EXPECT_EQ(decryptedKey, privNode.getPrivateKey());
@@ -4093,7 +4575,8 @@ TEST_F(WalletsTest, BIP32_Public_Chain)
    ASSERT_NE(assetSingle, nullptr);
 
    BIP32_Node pubNode;
-   SecureBinaryData pub_b58("xpub6FHa3pjLCk84BayeJxFW2SP4XRrFd1JYnxeLeU8EqN3vDfZmbqBqaGJAyiLjTAwm6ZLRQUMv1ZACTj37sR62cfN7fe5JnJ7dh8zL4fiyLHV");
+   auto&& pub_b58 = 
+      SecureBinaryData::fromString("xpub6FHa3pjLCk84BayeJxFW2SP4XRrFd1JYnxeLeU8EqN3vDfZmbqBqaGJAyiLjTAwm6ZLRQUMv1ZACTj37sR62cfN7fe5JnJ7dh8zL4fiyLHV");
    pubNode.initFromBase58(pub_b58);
 
    EXPECT_EQ(assetSingle->getPubKey()->getCompressedKey(), pubNode.getPublicKey());
@@ -4111,7 +4594,7 @@ TEST_F(WalletsTest, BIP32_ArmoryDefault)
    auto&& seed = CryptoPRNG::generateRandom(32);
 
    //create empty wallet
-   SecureBinaryData passphrase("password");
+   auto&& passphrase = SecureBinaryData::fromString("password");
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_, seed, derivationPath, passphrase, controlPass_, 5);
 
@@ -4141,7 +4624,7 @@ TEST_F(WalletsTest, BIP32_ArmoryDefault)
    auto accPtr = assetWlt->getAccountForID(accID);
    auto addrPtr = accPtr->getNewAddress(
       AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
-   auto assetID = assetWlt->getAssetIDForAddr(addrPtr->getPrefixedHash());
+   auto assetID = assetWlt->getAssetIDForScrAddr(addrPtr->getPrefixedHash());
    accID.append(WRITE_UINT32_BE(0x10000000));
    accID.append(WRITE_UINT32_BE(0));
    EXPECT_EQ(assetID.first, accID);
@@ -4161,7 +4644,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    auto&& seed = CryptoPRNG::generateRandom(32);
 
    //create empty wallet
-   SecureBinaryData passphrase("password");
+   auto&& passphrase = SecureBinaryData::fromString("password");
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
       homedir_, seed, passphrase, controlPass_);
 
@@ -4335,7 +4818,7 @@ TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
       785
    };
 
-   SecureBinaryData passphrase("password");
+   auto&& passphrase = SecureBinaryData::fromString("password");
 
    //create regular wallet
    auto&& seed = CryptoPRNG::generateRandom(32);
@@ -4422,7 +4905,7 @@ TEST_F(WalletsTest, AddressEntryTypes)
       785
    };
 
-   SecureBinaryData passphrase("password");
+   auto&& passphrase = SecureBinaryData::fromString("password");
 
    //create regular wallet
    auto&& seed = CryptoPRNG::generateRandom(32);
@@ -4436,14 +4919,14 @@ TEST_F(WalletsTest, AddressEntryTypes)
    for (unsigned i = 0; i < 5; i++)
    {
       auto addrPtr = wlt->getNewAddress();
-      addrHashes.insert(addrPtr->getAddress());
+      addrHashes.insert(addrPtr->getPrefixedHash());
    }
 
    //5 p2wpkh
    for (unsigned i = 0; i < 5; i++)
    {
       auto addrPtr = wlt->getNewAddress(AddressEntryType_P2WPKH);
-      addrHashes.insert(addrPtr->getAddress());
+      addrHashes.insert(addrPtr->getPrefixedHash());
    }
 
    //5 nested p2wpkh change addresses
@@ -4451,7 +4934,7 @@ TEST_F(WalletsTest, AddressEntryTypes)
    {
       auto addrPtr = wlt->getNewChangeAddress(AddressEntryType(
          AddressEntryType_P2SH | AddressEntryType_P2WPKH));
-      addrHashes.insert(addrPtr->getAddress());
+      addrHashes.insert(addrPtr->getPrefixedHash());
    }
 
    //shutdown wallet
@@ -4467,7 +4950,7 @@ TEST_F(WalletsTest, AddressEntryTypes)
       auto usedAddressMap = loaded->getUsedAddressMap();
       set<BinaryData> usedAddrHashes;
       for (auto& addrPair : usedAddressMap)
-         usedAddrHashes.insert(addrPair.second->getAddress());
+         usedAddrHashes.insert(addrPair.second->getPrefixedHash());
 
       EXPECT_EQ(addrHashes, usedAddrHashes);
    }
@@ -4485,7 +4968,7 @@ TEST_F(WalletsTest, AddressEntryTypes)
       auto usedAddressMap = woLoaded->getUsedAddressMap();
       set<BinaryData> usedAddrHashes;
       for (auto& addrPair : usedAddressMap)
-         usedAddrHashes.insert(addrPair.second->getAddress());
+         usedAddrHashes.insert(addrPair.second->getPrefixedHash());
 
       EXPECT_EQ(addrHashes, usedAddrHashes);
    }
@@ -4520,7 +5003,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
 
    {
       //create empty wallet
-      SecureBinaryData passphrase("password");
+      auto&& passphrase = SecureBinaryData::fromString("password");
       auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
          homedir_, seed, passphrase, controlPass_);
 
@@ -4746,7 +5229,7 @@ TEST_F(WalletsTest, ECDH_Account)
    auto&& pubKey2 = CryptoECDSA().ComputePublicKey(privKey2, true);
 
 
-   SecureBinaryData passphrase("password");
+   auto&& passphrase = SecureBinaryData::fromString("password");
 
    map<unsigned, SecureBinaryData> saltMap1;
    map<unsigned, SecureBinaryData> saltMap2;
@@ -5022,7 +5505,7 @@ TEST_F(WalletMetaDataTest, AuthPeers)
 {
    auto peerPassLbd = [](const set<BinaryData>&)->SecureBinaryData
    {
-      return SecureBinaryData("authpeerpass");
+      return SecureBinaryData::fromString("authpeerpass");
    };
    auto authPeers = make_unique<AuthorizedPeers>(
       homedir_, "test.peers", peerPassLbd);
@@ -5734,6 +6217,87 @@ TEST_F(WalletMetaDataTest, AuthPeers_Ephemeral)
    }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletMetaDataTest, Comments)
+{
+   vector<unsigned> derPath = {
+      0x80000050,
+      0x80005421,
+      0x80000024,
+      785
+   };
+
+   auto&& passphrase = SecureBinaryData::fromString("password");
+   auto&& controlPass = SecureBinaryData::fromString("control");
+
+   auto controlLbd = [controlPass](const set<BinaryData>&)->SecureBinaryData
+   {
+      return controlPass;
+   };
+
+   //comments
+   map<BinaryData, string> commentMap;
+   commentMap.insert(make_pair(READHEX("aabbccdd"), "comment1"));
+   commentMap.insert(make_pair(READHEX("eeff0011"), "comment2"));
+   commentMap.insert(make_pair(READHEX("22334455"), "comment3"));
+
+   //create regular wallet
+   string filename;
+   {
+      auto&& seed = CryptoPRNG::generateRandom(32);
+      auto wlt = AssetWallet_Single::createFromSeed_BIP32(
+         homedir_, seed, derPath, passphrase, controlPass, 10);
+      filename = wlt->getDbFilename();
+
+      //set comments
+      for (auto& commentPair : commentMap)
+         wlt->setComment(commentPair.first, commentPair.second);
+
+      //check comments
+      for (auto& commentPair : commentMap)
+         EXPECT_EQ(wlt->getComment(commentPair.first), commentPair.second);
+   }
+
+   {
+      //shut down wallet and reload it
+      auto wlt = AssetWallet::loadMainWalletFromFile(filename, controlLbd);
+      auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wlt);
+      ASSERT_NE(wltSingle, nullptr);
+
+      //check loaded comments
+      auto grabMap = wltSingle->getCommentMap();
+      EXPECT_EQ(grabMap, commentMap);
+
+      //update a comment
+      commentMap[READHEX("22334455")] = "comment4";
+      wlt->setComment(READHEX("22334455"), "comment4");
+
+      //delete a comment
+      commentMap.erase(READHEX("eeff0011"));
+      wlt->deleteComment(READHEX("eeff0011"));
+
+      //add a comment
+      commentMap.insert(make_pair(READHEX("66778899aa"), "comment5"));
+      wlt->setComment(READHEX("66778899aa"), "comment5");
+
+      //check
+      grabMap = wltSingle->getCommentMap();
+      EXPECT_EQ(grabMap, commentMap);
+   }
+
+   {
+      //create WO copy
+      auto woCopyPath = AssetWallet::forkWatchingOnly(
+         filename, controlLbd);
+      auto woWlt = AssetWallet::loadMainWalletFromFile(
+         woCopyPath, controlLbd);
+      auto woSingle = dynamic_pointer_cast<AssetWallet_Single>(woWlt);
+      
+      //check loaded comments
+      auto grabMap = woSingle->getCommentMap();
+      EXPECT_EQ(grabMap, commentMap);
+   }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

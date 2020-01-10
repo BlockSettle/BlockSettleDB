@@ -132,7 +132,7 @@ namespace ClientClasses
       LedgerEntry(std::shared_ptr<::Codec_BDVCommand::BDVCallback>,
          unsigned, unsigned);
 
-      const std::string&  getID(void) const;
+      std::string         getID(void) const;
       int64_t             getValue(void) const;
       uint32_t            getBlockNum(void) const;
       BinaryDataRef       getTxHash(void) const;

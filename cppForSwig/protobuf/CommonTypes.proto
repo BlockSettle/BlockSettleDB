@@ -53,5 +53,6 @@ message BinaryDataAndHeight
 
 message ManyBinaryDataAndHeight
 {
-	repeated BinaryDataAndHeight value = 1;
+	required uint32 count = 1;
+	repeated BinaryDataAndHeight value = 2;
 }
