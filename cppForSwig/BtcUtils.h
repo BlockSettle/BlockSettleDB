@@ -1759,12 +1759,12 @@ public:
 
    static std::string base58_encode(const BinaryData& payload)
    {
-      size_t size = payload.getSize() * 2;
-      size_t return_size;
+      size_t size = payload.getSize() * 138 / 100 + 2;
       std::string b58_str;
       b58_str.resize(size);
+      size_t return_size = b58_str.size();
       if (!btc_base58_encode(
-         (char*)b58_str.c_str(), &return_size,
+         &b58_str[0], &return_size,
          payload.getPtr(), payload.getSize()) || 
          return_size > size)
       {
@@ -1774,7 +1774,7 @@ public:
       if (return_size == 0)
          throw std::runtime_error("failed to encode b58 string");
 
-      if (return_size < size)
+      if (return_size - 1 < size)
          b58_str.resize(return_size - 1);
       return b58_str;
    }
