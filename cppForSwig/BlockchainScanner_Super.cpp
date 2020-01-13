@@ -1438,6 +1438,12 @@ shared_ptr<BlockData> BlockDataBatch::getBlockData(unsigned height)
       return blockheader->getThisID();
    };
 
+   if (filemap->getPtr() == nullptr) {
+      LOGERR << "Can't open block file";
+      LOGERR << "Please check that --satoshi-datadir parameter is valid";
+      throw runtime_error("invalid file map");
+   }
+
    auto bdata = make_shared<BlockData>();
    bdata->deserialize(
       filemap->getPtr() + blockheader->getOffset(),
