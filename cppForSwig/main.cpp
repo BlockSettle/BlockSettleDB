@@ -78,7 +78,10 @@ int main(int argc, char* argv[])
    if (!bdmConfig.checkChain_)
    {
       //process incoming connections
-      auto&& passLbd = TerminalPassphrasePrompt::getLambda("peers db");
+      //auto&& passLbd = TerminalPassphrasePrompt::getLambda("peers db");
+      auto passLbd = [](const std::set<BinaryData>&) {
+         return SecureBinaryData{};
+      };
       server.start(&bdmThread, BlockDataManagerConfig::getDataDir(),
          passLbd, BlockDataManagerConfig::ephemeralPeers_, false);
    }
