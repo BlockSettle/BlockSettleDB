@@ -449,11 +449,8 @@ struct UTXO
 
    bool operator<(const UTXO& rhs) const
    {
-      if (txHeight_ != rhs.txHeight_)
-         return txHeight_ < rhs.txHeight_;
-
-      if (txIndex_ != rhs.txIndex_)
-         return txIndex_ < rhs.txIndex_;
+      if (txHash_ != rhs.txHash_)
+         return txHash_ < rhs.txHash_;
 
       if (txOutIndex_ != rhs.txOutIndex_)
          return txOutIndex_ < rhs.txOutIndex_;
