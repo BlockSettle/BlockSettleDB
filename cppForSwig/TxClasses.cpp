@@ -465,19 +465,36 @@ bool Tx::isRBF() const
 }
 
 /////////////////////////////////////////////////////////////////////////////
-size_t Tx::getTxWeight() const
+size_t Tx::getWeight() const
 {
-   auto size = getSize();
-   
-   if (offsetsWitness_.size() > 1)
-   {
-      auto witnessSize = *offsetsWitness_.rbegin() - *offsetsWitness_.begin();
-      float witnessDiscount = float(witnessSize) * 0.75f;
+   // from https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki
+   // weight = base transaction size * 3 + total transaction size
 
-      size -= size_t(witnessDiscount);
+   size_t size = getSize();
+
+   if (offsetsWitness_.empty()) {
+      // for non segwit base transaction size = total transaction size
+      return 4 * size;
    }
 
-   return size;
+   size_t witnessSize = offsetsWitness_.back() - offsetsWitness_.front();
+   // Two bytes for marker and flag (see BIP-141)
+   size_t baseSize = size - 2 - witnessSize;
+   size_t weight = baseSize * 3 + size;
+
+   return weight;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+size_t Tx::getTxWeight() const
+{
+   // from https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki
+   // virtual transaction size = weight / 4 (rounded up to the next integer).
+
+   size_t weight = getWeight();
+   // divide with rounding up
+   size_t vSize = (weight + 3) / 4;
+   return vSize;
 }
 
 /////////////////////////////////////////////////////////////////////////////
