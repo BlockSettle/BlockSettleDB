@@ -333,7 +333,10 @@ public:
    void setTxTime(uint32_t txtime) { txTime_ = txtime; }
    uint32_t getTxTime(void) const { return txTime_; }
 
-   //returns tx weight in bytes
+   // returns tx weight
+   size_t getWeight(void) const;
+
+   //returns v-size in bytes (getTxWeight name is left for compatibility)
    size_t getTxWeight(void) const;
 
    const std::vector<uint32_t> getOpIdVec(void) const
