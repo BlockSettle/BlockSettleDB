@@ -291,7 +291,7 @@ public:
    {
       auto iter = cipherData_.begin();
       if (iter == cipherData_.end())
-         throw AssetException("no cipher for that id");
+         throw AssetException("empty cipher map");
 
       return iter->second.get();
    }
