@@ -23,17 +23,15 @@ from armorycolors import Colors, htmlColor
 from armorymodels import *
 import qrc_img_resources
 from qtdefines import *
-from armoryengine.PyBtcAddress import calcWalletIDFromRoot
 from armoryengine.MultiSigUtils import calcLockboxID, createLockboxEntryStr,\
    LBPREFIX, isBareLockbox, isP2SHLockbox
 from ui.MultiSigModels import LockboxDisplayModel, LockboxDisplayProxy,\
    LOCKBOXCOLS
-from armoryengine.PyBtcWalletRecovery import RECOVERMODE
 from armoryengine.ArmoryUtils import BTC_HOME_DIR
 
 from ui.TreeViewGUI import AddressTreeModel
 from ui.QrCodeMatrix import CreateQRMatrix
-from ui.SignerSelectDialog import SignerLabelFrame
+from armoryengine.Block import PyBlockHeader
 
 NO_CHANGE = 'NoChange'
 MIN_PASSWD_WIDTH = lambda obj: tightSizeStr(obj, '*' * 16)[0]
@@ -51,13 +49,19 @@ MAX_SATOSHIS = 2100000000000000
 
 ################################################################################
 class DlgUnlockWallet(ArmoryDialog):
-   def __init__(self, wlt, parent=None, main=None, unlockMsg='Unlock Wallet', \
-                           returnResult=False, returnPassphrase=False):
+   def __init__(self, promptId, wlt, parent=None, main=None, \
+      unlockMsg='Unlock Wallet', returnResult=False):
       super(DlgUnlockWallet, self).__init__(parent, main)
 
       self.wlt = wlt
+      if isinstance(wlt, PyBtcWallet):
+         self.wltID = wlt.uniqueIDB58
+      else:
+         self.wlt = None
+         self.wltID = wlt
+
       self.returnResult = returnResult
-      self.returnPassphrase = returnPassphrase
+      self.promptId = promptId
 
       ##### Upper layout
       lblDescr = QLabel(self.tr("Enter your passphrase to unlock this wallet"))
@@ -70,7 +74,7 @@ class DlgUnlockWallet(ArmoryDialog):
       self.btnAccept = QPushButton(self.tr("Unlock"))
       self.btnCancel = QPushButton(self.tr("Cancel"))
       self.connect(self.btnAccept, SIGNAL(CLICKED), self.acceptPassphrase)
-      self.connect(self.btnCancel, SIGNAL(CLICKED), self.reject)
+      self.connect(self.btnCancel, SIGNAL(CLICKED), self.rejectPassphrase)
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
@@ -144,7 +148,7 @@ class DlgUnlockWallet(ArmoryDialog):
       layout.addWidget(frmAccept)
       layout.addWidget(self.frmLower)
       self.setLayout(layout)
-      self.setWindowTitle(unlockMsg + ' - ' + wlt.uniqueIDB58)
+      self.setWindowTitle(unlockMsg + ' - ' + self.wltID)
 
       # Add scrambled keyboard
       self.layout().setSizeConstraint(QLayout.SetFixedSize)
@@ -300,34 +304,48 @@ class DlgUnlockWallet(ArmoryDialog):
       self.main.settings.set('ScrambleDefault', opt)
       self.redrawKeys()
 
+   #############################################################################
+   def recycle(self):
+      QMessageBox.critical(self, self.tr('Invalid Passphrase'), \
+         self.tr('That passphrase is not correct!'), QMessageBox.Ok)
+      self.edtPasswd.setText('')
+
+   #############################################################################
+   def completed(self):
+      self.edtPasswd.setText('')
+      self.accept()
 
    #############################################################################
    def acceptPassphrase(self):
-
-      self.securePassphrase = SecureBinaryData(str(self.edtPasswd.text()))
-      self.edtPasswd.setText('')
+      passphraseStr = str(self.edtPasswd.text())
 
       if self.returnResult:
-         self.accept()
-         return
-
-      try:
-         if self.returnPassphrase == False:
-            unlockProgress = DlgProgress(self, self.main, HBar=1,
-                                         Title=self.tr("Unlocking Wallet"))
-            unlockProgress.exec_(self.wlt.unlock, securePassphrase=self.securePassphrase)
-            self.securePassphrase.destroy()
-         else:
-            if self.wlt.verifyPassphrase(self.securePassphrase) == False:
-               raise PassphraseError
-
-         self.accept()
-      except PassphraseError:
-         QMessageBox.critical(self, self.tr('Invalid Passphrase'), \
-           self.tr('That passphrase is not correct!'), QMessageBox.Ok)
-         self.securePassphrase.destroy()
          self.edtPasswd.setText('')
+         self.accept()
          return
+
+      TheBridge.returnPassphrase(self.promptId, passphraseStr)
+      passphraseStr = ''
+
+   #############################################################################
+   def rejectPassphrase(self):
+      self.edtPasswd.setText('')
+      TheBridge.returnPassphrase(self.promptId, "")
+      self.reject()
+
+   #############################################################################
+   def accept(self):
+      self.edtPasswd.setText('')
+      if self.parent != None:
+         self.parent.cleanupPrompt(self.promptId)
+      super(ArmoryDialog, self).accept()
+
+   #############################################################################
+   def reject(self):
+      self.edtPasswd.setText('')
+      if self.parent != None:
+         self.parent.cleanupPrompt(self.promptId)
+      super(ArmoryDialog, self).reject()
 
 
 #############################################################################
@@ -3111,14 +3129,12 @@ class DlgDuplicateAddr(ArmoryDialog):
 
 #############################################################################
 class DlgAddressInfo(ArmoryDialog):
-   def __init__(self, wlt, cppAddr, parent=None, main=None, mode=None):
+   def __init__(self, wlt, addrObj, parent=None, main=None, mode=None):
       super(DlgAddressInfo, self).__init__(parent, main)
 
       self.wlt = wlt
-      self.cppAddr = cppAddr
-
-      self.addr = self.wlt.getAddrByIndex(self.cppAddr.getIndex())
-      addr160 = self.cppAddr.getAddrHash()[1:]
+      self.addrObj = addrObj
+      addr160 = addrObj.getAddr160()
 
       self.ledgerTable = []
 
@@ -3131,7 +3147,7 @@ class DlgAddressInfo(ArmoryDialog):
 
 
       dlgLayout = QGridLayout()
-      addrStr = self.cppAddr.getScrAddr()
+      addrStr = addrObj.getAddressString()
 
       frmInfo = QFrame()
       frmInfo.setFrameStyle(STYLE_RAISED)
@@ -3178,7 +3194,7 @@ class DlgAddressInfo(ArmoryDialog):
          '<i>after</i> the keys were imported.')))
 
       lbls[-1].append(QRichLabel(self.tr('<b>Address Type:</b>')))
-      if self.addr.chainIndex == -2:
+      if self.addrObj.chainIndex == -2:
          lbls[-1].append(QLabel(self.tr('Imported')))
       else:
          lbls[-1].append(QLabel(self.tr('Permanent')))
@@ -3188,8 +3204,8 @@ class DlgAddressInfo(ArmoryDialog):
       lbls[-1].append(self.main.createToolTipWidget(
             self.tr('The index of this address within the wallet.')))
       lbls[-1].append(QRichLabel(self.tr('<b>Index:</b>')))
-      if self.addr.chainIndex > -1:
-         lbls[-1].append(QLabel(str(self.addr.chainIndex+1)))
+      if self.addrObj.chainIndex > -1:
+         lbls[-1].append(QLabel(str(self.addrObj.chainIndex+1)))
       else:
          lbls[-1].append(QLabel(self.tr("Imported")))
 
@@ -3201,7 +3217,7 @@ class DlgAddressInfo(ArmoryDialog):
             'not including zero-confirmation transactions from others.')))
       lbls[-1].append(QRichLabel(self.tr('<b>Current Balance</b>')))
       try:
-         balCoin = self.cppAddr.getSpendableBalance()
+         balCoin = addrObj.getSpendableBalance()
          balStr = coin2str(balCoin, maxZeros=1)
          if balCoin > 0:
             goodColor = htmlColor('MoneyPos')
@@ -3216,7 +3232,7 @@ class DlgAddressInfo(ArmoryDialog):
       lbls.append([])
       lbls[-1].append(QLabel(''))
       lbls[-1].append(QRichLabel(self.tr('<b>Comment:</b>')))
-      if self.addr.chainIndex > -1:
+      if self.addrObj.chainIndex > -1:
          lbls[-1].append(QLabel(str(wlt.commentsMap[addr160]) if addr160 in wlt.commentsMap else ''))
       else:
          lbls[-1].append(QLabel(''))
@@ -3227,7 +3243,7 @@ class DlgAddressInfo(ArmoryDialog):
       lbls[-1].append(QRichLabel(self.tr('<b>Transaction Count:</b>')))
       #lbls[-1].append(QLabel(str(len(txHashes))))
       try:
-         txnCount = self.cppAddr.getTxioCount()
+         txnCount = self.addrObj.getTxioCount()
          lbls[-1].append(QLabel(str(txnCount)))
       except:
          lbls[-1].append(QLabel("N/A"))
@@ -3256,8 +3272,7 @@ class DlgAddressInfo(ArmoryDialog):
       self.ledgerModel = LedgerDispModelSimple(self.ledgerTable, self, self.main)
       try:
          self.ledgerModel.setLedgerDelegate(\
-            TheBDM.bdv().getLedgerDelegateForScrAddr(self.wlt.uniqueIDB58, \
-                                                     self.cppAddr.getAddrHash()))
+            TheBDM.bdv().getLedgerDelegateForScrAddr(self.wlt.uniqueIDB58, addr160))
       except:
          pass
 
@@ -3318,7 +3333,7 @@ class DlgAddressInfo(ArmoryDialog):
       optFrame = QFrame()
       optFrame.setFrameStyle(STYLE_SUNKEN)
 
-      hasPriv = self.addr.hasPrivKey()
+      hasPriv = self.addrObj.hasPrivKey
       adv = (self.main.usermode in (USERMODE.Advanced, USERMODE.Expert))
       watch = self.wlt.watchingOnly
 
@@ -3360,7 +3375,7 @@ class DlgAddressInfo(ArmoryDialog):
    def copyAddr(self):
       clipb = QApplication.clipboard()
       clipb.clear()
-      clipb.setText(self.cppAddr.getScrAddr())
+      clipb.setText(self.addrObj.getAddr160())
       self.lblCopied.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
       self.lblCopied.setText(self.tr('<i>Copied!</i>'))
 
@@ -4533,18 +4548,8 @@ class DlgConfirmSend(ArmoryDialog):
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
-      
-      self.signerType = SIGNER_DEFAULT
-      def setSignerType(_type):
-         self.signerType = _type
-      
-      isSigned = False
-      if isinstance(pytxOrUstx, PyTx):
-         ustx = UnsignedTransaction()
-         ustx.createFromPyTx(pytxOrUstx)
-         isSigned = pytxOrUstx.verifySigsAllInputs()
-      else:
-         isSigned = pytxOrUstx.verifySigsAllInputs(pytxOrUstx.signerType)
+            
+      isSigned = pytxOrUstx.verifySigsAllInputs()
          
       if self.main.usermode == USERMODE.Expert and isSigned == False:
          self.signerSelect = SignerLabelFrame(self.main, pytxOrUstx, setSignerType)
@@ -4572,11 +4577,6 @@ class DlgConfirmSend(ArmoryDialog):
       self.setMinimumWidth(350)
       self.setWindowTitle(self.tr('Confirm Transaction'))
    
-   #############################################################################   
-   def getSignerType(self):
-      return self.signerType
-
-
 ################################################################################
 class DlgSendBitcoins(ArmoryDialog):
    def __init__(self, wlt, parent=None, main=None, 
@@ -5130,29 +5130,31 @@ class DlgAddressProperties(ArmoryDialog):
 
 ################################################################################
 def extractTxInfo(pytx, rcvTime=None):
+   print (pytx)
    ustx = None
    if isinstance(pytx, UnsignedTransaction):
       ustx = pytx
       pytx = ustx.pytxObj.copy()
 
    txHash = pytx.getHash()
+   print (txHash)
    txSize, txWeight, sumTxIn, txTime, txBlk, txIdx = [None] * 6
 
    txOutToList = pytx.makeRecipientsList()
    sumTxOut = sum([t[1] for t in txOutToList])
 
-   txcpp = Tx()
    if TheBDM.getState() == BDM_BLOCKCHAIN_READY:
-      txcpp = TheBDM.bdv().getTxByHash(txHash)
-      if txcpp.isInitialized():
-         hgt = txcpp.getBlockHeight()
-         txWeight = txcpp.getTxWeight()
+      txProto = TheBridge.getTxByHash(txHash)
+      if txProto.isValid:
+         hgt = txProto.height
+         txWeight = pytx.getTxWeight()
          if hgt <= TheBDM.getTopBlockHeight():
-            headref = TheBDM.bdv().blockchain().getHeaderByHeight(hgt)
-            txTime = unixTimeToFormatStr(headref.getTimestamp())
-            txBlk = headref.getBlockHeight()
-            txIdx = txcpp.getBlockTxIndex()
-            txSize = txcpp.getSize()
+            header = PyBlockHeader()
+            header.unserialize(TheBridge.getHeaderByHeight(hgt))
+            txTime = unixTimeToFormatStr(header.timestamp)
+            txBlk = hgt
+            txIdx = txProto.txIndex
+            txSize = pytx.getSize()
          else:
             if rcvTime == None:
                txTime = 'Unknown'
@@ -5166,23 +5168,23 @@ def extractTxInfo(pytx, rcvTime=None):
             txIdx = -1
 
    txinFromList = []
-   if TheBDM.getState() == BDM_BLOCKCHAIN_READY and txcpp.isInitialized():
-      # Use BDM to get all the info about the TxOut being spent
-      # Recip, value, block-that-incl-tx, tx-that-incl-txout, txOut-index
+   if TheBDM.getState() == BDM_BLOCKCHAIN_READY and pytx.isInitialized():
       haveAllInput = True
-      for i in range(txcpp.getNumTxIn()):
+      for i in range(pytx.getNumTxIn()):
          txinFromList.append([])
-         cppTxin = txcpp.getTxInCopy(i)
-         prevTxHash = cppTxin.getOutPoint().getTxHash()
-         prevTx = TheBDM.bdv().getTxByHash(prevTxHash)
+         txin = pytx.getTxIn(i)
+         prevTxHash = txin.getOutPoint().txHash
+         prevTxIndex = txin.getOutPoint().txOutIndex
+         prevTxRaw = TheBridge.getTxByHash(prevTxHash)
+         prevTx = PyTx().unserialize(prevTxRaw.raw)
          if prevTx.isInitialized():
-            prevTxOut = prevTx.getTxOutCopy(cppTxin.getOutPoint().getTxOutIndex())
+            prevTxOut = prevTx.getTxOut(prevTxIndex)
             txinFromList[-1].append(prevTxOut.getScrAddressStr())
             txinFromList[-1].append(prevTxOut.getValue())
             if prevTx.isInitialized():
-               txinFromList[-1].append(prevTx.getBlockHeight())
-               txinFromList[-1].append(prevTx.getThisHash())
-               txinFromList[-1].append(prevTxOut.getIndex())
+               txinFromList[-1].append(prevTxRaw.height)
+               txinFromList[-1].append(prevTxHash)
+               txinFromList[-1].append(prevTxRaw.txIndex)
                txinFromList[-1].append(prevTxOut.getScript())
             else:
                LOGERROR('How did we get a bad parent pointer? (extractTxInfo)')
@@ -5193,7 +5195,6 @@ def extractTxInfo(pytx, rcvTime=None):
                txinFromList[-1].append('')
          else:
             haveAllInput = False
-            txin = PyTxIn().unserialize(cppTxin.serialize())
             try:
                scraddr = addrStr_to_scrAddr(TxInExtractAddrStrIfAvail(txin))
             except:
@@ -7971,11 +7972,7 @@ class DlgAddressBook(ArmoryDialog):
    #############################################################################
    def getAddrStr(self, wlt, addrObj):
       addrStr = ""
-      
-      cppwlt = wlt
-      if isinstance(wlt, PyBtcWallet):
-         cppwlt = wlt.cppWallet
-         
+               
       if self.addrType == 'P2PKH':
          addrStr = cppwlt.getP2PKHAddrForIndex(addrObj.chainIndex)
       elif self.addrType == 'P2SH-P2PK':
@@ -7997,11 +7994,9 @@ class DlgAddressBook(ArmoryDialog):
       self.setAddrBookTxModel(self.selectedWltID)
       self.setAddrBookRxModel(self.selectedWltID)
 
-
       if not self.isBrowsingOnly:
          wlt = self.main.walletMap[self.selectedWltID]
          self.btnSelectWlt.setText(self.tr('%1 Wallet: %2').arg(self.actStr, self.selectedWltID))
-         nextAddr = wlt.peekNextUnusedAddr()
 
          # If switched wallet selection, de-select address so it doesn't look
          # like the currently-selected address is for this different wallet
@@ -8115,14 +8110,7 @@ class DlgAddressBook(ArmoryDialog):
    def acceptWltSelection(self):
       wltID = self.selectedWltID
       addrObj = self.main.walletMap[wltID].getNextUnusedAddress()
-      if not self.returnPubKey:
-         addrStr = self.getAddrStr(self.main.walletMap[wltID], addrObj)
-         self.target.setText(addrStr)
-      else:
-         pubKeyHash = addrObj.getPubKey().toHexStr()
-         if pubKeyHash is None:
-            return
-         self.target.setText(pubKeyHash)
+      self.target.setText(addrObj.getAddressString())
       self.target.setCursorPosition(0)
       self.accept()
 
@@ -13062,6 +13050,7 @@ class DlgProgress(ArmoryDialog):
 
 
 #################################################################################
+'''
 class DlgCorruptWallet(DlgProgress):
    def __init__(self, wallet, status, main=None, parent=None, alreadyFailed=True):
       super(DlgProgress, self).__init__(parent, main)
@@ -13232,10 +13221,9 @@ class DlgCorruptWallet(DlgProgress):
       self.adjustSize()
 
    def ProcessWallet(self, mode=RECOVERMODE.Full):
-      '''
-      Serves as the entry point for non processing wallets that arent loaded
-      or fully processed. Only takes 1 wallet at a time
-      '''
+      #Serves as the entry point for non processing wallets that arent loaded
+      #or fully processed. Only takes 1 wallet at a time
+      
       if len(self.walletList) > 0:
          wlt = None
          wltPath = ''
@@ -13355,7 +13343,7 @@ class DlgCorruptWallet(DlgProgress):
             #if dlgIWR.exec_():
             #return
          #return
-
+'''
 
 #################################################################################
 class DlgFactoryReset(ArmoryDialog):
