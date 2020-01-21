@@ -8219,6 +8219,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
+      {},
       SecureBinaryData(),
       SecureBinaryData(),
       10); //set lookup computation to 5 entries
@@ -8766,6 +8767,7 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
+      {},
       SecureBinaryData(),
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
@@ -9004,6 +9006,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot),
+      {},
       SecureBinaryData(), //empty passphrase
       SecureBinaryData(),
       5);
@@ -9337,6 +9340,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
+      {},
       SecureBinaryData(),
       SecureBinaryData(),      
       10); //set lookup computation to 10 entries

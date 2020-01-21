@@ -2146,6 +2146,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
+      {},
       SecureBinaryData(),
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
@@ -2332,6 +2333,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
+      {},
       SecureBinaryData(),
       SecureBinaryData(), 
       3); //set lookup computation to 3 entries
@@ -2340,6 +2342,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
+      {},
       SecureBinaryData(),
       SecureBinaryData(), 
       3); //set lookup computation to 3 entries
@@ -2348,6 +2351,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    auto assetWlt_3 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
+      {},
       SecureBinaryData(),
       SecureBinaryData(), 
       3); //set lookup computation to 3 entries
@@ -2742,6 +2746,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
+      {},
       SecureBinaryData(),
       SecureBinaryData(), 
       10); //set lookup computation to 5 entries
