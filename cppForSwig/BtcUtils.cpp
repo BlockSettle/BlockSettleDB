@@ -154,6 +154,9 @@ SecureBinaryData BtcUtils::computeChainCode_Armory135(
    Armory 1.35c defines the chaincode as HMAC<SHA256> with:
    key: double SHA256 of the root key
    message: 'Derive Chaincode from Root Key'
+
+   TODO: The Armory Python code uses a botched self implemented HMAC256, 
+   reproduce it here.
    */
 
    auto&& hmacKey = BtcUtils::hash256(privateRoot);
