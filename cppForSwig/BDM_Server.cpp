@@ -2291,9 +2291,14 @@ void Clients::init(BlockDataManagerThread* bdmT,
       this->messageParserThread();
    };
 
+   auto unregistrationThread = [this](void)->void
+   {
+      this->unregisterBDVThread();
+   };
 
    controlThreads_.push_back(thread(mainthread));
    controlThreads_.push_back(thread(outerthread));
+   unregThread_ = thread(unregistrationThread);
 
    unsigned innerThreadCount = 2;
    if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER &&
@@ -2460,6 +2465,11 @@ void Clients::shutdown()
    //shutdown Clients gc thread
    gcCommands_.completed();
 
+   //shutdown unregistration thread and wait on it
+   unregBDVQueue_.terminate();
+   if (unregThread_.joinable())
+      unregThread_.join();
+
    //cleanup all BDVs
    unregisterAllBDVs();
 
@@ -2553,33 +2563,53 @@ shared_ptr<Message> Clients::registerBDV(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void Clients::unregisterBDV(const string& bdvId)
+void Clients::unregisterBDV(std::string bdvId)
 {
-   shared_ptr<BDV_Server_Object> bdvPtr;
+   unregBDVQueue_.push_back(move(bdvId));
+}
 
-   //shutdown bdv threads
+///////////////////////////////////////////////////////////////////////////////
+void Clients::unregisterBDVThread()
+{
+   while(true)
    {
-      auto bdvMap = BDVs_.get();
-      auto bdvIter = bdvMap->find(bdvId);
-      if (bdvIter == bdvMap->end())
+      //grab bdv id
+      string bdvId;
+      try
+      {
+         bdvId = move(unregBDVQueue_.pop_front());
+      }
+      catch(StopBlockingLoop&)
+      {
+         break;
+      }
+      
+      //grab bdv ptr
+      shared_ptr<BDV_Server_Object> bdvPtr;
+      {
+         auto bdvMap = BDVs_.get();
+         auto bdvIter = bdvMap->find(bdvId);
+         if (bdvIter == bdvMap->end())
+            return;
+
+         //copy shared_ptr and erase from bdv map
+         bdvPtr = bdvIter->second;
+         BDVs_.erase(bdvId);
+      }
+
+      if (bdvPtr == nullptr)
+      {
+         LOGERR << "empty bdv ptr before unregistration";
          return;
+      }
 
-      //copy shared_ptr and unregister from bdv map
-      bdvPtr = bdvIter->second;
-      BDVs_.erase(bdvId);
+      //shutdown bdv threads
+      bdvPtr->haltThreads();
+
+      //done
+      bdvPtr.reset();
+      LOGINFO << "unregistered bdv: " << bdvId;
    }
-
-   if (bdvPtr == nullptr)
-   {
-      LOGERR << "empty bdv ptr before unregistration";
-      return;
-   }
-
-   bdvPtr->haltThreads();
-
-   //we are done
-   bdvPtr.reset();
-   LOGINFO << "unregistered bdv: " << bdvId;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

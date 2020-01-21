@@ -212,10 +212,12 @@ private:
    std::atomic<bool> run_;
 
    std::vector<std::thread> controlThreads_;
+   std::thread unregThread_;
 
    mutable BlockingQueue<std::shared_ptr<BDV_Notification>> outerBDVNotifStack_;
    BlockingQueue<std::shared_ptr<BDV_Notification_Packet>> innerBDVNotifStack_;
    BlockingQueue<std::shared_ptr<BDV_Payload>> packetQueue_;
+   BlockingQueue<std::string> unregBDVQueue_;
 
    std::mutex shutdownMutex_;
 
@@ -225,6 +227,7 @@ private:
    void bdvMaintenanceLoop(void);
    void bdvMaintenanceThread(void);
    void messageParserThread(void);
+   void unregisterBDVThread(void);
 
 public:
 
@@ -246,7 +249,7 @@ public:
       std::shared_ptr<::Codec_BDVCommand::StaticCommand>);
    std::shared_ptr<::google::protobuf::Message> registerBDV(
       std::shared_ptr<::Codec_BDVCommand::StaticCommand>, std::string bdvID);
-   void unregisterBDV(const std::string& bdvId);
+   void unregisterBDV(std::string bdvId);
    void shutdown(void);
    void exitRequestLoop(void);
    
