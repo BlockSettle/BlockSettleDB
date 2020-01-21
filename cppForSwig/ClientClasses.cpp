@@ -319,7 +319,7 @@ bool RemoteCallback::processNotifications(
          }
          else
          {
-            bdmNotif.ids_.push_back(BinaryData::fromString("wallet_filter_changed"));
+            bdmNotif.ids_.push_back(BinaryData::fromString(FILTER_CHANGE_FLAG));
          }
 
          run(move(bdmNotif));
@@ -402,9 +402,10 @@ bool RemoteCallback::processNotifications(
 ::ClientClasses::NodeStatusStruct::NodeStatusStruct(BinaryDataRef bdr)
 {
    auto msg = make_shared<::Codec_NodeStatus::NodeStatus>();
-   msg->ParseFromArray(bdr.getPtr(), bdr.getSize());
+   if (!msg->ParseFromArray(bdr.getPtr(), bdr.getSize()))
+      throw runtime_error("invalid node status protobuf msg");
    ptr_ = msg.get();
-   msgPtr_ = msg;
+   msgPtr_ = move(msg);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -433,23 +434,27 @@ NodeStatus ClientClasses::NodeStatusStruct::status() const
 ///////////////////////////////////////////////////////////////////////////////
 bool ::ClientClasses::NodeStatusStruct::isSegWitEnabled() const
 {
-   return ptr_->segwitenabled();
+   if (ptr_->has_segwitenabled())
+      return ptr_->segwitenabled();
+   return false;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 RpcStatus ClientClasses::NodeStatusStruct::rpcStatus() const
 {
-   return (RpcStatus)ptr_->rpcstatus();
+   if (ptr_->has_rpcstatus())
+      return (RpcStatus)ptr_->rpcstatus();
+   return RpcStatus::RpcStatus_Disabled;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 ::ClientClasses::NodeChainState 
    ClientClasses::NodeStatusStruct::chainState() const
 {
-   auto msg = dynamic_pointer_cast<::Codec_NodeStatus::NodeStatus>(msgPtr_);
-   return NodeChainState(msg);
+   return NodeChainState(ptr_);
 }
 
+///////////////////////////////////////////////////////////////////////////////
 shared_ptr<ClientClasses::NodeStatusStruct> 
 ClientClasses::NodeStatusStruct::make_new(
    std::shared_ptr<::Codec_BDVCommand::BDVCallback> msg, unsigned i)
@@ -465,10 +470,38 @@ ClientClasses::NodeStatusStruct::make_new(
 //
 ///////////////////////////////////////////////////////////////////////////////
 ::ClientClasses::NodeChainState::NodeChainState(
-   shared_ptr<::Codec_NodeStatus::NodeStatus> msg) :
-   msgPtr_(msg)
+   const ::Codec_NodeStatus::NodeStatus* ptr) :
+   ptr_(&ptr->chainstate())
+{}
+
+///////////////////////////////////////////////////////////////////////////////
+ChainStatus ClientClasses::NodeChainState::state() const
 {
-   ptr_ = &msg->chainstate();
+   return (ChainStatus)ptr_->state();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+float ClientClasses::NodeChainState::getBlockSpeed() const
+{
+   return ptr_->blockspeed();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+float ClientClasses::NodeChainState::getProgressPct() const
+{
+   return ptr_->pct();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+uint64_t ClientClasses::NodeChainState::getETA() const
+{
+   return ptr_->eta();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+unsigned ClientClasses::NodeChainState::getBlocksLeft() const
+{
+   return ptr_->blocksleft();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

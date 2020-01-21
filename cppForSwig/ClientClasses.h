@@ -18,6 +18,8 @@
 #include "BDVCodec.h"
 #include "nodeRPC.h"
 
+#define FILTER_CHANGE_FLAG "wallet_filter_changed"
+
 namespace AsyncClient
 {
    class BlockDataViewer;
@@ -158,9 +160,8 @@ namespace ClientClasses
       const ::Codec_NodeStatus::NodeChainState* ptr_;
 
    public:
-      NodeChainState(std::shared_ptr<::Codec_NodeStatus::NodeStatus>);
+      NodeChainState(const ::Codec_NodeStatus::NodeStatus*);
 
-      unsigned getTopBlock(void) const;
       ChainStatus state(void) const;
       float getBlockSpeed(void) const;
 
