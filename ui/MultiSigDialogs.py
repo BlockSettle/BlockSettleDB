@@ -24,10 +24,6 @@ from armoryengine.CoinSelection import PySelectCoins, PyUnspentTxOut, \
 import cStringIO
 import textwrap
 
-from ui.SignerSelectDialog import SignerLabelFrame
-from armoryengine.SignerWrapper import SIGNER_DEFAULT, SIGNER_LEGACY, \
-   SIGNER_CPP, SIGNER_BCH
-
 #############################################################################
 class DlgLockboxEditor(ArmoryDialog):
 
@@ -2937,7 +2933,7 @@ class DlgMultiSpendReview(ArmoryDialog):
    
          
    ############################################################################# 
-   def doSignForInput(self, idStr, keyIdx, signerType=SIGNER_DEFAULT):
+   def doSignForInput(self, idStr, keyIdx):
       ib = self.inputBundles[idStr]
       wltID, a160, dkey, ckey = ib.wltSignRightNow[keyIdx]
       wlt = self.main.walletMap[wltID]
