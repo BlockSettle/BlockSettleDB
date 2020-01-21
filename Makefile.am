@@ -24,25 +24,11 @@ endif
 copy-script:
 	cp cppForSwig/ArmoryDB ./ArmoryDB
 	cp cppForSwig/BIP150KeyManager ./BIP150KeyManager
+	cp cppForSwig/CppBridge ./CppBridge
 
 # SWIG code and requirements.
 if BUILD_CLIENT
-	cp cppForSwig/CppBlockUtils.py ./CppBlockUtils.py
-if BUILD_DARWIN
-# Autotools insists on looking for shared libraries (-install_name flag during
-# compilation) in /usr/local/lib. Unsure how to safely override the setting.
-# We also can't rely on the user installing libraries elsewhere. So, by default,
-# CppBlockUtils will choke when it attempts to load any shared library to which
-# it's linked. The workaround: Let Automake do its thing and then use an
-# external tool (installed by Xcode) to tell CppBlockUtils.so where to actually
-# find shared libraries it needs.
-# SOURCE 1: https://www.mikeash.com/pyblog/friday-qa-2009-11-06-linking-and-install-names.html
-# SOURCE 2: https://github.com/conda/conda-build/issues/279
-# Alt target name (useful for debugging?): @executable_path/py/usr/local/lib/liblmdb.0.dylib
-	cp cppForSwig/.libs/libCppBlockUtils.dylib ./_CppBlockUtils.so
-else
-	cp cppForSwig/.libs/libCppBlockUtils.so ./_CppBlockUtils.so
-endif
+	protoc --python_out=armoryengine --proto_path=cppForSwig/protobuf cppForSwig/protobuf/ClientProto.proto
 endif
 
 .PHONY: copy-script lrelease qrc_img_resources.py

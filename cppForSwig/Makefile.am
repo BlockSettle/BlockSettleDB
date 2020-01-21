@@ -88,6 +88,7 @@ INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
 # files but are "common" for the sake of unit testing. In an ideal world, the
 # unit tests would be split into multiple files as needed. One day....
 KEYMANAGER_SOURCE_FILES = KeyManager.cpp
+CPPBRIDGE_SOURCE_FILES = CppBridge.cpp protobuf/ClientProto.pb.cc
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = TransactionBatch.cpp
 ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
@@ -280,38 +281,20 @@ BIP150KeyManager_LDADD = $(LIBARMORYCOMMON) \
 		 -lpthread
 BIP150KeyManager_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
 
-if BUILD_GUI
-# Common GUI functionality library
-noinst_LTLIBRARIES += $(LIBARMORYGUI)
-libArmoryGUI_la_SOURCES = $(ARMORYGUI_SOURCE_FILES)
-libArmoryGUI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) $(PYTHON_CFLAGS)
-libArmoryGUI_la_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
-libArmoryGUI_la_LIBADD = $(LIBARMORYCOMMON) $(LIBCRYPTOPP) \
-			-lpthread
-libArmoryGUI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PYTHON_LDFLAGS)
-endif
-
-if BUILD_CLIENT
-#libCppBlockUtils - SWIG library.
-# "shared" LDFLAG due to SWIG requirements.
-lib_LTLIBRARIES += $(LIBCPPBLOCKUTILS)
-libCppBlockUtils_la_SOURCES = CppBlockUtils_wrap.cxx
-libCppBlockUtils_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
-				$(PYTHON_CFLAGS)
-libCppBlockUtils_la_CXXFLAGS = $(AM_CXXFLAGS) -Ilmdb/libraries/liblmdb \
-				$(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
-libCppBlockUtils_la_LIBADD = $(LIBARMORYCOMMON) $(LIBCRYPTOPP) \
-				-lpthread
-if BUILD_GUI
-libCppBlockUtils_la_LIBADD += $(LIBARMORYGUI)
-endif
-libCppBlockUtils_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PYTHON_LDFLAGS) -shared
-
-BUILT_SOURCES += CppBlockUtils_wrap.cxx
-#custom rules - always force SWIG to run and compile the resultant C++ file
-CppBlockUtils_wrap.cxx: CppBlockUtils.i
-	swig $(SWIG_FLAGS) CppBlockUtils.i
-endif
+bin_PROGRAMS += CppBridge
+CppBridge_SOURCES = $(CPPBRIDGE_SOURCE_FILES)
+CppBridge_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS) \
+		-D__STDC_LIMIT_MACROS
+CppBridge_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+CppBridge_LDADD = $(LIBARMORYCOMMON) \
+		 $(LIBARMORYCLI) \
+		 $(LIBCRYPTOPP) \
+		 $(LIBBTC) \
+		 $(LIBCHACHA20POLY1305) \
+		 $(LIBLMDB) \
+		 $(LIBPROTOBUF_STATIC) \
+		 $(LIBWEBSOCKETS_STATIC)
+CppBridge_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
 
 MOSTLYCLEANFILES = $(PROTOBUF_CC) $(PROTOBUF_H)
 BUILT_SOURCES += $(PROTOBUF_CC)
