@@ -22,8 +22,6 @@ from email.Utils import COMMASPACE, formatdate
 from email import Encoders
 import hashlib
 import inspect
-if sys.info.version[0] == 3:
-   import ipaddress
 import locale
 import logging
 import math
@@ -35,8 +33,6 @@ import random
 import signal
 import smtplib
 from struct import pack, unpack
-from itertools import izip
-#from subprocess import PIPE
 import sys
 import threading
 import time
@@ -48,8 +44,6 @@ import subprocess
 
 #from psutil import Popen
 import psutil
-
-from CppBlockUtils import KdfRomix, CryptoAES, ConfigFile_fleshOutArgs, AddressType_P2SH_P2WPKH
 
 try:
    if os.path.exists('update_version.py') and os.path.exists('.git'):
@@ -64,7 +58,7 @@ except:
    
 #pass sys.argv to the cpp config file parser, get the fleshed out verison 
 #in return
-sys.argv = ConfigFile_fleshOutArgs("armoryqt.conf", sys.argv)
+#sys.argv = ConfigFile_fleshOutArgs("armoryqt.conf", sys.argv)
 
 DEFAULT = 'DEFAULT'
 LEVELDB_BLKDATA = 'leveldb_blkdata'
@@ -514,11 +508,6 @@ if not os.path.exists(ARMORY_DB_DIR):
    os.makedirs(ARMORY_DB_DIR)
 
 ##### MAIN NETWORK IS DEFAULT #####
-from CppBlockUtils import BlockDataManagerConfig
-bdmConfig = BlockDataManagerConfig()
-
-BECH32_PREFIX = "tb" #default to testnet
-
 if not USE_TESTNET and not USE_REGTEST:
    # TODO:  The testnet genesis tx hash can't be the same...?
    BITCOIN_PORT = 8333
@@ -538,10 +527,7 @@ if not USE_TESTNET and not USE_REGTEST:
    BLOCKEXPLORE_NAME     = 'blockstream.info'
    BLOCKEXPLORE_URL_TX   = 'https://blockstream.info/tx/%s'
    BLOCKEXPLORE_URL_ADDR = 'https://blockstream.info/address/%s'
-else:
-   #set static members of BDMconfig for address generation on C++ side
-   bdmConfig.selectNetwork("Test")
-   
+else:   
    BITCOIN_PORT = 18444 if USE_REGTEST else 18333
    BITCOIN_RPC_PORT = 18443 if USE_REGTEST else 18332
    ARMORY_RPC_PORT     = 18225
@@ -611,7 +597,6 @@ CPP_TXOUT_STDSINGLESIG = [CPP_TXOUT_STDHASH160, \
                           CPP_TXOUT_STDPUBKEY33]
 CPP_TXOUT_NESTED_SINGLESIG = [CPP_TXOUT_STDPUBKEY33,
                           CPP_TXOUT_P2WPKH]
-CPP_TXOUT_SEGWIT = [AddressType_P2SH_P2WPKH]
 
 CPP_TXOUT_SCRIPT_NAMES = ['']*9
 CPP_TXOUT_SCRIPT_NAMES[CPP_TXOUT_STDHASH160]  = 'Standard (PKH)'
@@ -1177,31 +1162,6 @@ def readWalletFiles(inWltList=None):
 
    return wltPaths
 
-
-################################################################################
-# Load the C++ utilites here
-#
-#    The SWIG/C++ block utilities give us access to the blockchain, fast ECDSA
-#    operations, and general encryption/secure-binary containers
-################################################################################
-try:
-   import CppBlockUtils as Cpp
-   from CppBlockUtils import CryptoECDSA, SecureBinaryData
-   LOGINFO('C++ block utilities loaded successfully')
-except:
-   LOGCRIT('C++ block utilities not available.')
-   LOGCRIT('   Make sure that you have the SWIG-compiled modules')
-   LOGCRIT('   in the current directory (or added to the PATH)')
-   LOGCRIT('   Specifically, you need:')
-   LOGCRIT('       CppBlockUtils.py     and')
-   if OS_LINUX or OS_MACOSX:
-      LOGCRIT('       _CppBlockUtils.so')
-   elif OS_WINDOWS:
-      LOGCRIT('       _CppBlockUtils.pyd')
-   else:
-      LOGCRIT('\n\n... UNKNOWN operating system')
-   raise
-
 ################################################################################
 # Get system details for logging purposes
 class DumbStruct(object): pass
@@ -1675,7 +1635,8 @@ def scrAddr_to_script(scraddr):
 ################################################################################
 def script_to_scrAddr(binScript):
    """ Convert a binary script to scrAddr string (used by BDM) """
-   return Cpp.BtcUtils().getScrAddrForScript(binScript)
+   from armoryengine.CppBridge import TheBridge
+   return TheBridge.getScrAddrForScript(binScript)
 
 ################################################################################
 def script_to_addrStr(binScript):
@@ -1731,33 +1692,6 @@ def addrStr_to_scrAddr(addrStr, p2pkhByte = ADDRBYTE, p2shByte = P2SHBYTE):
 def addrStr_to_script(addrStr):
    """ Convert an addr string to a binary script """
    return scrAddr_to_script(addrStr_to_scrAddr(addrStr))
-
-
-
-################################################################################
-# Load the C++ utilites here
-#
-#    The SWIG/C++ block utilities give us access to the blockchain, fast ECDSA
-#    operations, and general encryption/secure-binary containers
-################################################################################
-try:
-   import CppBlockUtils as Cpp
-   from CppBlockUtils import CryptoECDSA, SecureBinaryData
-   LOGINFO('C++ block utilities loaded successfully')
-except:
-   LOGCRIT('C++ block utilities not available.')
-   LOGCRIT('   Make sure that you have the SWIG-compiled modules')
-   LOGCRIT('   in the current directory (or added to the PATH)')
-   LOGCRIT('   Specifically, you need:')
-   LOGCRIT('       CppBlockUtils.py     and')
-   if OS_LINUX or OS_MACOSX:
-      LOGCRIT('       _CppBlockUtils.so')
-   elif OS_WINDOWS:
-      LOGCRIT('       _CppBlockUtils.pyd')
-   else:
-      LOGCRIT('\n\n... UNKNOWN operating system')
-   raise
-
 
 ################################################################################
 # We need to have some methods for casting ASCII<->Unicode<->Preferred
@@ -1926,21 +1860,8 @@ def hash256(s):
    return sha256(sha256(s))
 def hash160(s):
    """ RIPEMD160( SHA256( binaryStr ) ) """
-   return Cpp.BtcUtils().getHash160_SWIG(s)
-
-
-def HMAC(key, msg, hashfunc=sha512, hashsz=None):
-   """ This is intended to be simple, not fast.  For speed, use HDWalletCrypto() """
-   hashsz = len(hashfunc('')) if hashsz==None else hashsz
-   key = (hashfunc(key) if len(key)>hashsz else key)
-   key = key.ljust(hashsz, '\x00')
-   okey = ''.join([chr(ord('\x5c')^ord(c)) for c in key])
-   ikey = ''.join([chr(ord('\x36')^ord(c)) for c in key])
-   return hashfunc( okey + hashfunc(ikey + msg) )
-
-HMAC256 = lambda key,msg: HMAC(key, msg, sha256, 32)
-HMAC512 = lambda key,msg: HMAC(key, msg, sha512, 64)
-
+   from armoryengine.CppBridge import TheBridge
+   return TheBridge.getHash160(s)
 
 ################################################################################
 def prettyHex(theStr, indent='', withAddr=True, major=8, minor=8):
@@ -1951,7 +1872,7 @@ def prettyHex(theStr, indent='', withAddr=True, major=8, minor=8):
    """
    outStr = ''
    sz = len(theStr)
-   nchunk = int((sz-1)/minor) + 1;
+   nchunk = int((sz-1)/minor) + 1
    for i in range(nchunk):
       if i%major==0:
          outStr += '\n'  + indent

@@ -14,8 +14,31 @@ import traceback
 
 from armoryengine.ArmoryUtils import *
 from armoryengine.Timer import TimeThisFunction
-import CppBlockUtils as Cpp
 from armoryengine.BinaryPacker import UINT64
+from armoryengine import ClientProto_pb2
+
+
+BDMAction_Ready         = 1
+BDMAction_NewBlock      = 2
+BDMAction_ZC            = 3
+BDMAction_InvalidatedZC = 4
+BDMAction_Refresh       = 5
+BDMAction_Exited        = 6
+BDMAction_ErrorMsg      = 7
+BDMAction_NodeStatus    = 8
+BDMAction_BDV_Error     = 9
+
+CppBridge_Ready         = 20
+CppBridge_Registered    = 21
+
+BDMPhase_DBHeaders = 1
+BDMPhase_OrganizingChain = 2
+BDMPhase_BlockHeaders = 3
+BDMPhase_BlockData = 4
+BDMPhase_Rescan = 5
+BDMPhase_Balance = 6
+BDMPhase_SearchHashes = 7
+BDMPhase_ResolveHashes = 8
 
 
 BDM_OFFLINE = 'Offline'
@@ -34,85 +57,14 @@ NODESTATUS_UPDATE = 'NodeStatusUpdate'
 BDM_SCAN_PROGRESS = 'BDM_Progress'
 BDV_ERROR = 'BDV_Error'
 
+SETUP_STEP2 = 'setup_step1_done'
+SETUP_STEP3 = 'setup_step2_done'
+
 def newTheBDM(isOffline=False):
    global TheBDM
    if TheBDM:
       TheBDM.beginCleanShutdown()
    TheBDM = BlockDataManager(isOffline=isOffline)
-
-class PySide_CallBack(Cpp.PythonCallback):
-   def __init__(self, bdm):
-      Cpp.PythonCallback.__init__(self, bdm.bdv())
-      self.bdm = bdm
-
-   def run(self, action, arg, block):
-      try:
-         act = ''
-         arglist = []
-
-         # AOTODO replace with constants
-
-         if action == Cpp.BDMAction_Ready:
-            print('BDM is ready!')
-            act = FINISH_LOAD_BLOCKCHAIN_ACTION
-            TheBDM.topBlockHeight = block
-            TheBDM.setState(BDM_BLOCKCHAIN_READY)
-         elif action == Cpp.BDMAction_ZC:
-            act = NEW_ZC_ACTION
-            castArg = Cpp.BtcUtils_cast_to_LedgerVector(arg)
-            arglist = castArg
-         elif action == Cpp.BDMAction_NewBlock:
-            act = NEW_BLOCK_ACTION
-            castArg = Cpp.BtcUtils_cast_to_int(arg)
-            arglist.append(castArg)
-            TheBDM.topBlockHeight = block
-         elif action == Cpp.BDMAction_Refresh:
-            act = REFRESH_ACTION
-            castArg = Cpp.BtcUtils_cast_to_BinaryDataVector(arg)
-            arglist = castArg
-         elif action == Cpp.BDMAction_Exited:
-            act = STOPPED_ACTION
-         elif action == Cpp.BDMAction_ErrorMsg:
-            act = WARNING_ACTION
-            argstr = Cpp.BtcUtils_cast_to_string(arg)
-            arglist.append(argstr)
-         elif action == Cpp.BDMAction_BDV_Error:
-            act = BDV_ERROR
-            argBdvError = Cpp.BDV_Error_Struct_cast_to_BDVErrorStruct(arg)
-            arglist.append(argBdvError)
-         elif action == Cpp.BDMAction_NodeStatus:
-            act = NODESTATUS_UPDATE
-            argNodeStatus = Cpp.NodeStatusStruct_cast_to_NodeStatusStruct(arg)
-            arglist.append(argNodeStatus)
-
-         listenerList = TheBDM.getListenerList()
-         for cppNotificationListener in listenerList:
-            cppNotificationListener(act, arglist)
-      except:
-         LOGEXCEPT('Error in running callback')
-         print(sys.exc_info())
-         raise
-
-   def progress(self, phase, walletVec, prog, seconds, progressNumeric):
-      try:
-         if len(walletVec) == 0:
-            self.bdm.progressPhase = phase
-            self.bdm.progressComplete = prog
-            self.bdm.secondsRemaining = seconds
-            self.bdm.progressNumeric = progressNumeric
-
-            self.bdm.bdmState = BDM_SCANNING
-
-            for cppNotificationListener in TheBDM.getListenerList():
-               cppNotificationListener(BDM_SCAN_PROGRESS, [None, None])            
-         else:
-            progInfo = [walletVec, prog]
-            for cppNotificationListener in TheBDM.getListenerList():
-               cppNotificationListener(SCAN_ACTION, progInfo)
-
-      except:
-         LOGEXCEPT('Error in running progress callback')
-         print(sys.exc_info())
 
 def getCurrTimeAndBlock():
    time0 = long(RightNowUTC())
@@ -159,6 +111,7 @@ class BlockDataManager(object):
 
       self.topBlockHeight = 0
       self.cppNotificationListenerList = []
+      self.passphrasePrompts = []
 
       self.progressComplete=0
       self.secondsRemaining=0
@@ -235,16 +188,14 @@ class BlockDataManager(object):
 
    #############################################################################
    @ActLikeASingletonBDM
-   def unregisterCppNotification(self, cppNotificationListener):
-      if cppNotificationListener in self.cppNotificationListenerList:
-         self.cppNotificationListenerList.remove(cppNotificationListener)
+   def registerPassphrasePrompt(self, prompt):
+      self.passphrasePrompts.append(prompt)
 
    #############################################################################
    @ActLikeASingletonBDM
-   def goOnline(self):
-      self.bdv().goOnline()
-      self.callback = PySide_CallBack(self).__disown__()
-      self.callback.startLoop()
+   def unregisterCppNotification(self, cppNotificationListener):
+      if cppNotificationListener in self.cppNotificationListenerList:
+         self.cppNotificationListenerList.remove(cppNotificationListener)
 
    #############################################################################
    @ActLikeASingletonBDM
@@ -336,6 +287,102 @@ class BlockDataManager(object):
    def isSegWitEnabled(self):
       return self.witness or FORCE_SEGWIT
 
+   #############################################################################
+   def pushNotification(self, notifProto):
+      try:
+         act = ''
+         arglist = []
+
+         # AOTODO replace with constants
+         action = notifProto.type
+         block = notifProto.height
+
+         if action == BDMAction_Ready:
+            print('BDM is ready!')
+            act = FINISH_LOAD_BLOCKCHAIN_ACTION
+            TheBDM.topBlockHeight = block
+            TheBDM.setState(BDM_BLOCKCHAIN_READY)
+
+         elif action == BDMAction_ZC:
+            act = NEW_ZC_ACTION
+            argLedgers = ClientProto_pb2.BridgeLedgers()
+            argLedgers.ParseFromString(notifProto.opaque[0])
+            arglist = argLedgers.le
+
+         elif action == BDMAction_NewBlock:
+            act = NEW_BLOCK_ACTION
+            arglist.append(block)
+            TheBDM.topBlockHeight = block
+
+         elif action == BDMAction_Refresh:
+            act = REFRESH_ACTION
+            arglist = arg
+            
+         elif action == BDMAction_Exited:
+            act = STOPPED_ACTION
+
+         elif action == BDMAction_ErrorMsg:
+            act = WARNING_ACTION
+            argstr = Cpp.BtcUtils_cast_to_string(arg)
+            arglist.append(argstr)
+
+         elif action == BDMAction_BDV_Error:
+            act = BDV_ERROR
+            argBdvError = Cpp.BDV_Error_Struct_cast_to_BDVErrorStruct(arg)
+            arglist.append(argBdvError)
+
+         elif action == BDMAction_NodeStatus:
+            act = NODESTATUS_UPDATE
+            argNodeStatus = ClientProto_pb2.BridgeNodeStatus()
+            argNodeStatus.ParseFromString(notifProto.opaque[0])
+            arglist.append(argNodeStatus)
+
+         #setup notifs
+         elif action == CppBridge_Ready:
+            act = SETUP_STEP2
+         elif action == CppBridge_Registered:
+            act = SETUP_STEP3
+
+         listenerList = self.getListenerList()
+         for cppNotificationListener in listenerList:
+            cppNotificationListener(act, arglist)
+      except:
+         LOGEXCEPT('Error in running callback')
+         print(sys.exc_info())
+         raise
+
+   #############################################################################
+   def reportProgress(self, notifProto):
+      phase = notifProto.phase
+      prog = notifProto.progress
+      seconds = notifProto.etaSec
+      progressNumeric = notifProto.progressNumeric
+      walletVec = notifProto.ids
+
+      try:
+         if len(walletVec) == 0:
+            self.progressPhase = phase
+            self.progressComplete = prog
+            self.secondsRemaining = seconds
+            self.progressNumeric = progressNumeric
+
+            self.bdmState = BDM_SCANNING
+
+            for cppNotificationListener in self.getListenerList():
+               cppNotificationListener(BDM_SCAN_PROGRESS, [None, None])            
+         else:
+            progInfo = [walletVec, prog]
+            for cppNotificationListener in self.getListenerList():
+               cppNotificationListener(SCAN_ACTION, progInfo)
+
+      except:
+         LOGEXCEPT('Error in running progress callback')
+         print(sys.exc_info())
+
+   #############################################################################
+   def promptPassphrase(self, promptID, verbose, wltID, state):
+      for prompt in self.passphrasePrompts:
+         prompt(promptID, verbose, wltID, state)
 
 ################################################################################
 # Make TheBDM reference the asyncrhonous BlockDataManager wrapper if we are 
@@ -364,19 +411,6 @@ else:
    cpplf = cppLogFile
    if OS_WINDOWS and isinstance(cppLogFile, unicode):
       cpplf = cppLogFile.encode('utf8')
-   Cpp.StartCppLogging(cpplf, 4)
-   Cpp.EnableCppLogStdOut()
-
-   # If necessary, enable BIP 150/151 on the C++ side. The database IP will set
-   # the version (internal connections use 150/151), and the Armory data
-   # directory will be used.
-   if CLI_OPTIONS.bip150Used or CLI_OPTIONS.bip151Used:
-      Cpp.EnableBIP151()
-   if CLI_OPTIONS.bip150Used:
-      ipVer = ipAddrVersion(ARMORYDB_IP)
-      if CLI_OPTIONS.useTorSettings:
-         ipVer = 20
-      Cpp.EnableBIP150(ipVer, ARMORY_HOME_DIR)
 
 # Put the import at the end to avoid circular reference problem
 from armoryengine.MultiSigUtils import MultiSigLockbox
