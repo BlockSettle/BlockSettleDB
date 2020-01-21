@@ -49,6 +49,9 @@ public:
    {}
 };
 
+struct UnrequestedAddressException
+{};
+
 enum AssetAccountTypeEnum
 {
    AssetAccountTypeEnum_Plain = 0,
@@ -558,6 +561,7 @@ private:
       unsigned, unsigned);
 
    std::shared_ptr<AssetEntry> getNewAsset(void);
+   std::shared_ptr<AssetEntry> peekNextAsset(void);
    std::shared_ptr<Asset_PrivateKey> fillPrivateKey(
       std::shared_ptr<DecryptedDataContainer> ddc,
       const BinaryData& id);
@@ -701,6 +705,8 @@ public:
       AddressEntryType aeType = AddressEntryType_Default);
    std::shared_ptr<AddressEntry> getNewChangeAddress(
       AddressEntryType aeType = AddressEntryType_Default);
+   std::shared_ptr<AddressEntry> peekNextChangeAddress(
+      AddressEntryType aeType = AddressEntryType_Default);
    std::shared_ptr<AddressEntry> getNewAddress(
       const BinaryData& account, AddressEntryType aeType);
    std::shared_ptr<AssetEntry> getOutterAssetForIndex(unsigned) const;
@@ -722,6 +728,8 @@ public:
 
    const std::pair<BinaryData, AddressEntryType>& 
       getAssetIDPairForAddr(const BinaryData&);
+   const std::pair<BinaryData, AddressEntryType>& 
+      getAssetIDPairForAddrUnprefixed(const BinaryData&);
 
    void updateAddressHashMap(void);
    const std::map<BinaryData, std::pair<BinaryData, AddressEntryType>>& 

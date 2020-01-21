@@ -536,6 +536,24 @@ shared_ptr<AssetEntry> AssetAccount::getNewAsset()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AssetEntry> AssetAccount::peekNextAsset()
+{
+   ReentrantLock lock(this);
+
+   auto index = lastUsedIndex_ + 1;
+   auto entryIter = assets_.find(index);
+   if (entryIter == assets_.end())
+   {
+      extendPublicChain(getLookup());
+      entryIter = assets_.find(index);
+      if (entryIter == assets_.end())
+         throw AccountException("requested index overflows max lookup");
+   }
+
+   return entryIter->second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry> AssetAccount::getAssetForID(const BinaryData& ID) const
 {
    if (ID.getSize() < 4)
@@ -1322,6 +1340,27 @@ shared_ptr<AddressEntry> AddressAccount::getNewChangeAddress(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AddressEntry> AddressAccount::peekNextChangeAddress(
+   AddressEntryType aeType)
+{
+   auto iter = assetAccounts_.find(innerAccount_);
+   if (iter == assetAccounts_.end())
+      throw AccountException("invalid asset account");
+
+   if (aeType == AddressEntryType_Default)
+      aeType = defaultAddressEntryType_;
+
+   auto aeIter = addressTypes_.find(aeType);
+   if (aeIter == addressTypes_.end())
+      throw AccountException("invalid address type for this account");
+
+   auto assetPtr = iter->second->getNewAsset();
+   auto addrPtr = AddressEntry::instantiate(assetPtr, aeType);
+   
+   return addrPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressEntry> AddressAccount::getNewAddress(
    const BinaryData& account, AddressEntryType aeType)
 {
@@ -1402,6 +1441,36 @@ const pair<BinaryData, AddressEntryType>&
       throw AccountException("unknown scrAddr");
 
    return iter->second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const pair<BinaryData, AddressEntryType>& 
+   AddressAccount::getAssetIDPairForAddrUnprefixed(const BinaryData& scrAddr)
+{
+   updateAddressHashMap();
+
+   auto addressTypeSet = getAddressTypeSet();
+   set<uint8_t> usedPrefixes;
+   for (auto& addrType : addressTypeSet)
+   {
+      BinaryWriter bw;
+      auto prefixByte = AddressEntry::getPrefixByte(addrType);
+      auto insertIter = usedPrefixes.insert(prefixByte);
+      if (!insertIter.second)
+         continue;
+
+      bw.put_uint8_t(prefixByte);
+      bw.put_BinaryData(scrAddr);
+
+      auto& addrData = bw.getData();
+      auto iter = addressHashes_.find(addrData);
+      if (iter == addressHashes_.end())
+         continue;
+
+      return iter->second;
+   }
+
+   throw AccountException("unknown scrAddr");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1600,14 +1669,22 @@ void AddressAccount::updateInstantiatedAddressType(
 void AddressAccount::updateInstantiatedAddressType(
    const BinaryData& id, AddressEntryType aeType)
 {
+   //TODO: sanity check
+   /*if (aeType != AddressEntryType_Default)
+   {
+      auto typeIter = addressTypes_.find(aeType);
+      if (typeIter == addressTypes_.end())
+         throw AccountException("invalid address type");
+   }*/
+
    auto iter = addresses_.find(id);
    if (iter != addresses_.end())
    {
-      //skip if type is entry already exist and new type matches old one
+      //skip if type entry already exist and new type matches old one
       if (iter->second == aeType)
          return;
 
-      //delete entry is new type matches default account type
+      //delete entry if new type matches default account type
       if (aeType == defaultAddressEntryType_)
       {
          addresses_.erase(iter);
@@ -1671,7 +1748,7 @@ shared_ptr<AddressEntry> AddressAccount::getAddressEntryForID(
    auto id_int = brr.get_uint32_t(BE);
 
    if (id_int > accIter->second->getHighestUsedIndex())
-      throw AccountException("trying to access an unrequested asset");
+      throw UnrequestedAddressException();
 
    AddressEntryType aeType = defaultAddressEntryType_;
    //is there an address entry with this ID?
@@ -2465,6 +2542,9 @@ shared_ptr<CommentData> CommentAssetConversion::getByKey(
 int CommentAssetConversion::setAsset(MetaDataAccount* account,
    const BinaryData& key, const std::string& comment)
 {
+   if (comment.size() == 0)
+      return INT32_MIN;
+
    ReentrantLock lock(account);
 
    if (account == nullptr || account->type_ != MetaAccount_Comments)
