@@ -1053,14 +1053,12 @@ unique_ptr<Message> CppBridge::getNodeStatus()
    try
    {
       auto nodeStatus = fut.get();
-      cout << "got node status" << endl;
-
+      
       //create protobuf message
       cppNodeStatusToProtoNodeStatus(msg.get(), *nodeStatus);
    }
    catch(exception&)
    {
-      cout << "failed to get node status" << endl;
       msg->set_isvalid(false);
    }
 

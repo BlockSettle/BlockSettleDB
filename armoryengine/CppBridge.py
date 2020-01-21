@@ -294,20 +294,14 @@ class CppBridge(object):
 
    #############################################################################
    def getNodeStatus(self):
-      print ("get node status")
-
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.getNodeStatus
 
       fut = self.sendToBridge(packet)
       socketResponse = fut.getVal()
 
-      print ("got node status")
-
       response = ClientProto_pb2.BridgeNodeStatus()
       response.ParseFromString(socketResponse)
-
-      print ("parsed node status")
 
       return response
 
