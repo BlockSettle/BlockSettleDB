@@ -845,13 +845,14 @@ void BlockchainScanner_Super::scanSpentness()
 
    vector<shared_future<bool>> batchFutures;
 
+   //start writer thread
    auto write_lbd = [this](void)->void
    {
       writeSpentness();
    };
-
    thread write_thread(write_lbd);
 
+   //grab spentness db header to initialize scan state
    StoredDBInfo sdbi;
    {
       //get sdbi
@@ -882,9 +883,9 @@ void BlockchainScanner_Super::scanSpentness()
       blockFileIDs.insert(currentHeader->getBlockFileNum());
 
       size_t tallySize = currentHeader->getBlockSize();
+      int nextHeight = (int)currentHeader->getBlockHeight();
       while (tallySize < BATCH_SIZE_SUPER)
       {
-         int nextHeight = (int)currentHeader->getBlockHeight();
          if (nextHeight <= end || nextHeight == 0)
             break;
 
@@ -954,7 +955,13 @@ void BlockchainScanner_Super::parseSpentness(ParserBatch_Spentness* batch)
 
    batch->bdb_->populateFileMap();
    vector<thread> threads(totalThreadCount_);
-   for (int i = 0; i < (int)totalThreadCount_ - 2; i++)
+   auto threadCount = totalThreadCount_;
+   if (threadCount > 2)
+      threadCount -= 2;
+   else
+      threadCount = 0;
+
+   for (unsigned i = 0; i < threadCount; i++)
       threads.push_back(thread(parse_lbd));
    parse_lbd();
 
@@ -990,8 +997,12 @@ void BlockchainScanner_Super::parseSpentnessThread(ParserBatch_Spentness* batch)
       auto txid_ptr = (uint8_t*)bw.getDataRef().getPtr() + 4;
       auto txinid_ptr = (uint8_t*)bw.getDataRef().getPtr() + 6;
 
-
       auto& txns = block->getTxns();
+
+      //sanity check
+      if (txns.size() >= UINT16_MAX)
+         throw runtime_error("txn count overflow");
+
       for (uint16_t i = 0; i < txns.size(); i++)
       {
          //prefil txin key with txid
@@ -1061,7 +1072,7 @@ void BlockchainScanner_Super::parseSpentnessThread(ParserBatch_Spentness* batch)
             }
             else
             {
-               //output belongs to a tx outside of our bathc range, store
+               //output belongs to a tx outside of our batch range, store
                //for later writing
                keysToCommitLater.insert(move(spentness_pair));
             }
@@ -1079,6 +1090,8 @@ void BlockchainScanner_Super::parseSpentnessThread(ParserBatch_Spentness* batch)
 ////////////////////////////////////////////////////////////////////////////////
 void BlockchainScanner_Super::writeSpentness()
 {
+   map<BinaryData, BinaryData> spentnessLeftOver;
+
    auto dbPtr = db_;
    auto commit = [dbPtr](
       map<BinaryData, BinaryData>::iterator begin, 
@@ -1090,14 +1103,6 @@ void BlockchainScanner_Super::writeSpentness()
             begin->first, begin->second);
          ++begin;
       }
-   };
-
-   auto flushLeftOvers = [&commit](
-      deque<map<BinaryData, BinaryData>>& leftovers)
-   {
-      LOGINFO << "flushing leftovers";
-      for (auto& leftover : leftovers)
-         commit(leftover.begin(), leftover.end());
    };
 
    while (true)
@@ -1120,44 +1125,24 @@ void BlockchainScanner_Super::writeSpentness()
       commit(batch->keysToCommit_.begin(), batch->keysToCommit_.end());
 
       //tally leftover size, commit if it breaches threshold
-      size_t leftover_count = 0;
-      for (auto& leftover : spentnessLeftOver_)
-         leftover_count += leftover.size();
-
-      if (leftover_count > LEFTOVER_THRESHOLD)
+      if (spentnessLeftOver.size() > LEFTOVER_THRESHOLD)
       {
-         flushLeftOvers(spentnessLeftOver_);
-         spentnessLeftOver_.clear();
+         commit(spentnessLeftOver.begin(), spentnessLeftOver.end());
+         spentnessLeftOver.clear();
       }
 
       //check leftovers for eligible spentness to commit
-      auto leftover_iter = spentnessLeftOver_.begin();
-      while (leftover_iter != spentnessLeftOver_.end())
+      auto eligible_spentness = spentnessLeftOver.lower_bound(bw_cutoff);
+      if (eligible_spentness != spentnessLeftOver.begin())
       {
-         auto& leftover_map = *leftover_iter;
-
-         auto eligible_spentness = leftover_map.lower_bound(bw_cutoff);
-         if (eligible_spentness != leftover_map.begin())
-         {
-            //grab valid range, remove from left overs
-            commit(leftover_map.begin(), eligible_spentness);
-
-            if (eligible_spentness == leftover_map.end())
-            {
-               spentnessLeftOver_.erase(leftover_iter++);
-               if (spentnessLeftOver_.size() == 0)
-                  break;
-               continue;
-            }
-
-            leftover_map.erase(leftover_map.begin(), eligible_spentness);
-         }
-
-         ++leftover_iter;
+         //grab valid range, remove from leftovers
+         commit(spentnessLeftOver.begin(), eligible_spentness);
+         spentnessLeftOver.erase(spentnessLeftOver.begin(), eligible_spentness);
       }
 
       //merge in new leftovers from current batch
-      spentnessLeftOver_.push_back(move(batch->keysToCommitLater_));
+      for (auto& keyVal : batch->keysToCommitLater_)
+         spentnessLeftOver.emplace(keyVal);
 
       batch->prom_.set_value(true);
       completedBatches_.fetch_add(1, memory_order_relaxed);
@@ -1167,11 +1152,10 @@ void BlockchainScanner_Super::writeSpentness()
    }
 
    //commit leftovers
-   if (spentnessLeftOver_.size())
+   if (spentnessLeftOver.size())
    {
       auto dbtx = db_->beginTransaction(SPENTNESS, LMDB::ReadWrite);
-      flushLeftOvers(spentnessLeftOver_);
-      spentnessLeftOver_.clear();
+      commit(spentnessLeftOver.begin(), spentnessLeftOver.end());
    }
 }
 

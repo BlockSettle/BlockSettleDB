@@ -177,7 +177,6 @@ private:
    const unsigned writeQueueDepth_;
    const unsigned totalBlockFileCount_;
    std::map<unsigned, HeightAndDup> heightAndDupMap_;
-   std::deque<std::map<BinaryData, BinaryData>> spentnessLeftOver_;
 
    BinaryData topScannedBlockHash_;
 
