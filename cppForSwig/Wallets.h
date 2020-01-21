@@ -63,6 +63,10 @@ protected:
    ////
    std::string walletID_;
    std::string masterID_;
+
+   ////
+   std::string label_;
+   std::string description_;
    
 protected:
    //tors
@@ -121,6 +125,9 @@ public:
       AddressEntryType);
    std::shared_ptr<AddressEntry> getNewChangeAddress(
       AddressEntryType aeType = AddressEntryType_Default);
+   std::shared_ptr<AddressEntry> peekNextChangeAddress(
+      AddressEntryType aeType = AddressEntryType_Default);
+   void updateAddressEntryType(const BinaryData&, AddressEntryType);
 
    std::string getID(void) const;
    virtual ReentrantLock lockDecryptedContainer(void);
@@ -184,6 +191,14 @@ public:
    const std::string& getComment(const BinaryData&) const;
    std::map<BinaryData, std::string> getCommentMap(void) const;
    void deleteComment(const BinaryData&);
+
+   const BinaryData& getMainAccountID(void) const { return mainAccount_; }
+
+   void setLabel(const std::string&);
+   void setDescription(const std::string&);
+
+   const std::string& getLabel(void) const;
+   const std::string& getDescription(void) const;
 
    //virtual
    virtual std::set<BinaryData> getAddrHashSet();
@@ -296,6 +311,7 @@ public:
    static std::shared_ptr<AssetWallet_Single> createFromPrivateRoot_Armory135(
       const std::string& folder,
       const SecureBinaryData& privateRoot,
+      SecureBinaryData chaincode, 
       const SecureBinaryData& passphrase,
       const SecureBinaryData& controlPassphrase,
       unsigned lookup);
@@ -417,7 +433,7 @@ private:
       {
          /*
          Accounts store script hashes with their relevant prefix, resolver
-         asks uses unprefixed hashes as found in the actual outputs. Hence,
+         uses unprefixed hashes as found in the actual outputs. Hence,
          all possible script prefixes will be prepended to the key to
          look for the relevant asset ID
          */
@@ -476,7 +492,10 @@ public:
    //tors
    ResolverFeed_AssetWalletSingle(std::shared_ptr<AssetWallet_Single> wltPtr) :
       wltPtr_(wltPtr)
-   {}
+   {  
+      if (wltPtr_ == nullptr)
+         throw std::runtime_error("null wallet ptr");
+   }
 
    //virtual
    BinaryData getByVal(const BinaryData& key)
@@ -509,7 +528,6 @@ public:
       return addrPtr->getPreimage();
    }
 
-
    virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
    {
       //check cache first
@@ -540,7 +558,7 @@ public:
       auto assetSingle =
          std::dynamic_pointer_cast<AssetEntry_Single>(assetPair.first);
       if (assetSingle == nullptr)
-         throw std::logic_error("invalid pubkey");
+         throw std::logic_error("invalid asset type");
 
       return wltPtr_->getDecryptedPrivateKeyForAsset(assetSingle);
 

@@ -221,6 +221,32 @@ void AssetWallet_Single::readFromFile()
       {}
    }
 
+   {
+      //label
+      BinaryWriter bwKey;
+      bwKey.put_uint32_t(WALLET_LABEL_KEY);
+      try
+      {
+         auto labelRef = getDataRefForKey(tx.get(), bwKey.getData());
+         label_ = string(labelRef.toCharPtr(), labelRef.getSize());
+      }
+      catch(NoEntryInWalletException& )
+      {}
+   }
+
+   {
+      //description
+      BinaryWriter bwKey;
+      bwKey.put_uint32_t(WALLET_DESCR_KEY);
+      try
+      {
+         auto labelRef = getDataRefForKey(tx.get(), bwKey.getData());
+         description_ = string(labelRef.toCharPtr(), labelRef.getSize());
+      }
+      catch(NoEntryInWalletException& )
+      {}
+   }
+
    //encryption keys and kdfs
    decryptedData_->readFromDisk();
 
@@ -310,6 +336,39 @@ shared_ptr<AddressEntry> AssetWallet::getNewChangeAddress(
 
    throw WalletException("unexpected address entry type");
    return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AddressEntry> AssetWallet::peekNextChangeAddress(
+   AddressEntryType aeType)
+{
+   ReentrantLock lock(this);
+
+   if (mainAccount_.getSize() == 0)
+      throw WalletException("no main account for wallet");
+
+   auto mainAccount = getAccountForID(mainAccount_);
+   if (mainAccount->hasAddressType(aeType))
+      return mainAccount->peekNextChangeAddress(aeType);
+
+   for (auto& account : accounts_)
+   {
+      if (account.second->hasAddressType(aeType))
+         return account.second->peekNextChangeAddress(aeType);
+   }
+
+   throw WalletException("unexpected address entry type");
+   return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::updateAddressEntryType(
+   const BinaryData& assetID, AddressEntryType aeType)
+{
+   ReentrantLock lock(this);
+
+   auto accPtr = getAccountForID(assetID);
+   accPtr->updateInstantiatedAddressType(assetID, aeType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -415,6 +474,8 @@ shared_ptr<AddressAccount> AssetWallet::getAccountForID(
 {
    if (ID.getSize() < 4)
       throw WalletException("invalid account id");
+
+   ReentrantLock lock(this);
 
    auto idRef = ID.getSliceRef(0, 4);
    auto iter = accounts_.find(idRef);
@@ -848,6 +909,47 @@ map<BinaryData, string> AssetWallet::getCommentMap() const
    return CommentAssetConversion::getCommentMap(accPtr.get());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::setLabel(const string& str)
+{
+   label_ = str;
+   
+   BinaryWriter bwKey;
+   bwKey.put_uint32_t(WALLET_LABEL_KEY);
+   BinaryWriter bwData;
+   bwData.put_var_int(str.size());
+   bwData.put_String(str);
+
+   auto tx = iface_->beginWriteTransaction(dbName_);
+   tx->insert(bwKey.getDataRef(), bwData.getDataRef());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::setDescription(const string& str)
+{
+   description_ = str;
+   
+   BinaryWriter bwKey;
+   bwKey.put_uint32_t(WALLET_DESCR_KEY);
+   BinaryWriter bwData;
+   bwData.put_var_int(str.size());
+   bwData.put_String(str);
+
+   auto tx = iface_->beginWriteTransaction(dbName_);
+   tx->insert(bwKey.getDataRef(), bwData.getDataRef());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const string& AssetWallet::getLabel() const
+{
+   return label_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const string& AssetWallet::getDescription() const
+{
+   return description_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -992,10 +1094,16 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    createFromPrivateRoot_Armory135(
    const string& folder,
    const SecureBinaryData& privateRoot,
+   SecureBinaryData chaincode,
    const SecureBinaryData& passphrase,
    const SecureBinaryData& controlPassphrase,
    unsigned lookup)
 {
+   /*
+   Pass the chaincode as it may be non deterministic for older Armory wallets.
+   To generate the chaincode from the private root, leave it empty.
+   */
+
    if (privateRoot.getSize() != 32)
       throw WalletException("empty root");
 
@@ -1023,10 +1131,13 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
 
    string walletID;
    {
-      //walletID
-      auto&& chaincode = BtcUtils::computeChainCode_Armory135(privateRoot);
+      //generate chaincode if it's not provided
+      if (chaincode.getSize() == 0)
+         chaincode = BtcUtils::computeChainCode_Armory135(privateRoot);
+      
+      auto chaincodeCopy = chaincode;
       auto derScheme = make_shared<DerivationScheme_ArmoryLegacy>(
-         chaincode);
+         chaincodeCopy);
 
       auto asset_single = make_shared<AssetEntry_Single>(
          ROOT_ASSETENTRY_ID, BinaryData(), 
@@ -1035,7 +1146,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
       walletID = move(computeWalletID(derScheme, asset_single));
    }
    
-   SecureBinaryData dummy1, dummy2;
+   SecureBinaryData dummyPubKey;
    auto&& privateRootCopy = privateRoot.copy();
 
    //address accounts
@@ -1043,7 +1154,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    accountTypes.insert(
       make_shared<AccountType_ArmoryLegacy>(
       privateRootCopy, 
-      dummy1, dummy2));
+      dummyPubKey, chaincode));
    (*accountTypes.begin())->setMain(true);
    
    SecureBinaryData dummy;
@@ -1621,6 +1732,9 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
                walletPtr->mainAccount_ = account_ptr->getID();
          }
 
+         //comment account
+         walletPtr->addMetaAccount(MetaAccountType::MetaAccount_Comments);
+
          //main account
          if (walletPtr->mainAccount_.getSize() > 0)
          {
@@ -1666,7 +1780,7 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
    auto assetPrivKey = assetPtr->getPrivKey();
 
    if (assetPrivKey == nullptr)
-   {
+   {      
       auto account = getAccountForID(assetPtr->getAccountID());
       assetPrivKey = account->fillPrivateKey(
          decryptedData_, assetPtr->getID());
