@@ -52,7 +52,7 @@ public:
       id_(id), writeQueue_(queuePtr)
    {}
 
-   PassphraseLambda getLambda(void);
+   PassphraseLambda getLambda(::Codec_ClientProto::BridgePromptType);
    void setReply(const std::string&);
 };
 
@@ -227,7 +227,7 @@ private:
    void broadcastTx(const BinaryDataRef&);
 
    //passphrase prompt
-   PassphraseLambda createPassphrasePrompt(void);
+   PassphraseLambda createPassphrasePrompt(::Codec_ClientProto::BridgePromptType);
    bool returnPassphrase(const std::string&, const std::string&);
 
 public:

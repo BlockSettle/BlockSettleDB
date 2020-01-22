@@ -43,7 +43,8 @@ from armoryengine.ALL import *
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
 from armoryengine.CppBridge import TheBridge
-from armoryengine.ClientProto_pb2 import BridgePromptState
+from armoryengine.ClientProto_pb2 import \
+   BridgePromptState, BridgePromptType
 
 from ui.QtExecuteSignal import QtExecuteSignal
 
@@ -235,7 +236,7 @@ class ArmoryMainWindow(QMainWindow):
             self.handleCppNotification, action, arglist)
          
       TheBDM.registerCppNotification(cppNotifySignal)
-      TheBDM.registerPassphrasePrompt(self.promptPassphrase)
+      TheBDM.registerUserPrompt(self.promptUser)
 
       # We want to determine whether the user just upgraded to a new version
       self.firstLoadNewVersion = False
@@ -2072,6 +2073,7 @@ class ArmoryMainWindow(QMainWindow):
          LOGINFO('Loading Multisig Lockboxes')
          #self.loadLockboxesFromFile(MULTISIG_FILE)
 
+      self.walletModel.reset()
 
       # Get the last directory
       savedDir = self.settings.get('LastDirectory')
@@ -5808,19 +5810,12 @@ class ArmoryMainWindow(QMainWindow):
       dlgSpend.exec_()
       
    #############################################################################
-   def promptPassphrase(self, promptID, verbose, wltID, state):
-      print ("prompt passphrase")
-      wlt = None
-      if wltID in self.walletMap:
-         wlt = self.walletMap[wltID]
-      else:
-         wlt = wltID
-
+   def promptUser(self, promptID, promptType, verbose, wltID, state):
       self.signalExecution.executeMethod(\
-            self.passphraseDialogSetup, promptID, verbose, wlt, state)
+            self.promptDialogSetup, promptID, promptType, verbose, wltID, state)
 
    #############################################################################
-   def passphraseDialogSetup(self, promptID, verbose, wlt, state):
+   def promptDialogSetup(self, promptID, promptType, verbose, wltID, state):
       '''
       Check if we already have a dialog for this promptID.
       This method is only ever called in the GUI thread (since it calls exec_ 
@@ -5831,8 +5826,14 @@ class ArmoryMainWindow(QMainWindow):
          if promptID in self.promptMap:
             raise Exception("already have this prompt ID")
          
-         ppDlg = DlgUnlockWallet(\
-            promptID, wlt, self, self, verbose, False)
+         if promptType == BridgePromptType.decrypt:
+            ppDlg = DlgUnlockWallet(\
+               promptID, wltID, self, self, verbose, False)
+
+         elif promptType == BridgePromptType.migrate:
+            ppDlg = DlgMigrateWallet(\
+               promptID, wltID, verbose, self, self)
+
          self.promptMap[promptID] = ppDlg
          ppDlg.exec_()
 

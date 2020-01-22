@@ -10,7 +10,7 @@ from armoryengine.ArmoryUtils import PassphraseError
 
 CPP_BDM_NOTIF_ID = 2**32 -1
 CPP_PROGRESS_NOTIF_ID = 2**32 -2
-CPP_PASSWORD_PROMPT_ID = 2**32 -3
+CPP_PROMPT_USER_ID = 2**32 -3
 
 #################################################################################
 class PyPromFut(object):
@@ -132,8 +132,8 @@ class CppBridge(object):
          elif packetId == CPP_PROGRESS_NOTIF_ID:
             self.pushProgressNotification(response[4:])
             continue
-         elif packetId == CPP_PASSWORD_PROMPT_ID:
-            self.promptPassphrase(response[4:])
+         elif packetId == CPP_PROMPT_USER_ID:
+            self.promptUser(response[4:])
             continue
 
          #lock and look for future object in response dict
@@ -176,12 +176,13 @@ class CppBridge(object):
       notifThread.start()
 
    #############################################################################
-   def promptPassphrase(self, data):
-      payload = ClientProto_pb2.CppPasswordPromptCallback()
+   def promptUser(self, data):
+      payload = ClientProto_pb2.CppUserPromptCallback()
       payload.ParseFromString(data)
 
-      TheBDM.promptPassphrase(\
-         payload.promptID, payload.verbose, payload.walletID, payload.state)
+      TheBDM.promptUser(\
+         payload.promptID, payload.promptType, \
+         payload.verbose, payload.walletID, payload.state)
 
    #############################################################################
    def returnPassphrase(self, id, passphrase):

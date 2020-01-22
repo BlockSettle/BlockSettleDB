@@ -138,12 +138,19 @@ enum BridgePromptState
     cycle = 3;
 }
 
-message CppPasswordPromptCallback
+enum BridgePromptType
+{
+    decrypt = 1;
+    migrate = 2;
+}
+
+message CppUserPromptCallback
 {
     required bytes promptID = 1;
-    required string verbose = 2;
-    required BridgePromptState state = 3; 
-    optional string walletID = 4;
+    required BridgePromptType promptType = 2;
+    required string verbose = 3;
+    required BridgePromptState state = 4; 
+    optional string walletID = 5;
 }
 
 message BridgeLedger

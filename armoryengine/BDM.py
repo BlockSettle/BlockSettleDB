@@ -111,7 +111,7 @@ class BlockDataManager(object):
 
       self.topBlockHeight = 0
       self.cppNotificationListenerList = []
-      self.passphrasePrompts = []
+      self.userPrompts = []
 
       self.progressComplete=0
       self.secondsRemaining=0
@@ -188,8 +188,8 @@ class BlockDataManager(object):
 
    #############################################################################
    @ActLikeASingletonBDM
-   def registerPassphrasePrompt(self, prompt):
-      self.passphrasePrompts.append(prompt)
+   def registerUserPrompt(self, prompt):
+      self.userPrompts.append(prompt)
 
    #############################################################################
    @ActLikeASingletonBDM
@@ -380,9 +380,9 @@ class BlockDataManager(object):
          print(sys.exc_info())
 
    #############################################################################
-   def promptPassphrase(self, promptID, verbose, wltID, state):
-      for prompt in self.passphrasePrompts:
-         prompt(promptID, verbose, wltID, state)
+   def promptUser(self, promptID, promptType, verbose, wltID, state):
+      for prompt in self.userPrompts:
+         prompt(promptID, promptType, verbose, wltID, state)
 
 ################################################################################
 # Make TheBDM reference the asyncrhonous BlockDataManager wrapper if we are 

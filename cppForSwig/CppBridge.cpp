@@ -22,7 +22,7 @@ enum CppBridgeState
 
 #define BRIDGE_CALLBACK_BDM         UINT32_MAX
 #define BRIDGE_CALLBACK_PROGRESS    UINT32_MAX - 1
-#define BRIDGE_CALLBACK_PROMPTPASS  UINT32_MAX - 2
+#define BRIDGE_CALLBACK_PROMPTUSER  UINT32_MAX - 2
 
 #define SHUTDOWN_PASSPROMPT_GUI     "concludePrompt"
 
@@ -198,9 +198,9 @@ void cppNodeStatusToProtoNodeStatus(
 ////  BridgePassphrasePrompt
 ////
 ////////////////////////////////////////////////////////////////////////////////
-PassphraseLambda BridgePassphrasePrompt::getLambda()
+PassphraseLambda BridgePassphrasePrompt::getLambda(BridgePromptType type)
 {
-   auto lbd = [this](const set<BinaryData>& ids)->SecureBinaryData
+   auto lbd = [this, type](const set<BinaryData>& ids)->SecureBinaryData
    {
       BridgePromptState promptState = BridgePromptState::cycle;
       if (ids != ids_)
@@ -212,11 +212,27 @@ PassphraseLambda BridgePassphrasePrompt::getLambda()
          promPtr_->get_future());
 
       //create protobuf payload
-      auto msg = make_unique<CppPasswordPromptCallback>();
+      auto msg = make_unique<CppUserPromptCallback>();
       msg->set_promptid(id_);
+      msg->set_prompttype(type);
 
-      //TODO: set custom verbose
-      msg->set_verbose(string("unlock wallet yo"));
+      switch (type)
+      {
+         case BridgePromptType::decrypt:
+         {
+            msg->set_verbose("Unlock Wallet");
+            break;
+         }
+
+         case BridgePromptType::migrate:
+         {
+            msg->set_verbose("Migrate Wallet");
+            break;
+         }
+
+         default:
+            msg->set_verbose("undefined prompt type");
+      }
 
       bool exit = false;
       if (!ids.empty())
@@ -255,7 +271,7 @@ PassphraseLambda BridgePassphrasePrompt::getLambda()
       //push over socket
       auto payload = make_unique<WritePayload_Bridge>();
       payload->message_ = move(msg);
-      payload->id_ = BRIDGE_CALLBACK_PROMPTPASS;
+      payload->id_ = BRIDGE_CALLBACK_PROMPTUSER;
       writeQueue_->push_back(move(payload));
 
       if (exit)
@@ -850,14 +866,14 @@ void CppBridge::writeThread()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-PassphraseLambda CppBridge::createPassphrasePrompt()
+PassphraseLambda CppBridge::createPassphrasePrompt(BridgePromptType type)
 {
    unique_lock<mutex> lock(passPromptMutex_);
    auto&& id = fortuna_.generateRandom(6).toHexStr();
    auto passPromptObj = make_shared<BridgePassphrasePrompt>(id, writeQueue_);
 
    promptMap_.insert(make_pair(id, passPromptObj));
-   return passPromptObj->getLambda();
+   return passPromptObj->getLambda(type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -881,7 +897,7 @@ void CppBridge::loadWallets(unsigned id)
 
    auto thrLbd = [this, id](void)->void
    {
-      auto lbd = createPassphrasePrompt();
+      auto lbd = createPassphrasePrompt(BridgePromptType::migrate);
       wltManager_ = make_shared<WalletManager>(path_, lbd);
       auto response = move(createWalletPacket());
       writeToClient(move(response), id);
@@ -1691,7 +1707,7 @@ void CppBridge::signer_signTx(
    auto wltIter = wltMap.find(wltId);
    auto wltPtr = wltIter->second->getWalletPtr();
 
-   auto passLbd = createPassphrasePrompt();
+   auto passLbd = createPassphrasePrompt(BridgePromptType::decrypt);
 
    //instantiate and set resolver feed
    auto signLbd = [wltPtr, signerPtr, passLbd, msgId, this](void)->void
