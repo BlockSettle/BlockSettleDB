@@ -556,6 +556,7 @@ void WebSocketServer::prepareWriteThread()
                WS_MSGTYPE_AEAD_REKEY);
 
             //push to write map
+            statePtr->count_->fetch_add(1, memory_order_relaxed);
             statePtr->serializedStack_->push_back(move(ws_msg));
 
             //rekey outer bip151 channel
