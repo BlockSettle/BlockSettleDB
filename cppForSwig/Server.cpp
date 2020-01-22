@@ -192,25 +192,29 @@ int WebSocketServer::callback(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void WebSocketServer::start(BlockDataManagerThread* bdmT,
-   const string& datadir, const PassphraseLambda& passLbd,
-   const bool& ephemeralPeers, const bool& async)
+void WebSocketServer::initAuthPeers(const PassphraseLambda& passLbd)
 {
-   shutdownPromise_ = promise<bool>();
-   shutdownFuture_ = shutdownPromise_.get_future();
+   //init auth peer object
    auto instance = getInstance();
 
-   //init auth peer object
-   if (!ephemeralPeers)
+   if (!BlockDataManagerConfig::ephemeralPeers_)
    {
       string peerFilename(SERVER_AUTH_PEER_FILENAME);
       instance->authorizedPeers_ = make_shared<AuthorizedPeers>(
-         datadir, peerFilename, passLbd);
+         BlockDataManagerConfig::getDataDir(), peerFilename, passLbd);
    }
    else
    {
       instance->authorizedPeers_ = make_shared<AuthorizedPeers>();
    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
+{
+   shutdownPromise_ = promise<bool>();
+   shutdownFuture_ = shutdownPromise_.get_future();
+   auto instance = getInstance();
 
    //setup encinit and pubkey present packet
    instance->encInitPacket_ = READHEX("010000000B");

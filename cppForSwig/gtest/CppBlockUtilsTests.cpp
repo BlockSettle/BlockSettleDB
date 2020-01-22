@@ -10186,8 +10186,8 @@ TEST_F(WebSocketTests, WebSocketStack)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
 
    theBDMt_->start(config.initMode_);
 
@@ -10437,8 +10437,8 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
 
 
    auto pubkeyPrompt = [this](const BinaryData& pubkey, const string& name)->bool
@@ -10711,8 +10711,8 @@ TEST_F(WebSocketTests, GrabAddrLedger_PostReg)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
    theBDMt_->start(config.initMode_);
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
@@ -10772,8 +10772,8 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
 
    theBDMt_->start(config.initMode_);
 

@@ -3531,8 +3531,8 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    auto&& firstHash = READHEX("b6b6f145742a9072fd85f96772e63a00eb4101709aa34ec5dd59e8fc904191a7");
 
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
@@ -3943,8 +3943,8 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    startupBIP150CTX(4, true);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
 
    vector<BinaryData> scrAddrVec;
@@ -4205,8 +4205,8 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
@@ -4332,8 +4332,8 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
    theBDMt_->start(config.initMode_);
 
@@ -4604,8 +4604,8 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
    theBDMt_->start(config.initMode_);
 
@@ -4807,8 +4807,8 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    //public server
    startupBIP150CTX(4, true);
 
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
 
    vector<BinaryData> scrAddrVec;
@@ -5200,8 +5200,8 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxHash)
    //public server
    startupBIP150CTX(4, true);
 
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
 
    vector<BinaryData> scrAddrVec;
@@ -5315,8 +5315,8 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
    theBDMt_->start(config.initMode_);
 
