@@ -955,6 +955,8 @@ void BitcoinP2P::connectLoop(void)
          connectedPromise_->set_value(true);
          waitBeforeReconnect = 0;
 
+         //signal new blocks for good measure
+         invBlockStack_->push_back(move(vector<InvEntry>()));
       }
       catch (...)
       {
