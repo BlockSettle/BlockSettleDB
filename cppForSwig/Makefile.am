@@ -186,6 +186,7 @@ PROTOBUF_CC = protobuf/AddressBook.pb.cc \
 PROTOBUF_H = protobuf/AddressBook.pb.h \
 	protobuf/AddressData.pb.h \
 	protobuf/BDVCommand.pb.h \
+	protobuf/ClientProto.proto \
 	protobuf/CommonTypes.pb.h \
 	protobuf/FeeEstimate.pb.h \
 	protobuf/LedgerEntry.pb.h \
