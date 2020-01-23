@@ -2555,7 +2555,7 @@ int CommentAssetConversion::setAsset(MetaDataAccount* account,
    if (metaObject == nullptr)
    {
       auto& accountID = account->ID_;
-      auto index = account->assets_.size();
+      auto index = (uint32_t)account->assets_.size();
       metaObject = make_shared<CommentData>(accountID, index);
       metaObject->setKey(key);
 
