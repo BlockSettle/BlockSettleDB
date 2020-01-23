@@ -224,6 +224,8 @@ protected:
 
    void initBDM(void)
    {
+      DBTestUtils::init();
+
       auto& magicBytes = NetworkConfig::getMagicBytes();
       config.nodePtr_ = make_shared<NodeUnitTest>(
          *(uint32_t*)magicBytes.getPtr());
@@ -1552,6 +1554,8 @@ protected:
 
    void initBDM(void)
    {
+      DBTestUtils::init();
+
       auto& magicBytes = NetworkConfig::getMagicBytes();
       auto nodePtr = make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr());
       config.nodePtr_ = nodePtr;

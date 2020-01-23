@@ -5668,6 +5668,8 @@ protected:
       mkdir(blkdir_);
       mkdir(homedir_);
       mkdir("./ldbtestdir");
+
+      DBTestUtils::init();
    
       NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
@@ -6053,6 +6055,8 @@ protected:
 
    void initBDM(void)
    {
+      DBTestUtils::init();
+      
       auto& magicBytes = NetworkConfig::getMagicBytes();
       config.nodePtr_ = make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr());
 
