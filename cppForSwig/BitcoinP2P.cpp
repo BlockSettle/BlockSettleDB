@@ -1002,16 +1002,6 @@ void BitcoinP2P::processDataStackThread()
          processPayload(move(processedPacket->payloads_));
       }
    }
-   catch (SocketError& e)
-   {
-      LOGERR << "caught SocketError exception in processDataStackThread: "
-         << e.what();
-   }
-   catch (exception& e)
-   {
-      LOGERR << "caught exception in processDataStackThread: "
-         << e.what();
-   }
    catch (StopBlockingLoop&)
    {
       LOGERR << "caught StopBlockingLoop in processDataStackThread";
@@ -1019,6 +1009,11 @@ void BitcoinP2P::processDataStackThread()
    catch (BitcoinP2P_Exception& e)
    {
       LOGERR << "caught BitcoinP2P_Exception in processDataStackThread: "
+         << e.what();
+   }
+   catch (exception& e)
+   {
+      LOGERR << "caught exception in processDataStackThread: "
          << e.what();
    }
    catch (...)
@@ -1431,7 +1426,8 @@ void BitcoinP2P::updateNodeStatus(bool connected)
 ////////////////////////////////////////////////////////////////////////////////
 void  BitcoinP2PSocket::respond(vector<uint8_t>& packet)
 {
-   if (packet.size() >= 0)
+
+   if (packet.size() > 0)
       readDataStack_->push_back(move(packet));
    else
       readDataStack_->terminate();
