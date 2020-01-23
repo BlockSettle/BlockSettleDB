@@ -117,6 +117,7 @@ public:
 
    const std::map<uint16_t, BinaryDataRef>& getPacketMap(void) const { return packets_; }
    static uint8_t getPacketType(const BinaryDataRef&);
+   static unsigned getMessageId(const BinaryDataRef&);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

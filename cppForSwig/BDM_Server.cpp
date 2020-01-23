@@ -2194,37 +2194,97 @@ void BDV_Server_Object::flagRefresh(
 bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet, 
    shared_ptr<Message>& result)
 {
-   //only ever one thread gets this far at any given time, therefor none of the
-   //underlying objects need to be thread safe
-   if (packet == nullptr)
-      return false;
+   /*
+   Only ever one thread gets this far at any given time, therefor none of the
+   underlying objects need to be thread safe
+   */
 
-   shared_ptr<BDV_Payload> currentPacket = packet;
-   auto parsed = currentMessage_.parsePacket(currentPacket);
-   if (!parsed)
+   if (packet == nullptr)
    {
-      packetToReinject_ = packet;
+      LOGWARN << "null packet";
       return true;
    }
 
-   if (!currentMessage_.isReady())
+   auto nextId = lastValidMessageId_ + 1;
+
+   if (packet->packetData_.getSize() != 0)
+   {
+      //grab and check the packet's message id
+      auto msgId = BDV_PartialMessage::getMessageId(packet);
+
+      if (msgId != UINT32_MAX)
+      {
+         //get the PartialMessage object for this id
+         auto msgIter = messageMap_.find(msgId);
+         if (msgIter == messageMap_.end())
+         {
+            //create this PartialMessage if it's missing
+            msgIter = messageMap_.emplace(
+               make_pair(msgId, BDV_PartialMessage())).first;
+         }
+
+         auto& msgRef = msgIter->second;
+
+         //try to reconstruct the message
+         shared_ptr<BDV_Payload> currentPacket = packet;
+         auto parsed = msgRef.parsePacket(currentPacket);
+         if (!parsed)
+         {
+            //failed to reconstruct from this packet, this 
+            //shouldn't happen anymore
+            LOGWARN << "failed to parse packet, reinjecting. " <<
+               "This shouldn't happen anymore!";
+
+            return true;
+         }
+
+         //some verbose, this can be removed later
+         if (msgIter->second.isReady())
+         {
+            if (msgId >= lastValidMessageId_ + 10)
+               LOGWARN << "completed a message that exceeds the counter by " <<
+                  msgId - lastValidMessageId_;
+
+            if (msgId != nextId)
+               return true;
+         }
+         else
+         {
+            return true;
+         }
+      }
+   }
+
+   //grab the expected next message
+   auto msgIter = messageMap_.find(nextId);
+
+   //exit if we dont have this message id
+   if (msgIter == messageMap_.end())
       return true;
 
-   auto msgId = currentMessage_.partialMessage_.getId();
-   if(msgId != lastValidMessageId_ + 1)
-      LOGWARN << "skipped msg id!";
-   lastValidMessageId_ = msgId;
+   //or the message isn't complete
+   if (!msgIter->second.isReady())
+      return true;
 
-   packet->messageID_ = currentMessage_.partialMessage_.getId();
+   //move in the completed message, it now lives within this scope
+   auto msgObj = move(msgIter->second);
+
+   //clean up from message map
+   messageMap_.erase(msgIter);
+
+   //update ids
+   lastValidMessageId_ = nextId;
+   packet->messageID_ = nextId;
+
+   //parse the protobuf payload
    auto message = make_shared<BDVCommand>();
-   if (!currentMessage_.getMessage(message))
+   if (!msgObj.getMessage(message))
    {
+      //failed, this could be a different type of protobuf message
       auto staticCommand = make_shared<StaticCommand>();
-      if (currentMessage_.getMessage(staticCommand))
+      if (msgObj.getMessage(staticCommand))
          result = staticCommand;
 
-      //reset the current message as it resulted in a full payload
-      resetCurrentMessage();
       return false;
    }
 
@@ -2247,15 +2307,7 @@ bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet,
       result = errMsg;
    }
 
-   //reset the current message as it resulted in a full payload
-   resetCurrentMessage();
    return true;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void BDV_Server_Object::resetCurrentMessage()
-{
-   currentMessage_.reset();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2688,7 +2740,8 @@ void Clients::messageParserThread(void)
 
       auto bdvPtr = payloadPtr->bdvPtr_;
       unsigned zero = 0;
-      if (!bdvPtr->packetProcess_threadLock_.compare_exchange_weak(zero, 1))
+      if (!bdvPtr->packetProcess_threadLock_.compare_exchange_weak(
+            zero, 1, memory_order_relaxed, memory_order_relaxed))
       {
          //Failed to grab lock, there's already a thread processing a payload
          //for this bdv. Insert the payload back into the queue. Another 
@@ -2700,17 +2753,45 @@ void Clients::messageParserThread(void)
          continue;
       }
 
-      //grabbed the thread lock, time to process the payload
+      /*
+      Grabbed the thread lock, time to process the payload.
+
+      However, since the thread lock is only a spin lock with loose ordering
+      semantics (for speed), we need the current thread to be up to date with 
+      all changes previous threads have made to this bdv object, hence acquiring 
+      the object's process mutex
+      */
+      unique_lock<mutex> lock(bdvPtr->processPacketMutex_);
       auto result = processCommand(payloadPtr);
 
-      if (bdvPtr->packetToReinject_ != nullptr)
+      //check if the map has the next message
       {
-         bdvPtr->packetToReinject_->bdvPtr_ = bdvPtr;
-         packetQueue_.push_back(move(bdvPtr->packetToReinject_));
-         bdvPtr->packetToReinject_ = nullptr;
+         auto msgIter = bdvPtr->messageMap_.find(
+            bdvPtr->lastValidMessageId_ + 1);
+         
+         if (msgIter != bdvPtr->messageMap_.end() && 
+            msgIter->second.isReady())
+         {
+            /*
+            We have the next message and it is ready, push a packet
+            with no data on the queue to assign this bdv a new processing
+            thread. 
+            
+            This is done because we don't want one bdv to hog a thread 
+            constantly if it has a lot of queue up messages. It should
+            complete for a thread like all other bdv objects, regardless
+            of the its message queue depth.
+            */
+            auto flagPacket = make_shared<BDV_Payload>();
+            flagPacket->bdvPtr_ = bdvPtr;
+            flagPacket->bdvID_ = payloadPtr->bdvID_;
+            packetQueue_.push_back(move(flagPacket));
+         }
       }
+      
 
-      //release lock
+      //release the locks
+      lock.unlock();
       bdvPtr->packetProcess_threadLock_.store(0);
 
       //write return value if any
@@ -2914,7 +2995,8 @@ size_t BDV_PartialMessage::topId() const
    return packetMap.rbegin()->first;
 }
 
-
-
-
-
+///////////////////////////////////////////////////////////////////////////////
+unsigned BDV_PartialMessage::getMessageId(shared_ptr<BDV_Payload> packet)
+{
+   return WebSocketMessagePartial::getMessageId(packet->packetData_.getRef());
+}
