@@ -48,14 +48,10 @@ int main(int argc, char* argv[])
    LOGINFO << "Running on " << bdmConfig.threadCount_ << " threads";
    LOGINFO << "Ram usage level: " << bdmConfig.ramUsage_;
 
-   //init db
+   //init state
    BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
    BlockDataManagerThread bdmThread(bdmConfig);
-   bdmThread.start(bdmConfig.initMode_);
 
-   //init listen loop
-   WebSocketServer server;
-   
    if (!bdmConfig.checkChain_)
    {
       //check we can listen on this ip:port
@@ -71,19 +67,22 @@ int main(int argc, char* argv[])
       }
    }
 
-
+   {
+      //setup remote peers db, this will block the init process until 
+      //peers db is unlocked
+      auto&& passLbd = TerminalPassphrasePrompt::getLambda("peers db");
+      WebSocketServer::initAuthPeers(passLbd);
+   }
+    
    //create cookie file if applicable
    bdmConfig.createCookie();
-   
+
+   //start up blockchain service
+   bdmThread.start(bdmConfig.initMode_);
+
    if (!bdmConfig.checkChain_)
    {
-      //process incoming connections
-      //auto&& passLbd = TerminalPassphrasePrompt::getLambda("peers db");
-      auto passLbd = [](const std::set<BinaryData>&) {
-         return SecureBinaryData{};
-      };
-      server.start(&bdmThread, BlockDataManagerConfig::getDataDir(),
-         passLbd, BlockDataManagerConfig::ephemeralPeers_, false);
+      WebSocketServer::start(&bdmThread, false);
    }
    else
    {
@@ -91,7 +90,7 @@ int main(int argc, char* argv[])
    }
 
    //stop all threads and clean up
-   server.shutdown();
+   WebSocketServer::shutdown();
    google::protobuf::ShutdownProtobufLibrary();
 
    shutdownBIP151CTX();

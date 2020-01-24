@@ -835,7 +835,7 @@ MasterKeyStruct WalletDBInterface::initWalletHeaderObject(
    }
    else
    {
-      LOGWARN << "Wallet created without password, using default encryption key";
+      LOGWARN << "No control passphrase provided, wallet file will not be encrypted";
       topEncryptionKey = move(defaultEncryptionKeyPtr);
    }
 
@@ -1446,26 +1446,7 @@ void WalletIfaceTransaction::closeTx()
       auto keyExists = dataMapCopy->resolveDataKey(dataPtr->key_, dbKey);
       if (keyExists)
       {
-         /***
-            This operation abuses the no copy read feature in lmdb. Since all data is
-            mmap'd, a no copy read is a pointer to the data on disk. Therefor modifying
-            that data will result in a modification on disk.
-
-            This is done under 3 conditions:
-            1) The decrypted data container is locked.
-            2) The calling threads owns a ReadWrite transaction on the lmdb object
-            3) There are no active ReadOnly transactions on the lmdb object
-
-            1. is a no brainer, 2. guarantees the changes are flushed to disk once the
-            tx is released. RW tx are locked, therefor only one is active at any given
-            time, by LMDB design.
-
-            3. is to guarantee there are no readers when the change takes place. Needs
-            some LMDB C++ wrapper modifications to be able to check from the db object.
-            The condition should be enforced by the caller regardless.
-         ***/
-
-         //wipe the key
+         //erase the key
          CharacterArrayRef carKey(dbKey.getSize(), dbKey.getPtr());
          dbPtr_->db_.erase(carKey);
          needsWiped = true;

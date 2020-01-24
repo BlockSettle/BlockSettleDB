@@ -41,7 +41,7 @@ private:
 private:
    static void decorateUTXOs(std::shared_ptr<AssetWallet> const, std::vector<UTXO>&);
    static std::function<std::vector<UTXO>(uint64_t)> getFetchLambdaFromWalletContainer(
-      WalletContainer* const walletContainer);
+      std::shared_ptr<WalletContainer> const walletContainer);
    static std::function<std::vector<UTXO>(uint64_t)> getFetchLambdaFromWallet(
       std::shared_ptr<AssetWallet> const, std::function<std::vector<UTXO>(uint64_t)>);
 
@@ -52,12 +52,10 @@ private:
    uint64_t getSpendVal(void) const;
    void checkSpendVal(uint64_t) const;
    void addRecipient(unsigned, const BinaryData&, uint64_t);
-
-   static std::shared_ptr<ScriptRecipient> createRecipient(const BinaryData&, uint64_t);
-   
    void selectUTXOs(std::vector<UTXO>&, uint64_t fee, float fee_byte, unsigned flags);
+
 public:
-   CoinSelectionInstance(WalletContainer* const walletContainer,
+   CoinSelectionInstance(std::shared_ptr<WalletContainer> const walletContainer,
       const std::vector<AddressBookEntry>& addrBook, unsigned topHeight);
    CoinSelectionInstance(std::shared_ptr<AssetWallet>, 
       std::function<std::vector<UTXO>(uint64_t)>,
@@ -75,7 +73,7 @@ public:
       return recipients_;
    }
 
-   void selectUTXOs(uint64_t fee, float fee_byte, unsigned flags);
+   bool selectUTXOs(uint64_t fee, float fee_byte, unsigned flags);
    void processCustomUtxoList(
       const std::vector<BinaryData>& serializedUtxos,
       uint64_t fee, float fee_byte,
@@ -92,8 +90,9 @@ public:
    float getFeeByte(void) const { return selection_.fee_byte_; }
 
    bool isSW(void) const { return selection_.witnessSize_ != 0; }
-
    void rethrow(void) { cs_.rethrow(); }
+
+   static std::shared_ptr<ScriptRecipient> createRecipient(const BinaryData&, uint64_t);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,20 +105,26 @@ class WalletContainer
 private:
    const std::string id_;
    std::shared_ptr<AssetWallet> wallet_;
-   std::shared_ptr<SwigClient::BtcWallet> swigWallet_;
-   std::function<SwigClient::BlockDataViewer&(void)> getBDVlambda_;
+
+   std::shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_;
+   std::shared_ptr<AsyncClient::BtcWallet> asyncWlt_;
 
    std::map<BinaryData, std::vector<uint64_t>> balanceMap_;
-   std::map<BinaryData, uint32_t> countMap_;
+   std::map<BinaryData, uint64_t> countMap_;
 
    uint64_t totalBalance_ = 0;
    uint64_t spendableBalance_ = 0;
    uint64_t unconfirmedBalance_ = 0;
+   uint64_t txioCount_ = 0;
+   
+   uint32_t highestUsedIndex_ = UINT32_MAX;
+   std::mutex stateMutex_;
+
+   std::map<BinaryData, std::shared_ptr<AddressEntry>> updatedAddressMap_;
 
 private:
-   WalletContainer(const std::string& id,
-      std::function<SwigClient::BlockDataViewer&(void)> bdvLbd) :
-      id_(id), getBDVlambda_(bdvLbd)
+   WalletContainer(const std::string& id) :
+      id_(id)
    {}
 
    void reset(void)
@@ -131,95 +136,90 @@ private:
       countMap_.clear();
    }
 
-protected:
-   //need this for unit test, but can't have it exposed to SWIG for backwards
-   //compatiblity with 2.x (because of the shared_ptr return type)
+   void setBdvPtr( std::shared_ptr<AsyncClient::BlockDataViewer> bdv)
+   {
+      std::unique_lock<std::mutex> lock(stateMutex_);
+      bdvPtr_ = bdv;
+   }
+
+   void setWalletPtr(std::shared_ptr<AssetWallet> wltPtr)
+   {
+      wallet_ = wltPtr;
+      auto mainAcc = wallet_->getAccountForID(wallet_->getMainAccountID());
+      auto&& addrMap = mainAcc->getUsedAddressMap();
+      
+      unsigned count = 0;
+      for (auto& addrPair : addrMap)
+      {
+         auto id = addrPair.second->getID();
+         auto idLast = id.getSliceRef(id.getSize() - 4, 4);
+         auto idInt = READ_UINT32_BE(idLast);
+
+         if (idInt > count)
+            count = idInt;
+      }
+
+      highestUsedIndex_ = count;
+   }
+
+public:
+   std::string registerWithBDV(bool isNew);
+
    virtual std::shared_ptr<AssetWallet> getWalletPtr(void) const
    {
       return wallet_;
    }
 
-public:
-   void registerWithBDV(bool isNew);
-
-   std::vector<uint64_t> getBalancesAndCount(
-      uint32_t topBlockHeight)
+   void updateBalancesAndCount(uint32_t topBlockHeight)
    {
-      auto&& balVec =
-         swigWallet_->getBalancesAndCount(topBlockHeight);
-
-      totalBalance_ = balVec[0];
-      spendableBalance_ = balVec[1];
-      unconfirmedBalance_ = balVec[2];
-
-      return balVec;
-   }
-
-   std::vector<UTXO> getSpendableTxOutListForValue(
-      uint64_t val = UINT64_MAX)
-   {
-      return swigWallet_->getSpendableTxOutListForValue(val);
-   }
-
-   std::vector<UTXO> getSpendableZCList(void)
-   {
-      return swigWallet_->getSpendableZCList();
-   }
-
-   std::vector<UTXO> getRBFTxOutList(void)
-   {
-      return swigWallet_->getRBFTxOutList();
-   }
-
-   
-   const std::map<BinaryData, uint32_t>& getAddrTxnCountsFromDB(void)
-   {
-      auto&& countmap = swigWallet_->getAddrTxnCountsFromDB();
-      return countMap_;
-   }
-   
-   const std::map<BinaryData, std::vector<uint64_t> >& getAddrBalancesFromDB(void)
-   {
-
-      auto&& balancemap = swigWallet_->getAddrBalancesFromDB();
-
-      for (auto& balVec : balancemap)
+      auto lbd = [this](ReturnMessage<std::vector<uint64_t>> vec)
       {
-         if (balVec.first.getSize() == 0)
-            continue;
-
-         //save balance
-         balanceMap_[balVec.first] = balVec.second;
-      }
-
-      return balanceMap_;
+         std::unique_lock<std::mutex> lock(stateMutex_);
+         
+         auto&& balVec = vec.get();
+         totalBalance_ = balVec[0];
+         spendableBalance_ = balVec[1];
+         unconfirmedBalance_ = balVec[2];
+      };
+      asyncWlt_->getBalancesAndCount(topBlockHeight, lbd);
    }
 
-   std::vector<::ClientClasses::LedgerEntry> getHistoryPage(uint32_t id)
+   void updateAddrTxCount(void)
    {
-      return swigWallet_->getHistoryPage(id);
-   }
+      auto lbd = [this](
+         ReturnMessage<std::map<BinaryData, uint32_t>> countMap)->void
+      {
+         std::unique_lock<std::mutex> lock(stateMutex_);
 
-   std::shared_ptr<::ClientClasses::LedgerEntry> getLedgerEntryForTxHash(
-      const BinaryData& txhash)
+         auto&& cmap = countMap.get();
+         for (auto& cpair : cmap)
+            countMap_[cpair.first] = cpair.second;
+      };
+      asyncWlt_->getAddrTxnCountsFromDB(lbd);
+   }
+   
+   void updateAddrBalancesFromDB(void)
    {
-      return swigWallet_->getLedgerEntryForTxHash(txhash);
+      auto lbd = [this](ReturnMessage<
+         std::map<BinaryData, std::vector<uint64_t>>> result)->void
+      {
+         std::unique_lock<std::mutex> lock(stateMutex_);
+
+         auto&& balancemap = result.get();
+         for (auto& balVec : balancemap)
+         {
+            if (balVec.first.getSize() == 0)
+               continue;
+
+            balanceMap_[balVec.first] = balVec.second;
+         }
+      };
+
+      asyncWlt_->getAddrBalancesFromDB(lbd);
    }
 
-   SwigClient::ScrAddrObj getScrAddrObjByKey(const BinaryData& scrAddr,
-      uint64_t full, uint64_t spendable, uint64_t unconf, uint32_t count)
-   {
-      return swigWallet_->getScrAddrObjByKey(
-         scrAddr, full, spendable, unconf, count);
-   }
-
-   std::vector<AddressBookEntry> createAddressBook(void) const
-   {
-      if (swigWallet_ == nullptr)
-         return std::vector<AddressBookEntry>();
-
-      return swigWallet_->createAddressBook();
-   }
+   void updateWalletBalanceState(const CombinedBalances&);
+   void updateAddressCountState(const CombinedCounts&);
 
    void extendAddressChain(unsigned count)
    {
@@ -241,6 +241,7 @@ public:
       return wallet_->hasAddrStr(addr);
    }
 
+   /*
    const std::pair<BinaryData, AddressEntryType>& getAssetIDForAddr(
       const std::string& addrStr) const
    {
@@ -265,7 +266,7 @@ public:
       return wallet_->getAddrTypeForID(ID);
    }
 
-   SwigClient::ScrAddrObj getAddrObjByID(const BinaryData& ID)
+   AsyncClient::ScrAddrObj getAddrObjByID(const BinaryData& ID)
    {
       auto addrPtr = wallet_->getAddressEntryForID(ID);
 
@@ -287,371 +288,157 @@ public:
       brr.advance(ID.getSize() - 4);
       auto index = brr.get_uint32_t();
 
-      if (swigWallet_ != nullptr)
+      if (asyncWlt_ != nullptr)
       {
          AsyncClient::ScrAddrObj saObj(
-            &swigWallet_->asyncWallet_, addrPtr->getPrefixedHash(), index,
+            asyncWlt_.get(), addrPtr->getPrefixedHash(), index,
             full, spend, unconf, count);
 
-         return SwigClient::ScrAddrObj(saObj);
+         return saObj;
       }
       else
       {
          AsyncClient::ScrAddrObj saObj(addrPtr->getPrefixedHash(), index);
 
-         return SwigClient::ScrAddrObj(saObj);
+         return saObj;
       }
    }
+   */
 
-   int detectHighestUsedIndex(void);
+   void createAddressBook(
+      const std::function<void(ReturnMessage<std::vector<AddressBookEntry>>)>&);
 
-   CoinSelectionInstance getCoinSelectionInstance(unsigned topHeight)
+   void getSpendableTxOutListForValue(uint64_t val, 
+      const std::function<void(ReturnMessage<std::vector<UTXO>>)>& lbd)
    {
-      auto&& addrBookVector = createAddressBook();
-      return CoinSelectionInstance(this, addrBookVector, topHeight);
+      asyncWlt_->getSpendableTxOutListForValue(val, lbd);
    }
+
+   void getSpendableZcTxOutList(
+      const std::function<void(ReturnMessage<std::vector<UTXO>>)>& lbd)
+   {
+      asyncWlt_->getSpendableZCList(lbd);
+   }
+
+   void getRBFTxOutList(
+      const std::function<void(ReturnMessage<std::vector<UTXO>>)>& lbd)
+   {
+      asyncWlt_->getRBFTxOutList(lbd);
+   }
+
+   uint64_t getFullBalance(void) const { return totalBalance_; }
+   uint64_t getSpendableBalance(void) const { return spendableBalance_; }
+   uint64_t getUnconfirmedBalance(void) const { return unconfirmedBalance_; }
+   uint64_t getTxIOCount(void) const { return txioCount_; }
+
+   std::map<BinaryData, std::vector<uint64_t>> getAddrBalanceMap(void) const;
+   uint32_t getHighestUsedIndex(void) const { return highestUsedIndex_; }
+   std::map<BinaryData, std::shared_ptr<AddressEntry>> getUpdatedAddressMap();
 };
 
-class ResolverFeed_PythonWalletSingle;
-
 ////////////////////////////////////////////////////////////////////////////////
-class PythonSigner
+
+enum Armory135WalletEntriesEnum
 {
-   friend class ResolverFeed_PythonWalletSingle;
-
-private:
-   std::shared_ptr<AssetWallet> walletPtr_;
-
-protected:
-   std::unique_ptr<Signer> signer_;
-   std::shared_ptr<ResolverFeed_PythonWalletSingle> feedPtr_;
-
-public:
-   PythonSigner(WalletContainer& wltContainer)
-   {
-      walletPtr_ = wltContainer.wallet_;
-      signer_ = make_unique<Signer>();
-      signer_->setFlags(SCRIPT_VERIFY_SEGWIT);
-
-      //create feed
-      auto walletSingle = std::dynamic_pointer_cast<AssetWallet_Single>(walletPtr_);
-      if (walletSingle == nullptr)
-         throw WalletException("unexpected wallet type");
-
-      feedPtr_ = std::make_shared<ResolverFeed_PythonWalletSingle>(
-         walletSingle, this);
-   }
-
-   virtual void addSpender(
-      uint64_t value, 
-      uint32_t height, uint16_t txindex, uint16_t outputIndex, 
-      const BinaryData& txHash, const BinaryData& script, unsigned sequence)
-   {
-      UTXO utxo(value, height, txindex, outputIndex, txHash, script);
-
-      //set spenders
-      auto spenderPtr = std::make_shared<ScriptSpender>(utxo, feedPtr_);
-      spenderPtr->setSequence(sequence);
-
-      signer_->addSpender(spenderPtr);
-   }
-
-   void addRecipient(const BinaryData& script, uint64_t value)
-   {
-      auto txOutRef = BtcUtils::getTxOutScrAddrNoCopy(script);
-
-      auto p2pkh_prefix =
-        SCRIPT_PREFIX(NetworkConfig::getPubkeyHashPrefix());
-      auto p2sh_prefix =
-         SCRIPT_PREFIX(NetworkConfig::getScriptHashPrefix());
-
-      std::shared_ptr<ScriptRecipient> recipient;
-      if (txOutRef.type_ == p2pkh_prefix)
-         recipient = std::make_shared<Recipient_P2PKH>(txOutRef.scriptRef_, value);
-      else if (txOutRef.type_ == p2sh_prefix)
-         recipient = std::make_shared<Recipient_P2SH>(txOutRef.scriptRef_, value);
-      else if (txOutRef.type_ == SCRIPT_PREFIX_OPRETURN)
-         recipient = std::make_shared<Recipient_OPRETURN>(txOutRef.scriptRef_);
-      else if (txOutRef.type_ == SCRIPT_PREFIX_P2WSH)
-         recipient = std::make_shared<Recipient_P2WSH>(txOutRef.scriptRef_, value);
-      else if (txOutRef.type_ == SCRIPT_PREFIX_P2WPKH)
-         recipient = std::make_shared<Recipient_P2WPKH>(txOutRef.scriptRef_, value);
-      else
-         throw WalletException("unexpected output type");
-
-      signer_->addRecipient(recipient);
-   }
-
-   void signTx(void)
-   {
-      signer_->sign();
-      if (!signer_->verify())
-         throw std::runtime_error("failed signature");
-   }
-
-   void setLockTime(unsigned locktime)
-   {
-      signer_->setLockTime(locktime);
-   }
-
-   BinaryData getSignedTx(void)
-   {
-      BinaryData finalTx(signer_->serialize());
-      return finalTx;
-   }
-
-   const BinaryData& getSigForInputIndex(unsigned id) const
-   {
-      return signer_->getSigForInputIndex(id);
-   }
-
-   BinaryData getWitnessDataForInputIndex(unsigned id)
-   {
-      return BinaryData(signer_->getWitnessData(id));
-   }
-
-   bool isInptuSW(unsigned id) const
-   {
-      return signer_->isInputSW(id);
-   }
-
-   BinaryData serializeSignedTx() const
-   {
-      return signer_->serialize();
-   }
-
-   BinaryData serializeState(void) const
-   {
-      return signer_->serializeState();
-   }
-
-   virtual ~PythonSigner(void) = 0;
-   virtual const SecureBinaryData& getPrivateKeyForIndex(unsigned) = 0;
-   virtual const SecureBinaryData& getPrivateKeyForImportIndex(unsigned) = 0;
+   WLT_DATATYPE_KEYDATA     = 0,
+   WLT_DATATYPE_ADDRCOMMENT,
+   WLT_DATATYPE_TXCOMMENT,
+   WLT_DATATYPE_OPEVAL,
+   WLT_DATATYPE_DELETED
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class PythonSigner_BCH : public PythonSigner
-{
-public:
-   PythonSigner_BCH(WalletContainer& wltContainer) :
-      PythonSigner(wltContainer)
-   {
-      signer_ = make_unique<Signer_BCH>();
-   }
-
-   void addSpender(
-      uint64_t value,
-      uint32_t height, uint16_t txindex, uint16_t outputIndex,
-      const BinaryData& txHash, const BinaryData& script, unsigned sequence)
-   {
-      UTXO utxo(value, height, txindex, outputIndex, txHash, script);
-
-      //set spenders
-      auto spenderPtr = std::make_shared<ScriptSpender_BCH>(utxo, feedPtr_);
-      spenderPtr->setSequence(sequence);
-
-      signer_->addSpender(spenderPtr);
-   }
-};
-
-class ResolverFeed_Universal;
-
-////////////////////////////////////////////////////////////////////////////////
-class UniversalSigner
+struct Armory135Address
 {
 private:
-   std::unique_ptr<Signer> signer_;
-   std::shared_ptr<ResolverFeed_Universal> feedPtr_;
+   //public data
+   BinaryData scrAddr_;
+   SecureBinaryData pubKey_;
+   SecureBinaryData chaincode_;
+   
+   //private data
+   SecureBinaryData privKey_;
+   SecureBinaryData decryptedPrivKey_;
+
+   //encryption data
+   SecureBinaryData iv_;
+
+   //indexes
+   int64_t chainIndex_;
+   int64_t depth_;
+
+   //flags
+   bool hasPrivKey_ = false;
+   bool hasPubKey_ = false;
+   bool isEncrypted_ = false;
 
 public:
-   UniversalSigner(const std::string& signerType);
+   Armory135Address(void) {}
 
-   virtual ~UniversalSigner(void) = 0;
+   void parseFromRef(const BinaryDataRef&);
+   bool isEncrypted(void) const { return isEncrypted_; }
+   bool hasPrivKey(void) const { return hasPrivKey_; }
+   
+   const SecureBinaryData& privKey(void) const { return privKey_; }
+   const SecureBinaryData& pubKey(void) const { return pubKey_; }
+   const SecureBinaryData& chaincode(void) const { return chaincode_; }
+   const SecureBinaryData& iv(void) const { return iv_; }
 
-   void updateSignerState(const BinaryData& state)
-   {
-      signer_->deserializeState(state);
-   }
-
-   void populateUtxo(const BinaryData& hash, unsigned txoId, 
-                uint64_t value, const BinaryData& script)
-   {
-      UTXO utxo(value, UINT32_MAX, UINT32_MAX, txoId, hash, script);
-      signer_->populateUtxo(utxo);
-   }
-
-   void signTx(void)
-   {
-      signer_->sign();
-   }
-
-   void setLockTime(unsigned locktime)
-   {
-      signer_->setLockTime(locktime);
-   }
-
-   void setVersion(unsigned version)
-   {
-      signer_->setVersion(version);
-   }
-
-   void addSpenderByOutpoint(
-      const BinaryData& hash, unsigned index, unsigned sequence, uint64_t value)
-   {
-      signer_->addSpender_ByOutpoint(hash, index, sequence, value);
-   }
-
-   void addRecipient(uint64_t value, const BinaryData& script)
-   {
-      auto recipient = std::make_shared<Recipient_Universal>(script, value);
-      signer_->addRecipient(recipient);
-   }
-
-   BinaryData getSignedTx(void)
-   {
-      BinaryData finalTx(signer_->serialize());
-      return finalTx;
-   }
-
-   const BinaryData& getSigForInputIndex(unsigned id) const
-   {
-      return signer_->getSigForInputIndex(id);
-   }
-
-   BinaryData getWitnessDataForInputIndex(unsigned id)
-   {
-      return BinaryData(signer_->getWitnessData(id));
-   }
-
-   bool isInptuSW(unsigned id) const
-   {
-      return signer_->isInputSW(id);
-   }
-
-   BinaryData serializeState(void) const
-   {
-      return signer_->serializeState();
-   }
-
-   void deserializeState(const BinaryData& state)
-   {
-      signer_->deserializeState(state);
-   }
-
-   TxEvalState getSignedState(void) const
-   {
-      return signer_->evaluateSignedState();
-   }
-
-   BinaryData serializeSignedTx() const
-   {
-      return signer_->serialize();
-   }
-
-   virtual std::string getPublicDataForKey(const std::string&) = 0;
-   virtual const SecureBinaryData& getPrivDataForKey(const std::string&) = 0;
+   const BinaryData& scrAddr(void) const { scrAddr_; }
+   int64_t chainIndex(void) const { return chainIndex_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class PythonVerifier
+struct Armory135Header
 {
 private:
-   std::unique_ptr<Signer> signer_;
+   //file system
+   const std::string path_;
 
-public:
-   PythonVerifier()
-   {
-      signer_ = make_unique<Signer>();
-      signer_->setFlags(SCRIPT_VERIFY_SEGWIT);
-   }
+   //meta data
+   std::string walletID_;
+   uint32_t version_ = UINT32_MAX;
+   uint64_t timestamp_ = UINT32_MAX;
 
-   bool verifySignedTx(const BinaryData& rawTx,
-     const std::map<BinaryData, std::map<unsigned, BinaryData> >& utxoMap)
-   {
-      return signer_->verifyRawTx(rawTx, utxoMap);
-   }
-};
+   std::string labelName_;
+   std::string labelDescription_;
+   
+   int64_t highestUsedIndex_ = -1;
 
-////////////////////////////////////////////////////////////////////////////////
-class PythonVerifier_BCH
-{
+   //flags
+   bool isEncrypted_ = false;
+   bool watchingOnly_ = false;
+
+   //encryption data
+   uint64_t kdfMem_ = UINT64_MAX;
+   uint32_t kdfIter_;
+   SecureBinaryData kdfSalt_;
+
+   //comments
+   std::map<BinaryData, std::string> commentMap_;
+
+   //address map
+   std::map<BinaryData, Armory135Address> addrMap_;
+
 private:
-   std::unique_ptr<Signer_BCH> signer_;
+   void parseFile();
+
 
 public:
-   PythonVerifier_BCH()
+   Armory135Header(const std::string path) :
+      path_(path)
    {
-      signer_ = make_unique<Signer_BCH>();
+      parseFile();
    }
 
-   bool verifySignedTx(const BinaryData& rawTx,
-      const std::map<BinaryData, std::map<unsigned, BinaryData> >& utxoMap)
-   {
-      return signer_->verifyRawTx(rawTx, utxoMap);
-   }
-};
+   bool isInitialized(void) { return version_ != UINT32_MAX; }
+   const std::string& getID(void) const { return walletID_; }
+   std::shared_ptr<AssetWallet_Single> migrate(
+      const PassphraseLambda&) const;
 
-////////////////////////////////////////////////////////////////////////////////
-class ResolverFeed_PythonWalletSingle : public ResolverFeed_AssetWalletSingle
-{
-private:
-   PythonSigner* signerPtr_ = nullptr;
-
-public:
-   ResolverFeed_PythonWalletSingle(
-      std::shared_ptr<AssetWallet_Single> walletPtr,
-      PythonSigner* signerptr) :
-      ResolverFeed_AssetWalletSingle(walletPtr),
-      signerPtr_(signerptr)
-   {
-      if (signerPtr_ == nullptr)
-         throw WalletException("null signer ptr");
-   }
-
-   const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
-   {
-      auto pubkeyref = BinaryDataRef(pubkey);
-      auto iter = pubkey_to_asset_.find(pubkeyref);
-      if (iter == pubkey_to_asset_.end())
-         throw std::runtime_error("invalid value");
-
-      auto id = iter->second->getIndex();
-      return signerPtr_->getPrivateKeyForIndex(id);
-   }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-class ResolverFeed_Universal : public ResolverFeed
-{
-private:
-   UniversalSigner* signerPtr_ = nullptr;
-
-public:
-   ResolverFeed_Universal(UniversalSigner* signerptr) :
-      signerPtr_(signerptr)
-   {
-      if (signerPtr_ == nullptr)
-         throw WalletException("null signer ptr");
-   }
-
-   const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
-   {
-      auto&& pubkey_hex = pubkey.toHexStr();
-      auto& data = signerPtr_->getPrivDataForKey(pubkey_hex);
-      if (data.getSize() == 0)
-         throw std::runtime_error("invalid value");
-      return data;
-   }
-
-   BinaryData getByVal(const BinaryData& val)
-   {
-      auto&& val_str = val.toHexStr();
-      auto data_str = signerPtr_->getPublicDataForKey(val_str);
-      if (data_str.size() == 0)
-         throw std::runtime_error("invalid value");
-      return BinaryData::fromString(data_str);
-   }
+   //static
+   static void verifyChecksum(
+      const BinaryDataRef& val, const BinaryDataRef& chkSum);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -661,13 +448,15 @@ private:
    mutable std::mutex mu_;
 
    const std::string path_;
-   std::map<std::string, WalletContainer> wallets_;
-   SwigClient::BlockDataViewer bdv_;
+   std::map<std::string, std::shared_ptr<WalletContainer>> wallets_;
+
+   PassphraseLambda passphraseLbd_;
+
+   std::shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_; 
 
 private:
    void loadWallets(
       const std::function<SecureBinaryData(const std::set<BinaryData>&)>&);
-   SwigClient::BlockDataViewer& getBDVObj(void);
 
 public:
    WalletManager(const std::string& path,
@@ -685,20 +474,28 @@ public:
       return wltIter != wallets_.end();
    }
 
-   void setBDVObject(const SwigClient::BlockDataViewer& bdv)
+   const std::map<std::string, std::shared_ptr<WalletContainer>>& getMap(void) const
    {
-      bdv_ = bdv;
+      return wallets_;
    }
 
-   void synchronizeWallet(const std::string& id, unsigned chainLength);
+   void setBdvPtr(std::shared_ptr<AsyncClient::BlockDataViewer> bdvPtr)
+   {
+      bdvPtr_ = bdvPtr;
+      for (auto& wlt : wallets_)
+         wlt.second->setBdvPtr(bdvPtr);
+   }
 
-   void duplicateWOWallet(
-      const SecureBinaryData& pubRoot,
-      const SecureBinaryData& chainCode,
-      const SecureBinaryData& controlPassphrase,
-      unsigned chainLength);
+   std::set<std::string> registerWallets()
+   {
+      std::set<std::string> idSet;
+      for (auto& wlt : wallets_)
+         idSet.insert(wlt.second->registerWithBDV(false));
 
-   WalletContainer& getCppWallet(const std::string& id);
+      return idSet;
+   }
+
+   void updateStateFromDB(const std::function<void(void)>&);
 };
 
 #endif

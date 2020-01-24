@@ -1,0 +1,268 @@
+syntax = "proto2";
+
+package Codec_ClientProto;
+
+enum Methods
+{
+    shutdown = 1;
+    
+    setupDB = 10;
+    goOnline = 11;
+    registerWallets = 12;
+    
+    loadWallets = 20;
+    getNodeStatus = 21;
+    returnPassphrase = 22;
+    broadcastTx = 23;
+
+    getLedgerDelegateIdForWallets = 30;
+    updateWalletsLedgerFilter = 31;
+    
+    getHistoryPageForDelegate = 40;
+    getBalanceAndCount = 41;
+    getAddrCombinedList = 42;
+    
+    getTxByHash = 70;
+    getHeaderByHeight = 71;
+    createAddressBook = 72;
+
+    getNewAddress = 80;
+    getChangeAddress = 81;
+    peekChangeAddress = 82;
+    getHighestUsedIndex = 83;
+    extendAddressPool = 84;
+
+    generateRandomHex = 90;
+    getTxInScriptType = 91;
+    getTxOutScriptType = 92;
+    getScrAddrForScript = 93;
+    getLastPushDataInScript = 94;
+    
+    getUtxosForValue = 100;
+    getSpendableZCList = 101;
+    getRBFTxOutList = 102;
+
+    setupNewCoinSelectionInstance = 110;
+    destroyCoinSelectionInstance = 111;
+    resetCoinSelection = 112;
+    setCoinSelectionRecipient = 113;
+    cs_SelectUTXOs = 114;
+    cs_getUtxoSelection = 115;
+    cs_getFlatFee = 116;
+    cs_getFeeByte = 117;
+
+    initNewSigner = 130;
+    destroySigner = 131;
+    signer_SetVersion = 132;
+    signer_SetLockTime = 133;
+    signer_addSpenderByOutpoint = 134;
+    signer_populateUtxo = 135;
+    signer_addRecipient = 136;
+    signer_getSerializedState = 137;
+    signer_unserializeState = 138;
+    signer_signTx = 139;
+    signer_getSignedTx = 140;
+
+    getHash160 = 200;
+}
+
+message ClientCommand
+{
+    required Methods method = 1;
+    required uint32 payloadId = 2;
+
+    repeated string stringArgs = 3;
+    repeated uint32 intArgs = 4;
+    repeated bytes byteArgs = 5;
+    repeated uint64 longArgs = 6;
+    repeated float floatArgs = 7;
+}
+
+message WalletAsset
+{
+    required int32 id = 1;
+    required uint32 addrType = 2;
+
+    required bytes prefixedHash = 10;
+    required bytes publicKey = 11;
+    optional bytes precursorScript = 12;
+
+    required string addressString = 20;
+}
+
+message WalletData
+{
+    required string id = 1;
+    required int64 useCount = 2;
+    required int64 lookupCount = 3;
+    required bool watchingOnly = 4;
+
+    optional string label = 10;
+    optional string desc = 11;
+    
+    repeated WalletAsset assets = 20;
+
+    repeated bytes commentKey = 30;
+    repeated string commentVal = 31;
+}
+
+message WalletPayload
+{
+    repeated WalletData wallets = 1;
+}
+
+message CppBridgeCallback
+{
+    required uint32 type = 1;
+
+    optional uint32 height = 10;
+    repeated string ids = 11;
+    
+    repeated bytes opaque = 20;
+}
+
+message CppProgressCallback
+{
+    required uint32 phase = 1;
+    required float progress = 2;
+    required uint32 etaSec = 3;
+    required uint32 progressNumeric = 4;
+
+    repeated string ids = 10;
+}
+
+enum BridgePromptState
+{
+    start = 1;
+    stop = 2;
+    cycle = 3;
+}
+
+enum BridgePromptType
+{
+    decrypt = 1;
+    migrate = 2;
+}
+
+message CppUserPromptCallback
+{
+    required bytes promptID = 1;
+    required BridgePromptType promptType = 2;
+    required string verbose = 3;
+    required BridgePromptState state = 4; 
+    optional string walletID = 5;
+}
+
+message BridgeLedger
+{
+    required int64 value = 1;
+    required bytes hash = 2;
+    required string id = 3;
+    required uint32 height = 4;
+    required uint32 txIndex = 5;
+    required uint32 txTime = 6;
+    required bool isCoinbase = 7;
+    required bool isSentToSelf = 8;
+    required bool isChangeBack = 9;
+    required bool isChainedZC = 10;
+    required bool isWitness = 11;
+    required bool isRBF = 12;
+    repeated bytes scrAddrList = 13;
+}
+
+message BridgeLedgers
+{
+    repeated BridgeLedger le = 1;
+}
+
+message BridgeNodeChainState
+{
+    required uint32 chainState = 2;
+    required float blockSpeed = 3;
+    required float progressPct = 4;
+    required uint64 eta = 5;
+    required uint32 blocksLeft = 6;
+}
+
+message BridgeNodeStatus
+{
+    required bool isValid = 1;
+    
+    optional uint32 nodeStatus = 10;
+    optional bool isSegWitEnabled = 11;
+    optional uint32 rpcStatus = 12;
+    optional BridgeNodeChainState chainState = 13;
+}
+
+message BridgeBalanceAndCount
+{
+    required uint64 full = 1;
+    required uint64 spendable = 2;
+    required uint64 unconfirmed = 3;
+    required uint64 count = 4;
+}
+
+message BridgeMultipleBalanceAndCount
+{
+    repeated bytes ids = 1;
+    repeated BridgeBalanceAndCount data = 2;
+    repeated WalletAsset updatedAssets = 3;
+}
+
+message BridgeTx
+{
+    required bool isValid = 1;
+    optional bytes raw = 2;
+
+    optional uint32 height = 10;
+    optional uint32 txIndex = 11;
+
+    optional bool isRBF = 20;
+    optional bool isChainedZC = 21;
+}
+
+message ReplyBinary
+{
+    repeated bytes reply = 1;
+}
+
+message ReplyStrings
+{
+    repeated string reply = 1;
+}
+
+message ReplyNumbers
+{
+    repeated uint32 ints = 1;
+    repeated uint64 longs = 2;
+    repeated float  floats = 3;
+}
+
+message BridgeAddressBookEntry
+{
+    required bytes scrAddr = 1;
+    repeated bytes txHashes = 2;
+}
+
+message BridgeAddressBook
+{
+    repeated BridgeAddressBookEntry data = 1;
+}
+
+message BridgeUtxo
+{
+   required bytes txHash = 1;
+   required uint32 txOutIndex = 2;
+
+   required uint64 value = 3;
+   required uint32 txHeight = 4;
+   required uint32 txIndex = 5;
+   
+   required bytes script = 6;
+   required bytes scrAddr = 7;
+}
+
+message BridgeUtxoList
+{
+    repeated BridgeUtxo data = 1;
+}

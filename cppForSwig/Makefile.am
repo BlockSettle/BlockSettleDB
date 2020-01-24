@@ -88,6 +88,7 @@ INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
 # files but are "common" for the sake of unit testing. In an ideal world, the
 # unit tests would be split into multiple files as needed. One day....
 KEYMANAGER_SOURCE_FILES = KeyManager.cpp
+CPPBRIDGE_SOURCE_FILES = CppBridge.cpp
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = TransactionBatch.cpp
 ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
@@ -167,6 +168,7 @@ endif
 PROTOBUF_PROTO = protobuf/AddressBook.proto \
 	protobuf/AddressData.proto \
 	protobuf/BDVCommand.proto \
+	protobuf/ClientProto.proto \
 	protobuf/CommonTypes.proto \
 	protobuf/FeeEstimate.proto \
 	protobuf/LedgerEntry.proto \
@@ -176,6 +178,7 @@ PROTOBUF_PROTO = protobuf/AddressBook.proto \
 PROTOBUF_CC = protobuf/AddressBook.pb.cc \
 	protobuf/AddressData.pb.cc \
 	protobuf/BDVCommand.pb.cc \
+	protobuf/ClientProto.pb.cc \
 	protobuf/CommonTypes.pb.cc \
 	protobuf/FeeEstimate.pb.cc \
 	protobuf/LedgerEntry.pb.cc \
@@ -185,6 +188,7 @@ PROTOBUF_CC = protobuf/AddressBook.pb.cc \
 PROTOBUF_H = protobuf/AddressBook.pb.h \
 	protobuf/AddressData.pb.h \
 	protobuf/BDVCommand.pb.h \
+	protobuf/ClientProto.pb.h \
 	protobuf/CommonTypes.pb.h \
 	protobuf/FeeEstimate.pb.h \
 	protobuf/LedgerEntry.pb.h \
@@ -313,6 +317,20 @@ BUILT_SOURCES += CppBlockUtils_wrap.cxx
 CppBlockUtils_wrap.cxx: CppBlockUtils.i
 	swig $(SWIG_FLAGS) -o CppBlockUtils_wrap.cxx CppBlockUtils.i
 endif
+bin_PROGRAMS += CppBridge
+CppBridge_SOURCES = $(CPPBRIDGE_SOURCE_FILES)
+CppBridge_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS) \
+		-D__STDC_LIMIT_MACROS
+CppBridge_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+CppBridge_LDADD = $(LIBARMORYCOMMON) \
+		 $(LIBARMORYCLI) \
+		 $(LIBCRYPTOPP) \
+		 $(LIBBTC) \
+		 $(LIBCHACHA20POLY1305) \
+		 $(LIBLMDB) \
+		 $(LIBPROTOBUF_STATIC) \
+		 $(LIBWEBSOCKETS_STATIC)
+CppBridge_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
 
 MOSTLYCLEANFILES = $(PROTOBUF_CC) $(PROTOBUF_H)
 BUILT_SOURCES += $(PROTOBUF_CC)

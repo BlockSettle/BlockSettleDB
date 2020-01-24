@@ -172,13 +172,12 @@ try
    if (bdm->config().checkChain_)
       return;
 
-   auto updateChainLambda = [bdm, this]()->bool
+   auto updateChainLambda = [bdm, this]()->void
    {
       LOGINFO << "readBlkFileUpdate";
       auto reorgState = bdm->readBlkFileUpdate();
       if (reorgState.hasNewTop_)
-      {
-         LOGINFO << "found new top";
+      {            
          //purge zc container
          ZeroConfContainer::ZcActionStruct zcaction;
          zcaction.action_ = Zc_Purge;
@@ -200,10 +199,13 @@ try
          bdm->triggerOneTimeHooks(notifPtr.get());
          bdm->notificationStack_.push_back(move(notifPtr));
 
-         return true;
-      }
+         stringstream ss;
+         ss << "found new top!" << endl;
+         ss << "  hash: " << reorgState.newTop_->getThisHash().toHexStr() << endl;
+         ss << "  height: " << reorgState.newTop_->getBlockHeight();
 
-      return false;
+         LOGINFO << ss.str();
+      }
    };
 
    bdm->networkNode_->registerNodeStatusLambda(updateNodeStatusLambda);
@@ -214,10 +216,49 @@ try
    {
       try
       {
+         //wait on a new block InvEntry, blocking is on
          auto&& invVec = newBlockStack->pop_front();
 
-         //keep updating until there are no more new blocks
-         while (updateChainLambda());
+         bool hasNewBlocks = true;
+         while (hasNewBlocks)
+         {
+            //check blocks on disk, update chain state accordingly
+            updateChainLambda();
+            hasNewBlocks = false;
+
+            while (true)
+            {
+               /*
+               More new blocks may have appeared while we were parsing the
+               current batch. The chain update code will grab as many blocks
+               as it sees in a single call. Therefor, while N new blocks 
+               generate N new block notifications, a single call to 
+               updateChainLambda would cover them all.
+
+               updateChainLambda is an expensive call and it is unnecessary to
+               run it as many times as we have pending new block notifications.
+               The notifications just indicate that updateChainLamda should be 
+               ran, not how often. Hence after a run to updateChainLambda, we
+               want to deplete the block notification queue, run
+               updateChainLambda one more time for good measure, and break out
+               of the inner, non blocking queue wait loop once it is empty.
+
+               The outer blocking queue wait will then once again act as the 
+               signal to check the chain and deplete the queue
+               */
+               
+               try
+               {    
+                  //wait on new block entry, do not block for the inner loop     
+                  invVec = move(newBlockStack->pop_front(false));
+                  hasNewBlocks = true;
+               }
+               catch (IsEmpty&)
+               {
+                  break;
+               }
+            }
+         }
       }
       catch (StopBlockingLoop&)
       {

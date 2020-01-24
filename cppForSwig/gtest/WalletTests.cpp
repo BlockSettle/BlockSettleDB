@@ -2694,6 +2694,7 @@ TEST_F(WalletsTest, CreateCloseOpen_Test)
       auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
          homedir_,
          move(wltRoot), //root as a r value
+         {},
          SecureBinaryData::fromString("passphrase"), 
          SecureBinaryData::fromString("control"),
          4); //set lookup computation to 4 entries
@@ -2728,7 +2729,11 @@ TEST_F(WalletsTest, CreateCloseOpen_Test)
 
    for (auto& addrVecPair : addrMap)
    {
-      auto wltCtr = (WalletContainerEx*)&wltMgr.getCppWallet(addrVecPair.first);
+      auto wltMgrMap = wltMgr.getMap();
+      auto wltCtrIter = wltMgrMap.find(addrVecPair.first);
+      ASSERT_NE(wltCtrIter, wltMgrMap.end());
+
+      auto wltCtr = wltCtrIter->second;
       auto wltSingle =
          dynamic_pointer_cast<AssetWallet_Single>(wltCtr->getWalletPtr());
       ASSERT_NE(wltSingle, nullptr);
@@ -2750,6 +2755,7 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
+      {},
       SecureBinaryData::fromString("passphrase"),
       SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
@@ -2801,6 +2807,7 @@ TEST_F(WalletsTest, Encryption_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
+      {},
       SecureBinaryData::fromString("passphrase"),
       SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
@@ -3006,6 +3013,7 @@ TEST_F(WalletsTest, LockAndExtend_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
+      {},
       SecureBinaryData::fromString("passphrase"), //set passphrase to "test"
       controlPass_,
       4); //set lookup computation to 4 entries
@@ -3133,7 +3141,11 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       }
    };
 
-   auto wltCtr = (WalletContainerEx*)&wltMgr.getCppWallet(wltID);
+   auto& wltMgrMap = wltMgr.getMap();
+   auto wltCtrIter = wltMgrMap.find(wltID);
+   ASSERT_NE(wltCtrIter, wltMgrMap.end());
+
+   auto wltCtr = wltCtrIter->second;
    auto wltSingle =
       dynamic_pointer_cast<AssetWallet_Single>(wltCtr->getWalletPtr());
    ASSERT_NE(wltSingle, nullptr);
@@ -3207,6 +3219,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
          homedir_,
          wltRoot, //root as a r value
+         {},
          SecureBinaryData::fromString("test"), //set passphrase to "test"
          SecureBinaryData::fromString("control"), //control passphrase
          4); //set lookup computation to 4 entries
@@ -3526,6 +3539,7 @@ TEST_F(WalletsTest, SignPassphrase_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
+      {},
       SecureBinaryData::fromString("test"), //set passphrase to "test"
       SecureBinaryData::fromString("control"), //control passphrase
       4); //set lookup computation to 4 entries
@@ -3759,6 +3773,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
+      {},
       SecureBinaryData::fromString("test"), //set passphrase to "test"
       SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
@@ -3944,7 +3959,11 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       }
    };
 
-   auto wltCtr = (WalletContainerEx*)&wltMgr.getCppWallet(walletID);
+   auto wltMgrMap = wltMgr.getMap();
+   auto wltCtrIter = wltMgrMap.find(walletID);
+   ASSERT_NE(wltCtrIter, wltMgrMap.end());
+
+   auto wltCtr = wltCtrIter->second;
    auto wltSingle =
       dynamic_pointer_cast<AssetWallet_Single>(wltCtr->getWalletPtr());
    ASSERT_NE(wltSingle, nullptr);
@@ -4068,6 +4087,7 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
+      {},
       SecureBinaryData(), //set passphrase to "test"
       SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
@@ -4412,6 +4432,7 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       wltRoot, //root as a r value
+      {},
       SecureBinaryData::fromString("test"), //set passphrase to "test"
       controlPass_,
       4); //set lookup computation to 4 entries

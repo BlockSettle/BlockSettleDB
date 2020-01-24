@@ -10,7 +10,6 @@ from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
 from armorycolors import htmlColor
-from jasvet import ASv0, ASv1B64, ASv1CS, verifySignature, readSigBlock
 from qtdefines import *
 from qtdialogs import MIN_PASSWD_WIDTH, DlgPasswd3, createAddrBookButton,\
    DlgUnlockWallet

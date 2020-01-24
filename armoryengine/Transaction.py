@@ -9,15 +9,13 @@ from __future__ import print_function
 import logging
 import os
 
-import CppBlockUtils as Cpp
 import armoryengine.ArmoryUtils
 from armoryengine.ArmoryUtils import *
 from armoryengine.BinaryPacker import *
 from armoryengine.BinaryUnpacker import *
 
 from armoryengine.AsciiSerialize import AsciiSerializable
-from armoryengine.SignerWrapper import SIGNER_DEFAULT, \
-   SIGNER_LEGACY, SIGNER_CPP, SIGNER_BCH, UniversalSignerDirector
+from armoryengine.CppBridge import TheBridge
    
 import copy
 
@@ -332,6 +330,72 @@ def getOpCode(name):
 
 
 ################################################################################
+class SignerObject(object):
+   def __init__(self):
+      self.id = None
+
+   ################################################################################
+   def __del__(self):
+      TheBridge.destroySigner(self.id)
+
+   ################################################################################
+   def setup(self):
+      if self.id != None:
+         raise Exception("signer object already initialized")
+      self.id = TheBridge.initNewSigner()
+
+   ################################################################################
+   def setVersion(self, version):
+      if self.id == None:
+         raise Exception("uninitialized signer object")
+      TheBridge.signer_SetVersion(self.id, version)
+
+   ################################################################################
+   def setLockTime(self, locktime):
+      if self.id == None:
+         raise Exception("uninitialized signer object")
+      TheBridge.signer_SetLockTime(self.id, locktime)
+
+   ################################################################################
+   def addSpenderByOutpoint(self, hashVal, index, seq, value):
+      if self.id == None:
+         raise Exception("uninitialized signer object")
+      TheBridge.signer_addSpenderByOutpoint(self.id, hashVal, index, seq, value)
+
+   ################################################################################
+   def populateUtxo(self, hashVal, index, value, script):
+      if self.id == None:
+         raise Exception("uninitialized signer object")
+      TheBridge.signer_populateUtxo(self.id, hashVal, index, value, script)
+
+   ################################################################################
+   def addRecipient(self, value, script):
+      if self.id == None:
+         raise Exception("uninitialized signer object")
+      TheBridge.signer_addRecipient(self.id, value, script)
+
+   ################################################################################      
+   def serializeState(self):
+      if self.id == None:
+         raise Exception("uninitialized signer object")
+      return TheBridge.signer_getSerializedState(self.id)
+   
+   ################################################################################      
+   def initFromSerializedState(self, signerState):
+      TheBridge.signer_unserializeState(self.id, signerState)
+
+   ################################################################################      
+   def signTx(self, wltId, callback):
+      TheBridge.signer_signTx(self.id, wltId, callback, [self])
+
+   ################################################################################      
+   def getSignedTx(self):
+      rawSignedTx = TheBridge.signer_getSignedTx(self.id)
+      signedTx = PyTx()
+      signedTx.unserialize(rawSignedTx)
+      return signedTx
+
+################################################################################
 def getMultisigScriptInfo(rawScript):
    """
    Gets the Multi-Sig tx type, as well as all the address-160 strings of
@@ -386,7 +450,7 @@ def getHash160ListFromMultisigScrAddr(scrAddr):
 ################################################################################
 # These two methods are just easier-to-type wrappers around the C++ methods
 def getTxOutScriptType(script):
-   return Cpp.BtcUtils().getTxOutScriptTypeInt(script)
+   return TheBridge.getTxOutScriptType(script)
 
 ################################################################################
 # These two methods are just easier-to-type wrappers around the C++ methods
@@ -412,7 +476,7 @@ def getTxInScriptType(txinObj):
    """
    script = txinObj.binScript
    prevTx = txinObj.outpoint.txHash
-   return Cpp.BtcUtils().getTxInScriptTypeInt(script, prevTx)
+   return TheBridge.getTxInScriptType(script, prevTx)
 
 ################################################################################
 def getTxInP2SHScriptType(txinObj):
@@ -427,7 +491,7 @@ def getTxInP2SHScriptType(txinObj):
    if not scrType==CPP_TXIN_SPENDP2SH:
       return None
 
-   lastPush = Cpp.BtcUtils().getLastPushDataInScript(txinObj.binScript)
+   lastPush = TheBridge.getLastPushDataInScript(txinObj.binScript)
 
    return getTxOutScriptType(lastPush)
 
@@ -436,8 +500,8 @@ def getTxInP2SHScriptType(txinObj):
 def TxInExtractAddrStrIfAvail(txinObj):
    rawScript  = txinObj.binScript
    prevTxHash = txinObj.outpoint.txHash
-   scrType = Cpp.BtcUtils().getTxInScriptTypeInt(rawScript, prevTxHash)
-   lastPush = Cpp.BtcUtils().getLastPushDataInScript(rawScript)
+   scrType = TheBridge.getTxInScriptType(rawScript, prevTxHash)
+   lastPush = TheBridge.getLastPushDataInScript(rawScript)
 
    if scrType in [CPP_TXIN_STDUNCOMPR, CPP_TXIN_STDCOMPR]:
       return hash160_to_addrStr( hash160(lastPush) )
@@ -545,6 +609,9 @@ class PyTxIn(BlockComponent):
       self.intSeq    = txInData.get(UINT32)
       return self
 
+   def getOutPoint(self):
+      return self.outpoint
+
    def getScript(self):
       return self.binScript
    
@@ -611,6 +678,9 @@ class PyTxOut(BlockComponent):
 
    def getScript(self):
       return self.binScript
+
+   def getScrAddressStr(self):
+      return script_to_addrStr(self.binScript)
 
    def serialize(self):
       binOut = BinaryPacker()
@@ -691,6 +761,11 @@ class PyTxWitness(BlockComponent):
    def getWitnesses(self):
       return self.binWitness
 
+   def getSize(self):
+      if self.binWitness != UNINITIALIZED:
+         return len(self.binWitness)
+      return 0
+
    def serialize(self):
       binOut = BinaryPacker()
       binOut.put(VAR_INT, self.binWitness[0])
@@ -724,9 +799,12 @@ class PyTx(BlockComponent):
       self.rbfFlag    = False
       self.witnesses  = UNINITIALIZED
       self.useWitness = False
-      
+      self.size = 0
+
       self.signerState = None
-      self.signerType_ = SIGNER_DEFAULT
+
+   def isInitialized(self):
+      return self.size != 0
 
    def serialize(self):
       binOut = BinaryPacker()
@@ -759,9 +837,12 @@ class PyTx(BlockComponent):
       return binOut.getBinaryString()
 
    def unserialize(self, toUnpack):
+      txsize = 0
       if isinstance(toUnpack, BinaryUnpacker):
          txData = toUnpack
+         txsize = toUnpack.getSize()
       else:
+         txsize = len(toUnpack)
          txData = BinaryUnpacker( toUnpack )
 
       startPos = txData.getPosition()
@@ -777,7 +858,7 @@ class PyTx(BlockComponent):
          txData.rewind(2)
       numInputs  = txData.get(VAR_INT)
       for i in xrange(numInputs):
-         txin = PyTxIn().unserialize(txData);
+         txin = PyTxIn().unserialize(txData)
          self.inputs.append( txin )
 
       numOutputs = txData.get(VAR_INT)
@@ -791,10 +872,24 @@ class PyTx(BlockComponent):
       endPos = txData.getPosition()
       self.nBytes = endPos - startPos
       self.thisHash = hash256(self.serializeWithoutWitness())
+
+      self.size = txsize
       return self
 
+   def getNumTxOut(self):
+      return len(self.outputs)
+
+   def getTxOut(self, id):
+      return self.outputs[id]
+
+   def getNumTxIn(self):
+      return len(self.inputs)
+
+   def getTxIn(self, id):
+      return self.inputs[id]
+
    def getHash(self):
-      return hash256(self.serializeWithoutWitness())
+      return self.thisHash
 
    def getHashHex(self, endianness=LITTLEENDIAN):
       return binary_to_hex(self.getHash(), endOut=endianness)
@@ -805,6 +900,19 @@ class PyTx(BlockComponent):
    def copyWithoutWitness(self):
       return PyTx().unserialize(self.serializeWithoutWitness())
 
+   def getSize(self):
+      return self.size
+
+   def getTxWeight(self):
+      if self.useWitness == False:
+         return self.size
+
+      witnessSize = 0
+      for witness in self.witnesses:
+         witnessSize += witness.getSize()
+
+      witnessSize *= 0.75
+      return self. size - witnessSize
 
    def makeRecipientsList(self):
       """
@@ -870,11 +978,6 @@ class PyTx(BlockComponent):
          result = ''.join([result, '\n',  witness.toString(nIndent+2, endian=endian)])
       return result
 
-
-   def fetchCpp(self):
-      """ Use the info in this PyTx to get the C++ version from TheBDM """
-      return TheBDM.getTxByHash(self.getHash())
-
    def pprintHex(self, nIndent=0):
       bu = BinaryUnpacker(self.serialize())
       theSer = self.serialize()
@@ -916,9 +1019,9 @@ class PyTx(BlockComponent):
    def computeSignerState(self):
       if self.signerState != None:
          raise Exception("Initialized signer state, cannot overwrite")
-      
-      signerObj = UniversalSignerDirector(self.signerType_)
-      
+
+      signerObj = SignerObject()
+      signerObj.setup()
       signerObj.setVersion(self.version)
       signerObj.setLockTime(self.lockTime)
       
@@ -926,17 +1029,13 @@ class PyTx(BlockComponent):
          signerObj.addSpenderByOutpoint(\
             txin.outpoint.txHash, txin.outpoint.txOutIndex, \
             txin.intSeq, txin.outpointValue)
+         signerObj.populateUtxo(txin.outpoint.txHash, txin.outpoint.txOutIndex, \
+            txin.outpointValue, txin.binScript)
          
       for txout in self.outputs:
          signerObj.addRecipient(txout.value, txout.binScript)
          
       self.signerState = signerObj.serializeState()
-      
-   def setSignerType(self, _type):
-      if self.signerType_ == SIGNER_DEFAULT:
-         self.signerType_ = _type
-      elif self.signerType_ != _type:
-         raise SignerException("Signer type mismatch!")
 
 # Use to identify status of individual sigs on an UnsignedTxINPUT
 TXIN_SIGSTAT = enum('ALREADY_SIGNED',
@@ -1152,8 +1251,6 @@ class UnsignedTxInput(AsciiSerializable):
       self.isSegWit = False
       self.inputID = inputID
       
-      self.signerType = SIGNER_DEFAULT
-
 
       if pubKeyMap is not None and not isinstance(pubKeyMap, dict):
          if isinstance(pubKeyMap, (list,tuple)):
@@ -1177,7 +1274,7 @@ class UnsignedTxInput(AsciiSerializable):
             self.isInitialized = False
             raise UstxError('No P2SH script supplied for P2SH input')
 
-         # Sanity check tha the supplied P2SH script actually matches
+         # Sanity check that the supplied P2SH script actually matches
          self.p2shScrAddr = script_to_scrAddr(baseScript)
          scriptHash = hash160(self.p2shMap[BASE_SCRIPT])
          if not P2SHBYTE + scriptHash == self.p2shScrAddr:
@@ -1401,178 +1498,6 @@ class UnsignedTxInput(AsciiSerializable):
          outScript += scriptPushData(self.p2shMap[BASE_SCRIPT])
 
       return outScript
-
-
-   #############################################################################
-   def createTxSignature(self, pytx, sbdPrivKey, hashcode=1,
-                         DetSign=ENABLE_DETSIGN, signerType=SIGNER_DEFAULT):
-      """
-      This might be a little confusing ... remember this is an input for a
-      transaction which may not have been fully defined at the time this
-      object was created.  We supply the final PyTx object is being signed,
-      and assume that this input is one of them.  Then we produce the signature
-      using the CryptoECDSA module and the supplied privKey.
-
-      This returns a DER-encoded signature string with the 1-byte hashcode
-      appended to the end
-      """
-      # Make sure the supplied privateKey is relevant to this USTXI
-      computedPub_sbd = CryptoECDSA().ComputePublicKey(sbdPrivKey)
-      compressedPub_sbd = CryptoECDSA().CompressPoint(computedPub_sbd)
-      
-      computedPub = computedPub_sbd.toBinStr()
-      compressedPub = compressedPub_sbd.toBinStr()
-      
-      if not computedPub in self.pubKeys and not compressedPub in self.pubKeys:
-         raise SignatureError('No PubKey that matches this privKey')     
-      
-      if signerType == SIGNER_DEFAULT:
-         if not self.isSegWit:
-            signerType = SIGNER_LEGACY
-         else:
-            signerType = SIGNER_CPP
-            
-      self.signerType = signerType
-      
-      if pytx is not None:
-         pytx.setSignerType(self.signerType)
-            
-      if signerType == SIGNER_LEGACY:
-         txiIdx = -1
-         for i,txin in enumerate(pytx.inputs):
-            if self.outpoint.serialize()==txin.outpoint.serialize():
-               txiIdx = i
-               break
-         else:
-            raise SignatureError('No TxIn in tx that matches this USTXI')
-   
-         msg,hc = generatePreHashTxMsgToSign(pytx, txiIdx, 
-                                       self.getTxoScriptToSign(), hashcode)
-         sbdSig = CryptoECDSA().SignData(SecureBinaryData(msg), sbdPrivKey, DetSign)
-         binSig = sbdSig.toBinStr()
-         return createDERSigFromRS(binSig[:32], binSig[32:]) + hc
-      else: 
-         #instantiate cpp signer
-         cppSigner = UniversalSignerDirector(signerType)
-         
-         #grab signer state from pytx and deser 
-         if pytx.signerState == None:
-            raise SignerException("cannot sign SegWit tx without cpp signer state") 
-         cppSigner.deserializeState(pytx.signerState)
-         
-         #populate signer with data to resolve
-         cppSigner.updatePubDataDict(self.getP2shMapForSigner())
-                 
-         privDataDict = {}
-         privDataDict[binary_to_hex(computedPub)] = sbdPrivKey
-         privDataDict[binary_to_hex(compressedPub)] = sbdPrivKey
-         cppSigner.updatePrivDataDict(privDataDict)
-         
-         #populate signer with utxo
-         cppSigner.populateUtxo(self.outpoint.txHash, self.outpoint.txOutIndex, \
-                                self.value,  self.txoScript)
-                  
-         #sign, serialize and move on
-         cppSigner.signTx()
-         pytx.signerState = cppSigner.serializeState()
-         return ""
-
-
-   #############################################################################
-   def insertSignature(self, sigStr, pubKey):
-      """
-      Returns -1 if no sig can be added, index of last sig added otherwise 
-      (usually only one sig added, but if this is a multisig and has repeated
-      public keys, it will insert the sig in every slot for which it is valid)
-      """
-      msIdx = -1
-      
-      while(True):
-         try:
-            newIdx = self.pubKeys.index(pubKey, msIdx+1)
-         except ValueError:
-            # Eventually we run out of slots to insert into and error out.    
-            # Since we're using [].index(), exception-control-flow is easiest
-            return msIdx
-   
-         msIdx = newIdx
-         
-         if not self.isSegWit:
-            self.setSignature(msIdx, sigStr)
-         else:
-            self.setWitnessData(msIdx, sigStr)
-         
-   #############################################################################
-   def createAndInsertSignature(self, pytx, sbdPrivKey, hashcode=1, \
-         DetSign=ENABLE_DETSIGN, signerType=SIGNER_DEFAULT):
-      derSig = self.createTxSignature(pytx, sbdPrivKey, hashcode, \
-                                      DetSign, signerType=signerType)
-      computedPub = CryptoECDSA().ComputePublicKey(sbdPrivKey).toBinStr()
-
-      msIdx = self.insertSignature(derSig, computedPub)
-      return derSig, msIdx
-
-   #############################################################################
-   def verifyTxSignature(self, pytx, sigStr, pubKey=None):
-      return (self.getValidIndexForSignature(pytx, sigStr, pubKey) >= 0)
-
-   #############################################################################
-   def getValidIndexForSignature(self, pytx, sigStr, pubKey=None):
-      """
-      IMPORTANT:  This returns the index in the self.pubKeys list, for which
-                  the signature is valid!  -1 is returned if the signature is
-                  not valid for any pubkey!  For boolean query, use:
-
-                     isValid = (verifyTxSignature(...) >= 0)
-      """
-      txiIdx = -1
-      for i,txin in enumerate(pytx.inputs):
-         if self.outpoint.serialize()==txin.outpoint.serialize():
-            txiIdx = i
-            break
-      else:
-         raise SignatureError('No TxIn that matches this USTXI')
-
-
-      # If we were not given a public key to use for verification,
-      # recurse into this method once with each of self.pubKeys.
-      # We've assumed up until now that pubkeys and p2sh script will
-      # always be available with the supportingTx, all as part of the
-      # USTXI class
-      if pubKey is None:
-         for i,pubk in enumerate(self.pubKeys):
-            if self.verifyTxSignature(pytx, sigStr, pubk):
-               return i
-         return -1
-
-
-      # If public key is supplied (including on recursion)
-      try:
-         msIndex = self.pubKeys.index(pubKey)
-      except ValueError:
-         raise KeyDataError('Supplied pubkey does not match any USTXI keys')
-
-
-      rBin, sBin = getRSFromDERSig(sigStr)
-      hashcode  = binary_to_int(sigStr[-1])
-      if not hashcode==1:
-         LOGERROR('Cannot allow non-standard SIGHASH types: %d' % hashcode)
-         return -1
-
-      # Don't forget "sigStr" has the 1-byte hashcode at the end
-      msg = generatePreHashTxMsgToSign(pytx, txiIdx,
-            self.getTxoScriptToSign(), hashcode)[0]
-      sbdMsg = SecureBinaryData(msg)
-      sbdSig = SecureBinaryData(rBin + sBin)
-      sbdPub = SecureBinaryData(pubKey)
-      return msIndex if CryptoECDSA().VerifyData(sbdMsg, sbdSig, sbdPub) else -1
-
-   #############################################################################
-   # make sure to sign the p2shScript if it is there, other wise sign the txoScript
-   # For p2sh the txoScript is not signed, it's compared with the p2sh that
-   # supplied as input, and the signatures reference that script for p2sh
-   def getTxoScriptToSign(self):
-      return self.p2shMap[BASE_SCRIPT] if len(self.p2shMap) > 0 else self.txoScript
       
    #############################################################################
    def verifyAllSignatures(self, pytx):
@@ -2288,7 +2213,6 @@ class UnsignedTransaction(AsciiSerializable):
       self.ustxInputs  = []
       self.decorTxOuts = []
       self.isLegacyTx = True
-      self.signerType = SIGNER_DEFAULT
       
       self.signerState = None
 
@@ -2327,7 +2251,7 @@ class UnsignedTransaction(AsciiSerializable):
       for iin,ustxi in enumerate(ustxinList):
          self.pytxObj.inputs[iin] = PyTxIn()
          self.pytxObj.inputs[iin].outpoint      = ustxi.outpoint
-         self.pytxObj.inputs[iin].binScript     = ''
+         self.pytxObj.inputs[iin].binScript     = ustxi.txoScript
          self.pytxObj.inputs[iin].intSeq        = ustxi.sequence
          self.pytxObj.inputs[iin].outpointValue = ustxi.value
 
@@ -2363,11 +2287,10 @@ class UnsignedTransaction(AsciiSerializable):
 
       if self.signerState == None:
          self.pytxObj.computeSignerState()
+         self.signerState = self.pytxObj.signerState
       else:
          self.pytxObj.signerState = self.signerState
-         
-      self.pytxObj.setSignerType(self.signerType)
-         
+                  
       return self
 
    #############################################################################
@@ -2412,10 +2335,10 @@ class UnsignedTransaction(AsciiSerializable):
                                         'in supplied txMap')
             pyPrevTx = txMap[txhash].copy()
          elif TheBDM.getState()==BDM_BLOCKCHAIN_READY:
-            cppPrevTx = TheBDM.bdv().getTxByHash(txhash)
-            if not cppPrevTx:
+            txRaw = TheBridge.getTxByHash(txhash)
+            if not txRaw.isValid:
                raise InvalidHashError('Could not find the referenced tx')
-            pyPrevTx = PyTx().unserialize(cppPrevTx.serialize())
+            pyPrevTx = PyTx().unserialize(txRaw.raw)
          else:
             raise InvalidScriptError('No previous-tx data available for TxDP')
 
@@ -2490,7 +2413,7 @@ class UnsignedTransaction(AsciiSerializable):
          if intType==CPP_TXOUT_NONSTANDARD:
             LOGWARN('Including non-standard script output')
             LOGWARN('Script: ' + binary_to_hex(script))
-            #raise BadAddressError('Invalid script for tx creation')
+            raise BadAddressError('Invalid script for tx creation')
 
          txout.binScript = script[:]
          thePyTx.outputs.append(txout)
@@ -2568,10 +2491,7 @@ class UnsignedTransaction(AsciiSerializable):
       bp.put(UINT32, self.lockTime)
       
       bp.put(UINT8, USTX_EXT_SIGNERTYPE)
-      if self.pytxObj.signerType_ == SIGNER_DEFAULT:
-         bp.put(VAR_STR, self.signerType)
-      else:
-         bp.put(VAR_STR, self.pytxObj.signerType_)
+      bp.put(VAR_STR, "")
          
       bp.put(UINT8, USTX_EXT_SIGNERSTATE)
       bp.put(VAR_STR, self.pytxObj.signerState)
@@ -2766,149 +2686,16 @@ class UnsignedTransaction(AsciiSerializable):
 
       return txSigStat
 
-
    #############################################################################
-   def verifySigsAllInputs(self, signer=SIGNER_DEFAULT):
-      if signer == SIGNER_DEFAULT:
-         if self.isLegacyTx:
-            signer = SIGNER_LEGACY
-         else:
-            signer = SIGNER_CPP
-           
-      if signer == SIGNER_LEGACY:
-         for ustxi in self.ustxInputs:
-            if not ustxi.verifyAllSignatures(self.pytxObj):
-               return False
-         return True
-            
-      elif signer == SIGNER_CPP:
-         cppVerifier = Cpp.PythonVerifier()
-
-         pytx = self.getSignedPyTx(doVerifySigs=False)
-         rawTxOuts = {}
-         for ustxi in self.ustxInputs:
-            txHash = ustxi.outpoint.txHash
-            outid = ustxi.outpoint.txOutIndex
-            
-            if txHash not in rawTxOuts:
-               rawTxOuts[txHash] = {}
-            
-            bp = BinaryPacker()
-            bp.put(UINT64, ustxi.value)
-            bp.put(VAR_STR, ustxi.txoScript)
-            
-            rawTxOuts[txHash][outid] = bp.getBinaryString()
-         try:   
-            return cppVerifier.verifySignedTx(pytx.serialize(), rawTxOuts)
-         except:
-            return False
-            
-      elif signer == SIGNER_BCH:
-         cppVerifier = Cpp.PythonVerifier_BCH()
-
-         pytx = self.getSignedPyTx(doVerifySigs=False)
-         rawTxOuts = {}
-         for ustxi in self.ustxInputs:
-            txHash = ustxi.outpoint.txHash
-            outid = ustxi.outpoint.txOutIndex
-            
-            if txHash not in rawTxOuts:
-               rawTxOuts[txHash] = {}
-            
-            bp = BinaryPacker()
-            bp.put(UINT64, ustxi.value)
-            bp.put(VAR_STR, ustxi.txoScript)
-            
-            rawTxOuts[txHash][outid] = bp.getBinaryString()
-         
-         try:   
-            return cppVerifier.verifySignedTx(pytx.serialize(), rawTxOuts)
-         except:
-            return False
-
-      return False
+   def verifySigsAllInputs(self):
+      return None
    
-   #############################################################################
-   def verifyInputsMatchPyTxObj(self):
-      """
-      This assumes that all inputs are sorted the same way.  I was going to
-      make it totally generic and have a function for creating a mapping, but
-      so far, I can't see how you would end up with mis-sorted data, since
-      the pytxObj always is created from the ustxInputs list (originally)
-
-      Nonetheless, it probably wouldn't be too hard to have ustxInputs
-      re-sorted by this method in less then N^2 time
-      """
-      opList1 = [inp.outpoint.serialize() for inp in self.pytxObj.inputs]
-      opList2 = [inp.outpoint.serialize() for inp in self.ustxInputs]
-
-      #return sorted(opList1)==sorted(opList2)
-      return opList1==opList2
-
-
    #############################################################################
    def getUnsignedPyTx(self, doVerifySigs=True):
       return self.pytxObj.copy()
 
-
    #############################################################################
-   def getSignedPyTx(self, doVerifySigs=True, stripExtraSigs=True, \
-                     signer=SIGNER_DEFAULT):
-      # Make sure the USTXI list is synchronous with the pytx input list
-      if not self.verifyInputsMatchPyTxObj():
-         LOGERROR('Invalid USTXI set or ordering')
-         return None
-      
-      signerType = self.pytxObj.signerType_
-      
-      if signerType in [SIGNER_CPP, SIGNER_BCH]:
-         #finalTx.useWitness = True
-         #finalTx.witness = []
-         
-         cpp_signer = UniversalSignerDirector(self.pytxObj.signerType_)
-         cpp_signer.deserializeState(self.pytxObj.signerState)
-         serialized_tx = cpp_signer.serializeSignedTx()
-         finalTx = PyTx()
-         finalTx.unserialize(serialized_tx)
-         return finalTx
-      else:
-      
-         finalTx = self.pytxObj.copy()
-         
-         #if self.isLegacyTx:   
-         # Check signatures are valid (if not skipped)
-         # TODO: I would've used PyScriptProcessor since it evaluates the scripts
-         #       as a whole, instead of just verifying the individual signatures,
-         #       but it doesn't currently handle P2SH scripts properly, so it
-         #       wouldn't be reliable for P2SH scripts
-         if doVerifySigs:
-            if not self.verifySigsAllInputs(signer):
-               LOGERROR('Attempted to prepare final tx, but not all sigs available')
-               raise SignatureError('Invalid signature while preparing final tx')         
-         
-         for iin in range(len(self.ustxInputs)):
-            ustxi = self.ustxInputs[iin]
-            sigScript = ustxi.createSigScript(stripExtraSigs=stripExtraSigs)
-            if not sigScript:
-               return None
-            finalTx.inputs[iin].binScript = sigScript
-            
-            if self.isSegWit():
-               pytxWit = PyTxWitness()
-               witData = ustxi.witnessData
-               
-               if len(witData) == 0:
-                  bp = BinaryPacker()
-                  bp.put(VAR_INT, 0)
-                  witData = bp.getBinaryString()
-                  
-               pytxWit.unserialize(witData)
-               finalTx.witnesses.append(pytxWit)
-   
-         return finalTx
-
-   #############################################################################
-   def getPyTxSignedIfPossible(self, doVerifySigs=True, signer=SIGNER_DEFAULT):
+   def getPyTxSignedIfPossible(self, doVerifySigs=True):
       if self.evaluateSigningStatus().canBroadcast:
          return self.getSignedPyTx(doVerifySigs=doVerifySigs, signer=signer)
       else:
@@ -2929,14 +2716,12 @@ class UnsignedTransaction(AsciiSerializable):
 
 
    #############################################################################
-   def createAndInsertSignatureForInput(self, txInIndex, sbdPrivKey, hashcode=1,
-      DetSign=ENABLE_DETSIGN, signerType=SIGNER_DEFAULT):
+   def createAndInsertSignatureForInput(self, txInIndex, sbdPrivKey, hashcode=1):
       if txInIndex >= len(self.ustxInputs):
          raise SignatureError('TxIn index is out of range for this USTX')
 
       ustxi = self.ustxInputs[txInIndex]
-      ustxi.createAndInsertSignature(self.pytxObj, sbdPrivKey, hashcode, 
-                                     DetSign, signerType=signerType)
+      ustxi.createAndInsertSignature(self.pytxObj, sbdPrivKey, hashcode)
 
 
    #############################################################################
@@ -3126,8 +2911,6 @@ def PyCreateAndSignTx(ustxiList, dtxoList, sbdPrivKeyMap, hashcode=1, DetSign=Tr
 #
 def PyCreateAndSignTx_old(srcTxOuts, dstAddrsVals):
    # This needs to support multisig. Perhaps the funct should just be moved....
-   from armoryengine.MultiSigUtils import *
-
    newTx = PyTx()
    newTx.version    = 1
    newTx.lockTime   = 0

@@ -504,9 +504,7 @@ public:
    template<typename INTTYPE>
    static INTTYPE StrToIntLE(uint8_t const * ptr)
    {
-      auto intPtr = (INTTYPE*)ptr;
-
-      return *intPtr;
+      return  *((INTTYPE*)ptr);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -523,10 +521,13 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   static BinaryData fromString(const std::string& str)
+   static BinaryData fromString(const std::string& str, size_t len = SIZE_MAX)
    {
+      if (len == SIZE_MAX)
+         len = str.size();
+         
       BinaryData data;
-      data.copyFrom(str);
+      data.copyFrom(str.c_str(), len);
       return data;
    }
 
@@ -885,6 +886,18 @@ public:
       return std::string((char const *)(&(outStr[0])), 2*nBytes_);
    }
 
+   /////////////////////////////////////////////////////////////////////////////
+   bool isZero(void) const
+   {
+      for (unsigned i=0; i<getSize(); i++)
+      {
+         if (ptr_[i] != 0)
+            return false;
+      }
+
+      return true;
+   }
+
 private:
    uint8_t const * ptr_;
    size_t  nBytes_;
@@ -1193,6 +1206,21 @@ public:
       }
       uint64_t  outVal = (e==LE ? READ_UINT64_LE(bdRef_.getPtr() + pos_) :
                                   READ_UINT64_BE(bdRef_.getPtr() + pos_) );
+      pos_.fetch_add(8, std::memory_order_relaxed);
+      return outVal;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   int32_t get_int64_t(ENDIAN e = LE)
+   {
+      if (getSizeRemaining() < 8)
+      {
+         LOGERR << "buffer overflow";
+         throw std::runtime_error("buffer overflow");
+      }
+      int32_t outVal = (e == LE ?
+         BinaryData::StrToIntLE<int64_t>(bdRef_.getPtr() + pos_) :
+         BinaryData::StrToIntBE<int64_t>(bdRef_.getPtr() + pos_));
       pos_.fetch_add(8, std::memory_order_relaxed);
       return outVal;
    }

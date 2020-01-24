@@ -90,11 +90,7 @@ class PyBlockHeader(BlockComponent):
          raise UnitializedBlockDataError('PyBlockHeader object not initialized!')
       self.intDifficult = binaryBits_to_difficulty(self.diffBits)
       return self.intDifficult
-   
-   def fetchCpp(self):
-      """ Convert a raw blockheader with no context, to a C++ BlockHeader """
-      return TheBDM.getHeaderByHash(self.getHash())
-      
+         
    def pprint(self, nIndent=0, endian=BIGENDIAN):
       indstr = indent*nIndent
       print(indstr + 'BlockHeader:')

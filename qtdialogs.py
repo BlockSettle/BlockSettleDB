@@ -23,17 +23,15 @@ from armorycolors import Colors, htmlColor
 from armorymodels import *
 import qrc_img_resources
 from qtdefines import *
-from armoryengine.PyBtcAddress import calcWalletIDFromRoot
 from armoryengine.MultiSigUtils import calcLockboxID, createLockboxEntryStr,\
    LBPREFIX, isBareLockbox, isP2SHLockbox
 from ui.MultiSigModels import LockboxDisplayModel, LockboxDisplayProxy,\
    LOCKBOXCOLS
-from armoryengine.PyBtcWalletRecovery import RECOVERMODE
 from armoryengine.ArmoryUtils import BTC_HOME_DIR
 
 from ui.TreeViewGUI import AddressTreeModel
 from ui.QrCodeMatrix import CreateQRMatrix
-from ui.SignerSelectDialog import SignerLabelFrame
+from armoryengine.Block import PyBlockHeader
 
 NO_CHANGE = 'NoChange'
 MIN_PASSWD_WIDTH = lambda obj: tightSizeStr(obj, '*' * 16)[0]
@@ -51,13 +49,14 @@ MAX_SATOSHIS = 2100000000000000
 
 ################################################################################
 class DlgUnlockWallet(ArmoryDialog):
-   def __init__(self, wlt, parent=None, main=None, unlockMsg='Unlock Wallet', \
-                           returnResult=False, returnPassphrase=False):
+   def __init__(self, promptId, wltID, parent=None, main=None, \
+      unlockMsg='Unlock Wallet', returnResult=False):
       super(DlgUnlockWallet, self).__init__(parent, main)
 
-      self.wlt = wlt
+      self.wltID = wltID
+
       self.returnResult = returnResult
-      self.returnPassphrase = returnPassphrase
+      self.promptId = promptId
 
       ##### Upper layout
       lblDescr = QLabel(self.tr("Enter your passphrase to unlock this wallet"))
@@ -70,7 +69,7 @@ class DlgUnlockWallet(ArmoryDialog):
       self.btnAccept = QPushButton(self.tr("Unlock"))
       self.btnCancel = QPushButton(self.tr("Cancel"))
       self.connect(self.btnAccept, SIGNAL(CLICKED), self.acceptPassphrase)
-      self.connect(self.btnCancel, SIGNAL(CLICKED), self.reject)
+      self.connect(self.btnCancel, SIGNAL(CLICKED), self.rejectPassphrase)
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
@@ -144,7 +143,7 @@ class DlgUnlockWallet(ArmoryDialog):
       layout.addWidget(frmAccept)
       layout.addWidget(self.frmLower)
       self.setLayout(layout)
-      self.setWindowTitle(unlockMsg + ' - ' + wlt.uniqueIDB58)
+      self.setWindowTitle(unlockMsg + ' - ' + self.wltID)
 
       # Add scrambled keyboard
       self.layout().setSizeConstraint(QLayout.SetFixedSize)
@@ -300,35 +299,338 @@ class DlgUnlockWallet(ArmoryDialog):
       self.main.settings.set('ScrambleDefault', opt)
       self.redrawKeys()
 
+   #############################################################################
+   def recycle(self):
+      QMessageBox.critical(self, self.tr('Invalid Passphrase'), \
+         self.tr('That passphrase is not correct!'), QMessageBox.Ok)
+      self.edtPasswd.setText('')
+
+   #############################################################################
+   def completed(self):
+      self.edtPasswd.setText('')
+      self.accept()
 
    #############################################################################
    def acceptPassphrase(self):
-
-      self.securePassphrase = SecureBinaryData(str(self.edtPasswd.text()))
-      self.edtPasswd.setText('')
+      passphraseStr = str(self.edtPasswd.text())
 
       if self.returnResult:
-         self.accept()
-         return
-
-      try:
-         if self.returnPassphrase == False:
-            unlockProgress = DlgProgress(self, self.main, HBar=1,
-                                         Title=self.tr("Unlocking Wallet"))
-            unlockProgress.exec_(self.wlt.unlock, securePassphrase=self.securePassphrase)
-            self.securePassphrase.destroy()
-         else:
-            if self.wlt.verifyPassphrase(self.securePassphrase) == False:
-               raise PassphraseError
-
-         self.accept()
-      except PassphraseError:
-         QMessageBox.critical(self, self.tr('Invalid Passphrase'), \
-           self.tr('That passphrase is not correct!'), QMessageBox.Ok)
-         self.securePassphrase.destroy()
          self.edtPasswd.setText('')
+         self.accept()
          return
 
+      TheBridge.returnPassphrase(self.promptId, passphraseStr)
+      passphraseStr = ''
+
+   #############################################################################
+   def rejectPassphrase(self):
+      self.edtPasswd.setText('')
+      TheBridge.returnPassphrase(self.promptId, "")
+      self.reject()
+
+   #############################################################################
+   def accept(self):
+      self.edtPasswd.setText('')
+      if self.parent != None:
+         self.parent.cleanupPrompt(self.promptId)
+      super(ArmoryDialog, self).accept()
+
+   #############################################################################
+   def reject(self):
+      self.edtPasswd.setText('')
+      if self.parent != None:
+         self.parent.cleanupPrompt(self.promptId)
+      super(ArmoryDialog, self).reject()
+
+################################################################################
+class DlgMigrateWallet(ArmoryDialog):
+   def __init__(self, promptId, wltID, verbose, parent=None, main=None):
+      super(DlgMigrateWallet, self).__init__(parent, main)
+
+      self.promptId = promptId
+      self.wltID = wltID
+
+      ##### Upper layout
+
+      lblDescr = QLabel(wltID + self.tr(" is a v1.35 wallet, it will be "
+         "migrated to the new format.\nThis wallet happens to be encrypted. "
+         "It needs decrypted to process further"))
+      lblPasswd = QLabel(self.tr("Passphrase:"))
+      self.edtPasswd = QLineEdit()
+      self.edtPasswd.setEchoMode(QLineEdit.Password)
+      self.edtPasswd.setMinimumWidth(MIN_PASSWD_WIDTH(self))
+      self.edtPasswd.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+
+      self.btnAccept = QPushButton(self.tr("Unlock"))
+      self.btnCancel = QPushButton(self.tr("Cancel"))
+      self.connect(self.btnAccept, SIGNAL(CLICKED), self.acceptPassphrase)
+      self.connect(self.btnCancel, SIGNAL(CLICKED), self.rejectPassphrase)
+      buttonBox = QDialogButtonBox()
+      buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
+      buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
+
+      layoutUpper = QGridLayout()
+      layoutUpper.addWidget(lblDescr, 0, 0, 3, 2)
+      layoutUpper.addWidget(lblPasswd, 3, 0, 1, 1)
+      layoutUpper.addWidget(self.edtPasswd, 3, 1, 1, 1)
+      self.frmUpper = QFrame()
+      self.frmUpper.setLayout(layoutUpper)
+
+      ##### Lower layout
+      # Add scrambled keyboard (EN-US only)
+
+      ttipScramble = self.main.createToolTipWidget(\
+         self.tr('Using a visual keyboard to enter your passphrase '
+         'protects you against simple keyloggers.   Scrambling '
+         'makes it difficult to use, but prevents even loggers '
+         'that record mouse clicks.'))
+
+      self.createKeyButtons()
+      self.rdoScrambleNone = QRadioButton(self.tr('Regular Keyboard'))
+      self.rdoScrambleLite = QRadioButton(self.tr('Scrambled (Simple)'))
+      self.rdoScrambleFull = QRadioButton(self.tr('Scrambled (Dynamic)'))
+      btngrp = QButtonGroup(self)
+      btngrp.addButton(self.rdoScrambleNone)
+      btngrp.addButton(self.rdoScrambleLite)
+      btngrp.addButton(self.rdoScrambleFull)
+      btngrp.setExclusive(True)
+      defaultScramble = self.main.getSettingOrSetDefault('ScrambleDefault', 0)
+      if defaultScramble == 0:
+         self.rdoScrambleNone.setChecked(True)
+      elif defaultScramble == 1:
+         self.rdoScrambleLite.setChecked(True)
+      elif defaultScramble == 2:
+         self.rdoScrambleFull.setChecked(True)
+      self.connect(self.rdoScrambleNone, SIGNAL(CLICKED), self.changeScramble)
+      self.connect(self.rdoScrambleLite, SIGNAL(CLICKED), self.changeScramble)
+      self.connect(self.rdoScrambleFull, SIGNAL(CLICKED), self.changeScramble)
+      btnRowFrm = makeHorizFrame([self.rdoScrambleNone, \
+                                  self.rdoScrambleLite, \
+                                  self.rdoScrambleFull, \
+                                  STRETCH])
+
+      self.layoutKeyboard = QGridLayout()
+      self.frmKeyboard = QFrame()
+      self.frmKeyboard.setLayout(self.layoutKeyboard)
+
+      showOSD = self.main.getSettingOrSetDefault('KeybdOSD', False)
+      self.layoutLower = QGridLayout()
+      self.layoutLower.addWidget(btnRowFrm , 0, 0)
+      self.layoutLower.addWidget(self.frmKeyboard , 1, 0)
+      self.frmLower = QFrame()
+      self.frmLower.setLayout(self.layoutLower)
+      self.frmLower.setVisible(showOSD)
+
+
+      ##### Expand button
+      self.btnShowOSD = QPushButton(self.tr('Show Keyboard >>>'))
+      self.btnShowOSD.setCheckable(True)
+      self.btnShowOSD.setChecked(showOSD)
+      if showOSD:
+         self.toggleOSD()
+      self.connect(self.btnShowOSD, SIGNAL('toggled(bool)'), self.toggleOSD)
+      frmAccept = makeHorizFrame([self.btnShowOSD, ttipScramble, STRETCH, buttonBox])
+
+
+      ##### Complete Layout
+      layout = QVBoxLayout()
+      layout.addWidget(self.frmUpper)
+      layout.addWidget(frmAccept)
+      layout.addWidget(self.frmLower)
+      self.setLayout(layout)
+      self.setWindowTitle(verbose + ' - ' + self.wltID)
+
+      # Add scrambled keyboard
+      self.layout().setSizeConstraint(QLayout.SetFixedSize)
+      self.changeScramble()
+      self.redrawKeys()
+
+
+   #############################################################################
+   def toggleOSD(self, *args):
+      isChk = self.btnShowOSD.isChecked()
+      self.main.settings.set('KeybdOSD', isChk)
+      self.frmLower.setVisible(isChk)
+      if isChk:
+         self.btnShowOSD.setText(self.tr('Hide Keyboard <<<'))
+      else:
+         self.btnShowOSD.setText(self.tr('Show Keyboard >>>'))
+
+
+   #############################################################################
+   def createKeyboardKeyButton(self, keyLow, keyUp, defRow, special=None):
+      theBtn = LetterButton(keyLow, keyUp, defRow, special, self.edtPasswd, self)
+      self.connect(theBtn, SIGNAL(CLICKED), theBtn.insertLetter)
+      theBtn.setMaximumWidth(40)
+      return theBtn
+
+
+   #############################################################################
+   def redrawKeys(self):
+      for btn in self.btnList:
+         btn.setText(btn.upper if self.btnShift.isChecked() else btn.lower)
+      self.btnShift.setText(self.tr('SHIFT'))
+      self.btnSpace.setText(self.tr('SPACE'))
+      self.btnDelete.setText(self.tr('DEL'))
+
+   #############################################################################
+   def deleteKeyboard(self):
+      for btn in self.btnList:
+         btn.setParent(None)
+         del btn
+      self.btnList = []
+      self.btnShift.setParent(None)
+      self.btnSpace.setParent(None)
+      self.btnDelete.setParent(None)
+      del self.btnShift
+      del self.btnSpace
+      del self.btnDelete
+      del self.frmKeyboard
+      del self.layoutKeyboard
+
+   #############################################################################
+   def createKeyButtons(self):
+      # TODO:  Add some locale-agnostic method here, that could replace
+      #        the letter arrays with something more appropriate for non en-us
+      self.letLower = r"`1234567890-=qwertyuiop[]\asdfghjkl;'zxcvbnm,./"
+      self.letUpper = r'~!@#$%^&*()_+QWERTYUIOP{}|ASDFGHJKL:"ZXCVBNM<>?'
+      self.letRows = r'11111111111112222222222222333333333334444444444'
+      self.letPairs = zip(self.letLower, self.letUpper, self.letRows)
+
+      self.btnList = []
+      for l, u, r in zip(self.letLower, self.letUpper, self.letRows):
+         if l == '7':
+            # Because QPushButtons interpret ampersands as special characters
+            u = 2 * u
+
+         if l.isdigit():
+            self.btnList.append(self.createKeyboardKeyButton('#' + l, u, int(r)))
+         else:
+            self.btnList.append(self.createKeyboardKeyButton(l, u, int(r)))
+
+      # Add shift and space keys
+      self.btnShift = self.createKeyboardKeyButton('', '', 5, 'shift')
+      self.btnSpace = self.createKeyboardKeyButton(' ', ' ', 5, 'space')
+      self.btnDelete = self.createKeyboardKeyButton(' ', ' ', 5, 'delete')
+      self.btnShift.setCheckable(True)
+      self.btnShift.setChecked(False)
+
+   #############################################################################
+   def reshuffleKeys(self):
+      if self.rdoScrambleFull.isChecked():
+         self.changeScramble()
+
+   #############################################################################
+   def changeScramble(self):
+      self.deleteKeyboard()
+      self.frmKeyboard = QFrame()
+      self.layoutKeyboard = QGridLayout()
+      self.createKeyButtons()
+
+      if self.rdoScrambleNone.isChecked():
+         opt = 0
+         prevRow = 1
+         col = 0
+         for btn in self.btnList:
+            row = btn.defRow
+            if not row == prevRow:
+               col = 0
+            if row > 3 and col == 0:
+               col += 1
+            prevRow = row
+            self.layoutKeyboard.addWidget(btn, row, col)
+            col += 1
+         self.layoutKeyboard.addWidget(self.btnShift, self.btnShift.defRow, 0, 1, 3)
+         self.layoutKeyboard.addWidget(self.btnSpace, self.btnSpace.defRow, 4, 1, 5)
+         self.layoutKeyboard.addWidget(self.btnDelete, self.btnDelete.defRow, 11, 1, 2)
+         self.btnShift.setMaximumWidth(1000)
+         self.btnSpace.setMaximumWidth(1000)
+         self.btnDelete.setMaximumWidth(1000)
+      elif self.rdoScrambleLite.isChecked():
+         opt = 1
+         nchar = len(self.btnList)
+         rnd = SecureBinaryData().GenerateRandom(2 * nchar).toBinStr()
+         newBtnList = [[self.btnList[i], rnd[2 * i:2 * (i + 1)]] for i in range(nchar)]
+         newBtnList.sort(key=lambda x: x[1])
+         prevRow = 0
+         col = 0
+         for i, btn in enumerate(newBtnList):
+            row = i / 12
+            if not row == prevRow:
+               col = 0
+            prevRow = row
+            self.layoutKeyboard.addWidget(btn[0], row, col)
+            col += 1
+         self.layoutKeyboard.addWidget(self.btnShift, self.btnShift.defRow, 0, 1, 3)
+         self.layoutKeyboard.addWidget(self.btnSpace, self.btnSpace.defRow, 4, 1, 5)
+         self.layoutKeyboard.addWidget(self.btnDelete, self.btnDelete.defRow, 10, 1, 2)
+         self.btnShift.setMaximumWidth(1000)
+         self.btnSpace.setMaximumWidth(1000)
+         self.btnDelete.setMaximumWidth(1000)
+      elif self.rdoScrambleFull.isChecked():
+         opt = 2
+         extBtnList = self.btnList[:]
+         extBtnList.extend([self.btnShift, self.btnSpace])
+         nchar = len(extBtnList)
+         rnd = SecureBinaryData().GenerateRandom(2 * nchar).toBinStr()
+         newBtnList = [[extBtnList[i], rnd[2 * i:2 * (i + 1)]] for i in range(nchar)]
+         newBtnList.sort(key=lambda x: x[1])
+         prevRow = 0
+         col = 0
+         for i, btn in enumerate(newBtnList):
+            row = i / 12
+            if not row == prevRow:
+               col = 0
+            prevRow = row
+            self.layoutKeyboard.addWidget(btn[0], row, col)
+            col += 1
+         self.layoutKeyboard.addWidget(self.btnDelete, self.btnDelete.defRow - 1, 11, 1, 2)
+         self.btnShift.setMaximumWidth(40)
+         self.btnSpace.setMaximumWidth(40)
+         self.btnDelete.setMaximumWidth(40)
+
+      self.frmKeyboard.setLayout(self.layoutKeyboard)
+      self.layoutLower.addWidget(self.frmKeyboard, 1, 0)
+      self.main.settings.set('ScrambleDefault', opt)
+      self.redrawKeys()
+
+   #############################################################################
+   def recycle(self):
+      QMessageBox.critical(self, self.tr('Invalid Passphrase'), \
+         self.tr('That passphrase is not correct!'), QMessageBox.Ok)
+      self.edtPasswd.setText('')
+
+   #############################################################################
+   def completed(self):
+      self.edtPasswd.setText('')
+      self.accept()
+
+   #############################################################################
+   def acceptPassphrase(self):
+      passphraseStr = str(self.edtPasswd.text())
+
+      TheBridge.returnPassphrase(self.promptId, passphraseStr)
+      passphraseStr = ''
+
+   #############################################################################
+   def rejectPassphrase(self):
+      self.edtPasswd.setText('')
+      TheBridge.returnPassphrase(self.promptId, "")
+      self.reject()
+
+   #############################################################################
+   def accept(self):
+      self.edtPasswd.setText('')
+      if self.parent != None:
+         self.parent.cleanupPrompt(self.promptId)
+      super(ArmoryDialog, self).accept()
+
+   #############################################################################
+   def reject(self):
+      self.edtPasswd.setText('')
+      if self.parent != None:
+         self.parent.cleanupPrompt(self.promptId)
+      super(ArmoryDialog, self).reject()
 
 #############################################################################
 class LetterButton(QPushButton):
@@ -3111,14 +3413,12 @@ class DlgDuplicateAddr(ArmoryDialog):
 
 #############################################################################
 class DlgAddressInfo(ArmoryDialog):
-   def __init__(self, wlt, cppAddr, parent=None, main=None, mode=None):
+   def __init__(self, wlt, addrObj, parent=None, main=None, mode=None):
       super(DlgAddressInfo, self).__init__(parent, main)
 
       self.wlt = wlt
-      self.cppAddr = cppAddr
-
-      self.addr = self.wlt.getAddrByIndex(self.cppAddr.getIndex())
-      addr160 = self.cppAddr.getAddrHash()[1:]
+      self.addrObj = addrObj
+      addr160 = addrObj.getAddr160()
 
       self.ledgerTable = []
 
@@ -3131,7 +3431,7 @@ class DlgAddressInfo(ArmoryDialog):
 
 
       dlgLayout = QGridLayout()
-      addrStr = self.cppAddr.getScrAddr()
+      addrStr = addrObj.getAddressString()
 
       frmInfo = QFrame()
       frmInfo.setFrameStyle(STYLE_RAISED)
@@ -3178,7 +3478,7 @@ class DlgAddressInfo(ArmoryDialog):
          '<i>after</i> the keys were imported.')))
 
       lbls[-1].append(QRichLabel(self.tr('<b>Address Type:</b>')))
-      if self.addr.chainIndex == -2:
+      if self.addrObj.chainIndex == -2:
          lbls[-1].append(QLabel(self.tr('Imported')))
       else:
          lbls[-1].append(QLabel(self.tr('Permanent')))
@@ -3188,8 +3488,8 @@ class DlgAddressInfo(ArmoryDialog):
       lbls[-1].append(self.main.createToolTipWidget(
             self.tr('The index of this address within the wallet.')))
       lbls[-1].append(QRichLabel(self.tr('<b>Index:</b>')))
-      if self.addr.chainIndex > -1:
-         lbls[-1].append(QLabel(str(self.addr.chainIndex+1)))
+      if self.addrObj.chainIndex > -1:
+         lbls[-1].append(QLabel(str(self.addrObj.chainIndex+1)))
       else:
          lbls[-1].append(QLabel(self.tr("Imported")))
 
@@ -3201,7 +3501,7 @@ class DlgAddressInfo(ArmoryDialog):
             'not including zero-confirmation transactions from others.')))
       lbls[-1].append(QRichLabel(self.tr('<b>Current Balance</b>')))
       try:
-         balCoin = self.cppAddr.getSpendableBalance()
+         balCoin = addrObj.getSpendableBalance()
          balStr = coin2str(balCoin, maxZeros=1)
          if balCoin > 0:
             goodColor = htmlColor('MoneyPos')
@@ -3216,7 +3516,7 @@ class DlgAddressInfo(ArmoryDialog):
       lbls.append([])
       lbls[-1].append(QLabel(''))
       lbls[-1].append(QRichLabel(self.tr('<b>Comment:</b>')))
-      if self.addr.chainIndex > -1:
+      if self.addrObj.chainIndex > -1:
          lbls[-1].append(QLabel(str(wlt.commentsMap[addr160]) if addr160 in wlt.commentsMap else ''))
       else:
          lbls[-1].append(QLabel(''))
@@ -3227,7 +3527,7 @@ class DlgAddressInfo(ArmoryDialog):
       lbls[-1].append(QRichLabel(self.tr('<b>Transaction Count:</b>')))
       #lbls[-1].append(QLabel(str(len(txHashes))))
       try:
-         txnCount = self.cppAddr.getTxioCount()
+         txnCount = self.addrObj.getTxioCount()
          lbls[-1].append(QLabel(str(txnCount)))
       except:
          lbls[-1].append(QLabel("N/A"))
@@ -3256,8 +3556,7 @@ class DlgAddressInfo(ArmoryDialog):
       self.ledgerModel = LedgerDispModelSimple(self.ledgerTable, self, self.main)
       try:
          self.ledgerModel.setLedgerDelegate(\
-            TheBDM.bdv().getLedgerDelegateForScrAddr(self.wlt.uniqueIDB58, \
-                                                     self.cppAddr.getAddrHash()))
+            TheBDM.bdv().getLedgerDelegateForScrAddr(self.wlt.uniqueIDB58, addr160))
       except:
          pass
 
@@ -3318,7 +3617,7 @@ class DlgAddressInfo(ArmoryDialog):
       optFrame = QFrame()
       optFrame.setFrameStyle(STYLE_SUNKEN)
 
-      hasPriv = self.addr.hasPrivKey()
+      hasPriv = self.addrObj.hasPrivKey
       adv = (self.main.usermode in (USERMODE.Advanced, USERMODE.Expert))
       watch = self.wlt.watchingOnly
 
@@ -3360,7 +3659,7 @@ class DlgAddressInfo(ArmoryDialog):
    def copyAddr(self):
       clipb = QApplication.clipboard()
       clipb.clear()
-      clipb.setText(self.cppAddr.getScrAddr())
+      clipb.setText(self.addrObj.getAddr160())
       self.lblCopied.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
       self.lblCopied.setText(self.tr('<i>Copied!</i>'))
 
@@ -4533,18 +4832,8 @@ class DlgConfirmSend(ArmoryDialog):
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
-      
-      self.signerType = SIGNER_DEFAULT
-      def setSignerType(_type):
-         self.signerType = _type
-      
-      isSigned = False
-      if isinstance(pytxOrUstx, PyTx):
-         ustx = UnsignedTransaction()
-         ustx.createFromPyTx(pytxOrUstx)
-         isSigned = pytxOrUstx.verifySigsAllInputs()
-      else:
-         isSigned = pytxOrUstx.verifySigsAllInputs(pytxOrUstx.signerType)
+            
+      isSigned = pytxOrUstx.verifySigsAllInputs()
          
       if self.main.usermode == USERMODE.Expert and isSigned == False:
          self.signerSelect = SignerLabelFrame(self.main, pytxOrUstx, setSignerType)
@@ -4572,11 +4861,6 @@ class DlgConfirmSend(ArmoryDialog):
       self.setMinimumWidth(350)
       self.setWindowTitle(self.tr('Confirm Transaction'))
    
-   #############################################################################   
-   def getSignerType(self):
-      return self.signerType
-
-
 ################################################################################
 class DlgSendBitcoins(ArmoryDialog):
    def __init__(self, wlt, parent=None, main=None, 
@@ -5130,29 +5414,31 @@ class DlgAddressProperties(ArmoryDialog):
 
 ################################################################################
 def extractTxInfo(pytx, rcvTime=None):
+   print (pytx)
    ustx = None
    if isinstance(pytx, UnsignedTransaction):
       ustx = pytx
       pytx = ustx.pytxObj.copy()
 
    txHash = pytx.getHash()
+   print (txHash)
    txSize, txWeight, sumTxIn, txTime, txBlk, txIdx = [None] * 6
 
    txOutToList = pytx.makeRecipientsList()
    sumTxOut = sum([t[1] for t in txOutToList])
 
-   txcpp = Tx()
    if TheBDM.getState() == BDM_BLOCKCHAIN_READY:
-      txcpp = TheBDM.bdv().getTxByHash(txHash)
-      if txcpp.isInitialized():
-         hgt = txcpp.getBlockHeight()
-         txWeight = txcpp.getTxWeight()
+      txProto = TheBridge.getTxByHash(txHash)
+      if txProto.isValid:
+         hgt = txProto.height
+         txWeight = pytx.getTxWeight()
          if hgt <= TheBDM.getTopBlockHeight():
-            headref = TheBDM.bdv().blockchain().getHeaderByHeight(hgt)
-            txTime = unixTimeToFormatStr(headref.getTimestamp())
-            txBlk = headref.getBlockHeight()
-            txIdx = txcpp.getBlockTxIndex()
-            txSize = txcpp.getSize()
+            header = PyBlockHeader()
+            header.unserialize(TheBridge.getHeaderByHeight(hgt))
+            txTime = unixTimeToFormatStr(header.timestamp)
+            txBlk = hgt
+            txIdx = txProto.txIndex
+            txSize = pytx.getSize()
          else:
             if rcvTime == None:
                txTime = 'Unknown'
@@ -5166,23 +5452,23 @@ def extractTxInfo(pytx, rcvTime=None):
             txIdx = -1
 
    txinFromList = []
-   if TheBDM.getState() == BDM_BLOCKCHAIN_READY and txcpp.isInitialized():
-      # Use BDM to get all the info about the TxOut being spent
-      # Recip, value, block-that-incl-tx, tx-that-incl-txout, txOut-index
+   if TheBDM.getState() == BDM_BLOCKCHAIN_READY and pytx.isInitialized():
       haveAllInput = True
-      for i in range(txcpp.getNumTxIn()):
+      for i in range(pytx.getNumTxIn()):
          txinFromList.append([])
-         cppTxin = txcpp.getTxInCopy(i)
-         prevTxHash = cppTxin.getOutPoint().getTxHash()
-         prevTx = TheBDM.bdv().getTxByHash(prevTxHash)
+         txin = pytx.getTxIn(i)
+         prevTxHash = txin.getOutPoint().txHash
+         prevTxIndex = txin.getOutPoint().txOutIndex
+         prevTxRaw = TheBridge.getTxByHash(prevTxHash)
+         prevTx = PyTx().unserialize(prevTxRaw.raw)
          if prevTx.isInitialized():
-            prevTxOut = prevTx.getTxOutCopy(cppTxin.getOutPoint().getTxOutIndex())
+            prevTxOut = prevTx.getTxOut(prevTxIndex)
             txinFromList[-1].append(prevTxOut.getScrAddressStr())
             txinFromList[-1].append(prevTxOut.getValue())
             if prevTx.isInitialized():
-               txinFromList[-1].append(prevTx.getBlockHeight())
-               txinFromList[-1].append(prevTx.getThisHash())
-               txinFromList[-1].append(prevTxOut.getIndex())
+               txinFromList[-1].append(prevTxRaw.height)
+               txinFromList[-1].append(prevTxHash)
+               txinFromList[-1].append(prevTxRaw.txIndex)
                txinFromList[-1].append(prevTxOut.getScript())
             else:
                LOGERROR('How did we get a bad parent pointer? (extractTxInfo)')
@@ -5193,7 +5479,6 @@ def extractTxInfo(pytx, rcvTime=None):
                txinFromList[-1].append('')
          else:
             haveAllInput = False
-            txin = PyTxIn().unserialize(cppTxin.serialize())
             try:
                scraddr = addrStr_to_scrAddr(TxInExtractAddrStrIfAvail(txin))
             except:
@@ -7971,11 +8256,7 @@ class DlgAddressBook(ArmoryDialog):
    #############################################################################
    def getAddrStr(self, wlt, addrObj):
       addrStr = ""
-      
-      cppwlt = wlt
-      if isinstance(wlt, PyBtcWallet):
-         cppwlt = wlt.cppWallet
-         
+               
       if self.addrType == 'P2PKH':
          addrStr = cppwlt.getP2PKHAddrForIndex(addrObj.chainIndex)
       elif self.addrType == 'P2SH-P2PK':
@@ -7997,11 +8278,9 @@ class DlgAddressBook(ArmoryDialog):
       self.setAddrBookTxModel(self.selectedWltID)
       self.setAddrBookRxModel(self.selectedWltID)
 
-
       if not self.isBrowsingOnly:
          wlt = self.main.walletMap[self.selectedWltID]
          self.btnSelectWlt.setText(self.tr('%1 Wallet: %2').arg(self.actStr, self.selectedWltID))
-         nextAddr = wlt.peekNextUnusedAddr()
 
          # If switched wallet selection, de-select address so it doesn't look
          # like the currently-selected address is for this different wallet
@@ -8115,14 +8394,7 @@ class DlgAddressBook(ArmoryDialog):
    def acceptWltSelection(self):
       wltID = self.selectedWltID
       addrObj = self.main.walletMap[wltID].getNextUnusedAddress()
-      if not self.returnPubKey:
-         addrStr = self.getAddrStr(self.main.walletMap[wltID], addrObj)
-         self.target.setText(addrStr)
-      else:
-         pubKeyHash = addrObj.getPubKey().toHexStr()
-         if pubKeyHash is None:
-            return
-         self.target.setText(pubKeyHash)
+      self.target.setText(addrObj.getAddressString())
       self.target.setCursorPosition(0)
       self.accept()
 
@@ -13062,6 +13334,7 @@ class DlgProgress(ArmoryDialog):
 
 
 #################################################################################
+'''
 class DlgCorruptWallet(DlgProgress):
    def __init__(self, wallet, status, main=None, parent=None, alreadyFailed=True):
       super(DlgProgress, self).__init__(parent, main)
@@ -13232,10 +13505,9 @@ class DlgCorruptWallet(DlgProgress):
       self.adjustSize()
 
    def ProcessWallet(self, mode=RECOVERMODE.Full):
-      '''
-      Serves as the entry point for non processing wallets that arent loaded
-      or fully processed. Only takes 1 wallet at a time
-      '''
+      #Serves as the entry point for non processing wallets that arent loaded
+      #or fully processed. Only takes 1 wallet at a time
+      
       if len(self.walletList) > 0:
          wlt = None
          wltPath = ''
@@ -13355,7 +13627,7 @@ class DlgCorruptWallet(DlgProgress):
             #if dlgIWR.exec_():
             #return
          #return
-
+'''
 
 #################################################################################
 class DlgFactoryReset(ArmoryDialog):

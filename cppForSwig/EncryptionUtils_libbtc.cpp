@@ -135,61 +135,89 @@ SecureBinaryData PRNG_Fortuna::generateRandom(uint32_t numBytes,
 //// CryptoAES
 /////////////////////////////////////////////////////////////////////////////
 // Implement AES encryption using AES mode, CFB
-SecureBinaryData CryptoAES::EncryptCFB(const SecureBinaryData & data, 
+SecureBinaryData CryptoAES::EncryptCFB(const SecureBinaryData & clearText, 
                                        const SecureBinaryData & key,
                                        const SecureBinaryData & iv)
 {
-   if(data.getSize() == 0)
-      return SecureBinaryData(0);
+   //TODO: needs test coverage
+   
+   /*
+   Not gonna bother with padding with CFB, this is only to decrypt Armory 
+   v1.35 wallet root keys (always 32 bytes)
+   */
 
-   size_t packet_count = data.getSize() / AES_BLOCK_SIZE + 1;
+   if(clearText.getSize() == 0 || clearText.getSize() % AES_BLOCK_SIZE)
+      throw std::runtime_error("invalid data size");
+   AES256_ctx aes_ctx;
+   AES256_init(&aes_ctx, key.getPtr());
 
-   SecureBinaryData encrData(packet_count * AES_BLOCK_SIZE);
-
-   //sanity check
-   if(iv.getSize() != AES_BLOCK_SIZE)
-      throw std::runtime_error("invalid IV size!");
-
-   //set to cbc until i implement cbf in libbtc
-   auto result = aes256_cbc_encrypt(
-      key.getPtr(), iv.getPtr(),
-      data.getPtr(), data.getSize(),
-      1, //pad with 0s if the data is not aligned with 16 bytes blocks
-      encrData.getPtr());
+   SecureBinaryData cipherText(clearText.getSize());
+   SecureBinaryData intermediaryCipherText(AES_BLOCK_SIZE);
+   const uint8_t* dataToEncrypt = iv.getPtr();
+   
+   auto blockCount = clearText.getSize() / AES_BLOCK_SIZE;
+   for (unsigned i=0; i<blockCount; i++)
+   {
+      AES256_encrypt(
+         &aes_ctx, 1, 
+         intermediaryCipherText.getPtr(),
+         dataToEncrypt);
       
-   if (result == 0)
-   {
-      LOGERR << "AES CBC encryption failed!";
-      throw std::runtime_error("AES CBC encryption failed!");
-   }
-   else if (result != encrData.getSize())
-   {
-      LOGERR << "Encrypted data size mismatch!";
-      throw std::runtime_error("Encrypted data size mismatch!");
+      auto clearTextPtr = clearText.getPtr() + i * AES_BLOCK_SIZE;
+      auto cipherTextPtr = cipherText.getPtr() + i * AES_BLOCK_SIZE;
+      for (unsigned y=0; y<AES_BLOCK_SIZE; y++)
+      {
+         cipherTextPtr[y] = 
+            clearTextPtr[y] ^ intermediaryCipherText.getPtr()[y];
+      }
+
+      dataToEncrypt = cipherTextPtr;
    }
 
-   return encrData;
+   return cipherText;
 }
 
 /////////////////////////////////////////////////////////////////////////////
 // Implement AES decryption using AES mode, CFB
-SecureBinaryData CryptoAES::DecryptCFB(const SecureBinaryData & data, 
+SecureBinaryData CryptoAES::DecryptCFB(const SecureBinaryData & cipherText, 
                                        const SecureBinaryData & key,
                                        const SecureBinaryData & iv  )
 {
-   if(data.getSize() == 0)
-      return SecureBinaryData(0);
+   /*
+   Not gonna bother with padding with CFB, this is only to decrypt Armory 
+   v1.35 wallet root keys (always 32 bytes)
+   */
 
-   SecureBinaryData unencrData(data.getSize());
+   if(cipherText.getSize() == 0 || cipherText.getSize() % AES_BLOCK_SIZE)
+      throw std::runtime_error("invalid data size");
 
-   //set to cbc until i implement cbf in libbtc
-   aes256_cbc_decrypt(
-      key.getPtr(), iv.getPtr(), 
-      data.getPtr(), data.getSize(), 
-      1, //data is padded to 16 bytes blocks
-      unencrData.getPtr());
+   SecureBinaryData clearText(cipherText.getSize());
 
-   return unencrData;
+   AES256_ctx aes_ctx;
+   AES256_init(&aes_ctx, key.getPtr());
+
+   auto blockCount = cipherText.getSize() / AES_BLOCK_SIZE;
+   const uint8_t* dataToDecrypt = iv.getPtr();
+   SecureBinaryData intermediaryCipherText(AES_BLOCK_SIZE);
+   for (unsigned i=0; i<blockCount; i++)
+   {
+      AES256_encrypt(
+         &aes_ctx, 1, 
+         intermediaryCipherText.getPtr(),
+         dataToDecrypt);
+      
+      auto clearTextPtr = clearText.getPtr() + i * AES_BLOCK_SIZE;
+      auto cipherTextPtr = cipherText.getPtr() + i * AES_BLOCK_SIZE;
+      for (unsigned y=0; y<AES_BLOCK_SIZE; y++)
+      {
+         clearTextPtr[y] = 
+            cipherTextPtr[y] ^ intermediaryCipherText.getPtr()[y];
+      }
+
+      dataToDecrypt = cipherTextPtr;
+   }
+
+   return clearText;
 }
 
 /////////////////////////////////////////////////////////////////////////////

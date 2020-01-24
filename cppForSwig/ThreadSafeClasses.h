@@ -420,7 +420,7 @@ public:
 		waiting_.store(0, std::memory_order_relaxed);
    }
 
-   T pop_front(void)
+   T pop_front(bool block = true)
    {
 		//blocks as long as there is no data available in the chain.
 		//run in loop until we get data or a throw
@@ -451,8 +451,11 @@ public:
 
 					return std::move(retval);
 				}
-				catch (IsEmpty&)
-				{}
+				catch (IsEmpty& e)
+				{
+               if (block == false)
+                     throw e;
+            }
 
 				wait_on_data();
 			}
@@ -486,16 +489,7 @@ public:
    void terminate(std::exception_ptr exceptptr = nullptr)
    {
 		if (exceptptr == nullptr)
-		{
-			try
-			{
-				throw StopBlockingLoop();
-			}
-			catch (...)
-			{
-				exceptptr = std::current_exception();
-			}
-		}
+			exceptptr = std::make_exception_ptr(StopBlockingLoop());
 
 		Queue<T>::exceptPtr_ = exceptptr;
 		terminated_.store(true, std::memory_order_release);
@@ -517,16 +511,7 @@ public:
    void completed(std::exception_ptr exceptptr = nullptr)
    {
 		if (exceptptr == nullptr)
-		{
-			try
-			{
-				throw StopBlockingLoop();
-			}
-			catch (...)
-			{
-				exceptptr = std::current_exception();
-			}
-		}
+			exceptptr = std::make_exception_ptr(StopBlockingLoop());
 
 		Queue<T>::exceptPtr_ = exceptptr;
 		completed_.store(true, std::memory_order_release);
