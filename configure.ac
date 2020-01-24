@@ -59,7 +59,7 @@ AC_ARG_WITH([cryptopp],
     [with_cryptopp="$withval"], [with_cryptopp=no])
 
 # Check for protobuf (protoc in particular is required)
-PKG_CHECK_MODULES(PROTOBUF, protobuf >= 2.0.0)
+PKG_CHECK_MODULES_STATIC(PROTOBUF, protobuf >= 2.0.0)
 PKG_CHECK_VAR([PROTOBUF_LIBDIR], [protobuf], [libdir])
 AC_MSG_CHECKING([protobuf lib path])
 AS_IF([test "x$PROTOBUF_LIBDIR" = "x"], [
@@ -228,11 +228,11 @@ AS_IF([test x"$PROTOC" = x],
   [AC_MSG_ERROR([cannot find protoc (the Protocol Buffers compiler)])])
 
 if test x$use_pkgconfig = xyes; then
-    PKG_CHECK_MODULES([WEBSOCKETS], [libwebsockets >= 3.0.1],,[AC_MSG_ERROR(libwebsockets >= 3.0.1 not found.)])
+    PKG_CHECK_MODULES_STATIC([WEBSOCKETS], [libwebsockets_static >= 3.0.1],,[AC_MSG_ERROR(libwebsockets_static >= 3.0.1 not found.)])
     AC_MSG_CHECKING([libwebsockets lib path])
-    PKG_CHECK_VAR([WEBSOCKETS_LIBDIR], [libwebsockets], [libdir])
+    PKG_CHECK_VAR([WEBSOCKETS_LIBDIR], [libwebsockets_static], [libdir])
     AS_IF([test "x$WEBSOCKETS_LIBDIR" = "x"], [
-      AC_MSG_FAILURE([Unable to identify libwebsockets lib path.])
+      AC_MSG_FAILURE([Unable to identify libwebsockets_static lib path.])
     ])
     AC_MSG_RESULT($WEBSOCKETS_LIBDIR)
     AC_SUBST([WEBSOCKETS_LIBDIR])
@@ -261,7 +261,7 @@ AC_LANG_POP([C++])
 AC_MSG_RESULT($LWS_WITH_TLS_FOUND)
 
 if test x$LWS_WITH_TLS_FOUND = xyes; then
-    PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(libssl not found.)])
+    PKG_CHECK_MODULES_STATIC([SSL], [libssl],, [AC_MSG_ERROR(libssl not found.)])
     AC_MSG_CHECKING([libssl lib path])
     PKG_CHECK_VAR([SSL_LIBDIR], [libssl], [libdir])
     AS_IF([test "x$SSL_LIBDIR" = "x"], [
@@ -271,7 +271,7 @@ if test x$LWS_WITH_TLS_FOUND = xyes; then
     AC_SUBST([SSL_LIBDIR])
     CXXFLAGS="${CXXFLAGS} ${SSL_CFLAGS}"
 
-    PKG_CHECK_MODULES([CRYPTO], [libcrypto],, [AC_MSG_ERROR(libcrypto not found.)])
+    PKG_CHECK_MODULES_STATIC([CRYPTO], [libcrypto],, [AC_MSG_ERROR(libcrypto not found.)])
     AC_MSG_CHECKING([libcrypto lib path])
     PKG_CHECK_VAR([CRYPTO_LIBDIR], [libcrypto], [libdir])
     AS_IF([test "x$CRYPTO_LIBDIR" = "x"], [
@@ -279,6 +279,17 @@ if test x$LWS_WITH_TLS_FOUND = xyes; then
     ])
     AC_MSG_RESULT($CRYPTO_LIBDIR)
     AC_SUBST([CRYPTO_LIBDIR])
+
+    AC_MSG_CHECKING([ldl required])
+    PKG_CHECK_VAR([SSL_LIBS], [libssl], [libs])
+    AS_IF(echo "$SSL_LIBS" | grep '\-ldl' >/dev/null 2>&1, SSL_LDL_REQUIRED="yes", SSL_LDL_REQUIRED="no")
+    PKG_CHECK_VAR([CRYPTO_LIBS], [libcrypto], [libs])
+    AS_IF(echo "$CRYPTO_LIBS" | grep '\-ldl' >/dev/null 2>&1, CRYPTO_LDL_REQUIRED="yes", CRYPTO_LDL_REQUIRED="no")
+    LDL_REQUIRED="no"
+    AS_IF([test "x$SSL_LDL_REQUIRED$CRYPTO_LDL_REQUIRED" != "xnono"], [
+      LDL_REQUIRED="yes"
+    ])
+    AC_MSG_RESULT($LDL_REQUIRED)
 fi
 
 AC_MSG_CHECKING(for LWS_WITH_LIBUV)
@@ -296,7 +307,7 @@ AC_LANG_POP([C++])
 AC_MSG_RESULT($LWS_WITH_LIBUV_FOUND)
 
 if test x$LWS_WITH_LIBUV_FOUND = xyes; then
-    PKG_CHECK_MODULES([LIBUV], [libuv],, [AC_MSG_ERROR(libuv not found.)])
+    PKG_CHECK_MODULES_STATIC([LIBUV], [libuv],, [AC_MSG_ERROR(libuv not found.)])
     AC_MSG_CHECKING([libuv lib path])
     PKG_CHECK_VAR([LIBUV_LIBDIR], [libuv], [libdir])
     AS_IF([test "x$LIBUV_LIBDIR" = "x"], [
@@ -322,7 +333,7 @@ AC_LANG_POP([C++])
 AC_MSG_RESULT($LWS_WITH_LIBEVENT_FOUND)
 
 if test x$LWS_WITH_LIBEVENT_FOUND = xyes; then
-    PKG_CHECK_MODULES([LIBEVENT], [libevent],, [AC_MSG_ERROR(libevent not found.)])
+    PKG_CHECK_MODULES_STATIC([LIBEVENT], [libevent],, [AC_MSG_ERROR(libevent not found.)])
     AC_MSG_CHECKING([libevent lib path])
     PKG_CHECK_VAR([LIBEVENT_LIBDIR], [libevent], [libdir])
     AS_IF([test "x$LIBEVENT_LIBDIR" = "x"], [
@@ -348,7 +359,7 @@ AC_LANG_POP([C++])
 AC_MSG_RESULT($LWS_HAVE_LIBCAP_FOUND)
 
 if test x$LWS_HAVE_LIBCAP_FOUND = xyes; then
-    PKG_CHECK_MODULES([LIBCAP], [libcap],, [AC_MSG_ERROR(libcap not found.)])
+    PKG_CHECK_MODULES_STATIC([LIBCAP], [libcap],, [AC_MSG_ERROR(libcap not found.)])
     AC_SUBST([LIBCAP_LIBS])
 fi
 
@@ -356,6 +367,7 @@ AM_CONDITIONAL([BUILD_OPENSSL_SUPPORT], [test x$LWS_WITH_TLS_FOUND = xyes])
 AM_CONDITIONAL([BUILD_LIBUV_SUPPORT], [test x$LWS_WITH_LIBUV_FOUND = xyes])
 AM_CONDITIONAL([BUILD_LIBEVENT_SUPPORT], [test x$LWS_WITH_LIBEVENT_FOUND = xyes])
 AM_CONDITIONAL([BUILD_LIBCAP_SUPPORT], [test x$LWS_HAVE_LIBCAP_FOUND = xyes])
+AM_CONDITIONAL([BUILD_LDL_REQUIRED], [test x$LDL_REQUIRED = xyes])
 
 dnl Clang detection is complicated since it comes up as GCC too.
 AC_LANG_PUSH([C++])
