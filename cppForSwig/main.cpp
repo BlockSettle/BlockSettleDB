@@ -69,8 +69,20 @@ int main(int argc, char* argv[])
 
    {
       //setup remote peers db, this will block the init process until 
-      //peers db is unlocked
-      auto&& passLbd = TerminalPassphrasePrompt::getLambda("peers db");
+      //peers db is unlocked if --encrypt-wallet is passed
+      PassphraseLambda passLbd;
+
+      if (bdmConfig.encryptWallet_)
+      {
+         passLbd = TerminalPassphrasePrompt::getLambda("peers db");
+      }
+      else
+      {
+         passLbd = [](const std::set<BinaryData>&) {
+            return SecureBinaryData{};
+         };
+      }
+
       WebSocketServer::initAuthPeers(passLbd);
    }
     

@@ -366,6 +366,9 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
    --fullbip150: BIP150 auth will not allow any anonymous participants. Both
    sides must authenticate each other. (This is the default behavior in the
    upstream ArmoryDB. fullbip150 is set only in this fork.)
+
+   --encrypt-wallet invoke passphrase dialog to encrypt the wallet during the first
+   run
 ////////////////////////////////////////////////////////////////////////////////
 
    ***/
@@ -726,6 +729,12 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
    if (iter != args.end())
    {
       startupBIP150CTX(4, true);
+   }
+
+   iter = args.find("encrypt-wallet");
+   if (iter != args.end())
+   {
+      encryptWallet_ = true;
    }
 
 /////////////////////////// Altered for ArmoryDB repo //////////////////////////

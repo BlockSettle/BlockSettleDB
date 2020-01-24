@@ -80,6 +80,7 @@ public:
 
    const std::string cookie_;
    bool useCookie_ = false;
+   bool encryptWallet_ = false;
 
 private:
    static bool fileExists(const std::string&, int);
