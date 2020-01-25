@@ -114,9 +114,9 @@ class AllWalletsDispModel(QAbstractTableModel):
       colLabels = ['', self.tr('ID'), self.tr('Wallet Name'), self.tr('Security'), self.tr('Balance')]
       if role==Qt.DisplayRole:
          if orientation==Qt.Horizontal:
-            return QVariant( colLabels[section])
+            return colLabels[section]
       elif role==Qt.TextAlignmentRole:
-         return QVariant( int(Qt.AlignHCenter | Qt.AlignVCenter) )
+         return int(Qt.AlignHCenter | Qt.AlignVCenter)
       
    def flags(self, index, role=Qt.DisplayRole):
       if role == Qt.DisplayRole:

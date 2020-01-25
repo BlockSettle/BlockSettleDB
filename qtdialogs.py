@@ -21,7 +21,6 @@ from PyQt4.QtGui import *
 from armoryengine.ALL import *
 from armorycolors import Colors, htmlColor
 from armorymodels import *
-import qrc_img_resources
 from qtdefines import *
 from armoryengine.MultiSigUtils import calcLockboxID, createLockboxEntryStr,\
    LBPREFIX, isBareLockbox, isP2SHLockbox
@@ -14040,7 +14039,7 @@ class ArmorySplashScreen(QSplashScreen):
       self.progressBar.setValue(0)
       self.progressBar.setMinimumWidth(self.width())
       self.progressBar.setMaximumHeight(10)
-      self.progressBar.setFormat(self.tr("Loading: %1%").arg("%p" ))
+      self.progressBar.setFormat(self.tr("Loading: %d%s" % (int(self.progressBar.value()) * 10, "%")))
 
    def updateProgress(self, val):
       self.progressBar.setValue(val)

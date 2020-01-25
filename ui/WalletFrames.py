@@ -14,8 +14,6 @@ from PyQt4.QtGui import * #@UnusedWildImport
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from qtdefines import * #@UnusedWildImport
 
-import qrc_img_resources
-
 WALLET_DATA_ENTRY_FIELD_WIDTH = 60
 
 

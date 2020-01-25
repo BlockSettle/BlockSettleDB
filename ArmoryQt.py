@@ -11,7 +11,8 @@
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #                                   
 #                                                                            #
 ##############################################################################
-from __future__ import print_function
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 import gettext
 
 
@@ -78,7 +79,6 @@ translator.load(GUI_LANGUAGE, os.path.join(app_dir, "lang/"))
 QAPP.installTranslator(translator)
 
 from armorymodels import *
-import qrc_img_resources
 from qtdefines import *
 from qtdialogs import *
 from ui.MultiSigDialogs import DlgSelectMultiSigOption, DlgLockboxManager, \
@@ -305,7 +305,7 @@ class ArmoryMainWindow(QMainWindow):
 
       self.walletDialogDict = {}
 
-      self.lblArmoryStatus = QRichLabel_AutoToolTip(self.tr('<font color=%1>Offline</font> ').arg(htmlColor('TextWarn')), doWrap=False)
+      self.lblArmoryStatus = QRichLabel_AutoToolTip(self.tr('<font color=%s>Offline</font> ' % (htmlColor('TextWarn'))), doWrap=False)
 
       self.statusBar().insertPermanentWidget(0, self.lblArmoryStatus)
 
@@ -323,8 +323,8 @@ class ArmoryMainWindow(QMainWindow):
       self.walletsView.setModel(self.walletModel)
       self.walletsView.setSelectionBehavior(QTableView.SelectRows)
       self.walletsView.setSelectionMode(QTableView.SingleSelection)
-      self.walletsView.verticalHeader().setDefaultSectionSize(sectionSz)
-      self.walletsView.setMinimumSize(viewWidth, viewHeight)
+      self.walletsView.verticalHeader().setDefaultSectionSize(int(sectionSz))
+      self.walletsView.setMinimumSize(int(viewWidth), int(viewHeight))
       self.walletsView.setItemDelegate(AllWalletsCheckboxDelegate(self))
       self.walletsView.horizontalHeader().setResizeMode(0, QHeaderView.Fixed)
 
@@ -490,8 +490,8 @@ class ArmoryMainWindow(QMainWindow):
 
       btnFrame = makeVertFrame(logoBtnFrame, STYLE_SUNKEN)
       logoWidth=220
-      btnFrame.sizeHint = lambda: QSize(logoWidth*1.0, 10)
-      btnFrame.setMaximumWidth(logoWidth*1.2)
+      btnFrame.sizeHint = lambda: QSize(int(logoWidth*1.0), 10)
+      btnFrame.setMaximumWidth(int(logoWidth*1.2))
       btnFrame.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
       layout = QGridLayout()
@@ -1403,7 +1403,7 @@ class ArmoryMainWindow(QMainWindow):
          out2,err = execAndWait('xdg-mime query default x-scheme-handler/bitcoin')
 
          #check FF protocol association
-         self.registerBitcoinWithFF(async=True)
+         self.registerBitcoinWithFF(async_=True)
 
          def setAsDefault():
             LOGINFO('Setting up Armory as default URI handler...')
@@ -1971,7 +1971,7 @@ class ArmoryMainWindow(QMainWindow):
       if self.getSettingOrSetDefault('First_Load', True):
          self.firstLoad = True
          self.writeSetting('First_Load', False)
-         self.writeSetting('First_Load_Date', long(RightNow()))
+         self.writeSetting('First_Load_Date', int(RightNow()))
          self.writeSetting('Load_Count', 1)
          self.writeSetting('AdvFeature_UseCt', 0)
       else:
@@ -1997,8 +1997,8 @@ class ArmoryMainWindow(QMainWindow):
       # short-term ignore requests to it
       notifyStr = self.getSettingOrSetDefault('NotifyIgnore', '')
       nsz = len(notifyStr)
-      self.notifyIgnoreLong  = set(notifyStr[8*i:8*(i+1)] for i in range(nsz/8))
-      self.notifyIgnoreShort = set(notifyStr[8*i:8*(i+1)] for i in range(nsz/8))
+      self.notifyIgnoreLong  = set(notifyStr[8*i:8*(i+1)] for i in range(nsz//8))
+      self.notifyIgnoreShort = set(notifyStr[8*i:8*(i+1)] for i in range(nsz//8))
 
 
       # Load wallets found in the .armory directory
@@ -3626,8 +3626,8 @@ class ArmoryMainWindow(QMainWindow):
       self.lblTimeLeftBuild   = QRichLabel('')
       self.lblTimeLeftScan    = QRichLabel('')
 
-      self.lblTimeLeftSync.setMinimumWidth(twid)
-      self.lblTimeLeftScan.setMinimumWidth(twid)
+      self.lblTimeLeftSync.setMinimumWidth(int(twid))
+      self.lblTimeLeftScan.setMinimumWidth(int(twid))
 
       layoutDashMode = QGridLayout()
 
@@ -4574,11 +4574,11 @@ class ArmoryMainWindow(QMainWindow):
             self.lblTimeLeftSync.setVisible(False)
             self.lblDashModeSync.setVisible(False)
 
-         if len(unicode(self.lblDashModeBuild.text()).strip()) == 0:
+         if len(str(self.lblDashModeBuild.text()).strip()) == 0:
             self.lblDashModeBuild.setText( self.tr('Preparing Databases'), \
                                           size=4, bold=True, color='Foreground')
             
-         if len(unicode(self.lblDashModeScan.text()).strip()) == 0:
+         if len(str(self.lblDashModeScan.text()).strip()) == 0:
             self.lblDashModeScan.setText( self.tr('Scan Transaction History'), \
                                           size=4, bold=True, color='DisableFG')
 
@@ -4623,7 +4623,7 @@ class ArmoryMainWindow(QMainWindow):
       """
       fgColor = htmlColor('ToolTipQ')
       lbl = QLabel('<font size=%d color=%s>(?)</font>' % (iconSz, fgColor))
-      lbl.setMaximumWidth(relaxedSizeStr(lbl, '(?)')[0])
+      lbl.setMaximumWidth(int(relaxedSizeStr(lbl, '(?)')[0]))
 
       def setAllText(wself, txt):
          def pressEv(ev):
@@ -5547,8 +5547,8 @@ class ArmoryMainWindow(QMainWindow):
 
          self.connect(self, SIGNAL('UWCS'), self.UpdateWalletConsistencyStatus)
          self.connect(self, SIGNAL('PWCE'), self.PromptWltCstError)
-         self.CheckWalletConsistency(self.walletMap, self.prgAt, async=True)
-         self.UpdateConsistencyCheckMessage(async = True)
+         self.CheckWalletConsistency(self.walletMap, self.prgAt, async_=True)
+         self.UpdateConsistencyCheckMessage(async_ = True)
    @AllowAsync
    def UpdateConsistencyCheckMessage(self):
       while self.prgAt[2] == 0:
@@ -5836,9 +5836,10 @@ class ArmoryMainWindow(QMainWindow):
          ppDlg.exec_()
 
       elif state == BridgePromptState.cycle:
-         ppDlg = self.promptMap[promptID]
-         ppDlg.show()
-         ppDlg.recycle()
+         if promptID in self.promptMap:
+            ppDlg = self.promptMap[promptID]
+            ppDlg.show()
+            ppDlg.recycle()
 
       elif state == BridgePromptState.stop:
          if promptID in self.promptMap:

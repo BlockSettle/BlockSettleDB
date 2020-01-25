@@ -1,4 +1,5 @@
-from __future__ import print_function
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 ##############################################################################
 #                                                                            #
 # Copyright (C) 2011-2015, Armory Technologies, Inc.                         #
@@ -246,7 +247,7 @@ class QRichLabel(QLabel):
       #self.setMinimumHeight(int(relaxedSizeStr(self, 'QWERTYqypgj')[1]))
 
    def setText(self, text, color=None, size=None, bold=None, italic=None):
-      text = unicode(text)
+      text = str(text)
       if color:
          text = '<font color="%s">%s</font>' % (htmlColor(color), text)
       if size:
@@ -582,30 +583,42 @@ def makeLayoutFrame(dirStr, widgetList, style=QFrame.NoFrame, condenseMargins=Fa
       frmLayout = QVBoxLayout()
       
    for w in widgetList:
-      if isinstance(w,str) and w.lower()=='stretch':
+      if w is None:
+         frmLayout.addWidget(w)
+      elif isinstance(w,QSpacerItem):
+         frmLayout.addItem(w)
+      elif isinstance(w,QCheckBox):
+         frmLayout.addWidget(w)
+      elif isinstance(w,QFrame):
+         frmLayout.addWidget(w)
+      elif isinstance(w,QLineEdit):
+         frmLayout.addWidget(w)
+      elif isinstance(w,QPushButton):
+         frmLayout.addWidget(w)
+      elif isinstance(w,QLabel):
+         frmLayout.addWidget(w)
+      elif w.lower()=='stretch':
          frmLayout.addStretch()
-      elif isinstance(w,str) and w.lower().startswith('space'):
-         # expect "spacer(30)"
-         first = w.index('(')+1 
-         last  = w.index(')')
-         wid,hgt = int(w[first:last]), 1
-         if dirStr.lower().startswith(VERTICAL):
-            wid,hgt = hgt,wid
-         frmLayout.addItem( QSpacerItem(wid,hgt) )
-      elif isinstance(w,str) and w.lower().startswith('line'):
+      elif w.lower().startswith('line'):
          frmLine = QFrame()
          if dirStr.lower().startswith(VERTICAL):
             frmLine.setFrameStyle(QFrame.HLine | QFrame.Plain)
          else:
             frmLine.setFrameStyle(QFrame.VLine | QFrame.Plain)
          frmLayout.addWidget(frmLine)
-      elif isinstance(w,str) and w.lower().startswith('strut'):
-         first = w.index('(')+1 
+      elif w.lower().startswith('strut'):
+         first = w.index('(')+1
          last  = w.index(')')
          strutSz = int(w[first:last])
          frmLayout.addStrut(strutSz)
-      elif isinstance(w,QSpacerItem):
-         frmLayout.addItem(w)
+      elif w.lower().startswith('space'):
+         # expect "spacer(30)"
+         first = w.index('(')+1
+         last  = w.index(')')
+         wid,hgt = int(w[first:last]), 1
+         if dirStr.lower().startswith(VERTICAL):
+            wid,hgt = hgt,wid
+         frmLayout.addItem( QSpacerItem(wid,hgt) )
       else:
          frmLayout.addWidget(w)
 

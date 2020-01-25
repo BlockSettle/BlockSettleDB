@@ -1,4 +1,5 @@
-from __future__ import print_function
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 ################################################################################
 #
 # Copyright (C) 2011-2015, Armory Technologies, Inc.
@@ -14,12 +15,12 @@ from __future__ import print_function
 #
 ################################################################################
 import ast
+import codecs
 from datetime import datetime
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEBase import MIMEBase
-from email.MIMEText import MIMEText
-from email.Utils import COMMASPACE, formatdate
-from email import Encoders
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email.utils import COMMASPACE, formatdate
 import hashlib
 import inspect
 import locale
@@ -156,9 +157,9 @@ BASE16CHARS  = '0123456789abcdefABCDEF'
 LITTLEENDIAN  = '<'
 BIGENDIAN     = '>'
 NETWORKENDIAN = '!'
-ONE_BTC       = long(100000000)
-DONATION       = long(5000000)
-CENT          = long(1000000)
+ONE_BTC       = int(100000000)
+DONATION       = int(5000000)
+CENT          = int(1000000)
 UNINITIALIZED = None
 UNKNOWN       = -2
 MIN_TX_FEE    = 20000
@@ -267,8 +268,8 @@ CLI_ARGS = None
 
 # This is probably an abuse of the CLI_OPTIONS structure, but not
 # automatically expanding "~" symbols is killing me
-for opt,val in CLI_OPTIONS.__dict__.iteritems():
-   if not isinstance(val, basestring) or not val.startswith('~'):
+for opt,val in CLI_OPTIONS.__dict__.items():
+   if not isinstance(val, (str, bytes)) or not val.startswith('~'):
       continue
 
    if os.path.exists(os.path.expanduser(val)):
@@ -1214,8 +1215,8 @@ def GetSystemDetails():
       out.CpuStr = platform.processor()
    elif OS_MACOSX:
       memsizeStr = subprocess_check_output('sysctl hw.memsize', shell=True)
-      out.Memory = int(memsizeStr.split(": ")[1]) / 1024
-      out.CpuStr = subprocess_check_output('sysctl -n machdep.cpu.brand_string', shell=True)
+      out.Memory = int(memsizeStr.split(b": ")[1]) / 1024
+      out.CpuStr = subprocess_check_output('sysctl -n machdep.cpu.brand_string', shell=True).decode('utf-8')
    else:
       out.CpuStr = 'Unknown'
       raise OSError("Can't get system specs in: %s" % platform.system())
@@ -1293,7 +1294,7 @@ LOGINFO('Network Name: ' + NETWORKS[ADDRBYTE])
 LOGINFO('Satoshi Port: %d', BITCOIN_PORT)
 LOGINFO('Do wlt check: %s', str(DO_WALLET_CHECK))
 LOGINFO('Named options/arguments to armoryengine.py:')
-for key,val in ast.literal_eval(str(CLI_OPTIONS)).iteritems():
+for key,val in ast.literal_eval(str(CLI_OPTIONS)).items():
    LOGINFO('    %-16s: %s', key,val)
 LOGINFO('Other arguments:')
 for val in CLI_ARGS:
@@ -1711,22 +1712,22 @@ def isASCII(theStr):
 
 
 def toBytes(theStr, theEncoding=DEFAULT_ENCODING):
-   if isinstance(theStr, unicode):
+   if isinstance(theStr, str):
       return theStr.encode(theEncoding)
-   elif isinstance(theStr, str):
+   elif isinstance(theStr, bytes):
       return theStr
    else:
       LOGERROR('toBytes() not been defined for input: %s', str(type(theStr)))
 
 
 def toUnicode(theStr, theEncoding=DEFAULT_ENCODING):
-   if isinstance(theStr, unicode):
+   if isinstance(theStr, str):
       return theStr
-   elif isinstance(theStr, str):
-      return unicode(theStr, theEncoding)
+   elif isinstance(theStr, bytes):
+      return str(theStr, theEncoding)
    else:
       try:
-         return unicode(theStr)
+         return str(theStr)
       except:
          LOGEXCEPT('toUnicode() not defined for %s', str(type(theStr)))
 
@@ -1752,7 +1753,7 @@ def unicode_truncate(theStr, length, encoding='utf-8'):
 #http://stackoverflow.com/questions/36932/whats-the-best-way-to-implement-an-enum-in-python
 def enum(*sequential, **named):
    enums = dict(zip(sequential, range(len(sequential))), **named)
-   return type('Enum', (), enums)
+   return type(str('Enum'), (), enums)
 
 DATATYPE = enum("Binary", 'Base58', 'Hex')
 INTERNET_STATUS = enum('Available', 'Unavailable', 'DidNotCheck')
@@ -1932,7 +1933,7 @@ def int_to_hex(i, widthBytes=0, endOut=LITTLEENDIAN):
    if you are expecting constant-length output.
    """
    h = hex(i)[2:]
-   if isinstance(i,long):
+   if isinstance(i,int):
       h = h[:-1]
    if len(h)%2 == 1:
       h = '0'+h
@@ -1965,7 +1966,7 @@ def hex_to_binary(h, endIn=LITTLEENDIAN, endOut=LITTLEENDIAN):
    bout = h.replace(' ','')  # copies data, no references
    if not endIn==endOut:
       bout = hex_switchEndian(bout)
-   return bout.decode('hex_codec')
+   return codecs.decode(bout, 'hex_codec')
 
 
 def binary_to_hex(b, endOut=LITTLEENDIAN, endIn=LITTLEENDIAN):
@@ -2239,14 +2240,14 @@ def readSixteenEasyBytes(et18):
 def ubtc_to_floatStr(n):
    return '%d.%08d' % divmod (n, ONE_BTC)
 def floatStr_to_ubtc(s):
-   return long(round(float(s) * ONE_BTC))
+   return int(round(float(s) * ONE_BTC))
 def float_to_btc (f):
-   return long (round(f * ONE_BTC))
+   return int (round(f * ONE_BTC))
 
 
 # From https://en.bitcoin.it/wiki/Proper_Money_Handling_(JSON-RPC)
 def JSONtoAmount(value):
-   return long(round(float(value) * 1e8))
+   return int(round(float(value) * 1e8))
 def AmountToJSON(amount):
    return float(amount / 1e8)
 
@@ -3177,15 +3178,15 @@ class PyBackgroundThread(threading.Thread):
 # Define a decorator that allows the function to be called asynchronously
 def AllowAsync(func):
    def wrappedFunc(*args, **kwargs):
-      if not 'async' in kwargs or kwargs['async']==False:
+      if not 'async_' in kwargs or kwargs['async_']==False:
          # Run the function normally
-         if 'async' in kwargs:
-            del kwargs['async']
+         if 'async_' in kwargs:
+            del kwargs['async_']
          return func(*args, **kwargs)
       else:
          # Run the function as a background thread
-         passAsync = kwargs['async']
-         del kwargs['async']
+         passAsync = kwargs['async_']
+         del kwargs['async_']
 
          thr = PyBackgroundThread(func, *args, **kwargs)
          thr.passAsync = passAsync
@@ -3454,7 +3455,7 @@ def HardcodedKeyMaskParams():
 
    paramMap['IV']    = SecureBinaryData( hash256(digits_pi)[:16] )
    paramMap['SALT']  = SecureBinaryData( hash256(digits_e) )
-   paramMap['KDFBYTES'] = long(16*MEGABYTE)
+   paramMap['KDFBYTES'] = int(16*MEGABYTE)
 
    def hardcodeCreateSecurePrintPassphrase(secret):
       if isinstance(secret, basestring):
@@ -3605,12 +3606,12 @@ class SettingsFile(object):
    def writeSettingsFile(self, path=None):
       if not path:
          path = self.settingsPath
-      f = open(path, 'w')
-      for key,val in self.settingsMap.iteritems():
+      f = open(path, 'wb')
+      for key,val in self.settingsMap.items():
          try:
             # Skip anything that throws an exception
             valStr = ''
-            if   isinstance(val, basestring):
+            if   isinstance(val, str):
                valStr = val
             elif isinstance(val, int) or \
                  isinstance(val, float) or \
@@ -3619,10 +3620,11 @@ class SettingsFile(object):
             elif isinstance(val, list) or \
                  isinstance(val, tuple):
                valStr = ' $  '.join([str(v) for v in val])
-            f.write(key.ljust(36))
-            f.write(' | ')
-            f.write(toBytes(valStr))
-            f.write('\n')
+            f.write(key.ljust(36).encode('utf-8'))
+            f.write(b' | ')
+            if valStr:
+               f.write(toBytes(valStr))
+            f.write(b'\n')
          except:
             LOGEXCEPT('Invalid entry in SettingsFile... skipping')
       f.close()
@@ -3643,7 +3645,7 @@ class SettingsFile(object):
       # Automatically convert settings to numeric if possible
       def castVal(v):
          v = v.strip()
-         a,b = v.isdigit(), v.replace('.','').isdigit()
+         a,b = v.isdigit(), v.replace(b'.',b'').isdigit()
          if a:
             return int(v)
          elif b:
@@ -3657,18 +3659,18 @@ class SettingsFile(object):
                return toUnicode(v)
 
 
-      sdata = [line.strip() for line in sdata.split('\n')]
+      sdata = [line.strip() for line in sdata.split(b'\n')]
       for line in sdata:
          if len(line.strip())==0:
             continue
 
          try:
-            key,vals = line.split('|')
-            valList = [castVal(v) for v in vals.split('$')]
+            key,vals = line.split(b'|')[0:2]
+            valList = [castVal(v) for v in vals.split(b'$')]
             if len(valList)==1:
-               self.settingsMap[key.strip()] = valList[0]
+               self.settingsMap[key.strip().decode('utf-8')] = valList[0]
             else:
-               self.settingsMap[key.strip()] = valList
+               self.settingsMap[key.strip().decode('utf-8')] = valList
          except:
             LOGEXCEPT('Invalid setting in %s (skipping...)', path)
 

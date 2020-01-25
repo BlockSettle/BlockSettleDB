@@ -6,7 +6,6 @@ from __future__ import print_function
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
 ################################################################################
-import Queue
 import os.path
 import random
 import threading

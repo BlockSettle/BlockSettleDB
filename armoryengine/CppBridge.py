@@ -1,3 +1,4 @@
+from __future__ import print_function
 #interface with cpp code over os pipe
 import socket
 from armoryengine import ClientProto_pb2
@@ -115,7 +116,7 @@ class CppBridge(object):
             continue
 
          #grab full packet
-         response = str()
+         response = bytearray()
          while self.run:
             packet = self.clientSocket.recv(packetLen)
             response += packet
