@@ -1470,9 +1470,10 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
 
    //no tx in block 5
 
-   //1 tx with 4 outputs in block 6
+   //1 tx with 4 outputs in block 6, cover the roundabout zc delay setter
+   DBTestUtils::setNextZcPushDelay(2);
    DBTestUtils::ZcVector zcVec6;
-   zcVec6.push_back(rawTx3, 20000000, 2);
+   zcVec6.push_back(rawTx3, 20000000, 0);
    DBTestUtils::pushNewZc(theBDMt_, zcVec6, true);
 
    /*reorg*/
@@ -1973,7 +1974,7 @@ TEST_F(BlockUtilsWithWalletTest, UnrelatedZC_CheckLedgers)
    //grab ledger for 2nd ZC
    zcledger = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash2);
    EXPECT_EQ(zcledger.getValue(), 30 * COIN);
-   //EXPECT_EQ(zcledger.getTxTime(), 14100000);
+   EXPECT_EQ(zcledger.getBlockNum(), UINT32_MAX);
    EXPECT_FALSE(zcledger.isOptInRBF());
 
    //grab delegate ledger
@@ -2019,8 +2020,10 @@ TEST_F(BlockUtilsWithWalletTest, UnrelatedZC_CheckLedgers)
    //try to get ledgers, ZCs should be all gone
    zcledger = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash1);
    EXPECT_EQ(zcledger.getTxHash(), BtcUtils::EmptyHash());
+   
    zcledger = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash2);
    EXPECT_EQ(zcledger.getTxTime(), 1231009513);
+   EXPECT_EQ(zcledger.getBlockNum(), 5);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
