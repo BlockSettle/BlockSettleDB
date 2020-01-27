@@ -168,7 +168,8 @@ namespace TestUtils
 ////////////////////////////////////////////////////////////////////////////////
 namespace DBTestUtils
 {
-   unsigned commandCtr = 0;
+   unsigned commandCtr_ = 0;
+   deque<unsigned> zcDelays_;
 
    /////////////////////////////////////////////////////////////////////////////
    unsigned getTopBlockHeight(LMDBBlockDatabase* db, DB_SELECT dbSelect)
@@ -524,14 +525,32 @@ namespace DBTestUtils
       auto nodePtr = bdmt->bdm()->networkNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
 
+      unsigned delay = UINT32_MAX;
+      if (zcDelays_.size() != 0)
+      {
+         delay = zcDelays_.front();
+         zcDelays_.pop_front();
+      }
+
       std::vector<pair<BinaryData, unsigned>> txVec;
       for (auto& newzc : zcVec.zcVec_)
       {
          BinaryData bdTx(newzc.first.getPtr(), newzc.first.getSize());
-         txVec.push_back(make_pair(bdTx, newzc.second));
+
+         auto localDelay = newzc.second;
+         if (newzc.second == 0 && delay != UINT32_MAX)
+            localDelay = delay;
+
+         txVec.push_back(make_pair(bdTx, localDelay));
       }
 
       nodeUnitTest->pushZC(txVec, stage);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   void setNextZcPushDelay(unsigned delay)
+   {
+      zcDelays_.push_back(delay);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -725,7 +744,7 @@ namespace DBTestUtils
       The counter has to start at 1 since the first message is always BDV
       registration, which does not occur when bypassing the websocet interface.
       */
-      commandCtr = 1;
+      commandCtr_ = 1;
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -736,7 +755,7 @@ namespace DBTestUtils
       vector<uint8_t> buffer(len);
       msg->SerializeToArray(&buffer[0], len);
       auto&& bdVec = WebSocketMessageCodec::serialize(
-         buffer, nullptr, WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, commandCtr++);
+         buffer, nullptr, WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, commandCtr_++);
       
       if (bdVec.size() > 1)
          LOGWARN << "large message in unit tests";
