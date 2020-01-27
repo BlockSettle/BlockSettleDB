@@ -108,8 +108,10 @@ try
             make_unique<BDV_Notification_NodeStatus>(move(nodeStatus));
          bdm->notificationStack_.push_back(move(notifPtr));
       }
-      catch (exception&)
-      {}
+      catch (exception& e)
+      {
+         LOGERR << "Can't get node status: " << e.what();
+      }
    };
 
    //connect to node as async, no need to wait for a succesful connection
