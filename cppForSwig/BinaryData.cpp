@@ -386,8 +386,10 @@ SecureBinaryData BinaryRefReader::get_SecureBinaryData(uint32_t nBytes)
 /////////////////////////////////////////////////////////////////////////////
 void BinaryRefReader::advance(size_t nBytes)
 {
+   if (getSizeRemaining() < nBytes)
+      throw runtime_error("buffer overflow");
+
    pos_.fetch_add(nBytes, memory_order_relaxed);
-   pos_.store(min(pos_.load(memory_order_relaxed), totalSize_), memory_order_relaxed);
 }
 
 

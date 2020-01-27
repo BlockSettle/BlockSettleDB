@@ -291,7 +291,7 @@ public:
    {
       auto iter = cipherData_.begin();
       if (iter == cipherData_.end())
-         throw AssetException("no cipher for that id");
+         throw AssetException("empty cipher map");
 
       return iter->second.get();
    }
@@ -511,7 +511,7 @@ public:
    //virtual
    virtual BinaryData serialize(void) const;
    bool hasPrivateKey(void) const;
-   const BinaryData& getPrivateEncryptionKeyId(void) const;
+   const BinaryData& getPrivateEncryptionKeyId(void) const override;
    const BinaryData& getKdfId(void) const;
 
    virtual std::shared_ptr<AssetEntry_Single> getPublicCopy(void);
@@ -620,7 +620,7 @@ public:
    }
 
    bool hasPrivateKey(void) const;
-   const BinaryData& getPrivateEncryptionKeyId(void) const;
+   const BinaryData& getPrivateEncryptionKeyId(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

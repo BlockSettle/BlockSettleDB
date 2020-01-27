@@ -23,62 +23,6 @@
 
 using namespace std;
 
-static bool scanFor(std::istream &in, const uint8_t * bytes, const unsigned len)
-{
-   std::vector<uint8_t> ahead(len); // the bytes matched
-   
-   in.read((char*)&ahead.front(), len);
-   unsigned count = in.gcount();
-   if (count < len) return false;
-   
-   unsigned offset=0; // the index mod len which we're in ahead
-   
-   do
-   {
-      bool found=true;
-      for (unsigned i=0; i < len; i++)
-      {
-         if (ahead[(i+offset)%len] != bytes[i])
-         {
-            found=false;
-            break;
-         }
-      }
-      if (found)
-         return true;
-      
-      ahead[offset++%len] = in.get();
-      
-   } while (!in.eof());
-   return false;
-}
-
-static uint64_t scanFor(const uint8_t *in, const uint64_t inLen,
-   const uint8_t * bytes, const uint64_t len)
-{
-   uint64_t offset = 0; // the index mod len which we're in ahead
-
-   do
-   {
-      bool found = true;
-      for (uint64_t i = 0; i < len; i++)
-      {
-         if (in[i] != bytes[i])
-         {
-            found = false;
-            break;
-         }
-      }
-      if (found)
-         return offset;
-
-      in++;
-      offset++;
-
-   } while (offset + len< inLen);
-   return UINT64_MAX;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 class ProgressMeasurer
 {

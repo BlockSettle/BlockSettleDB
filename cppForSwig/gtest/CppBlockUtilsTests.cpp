@@ -5668,6 +5668,8 @@ protected:
       mkdir(blkdir_);
       mkdir(homedir_);
       mkdir("./ldbtestdir");
+
+      DBTestUtils::init();
    
       NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
@@ -6053,6 +6055,8 @@ protected:
 
    void initBDM(void)
    {
+      DBTestUtils::init();
+      
       auto& magicBytes = NetworkConfig::getMagicBytes();
       config.nodePtr_ = make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr());
 
@@ -8219,6 +8223,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
+      {},
       SecureBinaryData(),
       SecureBinaryData(),
       10); //set lookup computation to 5 entries
@@ -8766,6 +8771,7 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
+      {},
       SecureBinaryData(),
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
@@ -9004,6 +9010,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot),
+      {},
       SecureBinaryData(), //empty passphrase
       SecureBinaryData(),
       5);
@@ -9337,6 +9344,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a r value
+      {},
       SecureBinaryData(),
       SecureBinaryData(),      
       10); //set lookup computation to 10 entries
@@ -10182,8 +10190,8 @@ TEST_F(WebSocketTests, WebSocketStack)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
 
    theBDMt_->start(config.initMode_);
 
@@ -10433,8 +10441,8 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
 
 
    auto pubkeyPrompt = [this](const BinaryData& pubkey, const string& name)->bool
@@ -10707,8 +10715,8 @@ TEST_F(WebSocketTests, GrabAddrLedger_PostReg)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
    theBDMt_->start(config.initMode_);
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
@@ -10768,8 +10776,8 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
    clients_ = nullptr;
 
    theBDMt_ = new BlockDataManagerThread(config);
-   WebSocketServer::start(theBDMt_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
 
    theBDMt_->start(config.initMode_);
 

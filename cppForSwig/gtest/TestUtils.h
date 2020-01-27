@@ -101,6 +101,9 @@ namespace TestUtils
 
 namespace DBTestUtils
 {
+   extern unsigned commandCtr;
+   void init(void);
+
    unsigned getTopBlockHeight(LMDBBlockDatabase*, DB_SELECT);
    BinaryData getTopBlockHash(LMDBBlockDatabase*, DB_SELECT);
 

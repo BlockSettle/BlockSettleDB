@@ -63,6 +63,8 @@ struct BDV_PartialMessage
    bool getMessage(std::shared_ptr<::google::protobuf::Message>);
    void reset(void);
    size_t topId(void) const;
+
+   static unsigned getMessageId(std::shared_ptr<BDV_Payload>);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -131,6 +133,7 @@ private:
    };
 
    std::mutex registerWalletMutex_;
+   std::mutex processPacketMutex_;
    std::map<std::string, walletRegStruct> wltRegMap_;
 
    std::shared_ptr<std::promise<bool>> isReadyPromise_;
@@ -140,8 +143,7 @@ private:
    std::atomic<unsigned> packetProcess_threadLock_;
    std::atomic<unsigned> notificationProcess_threadLock_;
 
-   BDV_PartialMessage currentMessage_;
-   std::shared_ptr<BDV_Payload> packetToReinject_ = nullptr;
+   std::map<unsigned, BDV_PartialMessage> messageMap_;
 
 private:
    BDV_Server_Object(BDV_Server_Object&) = delete; //no copies
@@ -158,7 +160,6 @@ private:
    void flagRefresh(
       BDV_refresh refresh, const BinaryData& refreshId,
       std::unique_ptr<BDV_Notification_ZC> zcPtr);
-   void resetCurrentMessage(void);
 
    unsigned lastValidMessageId_ = 0;
 
@@ -212,10 +213,12 @@ private:
    std::atomic<bool> run_;
 
    std::vector<std::thread> controlThreads_;
+   std::thread unregThread_;
 
    mutable BlockingQueue<std::shared_ptr<BDV_Notification>> outerBDVNotifStack_;
    BlockingQueue<std::shared_ptr<BDV_Notification_Packet>> innerBDVNotifStack_;
    BlockingQueue<std::shared_ptr<BDV_Payload>> packetQueue_;
+   BlockingQueue<std::string> unregBDVQueue_;
 
    std::mutex shutdownMutex_;
 
@@ -225,6 +228,7 @@ private:
    void bdvMaintenanceLoop(void);
    void bdvMaintenanceThread(void);
    void messageParserThread(void);
+   void unregisterBDVThread(void);
 
 public:
 
@@ -246,7 +250,7 @@ public:
       std::shared_ptr<::Codec_BDVCommand::StaticCommand>);
    std::shared_ptr<::google::protobuf::Message> registerBDV(
       std::shared_ptr<::Codec_BDVCommand::StaticCommand>, std::string bdvID);
-   void unregisterBDV(const std::string& bdvId);
+   void unregisterBDV(std::string bdvId);
    void shutdown(void);
    void exitRequestLoop(void);
    

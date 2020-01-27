@@ -123,11 +123,9 @@ void KdfRomix::printKdfParams(void)
    // SHA512 computes 64-byte outputs
    cout << "KDF Parameters:" << endl;
    cout << "   HashFunction : " << hashFunctionName_ << endl;
-   cout << "   HashOutBytes : " << hashOutputBytes_ << endl;
    cout << "   Memory/thread: " << memoryReqtBytes_ << " bytes" << endl;
    cout << "   SequenceCount: " << sequenceCount_ << endl;
    cout << "   NumIterations: " << numIterations_ << endl;
-   cout << "   KDFOutBytes  : " << kdfOutputBytes_ << endl;
    cout << "   Salt         : " << salt_.toHexStr() << endl;
 }
 

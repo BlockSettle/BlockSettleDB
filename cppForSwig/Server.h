@@ -173,9 +173,8 @@ public:
       struct lws *wsi, enum lws_callback_reasons reason,
       void *user, void *in, size_t len);
 
-   static void start(BlockDataManagerThread* bdmT,
-      const std::string& datadir, const PassphraseLambda&,
-      const bool& ephemeralPeers, const bool& async);
+   static void initAuthPeers(const PassphraseLambda&);
+   static void start(BlockDataManagerThread* bdmT, bool async);
    static void shutdown(void);
    static void waitOnShutdown(void);
    static SecureBinaryData getPublicKey(void);

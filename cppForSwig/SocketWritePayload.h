@@ -42,7 +42,7 @@ struct WritePayload_String : public Socket_WritePayload
    std::string data_;
 
    void serialize(std::vector<uint8_t>&) {
-      throw SocketError("string payload cannot serilaize to raw binary");
+      throw SocketError("string payload cannot serialize to raw binary");
    }
 
    std::string serializeToText(void) {

@@ -204,6 +204,8 @@ namespace AsyncClient
       void getHistoryPage(uint32_t id, 
          std::function<void(ReturnMessage<std::vector<::ClientClasses::LedgerEntry>>)>);
       void getPageCount(std::function<void(ReturnMessage<uint64_t>)>) const;
+
+      const std::string& getID(void) const { return delegateID_; }
    };
 
    class BtcWallet;

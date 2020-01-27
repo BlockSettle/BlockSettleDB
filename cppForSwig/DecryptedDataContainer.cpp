@@ -133,7 +133,7 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
    }
 
    //check cipher
-   if (!dataPtr->hasData())
+   if (dataPtr->getCipherDataPtr()->cipher_ == nullptr)
    {
       //null cipher, data is not encrypted, create entry and return it
       auto dataCopy = dataPtr->getCipherText();

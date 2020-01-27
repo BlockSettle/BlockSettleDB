@@ -311,7 +311,8 @@ void PersistentSocket::socketService_nix()
          writeOffset_ = 0;
    };
 
-   while (1)
+   bool loop = true;
+   while (loop)
    {
       auto status = poll(pfd, 2, timeout);
 
@@ -362,17 +363,19 @@ void PersistentSocket::socketService_nix()
          size_t totalread = 0;
          int readAmt;
 
-         while ((readAmt =
-            recv(sockfd_, (char*)&readdata[0] + totalread, readIncrement, 0))
-            != 0)
+         while (true)
          {
-            if (readAmt < 0)
+            readAmt = recv(
+               sockfd_, (char*)&readdata[0] + totalread, readIncrement, 0);
+
+            if (readAmt <= 0)
             {
                auto errornum = errno;
                if (errornum == EAGAIN || errornum == EWOULDBLOCK)
                   break;
 
-               LOGERR << "recv error: " << errornum;
+               LOGERR << "recv error: " << errornum << ", aborting";
+               loop = false;
                break;
             }
 
@@ -401,6 +404,7 @@ void PersistentSocket::socketService_nix()
    }
 
    run_.store(false, memory_order_relaxed);
+   readQueue_.terminate();
 }
 #endif
 
@@ -471,7 +475,8 @@ void PersistentSocket::socketService_win()
          writeOffset_ = 0;
    };
 
-   while (run_.load(memory_order_relaxed))
+   bool loop = true;
+   while (loop)
    {
       serviceSocketWrite();
       auto ev = WSAWaitForMultipleEvents(1, events_, false, timeout, false);
@@ -520,7 +525,8 @@ void PersistentSocket::socketService_win()
                   break;
    
                LOGERR << "error reading socket, aborting";
-               return;
+               loop = false;
+               break;
             }
 
             totalread += readAmt;

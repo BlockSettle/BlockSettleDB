@@ -1348,16 +1348,8 @@ Signer Signer::createFromState(const BinaryData& state)
       auto spender_len = brr.get_var_int();
       auto spender_data = brr.get_BinaryDataRef(spender_len);
 
-      try
-      {
-         auto spender_ptr = ScriptSpender::deserializeState(spender_data);
-         signer.spenders_.push_back(spender_ptr);
-      }
-      catch (exception &e)
-      {
-         LOGWARN << "failed to deser spender";
-         LOGWARN << "error: " << e.what();
-      }
+      auto spender_ptr = ScriptSpender::deserializeState(spender_data);
+      signer.spenders_.push_back(spender_ptr);
    }
 
    auto recipient_count = brr.get_var_int();

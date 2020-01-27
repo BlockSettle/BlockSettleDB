@@ -537,3 +537,26 @@ uint8_t WebSocketMessagePartial::getPacketType(const BinaryDataRef& bdr)
       throw runtime_error("packet is too small to be serialized fragment");
    return bdr.getPtr()[4];
 }
+
+///////////////////////////////////////////////////////////////////////////////
+unsigned WebSocketMessagePartial::getMessageId(const BinaryDataRef& bdr)
+{
+   if (bdr.getSize() < 9)
+      return UINT32_MAX;
+
+   BinaryRefReader brr(bdr);
+   brr.advance(4);
+
+   switch (brr.get_uint8_t())
+   {
+   case WS_MSGTYPE_SINGLEPACKET:
+   case WS_MSGTYPE_FRAGMENTEDPACKET_HEADER:
+   case WS_MSGTYPE_FRAGMENTEDPACKET_FRAGMENT:
+      return brr.get_uint32_t();
+
+   default:
+      return UINT32_MAX;
+   }
+
+   return UINT32_MAX;
+}

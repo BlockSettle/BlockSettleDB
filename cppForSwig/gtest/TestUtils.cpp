@@ -26,6 +26,7 @@ using namespace ::Codec_BDVCommand;
 ////////////////////////////////////////////////////////////////////////////////
 namespace TestUtils
 {
+
    /////////////////////////////////////////////////////////////////////////////
    bool searchFile(const string& filename, BinaryData& data)
    {
@@ -167,6 +168,8 @@ namespace TestUtils
 ////////////////////////////////////////////////////////////////////////////////
 namespace DBTestUtils
 {
+   unsigned commandCtr = 0;
+
    /////////////////////////////////////////////////////////////////////////////
    unsigned getTopBlockHeight(LMDBBlockDatabase* db, DB_SELECT dbSelect)
    {
@@ -709,6 +712,23 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
+   void init(void)
+   {
+      /*
+      Need a counter to increment the message id of the packets sent to the 
+      BDV object. This counter has to be reset when the BDM is reset. Since 
+      the counter is global to the namespace, this means this test interface
+      cannot sustain multiple concurent BDVs. 
+
+      Use the websocket interface to have multiple clients instead.
+
+      The counter has to start at 1 since the first message is always BDV
+      registration, which does not occur when bypassing the websocet interface.
+      */
+      commandCtr = 1;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
    shared_ptr<::google::protobuf::Message> processCommand(
       Clients* clients, shared_ptr<::google::protobuf::Message> msg)
    {
@@ -716,7 +736,7 @@ namespace DBTestUtils
       vector<uint8_t> buffer(len);
       msg->SerializeToArray(&buffer[0], len);
       auto&& bdVec = WebSocketMessageCodec::serialize(
-         buffer, nullptr, WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, 0);
+         buffer, nullptr, WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, commandCtr++);
       
       if (bdVec.size() > 1)
          LOGWARN << "large message in unit tests";

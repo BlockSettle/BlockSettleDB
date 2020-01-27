@@ -14,11 +14,11 @@ import sys
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 
-from CppBlockUtils import *
 from armoryengine.ALL import *
 from qtdefines import *
 from armoryengine.MultiSigUtils import calcLockboxID
 from copy import deepcopy
+from armoryengine.CppBridge import TheBridge
 
 sys.path.append('..')
 sys.path.append('../cppForSwig')
@@ -247,7 +247,6 @@ class LedgerDispModelSimple(QAbstractTableModel):
             return QVariant(Colors.TextSomeConfirm)
          
          if col==COL.Amount:
-            #toSelf = self.index(index.row(), COL.toSelf).data().toBool()
             toSelf = rowData[COL.toSelf]
             if toSelf:
                return QVariant(Colors.Mid)
@@ -343,8 +342,8 @@ class LedgerDispModelSimple(QAbstractTableModel):
       elif role==Qt.TextAlignmentRole:
          return QVariant( int(Qt.AlignHCenter | Qt.AlignVCenter) )
 
-   def setLedgerDelegate(self, delegate):
-      self.ledgerDelegate = delegate
+   def setLedgerDelegateId(self, delegateId):
+      self.ledgerDelegateId = delegateId
       
    def setConvertLedgerMethod(self, method):
       self.convertLedger = method
@@ -356,7 +355,8 @@ class LedgerDispModelSimple(QAbstractTableModel):
          #Try to grab the next page. If it throws, there is no more data
          #so we can simply return
          try:
-            newLedger = self.ledgerDelegate.getHistoryPage(self.bottomPage.id +1)
+            newLedger = TheBridge.getHistoryPageForDelegate(\
+               self.ledgerDelegateId, self.bottomPage.id +1)
             toTable = self.convertLedger(newLedger)
          except:
             return 0       
@@ -384,7 +384,8 @@ class LedgerDispModelSimple(QAbstractTableModel):
 
       else:
          try:
-            newLedger = self.ledgerDelegate.getHistoryPage(self.topPage.id -1)
+            newLedger = TheBridge.getHistoryPageForDelegate(\
+               self.delegateId, self.topPage.id -1)
             toTable = self.convertLedger(newLedger)
          except:
             return 0
@@ -423,23 +424,23 @@ class LedgerDispModelSimple(QAbstractTableModel):
       
       if self.topPage.id == 0 or len(self.topPage.table) == 0:
          try:
-            newLedger = self.ledgerDelegate.getHistoryPage(self.topPage.id)
+            newLedger = TheBridge.getHistoryPageForDelegate(\
+               self.ledgerDelegateId, self.topPage.id)
             toTable = self.convertLedger(newLedger)
             self.topPage.table = toTable 
          except:
             pass
          
       if self.currentPage.id == 0 or len(self.currentPage.table) == 0:
-         try:
-            newLedger = self.ledgerDelegate.getHistoryPage(self.currentPage.id)
+            newLedger = TheBridge.getHistoryPageForDelegate(\
+               self.ledgerDelegateId, self.currentPage.id)
             toTable = self.convertLedger(newLedger)
             self.currentPage.table = toTable 
-         except:
-            pass
                
       if len(self.bottomPage.table) == 0:
          try:
-            newLedger = self.ledgerDelegate.getHistoryPage(self.bottomPage.id)
+            newLedger = TheBridge.getHistoryPageForDelegate(\
+               self.ledgerDelegateId, self.bottomPage.id)
             toTable = self.convertLedger(newLedger)
             self.bottomPage.table = toTable 
          except:
@@ -994,19 +995,8 @@ class WalletAddrDispModel(QAbstractTableModel):
       addr = self.wlt.addrMap[self.addr160List[row]]
       addr_index = addr.chainIndex
 
-      try:
-         if addr_index == -2:
-            addr_index = self.wlt.cppWallet.getAssetIndexForAddr(addr.getAddr160())
-            index_import = self.wlt.cppWallet.convertToImportIndex(addr_index)
-            cppaddr = self.wlt.cppWallet.getImportAddrObjByIndex(index_import) 
-         else:
-            cppaddr = self.wlt.cppWallet.getAddrObjByIndex(addr_index)
-      except:
-         LOGERROR('failed to grab address by index %d, original id: %d' % (addr_index, addr.chainIndex))
-         return QVariant()
-
-      addr160 = cppaddr.getAddrHash()
-      addrB58 = cppaddr.getScrAddr()
+      addr160 = addr.getAddr160()
+      addrB58 = addr.getAddressString()
       chainIdx = addr.chainIndex+1  # user must get 1-indexed
       if role==Qt.DisplayRole:
          if col==COL.Address: 
@@ -1016,7 +1006,7 @@ class WalletAddrDispModel(QAbstractTableModel):
          if col==COL.NumTx: 
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
                return QVariant('n/a')
-            return QVariant( cppaddr.getTxioCount())
+            return QVariant(addr.getTxioCount())
          if col==COL.ChainIdx:
             if self.wlt.addrMap[addr.getAddr160()].chainIndex==-2:
                return QVariant('Imported')
@@ -1025,7 +1015,8 @@ class WalletAddrDispModel(QAbstractTableModel):
          if col==COL.Balance: 
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
                return QVariant('(...)')
-            return QVariant( coin2str(cppaddr.getFullBalance(), maxZeros=2) )
+            addrFullBalance = self.wlt.getAddrBalance(addr160, balType="full")
+            return QVariant( coin2str(addrFullBalance, maxZeros=2) )
       elif role==Qt.TextAlignmentRole:
          if col in (COL.Address, COL.Comment, COL.ChainIdx):
             return QVariant(int(Qt.AlignLeft | Qt.AlignVCenter))
@@ -1040,12 +1031,12 @@ class WalletAddrDispModel(QAbstractTableModel):
          if col==COL.Balance:
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
                return QVariant(Colors.Foreground)
-            val = cppaddr.getFullBalance()
-            if   val>0: return QVariant(Colors.TextGreen)
+            addrFullBalance = self.wlt.getAddrBalance(addr160, balType="full")
+            if   addrFullBalance>0: return QVariant(Colors.TextGreen)
             else:       return QVariant(Colors.Foreground)
       elif role==Qt.FontRole:
          try:
-            hasTx = cppaddr.getTxioCount()>0
+            hasTx = addr.getTxioCount()>0
          except:
             hasTx = False
             
@@ -1080,8 +1071,8 @@ class WalletAddrDispModel(QAbstractTableModel):
          if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
             return QVariant( Colors.TblWltOther )
 
-         val = cppaddr.getFullBalance()
-         if val>0:
+         addrFullBalance = self.wlt.getAddrBalance(addr160, balType="full")         
+         if addrFullBalance>0:
             return QVariant( Colors.SlightGreen )
          else:
             return QVariant( Colors.TblWltOther )
@@ -1299,7 +1290,7 @@ class TxOutDispModel(QAbstractTableModel):
          wltID = dispInfo['LboxID']
       
 
-      stype = BtcUtils().getTxOutScriptTypeInt(txout.binScript)
+      stype = TheBridge.getTxOutScriptType(txout.binScript)
       stypeStr = CPP_TXOUT_SCRIPT_NAMES[stype]
       if stype==CPP_TXOUT_MULTISIG:
          M,N = getMultisigScriptInfo(txout.binScript)[:2]
@@ -1369,18 +1360,18 @@ class SentToAddrBookModel(QAbstractTableModel):
       # http://sourceforge.net/tracker/?func=detail&atid=101645&aid=3403085&group_id=1645
       # Must use awkwardness to get around iterating a vector<RegisteredTx> in
       # the python code... :(
-      addressBook = self.wlt.cppWallet.createAddressBook();
-      nabe = addressBook.size()
+      addressBook = TheBridge.createAddressBook(wltID)
+      nabe = len(addressBook)
       for i in range(nabe):
          abe = addressBook[i]
 
-         scrAddr = abe.getScrAddr()
+         scrAddr = abe.scrAddr
          try:
             addr160 = addrStr_to_hash160(scrAddr_to_addrStr(scrAddr))[1]
             
             # Only grab addresses that are not in any of your Armory wallets
             if not self.main.getWalletForAddr160(addr160):
-               txHashList = abe.getTxHashList()
+               txHashList = abe.txHashes
                self.addrBook.append( [scrAddr, txHashList] )
          except Exception as e:
             # This is not necessarily an error. It could be a lock box LOGERROR(str(e))

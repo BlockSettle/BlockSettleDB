@@ -21,10 +21,112 @@ from armoryengine.MultiSigUtils import \
    isP2SHLockbox
 from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH, getAddrByte
 from ui.FeeSelectUI import FeeSelectionDialog
-from CppBlockUtils import TXOUT_SCRIPT_P2SH, TXOUT_SCRIPT_P2WPKH, TXOUT_SCRIPT_P2WSH, \
-   TransactionBatch, SecureBinaryData, RecipientReuseException
-from armoryengine.SignerWrapper import SIGNER_DEFAULT
 
+CS_USE_FULL_CUSTOM_LIST = 1
+CS_ADJUST_FEE           = 2
+CS_SHUFFLE_ENTRIES      = 4
+
+TXOUT_SCRIPT_STDHASH160 = 0
+TXOUT_SCRIPT_STDPUBKEY65 = 1
+TXOUT_SCRIPT_STDPUBKEY33 = 2 
+TXOUT_SCRIPT_MULTISIG = 3
+TXOUT_SCRIPT_P2SH = 4
+TXOUT_SCRIPT_NONSTANDARD = 5
+TXOUT_SCRIPT_P2WPKH = 6
+TXOUT_SCRIPT_P2WSH  = 7
+TXOUT_SCRIPT_OPRETURN = 8
+
+TXIN_SCRIPT_STDUNCOMPR = 0
+TXIN_SCRIPT_STDCOMPR = 1
+TXIN_SCRIPT_COINBASE = 2
+TXIN_SCRIPT_SPENDPUBKEY = 3
+TXIN_SCRIPT_SPENDMULTI = 4
+TXIN_SCRIPT_SPENDP2SH = 5
+TXIN_SCRIPT_NONSTANDARD = 6
+TXIN_SCRIPT_WITNESS = 7
+TXIN_SCRIPT_P2WPKH_P2SH = 8
+TXIN_SCRIPT_P2WSH_P2SH = 9
+
+from armoryengine.PyBtcAddress import \
+   AddressEntryType_Default, \
+   AddressEntryType_P2PKH, AddressEntryType_P2PK, AddressEntryType_P2WPKH, \
+   AddressEntryType_Multisig, AddressEntryType_Compressed, \
+   AddressEntryType_P2SH, AddressEntryType_P2WSH
+
+################################################################################
+class CoinSelectionInstance(object):
+   def __init__(self, wltID, topHeight):
+      self.id = None
+      self.wltId = wltID
+      self.height = topHeight
+
+   #############################################################################
+   def __del__(self):
+      TheBridge.destroyCoinSelectionInstance(self.id)
+   
+   #############################################################################
+   def setup(self):
+      self.id = TheBridge.initCoinSelectionInstance(self.wltId, self.height)
+
+   #############################################################################
+   def setRecipient(self, addr, value, id):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      TheBridge.setCoinSelectionRecipient(self.id, addr, value, id)
+
+   #############################################################################
+   def updateRecipient(self, addr, value, id):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      TheBridge.setCoinSelectionRecipient(self.id, addr, value, id)
+
+   #############################################################################
+   def resetRecipients(self):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      TheBridge.resetCoinSelection()
+
+   #############################################################################
+   def selectUTXOs(self, fee, feePerByte, processFlags):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      TheBridge.cs_SelectUTXOs(self.id, fee, feePerByte, processFlags)
+
+   #############################################################################
+   def processCustomUtxoList(self, utxoList, fee, feePerByte, processFlags):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      TheBridge.cs_ProcessCustomUtxoList(\
+         self.id, utxoList, fee, feePerByte, processFlags)
+
+   #############################################################################
+   def getUtxoSelection(self):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      return TheBridge.cs_getUtxoSelection(self.id)
+
+   #############################################################################
+   def getFlatFee(self):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      return TheBridge.cs_getFlatFee(self.id)
+
+   #############################################################################
+   def getFeeByte(self):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      return TheBridge.cs_getFeeByte(self.id)
+
+
+################################################################################
 class SendBitcoinsFrame(ArmoryFrame):
    def __init__(self, parent, main, initLabel='',
                  wlt=None, wltIDList=None,
@@ -47,7 +149,6 @@ class SendBitcoinsFrame(ArmoryFrame):
       self.widgetTable = []
       self.isMax = False
       self.scrollRecipArea = QScrollArea()
-      self.signerType = SIGNER_DEFAULT
 
       lblRecip = QRichLabel('<b>Enter Recipients:</b>')
       lblRecip.setAlignment(Qt.AlignLeft | Qt.AlignBottom)
@@ -212,7 +313,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          self.connect(self.chkDefaultChangeAddr, SIGNAL('toggled(bool)'), self.toggleChngAddr)
          self.connect(self.radioSpecify, SIGNAL('toggled(bool)'), self.toggleSpecify)
          frmChngLayout = QGridLayout()
-         i = 0;
+         i = 0
          frmChngLayout.addWidget(self.chkDefaultChangeAddr, i, 0, 1, 6)
          frmChngLayout.addWidget(self.ttipSendChange,       i, 6, 1, 2)
          i += 1
@@ -393,10 +494,9 @@ class SendBitcoinsFrame(ArmoryFrame):
          self.coinSelection = None
          return
 
-      try:
-         self.coinSelection = self.wlt.cppWallet.getCoinSelectionInstance()
-      except Cpp.DbErrorMsg as dbErr:
-         LOGERROR('DB error: %s', dbErr.what())
+      self.coinSelection = CoinSelectionInstance(\
+         self.wltID, TheBDM.getTopBlockHeight())
+      self.coinSelection.setup()
 
       try:
          self.resetCoinSelectionRecipients()
@@ -438,20 +538,10 @@ class SendBitcoinsFrame(ArmoryFrame):
          if len(scrAddr) == 0:
             raise BadAddressError('Empty address string')
 
-         try:
-            prefix, h160 = addrStr_to_hash160(scrAddr)
-         except:
-            h160 = Cpp.BtcUtils_bech32ToScript(scrAddr, BECH32_PREFIX)[2:]
-            if len(h160) == 20:
-               prefix = SCRADDR_P2WPKH_BYTE
-            elif len(h160) == 32:
-               prefix = SCRADDR_P2WSH_BYTE
-
-         scrAddr = prefix + h160
          valueStr = str(coinSelRow['QLE_AMT'].text()).strip()
          value = str2coin(valueStr, negAllowed=False)
          
-         self.coinSelection.addRecipient(scrAddr, value)
+         self.coinSelection.setRecipient(scrAddr, value, id_)
       except:
          self.resetCoinSelectionText()
    
@@ -468,38 +558,15 @@ class SendBitcoinsFrame(ArmoryFrame):
             raise Exception()
          
          coinSelRow = self.widgetTable[id_]
-         
          if 'OP_RETURN' not in coinSelRow:
             addrStr = str(coinSelRow['QLE_ADDR'].text()).strip()
-            
-            try:
-               prefix, h160 = addrStr_to_hash160(addrStr)
-            except:
-               #recipient input is not an address, is it a locator instead?
-               scriptDict = self.main.getScriptForUserString(addrStr)
-               
-               if scriptDict['Script'] == None:
-                  raise Exception("invalid addrStr in recipient")
-               
-               if scriptDict['IsBech32'] == False:
-                  scraddr = script_to_scrAddr(scriptDict['Script']) 
-                  prefix = scraddr[0]
-                  h160 = scraddr[1:]   
-               else:
-                  h160 = Cpp.BtcUtils_bech32ToScript(addrStr, BECH32_PREFIX)[2:]
-                  if len(h160) == 20:
-                     prefix = SCRADDR_P2WPKH_BYTE
-                  elif len(h160) == 32:
-                     prefix = SCRADDR_P2WSH_BYTE
-               
-            scrAddr = prefix + h160
             valueStr = str(coinSelRow['QLE_AMT'].text()).strip()
             try:
                value = str2coin(valueStr, negAllowed=False)
             except:
                value = 0
-               
-            self.coinSelection.updateRecipient(id_, scrAddr, value)
+
+            self.coinSelection.updateRecipient(addrStr, value, id_)
          else:
             opreturn_message = str(coinSelRow['QLE_ADDR'].text())
             self.coinSelection.updateOpReturnRecipient(id_, opreturn_message)
@@ -536,17 +603,16 @@ class SendBitcoinsFrame(ArmoryFrame):
          fee, feePerByte, adjust_fee = self.feeDialog.getFeeData()
          processFlag = 0
          if self.useCustomListInFull:
-            processFlag += Cpp.USE_FULL_CUSTOM_LIST
+            processFlag += CS_USE_FULL_CUSTOM_LIST
                   
          if adjust_fee:
-            processFlag += Cpp.ADJUST_FEE
+            processFlag += CS_ADJUST_FEE
                   
          if self.shuffleEntries:
-            processFlag += Cpp.SHUFFLE_ENTRIES         
+            processFlag += CS_SHUFFLE_ENTRIES         
          
          if self.customUtxoList is None or len(self.customUtxoList) == 0:
-            self.coinSelection.selectUTXOs(fee, feePerByte, processFlag)
-         
+            self.coinSelection.selectUTXOs(fee, feePerByte, processFlag)         
          else:
             serializedUtxoList = self.serializeUtxoList(self.customUtxoList)
             self.coinSelection.processCustomUtxoList(\
@@ -650,7 +716,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          if not result:
             return False
          
-      return True;
+      return True
         
    #############################################################################
    def validateInputsGetUSTX(self, peek=False):
@@ -660,8 +726,9 @@ class SendBitcoinsFrame(ArmoryFrame):
       addrList = []
       self.comments = []
       
-      if self.handleCppCoinSelectionExceptions() == False:
-         return
+      #TODO: fix this
+      #if self.handleCppCoinSelectionExceptions() == False:
+      #   return
 
       for row in range(len(self.widgetTable)):
          # Verify validity of address strings
@@ -869,18 +936,16 @@ class SendBitcoinsFrame(ArmoryFrame):
          for utxo in utxoSelect:
             scrType = getTxOutScriptType(utxo.getScript())
             scrAddr = utxo.getRecipientScrAddr()
+            addrObj = self.wlt.getAddrByHash160(scrAddr[1:])
             if scrType in CPP_TXOUT_STDSINGLESIG:
-               a160 = scrAddr_to_hash160(scrAddr)[1]
-               addrObj = self.wlt.getAddrByHash160(a160)
                if addrObj:
-                  pubKeyMap[scrAddr] = addrObj.binPublicKey65.toBinStr()
+                  pubKeyMap[scrAddr] = addrObj.getPubKey()
             elif scrType == CPP_TXOUT_P2SH:
-               p2shScript = self.wlt.cppWallet.getP2SHScriptForHash(utxo.getScript())
-               p2shKey = binary_to_hex(script_to_scrAddr(script_to_p2sh_script(
-                  p2shScript)))
+               p2shScript = addrObj.getPrecursorScript()
+               p2shKey = binary_to_hex(addrObj.getPrefixedAddr())
                p2shMap[p2shKey]  = p2shScript  
                
-               addrIndex = self.wlt.cppWallet.getAssetIndexForAddr(utxo.getRecipientHash160())
+               addrIndex = addrObj.chainIndex
                try:
                   addrStr = self.wlt.chainIndexMap[addrIndex]
                except:
@@ -890,8 +955,7 @@ class SendBitcoinsFrame(ArmoryFrame):
                   else:
                      raise Exception("invalid address index")
                   
-               addrObj = self.wlt.addrMap[addrStr]
-               pubKeyMap[scrAddr] = addrObj.binPublicKey65.toBinStr()               
+               pubKeyMap[scrAddr] = addrObj.getPubKey()              
 
          '''
          If we are consuming any number of SegWit utxos, pass the utxo selection
@@ -907,8 +971,6 @@ class SendBitcoinsFrame(ArmoryFrame):
          for msg in opreturn_list:
             ustx.addOpReturnOutput(str(msg))
 
-      #ustx.pprint()
-
       txValues = [totalSend, fee, totalChange]
       if not peek:
          if not self.unsignedCheckbox.isChecked():
@@ -918,35 +980,13 @@ class SendBitcoinsFrame(ArmoryFrame):
             if not dlg.exec_():
                return False
             
-            self.signerType = dlg.getSignerType()
          else:
             self.main.warnNewUSTXFormat()
       
       return ustx
    
   
-   def createTxAndBroadcast(self):
-      
-      def unlockWallet():
-         if self.wlt.isLocked:
-            Passphrase = None  
-                  
-            unlockdlg = DlgUnlockWallet(self.wlt, \
-                  self, self.main, 'Send Transaction', returnPassphrase=True)
-            if unlockdlg.exec_():
-               if unlockdlg.Accepted == 1:
-                  Passphrase = unlockdlg.securePassphrase.copy()
-                  unlockdlg.securePassphrase.destroy()
-                     
-            if Passphrase is None or self.wlt.kdf is None:
-               QMessageBox.critical(self.parent(), self.tr('Wallet is Locked'), \
-                  self.tr('Cannot sign transaction while your wallet is locked. '), \
-                  QMessageBox.Ok)
-               return
-            else:
-               self.wlt.kdfKey = self.wlt.kdf.DeriveKey(Passphrase)
-               Passphrase.destroy()                     
-      
+   def createTxAndBroadcast(self):      
       # The Send! button is clicked validate and broadcast tx
       ustx = self.validateInputsGetUSTX()
             
@@ -956,9 +996,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          if self.createUnsignedTxCallback and self.unsignedCheckbox.isChecked():
             self.createUnsignedTxCallback(ustx)
          else:
-            try:
-               unlockWallet()
-               
+            try:              
                self.wlt.mainWnd = self.main
                self.wlt.parent = self
       
@@ -970,19 +1008,28 @@ class SendBitcoinsFrame(ArmoryFrame):
                      amt = self.comments[i][1]
                      if len(self.comments[i][0].strip()) > 0:
                         commentStr += '%s (%s);  ' % (self.comments[i][0], coin2str_approx(amt).strip())
-      
-      
-               ustxSigned = self.wlt.signUnsignedTx(ustx, signer=self.signerType)
-               finalTx = ustxSigned.getSignedPyTx(signer=ustxSigned.signerType)
-               if len(commentStr) > 0:
-                  self.wlt.setComment(finalTx.getHash(), commentStr)
-               self.main.broadcastTransaction(finalTx)
+
+               def finalizeSignTx(success, signerObj):
+                  #this needs to run in the GUI thread
+                  def signTxLastStep(success, signerObj):
+                     finalTx = signerObj.getSignedTx()
+
+                     if len(commentStr) > 0:
+                        self.wlt.setComment(finalTx.getHash(), commentStr)
+                     self.main.broadcastTransaction(finalTx)
+
+                     if self.sendCallback:
+                        self.sendCallback()
+
+                  self.main.signalExecution.executeMethod(\
+                     signTxLastStep, success, signerObj)
+
+               self.wlt.signUnsignedTx(ustx, finalizeSignTx)
+
             except:
                LOGEXCEPT('Problem sending transaction!')
                # TODO: not sure what errors to catch here, yet...
                raise
-            if self.sendCallback:
-               self.sendCallback()
 
    #############################################################################
    def getUsableBalance(self):
@@ -1006,7 +1053,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       utxoVec = self.coinSelection.getUtxoSelection()
       utxoSelect = []
       for i in range(len(utxoVec)):
-         pyUtxo = PyUnspentTxOut().createFromCppUtxo(utxoVec[i])
+         pyUtxo = PyUnspentTxOut().createFromBridgeUtxo(utxoVec[i])
          utxoSelect.append(pyUtxo)
       return utxoSelect
 
@@ -1015,21 +1062,21 @@ class SendBitcoinsFrame(ArmoryFrame):
       if len(scriptValPairs) == 0:
          raise Exception("cannot calculate change without at least one recipient")
       
-      def getAddr(addrObj, typeStr):
+      def getAddr(typeStr):
+         typeInt = AddressEntryType_Default
          if typeStr == 'P2PKH':
-            addrStr = self.wlt.getP2PKHAddrForIndex(addrObj.chainIndex)
+            typeInt = AddressEntryType_P2PKH
          elif typeStr == 'P2SH-P2WPKH':
-            addrStr = self.wlt.getNestedSWAddrForIndex(addrObj.chainIndex)
+            typeInt = AddressEntryType_P2SH + AddressEntryType_P2WPKH
          elif typeStr == 'P2SH-P2PK':
-            addrStr = self.wlt.getNestedP2PKAddrForIndex(addrObj.chainIndex)
-         
-         return addrStr
+            typeInt = AddressEntryType_P2SH + AddressEntryType_P2PK
+
+         if peek:
+            addrObj = self.wlt.peekChangeAddress(typeInt)
+         else:
+            addrObj = self.wlt.getNewChangeAddr(typeInt)
+         return addrObj
       
-      if peek is True:
-         newAddr = self.wlt.peekNextUnusedAddr()
-      else:
-         newAddr = self.wlt.getNextUnusedAddress()
-         
       changeType = self.main.getSettingOrSetDefault('Default_ChangeType', DEFAULT_CHANGE_TYPE)
       
       #check if there are any P2SH recipients      
@@ -1038,7 +1085,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       haveBech32 = False
       homogenousOutputs = True
       for script, val in scriptValPairs:
-         scripttype = Cpp.BtcUtils.getTxOutScriptTypeInt(script)
+         scripttype = TheBridge.getTxOutScriptType(script)
          if scripttype == TXOUT_SCRIPT_P2SH:
             haveP2SH = True
          if scripttype == TXOUT_SCRIPT_P2WSH or \
@@ -1078,7 +1125,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          
       if changeType != 'Auto':
          if homogenousOutputs:
-            scripttype = Cpp.BtcUtils.getTxOutScriptTypeInt(scriptValPairs[0][0])
+            scripttype = TheBridge.getTxOutScriptType(scriptValPairs[0][0])
             if scripttype == TXOUT_SCRIPT_P2SH:
                scripttype = 'P2SH'
             else:
@@ -1087,16 +1134,16 @@ class SendBitcoinsFrame(ArmoryFrame):
             if scripttype[0:4] != str(changeType[0:4]):
                changeTypeMismatch(changeType, scripttype)
          
-         return getAddr(newAddr, changeType)
+         return getAddr(changeType)
       
       if not haveP2SH and not haveBech32:
-         return getAddr(newAddr, 'P2PKH')
+         return getAddr('P2PKH')
       
       #is our Tx SW?
       if TheBDM.isSegWitEnabled() == True and self.coinSelection.isSW():
-         return getAddr(newAddr, 'P2SH-P2WPKH')
+         return getAddr('P2SH-P2WPKH')
       else:
-         return getAddr(newAddr, 'P2SH-P2PK')
+         return getAddr('P2SH-P2PK')
       
 
    #############################################################################
@@ -1112,9 +1159,9 @@ class SendBitcoinsFrame(ArmoryFrame):
          # Default behavior for regular wallets is 'NewAddr', but for lockboxes
          # the default behavior is "Feedback" (send back to the original addr
          if self.lbox is None:
-            changeAddrStr = self.getDefaultChangeAddress(scriptValPairs, peek)
-            changeAddr160 = addrStr_to_hash160(changeAddrStr)[1]
-            changeScript  = scrAddr_to_script(addrStr_to_scrAddr(changeAddrStr))
+            changeAddrObj = self.getDefaultChangeAddress(scriptValPairs, peek)
+            changeAddr160 = changeAddrObj.getAddr160()
+            changeScript  = scrAddr_to_script(changeAddrObj.getPrefixedAddr())
             self.wlt.setComment(changeAddr160, CHANGE_ADDR_DESCR_STRING)
          else:
             changeScript  = self.lbox.getScript()
@@ -1320,7 +1367,7 @@ class SendBitcoinsFrame(ArmoryFrame):
             r = len(self.widgetTable) 
             self.widgetTable.append({})
             
-            self.widgetTable[r]['UID'] = SecureBinaryData().GenerateRandom(8).toHexStr()
+            self.widgetTable[r]['UID'] = TheBridge.generateRandomHex(8)
             
             if not is_opreturn:
                createAddrWidget(self.widgetTable[r], r)

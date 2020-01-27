@@ -505,13 +505,13 @@ const BinaryData& AssetEntry_Multisig::getPrivateEncryptionKeyId(void) const
       if (asset_single == nullptr)
          throw runtime_error("unexpected asset entry type");
 
-      idSet.insert(asset_pair.second->getPrivateEncryptionKeyId());
+      idSet.insert(asset_pair.second->getPrivateEncryptionKeyId().getRef());
    }
 
    if (idSet.size() != 1)
       throw runtime_error("wallets use different encryption keys");
 
-   return *(idSet.begin());
+   return assetMap_.begin()->second->getPrivateEncryptionKeyId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
