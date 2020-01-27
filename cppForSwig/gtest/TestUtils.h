@@ -101,7 +101,8 @@ namespace TestUtils
 
 namespace DBTestUtils
 {
-   extern unsigned commandCtr;
+   extern unsigned commandCtr_;
+   extern std::deque<unsigned> zcDelays_;
    void init(void);
 
    unsigned getTopBlockHeight(LMDBBlockDatabase*, DB_SELECT);
@@ -152,6 +153,7 @@ namespace DBTestUtils
    };
 
    void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec, bool stage = false);
+   void setNextZcPushDelay(unsigned);
    std::pair<BinaryData, BinaryData> getAddrAndPubKeyFromPrivKey(BinaryData privKey);
 
    Tx getTxByHash(Clients* clients, const std::string bdvId,
