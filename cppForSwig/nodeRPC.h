@@ -52,7 +52,7 @@ enum ChainStatus
 class RpcError : public std::runtime_error
 {
 public:
-   RpcError(void) : std::runtime_error("")
+   RpcError(void) : std::runtime_error("RpcError")
    {}
 };
 
