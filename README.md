@@ -129,26 +129,14 @@ make -j`nproc`
 - Clone and Setup ArmodyDB and Build Environment.
 
 ```bash
-%comspec% /k "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
+%comspec% /k "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
 cd c:\projects\
-
 git clone https://github.com/BlockSettle/ArmoryDB.git
-cd c:\projects\ArmoryDB
+cd ArmoryDB
 mkdir build
-```
-- Build VCPKG inside the build root.
-
-```bash
-git clone https://github.com/Microsoft/vcpkg.git
-cd vcpkg
-bootstrap-vcpkg.bat
-vcpkg integrate install
-vcpkg install libwebsockets --head
-```
-- Build ArmodyDB on Windows 10
-```bash
-cmake .. -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS="/MP" -DCMAKE_C_FLAGS="/MP" -verbosity:quiet
-msbuild -m -p:BuildInParallel=true ALL_BUILD.vcxproj
+cd build
+cmake .. -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS="/MP /EHa" -DCMAKE_C_FLAGS="/MP"
+msbuild -m -p:BuildInParallel=true -p:Configuration=Release ALL_BUILD.vcxproj
 ```
 
 `vcpkg` will be installed automatically.

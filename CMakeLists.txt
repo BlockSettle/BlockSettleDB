@@ -3,7 +3,9 @@ cmake_minimum_required(VERSION 3.5) # ubuntu 16 version
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 if(WIN32)
-    set(VCPKG_DEPS protobuf libwebsockets)
+    set(VCPKG_DEPS protobuf)
+    # Use latest libwebsockets sources until libwebsockets is updated and compile error is fixed (3.2.2 is broken)
+    set(VCPKG_DEPS_HEAD libwebsockets)
 else()
     set(VCPKG_DEPS protobuf)
 endif()

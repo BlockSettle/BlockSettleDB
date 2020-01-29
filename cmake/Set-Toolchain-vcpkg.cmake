@@ -40,6 +40,9 @@ if(VCPKG_TARGET_TRIPLET)
     foreach(pkg ${VCPKG_DEPS})
         list(APPEND VCPKG_DEPS_QUALIFIED ${pkg}:${VCPKG_TARGET_TRIPLET})
     endforeach()
+    foreach(pkg ${VCPKG_DEPS_HEAD})
+        list(APPEND VCPKG_DEPS_HEAD_QUALIFIED ${pkg}:${VCPKG_TARGET_TRIPLET})
+    endforeach()
 
     # build our deps
     if(WIN32)
@@ -50,6 +53,19 @@ if(VCPKG_TARGET_TRIPLET)
     else()
         execute_process(
             COMMAND ./vcpkg install ${VCPKG_DEPS_QUALIFIED}
+            WORKING_DIRECTORY ${VCPKG_ROOT}
+        )
+    endif()
+
+    # build our deps
+    if(WIN32)
+        execute_process(
+            COMMAND vcpkg install --head ${VCPKG_DEPS_HEAD_QUALIFIED}
+            WORKING_DIRECTORY ${VCPKG_ROOT}
+        )
+    else()
+        execute_process(
+            COMMAND ./vcpkg install --head ${VCPKG_DEPS_HEAD_QUALIFIED}
             WORKING_DIRECTORY ${VCPKG_ROOT}
         )
     endif()
