@@ -206,6 +206,7 @@ class PyBtcWallet(object):
       self.labelDescr  = ''
       self.linearAddr160List = []
       self.chainIndexMap = {}
+      self.addrByString = {}
       self.txAddrMap = {}    # cache for getting tx-labels based on addr search
       if USE_TESTNET or USE_REGTEST:
          self.addrPoolSize = 10  # this makes debugging so much easier!
@@ -395,7 +396,7 @@ class PyBtcWallet(object):
 
    #############################################################################
    def getAddrBalance(self, addr160, balType="Spendable", topBlockHeight=UINT32_MAX):
-      if not self.hasAddr(addr160):
+      if not self.hasAddr160(addr160):
          return -1
       else:
          try:
@@ -412,8 +413,6 @@ class PyBtcWallet(object):
             return addrBalances[0]
          else:
             raise TypeError('Unknown balance type!')
-
-
 
    #############################################################################
    @CheckWalletRegistration
@@ -502,47 +501,25 @@ class PyBtcWallet(object):
          return []
 
    #############################################################################
-   @CheckWalletRegistration
-   def getUTXOListForBlockRange(self, startBlock, endBlock):
-      """ Returns UnspentTxOut/C++ objects 
-      
-      returns all unspent TxOuts in the block range
-      """
-      raise NotImplemented
-
-   #############################################################################
    def getAddrByHash160(self, addr160):
-      return (None if not self.hasAddr(addr160) else self.addrMap[addr160])
+      if addr160 not in self.addrMap:
+         return None
+      return self.addrMap[addr160]
 
    #############################################################################
-   def hasScrAddr(self, scrAddr):
-      """
-      Wallets currently only hold P2PKH scraddrs, so if it's not that, False
-      """
-      if not scrAddr[0] == ADDRBYTE or not len(scrAddr)==21:
-         try:
-            return self.cppWallet.hasScrAddr(scrAddr)
-         except:
-            return False
-
-      # For P2PKH scraddrs, the first byte is prefix, next 20 bytes is addr160
-      return self.hasAddr(scrAddr[1:])
-
+   def hasAddr160(self, addr160):
+      return addr160 in self.addrMap
 
    #############################################################################
-   def hasAddr(self, addrData):
-      if isinstance(addrData, str):
-         if len(addrData) == 20:
-            return addrData in self.addrMap
-         elif isLikelyDataType(addrData)==DATATYPE.Base58:
-            return addrStr_to_hash160(addrData)[1] in self.addrMap
-         else:
-            return False
-      elif isinstance(addrData, PyBtcAddress):
-         return addrData.getAddr160() in self.addrMap
-      else:
-         return False
-   
+   def getAddrByString(self, addrStr):
+      if addrStr not in self.addrByString:
+         return None
+      return self.addrMap[self.addrByString[addrStr]]
+
+   #############################################################################
+   def hasAddrString(self, addrStr):
+      return addrStr in self.addrByString
+
    #############################################################################
    #  THIS WAS CREATED ORIGINALLY TO SUPPORT BITSAFE INTEGRATION INTO ARMORY
    #  But it's also a good first step into general BIP 32 support
@@ -884,6 +861,20 @@ class PyBtcWallet(object):
       newAddrObj.loadFromProtobufPayload(newAddrProto)
 
       return newAddrObj
+
+   #############################################################################
+   def addAddress(self, addrObj):
+      addr160 = addrObj.getAddr160()
+      self.addrMap[addr160] = addrObj
+      self.linearAddr160List.append(addr160)
+
+      if addrObj.chainIndex > -1:
+         self.chainIndexMap[addrObj.chainIndex] = addr160
+
+      self.highestUsedChainIndex = \
+         max(addrObj.chainIndex, self.highestUsedChainIndex)
+
+      self.addrByString[addrObj.getAddressString()] = addr160
    
    #############################################################################
    def getNewChangeAddr(self, addrType=AddressEntryType_Default):
@@ -891,12 +882,7 @@ class PyBtcWallet(object):
       newAddrObj = PyBtcAddress()
       newAddrObj.loadFromProtobufPayload(newAddrProto)
 
-      addr160 = newAddrObj.getAddr160()
-      self.addrMap[addr160] = newAddrObj
-      self.chainIndexMap[newAddrObj.chainIndex] = addr160
-      self.linearAddr160List.append(addr160)
-      self.highestUsedChainIndex = newAddrObj.chainIndex
-
+      self.addAddress(newAddrObj)
       return newAddrObj
 
    #############################################################################
@@ -905,12 +891,7 @@ class PyBtcWallet(object):
       newAddrObj = PyBtcAddress()
       newAddrObj.loadFromProtobufPayload(newAddrProto)
 
-      addr160 = newAddrObj.getAddr160()
-      self.addrMap[addr160] = newAddrObj
-      self.chainIndexMap[newAddrObj.chainIndex] = addr160
-      self.linearAddr160List.append(addr160)
-      self.highestUsedChainIndex = newAddrObj.chainIndex
-
+      self.addAddress(newAddrObj)
       return newAddrObj
       
    #############################################################################
@@ -2018,9 +1999,7 @@ class PyBtcWallet(object):
       addrList = []
       keepInUse = filterUse != "Unused"
       keepChange = filterUse == "Change"
-      
-      typeCount = 0
-      
+            
       for addr in self.linearAddr160List:
          addrObj = self.addrMap[addr]         
          if addrObj.chainIndex < 0:
@@ -2029,9 +2008,7 @@ class PyBtcWallet(object):
          #filter by address type
          if filterType != addrObj.addrType:
             continue
-         
-         typeCount = typeCount + 1         
-         
+                  
          #filter by usage
          inUse = addrObj.getTxioCount() != 0
          if not keepChange and inUse != keepInUse:
@@ -2091,25 +2068,10 @@ class PyBtcWallet(object):
       for addr in payload.assets:
          addrObj = PyBtcAddress(self)
          addrObj.loadFromProtobufPayload(addr)
-         self.addrMap[addrObj.getAddr160()] = addrObj
-
-         if addrObj.chainIndex < -2:
-            addrObj.chainIndex = -2
-            self.hasNegativeImports = True
-
-         self.chainIndexMap[addrObj.chainIndex] = addrObj.getAddr160()
-
-      #linearAddr160List
-      for key, val in self.chainIndexMap.iteritems():
-         addrObj = self.addrMap[val]
-         if addrObj.chainIndex <= -2:
-            continue
-
-         self.linearAddr160List.append(addrObj.getAddr160())
-
+         self.addAddress(addrObj)
+      
       #importList
-      for key, val in self.chainIndexMap.iteritems():
-         addrObj = self.addrMap[val]
+      for addr160, addrObj in self.addrMap.iteritems():
          if addrObj.chainIndex <= -2:
             self.importList.append(len(self.linearAddr160List) - 1)
           

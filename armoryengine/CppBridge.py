@@ -152,7 +152,7 @@ class CppBridge(object):
          if isinstance(replyObj, PyPromFut):
             replyObj.setVal(response[4:])
 
-         elif replyObj != None:
+         elif replyObj != None and replyObj[0] != None:
             replyObj[0](response[4:], replyObj[1])
         
    #############################################################################
@@ -836,7 +836,6 @@ class CppBridge(object):
 
    #############################################################################
    def signer_getSignedTx(self, sId):
-      print ("getSignedTx")
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.signer_getSignedTx
       packet.stringArgs.append(sId)
@@ -848,6 +847,21 @@ class CppBridge(object):
       response.ParseFromString(socketResponse)
 
       return response.reply[0]
+
+   #############################################################################
+   def signer_getSignedStateForInput(self, sId, inputId):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_getSignedStateForInput
+      packet.stringArgs.append(sId)
+      packet.intArgs.append(inputId)
+
+      fut = self.sendToBridge(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.BridgeInputSignedState()
+      response.ParseFromString(socketResponse)
+
+      return response     
 
    #############################################################################
    def broadcastTx(self, rawTx):

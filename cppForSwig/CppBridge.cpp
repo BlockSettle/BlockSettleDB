@@ -89,26 +89,33 @@ void cppLedgerToProtoLedger(
 void cppAddrToProtoAddr(WalletAsset* assetPtr, 
    shared_ptr<AddressEntry> addrPtr, shared_ptr<AssetWallet> wltPtr)
 {
+   auto addrID = addrPtr->getID();
+   auto wltAsset = wltPtr->getAssetForID(addrID);
+
    //address
    auto& addr = addrPtr->getPrefixedHash();
    assetPtr->set_prefixedhash(addr.toCharPtr(), addr.getSize());
 
-   //pubkey
-   auto addrID = addrPtr->getID();
-   auto wltAsset = wltPtr->getAssetForID(addrID);
-   auto assetSinglePtr = dynamic_pointer_cast<AssetEntry_Single>(wltAsset);
-   auto& pubKey = assetSinglePtr->getPubKey()->getUncompressedKey();
-   assetPtr->set_publickey(pubKey.getCharPtr(), pubKey.getSize());
-
-   //index
-   assetPtr->set_id(wltAsset->getIndex());
-
-   //address type
+   //address type & pubkey
+   BinaryDataRef pubKeyRef;
    uint32_t addrType = (uint32_t)addrPtr->getType();
    auto addrNested = dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
    if (addrNested != nullptr)
+   {
       addrType |= (uint32_t)addrNested->getPredecessor()->getType();
+      pubKeyRef = addrNested->getPredecessor()->getPreimage().getRef();
+   }
+   else
+   {
+      pubKeyRef = addrPtr->getPreimage().getRef();
+   }
+   
+
    assetPtr->set_addrtype(addrType);
+   assetPtr->set_publickey(pubKeyRef.toCharPtr(), pubKeyRef.getSize());
+
+   //index
+   assetPtr->set_id(wltAsset->getIndex());
 
    //address string
    auto& addrStr = addrPtr->getAddress();
@@ -191,6 +198,25 @@ void cppNodeStatusToProtoNodeStatus(
    chainStateProto->set_progresspct(chainState.getProgressPct());
    chainStateProto->set_eta(chainState.getETA());
    chainStateProto->set_blocksleft(chainState.getBlocksLeft());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void cppSignStateToPythonSignState(
+   BridgeInputSignedState* ssProto, const TxInEvalState& ssCpp)
+{
+   ssProto->set_isvalid(ssCpp.isValid());
+   ssProto->set_m(ssCpp.getM());
+   ssProto->set_n(ssCpp.getN());
+   ssProto->set_sigcount(ssCpp.getSigCount());
+   
+   const auto& pubKeyMap = ssCpp.getPubKeyMap();
+   for (auto& pubKeyPair : pubKeyMap)
+   {
+      auto keyData = ssProto->add_signstatelist();
+      keyData->set_pubkey(
+         pubKeyPair.first.getCharPtr(), pubKeyPair.first.getSize());
+      keyData->set_hassig(pubKeyPair.second);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -790,6 +816,19 @@ void CppBridge::commandLoop()
                throw runtime_error("invalid command signer_getSignedTx");
 
             response = signer_getSignedTx(msg.stringargs(0));
+            break;
+         }
+
+         case Methods::signer_getSignedStateForInput:
+         {
+            if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
+            {
+               throw runtime_error(
+                  "invalid command signer_getSignedStateForInput");
+            }
+               
+            response = signer_getSignedStateForInput(
+               msg.stringargs(0), msg.intargs(0));
             break;
          }
 
@@ -1567,7 +1606,7 @@ void CppBridge::getRBFTxOutList(
 unique_ptr<Message> CppBridge::initNewSigner()
 {
    auto id = fortuna_.generateRandom(6).toHexStr();
-   signerMap_.emplace(make_pair(id, make_shared<Signer>()));
+   signerMap_.emplace(make_pair(id, make_shared<CppBridgeSignerStruct>()));
 
    auto msg = make_unique<ReplyStrings>();
    msg->add_reply(id);
@@ -1587,7 +1626,7 @@ bool CppBridge::signer_SetVersion(const string& id, unsigned version)
    if (iter == signerMap_.end())
       return false;
 
-   iter->second->setVersion(version);
+   iter->second->signer_.setVersion(version);
    return true;
 }
 
@@ -1598,7 +1637,7 @@ bool CppBridge::signer_SetLockTime(const string& id, unsigned locktime)
    if (iter == signerMap_.end())
       return false;
 
-   iter->second->setLockTime(locktime);
+   iter->second->signer_.setLockTime(locktime);
    return true;
 }
 
@@ -1611,7 +1650,7 @@ bool CppBridge::signer_addSpenderByOutpoint(
    if (iter == signerMap_.end())
       return false;
 
-   iter->second->addSpender_ByOutpoint(hash, txOutId, sequence, value);
+   iter->second->signer_.addSpender_ByOutpoint(hash, txOutId, sequence, value);
    return true;
 }
 
@@ -1627,7 +1666,7 @@ bool CppBridge::signer_populateUtxo(
    try
    {
       UTXO utxo(value, UINT32_MAX, UINT32_MAX, txOutId, hash, script);
-      iter->second->populateUtxo(utxo);
+      iter->second->signer_.populateUtxo(utxo);
    }
    catch(exception&)
    {
@@ -1648,7 +1687,7 @@ bool CppBridge::signer_addRecipient(
    try
    {
       auto&& hash = BtcUtils::getTxOutScrAddr(script);
-      iter->second->addRecipient(
+      iter->second->signer_.addRecipient(
          CoinSelectionInstance::createRecipient(hash, value));
    }
    catch (ScriptRecipientException&)
@@ -1666,7 +1705,7 @@ unique_ptr<Message> CppBridge::signer_getSerializedState(const string& id) const
    if (iter == signerMap_.end())
       throw runtime_error("invalid signer id");
  
-   auto&& serData = iter->second->serializeState();
+   auto&& serData = iter->second->signer_.serializeState();
    auto msg = make_unique<ReplyBinary>();
    msg->add_reply(serData.toCharPtr(), serData.getSize());
    return msg;
@@ -1682,7 +1721,7 @@ bool CppBridge::signer_unserializeState(
 
    try
    {
-      iter->second->deserializeState(state);
+      iter->second->signer_.deserializeState(state);
    }
    catch (exception&)
    {
@@ -1719,8 +1758,8 @@ void CppBridge::signer_signTx(
          auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);      
          auto feed = make_shared<ResolverFeed_AssetWalletSingle>(wltSingle);
 
-         signerPtr->resetFeeds();
-         signerPtr->setFeed(feed);
+         signerPtr->signer_.resetFeeds();
+         signerPtr->signer_.setFeed(feed);
 
          //create & set wallet lambda
          wltPtr->setPassphrasePromptLambda(passLbd);
@@ -1729,7 +1768,7 @@ void CppBridge::signer_signTx(
          auto lock = wltPtr->lockDecryptedContainer();
 
          //sign
-         signerPtr->sign();
+         signerPtr->signer_.sign();
       }
       catch (exception&)
       {
@@ -1757,11 +1796,40 @@ unique_ptr<Message> CppBridge::signer_getSignedTx(const string& id) const
    if (iter == signerMap_.end())
       throw runtime_error("invalid signer id");
 
-   auto data = iter->second->serialize();
+   BinaryDataRef data;
+   try
+   {
+      data = iter->second->signer_.serialize();
+   }
+   catch (ScriptException&)
+   {}
    
    auto response = make_unique<ReplyBinary>();
    response->add_reply(data.toCharPtr(), data.getSize());
    return response;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unique_ptr<Message> CppBridge::signer_getSignedStateForInput(
+   const string& id, unsigned inputId)
+{
+   auto iter = signerMap_.find(id);
+   if (iter == signerMap_.end())
+      throw runtime_error("invalid signer id");
+
+   if (iter->second->signState_ == nullptr)
+   {
+      auto&& signedState = iter->second->signer_.evaluateSignedState();
+      iter->second->signState_ = make_unique<TxEvalState>(
+         iter->second->signer_.evaluateSignedState());
+   }
+
+   const auto signState = iter->second->signState_.get();
+   auto result = make_unique<BridgeInputSignedState>();
+
+   auto signStateInput = signState->getSignedStateForInput(inputId);
+   cppSignStateToPythonSignState(result.get(), signStateInput);
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

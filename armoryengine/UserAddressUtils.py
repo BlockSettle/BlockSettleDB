@@ -45,7 +45,7 @@ def getScriptForUserString(userStr, wltMap, lboxList):
 
    def getWltIDForScrAddr(scrAddr, walletMap):
       for iterID,iterWlt in walletMap.iteritems():
-         if iterWlt.hasScrAddr(scrAddr):
+         if iterWlt.hasAddr160(scrAddr):
             return iterID
       return None
 
@@ -80,7 +80,7 @@ def getScriptForUserString(userStr, wltMap, lboxList):
 
             # Check if it's ours
             scrAddr = script_to_scrAddr(outScript)
-            wltID = getWltIDForScrAddr(scrAddr, wltMap)
+            wltID = getWltIDForScrAddr(a160, wltMap)
       else:
          try:
             scrAddr = addrStr_to_scrAddr(userStr, ADDRBYTE, P2SHBYTE)
@@ -89,7 +89,7 @@ def getScriptForUserString(userStr, wltMap, lboxList):
             hasAddrInIt = True
 
             # Check if it's a wallet scrAddr
-            wltID  = getWltIDForScrAddr(scrAddr, wltMap)
+            wltID  = getWltIDForScrAddr(a160, wltMap)
 
             # Check if it's a known P2SH
             for lbox in lboxList:
@@ -176,7 +176,7 @@ def getDisplayStringForScript(binScript, wltMap, lboxList, maxChars=256,
    if scriptType != CPP_TXOUT_OPRETURN:
       wlt = None
       for iterID,iterWlt in wltMap.iteritems():
-         if iterWlt.hasScrAddr(scrAddr):
+         if iterWlt.hasAddr160(scrAddr[1:]):
             wlt = iterWlt
             break
    

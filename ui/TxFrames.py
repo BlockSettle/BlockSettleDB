@@ -2003,7 +2003,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
             self.ustxObj = UnsignedTransaction().unserializeAscii(ustxStr)
             self.signStat = self.ustxObj.evaluateSigningStatus()
             self.enoughSigs = self.signStat.canBroadcast
-            self.sigsValid = self.ustxObj.verifySigsAllInputs(self.ustxObj.signerType)
+            self.sigsValid = self.ustxObj.verifySigsAllInputs()
             self.ustxReadable = True
          except BadAddressError:
             QMessageBox.critical(self, self.tr('Inconsistent Data!'), \
@@ -2077,7 +2077,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       # Collect the input wallets (hopefully just one of them)
       fromWlts = set()
       for scrAddr, amt, a, b, c, script in data[FIELDS.InList]:
-         wltID = self.main.getWalletForAddr160(scrAddr[1:])
+         wltID = self.main.getWalletForAddr160(scrAddr)
          if not wltID == '':
             fromWlts.add(wltID)
 
@@ -2218,7 +2218,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
          svpairs.append([script, value])
          if scrType in CPP_TXOUT_STDSINGLESIG:
             addrStr = script_to_addrStr(script)
-            if self.wlt.hasAddr(addrStr_to_hash160(addrStr)[1]):
+            if self.wlt.hasAddrString(addrStr):
                svpairsMine.append([script, value])
          elif scrType == CPP_TXOUT_P2SH:
             addrStr = script_to_addrStr(script)
@@ -2241,8 +2241,6 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       if not dlg.exec_():
          return
 
-
-
       if self.wlt.useEncryption and self.wlt.isLocked:
          Passphrase = None  
 
@@ -2261,14 +2259,19 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
             self.wlt.kdfKey = self.wlt.kdf.DeriveKey(Passphrase)
             Passphrase.destroy()                                              
 
-      newUstx = self.wlt.signUnsignedTx(self.ustxObj, signer=dlg.getSignerType())
-      self.wlt.advanceHighestIndex(isNew=True)
-      self.txtUSTX.setText(newUstx.serializeAscii())
-      self.ustxObj = newUstx
+      def completeSignProcess(success, signerObj):
+         def signTxLastStep(success, signerObj):
+            signerObj.getSignedTx()
+            self.ustxObj.pytxObj.signerState = signerObj.serializeState()
+            self.txtUSTX.setText(self.ustxObj.serializeAscii())
 
-      if not self.fileLoaded == None:
-         self.saveTxAuto()
+            if not self.fileLoaded == None:
+               self.saveTxAuto()
 
+         self.main.signalExecution.executeMethod(\
+            signTxLastStep, success, signerObj)
+
+      self.wlt.signUnsignedTx(self.ustxObj, completeSignProcess)
 
    def broadTx(self):
       if self.main.netMode == NETWORKMODE.Disconnected:
@@ -2288,7 +2291,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
 
 
       try:
-         finalTx = self.ustxObj.getSignedPyTx(signer=self.ustxObj.signerType)
+         finalTx = self.ustxObj.getSignedPyTx()
       except SignatureError:
          QMessageBox.warning(self, self.tr('Signature Error'), self.tr(
             'Not all signatures are valid.  This transaction '

@@ -4692,7 +4692,7 @@ class DlgConfirmSend(ArmoryDialog):
             scrType != CPP_TXOUT_P2WPKH and scrType != CPP_TXOUT_P2WSH:
             scraddr = script_to_scrAddr(script)
             addr160 = scrAddr_to_hash160(scraddr)[1]
-            if wlt.hasAddr(addr160):
+            if wlt.hasAddr160(addr160):
                returnPairs.append([script,val])
             else:
                sendPairs.append([script,val])
@@ -4834,14 +4834,7 @@ class DlgConfirmSend(ArmoryDialog):
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
             
       isSigned = pytxOrUstx.verifySigsAllInputs()
-         
-      if self.main.usermode == USERMODE.Expert and isSigned == False:
-         self.signerSelect = SignerLabelFrame(self.main, pytxOrUstx, setSignerType)
-         self.signerSelectFrame = self.signerSelect.getFrame()
-      
-         frmBtnSelect = makeHorizFrame([STRETCH, self.signerSelectFrame, buttonBox])
-      else:
-         frmBtnSelect = buttonBox
+      frmBtnSelect = buttonBox
 
       frmTable = makeLayoutFrame(VERTICAL, recipLbls, STYLE_RAISED)
       frmRight = makeVertFrame([ lblMsg, \
@@ -5414,14 +5407,12 @@ class DlgAddressProperties(ArmoryDialog):
 
 ################################################################################
 def extractTxInfo(pytx, rcvTime=None):
-   print (pytx)
    ustx = None
    if isinstance(pytx, UnsignedTransaction):
       ustx = pytx
       pytx = ustx.pytxObj.copy()
 
    txHash = pytx.getHash()
-   print (txHash)
    txSize, txWeight, sumTxIn, txTime, txBlk, txIdx = [None] * 6
 
    txOutToList = pytx.makeRecipientsList()
@@ -5544,7 +5535,7 @@ class DlgDispTxInfo(ArmoryDialog):
       ustx = None
       if isinstance(pytx, UnsignedTransaction):
          ustx = pytx
-         pytx = ustx.getPyTxSignedIfPossible(signer=ustx.signerType)
+         pytx = ustx.getPyTxSignedIfPossible()
 
 
       self.pytx = pytx.copy()
@@ -5582,7 +5573,7 @@ class DlgDispTxInfo(ArmoryDialog):
                addr160 = ""
 
             scrAddr = script_to_scrAddr(script)
-            if haveWallet and wlt.hasAddr(addr160):
+            if haveWallet and wlt.hasAddr160(addr160):
                svPairSelf.append([scrAddr, amt])
                indicesSelf.append(idx)
             else:

@@ -328,6 +328,19 @@ opCodeLookup['OP_CHECKMULTISIGVERIFY'] =   175
 def getOpCode(name):
    return int_to_binary(opCodeLookup[name], widthBytes=1)
 
+################################################################################
+class InputSignedStatusObject(object):
+   def __init__(self, protoData):
+      self.proto = protoData
+      self.pubKeyMap = {}
+      for pubKeyPair in protoData.signStateList:
+         self.pubKeyMap[pubKeyPair.pubKey] = pubKeyPair.hasSig
+
+   ################################################################################
+   def isSignedForPubKey(self, pubkey):
+      if pubkey not in self.pubKeyMap:
+         return False
+      return self.pubKeyMap[pubkey]
 
 ################################################################################
 class SignerObject(object):
@@ -391,9 +404,17 @@ class SignerObject(object):
    ################################################################################      
    def getSignedTx(self):
       rawSignedTx = TheBridge.signer_getSignedTx(self.id)
+      if len(rawSignedTx) == 0:
+         raise SignatureError()
+      
       signedTx = PyTx()
       signedTx.unserialize(rawSignedTx)
       return signedTx
+
+   ################################################################################      
+   def getSignedStateForInput(self, inputId):
+      return InputSignedStatusObject(\
+         TheBridge.signer_getSignedStateForInput(self.id, inputId))
 
 ################################################################################
 def getMultisigScriptInfo(rawScript):
@@ -1501,28 +1522,8 @@ class UnsignedTxInput(AsciiSerializable):
       
    #############################################################################
    def verifyAllSignatures(self, pytx):
-      M = self.sigsNeeded
-      N = self.keysListed
       signStat = self.evaluateSigningStatus(pytx=pytx)
-
-      # If we don't have enough raw signatures, bail now
-      if not signStat.allSigned:
-         return False
-
-      # Now check that all the raw signatures are actually value
-      numValid = 0  # we'll double check sufficient sigs
-      for i in range(signStat.N):
-         if signStat.statusN[i] in [TXIN_SIGSTAT.ALREADY_SIGNED, \
-                                    TXIN_SIGSTAT.WLT_ALREADY_SIGNED]:
-            pub = self.pubKeys[i]
-            sig = self.signatures[i]
-            if self.verifyTxSignature(pytx, sig, pub):
-               numValid +=1
-            else:
-               LOGERROR('Signature in USTXI is not valid')
-
-      return (numValid >= M)
-
+      return signStat.allSigned
 
    #############################################################################
    def toJSONMap(self, lite=False):
@@ -1738,7 +1739,7 @@ class UnsignedTxInput(AsciiSerializable):
       return self
 
    #############################################################################
-   def evaluateSigningStatus(self, cppWlt=None, pytx=None):
+   def evaluateSigningStatus(self, pytx=None):
 
       signStatus = InputSigningStatus()
 
@@ -1753,43 +1754,24 @@ class UnsignedTxInput(AsciiSerializable):
       signStatus.wltIsRelevant = False
       signStatus.wltCanSign    = False
       
-      signertype = self.signerType
-      if pytx is not None:
-         signertype = pytx.signerType_
-
-      if signertype in [SIGNER_CPP, SIGNER_BCH]:
-         if pytx == None:
-            raise Exception("need pytx cppsigner state to evaluate signing status")
+      if pytx == None or pytx.signerState == None:
+         raise Exception("need pytx cppsigner state to evaluate signing status")
          
-         #get the sig state from the c++ signer
-         cppSigner = UniversalSignerDirector(self.signerType)
-         cppSigner.deserializeState(pytx.signerState)
-         cppSigner.updatePubDataDict(self.getP2shMapForSigner())
+      #get the sig state from the c++ signer
+      cppSigner = SignerObject()
+      cppSigner.setup()
+      cppSigner.initFromSerializedState(pytx.signerState)
+      
+      #cppSigner.updatePubDataDict(self.getP2shMapForSigner()) //old code
          
-         cpp_signStatus = cppSigner.getSignedState()
-         input_signStatus = cpp_signStatus.getSignedStateForInput(self.inputID)
+      inputSignStatus = cppSigner.getSignedStateForInput(self.inputID)
     
-         for i in range(signStatus.N):
-            pubkey = self.pubKeys[i]
+      for i in range(signStatus.N):
+         pubkey = self.pubKeys[i]
             
-            if input_signStatus.isSignedForPubKey(pubkey):
-               signStatus.statusN[i] = TXIN_SIGSTAT.ALREADY_SIGNED
+         if inputSignStatus.isSignedForPubKey(pubkey):
+            signStatus.statusN[i] = TXIN_SIGSTAT.ALREADY_SIGNED
              
-      else:
-         for i in range(signStatus.N):
-            if len(self.signatures[i]) > 0:
-               signStatus.statusN[i] = TXIN_SIGSTAT.ALREADY_SIGNED
-   
-            if cppWlt and cppWlt.hasScrAddr(self.scrAddrs[i]):
-               signStatus.wltIsRelevant = True
-               if len(self.signatures[i]) > 0:
-                  signStatus.statusN[i] = TXIN_SIGSTAT.WLT_ALREADY_SIGNED
-               else:
-                  signStatus.wltCanSign    = True
-                  signStatus.statusN[i] = TXIN_SIGSTAT.WLT_CAN_SIGN
-
-
-
       # Now we sort the results and compare to M-value to get high-level metrics
       # SIGSTAT enumeration values sort the way we ultimately want to display
       signStatus.statusM = sorted(signStatus.statusN)[:signStatus.M]
@@ -2643,10 +2625,10 @@ class UnsignedTransaction(AsciiSerializable):
 
 
    #############################################################################
-   def evaluateSigningStatus(self, cppWlt=None):
+   def evaluateSigningStatus(self):
       txSigStat = TxSigningStatus()
       txSigStat.numInputs = len(self.ustxInputs)
-      txSigStat.statusList = [ustxi.evaluateSigningStatus(cppWlt, self.pytxObj) \
+      txSigStat.statusList = [ustxi.evaluateSigningStatus(self.pytxObj) \
                                        for ustxi in self.ustxInputs]
 
       txSigStat.canBroadcast   = True
@@ -2688,8 +2670,11 @@ class UnsignedTransaction(AsciiSerializable):
 
    #############################################################################
    def verifySigsAllInputs(self):
-      return None
-   
+      for ustxi in self.ustxInputs:
+         if not ustxi.verifyAllSignatures(self.pytxObj):
+            return False
+      return True
+      
    #############################################################################
    def getUnsignedPyTx(self, doVerifySigs=True):
       return self.pytxObj.copy()
@@ -2746,11 +2731,17 @@ class UnsignedTransaction(AsciiSerializable):
 
       return -1
 
+   #############################################################################
+   def getSignedPyTx(self):
+      signer = SignerObject()
+      signer.setup()
+      signer.initFromSerializedState(self.pytxObj.signerState)
+      return signer.getSignedTx()
 
    #############################################################################
-   def getBroadcastTxIfReady(self, verifySigs=True):
+   def getBroadcastTxIfReady(self):
       try:
-         return self.getSignedPyTx(verifySigs)
+         return self.getSignedPyTx()
       except SignatureError as msg:
          return None
       except KeyError:

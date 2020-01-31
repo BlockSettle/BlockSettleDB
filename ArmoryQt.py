@@ -2313,19 +2313,17 @@ class ArmoryMainWindow(QMainWindow):
 
       return dispStr, cid
 
-
-
    #############################################################################
    def getWalletForAddr160(self, addr160):
       for wltID, wlt in self.walletMap.iteritems():
-         if wlt.hasScrAddr(addr160):
+         if wlt.hasAddr160(addr160) is not None:
             return wltID
       return ''
 
    #############################################################################
-   def getWalletForScrAddr(self, scrAddr):
+   def getWalletForAddressString(self, scrAddr):
       for wltID, wlt in self.walletMap.iteritems():
-         if wlt.hasScrAddr(scrAddr):
+         if wlt.hasAddrString(scrAddr):
             return wltID
       return ''
 

@@ -104,6 +104,13 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+struct CppBridgeSignerStruct
+{
+   Signer signer_;
+   std::unique_ptr<TxEvalState> signState_;
+};
+
+////
 class CppBridge
 {
 private:
@@ -125,7 +132,7 @@ private:
 
    std::map<std::string, AsyncClient::LedgerDelegate> delegateMap_;
    std::map<std::string, std::shared_ptr<CoinSelectionInstance>> csMap_;
-   std::map<std::string, std::shared_ptr<Signer>> signerMap_;
+   std::map<std::string, std::shared_ptr<CppBridgeSignerStruct>> signerMap_;
 
    PRNG_Fortuna fortuna_;
 
@@ -212,6 +219,8 @@ private:
    void signer_signTx(const std::string&, const std::string&, unsigned);
    std::unique_ptr<::google::protobuf::Message>
       signer_getSignedTx(const std::string&) const;
+   std::unique_ptr<::google::protobuf::Message>
+      signer_getSignedStateForInput(const std::string&, unsigned);
 
    //utils
    std::unique_ptr<::google::protobuf::Message> getTxInScriptType(

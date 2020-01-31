@@ -85,7 +85,7 @@ class PyBtcAddress(object):
       to see that available methods.
       """
       self.prefixedHash          = []
-      self.binPublicKey65        = []  # 0x04 X(BE) Y(BE)
+      self.binPublicKey          = []  #33 or 65 bytes depending on address type
       self.precursorScript       = []
       self.isInitialized         = False
       self.chainIndex            = 0
@@ -98,14 +98,14 @@ class PyBtcAddress(object):
 
    #############################################################################
    def hasPubKey(self):
-      return (len(self.binPublicKey65) != 0)
+      return (len(self.binPublicKey) != 0)
 
    ##############################################################################
    def getPubKey(self):
-      '''Return the uncompressed public key of the address.'''
-      if len(self.binPublicKey65) != 65:
+      '''Return the public key of the address.'''
+      if len(self.binPublicKey) == 0:
          raise KeyDataError('PyBtcAddress does not have a public key!')
-      return self.binPublicKey65
+      return self.binPublicKey
 
    #############################################################################
    def getAddressString(self):
@@ -202,7 +202,7 @@ class PyBtcAddress(object):
       self.__init__()
 
       self.prefixedHash = payload.prefixedHash
-      self.binPublicKey65 = payload.publicKey
+      self.binPublicKey = payload.publicKey
       self.chainIndex = payload.id
       self.isInitialized = True
       self.addrType = payload.addrType

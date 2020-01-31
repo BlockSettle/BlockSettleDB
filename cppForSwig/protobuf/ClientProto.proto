@@ -62,6 +62,7 @@ enum Methods
     signer_unserializeState = 138;
     signer_signTx = 139;
     signer_getSignedTx = 140;
+    signer_getSignedStateForInput = 141;
 
     getHash160 = 200;
 }
@@ -265,4 +266,20 @@ message BridgeUtxo
 message BridgeUtxoList
 {
     repeated BridgeUtxo data = 1;
+}
+
+message BridgeInputSignedState
+{
+    required bool isValid = 1;
+    required uint32 m = 2;
+    required uint32 n = 3;
+
+    required uint32 sigCount = 10;
+    repeated PubKeySignatureState signStateList = 11;
+
+    message PubKeySignatureState
+    {
+        required bytes pubKey = 1;
+        required bool hasSig = 2;
+    }
 }
