@@ -68,7 +68,13 @@
 #include <atomic>
 #include "OS_TranslatePath.h"
 
+#ifdef _WIN32
+#define __FILE_NAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
+#define FILEANDLINE "(" << __FILE_NAME__ << ":" << __LINE__ << ") "
+#else
 #define FILEANDLINE "(" << __FILE__ << ":" << __LINE__ << ") "
+#endif
+
 #define LOGERR    (LoggerObj(LogLvlError ).getLogStream() << FILEANDLINE )
 #define LOGWARN   (LoggerObj(LogLvlWarn  ).getLogStream() << FILEANDLINE )
 #define LOGINFO   (LoggerObj(LogLvlInfo  ).getLogStream() << FILEANDLINE )
