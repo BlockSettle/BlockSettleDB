@@ -17,8 +17,8 @@ using namespace ::Codec_BDVCommand;
 // BDV_Server_Object
 //
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<Message> BDV_Server_Object::processCommand(
-   shared_ptr<BDVCommand> command)
+BDVCommandProcessingResultType BDV_Server_Object::processCommand(
+   shared_ptr<BDVCommand> command, shared_ptr<Message>& resultingPayload)
 {
    /*
    BDV_Command messages using any of the following methods need to carry a 
@@ -27,6 +27,24 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
    switch (command->method())
    {
+   /***
+   ZC broadcasting has to be handled at the Clients level because
+   it requires the BDV_Server_Object shared_ptr. We don't want the 
+   bdv object holding it's own shared_ptr.
+   ***/
+
+   case Methods::broadcastZC:
+   {
+      resultingPayload = command;
+      return BDVCommandProcess_ZC_P2P;
+   }
+
+   case Methods::broadcastThroughRPC:
+   {
+      resultingPayload = command;
+      return BDVCommandProcess_ZC_RPC;
+   }
+
    case Methods::waitOnBDVInit:
    case Methods::waitOnBDVNotification:
    {
@@ -42,7 +60,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          out: void
       */
       this->startThreads();
-      return nullptr;
+      break;
    }
 
    case Methods::getTopBlockHeight:
@@ -52,7 +70,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       */
       auto response = make_shared<::Codec_CommonTypes::OneUnsigned>();
       response->set_value(this->getTopBlockHeight());
-      return response;
+
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getHistoryPage:
@@ -91,7 +111,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
             auto pageId = command->pageid();
 
             auto&& retVal = delegateObject.getHistoryPage(pageId);
-            return toLedgerEntryVector(retVal);
+            resultingPayload = toLedgerEntryVector(retVal);
+            break;
          }
       }
       else if(command->has_walletid() && command->walletid().size() != 0)
@@ -106,7 +127,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
             {
                auto&& retVal = theWallet->getHistoryPageAsVector(
                   command->pageid());
-               return toLedgerEntryVector(retVal);
+               resultingPayload = toLedgerEntryVector(retVal);
+               break;
             }
          }      
       }
@@ -132,7 +154,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          
          auto response = make_shared<::Codec_CommonTypes::OneUnsigned>();
          response->set_value(count);
-         return response;
+
+         resultingPayload = response;
+         break;
       }
    }
 
@@ -182,7 +206,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       auto response = make_shared<::Codec_CommonTypes::Strings>();
       response->add_data(id);
-      return response;
+
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getLedgerDelegateForLockboxes:
@@ -197,7 +223,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       auto response = make_shared<::Codec_CommonTypes::Strings>();
       response->add_data(id);
-      return response;
+
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getLedgerDelegateForScrAddr:
@@ -227,7 +255,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       this->delegateMap_.insert(make_pair(id, ledgerdelegate));
       auto response = make_shared<::Codec_CommonTypes::Strings>();
       response->add_data(id);
-      return response;
+
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getBalancesAndCount:
@@ -264,7 +294,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       response->add_value(wltPtr->getSpendableBalance(height));
       response->add_value(wltPtr->getUnconfirmedBalance(height));
       response->add_value(wltPtr->getWltTotalTxnCount());
-      return response;
+
+      resultingPayload = response;
+      break;
    }
 
    case Methods::setWalletConfTarget:
@@ -344,7 +376,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getSpendableZCList:
@@ -387,7 +420,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getRBFTxOutList:
@@ -430,7 +464,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getSpendableTxOutListForAddr:
@@ -484,34 +519,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
       }
 
-      return response;
-   }
-
-   case Methods::broadcastZC:
-   {
-      /*
-      in: raw tx as bindata[0]
-      out: void
-      */
-
-      if (command->bindata_size() != 1)
-         throw runtime_error("invalid command for broadcastZC");
-
-      auto broadcastLBD = [this](BinaryData bd)->void
-      {
-         this->zeroConfCont_->broadcastZC(
-            bd, this->getID(), 10000);
-      };
-
-      auto&& rawTx = command->bindata(0);
-      if (rawTx.size() == 0)
-         throw runtime_error("invalid tx size");
-      BinaryData rawTxBD((uint8_t*)rawTx.data(), rawTx.size());
-      thread thr(broadcastLBD, move(rawTxBD));
-      if (thr.joinable())
-         thr.detach();
-
-      return nullptr;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getAddrTxnCounts:
@@ -549,7 +558,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          addrData->add_value(count.second);
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getAddrBalances:
@@ -591,7 +601,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          addrData->add_value(get<2>(balances.second));
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getTxByHash:
@@ -642,7 +653,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       response->set_height(retval.getTxHeight());
       response->set_txindex(retval.getTxIndex());
-      return response;
+
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getTxBatchByHash:
@@ -715,7 +728,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
             txPtr->add_opid(opID);
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getAddressFullBalance:
@@ -738,7 +752,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       auto response = make_shared<::Codec_CommonTypes::OneUnsigned>();
       response->set_value(get<0>(retval));
-      return response;
+
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getAddressTxioCount:
@@ -760,7 +776,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       auto response = make_shared<::Codec_CommonTypes::OneUnsigned>();
       response->set_value(get<1>(retval));
-      return response;
+
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getHeaderByHeight:
@@ -778,7 +796,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
 
       auto response = make_shared<::Codec_CommonTypes::BinaryData>();
       response->set_data(headerData.getPtr(), headerData.getSize());
-      return response;
+
+      resultingPayload = response;
+      break;
    }
 
    case Methods::createAddressBook:
@@ -813,7 +833,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
             entry->add_txhash(txhash.getPtr(), txhash.getSize());
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::updateWalletsLedgerFilter:
@@ -832,7 +853,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       }
 
       this->updateWalletsLedgerFilter(bdVec);
-      return nullptr;
+      break;
    }
 
    case Methods::getNodeStatus:
@@ -856,7 +877,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       chainState_proto->set_blocksleft(nodeStatus.chainState_.getBlocksLeft());
       response->set_allocated_chainstate(chainState_proto);
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::estimateFee:
@@ -881,7 +903,9 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       response->set_feebyte(feeByte.feeByte_);
       response->set_smartfee(feeByte.smartFee_);
       response->set_error(feeByte.error_);
-      return response;
+
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getFeeSchedule:
@@ -910,7 +934,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          estimate->set_error(feeByte.error_);
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getHistoryForWalletSelection:
@@ -958,35 +983,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          }
       }
 
-      return response;
-   }
-
-   case Methods::broadcastThroughRPC:
-   {
-      /*
-      in: raw tx as bindata[0]
-      out: rpc response string as Codec_CommonTypes::String
-      */
-
-      if (command->bindata_size() != 1)
-         throw runtime_error("invalid command for broadcastThroughRPC");
-
-      auto& rawTx = command->bindata(0);
-      if (rawTx.size() == 0)
-         throw runtime_error("invalid tx size");
-      BinaryDataRef rawTxRef; rawTxRef.setRef(rawTx);
-
-      auto&& response =
-         this->bdmPtr_->nodeRPC_->broadcastTx(rawTxRef);
-
-      if (response == "success")
-      {
-         this->bdmPtr_->zeroConfCont_->pushZcToParser(rawTxRef);
-      }
-
-      auto result = make_shared<::Codec_CommonTypes::Strings>();
-      result->add_data(response);
-      return result;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getHeaderByHash:
@@ -1007,7 +1005,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       auto&& dbKey = this->db_->getDBKeyForHash(txHashRef);
 
       if (dbKey.getSize() == 0)
-         return nullptr;
+         break;
 
       unsigned height; uint8_t dup;
       BinaryRefReader key_brr(dbKey.getRef());
@@ -1024,12 +1022,14 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       }
       catch (exception&)
       {
-         return nullptr;
+         break;
       }
 
       auto response = make_shared<::Codec_CommonTypes::BinaryData>();
       response->set_data(bw.getPtr(), bw.getSize());
-      return response;
+
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getCombinedBalances:
@@ -1094,7 +1094,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          }
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getCombinedAddrTxnCounts:
@@ -1143,7 +1144,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          }
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getCombinedSpendableTxOutListForValue:
@@ -1212,7 +1214,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
             break;
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getCombinedSpendableZcOutputs:
@@ -1267,7 +1270,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          }
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getCombinedRBFTxOuts:
@@ -1321,7 +1325,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          }
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getOutpointsForAddresses:
@@ -1352,7 +1357,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          response->set_heightcutoff(heightCutOff);
          response->set_zcindexcutoff(zcCutOff);
 
-         return response;
+         resultingPayload = response;
+         break;
       }
 
       //this call will update the cutoff values
@@ -1393,7 +1399,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       response->set_heightcutoff(heightCutOff);
       response->set_zcindexcutoff(zcCutOff);
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getUTXOsForAddress:
@@ -1425,7 +1432,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getSpentnessForOutputs:
@@ -1541,7 +1549,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          val->set_height(hashPair.second);
       }
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getSpentnessForZcOutputs:
@@ -1658,7 +1667,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
          val->set_height(hashPair.second);
       }
 
-      return response;     
+      resultingPayload = response;
+      break;
    }
 
    case Methods::getOutputsForOutpoints:
@@ -1717,7 +1727,8 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
             stxoPair.second.getPtr(), stxoPair.second.getSize());
       }   
 
-      return response;
+      resultingPayload = response;
+      break;
    }
 
    default:
@@ -1725,7 +1736,7 @@ shared_ptr<Message> BDV_Server_Object::processCommand(
       throw runtime_error("unknown command");
    }
 
-   return nullptr;
+   return BDVCommandProcess_Success;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2191,8 +2202,8 @@ void BDV_Server_Object::flagRefresh(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet, 
-   shared_ptr<Message>& result)
+BDVCommandProcessingResultType BDV_Server_Object::processPayload(
+   shared_ptr<BDV_Payload>& packet, shared_ptr<Message>& result)
 {
    /*
    Only ever one thread gets this far at any given time, therefor none of the
@@ -2202,7 +2213,7 @@ bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet,
    if (packet == nullptr)
    {
       LOGWARN << "null packet";
-      return true;
+      return BDVCommandProcess_PayloadNotReady;
    }
 
    auto nextId = lastValidMessageId_ + 1;
@@ -2233,9 +2244,9 @@ bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet,
             //failed to reconstruct from this packet, this 
             //shouldn't happen anymore
             LOGWARN << "failed to parse packet, reinjecting. " <<
-               "This shouldn't happen anymore!";
+               "!This shouldn't happen anymore!";
 
-            return true;
+            return BDVCommandProcess_Failure;
          }
 
          //some verbose, this can be removed later
@@ -2246,11 +2257,11 @@ bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet,
                   msgId - lastValidMessageId_;
 
             if (msgId != nextId)
-               return true;
+               return BDVCommandProcess_PayloadNotReady;
          }
          else
          {
-            return true;
+            return BDVCommandProcess_PayloadNotReady;
          }
       }
    }
@@ -2260,11 +2271,11 @@ bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet,
 
    //exit if we dont have this message id
    if (msgIter == messageMap_.end())
-      return true;
+      return BDVCommandProcess_PayloadNotReady;
 
    //or the message isn't complete
    if (!msgIter->second.isReady())
-      return true;
+      return BDVCommandProcess_PayloadNotReady;
 
    //move in the completed message, it now lives within this scope
    auto msgObj = move(msgIter->second);
@@ -2283,31 +2294,33 @@ bool BDV_Server_Object::processPayload(shared_ptr<BDV_Payload>& packet,
       //failed, this could be a different type of protobuf message
       auto staticCommand = make_shared<StaticCommand>();
       if (msgObj.getMessage(staticCommand))
+      {   
          result = staticCommand;
+         return BDVCommandProcess_Static;
+      }
 
-      return false;
+      return BDVCommandProcess_Failure;
    }
+      try
+      {
+         return processCommand(message, result);
+      }
+      catch (exception &e)
+      {
+         auto errMsg = make_shared<::Codec_NodeStatus::BDV_Error>();
+         errMsg->set_type(1);
+         stringstream ss;
+         ss << "Error processing command: " << (int)message->method() << endl;
+         errMsg->set_error(ss.str());
+         
+         string errStr(e.what());
+         if (errStr.size() > 0)
+            errMsg->set_extra(e.what());
 
-   try
-   {
-      result = processCommand(message);
-   }
-   catch (exception &e)
-   {
-      auto errMsg = make_shared<::Codec_NodeStatus::BDV_Error>();
-      errMsg->set_type(1);
-      stringstream ss;
-      ss << "Error processing command: " << (int)message->method() << endl;
-      errMsg->set_error(ss.str());
+         result = errMsg;
+      }
       
-      string errStr(e.what());
-      if (errStr.size() > 0)
-         errMsg->set_extra(e.what());
-
-      result = errMsg;
-   }
-
-   return true;
+   return BDVCommandProcess_Failure;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2789,7 +2802,6 @@ void Clients::messageParserThread(void)
          }
       }
       
-
       //release the locks
       lock.unlock();
       bdvPtr->packetProcess_threadLock_.store(0);
@@ -2802,23 +2814,140 @@ void Clients::messageParserThread(void)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload>
-   payloadPtr)
+void Clients::broadcastThroughRPC()
+{
+   while (true)
+   {
+      RpcBroadcastPacket packet;
+      try
+      {
+         packet = move(rpcBroadcastQueue_.pop_front());
+      }
+      catch (StopBlockingLoop&)
+      {
+         break;
+      }
+
+      auto&& response =
+         bdmT_->bdm()->nodeRPC_->broadcastTx(packet.rawTx_.getRef());
+
+      if (response == "success")
+      {
+         bdmT_->bdm()->zeroConfCont_->pushZcToParser(packet.rawTx_.getRef());
+      }
+
+      Tx tx(packet.rawTx_);
+
+      auto notifPacket = make_shared<BDV_Notification_Packet>();
+      notifPacket->bdvPtr_ = packet.bdvPtr_;
+      notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
+         packet.bdvPtr_->getID(), Error_ZC, 
+         move(response), tx.getThisHash().toHexStr());
+      innerBDVNotifStack_.push_back(move(notifPacket));
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
 {
    //clear bdvPtr from the payload to avoid circular ownership
-   auto bdvPtr = payloadPtr->bdvPtr_;
-   payloadPtr->bdvPtr_.reset();
+   auto bdvPtr = payload->bdvPtr_;
+   payload->bdvPtr_.reset();
 
    //process payload
-   shared_ptr<Message> result = nullptr;
-   if (!bdvPtr->processPayload(payloadPtr, result))
+   shared_ptr<Message> result;
+   auto status = bdvPtr->processPayload(payload, result);
+
+   switch (status)
+   {
+   case BDVCommandProcess_Static:
    {
       auto staticCommand = dynamic_pointer_cast<StaticCommand>(result);
       if (staticCommand == nullptr)
          return nullptr;
 
-      result = processUnregisteredCommand(
-         payloadPtr->bdvID_, staticCommand);
+      result = processUnregisteredCommand(payload->bdvID_, staticCommand);
+      break;
+   }
+
+   /*
+   ZC commands are processed by Clients since they require the BDV ptr
+   */
+
+   case BDVCommandProcess_ZC_P2P:
+   {
+      //cast to bdv_command
+      auto message = dynamic_pointer_cast<BDVCommand>(result);
+      if (message == nullptr)
+         return nullptr;
+
+      //Reset result as it is the zc message. ZC replies are 
+      //delivered through the callback API.
+      result = nullptr;
+
+      /*
+      in: raw tx as bindata[0]
+      out: void
+      */
+
+      if (message->bindata_size() != 1)
+         break;
+
+      const auto& rawTx = message->bindata(0);
+      if (rawTx.size() == 0)
+         break;
+      BinaryDataRef rawTxRef; rawTxRef.setRef(rawTx);
+
+      auto errorCallback = [this, bdvPtr](BinaryData rawZc, ZCBroadcastStatus)->void
+      {
+         RpcBroadcastPacket packet;
+         packet.rawTx_ = move(rawZc);
+         packet.bdvPtr_ = bdvPtr;
+         rpcBroadcastQueue_.push_back(move(packet));
+      };
+
+      bdmT_->bdm()->zeroConfCont_->broadcastZC(
+         rawTxRef, 10000, errorCallback);
+
+      break;
+   }
+
+   case BDVCommandProcess_ZC_RPC:
+   {
+      //cast to bdv_command
+      auto message = dynamic_pointer_cast<BDVCommand>(result);
+      if (message == nullptr)
+         return nullptr;
+
+      //Reset result as it is the zc message. ZC replies are 
+      //delivered through the callback API.
+      result = nullptr;
+
+      /*
+      in: raw tx as bindata[0]
+      out: void
+      */
+
+      if (message->bindata_size() != 1)
+         break;
+
+      auto& rawTx = message->bindata(0);
+      if (rawTx.size() == 0)
+         throw runtime_error("invalid tx size");
+
+      RpcBroadcastPacket packet;
+      packet.rawTx_ = BinaryData((uint8_t*)rawTx.c_str(), rawTx.size());
+      packet.bdvPtr_ = bdvPtr;
+      rpcBroadcastQueue_.push_back(move(packet));
+
+      //Reset result as it is the zc message. ZC replies are 
+      //delivered through the callback API.
+      result = nullptr;
+      break;
+   }
+
+   default:
+      break;
    }
 
    return result;
