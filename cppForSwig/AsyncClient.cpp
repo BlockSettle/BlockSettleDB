@@ -537,17 +537,13 @@ void BlockDataViewer::getHistoryForWalletSelection(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx,
-   function<void(ReturnMessage<string>)> callback)
+void BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx)
 {
    auto payload = make_payload(Methods::broadcastThroughRPC);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->add_bindata(rawTx.getPtr(), rawTx.getSize());
 
-   auto read_payload = make_shared<Socket_ReadPayload>();
-   read_payload->callbackReturn_ =
-      make_unique<CallbackReturn_String>(callback);
-   sock_->pushPayload(move(payload), read_payload);
+   sock_->pushPayload(move(payload), nullptr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -490,8 +490,7 @@ namespace AsyncClient
 
       //tx
       void broadcastZC(const BinaryData& rawTx);
-      void broadcastThroughRPC(const BinaryData& rawTx,
-         std::function<void(ReturnMessage<std::string>)>);
+      void broadcastThroughRPC(const BinaryData& rawTx);
 
       void getTxByHash(const BinaryData& txHash,
          std::function<void(ReturnMessage<Tx>)>);
