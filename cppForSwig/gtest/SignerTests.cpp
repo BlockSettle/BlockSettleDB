@@ -167,12 +167,16 @@ protected:
    void initBDM(void)
    {
       auto& magicBytes = NetworkConfig::getMagicBytes();
-      config.nodePtr_ = make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr());
+
+      auto nodePtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), false);
+      auto watcherPtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), true);
+      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
 
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
 
-      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(config.nodePtr_);
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 

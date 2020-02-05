@@ -297,6 +297,7 @@ namespace DBTestUtils
          const std::set<BinaryData>& hashes, 
          std::set<BinaryData> scrAddrSet)
       {
+         std::set<BinaryData> addrSet;
          while (1)
          {
             auto&& action = actionStack_.pop_front();
@@ -316,7 +317,8 @@ namespace DBTestUtils
             if (!hasHashes)
                continue;
 
-            if (action->addrSet_ == scrAddrSet)
+            addrSet.insert(action->addrSet_.begin(), action->addrSet_.end());
+            if (addrSet == scrAddrSet)
                break;
          }
       }

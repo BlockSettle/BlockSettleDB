@@ -35,7 +35,7 @@ struct UnitTestBlock
    BinaryData diffBits_;
 };
 
-class NodeUnitTest : public BitcoinP2P
+class NodeUnitTest : public BitcoinNodeInterface
 {
 private:
    struct MinedHeader
@@ -67,27 +67,23 @@ private:
 
    MinedHeader header_;
 
+   TransactionalMap<BinaryData, BinaryData> rawTxMap_;
+
+   static BlockingQueue<BinaryData> watcherInvQueue_;
+   std::thread watcherThread_;
+
 public:
-   NodeUnitTest(uint32_t magic_word);
-
-   //virtuals
-   void connectToNode(bool) {}
-
-   void shutdown(void)
-   {
-      //clean up remaining lambdas
-      BitcoinP2P::shutdown();
-   }
+   NodeUnitTest(uint32_t magic_word, bool watcher);
 
    //locals
+   void updateNodeStatus(bool connected);
    void notifyNewBlock(void);
+   void watcherProcess(void);
 
    std::map<unsigned, BinaryData> mineNewBlock(
       BlockDataManager* bdm, unsigned count, const BinaryData& h160);
    std::map<unsigned, BinaryData> mineNewBlock(
       BlockDataManager* bdm, unsigned, ScriptRecipient*);
-
-   std::shared_ptr<Payload> getTx(const InvEntry& ie, uint32_t timeout);
 
    std::vector<UnitTestBlock> getMinedBlocks(void) const { return blocks_; }
    void setReorgBranchPoint(std::shared_ptr<BlockHeader>);
@@ -98,6 +94,13 @@ public:
    //set
    void setBlockchain(std::shared_ptr<Blockchain>);
    void setBlockFiles(std::shared_ptr<BlockFiles>);
+
+   //virtuals
+   void sendMessage(std::unique_ptr<Payload>) override;
+
+   void connectToNode(bool) override;
+   bool connected(void) const override { return true; }
+   void shutdown(void) override;
 };
 
 #endif

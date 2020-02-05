@@ -11,12 +11,42 @@
 
 using namespace std;
 
+BlockingQueue<BinaryData> NodeUnitTest::watcherInvQueue_;
+
 ////////////////////////////////////////////////////////////////////////////////
-NodeUnitTest::NodeUnitTest(uint32_t magic_word) :
-   BitcoinP2P("", "", magic_word)
+NodeUnitTest::NodeUnitTest(uint32_t magic_word, bool watcher) :
+   BitcoinNodeInterface(magic_word, watcher)
 {
    //0 is reserved for coinbase tx ordering in spoofed blocks
    counter_.store(1, memory_order_relaxed);
+
+   if (!watcher)
+      return;
+
+   auto watcherLbd = [this](void)->void
+   {
+      this->watcherProcess();
+   };
+
+   watcherThread_ = thread(watcherLbd);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::shutdown()
+{
+   if (watcherThread_.joinable())
+   {
+      watcherInvQueue_.terminate();
+      watcherThread_.join();
+   }
+
+   BitcoinNodeInterface::shutdown();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::connectToNode(bool)
+{
+   run_.store(true, memory_order_relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -293,6 +323,7 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
    bool stage)
 {
    vector<InvEntry> invVec;
+   map<BinaryData, BinaryData> rawTxMap;
 
    //save tx to fake mempool
    for (auto& tx : txVec)
@@ -349,11 +380,16 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
       auto objPair = make_pair(obj->hash_.getRef(), move(obj));
       auto insertIter = mempool_.insert(move(objPair));
 
-      //notify the zc parser
+      //add to inv vector
       InvEntry ie;
       ie.invtype_ = Inv_Msg_Witness_Tx;
       memcpy(ie.hash, insertIter.first->second->hash_.getPtr(), 32);
       invVec.emplace_back(ie);
+
+      //save tx to reply to getdata request
+      rawTxMap.insert(make_pair(
+         insertIter.first->second->hash_, 
+         insertIter.first->second->rawTx_));
    }
 
    /*
@@ -364,22 +400,8 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
    if (stage)
       return;
 
+   rawTxMap_.update(rawTxMap);
    processInvTx(invVec);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-shared_ptr<Payload> NodeUnitTest::getTx(const InvEntry& ie, uint32_t)
-{
-   //find tx in mempool
-   BinaryDataRef hashRef(ie.hash, 32);
-   auto iter = mempool_.find(hashRef);
-   if (iter == mempool_.end())
-      return nullptr;
-
-   //create payload and return
-   auto payload = make_shared<Payload_Tx>(
-      iter->second->rawTx_.getPtr(), iter->second->rawTx_.getSize());
-   return payload;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -392,4 +414,127 @@ void NodeUnitTest::setBlockchain(std::shared_ptr<Blockchain> bcPtr)
 void NodeUnitTest::setBlockFiles(std::shared_ptr<BlockFiles> filesPtr)
 {
    filesPtr_ = filesPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
+{
+   //mock the node
+   switch (payload->type())
+   {
+   case Payload_inv:
+   {
+      shared_ptr<Payload> payloadSPtr(move(payload));
+      auto payloadInv = dynamic_pointer_cast<Payload_Inv>(payloadSPtr);
+      if (payloadInv == nullptr)
+         throw runtime_error("unexpected payload type");
+
+      for (auto& entry : payloadInv->invVector_)
+      {
+         switch (entry.invtype_)
+         {
+         case Inv_Msg_Tx:
+         {
+            //consume getDataMap entry, set promise value
+            auto gdpMap = getDataPayloadMap_.get();
+            BinaryData hashBd(&entry.hash[0], sizeof(entry.hash));
+            auto iter = gdpMap->find(hashBd);
+            if (iter == gdpMap->end())
+               break;
+
+            shared_ptr<Payload> payloadTxSPtr(move(iter->second->payload_));
+            auto payloadTx = dynamic_pointer_cast<Payload_Tx>(payloadTxSPtr);
+            
+            auto obj = make_shared<MempoolObject>();
+            auto rawTx = payloadTx->getRawTx();       
+            obj->rawTx_ = BinaryData(&rawTx[0], rawTx.size());
+            obj->hash_ = hashBd;
+            obj->order_ = counter_.fetch_add(1, memory_order_relaxed);
+            
+            //TODO: tie this with zc delay and stashing
+            obj->blocksUntilMined_ = 0;
+            obj->staged_ = false;
+
+            mempool_.insert(make_pair(obj->hash_.getRef(), obj));
+
+            try
+            {
+               iter->second->promise_->set_value(true);
+            }
+            catch(...)
+            {}
+
+            //send out the inventry through the watcher
+            watcherInvQueue_.push_back(move(hashBd));
+
+            break;
+         }
+
+         default:
+            throw runtime_error("inventry type support not implemented yet");
+         }
+      }
+
+      break;
+   }
+
+   case Payload_getdata:
+   {
+      //looking to get data for a previous inv tx message
+      auto payloadSPtr = shared_ptr<Payload>(move(payload));
+      auto payloadGetData = 
+         dynamic_pointer_cast<Payload_GetData>(payloadSPtr);
+      if (payloadGetData == nullptr)
+         throw runtime_error("invalid payload type");
+
+      for (auto& inv : payloadGetData->getInvVector())
+      {
+         auto txMap = rawTxMap_.get();
+         BinaryData hash(&inv.hash[0], sizeof(inv.hash));
+         auto iter = txMap->find(hash);
+         if (iter == txMap->end())
+            continue;
+
+         auto payloadTx = make_unique<Payload_Tx>();
+
+         vector<uint8_t> rawTx(iter->second.getSize());
+         memcpy(&rawTx[0], iter->second.getPtr(), iter->second.getSize());
+         payloadTx->setRawTx(rawTx);
+         
+         getTxDataLambda_(move(payloadTx));
+      }
+
+      break;
+   }
+
+   default:
+      throw runtime_error("payload type support not implemented yet");
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::watcherProcess()
+{
+   while(true)
+   {
+      BinaryData hash;
+      try
+      {
+         hash = move(watcherInvQueue_.pop_front());
+      }
+      catch(StopBlockingLoop&)
+      {
+         break;
+      }
+      
+      vector<InvEntry> invVec;
+      InvEntry inv;
+      inv.invtype_ = Inv_Msg_Witness_Tx;
+      memcpy(inv.hash, hash.getPtr(), 32);
+      invVec.push_back(move(inv));
+
+      processInvTx(invVec);
+   }
+
+   watcherInvQueue_.clear();
 }

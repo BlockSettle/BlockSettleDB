@@ -5698,7 +5698,11 @@ TEST_F(BlockDir, HeadersFirst)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodePtr_ = make_shared<NodeUnitTest>(0);
+   
+   auto nodePtr = make_shared<NodeUnitTest>(0, false);
+   auto watcherPtr = make_shared<NodeUnitTest>(0, true);
+   config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
+
    
    // Put the first 5 blocks out of order
    TestUtils::setBlocks({ "0", "1", "2", "4", "3", "5" }, blk0dat_);
@@ -5749,7 +5753,10 @@ TEST_F(BlockDir, HeadersFirstUpdate)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodePtr_ = make_shared<NodeUnitTest>(0);
+
+   auto nodePtr = make_shared<NodeUnitTest>(0, false);
+   auto watcherPtr = make_shared<NodeUnitTest>(0, true);
+   config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
 
    // Put the first 5 blocks out of order
    TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
@@ -5806,7 +5813,10 @@ TEST_F(BlockDir, HeadersFirstReorg)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodePtr_ = make_shared<NodeUnitTest>(0);
+
+   auto nodePtr = make_shared<NodeUnitTest>(0, false);
+   auto watcherPtr = make_shared<NodeUnitTest>(0, true);
+   config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
 
@@ -5881,7 +5891,10 @@ TEST_F(BlockDir, HeadersFirstUpdateTwice)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodePtr_ = make_shared<NodeUnitTest>(0);
+
+   auto nodePtr = make_shared<NodeUnitTest>(0, false);
+   auto watcherPtr = make_shared<NodeUnitTest>(0, true);
+   config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
 
    TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
    
@@ -5941,7 +5954,10 @@ TEST_F(BlockDir, BlockFileSplit)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodePtr_ = make_shared<NodeUnitTest>(0);
+
+   auto nodePtr = make_shared<NodeUnitTest>(0, false);
+   auto watcherPtr = make_shared<NodeUnitTest>(0, true);
+   config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
    
@@ -5995,7 +6011,10 @@ TEST_F(BlockDir, BlockFileSplitUpdate)
    BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
    config.blkFileLocation_ = blkdir_;
    config.dbDir_ = ldbdir_;
-   config.nodePtr_ = make_shared<NodeUnitTest>(0);
+
+   auto nodePtr = make_shared<NodeUnitTest>(0, false);
+   auto watcherPtr = make_shared<NodeUnitTest>(0, true);
+   config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
       
@@ -6058,12 +6077,15 @@ protected:
       DBTestUtils::init();
       
       auto& magicBytes = NetworkConfig::getMagicBytes();
-      config.nodePtr_ = make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr());
+      auto nodePtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), false);
+      auto watcherPtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), true);
+      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
 
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
 
-      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(config.nodePtr_);
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 
@@ -6125,7 +6147,8 @@ protected:
          clients_->shutdown();
       }
 
-      config.nodePtr_.reset();
+      config.bitcoinNodes_.second.reset();
+      config.bitcoinNodes_.first.reset();
       delete clients_;
       delete theBDMt_;
 
@@ -10084,7 +10107,9 @@ protected:
       config.dataDir_ = homedir_;
 
       NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-      config.nodePtr_ = make_shared<NodeUnitTest>(0);
+      auto nodePtr = make_shared<NodeUnitTest>(0, false);
+      auto watcherPtr = make_shared<NodeUnitTest>(0, true);
+      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
 
       unsigned port_int = 50000 + rand() % 10000;
       stringstream port_ss;

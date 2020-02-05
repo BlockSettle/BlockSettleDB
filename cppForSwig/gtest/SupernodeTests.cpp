@@ -227,13 +227,16 @@ protected:
       DBTestUtils::init();
 
       auto& magicBytes = NetworkConfig::getMagicBytes();
-      config.nodePtr_ = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr());
+
+      auto nodePtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), false);
+      auto watcherPtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), true);
+      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
 
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
 
-      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(config.nodePtr_);
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 
@@ -1558,8 +1561,12 @@ protected:
       DBTestUtils::init();
 
       auto& magicBytes = NetworkConfig::getMagicBytes();
-      auto nodePtr = make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr());
-      config.nodePtr_ = nodePtr;
+
+      auto nodePtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), false);
+      auto watcherPtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), true);
+      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
 
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
@@ -3416,11 +3423,12 @@ protected:
    void initBDM(void)
    {
       auto& magicBytes = NetworkConfig::getMagicBytes();
-      auto nodePtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr());
         
-      //spoofed unit test network node
-      config.nodePtr_ = dynamic_pointer_cast<BitcoinP2P>(nodePtr);
+      auto nodePtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), false);
+      auto watcherPtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), true);
+      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
 
       //randomized peer keys, in ram only
       config.ephemeralPeers_ = true;
@@ -4023,10 +4031,13 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
    auto&& ZChash2 = BtcUtils::getHash256(ZC2);
 
-   DBTestUtils::ZcVector rawZcVec;
+   /*DBTestUtils::ZcVector rawZcVec;
    rawZcVec.push_back(ZC1, 1300000000);
    rawZcVec.push_back(ZC2, 1310000000);
-   DBTestUtils::pushNewZc(theBDMt_, rawZcVec);
+   DBTestUtils::pushNewZc(theBDMt_, rawZcVec);*/
+
+   bdvObj->broadcastZC(ZC1);
+   bdvObj->broadcastZC(ZC2);
    
    {
       set<BinaryData> zcHashes = { ZChash1, ZChash2 };

@@ -482,7 +482,7 @@ namespace DBTestUtils
    /////////////////////////////////////////////////////////////////////////////
    void triggerNewBlockNotification(BlockDataManagerThread* bdmt)
    {
-      auto nodePtr = bdmt->bdm()->networkNode_;
+      auto nodePtr = bdmt->bdm()->processNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
 
       nodeUnitTest->notifyNewBlock();
@@ -492,7 +492,7 @@ namespace DBTestUtils
    void mineNewBlock(BlockDataManagerThread* bdmt, const BinaryData& h160, 
       unsigned count)
    {
-      auto nodePtr = bdmt->bdm()->networkNode_;
+      auto nodePtr = bdmt->bdm()->processNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
 
       nodeUnitTest->mineNewBlock(bdmt->bdm(), count, h160);
@@ -501,7 +501,7 @@ namespace DBTestUtils
    /////////////////////////////////////////////////////////////////////////////
    std::vector<UnitTestBlock> getMinedBlocks(BlockDataManagerThread* bdmt)
    {
-      auto nodePtr = bdmt->bdm()->networkNode_;
+      auto nodePtr = bdmt->bdm()->processNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
 
       return nodeUnitTest->getMinedBlocks();
@@ -511,7 +511,7 @@ namespace DBTestUtils
    void setReorgBranchingPoint(
       BlockDataManagerThread* bdmt, const BinaryData& hash)
    {
-      auto nodePtr = bdmt->bdm()->networkNode_;
+      auto nodePtr = bdmt->bdm()->processNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
 
       auto headerPtr = bdmt->bdm()->blockchain()->getHeaderByHash(hash);
@@ -522,7 +522,7 @@ namespace DBTestUtils
    void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec, 
       bool stage)
    {
-      auto nodePtr = bdmt->bdm()->networkNode_;
+      auto nodePtr = bdmt->bdm()->processNode_;
       auto nodeUnitTest = (NodeUnitTest*)nodePtr.get();
 
       unsigned delay = UINT32_MAX;
