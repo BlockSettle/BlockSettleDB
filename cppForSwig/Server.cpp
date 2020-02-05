@@ -467,16 +467,16 @@ void WebSocketServer::clientInterruptThread()
       if (iter == clientMap->end())
          continue;
 
-      auto& ccs = iter->second;
+      auto ccs = const_cast<ClientConnection*>(&iter->second);
       unsigned zero = 0;
-      if (!ccs.readLock_->compare_exchange_weak(zero, 1))
+      if (!ccs->readLock_->compare_exchange_weak(zero, 1))
       {
          clientConnectionInterruptQueue_.push_back(move(clientId));
          continue;
       }
 
-      ccs.processReadQueue(clients_);
-      ccs.readLock_->store(0);
+      ccs->processReadQueue(clients_);
+      ccs->readLock_->store(0);
    }
 }
 
@@ -514,7 +514,7 @@ void WebSocketServer::prepareWriteThread()
       auto stateIter = statemap->find(msg->id_);
       if (stateIter == statemap->end())
          continue;
-      auto statePtr = &stateIter->second;
+      auto statePtr = const_cast<ClientConnection*>(&stateIter->second);
 
       //grab state object lock
       unsigned zero = 0;
@@ -614,7 +614,7 @@ void WebSocketServer::waitOnShutdown()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<map<uint64_t, ClientConnection>> 
+shared_ptr<const map<uint64_t, ClientConnection>> 
    WebSocketServer::getConnectionStateMap() const
 {
    return clientStateMap_.get();
@@ -669,7 +669,8 @@ void WebSocketServer::closeClientConnection(uint64_t id)
       return;
    }
 
-   iter->second.closeConnection();
+   auto cc = const_cast<ClientConnection*>(&iter->second);
+   cc->closeConnection();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -831,10 +831,12 @@ public:
 		return retMap;
    }
 
-   std::shared_ptr<std::map<T, U>> get(void) const
+   std::shared_ptr<const std::map<T, U>> get(void) const
    {
 		auto retMap = std::atomic_load(&map_);
-		return retMap;
+      auto retConstMap = 
+         std::static_pointer_cast<const std::map<T, U>>(retMap);
+		return retConstMap;
    }
 
    void clear(void)

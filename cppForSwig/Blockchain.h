@@ -79,7 +79,7 @@ public:
    bool hasHeaderWithHash(BinaryData const & txHash) const;
    const std::shared_ptr<BlockHeader> getHeaderPtrForTxRef(const TxRef &txr) const;
    
-   std::shared_ptr<std::map<HashString, std::shared_ptr<BlockHeader>>> allHeaders(void) const
+   std::shared_ptr<const std::map<HashString, std::shared_ptr<BlockHeader>>> allHeaders(void) const
    {
       return headerMap_.get();
    }

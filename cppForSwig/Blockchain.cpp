@@ -278,16 +278,13 @@ shared_ptr<BlockHeader> Blockchain::organizeChain(bool forceRebuild, bool verbos
 
    if(forceRebuild)
    {
-      map<HashString, shared_ptr<BlockHeader>>::iterator iter;
-      for( iter  = headermap->begin();
-           iter != headermap->end();
-           iter++)
+      for (const auto& headerPair : *headermap)
       {
-         iter->second->difficultySum_  = -1;
-         iter->second->blockHeight_ = 0;
-         iter->second->isFinishedCalc_ = false;
-         iter->second->nextHash_ = BtcUtils::EmptyHash();
-         iter->second->isMainBranch_ = false;
+         headerPair.second->difficultySum_  = -1;
+         headerPair.second->blockHeight_ = 0;
+         headerPair.second->isFinishedCalc_ = false;
+         headerPair.second->nextHash_ = BtcUtils::EmptyHash();
+         headerPair.second->isMainBranch_ = false;
       }
       topBlockPtr_ = NULL;
       topID_.store(0, memory_order_relaxed);

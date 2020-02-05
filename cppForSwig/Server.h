@@ -93,7 +93,7 @@ private:
 
 public:
    std::shared_ptr<Queue<SerializedMessage>> serializedStack_;
-   SerializedMessage currentWriteMsg_;
+   mutable SerializedMessage currentWriteMsg_;
    std::shared_ptr<std::atomic<int>> count_;
    std::shared_ptr<BIP151Connection> bip151Connection_;
    std::shared_ptr<std::atomic<unsigned>> writeLock_, readLock_;
@@ -182,7 +182,7 @@ public:
    static void write(const uint64_t&, const uint32_t&,
       std::shared_ptr<::google::protobuf::Message>);
 
-   std::shared_ptr<std::map<uint64_t, ClientConnection>>
+   std::shared_ptr<const std::map<uint64_t, ClientConnection>>
       getConnectionStateMap(void) const;
    void addId(const uint64_t&, struct lws* ptr);
    void eraseId(const uint64_t&);

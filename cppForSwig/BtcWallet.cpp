@@ -734,7 +734,7 @@ ScrAddrObj& BtcWallet::getScrAddrObjRef(const BinaryData& key)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<map<BinaryData, LedgerEntry>> BtcWallet::getHistoryPage(
+shared_ptr<const map<BinaryData, LedgerEntry>> BtcWallet::getHistoryPage(
    uint32_t pageId)
 {
    if (!bdvPtr_->isBDMRunning())

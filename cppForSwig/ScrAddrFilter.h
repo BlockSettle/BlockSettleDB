@@ -173,7 +173,7 @@ public:
    
    LMDBBlockDatabase* db() { return lmdb_; }
 
-   std::shared_ptr<std::map<BinaryDataRef, std::shared_ptr<AddrAndHash>>>
+   std::shared_ptr<const std::map<BinaryDataRef, std::shared_ptr<AddrAndHash>>>
       getScrAddrMap(void) const
    { 
       return scrAddrMap_->get(); 
