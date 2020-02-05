@@ -1408,7 +1408,6 @@ vector<LedgerEntry> WalletGroup::getHistoryPage(
          const map<BinaryData, TxIOPair>& txioMap,
          uint32_t startBlock, uint32_t endBlock)->map<BinaryData, LedgerEntry>
       {
-         auto& txiomap = txioMap; //to avoid the compiler warning
          map<BinaryData, LedgerEntry> result;
          unsigned i = 0;
          for (auto& wlt_pair : localWalletMap)

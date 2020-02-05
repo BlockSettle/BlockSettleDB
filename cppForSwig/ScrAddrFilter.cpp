@@ -327,7 +327,6 @@ void ScrAddrFilter::registrationThread()
       updateAddressMerkleInDB();
 
       //final scan to sync all addresses to same height
-      auto newTopBlock  = blockchain()->top()->getBlockHeight();
       applyBlockRangeToDB(topBlockHeight + 1, walletIDs, false);
       
       //cleanup
