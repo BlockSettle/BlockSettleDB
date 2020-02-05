@@ -184,15 +184,22 @@ BlockDataManager::BlockDataManager(
       openDatabase();
       auto& magicBytes = NetworkConfig::getMagicBytes();
       
-      if (bdmConfig.nodePtr_ == nullptr)
+      if (config_.bitcoinNodes_.first == nullptr)
       {
-         networkNode_ = make_shared<BitcoinP2P>("127.0.0.1", config_.btcPort_,
-            *(uint32_t*)magicBytes.getPtr());
+         config_.bitcoinNodes_.first = 
+            make_shared<BitcoinP2P>("127.0.0.1", config_.btcPort_,
+            *(uint32_t*)magicBytes.getPtr(), false);
       }
-      else 
+
+      if (config_.bitcoinNodes_.second == nullptr)
       {
-         networkNode_ = bdmConfig.nodePtr_;
+         config_.bitcoinNodes_.second = 
+            make_shared<BitcoinP2P>("127.0.0.1", config_.btcPort_,
+            *(uint32_t*)magicBytes.getPtr(), true);
       }
+         
+      processNode_ = config_.bitcoinNodes_.first;
+      watchNode_ = config_.bitcoinNodes_.second;
 
       if (bdmConfig.getOperationMode() != OPERATION_UNITTEST)
       {
@@ -203,13 +210,15 @@ BlockDataManager::BlockDataManager(
          nodeRPC_ = make_shared<NodeRPC_UnitTest>(config_);
       }
 
-      if(networkNode_ == nullptr)
+      if(processNode_ == nullptr)
       {
          throw DbErrorMsg("invalid node type in bdmConfig");
       }
 
       zeroConfCont_ = make_shared<ZeroConfContainer>(
-         iface_, networkNode_, config_.zcThreadCount_);
+         iface_, processNode_, config_.zcThreadCount_);
+      zeroConfCont_->setWatcherNode(watchNode_);
+
       scrAddrData_ = make_shared<BDM_ScrAddrFilter>(this);
       scrAddrData_->init();
    }
@@ -248,7 +257,8 @@ BlockDataManager::~BlockDataManager()
    zeroConfCont_.reset();
    blockFiles_.reset();
    dbBuilder_.reset();
-   networkNode_.reset();
+   processNode_.reset();
+   watchNode_.reset();
    scrAddrData_.reset();
    
    if (iface_ != nullptr)
@@ -429,13 +439,13 @@ void BlockDataManager::disableZeroConf(void)
 NodeStatusStruct BlockDataManager::getNodeStatus() const
 {
    NodeStatusStruct nss;
-   if (networkNode_ == nullptr)
+   if (processNode_ == nullptr)
       return nss;
    
-   if(networkNode_->connected())
+   if(processNode_->connected())
       nss.status_ = NodeStatus_Online;
 
-   if (networkNode_->isSegWit())
+   if (processNode_->isSegWit())
       nss.SegWitEnabled_ = true;
 
    if (nodeRPC_ == nullptr)

@@ -116,7 +116,8 @@ try
 
    //connect to node as async, no need to wait for a succesful connection
    //to init the DB
-   bdm->networkNode_->connectToNode(true);
+   bdm->processNode_->connectToNode(true);
+   bdm->watchNode_->connectToNode(true);
 
    //if RPC is running, wait on node init
    try
@@ -181,16 +182,8 @@ try
       if (reorgState.hasNewTop_)
       {            
          //purge zc container
-         ZeroConfContainer::ZcActionStruct zcaction;
-         zcaction.action_ = Zc_Purge;
-         zcaction.resultPromise_ =
-            make_unique<promise<shared_ptr<ZcPurgePacket>>>();
-         zcaction.reorgState_ = reorgState;
-         auto purgeFuture = zcaction.resultPromise_->get_future();
-
-         bdm->zeroConfCont_->newZcStack_.push_back(move(zcaction));
-
-         //wait on purge
+         auto purgeFuture = 
+            bdm->zeroConfCont_->pushNewBlockNotification(reorgState);
          auto purgePacket = purgeFuture.get();
 
          //notify bdvs
@@ -210,10 +203,10 @@ try
       }
    };
 
-   bdm->networkNode_->registerNodeStatusLambda(updateNodeStatusLambda);
+   bdm->processNode_->registerNodeStatusLambda(updateNodeStatusLambda);
    bdm->nodeRPC_->registerNodeStatusLambda(updateNodeStatusLambda);
 
-   auto newBlockStack = bdm->networkNode_->getInvBlockStack();
+   auto newBlockStack = bdm->processNode_->getInvBlockStack();
    while (pimpl->run)
    {
       try

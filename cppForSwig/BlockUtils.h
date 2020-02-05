@@ -147,12 +147,12 @@ private:
 
 public:
    typedef std::function<void(BDMPhase, double,unsigned, unsigned)> ProgressCallback;
-   std::shared_ptr<BitcoinP2P> networkNode_;
+   std::shared_ptr<BitcoinNodeInterface> processNode_, watchNode_;
    std::shared_future<bool> isReadyFuture_;
    mutable std::shared_ptr<NodeRPC> nodeRPC_;
 
    TimedQueue<std::unique_ptr<BDV_Notification>> notificationStack_;
-   std::shared_ptr<ZeroConfContainer>   zeroConfCont_;
+   std::shared_ptr<ZeroConfContainer> zeroConfCont_;
 
 public:
    BlockDataManager(const BlockDataManagerConfig &config);
@@ -214,7 +214,11 @@ public:
       return zeroConfCont_;
    }
 
-   void shutdownNode(void) { networkNode_->shutdown(); }
+   void shutdownNode(void) 
+   { 
+      watchNode_->shutdown();
+      processNode_->shutdown(); 
+   }
    void shutdownNotifications(void) { notificationStack_.terminate(); }
 
 public:
