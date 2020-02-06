@@ -351,7 +351,7 @@ void ZeroConfContainer::dropZC(
 
       map<BinaryData, shared_ptr<TxIOPair>> revisedTxioMap;
       auto& txios = mapIter->second;
-      for (auto& txio_pair : *txios)
+      for (auto& txio_pair : txios)
       {
          //if the txio is keyed by our zc, do not keep it
          if (txio_pair.first.startsWith(zcKey))
@@ -377,9 +377,7 @@ void ZeroConfContainer::dropZC(
          return;
       }
 
-      auto txioMapPtr = make_shared<
-         map<BinaryData, shared_ptr<TxIOPair>>>(move(revisedTxioMap));
-      mapIter->second = txioMapPtr;
+      mapIter->second = move(revisedTxioMap);
    };
 
    /*** drop tx from snapshot ***/
@@ -811,9 +809,9 @@ void ZeroConfContainer::parseNewZC(
                auto saIter = txiomap.find(saTxio.first);
                if (saIter != txiomap.end())
                {
-                  for (auto& newTxio : *saTxio.second)
+                  for (auto& newTxio : saTxio.second)
                   {
-                     auto insertIter = saIter->second->insert(newTxio);
+                     auto insertIter = saIter->second.insert(newTxio);
                      if (insertIter.second == false)
                         insertIter.first->second = newTxio.second;
                   }
@@ -891,8 +889,6 @@ void ZeroConfContainer::parseNewZC(
    //prepare notifications
    auto newZcKeys =
       make_shared<map<BinaryData, shared_ptr<set<BinaryDataRef>>>>();
-   auto newTxPtrMap =
-      make_shared<map<BinaryDataRef, shared_ptr<ParsedTx>>>();
    for (auto& newKey : addedZcKeys)
    {
       //fill key to spent scrAddr map
@@ -903,16 +899,6 @@ void ZeroConfContainer::parseNewZC(
 
       auto addr_pair = make_pair(newKey, move(spentScrAddr));
       newZcKeys->insert(move(addr_pair));
-
-      //fill new zc map
-      auto zcIter = txmap.find(newKey);
-      if (zcIter == txmap.end())
-      {
-         LOGWARN << "this should not happen!";
-         continue;
-      }
-
-      newTxPtrMap->insert(*zcIter);
    }
 
    for (auto& bdvMap : flaggedBDVs)
@@ -921,7 +907,7 @@ void ZeroConfContainer::parseNewZC(
          continue;
 
       NotificationPacket notificationPacket(bdvMap.first);
-      notificationPacket.txMap_ = newTxPtrMap;
+      notificationPacket.ssPtr_ = ss;
 
       for (auto& sa : bdvMap.second.second.txioKeys_)
       {
@@ -929,7 +915,15 @@ void ZeroConfContainer::parseNewZC(
          if (saIter == txiomap.end())
             continue;
 
-         notificationPacket.txioMap_.insert(*saIter);
+         //copy the txiomap for this scrAddr over to the notification object
+         auto notifPacketIter = notificationPacket.txioMap_.emplace(
+            saIter->first.getRef(), 
+            map<BinaryDataRef, shared_ptr<TxIOPair>>());
+         auto& notifTxioMap = notifPacketIter.first->second;
+         
+         for (auto& txio : saIter->second)
+            notifTxioMap.emplace(txio.first.getRef(), txio.second);
+
       }
 
       if (bdvMap.second.second.invalidatedKeys_.size() != 0)
@@ -1099,11 +1093,7 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
          bulkData.txOutsSpentByZC_.insert(txiokey);
 
       auto& key_txioPair = bulkData.scrAddrTxioMap_[sa];
-
-      if (key_txioPair == nullptr)
-         key_txioPair = make_shared<map<BinaryData, shared_ptr<TxIOPair>>>();
-
-      (*key_txioPair)[txiokey] = move(txio);
+      key_txioPair[txiokey] = move(txio);
 
       for (auto& bdvId : flaggedBDVs)
          bulkData.flaggedBDVs_[bdvId].txioKeys_.insert(sa);
@@ -1303,7 +1293,7 @@ map<BinaryData, shared_ptr<TxIOPair>> ZeroConfContainer::getUnspentZCforScrAddr(
       auto& zcMap = saIter->second;
       map<BinaryData, shared_ptr<TxIOPair>> returnMap;
 
-      for (auto& zcPair : *zcMap)
+      for (auto& zcPair : zcMap)
       {
          if (zcPair.second->hasTxIn())
             continue;
@@ -1314,7 +1304,7 @@ map<BinaryData, shared_ptr<TxIOPair>> ZeroConfContainer::getUnspentZCforScrAddr(
       return returnMap;
    }
 
-   return map<BinaryData, shared_ptr<TxIOPair>>();
+   return {};
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1330,7 +1320,7 @@ map<BinaryData, shared_ptr<TxIOPair>> ZeroConfContainer::getRBFTxIOsforScrAddr(
       auto& zcMap = saIter->second;
       map<BinaryData, shared_ptr<TxIOPair>> returnMap;
 
-      for (auto& zcPair : *zcMap)
+      for (auto& zcPair : zcMap)
       {
          if (!zcPair.second->hasTxIn())
             continue;
@@ -1962,9 +1952,14 @@ void ZeroConfContainer::zcBroadcastThread(ZcBroadcastPacket& packet)
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::shutdown()
 {
+   if (actionQueue_ != nullptr)
+   {
+      actionQueue_->shutdown();
+      actionQueue_ = nullptr;
+   }
+
    zcWatcherQueue_.terminate();
    zcPreprocessQueue_.terminate();
-   actionQueue_->shutdown();
    updateBatch_.terminate();
 
    vector<thread::id> idVec;
@@ -1995,7 +1990,7 @@ void ZeroConfContainer::increaseParserThreadPool(unsigned count)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<map<BinaryData, shared_ptr<TxIOPair>>>
+const map<BinaryData, shared_ptr<TxIOPair>>&
    ZeroConfContainer::getTxioMapForScrAddr(const BinaryData& scrAddr) const
 {
    auto ss = getSnapshot();
@@ -2003,7 +1998,7 @@ shared_ptr<map<BinaryData, shared_ptr<TxIOPair>>>
 
    auto iter = txiomap.find(scrAddr);
    if (iter == txiomap.end())
-      return nullptr;
+      throw runtime_error("no txio for this scraddr");
 
    return iter->second;
 }

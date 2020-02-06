@@ -156,22 +156,22 @@ map<BinaryData, TxIOPair> ScrAddrObj::scanZC(const ScanAddressStruct& scanInfo,
    auto haveIter = scanInfo.zcMap_.find(scrAddr_);
    if (haveIter == scanInfo.zcMap_.end())
    {
-      if(scanInfo.zcState_ == nullptr)
+      /*if(scanInfo.zcState_ == nullptr)
          return newZC;
 
       haveIter = scanInfo.zcState_->txioMap_.find(scrAddr_);
-      if (haveIter == scanInfo.zcState_->txioMap_.end())
+      if (haveIter == scanInfo.zcState_->txioMap_.end())*/
          return newZC;
    }
 
-   if (haveIter->second == nullptr)
+   if (haveIter->second.size() == 0)
    {
       LOGWARN << "empty zc notification txio map";
       return newZC;
    }
 
    //look for new keys
-   auto& zcTxIOMap = *haveIter->second;
+   auto& zcTxIOMap = haveIter->second;
    for (auto& txiopair : zcTxIOMap)
    {
       auto& newtxio = txiopair.second;
@@ -184,6 +184,7 @@ map<BinaryData, TxIOPair> ScrAddrObj::scanZC(const ScanAddressStruct& scanInfo,
          if (txio.hasTxIn())
          {
             if (txio.getDBKeyOfInput() == newtxio->getDBKeyOfInput())
+            //if (!newtxio->hasTxIn())
                continue;
          }
       }

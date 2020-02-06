@@ -346,8 +346,8 @@ struct ZeroConfSharedStateSnapshot
 
    //TODO: rethink this map, slow to purge
    //<scrAddr,  <dbKeyOfOutput, TxIOPair>> 
-   std::map<BinaryData, std::shared_ptr<
-      std::map<BinaryData, std::shared_ptr<TxIOPair>>>>  txioMap_;
+   std::map<BinaryData, 
+      std::map<BinaryData, std::shared_ptr<TxIOPair>>> txioMap_;
 
    static std::shared_ptr<ZeroConfSharedStateSnapshot> copy(
       std::shared_ptr<ZeroConfSharedStateSnapshot> obj)
@@ -420,8 +420,7 @@ class ZeroConfContainer
 private:
    struct BulkFilterData
    {
-      std::map<BinaryData, std::shared_ptr<std::map<BinaryData, std::shared_ptr<TxIOPair>>>>
-         scrAddrTxioMap_;
+      std::map<BinaryData, std::map<BinaryData, std::shared_ptr<TxIOPair>>> scrAddrTxioMap_;
       std::map<BinaryDataRef, std::map<unsigned, BinaryDataRef>> outPointsSpentByKey_;
       std::set<BinaryData> txOutsSpentByZC_;
       std::map<BinaryDataRef, std::shared_ptr<std::set<BinaryDataRef>>> keyToSpentScrAddr_;
@@ -436,11 +435,13 @@ public:
    struct NotificationPacket
    {
       std::string bdvID_;
-      std::map<BinaryData, std::shared_ptr<std::map<BinaryData, std::shared_ptr<TxIOPair>>>> txioMap_;
+      std::map<BinaryDataRef, std::map<BinaryDataRef, std::shared_ptr<TxIOPair>>> txioMap_;
       std::shared_ptr<ZcPurgePacket> purgePacket_;
       std::shared_ptr<std::map<BinaryData, std::shared_ptr<std::set<BinaryDataRef>>>>
          newKeysAndScrAddr_;
-      std::shared_ptr<std::map<BinaryDataRef, std::shared_ptr<ParsedTx>>> txMap_;
+
+      //keep a reference to the snapshot so that other references live as long as this object
+      std::shared_ptr<ZeroConfSharedStateSnapshot> ssPtr_;
 
       NotificationPacket(const std::string& bdvID) :
          bdvID_(bdvID)
@@ -572,7 +573,7 @@ public:
    bool isEnabled(void) const { return zcEnabled_.load(std::memory_order_relaxed); }
    void pushZcToParser(const BinaryDataRef& rawTx);
 
-   std::shared_ptr<std::map<BinaryData, std::shared_ptr<TxIOPair>> >
+   const std::map<BinaryData, std::shared_ptr<TxIOPair>>&
       getTxioMapForScrAddr(const BinaryData&) const;
 
    std::shared_ptr<ZeroConfSharedStateSnapshot> getSnapshot(void) const

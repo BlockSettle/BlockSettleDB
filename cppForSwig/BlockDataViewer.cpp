@@ -759,10 +759,15 @@ unique_ptr<BDV_Notification_ZC> BlockDataViewer::createZcNotification(
          if (!filter(bdref))
             continue;
 
-         packet.txioMap_.insert(txiopair);
+         auto iter = packet.txioMap_.emplace(
+            txiopair.first.getRef(),
+            map<BinaryDataRef, shared_ptr<TxIOPair>>());
+         for (auto& txio : txiopair.second)
+            iter.first->second.emplace(txio.first.getRef(), txio.second);
       }
    }
 
+   packet.ssPtr_ = ss;
    auto notifPtr = make_unique<BDV_Notification_ZC>(packet);
    return notifPtr;
 }
@@ -862,7 +867,7 @@ BlockDataViewer::getAddressOutpoints(
          if (addrIter == zcSnapshot->txioMap_.end())
             continue;
 
-         for (auto& txiopair : *addrIter->second)
+         for (auto& txiopair : addrIter->second)
          {
             //grab txoutref, useful in all but 1 case
             auto&& txOutRef = txiopair.second->getTxRefOfOutput();
@@ -1029,7 +1034,7 @@ vector<UTXO> BlockDataViewer::getUtxosForAddress(
    if (addrIter == zcSnapshot->txioMap_.end())
       return result;
 
-   for (auto& txiopair : *addrIter->second)
+   for (auto& txiopair : addrIter->second)
    {
       //grab txoutref, useful in all but 1 case
       auto&& txOutRef = txiopair.second->getTxRefOfOutput();

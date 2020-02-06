@@ -284,14 +284,19 @@ map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(BlockDataManager* bdm,
 
       //push the staged transactions
       vector<InvEntry> invVec;
+      map<BinaryData, BinaryData> rawTxMap;
       for (auto& tx : mempool_)
       {
          InvEntry ie;
          ie.invtype_ = Inv_Msg_Witness_Tx;
          memcpy(ie.hash, tx.first.getPtr(), 32);
          invVec.emplace_back(ie);
+
+         rawTxMap.insert(make_pair(
+            tx.first, tx.second->rawTx_));
       }
       
+      rawTxMap_.update(rawTxMap);
       processInvTx(invVec);
    }
    else
@@ -451,7 +456,7 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
             obj->hash_ = hashBd;
             obj->order_ = counter_.fetch_add(1, memory_order_relaxed);
             
-            //TODO: tie this with zc delay and stashing
+            //TODO: tie this with zc delay and staging
             obj->blocksUntilMined_ = 0;
             obj->staged_ = false;
 
@@ -487,6 +492,7 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
       if (payloadGetData == nullptr)
          throw runtime_error("invalid payload type");
 
+      vector<BinaryData> grabbedTxs;
       for (auto& inv : payloadGetData->getInvVector())
       {
          auto txMap = rawTxMap_.get();
@@ -495,6 +501,7 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
          if (iter == txMap->end())
             continue;
 
+         grabbedTxs.push_back(iter->first);
          auto payloadTx = make_unique<Payload_Tx>();
 
          vector<uint8_t> rawTx(iter->second.getSize());
@@ -503,6 +510,8 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
          
          getTxDataLambda_(move(payloadTx));
       }
+
+      rawTxMap_.erase(grabbedTxs);
 
       break;
    }

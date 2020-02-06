@@ -1626,8 +1626,8 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
                bwKey.put_uint16_t((uint16_t)y, BE);
 
                //grab txio
-               auto txioIter = txioMapIter->second->find(bwKey.getData());
-               if (txioIter == txioMapIter->second->end())
+               auto txioIter = txioMapIter->second.find(bwKey.getData());
+               if (txioIter == txioMapIter->second.end())
                {
                   hashes.push_back({BinaryData(), 0});
                   continue;

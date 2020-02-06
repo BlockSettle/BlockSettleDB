@@ -67,6 +67,8 @@ void LedgerEntry::pprint(void)
    cout << "   sentSelf: " << (isSentToSelf() ? 1 : 0) << endl;
    cout << "   isChange: " << (isChangeBack() ? 1 : 0) << endl;
    cout << "   isOptInRBF: " << (isOptInRBF() ? 1 : 0) << endl;
+   for (auto& addr : scrAddrSet_)
+      cout << "   scrAddr: " << addr.toHexStr() << endl;
    cout << endl;
 }
 

@@ -1957,22 +1957,32 @@ TEST_F(BlockUtilsWithWalletTest, UnrelatedZC_CheckLedgers)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
    EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
 
-   auto zcTxios = 
-      theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
-         TestChain::scrAddrD);
-   ASSERT_NE(zcTxios, nullptr);
-   EXPECT_EQ(zcTxios->size(), 1);
-   iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
-   DBTestUtils::addTxioToSsh(ssh, *zcTxios);
-   EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
+   try
+   {
+      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
+            TestChain::scrAddrD);
+      EXPECT_EQ(zcTxios.size(), 1);
+      iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
+      DBTestUtils::addTxioToSsh(ssh, zcTxios);
+      EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
+   }
+   catch (exception&)
+   {
+      ASSERT_TRUE(false);
+   }
 
-   zcTxios = 
-      theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
-         TestChain::scrAddrF);
-   ASSERT_NE(zcTxios, nullptr);
-   iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
-   DBTestUtils::addTxioToSsh(ssh, *zcTxios);
-   EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
+   try
+   {
+      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
+            TestChain::scrAddrF);
+      iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
+      DBTestUtils::addTxioToSsh(ssh, zcTxios);
+      EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
+   }
+   catch (exception&)
+   {
+      ASSERT_TRUE(false);
+   }
 
    //grab ledger for 1st ZC, should be empty
    auto zcledger = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash1);
@@ -2010,17 +2020,27 @@ TEST_F(BlockUtilsWithWalletTest, UnrelatedZC_CheckLedgers)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
    EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
 
-   zcTxios = 
-      theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
+   try
+   {
+      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
          TestChain::scrAddrD);
-   ASSERT_EQ(zcTxios, nullptr);
+      ASSERT_TRUE(false);
+   }
+   catch (exception&)
+   {}
+   
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
 
-   zcTxios = 
-      theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
-         TestChain::scrAddrF);
-   ASSERT_EQ(zcTxios, nullptr);
+   try
+   {   
+      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
+            TestChain::scrAddrF);
+      ASSERT_TRUE(false);
+   }
+   catch (exception&)
+   {}
+
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
 
@@ -2097,21 +2117,31 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAfterZC)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
    EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
 
-   auto zcTxios = 
-      theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
-         TestChain::scrAddrD);
-   ASSERT_NE(zcTxios, nullptr);
-   iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
-   DBTestUtils::addTxioToSsh(ssh, *zcTxios);
-   EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
+   try
+   {
+      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
+            TestChain::scrAddrD);
+      iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
+      DBTestUtils::addTxioToSsh(ssh, zcTxios);
+      EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
+   }
+   catch (exception&)
+   {
+      ASSERT_TRUE(false);
+   }
 
-   zcTxios = 
-      theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
-         TestChain::scrAddrF);
-   ASSERT_NE(zcTxios, nullptr);
-   iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
-   DBTestUtils::addTxioToSsh(ssh, *zcTxios);
-   EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
+   try
+   {
+      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
+            TestChain::scrAddrF);
+      iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
+      DBTestUtils::addTxioToSsh(ssh, zcTxios);
+      EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
+   }
+   catch (exception&)
+   {
+      ASSERT_TRUE(false);
+   }
 
    //Register scrAddrD with the wallet. It should have the ZC balance
    scrAddrVec.push_back(TestChain::scrAddrD);
@@ -3472,7 +3502,7 @@ protected:
       config.dataDir_ = homedir_;
       config.ephemeralPeers_ = false;
 
-      unsigned port_int = 50000 + rand() % 10000;
+      unsigned port_int = 51152;
       stringstream port_ss;
       port_ss << port_int;
       config.listenPort_ = port_ss.str();
@@ -4030,11 +4060,6 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 
    auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
    auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-   /*DBTestUtils::ZcVector rawZcVec;
-   rawZcVec.push_back(ZC1, 1300000000);
-   rawZcVec.push_back(ZC2, 1310000000);
-   DBTestUtils::pushNewZc(theBDMt_, rawZcVec);*/
 
    bdvObj->broadcastZC(ZC1);
    bdvObj->broadcastZC(ZC2);

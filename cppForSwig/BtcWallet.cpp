@@ -414,17 +414,6 @@ vector<AddressBookEntry> BtcWallet::createAddressBook(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-/*void BtcWallet::updateAfterReorg(uint32_t lastValidBlockHeight)
-{
-   auto addrMap = scrAddrMap_.get();
-
-   for (auto& scrAddr : *addrMap)
-   {
-      scrAddr.second->updateAfterReorg(lastValidBlockHeight);
-   }
-}*/
-
-////////////////////////////////////////////////////////////////////////////////
 map<BinaryData, TxIOPair> BtcWallet::scanWalletZeroConf(
    const ScanWalletStruct& scanInfo, int32_t updateID)
 {
@@ -476,10 +465,7 @@ bool BtcWallet::scanWallet(ScanWalletStruct& scanInfo, int32_t updateID)
 {
    if (scanInfo.action_ != BDV_ZC)
    {
-      //new top block
-      /*if (scanInfo.reorg_)
-         updateAfterReorg(scanInfo.startBlock_);*/
-         
+      //new top block         
       auto&& tx = bdvPtr_->getDB()->beginTransaction(SSH, LMDB::ReadOnly);
       balance_ = getFullBalanceFromDB(updateID);
    }
