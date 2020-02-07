@@ -406,7 +406,7 @@ int WebSocketClient::callback(struct lws *wsi,
          }
       }
 
-      auto& packet = instance->currentWriteMessage_.getNextPacket();
+      auto&& packet = instance->currentWriteMessage_.consumeNextPacket();
       auto body = (uint8_t*)packet.getPtr() + LWS_PRE;
       auto m = lws_write(wsi, 
          body, packet.getSize() - LWS_PRE,

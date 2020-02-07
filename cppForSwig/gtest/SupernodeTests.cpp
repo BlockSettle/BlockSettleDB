@@ -3633,8 +3633,15 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       bdvObj->unregisterFromDB();
    }
 
+   unsigned nThreads = 200;
+   vector<shared_ptr<atomic<unsigned>>> times(nThreads);
+   for (unsigned z=0; z<nThreads; z++)
+      times[z] = make_shared<atomic<unsigned>>();
+   atomic<unsigned> counter = {0};
    auto request_lambda = [&](void)->void
    {
+      auto this_id = counter.fetch_add(1, memory_order_relaxed);
+      auto rightnow = chrono::system_clock::now();
       auto&& scrAddrVec = createNAddresses(6);
       scrAddrVec.push_back(TestChain::scrAddrA);
       scrAddrVec.push_back(TestChain::scrAddrB);
@@ -3908,6 +3915,9 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       for(auto& utxo : utxos)
       {
          auto& hash = utxo.getTxHash();
+         if (futMap.find(hash) != futMap.end())
+            continue;
+
          auto utxoProm = make_shared<promise<Tx>>();
          futMap.insert(make_pair(hash, utxoProm->get_future()));
          auto utxoLBD = [utxoProm](ReturnMessage<Tx> tx)->void
@@ -3956,16 +3966,44 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       EXPECT_EQ(rekeyCount.first, 2);
       EXPECT_TRUE(rekeyCount.second > 7);
       bdvObj->unregisterFromDB();
+
+      auto time_ms = chrono::duration_cast<chrono::milliseconds>(
+         chrono::system_clock::now() - rightnow);
+      times[this_id]->store(time_ms.count(), memory_order_relaxed);
    };
 
    vector<thread> thrV;
-   for(unsigned ct=0; ct<20; ct++)
+   for(unsigned ct=0; ct<nThreads; ct++)
       thrV.push_back(thread(request_lambda));
 
    for(auto& thr : thrV)
    {
       if(thr.joinable())
          thr.join();
+   }
+
+   {
+      struct comparator
+      {
+         inline bool operator()(const shared_ptr<atomic<unsigned>>& lhs, const shared_ptr<atomic<unsigned>>& rhs)
+         {
+            return lhs->load(memory_order_relaxed) < rhs->load(memory_order_relaxed);
+         }
+      };
+
+      sort(times.begin(), times.end(), comparator());
+      unsigned total = 0;
+      for (auto& tp : times)
+         total += tp->load(memory_order_relaxed);
+      
+      cout << "completion average: " << total / nThreads << endl;
+      cout << "top 5:" << endl;
+      for (unsigned i=nThreads -1 ; i>nThreads - 6; i--)
+         cout << "  " << *times[i] << endl;
+
+      cout << "bottom 5:" << endl;
+      for (unsigned i=0; i<5; i++)
+         cout << "  " << *times[i] << endl;
    }
 
    auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(

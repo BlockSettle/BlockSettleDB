@@ -87,7 +87,9 @@ public:
       uint8_t, uint32_t id = 0);
 
    bool isDone(void) const { return index_ >= packets_.size(); }
-   const BinaryData& getNextPacket(void) const;
+   BinaryData consumeNextPacket(void);
+   unsigned count(void) const { return packets_.size(); }
+   void clear(void) { packets_.clear(); }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
