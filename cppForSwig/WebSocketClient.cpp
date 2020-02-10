@@ -236,7 +236,7 @@ void WebSocketClient::service(lws_context* contextPtr)
    int n = 0;
    while(run_.load(memory_order_relaxed) != 0 && n >= 0)
    {
-      n = lws_service(contextPtr, 50);
+      n = lws_service(contextPtr, 500);
    }
 
    lws_context_destroy(contextPtr);
@@ -322,6 +322,8 @@ void WebSocketClient::cleanUp()
       if (thr.joinable())
          thr.join();
    }
+
+   LOGINFO << "lws client cleaned up";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -474,7 +476,7 @@ void WebSocketClient::readService()
 
          if (result != 0)
          {
-            //see WebSocketServer::commandThread for the explainantion
+            //see WebSocketServer::commandThread for the explaination
             if (result <= WEBSOCKET_MESSAGE_PACKET_SIZE && result > -1)
             {
                leftOverData_ = move(payload);

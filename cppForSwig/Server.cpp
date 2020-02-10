@@ -123,16 +123,29 @@ int WebSocketServer::callback(
    case LWS_CALLBACK_SERVER_WRITEABLE:
    {
       auto wsPtr = WebSocketServer::getInstance();
+      
+      if (wsi != *wsPtr->pendingWritesIter_)
+      {
+         /*
+         Sanity check: skip over lws pollin callbacks that are not 
+         for our expected wsi, as we have not requested those (lws 
+         ping/pong routines typically)
+         */
+         break;
+      }
+
       auto iter = wsPtr->writeMap_.find(wsi);
       if (iter == wsPtr->writeMap_.end())
       {
          wsPtr->pendingWrites_.erase(wsPtr->pendingWritesIter_++);
+         LOGWARN << "incrementing over missing wsi write list";
          break;
       }
 
       if (iter->second.empty())
       {
          wsPtr->pendingWrites_.erase(wsPtr->pendingWritesIter_++);
+         LOGWARN << "incrementing over empty wsi write list";
          break;
       }
 
