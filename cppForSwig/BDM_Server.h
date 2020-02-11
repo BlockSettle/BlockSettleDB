@@ -212,8 +212,6 @@ public:
 
    std::set<std::string> hasScrAddr(const BinaryDataRef&) const;
    void pushZcNotification(ZeroConfContainer::NotificationPacket& packet);
-   void errorCallback(
-      const std::string& bdvId, std::string& errorStr, const std::string& txHash);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

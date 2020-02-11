@@ -880,15 +880,13 @@ vector<BinaryData> ConfigFile::fleshOutArgs(
 BinaryData BDV_Error_Struct::serialize(void) const
 {
    BinaryWriter bw;
-   bw.put_uint8_t(errType_);
+   bw.put_int32_t(errCode_);
 
-   BinaryDataRef errbdr((const uint8_t*)errorStr_.c_str(), errorStr_.size());
+   bw.put_var_int(errData_.getSize());
+   bw.put_BinaryData(errData_);
+
    bw.put_var_int(errorStr_.size());
-   bw.put_BinaryData(errbdr);
-
-   BinaryDataRef extbdr((const uint8_t*)extraMsg_.c_str(), extraMsg_.size());
-   bw.put_var_int(extraMsg_.size());
-   bw.put_BinaryData(extbdr);
+   bw.put_String(errorStr_);
 
    return bw.getData();
 }
@@ -898,18 +896,11 @@ void BDV_Error_Struct::deserialize(const BinaryData& data)
 {
    BinaryRefReader brr(data);
 
-   errType_ = BDV_ErrorType(brr.get_uint8_t());
+   errCode_ = brr.get_int32_t();
    
    auto len = brr.get_var_int();
-   errorStr_ = move(string((char*)brr.get_BinaryDataRef(len).getPtr(), len));
+   errData_ = brr.get_BinaryData(len);
 
    len = brr.get_var_int();
-   extraMsg_ = move(string((char*)brr.get_BinaryDataRef(len).getPtr(), len));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BDV_Error_Struct BDV_Error_Struct::cast_to_BDVErrorStruct(void* ptr)
-{
-   auto obj = (BDV_Error_Struct*)ptr;
-   return *obj;
+   errorStr_ = brr.get_String(len);
 }

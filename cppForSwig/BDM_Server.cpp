@@ -2055,7 +2055,7 @@ void BDV_Server_Object::processNotification(
       break;
    }
 
-   case BDV_Error:
+   case BDV_Action::BDV_Error:
    {
       auto&& payload =
          dynamic_pointer_cast<BDV_Notification_Error>(notifPtr);
@@ -2064,9 +2064,18 @@ void BDV_Server_Object::processNotification(
       notif->set_type(NotificationType::error);
       auto error = notif->mutable_error();
 
-      error->set_type((unsigned)payload->errStruct.errType_);
-      error->set_error(payload->errStruct.errorStr_);
-      error->set_extra(payload->errStruct.extraMsg_);
+      error->set_code(payload->errStruct.errCode_);      
+      if (!payload->errStruct.errData_.isNull())
+      {
+         error->set_errdata(
+            payload->errStruct.errData_.getCharPtr(), 
+            payload->errStruct.errData_.getSize());
+      }
+
+      if (!payload->errStruct.errorStr_.empty())
+      {
+         error->set_errstr(payload->errStruct.errorStr_);
+      }
 
       break;
    }
@@ -2307,16 +2316,16 @@ BDVCommandProcessingResultType BDV_Server_Object::processPayload(
       }
       catch (exception &e)
       {
-         auto errMsg = make_shared<::Codec_NodeStatus::BDV_Error>();
-         errMsg->set_type(1);
+         auto errMsg = make_shared<::Codec_BDVCommand::BDV_Error>();
          stringstream ss;
          ss << "Error processing command: " << (int)message->method() << endl;
-         errMsg->set_error(ss.str());
-         
          string errStr(e.what());
          if (errStr.size() > 0)
-            errMsg->set_extra(e.what());
+            ss << e.what();
 
+         errMsg->set_code(-1);
+         errMsg->set_errstr(ss.str());
+         
          result = errMsg;
       }
       
@@ -2361,8 +2370,14 @@ void Clients::init(BlockDataManagerThread* bdmT,
       this->unregisterBDVThread();
    };
 
+   auto rpcThread = [this](void)->void
+   {
+      this->broadcastThroughRPC();
+   };
+
    controlThreads_.push_back(thread(mainthread));
    controlThreads_.push_back(thread(outerthread));
+   controlThreads_.push_back(thread(rpcThread));
    unregThread_ = thread(unregistrationThread);
 
    unsigned innerThreadCount = 2;
@@ -2527,6 +2542,9 @@ void Clients::shutdown()
    //prevent all new commands from running
    run_.store(false, memory_order_relaxed);
 
+   //shutdown rpc write queue
+   rpcBroadcastQueue_.terminate();
+
    //shutdown Clients gc thread
    gcCommands_.completed();
 
@@ -2599,9 +2617,9 @@ shared_ptr<Message> Clients::registerBDV(
    }
    catch (runtime_error& e)
    {
-      auto response = make_shared<::Codec_NodeStatus::BDV_Error>();
-      response->set_type(Error_BDV);
-      response->set_error(e.what());
+      auto response = make_shared<::Codec_BDVCommand::BDV_Error>();
+      response->set_code(-1);
+      response->set_errstr(e.what());
       return response;
    }
 
@@ -2828,21 +2846,24 @@ void Clients::broadcastThroughRPC()
          break;
       }
 
-      auto&& response =
+      auto result =
          bdmT_->bdm()->nodeRPC_->broadcastTx(packet.rawTx_.getRef());
 
-      if (response == "success")
+      if (result == 0)
       {
-         bdmT_->bdm()->zeroConfCont_->pushZcToParser(packet.rawTx_.getRef());
+         cout << "rpc broadcast success" << endl;
+         continue;
       }
+
+      cout << "rpc broadcast error: " << result << endl;
 
       Tx tx(packet.rawTx_);
 
       auto notifPacket = make_shared<BDV_Notification_Packet>();
       notifPacket->bdvPtr_ = packet.bdvPtr_;
       notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-         packet.bdvPtr_->getID(), Error_ZC, 
-         move(response), tx.getThisHash().toHexStr());
+         packet.bdvPtr_->getID(), result,
+         tx.getThisHash(), "rpc broadcast error");
       innerBDVNotifStack_.push_back(move(notifPacket));
    }
 }
@@ -2898,16 +2919,37 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
          break;
       BinaryDataRef rawTxRef; rawTxRef.setRef(rawTx);
 
-      auto errorCallback = [this, bdvPtr](BinaryData rawZc, ZCBroadcastStatus)->void
+      auto errorCallback = [this, bdvPtr](
+         map<BinaryData, shared_ptr<BinaryData>> zcMap, 
+         ZCBroadcastStatus status)->void
       {
-         RpcBroadcastPacket packet;
-         packet.rawTx_ = move(rawZc);
-         packet.bdvPtr_ = bdvPtr;
-         rpcBroadcastQueue_.push_back(move(packet));
+         if (status != ZCBroadcastStatus_P2P_Timeout)
+         {
+            //signal error and return
+            for (auto& rawZc : zcMap)
+            {
+               auto notifPacket = make_shared<BDV_Notification_Packet>();
+               notifPacket->bdvPtr_ = bdvPtr;
+               notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
+                  bdvPtr->getID(), -1,
+                  rawZc.first, string("p2p node down"));
+               innerBDVNotifStack_.push_back(move(notifPacket));
+            }
+
+            return;
+         }
+
+         for (auto& rawZc : zcMap)
+         {
+            RpcBroadcastPacket packet;
+            packet.rawTx_ = move(*rawZc.second);
+            packet.bdvPtr_ = bdvPtr;
+            rpcBroadcastQueue_.push_back(move(packet));
+         }
       };
 
       bdmT_->bdm()->zeroConfCont_->broadcastZC(
-         rawTxRef, 10000, errorCallback);
+         rawTxRef, 3000, errorCallback);
 
       break;
    }
@@ -2940,9 +2982,6 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       packet.bdvPtr_ = bdvPtr;
       rpcBroadcastQueue_.push_back(move(packet));
 
-      //Reset result as it is the zc message. ZC replies are 
-      //delivered through the callback API.
-      result = nullptr;
       break;
    }
 
@@ -3060,25 +3099,6 @@ void ZeroConfCallbacks_BDV::pushZcNotification(
    auto notifPacket = make_shared<BDV_Notification_Packet>();
    notifPacket->bdvPtr_ = iter->second;
    notifPacket->notifPtr_ = make_shared<BDV_Notification_ZC>(packet);
-   clientsPtr_->innerBDVNotifStack_.push_back(move(notifPacket));
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void ZeroConfCallbacks_BDV::errorCallback(
-   const string& bdvId, string& errorStr, const string& txHash)
-{
-   auto bdvPtr = clientsPtr_->BDVs_.get();
-   auto iter = bdvPtr->find(bdvId);
-   if (iter == bdvPtr->end())
-   {
-      LOGWARN << "pushed zc error for missing bdv";
-      return;
-   }
-
-   auto notifPacket = make_shared<BDV_Notification_Packet>();
-   notifPacket->bdvPtr_ = iter->second;
-   notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-      bdvId, Error_ZC, move(errorStr), txHash);
    clientsPtr_->innerBDVNotifStack_.push_back(move(notifPacket));
 }
 

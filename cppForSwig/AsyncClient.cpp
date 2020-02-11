@@ -1136,11 +1136,11 @@ void AsyncClient::deserialize(
 {
    if (!partialMsg.getMessage(ptr))
    {
-      ::Codec_NodeStatus::BDV_Error errorMsg;
+      ::Codec_BDVCommand::BDV_Error errorMsg;
       if (!partialMsg.getMessage(&errorMsg))
-         throw ClientMessageError("unknown error deserializing message");
+         throw ClientMessageError("unknown error deserializing message", -1);
 
-      throw ClientMessageError(errorMsg.error());
+      throw ClientMessageError(errorMsg.errstr(), errorMsg.code());
    }
 }
 
@@ -1181,7 +1181,8 @@ void CallbackReturn_String::callback(
       AsyncClient::deserialize(&msg, partialMsg);
 
       if (msg.data_size() != 1)
-         throw ClientMessageError("invalid message in CallbackReturn_String");
+         throw ClientMessageError(
+            "invalid message in CallbackReturn_String", -1);
 
       auto str = msg.data(0);
       ReturnMessage<string> rm(str);
@@ -1214,7 +1215,8 @@ void CallbackReturn_LedgerDelegate::callback(
       AsyncClient::deserialize(&msg, partialMsg);
 
       if (msg.data_size() != 1)
-         throw ClientMessageError("invalid message in CallbackReturn_LedgerDelegate");
+         throw ClientMessageError(
+            "invalid message in CallbackReturn_LedgerDelegate", -1);
 
       auto& str = msg.data(0);
 

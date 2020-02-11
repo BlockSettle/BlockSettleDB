@@ -29,6 +29,7 @@
 #define WEBSOCKET_PORT 7681
 
 class BitcoinNodeInterface;
+class NodeRPCInterface;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct BlockDataManagerConfig
@@ -60,6 +61,8 @@ public:
    std::pair<
       std::shared_ptr<BitcoinNodeInterface>, 
       std::shared_ptr<BitcoinNodeInterface>> bitcoinNodes_;
+   std::shared_ptr<NodeRPCInterface> rpcNode_;
+
    std::string btcPort_;
    std::string listenPort_;
    std::string rpcPort_;
@@ -156,13 +159,11 @@ struct ConfigFile
 struct BDV_Error_Struct
 {
    std::string errorStr_;
-   BDV_ErrorType errType_;
-   std::string extraMsg_;
+   BinaryData errData_;
+   unsigned errCode_;
 
    BinaryData serialize(void) const;
    void deserialize(const BinaryData&);
-
-   static BDV_Error_Struct cast_to_BDVErrorStruct(void* ptr);
 };
 
 #endif

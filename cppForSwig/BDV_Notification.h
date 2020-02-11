@@ -146,20 +146,19 @@ struct BDV_Notification_Error : public BDV_Notification
 {
    BDV_Error_Struct errStruct;
 
-   BDV_Notification_Error(const std::string& bdvID,
-      BDV_ErrorType errt, std::string errstr, std::string extra) :
+   BDV_Notification_Error(const std::string& bdvID, unsigned errCode, 
+      const BinaryData& errData, const std::string& errStr) :
       BDV_Notification(bdvID)
    {
-      errStruct.errType_ = errt;
-      errStruct.errorStr_ = errstr;
-      errStruct.extraMsg_ = extra;
+      errStruct.errCode_ = errCode;
+      errStruct.errData_ = errData;
+      errStruct.errorStr_ = errStr;
    }
 
    BDV_Action action_type(void)
    {
-      return BDV_Error;
+      return BDV_Action::BDV_Error;
    }
-
 };
 
 class BDV_Server_Object;

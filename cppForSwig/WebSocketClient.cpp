@@ -274,9 +274,9 @@ void WebSocketClient::cleanUp()
    readPackets_.clear();
 
    //create error message to send to all outsanding read callbacks
-   ::Codec_NodeStatus::BDV_Error errMsg;
-   errMsg.set_type(1);
-   errMsg.set_error("LWS client disconnected");
+   ::Codec_BDVCommand::BDV_Error errMsg;
+   errMsg.set_code(-1);
+   errMsg.set_errstr("LWS client disconnected");
 
    BinaryData errPacket(errMsg.ByteSize());
    if (!errMsg.SerializeToArray(
