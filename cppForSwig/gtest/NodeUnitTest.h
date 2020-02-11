@@ -21,6 +21,7 @@
 #include "../Blockchain.h"
 #include "../ScriptRecipient.h"
 #include "../BlockDataMap.h"
+#include "../nodeRPC.h"
 
 struct UnitTestBlock
 {
@@ -64,6 +65,7 @@ private:
    
    std::shared_ptr<Blockchain> blockchain_ = nullptr;
    std::shared_ptr<BlockFiles> filesPtr_ = nullptr;
+   std::atomic<unsigned> skipZc_ = {0};
 
    MinedHeader header_;
 
@@ -87,6 +89,7 @@ public:
 
    std::vector<UnitTestBlock> getMinedBlocks(void) const { return blocks_; }
    void setReorgBranchPoint(std::shared_ptr<BlockHeader>);
+   void skipZc(unsigned);
 
    //<raw tx, blocks to wait until mining>
    void pushZC(const std::vector<std::pair<BinaryData, unsigned>>&, bool);
@@ -101,6 +104,32 @@ public:
    void connectToNode(bool) override;
    bool connected(void) const override { return true; }
    void shutdown(void) override;
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+class NodeRPC_UnitTest : public NodeRPCInterface
+{
+private:
+   std::shared_ptr<NodeUnitTest> nodePtr_;
+
+public:
+
+   NodeRPC_UnitTest(std::shared_ptr<NodeUnitTest> nodePtr) :
+      NodeRPCInterface(), nodePtr_(nodePtr)
+   {}
+
+   //virtuals
+   void shutdown(void) override {}
+   RpcStatus testConnection(void) override { return RpcStatus_Online; }
+   bool canPoll(void) const override { return false; }
+
+   void waitOnChainSync(std::function<void(void)>) {}
+   int broadcastTx(const BinaryDataRef&) override;
+
+   FeeEstimateResult getFeeByte(
+      unsigned, const std::string&) override
+   { return FeeEstimateResult(); }
 };
 
 #endif

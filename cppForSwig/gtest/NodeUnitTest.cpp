@@ -450,6 +450,17 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
             shared_ptr<Payload> payloadTxSPtr(move(iter->second->payload_));
             auto payloadTx = dynamic_pointer_cast<Payload_Tx>(payloadTxSPtr);
             
+            //cleanup getdatapayload map
+            getDataPayloadMap_.erase(hashBd);
+
+            //bail if we have to skip zc
+            bool skip = (skipZc_.load(memory_order_relaxed) != 0);
+            if (skip)
+            {
+               skipZc_.fetch_sub(1, memory_order_relaxed);
+               break;
+            }
+            
             auto obj = make_shared<MempoolObject>();
             auto rawTx = payloadTx->getRawTx();       
             obj->rawTx_ = BinaryData(&rawTx[0], rawTx.size());
@@ -460,14 +471,9 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
             obj->blocksUntilMined_ = 0;
             obj->staged_ = false;
 
-            mempool_.insert(make_pair(obj->hash_.getRef(), obj));
 
-            try
-            {
-               iter->second->promise_->set_value(true);
-            }
-            catch(...)
-            {}
+            //add to mempool
+            mempool_.insert(make_pair(obj->hash_.getRef(), obj));
 
             //send out the inventry through the watcher
             watcherInvQueue_.push_back(move(hashBd));
@@ -546,4 +552,25 @@ void NodeUnitTest::watcherProcess()
    }
 
    watcherInvQueue_.clear();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::skipZc(unsigned count)
+{
+   skipZc_.fetch_add(count, memory_order_relaxed);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// NodeRPC_UnitTest
+//
+////////////////////////////////////////////////////////////////////////////////
+int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx)
+{
+   vector<pair<BinaryData, unsigned>> pushVec;
+   pushVec.push_back(make_pair(BinaryData(rawTx), 0));
+   nodePtr_->pushZC(pushVec, false);
+
+   return 0; //success
 }

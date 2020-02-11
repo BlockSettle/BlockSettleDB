@@ -20,6 +20,7 @@
 #include "util.h"
 #include "BlockchainScanner.h"
 #include "DatabaseBuilder.h"
+#include "gtest/NodeUnitTest.h"
 
 using namespace std;
 
@@ -163,9 +164,9 @@ BlockDataManager::BlockDataManager(
    : config_(bdmConfig)
 {
 
-   if (bdmConfig.exceptionPtr_ != nullptr)
+   if (config_.exceptionPtr_ != nullptr)
    {
-      exceptPtr_ = bdmConfig.exceptionPtr_;
+      exceptPtr_ = config_.exceptionPtr_;
       LOGERR << "exception thrown in bdmConfig, aborting!";
       exit(-1);
    }
@@ -201,14 +202,9 @@ BlockDataManager::BlockDataManager(
       processNode_ = config_.bitcoinNodes_.first;
       watchNode_ = config_.bitcoinNodes_.second;
 
-      if (bdmConfig.getOperationMode() != OPERATION_UNITTEST)
-      {
-         nodeRPC_ = make_shared<NodeRPC>(config_);
-      }
-      else
-      {
-         nodeRPC_ = make_shared<NodeRPC_UnitTest>(config_);
-      }
+      if (config_.rpcNode_ == nullptr)
+         config_.rpcNode_ = make_shared<NodeRPC>(config_);
+      nodeRPC_ = config_.rpcNode_;
 
       if(processNode_ == nullptr)
       {
@@ -462,7 +458,7 @@ NodeStatusStruct BlockDataManager::getNodeStatus() const
 ////////////////////////////////////////////////////////////////////////////////
 void BlockDataManager::pollNodeStatus() const
 {
-   if (!nodeRPC_->canPool())
+   if (!nodeRPC_->canPoll())
       return;
 
    unique_lock<mutex> lock(*nodeStatusPollMutex_, defer_lock);

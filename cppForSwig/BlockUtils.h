@@ -149,7 +149,7 @@ public:
    typedef std::function<void(BDMPhase, double,unsigned, unsigned)> ProgressCallback;
    std::shared_ptr<BitcoinNodeInterface> processNode_, watchNode_;
    std::shared_future<bool> isReadyFuture_;
-   mutable std::shared_ptr<NodeRPC> nodeRPC_;
+   mutable std::shared_ptr<NodeRPCInterface> nodeRPC_;
 
    TimedQueue<std::unique_ptr<BDV_Notification>> notificationStack_;
    std::shared_ptr<ZeroConfContainer> zeroConfCont_;
