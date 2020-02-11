@@ -1248,15 +1248,7 @@ void BitcoinP2P::processGetData(unique_ptr<Payload> payload)
       if (payloadIter == getdatamap->end())
          continue;
       sendMessage(move(payloadIter->second->payload_));
-      
-      try
-      {
-         payloadIter->second->promise_->set_value(true);
-      }
-      catch (future_error&)
-      {
-         //do nothing
-      }
+      getDataPayloadMap_.erase(payloadIter->first);
    }
 }
 

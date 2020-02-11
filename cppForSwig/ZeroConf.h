@@ -66,6 +66,10 @@ struct ZeroConfData
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+typedef std::function<void(std::map<BinaryData, 
+   std::shared_ptr<BinaryData>>, ZCBroadcastStatus)> ZcBroadcastCallback;
+
+////////////////////////////////////////////////////////////////////////////////
 class OutPointRef
 {
 private:
@@ -175,21 +179,24 @@ struct ZeroConfBatch
    std::shared_ptr<std::atomic<int>> counter_;
    std::shared_ptr<std::promise<bool>> isReadyPromise_;
    std::shared_future<bool> isReadyFut_;
-   unsigned timeout_ = 0;
+
+   unsigned timeout_ = UINT32_MAX;
+   std::chrono::system_clock::time_point creationTime_;
+   ZcBroadcastCallback errorCallback_;
 
 public:
    ZeroConfBatch(void)
    {
       counter_ = std::make_shared<std::atomic<int>>();
       isReadyPromise_ = std::make_shared<std::promise<bool>>();
-      isReadyFut_ = isReadyPromise_->get_future();
+      isReadyFut_ = isReadyPromise_->get_future();\
+      creationTime_ = std::chrono::system_clock::now();
    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 enum ZcPreprocessPacketType
 {
-   ZcPreprocessPacketType_Watcher,
    ZcPreprocessPacketType_Inv
 };
 
@@ -207,19 +214,6 @@ public:
    virtual ~ZcPreprocessPacket(void) = 0;
 
    ZcPreprocessPacketType type(void) const { return type_; }
-};
-
-////
-struct ZcWatcherStruct : public ZcPreprocessPacket
-{
-public:
-   std::map<BinaryData, std::shared_ptr<BinaryData>> txMap_;
-   std::promise<bool> prom_;
-
-public:
-   ZcWatcherStruct(void) :
-      ZcPreprocessPacket(ZcPreprocessPacketType_Watcher)
-   {}
 };
 
 ////
@@ -249,22 +243,11 @@ struct ZcGetPacket
    const ZcGetPacketType type_;
    const BinaryData txHash_;
 
-   std::shared_ptr<std::atomic<int>> batchCtr_;
-   std::shared_ptr<std::promise<bool>> batchProm_;
-
    ZcGetPacket(ZcGetPacketType type, const BinaryData& hash) :
       type_(type), txHash_(hash)
    {}
 
-   virtual void incrementCounter(void)
-   {
-      if (batchCtr_ == nullptr)
-         throw std::runtime_error("null pointers");
-
-      auto val = batchCtr_->fetch_sub(1, std::memory_order_relaxed);
-      if (val <= 1)
-         batchProm_->set_value(true);
-   }
+   virtual ~ZcGetPacket(void) = 0;
 };
 
 ////
@@ -280,23 +263,34 @@ struct RequestZcPacket : public ZcGetPacket
 ////
 struct ProcessPayloadTxPacket : public ZcGetPacket
 {
+   std::shared_ptr<std::atomic<int>> batchCtr_;
+   std::shared_ptr<std::promise<bool>> batchProm_;
+
    BinaryData rawTx_;
    std::shared_ptr<ParsedTx> pTx_;
 
    ProcessPayloadTxPacket(const BinaryData& hash) : 
       ZcGetPacket(ZcGetPacketType_Payload, hash)
    {}
+
+   void incrementCounter(void)
+   {
+      if (batchCtr_ == nullptr)
+         throw std::runtime_error("null pointers");
+
+      auto val = batchCtr_->fetch_sub(1, std::memory_order_relaxed);
+      if (val <= 1)
+         batchProm_->set_value(true);
+   }
 };
 
 ////
 struct ZcBroadcastPacket : public ZcGetPacket
 {
-   unsigned msTimeout_;
    std::shared_ptr<BinaryData> rawZc_;
-   std::function<void(BinaryData, ZCBroadcastStatus)> errorCallback_;
 
-   ZcBroadcastPacket(void) :
-      ZcGetPacket(ZcGetPacketType_Broadcast, {})
+   ZcBroadcastPacket(const BinaryData& hash) :
+      ZcGetPacket(ZcGetPacketType_Broadcast, hash)
    {}
 };
 
@@ -404,8 +398,9 @@ public:
    void start(void);
    void shutdown(void);
 
-   void pushNewZcRequest(
-      const std::vector<std::shared_ptr<ZcGetPacket>>&, unsigned);
+   void pushGetZcRequest(
+      const std::vector<std::shared_ptr<ZcGetPacket>>&, unsigned,
+      const ZcBroadcastCallback&);
    std::shared_future<std::shared_ptr<ZcPurgePacket>> pushNewBlockNotification(
       Blockchain::ReorganizationState);
    const std::shared_ptr<
@@ -481,6 +476,9 @@ private:
    unsigned parserThreadCount_ = 0;
    std::unique_ptr<ZeroConfCallbacks> bdvCallbacks_;
    std::unique_ptr<ZcActionQueue> actionQueue_;
+
+   std::map<BinaryData, std::shared_ptr<BinaryData>> watcherMap_;
+   std::mutex watcherMapMutex_;
 
 private:
    BulkFilterData ZCisMineBulkFilter(ParsedTx & tx, const BinaryDataRef& ZCkey,
@@ -568,10 +566,9 @@ public:
    }
 
    void broadcastZC(const BinaryDataRef& rawzc, uint32_t timeout_ms,
-      const std::function<void(BinaryData, ZCBroadcastStatus)>&);
+      const ZcBroadcastCallback&);
 
    bool isEnabled(void) const { return zcEnabled_.load(std::memory_order_relaxed); }
-   void pushZcToParser(const BinaryDataRef& rawTx);
 
    const std::map<BinaryData, std::shared_ptr<TxIOPair>>&
       getTxioMapForScrAddr(const BinaryData&) const;
@@ -601,8 +598,6 @@ public:
    virtual std::set<std::string> hasScrAddr(const BinaryDataRef&) const = 0;
    virtual void pushZcNotification(
       ZeroConfContainer::NotificationPacket& packet) = 0;
-   virtual void errorCallback(
-      const std::string& bdvId, std::string& errorStr, const std::string& txHash) = 0;
 };
 
 #endif

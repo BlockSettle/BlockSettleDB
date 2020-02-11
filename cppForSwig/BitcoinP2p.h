@@ -535,8 +535,8 @@ public:
    struct getDataPayload
    {
       std::unique_ptr<Payload> payload_;
-      std::shared_ptr<std::promise<bool>> promise_;
    };
+   
    TransactionalMap<
       BinaryData, std::shared_ptr<getDataPayload>> getDataPayloadMap_;
 
