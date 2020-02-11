@@ -5702,7 +5702,7 @@ TEST_F(BlockDir, HeadersFirst)
    auto nodePtr = make_shared<NodeUnitTest>(0, false);
    auto watcherPtr = make_shared<NodeUnitTest>(0, true);
    config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
-
+   config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr);
    
    // Put the first 5 blocks out of order
    TestUtils::setBlocks({ "0", "1", "2", "4", "3", "5" }, blk0dat_);
@@ -5757,6 +5757,7 @@ TEST_F(BlockDir, HeadersFirstUpdate)
    auto nodePtr = make_shared<NodeUnitTest>(0, false);
    auto watcherPtr = make_shared<NodeUnitTest>(0, true);
    config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
+   config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr);
 
    // Put the first 5 blocks out of order
    TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
@@ -5817,6 +5818,7 @@ TEST_F(BlockDir, HeadersFirstReorg)
    auto nodePtr = make_shared<NodeUnitTest>(0, false);
    auto watcherPtr = make_shared<NodeUnitTest>(0, true);
    config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
+   config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
 
@@ -5895,6 +5897,7 @@ TEST_F(BlockDir, HeadersFirstUpdateTwice)
    auto nodePtr = make_shared<NodeUnitTest>(0, false);
    auto watcherPtr = make_shared<NodeUnitTest>(0, true);
    config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
+   config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr);
 
    TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
    
@@ -5958,6 +5961,7 @@ TEST_F(BlockDir, BlockFileSplit)
    auto nodePtr = make_shared<NodeUnitTest>(0, false);
    auto watcherPtr = make_shared<NodeUnitTest>(0, true);
    config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
+   config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
    
@@ -6015,6 +6019,7 @@ TEST_F(BlockDir, BlockFileSplitUpdate)
    auto nodePtr = make_shared<NodeUnitTest>(0, false);
    auto watcherPtr = make_shared<NodeUnitTest>(0, true);
    config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
+   config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
       
@@ -10111,6 +10116,7 @@ protected:
       auto nodePtr = make_shared<NodeUnitTest>(0, false);
       auto watcherPtr = make_shared<NodeUnitTest>(0, true);
       config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
+      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr);
 
       unsigned port_int = 50000 + rand() % 10000;
       stringstream port_ss;
