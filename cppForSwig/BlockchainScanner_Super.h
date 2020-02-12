@@ -216,7 +216,7 @@ public:
    BlockchainScanner_Super(
       std::shared_ptr<Blockchain> bc, LMDBBlockDatabase* db,
       BlockFiles& bf, bool init,
-      unsigned threadcount, unsigned queue_depth,
+      unsigned threadcount, unsigned,
       ProgressCallback prg, bool reportProgress) :
       init_(init), blockchain_(bc), db_(db),
       blockDataLoader_(bf.folderPath()),
