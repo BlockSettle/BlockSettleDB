@@ -1262,19 +1262,7 @@ void BitcoinP2P::processReject(unique_ptr<Payload> payload)
       return;
    }
 
-   shared_ptr<Payload> payload_sptr(move(payload));
-   auto payloadReject = dynamic_pointer_cast<Payload_Reject>(payload_sptr);
-
-   if (payloadReject->rejectType() == Payload_tx)
-   {
-      auto& txHash = payloadReject->getExtra();
-      BinaryDataRef hashRef(&txHash[0], txHash.size());
-
-      LOGERR << "processReject: " << hashRef.toHexStr() << 
-         ", " << payloadReject->getReasonStr();
-
-      processGetTx(move(payload));
-   }
+   processGetTx(move(payload));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
