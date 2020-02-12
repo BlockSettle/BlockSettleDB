@@ -2852,11 +2852,9 @@ void Clients::broadcastThroughRPC()
 
       if (result == 0)
       {
-         cout << "rpc broadcast success" << endl;
+         LOGINFO << "rpc broadcast success";
          continue;
       }
-
-      cout << "rpc broadcast error: " << result << endl;
 
       Tx tx(packet.rawTx_);
 
