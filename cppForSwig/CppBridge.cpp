@@ -2040,6 +2040,10 @@ void BridgeCallback::run(BdmNotification notif)
       case BDMAction_BDV_Error:
       {
          //notify error
+         LOGINFO << "bdv error:";
+         LOGINFO << "  code: " << notif.error_.errCode_;
+         LOGINFO << "  data: " << notif.error_.errData_.toHexStr();
+
          break;
       }
 
