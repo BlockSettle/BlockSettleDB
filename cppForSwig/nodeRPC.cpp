@@ -542,7 +542,6 @@ int NodeRPC::broadcastTx(const BinaryDataRef& rawTx)
    auto&& response = queryRPC(json_obj);
    auto&& response_obj = JSON_decode(response);
 
-   string return_str;
    if (!response_obj.isResponseValid(json_obj.id_))
    {
       auto error_field = response_obj.getValForKey("error");
@@ -553,7 +552,7 @@ int NodeRPC::broadcastTx(const BinaryDataRef& rawTx)
       auto code_field = error_obj->getValForKey("code");
       auto code_val = dynamic_pointer_cast<JSON_number>(code_field);
 
-      return_str = code_val->val_;
+      return (int)code_val->val_;
    }
 
    return 0;
