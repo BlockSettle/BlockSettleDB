@@ -176,6 +176,20 @@ class PyUnspentTxOut(object):
    def isChecked(self):
       return self.checked
 
+   #############################################################################
+   def toBridgeUtxo(self):
+      from armoryengine import ClientProto_pb2
+      bridgeUtxo = ClientProto_pb2.BridgeUtxo()
+
+      bridgeUtxo.scrAddr = self.scrAddr
+      bridgeUtxo.value = self.val
+      bridgeUtxo.txHash = self.txHash
+      bridgeUtxo.txOutIndex = self.txOutIndex
+      bridgeUtxo.script = self.binScript
+      bridgeUtxo.txHeight = self.txHeight
+      bridgeUtxo.txIndex = self.txIndex
+
+      return bridgeUtxo
 
 ################################################################################
 def sumTxOutList(txoutList):

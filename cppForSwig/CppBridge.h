@@ -197,6 +197,7 @@ private:
       const std::string&);   
    std::unique_ptr<::google::protobuf::Message> cs_getFeeByte(
       const std::string&);   
+   bool cs_ProcessCustomUtxoList(const ::Codec_ClientProto::ClientCommand&);
 
    //signer
    std::unique_ptr<::google::protobuf::Message> initNewSigner(void);

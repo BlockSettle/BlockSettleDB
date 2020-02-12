@@ -542,6 +542,32 @@ class CppBridge(object):
       
       return response.floats[0]
 
+   #############################################################################
+   def cs_ProcessCustomUtxoList(self, csId, \
+      utxoList, fee, feePerByte, processFlags):
+
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.cs_ProcessCustomUtxoList
+      packet.stringArgs.append(csId)
+      packet.longArgs.append(fee)
+      packet.floatArgs.append(feePerByte)
+      packet.intArgs.append(processFlags)
+
+      for utxo in utxoList:
+         bridgeUtxo = utxo.toBridgeUtxo()
+         packet.byteArgs.append(bridgeUtxo.SerializeToString())
+
+      fut = self.sendToBridge(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+      
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+      
+      if response.ints[0] == 0:
+         raise RuntimeError("ProcessCustomUtxoList failed")
 
    #############################################################################
    def generateRandomHex(self, size):

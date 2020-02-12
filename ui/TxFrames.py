@@ -614,9 +614,8 @@ class SendBitcoinsFrame(ArmoryFrame):
          if self.customUtxoList is None or len(self.customUtxoList) == 0:
             self.coinSelection.selectUTXOs(fee, feePerByte, processFlag)         
          else:
-            serializedUtxoList = self.serializeUtxoList(self.customUtxoList)
             self.coinSelection.processCustomUtxoList(\
-               serializedUtxoList, fee, feePerByte, processFlag)   
+               self.customUtxoList, fee, feePerByte, processFlag)   
               
          self.feeDialog.updateLabelButton()
       except RuntimeError as e:

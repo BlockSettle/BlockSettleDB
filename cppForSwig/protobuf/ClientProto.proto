@@ -50,6 +50,7 @@ enum Methods
     cs_getUtxoSelection = 115;
     cs_getFlatFee = 116;
     cs_getFeeByte = 117;
+    cs_ProcessCustomUtxoList = 118;
 
     initNewSigner = 130;
     destroySigner = 131;

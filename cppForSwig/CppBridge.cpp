@@ -110,7 +110,6 @@ void cppAddrToProtoAddr(WalletAsset* assetPtr,
       pubKeyRef = addrPtr->getPreimage().getRef();
    }
    
-
    assetPtr->set_addrtype(addrType);
    assetPtr->set_publickey(pubKeyRef.toCharPtr(), pubKeyRef.getSize());
 
@@ -613,6 +612,16 @@ void CppBridge::commandLoop()
                throw runtime_error("invalid command cs_getFeeByte");
 
             response = cs_getFeeByte(msg.stringargs(0));
+            break;
+         }
+
+         case Methods::cs_ProcessCustomUtxoList:
+         {
+            auto success = cs_ProcessCustomUtxoList(msg);
+
+            auto responseProto = make_unique<ReplyNumbers>();
+            responseProto->add_ints(success);
+            response = move(responseProto);
             break;
          }
 
@@ -1489,6 +1498,53 @@ unique_ptr<Message> CppBridge::cs_getFeeByte(const string& csId)
    auto msg = make_unique<ReplyNumbers>();
    msg->add_floats(flatFee);
    return msg;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool CppBridge::cs_ProcessCustomUtxoList(const ClientCommand& msg)
+{
+   if (msg.stringargs_size() != 1 ||
+      msg.longargs_size() != 1 ||
+      msg.floatargs_size() != 1 ||
+      msg.intargs_size() != 1)
+   {
+      throw runtime_error("invalid command cs_ProcessCustomUtxoList");
+   }
+
+   auto iter = csMap_.find(msg.stringargs(0));
+   if (iter == csMap_.end())
+      throw runtime_error("invalid cs id");
+
+   auto flatFee = msg.longargs(0);
+   auto feeByte = msg.floatargs(0);
+   auto flags = msg.intargs(0);
+
+   vector<UTXO> utxos;
+   for (unsigned i=0; i<msg.byteargs_size(); i++)
+   {
+      auto& utxoSer = msg.byteargs(0);
+      BridgeUtxo utxoProto;
+      if (!utxoProto.ParseFromArray(utxoSer.c_str(), utxoSer.size()))
+         return false;
+
+      BinaryData hash(utxoProto.txhash().c_str(), utxoProto.txhash().size());
+      BinaryData script(utxoProto.script().c_str(), utxoProto.script().size());
+      UTXO utxo(utxoProto.value(), 
+         utxoProto.txheight(), utxoProto.txindex(), utxoProto.txoutindex(),
+         hash, script);
+
+      utxos.emplace_back(utxo);
+   }
+
+   try
+   {   
+      iter->second->processCustomUtxoList(utxos, flatFee, feeByte, flags);
+      return true;
+   }
+   catch (CoinSelectionException&)
+   {}
+
+   return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

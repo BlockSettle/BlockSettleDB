@@ -75,7 +75,7 @@ public:
 
    bool selectUTXOs(uint64_t fee, float fee_byte, unsigned flags);
    void processCustomUtxoList(
-      const std::vector<BinaryData>& serializedUtxos,
+      std::vector<UTXO>& utxos,
       uint64_t fee, float fee_byte,
       unsigned flags);
 

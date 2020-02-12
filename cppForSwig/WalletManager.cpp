@@ -695,22 +695,12 @@ void CoinSelectionInstance::checkSpendVal(uint64_t spendableBalance) const
 
 ////////////////////////////////////////////////////////////////////////////////
 void CoinSelectionInstance::processCustomUtxoList(
-   const vector<BinaryData>& serializedUtxos,
-   uint64_t fee, float fee_byte, unsigned flags)
+   vector<UTXO>& utxos, uint64_t fee, float fee_byte, unsigned flags)
 {
-   if (serializedUtxos.size() == 0)
+   if (utxos.size() == 0)
       throw CoinSelectionException("empty custom utxo list!");
-
-   vector<UTXO> utxoVec;
-
-   for (auto& serializedUtxo : serializedUtxos)
-   {
-      UTXO utxo;
-      utxo.unserialize(serializedUtxo);
-      utxoVec.push_back(move(utxo));
-   }
    
-   selectUTXOs(utxoVec, fee, fee_byte, flags);
+   selectUTXOs(utxos, fee, fee_byte, flags);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
