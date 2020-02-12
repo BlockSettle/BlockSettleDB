@@ -160,7 +160,7 @@ struct BDV_Error_Struct
 {
    std::string errorStr_;
    BinaryData errData_;
-   unsigned errCode_;
+   int errCode_;
 
    BinaryData serialize(void) const;
    void deserialize(const BinaryData&);

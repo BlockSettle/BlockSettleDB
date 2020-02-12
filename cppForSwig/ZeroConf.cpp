@@ -13,10 +13,14 @@
 
 #include "ZeroConf.h"
 #include "BlockDataMap.h"
+#include "ArmoryErrors.h"
 
 using namespace std;
 
 #define ZC_GETDATA_TIMEOUT_MS 10000
+
+struct ZcBatchError
+{};
 
 ///////////////////////////////////////////////////////////////////////////////
 ZcPreprocessPacket::~ZcPreprocessPacket()
@@ -524,7 +528,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
       if (zcAction.batch_ == nullptr)
          zcAction.batch_ = make_shared<ZeroConfBatch>();
       zcAction.batch_->txMap_ = ss->txMap_;
-      zcAction.batch_->isReadyPromise_->set_value(true);
+      zcAction.batch_->isReadyPromise_->set_value(ArmoryErrorCodes::Success);
 
       if (!result)
       {
@@ -535,49 +539,15 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
 
    case Zc_NewTx:
    {
-      if (zcAction.batch_ == nullptr)
-         return;
-
-      //wait on the batch for the duration of the 
-      //timeout - time elapsed since creation
-      auto delay = chrono::duration_cast<chrono::milliseconds>(
-         chrono::system_clock::now() - zcAction.batch_->creationTime_);
-      unsigned timeLeft = 0;
-      if (delay.count() < zcAction.batch_->timeout_)
-         timeLeft = zcAction.batch_->timeout_ - delay.count();
-
-      if (zcAction.batch_->isReadyFut_.wait_for(chrono::milliseconds(timeLeft)) !=
-         future_status::ready)
+      try
+      {      
+         zcMap = move(getBatchTxMap(zcAction.batch_, ss));
+      }
+      catch (ZcBatchError&)
       {
-         /*
-         Failed to get transactions before timeout, fire the error callback
-         if set and return.
-         */
-         if (zcAction.batch_->errorCallback_)
-         {
-            map<BinaryData, shared_ptr<BinaryData>> txMap;
-            {
-               //cleanup watcher map
-               unique_lock<mutex> lock(watcherMapMutex_);
-               for (auto& hashPair : zcAction.batch_->hashToKeyMap_)
-               {
-                  auto iter = watcherMap_.find(hashPair.first);
-                  if (iter == watcherMap_.end())
-                  {
-                     LOGERR << "missing tx in batch, shouldn't happen";
-                     continue;
-                  }
-
-                  txMap.emplace(iter->first, iter->second);
-                  watcherMap_.erase(iter);
-               }
-            }
-            zcAction.batch_->errorCallback_(txMap, ZCBroadcastStatus_P2P_Timeout);
-         }
          return;
       }
 
-      zcMap = move(zcAction.batch_->txMap_);
       break;
    }
 
@@ -1758,15 +1728,18 @@ void ZeroConfContainer::handleZcProcessingStructThread(void)
 
          if (payloadTx->batchCtr_ == nullptr)
          {
-            //grab the request
+            //grab the batch
             auto requestMap = actionQueue_->getRequestMap();
             auto reqIter = requestMap->find(payloadTx->txHash_);
             if (reqIter == requestMap->end())
                break;
 
+            //tie the tx to its batch
             payloadTx->batchCtr_ = reqIter->second->counter_;
             payloadTx->batchProm_ = reqIter->second->isReadyPromise_;
-            auto keyIter = reqIter->second->hashToKeyMap_.find(payloadTx->txHash_.getRef());
+            
+            auto keyIter = reqIter->second->hashToKeyMap_.find(
+               payloadTx->txHash_.getRef());
             if (keyIter == reqIter->second->hashToKeyMap_.end())
                break;
             
@@ -1784,12 +1757,27 @@ void ZeroConfContainer::handleZcProcessingStructThread(void)
       case ZcGetPacketType_Broadcast:
       {
          auto broadcastPacket = dynamic_pointer_cast<ZcBroadcastPacket>(packet);
-         if (broadcastPacket != nullptr)
-         {
-            zcBroadcastThread(*broadcastPacket);
-            continue;
-         }
+         if (broadcastPacket == nullptr)
+            break;
+            
+         zcBroadcastThread(*broadcastPacket);
+         break;
+      }
 
+      case ZcGetPacketType_Reject:
+      {
+         auto rejectPacket = dynamic_pointer_cast<RejectPacket>(packet);
+         if (rejectPacket == nullptr)
+            break;
+
+         //grab the batch
+         auto requestMap = actionQueue_->getRequestMap();
+         auto reqIter = requestMap->find(rejectPacket->txHash_);
+         if (reqIter == requestMap->end())
+            break;
+
+         reqIter->second->isReadyPromise_->set_value(
+            ArmoryErrorCodes(rejectPacket->code_));
          break;
       }
 
@@ -1802,27 +1790,55 @@ void ZeroConfContainer::handleZcProcessingStructThread(void)
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::processTxGetDataReply(unique_ptr<Payload> payload)
 {
-   if (payload->type() != Payload_tx)
+   switch (payload->type())
    {
-      LOGERR << "processGetTx: expected payload_tx type, got " <<
-         payload->typeStr() << " instead";
-      return;
+   case Payload_tx:
+   {
+      shared_ptr<Payload> payload_sptr(move(payload));
+      auto payloadtx = dynamic_pointer_cast<Payload_Tx>(payload_sptr);
+      if (payloadtx == nullptr || payloadtx->getSize() == 0)
+      {
+         LOGERR << "invalid tx getdata payload";
+         return;
+      }
+
+      //got a tx, post it to the zc preprocessing queue
+      auto txData = make_shared<ProcessPayloadTxPacket>(payloadtx->getHash256());
+      BinaryData rawTx(&payloadtx->getRawTx()[0], payloadtx->getRawTx().size());
+      txData->rawTx_ = move(rawTx);
+
+      zcPreprocessQueue_.push_back(move(txData));
+      break;
    }
 
-   shared_ptr<Payload> payload_sptr(move(payload));
-   auto payloadtx = dynamic_pointer_cast<Payload_Tx>(payload_sptr);
-   if (payloadtx == nullptr || payloadtx->getSize() == 0)
+   case Payload_reject:
    {
-      LOGERR << "invalid tx getdata payload";
-      return;
+      shared_ptr<Payload> payload_sptr(move(payload));
+      auto payloadReject = dynamic_pointer_cast<Payload_Reject>(payload_sptr);
+      if (payloadReject == nullptr)
+      {
+         LOGERR << "invalid reject payload";
+         return;
+      }
+
+      if (payloadReject->rejectType() != Payload_tx)
+      {
+         //only handling payload_tx rejections
+         return;
+      }
+
+      BinaryData hash(
+         &payloadReject->getExtra()[0], 
+         payloadReject->getExtra().size());
+
+      auto rejectPacket = make_shared<RejectPacket>(hash, payloadReject->code());
+      zcPreprocessQueue_.push_back(move(rejectPacket));
+      break;
    }
 
-   //got a tx, post it to the zc preprocessing queue
-   auto txData = make_shared<ProcessPayloadTxPacket>(payloadtx->getHash256());
-   BinaryData rawTx(&payloadtx->getRawTx()[0], payloadtx->getRawTx().size());
-   txData->rawTx_ = move(rawTx);
-
-   zcPreprocessQueue_.push_back(move(txData));
+   default:
+      break;
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2030,6 +2046,82 @@ void ZeroConfContainer::setWatcherNode(
 
    watcherNode->registerInvTxLambda(getTxLambda);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::getBatchTxMap(
+   shared_ptr<ZeroConfBatch> batch, shared_ptr<ZeroConfSharedStateSnapshot> ss)
+{
+   if (batch == nullptr)
+      throw ZcBatchError();
+
+   //wait on the batch for the duration of the 
+   //timeout - time elapsed since creation
+   unsigned timeLeft = 0;
+   auto delay = chrono::duration_cast<chrono::milliseconds>(
+      chrono::system_clock::now() - batch->creationTime_);
+   if (delay.count() < batch->timeout_)
+      timeLeft = batch->timeout_ - delay.count();
+
+   ArmoryErrorCodes batchResult;
+   if (batch->isReadyFut_.wait_for(chrono::milliseconds(timeLeft)) !=
+      future_status::ready)
+   {
+      batchResult = ArmoryErrorCodes::ZcBatch_Timeout;
+   }
+   else
+   {
+      batchResult = batch->isReadyFut_.get();
+   }
+
+   if (batchResult != ArmoryErrorCodes::Success)
+   {
+      /*
+      Failed to get transactions for batch, fire the error callback
+      if set and throw.
+      */
+      
+      map<BinaryData, pair<shared_ptr<BinaryData>, ArmoryErrorCodes>> txMap;
+      {
+         //cleanup watcher map
+         unique_lock<mutex> lock(watcherMapMutex_);
+         for (auto& hashPair : batch->hashToKeyMap_)
+         {
+            auto iter = watcherMap_.find(hashPair.first);
+            if (iter == watcherMap_.end())
+            {
+               LOGERR << "missing tx in batch, shouldn't happen";
+               continue;
+            }
+
+            txMap.emplace(iter->first, 
+               make_pair(iter->second, batchResult));
+            watcherMap_.erase(iter);
+         }
+      }
+
+      //skip if this batch doesn't have a callback to report errors
+      if (!batch->errorCallback_)
+         throw ZcBatchError();
+
+
+      //check snapshot for collisions
+      for (auto& txPair : txMap)
+      {
+         auto iter = ss->txHashToDBKey_.find(txPair.first);
+         if (iter == ss->txHashToDBKey_.end())
+            continue;
+
+         //already have this tx in our mempool
+         txPair.second.second = ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool;
+      }
+
+      batch->errorCallback_(txMap);
+      throw ZcBatchError();
+   }
+
+   return move(batch->txMap_);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

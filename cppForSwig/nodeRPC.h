@@ -49,9 +49,6 @@ enum ChainStatus
 };
 
 ////
-#define RPCERROR_ALREADYINCHAIN -27
-
-////
 class RpcError : public std::runtime_error
 {
 public:

@@ -146,7 +146,7 @@ struct BDV_Notification_Error : public BDV_Notification
 {
    BDV_Error_Struct errStruct;
 
-   BDV_Notification_Error(const std::string& bdvID, unsigned errCode, 
+   BDV_Notification_Error(const std::string& bdvID, int errCode, 
       const BinaryData& errData, const std::string& errStr) :
       BDV_Notification(bdvID)
    {

@@ -420,11 +420,13 @@ public:
 };
 
 ////reject
+class NodeUnitTest;
 struct Payload_Reject : public Payload
 {
+   friend class NodeUnitTest;
 private:
    PayloadType rejectType_;
-   char code_;
+   int8_t code_;
    std::string reasonStr_;
    std::vector<uint8_t> extra_;
 
@@ -447,6 +449,8 @@ public:
    PayloadType rejectType(void) const { return rejectType_; }
    const std::vector<uint8_t>& getExtra(void) const { return extra_; }
    const std::string& getReasonStr(void) const { return reasonStr_; }
+
+   int8_t code (void) const { return code_; }
 
    PayloadType type(void) const { return Payload_reject; }
    std::string typeStr(void) const { return "reject"; }

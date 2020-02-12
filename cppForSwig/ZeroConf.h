@@ -24,6 +24,7 @@
 #include "lmdb_wrapper.h"
 #include "Blockchain.h"
 #include "ScrAddrFilter.h"
+#include "ArmoryErrors.h"
 
 #define GETZC_THREADCOUNT 5
 
@@ -44,15 +45,6 @@ enum ParsedTxStatus
    Tx_Invalid
 };
 
-enum ZCBroadcastStatus
-{
-   ZCBroadcastStatus_Success,
-   ZCBroadcastStatus_P2P_NodeDown,
-   ZCBroadcastStatus_P2P_Timeout,
-   ZCBroadcastStatus_RPC_NodeDown,
-   ZCBroadcastStatus_RPC_Conflict
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 struct ZeroConfData
 {
@@ -66,8 +58,8 @@ struct ZeroConfData
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-typedef std::function<void(std::map<BinaryData, 
-   std::shared_ptr<BinaryData>>, ZCBroadcastStatus)> ZcBroadcastCallback;
+typedef std::function<void(std::map<BinaryData, std::pair<
+   std::shared_ptr<BinaryData>, ArmoryErrorCodes>>)> ZcBroadcastCallback;
 
 ////////////////////////////////////////////////////////////////////////////////
 class OutPointRef
@@ -177,8 +169,8 @@ struct ZeroConfBatch
    std::map<BinaryData, BinaryDataRef> hashToKeyMap_;
 
    std::shared_ptr<std::atomic<int>> counter_;
-   std::shared_ptr<std::promise<bool>> isReadyPromise_;
-   std::shared_future<bool> isReadyFut_;
+   std::shared_ptr<std::promise<ArmoryErrorCodes>> isReadyPromise_;
+   std::shared_future<ArmoryErrorCodes> isReadyFut_;
 
    unsigned timeout_ = UINT32_MAX;
    std::chrono::system_clock::time_point creationTime_;
@@ -188,8 +180,8 @@ public:
    ZeroConfBatch(void)
    {
       counter_ = std::make_shared<std::atomic<int>>();
-      isReadyPromise_ = std::make_shared<std::promise<bool>>();
-      isReadyFut_ = isReadyPromise_->get_future();\
+      isReadyPromise_ = std::make_shared<std::promise<ArmoryErrorCodes>>();
+      isReadyFut_ = isReadyPromise_->get_future();
       creationTime_ = std::chrono::system_clock::now();
    }
 };
@@ -234,7 +226,8 @@ enum ZcGetPacketType
 {
    ZcGetPacketType_Broadcast,
    ZcGetPacketType_Request,
-   ZcGetPacketType_Payload
+   ZcGetPacketType_Payload,
+   ZcGetPacketType_Reject
 };
 
 ////
@@ -264,7 +257,7 @@ struct RequestZcPacket : public ZcGetPacket
 struct ProcessPayloadTxPacket : public ZcGetPacket
 {
    std::shared_ptr<std::atomic<int>> batchCtr_;
-   std::shared_ptr<std::promise<bool>> batchProm_;
+   std::shared_ptr<std::promise<ArmoryErrorCodes>> batchProm_;
 
    BinaryData rawTx_;
    std::shared_ptr<ParsedTx> pTx_;
@@ -280,7 +273,7 @@ struct ProcessPayloadTxPacket : public ZcGetPacket
 
       auto val = batchCtr_->fetch_sub(1, std::memory_order_relaxed);
       if (val <= 1)
-         batchProm_->set_value(true);
+         batchProm_->set_value(ArmoryErrorCodes::Success);
    }
 };
 
@@ -291,6 +284,16 @@ struct ZcBroadcastPacket : public ZcGetPacket
 
    ZcBroadcastPacket(const BinaryData& hash) :
       ZcGetPacket(ZcGetPacketType_Broadcast, hash)
+   {}
+};
+
+////
+struct RejectPacket : public ZcGetPacket
+{
+   char code_;
+
+   RejectPacket(const BinaryData& hash, char code) :
+      ZcGetPacket(ZcGetPacketType_Reject, hash), code_(code)
    {}
 };
 
@@ -568,7 +571,8 @@ public:
    void broadcastZC(const BinaryDataRef& rawzc, uint32_t timeout_ms,
       const ZcBroadcastCallback&);
 
-   bool isEnabled(void) const { return zcEnabled_.load(std::memory_order_relaxed); }
+   bool isEnabled(void) const 
+   { return zcEnabled_.load(std::memory_order_relaxed); }
 
    const std::map<BinaryData, std::shared_ptr<TxIOPair>>&
       getTxioMapForScrAddr(const BinaryData&) const;
@@ -587,6 +591,10 @@ public:
    std::shared_future<std::shared_ptr<ZcPurgePacket>> pushNewBlockNotification(
       Blockchain::ReorganizationState reorgState)
    { return actionQueue_->pushNewBlockNotification(reorgState); }
+
+   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> getBatchTxMap(
+      std::shared_ptr<ZeroConfBatch>,
+      std::shared_ptr<ZeroConfSharedStateSnapshot>);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

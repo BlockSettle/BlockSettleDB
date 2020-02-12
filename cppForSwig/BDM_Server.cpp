@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "BDM_Server.h"
+#include "ArmoryErrors.h"
 
 using namespace std;
 using namespace ::google::protobuf;
@@ -2920,36 +2921,34 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       BinaryDataRef rawTxRef; rawTxRef.setRef(rawTx);
 
       auto errorCallback = [this, bdvPtr](
-         map<BinaryData, shared_ptr<BinaryData>> zcMap, 
-         ZCBroadcastStatus status)->void
+         map<BinaryData, 
+         pair<shared_ptr<BinaryData>, ArmoryErrorCodes>> zcMap)->void
       {
-         if (status != ZCBroadcastStatus_P2P_Timeout)
+         for (auto& zcPair : zcMap)
          {
-            //signal error and return
-            for (auto& rawZc : zcMap)
+            if (zcPair.second.second != ArmoryErrorCodes::ZcBatch_Timeout)
             {
+               //signal error and return
                auto notifPacket = make_shared<BDV_Notification_Packet>();
                notifPacket->bdvPtr_ = bdvPtr;
                notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-                  bdvPtr->getID(), -1,
-                  rawZc.first, string("p2p node down"));
+                  bdvPtr->getID(), (int)zcPair.second.second,
+                  zcPair.first, string());
+
                innerBDVNotifStack_.push_back(move(notifPacket));
+               continue;
             }
 
-            return;
-         }
-
-         for (auto& rawZc : zcMap)
-         {
+            //broadcast timed out zc through RPC
             RpcBroadcastPacket packet;
-            packet.rawTx_ = move(*rawZc.second);
+            packet.rawTx_ = move(*zcPair.second.first);
             packet.bdvPtr_ = bdvPtr;
             rpcBroadcastQueue_.push_back(move(packet));
          }
       };
 
       bdmT_->bdm()->zeroConfCont_->broadcastZC(
-         rawTxRef, 3000, errorCallback);
+         rawTxRef, 10000, errorCallback);
 
       break;
    }
