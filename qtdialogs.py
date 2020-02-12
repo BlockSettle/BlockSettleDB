@@ -5662,7 +5662,7 @@ class DlgDispTxInfo(ArmoryDialog):
 
       tempPyTx = self.pytx.copy()
       if ustx:
-         finalTx = ustx.getBroadcastTxIfReady(verifySigs=False)
+         finalTx = ustx.getBroadcastTxIfReady()
          if finalTx:
             tempPyTx = finalTx.copy()
          else:

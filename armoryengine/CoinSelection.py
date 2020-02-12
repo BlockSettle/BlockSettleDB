@@ -96,7 +96,7 @@ class PyUnspentTxOut(object):
       script = bridgeUtxo.script
       txHeight = bridgeUtxo.txHeight
       txIndex = bridgeUtxo.txIndex
-      sequence = 0
+      sequence = 2**32-1
 
       self.initialize(scrAddr, txHash, txHashStr, txHeight, txIndex, 
                       txoIdx, val, conf, script, sequence)

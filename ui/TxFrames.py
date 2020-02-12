@@ -909,6 +909,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       
       if self.getRBFFlag():
          for utxo in utxoSelect:
+            print ("rbf flag: " + str(utxo.sequence))
             if utxo.sequence == 2**32 - 1:
                utxo.sequence = 2**32 - 3             
       
