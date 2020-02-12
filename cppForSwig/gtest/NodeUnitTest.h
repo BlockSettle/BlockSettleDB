@@ -56,10 +56,12 @@ private:
       unsigned blocksUntilMined_ = 0;
       bool staged_;
 
-      bool operator<(const MempoolObject& rhs) const { return order_ < rhs.order_; }
+      bool operator<(const MempoolObject& rhs) const 
+      { return order_ < rhs.order_; }
    };
 
    std::map<BinaryDataRef, std::shared_ptr<MempoolObject>> mempool_;
+   std::map<BinaryData, std::map<unsigned, BinaryData>> spenderSet_;
    std::vector<UnitTestBlock> blocks_;
    std::atomic<unsigned> counter_;
    
@@ -73,6 +75,7 @@ private:
 
    static BlockingQueue<BinaryData> watcherInvQueue_;
    std::thread watcherThread_;
+   LMDBBlockDatabase* iface_ = nullptr;
 
 public:
    NodeUnitTest(uint32_t magic_word, bool watcher);
@@ -90,9 +93,11 @@ public:
    std::vector<UnitTestBlock> getMinedBlocks(void) const { return blocks_; }
    void setReorgBranchPoint(std::shared_ptr<BlockHeader>);
    void skipZc(unsigned);
+   void setIface(LMDBBlockDatabase* iface) { iface_ = iface; }
 
    //<raw tx, blocks to wait until mining>
    void pushZC(const std::vector<std::pair<BinaryData, unsigned>>&, bool);
+   uint64_t getFeeForTx(const Tx&) const;
 
    //set
    void setBlockchain(std::shared_ptr<Blockchain>);

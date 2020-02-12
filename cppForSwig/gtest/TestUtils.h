@@ -36,6 +36,7 @@
 #include "../cryptopp/integer.h"
 #endif
 
+#include "../ArmoryErrors.h"
 #include "../Progress.h"
 #include "../reorgTest/blkdata.h"
 #include "../BDM_Server.h"
@@ -185,6 +186,7 @@ namespace DBTestUtils
          std::vector<BinaryData> idVec_;
          std::set<BinaryData> addrSet_;
          unsigned reorgHeight_ = UINT32_MAX;
+         BDV_Error_Struct error_;
       };
 
    private:
@@ -217,6 +219,10 @@ namespace DBTestUtils
          else if (bdmNotif.action_ == BDMAction_NewBlock)
          {
             notif->reorgHeight_ = bdmNotif.branchHeight_;
+         }
+         else if (bdmNotif.action_ == BDMAction_BDV_Error)
+         {
+            notif->error_ = bdmNotif.error_;
          }
 
          actionStack_.push_back(move(notif));
@@ -321,6 +327,20 @@ namespace DBTestUtils
             if (addrSet == scrAddrSet)
                break;
          }
+      }
+
+      void waitOnError(const BinaryData& hash, ArmoryErrorCodes errorCode)
+      {
+         while (1)
+         {
+            auto&& action = actionStack_.pop_front();
+            if (action->action_ != BDMAction_BDV_Error)
+               continue;
+
+            if (action->error_.errData_ == hash && 
+               action->error_.errCode_ == (int)errorCode)
+               break;
+         }         
       }
    };
 }
