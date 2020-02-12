@@ -14,6 +14,7 @@
 #include "SocketWritePayload.h"
 
 using namespace std;
+using namespace ArmoryThreading;
 
 bool PEER_USES_WITNESS;
 

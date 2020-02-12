@@ -97,7 +97,7 @@ public:
    std::chrono::time_point<std::chrono::system_clock> outKeyTimePoint_;
    std::shared_ptr<std::atomic<int>> run_;
 
-   std::shared_ptr<Queue<BinaryData>> readQueue_;
+   std::shared_ptr<ArmoryThreading::Queue<BinaryData>> readQueue_;
 
 private:
    void processAEADHandshake(BinaryData);
@@ -114,7 +114,7 @@ public:
       readLock_ = std::make_shared<std::atomic<unsigned>>();
       readLock_->store(0);
 
-      readQueue_ = std::make_shared<Queue<BinaryData>>();
+      readQueue_ = std::make_shared<ArmoryThreading::Queue<BinaryData>>();
       
       run_ = std::make_shared<std::atomic<int>>();
       run_->store(0, std::memory_order_relaxed);
@@ -129,8 +129,8 @@ class WebSocketServer
 {
 private:
    std::vector<std::thread> threads_;
-   BlockingQueue<std::shared_ptr<BDV_packet>> packetQueue_;
-   TransactionalMap<uint64_t, ClientConnection> clientStateMap_;
+   ArmoryThreading::BlockingQueue<std::shared_ptr<BDV_packet>> packetQueue_;
+   ArmoryThreading::TransactionalMap<uint64_t, ClientConnection> clientStateMap_;
 
    static std::atomic<WebSocketServer*> instance_;
    static std::mutex mu_;
@@ -142,13 +142,13 @@ private:
    std::atomic<unsigned> run_;
    std::promise<bool> isReadyProm_;
 
-   BlockingQueue<std::unique_ptr<PendingMessage>> msgQueue_;
-   BlockingQueue<uint64_t> clientConnectionInterruptQueue_;
+   ArmoryThreading::BlockingQueue<std::unique_ptr<PendingMessage>> msgQueue_;
+   ArmoryThreading::BlockingQueue<uint64_t> clientConnectionInterruptQueue_;
 
    std::shared_ptr<AuthorizedPeers> authorizedPeers_;
    std::map<struct lws*, std::list<std::list<BinaryData>>> writeMap_;
    lws_context* contextPtr_;
-   Queue<std::pair<struct lws*, std::list<BinaryData>>> writeQueue_;
+   ArmoryThreading::Queue<std::pair<struct lws*, std::list<BinaryData>>> writeQueue_;
    
    std::set<struct lws*> pendingWrites_;
    std::set<struct lws*>::const_iterator pendingWritesIter_;

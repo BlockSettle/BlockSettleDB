@@ -24,6 +24,8 @@
 
 #include "make_unique.h"
 
+namespace ArmoryThreading
+{
 class IsEmpty
 {};
 
@@ -32,8 +34,6 @@ class StopBlockingLoop
 
 struct StackTimedOutException
 {};
-
-#define Queue Queue_Locking
 
 ////////////////////////////////////////////////////////////////////////////////
 template <typename T> class Entry
@@ -326,7 +326,7 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-template <typename T> class Queue_Locking
+template <typename T> class Queue
 {
 private:
    std::mutex mu_;
@@ -337,7 +337,7 @@ protected:
    std::exception_ptr exceptPtr_ = nullptr;
 
 public:
-   Queue_Locking()
+   Queue()
    {
 		count_.store(0, std::memory_order_relaxed);
    }
@@ -1012,5 +1012,6 @@ public:
 		return count_.load(std::memory_order_relaxed);
    }
 };
+}; //namespace ArmoryThreading
 
 #endif

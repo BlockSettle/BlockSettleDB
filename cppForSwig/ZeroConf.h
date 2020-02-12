@@ -382,9 +382,10 @@ private:
    std::function<void(ZcActionStruct)> newZcFunction_;
    std::atomic<uint32_t> topId_;
    std::thread parserThread_;
-   BlockingQueue<ZcActionStruct> newZcQueue_;
+   ArmoryThreading::BlockingQueue<ZcActionStruct> newZcQueue_;
 
-   TransactionalMap<BinaryData, std::shared_ptr<ZeroConfBatch>> reqTxHashMap_;
+   ArmoryThreading::TransactionalMap<
+      BinaryData, std::shared_ptr<ZeroConfBatch>> reqTxHashMap_;
 
 private:
    void processNewZcQueue(void);
@@ -463,9 +464,12 @@ private:
    LMDBBlockDatabase* db_;
    std::shared_ptr<BitcoinNodeInterface> networkNode_;
 
-   BlockingQueue<std::shared_ptr<ZcGetPacket>> zcPreprocessQueue_;
-   BlockingQueue<std::shared_ptr<ZcPreprocessPacket>> zcWatcherQueue_;
-   BlockingQueue<ZcUpdateBatch> updateBatch_;
+   ArmoryThreading::BlockingQueue<
+      std::shared_ptr<ZcGetPacket>> zcPreprocessQueue_;
+   ArmoryThreading::BlockingQueue<
+      std::shared_ptr<ZcPreprocessPacket>> zcWatcherQueue_;
+   ArmoryThreading::BlockingQueue<
+      ZcUpdateBatch> updateBatch_;
 
    std::mutex parserMutex_;
    std::mutex parserThreadMutex_;
@@ -474,7 +478,8 @@ private:
    std::atomic<bool> zcEnabled_;
    const unsigned maxZcThreadCount_;
 
-   std::shared_ptr<TransactionalMap<BinaryDataRef, std::shared_ptr<AddrAndHash>>> scrAddrMap_;
+   std::shared_ptr<ArmoryThreading::TransactionalMap<
+      BinaryDataRef, std::shared_ptr<AddrAndHash>>> scrAddrMap_;
 
    unsigned parserThreadCount_ = 0;
    std::unique_ptr<ZeroConfCallbacks> bdvCallbacks_;

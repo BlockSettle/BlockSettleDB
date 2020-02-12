@@ -549,6 +549,6 @@ void BlockDataManager::triggerOneTimeHooks(BDV_Notification* notifPtr)
          hookPtr->lambda_(notifPtr);
       }
    }
-   catch(IsEmpty&)
+   catch(ArmoryThreading::IsEmpty&)
    {}
 }

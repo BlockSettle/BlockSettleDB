@@ -40,14 +40,14 @@ private:
    std::unique_ptr<std::shared_future<SecureBinaryData>> futPtr_;
 
    const std::string id_;
-   std::shared_ptr<BlockingQueue<
+   std::shared_ptr<ArmoryThreading::BlockingQueue<
       std::unique_ptr<WritePayload_Bridge>>> writeQueue_;
 
    std::set<BinaryData> ids_;
 
 public:
    BridgePassphrasePrompt(const std::string id,
-   std::shared_ptr<BlockingQueue<
+   std::shared_ptr<ArmoryThreading::BlockingQueue<
       std::unique_ptr<WritePayload_Bridge>>> queuePtr) :
       id_(id), writeQueue_(queuePtr)
    {}
@@ -70,7 +70,7 @@ private:
    notifLbd pushNotifLbd_;
    
    //id members
-   BlockingQueue<std::string> idQueue_;
+   ArmoryThreading::BlockingQueue<std::string> idQueue_;
    std::set<std::string> validIds_;
    std::mutex idMutex_;
 
@@ -127,7 +127,7 @@ private:
    std::shared_ptr<BridgeCallback> callbackPtr_;
 
    std::thread writeThr_;
-   std::shared_ptr<BlockingQueue<
+   std::shared_ptr<ArmoryThreading::BlockingQueue<
       std::unique_ptr<WritePayload_Bridge>>> writeQueue_;
 
    std::map<std::string, AsyncClient::LedgerDelegate> delegateMap_;

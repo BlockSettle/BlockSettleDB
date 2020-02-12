@@ -148,7 +148,7 @@ private:
 private:
 
    BlockDataViewer* const        bdvPtr_;
-   TransactionalMap<
+   ArmoryThreading::TransactionalMap<
       BinaryDataRef, std::shared_ptr<ScrAddrObj>> scrAddrMap_;
    
    bool ignoreLastScanned_ = true;

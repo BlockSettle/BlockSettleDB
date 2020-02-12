@@ -12,6 +12,7 @@
 using namespace std;
 using namespace ::google::protobuf;
 using namespace ::Codec_BDVCommand;
+using namespace ::ArmoryThreading;
 
 ///////////////////////////////////////////////////////////////////////////////
 //

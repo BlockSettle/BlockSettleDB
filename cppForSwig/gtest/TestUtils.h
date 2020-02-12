@@ -190,7 +190,7 @@ namespace DBTestUtils
       };
 
    private:
-      BlockingQueue<std::unique_ptr<BdmNotif>> actionStack_;
+      ArmoryThreading::BlockingQueue<std::unique_ptr<BdmNotif>> actionStack_;
 
    public:
       UTCallback() : RemoteCallback()

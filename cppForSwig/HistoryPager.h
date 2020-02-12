@@ -31,7 +31,7 @@ private:
       uint32_t count_;
       unsigned updateID_ = UINT32_MAX;
 
-      TransactionalMap<BinaryData, LedgerEntry> pageLedgers_;
+      ArmoryThreading::TransactionalMap<BinaryData, LedgerEntry> pageLedgers_;
 
       Page(void) : blockStart_(UINT32_MAX), blockEnd_(UINT32_MAX), count_(0)
       {}

@@ -28,6 +28,7 @@ using namespace std;
 #endif
 #endif
 
+using namespace ArmoryThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 class ContainerTests : public ::testing::Test

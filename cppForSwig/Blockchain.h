@@ -105,11 +105,14 @@ private:
    //TODO: make this whole class thread safe
 
    const BinaryData genesisHash_;
-   TransactionalMap<BinaryData, std::shared_ptr<BlockHeader>> headerMap_;
-   TransactionalMap<unsigned, std::shared_ptr<BlockHeader>> headersById_;
+   ArmoryThreading::TransactionalMap<
+      BinaryData, std::shared_ptr<BlockHeader>> headerMap_;
+   ArmoryThreading::TransactionalMap<
+      unsigned, std::shared_ptr<BlockHeader>> headersById_;
+   ArmoryThreading::TransactionalMap<
+      unsigned, std::shared_ptr<BlockHeader>> headersByHeight_;
 
    std::vector<std::shared_ptr<BlockHeader>> newlyParsedBlocks_;
-   TransactionalMap<unsigned, std::shared_ptr<BlockHeader>> headersByHeight_;
    std::shared_ptr<BlockHeader> topBlockPtr_;
    unsigned topBlockId_ = 0;
    Blockchain(const Blockchain&); // not defined

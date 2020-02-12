@@ -10,6 +10,7 @@
 #include "../BlockUtils.h"
 
 using namespace std;
+using namespace ArmoryThreading;
 
 BlockingQueue<BinaryData> NodeUnitTest::watcherInvQueue_;
 

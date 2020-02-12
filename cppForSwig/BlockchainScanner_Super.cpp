@@ -10,6 +10,7 @@
 #include "EncryptionUtils.h"
 
 using namespace std;
+using namespace ArmoryThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 void BlockchainScanner_Super::scan()
@@ -176,8 +177,6 @@ void BlockchainScanner_Super::scan()
 
    //mark all queues complete
    commitQueue_.completed();
-
-   auto&& committhr_id = commit_tID.get_id();
    if (commit_tID.joinable())
       commit_tID.join();
 

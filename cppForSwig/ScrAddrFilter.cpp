@@ -258,7 +258,7 @@ void ScrAddrFilter::registrationThread()
       {
          batch = move(registrationStack_.pop_front());
       }
-      catch (StopBlockingLoop&)
+      catch (ArmoryThreading::StopBlockingLoop&)
       {
          //end loop condition
          break;
