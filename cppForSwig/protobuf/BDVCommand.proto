@@ -113,6 +113,13 @@ enum NotificationType
 	refresh = 22;
 }
 
+message BDV_Error
+{
+	required int32 code = 100;
+	optional bytes errData = 110;
+	optional string errStr = 111;
+}
+
 message Notification
 {
 	required NotificationType type = 1;
@@ -121,7 +128,7 @@ message Notification
 		Codec_NodeStatus.NewBlock newBlock = 2;
 		Codec_NodeStatus.ProgressData progress = 3;
 		Codec_NodeStatus.NodeStatus nodeStatus = 4;
-		Codec_NodeStatus.BDV_Error error = 5;
+		BDV_Error error = 5;
 		Codec_LedgerEntry.ManyLedgerEntry ledgers = 6;
 		Codec_CommonTypes.ManyBinaryData ids = 7;
 		Codec_NodeStatus.Refresh refresh = 8;

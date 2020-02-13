@@ -17,11 +17,11 @@
 
 #include "log.h"
 #include "Wallets.h"
-#include "SwigClient.h"
 #include "Signer.h"
 #include "BlockDataManagerConfig.h"
 #include "CoinSelection.h"
 #include "Script.h"
+#include "AsyncClient.h"
 
 class WalletContainer;
 
@@ -45,10 +45,6 @@ private:
    static std::function<std::vector<UTXO>(uint64_t)> getFetchLambdaFromWallet(
       std::shared_ptr<AssetWallet> const, std::function<std::vector<UTXO>(uint64_t)>);
 
-
-   static std::function<std::vector<UTXO>(uint64_t)> getFetchLambdaFromLockbox(
-      SwigClient::Lockbox* const, unsigned M, unsigned N);
-
    uint64_t getSpendVal(void) const;
    void checkSpendVal(uint64_t) const;
    void addRecipient(unsigned, const BinaryData&, uint64_t);
@@ -61,8 +57,6 @@ public:
       std::function<std::vector<UTXO>(uint64_t)>,
       const std::vector<AddressBookEntry>& addrBook, 
       uint64_t spendableBalance, unsigned topHeight);
-   CoinSelectionInstance(SwigClient::Lockbox* const,
-      unsigned M, unsigned N, uint64_t balance, unsigned topHeight);
 
    unsigned addRecipient(const BinaryData&, uint64_t);
    void updateRecipient(unsigned, const BinaryData&, uint64_t);
@@ -75,7 +69,7 @@ public:
 
    bool selectUTXOs(uint64_t fee, float fee_byte, unsigned flags);
    void processCustomUtxoList(
-      const std::vector<BinaryData>& serializedUtxos,
+      std::vector<UTXO>& utxos,
       uint64_t fee, float fee_byte,
       unsigned flags);
 

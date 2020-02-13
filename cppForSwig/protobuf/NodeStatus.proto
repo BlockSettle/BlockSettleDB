@@ -28,13 +28,6 @@ message ProgressData
 	repeated bytes ID = 5;
 }
 
-message BDV_Error
-{
-	required uint32 type = 1;
-	optional string error = 2;
-	optional string extra = 3;
-}
-
 message Refresh
 {
 	required uint32 refreshType = 1;

@@ -54,10 +54,15 @@ struct OutpointBatch
 ///////////////////////////////////////////////////////////////////////////////
 class ClientMessageError : public std::runtime_error
 {
+private:
+   int errorCode_ = 0;
+
 public:
-   ClientMessageError(const std::string& err) :
-      std::runtime_error(err)
+   ClientMessageError(const std::string& err, unsigned errCode) :
+      std::runtime_error(err), errorCode_(errCode)
    {}
+
+   int errorCode(void) const { return errorCode_; }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -490,8 +495,7 @@ namespace AsyncClient
 
       //tx
       void broadcastZC(const BinaryData& rawTx);
-      void broadcastThroughRPC(const BinaryData& rawTx,
-         std::function<void(ReturnMessage<std::string>)>);
+      void broadcastThroughRPC(const BinaryData& rawTx);
 
       void getTxByHash(const BinaryData& txHash,
          std::function<void(ReturnMessage<Tx>)>);

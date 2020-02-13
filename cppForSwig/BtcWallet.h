@@ -98,7 +98,7 @@ public:
    void setWalletID(const std::string &wltId) { walletID_ = wltId; }
    const std::string& walletID() const { return walletID_; }
 
-   std::shared_ptr<std::map<BinaryData, LedgerEntry>> getHistoryPage(uint32_t);
+   std::shared_ptr<const std::map<BinaryData, LedgerEntry>> getHistoryPage(uint32_t);
    std::vector<LedgerEntry> getHistoryPageAsVector(uint32_t);
    size_t getHistoryPageCount(void) const { return histPages_.getPageCount(); }
 
@@ -148,7 +148,7 @@ private:
 private:
 
    BlockDataViewer* const        bdvPtr_;
-   TransactionalMap<
+   ArmoryThreading::TransactionalMap<
       BinaryDataRef, std::shared_ptr<ScrAddrObj>> scrAddrMap_;
    
    bool ignoreLastScanned_ = true;

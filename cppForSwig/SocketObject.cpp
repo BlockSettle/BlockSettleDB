@@ -290,7 +290,7 @@ void PersistentSocket::socketService_nix()
          {
             payload = move(writeQueue_.pop_front());
          }
-         catch (IsEmpty&)
+         catch (ArmoryThreading::IsEmpty&)
          {
             pfd[1].events = POLLIN;
             return;
@@ -583,7 +583,7 @@ void PersistentSocket::readService()
       {
          packet = move(readQueue_.pop_front());
       }
-      catch(StopBlockingLoop&)
+      catch(ArmoryThreading::StopBlockingLoop&)
       {
          //exit condition
          break;
@@ -1017,9 +1017,8 @@ void ListenServer::acceptProcess(AcceptStruct aStruct)
          }
       }
    }
-   catch (IsEmpty&)
-   { 
-   }
+   catch (ArmoryThreading::IsEmpty&)
+   {}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

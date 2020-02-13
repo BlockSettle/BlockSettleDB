@@ -52,7 +52,12 @@ enum ChainStatus
 class RpcError : public std::runtime_error
 {
 public:
-   RpcError(void) : std::runtime_error("RpcError")
+   RpcError(void) : 
+      std::runtime_error("RpcError")
+   {}
+
+   RpcError(const std::string& err) :
+      std::runtime_error(err)
    {}
 };
 
@@ -78,6 +83,8 @@ struct FeeEstimateResult
 
    std::string error_;
 };
+
+typedef std::map<std::string, std::map<unsigned, FeeEstimateResult>> EstimateCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 class NodeChainState
@@ -121,20 +128,55 @@ struct NodeStatusStruct
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class NodeRPC : protected Lockable
+class NodeRPCInterface : public Lockable
+{
+protected:
+   std::function<void(void)> nodeStatusLambda_;
+   ::NodeChainState nodeChainState_;
+   std::shared_ptr<EstimateCache> currentEstimateCache_ = nullptr;
+
+private:
+   void initAfterLock(void) override {}
+   void cleanUpBeforeUnlock(void) override {}
+
+protected:
+   void callback(void)
+   {
+      if (nodeStatusLambda_)
+         nodeStatusLambda_();
+   }
+
+public:
+   virtual ~NodeRPCInterface(void) = 0;
+   virtual void shutdown(void) = 0;
+
+   virtual int broadcastTx(const BinaryDataRef&) = 0;
+   virtual bool canPoll(void) const = 0;
+   virtual RpcStatus testConnection() = 0;
+   virtual void waitOnChainSync(std::function<void(void)>) = 0;
+
+   virtual FeeEstimateResult getFeeByte(
+      unsigned confTarget, const std::string& strategy) = 0;
+
+   //locals
+   const ::NodeChainState& getChainStatus(void) const;
+   void registerNodeStatusLambda(std::function<void(void)> lbd) 
+   { nodeStatusLambda_ = lbd; }
+
+   std::map<unsigned, FeeEstimateResult> getFeeSchedule(
+      const std::string& strategy); 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class NodeRPC : public NodeRPCInterface
 {
 private:
    const BlockDataManagerConfig& bdmConfig_;
    std::string basicAuthString64_;
 
-   ::NodeChainState nodeChainState_;
-   std::function<void(void)> nodeStatusLambda_;
-
    RpcStatus previousState_ = RpcStatus_Disabled;
    std::condition_variable pollCondVar_;
 
-   typedef std::map<std::string, std::map<unsigned, FeeEstimateResult>> EstimateCache;
-   std::shared_ptr<EstimateCache> currentEstimateCache_ = nullptr;
 
    std::vector<std::thread> thrVec_;
    std::atomic<bool> run_ = { true };
@@ -142,14 +184,6 @@ private:
 private:
    std::string getAuthString(void);
    std::string getDatadir(void);
-
-   void initAfterLock(void) {}
-   void cleanUpBeforeUnlock(void) {}
-   void callback(void)
-   {
-      if (nodeStatusLambda_)
-         nodeStatusLambda_();
-   }
 
    std::string queryRPC(JSON_object&);
    std::string queryRPC(HttpSocket&, JSON_object&);
@@ -160,37 +194,24 @@ private:
       unsigned& confTarget, std::string& strategy);
    void aggregateFeeEstimates(void);
    void resetAuthString(void);
+   bool updateChainStatus(void);
 
 public:
    NodeRPC(BlockDataManagerConfig&);
    ~NodeRPC(void);
    
-   RpcStatus testConnection();
    bool setupConnection(HttpSocket&);
-   void shutdown(void);
 
-   bool updateChainStatus(void);
-   const ::NodeChainState& getChainStatus(void) const;   
-   void waitOnChainSync(std::function<void(void)>);
-   std::string broadcastTx(const BinaryDataRef&);
+   //virtuals
+   void shutdown(void) override;
+   RpcStatus testConnection() override;
+   bool canPoll(void) const override { return true; }
 
-   void registerNodeStatusLambda(std::function<void(void)> lbd) { nodeStatusLambda_ = lbd; }
+   FeeEstimateResult getFeeByte(
+      unsigned confTarget, const std::string& strategy) override;
 
-   virtual bool canPool(void) const { return true; }
-   FeeEstimateResult getFeeByte(unsigned confTarget, const std::string& strategy);
-   std::map<unsigned, FeeEstimateResult> getFeeSchedule(const std::string& strategy);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-class NodeRPC_UnitTest : public NodeRPC
-{
-public:
-
-   NodeRPC_UnitTest(BlockDataManagerConfig& bdmc) :
-      NodeRPC(bdmc)
-   {}
-
-   bool canPool(void) const { return false; }
+   int broadcastTx(const BinaryDataRef&) override;
+   void waitOnChainSync(std::function<void(void)>) override;
 };
 
 #endif

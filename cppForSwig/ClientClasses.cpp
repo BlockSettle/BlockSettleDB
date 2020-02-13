@@ -378,9 +378,12 @@ bool RemoteCallback::processNotifications(
          auto& msg = notif.error();
 
          BdmNotification bdmNotif(BDMAction_BDV_Error);
-         bdmNotif.error_.errorStr_ = move(msg.error());
-         bdmNotif.error_.errType_ = (BDV_ErrorType)msg.type();
-         bdmNotif.error_.extraMsg_ = move(msg.extra());
+         bdmNotif.error_.errCode_ = msg.code();
+         bdmNotif.error_.errorStr_ = msg.errstr();
+         bdmNotif.error_.errData_ = BinaryData::fromString(msg.errdata());
+
+         BinaryDataRef errDataRef; errDataRef.setRef(msg.errdata());
+         bdmNotif.error_.errData_ = errDataRef;
 
          run(move(bdmNotif));
          break;

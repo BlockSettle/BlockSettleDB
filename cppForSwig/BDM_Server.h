@@ -35,6 +35,16 @@ enum WalletType
    TypeLockbox
 };
 
+enum BDVCommandProcessingResultType
+{
+   BDVCommandProcess_Success,
+   BDVCommandProcess_Failure,
+   BDVCommandProcess_Static,
+   BDVCommandProcess_ZC_P2P,
+   BDVCommandProcess_ZC_RPC,
+   BDVCommandProcess_PayloadNotReady
+};
+
 class BDV_Server_Object;
 
 namespace DBTestUtils
@@ -42,6 +52,13 @@ namespace DBTestUtils
    std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> waitOnSignal(
       Clients*, const std::string&, ::Codec_BDVCommand::NotificationType);
 }
+
+///////////////////////////////////////////////////////////////////////////////
+struct RpcBroadcastPacket
+{
+   std::shared_ptr<BDV_Server_Object> bdvPtr_;
+   BinaryData rawTx_;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_Payload
@@ -99,7 +116,8 @@ public:
 class UnitTest_Callback : public Callback
 {
 private:
-   BlockingQueue<std::shared_ptr<::Codec_BDVCommand::BDVCallback>> notifQueue_;
+   ArmoryThreading::BlockingQueue<
+      std::shared_ptr<::Codec_BDVCommand::BDVCallback>> notifQueue_;
 
 public:
    void callback(std::shared_ptr<::Codec_BDVCommand::BDVCallback>);
@@ -148,8 +166,9 @@ private:
 private:
    BDV_Server_Object(BDV_Server_Object&) = delete; //no copies
       
-   std::shared_ptr<::google::protobuf::Message> processCommand(
-      std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
+   BDVCommandProcessingResultType processCommand(
+      std::shared_ptr<::Codec_BDVCommand::BDVCommand>,
+      std::shared_ptr<::google::protobuf::Message>&);
    void startThreads(void);
 
    void registerWallet(std::shared_ptr<::Codec_BDVCommand::BDVCommand>);
@@ -175,7 +194,7 @@ public:
    void processNotification(std::shared_ptr<BDV_Notification>);
    void init(void);
    void haltThreads(void);
-   bool processPayload(std::shared_ptr<BDV_Payload>&,
+   BDVCommandProcessingResultType processPayload(std::shared_ptr<BDV_Payload>&,
       std::shared_ptr<::google::protobuf::Message>&);
 };
 
@@ -194,8 +213,6 @@ public:
 
    std::set<std::string> hasScrAddr(const BinaryDataRef&) const;
    void pushZcNotification(ZeroConfContainer::NotificationPacket& packet);
-   void errorCallback(
-      const std::string& bdvId, std::string& errorStr, const std::string& txHash);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -204,8 +221,8 @@ class Clients
    friend class ZeroConfCallbacks_BDV;
 
 private:
-   TransactionalMap<std::string, std::shared_ptr<BDV_Server_Object>> BDVs_;
-   mutable BlockingQueue<bool> gcCommands_;
+   ArmoryThreading::TransactionalMap<std::string, std::shared_ptr<BDV_Server_Object>> BDVs_;
+   mutable ArmoryThreading::BlockingQueue<bool> gcCommands_;
    BlockDataManagerThread* bdmT_ = nullptr;
 
    std::function<void(void)> shutdownCallback_;
@@ -215,10 +232,11 @@ private:
    std::vector<std::thread> controlThreads_;
    std::thread unregThread_;
 
-   mutable BlockingQueue<std::shared_ptr<BDV_Notification>> outerBDVNotifStack_;
-   BlockingQueue<std::shared_ptr<BDV_Notification_Packet>> innerBDVNotifStack_;
-   BlockingQueue<std::shared_ptr<BDV_Payload>> packetQueue_;
-   BlockingQueue<std::string> unregBDVQueue_;
+   mutable ArmoryThreading::BlockingQueue<std::shared_ptr<BDV_Notification>> outerBDVNotifStack_;
+   ArmoryThreading::BlockingQueue<std::shared_ptr<BDV_Notification_Packet>> innerBDVNotifStack_;
+   ArmoryThreading::BlockingQueue<std::shared_ptr<BDV_Payload>> packetQueue_;
+   ArmoryThreading::BlockingQueue<std::string> unregBDVQueue_;
+   ArmoryThreading::BlockingQueue<RpcBroadcastPacket> rpcBroadcastQueue_;
 
    std::mutex shutdownMutex_;
 
@@ -230,8 +248,9 @@ private:
    void messageParserThread(void);
    void unregisterBDVThread(void);
 
-public:
+   void broadcastThroughRPC(void);
 
+public:
    Clients(void)
    {}
 
@@ -261,6 +280,7 @@ public:
 
    std::shared_ptr<::google::protobuf::Message> processUnregisteredCommand(
       const uint64_t& bdvId, std::shared_ptr<::Codec_BDVCommand::StaticCommand>);
+
    std::shared_ptr<::google::protobuf::Message> processCommand(
       std::shared_ptr<BDV_Payload>);
 };

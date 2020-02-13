@@ -44,6 +44,9 @@ public:
    unsigned getSigCount(void) const;
    bool isSignedForPubKey(const BinaryData& pubkey);
    const std::map<BinaryData, bool> getPubKeyMap(void) const { return pubKeyState_; }
+   
+   unsigned getM(void) const { return m_; }
+   unsigned getN(void) const { return n_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

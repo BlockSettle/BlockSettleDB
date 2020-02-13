@@ -92,15 +92,12 @@ private:
    BinaryData readLeftOverData_;
 
 public:
-   std::shared_ptr<Queue<SerializedMessage>> serializedStack_;
-   SerializedMessage currentWriteMsg_;
-   std::shared_ptr<std::atomic<int>> count_;
    std::shared_ptr<BIP151Connection> bip151Connection_;
    std::shared_ptr<std::atomic<unsigned>> writeLock_, readLock_;
    std::chrono::time_point<std::chrono::system_clock> outKeyTimePoint_;
    std::shared_ptr<std::atomic<int>> run_;
 
-   std::shared_ptr<Queue<BinaryData>> readQueue_;
+   std::shared_ptr<ArmoryThreading::Queue<BinaryData>> readQueue_;
 
 private:
    void processAEADHandshake(BinaryData);
@@ -117,12 +114,8 @@ public:
       readLock_ = std::make_shared<std::atomic<unsigned>>();
       readLock_->store(0);
 
-      serializedStack_ = std::make_shared<Queue<SerializedMessage>>();
-      readQueue_ = std::make_shared<Queue<BinaryData>>();
+      readQueue_ = std::make_shared<ArmoryThreading::Queue<BinaryData>>();
       
-      count_ = std::make_shared<std::atomic<int>>();
-      count_->store(0, std::memory_order_relaxed);
-
       run_ = std::make_shared<std::atomic<int>>();
       run_->store(0, std::memory_order_relaxed);
    }
@@ -136,8 +129,8 @@ class WebSocketServer
 {
 private:
    std::vector<std::thread> threads_;
-   BlockingQueue<std::shared_ptr<BDV_packet>> packetQueue_;
-   TransactionalMap<uint64_t, ClientConnection> clientStateMap_;
+   ArmoryThreading::BlockingQueue<std::shared_ptr<BDV_packet>> packetQueue_;
+   ArmoryThreading::TransactionalMap<uint64_t, ClientConnection> clientStateMap_;
 
    static std::atomic<WebSocketServer*> instance_;
    static std::mutex mu_;
@@ -149,26 +142,37 @@ private:
    std::atomic<unsigned> run_;
    std::promise<bool> isReadyProm_;
 
-   BlockingQueue<std::unique_ptr<PendingMessage>> msgQueue_;
-   BlockingQueue<uint64_t> clientConnectionInterruptQueue_;
+   ArmoryThreading::BlockingQueue<std::unique_ptr<PendingMessage>> msgQueue_;
+   ArmoryThreading::BlockingQueue<uint64_t> clientConnectionInterruptQueue_;
 
    std::shared_ptr<AuthorizedPeers> authorizedPeers_;
+   std::map<struct lws*, std::list<std::list<BinaryData>>> writeMap_;
+   lws_context* contextPtr_;
+   ArmoryThreading::Queue<std::pair<struct lws*, std::list<BinaryData>>> writeQueue_;
+   
+   std::set<struct lws*> pendingWrites_;
+   std::set<struct lws*>::const_iterator pendingWritesIter_;
+
+public:
+   void writeToSocket(struct lws*, SerializedMessage&);
 
 private:
    void webSocketService(int port);
    void commandThread(void);
    void setIsReady(void);
    
-   static WebSocketServer* getInstance(void);
    void prepareWriteThread(void);
 
    AuthPeersLambdas getAuthPeerLambda(void) const;
    void closeClientConnection(uint64_t);
    void clientInterruptThread(void);
 
+   void updateWriteMap(void);
+
 public:
    WebSocketServer(void);
 
+   static WebSocketServer* getInstance(void);
    static int callback(
       struct lws *wsi, enum lws_callback_reasons reason,
       void *user, void *in, size_t len);
@@ -182,10 +186,10 @@ public:
    static void write(const uint64_t&, const uint32_t&,
       std::shared_ptr<::google::protobuf::Message>);
 
-   std::shared_ptr<std::map<uint64_t, ClientConnection>>
+   std::shared_ptr<const std::map<uint64_t, ClientConnection>>
       getConnectionStateMap(void) const;
    void addId(const uint64_t&, struct lws* ptr);
-   void eraseId(const uint64_t&);
+   void eraseId(const uint64_t&, struct lws* ptr);
 };
 
 #endif

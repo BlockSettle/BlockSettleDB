@@ -318,10 +318,10 @@ void SerializedMessage::construct(const BinaryDataRef& data,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-const BinaryData& SerializedMessage::getNextPacket() const
+BinaryData SerializedMessage::consumeNextPacket()
 {
    auto& val = packets_[index_++];
-   return val;
+   return move(val);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

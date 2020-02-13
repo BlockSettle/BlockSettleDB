@@ -10,6 +10,7 @@
 #include "log.h"
 
 using namespace std;
+using namespace ArmoryThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 void BlockchainScanner::scan(int32_t scanFrom)

@@ -10,13 +10,44 @@
 #include "../BlockUtils.h"
 
 using namespace std;
+using namespace ArmoryThreading;
+
+BlockingQueue<BinaryData> NodeUnitTest::watcherInvQueue_;
 
 ////////////////////////////////////////////////////////////////////////////////
-NodeUnitTest::NodeUnitTest(uint32_t magic_word) :
-   BitcoinP2P("", "", magic_word)
+NodeUnitTest::NodeUnitTest(uint32_t magic_word, bool watcher) :
+   BitcoinNodeInterface(magic_word, watcher)
 {
    //0 is reserved for coinbase tx ordering in spoofed blocks
    counter_.store(1, memory_order_relaxed);
+
+   if (!watcher)
+      return;
+
+   auto watcherLbd = [this](void)->void
+   {
+      this->watcherProcess();
+   };
+
+   watcherThread_ = thread(watcherLbd);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::shutdown()
+{
+   if (watcherThread_.joinable())
+   {
+      watcherInvQueue_.terminate();
+      watcherThread_.join();
+   }
+
+   BitcoinNodeInterface::shutdown();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::connectToNode(bool)
+{
+   run_.store(true, memory_order_relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,14 +285,19 @@ map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(BlockDataManager* bdm,
 
       //push the staged transactions
       vector<InvEntry> invVec;
+      map<BinaryData, BinaryData> rawTxMap;
       for (auto& tx : mempool_)
       {
          InvEntry ie;
          ie.invtype_ = Inv_Msg_Witness_Tx;
          memcpy(ie.hash, tx.first.getPtr(), 32);
          invVec.emplace_back(ie);
+
+         rawTxMap.insert(make_pair(
+            tx.first, tx.second->rawTx_));
       }
       
+      rawTxMap_.update(rawTxMap);
       processInvTx(invVec);
    }
    else
@@ -293,6 +329,7 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
    bool stage)
 {
    vector<InvEntry> invVec;
+   map<BinaryData, BinaryData> rawTxMap;
 
    //save tx to fake mempool
    for (auto& tx : txVec)
@@ -349,11 +386,16 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
       auto objPair = make_pair(obj->hash_.getRef(), move(obj));
       auto insertIter = mempool_.insert(move(objPair));
 
-      //notify the zc parser
+      //add to inv vector
       InvEntry ie;
       ie.invtype_ = Inv_Msg_Witness_Tx;
       memcpy(ie.hash, insertIter.first->second->hash_.getPtr(), 32);
       invVec.emplace_back(ie);
+
+      //save tx to reply to getdata request
+      rawTxMap.insert(make_pair(
+         insertIter.first->second->hash_, 
+         insertIter.first->second->rawTx_));
    }
 
    /*
@@ -364,22 +406,8 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
    if (stage)
       return;
 
+   rawTxMap_.update(rawTxMap);
    processInvTx(invVec);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-shared_ptr<Payload> NodeUnitTest::getTx(const InvEntry& ie, uint32_t)
-{
-   //find tx in mempool
-   BinaryDataRef hashRef(ie.hash, 32);
-   auto iter = mempool_.find(hashRef);
-   if (iter == mempool_.end())
-      return nullptr;
-
-   //create payload and return
-   auto payload = make_shared<Payload_Tx>(
-      iter->second->rawTx_.getPtr(), iter->second->rawTx_.getSize());
-   return payload;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -392,4 +420,327 @@ void NodeUnitTest::setBlockchain(std::shared_ptr<Blockchain> bcPtr)
 void NodeUnitTest::setBlockFiles(std::shared_ptr<BlockFiles> filesPtr)
 {
    filesPtr_ = filesPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint64_t NodeUnitTest::getFeeForTx(const Tx& tx) const
+{
+   if (iface_ == nullptr)
+      throw runtime_error("null db ptr");
+
+   //tally inputs value
+   uint64_t inputsVal = 0;
+   for (unsigned i=0; i<tx.getNumTxIn(); i++)
+   {
+      auto txin = tx.getTxInCopy(i);
+      auto outpoint = txin.getOutPoint();
+
+      StoredTxOut stxo;
+      iface_->getStoredTxOut(
+         stxo, outpoint.getTxHash(), outpoint.getTxOutIndex());
+
+
+      if (stxo.isInitialized())
+      {
+         inputsVal += stxo.getValue();
+         continue;
+      }
+
+      //could not find output in db, check mempool
+      auto iter = mempool_.find(outpoint.getTxHashRef());
+      if (iter == mempool_.end())
+         throw runtime_error("can't resolve outpoint");
+
+      Tx mempoolTx(iter->second->rawTx_);
+      auto txout = mempoolTx.getTxOutCopy(outpoint.getTxOutIndex());
+      inputsVal += txout.getValue();  
+   }
+
+   //tally outputs value
+   uint64_t outputsVal = 0;
+   for (unsigned i=0; i<tx.getNumTxOut(); i++)
+   {
+      auto txout = tx.getTxOutCopy(i);
+      outputsVal += txout.getValue();
+   }
+
+   //return diff
+   if (outputsVal > inputsVal)
+      throw runtime_error("sum of outputs is greater than sum of inputs");
+   return inputsVal - outputsVal;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
+{
+   //mock the node
+   switch (payload->type())
+   {
+   case Payload_inv:
+   {
+      /*
+      Pushed inv payload from armorydb to bitcoin node
+      */
+
+      shared_ptr<Payload> payloadSPtr(move(payload));
+      auto payloadInv = dynamic_pointer_cast<Payload_Inv>(payloadSPtr);
+      if (payloadInv == nullptr)
+         throw runtime_error("unexpected payload type");
+
+      for (auto& entry : payloadInv->invVector_)
+      {
+         switch (entry.invtype_)
+         {
+         case Inv_Msg_Tx:
+         {
+            //consume getDataMap entry
+            auto gdpMap = getDataPayloadMap_.get();
+            BinaryData hashBd(&entry.hash[0], sizeof(entry.hash));
+            auto iter = gdpMap->find(hashBd);
+            if (iter == gdpMap->end())
+               break;
+
+            shared_ptr<Payload> payloadTxSPtr(move(iter->second->payload_));
+            auto payloadTx = dynamic_pointer_cast<Payload_Tx>(payloadTxSPtr);
+            
+            //cleanup getdatapayload map
+            getDataPayloadMap_.erase(hashBd);
+
+            //bail if we have to skip zc
+            bool skip = (skipZc_.load(memory_order_relaxed) != 0);
+            if (skip)
+            {
+               skipZc_.fetch_sub(1, memory_order_relaxed);
+               break;
+            }
+            
+            auto obj = make_shared<MempoolObject>();
+            auto rawTx = payloadTx->getRawTx();       
+            obj->rawTx_ = BinaryData(&rawTx[0], rawTx.size());
+            obj->hash_ = hashBd;
+            obj->order_ = counter_.fetch_add(1, memory_order_relaxed);
+            
+            //TODO: tie this with zc delay and staging
+            obj->blocksUntilMined_ = 0;
+            obj->staged_ = false;
+
+            //check for collision
+            {
+               auto collision = mempool_.find(obj->hash_.getRef());
+               if (collision != mempool_.end())
+                  break;
+            }
+
+            //add to utxo set
+            set<BinaryData> replacedHashes;
+            Tx tx(obj->rawTx_);
+            for (unsigned i=0; i<tx.getNumTxIn(); i++)
+            {
+               auto txin = tx.getTxInCopy(i);
+               auto outpoint = txin.getOutPoint();
+               auto hashIter = spenderSet_.find(outpoint.getTxHash());
+
+               if (hashIter == spenderSet_.end())
+               {
+                  hashIter = spenderSet_.emplace(outpoint.getTxHash(), 
+                     map<unsigned, BinaryData>()).first;
+               }
+
+               auto idIter = hashIter->second.find(outpoint.getTxOutIndex());
+               if (idIter == hashIter->second.end())
+               {
+                  hashIter->second.emplace(
+                     outpoint.getTxOutIndex(), hashBd);
+                  continue;
+               }
+
+               /*
+               This outpoint is consumed by a zc already in the mempool, 
+               need to purge it
+               */
+              
+               //grab the replaceable tx
+               auto replaceIter = mempool_.find(idIter->second);
+               if (replaceIter == mempool_.end())
+                  throw runtime_error("missing tx in mempool");
+               auto mempoolObj = replaceIter->second;
+
+               //check the rbf flag
+               Tx replaceTx(mempoolObj->rawTx_);
+               if (!replaceTx.isRBF())
+               {
+                  //replacement failure, deal with that
+                  throw runtime_error("first tx isn't rbf");
+               }
+
+               if (!tx.isRBF())
+               {
+                  throw runtime_error("replacing tx isn't rbf");
+               }
+
+               //unit test shortcut: replace if the new tx fee is > 1 btc
+               auto txFee = getFeeForTx(tx);
+               if (txFee < 100000000)
+               {
+                  //fee too low to replace, push reject packet
+                  auto rejectPayload = make_unique<Payload_Reject>();
+
+                  rejectPayload->rejectType_ = Payload_tx;
+                  rejectPayload->code_ = 
+                     (char)ArmoryErrorCodes::P2PReject_InsufficientFee;
+                  
+                  rejectPayload->extra_.resize(32);
+                  memcpy(&rejectPayload->extra_[0], hashBd.getPtr(), 32);
+                  
+                  processGetTx(move(rejectPayload));
+                  return;
+               }
+               
+               //replace spender
+               idIter->second = tx.getThisHash();
+
+               //flag replaced tx
+               replacedHashes.insert(idIter->second);               
+            }
+
+            for (auto& hash : replacedHashes)
+            {
+               //purge replaced ZCs
+               auto txIter = mempool_.find(hash.getRef());
+               if (txIter == mempool_.end())
+                  continue;
+
+               auto& mempoolObj = txIter->second;
+               Tx purgeTx(mempoolObj->rawTx_);
+
+               //cleanup spender set
+               for (unsigned i=0; i<purgeTx.getNumTxIn(); i++)
+               {
+                  auto txin = purgeTx.getTxInCopy(i);
+                  auto op = txin.getOutPoint();
+
+                  auto spenderIter = spenderSet_.find(op.getTxHash());
+                  if (spenderIter == spenderSet_.end())
+                     continue;
+
+                  auto idIter = spenderIter->second.find(op.getTxOutIndex());
+                  if (idIter == spenderIter->second.end())
+                     continue;
+
+                  if (idIter->second != hash)
+                     continue;
+
+                  spenderIter->second.erase(idIter);
+                  if (spenderIter->second.empty())
+                     spenderSet_.erase(spenderIter);
+               }
+
+               mempool_.erase(txIter);
+            }
+
+            //add to mempool
+            mempool_.insert(make_pair(obj->hash_.getRef(), obj));
+
+            //send out the inventory payload through the watcher
+            watcherInvQueue_.push_back(move(hashBd));
+
+            break;
+         }
+
+         default:
+            throw runtime_error("inventry type support not implemented yet");
+         }
+      }
+
+      break;
+   }
+
+   case Payload_getdata:
+   {
+      /*
+      Pushed getdata payload from armorydb to bitcoin node
+      */
+
+      //looking to get data for a previous inv tx message
+      auto payloadSPtr = shared_ptr<Payload>(move(payload));
+      auto payloadGetData = 
+         dynamic_pointer_cast<Payload_GetData>(payloadSPtr);
+      if (payloadGetData == nullptr)
+         throw runtime_error("invalid payload type");
+
+      vector<BinaryData> grabbedTxs;
+      for (auto& inv : payloadGetData->getInvVector())
+      {
+         auto txMap = rawTxMap_.get();
+         BinaryData hash(&inv.hash[0], sizeof(inv.hash));
+         auto iter = txMap->find(hash);
+         if (iter == txMap->end())
+            continue;
+
+         grabbedTxs.push_back(iter->first);
+         auto payloadTx = make_unique<Payload_Tx>();
+
+         vector<uint8_t> rawTx(iter->second.getSize());
+         memcpy(&rawTx[0], iter->second.getPtr(), iter->second.getSize());
+         payloadTx->setRawTx(rawTx);
+         
+         getTxDataLambda_(move(payloadTx));
+      }
+
+      rawTxMap_.erase(grabbedTxs);
+
+      break;
+   }
+
+   default:
+      throw runtime_error("payload type support not implemented yet");
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::watcherProcess()
+{
+   while(true)
+   {
+      BinaryData hash;
+      try
+      {
+         hash = move(watcherInvQueue_.pop_front());
+      }
+      catch(StopBlockingLoop&)
+      {
+         break;
+      }
+      
+      vector<InvEntry> invVec;
+      InvEntry inv;
+      inv.invtype_ = Inv_Msg_Witness_Tx;
+      memcpy(inv.hash, hash.getPtr(), 32);
+      invVec.push_back(move(inv));
+
+      processInvTx(invVec);
+   }
+
+   watcherInvQueue_.clear();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::skipZc(unsigned count)
+{
+   skipZc_.fetch_add(count, memory_order_relaxed);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// NodeRPC_UnitTest
+//
+////////////////////////////////////////////////////////////////////////////////
+int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx)
+{
+   vector<pair<BinaryData, unsigned>> pushVec;
+   pushVec.push_back(make_pair(BinaryData(rawTx), 0));
+   nodePtr_->pushZC(pushVec, false);
+
+   return 0; //success
 }

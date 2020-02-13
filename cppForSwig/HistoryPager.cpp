@@ -19,7 +19,7 @@ void HistoryPager::addPage(vector<shared_ptr<Page>>& pages,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<map<BinaryData, LedgerEntry>> HistoryPager::getPageLedgerMap(
+shared_ptr<const map<BinaryData, LedgerEntry>> HistoryPager::getPageLedgerMap(
    function< map<BinaryData, TxIOPair>(uint32_t, uint32_t) > getTxio,
    function< map<BinaryData, LedgerEntry>(
       const map<BinaryData, TxIOPair>&, uint32_t, uint32_t) > buildLedgers,
@@ -69,7 +69,7 @@ shared_ptr<map<BinaryData, LedgerEntry>> HistoryPager::getPageLedgerMap(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<map<BinaryData, LedgerEntry>> HistoryPager::getPageLedgerMap(
+shared_ptr<const map<BinaryData, LedgerEntry>> HistoryPager::getPageLedgerMap(
    uint32_t pageId)
 {
    if (!isInitialized_->load(memory_order_relaxed))

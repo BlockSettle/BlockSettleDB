@@ -166,13 +166,19 @@ protected:
 
    void initBDM(void)
    {
+      DBTestUtils::init();
       auto& magicBytes = NetworkConfig::getMagicBytes();
-      config.nodePtr_ = make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr());
 
+      auto nodePtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), false);
+      auto watcherPtr = make_shared<NodeUnitTest>(
+         *(uint32_t*)magicBytes.getPtr(), true);
+      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
+      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr);
+      
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
 
-      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(config.nodePtr_);
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 
@@ -264,7 +270,7 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(SignerTest, CheckChain_Test)
+TEST_F(SignerTest, DISABLED_CheckChain_Test)
 {
    //this test fails because the p2sh tx in our unit test chain are botched
    //(the input script has opcode when it should only be push data)

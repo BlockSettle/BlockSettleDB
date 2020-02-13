@@ -78,7 +78,7 @@ void WebSocketClient::writeService()
       {
          message = move(writeSerializationQueue_.pop_front());
       }
-      catch (StopBlockingLoop&)
+      catch (ArmoryThreading::StopBlockingLoop&)
       {
          break;
       }
@@ -236,7 +236,7 @@ void WebSocketClient::service(lws_context* contextPtr)
    int n = 0;
    while(run_.load(memory_order_relaxed) != 0 && n >= 0)
    {
-      n = lws_service(contextPtr, 50);
+      n = lws_service(contextPtr, 500);
    }
 
    lws_context_destroy(contextPtr);
@@ -274,9 +274,9 @@ void WebSocketClient::cleanUp()
    readPackets_.clear();
 
    //create error message to send to all outsanding read callbacks
-   ::Codec_NodeStatus::BDV_Error errMsg;
-   errMsg.set_type(1);
-   errMsg.set_error("LWS client disconnected");
+   ::Codec_BDVCommand::BDV_Error errMsg;
+   errMsg.set_code(-1);
+   errMsg.set_errstr("LWS client disconnected");
 
    BinaryData errPacket(errMsg.ByteSize());
    if (!errMsg.SerializeToArray(
@@ -322,6 +322,8 @@ void WebSocketClient::cleanUp()
       if (thr.joinable())
          thr.join();
    }
+
+   LOGINFO << "lws client cleaned up";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -400,13 +402,13 @@ int WebSocketClient::callback(struct lws *wsi,
             instance->currentWriteMessage_ =
                move(instance->writeQueue_.pop_front());
          }
-         catch (IsEmpty&)
+         catch (ArmoryThreading::IsEmpty&)
          {
             break;
          }
       }
 
-      auto& packet = instance->currentWriteMessage_.getNextPacket();
+      auto&& packet = instance->currentWriteMessage_.consumeNextPacket();
       auto body = (uint8_t*)packet.getPtr() + LWS_PRE;
       auto m = lws_write(wsi, 
          body, packet.getSize() - LWS_PRE,
@@ -453,7 +455,7 @@ void WebSocketClient::readService()
       {
          payload = move(readQueue_.pop_front());
       }
-      catch (StopBlockingLoop&)
+      catch (ArmoryThreading::StopBlockingLoop&)
       {
          break;
       }
@@ -474,7 +476,7 @@ void WebSocketClient::readService()
 
          if (result != 0)
          {
-            //see WebSocketServer::commandThread for the explainantion
+            //see WebSocketServer::commandThread for the explaination
             if (result <= WEBSOCKET_MESSAGE_PACKET_SIZE && result > -1)
             {
                leftOverData_ = move(payload);
