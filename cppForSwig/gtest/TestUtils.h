@@ -43,7 +43,6 @@
 #include "../TxClasses.h"
 #include "../txio.h"
 #include "../bdmenums.h"
-#include "../SwigClient.h"
 #include "../Script.h"
 #include "../Signer.h"
 #include "../Wallets.h"
@@ -172,6 +171,30 @@ namespace DBTestUtils
 
    std::shared_ptr<::google::protobuf::Message> processCommand(
       Clients* clients, std::shared_ptr<::google::protobuf::Message>);
+
+   /////////////////////////////////////////////////////////////////////////////
+   AsyncClient::LedgerDelegate getLedgerDelegate(
+      std::shared_ptr<AsyncClient::BlockDataViewer> bdv);
+   AsyncClient::LedgerDelegate getLedgerDelegateForScrAddr(
+      std::shared_ptr<AsyncClient::BlockDataViewer> bdv,
+      const std::string& walletId, const BinaryData& scrAddr);
+   
+   std::vector<ClientClasses::LedgerEntry> getHistoryPage(
+      AsyncClient::LedgerDelegate& del, uint32_t id);
+   uint64_t getPageCount(AsyncClient::LedgerDelegate& del);
+
+   std::map<BinaryData, std::vector<uint64_t>> getAddrBalancesFromDB(
+      AsyncClient::BtcWallet&);
+
+   std::vector<uint64_t> getBalancesAndCount(AsyncClient::BtcWallet& wlt,
+      uint32_t blockheight);
+
+   Tx getTxByHash(std::shared_ptr<AsyncClient::BlockDataViewer> bdv, 
+      const BinaryData& hash);
+
+   std::vector<UTXO> getSpendableTxOutListForValue(
+      AsyncClient::BtcWallet& wlt, uint64_t value);
+   std::vector<UTXO> getSpendableZCList(AsyncClient::BtcWallet& wlt);
 
    /////////////////////////////////////////////////////////////////////////////
    std::vector<UnitTestBlock> getMinedBlocks(BlockDataManagerThread*);

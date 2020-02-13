@@ -400,16 +400,6 @@ CoinSelectionInstance::CoinSelectionInstance(
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-CoinSelectionInstance::CoinSelectionInstance(
-   SwigClient::Lockbox* const lockbox, 
-   unsigned M, unsigned N, uint64_t balance, unsigned topHeight) :
-   cs_(getFetchLambdaFromLockbox(lockbox, M, N), 
-      vector<AddressBookEntry>(), balance, topHeight),
-   walletPtr_(nullptr),
-   spendableBalance_(balance)
-{}
-
-////////////////////////////////////////////////////////////////////////////////
 function<vector<UTXO>(uint64_t)> CoinSelectionInstance
    ::getFetchLambdaFromWalletContainer(
       shared_ptr<WalletContainer> const walletContainer)
@@ -448,38 +438,6 @@ function<vector<UTXO>(uint64_t)> CoinSelectionInstance
    {
       auto&& vecUtxo = lbd(val);
       decorateUTXOs(walletPtr, vecUtxo);
-
-      return vecUtxo;
-   };
-
-   return fetchLbd;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-function<vector<UTXO>(uint64_t)> CoinSelectionInstance
-   ::getFetchLambdaFromLockbox(  
-      SwigClient::Lockbox* const lockbox, unsigned M, unsigned N)
-{
-   if (lockbox == nullptr)
-      throw runtime_error("null lockbox ptr");
-
-   auto fetchLbd = [lockbox, M, N](uint64_t val)->vector<UTXO>
-   {
-      auto&& vecUtxo = lockbox->getSpendableTxOutListForValue(val);
-
-      unsigned sigSize = M * 73;
-      unsigned scriptSize = N * 66 + 3;
-
-      for (auto& utxo : vecUtxo)
-      {
-         utxo.witnessDataSizeBytes_ = 0;
-         utxo.isInputSW_ = false;
-
-         utxo.txinRedeemSizeBytes_ = sigSize;
-
-         if (BtcUtils::getTxOutScriptType(utxo.getScript()) == TXOUT_SCRIPT_P2SH)
-            utxo.txinRedeemSizeBytes_ += scriptSize;
-      }
 
       return vecUtxo;
    };

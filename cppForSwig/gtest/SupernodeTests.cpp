@@ -3614,7 +3614,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
+      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_,  BlockDataManagerConfig::getDataDir(),
          authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_,pCallback);
       bdvObj->addPublicKey(serverPubkey);
@@ -3633,8 +3633,8 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       bdvObj->goOnline();
       pCallback->waitOnSignal(BDMAction_Ready);
 
-      auto delegate = move(bdvObj->getLedgerDelegateForWallets());
-      auto ledgers = move(delegate.getHistoryPage(0));
+      auto delegate = move(DBTestUtils::getLedgerDelegate(bdvObj));
+      auto ledgers = move(DBTestUtils::getHistoryPage(delegate, 0));
 
       bdvObj->unregisterFromDB();
    }
@@ -4012,7 +4012,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
          cout << "  " << *times[i] << endl;
    }
 
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
@@ -4271,7 +4271,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    bdvObj->unregisterFromDB();
 
    //cleanup
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
@@ -4533,7 +4533,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
    bdvObj->unregisterFromDB();
 
    //cleanup
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
@@ -4799,7 +4799,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
    bdvObj->unregisterFromDB();
 
    //cleanup
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
@@ -5091,7 +5091,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
    bdvObj->unregisterFromDB();
 
    //cleanup
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
@@ -5208,7 +5208,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
    }
 
    //cleanup
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
@@ -5490,7 +5490,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
    }
 
    //cleanup
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
@@ -5679,7 +5679,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
    }
 
    //cleanup
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
@@ -6072,7 +6072,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    bdvObj->unregisterFromDB();
 
    //cleanup
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
@@ -6191,7 +6191,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxHash)
    bdvObj->unregisterFromDB();
 
    //cleanup
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
@@ -6502,7 +6502,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
    }
 
    //cleanup
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
    bdvObj2->addPublicKey(serverPubkey);

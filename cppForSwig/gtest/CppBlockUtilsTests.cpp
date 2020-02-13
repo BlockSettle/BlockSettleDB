@@ -10228,7 +10228,7 @@ TEST_F(WebSocketTests, WebSocketStack)
    theBDMt_->start(config.initMode_);
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
-   auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
    bdvObj->connectToRemote();
@@ -10290,7 +10290,7 @@ TEST_F(WebSocketTests, WebSocketStack)
    bdvObj->goOnline();
    pCallback->waitOnSignal(BDMAction_Ready);
 
-   auto w1AddrBalances = wallet1.getAddrBalancesFromDB();
+   auto w1AddrBalances = DBTestUtils::getAddrBalancesFromDB(wallet1);
    vector<uint64_t> balanceVec;
    balanceVec = w1AddrBalances[TestChain::scrAddrA];
    EXPECT_EQ(balanceVec[0], 50 * COIN);
@@ -10299,7 +10299,7 @@ TEST_F(WebSocketTests, WebSocketStack)
    balanceVec = w1AddrBalances[TestChain::scrAddrC];
    EXPECT_EQ(balanceVec[0], 55 * COIN);
 
-   auto w1Balances = wallet1.getBalancesAndCount(4);
+   auto w1Balances = DBTestUtils::getBalancesAndCount(wallet1, 4);
    uint64_t fullBalance = w1Balances[0];
    uint64_t spendableBalance = w1Balances[1];
    uint64_t unconfirmedBalance = w1Balances[2];
@@ -10307,22 +10307,22 @@ TEST_F(WebSocketTests, WebSocketStack)
    EXPECT_EQ(spendableBalance, 65 * COIN);
    EXPECT_EQ(unconfirmedBalance, 165 * COIN);
 
-   auto lb1AddrBalances = lb1.getAddrBalancesFromDB();
+   auto lb1AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb1);
    balanceVec = lb1AddrBalances[TestChain::lb1ScrAddr];
    EXPECT_EQ(balanceVec[0], 10 * COIN);
    balanceVec = lb1AddrBalances[TestChain::lb1ScrAddrP2SH];
    EXPECT_EQ(balanceVec.size(), 0);
 
-   auto lb2AddrBalances = lb2.getAddrBalancesFromDB();
+   auto lb2AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb2);
    balanceVec = lb2AddrBalances[TestChain::lb2ScrAddr];
    EXPECT_EQ(balanceVec[0], 10 * COIN);
    balanceVec = lb2AddrBalances[TestChain::lb2ScrAddrP2SH];
    EXPECT_EQ(balanceVec[0], 5 * COIN);
 
-   auto lb1Balances = lb1.getBalancesAndCount(4);
+   auto lb1Balances = DBTestUtils::getBalancesAndCount(lb1, 4);
    EXPECT_EQ(lb1Balances[0], 10 * COIN);
 
-   auto lb2Balances = lb2.getBalancesAndCount(4);
+   auto lb2Balances = DBTestUtils::getBalancesAndCount(lb2, 4);
    EXPECT_EQ(lb2Balances[0], 15 * COIN);
 
    //add ZC
@@ -10349,7 +10349,7 @@ TEST_F(WebSocketTests, WebSocketStack)
    DBTestUtils::pushNewZc(theBDMt_, zcVec);
    pCallback->waitOnManySignals(BDMAction_ZC, hashVec);
 
-   w1AddrBalances = wallet1.getAddrBalancesFromDB();
+   w1AddrBalances = DBTestUtils::getAddrBalancesFromDB(wallet1);
    balanceVec = w1AddrBalances[TestChain::scrAddrA];
    //value didn't change, shouldnt be getting a balance vector for this address
    EXPECT_EQ(balanceVec.size(), 0);
@@ -10358,7 +10358,7 @@ TEST_F(WebSocketTests, WebSocketStack)
    balanceVec = w1AddrBalances[TestChain::scrAddrC];
    EXPECT_EQ(balanceVec[0], 65 * COIN);
 
-   w1Balances = wallet1.getBalancesAndCount(4);
+   w1Balances = DBTestUtils::getBalancesAndCount(wallet1, 4);
    fullBalance = w1Balances[0];
    spendableBalance = w1Balances[1];
    unconfirmedBalance = w1Balances[2];
@@ -10366,22 +10366,22 @@ TEST_F(WebSocketTests, WebSocketStack)
    EXPECT_EQ(spendableBalance, 35 * COIN);
    EXPECT_EQ(unconfirmedBalance, 165 * COIN);
 
-   lb1AddrBalances = lb1.getAddrBalancesFromDB();
+   lb1AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb1);
    balanceVec = lb1AddrBalances[TestChain::lb1ScrAddr];
    EXPECT_EQ(balanceVec[0], 5 * COIN);
    balanceVec = lb1AddrBalances[TestChain::lb1ScrAddrP2SH];
    EXPECT_EQ(balanceVec.size(), 0);
 
-   lb2AddrBalances = lb2.getAddrBalancesFromDB();
+   lb2AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb2);
    balanceVec = lb2AddrBalances[TestChain::lb2ScrAddr];
    EXPECT_EQ(balanceVec.size(), 0);
    balanceVec = lb2AddrBalances[TestChain::lb2ScrAddrP2SH];
    EXPECT_EQ(balanceVec.size(), 0);
 
-   lb1Balances = lb1.getBalancesAndCount(4);
+   lb1Balances = DBTestUtils::getBalancesAndCount(lb1, 4);
    EXPECT_EQ(lb1Balances[0], 5 * COIN);
 
-   lb2Balances = lb2.getBalancesAndCount(4);
+   lb2Balances = DBTestUtils::getBalancesAndCount(lb2, 4);
    EXPECT_EQ(lb2Balances[0], 15 * COIN);
 
    //
@@ -10389,7 +10389,7 @@ TEST_F(WebSocketTests, WebSocketStack)
    DBTestUtils::triggerNewBlockNotification(theBDMt_);
    pCallback->waitOnSignal(BDMAction_NewBlock);
 
-   w1AddrBalances = wallet1.getAddrBalancesFromDB();
+   w1AddrBalances = DBTestUtils::getAddrBalancesFromDB(wallet1);
    balanceVec = w1AddrBalances[TestChain::scrAddrA];
    //value didn't change, shouldnt be getting a balance vector for this address
    EXPECT_EQ(balanceVec.size(), 0);
@@ -10398,7 +10398,7 @@ TEST_F(WebSocketTests, WebSocketStack)
    balanceVec = w1AddrBalances[TestChain::scrAddrC];
    EXPECT_EQ(balanceVec[0], 20 * COIN);
 
-   w1Balances = wallet1.getBalancesAndCount(5);
+   w1Balances = DBTestUtils::getBalancesAndCount(wallet1, 5);
    fullBalance = w1Balances[0];
    spendableBalance = w1Balances[1];
    unconfirmedBalance = w1Balances[2];
@@ -10406,22 +10406,22 @@ TEST_F(WebSocketTests, WebSocketStack)
    EXPECT_EQ(spendableBalance, 70 * COIN);
    EXPECT_EQ(unconfirmedBalance, 170 * COIN);
 
-   lb1AddrBalances = lb1.getAddrBalancesFromDB();
+   lb1AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb1);
    balanceVec = lb1AddrBalances[TestChain::lb1ScrAddr];
    EXPECT_EQ(balanceVec[0], 5 * COIN);
    balanceVec = lb1AddrBalances[TestChain::lb1ScrAddrP2SH];
    EXPECT_EQ(balanceVec[0], 25 * COIN);
 
-   lb2AddrBalances = lb2.getAddrBalancesFromDB();
+   lb2AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb2);
    balanceVec = lb2AddrBalances[TestChain::lb2ScrAddr];
    EXPECT_EQ(balanceVec[0], 30 * COIN);
    balanceVec = lb2AddrBalances[TestChain::lb2ScrAddrP2SH];
    EXPECT_EQ(balanceVec[0], 0 * COIN);
 
-   lb1Balances = lb1.getBalancesAndCount(5);
+   lb1Balances = DBTestUtils::getBalancesAndCount(lb1, 5);
    EXPECT_EQ(lb1Balances[0], 30 * COIN);
 
-   lb2Balances = lb2.getBalancesAndCount(5);
+   lb2Balances = DBTestUtils::getBalancesAndCount(lb2, 5);
    EXPECT_EQ(lb2Balances[0], 30 * COIN);
 
    //set wallet unconfirmed balance target to 2 blocks
@@ -10431,7 +10431,7 @@ TEST_F(WebSocketTests, WebSocketStack)
    pCallback->waitOnManySignals(BDMAction_Refresh, confIdVec);
 
    //check new wallet balances
-   w1Balances = wallet1.getBalancesAndCount(5);
+   w1Balances = DBTestUtils::getBalancesAndCount(wallet1, 5);
    fullBalance = w1Balances[0];
    spendableBalance = w1Balances[1];
    unconfirmedBalance = w1Balances[2];
@@ -10508,7 +10508,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
+      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
          authPeersPassLbd_, true, pCallback);
       bdvObj->setCheckServerKeyPromptLambda(pubkeyPrompt);
@@ -10551,7 +10551,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       bdvObj->goOnline();
       pCallback->waitOnSignal(BDMAction_Ready);
 
-      auto w1AddrBalances = wallet1.getAddrBalancesFromDB();
+      auto w1AddrBalances = DBTestUtils::getAddrBalancesFromDB(wallet1);
       vector<uint64_t> balanceVec;
       balanceVec = w1AddrBalances[TestChain::scrAddrA];
       EXPECT_EQ(balanceVec[0], 50 * COIN);
@@ -10560,7 +10560,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       balanceVec = w1AddrBalances[TestChain::scrAddrC];
       EXPECT_EQ(balanceVec[0], 55 * COIN);
 
-      auto w1Balances = wallet1.getBalancesAndCount(4);
+      auto w1Balances = DBTestUtils::getBalancesAndCount(wallet1, 4);
       uint64_t fullBalance = w1Balances[0];
       uint64_t spendableBalance = w1Balances[1];
       uint64_t unconfirmedBalance = w1Balances[2];
@@ -10568,22 +10568,22 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       EXPECT_EQ(spendableBalance, 65 * COIN);
       EXPECT_EQ(unconfirmedBalance, 165 * COIN);
 
-      auto lb1AddrBalances = lb1.getAddrBalancesFromDB();
+      auto lb1AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb1);
       balanceVec = lb1AddrBalances[TestChain::lb1ScrAddr];
       EXPECT_EQ(balanceVec[0], 10 * COIN);
       balanceVec = lb1AddrBalances[TestChain::lb1ScrAddrP2SH];
       EXPECT_EQ(balanceVec.size(), 0);
 
-      auto lb2AddrBalances = lb2.getAddrBalancesFromDB();
+      auto lb2AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb2);
       balanceVec = lb2AddrBalances[TestChain::lb2ScrAddr];
       EXPECT_EQ(balanceVec[0], 10 * COIN);
       balanceVec = lb2AddrBalances[TestChain::lb2ScrAddrP2SH];
       EXPECT_EQ(balanceVec[0], 5 * COIN);
 
-      auto lb1Balances = lb1.getBalancesAndCount(4);
+      auto lb1Balances = DBTestUtils::getBalancesAndCount(lb1, 4);
       EXPECT_EQ(lb1Balances[0], 10 * COIN);
 
-      auto lb2Balances = lb2.getBalancesAndCount(4);
+      auto lb2Balances = DBTestUtils::getBalancesAndCount(lb2, 4);
       EXPECT_EQ(lb2Balances[0], 15 * COIN);
 
       //
@@ -10591,7 +10591,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       DBTestUtils::triggerNewBlockNotification(theBDMt_);
       pCallback->waitOnSignal(BDMAction_NewBlock);
 
-      w1AddrBalances = wallet1.getAddrBalancesFromDB();
+      w1AddrBalances = DBTestUtils::getAddrBalancesFromDB(wallet1);
       balanceVec = w1AddrBalances[TestChain::scrAddrA];
       //value didn't change, shouldnt be getting a balance vector for this address
       EXPECT_EQ(balanceVec.size(), 0);
@@ -10600,7 +10600,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       balanceVec = w1AddrBalances[TestChain::scrAddrC];
       EXPECT_EQ(balanceVec[0], 20 * COIN);
 
-      w1Balances = wallet1.getBalancesAndCount(5);
+      w1Balances = DBTestUtils::getBalancesAndCount(wallet1, 5);
       fullBalance = w1Balances[0];
       spendableBalance = w1Balances[1];
       unconfirmedBalance = w1Balances[2];
@@ -10608,22 +10608,22 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       EXPECT_EQ(spendableBalance, 70 * COIN);
       EXPECT_EQ(unconfirmedBalance, 170 * COIN);
 
-      lb1AddrBalances = lb1.getAddrBalancesFromDB();
+      lb1AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb1);
       balanceVec = lb1AddrBalances[TestChain::lb1ScrAddr];
       EXPECT_EQ(balanceVec[0], 5 * COIN);
       balanceVec = lb1AddrBalances[TestChain::lb1ScrAddrP2SH];
       EXPECT_EQ(balanceVec[0], 25 * COIN);
 
-      lb2AddrBalances = lb2.getAddrBalancesFromDB();
+      lb2AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb2);
       balanceVec = lb2AddrBalances[TestChain::lb2ScrAddr];
       EXPECT_EQ(balanceVec[0], 30 * COIN);
       balanceVec = lb2AddrBalances[TestChain::lb2ScrAddrP2SH];
       EXPECT_EQ(balanceVec[0], 0 * COIN);
 
-      lb1Balances = lb1.getBalancesAndCount(5);
+      lb1Balances = DBTestUtils::getBalancesAndCount(lb1, 5);
       EXPECT_EQ(lb1Balances[0], 30 * COIN);
 
-      lb2Balances = lb2.getBalancesAndCount(5);
+      lb2Balances = DBTestUtils::getBalancesAndCount(lb2, 5);
       EXPECT_EQ(lb2Balances[0], 30 * COIN);
 
       bdvObj->unregisterFromDB();
@@ -10634,7 +10634,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       cout << ".iter " << i << endl;
 
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
+      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
          authPeersPassLbd_, true, pCallback);
       bdvObj->setCheckServerKeyPromptLambda(pubkeyPrompt);
@@ -10673,7 +10673,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       bdvObj->goOnline();
       pCallback->waitOnSignal(BDMAction_Ready);
 
-      auto w1AddrBalances = wallet1.getAddrBalancesFromDB();
+      auto w1AddrBalances = DBTestUtils::getAddrBalancesFromDB(wallet1);
       auto balanceVec = w1AddrBalances[TestChain::scrAddrA];
       EXPECT_EQ(balanceVec[0], 50 * COIN);
       balanceVec = w1AddrBalances[TestChain::scrAddrB];
@@ -10681,7 +10681,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       balanceVec = w1AddrBalances[TestChain::scrAddrC];
       EXPECT_EQ(balanceVec[0], 20 * COIN);
 
-      auto w1Balances = wallet1.getBalancesAndCount(5);
+      auto w1Balances = DBTestUtils::getBalancesAndCount(wallet1, 5);
       auto fullBalance = w1Balances[0];
       auto spendableBalance = w1Balances[1];
       auto unconfirmedBalance = w1Balances[2];
@@ -10689,38 +10689,38 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       EXPECT_EQ(spendableBalance, 70 * COIN);
       EXPECT_EQ(unconfirmedBalance, 170 * COIN);
 
-      auto lb1AddrBalances = lb1.getAddrBalancesFromDB();
+      auto lb1AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb1);
       balanceVec = lb1AddrBalances[TestChain::lb1ScrAddr];
       EXPECT_EQ(balanceVec[0], 5 * COIN);
       balanceVec = lb1AddrBalances[TestChain::lb1ScrAddrP2SH];
       EXPECT_EQ(balanceVec[0], 25 * COIN);
 
-      auto lb2AddrBalances = lb2.getAddrBalancesFromDB();
+      auto lb2AddrBalances = DBTestUtils::getAddrBalancesFromDB(lb2);
       balanceVec = lb2AddrBalances[TestChain::lb2ScrAddr];
       EXPECT_EQ(balanceVec[0], 30 * COIN);
       balanceVec = lb2AddrBalances[TestChain::lb2ScrAddrP2SH];
       EXPECT_EQ(balanceVec.size(), 0);
 
-      auto lb1Balances = lb1.getBalancesAndCount(5);
+      auto lb1Balances = DBTestUtils::getBalancesAndCount(lb1, 5);
       EXPECT_EQ(lb1Balances[0], 30 * COIN);
 
-      auto lb2Balances = lb2.getBalancesAndCount(5);
+      auto lb2Balances = DBTestUtils::getBalancesAndCount(lb2, 5);
       EXPECT_EQ(lb2Balances[0], 30 * COIN);
 
       //grab main ledgers
-      auto&& delegate = bdvObj->getLedgerDelegateForWallets();
-      auto&& ledgers = delegate.getHistoryPage(0);
+      auto&& delegate = DBTestUtils::getLedgerDelegate(bdvObj);
+      auto&& ledgers = DBTestUtils::getHistoryPage(delegate, 0);
       auto& firstEntry = ledgers[0];
       auto txHash = firstEntry.getTxHash();
       EXPECT_EQ(firstHash, txHash);
 
-      auto&& tx = bdvObj->getTxByHash(firstHash);
+      auto&& tx = DBTestUtils::getTxByHash(bdvObj, firstHash);
       EXPECT_EQ(tx.getThisHash(), firstHash);
 
       bdvObj->unregisterFromDB();
    }
 
-   auto&& bdvObj2 = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
      authPeersPassLbd_, true, nullptr);
    bdvObj2->setCheckServerKeyPromptLambda(pubkeyPrompt);
@@ -10752,7 +10752,7 @@ TEST_F(WebSocketTests, GrabAddrLedger_PostReg)
    theBDMt_->start(config.initMode_);
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
-   auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
    bdvObj->connectToRemote();
@@ -10772,7 +10772,7 @@ TEST_F(WebSocketTests, GrabAddrLedger_PostReg)
    auto&& registrationId = wallet.registerAddresses(scrAddrVec, false);
    pCallback->waitOnSignal(BDMAction_Refresh, registrationId);
 
-   auto w1AddrBalances = wallet.getAddrBalancesFromDB();
+   auto w1AddrBalances = DBTestUtils::getAddrBalancesFromDB(wallet);
    ASSERT_NE(w1AddrBalances.size(), 0);
    vector<uint64_t> balanceVec;
    balanceVec = w1AddrBalances[TestChain::scrAddrA];	// crashes here, too
@@ -10782,9 +10782,9 @@ TEST_F(WebSocketTests, GrabAddrLedger_PostReg)
    balanceVec = w1AddrBalances[TestChain::scrAddrC];
    EXPECT_EQ(balanceVec[0], 55 * COIN);
 
-   auto ledgerDelegate = bdvObj->getLedgerDelegateForScrAddr(
-      walletId, TestChain::scrAddrA);
-   EXPECT_FALSE(ledgerDelegate.getHistoryPage(0).empty());
+   auto ledgerDelegate = DBTestUtils::getLedgerDelegateForScrAddr(
+      bdvObj, walletId, TestChain::scrAddrA);
+   EXPECT_FALSE(DBTestUtils::getHistoryPage(ledgerDelegate, 0).empty());
 
    //cleanup
    bdvObj->shutdown(config.cookie_);
@@ -10814,7 +10814,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
    theBDMt_->start(config.initMode_);
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
-   auto&& bdvObj = SwigClient::BlockDataViewer::getNewBDV(
+   auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
       authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
    bdvObj->connectToRemote();
@@ -10839,7 +10839,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
    bdvObj->goOnline();
    pCallback->waitOnSignal(BDMAction_Ready);
 
-   auto w1AddrBalances = wallet1.getAddrBalancesFromDB();
+   auto w1AddrBalances = DBTestUtils::getAddrBalancesFromDB(wallet1);
    vector<uint64_t> balanceVec;
    balanceVec = w1AddrBalances[TestChain::scrAddrA];
    EXPECT_EQ(balanceVec[0], 50 * COIN);
@@ -10848,7 +10848,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
    balanceVec = w1AddrBalances[TestChain::scrAddrC];
    EXPECT_EQ(balanceVec[0], 55 * COIN);
 
-   auto w1Balances = wallet1.getBalancesAndCount(4);
+   auto w1Balances = DBTestUtils::getBalancesAndCount(wallet1, 4);
    uint64_t fullBalance = w1Balances[0];
    uint64_t spendableBalance = w1Balances[1];
    uint64_t unconfirmedBalance = w1Balances[2];
@@ -10890,8 +10890,8 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
       Signer signer;
 
       //get utxo list for spend value
-      auto&& unspentVec = wallet1.getSpendableTxOutListForValue(spendVal);
-      auto&& zcOutputsVec = wallet1.getSpendableZCList();
+      auto&& unspentVec = DBTestUtils::getSpendableTxOutListForValue(wallet1, spendVal);
+      auto&& zcOutputsVec = DBTestUtils::getSpendableZCList(wallet1);
 
       unspentVec.insert(unspentVec.end(),
          zcOutputsVec.begin(), zcOutputsVec.end());
@@ -10948,11 +10948,11 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
    }
 
    //grab ledger, check all zc hash are in there
-   auto&& ledgerDelegate = bdvObj->getLedgerDelegateForWallets();
-   auto count = ledgerDelegate.getPageCount();
+   auto&& ledgerDelegate = DBTestUtils::getLedgerDelegate(bdvObj);
+   auto count = DBTestUtils::getPageCount(ledgerDelegate);
    EXPECT_EQ(count, 1);
 
-   auto&& history = ledgerDelegate.getHistoryPage(0);
+   auto&& history = DBTestUtils::getHistoryPage(ledgerDelegate, 0);
    set<BinaryData> ledgerHashes;
    for (auto& le : history)
       ledgerHashes.insert(le.getTxHash());

@@ -95,10 +95,6 @@ AM_CONDITIONAL([HAVE_64BIT], [test $ac_cv_sizeof_long_unsigned_int = 8])
 
 AC_CONFIG_MACRO_DIR([build-aux/m4])
 m4_include([build-aux/m4/ax_check_compile_flag.m4])
-m4_include([build-aux/m4/ax_swig_python.m4])
-m4_include([build-aux/m4/ax_pkg_swig.m4])
-m4_include([build-aux/m4/ax_python_devel.m4])
-m4_include([build-aux/m4/ax_python_module.m4])
 m4_include([build-aux/m4/ax_cxx_compile_stdcxx.m4])
 
 #check for c++11
@@ -106,30 +102,6 @@ AX_CXX_COMPILE_STDCXX([11], [noext], [mandatory], [nodefault])
 
 # Make the compilation flags quiet unless V=1 is used.
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
-
-if test "x$build_client" = "xyes"; then
-#check for  swig
-
-AC_CHECK_PROG([HAVE_SWIG], [swig], [yes], [no])
-AS_IF([test $HAVE_SWIG == yes], [],
-  [AC_MSG_ERROR([missing swig!])])
-
-if test "x$cross_compiling" != "xyes"; then
-  AX_SWIG_PYTHON([no])
-  AS_IF([test -z $AX_SWIG_PYTHON_CPPFLAGS],
-    [AC_MSG_ERROR([failed to procure swig include path, make sure swig is installed])])
-  AC_SUBST([PYTHON_CFLAGS], [`$PYTHON-config --cflags`])
-  AC_SUBST([PYTHON_LDFLAGS], [`$PYTHON-config --ldflags`])
-  AX_PYTHON_MODULE([psutil], [fatal])
-else
-AC_SUBST([AX_SWIG_PYTHON_CPPFLAGS], [`$PYTHON-config --includes`])
-AC_SUBST([PYTHON_CFLAGS], [`$PYTHON-config --cflags`])
-AC_SUBST([PYTHON_LDFLAGS], [`$PYTHON-config --ldflags`])
-fi
-
-AC_MSG_RESULT([AX_SWIG_PYTHON_CPPFLAGS: $AX_SWIG_PYTHON_CPPFLAGS])
-AC_MSG_RESULT([PYTHON_CFLAGS: $PYTHON_LDFLAGS])
-AC_MSG_RESULT([PYTHON_LDFLAGS: $PYTHON_LDFLAGS])
 
 if test "x$build_gui" = "xyes"; then
 #check for  gui
@@ -142,7 +114,6 @@ AC_CHECK_PROG([HAVE_LRELEASE], [lrelease], [yes], [no])
 AS_IF([test $HAVE_LRELEASE == yes], [],
   [AC_MSG_ERROR([missing lrelease in path, make sure qt4-linguist-tools is installed])])
 
-fi
 fi
 
 AC_SUBST([CXX_STANDARD], $CXX_STANDARD)

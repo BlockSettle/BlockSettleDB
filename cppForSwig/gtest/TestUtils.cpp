@@ -775,4 +775,137 @@ namespace DBTestUtils
 
       return clients->processCommand(payload);
    }
+
+   /////////////////////////////////////////////////////////////////////////////
+   AsyncClient::LedgerDelegate getLedgerDelegate(
+      shared_ptr<AsyncClient::BlockDataViewer> bdv)
+   {
+      auto prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
+      auto fut = prom->get_future();
+      auto getDelegate = [prom]
+         (ReturnMessage<AsyncClient::LedgerDelegate> msg)->void
+      {
+         prom->set_value(msg.get());
+      };
+      bdv->getLedgerDelegateForWallets(getDelegate);
+      return fut.get();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   AsyncClient::LedgerDelegate getLedgerDelegateForScrAddr(
+      shared_ptr<AsyncClient::BlockDataViewer> bdv,
+      const string& walletId, const BinaryData& scrAddr)
+   {
+      auto prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
+      auto fut = prom->get_future();
+      auto getDelegate = [prom]
+         (ReturnMessage<AsyncClient::LedgerDelegate> msg)->void
+      {
+         prom->set_value(msg.get());
+      };
+      bdv->getLedgerDelegateForScrAddr(walletId, scrAddr, getDelegate);
+      return fut.get();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   vector<ClientClasses::LedgerEntry> getHistoryPage(
+      AsyncClient::LedgerDelegate& del, uint32_t id)
+   {
+      auto prom = make_shared<promise<vector<ClientClasses::LedgerEntry>>>();
+      auto fut = prom->get_future();
+      auto lbd = [prom](ReturnMessage<vector<ClientClasses::LedgerEntry>> msg)
+      {
+         prom->set_value(msg.get());
+      };
+      del.getHistoryPage(id, lbd);
+
+      return fut.get();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   uint64_t getPageCount(AsyncClient::LedgerDelegate& del)
+   {
+      auto prom = make_shared<promise<uint64_t>>();
+      auto fut = prom->get_future();
+      auto lbd = [prom](ReturnMessage<uint64_t> msg)
+      {
+         prom->set_value(msg.get());
+      };
+      del.getPageCount(lbd);
+
+      return fut.get();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   map<BinaryData, vector<uint64_t>> getAddrBalancesFromDB(
+      AsyncClient::BtcWallet& wlt)
+   {
+      auto prom = make_shared<promise<map<BinaryData, vector<uint64_t>>>>();
+      auto fut = prom->get_future();
+      auto lbd = [prom](ReturnMessage<map<BinaryData, vector<uint64_t>>> msg)
+      {
+         prom->set_value(msg.get());
+      };
+
+      wlt.getAddrBalancesFromDB(lbd);
+      return fut.get();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   vector<uint64_t> getBalancesAndCount(AsyncClient::BtcWallet& wlt,
+      uint32_t blockheight)
+   {
+      auto prom = make_shared<promise<vector<uint64_t>>>();
+      auto fut = prom->get_future();
+      auto lbd = [prom](ReturnMessage<vector<uint64_t>> msg)
+      {
+         prom->set_value(msg.get());
+      };
+
+      wlt.getBalancesAndCount(blockheight, lbd);
+      return fut.get();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   Tx getTxByHash(shared_ptr<AsyncClient::BlockDataViewer> bdv, 
+      const BinaryData& hash)
+   {
+      auto prom = make_shared<promise<Tx>>();
+      auto fut = prom->get_future();
+      auto lbd = [prom](ReturnMessage<Tx> msg)->void
+      {
+         prom->set_value(msg.get());
+      };
+      bdv->getTxByHash(hash, lbd);
+      return fut.get();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   vector<UTXO> getSpendableTxOutListForValue(
+      AsyncClient::BtcWallet& wlt, uint64_t value)
+   {
+      auto prom = make_shared<promise<vector<UTXO>>>();
+      auto fut = prom->get_future();
+      auto lbd = [prom](ReturnMessage<vector<UTXO>> msg)->void
+      {
+         prom->set_value(msg.get());
+      };
+      wlt.getSpendableTxOutListForValue(value, lbd);
+
+      return fut.get();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   vector<UTXO> getSpendableZCList(AsyncClient::BtcWallet& wlt)
+   {
+      auto prom = make_shared<promise<vector<UTXO>>>();
+      auto fut = prom->get_future();
+      auto lbd = [prom](ReturnMessage<vector<UTXO>> msg)->void
+      {
+         prom->set_value(msg.get());
+      };
+      wlt.getSpendableZCList(lbd);
+
+      return fut.get();
+   }
 }
