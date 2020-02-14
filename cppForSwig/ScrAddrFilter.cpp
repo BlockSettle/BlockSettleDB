@@ -258,7 +258,7 @@ void ScrAddrFilter::registrationThread()
       {
          batch = move(registrationStack_.pop_front());
       }
-      catch (StopBlockingLoop&)
+      catch (ArmoryThreading::StopBlockingLoop&)
       {
          //end loop condition
          break;
@@ -327,7 +327,6 @@ void ScrAddrFilter::registrationThread()
       updateAddressMerkleInDB();
 
       //final scan to sync all addresses to same height
-      auto newTopBlock  = blockchain()->top()->getBlockHeight();
       applyBlockRangeToDB(topBlockHeight + 1, walletIDs, false);
       
       //cleanup

@@ -102,18 +102,22 @@ private:
    std::atomic<unsigned> requestID_;
    std::atomic<bool> connected_ = { false };
 
-   Queue<SerializedMessage> writeQueue_;
+   ArmoryThreading::Queue<SerializedMessage> writeQueue_;
    SerializedMessage currentWriteMessage_;
 
    //AEAD requires messages to be sent in order of encryption, since the 
    //sequence number is the IV. Push all messages to a queue for serialization,
    //to guarantee payloads are queued for writing in the order they were encrypted
-   BlockingQueue<std::unique_ptr<Socket_WritePayload>> writeSerializationQueue_;
+   ArmoryThreading::BlockingQueue<
+      std::unique_ptr<Socket_WritePayload>> writeSerializationQueue_;
 
-   BlockingQueue<BinaryData> readQueue_;
    std::atomic<unsigned> run_ = { 1 };
    std::thread serviceThr_, readThr_, writeThr_;
-   TransactionalMap<uint64_t, std::shared_ptr<WriteAndReadPacket>> readPackets_;
+
+   ArmoryThreading::BlockingQueue<BinaryData> readQueue_;
+   ArmoryThreading::TransactionalMap<
+      uint64_t, std::shared_ptr<WriteAndReadPacket>> readPackets_;
+
    std::shared_ptr<RemoteCallback> callbackPtr_ = nullptr;
    
    ClientPartialMessage currentReadMessage_;

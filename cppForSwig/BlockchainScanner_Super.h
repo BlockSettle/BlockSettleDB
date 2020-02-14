@@ -166,10 +166,14 @@ private:
    LMDBBlockDatabase* db_;
    BlockDataLoader blockDataLoader_;
 
-   BlockingQueue<std::unique_ptr<ParserBatch_Ssh>> commitQueue_;
-   BlockingQueue<std::pair<BinaryData, BinaryData>> sshBoundsQueue_;
-   BlockingQueue<std::unique_ptr<std::map<BinaryData, BinaryWriter>>> serializedSshQueue_;
-   BlockingQueue<std::unique_ptr<ParserBatch_Spentness>> spentnessQueue_;
+   ArmoryThreading::BlockingQueue<
+      std::unique_ptr<ParserBatch_Ssh>> commitQueue_;
+   ArmoryThreading::BlockingQueue<
+      std::pair<BinaryData, BinaryData>> sshBoundsQueue_;
+   ArmoryThreading::BlockingQueue<
+      std::unique_ptr<std::map<BinaryData, BinaryWriter>>> serializedSshQueue_;
+   ArmoryThreading::BlockingQueue<
+      std::unique_ptr<ParserBatch_Spentness>> spentnessQueue_;
 
    std::set<BinaryData> updateSshHints_;
 
@@ -216,7 +220,7 @@ public:
    BlockchainScanner_Super(
       std::shared_ptr<Blockchain> bc, LMDBBlockDatabase* db,
       BlockFiles& bf, bool init,
-      unsigned threadcount, unsigned queue_depth,
+      unsigned threadcount, unsigned,
       ProgressCallback prg, bool reportProgress) :
       init_(init), blockchain_(bc), db_(db),
       blockDataLoader_(bf.folderPath()),

@@ -31,7 +31,7 @@ private:
       uint32_t count_;
       unsigned updateID_ = UINT32_MAX;
 
-      TransactionalMap<BinaryData, LedgerEntry> pageLedgers_;
+      ArmoryThreading::TransactionalMap<BinaryData, LedgerEntry> pageLedgers_;
 
       Page(void) : blockStart_(UINT32_MAX), blockEnd_(UINT32_MAX), count_(0)
       {}
@@ -67,13 +67,13 @@ public:
       isInitialized_->store(false, std::memory_order_relaxed);
    }
 
-   std::shared_ptr<std::map<BinaryData, LedgerEntry>> getPageLedgerMap(
+   std::shared_ptr<const std::map<BinaryData, LedgerEntry>> getPageLedgerMap(
       std::function<std::map<BinaryData, TxIOPair>(uint32_t, uint32_t) > getTxio,
       std::function<std::map<BinaryData, LedgerEntry>(
          const std::map<BinaryData, TxIOPair>&, uint32_t, uint32_t) > buildLedgers,
       uint32_t pageId, unsigned updateID, std::map<BinaryData, TxIOPair>* txioMap = nullptr);
 
-   std::shared_ptr<std::map<BinaryData, LedgerEntry>> getPageLedgerMap(uint32_t pageId);
+   std::shared_ptr<const std::map<BinaryData, LedgerEntry>> getPageLedgerMap(uint32_t pageId);
 
    void reset(void) 
    { 

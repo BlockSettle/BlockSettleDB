@@ -133,9 +133,10 @@ private:
    const unsigned sdbiKey_;
    LMDBBlockDatabase *const lmdb_;
 
-   std::shared_ptr<TransactionalMap<
+   std::shared_ptr<ArmoryThreading::TransactionalMap<
       BinaryDataRef, std::shared_ptr<AddrAndHash>>> scrAddrMap_;
-   BlockingQueue<std::shared_ptr<AddressBatch>> registrationStack_;
+   ArmoryThreading::BlockingQueue<
+      std::shared_ptr<AddressBatch>> registrationStack_;
 
    std::thread thr_;
 
@@ -146,8 +147,8 @@ private:
    static void cleanUpPreviousChildren(LMDBBlockDatabase* lmdb);
    void registrationThread(void);
 
-   std::shared_ptr<TransactionalMap<BinaryDataRef, std::shared_ptr<AddrAndHash>>>
-      getScrAddrMapPtr(void) const
+   std::shared_ptr<ArmoryThreading::TransactionalMap<
+      BinaryDataRef, std::shared_ptr<AddrAndHash>>> getScrAddrMapPtr(void) const
    {
       return scrAddrMap_;
    }
@@ -166,14 +167,15 @@ public:
       : sdbiKey_(sdbiKey), lmdb_(lmdb)
    {
       scrAddrMap_ = std::make_shared<
-         TransactionalMap<BinaryDataRef, std::shared_ptr<AddrAndHash>>>();
+         ArmoryThreading::TransactionalMap<
+         BinaryDataRef, std::shared_ptr<AddrAndHash>>>();
    }
    
    virtual ~ScrAddrFilter() { shutdown(); }
    
    LMDBBlockDatabase* db() { return lmdb_; }
 
-   std::shared_ptr<std::map<BinaryDataRef, std::shared_ptr<AddrAndHash>>>
+   std::shared_ptr<const std::map<BinaryDataRef, std::shared_ptr<AddrAndHash>>>
       getScrAddrMap(void) const
    { 
       return scrAddrMap_->get(); 

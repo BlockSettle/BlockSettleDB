@@ -21,6 +21,38 @@ using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+// NodeRPCInterface
+//
+////////////////////////////////////////////////////////////////////////////////
+NodeRPCInterface::~NodeRPCInterface()
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+const NodeChainState& NodeRPCInterface::getChainStatus(void) const
+{
+   ReentrantLock lock(this);
+   
+   return nodeChainState_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+map<unsigned, FeeEstimateResult> NodeRPCInterface::getFeeSchedule(
+   const string& strategy)
+{
+   auto estimateCachePtr = atomic_load(&currentEstimateCache_);
+
+   if (estimateCachePtr == nullptr)
+      throw RpcError();
+
+   auto iterStrat = estimateCachePtr->find(strategy);
+   if (iterStrat == estimateCachePtr->end())
+      throw RpcError();
+
+   return iterStrat->second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
 // NodeRPC
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,6 +65,9 @@ NodeRPC::NodeRPC(
    {
       this->pollThread();
    };
+
+   if (!canPoll())
+      return;
 
    thrVec_.push_back(thread(pollLbd));
 }
@@ -338,21 +373,6 @@ FeeEstimateResult NodeRPC::getFeeByte(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-map<unsigned, FeeEstimateResult> NodeRPC::getFeeSchedule(const string& strategy)
-{
-   auto estimateCachePtr = atomic_load(&currentEstimateCache_);
-
-   if (estimateCachePtr == nullptr)
-      throw RpcError();
-
-   auto iterStrat = estimateCachePtr->find(strategy);
-   if (iterStrat == estimateCachePtr->end())
-      throw RpcError();
-
-   return iterStrat->second;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 void NodeRPC::aggregateFeeEstimates()
 {
    //get fee/byte on both strategies
@@ -502,11 +522,11 @@ void NodeRPC::waitOnChainSync(function<void(void)> callbck)
       this_thread::sleep_for(chrono::seconds(dur));
    }
 
-   LOGINFO << "Node is ready";
+   LOGINFO << "RPC is ready";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-string NodeRPC::broadcastTx(const BinaryDataRef& rawTx)
+int NodeRPC::broadcastTx(const BinaryDataRef& rawTx)
 {
    ReentrantLock lock(this);
 
@@ -522,7 +542,6 @@ string NodeRPC::broadcastTx(const BinaryDataRef& rawTx)
    auto&& response = queryRPC(json_obj);
    auto&& response_obj = JSON_decode(response);
 
-   string return_str;
    if (!response_obj.isResponseValid(json_obj.id_))
    {
       auto error_field = response_obj.getValForKey("error");
@@ -530,25 +549,13 @@ string NodeRPC::broadcastTx(const BinaryDataRef& rawTx)
       if (error_obj == nullptr)
          throw JSON_Exception("invalid response");
 
-      auto message_field = error_obj->getValForKey("message");
-      auto message_val = dynamic_pointer_cast<JSON_string>(message_field);
+      auto code_field = error_obj->getValForKey("code");
+      auto code_val = dynamic_pointer_cast<JSON_number>(code_field);
 
-      return_str = message_val->val_;
-   }
-   else
-   {
-      return_str = string("success");
+      return (int)code_val->val_;
    }
 
-   return return_str;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const NodeChainState& NodeRPC::getChainStatus(void) const
-{
-   ReentrantLock lock(this);
-   
-   return nodeChainState_;
+   return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -579,7 +586,7 @@ string NodeRPC::queryRPC(JSON_object& request)
 {
    HttpSocket sock("127.0.0.1", bdmConfig_.rpcPort_);
    if (!setupConnection(sock))
-      throw RpcError();
+      throw RpcError("node_down");
 
    return queryRPC(sock, request);
 }

@@ -79,7 +79,7 @@ public:
    bool hasHeaderWithHash(BinaryData const & txHash) const;
    const std::shared_ptr<BlockHeader> getHeaderPtrForTxRef(const TxRef &txr) const;
    
-   std::shared_ptr<std::map<HashString, std::shared_ptr<BlockHeader>>> allHeaders(void) const
+   std::shared_ptr<const std::map<HashString, std::shared_ptr<BlockHeader>>> allHeaders(void) const
    {
       return headerMap_.get();
    }
@@ -105,11 +105,14 @@ private:
    //TODO: make this whole class thread safe
 
    const BinaryData genesisHash_;
-   TransactionalMap<BinaryData, std::shared_ptr<BlockHeader>> headerMap_;
-   TransactionalMap<unsigned, std::shared_ptr<BlockHeader>> headersById_;
+   ArmoryThreading::TransactionalMap<
+      BinaryData, std::shared_ptr<BlockHeader>> headerMap_;
+   ArmoryThreading::TransactionalMap<
+      unsigned, std::shared_ptr<BlockHeader>> headersById_;
+   ArmoryThreading::TransactionalMap<
+      unsigned, std::shared_ptr<BlockHeader>> headersByHeight_;
 
    std::vector<std::shared_ptr<BlockHeader>> newlyParsedBlocks_;
-   TransactionalMap<unsigned, std::shared_ptr<BlockHeader>> headersByHeight_;
    std::shared_ptr<BlockHeader> topBlockPtr_;
    unsigned topBlockId_ = 0;
    Blockchain(const Blockchain&); // not defined

@@ -42,11 +42,13 @@ struct CallbackReturn
 struct CallbackReturn_CloseBitcoinP2PSocket : public CallbackReturn
 {
 private:
-   std::shared_ptr<BlockingQueue<std::vector<uint8_t>>> dataStack_;
+   std::shared_ptr<
+      ArmoryThreading::BlockingQueue<std::vector<uint8_t>>> dataStack_;
 
 public:
    CallbackReturn_CloseBitcoinP2PSocket(
-      std::shared_ptr<BlockingQueue<std::vector<uint8_t>>> datastack) :
+      std::shared_ptr<ArmoryThreading::BlockingQueue<
+         std::vector<uint8_t>>> datastack) :
       dataStack_(datastack)
    {}
 
@@ -203,8 +205,8 @@ private:
    SOCKET pipes_[2];
 #endif
 
-   BlockingQueue<std::vector<uint8_t>> readQueue_;
-   Queue<std::vector<uint8_t>> writeQueue_;
+   ArmoryThreading::BlockingQueue<std::vector<uint8_t>> readQueue_;
+   ArmoryThreading::Queue<std::vector<uint8_t>> writeQueue_;
 
 private:
    void signalService(uint8_t);
@@ -270,7 +272,7 @@ private:
 private:
    std::unique_ptr<SimpleSocket> listenSocket_;
    std::map<SOCKET, std::unique_ptr<SocketStruct>> acceptMap_;
-   Queue<SOCKET> cleanUpStack_;
+   ArmoryThreading::Queue<SOCKET> cleanUpStack_;
 
    std::thread listenThread_;
    std::mutex mu_;

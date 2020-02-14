@@ -13,6 +13,7 @@
 
 using namespace std;
 using namespace ::google::protobuf;
+using namespace ArmoryThreading;
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -74,6 +75,8 @@ int WebSocketServer::callback(
 
    switch (reason)
    {
+   case LWS_CALLBACK_EVENT_WAIT_CANCELLED:
+      break;
 
    case LWS_CALLBACK_PROTOCOL_INIT:
    {
@@ -102,7 +105,7 @@ int WebSocketServer::callback(
       auto instance = WebSocketServer::getInstance();
       BinaryDataRef bdr((uint8_t*)&session_data->id_, 8);
       instance->clients_->unregisterBDV(bdr.toHexStr());
-      instance->eraseId(session_data->id_);
+      instance->eraseId(session_data->id_, wsi);
 
       break;
    }
@@ -121,40 +124,34 @@ int WebSocketServer::callback(
    case LWS_CALLBACK_SERVER_WRITEABLE:
    {
       auto wsPtr = WebSocketServer::getInstance();
-      auto stateMap = wsPtr->getConnectionStateMap();
-      auto iter = stateMap->find(session_data->id_);
-      if (iter == stateMap->end())
-      {
-         //no client object, kill this connection
-         return -1;
-      }
-
-      if (iter->second.run_->load(memory_order_relaxed) == -1)
-      {
-         //connection flagged for closing
-         return -1;
-      }
-
-      auto& stateObj = iter->second;
-      if (stateObj.currentWriteMsg_.isDone())
-      {
-         try
-         {
-            stateObj.currentWriteMsg_ =
-               move(stateObj.serializedStack_->pop_front());
-         }
-         catch (IsEmpty&)
-         {
-            auto val = iter->second.count_->load(memory_order_relaxed);
-            if(val != 0)
-               LOGWARN << "!!!! out of server write loop with pending message: " << val;
-            break;
-         }
-      }
       
-      auto& ws_msg = stateObj.currentWriteMsg_;
+      if (wsi != *wsPtr->pendingWritesIter_)
+      {
+         /*
+         Sanity check: skip over lws pollin callbacks that are not 
+         for our expected wsi, as we have not requested those (lws 
+         ping/pong routines typically)
+         */
+         break;
+      }
 
-      auto& packet = ws_msg.getNextPacket();
+      auto iter = wsPtr->writeMap_.find(wsi);
+      if (iter == wsPtr->writeMap_.end())
+      {
+         wsPtr->pendingWrites_.erase(wsPtr->pendingWritesIter_++);
+         LOGWARN << "incrementing over missing wsi write list";
+         break;
+      }
+
+      if (iter->second.empty())
+      {
+         wsPtr->pendingWrites_.erase(wsPtr->pendingWritesIter_++);
+         LOGWARN << "incrementing over empty wsi write list";
+         break;
+      }
+
+      auto& theList = iter->second.front();
+      auto& packet = theList.front();
       auto body = (uint8_t*)packet.getPtr() + LWS_PRE;
 
       auto m = lws_write(wsi, 
@@ -168,18 +165,18 @@ int WebSocketServer::callback(
             " bytes, sent " << m << " bytes";
       }
 
-      if (stateObj.currentWriteMsg_.isDone())
-         stateObj.count_->fetch_sub(1, memory_order_relaxed);
-      /***
-      In case several threads are trying to write to the same socket, it's
-      possible their calls to callback_on_writeable may overlap, resulting 
-      in a single write entry being consumed.
+      theList.pop_front();
+      if (theList.empty())
+      {
+         iter->second.pop_front();
+         if (iter->second.empty())
+         {
+            wsPtr->pendingWrites_.erase(wsPtr->pendingWritesIter_++);
+            break;
+         }
+      }
 
-      To avoid this, we trigger the callback from within itself, which will 
-      break out if there are no more items in the writeable stack.
-      ***/
-      lws_callback_on_writable(wsi);
-
+      ++wsPtr->pendingWritesIter_;
       break;
    }
 
@@ -254,7 +251,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
       instance->threads_.push_back(thread(writeProcessThread));
       instance->threads_.push_back(thread(readProcessThread));
    }
-
+   
    auto port = stoi(bdmT->bdm()->config().listenPort_);
    if (port == 0)
       port = WEBSOCKET_PORT;
@@ -296,6 +293,7 @@ void WebSocketServer::shutdown()
    instance->clientConnectionInterruptQueue_.terminate();
    instance->clients_->shutdown();
    instance->run_.store(0, memory_order_relaxed);
+   lws_cancel_service(instance->contextPtr_);
    instance->packetQueue_.terminate();
 
    vector<thread::id> idVec;
@@ -364,11 +362,11 @@ void WebSocketServer::webSocketService(int port)
    info.ip_limit_ah = 24; /* for testing */
    info.ip_limit_wsi = 105; /* for testing */
    
-   auto context = lws_create_context(&info);
-   if (context == nullptr) 
+   contextPtr_ = lws_create_context(&info);
+   if (contextPtr_ == nullptr) 
       throw LWS_Error("failed to create LWS context");
 
-   vhost = lws_create_vhost(context, &info);
+   vhost = lws_create_vhost(contextPtr_, &info);
    if (vhost == nullptr)
       throw LWS_Error("failed to create vhost");
 
@@ -377,7 +375,8 @@ void WebSocketServer::webSocketService(int port)
    {
       while (run_.load(memory_order_relaxed) != 0 && n >= 0)
       {
-         n = lws_service(context, 50);
+         n = lws_service(contextPtr_, 10000);
+         updateWriteMap();
       }
    }
    catch(exception& e)
@@ -387,7 +386,7 @@ void WebSocketServer::webSocketService(int port)
 
    LOGINFO << "cleaning up lws server";
    lws_vhost_destroy(vhost);
-   lws_context_destroy(context);
+   lws_context_destroy(contextPtr_);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -467,16 +466,16 @@ void WebSocketServer::clientInterruptThread()
       if (iter == clientMap->end())
          continue;
 
-      auto& ccs = iter->second;
+      auto ccs = const_cast<ClientConnection*>(&iter->second);
       unsigned zero = 0;
-      if (!ccs.readLock_->compare_exchange_weak(zero, 1))
+      if (!ccs->readLock_->compare_exchange_weak(zero, 1))
       {
          clientConnectionInterruptQueue_.push_back(move(clientId));
          continue;
       }
 
-      ccs.processReadQueue(clients_);
-      ccs.readLock_->store(0);
+      ccs->processReadQueue(clients_);
+      ccs->readLock_->store(0);
    }
 }
 
@@ -514,7 +513,7 @@ void WebSocketServer::prepareWriteThread()
       auto stateIter = statemap->find(msg->id_);
       if (stateIter == statemap->end())
          continue;
-      auto statePtr = &stateIter->second;
+      auto statePtr = const_cast<ClientConnection*>(&stateIter->second);
 
       //grab state object lock
       unsigned zero = 0;
@@ -560,8 +559,7 @@ void WebSocketServer::prepareWriteThread()
                WS_MSGTYPE_AEAD_REKEY);
 
             //push to write map
-            statePtr->count_->fetch_add(1, memory_order_relaxed);
-            statePtr->serializedStack_->push_back(move(ws_msg));
+            writeToSocket(statePtr->wsiPtr_, ws_msg);
 
             //rekey outer bip151 channel
             statePtr->bip151Connection_->rekeyOuterSession();
@@ -580,7 +578,7 @@ void WebSocketServer::prepareWriteThread()
             &serializedData[0], serializedData.size());
          if (!result)
          {
-            LOGWARN << "failed to serialize message";
+            LOGERR << "failed to serialize message";
             return;
          }
       }
@@ -591,14 +589,10 @@ void WebSocketServer::prepareWriteThread()
          WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, msg->msgid_);
 
       //push to write map
-      statePtr->serializedStack_->push_back(move(ws_msg));
-      statePtr->count_->fetch_add(1, memory_order_relaxed);
+      writeToSocket(statePtr->wsiPtr_, ws_msg);
 
       //reset lock
       statePtr->writeLock_->store(0);
-
-      //call write callback
-      lws_callback_on_writable(statePtr->wsiPtr_);
    }
 }
 
@@ -614,7 +608,7 @@ void WebSocketServer::waitOnShutdown()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<map<uint64_t, ClientConnection>> 
+shared_ptr<const map<uint64_t, ClientConnection>> 
    WebSocketServer::getConnectionStateMap() const
 {
    return clientStateMap_.get();
@@ -626,12 +620,14 @@ void WebSocketServer::addId(const uint64_t& id, struct lws* ptr)
    auto&& lbds = getAuthPeerLambda();
    auto&& write_pair = make_pair(id, ClientConnection(ptr, id, lbds));
    clientStateMap_.insert(move(write_pair));
+   writeMap_.emplace(ptr, list<list<BinaryData>>());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void WebSocketServer::eraseId(const uint64_t& id)
+void WebSocketServer::eraseId(const uint64_t& id, struct lws* ptr)
 {
    clientStateMap_.erase(id);
+   writeMap_.erase(ptr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -669,7 +665,52 @@ void WebSocketServer::closeClientConnection(uint64_t id)
       return;
    }
 
-   iter->second.closeConnection();
+   auto cc = const_cast<ClientConnection*>(&iter->second);
+   cc->closeConnection();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::writeToSocket(struct lws* ptr, SerializedMessage& msg)
+{
+   list<BinaryData> packetList;
+   while (!msg.isDone())
+      packetList.emplace_back(move(msg.consumeNextPacket()));
+
+   auto&& thePair = make_pair(ptr, move(packetList));
+   writeQueue_.push_back(move(thePair));
+   lws_cancel_service(contextPtr_);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void WebSocketServer::updateWriteMap()
+{
+   try 
+   {
+      while (true)
+      {
+         auto&& packetList = writeQueue_.pop_front();
+         auto iter = writeMap_.find(packetList.first);
+         if (iter == writeMap_.end())
+            continue;
+
+         iter->second.emplace_back(move(packetList.second));
+         auto insertIter = pendingWrites_.insert(packetList.first);
+         if (insertIter.second)
+            pendingWritesIter_ = ++insertIter.first;
+         break;
+      }      
+   }
+   catch (IsEmpty&)
+   {}
+
+   //round robin write activation
+   if (pendingWrites_.empty())
+      return;
+
+   if (pendingWritesIter_ == pendingWrites_.end())
+      pendingWritesIter_ = pendingWrites_.begin();
+
+   lws_callback_on_writable(*pendingWritesIter_);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -836,11 +877,9 @@ void ClientConnection::processAEADHandshake(BinaryData msg)
          connPtr = bip151Connection_.get();
       SerializedMessage aeadMsg;
       aeadMsg.construct(msg, connPtr, type);
-      serializedStack_->push_back(move(aeadMsg));
-      count_->fetch_add(1, memory_order_relaxed);
 
-      //call write callback
-      lws_callback_on_writable(wsiPtr_);
+      auto instance = WebSocketServer::getInstance();
+      instance->writeToSocket(wsiPtr_, aeadMsg);
    };
 
    auto processHandshake = [this, &writeToClient](const BinaryData& msgdata)->bool

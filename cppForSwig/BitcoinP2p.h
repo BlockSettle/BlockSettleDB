@@ -420,11 +420,13 @@ public:
 };
 
 ////reject
+class NodeUnitTest;
 struct Payload_Reject : public Payload
 {
+   friend class NodeUnitTest;
 private:
    PayloadType rejectType_;
-   char code_;
+   int8_t code_;
    std::string reasonStr_;
    std::vector<uint8_t> extra_;
 
@@ -447,6 +449,8 @@ public:
    PayloadType rejectType(void) const { return rejectType_; }
    const std::vector<uint8_t>& getExtra(void) const { return extra_; }
    const std::string& getReasonStr(void) const { return reasonStr_; }
+
+   int8_t code (void) const { return code_; }
 
    PayloadType type(void) const { return Payload_reject; }
    std::string typeStr(void) const { return "reject"; }
@@ -497,11 +501,13 @@ public:
 class BitcoinP2PSocket : public PersistentSocket
 {
 private:
-   std::shared_ptr<BlockingQueue<std::vector<uint8_t>>> readDataStack_;
+   std::shared_ptr<ArmoryThreading::BlockingQueue<
+      std::vector<uint8_t>>> readDataStack_;
 
 public:
    BitcoinP2PSocket(const std::string& addr, const std::string& port,
-      std::shared_ptr<BlockingQueue<std::vector<uint8_t>>> readStack) :
+      std::shared_ptr<ArmoryThreading::BlockingQueue<
+      std::vector<uint8_t>>> readStack) :
       PersistentSocket(addr, port), readDataStack_(readStack)
    {}
 
@@ -514,13 +520,69 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class BitcoinP2P
+class BitcoinNodeInterface
+{
+protected:
+   const uint32_t magic_word_;
+   std::atomic<bool> run_;
+      
+   //new block notification queue
+   std::shared_ptr<ArmoryThreading::BlockingQueue<
+      std::vector<InvEntry>>> invBlockStack_;
+
+   //callback lambdas
+   std::function<void(std::vector<InvEntry>&)> invTxLambda_;
+   std::function<void(std::unique_ptr<Payload>)> getTxDataLambda_;
+   std::function<void(void)> nodeStatusLambda_;
+
+protected:
+   void processGetTx(std::unique_ptr<Payload>);
+
+public:
+   struct getDataPayload
+   {
+      std::unique_ptr<Payload> payload_;
+   };
+   
+   ArmoryThreading::TransactionalMap<
+      BinaryData, std::shared_ptr<getDataPayload>> getDataPayloadMap_;
+
+public:
+   BitcoinNodeInterface(uint32_t magic_word, bool watcher);
+
+   //virtuals
+   virtual ~BitcoinNodeInterface(void) = 0;
+
+   virtual void connectToNode(bool async) = 0;
+   virtual void shutdown(void);
+
+   virtual bool connected(void) const = 0;
+   virtual void sendMessage(std::unique_ptr<Payload>) = 0;
+
+   //locals
+   bool isSegWit(void) const { return PEER_USES_WITNESS; }
+   uint32_t getMagicWord(void) const { return magic_word_; }
+   std::shared_ptr<ArmoryThreading::BlockingQueue<std::vector<InvEntry>>> 
+      getInvBlockStack(void) const { return invBlockStack_; }
+
+   void processInvTx(std::vector<InvEntry>);   
+   void processInvBlock(std::vector<InvEntry>);
+  
+   void registerInvTxLambda(std::function<void(std::vector<InvEntry>)> func);
+   void registerNodeStatusLambda(std::function<void(void)> lbd);
+   void registerGetTxCallback(
+      const std::function<void(std::unique_ptr<Payload>)>&);
+
+   void requestTx(const InvEntry&);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class BitcoinP2P : public BitcoinNodeInterface
 {
 private:
    const std::string addr_;
    const std::string port_;
 
-   const uint32_t magic_word_;
    struct sockaddr node_addr_;
    std::unique_ptr<BitcoinP2PSocket> socket_;
 
@@ -530,44 +592,23 @@ private:
    std::atomic<bool> nodeConnected_;
 
    //to pass payloads between the poll thread and the processing one
-   std::shared_ptr<BlockingQueue<std::vector<uint8_t>>> dataStack_;
+   std::shared_ptr<ArmoryThreading::BlockingQueue<
+      std::vector<uint8_t>>> dataStack_;
 
    std::exception_ptr select_except_ = nullptr;
    std::exception_ptr process_except_ = nullptr;
 
-   //callback lambdas
-   std::shared_ptr<BlockingQueue<std::vector<InvEntry>>> invBlockStack_;
-   std::function<void(std::vector<InvEntry>&)> invTxLambda_;
-   std::function<void(void)> nodeStatusLambda_;
-
-   //stores callback by txhash for getdata packet we send to the node
-   TransactionalMap<BinaryData, std::shared_ptr<GetDataStatus>> getTxCallbackMap_;
-
-   std::atomic<bool> run_;
    std::future<bool> shutdownFuture_;
 
    uint32_t topBlock_ = UINT32_MAX;
 
 public:
-   struct getDataPayload
-   {
-      std::shared_ptr<Payload> payload_;
-      std::shared_ptr<std::promise<bool>> promise_;
-   };
-
-   TransactionalMap<BinaryData, getDataPayload> getDataPayloadMap_;
-
-public:
    static const std::map<std::string, PayloadType> strToPayload_;
-
-protected:
-   void processInvBlock(std::vector<InvEntry>);
 
 private:
    void init(void);
    void connectLoop(void);
 
-   //void pollSocketThread();
    void processDataStackThread(void);
    void processPayload(std::vector<std::unique_ptr<Payload>>);
 
@@ -580,7 +621,6 @@ private:
 
    void processInv(std::unique_ptr<Payload>);
    void processGetData(std::unique_ptr<Payload>);
-   void processGetTx(std::unique_ptr<Payload>);
    void processReject(std::unique_ptr<Payload>);
 
    int64_t getTimeStamp() const;
@@ -592,38 +632,20 @@ private:
    }
 
 public:
-   BitcoinP2P(const std::string& addr, const std::string& port, uint32_t magic_word);
+   BitcoinP2P(
+      const std::string& addr, const std::string& port, 
+      uint32_t magic_word, bool watcher);
    ~BitcoinP2P();
 
-   virtual void connectToNode(bool async);
-   virtual void shutdown(void);
-   void sendMessage(Payload&&);
+   //virtuals
+   void connectToNode(bool async) override;
+   void shutdown(void) override;
 
-   virtual std::shared_ptr<Payload> getTx(const InvEntry&, uint32_t timeout);
-
-   void registerInvTxLambda(std::function<void(std::vector<InvEntry>)> func)
-   {
-      if (!run_.load(std::memory_order_relaxed))
-         throw std::runtime_error("node has been shutdown");
-
-      invTxLambda_ = std::move(func);
-   }
-
-   void registerGetTxCallback(const BinaryDataRef&, std::shared_ptr<GetDataStatus>);
-   void unregisterGetTxCallback(const BinaryDataRef&);
-
-   bool connected(void) const { return nodeConnected_.load(std::memory_order_acquire); }
-   bool isSegWit(void) const { return PEER_USES_WITNESS; }
-
+   void sendMessage(std::unique_ptr<Payload>) override;
+   bool connected(void) const override 
+   { return nodeConnected_.load(std::memory_order_acquire); }
+   
    void updateNodeStatus(bool connected);
-   void registerNodeStatusLambda(std::function<void(void)> lbd) { nodeStatusLambda_ = lbd; }
-   std::shared_ptr<BlockingQueue<std::vector<InvEntry>>> getInvBlockStack(void) const
-   {
-      return invBlockStack_;
-   }
-
-   uint32_t getMagicWord(void) const { return magic_word_; }
-   void processInvTx(std::vector<InvEntry>);   
 };
 
 #endif

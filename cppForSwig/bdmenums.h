@@ -106,12 +106,4 @@ enum BDV_refresh
    BDV_registrationCompleted
 };
 
-enum BDV_ErrorType
-{
-   Error_BDM,
-   Error_BDV,
-   Error_ZC
-};
-
-
 #endif

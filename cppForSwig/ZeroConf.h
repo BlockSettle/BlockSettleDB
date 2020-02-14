@@ -24,9 +24,9 @@
 #include "lmdb_wrapper.h"
 #include "Blockchain.h"
 #include "ScrAddrFilter.h"
+#include "ArmoryErrors.h"
 
 #define GETZC_THREADCOUNT 5
-#define TXGETDATA_TIMEOUT_MS 3000
 
 enum ZcAction
 {
@@ -56,6 +56,10 @@ struct ZeroConfData
       return (this->txobj_ == rhs.txobj_) && (this->txtime_ == rhs.txtime_);
    }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+typedef std::function<void(std::map<BinaryData, std::pair<
+   std::shared_ptr<BinaryData>, ArmoryErrorCodes>>)> ZcBroadcastCallback;
 
 ////////////////////////////////////////////////////////////////////////////////
 class OutPointRef
@@ -152,6 +156,7 @@ public:
 
    const BinaryData& getTxHash(void) const;
    BinaryDataRef getKeyRef(void) const { return zcKey_.getRef(); }
+   const BinaryData& getKey(void) const { return zcKey_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,31 +165,138 @@ struct ZeroConfBatch
    //<zcKey ref, ParsedTx>. ParsedTx carries the key object.
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> txMap_;
    
-   std::atomic<unsigned> counter_;
-   std::promise<bool> isReadyPromise_;
-   unsigned timeout_ = TXGETDATA_TIMEOUT_MS;
+   //<txHash ref, zcKey ref>. ParsedTx carries both hash and key objects.
+   std::map<BinaryData, BinaryDataRef> hashToKeyMap_;
+
+   std::shared_ptr<std::atomic<int>> counter_;
+   std::shared_ptr<std::promise<ArmoryErrorCodes>> isReadyPromise_;
+   std::shared_future<ArmoryErrorCodes> isReadyFut_;
+
+   unsigned timeout_ = UINT32_MAX;
+   std::chrono::system_clock::time_point creationTime_;
+   ZcBroadcastCallback errorCallback_;
 
 public:
    ZeroConfBatch(void)
    {
-      counter_.store(0, std::memory_order_relaxed);
-   }
-
-   void incrementCounter(void)
-   {
-      auto val = counter_.fetch_add(1, std::memory_order_relaxed);
-      if (val + 1 == txMap_.size())
-         isReadyPromise_.set_value(true);
+      counter_ = std::make_shared<std::atomic<int>>();
+      isReadyPromise_ = std::make_shared<std::promise<ArmoryErrorCodes>>();
+      isReadyFut_ = isReadyPromise_->get_future();
+      creationTime_ = std::chrono::system_clock::now();
    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct ZeroConfInvPacket
+enum ZcPreprocessPacketType
 {
-   BinaryData zcKey_;
-   std::shared_ptr<ZeroConfBatch> batchPtr_;
-   InvEntry invEntry_;
+   ZcPreprocessPacketType_Inv
 };
+
+////
+class ZcPreprocessPacket
+{
+private:
+   const ZcPreprocessPacketType type_;
+
+public:
+   ZcPreprocessPacket(ZcPreprocessPacketType type) :
+      type_(type)
+   {}
+
+   virtual ~ZcPreprocessPacket(void) = 0;
+
+   ZcPreprocessPacketType type(void) const { return type_; }
+};
+
+////
+struct ZcInvPayload : public ZcPreprocessPacket
+{
+   const bool watcher_;
+
+   ZcInvPayload(bool watcher) :
+      ZcPreprocessPacket(ZcPreprocessPacketType_Inv), 
+      watcher_(watcher)
+   {}
+
+   std::vector<InvEntry> invVec_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+enum ZcGetPacketType
+{
+   ZcGetPacketType_Broadcast,
+   ZcGetPacketType_Request,
+   ZcGetPacketType_Payload,
+   ZcGetPacketType_Reject
+};
+
+////
+struct ZcGetPacket
+{
+   const ZcGetPacketType type_;
+   const BinaryData txHash_;
+
+   ZcGetPacket(ZcGetPacketType type, const BinaryData& hash) :
+      type_(type), txHash_(hash)
+   {}
+
+   virtual ~ZcGetPacket(void) = 0;
+};
+
+////
+struct RequestZcPacket : public ZcGetPacket
+{
+   InvEntry invEntry_;
+
+   RequestZcPacket(const BinaryData& hash) : 
+      ZcGetPacket(ZcGetPacketType_Request, hash)
+   {}
+};
+
+////
+struct ProcessPayloadTxPacket : public ZcGetPacket
+{
+   std::shared_ptr<std::atomic<int>> batchCtr_;
+   std::shared_ptr<std::promise<ArmoryErrorCodes>> batchProm_;
+
+   BinaryData rawTx_;
+   std::shared_ptr<ParsedTx> pTx_;
+
+   ProcessPayloadTxPacket(const BinaryData& hash) : 
+      ZcGetPacket(ZcGetPacketType_Payload, hash)
+   {}
+
+   void incrementCounter(void)
+   {
+      if (batchCtr_ == nullptr)
+         throw std::runtime_error("null pointers");
+
+      auto val = batchCtr_->fetch_sub(1, std::memory_order_relaxed);
+      if (val <= 1)
+         batchProm_->set_value(ArmoryErrorCodes::Success);
+   }
+};
+
+////
+struct ZcBroadcastPacket : public ZcGetPacket
+{
+   std::shared_ptr<BinaryData> rawZc_;
+
+   ZcBroadcastPacket(const BinaryData& hash) :
+      ZcGetPacket(ZcGetPacketType_Broadcast, hash)
+   {}
+};
+
+////
+struct RejectPacket : public ZcGetPacket
+{
+   char code_;
+
+   RejectPacket(const BinaryData& hash, char code) :
+      ZcGetPacket(ZcGetPacketType_Reject, hash), code_(code)
+   {}
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 struct ParsedZCData
@@ -231,8 +343,8 @@ struct ZeroConfSharedStateSnapshot
 
    //TODO: rethink this map, slow to purge
    //<scrAddr,  <dbKeyOfOutput, TxIOPair>> 
-   std::map<BinaryData, std::shared_ptr<
-      std::map<BinaryData, std::shared_ptr<TxIOPair>>>>  txioMap_;
+   std::map<BinaryData, 
+      std::map<BinaryData, std::shared_ptr<TxIOPair>>> txioMap_;
 
    static std::shared_ptr<ZeroConfSharedStateSnapshot> copy(
       std::shared_ptr<ZeroConfSharedStateSnapshot> obj)
@@ -252,14 +364,62 @@ struct ZeroConfSharedStateSnapshot
 
 class ZeroConfCallbacks;
 
+
+////////////////////////////////////////////////////////////////////////////////
+struct ZcActionStruct
+{
+   ZcAction action_;
+   std::shared_ptr<ZeroConfBatch> batch_;
+   std::unique_ptr<std::promise<std::shared_ptr<ZcPurgePacket>>> 
+      resultPromise_ = nullptr;
+   Blockchain::ReorganizationState reorgState_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class ZcActionQueue
+{
+private:
+   std::function<void(ZcActionStruct)> newZcFunction_;
+   std::atomic<uint32_t> topId_;
+   std::thread parserThread_;
+   ArmoryThreading::BlockingQueue<ZcActionStruct> newZcQueue_;
+
+   ArmoryThreading::TransactionalMap<
+      BinaryData, std::shared_ptr<ZeroConfBatch>> reqTxHashMap_;
+
+private:
+   void processNewZcQueue(void);
+   BinaryData getNewZCkey(void);
+
+public:
+   ZcActionQueue(unsigned topId, std::function<void(ZcActionStruct)> func) :
+      newZcFunction_(func)
+   {
+      topId_.store(topId, std::memory_order_relaxed);
+      start();
+   }
+
+   void start(void);
+   void shutdown(void);
+
+   void pushGetZcRequest(
+      const std::vector<std::shared_ptr<ZcGetPacket>>&, unsigned,
+      const ZcBroadcastCallback&);
+   std::shared_future<std::shared_ptr<ZcPurgePacket>> pushNewBlockNotification(
+      Blockchain::ReorganizationState);
+   const std::shared_ptr<
+      const std::map<BinaryData, std::shared_ptr<ZeroConfBatch>>>
+      getRequestMap(void) const
+   { return reqTxHashMap_.get(); }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 class ZeroConfContainer
 {
 private:
    struct BulkFilterData
    {
-      std::map<BinaryData, std::shared_ptr<std::map<BinaryData, std::shared_ptr<TxIOPair>>>>
-         scrAddrTxioMap_;
+      std::map<BinaryData, std::map<BinaryData, std::shared_ptr<TxIOPair>>> scrAddrTxioMap_;
       std::map<BinaryDataRef, std::map<unsigned, BinaryDataRef>> outPointsSpentByKey_;
       std::set<BinaryData> txOutsSpentByZC_;
       std::map<BinaryDataRef, std::shared_ptr<std::set<BinaryDataRef>>> keyToSpentScrAddr_;
@@ -274,45 +434,42 @@ public:
    struct NotificationPacket
    {
       std::string bdvID_;
-      std::map<BinaryData, std::shared_ptr<std::map<BinaryData, std::shared_ptr<TxIOPair>>>> txioMap_;
+      std::map<BinaryDataRef, std::map<BinaryDataRef, std::shared_ptr<TxIOPair>>> txioMap_;
       std::shared_ptr<ZcPurgePacket> purgePacket_;
       std::shared_ptr<std::map<BinaryData, std::shared_ptr<std::set<BinaryDataRef>>>>
          newKeysAndScrAddr_;
-      std::shared_ptr<std::map<BinaryDataRef, std::shared_ptr<ParsedTx>>> txMap_;
+
+      //keep a reference to the snapshot so that other references live as long as this object
+      std::shared_ptr<ZeroConfSharedStateSnapshot> ssPtr_;
 
       NotificationPacket(const std::string& bdvID) :
          bdvID_(bdvID)
       {}
    };
 
-   struct ZcActionStruct
-   {
-      ZcAction action_;
-      std::shared_ptr<ZeroConfBatch> batch_;
-      std::unique_ptr<std::promise<std::shared_ptr<ZcPurgePacket>>> resultPromise_ = nullptr;
-      Blockchain::ReorganizationState reorgState_;
-   };
-
 private:
    std::shared_ptr<ZeroConfSharedStateSnapshot> snapshot_;
    
    //<txHash, map<opId, ZcKeys>>
-   std::map<BinaryDataRef, std::map<unsigned, BinaryDataRef>> outPointsSpentByKey_;
+   std::map<BinaryDataRef, 
+      std::map<unsigned, BinaryDataRef>> outPointsSpentByKey_;
 
    //<zcKey, set<ScrAddr>>
-   std::map<BinaryDataRef, std::shared_ptr<std::set<BinaryDataRef>>> keyToSpentScrAddr_;
+   std::map<BinaryDataRef, 
+      std::shared_ptr<std::set<BinaryDataRef>>> keyToSpentScrAddr_;
    
    std::set<BinaryData> allZcTxHashes_;
    std::map<BinaryDataRef, std::set<BinaryDataRef>> keyToFundedScrAddr_;
 
-   std::atomic<uint32_t> topId_;
    LMDBBlockDatabase* db_;
+   std::shared_ptr<BitcoinNodeInterface> networkNode_;
 
-   std::set<BinaryData> emptySetBinData_;
-
-   //stacks inv tx packets from node
-   std::shared_ptr<BitcoinP2P> networkNode_;
-   BlockingQueue<ZeroConfInvPacket> newInvTxStack_;
+   ArmoryThreading::BlockingQueue<
+      std::shared_ptr<ZcGetPacket>> zcPreprocessQueue_;
+   ArmoryThreading::BlockingQueue<
+      std::shared_ptr<ZcPreprocessPacket>> zcWatcherQueue_;
+   ArmoryThreading::BlockingQueue<
+      ZcUpdateBatch> updateBatch_;
 
    std::mutex parserMutex_;
    std::mutex parserThreadMutex_;
@@ -321,11 +478,15 @@ private:
    std::atomic<bool> zcEnabled_;
    const unsigned maxZcThreadCount_;
 
-   std::shared_ptr<TransactionalMap<BinaryDataRef, std::shared_ptr<AddrAndHash>>> scrAddrMap_;
+   std::shared_ptr<ArmoryThreading::TransactionalMap<
+      BinaryDataRef, std::shared_ptr<AddrAndHash>>> scrAddrMap_;
 
    unsigned parserThreadCount_ = 0;
    std::unique_ptr<ZeroConfCallbacks> bdvCallbacks_;
-   BlockingQueue<ZcUpdateBatch> updateBatch_;
+   std::unique_ptr<ZcActionQueue> actionQueue_;
+
+   std::map<BinaryData, std::shared_ptr<BinaryData>> watcherMap_;
+   std::mutex watcherMapMutex_;
 
 private:
    BulkFilterData ZCisMineBulkFilter(ParsedTx & tx, const BinaryDataRef& ZCkey,
@@ -334,38 +495,46 @@ private:
 
    void preprocessTx(ParsedTx&) const;
 
-   void loadZeroConfMempool(bool clearMempool);
+   unsigned loadZeroConfMempool(bool clearMempool);
    bool purge(
       const Blockchain::ReorganizationState&, 
       std::shared_ptr<ZeroConfSharedStateSnapshot>,
       std::map<BinaryData, BinaryData>&);
    void reset(void);
 
-   void processInvTxThread(void);
-   void processInvTxThread(ZeroConfInvPacket&);
+   void processTxGetDataReply(std::unique_ptr<Payload> payload);
+   void handleZcProcessingStructThread(void);
+   void requestTxFromNode(RequestZcPacket&);
+   void processPayloadTx(std::shared_ptr<ProcessPayloadTxPacket>);
 
    void increaseParserThreadPool(unsigned);
    void preprocessZcMap(std::map<BinaryDataRef, std::shared_ptr<ParsedTx>>&);
 
-public:
-   //stacks new zc Tx objects from node
-   BinaryData getNewZCkey(void);
-   BlockingQueue<ZcActionStruct> newZcStack_;
+   void zcBroadcastThread(ZcBroadcastPacket&);
+   void pushZcPreprocessVec(std::vector<std::shared_ptr<ZcGetPacket>> ppVec);
 
 public:
    ZeroConfContainer(LMDBBlockDatabase* db,
-      std::shared_ptr<BitcoinP2P> node, unsigned maxZcThread) :
-      topId_(0), db_(db), networkNode_(node), maxZcThreadCount_(maxZcThread)
+      std::shared_ptr<BitcoinNodeInterface> node, unsigned maxZcThread) :
+      db_(db), networkNode_(node), maxZcThreadCount_(maxZcThread)
    {
       zcEnabled_.store(false, std::memory_order_relaxed);
 
-      //register ZC callback
+      //register ZC callbacks
       auto processInvTx = [this](std::vector<InvEntry> entryVec)->void
       {
-         this->processInvTxVec(entryVec, true);
+         auto payload = std::make_shared<ZcInvPayload>(false);
+         payload->invVec_ = move(entryVec);
+         zcWatcherQueue_.push_back(move(payload));
       };
 
       networkNode_->registerInvTxLambda(processInvTx);
+
+      auto getTx = [this](std::unique_ptr<Payload> payload)->void
+      {
+         this->processTxGetDataReply(move(payload));
+      };
+      networkNode_->registerGetTxCallback(getTx);
    }
 
    bool hasTxByHash(const BinaryData& txHash) const;
@@ -374,7 +543,7 @@ public:
    void dropZC(std::shared_ptr<ZeroConfSharedStateSnapshot>, const BinaryDataRef&);
    void dropZC(std::shared_ptr<ZeroConfSharedStateSnapshot>, const std::set<BinaryData>&);
 
-   void parseNewZC(void);
+   void parseNewZC(ZcActionStruct);
    void parseNewZC(
       std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> zcMap,
       std::shared_ptr<ZeroConfSharedStateSnapshot>,
@@ -393,24 +562,24 @@ public:
 
    void updateZCinDB(void);
 
-   void processInvTxVec(std::vector<InvEntry>, bool extend,
-      unsigned timeout = TXGETDATA_TIMEOUT_MS);
+   void handleInvTx();
 
    void init(std::shared_ptr<ScrAddrFilter>, bool clearMempool);
    void shutdown();
 
+   void setWatcherNode(std::shared_ptr<BitcoinNodeInterface> watcherNode);
    void setZeroConfCallbacks(std::unique_ptr<ZeroConfCallbacks> ptr)
    {
       bdvCallbacks_ = std::move(ptr);
    }
 
-   void broadcastZC(const BinaryData& rawzc,
-      const std::string& bdvId, uint32_t timeout_ms);
+   void broadcastZC(const BinaryDataRef& rawzc, uint32_t timeout_ms,
+      const ZcBroadcastCallback&);
 
-   bool isEnabled(void) const { return zcEnabled_.load(std::memory_order_relaxed); }
-   void pushZcToParser(const BinaryDataRef& rawTx);
+   bool isEnabled(void) const 
+   { return zcEnabled_.load(std::memory_order_relaxed); }
 
-   std::shared_ptr<std::map<BinaryData, std::shared_ptr<TxIOPair>> >
+   const std::map<BinaryData, std::shared_ptr<TxIOPair>>&
       getTxioMapForScrAddr(const BinaryData&) const;
 
    std::shared_ptr<ZeroConfSharedStateSnapshot> getSnapshot(void) const
@@ -423,6 +592,14 @@ public:
    TxOut getTxOutCopy(const BinaryDataRef, unsigned) const;
    BinaryDataRef getKeyForHash(const BinaryDataRef&) const;
    BinaryDataRef getHashForKey(const BinaryDataRef&) const;
+
+   std::shared_future<std::shared_ptr<ZcPurgePacket>> pushNewBlockNotification(
+      Blockchain::ReorganizationState reorgState)
+   { return actionQueue_->pushNewBlockNotification(reorgState); }
+
+   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> getBatchTxMap(
+      std::shared_ptr<ZeroConfBatch>,
+      std::shared_ptr<ZeroConfSharedStateSnapshot>);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -434,8 +611,6 @@ public:
    virtual std::set<std::string> hasScrAddr(const BinaryDataRef&) const = 0;
    virtual void pushZcNotification(
       ZeroConfContainer::NotificationPacket& packet) = 0;
-   virtual void errorCallback(
-      const std::string& bdvId, std::string& errorStr, const std::string& txHash) = 0;
 };
 
 #endif

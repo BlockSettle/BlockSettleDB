@@ -31,6 +31,8 @@
 size_t MAX_THREADS();
 
 class BitcoinP2P;
+class BitcoinNodeInterface;
+class NodeRPCInterface;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct BlockDataManagerConfig
@@ -59,7 +61,11 @@ public:
    std::string dbDir_;
    std::string logFilePath_;
 
-   std::shared_ptr<BitcoinP2P> nodePtr_ = nullptr;
+   std::pair<
+      std::shared_ptr<BitcoinNodeInterface>, 
+      std::shared_ptr<BitcoinNodeInterface>> bitcoinNodes_;
+   std::shared_ptr<NodeRPCInterface> rpcNode_;
+
    std::string btcPort_;
    std::string listenPort_;
    std::string rpcPort_;
@@ -157,13 +163,11 @@ struct ConfigFile
 struct BDV_Error_Struct
 {
    std::string errorStr_;
-   BDV_ErrorType errType_;
-   std::string extraMsg_;
+   BinaryData errData_;
+   int errCode_;
 
    BinaryData serialize(void) const;
    void deserialize(const BinaryData&);
-
-   static BDV_Error_Struct cast_to_BDVErrorStruct(void* ptr);
 };
 
 #endif

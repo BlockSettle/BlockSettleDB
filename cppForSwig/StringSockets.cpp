@@ -156,7 +156,7 @@ void HttpSocket::respond(vector<uint8_t>& payload)
 
       callback->callbackReturn_->callback(bdr);
    }
-   catch(IsEmpty&)
+   catch(ArmoryThreading::IsEmpty&)
    { }
 }
 

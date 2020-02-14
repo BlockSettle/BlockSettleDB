@@ -40,14 +40,14 @@ private:
    std::unique_ptr<std::shared_future<SecureBinaryData>> futPtr_;
 
    const std::string id_;
-   std::shared_ptr<BlockingQueue<
+   std::shared_ptr<ArmoryThreading::BlockingQueue<
       std::unique_ptr<WritePayload_Bridge>>> writeQueue_;
 
    std::set<BinaryData> ids_;
 
 public:
    BridgePassphrasePrompt(const std::string id,
-   std::shared_ptr<BlockingQueue<
+   std::shared_ptr<ArmoryThreading::BlockingQueue<
       std::unique_ptr<WritePayload_Bridge>>> queuePtr) :
       id_(id), writeQueue_(queuePtr)
    {}
@@ -70,7 +70,7 @@ private:
    notifLbd pushNotifLbd_;
    
    //id members
-   BlockingQueue<std::string> idQueue_;
+   ArmoryThreading::BlockingQueue<std::string> idQueue_;
    std::set<std::string> validIds_;
    std::mutex idMutex_;
 
@@ -104,6 +104,13 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+struct CppBridgeSignerStruct
+{
+   Signer signer_;
+   std::unique_ptr<TxEvalState> signState_;
+};
+
+////
 class CppBridge
 {
 private:
@@ -120,12 +127,12 @@ private:
    std::shared_ptr<BridgeCallback> callbackPtr_;
 
    std::thread writeThr_;
-   std::shared_ptr<BlockingQueue<
+   std::shared_ptr<ArmoryThreading::BlockingQueue<
       std::unique_ptr<WritePayload_Bridge>>> writeQueue_;
 
    std::map<std::string, AsyncClient::LedgerDelegate> delegateMap_;
    std::map<std::string, std::shared_ptr<CoinSelectionInstance>> csMap_;
-   std::map<std::string, std::shared_ptr<Signer>> signerMap_;
+   std::map<std::string, std::shared_ptr<CppBridgeSignerStruct>> signerMap_;
 
    PRNG_Fortuna fortuna_;
 
@@ -190,6 +197,7 @@ private:
       const std::string&);   
    std::unique_ptr<::google::protobuf::Message> cs_getFeeByte(
       const std::string&);   
+   bool cs_ProcessCustomUtxoList(const ::Codec_ClientProto::ClientCommand&);
 
    //signer
    std::unique_ptr<::google::protobuf::Message> initNewSigner(void);
@@ -212,6 +220,8 @@ private:
    void signer_signTx(const std::string&, const std::string&, unsigned);
    std::unique_ptr<::google::protobuf::Message>
       signer_getSignedTx(const std::string&) const;
+   std::unique_ptr<::google::protobuf::Message>
+      signer_getSignedStateForInput(const std::string&, unsigned);
 
    //utils
    std::unique_ptr<::google::protobuf::Message> getTxInScriptType(

@@ -36,13 +36,13 @@
 #include "../cryptopp/integer.h"
 #endif
 
+#include "../ArmoryErrors.h"
 #include "../Progress.h"
 #include "../reorgTest/blkdata.h"
 #include "../BDM_Server.h"
 #include "../TxClasses.h"
 #include "../txio.h"
 #include "../bdmenums.h"
-#include "../SwigClient.h"
 #include "../Script.h"
 #include "../Signer.h"
 #include "../Wallets.h"
@@ -173,6 +173,30 @@ namespace DBTestUtils
       Clients* clients, std::shared_ptr<::google::protobuf::Message>);
 
    /////////////////////////////////////////////////////////////////////////////
+   AsyncClient::LedgerDelegate getLedgerDelegate(
+      std::shared_ptr<AsyncClient::BlockDataViewer> bdv);
+   AsyncClient::LedgerDelegate getLedgerDelegateForScrAddr(
+      std::shared_ptr<AsyncClient::BlockDataViewer> bdv,
+      const std::string& walletId, const BinaryData& scrAddr);
+   
+   std::vector<ClientClasses::LedgerEntry> getHistoryPage(
+      AsyncClient::LedgerDelegate& del, uint32_t id);
+   uint64_t getPageCount(AsyncClient::LedgerDelegate& del);
+
+   std::map<BinaryData, std::vector<uint64_t>> getAddrBalancesFromDB(
+      AsyncClient::BtcWallet&);
+
+   std::vector<uint64_t> getBalancesAndCount(AsyncClient::BtcWallet& wlt,
+      uint32_t blockheight);
+
+   Tx getTxByHash(std::shared_ptr<AsyncClient::BlockDataViewer> bdv, 
+      const BinaryData& hash);
+
+   std::vector<UTXO> getSpendableTxOutListForValue(
+      AsyncClient::BtcWallet& wlt, uint64_t value);
+   std::vector<UTXO> getSpendableZCList(AsyncClient::BtcWallet& wlt);
+
+   /////////////////////////////////////////////////////////////////////////////
    std::vector<UnitTestBlock> getMinedBlocks(BlockDataManagerThread*);
    void setReorgBranchingPoint(BlockDataManagerThread*, const BinaryData&);
 
@@ -185,10 +209,11 @@ namespace DBTestUtils
          std::vector<BinaryData> idVec_;
          std::set<BinaryData> addrSet_;
          unsigned reorgHeight_ = UINT32_MAX;
+         BDV_Error_Struct error_;
       };
 
    private:
-      BlockingQueue<std::unique_ptr<BdmNotif>> actionStack_;
+      ArmoryThreading::BlockingQueue<std::unique_ptr<BdmNotif>> actionStack_;
 
    public:
       UTCallback() : RemoteCallback()
@@ -217,6 +242,10 @@ namespace DBTestUtils
          else if (bdmNotif.action_ == BDMAction_NewBlock)
          {
             notif->reorgHeight_ = bdmNotif.branchHeight_;
+         }
+         else if (bdmNotif.action_ == BDMAction_BDV_Error)
+         {
+            notif->error_ = bdmNotif.error_;
          }
 
          actionStack_.push_back(move(notif));
@@ -297,6 +326,7 @@ namespace DBTestUtils
          const std::set<BinaryData>& hashes, 
          std::set<BinaryData> scrAddrSet)
       {
+         std::set<BinaryData> addrSet;
          while (1)
          {
             auto&& action = actionStack_.pop_front();
@@ -316,9 +346,24 @@ namespace DBTestUtils
             if (!hasHashes)
                continue;
 
-            if (action->addrSet_ == scrAddrSet)
+            addrSet.insert(action->addrSet_.begin(), action->addrSet_.end());
+            if (addrSet == scrAddrSet)
                break;
          }
+      }
+
+      void waitOnError(const BinaryData& hash, ArmoryErrorCodes errorCode)
+      {
+         while (1)
+         {
+            auto&& action = actionStack_.pop_front();
+            if (action->action_ != BDMAction_BDV_Error)
+               continue;
+
+            if (action->error_.errData_ == hash && 
+               action->error_.errCode_ == (int)errorCode)
+               break;
+         }         
       }
    };
 }
