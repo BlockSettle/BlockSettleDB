@@ -435,7 +435,7 @@ void PersistentSocket::socketService_win()
          {
             payload = move(writeQueue_.pop_front());
          }
-         catch (IsEmpty&)
+         catch (ArmoryThreading::IsEmpty&)
          {
             return;
          }
