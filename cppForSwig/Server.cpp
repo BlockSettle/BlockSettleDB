@@ -107,6 +107,12 @@ int WebSocketServer::callback(
       instance->clients_->unregisterBDV(bdr.toHexStr());
       instance->eraseId(session_data->id_, wsi);
 
+      if (instance->pendingWritesIter_ != instance->pendingWrites_.end() && *instance->pendingWritesIter_ == wsi) {
+         instance->pendingWrites_.erase(instance->pendingWritesIter_++);
+      } else {
+         instance->pendingWrites_.erase(wsi);
+      }
+
       break;
    }
 
