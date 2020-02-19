@@ -408,45 +408,9 @@ void ZeroConfContainer::dropZC(
       //erase the txhash if the index map is empty
       if (opIter->second.size() == 0)
       {
+         minedTxHashes_.erase(opIter->first);
          outPointsSpentByKey_.erase(opIter);
       }
-      else if (opIter->first.getPtr() == input.opRef_.getTxHashRef().getPtr())
-      {
-         //outpoint hash reference is owned by this tx object, rekey it
-         
-         //1. save the idmap
-         auto indexMap = move(opIter->second);
-
-         //2. erase current entry
-         outPointsSpentByKey_.erase(opIter);
-
-         //3. look for another zc among the referenced spenders
-         for (auto& id : indexMap)
-         {
-            auto& tx_key = id.second;
-            if (tx_key == key)
-               continue;
-
-            //4. we have a different zc, grab it
-            auto replaceIter = txMap.find(tx_key);
-            
-            //sanity checks
-            if (replaceIter == txMap.end() || 
-               id.first >= replaceIter->second->inputs_.size())
-               continue;
-
-            //5. grab hash reference and key by it
-            auto replaceHash = 
-               replaceIter->second->inputs_[id.first].opRef_.getTxHashRef();
-
-            pair<BinaryDataRef, map<unsigned, BinaryDataRef>> new_pair;
-            new_pair.first = replaceHash;
-            new_pair.second = move(indexMap);
-            outPointsSpentByKey_.insert(new_pair);
-            break;
-         }
-      }
-
    }
 
    //drop from keyToSpendScrAddr_
@@ -493,8 +457,9 @@ void ZeroConfContainer::dropZC(
    if (zcKeys.size() == 0)
       return;
 
-   for (auto& key : zcKeys)
-      dropZC(ss, key);
+   auto rIter = zcKeys.rbegin();
+   while (rIter != zcKeys.rend())
+      dropZC(ss, *rIter++);
 
    ZcUpdateBatch batch;
    batch.keysToDelete_ = zcKeys;
@@ -748,7 +713,6 @@ void ZeroConfContainer::parseNewZC(
                            if (txiter != txmap.end())
                               invalidatedTx.insert(*txiter);
                            childKeysToDrop.insert(key);
-                           //dropZC(ss, key);
                         }
                      }
                      catch (exception&)
@@ -758,8 +722,9 @@ void ZeroConfContainer::parseNewZC(
                   }
                }
 
-               for (auto& childKey : childKeysToDrop)
-                  dropZC(ss, childKey);
+               auto rIter = childKeysToDrop.rbegin();
+               while (rIter != childKeysToDrop.rend())
+                  dropZC(ss, *rIter++);
             }
          }
 
@@ -776,25 +741,55 @@ void ZeroConfContainer::parseNewZC(
                bulkData.txOutsSpentByZC_.begin(),
                bulkData.txOutsSpentByZC_.end());
 
+            /***
+            The outpoint spender map structure is as follow:
+            map<txhash-of-output-owner, map<output-id, txhash-of-spender>>
+
+            The hash of the owner and the hash of the spender are BinaryDataRef.
+            When ZCisMineBulkFilter parses new zc, it references the owner hash
+            from its own outpoints.
+
+            When we merge the spender data with the snapshot's spender map, we
+            want to reference the owner hash directly from the relevant ParsedTx 
+            object instead. 
+            
+            This prevents the need to rekey the owner hash if the spender expires
+            before the owner.
+            ***/
+
             for (auto& idmap : bulkData.outPointsSpentByKey_)
             {
-               //Since the outpoint is being replaced, the tx holding the 
-               //reference to the txhash this pair is keyed by will expire.
-               //Re-key the pair by the replacing hash
-
                pair<BinaryDataRef, map<unsigned, BinaryDataRef>> outpoints;
-               outpoints.first = idmap.first;
-               auto opIter = outPointsSpentByKey_.find(idmap.first);
-               if (opIter != outPointsSpentByKey_.end())
+
+               //is this owner hash already in the map?
+               auto ownerIter = outPointsSpentByKey_.find(idmap.first);
+               if (ownerIter == outPointsSpentByKey_.end())
                {
-                  outpoints.second = move(opIter->second);
-                  outPointsSpentByKey_.erase(opIter);
+                  BinaryDataRef ownerHash;
+
+                  //missing this owner, look for it in the zc map
+                  auto zcKeyIter = ss->txHashToDBKey_.find(idmap.first);
+                  if (zcKeyIter != ss->txHashToDBKey_.end())
+                  {
+                     //txHashToDBKey_ references the owner hash, we can use it as is
+                     ownerHash = zcKeyIter->first;
+                  }
+
+                  if (ownerHash.getSize() == 0)
+                  {
+                     //could not find a zc owner for this hash, most likely belongs
+                     //to a mined tx
+                     auto minedHashIter = minedTxHashes_.insert(idmap.first);
+                     ownerHash = minedHashIter.first->getRef();
+                  }
+
+                  //insert the key in the spender map
+                  ownerIter = outPointsSpentByKey_.emplace(
+                     ownerHash, map<unsigned, BinaryDataRef>()).first;
                }
 
-               for (auto& idpair : idmap.second)
-                  outpoints.second[idpair.first] = idpair.second;
-
-               outPointsSpentByKey_.insert(move(outpoints));
+               //update spender map
+               ownerIter->second.insert(idmap.second.begin(), idmap.second.end());
             }
 
             //merge scrAddr spent by key
