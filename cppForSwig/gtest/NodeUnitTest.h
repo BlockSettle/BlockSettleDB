@@ -68,6 +68,8 @@ private:
    std::shared_ptr<Blockchain> blockchain_ = nullptr;
    std::shared_ptr<BlockFiles> filesPtr_ = nullptr;
    std::atomic<unsigned> skipZc_ = {0};
+   std::mutex sendMessageMutex_;
+   std::deque<unsigned> zcDelays_;
 
    MinedHeader header_;
 
@@ -93,6 +95,7 @@ public:
    std::vector<UnitTestBlock> getMinedBlocks(void) const { return blocks_; }
    void setReorgBranchPoint(std::shared_ptr<BlockHeader>);
    void skipZc(unsigned);
+   void delayNextZc(unsigned);
    void setIface(LMDBBlockDatabase* iface) { iface_ = iface; }
 
    //<raw tx, blocks to wait until mining>

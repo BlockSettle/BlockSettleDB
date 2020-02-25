@@ -453,6 +453,7 @@ private:
    //<txHash, map<opId, ZcKeys>>
    std::map<BinaryDataRef, 
       std::map<unsigned, BinaryDataRef>> outPointsSpentByKey_;
+   std::set<BinaryData> minedTxHashes_;
 
    //<zcKey, set<ScrAddr>>
    std::map<BinaryDataRef, 

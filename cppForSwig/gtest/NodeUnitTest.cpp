@@ -473,7 +473,9 @@ uint64_t NodeUnitTest::getFeeForTx(const Tx& tx) const
 ////////////////////////////////////////////////////////////////////////////////
 void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
 {
-   //mock the node
+   unique_lock<mutex> lock(sendMessageMutex_);
+
+   //mock the bitcoin node behavior to these sendMessage payloads
    switch (payload->type())
    {
    case Payload_inv:
@@ -521,7 +523,14 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
             obj->order_ = counter_.fetch_add(1, memory_order_relaxed);
             
             //TODO: tie this with zc delay and staging
-            obj->blocksUntilMined_ = 0;
+            unsigned delay = 0;
+            if (!zcDelays_.empty())
+            {
+               delay = zcDelays_.front();
+               zcDelays_.pop_front();
+            }
+
+            obj->blocksUntilMined_ = delay;
             obj->staged_ = false;
 
             //check for collision
@@ -730,6 +739,12 @@ void NodeUnitTest::skipZc(unsigned count)
    skipZc_.fetch_add(count, memory_order_relaxed);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::delayNextZc(unsigned count)
+{
+   unique_lock<mutex> lock(sendMessageMutex_);
+   zcDelays_.push_back(count);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //
