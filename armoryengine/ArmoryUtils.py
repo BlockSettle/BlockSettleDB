@@ -42,6 +42,7 @@ import shutil
 import base64
 import socket
 import subprocess
+import binascii
 
 #from psutil import Popen
 import psutil
@@ -2055,7 +2056,7 @@ def binary_to_base58(binstr):
 
 
 ################################################################################
-def base58_to_binary(addr):
+def base58_to_binary(s):
    """
    This method applies the Bitcoin-specific conversion from Base58 to binary
    which may includes some extra "zero" bytes, such as is the case with the
@@ -2065,29 +2066,31 @@ def base58_to_binary(addr):
    special kind of Base58 converter, which makes it usable for encoding other
    data, such as ECDSA keys or scripts.
    """
-   # Count the zeros ('1' characters) at the beginning
-   padding = 0;
-   for c in addr:
-      if c=='1':
-         padding+=1
-      else:
-         break
 
+   if not s:
+      return b''
+
+   # Convert the string to an integer
    n = 0
-   for ch in addr:
+   for c in s:
       n *= 58
-      if ch in BASE58CHARS:
-         n += BASE58CHARS.index(ch)
-      else:
-         raise NonBase58CharacterError("Unrecognized Base 58 Character: %s" % ch)
+      if c not in BASE58CHARS:
+         raise NonBase58CharacterError('Character %r is not a valid base58 character' % c)
+      digit = BASE58CHARS.index(c)
+      n += digit
 
-   binOut = ''
-   while n>0:
-      d,m = divmod(n,256)
-      binOut = chr(m) + binOut
-      n = d
-   return '\x00'*padding + binOut
+   # Convert the integer to bytes
+   h = '%x' % n
+   if len(h) % 2:
+      h = '0' + h
+   res = bytes(binascii.unhexlify(h.encode('utf8')))
 
+   # Add padding back.
+   pad = 0
+   for c in s[:-1]:
+      if c == BASE58CHARS[0]: pad += 1
+      else: break
+   return b'\x00' * pad + res
 
 ################################################################################
 def privKey_to_base58(binKey):

@@ -5820,28 +5820,28 @@ class ArmoryMainWindow(QMainWindow):
       on a Qt dialog), so we use it to manage the promptID map as well
       '''
 
-      if state == BridgePromptState.start:
+      if state == BridgePromptState.Value('start'):
          if promptID in self.promptMap:
             raise Exception("already have this prompt ID")
          
-         if promptType == BridgePromptType.decrypt:
+         if promptType == BridgePromptType.Value('decrypt'):
             ppDlg = DlgUnlockWallet(\
                promptID, wltID, self, self, verbose, False)
 
-         elif promptType == BridgePromptType.migrate:
+         elif promptType == BridgePromptType.Value('migrate'):
             ppDlg = DlgMigrateWallet(\
                promptID, wltID, verbose, self, self)
 
          self.promptMap[promptID] = ppDlg
          ppDlg.exec_()
 
-      elif state == BridgePromptState.cycle:
+      elif state == BridgePromptState.Value('cycle'):
          if promptID in self.promptMap:
             ppDlg = self.promptMap[promptID]
             ppDlg.show()
             ppDlg.recycle()
 
-      elif state == BridgePromptState.stop:
+      elif state == BridgePromptState.Value('stop'):
          if promptID in self.promptMap:
             ppDlg = self.promptMap[promptID]
             ppDlg.accept()
