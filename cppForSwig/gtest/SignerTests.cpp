@@ -174,7 +174,8 @@ protected:
       auto watcherPtr = make_shared<NodeUnitTest>(
          *(uint32_t*)magicBytes.getPtr(), true);
       config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
-      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr);
+      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(
+         nodePtr, watcherPtr);
       
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();

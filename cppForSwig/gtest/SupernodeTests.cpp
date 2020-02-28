@@ -233,7 +233,8 @@ protected:
       auto watcherPtr = make_shared<NodeUnitTest>(
          *(uint32_t*)magicBytes.getPtr(), true);
       config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
-      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr);
+      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(
+         nodePtr, watcherPtr);
 
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
@@ -1568,7 +1569,8 @@ protected:
       auto watcherPtr = make_shared<NodeUnitTest>(
          *(uint32_t*)magicBytes.getPtr(), true);
       config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
-      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr);
+      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(
+         nodePtr, watcherPtr);
 
       theBDMt_ = new BlockDataManagerThread(config);
       iface_ = theBDMt_->bdm()->getIFace();
@@ -3461,7 +3463,8 @@ protected:
       auto watcherPtr = make_shared<NodeUnitTest>(
          *(uint32_t*)magicBytes.getPtr(), true);
       config.bitcoinNodes_ = make_pair(nodePtr_, watcherPtr);
-      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(nodePtr_);
+      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(
+         nodePtr_, watcherPtr);
 
       //randomized peer keys, in ram only
       config.ephemeralPeers_ = true;
@@ -4105,8 +4108,8 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
    auto&& ZChash2 = BtcUtils::getHash256(ZC2);
 
-   bdvObj->broadcastZC(ZC1);
-   bdvObj->broadcastZC(ZC2);
+   vector<BinaryData> zcVec = {ZC1, ZC2};
+   bdvObj->broadcastZC(zcVec);
    
    {
       set<BinaryData> zcHashes = { ZChash1, ZChash2 };
@@ -4369,6 +4372,268 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
    nodePtr_->skipZc(2);
    bdvObj->broadcastZC(ZC1);
    bdvObj->broadcastZC(ZC2);
+   
+   {
+      set<BinaryData> zcHashes = { ZChash1, ZChash2 };
+      set<BinaryData> scrAddrSet;
+
+      Tx zctx1(ZC1);
+      for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
+         scrAddrSet.insert(zctx1.getScrAddrForTxOut(i));
+
+      Tx zctx2(ZC2);
+      for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
+         scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
+
+      pCallback->waitOnZc(zcHashes, scrAddrSet);
+   }
+
+   //get the new ledgers
+   auto ledger2_prom =
+      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+   auto ledger2_fut = ledger2_prom->get_future();
+   auto ledger2_get =
+      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+   {
+      ledger2_prom->set_value(move(ledgerV.get()));
+   };
+   main_delegate.getHistoryPage(0, ledger2_get);
+   main_ledger = move(ledger2_fut.get());
+
+   //check ledgers
+   EXPECT_EQ(main_ledger.size(), 4);
+
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
+   EXPECT_EQ(main_ledger[0].getIndex(), 3);
+
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
+   EXPECT_EQ(main_ledger[1].getIndex(), 2);
+
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+
+   //tx cache testing
+   //grab ZC1 from async client
+   auto zc_prom1 = make_shared<promise<Tx>>();
+   auto zc_fut1 = zc_prom1->get_future();
+   auto zc_get1 =
+      [zc_prom1](ReturnMessage<Tx> txObj)->void
+   {
+      auto&& tx = txObj.get();
+      zc_prom1->set_value(move(tx));
+   };
+
+   bdvObj->getTxByHash(ZChash1, zc_get1);
+   auto zc_obj1 = zc_fut1.get();
+   EXPECT_EQ(ZChash1, zc_obj1.getThisHash());
+   EXPECT_EQ(zc_obj1.getTxHeight(), UINT32_MAX);
+
+   //grab both zc from async client
+   auto zc_prom2 = make_shared<promise<vector<Tx>>>();
+   auto zc_fut2 = zc_prom2->get_future();
+   auto zc_get2 =
+      [zc_prom2](ReturnMessage<vector<Tx>> txObj)->void
+   {
+      auto&& txVec = txObj.get();
+      zc_prom2->set_value(move(txVec));
+   };
+
+   set<BinaryData> bothZC = { ZChash1, ZChash2 };
+   bdvObj->getTxBatchByHash(bothZC, zc_get2);
+   auto zc_obj2 = zc_fut2.get();
+
+   ASSERT_EQ(zc_obj2.size(), 2);
+   EXPECT_EQ(ZChash1, zc_obj2[0].getThisHash());
+   EXPECT_EQ(zc_obj2[0].getTxHeight(), UINT32_MAX);
+
+   EXPECT_EQ(ZChash2, zc_obj2[1].getThisHash());
+   EXPECT_EQ(zc_obj2[1].getTxHeight(), UINT32_MAX);
+
+   //push an extra block
+   TestUtils::appendBlocks({ "2" }, blk0dat_);
+   DBTestUtils::triggerNewBlockNotification(theBDMt_);
+   pCallback->waitOnSignal(BDMAction_NewBlock);
+
+   //get the new ledgers
+   auto ledger3_prom =
+      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+   auto ledger3_fut = ledger3_prom->get_future();
+   auto ledger3_get =
+      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+   {
+      ledger3_prom->set_value(move(ledgerV.get()));
+   };
+   main_delegate.getHistoryPage(0, ledger3_get);
+   main_ledger = move(ledger3_fut.get());
+
+   //check ledgers
+   EXPECT_EQ(main_ledger.size(), 5);
+
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
+   EXPECT_EQ(main_ledger[0].getIndex(), 2);
+
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
+   EXPECT_EQ(main_ledger[1].getIndex(), 1);
+
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
+   EXPECT_EQ(main_ledger[4].getIndex(), 0);
+
+
+   //grab ZC1 from async client
+   auto zc_prom3 = make_shared<promise<Tx>>();
+   auto zc_fut3 = zc_prom3->get_future();
+   auto zc_get3 =
+      [zc_prom3](ReturnMessage<Tx> txObj)->void
+   {
+      auto&& tx = txObj.get();
+      zc_prom3->set_value(move(tx));
+   };
+
+   bdvObj->getTxByHash(ZChash1, zc_get3);
+   auto zc_obj3 = zc_fut3.get();
+   EXPECT_EQ(ZChash1, zc_obj3.getThisHash());
+   EXPECT_EQ(zc_obj3.getTxHeight(), 2);
+
+   //grab both zc from async client
+   auto zc_prom4 = make_shared<promise<vector<Tx>>>();
+   auto zc_fut4 = zc_prom4->get_future();
+   auto zc_get4 =
+      [zc_prom4](ReturnMessage<vector<Tx>> txObj)->void
+   {
+      auto&& txVec = txObj.get();
+      zc_prom4->set_value(move(txVec));
+   };
+
+   bdvObj->getTxBatchByHash(bothZC, zc_get4);
+   auto zc_obj4 = zc_fut4.get();
+
+   ASSERT_EQ(zc_obj4.size(), 2);
+   EXPECT_EQ(ZChash1, zc_obj4[0].getThisHash());
+   EXPECT_EQ(zc_obj4[0].getTxHeight(), 2);
+
+   EXPECT_EQ(ZChash2, zc_obj4[1].getThisHash());
+   EXPECT_EQ(zc_obj4[1].getTxHeight(), 2);
+
+   //disconnect
+   bdvObj->unregisterFromDB();
+
+   //cleanup
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+   bdvObj2->addPublicKey(serverPubkey);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
+   WebSocketServer::waitOnShutdown();
+
+   delete theBDMt_;
+   theBDMt_ = nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_SingleBatch)
+{
+   //public server
+   startupBIP150CTX(4, true);
+
+   TestUtils::setBlocks({ "0", "1" }, blk0dat_);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
+
+   vector<BinaryData> scrAddrVec;
+   scrAddrVec.push_back(TestChain::scrAddrA);
+   scrAddrVec.push_back(TestChain::scrAddrB);
+   scrAddrVec.push_back(TestChain::scrAddrC);
+
+   theBDMt_->start(config.initMode_);
+
+   auto pCallback = make_shared<DBTestUtils::UTCallback>();
+   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+   bdvObj->addPublicKey(serverPubkey);
+   bdvObj->connectToRemote();
+   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+
+   //go online
+   bdvObj->goOnline();
+   pCallback->waitOnSignal(BDMAction_Ready);
+
+   vector<string> walletRegIDs;
+
+   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+   walletRegIDs.push_back(
+      wallet1.registerAddresses(scrAddrVec, false));
+
+   //wait on registration ack
+   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+   //get wallets delegate
+   auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
+   auto del1_fut = del1_prom->get_future();
+   auto del1_get = [del1_prom](
+      ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
+   {
+      del1_prom->set_value(move(delegate.get()));
+   };
+   bdvObj->getLedgerDelegateForWallets(del1_get);
+   auto&& main_delegate = del1_fut.get();
+
+   auto ledger_prom =
+      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+   auto ledger_fut = ledger_prom->get_future();
+   auto ledger_get =
+      [ledger_prom](
+         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+   {
+      ledger_prom->set_value(move(ledgerV.get()));
+   };
+   main_delegate.getHistoryPage(0, ledger_get);
+   auto&& main_ledger = ledger_fut.get();
+
+   //check ledgers
+   EXPECT_EQ(main_ledger.size(), 2);
+
+   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
+   EXPECT_EQ(main_ledger[0].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+
+   //add the 2 zc
+   auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
+   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
+
+   auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
+   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
+
+   //both these zc will be skipped by the p2p broadcast interface,
+   //should trigger a RPC broadcast
+   nodePtr_->skipZc(2);
+   vector<BinaryData> zcVec = {ZC1, ZC2};
+   bdvObj->broadcastZC(zcVec);
    
    {
       set<BinaryData> zcHashes = { ZChash1, ZChash2 };

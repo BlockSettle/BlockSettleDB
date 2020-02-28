@@ -57,7 +57,7 @@ namespace DBTestUtils
 struct RpcBroadcastPacket
 {
    std::shared_ptr<BDV_Server_Object> bdvPtr_;
-   BinaryData rawTx_;
+   std::shared_ptr<BinaryData> rawTx_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

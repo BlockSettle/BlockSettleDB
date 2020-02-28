@@ -367,6 +367,9 @@ BinaryData Tx::getThisHash(void) const
 {
    if (thisHash_.getSize() == 0)
    {
+      if (!isInitialized())
+         throw runtime_error("Tx uninitialized");
+
       if (usesWitness_)
       {
          auto&& dataNoWitness = serializeNoWitness();

@@ -23,6 +23,7 @@
 #include "../BlockDataMap.h"
 #include "../nodeRPC.h"
 
+////////////////////////////////////////////////////////////////////////////////
 struct UnitTestBlock
 {
    BinaryData rawHeader_;
@@ -36,6 +37,7 @@ struct UnitTestBlock
    BinaryData diffBits_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
 class NodeUnitTest : public BitcoinNodeInterface
 {
 private:
@@ -79,6 +81,8 @@ private:
    std::thread watcherThread_;
    LMDBBlockDatabase* iface_ = nullptr;
 
+   std::set<BinaryData> seenHashes_;
+
 public:
    NodeUnitTest(uint32_t magic_word, bool watcher);
 
@@ -119,12 +123,16 @@ public:
 class NodeRPC_UnitTest : public NodeRPCInterface
 {
 private:
-   std::shared_ptr<NodeUnitTest> nodePtr_;
+   std::shared_ptr<NodeUnitTest> primaryNode_;
+   std::shared_ptr<NodeUnitTest> watcherNode_;
 
 public:
 
-   NodeRPC_UnitTest(std::shared_ptr<NodeUnitTest> nodePtr) :
-      NodeRPCInterface(), nodePtr_(nodePtr)
+   NodeRPC_UnitTest(
+      std::shared_ptr<NodeUnitTest> primaryNode,
+      std::shared_ptr<NodeUnitTest> watcherNode) :
+      NodeRPCInterface(), 
+      primaryNode_(primaryNode), watcherNode_(watcherNode)
    {}
 
    //virtuals

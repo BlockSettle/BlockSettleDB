@@ -58,10 +58,6 @@ struct ZeroConfData
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-typedef std::function<void(std::map<BinaryData, std::pair<
-   std::shared_ptr<BinaryData>, ArmoryErrorCodes>>)> ZcBroadcastCallback;
-
-////////////////////////////////////////////////////////////////////////////////
 class OutPointRef
 {
 private:
@@ -160,6 +156,24 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+struct ZeroConfBatchFallbackStruct
+{
+   BinaryData txHash_;
+   std::shared_ptr<BinaryData> rawTxPtr_;
+   ArmoryErrorCodes err_;
+   BinaryData zcKey_;
+
+   bool operator<(const ZeroConfBatchFallbackStruct& rhs) const
+   {
+      return zcKey_ < rhs.zcKey_;
+   }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+typedef std::function<void(
+   std::vector<ZeroConfBatchFallbackStruct>)> ZcBroadcastCallback;
+
+////////////////////////////////////////////////////////////////////////////////
 struct ZeroConfBatch
 {
    //<zcKey ref, ParsedTx>. ParsedTx carries the key object.
@@ -234,10 +248,9 @@ enum ZcGetPacketType
 struct ZcGetPacket
 {
    const ZcGetPacketType type_;
-   const BinaryData txHash_;
 
-   ZcGetPacket(ZcGetPacketType type, const BinaryData& hash) :
-      type_(type), txHash_(hash)
+   ZcGetPacket(ZcGetPacketType type) :
+      type_(type)
    {}
 
    virtual ~ZcGetPacket(void) = 0;
@@ -246,10 +259,10 @@ struct ZcGetPacket
 ////
 struct RequestZcPacket : public ZcGetPacket
 {
-   InvEntry invEntry_;
+   std::vector<BinaryData> hashes_;
 
-   RequestZcPacket(const BinaryData& hash) : 
-      ZcGetPacket(ZcGetPacketType_Request, hash)
+   RequestZcPacket(void) : 
+      ZcGetPacket(ZcGetPacketType_Request)
    {}
 };
 
@@ -259,11 +272,12 @@ struct ProcessPayloadTxPacket : public ZcGetPacket
    std::shared_ptr<std::atomic<int>> batchCtr_;
    std::shared_ptr<std::promise<ArmoryErrorCodes>> batchProm_;
 
-   BinaryData rawTx_;
+   const BinaryData txHash_;
+   std::shared_ptr<BinaryData> rawTx_;
    std::shared_ptr<ParsedTx> pTx_;
 
    ProcessPayloadTxPacket(const BinaryData& hash) : 
-      ZcGetPacket(ZcGetPacketType_Payload, hash)
+      ZcGetPacket(ZcGetPacketType_Payload), txHash_(hash)
    {}
 
    void incrementCounter(void)
@@ -280,20 +294,23 @@ struct ProcessPayloadTxPacket : public ZcGetPacket
 ////
 struct ZcBroadcastPacket : public ZcGetPacket
 {
-   std::shared_ptr<BinaryData> rawZc_;
+   std::vector<std::shared_ptr<BinaryData>> zcVec_;
+   std::vector<BinaryData> hashes_;
 
-   ZcBroadcastPacket(const BinaryData& hash) :
-      ZcGetPacket(ZcGetPacketType_Broadcast, hash)
+   ZcBroadcastPacket(void) :
+      ZcGetPacket(ZcGetPacketType_Broadcast)
    {}
 };
 
 ////
 struct RejectPacket : public ZcGetPacket
 {
+   const BinaryData txHash_;
    char code_;
 
    RejectPacket(const BinaryData& hash, char code) :
-      ZcGetPacket(ZcGetPacketType_Reject, hash), code_(code)
+      ZcGetPacket(ZcGetPacketType_Reject), 
+      txHash_(hash), code_(code)
    {}
 };
 
@@ -403,7 +420,7 @@ public:
    void shutdown(void);
 
    void pushGetZcRequest(
-      const std::vector<std::shared_ptr<ZcGetPacket>>&, unsigned,
+      const std::vector<BinaryData>&, unsigned,
       const ZcBroadcastCallback&);
    std::shared_future<std::shared_ptr<ZcPurgePacket>> pushNewBlockNotification(
       Blockchain::ReorganizationState);
@@ -511,8 +528,8 @@ private:
    void increaseParserThreadPool(unsigned);
    void preprocessZcMap(std::map<BinaryDataRef, std::shared_ptr<ParsedTx>>&);
 
-   void zcBroadcastThread(ZcBroadcastPacket&);
-   void pushZcPreprocessVec(std::vector<std::shared_ptr<ZcGetPacket>> ppVec);
+   void pushZcPacketThroughP2P(ZcBroadcastPacket&);
+   void pushZcPreprocessVec(std::shared_ptr<RequestZcPacket>);
 
 public:
    ZeroConfContainer(LMDBBlockDatabase* db,
@@ -574,8 +591,8 @@ public:
       bdvCallbacks_ = std::move(ptr);
    }
 
-   void broadcastZC(const BinaryDataRef& rawzc, uint32_t timeout_ms,
-      const ZcBroadcastCallback&);
+   void broadcastZC(const std::vector<BinaryDataRef>& rawzc, 
+      uint32_t timeout_ms, const ZcBroadcastCallback&);
 
    bool isEnabled(void) const 
    { return zcEnabled_.load(std::memory_order_relaxed); }
@@ -601,6 +618,9 @@ public:
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> getBatchTxMap(
       std::shared_ptr<ZeroConfBatch>,
       std::shared_ptr<ZeroConfSharedStateSnapshot>);
+
+   ZcActionQueue* const actionQueue(void) const { return actionQueue_.get(); }
+   void cleanupWatchedHash(const BinaryData&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
