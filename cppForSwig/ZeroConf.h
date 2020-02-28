@@ -286,7 +286,7 @@ struct ProcessPayloadTxPacket : public ZcGetPacket
          throw std::runtime_error("null pointers");
 
       auto val = batchCtr_->fetch_sub(1, std::memory_order_relaxed);
-      if (val <= 1)
+      if (val == 1)
          batchProm_->set_value(ArmoryErrorCodes::Success);
    }
 };

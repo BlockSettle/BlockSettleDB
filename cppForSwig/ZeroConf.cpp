@@ -1649,8 +1649,6 @@ void ZeroConfContainer::handleInvTx()
                auto payloadTx = make_shared<ProcessPayloadTxPacket>(bd);
                payloadTx->rawTx_ = iter->second;
 
-               Tx tx(*iter->second);
-
                //cleanup this hash from the watcher map
                watcherMap_.erase(iter);
                zcPreprocessQueue_.push_back(move(payloadTx));
