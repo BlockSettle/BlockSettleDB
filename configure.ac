@@ -58,16 +58,6 @@ AC_ARG_WITH([cryptopp],
     [use Crypto++ instead of libbtc for crypto functions @<:@default=no@:>@]),
     [with_cryptopp="$withval"], [with_cryptopp=no])
 
-# Check for protobuf (protoc in particular is required)
-PKG_CHECK_MODULES_STATIC(PROTOBUF, protobuf >= 2.0.0)
-PKG_CHECK_VAR([PROTOBUF_LIBDIR], [protobuf], [libdir])
-AC_MSG_CHECKING([protobuf lib path])
-AS_IF([test "x$PROTOBUF_LIBDIR" = "x"], [
-  AC_MSG_FAILURE([Unable to identify protobuf lib path.])
-])
-AC_SUBST([PROTOBUF_LIBDIR])
-CXXFLAGS="${CXXFLAGS} ${PROTOBUF_CFLAGS}"
-
 if test "x$want_debug" = "xyes" -a $ac_cv_c_compiler_gnu != no; then
   CFLAGS="$CFLAGS -O0 -g3"
   CXXFLAGS="$CXXFLAGS -O0 -g3"
@@ -145,11 +135,33 @@ case $host in
         OBJC="${OBJC} -mmacosx-version-min=${with_macosx_version_min}"
     fi
     AC_CHECK_PROG([BREW],brew, brew)
-    if test x$with_own_lws$BREW = xnobrew; then
-        use_pkgconfig=yes
+    if test x$BREW = xbrew; then
+        if test x$with_own_lws = xno; then
+            use_pkgconfig=yes
+            libwebsockets_prefix=`$BREW --prefix libwebsockets 2>/dev/null`
+            if test x$libwebsockets_prefix != x; then
+                PKG_CONFIG_PATH="$libwebsockets_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
+                export PKG_CONFIG_PATH
+            fi
+        fi
         openssl_prefix=`$BREW --prefix openssl 2>/dev/null`
         if test x$openssl_prefix != x; then
             PKG_CONFIG_PATH="$openssl_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export PKG_CONFIG_PATH
+        fi
+        libuv_prefix=`$BREW --prefix libuv 2>/dev/null`
+        if test x$openssl_prefix != x; then
+            PKG_CONFIG_PATH="$libuv_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export PKG_CONFIG_PATH
+        fi
+        libevent_prefix=`$BREW --prefix libevent 2>/dev/null`
+        if test x$libevent_prefix != x; then
+            PKG_CONFIG_PATH="$libevent_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export PKG_CONFIG_PATH
+        fi
+        protobuf_prefix=`$BREW --prefix protobuf 2>/dev/null`
+        if test x$protobuf_prefix != x; then
+            PKG_CONFIG_PATH="$protobuf_prefix/lib/pkgconfig:$PKG_CONFIG_PATH"
             export PKG_CONFIG_PATH
         fi
     fi
@@ -192,6 +204,17 @@ if test x$use_pkgconfig = xyes; then
     fi
     ])
 fi
+
+# Check for protobuf (protoc in particular is required)
+PKG_CHECK_MODULES_STATIC(PROTOBUF, protobuf >= 2.0.0)
+PKG_CHECK_VAR([PROTOBUF_LIBDIR], [protobuf], [libdir])
+AC_MSG_CHECKING([protobuf lib path])
+AS_IF([test "x$PROTOBUF_LIBDIR" = "x"], [
+  AC_MSG_FAILURE([Unable to identify protobuf lib path.])
+])
+AC_MSG_RESULT($PROTOBUF_LIBDIR)
+AC_SUBST([PROTOBUF_LIBDIR])
+CXXFLAGS="${CXXFLAGS} ${PROTOBUF_CFLAGS}"
 
 dnl Check for protoc (Google Protocol Buffers).
 AC_PATH_PROG([PROTOC], [protoc], [])
