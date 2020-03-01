@@ -1755,6 +1755,7 @@ shared_ptr<BDV_Server_Object> Clients::get(const string& id) const
 ///////////////////////////////////////////////////////////////////////////////
 void BDV_Server_Object::setup()
 {
+   started_.store(0, memory_order_relaxed);
    packetProcess_threadLock_.store(0, memory_order_relaxed);
    notificationProcess_threadLock_.store(0, memory_order_relaxed);
 
@@ -1808,6 +1809,9 @@ BDV_Server_Object::BDV_Server_Object(
 ///////////////////////////////////////////////////////////////////////////////
 void BDV_Server_Object::startThreads()
 {
+   if (started_.fetch_or(1, memory_order_relaxed) != 0)
+      return;
+   
    auto initLambda = [this](void)->void
    { this->init(); };
 
