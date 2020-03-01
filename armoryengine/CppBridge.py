@@ -1,9 +1,10 @@
-from __future__ import print_function
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 #interface with cpp code over os pipe
 import socket
 from armoryengine import ClientProto_pb2
 from armoryengine.BDM import TheBDM
-from BinaryPacker import BinaryPacker, UINT32, BINARY_CHUNK, VAR_INT
+from armoryengine.BinaryPacker import BinaryPacker, UINT32, BINARY_CHUNK, VAR_INT
 from struct import unpack
 import atexit
 import threading

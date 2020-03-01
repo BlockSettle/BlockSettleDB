@@ -1,3 +1,5 @@
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 ################################################################################
 #                                                                              #
 # Copyright (C) 2011-2015, Armory Technologies, Inc.                           #
@@ -667,22 +669,22 @@ class SetPassphraseFrame(ArmoryFrame):
       p2 = self.editPasswd2.text()
       goodColor = htmlColor('TextGreen')
       badColor = htmlColor('TextRed')
-      if not isASCII(unicode(p1)) or \
-         not isASCII(unicode(p2)):
+      if not isASCII(str(p1)) or \
+         not isASCII(str(p2)):
          if sideEffects:
-            self.lblMatches.setText(self.tr('<font color=%1><b>Passphrase is non-ASCII!</b></font>').arg(badColor))
+            self.lblMatches.setText(self.tr('<font color=%s><b>Passphrase is non-ASCII!</b></font>' % badColor))
          result = False
       elif not p1 == p2:
          if sideEffects:
-            self.lblMatches.setText(self.tr('<font color=%1><b>Passphrases do not match!</b></font>').arg(badColor))
+            self.lblMatches.setText(self.tr('<font color=%s><b>Passphrases do not match!</b></font>' % badColor))
          result = False
       elif len(p1) < 5:
          if sideEffects:
-            self.lblMatches.setText(self.tr('<font color=%1><b>Passphrase is too short!</b></font>').arg(badColor))
+            self.lblMatches.setText(self.tr('<font color=%s><b>Passphrase is too short!</b></font>' % badColor))
          result = False
       if sideEffects:
          if result:
-            self.lblMatches.setText(self.tr('<font color=%1><b>Passphrases match!</b></font>').arg(goodColor))
+            self.lblMatches.setText(self.tr('<font color=%s><b>Passphrases match!</b></font>' % goodColor))
          if self.passphraseCallback:
             self.passphraseCallback()
       return result

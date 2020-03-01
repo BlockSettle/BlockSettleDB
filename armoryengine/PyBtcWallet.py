@@ -2070,7 +2070,7 @@ class PyBtcWallet(object):
          self.addAddress(addrObj)
       
       #importList
-      for addr160, addrObj in self.addrMap.iteritems():
+      for addr160, addrObj in self.addrMap.items():
          if addrObj.chainIndex <= -2:
             self.importList.append(len(self.linearAddr160List) - 1)
           

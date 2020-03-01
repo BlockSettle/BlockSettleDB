@@ -383,18 +383,18 @@ else:
    print('***Cannot determine default directory locations')
 
 BLOCKCHAINS = {}
-BLOCKCHAINS['\xf9\xbe\xb4\xd9'] = "Main Network"
-BLOCKCHAINS['\xfa\xbf\xb5\xda'] = "Regression Test Network"
-BLOCKCHAINS['\x0b\x11\x09\x07'] = "Test Network (testnet3)"
+BLOCKCHAINS[b'\xf9\xbe\xb4\xd9'] = "Main Network"
+BLOCKCHAINS[b'\xfa\xbf\xb5\xda'] = "Regression Test Network"
+BLOCKCHAINS[b'\x0b\x11\x09\x07'] = "Test Network (testnet3)"
 
 NETWORKS = {}
-NETWORKS['\x00'] = "Main Network"
-NETWORKS['\x05'] = "Main Network"
-NETWORKS['\x6f'] = "Test Network"
-NETWORKS['\xc4'] = "Test Network"
-NETWORKS['\x6f'] = "Regtest Network"
-NETWORKS['\xc4'] = "Regtest Network"
-NETWORKS['\x34'] = "Namecoin Network"
+NETWORKS[b'\x00'] = "Main Network"
+NETWORKS[b'\x05'] = "Main Network"
+NETWORKS[b'\x6f'] = "Test Network"
+NETWORKS[b'\xc4'] = "Test Network"
+NETWORKS[b'\x6f'] = "Regtest Network"
+NETWORKS[b'\xc4'] = "Regtest Network"
+NETWORKS[b'\x34'] = "Namecoin Network"
 
 # We disable wallet checks on ARM for the sake of resources (unless forced)
 DO_WALLET_CHECK = CLI_OPTIONS.forceWalletCheck or \
@@ -515,7 +515,7 @@ if not USE_TESTNET and not USE_REGTEST:
    BITCOIN_PORT = 8333
    BITCOIN_RPC_PORT = 8332
    ARMORY_RPC_PORT = 8225
-   MAGIC_BYTES = '\xf9\xbe\xb4\xd9'
+   MAGIC_BYTES = b'\xf9\xbe\xb4\xd9'
    GENESIS_BLOCK_HASH_HEX  = '6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000'
    GENESIS_BLOCK_HASH      = 'o\xe2\x8c\n\xb6\xf1\xb3r\xc1\xa6\xa2F\xaec\xf7O\x93\x1e\x83e\xe1Z\x08\x9ch\xd6\x19\x00\x00\x00\x00\x00'
    GENESIS_TX_HASH_HEX     = '3ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a'
@@ -534,7 +534,7 @@ else:
    BITCOIN_RPC_PORT = 18443 if USE_REGTEST else 18332
    ARMORY_RPC_PORT     = 18225
    if USE_TESTNET:
-      MAGIC_BYTES  = '\x0b\x11\x09\x07'
+      MAGIC_BYTES  = b'\x0b\x11\x09\x07'
       GENESIS_BLOCK_HASH_HEX  = '43497fd7f826957108f4a30fd9cec3aeba79972084e90ead01ea330900000000'
       GENESIS_BLOCK_HASH      = 'CI\x7f\xd7\xf8&\x95q\x08\xf4\xa3\x0f\xd9\xce\xc3\xae\xbay\x97 \x84\xe9\x0e\xad\x01\xea3\t\x00\x00\x00\x00'
       GENESIS_TX_HASH_HEX     = '3ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a'
@@ -544,7 +544,7 @@ else:
       if usesDefaultDbPort:
          ARMORYDB_PORT = "19001"
    else:
-      MAGIC_BYTES  = '\xfa\xbf\xb5\xda'
+      MAGIC_BYTES  = b'\xfa\xbf\xb5\xda'
       GENESIS_BLOCK_HASH_HEX  = '06226e46111a0b59caaf126043eb5bbf28c34f3a5e332a1fc7b2b73cf188910f'
       GENESIS_BLOCK_HASH      = '\x06\x22\x6e\x46\x11\x1a\x0b\x59\xca\xaf\x12\x60\x43\xeb\x5b\xbf\x28\xc3\x4f\x3a\x5e\x33\x2a\x1f\xc7\xb2\xb7\x3c\xf1\x88\x91\x0f'
       GENESIS_TX_HASH_HEX     = '3ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a'
@@ -1701,7 +1701,7 @@ DEFAULT_ENCODING = 'utf-8'
 
 def isASCII(theStr):
    try:
-      theStr.decode('ascii')
+      theStr.encode('ascii')
       return True
    except UnicodeEncodeError:
       return False
@@ -1868,6 +1868,20 @@ def hash160(s):
    from armoryengine.CppBridge import TheBridge
    return TheBridge.getHash160(s)
 
+
+def HMAC(key, msg, hashfunc=sha512, hashsz=None):
+   """ This is intended to be simple, not fast.  For speed, use HDWalletCrypto() """
+   hashsz = len(hashfunc(b'')) if hashsz==None else hashsz
+   key = (hashfunc(key) if len(key)>hashsz else key)
+   key = key.ljust(hashsz, b'\x00')
+   okey = b''.join([pack('B', ord(b'\x5c')^(ord(c) if isinstance(c, str) else c)) for c in key])
+   ikey = b''.join([pack('B', ord(b'\x36')^(ord(c) if isinstance(c, str) else c)) for c in key])
+   return hashfunc( okey + hashfunc(ikey + msg) )
+
+HMAC256 = lambda key,msg: HMAC(key, msg, sha256, 32)
+HMAC512 = lambda key,msg: HMAC(key, msg, sha512, 64)
+
+
 ################################################################################
 def prettyHex(theStr, indent='', withAddr=True, major=8, minor=8):
    """
@@ -1921,7 +1935,7 @@ def pprintDiff(str1, str2, indent=''):
 ##### Switch endian-ness #####
 def hex_switchEndian(s):
    """ Switches the endianness of a hex string (in pairs of hex chars) """
-   pairList = [s[i]+s[i+1] for i in xrange(0,len(s),2)]
+   pairList = [s[i]+s[i+1] for i in range(0,len(s),2)]
    return ''.join(pairList[::-1])
 def binary_switchEndian(s):
    """ Switches the endianness of a binary string """
@@ -2024,6 +2038,12 @@ def bitset_to_int(bitset):
 
 
 EmptyHash = hex_to_binary('00'*32)
+
+
+class SecureBinaryData():
+
+   def __init__(self, data):
+      self.data = data
 
 
 ################################################################################

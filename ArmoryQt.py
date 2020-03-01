@@ -18,6 +18,7 @@ import gettext
 
 from copy import deepcopy
 from datetime import datetime
+from io import BytesIO
 import hashlib
 import logging
 import math
@@ -41,6 +42,7 @@ import psutil
 
 from armorycolors import Colors, htmlColor, QAPP
 from armoryengine.ALL import *
+from armoryengine.ArmoryUtils import SecureBinaryData, HMAC256
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
 from armoryengine.CppBridge import TheBridge
@@ -183,7 +185,7 @@ class ArmoryMainWindow(QMainWindow):
       self.lastVersionsTxtHash = ''
       self.dlgCptWlt = None
       self.wasSynchronizing = False
-      self.entropyAccum = []
+      self.entropyAccum = BytesIO()
       self.allLockboxes = []
       self.lockboxIDMap = {}
       self.cppLockboxWltMap = {}
@@ -1072,9 +1074,9 @@ class ArmoryMainWindow(QMainWindow):
    ####################################################
    def logEntropy(self):
       try:
-         self.entropyAccum.append(RightNow())
-         self.entropyAccum.append(QCursor.pos().x())
-         self.entropyAccum.append(QCursor.pos().y())
+         self.entropyAccum.write(pack('d', RightNow()))
+         self.entropyAccum.write(pack('i', QCursor.pos().x()))
+         self.entropyAccum.write(pack('i', QCursor.pos().y()))
       except:
          LOGEXCEPT('Error logging keypress entropy')
 
@@ -1090,12 +1092,12 @@ class ArmoryMainWindow(QMainWindow):
       # is expected to have timestamps and system-dependent parameters.
       # Finally, take a desktop screenshot...
       # All three of these source are likely to have sufficient entropy alone.
-      source1,self.entropyAccum = self.entropyAccum,[]
+      source1,self.entropyAccum = self.entropyAccum.getvalue(),BytesIO()
 
       if len(source1)==0:
          LOGERROR('Error getting extra entropy from mouse & key presses')
 
-      source2 = []
+      source2 = BytesIO()
 
       try:
          if OS_WINDOWS:
@@ -1114,15 +1116,17 @@ class ArmoryMainWindow(QMainWindow):
                fullpath = os.path.join(tempDir, fname)
                sz = os.path.getsize(fullpath)
                tm = os.path.getmtime(fullpath)
-               source2.append([fname, sz, tm])
+               source2.write(fname.encode('utf-8'))
+               source2.write(pack('Q', sz))
+               source2.write(pack('d', tm))
 
          # On Linux we also throw in Xorg.0.log
          for f in extraFiles:
             if os.path.exists(f):
                with open(f,'rb') as infile:
-                  source2.append(hash256(infile.read()))
+                  source2.write(hash256(infile.read()))
 
-         if len(source2)==0:
+         if source2.tell()==0:
             LOGWARN('Second source of supplemental entropy will be empty')
 
       except:
@@ -1136,22 +1140,24 @@ class ArmoryMainWindow(QMainWindow):
          pixBuf = QBuffer(pixRaw)
          pixBuf.open(QIODevice.WriteOnly)
          pixDesk.save(pixBuf, 'PNG')
-         source3 = pixBuf.buffer().toHex()
+         source3 = bytes(pixBuf.buffer())
       except:
          LOGEXCEPT('Third source of entropy (desktop screenshot) failed')
 
       if len(source3)==0:
          LOGWARN('Error getting extra entropy from screenshot')
 
-      LOGINFO('Adding %d keypress events to the entropy pool', len(source1)/3)
+      LOGINFO('Adding %d keypress events to the entropy pool', len(source1)//3)
       LOGINFO('Adding %s bytes of filesystem data to the entropy pool',
-                  bytesToHumanSize(len(str(source2))))
+                  bytesToHumanSize(source2.tell()))
       LOGINFO('Adding %s bytes from desktop screenshot to the entropy pool',
-                  bytesToHumanSize(len(str(source3))/2))
+                  bytesToHumanSize(len(str(source3))//2))
 
-
-      allEntropy = ''.join([str(a) for a in [source1, source1, source3]])
-      return SecureBinaryData(HMAC256('Armory Entropy', allEntropy))
+      allEntropy = BytesIO()
+      allEntropy.write(source1)
+      allEntropy.write(source2.getvalue())
+      allEntropy.write(source3)
+      return SecureBinaryData(HMAC256(b'Armory Entropy', allEntropy.getvalue()))
 
 
 
