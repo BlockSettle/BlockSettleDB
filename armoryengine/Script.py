@@ -87,10 +87,10 @@ def scriptPushData(binObj):
       return lenByte+binObj
    elif sz <= 256:
       lenByte = int_to_binary(sz, widthBytes=1)
-      return '\x4c' + lenByte + binObj
+      return b'\x4c' + lenByte + binObj
    elif sz <= 65536:
       lenBytes = int_to_binary(sz, widthBytes=2)
-      return '\x4d' + lenBytes + binObj
+      return b'\x4d' + lenBytes + binObj
    else:
       InvalidScriptError('Cannot use PUSHDATA for len(obj)>65536')
 

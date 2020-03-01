@@ -166,7 +166,7 @@ UNKNOWN       = -2
 MIN_TX_FEE    = 20000
 MIN_RELAY_TX_FEE = 20000
 MIN_FEE_BYTE = 200
-MT_WAIT_TIMEOUT_SEC = 20;
+MT_WAIT_TIMEOUT_SEC = 20
 DEFAULT_FEE_TYPE = "Auto" 
 DEFAULT_CHANGE_TYPE = 'P2PKH'
 DEFAULT_RECEIVE_TYPE = 'P2PKH'
@@ -520,9 +520,9 @@ if not USE_TESTNET and not USE_REGTEST:
    GENESIS_BLOCK_HASH      = 'o\xe2\x8c\n\xb6\xf1\xb3r\xc1\xa6\xa2F\xaec\xf7O\x93\x1e\x83e\xe1Z\x08\x9ch\xd6\x19\x00\x00\x00\x00\x00'
    GENESIS_TX_HASH_HEX     = '3ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a'
    GENESIS_TX_HASH         = ';\xa3\xed\xfdz{\x12\xb2z\xc7,>gv\x8fa\x7f\xc8\x1b\xc3\x88\x8aQ2:\x9f\xb8\xaaK\x1e^J'
-   ADDRBYTE = '\x00'
-   P2SHBYTE = '\x05'
-   PRIVKEYBYTE = '\x80'
+   ADDRBYTE = b'\x00'
+   P2SHBYTE = b'\x05'
+   PRIVKEYBYTE = b'\x80'
    BECH32_PREFIX = "bc"
 
    # This will usually just be used in the GUI to make links for the user
@@ -554,9 +554,9 @@ else:
       if usesDefaultDbPort:
          ARMORYDB_PORT = "19002"
 
-   ADDRBYTE = '\x6f'
-   P2SHBYTE = '\xc4'
-   PRIVKEYBYTE = '\xef'
+   ADDRBYTE = b'\x6f'
+   P2SHBYTE = b'\xc4'
+   PRIVKEYBYTE = b'\xef'
 
    #
    BLOCKEXPLORE_NAME     = 'blockexplorer.com' if USE_TESTNET else 'Fake regtest explorer'
@@ -565,12 +565,12 @@ else:
 
 # These are the same regardless of network
 # They are the way data is stored in the database which is network agnostic
-SCRADDR_P2PKH_BYTE    = '\x00'
-SCRADDR_P2SH_BYTE     = '\x05'
-SCRADDR_MULTISIG_BYTE = '\xfe'
-SCRADDR_NONSTD_BYTE   = '\xff'
-SCRADDR_P2WPKH_BYTE   = '\x90'
-SCRADDR_P2WSH_BYTE    = '\x95'
+SCRADDR_P2PKH_BYTE    = b'\x00'
+SCRADDR_P2SH_BYTE     = b'\x05'
+SCRADDR_MULTISIG_BYTE = b'\xfe'
+SCRADDR_NONSTD_BYTE   = b'\xff'
+SCRADDR_P2WPKH_BYTE   = b'\x90'
+SCRADDR_P2WSH_BYTE    = b'\x95'
 SCRADDR_BYTE_LIST     = [ADDRBYTE, \
                          P2SHBYTE, \
                          SCRADDR_P2WPKH_BYTE, SCRADDR_P2WSH_BYTE, \
@@ -1400,7 +1400,7 @@ def str2coin(theStr, negAllowed=True, maxDec=8, roundHighPrec=True):
          raise TooMuchPrecisionError
       if not negAllowed and isNeg:
          raise NegativeValueError
-      fullInt = (int(lhs + rhs[:9].ljust(9,'0')) + 5) / 10
+      fullInt = int(float(coinStr) * ONE_BTC)
       return fullInt*(-1 if isNeg else 1)
 
 
@@ -1676,7 +1676,7 @@ def scrAddr_to_hash160(scrAddr):
 ################################################################################
 def addrStr_to_scrAddr(addrStr, p2pkhByte = ADDRBYTE, p2shByte = P2SHBYTE):
    if addrStr == '':
-      return '';
+      return ''
 
    if not checkAddrStrValid(addrStr, [p2pkhByte, p2shByte]):
       BadAddressError('Invalid address: "%s"' % addrStr)
@@ -1766,7 +1766,10 @@ def isLikelyDataType(theStr, dtype=None):
    why it's called "likely" datatype...
    """
    ret = None
-   hexCount = sum([1 if c in BASE16CHARS else 0 for c in theStr])
+   try:
+      hexCount = sum([1 if c in BASE16CHARS else 0 for c in theStr])
+   except:
+      return DATATYPE.Binary
    b58Count = sum([1 if c in BASE58CHARS else 0 for c in theStr])
    canBeHex = hexCount==len(theStr)
    canBeB58 = b58Count==len(theStr)
@@ -1933,9 +1936,8 @@ def int_to_hex(i, widthBytes=0, endOut=LITTLEENDIAN):
    little-endian.   Use the widthBytes argument to add 0-padding where needed
    if you are expecting constant-length output.
    """
-   h = hex(i)[2:]
-   if isinstance(i,int):
-      h = h[:-1]
+   h = hex(int(i))[2:]
+  
    if len(h)%2 == 1:
       h = '0'+h
    if not widthBytes==0:
@@ -2036,9 +2038,9 @@ def binary_to_base58(binstr):
    special kind of Base58 converter, which makes it usable for encoding other
    data, such as ECDSA keys or scripts.
    """
-   padding = 0;
+   padding = 0
    for b in binstr:
-      if b=='\x00':
+      if b==b'\x00':
          padding+=1
       else:
          break

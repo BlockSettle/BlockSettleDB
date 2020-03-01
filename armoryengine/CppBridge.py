@@ -3,6 +3,7 @@ from __future__ import print_function
 import socket
 from armoryengine import ClientProto_pb2
 from armoryengine.BDM import TheBDM
+from BinaryPacker import BinaryPacker, UINT32, BINARY_CHUNK, VAR_INT
 from struct import unpack
 import atexit
 import threading
@@ -46,6 +47,8 @@ class CppBridge(object):
    #############################################################################
    def __init__(self):
 
+      self.raise_counter = 0
+
       self.run = True
       self.rwLock = threading.Lock()
 
@@ -78,6 +81,9 @@ class CppBridge(object):
 
       #serialize payload
       payload = msg.SerializeToString()
+      bp = BinaryPacker()
+      bp.put(UINT32, len(payload))
+      bp.put(BINARY_CHUNK, payload)
 
       #grab read write lock
       self.rwLock.acquire(True)
@@ -93,7 +99,7 @@ class CppBridge(object):
 
 
       #send over the wire
-      self.clientSocket.send(payload)
+      self.clientSocket.send(bp.getBinaryString())
 
       #return future to caller
       self.rwLock.release()
@@ -396,6 +402,20 @@ class CppBridge(object):
    def getLastPushDataInScript(self, script):
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.getLastPushDataInScript
+      packet.byteArgs.append(script)
+
+      fut = self.sendToBridge(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyBinary()
+      response.ParseFromString(socketResponse)
+      
+      return response.reply[0]
+
+   #############################################################################
+   def getTxOutScriptForScrAddr(self, script):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.getTxOutScriptForScrAddr
       packet.byteArgs.append(script)
 
       fut = self.sendToBridge(packet)

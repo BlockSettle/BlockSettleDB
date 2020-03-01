@@ -83,9 +83,10 @@ def getScriptForUserString(userStr, wltMap, lboxList):
             wltID = getWltIDForScrAddr(a160, wltMap)
       else:
          try:
+            from CppBridge import TheBridge
             scrAddr = addrStr_to_scrAddr(userStr, ADDRBYTE, P2SHBYTE)
             a160 = scrAddr_to_hash160(scrAddr)[1]
-            outScript = scrAddr_to_script(scrAddr)
+            outScript = TheBridge.getTxOutScriptForScrAddr(scrAddr)
             hasAddrInIt = True
 
             # Check if it's a wallet scrAddr

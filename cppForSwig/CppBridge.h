@@ -235,6 +235,8 @@ private:
    std::unique_ptr<::google::protobuf::Message> getHash160(
       const BinaryDataRef&) const;
    void broadcastTx(const BinaryDataRef&);
+   std::unique_ptr<::google::protobuf::Message> getTxOutScriptForScrAddr(
+      const BinaryData&) const;  
 
    //passphrase prompt
    PassphraseLambda createPassphrasePrompt(::Codec_ClientProto::BridgePromptType);

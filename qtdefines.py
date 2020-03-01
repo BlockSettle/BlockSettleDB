@@ -587,6 +587,8 @@ def makeLayoutFrame(dirStr, widgetList, style=QFrame.NoFrame, condenseMargins=Fa
          frmLayout.addWidget(w)
       elif issubclass(type(w),QWidget):
          frmLayout.addWidget(w)
+      elif issubclass(type(w),QLayoutItem):
+         frmLayout.addItem(w)
       else: #we assume at this point we are using a string/unicode
          if w.lower()=='stretch':
             frmLayout.addStretch()

@@ -446,8 +446,7 @@ class PyBtcWallet(object):
    #############################################################################
    @CheckWalletRegistration
    def getFullUTXOList(self):
-      """ Returns UnspentTxOut/C++ objects
-      
+      """       
       DO NOT USE THIS CALL UNLESS NECESSARY.
       This call returns *ALL* of the wallet's UTXOs. If your intent is to get
       UTXOs to spend coins, use getUTXOListForSpendVal and pass the amount you 

@@ -79,6 +79,8 @@ translator.load(GUI_LANGUAGE, os.path.join(app_dir, "lang/"))
 QAPP.installTranslator(translator)
 
 from armorymodels import *
+if sys.version_info < (3,0):
+   import qrc_img_resources
 from qtdefines import *
 from qtdialogs import *
 from ui.MultiSigDialogs import DlgSelectMultiSigOption, DlgLockboxManager, \
@@ -209,6 +211,7 @@ class ArmoryMainWindow(QMainWindow):
       self.armoryVersions = [getVersionString(BTCARMORY_VERSION), '']
       self.tempModulesDirName = None
       self.internetStatus = None
+      self.firstLoad = False
 
       self.lockboxLedgModel = None
 
@@ -1967,7 +1970,6 @@ class ArmoryMainWindow(QMainWindow):
 
 
       # Determine if we need to do new-user operations, increment load-count
-      self.firstLoad = False
       if self.getSettingOrSetDefault('First_Load', True):
          self.firstLoad = True
          self.writeSetting('First_Load', False)
@@ -4713,7 +4715,7 @@ class ArmoryMainWindow(QMainWindow):
       # (The last one is really only used to determine what info is most
       #  relevant to display to the user...it can be ignored in most cases)
       def getScript():
-         entered = str(addrEntryObjs['QLE_ADDR'].text()).strip()
+         entered = unicode(addrEntryObjs['QLE_ADDR'].text()).strip()
          return self.getScriptForUserString(entered)
 
       addrEntryObjs['CALLBACK_GETSCRIPT'] = getScript
@@ -5183,7 +5185,7 @@ class ArmoryMainWindow(QMainWindow):
          self.notifyQueue[i][2] = True
 
          # Catch condition that somehow the tx isn't related to us
-         if le.hash=='\x00'*32:
+         if le.hash==b'\x00'*32:
             continue
 
          # Make sure the wallet ID or lockbox ID keys are actually valid before

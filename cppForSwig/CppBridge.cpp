@@ -340,542 +340,586 @@ void CppBridge::commandLoop()
    sockPtr_->connectToRemote();
 
    //command processing loop
+   vector<uint8_t> socketData;
    bool run = true;
    while (run)
    {
-      auto payload = sockPtr_->readFromSocket();
-      if (payload.size() == 0)
-         break;
-
-      ClientCommand msg;
-      msg.ParseFromArray(&payload[0], payload.size());
-      auto id = msg.payloadid();
-
-      unique_ptr<Message> response;
-
-      switch (msg.method())
       {
-         case Methods::loadWallets:
-         {
-            loadWallets(id);
+         auto payload = sockPtr_->readFromSocket();
+         if (payload.size() == 0)
             break;
-         }
 
-         case Methods::setupDB:
-         {
-            setupDB();
-            break;
-         }
-
-         case Methods::registerWallets:
-         {
-            registerWallets();
-            break;
-         }
-
-         case Methods::goOnline:
-         {
-            if (bdvPtr_ == nullptr)
-               throw runtime_error("null bdv ptr");
-            bdvPtr_->goOnline();
-            break;
-         }
-
-         case Methods::shutdown:
-         {
-            writeQueue_->terminate();
-            if (writeThr_.joinable())
-               writeThr_.join();
-
-            bdvPtr_->unregisterFromDB();
-            bdvPtr_.reset();
-            callbackPtr_.reset();
-
-            run = false;
-            break;
-         }
-
-         case Methods::getLedgerDelegateIdForWallets:
-         {
-            auto& delegateId = getLedgerDelegateIdForWallets();
-            auto replyMsg = make_unique<ReplyStrings>();
-            replyMsg->add_reply(delegateId);
-            response = move(replyMsg);
-            break;
-         }
-
-         case Methods::updateWalletsLedgerFilter:
-         {
-            vector<BinaryData> idVec;
-            for (unsigned i=0; i<msg.stringargs_size(); i++)
-               idVec.push_back(BinaryData::fromString(msg.stringargs(i)));
-
-            bdvPtr_->updateWalletsLedgerFilter(idVec);
-            break;
-         }
-
-         case Methods::getHistoryPageForDelegate:
-         {
-            if (msg.stringargs_size() == 0 || msg.intargs_size() == 0)
-               throw runtime_error("invalid command getHistoryPageForDelegate");
-            getHistoryPageForDelegate(msg.stringargs(0), msg.intargs(0), id);
-            break;
-         }
-
-         case Methods::getNodeStatus:
-         {
-            response = move(getNodeStatus());
-            break;
-         }
-
-         case Methods::getBalanceAndCount:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command getBalanceAndCount");
-            response = move(getBalanceAndCount(msg.stringargs(0)));
-            break;
-         }
-
-         case Methods::getAddrCombinedList:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command getAddrCombinedList");
-            response = move(getAddrCombinedList(msg.stringargs(0)));
-            break;           
-         }
-
-         case Methods::getHighestUsedIndex:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command getHighestUsedIndex");
-            response = move(getHighestUsedIndex(msg.stringargs(0)));
-            break;                      
-         }
-
-         case Methods::extendAddressPool:
-         {
-            if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-               throw runtime_error("invalid command getHighestUsedIndex");
-            extendAddressPool(msg.stringargs(0), msg.intargs(0), id);
-            break;                      
-         }
-      
-         case Methods::getTxByHash:
-         {
-            if (msg.byteargs_size() != 1)
-               throw runtime_error("invalid command getTxByHash");
-            auto& byteargs = msg.byteargs(0);
-            BinaryData hash((uint8_t*)byteargs.c_str(), byteargs.size());
-            getTxByHash(hash, id);
-            break;
-         }
-
-         case Methods::getTxInScriptType:
-         {
-            if (msg.byteargs_size() != 2)
-               throw runtime_error("invalid command getTxInScriptType");
-            
-            auto& script = msg.byteargs(0);
-            BinaryData scriptBd((uint8_t*)script.c_str(), script.size());
-            
-            auto& hash = msg.byteargs(1);
-            BinaryData hashBd((uint8_t*)hash.c_str(), hash.size());
-            
-            response = getTxInScriptType(scriptBd, hashBd);
-            break;
-         }
-
-         case Methods::getTxOutScriptType:
-         {
-            if (msg.byteargs_size() != 1)
-               throw runtime_error("invalid command getTxOutScriptType");
-            auto& byteargs = msg.byteargs(0);
-            BinaryData script((uint8_t*)byteargs.c_str(), byteargs.size());
-            response = getTxOutScriptType(script);
-            break;
-         }
-
-         case Methods::getScrAddrForScript:
-         {
-            if (msg.byteargs_size() != 1)
-               throw runtime_error("invalid command getScrAddrForScript");
-            auto& byteargs = msg.byteargs(0);
-            BinaryData script((uint8_t*)byteargs.c_str(), byteargs.size());
-            response = getScrAddrForScript(script);
-            break;
-         }
-
-         case Methods::getLastPushDataInScript:
-         {
-            if (msg.byteargs_size() != 1)
-               throw runtime_error("invalid command getLastPushDataInScript");
-            
-            auto& script = msg.byteargs(0);
-            BinaryData scriptBd((uint8_t*)script.c_str(), script.size());
-                        
-            response = getLastPushDataInScript(scriptBd);
-            break;
-         }
-
-         case Methods::getHeaderByHeight:
-         {
-            if (msg.intargs_size() != 1)
-               throw runtime_error("invalid command getHeaderByHeight");
-            auto intArgs = msg.intargs(0);
-            getHeaderByHeight(intArgs, id);
-            break;
-         }
-
-         case Methods::setupNewCoinSelectionInstance:
-         {
-            if (msg.intargs_size() != 1 || msg.stringargs_size() != 1)
-               throw runtime_error("invalid command setupNewCoinSelectionInstance");
-
-            setupNewCoinSelectionInstance(msg.stringargs(0), msg.intargs(0), id);
-            break;
-         }
-
-         case Methods::destroyCoinSelectionInstance:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command destroyCoinSelectionInstance");
-
-            destroyCoinSelectionInstance(msg.stringargs(0));
-            break;
-         }
-
-         case Methods::resetCoinSelection:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command resetCoinSelection");
-            resetCoinSelection(msg.stringargs(0));
-            break;
-         }
-
-         case Methods::setCoinSelectionRecipient:
-         {
-            if (msg.longargs_size() != 1 ||
-               msg.stringargs_size() != 2 ||
-               msg.intargs_size() != 1)
-            {
-               throw runtime_error("invalid command setCoinSelectionRecipient");
-            }
-
-            auto success = setCoinSelectionRecipient(msg.stringargs(0), 
-               msg.stringargs(1), msg.longargs(0), msg.intargs(0));
-
-            auto responseProto = make_unique<ReplyNumbers>();
-            responseProto->add_ints(success);
-            response = move(responseProto);
-            break;
-         }
-
-         case Methods::cs_SelectUTXOs:
-         {
-            if (msg.longargs_size() != 1 ||
-               msg.stringargs_size() != 1 ||
-               msg.intargs_size() != 1 ||
-               msg.floatargs_size() != 1)
-            {
-               throw runtime_error("invalid command cs_SelectUTXOs");
-            }
-
-            auto success = cs_SelectUTXOs(msg.stringargs(0), 
-               msg.longargs(0), msg.floatargs(0), msg.intargs(0));
-
-            auto responseProto = make_unique<ReplyNumbers>();
-            responseProto->add_ints(success);
-            response = move(responseProto);
-            break;
-         }
-
-         case Methods::cs_getUtxoSelection:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command cs_getUtxoSelection");
-
-            response = cs_getUtxoSelection(msg.stringargs(0));
-            break;
-         }
-
-         case Methods::cs_getFlatFee:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command cs_getFlatFee");
-
-            response = cs_getFlatFee(msg.stringargs(0));
-            break;
-         }
-
-         case Methods::cs_getFeeByte:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command cs_getFeeByte");
-
-            response = cs_getFeeByte(msg.stringargs(0));
-            break;
-         }
-
-         case Methods::cs_ProcessCustomUtxoList:
-         {
-            auto success = cs_ProcessCustomUtxoList(msg);
-
-            auto responseProto = make_unique<ReplyNumbers>();
-            responseProto->add_ints(success);
-            response = move(responseProto);
-            break;
-         }
-
-         case Methods::generateRandomHex:
-         {
-            if (msg.intargs_size() != 1)
-               throw runtime_error("invalid command generateRandomHex");
-            auto size = msg.intargs(0);
-            auto&& str = fortuna_.generateRandom(size).toHexStr();
-
-            auto msg = make_unique<ReplyStrings>();
-            msg->add_reply(str);
-            response = move(msg);
-            break;
-         }
-
-         case Methods::createAddressBook:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command createAddressBook");
-            createAddressBook(msg.stringargs(0), id);
-            break;
-         }
-
-         case Methods::getUtxosForValue:
-         {
-            if (msg.stringargs_size() != 1 || msg.longargs_size() != 1)
-               throw runtime_error("invalid command getUtxosForValue");
-            getUtxosForValue(msg.stringargs(0), msg.longargs(0), id);
-            break;
-         }
-
-         case Methods::getSpendableZCList:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command getSpendableZCList");
-            getSpendableZCList(msg.stringargs(0), id);
-            break;
-         }
-
-         case Methods::getRBFTxOutList:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command getRBFTxOutList");
-            getRBFTxOutList(msg.stringargs(0), id);
-            break;
-         }
-
-         case Methods::getNewAddress:
-         {
-            if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-               throw runtime_error("invalid command getNewAddress");
-            response = getNewAddress(msg.stringargs(0), msg.intargs(0));
-            break;
-         }
-
-         case Methods::getChangeAddress:
-         {
-            if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-               throw runtime_error("invalid command getChangeAddress");
-            response = getChangeAddress(msg.stringargs(0), msg.intargs(0));
-            break;
-         }
-
-         case Methods::peekChangeAddress:
-         {
-            if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-               throw runtime_error("invalid command peekChangeAddress");
-            response = peekChangeAddress(msg.stringargs(0), msg.intargs(0));
-            break;
-         }
-
-         case Methods::getHash160:
-         {
-            if (msg.byteargs_size() != 1)
-               throw runtime_error("invalid command getHash160");
-            BinaryDataRef bdRef; bdRef.setRef(msg.byteargs(0));
-            response = getHash160(bdRef);
-            break;
-         }
-
-         case Methods::initNewSigner:
-         {
-            response = initNewSigner();
-            break;
-         }
-
-         case Methods::destroySigner:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command destroySigner");            
-            destroySigner(msg.stringargs(0));
-            break;
-         }
-
-         case Methods::signer_SetVersion:
-         {
-            if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-               throw runtime_error("invalid command signer_SetVersion");
-            auto success = signer_SetVersion(msg.stringargs(0), msg.intargs(0));
-            auto resultProto = make_unique<ReplyNumbers>();
-            resultProto->add_ints(success);
-            response = move(resultProto);
-            break;
-         }
-
-         case Methods::signer_SetLockTime:
-         {
-            if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-               throw runtime_error("invalid command signer_SetLockTime");
-            auto result = signer_SetLockTime(msg.stringargs(0), msg.intargs(0));
-            auto resultProto = make_unique<ReplyNumbers>();
-            resultProto->add_ints(result);
-            response = move(resultProto);
-            break;
-         }
-
-         case Methods::signer_addSpenderByOutpoint:
-         {
-            if (msg.stringargs_size() != 1 || msg.intargs_size() != 2 ||
-               msg.byteargs_size() != 1 || msg.longargs_size() != 1)
-               throw runtime_error("invalid command signer_addSpenderByOutpoint");
-
-            BinaryDataRef hash; hash.setRef(msg.byteargs(0));
-            auto result = signer_addSpenderByOutpoint(msg.stringargs(0), 
-               hash, msg.intargs(0), msg.intargs(1), msg.longargs(0));
-
-            auto resultProto = make_unique<ReplyNumbers>();
-            resultProto->add_ints(result);
-            response = move(resultProto);
-            break;
-         }
-
-         case Methods::signer_populateUtxo:
-         {
-            if (msg.stringargs_size() != 1 || msg.intargs_size() != 1 ||
-               msg.byteargs_size() != 2 || msg.longargs_size() != 1)
-               throw runtime_error("invalid command signer_populateUtxo");
-
-            BinaryDataRef hash; hash.setRef(msg.byteargs(0));
-            BinaryDataRef script; script.setRef(msg.byteargs(1));
-
-            auto result = signer_populateUtxo(msg.stringargs(0), 
-               hash, msg.intargs(0), msg.longargs(0), script);
-
-            auto resultProto = make_unique<ReplyNumbers>();
-            resultProto->add_ints(result);
-            response = move(resultProto);
-            break;
-         }
-
-         case Methods::signer_addRecipient:
-         {
-            if (msg.stringargs_size() != 1 ||
-               msg.byteargs_size() != 1 || msg.longargs_size() != 1)
-               throw runtime_error("invalid command signer_addRecipient");
-
-            BinaryDataRef script; script.setRef(msg.byteargs(0));
-            auto result = signer_addRecipient(msg.stringargs(0), 
-               script, msg.longargs(0));
-               
-            auto resultProto = make_unique<ReplyNumbers>();
-            resultProto->add_ints(result);
-            response = move(resultProto);
-            break;
-         }
-
-         case Methods::signer_getSerializedState:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command signer_getSerializedState");
-            response = signer_getSerializedState(msg.stringargs(0));
-            break;
-         }
-
-         case Methods::signer_unserializeState:
-         {
-            if (msg.stringargs_size() != 1 || msg.byteargs_size() != 1)
-               throw runtime_error("invalid command signer_unserializeState");
-
-            auto result = signer_unserializeState(
-               msg.stringargs(0), BinaryData::fromString(msg.byteargs(0)));
-
-            auto resultProto = make_unique<ReplyNumbers>();
-            resultProto->add_ints(result);
-            response = move(resultProto);
-            break;
-         }
-
-         case Methods::signer_signTx:
-         {
-            if (msg.stringargs_size() != 2)
-               throw runtime_error("invalid command signer_signTx");
-            signer_signTx(msg.stringargs(0), msg.stringargs(1), id);
-            break;
-         }
-
-         case Methods::signer_getSignedTx:
-         {
-            if (msg.stringargs_size() != 1)
-               throw runtime_error("invalid command signer_getSignedTx");
-
-            response = signer_getSignedTx(msg.stringargs(0));
-            break;
-         }
-
-         case Methods::signer_getSignedStateForInput:
-         {
-            if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-            {
-               throw runtime_error(
-                  "invalid command signer_getSignedStateForInput");
-            }
-               
-            response = signer_getSignedStateForInput(
-               msg.stringargs(0), msg.intargs(0));
-            break;
-         }
-
-         case Methods::returnPassphrase:
-         {
-            if (msg.stringargs_size() != 2)
-               throw runtime_error("invalid command returnPassphrase");
-
-            auto result = returnPassphrase(msg.stringargs(0), msg.stringargs(1));
-
-            auto resultProto = make_unique<ReplyNumbers>();
-            resultProto->add_ints(result);
-            response = move(resultProto);
-            break;
-         }
-
-         case Methods::broadcastTx:
-         {
-            if (msg.byteargs_size() != 1)
-               throw runtime_error("invalid command broadcastTx");
-
-            BinaryDataRef rawTxRef; rawTxRef.setRef(msg.byteargs(0));
-            broadcastTx(rawTxRef);
-            break;
-         }
-
-         default:
-            stringstream ss;
-            ss << "unknown client method: " << msg.method();
-            throw runtime_error(ss.str());
+         socketData.insert(socketData.end(), payload.begin(), payload.end());
       }
 
-      if (response == nullptr)
-         continue;
+      size_t offset = 0;
+      while (offset + 4 < socketData.size())
+      {
+         auto lenPtr = (uint32_t*)(&socketData[0] + offset);
+         offset += 4;
+         if (*lenPtr > socketData.size() - offset)
+            break;
 
-      //write response to socket
-      writeToClient(move(response), id);
+         ClientCommand msg;
+         if (!msg.ParseFromArray(&socketData[offset], *lenPtr))
+         {
+            LOGERR << "failed to parse protobuf msg";
+            offset += *lenPtr;
+            continue;
+         }
+         offset += *lenPtr;
+
+         auto id = msg.payloadid();
+         unique_ptr<Message> response;
+
+         switch (msg.method())
+         {
+            case Methods::loadWallets:
+            {
+               loadWallets(id);
+               break;
+            }
+
+            case Methods::setupDB:
+            {
+               setupDB();
+               break;
+            }
+
+            case Methods::registerWallets:
+            {
+               registerWallets();
+               break;
+            }
+
+            case Methods::goOnline:
+            {
+               if (bdvPtr_ == nullptr)
+                  throw runtime_error("null bdv ptr");
+               bdvPtr_->goOnline();
+               break;
+            }
+
+            case Methods::shutdown:
+            {
+               writeQueue_->terminate();
+               if (writeThr_.joinable())
+                  writeThr_.join();
+
+               bdvPtr_->unregisterFromDB();
+               bdvPtr_.reset();
+               callbackPtr_.reset();
+
+               run = false;
+               break;
+            }
+
+            case Methods::getLedgerDelegateIdForWallets:
+            {
+               auto& delegateId = getLedgerDelegateIdForWallets();
+               auto replyMsg = make_unique<ReplyStrings>();
+               replyMsg->add_reply(delegateId);
+               response = move(replyMsg);
+               break;
+            }
+
+            case Methods::updateWalletsLedgerFilter:
+            {
+               vector<BinaryData> idVec;
+               for (unsigned i=0; i<msg.stringargs_size(); i++)
+                  idVec.push_back(BinaryData::fromString(msg.stringargs(i)));
+
+               bdvPtr_->updateWalletsLedgerFilter(idVec);
+               break;
+            }
+
+            case Methods::getHistoryPageForDelegate:
+            {
+               if (msg.stringargs_size() == 0 || msg.intargs_size() == 0)
+                  throw runtime_error("invalid command getHistoryPageForDelegate");
+               getHistoryPageForDelegate(msg.stringargs(0), msg.intargs(0), id);
+               break;
+            }
+
+            case Methods::getNodeStatus:
+            {
+               response = move(getNodeStatus());
+               break;
+            }
+
+            case Methods::getBalanceAndCount:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command getBalanceAndCount");
+               response = move(getBalanceAndCount(msg.stringargs(0)));
+               break;
+            }
+
+            case Methods::getAddrCombinedList:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command getAddrCombinedList");
+               response = move(getAddrCombinedList(msg.stringargs(0)));
+               break;           
+            }
+
+            case Methods::getHighestUsedIndex:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command getHighestUsedIndex");
+               response = move(getHighestUsedIndex(msg.stringargs(0)));
+               break;                      
+            }
+
+            case Methods::extendAddressPool:
+            {
+               if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
+                  throw runtime_error("invalid command getHighestUsedIndex");
+               extendAddressPool(msg.stringargs(0), msg.intargs(0), id);
+               break;                      
+            }
+         
+            case Methods::getTxByHash:
+            {
+               if (msg.byteargs_size() != 1)
+                  throw runtime_error("invalid command getTxByHash");
+               auto& byteargs = msg.byteargs(0);
+               BinaryData hash((uint8_t*)byteargs.c_str(), byteargs.size());
+               getTxByHash(hash, id);
+               break;
+            }
+
+            case Methods::getTxInScriptType:
+            {
+               if (msg.byteargs_size() != 2)
+                  throw runtime_error("invalid command getTxInScriptType");
+               
+               auto& script = msg.byteargs(0);
+               BinaryData scriptBd((uint8_t*)script.c_str(), script.size());
+               
+               auto& hash = msg.byteargs(1);
+               BinaryData hashBd((uint8_t*)hash.c_str(), hash.size());
+               
+               response = getTxInScriptType(scriptBd, hashBd);
+               break;
+            }
+
+            case Methods::getTxOutScriptType:
+            {
+               if (msg.byteargs_size() != 1)
+                  throw runtime_error("invalid command getTxOutScriptType");
+               auto& byteargs = msg.byteargs(0);
+               BinaryData script((uint8_t*)byteargs.c_str(), byteargs.size());
+               response = getTxOutScriptType(script);
+               break;
+            }
+
+            case Methods::getScrAddrForScript:
+            {
+               if (msg.byteargs_size() != 1)
+                  throw runtime_error("invalid command getScrAddrForScript");
+               auto& byteargs = msg.byteargs(0);
+               BinaryData script((uint8_t*)byteargs.c_str(), byteargs.size());
+               response = getScrAddrForScript(script);
+               break;
+            }
+
+            case Methods::getLastPushDataInScript:
+            {
+               if (msg.byteargs_size() != 1)
+                  throw runtime_error("invalid command getLastPushDataInScript");
+               
+               auto& script = msg.byteargs(0);
+               BinaryData scriptBd((uint8_t*)script.c_str(), script.size());
+                           
+               response = getLastPushDataInScript(scriptBd);
+               break;
+            }
+
+            case Methods::getTxOutScriptForScrAddr:
+            {
+               if (msg.byteargs_size() != 1)
+                  throw runtime_error("invalid command getTxOutScriptForScrAddr");
+               
+               auto& script = msg.byteargs(0);
+               BinaryData scriptBd((uint8_t*)script.c_str(), script.size());
+                           
+               response = getTxOutScriptForScrAddr(scriptBd);
+               break;
+            }
+
+            case Methods::getHeaderByHeight:
+            {
+               if (msg.intargs_size() != 1)
+                  throw runtime_error("invalid command getHeaderByHeight");
+               auto intArgs = msg.intargs(0);
+               getHeaderByHeight(intArgs, id);
+               break;
+            }
+
+            case Methods::setupNewCoinSelectionInstance:
+            {
+               if (msg.intargs_size() != 1 || msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command setupNewCoinSelectionInstance");
+
+               setupNewCoinSelectionInstance(msg.stringargs(0), msg.intargs(0), id);
+               break;
+            }
+
+            case Methods::destroyCoinSelectionInstance:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command destroyCoinSelectionInstance");
+
+               destroyCoinSelectionInstance(msg.stringargs(0));
+               break;
+            }
+
+            case Methods::resetCoinSelection:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command resetCoinSelection");
+               resetCoinSelection(msg.stringargs(0));
+               break;
+            }
+
+            case Methods::setCoinSelectionRecipient:
+            {
+               if (msg.longargs_size() != 1 ||
+                  msg.stringargs_size() != 2 ||
+                  msg.intargs_size() != 1)
+               {
+                  throw runtime_error("invalid command setCoinSelectionRecipient");
+               }
+
+               auto success = setCoinSelectionRecipient(msg.stringargs(0), 
+                  msg.stringargs(1), msg.longargs(0), msg.intargs(0));
+
+               auto responseProto = make_unique<ReplyNumbers>();
+               responseProto->add_ints(success);
+               response = move(responseProto);
+               break;
+            }
+
+            case Methods::cs_SelectUTXOs:
+            {
+               if (msg.longargs_size() != 1 ||
+                  msg.stringargs_size() != 1 ||
+                  msg.intargs_size() != 1 ||
+                  msg.floatargs_size() != 1)
+               {
+                  throw runtime_error("invalid command cs_SelectUTXOs");
+               }
+
+               auto success = cs_SelectUTXOs(msg.stringargs(0), 
+                  msg.longargs(0), msg.floatargs(0), msg.intargs(0));
+
+               auto responseProto = make_unique<ReplyNumbers>();
+               responseProto->add_ints(success);
+               response = move(responseProto);
+               break;
+            }
+
+            case Methods::cs_getUtxoSelection:
+            {
+               if (msg.stringargs_size() != 1)
+               {
+                  cout << msg.stringargs_size() << endl;
+                  throw runtime_error("invalid command cs_getUtxoSelection");
+               }
+               cout << "...." << msg.stringargs(0) << endl;
+
+               response = cs_getUtxoSelection(msg.stringargs(0));
+               break;
+            }
+
+            case Methods::cs_getFlatFee:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command cs_getFlatFee");
+
+               response = cs_getFlatFee(msg.stringargs(0));
+               break;
+            }
+
+            case Methods::cs_getFeeByte:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command cs_getFeeByte");
+
+               response = cs_getFeeByte(msg.stringargs(0));
+               break;
+            }
+
+            case Methods::cs_ProcessCustomUtxoList:
+            {
+               auto success = cs_ProcessCustomUtxoList(msg);
+
+               auto responseProto = make_unique<ReplyNumbers>();
+               responseProto->add_ints(success);
+               response = move(responseProto);
+               break;
+            }
+
+            case Methods::generateRandomHex:
+            {
+               if (msg.intargs_size() != 1)
+                  throw runtime_error("invalid command generateRandomHex");
+               auto size = msg.intargs(0);
+               auto&& str = fortuna_.generateRandom(size).toHexStr();
+
+               auto msg = make_unique<ReplyStrings>();
+               msg->add_reply(str);
+               response = move(msg);
+               break;
+            }
+
+            case Methods::createAddressBook:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command createAddressBook");
+               createAddressBook(msg.stringargs(0), id);
+               break;
+            }
+
+            case Methods::getUtxosForValue:
+            {
+               if (msg.stringargs_size() != 1 || msg.longargs_size() != 1)
+                  throw runtime_error("invalid command getUtxosForValue");
+               getUtxosForValue(msg.stringargs(0), msg.longargs(0), id);
+               break;
+            }
+
+            case Methods::getSpendableZCList:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command getSpendableZCList");
+               getSpendableZCList(msg.stringargs(0), id);
+               break;
+            }
+
+            case Methods::getRBFTxOutList:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command getRBFTxOutList");
+               getRBFTxOutList(msg.stringargs(0), id);
+               break;
+            }
+
+            case Methods::getNewAddress:
+            {
+               if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
+                  throw runtime_error("invalid command getNewAddress");
+               response = getNewAddress(msg.stringargs(0), msg.intargs(0));
+               break;
+            }
+
+            case Methods::getChangeAddress:
+            {
+               if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
+                  throw runtime_error("invalid command getChangeAddress");
+               response = getChangeAddress(msg.stringargs(0), msg.intargs(0));
+               break;
+            }
+
+            case Methods::peekChangeAddress:
+            {
+               if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
+                  throw runtime_error("invalid command peekChangeAddress");
+               response = peekChangeAddress(msg.stringargs(0), msg.intargs(0));
+               break;
+            }
+
+            case Methods::getHash160:
+            {
+               if (msg.byteargs_size() != 1)
+                  throw runtime_error("invalid command getHash160");
+               BinaryDataRef bdRef; bdRef.setRef(msg.byteargs(0));
+               response = getHash160(bdRef);
+               break;
+            }
+
+            case Methods::initNewSigner:
+            {
+               response = initNewSigner();
+               break;
+            }
+
+            case Methods::destroySigner:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command destroySigner");            
+               destroySigner(msg.stringargs(0));
+               break;
+            }
+
+            case Methods::signer_SetVersion:
+            {
+               if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
+                  throw runtime_error("invalid command signer_SetVersion");
+               auto success = signer_SetVersion(msg.stringargs(0), msg.intargs(0));
+               auto resultProto = make_unique<ReplyNumbers>();
+               resultProto->add_ints(success);
+               response = move(resultProto);
+               break;
+            }
+
+            case Methods::signer_SetLockTime:
+            {
+               if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
+                  throw runtime_error("invalid command signer_SetLockTime");
+               auto result = signer_SetLockTime(msg.stringargs(0), msg.intargs(0));
+               auto resultProto = make_unique<ReplyNumbers>();
+               resultProto->add_ints(result);
+               response = move(resultProto);
+               break;
+            }
+
+            case Methods::signer_addSpenderByOutpoint:
+            {
+               if (msg.stringargs_size() != 1 || msg.intargs_size() != 2 ||
+                  msg.byteargs_size() != 1 || msg.longargs_size() != 1)
+                  throw runtime_error("invalid command signer_addSpenderByOutpoint");
+
+               BinaryDataRef hash; hash.setRef(msg.byteargs(0));
+               auto result = signer_addSpenderByOutpoint(msg.stringargs(0), 
+                  hash, msg.intargs(0), msg.intargs(1), msg.longargs(0));
+
+               auto resultProto = make_unique<ReplyNumbers>();
+               resultProto->add_ints(result);
+               response = move(resultProto);
+               break;
+            }
+
+            case Methods::signer_populateUtxo:
+            {
+               if (msg.stringargs_size() != 1 || msg.intargs_size() != 1 ||
+                  msg.byteargs_size() != 2 || msg.longargs_size() != 1)
+                  throw runtime_error("invalid command signer_populateUtxo");
+
+               BinaryDataRef hash; hash.setRef(msg.byteargs(0));
+               BinaryDataRef script; script.setRef(msg.byteargs(1));
+
+               auto result = signer_populateUtxo(msg.stringargs(0), 
+                  hash, msg.intargs(0), msg.longargs(0), script);
+
+               auto resultProto = make_unique<ReplyNumbers>();
+               resultProto->add_ints(result);
+               response = move(resultProto);
+               break;
+            }
+
+            case Methods::signer_addRecipient:
+            {
+               if (msg.stringargs_size() != 1 ||
+                  msg.byteargs_size() != 1 || msg.longargs_size() != 1)
+                  throw runtime_error("invalid command signer_addRecipient");
+
+               BinaryDataRef script; script.setRef(msg.byteargs(0));
+               auto result = signer_addRecipient(msg.stringargs(0), 
+                  script, msg.longargs(0));
+                  
+               auto resultProto = make_unique<ReplyNumbers>();
+               resultProto->add_ints(result);
+               response = move(resultProto);
+               break;
+            }
+
+            case Methods::signer_getSerializedState:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command signer_getSerializedState");
+               response = signer_getSerializedState(msg.stringargs(0));
+               break;
+            }
+
+            case Methods::signer_unserializeState:
+            {
+               if (msg.stringargs_size() != 1 || msg.byteargs_size() != 1)
+                  throw runtime_error("invalid command signer_unserializeState");
+
+               auto result = signer_unserializeState(
+                  msg.stringargs(0), BinaryData::fromString(msg.byteargs(0)));
+
+               auto resultProto = make_unique<ReplyNumbers>();
+               resultProto->add_ints(result);
+               response = move(resultProto);
+               break;
+            }
+
+            case Methods::signer_signTx:
+            {
+               if (msg.stringargs_size() != 2)
+                  throw runtime_error("invalid command signer_signTx");
+               signer_signTx(msg.stringargs(0), msg.stringargs(1), id);
+               break;
+            }
+
+            case Methods::signer_getSignedTx:
+            {
+               if (msg.stringargs_size() != 1)
+                  throw runtime_error("invalid command signer_getSignedTx");
+
+               response = signer_getSignedTx(msg.stringargs(0));
+               break;
+            }
+
+            case Methods::signer_getSignedStateForInput:
+            {
+               if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
+               {
+                  throw runtime_error(
+                     "invalid command signer_getSignedStateForInput");
+               }
+                  
+               response = signer_getSignedStateForInput(
+                  msg.stringargs(0), msg.intargs(0));
+               break;
+            }
+
+            case Methods::returnPassphrase:
+            {
+               if (msg.stringargs_size() != 2)
+                  throw runtime_error("invalid command returnPassphrase");
+
+               auto result = returnPassphrase(msg.stringargs(0), msg.stringargs(1));
+
+               auto resultProto = make_unique<ReplyNumbers>();
+               resultProto->add_ints(result);
+               response = move(resultProto);
+               break;
+            }
+
+            case Methods::broadcastTx:
+            {
+               if (msg.byteargs_size() != 1)
+                  throw runtime_error("invalid command broadcastTx");
+
+               BinaryDataRef rawTxRef; rawTxRef.setRef(msg.byteargs(0));
+               broadcastTx(rawTxRef);
+               break;
+            }
+
+            default:
+               stringstream ss;
+               ss << "unknown client method: " << msg.method();
+               throw runtime_error(ss.str());
+         }
+
+         if (response == nullptr)
+            continue;
+
+         //write response to socket
+         writeToClient(move(response), id);
+      }
+
+      if (offset == socketData.size())
+      {
+         socketData.clear();
+         continue;
+      }
+
+      memcpy(&socketData[0], &socketData[offset], socketData.size() - offset);
    }
 
    //wind down
@@ -1350,6 +1394,16 @@ unique_ptr<Message> CppBridge::getHash160(const BinaryDataRef& dataRef) const
    auto&& hash = BtcUtils::getHash160(dataRef);
    auto msg = make_unique<ReplyBinary>();
    msg->add_reply(hash.getCharPtr(), hash.getSize());
+   return msg;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unique_ptr<Message> CppBridge::getTxOutScriptForScrAddr(
+   const BinaryData& script) const
+{
+   auto msg = make_unique<ReplyBinary>();
+   auto&& resultBd = BtcUtils::getTxOutScriptForScrAddr(script);
+   msg->add_reply(resultBd.toCharPtr(), resultBd.getSize());
    return msg;
 }
 
@@ -1892,6 +1946,7 @@ unique_ptr<Message> CppBridge::signer_getSignedStateForInput(
 ////////////////////////////////////////////////////////////////////////////////
 void CppBridge::broadcastTx(const BinaryDataRef& rawTxRef)
 {
+   Tx tx(rawTxRef);
    bdvPtr_->broadcastZC(rawTxRef);
 }
 

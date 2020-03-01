@@ -909,7 +909,6 @@ class SendBitcoinsFrame(ArmoryFrame):
       
       if self.getRBFFlag():
          for utxo in utxoSelect:
-            print ("rbf flag: " + str(utxo.sequence))
             if utxo.sequence == 2**32 - 1:
                utxo.sequence = 2**32 - 3             
       
@@ -937,6 +936,8 @@ class SendBitcoinsFrame(ArmoryFrame):
             scrType = getTxOutScriptType(utxo.getScript())
             scrAddr = utxo.getRecipientScrAddr()
             addrObj = self.wlt.getAddrByHash160(scrAddr[1:])
+            print (binary_to_hex(scrAddr))
+            print (int(scrType))
             if scrType in CPP_TXOUT_STDSINGLESIG:
                if addrObj:
                   pubKeyMap[scrAddr] = addrObj.getPubKey()
@@ -1161,7 +1162,8 @@ class SendBitcoinsFrame(ArmoryFrame):
          if self.lbox is None:
             changeAddrObj = self.getDefaultChangeAddress(scriptValPairs, peek)
             changeAddr160 = changeAddrObj.getAddr160()
-            changeScript  = scrAddr_to_script(changeAddrObj.getPrefixedAddr())
+            changeScript  = TheBridge.getTxOutScriptForScrAddr(\
+               changeAddrObj.getPrefixedAddr())
             self.wlt.setComment(changeAddr160, CHANGE_ADDR_DESCR_STRING)
          else:
             changeScript  = self.lbox.getScript()
