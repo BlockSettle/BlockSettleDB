@@ -123,36 +123,57 @@ vector<uint8_t> Payload::serialize(uint32_t magic_word) const
    
    vector<uint8_t> msg;
    msg.resize(MESSAGE_HEADER_LEN + payload_size);
+   if (serialize(magic_word, &msg[0], msg.size()) == SIZE_MAX)
+      throw BitcoinP2P_Exception("failed to serialize payload");
+
+   return msg;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+size_t Payload::serialize(
+   uint32_t magic_word, void* ptr, size_t buffer_len) const
+{
+   auto payload_size = serialize_inner(nullptr);
+   if (buffer_len < payload_size + MESSAGE_HEADER_LEN)
+      return SIZE_MAX;
+
+   //message
    if (payload_size > 0)
-      serialize_inner(&msg[MESSAGE_HEADER_LEN]);
+      serialize_inner((uint8_t*)ptr + MESSAGE_HEADER_LEN);
 
    //magic word
-   uint8_t* ptr = &msg[0];
-   uint32_t* magicword = (uint32_t*)(ptr + MAGIC_WORD_OFFSET);
+   uint32_t* magicword = (uint32_t*)((uint8_t*)ptr + MAGIC_WORD_OFFSET);
    *magicword = magic_word;
 
    //message type
    auto&& type = typeStr();
-   char* msgtype = (char*)(ptr + MESSAGE_TYPE_OFFSET);
+   auto msgtype = (char*)ptr + MESSAGE_TYPE_OFFSET;
    memset(msgtype, 0, MESSAGE_TYPE_LEN);
    memcpy(msgtype, type.c_str(), type.size());
 
    //length
    uint32_t msglen = payload_size;
-   uint32_t* msglenptr = (uint32_t*)(ptr + PAYLOAD_LENGTH_OFFSET);
+   uint32_t* msglenptr = (uint32_t*)((uint8_t*)ptr + PAYLOAD_LENGTH_OFFSET);
    *msglenptr = msglen;
 
    //checksum
    uint8_t* payloadptr = nullptr;
    if (payload_size > 0)
-      payloadptr = &msg[MESSAGE_HEADER_LEN];
+      payloadptr = (uint8_t*)ptr + MESSAGE_HEADER_LEN;
    BinaryDataRef bdr(payloadptr, payload_size);
    auto&& hash = BtcUtils::getHash256(bdr);
    uint32_t* checksum = (uint32_t*)hash.getPtr();
-   uint32_t* checksumptr = (uint32_t*)(ptr + CHECKSUM_OFFSET);
+   uint32_t* checksumptr = (uint32_t*)((uint8_t*)ptr + CHECKSUM_OFFSET);
    *checksumptr = *checksum;
 
-   return msg;
+   return payload_size + MESSAGE_HEADER_LEN;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+size_t Payload::getSerializedSize() const
+{
+   auto payload_size = serialize_inner(nullptr);
+   return MESSAGE_HEADER_LEN + payload_size;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,8 +185,6 @@ vector<size_t> Payload::processPacket(
       return retvec;
 
    size_t offset = 0, totalsize = data.size();
-
-
    while (offset < totalsize)
    {
       uint8_t* ptr = &data[offset];
@@ -213,7 +232,7 @@ vector<size_t> Payload::processPacket(
       uint32_t* length = (uint32_t*)(ptr + PAYLOAD_LENGTH_OFFSET);
       auto localOffset = offset;
 
-      //at this point we don't want to reparse this message if the the
+      //at this point we don't want to reparse this message if the
       //deser operation fails
       offset += 4;
 
@@ -543,7 +562,6 @@ size_t Payload_Version::serialize_inner(uint8_t* dataptr) const
    ptr += 4;
    *ptr = 1;
    
-
    return serlen;
 }
 
@@ -867,17 +885,20 @@ void BitcoinNodeInterface::processGetTx(unique_ptr<Payload> payload)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BitcoinNodeInterface::requestTx(const InvEntry& entry)
+void BitcoinNodeInterface::requestTx(vector<InvEntry> invVec)
 {
    /*
-   Send getdata payload to bitcoin node to request one transaction. Node
+   Send getdata payload to bitcoin node to request transactions. Node
    reply will be processed in processGetTx
    */
 
-   if (entry.invtype_ != Inv_Msg_Tx && entry.invtype_ != Inv_Msg_Witness_Tx)
-      throw GetDataException("entry type isnt Inv_Msg_Tx");
+   for (auto& entry : invVec)
+   {
+      if (entry.invtype_ != Inv_Msg_Tx && entry.invtype_ != Inv_Msg_Witness_Tx)
+        throw GetDataException("entry type isnt Inv_Msg_Tx");
+   }
 
-   auto payload = make_unique<Payload_GetData>(entry);
+   auto payload = make_unique<Payload_GetData>(move(invVec));
    sendMessage(move(payload));
 }
 
@@ -1241,6 +1262,7 @@ void BitcoinP2P::processGetData(unique_ptr<Payload> payload)
    auto& invvector = payloadgetdata->getInvVector();
    auto getdatamap = getDataPayloadMap_.get();
 
+   vector<unique_ptr<Payload>> payloadVec;
    for (auto& entry : invvector)
    {
       BinaryDataRef bdr(entry.hash, 32);
@@ -1248,9 +1270,12 @@ void BitcoinP2P::processGetData(unique_ptr<Payload> payload)
       auto payloadIter = getdatamap->find(bdr);
       if (payloadIter == getdatamap->end())
          continue;
-      sendMessage(move(payloadIter->second->payload_));
+      
+      payloadVec.push_back(move(payloadIter->second->payload_));
       getDataPayloadMap_.erase(payloadIter->first);
    }
+
+   sendMessage(move(payloadVec));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1270,6 +1295,28 @@ void BitcoinP2P::processReject(unique_ptr<Payload> payload)
 void BitcoinP2P::sendMessage(unique_ptr<Payload> payload)
 {
    auto&& msg = payload->serialize(getMagicWord());
+
+   unique_lock<mutex> lock(writeMutex_);
+   auto socket_payload = make_unique<WritePayload_Raw>();
+   socket_payload->data_ = move(msg);
+   socket_->pushPayload(move(socket_payload), nullptr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void BitcoinP2P::sendMessage(vector<unique_ptr<Payload>> payloadVec)
+{
+   vector<uint8_t> msg;
+   size_t totalSize = 0;
+   for (auto& payload : payloadVec)
+      totalSize += payload->getSerializedSize();
+
+   msg.resize(totalSize);
+   size_t offset = 0;
+   for (auto& payload : payloadVec)
+   {
+      offset += payload->serialize(
+         getMagicWord(), &msg[0] + offset, msg.size() - offset);
+   }
 
    unique_lock<mutex> lock(writeMutex_);
    auto socket_payload = make_unique<WritePayload_Raw>();

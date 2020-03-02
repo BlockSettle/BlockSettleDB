@@ -13,6 +13,7 @@ enum class ArmoryErrorCodes : int
 {
     //bitcoin node rpc
     ZcBroadcast_AlreadyInChain = -27,
+    ZcBroadcast_VerifyRejected = -26, //failed verification
     ZcBroadcast_Error          = -25, //non specific error, most likely spent output
 
     //common

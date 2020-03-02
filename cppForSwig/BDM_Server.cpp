@@ -1755,6 +1755,7 @@ shared_ptr<BDV_Server_Object> Clients::get(const string& id) const
 ///////////////////////////////////////////////////////////////////////////////
 void BDV_Server_Object::setup()
 {
+   started_.store(0, memory_order_relaxed);
    packetProcess_threadLock_.store(0, memory_order_relaxed);
    notificationProcess_threadLock_.store(0, memory_order_relaxed);
 
@@ -1808,6 +1809,9 @@ BDV_Server_Object::BDV_Server_Object(
 ///////////////////////////////////////////////////////////////////////////////
 void BDV_Server_Object::startThreads()
 {
+   if (started_.fetch_or(1, memory_order_relaxed) != 0)
+      return;
+   
    auto initLambda = [this](void)->void
    { this->init(); };
 
@@ -2849,7 +2853,7 @@ void Clients::broadcastThroughRPC()
       }
 
       auto result =
-         bdmT_->bdm()->nodeRPC_->broadcastTx(packet.rawTx_.getRef());
+         bdmT_->bdm()->nodeRPC_->broadcastTx(packet.rawTx_->getRef());
 
       if (result == 0)
       {
@@ -2857,7 +2861,8 @@ void Clients::broadcastThroughRPC()
          continue;
       }
 
-      Tx tx(packet.rawTx_);
+      Tx tx(*packet.rawTx_);
+      bdmT_->bdm()->zeroConfCont_->cleanupWatchedHash(tx.getThisHash());
 
       auto notifPacket = make_shared<BDV_Notification_Packet>();
       notifPacket->bdvPtr_ = packet.bdvPtr_;
@@ -2911,43 +2916,65 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       out: void
       */
 
-      if (message->bindata_size() != 1)
+      if (message->bindata_size() == 0)
          break;
 
-      const auto& rawTx = message->bindata(0);
-      if (rawTx.size() == 0)
-         break;
-      BinaryDataRef rawTxRef; rawTxRef.setRef(rawTx);
+      vector<BinaryDataRef> rawZcVec;
+      rawZcVec.reserve(message->bindata_size());
+      for (unsigned i=0; i<message->bindata_size(); i++)
+      {
+         const auto& rawTx = message->bindata(i);
+         if (rawTx.size() == 0)
+            continue;
+         BinaryDataRef rawTxRef; rawTxRef.setRef(rawTx);
+         rawZcVec.push_back(rawTxRef);
+      }
 
       auto errorCallback = [this, bdvPtr](
-         map<BinaryData, 
-         pair<shared_ptr<BinaryData>, ArmoryErrorCodes>> zcMap)->void
+         vector<ZeroConfBatchFallbackStruct> zcVec)->void
       {
-         for (auto& zcPair : zcMap)
+         vector<RpcBroadcastPacket> rpcPackets;
+         vector<BinaryData> zcHashVec;
+
+         for (auto& fallbackStruct : zcVec)
          {
-            if (zcPair.second.second != ArmoryErrorCodes::ZcBatch_Timeout)
+            if (fallbackStruct.err_ != ArmoryErrorCodes::ZcBatch_Timeout)
             {
                //signal error and return
                auto notifPacket = make_shared<BDV_Notification_Packet>();
                notifPacket->bdvPtr_ = bdvPtr;
                notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-                  bdvPtr->getID(), (int)zcPair.second.second,
-                  zcPair.first, string());
+                  bdvPtr->getID(), (int)fallbackStruct.err_,
+                  fallbackStruct.txHash_, string());
 
                innerBDVNotifStack_.push_back(move(notifPacket));
+               bdmT_->bdm()->zeroConfCont_->cleanupWatchedHash(
+                  fallbackStruct.txHash_);
                continue;
             }
 
-            //broadcast timed out zc through RPC
+            //tally timed out zc
             RpcBroadcastPacket packet;
-            packet.rawTx_ = move(*zcPair.second.first);
+            packet.rawTx_ = fallbackStruct.rawTxPtr_;
             packet.bdvPtr_ = bdvPtr;
-            rpcBroadcastQueue_.push_back(move(packet));
+            rpcPackets.push_back(move(packet));
+            zcHashVec.push_back(fallbackStruct.txHash_);
          }
+
+         if (rpcPackets.empty())
+            return;
+
+         //create new batch for timed out zc
+         bdmT_->bdm()->zeroConfCont_->actionQueue()->pushGetZcRequest(
+            zcHashVec, 10000, {});
+
+         //push through rpc
+         for (auto& packet : rpcPackets)
+            rpcBroadcastQueue_.push_back(move(packet));
       };
 
       bdmT_->bdm()->zeroConfCont_->broadcastZC(
-         rawTxRef, 10000, errorCallback);
+         rawZcVec, 5000, errorCallback);
 
       break;
    }
@@ -2976,7 +3003,8 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
          throw runtime_error("invalid tx size");
 
       RpcBroadcastPacket packet;
-      packet.rawTx_ = BinaryData((uint8_t*)rawTx.c_str(), rawTx.size());
+      packet.rawTx_ = make_shared<BinaryData>(
+         (uint8_t*)rawTx.c_str(), rawTx.size());
       packet.bdvPtr_ = bdvPtr;
       rpcBroadcastQueue_.push_back(move(packet));
 

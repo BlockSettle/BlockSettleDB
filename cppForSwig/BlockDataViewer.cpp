@@ -1410,7 +1410,7 @@ vector<LedgerEntry> WalletGroup::getHistoryPage(
       };
 
       auto buildLedgers = [&localWalletMap](
-         const map<BinaryData, TxIOPair>& txioMap,
+         const map<BinaryData, TxIOPair>&,
          uint32_t startBlock, uint32_t endBlock)->map<BinaryData, LedgerEntry>
       {
          map<BinaryData, LedgerEntry> result;

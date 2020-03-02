@@ -167,6 +167,8 @@ public:
    {}
 
    virtual std::vector<uint8_t> serialize(uint32_t magic_word) const;
+   size_t serialize(uint32_t magic_word, void* ptr, size_t buffer_len) const;
+   size_t getSerializedSize(void) const;
 
    virtual PayloadType type(void) const = 0;
    virtual std::string typeStr(void) const = 0;
@@ -353,6 +355,11 @@ public:
    Payload_GetData(const InvEntry& inventry)
    {
       invVector_.push_back(inventry);
+   }
+
+   Payload_GetData(std::vector<InvEntry>&& invVec)
+   {
+      invVector_ = invVec;
    }
 
    void deserialize(uint8_t* dataptr, size_t len);
@@ -573,7 +580,7 @@ public:
    void registerGetTxCallback(
       const std::function<void(std::unique_ptr<Payload>)>&);
 
-   void requestTx(const InvEntry&);
+   void requestTx(std::vector<InvEntry>);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -630,6 +637,8 @@ private:
       if (nodeStatusLambda_)
          nodeStatusLambda_();
    }
+
+   void sendMessage(std::vector<std::unique_ptr<Payload>>);
 
 public:
    BitcoinP2P(

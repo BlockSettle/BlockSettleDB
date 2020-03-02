@@ -57,7 +57,7 @@ namespace DBTestUtils
 struct RpcBroadcastPacket
 {
    std::shared_ptr<BDV_Server_Object> bdvPtr_;
-   BinaryData rawTx_;
+   std::shared_ptr<BinaryData> rawTx_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -136,6 +136,7 @@ class BDV_Server_Object : public BlockDataViewer
       Clients*, const std::string&, ::Codec_BDVCommand::NotificationType);
 
 private: 
+   std::atomic<unsigned> started_;
    std::thread initT_;
    std::unique_ptr<Callback> cb_;
 
