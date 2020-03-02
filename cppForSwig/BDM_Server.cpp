@@ -2974,7 +2974,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       };
 
       bdmT_->bdm()->zeroConfCont_->broadcastZC(
-         rawZcVec, 5000, errorCallback);
+         rawZcVec, 60000, errorCallback);
 
       break;
    }
