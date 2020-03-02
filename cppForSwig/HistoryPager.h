@@ -78,7 +78,7 @@ public:
    void reset(void) 
    { 
       isInitialized_->store(false, std::memory_order_relaxed);
-      pages_.reset(); 
+      std::atomic_store_explicit(&pages_, {}, std::memory_order_release);
    }
 
    void addPage(std::vector<std::shared_ptr<Page>>&,

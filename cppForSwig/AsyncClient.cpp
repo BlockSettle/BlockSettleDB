@@ -253,6 +253,24 @@ void BlockDataViewer::broadcastZC(const BinaryData& rawTx)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+void BlockDataViewer::broadcastZC(const vector<BinaryData>& rawTxVec)
+{
+   auto payload = make_payload(Methods::broadcastZC);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+
+   for (auto& rawTx : rawTxVec)
+   {
+      auto&& txHash = BtcUtils::getHash256(rawTx.getRef());
+      Tx tx(rawTx);
+      cache_->insertTx(txHash, tx);
+
+      command->add_bindata(rawTx.getPtr(), rawTx.getSize());
+   }
+
+   sock_->pushPayload(move(payload), nullptr);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getTxByHash(const BinaryData& txHash, 
    function<void(ReturnMessage<Tx>)> callback)
 {

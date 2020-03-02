@@ -336,6 +336,11 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
    {
       auto obj = make_shared<MempoolObject>();
       Tx txNew(tx.first);
+
+      //skip if we've seen this hash before
+      if (!seenHashes_.insert(txNew.getThisHash()).second && !stage)
+         return;
+
       obj->rawTx_ = tx.first;
       obj->hash_ = txNew.getThisHash();
       obj->order_ = counter_.fetch_add(1, memory_order_relaxed);
@@ -494,21 +499,29 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
          switch (entry.invtype_)
          {
          case Inv_Msg_Tx:
+         case Inv_Msg_Witness_Tx:
          {
-            //consume getDataMap entry
-            auto gdpMap = getDataPayloadMap_.get();
+            //bail if we have seen this hash before
             BinaryData hashBd(&entry.hash[0], sizeof(entry.hash));
-            auto iter = gdpMap->find(hashBd);
-            if (iter == gdpMap->end())
+            if (!seenHashes_.insert(hashBd).second)
                break;
 
-            shared_ptr<Payload> payloadTxSPtr(move(iter->second->payload_));
-            auto payloadTx = dynamic_pointer_cast<Payload_Tx>(payloadTxSPtr);
-            
-            //cleanup getdatapayload map
-            getDataPayloadMap_.erase(hashBd);
+            shared_ptr<Payload_Tx> payloadTx;
+            {
+               //consume getDataMap entry
+               auto gdpMap = getDataPayloadMap_.get();
+               auto iter = gdpMap->find(hashBd);
+               if (iter == gdpMap->end())
+                  break;
 
-            //bail if we have to skip zc
+               shared_ptr<Payload> payloadTxSPtr(move(iter->second->payload_));
+               payloadTx = dynamic_pointer_cast<Payload_Tx>(payloadTxSPtr);
+               
+               //cleanup getdatapayload map
+               getDataPayloadMap_.erase(hashBd);
+            }
+
+            //bail if we have to skip a zc
             bool skip = (skipZc_.load(memory_order_relaxed) != 0);
             if (skip)
             {
@@ -755,7 +768,8 @@ int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx)
 {
    vector<pair<BinaryData, unsigned>> pushVec;
    pushVec.push_back(make_pair(BinaryData(rawTx), 0));
-   nodePtr_->pushZC(pushVec, false);
-
+   primaryNode_->pushZC(pushVec, false);
+   watcherNode_->pushZC(pushVec, false);
+   
    return 0; //success
 }
