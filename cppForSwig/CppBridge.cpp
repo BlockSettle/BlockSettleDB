@@ -623,11 +623,7 @@ void CppBridge::commandLoop()
             case Methods::cs_getUtxoSelection:
             {
                if (msg.stringargs_size() != 1)
-               {
-                  cout << msg.stringargs_size() << endl;
                   throw runtime_error("invalid command cs_getUtxoSelection");
-               }
-               cout << "...." << msg.stringargs(0) << endl;
 
                response = cs_getUtxoSelection(msg.stringargs(0));
                break;
@@ -892,11 +888,14 @@ void CppBridge::commandLoop()
 
             case Methods::broadcastTx:
             {
-               if (msg.byteargs_size() != 1)
+               if (msg.byteargs_size() == 0)
                   throw runtime_error("invalid command broadcastTx");
 
-               BinaryDataRef rawTxRef; rawTxRef.setRef(msg.byteargs(0));
-               broadcastTx(rawTxRef);
+               vector<BinaryData> bdVec;
+               for (unsigned i=0; i<msg.byteargs_size(); i++)
+                  bdVec.emplace_back(move(BinaryData::fromString(msg.byteargs(i))));
+
+               broadcastTx(bdVec);
                break;
             }
 
@@ -1863,7 +1862,6 @@ void CppBridge::signer_signTx(
    auto signLbd = [wltPtr, signerPtr, passLbd, msgId, this](void)->void
    {
       bool success = true;
-
       try
       {
          auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);      
@@ -1944,10 +1942,9 @@ unique_ptr<Message> CppBridge::signer_getSignedStateForInput(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::broadcastTx(const BinaryDataRef& rawTxRef)
+void CppBridge::broadcastTx(const vector<BinaryData>& rawTxVec)
 {
-   Tx tx(rawTxRef);
-   bdvPtr_->broadcastZC(rawTxRef);
+   bdvPtr_->broadcastZC(rawTxVec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

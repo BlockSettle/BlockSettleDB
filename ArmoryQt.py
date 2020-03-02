@@ -595,7 +595,7 @@ class ArmoryMainWindow(QMainWindow):
          MessageSigningVerificationDialog(self,self).exec_()
 
       def openBlindBroad():
-         if not TheSDM.satoshiIsAvailable():
+         if TheBDM.getState() in (BDM_OFFLINE, BDM_UNINITIALIZED):
             QMessageBox.warning(self, self.tr("Not Online"), self.tr(
                'Bitcoin Core is not available, so Armory will not be able '
                'to broadcast any transactions for you.'), QMessageBox.Ok)
@@ -2986,7 +2986,7 @@ class ArmoryMainWindow(QMainWindow):
 
          try:
             LOGINFO('Sending Tx, %s', newTxHash)
-            TheBridge.broadcastTx(pytx.serialize())
+            TheBridge.broadcastTx([pytx.serialize()])
          except:
             QMessageBox.warning(self, self.tr('Broadcast failed'), self.tr(
                   'The broadcast process failed unexpectedly. Report this error to '
@@ -5245,7 +5245,7 @@ class ArmoryMainWindow(QMainWindow):
             try:
                recipStr = ''
                for addr in le.scrAddrList:
-                  if pywlt.hasScrAddr(addr):
+                  if pywlt.hasAddrString(addr):
                      continue
                   if len(recipStr)==0:
                      recipStr = scrAddr_to_addrStr(addr)
@@ -5283,7 +5283,7 @@ class ArmoryMainWindow(QMainWindow):
             if remember:
                self.writeSetting('MinimizeOrClose', 'Minimize')
          else:
-            doClose = True;
+            doClose = True
             if remember:
                self.writeSetting('MinimizeOrClose', 'Close')
 

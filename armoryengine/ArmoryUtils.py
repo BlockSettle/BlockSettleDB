@@ -1412,7 +1412,7 @@ def makeAsciiBlock(binStr, headStr='', wid=64, newline='\n'):
    sz = len(b64Data)
    firstLine = '=====%s' % headStr
    lines = [firstLine.ljust(wid, '=')]
-   lines.extend([b64Data[wid*i:wid*(i+1)] for i in range((sz-1)/wid+1)])
+   lines.extend([b64Data[wid*i:wid*(i+1)] for i in range(int((sz-1)/wid)+1)])
    lines.append("="*wid)
    return newline.join(lines)
 
@@ -2341,9 +2341,9 @@ def bytesToHumanSize(nBytes):
 def packVarInt(n):
    """ Writes 1,3,5 or 9 bytes depending on the size of n """
    if   n < 0xfd:  return [chr(n), 1]
-   elif n < 1<<16: return ['\xfd'+pack('<H',n), 3]
-   elif n < 1<<32: return ['\xfe'+pack('<I',n), 5]
-   else:           return ['\xff'+pack('<Q',n), 9]
+   elif n < 1<<16: return [b'\xfd'+pack('<H',n), 3]
+   elif n < 1<<32: return [b'\xfe'+pack('<I',n), 5]
+   else:           return [b'\xff'+pack('<Q',n), 9]
 
 def unpackVarInt(hvi):
    """ Returns a pair: the integer value and number of bytes read """
@@ -3558,7 +3558,7 @@ class SettingsFile(object):
    def pprint(self, nIndent=0):
       indstr = indent*nIndent
       print(indstr + 'Settings:')
-      for k,v in self.settingsMap.iteritems():
+      for k,v in self.settingsMap.items():
          print(indstr + indent + k.ljust(15), v)
 
 
@@ -3636,7 +3636,7 @@ class SettingsFile(object):
          try:
             # Skip anything that throws an exception
             valStr = ''
-            if   isinstance(val, str):
+            if   isinstance(val, str) or isinstance(val, unicode):
                valStr = val
             elif isinstance(val, int) or \
                  isinstance(val, float) or \
@@ -3648,7 +3648,7 @@ class SettingsFile(object):
             f.write(key.ljust(36).encode('utf-8'))
             f.write(b' | ')
             if valStr:
-               f.write(toBytes(valStr))
+               f.write(valStr)
             f.write(b'\n')
          except:
             LOGEXCEPT('Invalid entry in SettingsFile... skipping')

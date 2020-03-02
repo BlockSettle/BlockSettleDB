@@ -234,7 +234,7 @@ private:
       const BinaryData&) const;
    std::unique_ptr<::google::protobuf::Message> getHash160(
       const BinaryDataRef&) const;
-   void broadcastTx(const BinaryDataRef&);
+   void broadcastTx(const std::vector<BinaryData>&);
    std::unique_ptr<::google::protobuf::Message> getTxOutScriptForScrAddr(
       const BinaryData&) const;  
 

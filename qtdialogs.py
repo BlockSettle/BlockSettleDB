@@ -13891,6 +13891,7 @@ class DlgBroadcastBlindTx(ArmoryDialog):
       super(DlgBroadcastBlindTx, self).__init__(parent, main)
 
       self.pytx = None
+      self.txList = []
 
       lblDescr = QRichLabel(self.tr(
          'Copy a raw, hex-encoded transaction below to have Armory '
@@ -13937,11 +13938,13 @@ class DlgBroadcastBlindTx(ArmoryDialog):
       self.lblInvalid = QRichLabel('')
 
       self.btnCancel = QPushButton(self.tr("Cancel"))
+      self.btnAdd    = QPushButton(self.tr("Add"))
       self.btnBroad  = QPushButton(self.tr("Broadcast"))
       self.btnBroad.setEnabled(False)
       self.connect(self.btnCancel, SIGNAL('clicked()'), self.reject)
+      self.connect(self.btnAdd, SIGNAL('clicked()'), self.addTx)
       self.connect(self.btnBroad, SIGNAL('clicked()'), self.doBroadcast)
-      frmButtons = makeHorizFrame(['Stretch', self.btnCancel, self.btnBroad])
+      frmButtons = makeHorizFrame(['Stretch', self.btnCancel, self.btnAdd, self.btnBroad])
 
       layout = QVBoxLayout()
       layout.addWidget(lblDescr)
@@ -13971,6 +13974,12 @@ class DlgBroadcastBlindTx(ArmoryDialog):
          self.setReady(False)
          self.pytx = None
 
+   #############################################################################
+   def addTx(self):
+      if self.pytx is not None:
+         self.txList.append(self.pytx)
+      
+      self.txtRawTx.clear()
 
    #############################################################################
    def setReady(self, isTrue):
@@ -13985,13 +13994,18 @@ class DlgBroadcastBlindTx(ArmoryDialog):
 
    #############################################################################
    def doBroadcast(self):
-      txhash = self.pytx.getHash()
-      self.main.NetworkingFactory.sendTx(self.pytx)
+      if self.pytx is not None:
+         self.txList.append(self.pytx)
 
-      time.sleep(0.5)
-      msg = PyMessage('getdata')
-      msg.payload.invList.append( [MSG_INV_TX, txhash] )
-      self.main.NetworkingFactory.sendMessage(msg)
+      rawTxList = []
+      for txObj in self.txList:
+         rawTxList.append(txObj.serialize())
+
+      TheBridge.broadcastTx(rawTxList)
+
+      ''' TODO: replace this with a tx broadcast successful popup notification
+      txhash = self.pytx.getHash()
+
 
       hexhash = binary_to_hex(txhash, endOut=BIGENDIAN)
       if USE_TESTNET:
@@ -14020,7 +14034,7 @@ class DlgBroadcastBlindTx(ArmoryDialog):
          'with the link below: '
          '<br><br>'
          '<a href="%2">%3</a>').arg(hexhash, linkToExplorer, dispToExplorer), QMessageBox.Ok)
-
+      '''
       self.accept()
 
 #################################################################################

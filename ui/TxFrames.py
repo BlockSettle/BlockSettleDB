@@ -936,8 +936,6 @@ class SendBitcoinsFrame(ArmoryFrame):
             scrType = getTxOutScriptType(utxo.getScript())
             scrAddr = utxo.getRecipientScrAddr()
             addrObj = self.wlt.getAddrByHash160(scrAddr[1:])
-            print (binary_to_hex(scrAddr))
-            print (int(scrType))
             if scrType in CPP_TXOUT_STDSINGLESIG:
                if addrObj:
                   pubKeyMap[scrAddr] = addrObj.getPubKey()
@@ -2243,24 +2241,6 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       if not dlg.exec_():
          return
 
-      if self.wlt.useEncryption and self.wlt.isLocked:
-         Passphrase = None  
-
-         unlockdlg = DlgUnlockWallet(self.wlt, self, self.main, self.tr('Send Transaction'), returnPassphrase=True)
-         if unlockdlg.exec_():
-            if unlockdlg.Accepted == 1:
-               Passphrase = unlockdlg.securePassphrase.copy()
-               unlockdlg.securePassphrase.destroy()
-                     
-         if Passphrase is None or self.wlt.kdf is None:
-            QMessageBox.critical(self.parent(), self.tr('Wallet is Locked'), \
-               self.tr('Cannot sign transaction while your wallet is locked. '), \
-               QMessageBox.Ok)
-            return
-         else:
-            self.wlt.kdfKey = self.wlt.kdf.DeriveKey(Passphrase)
-            Passphrase.destroy()                                              
-
       def completeSignProcess(success, signerObj):
          def signTxLastStep(success, signerObj):
             signerObj.getSignedTx()
@@ -2415,7 +2395,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       clipb = QApplication.clipboard()
       clipb.clear()
       clipb.setText(binary_to_hex(\
-         self.ustxObj.getSignedPyTx(signer=self.ustxObj.signerType).serialize()))
+         self.ustxObj.getSignedPyTx().serialize()))
       self.lblCopied.setText(self.tr('<i>Copied!</i>'))
 
 

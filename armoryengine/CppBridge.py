@@ -48,8 +48,6 @@ class CppBridge(object):
    #############################################################################
    def __init__(self):
 
-      self.raise_counter = 0
-
       self.run = True
       self.rwLock = threading.Lock()
 
@@ -912,10 +910,10 @@ class CppBridge(object):
       return response     
 
    #############################################################################
-   def broadcastTx(self, rawTx):
+   def broadcastTx(self, rawTxList):
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.broadcastTx
-      packet.byteArgs.append(rawTx)
+      packet.byteArgs.extend(rawTxList)
 
       self.sendToBridge(packet, False)
 
