@@ -2267,9 +2267,9 @@ BDVCommandProcessingResultType BDV_Server_Object::processPayload(
          //some verbose, this can be removed later
          if (msgIter->second.isReady())
          {
-            if (msgId >= lastValidMessageId_ + 10)
-               LOGWARN << "completed a message that exceeds the counter by " <<
-                  msgId - lastValidMessageId_;
+//            if (msgId >= lastValidMessageId_ + 10)
+//               LOGWARN << "completed a message that exceeds the counter by " <<
+//                  msgId - lastValidMessageId_;
 
             if (msgId != nextId)
                return BDVCommandProcess_PayloadNotReady;
