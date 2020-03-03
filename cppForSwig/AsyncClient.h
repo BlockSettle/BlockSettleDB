@@ -482,13 +482,12 @@ namespace AsyncClient
          std::function<void(ReturnMessage<std::vector<UTXO>>)>);
 
       void getSpentnessForOutputs(const std::map<BinaryData, std::set<unsigned>>&,
-         std::function<void(
-            ReturnMessage<std::map<BinaryData, std::map<unsigned, 
-            std::pair<BinaryData, unsigned>>>>)>);
+         std::function<void(ReturnMessage<std::map<BinaryData, std::map<
+         unsigned, SpentnessResult>>>)>);
       void getSpentnessForZcOutputs(const std::map<BinaryData, std::set<unsigned>>&,
-         std::function<void(
-            ReturnMessage<std::map<BinaryData, std::map<unsigned, 
-            std::pair<BinaryData, unsigned>>>>)>);
+         std::function<void(ReturnMessage<std::map<BinaryData, std::map<
+         unsigned, SpentnessResult>>>)>);
+
       void getOutputsForOutpoints(
          const std::map<BinaryData, std::set<unsigned>>&, bool,
          std::function<void(ReturnMessage<std::vector<UTXO>>)>);
@@ -915,19 +914,17 @@ public:
 struct CallbackReturn_SpentnessData : public CallbackReturn_WebSocket
 {
 private:
-   const std::map<BinaryData, std::set<unsigned>> outputs_;
 
    std::function<void(
-   ReturnMessage<std::map<BinaryData, std::map<unsigned, 
-   std::pair<BinaryData, unsigned>>>>)>
+   ReturnMessage<std::map<BinaryData, std::map<
+      unsigned, SpentnessResult>>>)>
       userCallbackLambda_;
 
 public:
    CallbackReturn_SpentnessData(
-      const std::map<BinaryData, std::set<unsigned>>& outputs,
-      std::function<void(ReturnMessage<
-         std::map<BinaryData, std::map<unsigned, std::pair<BinaryData, unsigned>>>>)> lbd) :
-      outputs_(outputs), userCallbackLambda_(lbd)
+      std::function<void(ReturnMessage<std::map<BinaryData, std::map<
+         unsigned, SpentnessResult>>>)> lbd) :
+      userCallbackLambda_(lbd)
    {}
 
    //virtual

@@ -567,9 +567,8 @@ void BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx)
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getSpentnessForOutputs(
    const map<BinaryData, set<unsigned>>& outputs,
-   function<void(ReturnMessage<
-      map<BinaryData, map<unsigned, 
-      pair<BinaryData, unsigned>>>>)> callback)
+   function<void(ReturnMessage<map<BinaryData, map<
+      unsigned, SpentnessResult>>>)> callback)
 {
    auto payload = make_payload(Methods::getSpentnessForOutputs);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -588,16 +587,15 @@ void BlockDataViewer::getSpentnessForOutputs(
 
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
-      make_unique<CallbackReturn_SpentnessData>(outputs, callback);
+      make_unique<CallbackReturn_SpentnessData>(callback);
    sock_->pushPayload(move(payload), read_payload);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getSpentnessForZcOutputs(
    const map<BinaryData, set<unsigned>>& outputs,
-   function<void(ReturnMessage<
-      map<BinaryData, map<unsigned, 
-      pair<BinaryData, unsigned>>>>)> callback)
+   function<void(ReturnMessage<map<BinaryData, map<
+      unsigned, SpentnessResult>>>)> callback)
 {
    auto payload = make_payload(Methods::getSpentnessForZcOutputs);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -616,7 +614,7 @@ void BlockDataViewer::getSpentnessForZcOutputs(
 
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
-      make_unique<CallbackReturn_SpentnessData>(outputs, callback);
+      make_unique<CallbackReturn_SpentnessData>(callback);
    sock_->pushPayload(move(payload), read_payload);
 }
 
@@ -2080,27 +2078,43 @@ void CallbackReturn_SpentnessData::callback(
 {
    try
    {
-      unsigned i = 0;
-
-      ::Codec_CommonTypes::ManyBinaryDataAndHeight msg;
+      ::Codec_Utxo::Spentness_BatchData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      map<BinaryData, map<unsigned, pair<BinaryData, unsigned>>> result;
-      for (auto& hashPair : outputs_)
+      if (msg.count() != msg.txdata_size())
+         throw ClientMessageError("malformed spentness payload", -1);
+
+      map<BinaryData, map<unsigned, SpentnessResult>> result;
+      for (unsigned i=0; i<msg.count(); i++)
       {
-         auto iter = result.insert(
-            make_pair(hashPair.first, map<unsigned, pair<BinaryData, unsigned>>())).first;
+         const auto& txData = msg.txdata(i);
+         BinaryDataRef txHashRef; txHashRef.setRef(txData.hash());
 
-         for (auto& id : hashPair.second)
+         auto& opMap = result[txHashRef];
+         for (unsigned y=0; y<txData.outputdata_size(); y++)
          {
-            auto& val = msg.value(i++);
-            BinaryDataRef hashRef; hashRef.setRef(val.data());
+            const auto& opData = txData.outputdata(y);
+            auto& spentnessData = opMap[opData.txoutindex()];
+            
+            spentnessData.state_ = (OutputSpentnessState)opData.state();
+            switch (spentnessData.state_)
+            {
+               case OutputSpentnessState::Unspent:
+               case OutputSpentnessState::Invalid:
+                  break;
 
-            iter->second.insert(make_pair(id, make_pair(hashRef, val.height())));
+               case OutputSpentnessState::Spent:
+               {
+                  spentnessData.height_ = opData.spenderheight();
+                  spentnessData.spender_ = 
+                     BinaryData::fromString(opData.spenderhash());
+                  break;
+               }
+            }
          }
       }
 
-      ReturnMessage<map<BinaryData, map<unsigned, pair<BinaryData, unsigned>>>> rm(result);
+      ReturnMessage<map<BinaryData, map<unsigned, SpentnessResult>>> rm(result);
 
       if (runInCaller())
       {
@@ -2115,7 +2129,7 @@ void CallbackReturn_SpentnessData::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<map<BinaryData, map<unsigned, pair<BinaryData, unsigned>>>> rm(e);
+      ReturnMessage<map<BinaryData, map<unsigned, SpentnessResult>>> rm(e);
       userCallbackLambda_(move(rm));
    }
 }
