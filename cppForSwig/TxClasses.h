@@ -498,4 +498,21 @@ private:
    std::vector<BinaryData> txHashList_;
 };
 
+
+////////////////////////////////////////////////////////////////////////////////
+enum OutputSpentnessState
+{
+   Unspent = 1,
+   Spent = 2,
+   Invalid = 3
+};
+
+////
+struct SpentnessResult
+{
+   BinaryData spender_;
+   unsigned height_ = UINT32_MAX;
+   OutputSpentnessState state_ = OutputSpentnessState::Invalid;
+};
+
 #endif

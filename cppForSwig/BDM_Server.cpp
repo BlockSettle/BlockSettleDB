@@ -1446,28 +1446,13 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
          txhash (32) | txout count (varint) | txout index #1 (varint) | txout index #2 ...
          
       out:
-         vector of pair<spender hash, spender height> as 
-         Codec_CommonTypes::ManyBinaryDataAndHeight
-         
-         The hashes are order as the outputs appear in the argument map:
-            hash #0
-               id #0 -> spender hash & height #0
-               id #1 -> spender hash & height #1
-            hash #1
-               id #0 -> spender hash & height #2
-            hash #3
-               id #0 -> spender hash & height #3
-               id #1 -> spender hash & height #4
-
-         outputs that aren't spent are passed as a <hash, height> pair with an empty
-         spender hash and height set to 0.
+         Codec_Utxo::Spentness_BatchData
       */
 
       if(command->bindata_size() == 0)
          throw runtime_error("expected bindata for getSpentnessForOutputs");
 
-      vector<BinaryData> spenderKeys;
-
+      map<BinaryDataRef, map<unsigned, SpentnessResult>> spenderMap;
       {
          //grab all spentness data for these outputs
          auto&& spentness_tx = db_->beginTransaction(SPENTNESS, LMDB::ReadOnly);
@@ -1479,76 +1464,112 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
                throw runtime_error("malformed output data");
 
             BinaryRefReader brr((const uint8_t*)rawOutputs.c_str(), rawOutputs.size());
-            auto txHashref = brr.get_BinaryDataRef(32);
+            auto txHashRef = brr.get_BinaryDataRef(32);
+            auto& opMap = spenderMap[txHashRef];
 
             //get dbkey for this txhash
-            auto&& dbkey = db_->getDBKeyForHash(txHashref);
+            auto&& dbkey = db_->getDBKeyForHash(txHashRef);
 
             //convert id to block height and setup stxo
             StoredTxOut stxo;
 
-            BinaryRefReader keyReader(dbkey);
-            uint32_t blockid; uint8_t dup;
-            DBUtils::readBlkDataKeyNoPrefix(keyReader,
-               blockid, dup, stxo.txIndex_);
+            if (dbkey.getSize() != 0)
+            {
+               BinaryRefReader keyReader(dbkey);
+               uint32_t blockid; uint8_t dup;
+               DBUtils::readBlkDataKeyNoPrefix(keyReader,
+                  blockid, dup, stxo.txIndex_);
 
-            auto headerPtr = blockchain().getHeaderById(blockid);
-            stxo.blockHeight_ = headerPtr->getBlockHeight();
-            stxo.duplicateID_ = headerPtr->getDuplicateID();
+               auto headerPtr = blockchain().getHeaderById(blockid);
+               stxo.blockHeight_ = headerPtr->getBlockHeight();
+               stxo.duplicateID_ = headerPtr->getDuplicateID();
+            }
             
             //run through txout indices
             auto outputCount = brr.get_var_int();
             for (unsigned y = 0; y < outputCount; y++)
             {
-               //set txout index
-               stxo.txOutIndex_ = brr.get_var_int();
+               auto txOutIndex = brr.get_var_int();
+               auto opInsertIter = opMap.insert(make_pair(
+                  txOutIndex, SpentnessResult()));
+               if (dbkey.getSize() == 0 || !opInsertIter.second)
+                  continue;
 
+               //set txout index
+               stxo.txOutIndex_ = txOutIndex;
+             
                //get spentness for index
                db_->getSpentness(stxo);
 
                //add to the result vector
                if (stxo.isSpent())
-                  spenderKeys.push_back(stxo.spentByTxInKey_);
+               {
+                  opInsertIter.first->second.state_ = 
+                     OutputSpentnessState::Spent;
+                  
+                  opInsertIter.first->second.spender_ = 
+                     stxo.spentByTxInKey_;
+               }
                else
-                  spenderKeys.push_back(BinaryData());
+               {
+                  opInsertIter.first->second.state_ = 
+                     OutputSpentnessState::Unspent;
+               }
             }
          }
       }
 
       //resolve spender dbkeys to tx hashes
-      vector<pair<BinaryData, unsigned>> hashes;
       map<BinaryData, pair<BinaryData, unsigned>> cache;
-      for (auto& key : spenderKeys)
+      for (auto& txHashPair : spenderMap)
       {
-         if (key.getSize() == 0)
+         for (auto& opPair : txHashPair.second)
          {
-            hashes.emplace_back(make_pair(BinaryData(), 0));
-            continue;
-         }
+            auto& key = opPair.second.spender_;
+            if (key.getSize() == 0)
+               continue;
 
-         auto keyShort = key.getSliceRef(0, 6);
-         auto cacheIter = cache.find(keyShort);
-         if (cacheIter != cache.end())
-         {
-            hashes.push_back(cacheIter->second);
-            continue;
-         }
+            auto keyShort = key.getSliceRef(0, 6);
+            auto cacheIter = cache.find(keyShort);
+            if (cacheIter != cache.end())
+            {
+               key = cacheIter->second.first;
+               opPair.second.height_ = cacheIter->second.second;
+               continue;
+            }
 
-         auto&& hash = db_->getHashForDBKey(keyShort);
-         auto height = DBUtils::hgtxToHeight(key.getSliceRef(0, 4));
-         auto hashPair = make_pair(move(hash), height);
-         cache.insert(make_pair(keyShort, hashPair));
-         hashes.emplace_back(hashPair);
+            auto&& hash = db_->getHashForDBKey(keyShort);
+            auto height = DBUtils::hgtxToHeight(key.getSliceRef(0, 4));
+            key = hash; opPair.second.height_ = height;
+
+            auto hashPair = make_pair(move(hash), height);
+            cache.insert(make_pair(keyShort, move(hashPair)));
+         }
       }
 
       //create response object
-      auto response = make_shared<::Codec_CommonTypes::ManyBinaryDataAndHeight>();
-      response->set_count(hashes.size());
-      for (auto& hashPair : hashes)
+      auto response = make_shared<::Codec_Utxo::Spentness_BatchData>();
+      response->set_count(spenderMap.size());
+      for (auto& txHashPair : spenderMap)
       {
-         auto val = response->add_value();
-         val->set_data(hashPair.first.getPtr(), hashPair.first.getSize());
-         val->set_height(hashPair.second);
+         auto txData = response->add_txdata();
+         txData->set_hash(txHashPair.first.getPtr(), txHashPair.first.getSize());
+
+         for (auto& opPair : txHashPair.second)
+         {
+            auto opData = txData->add_outputdata();
+
+            opData->set_txoutindex(opPair.first);
+            opData->set_state(opPair.second.state_);
+            
+            if (opPair.second.state_ != OutputSpentnessState::Spent)
+               continue;
+
+            opData->set_spenderheight(opPair.second.height_);
+            opData->set_spenderhash(
+               opPair.second.spender_.getCharPtr(), 
+               opPair.second.spender_.getSize());
+         }
       }
 
       resultingPayload = response;
@@ -1563,24 +1584,10 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
          txhash (32) | txout count (varint) | txout index #1 (varint) | txout index #2 ...
          
       out:
-         vector of pair<spender hash, spender height> as 
-         Codec_CommonTypes::ManyBinaryDataAndHeight
-         
-         The hashes are order as the outputs appear in the argument map:
-            hash #0
-               id #0 -> spender hash & height #0
-               id #1 -> spender hash & height #1
-            hash #1
-               id #0 -> spender hash & height #2
-            hash #3
-               id #0 -> spender hash & height #3
-               id #1 -> spender hash & height #4
-
-         outputs that aren't spent are passed as a <hash, height> pair with an empty
-         spender hash and height set to 0.
+         Codec_Utxo::Spentness_BatchData
       */
 
-      vector<pair<BinaryData, unsigned>> hashes;
+      map<BinaryDataRef, map<unsigned, SpentnessResult>> spenderMap;
       {
          //grab all spentness data for these zc outputs
          auto snapshot = zc_->getSnapshot();
@@ -1593,16 +1600,19 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
             BinaryRefReader brr((const uint8_t*)rawOutputs.c_str(), rawOutputs.size());
             auto txHashRef = brr.get_BinaryDataRef(32);
 
+            auto& opMap = spenderMap[txHashRef];
+
             //get zctx
-            auto zcIter = snapshot->txHashToDBKey_.find(txHashRef);
-            if (zcIter == snapshot->txHashToDBKey_.end())
-               throw runtime_error("invalid zc hash");
-
-            auto txIter = snapshot->txMap_.find(zcIter->second);
-            if (txIter == snapshot->txMap_.end())
-               throw runtime_error("invalid zc hash");
-
-            auto& tx = txIter->second;
+            shared_ptr<ParsedTx> txPtr;
+            {
+               auto zcIter = snapshot->txHashToDBKey_.find(txHashRef);
+               if (zcIter != snapshot->txHashToDBKey_.end())
+               {
+                  auto txIter = snapshot->txMap_.find(zcIter->second);
+                  if (txIter != snapshot->txMap_.end())
+                     txPtr = txIter->second;
+               }
+            }
 
             //TODO: harden loops running on count from client msg
 
@@ -1610,63 +1620,75 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
             auto outputCount = brr.get_var_int();
             for (size_t y = 0; y < outputCount; y++)
             {
-               //get output scrAddr
                auto txOutIdx = brr.get_var_int();
-               auto& scrAddr = tx->outputs_[txOutIdx].scrAddr_;
+               auto& spentnessData = opMap[txOutIdx];
+               
+               if (txPtr == nullptr)
+                  continue;
+
+               spentnessData.state_ = OutputSpentnessState::Unspent;
+
+               //get output scrAddr
+               auto& scrAddr = txPtr->outputs_[txOutIdx].scrAddr_;
 
                //get txiopair for this scrAddr
                auto txioMapIter = snapshot->txioMap_.find(scrAddr);
                if (txioMapIter == snapshot->txioMap_.end())
-               {
-                  hashes.push_back({BinaryData(), 0});
                   continue;
-               }
 
                //create dbkey for output
                BinaryWriter bwKey;
-               bwKey.put_BinaryData(tx->getKeyRef());
+               bwKey.put_BinaryData(txPtr->getKeyRef());
                bwKey.put_uint16_t((uint16_t)y, BE);
 
                //grab txio
                auto txioIter = txioMapIter->second.find(bwKey.getData());
                if (txioIter == txioMapIter->second.end())
-               {
-                  hashes.push_back({BinaryData(), 0});
                   continue;
-               }
 
                auto txRef = txioIter->second->getTxRefOfInput();
                auto spenderKey = txRef.getDBKeyRef();
                if (spenderKey.getSize() == 0)
-               {
-                  hashes.push_back({BinaryData(), 0});
                   continue;
-               }
 
                //we have a spender in this txio, resolve the hash               
                auto spenderIter = snapshot->txMap_.find(spenderKey);
                if (spenderIter == snapshot->txMap_.end())
-               {
-                  hashes.push_back({BinaryData(), 0});
                   continue;
-               }
 
-               pair<BinaryData, unsigned> spenderPair;
-               spenderPair.first = spenderIter->second->getTxHash();
-               spenderPair.second = txioIter->second->getIndexOfInput();
-               hashes.emplace_back(spenderPair);
+               spentnessData.spender_ = spenderIter->second->getTxHash();
+               auto&& inputRef = txioIter->second->getTxRefOfInput();
+               BinaryRefReader brr(inputRef.getDBKeyRef());
+               brr.advance(2);
+               spentnessData.height_ = brr.get_uint32_t(BE);
+               spentnessData.state_ = OutputSpentnessState::Spent;
             }
          }
       } 
       
       //create response object
-      auto response = make_shared<::Codec_CommonTypes::ManyBinaryDataAndHeight>();
-      response->set_count(hashes.size());
-      for (auto& hashPair : hashes)
+      auto response = make_shared<::Codec_Utxo::Spentness_BatchData>();
+      response->set_count(spenderMap.size());
+      for (auto& txHashPair : spenderMap)
       {
-         auto val = response->add_value();
-         val->set_data(hashPair.first.getPtr(), hashPair.first.getSize());
-         val->set_height(hashPair.second);
+         auto txData = response->add_txdata();
+         txData->set_hash(txHashPair.first.getPtr(), txHashPair.first.getSize());
+
+         for (auto& opPair : txHashPair.second)
+         {
+            auto opData = txData->add_outputdata();
+
+            opData->set_txoutindex(opPair.first);
+            opData->set_state(opPair.second.state_);
+            
+            if (opPair.second.state_ != OutputSpentnessState::Spent)
+               continue;
+
+            opData->set_spenderheight(opPair.second.height_);
+            opData->set_spenderhash(
+               opPair.second.spender_.getCharPtr(), 
+               opPair.second.spender_.getSize());
+         }
       }
 
       resultingPayload = response;

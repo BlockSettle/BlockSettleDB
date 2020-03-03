@@ -40,3 +40,23 @@ message AddressOutpointsData
 	required uint32 zcIndexCutOff = 2;
 	repeated AddressOutpoints addrOutpoints = 3;
 }
+
+message Spentness_OutputData
+{
+	required uint32 state = 1;
+	required uint32 txOutIndex = 2;
+	optional bytes spenderHash = 3;
+	optional uint32 spenderHeight = 4;
+}
+
+message Spentness_TxData
+{
+	required bytes hash = 2;
+	repeated Spentness_OutputData outputData = 3;
+}
+
+message Spentness_BatchData
+{
+	required uint32 count = 1;
+	repeated Spentness_TxData txData = 2;
+}

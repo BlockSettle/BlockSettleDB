@@ -1074,6 +1074,8 @@ public:
    // pair is used, and also saving a few bytes for common script types
    static BinaryData getTxOutScrAddr(BinaryDataRef script,
       TXOUT_SCRIPT_TYPE type = TXOUT_SCRIPT_NONSTANDARD);
+   static BinaryData getTxOutScriptForScrAddr(BinaryDataRef scrAddr);
+
 
    /////////////////////////////////////////////////////////////////////////////
    //no copy version, the regular one is too slow for scanning operations
