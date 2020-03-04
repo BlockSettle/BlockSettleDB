@@ -324,6 +324,36 @@ BinaryData BtcUtils::getTxOutScrAddr(BinaryDataRef script,
    }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+BinaryData BtcUtils::getTxOutScriptForScrAddr(BinaryDataRef scrAddr)
+{
+   if (scrAddr.getSize() == 0)
+      throw runtime_error("invalid scrAddr size");
+
+   BinaryRefReader brr(scrAddr);
+   auto prefix = brr.get_uint8_t();
+
+   switch (prefix)
+   {
+      case SCRIPT_PREFIX_HASH160:
+      case SCRIPT_PREFIX_HASH160_TESTNET:
+         return getP2PKHScript(brr.get_BinaryData(brr.getSizeRemaining()));
+
+      case SCRIPT_PREFIX_P2SH:
+      case SCRIPT_PREFIX_P2SH_TESTNET:
+         return getP2SHScript(brr.get_BinaryData(brr.getSizeRemaining()));
+
+      case SCRIPT_PREFIX_P2WPKH:
+         return getP2WPKHOutputScript(brr.get_BinaryData(brr.getSizeRemaining()));
+      
+      case SCRIPT_PREFIX_P2WSH:
+         return getP2WSHOutputScript(brr.get_BinaryData(brr.getSizeRemaining()));
+
+      default:
+         throw runtime_error("unsupported scrAddr");
+   }
+}
+
 /////////////////////////////////////////////////////////////////////////////
 //no copy version, the regular one is too slow for scanning operations
 TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)

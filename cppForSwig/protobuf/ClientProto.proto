@@ -37,6 +37,7 @@ enum Methods
     getTxOutScriptType = 92;
     getScrAddrForScript = 93;
     getLastPushDataInScript = 94;
+    getTxOutScriptForScrAddr = 95;
     
     getUtxosForValue = 100;
     getSpendableZCList = 101;

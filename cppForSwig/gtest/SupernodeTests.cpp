@@ -6492,19 +6492,30 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
    auto&& serverPubkey = WebSocketServer::getPublicKey();
    theBDMt_->start(config.initMode_);
 
-   auto createNAddresses = [](unsigned count)->vector<BinaryData>
+   struct KeyPair
+   {
+      SecureBinaryData priv_;
+      SecureBinaryData pub_;
+      BinaryData scrHash_;
+   };
+
+   vector<KeyPair> keyPairs;
+   auto createNAddresses = [&keyPairs](unsigned count)->vector<BinaryData>
    {
       vector<BinaryData> result;
-
       for (unsigned i = 0; i < count; i++)
       {
+         KeyPair kp;
+         kp.priv_ = CryptoPRNG::generateRandom(32);
+         kp.pub_ = CryptoECDSA().ComputePublicKey(kp.priv_, true);
+         kp.scrHash_ = BtcUtils::getHash160(kp.pub_);
+
          BinaryWriter bw;
          bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
-
-         auto&& addrData = CryptoPRNG::generateRandom(20);
-         bw.put_BinaryData(addrData);
+         bw.put_BinaryData(kp.scrHash_);
 
          result.push_back(bw.getData());
+         keyPairs.emplace_back(move(kp));
       }
 
       return result;
@@ -6558,7 +6569,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
       DBTestUtils::ZcVector zcVec;
 
-      //get utxo
+      //spend some
       unsigned loopCount = 10;
       unsigned stagger = 0;
       for (auto& utxo : utxos)
@@ -6582,7 +6593,6 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
             signer.setFeed(feed);
             signer.sign();
-            auto rawTx = signer.serialize();
             zcVec.push_back(signer.serialize(), 130000000, stagger++);
          }
 
@@ -6667,6 +6677,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
       ASSERT_NE(iterZcB, zcAddrOp.outpoints_.end());
       EXPECT_EQ(iterZcB->second.size(), 10);
 
+      map<BinaryData, set<unsigned>> zcSpentnessToGet;
       for (unsigned z = 0; z < loopCount; z++)
       {
          auto id = z % _scrAddrVec1.size();
@@ -6679,17 +6690,26 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
          auto& op = addrIter->second[0];
          EXPECT_EQ(op.value_, 50 * COIN);
          EXPECT_EQ(op.txHeight_, UINT32_MAX);
+
+         auto sptIter = zcSpentnessToGet.find(op.txHash_);
+         if (sptIter == zcSpentnessToGet.end())
+         {
+            sptIter = zcSpentnessToGet.insert(
+               make_pair(op.txHash_, set<unsigned>())).first;
+         }
+
+         sptIter->second.insert(op.txOutIndex_);
       }
 
       //grab spentness
       auto getSpentness = [bdvObj](map<BinaryData, set<unsigned>> query)->
-         map<BinaryData, map<unsigned, pair<BinaryData, unsigned>>>
+         map<BinaryData, map<unsigned, SpentnessResult>>
       {
          auto prom =
-            make_shared<promise<map<BinaryData, map<unsigned, pair<BinaryData, unsigned>>>>>();
+            make_shared<promise<map<BinaryData, map<unsigned, SpentnessResult>>>>();
          auto fut = prom->get_future();
          auto lbd = [prom](ReturnMessage<std::map<BinaryData, std::map<unsigned,
-            std::pair<BinaryData, unsigned>>>> msg)
+            SpentnessResult>>> msg)
          {
             try
             {
@@ -6721,6 +6741,10 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
          }
       }
 
+      //add an invalid hash
+      spentnessToGet.insert(make_pair(BtcUtils::EmptyHash(), set<unsigned>({0})));
+
+      //grab the spentnees
       auto spentnessData = getSpentness(spentnessToGet);
 
       //check spentness data vs addr outpoint data
@@ -6731,28 +6755,43 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
             if (op.isSpent_)
             {
                auto iter = spentnessData.find(op.txHash_);
-               EXPECT_NE(iter, spentnessData.end());
+               ASSERT_NE(iter, spentnessData.end());
 
                auto idIter = iter->second.find(op.txOutIndex_);
-               EXPECT_NE(idIter, iter->second.end());
+               ASSERT_NE(idIter, iter->second.end());
 
-               EXPECT_EQ(idIter->second.first, op.spenderHash_);
+               EXPECT_EQ(idIter->second.spender_, op.spenderHash_);
+               EXPECT_EQ(idIter->second.state_, OutputSpentnessState::Spent);
             }
             else
             {
                auto iter = spentnessData.find(op.txHash_);
-               EXPECT_NE(iter, spentnessData.end());
+               ASSERT_NE(iter, spentnessData.end());
 
                auto idIter = iter->second.find(op.txOutIndex_);
-               EXPECT_NE(idIter, iter->second.end());
+               ASSERT_NE(idIter, iter->second.end());
 
-               EXPECT_EQ(idIter->second.first.getSize(), 0);
-               EXPECT_EQ(idIter->second.second, 0);
+               EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+               EXPECT_EQ(idIter->second.height_, UINT32_MAX);
+               EXPECT_EQ(idIter->second.state_, OutputSpentnessState::Unspent);
             }
          }
       }
 
-      //sneak in bad size hash, should throw
+      //check the invalid hash
+      {
+         auto iter = spentnessData.find(BtcUtils::EmptyHash());
+         ASSERT_NE(iter, spentnessData.end());
+
+         auto idIter = iter->second.find(0);
+         ASSERT_NE(idIter, iter->second.end());
+
+         EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+         EXPECT_EQ(idIter->second.height_, UINT32_MAX);
+         EXPECT_EQ(idIter->second.state_, OutputSpentnessState::Invalid);
+      }
+
+      //sneak in a bad sized hash, should throw
       spentnessToGet.insert(make_pair(READHEX("0011223344"), set<unsigned>()));
 
       try
@@ -6763,6 +6802,200 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
       catch (ClientMessageError& e)
       {
          EXPECT_EQ(e.what(), string("Error processing command: 84\nmalformed output data"));
+      }
+
+      //get zc utxos
+      auto zcutxo_prom = make_shared<promise<vector<UTXO>>>();
+      auto zcutxo_fut = zcutxo_prom->get_future();
+      auto zcutxo_get = [zcutxo_prom](ReturnMessage<vector<UTXO>> utxoV)->void
+      {
+         zcutxo_prom->set_value(move(utxoV.get()));
+      };
+      wallet1.getSpendableZCList(zcutxo_get);
+      auto&& zcUtxos = zcutxo_fut.get();
+      ASSERT_EQ(zcUtxos.size(), loopCount);
+
+      //resolver
+      class ResolverUT : public ResolverFeed
+      {
+      private:
+         map<BinaryData, SecureBinaryData> scriptToPub_;
+         map<SecureBinaryData, SecureBinaryData> pubToPriv_;
+
+      public:
+         ResolverUT(const vector<KeyPair>& keyPairs) :
+            ResolverFeed()
+         {
+            for (auto& keyPair : keyPairs)
+            {
+               scriptToPub_.insert(make_pair(keyPair.scrHash_, keyPair.pub_));
+               pubToPriv_.insert(make_pair(keyPair.pub_, keyPair.priv_));
+            }
+         }
+
+         BinaryData getByVal(const BinaryData& val) override
+         {
+            auto iter = scriptToPub_.find(val);
+            if (iter == scriptToPub_.end())
+               throw std::runtime_error("invalid value");
+            return iter->second;
+         }
+
+         const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey) override
+         {
+            auto iter = pubToPriv_.find(pubkey);
+            if (iter == pubToPriv_.end())
+               throw std::runtime_error("invalid value");
+            return iter->second;
+         }
+      };
+
+      auto zcFeed = make_shared<ResolverUT>(keyPairs);
+
+      //spend some
+      zcVec.clear();
+      map<BinaryData, unsigned> newZcHashes;
+      unsigned count = 0;
+      for (unsigned i=0; i<loopCount; i+=2)
+      {
+         auto& utxo = zcUtxos[i];
+
+         //sign
+         {
+            auto spenderA = make_shared<ScriptSpender>(utxo);
+            Signer signer;
+            signer.addSpender(spenderA);
+
+            auto id = stagger % _scrAddrVec1.size();
+
+            auto recipient = std::make_shared<Recipient_P2PKH>(
+               _scrAddrVec1[id].getSliceCopy(1, 20), utxo.getValue());
+            signer.addRecipient(recipient);
+
+            signer.setFeed(zcFeed);
+            signer.sign();
+            auto rawTx = signer.serialize();
+            Tx tx(rawTx);
+            newZcHashes.insert(make_pair(tx.getThisHash(), count++));
+            zcVec.push_back(signer.serialize(), 130000000, stagger++);
+         }
+      }
+
+      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+      pCallback->waitOnSignal(BDMAction_ZC);  
+
+      //grab new zc output data
+      auto newZcAddrOp = getAddrOp(UINT32_MAX, zcAddrOp.zcIndexCutoff_ + 1);
+      
+      //we create 5 new zc that spend from 5 existing zc and create 5 new 
+      //zc outputs, therefor we should have 10 outputs in the batch
+      ASSERT_EQ(newZcAddrOp.outpoints_.size(), loopCount);
+
+      //check the output batch
+      for (auto& opPair : newZcAddrOp.outpoints_)
+      {
+         for (auto& op : opPair.second)
+         {
+            auto iter = newZcHashes.find(op.txHash_);
+            if (iter == newZcHashes.end())
+            {
+               ASSERT_TRUE(op.isSpent_);
+               ASSERT_EQ(op.spenderHash_.getSize(), 32);
+
+               auto spenderIter = newZcHashes.find(op.spenderHash_);
+               ASSERT_TRUE(spenderIter != newZcHashes.end());
+            }
+            else
+            {
+               ASSERT_FALSE(op.isSpent_);
+               ASSERT_EQ(op.spenderHash_.getSize(), 0);
+            }
+         }
+      }
+
+      //add invalid hash to the new zc spentness to track
+      zcSpentnessToGet.insert(make_pair(BtcUtils::EmptyHash(), set<unsigned>({0})));
+      map<BinaryData, map<unsigned, SpentnessResult>> newZcSpentness;
+      {
+         auto prom =
+            make_shared<promise<map<BinaryData, map<unsigned, SpentnessResult>>>>();
+         auto fut = prom->get_future();
+         auto lbd = [prom](ReturnMessage<map<BinaryData, map<unsigned,
+            SpentnessResult>>> msg)
+         {
+            try
+            {
+               prom->set_value(msg.get());
+            }
+            catch (ClientMessageError&)
+            {
+               prom->set_exception(current_exception());
+            }
+         };
+
+         bdvObj->getSpentnessForZcOutputs(zcSpentnessToGet, lbd);
+         newZcSpentness = move(fut.get());
+      }
+
+      //check spentness data vs addr outpoint data
+      unsigned spentCount = 0;
+      unsigned unspentCount = 0;
+      unsigned invalidCount = 0;
+      for (auto& zcSpentness : zcSpentnessToGet)
+      {
+         auto iter = newZcSpentness.find(zcSpentness.first);
+         ASSERT_NE(iter, newZcSpentness.end());
+
+         for (auto& zcOp : zcSpentness.second)
+         {
+            auto idIter = iter->second.find(zcOp);
+            ASSERT_NE(idIter, iter->second.end());
+
+            switch (idIter->second.state_)
+            {
+               case OutputSpentnessState::Spent:
+               {
+                  auto spenderIter = newZcHashes.find(idIter->second.spender_);
+                  EXPECT_NE(spenderIter, newZcHashes.end());
+                  EXPECT_EQ(idIter->second.height_, spenderIter->second + loopCount);
+                  ++spentCount;
+                  break;
+               }
+
+               case OutputSpentnessState::Unspent:
+               {
+                  EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+
+                  ++unspentCount;
+                  break;
+               }
+
+               case OutputSpentnessState::Invalid:
+               {
+                  EXPECT_EQ(zcSpentness.first, BtcUtils::EmptyHash());
+
+                  ++invalidCount;
+                  break;
+               }
+            }
+         }
+      }
+
+      EXPECT_EQ(spentCount, loopCount/2);
+      EXPECT_EQ(unspentCount, loopCount/2);
+      EXPECT_EQ(invalidCount, 1);
+
+      //check the invalid hash
+      {
+         auto iter = newZcSpentness.find(BtcUtils::EmptyHash());
+         ASSERT_NE(iter, newZcSpentness.end());
+
+         auto idIter = iter->second.find(0);
+         ASSERT_NE(idIter, iter->second.end());
+
+         EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+         EXPECT_EQ(idIter->second.height_, UINT32_MAX);
+         EXPECT_EQ(idIter->second.state_, OutputSpentnessState::Invalid);
       }
    }
 
@@ -6786,8 +7019,6 @@ Zc failure tests:
    p2p node down
    p2p timeout into rpc down
    p2p timeout into rpc successful push but client d/c in between (dangling bdvPtr)
-   p2p timeout into rpc double spend
-                        already in mempool
 */
 
 ////////////////////////////////////////////////////////////////////////////////

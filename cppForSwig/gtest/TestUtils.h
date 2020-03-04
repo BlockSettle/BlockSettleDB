@@ -150,6 +150,8 @@ namespace DBTestUtils
 
          zcVec_.push_back(std::move(std::make_pair(zctx, blocksToMine)));
       }
+
+      void clear(void) { zcVec_.clear(); }
    };
 
    void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec, bool stage = false);
