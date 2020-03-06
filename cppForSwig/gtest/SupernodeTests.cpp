@@ -4029,6 +4029,473 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
+{
+   /***
+   Create a lot of client connections in parallel and slam the db with requests,
+   then shutdown some of the clients before the requests are met.
+   ***/
+   //public server
+   startupBIP150CTX(4, true);
+
+   //
+   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
+   auto&& firstHash = READHEX("b6b6f145742a9072fd85f96772e63a00eb4101709aa34ec5dd59e8fc904191a7");
+
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
+
+   auto createNAddresses = [](unsigned count)->vector<BinaryData>
+   {
+      vector<BinaryData> result;
+
+      for (unsigned i = 0; i < count; i++)
+      {
+         BinaryWriter bw;
+         bw.put_uint8_t(SCRIPT_PREFIX_HASH160);
+
+         auto&& addrData = CryptoPRNG::generateRandom(20);
+         bw.put_BinaryData(addrData);
+
+         result.push_back(bw.getData());
+      }
+
+      return result;
+   };
+
+   auto&& _scrAddrVec = createNAddresses(2000);
+   _scrAddrVec.push_back(TestChain::scrAddrA);
+   _scrAddrVec.push_back(TestChain::scrAddrB);
+   _scrAddrVec.push_back(TestChain::scrAddrC);
+   _scrAddrVec.push_back(TestChain::scrAddrE);
+
+   theBDMt_->start(config.initMode_);
+
+   {
+      auto pCallback = make_shared<DBTestUtils::UTCallback>();
+      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+         "127.0.0.1", config.listenPort_,  BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_,pCallback);
+      bdvObj->addPublicKey(serverPubkey);
+      bdvObj->connectToRemote();
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      
+      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+      vector<string> walletRegIDs;
+      walletRegIDs.push_back(
+         wallet1.registerAddresses(_scrAddrVec, false));
+
+      //wait on registration ack
+      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+      //go online
+      bdvObj->goOnline();
+      pCallback->waitOnSignal(BDMAction_Ready);
+
+      auto delegate = move(DBTestUtils::getLedgerDelegate(bdvObj));
+      auto ledgers = move(DBTestUtils::getHistoryPage(delegate, 0));
+
+      bdvObj->unregisterFromDB();
+   }
+
+   unsigned nThreads = 3;
+   atomic<unsigned> counter = {0};
+   auto request_lambda = [&](void)->void
+   {
+      unsigned killCount = 0;
+      auto this_id = counter.fetch_add(1, memory_order_relaxed);
+      auto checkForTermination = [this_id, &killCount](void)->bool
+      {
+         if (this_id % 3 != 0)
+            return false;
+
+         auto rndVal = CryptoPRNG::generateRandom(1);
+         ++killCount;
+         return rndVal.getPtr()[0] % 3 || killCount == 3;
+      };
+
+      /*
+      kill 1/3rd of threads at different spots
+      */ 
+      auto&& scrAddrVec = createNAddresses(6);
+      scrAddrVec.push_back(TestChain::scrAddrA);
+      scrAddrVec.push_back(TestChain::scrAddrB);
+      scrAddrVec.push_back(TestChain::scrAddrC);
+      scrAddrVec.push_back(TestChain::scrAddrE);
+
+      auto pCallback = make_shared<DBTestUtils::UTCallback>();
+      auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+         "127.0.0.1", config.listenPort_,  BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_,pCallback);
+      bdvObj->addPublicKey(serverPubkey);
+      bdvObj->connectToRemote();
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+
+      //go online
+      bdvObj->goOnline();
+      pCallback->waitOnSignal(BDMAction_Ready);
+
+      const vector<BinaryData> lb1ScrAddrs
+      {
+         TestChain::lb1ScrAddr,
+         TestChain::lb1ScrAddrP2SH
+      };
+      const vector<BinaryData> lb2ScrAddrs
+      {
+         TestChain::lb2ScrAddr,
+         TestChain::lb2ScrAddrP2SH
+      };
+
+      vector<string> walletRegIDs;
+
+      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+      walletRegIDs.push_back(
+         wallet1.registerAddresses(scrAddrVec, false));
+
+      scrAddrVec.push_back(TestChain::scrAddrD);
+      auto&& wallet2 = bdvObj->instantiateWallet("wallet2");
+      walletRegIDs.push_back(
+         wallet2.registerAddresses(scrAddrVec, false));
+
+      auto&& lb1 = bdvObj->instantiateLockbox("lb1");
+      walletRegIDs.push_back(
+         lb1.registerAddresses(lb1ScrAddrs, false));
+
+      auto&& lb2 = bdvObj->instantiateLockbox("lb2");
+      walletRegIDs.push_back(
+         lb2.registerAddresses(lb2ScrAddrs, false));
+
+      //wait on registration ack
+      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+      //get wallets delegate
+      auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
+      auto del1_fut = del1_prom->get_future();
+      auto del1_get = [del1_prom](ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
+      {
+         del1_prom->set_value(move(delegate.get()));
+      };
+      bdvObj->getLedgerDelegateForWallets(del1_get);
+
+      vector<shared_ptr<AsyncClient::LedgerDelegate>> delV(2);
+      for (auto& delPtr : delV)
+         delPtr = make_shared<AsyncClient::LedgerDelegate>();
+
+      auto getAddrDelegate = [bdvObj](const BinaryData& scrAddr, 
+         string walletId, shared_ptr<AsyncClient::LedgerDelegate> delPtr)->void
+      {
+         //get scrAddr delegates
+         auto del_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
+         auto del_fut = del_prom->get_future();
+         auto del_get = [del_prom](ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
+         {
+            del_prom->set_value(move(delegate.get()));
+         };
+         bdvObj->getLedgerDelegateForScrAddr(
+            walletId, scrAddr, del_get);
+         *delPtr = del_fut.get();
+      };
+      
+      auto delegate = move(del1_fut.get());
+
+      deque<thread> delThr;
+      for (unsigned i = 0; i < 1; i++)
+      {
+         delThr.push_back(
+            thread(getAddrDelegate, scrAddrVec[i], "wallet1", delV[i]));
+      }
+
+      for (unsigned i = 1; i < 2; i++)
+      {
+         delThr.push_back(
+            thread(getAddrDelegate, scrAddrVec[i], "wallet2", delV[i]));
+      }
+
+      //first termination spot
+      if (checkForTermination())
+      {
+         cout << "out at first spot" << endl;
+         return;
+      }
+
+      for (auto& thr : delThr)
+      {
+         if (thr.joinable())
+            thr.join();
+      }
+
+      /*
+      //get ledgers
+      auto ledger_prom = 
+         make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      auto ledger_fut = ledger_prom->get_future();
+      auto ledger_get = 
+         [ledger_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      {
+         ledger_prom->set_value(move(ledgerV.get()));
+      };
+      delegate.getHistoryPage(0, ledger_get);
+
+      //get addr ledgers
+      deque<shared_ptr<vector<::ClientClasses::LedgerEntry>>> addrLedgerV(21);
+      for (auto& addrLedgers : addrLedgerV)
+         addrLedgers = make_shared<vector<::ClientClasses::LedgerEntry>>();
+
+      auto getAddrLedger = [bdvObj](
+         shared_ptr<AsyncClient::LedgerDelegate> delegate, 
+         shared_ptr<vector<::ClientClasses::LedgerEntry>> addrLedger)->void
+      {
+         auto ledger_prom = 
+            make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+         auto ledger_fut = ledger_prom->get_future();
+         auto ledger_get = 
+            [ledger_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+         {
+            ledger_prom->set_value(move(ledgerV.get()));
+         };
+
+         delegate->getHistoryPage(0, ledger_get);
+         *addrLedger = move(ledger_fut.get());
+      };
+
+      delThr.clear();
+
+      for (unsigned i = 0; i < 21; i++)
+         delThr.push_back(thread(getAddrLedger, delV[i], addrLedgerV[i]));
+
+
+      //second termination spot
+      if (checkForTermination())
+      {
+         cout << "out at second spot" << endl;
+         return;
+      }
+
+      //
+      auto w1AddrBal_prom = make_shared<promise<map<BinaryData, vector<uint64_t>>>>();
+      auto w1AddrBal_fut = w1AddrBal_prom->get_future();
+      auto w1_getAddrBalancesLBD = 
+         [w1AddrBal_prom](ReturnMessage<map<BinaryData, vector<uint64_t>>> balances)->void
+      {
+         w1AddrBal_prom->set_value(move(balances.get()));
+      };
+      wallet1.getAddrBalancesFromDB(w1_getAddrBalancesLBD);
+      
+      //
+      auto w1Bal_prom = make_shared<promise<vector<uint64_t>>>();
+      auto w1Bal_fut = w1Bal_prom->get_future();
+      auto w1_getBalanceAndCountLBD = 
+         [w1Bal_prom](ReturnMessage<vector<uint64_t>> balances)->void
+      {
+         w1Bal_prom->set_value(move(balances.get()));
+      };
+      wallet1.getBalancesAndCount(5, w1_getBalanceAndCountLBD);
+
+      //
+      auto lb1AddrBal_prom = make_shared<promise<map<BinaryData, vector<uint64_t>>>>();
+      auto lb1AddrBal_fut = lb1AddrBal_prom->get_future();
+      auto lb1_getAddrBalancesLBD = 
+         [lb1AddrBal_prom](ReturnMessage<map<BinaryData, vector<uint64_t>>> balances)->void
+      {
+         lb1AddrBal_prom->set_value(move(balances.get()));
+      };
+      lb1.getAddrBalancesFromDB(lb1_getAddrBalancesLBD);
+
+      //
+      auto lb2AddrBal_prom = make_shared<promise<map<BinaryData, vector<uint64_t>>>>();
+      auto lb2AddrBal_fut = lb2AddrBal_prom->get_future();
+      auto lb2_getAddrBalancesLBD = 
+         [lb2AddrBal_prom](ReturnMessage<map<BinaryData, vector<uint64_t>>> balances)->void
+      {
+         lb2AddrBal_prom->set_value(move(balances.get()));
+      };
+      lb2.getAddrBalancesFromDB(lb2_getAddrBalancesLBD);
+
+      //
+      auto lb1Bal_prom = make_shared<promise<vector<uint64_t>>>();
+      auto lb1Bal_fut = lb1Bal_prom->get_future();
+      auto lb1_getBalanceAndCountLBD = 
+         [lb1Bal_prom](ReturnMessage<vector<uint64_t>> balances)->void
+      {
+         lb1Bal_prom->set_value(move(balances.get()));
+      };
+      lb1.getBalancesAndCount(5, lb1_getBalanceAndCountLBD);
+
+      //
+      auto lb2Bal_prom = make_shared<promise<vector<uint64_t>>>();
+      auto lb2Bal_fut = lb2Bal_prom->get_future();
+      auto lb2_getBalanceAndCountLBD = 
+         [lb2Bal_prom](ReturnMessage<vector<uint64_t>> balances)->void
+      {
+         lb2Bal_prom->set_value(move(balances.get()));
+      };
+      lb2.getBalancesAndCount(5, lb2_getBalanceAndCountLBD);
+
+      //get tx
+      auto tx_prom = make_shared<promise<Tx>>();
+      auto tx_fut = tx_prom->get_future();
+      auto tx_get = [tx_prom](ReturnMessage<Tx> tx)->void
+      {
+         tx_prom->set_value(move(tx.get()));
+      };
+      bdvObj->getTxByHash(firstHash, tx_get);
+
+      //get utxos
+      auto utxo_prom = make_shared<promise<vector<UTXO>>>();
+      auto utxo_fut = utxo_prom->get_future();
+      auto utxo_get = [utxo_prom](ReturnMessage<vector<UTXO>> utxoV)->void
+      {
+         utxo_prom->set_value(move(utxoV.get()));
+      };
+      wallet1.getSpendableTxOutListForValue(UINT64_MAX, utxo_get);
+
+      //wait on futures
+      auto w1AddrBalances = move(w1AddrBal_fut.get());
+      auto w1Balances = move(w1Bal_fut.get());
+      auto lb1AddrBalances = move(lb1AddrBal_fut.get());
+      auto lb2AddrBalances = move(lb2AddrBal_fut.get());
+      auto lb1Balances = move(lb1Bal_fut.get());
+      auto lb2Balances = move(lb2Bal_fut.get());
+      auto ledgers = move(ledger_fut.get());
+      auto tx = move(tx_fut.get());
+      auto utxos = move(utxo_fut.get());
+
+      //w1 addr balances
+      auto balanceVec = w1AddrBalances[TestChain::scrAddrA];
+      EXPECT_EQ(balanceVec[0], 50 * COIN);
+      balanceVec = w1AddrBalances[TestChain::scrAddrB];
+      EXPECT_EQ(balanceVec[0], 70 * COIN);
+      balanceVec = w1AddrBalances[TestChain::scrAddrC];
+      EXPECT_EQ(balanceVec[0], 20 * COIN);
+
+      //w1 balances
+      auto fullBalance = w1Balances[0];
+      auto spendableBalance = w1Balances[1];
+      auto unconfirmedBalance = w1Balances[2];
+      EXPECT_EQ(fullBalance, 170 * COIN);
+      EXPECT_EQ(spendableBalance, 70 * COIN);
+      EXPECT_EQ(unconfirmedBalance, 170 * COIN);
+
+      //lb1 addr balances
+      balanceVec = lb1AddrBalances[TestChain::lb1ScrAddr];
+      EXPECT_EQ(balanceVec[0], 5 * COIN);
+      balanceVec = lb1AddrBalances[TestChain::lb1ScrAddrP2SH];
+      EXPECT_EQ(balanceVec[0], 25 * COIN);
+
+      //lb2 addr balances
+      balanceVec = lb2AddrBalances[TestChain::lb2ScrAddr];
+      EXPECT_EQ(balanceVec[0], 30 * COIN);
+      balanceVec = lb2AddrBalances[TestChain::lb2ScrAddrP2SH];
+      EXPECT_EQ(balanceVec.size(), 0);
+
+      //lb1 balances
+      EXPECT_EQ(lb1Balances[0], 30 * COIN);
+
+      //lb2 balances
+      EXPECT_EQ(lb2Balances[0], 30 * COIN);
+
+      //grab main ledgers
+      auto& firstEntry = ledgers[1];
+      auto txHash = firstEntry.getTxHash();
+      EXPECT_EQ(firstHash, txHash);
+
+      //check first tx
+      EXPECT_EQ(tx.getThisHash(), firstHash);
+
+      //check utxos
+      EXPECT_EQ(utxos.size(), 5);
+
+      //grab all tx for each utxo
+      map<BinaryData, shared_future<Tx>> futMap;
+      for(auto& utxo : utxos)
+      {
+         auto& hash = utxo.getTxHash();
+         if (futMap.find(hash) != futMap.end())
+            continue;
+
+         auto utxoProm = make_shared<promise<Tx>>();
+         futMap.insert(make_pair(hash, utxoProm->get_future()));
+         auto utxoLBD = [utxoProm](ReturnMessage<Tx> tx)->void
+         {
+            utxoProm->set_value(move(tx.get()));
+         };
+         bdvObj->getTxByHash(hash, utxoLBD);
+      }
+
+      //third termination spot
+      if (checkForTermination())
+      {
+         cout << "out at third spot" << endl;
+         return;
+      }
+
+      for(auto& fut_pair : futMap)
+      {
+         auto txobj = move(fut_pair.second.get());
+         EXPECT_EQ(txobj.getThisHash(), fut_pair.first);
+      }
+
+      for (auto& thr : delThr)
+      {
+         if (thr.joinable())
+            thr.join();
+      }
+
+      for (unsigned i = 0; i < 6; i++)
+         EXPECT_EQ(addrLedgerV[i]->size(), 0);
+      EXPECT_EQ(addrLedgerV[6]->size(), 1);
+      EXPECT_EQ(addrLedgerV[7]->size(), 7);
+      EXPECT_EQ(addrLedgerV[8]->size(), 4);
+      EXPECT_EQ(addrLedgerV[9]->size(), 2);
+      EXPECT_EQ(addrLedgerV[20]->size(), 4);
+
+      for (unsigned i = 0; i < 10; i++)
+      {
+         auto& v1 = addrLedgerV[i];         
+         auto& v2 = addrLedgerV[i + 10];
+
+         if (v1->size() != v2->size())
+            EXPECT_TRUE(false);
+
+         for (unsigned y = 0; y < v1->size(); y++)
+         {
+            if(!((*v1)[y] == (*v2)[y]))
+               EXPECT_TRUE(false);
+         }
+      }
+
+      auto rekeyCount = bdvObj->getRekeyCount();
+      EXPECT_EQ(rekeyCount.first, 2);
+      EXPECT_TRUE(rekeyCount.second > 7);
+      */
+      bdvObj->unregisterFromDB();
+   };
+
+   vector<thread> thrV;
+   for(unsigned ct=0; ct<nThreads; ct++)
+      thrV.push_back(thread(request_lambda));
+
+   for(auto& thr : thrV)
+   {
+      if(thr.joinable())
+         thr.join();
+   }
+
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+   bdvObj2->addPublicKey(serverPubkey);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
+   WebSocketServer::waitOnShutdown();
+
+   delete theBDMt_;
+   theBDMt_ = nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 {
    //public server
@@ -4811,6 +5278,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_SingleBatch)
    theBDMt_ = nullptr;
 }
 
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
 {
    //public server
@@ -4934,6 +5402,279 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
    EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
    EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
    EXPECT_EQ(main_ledger[0].getIndex(), 1);
+
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+
+   //tx cache testing
+   //grab ZC1 from async client
+   auto zc_prom1 = make_shared<promise<Tx>>();
+   auto zc_fut1 = zc_prom1->get_future();
+   auto zc_get1 =
+      [zc_prom1](ReturnMessage<Tx> txObj)->void
+   {
+      auto&& tx = txObj.get();
+      zc_prom1->set_value(move(tx));
+   };
+
+   bdvObj->getTxByHash(ZChash1, zc_get1);
+   auto zc_obj1 = zc_fut1.get();
+   EXPECT_EQ(ZChash1, zc_obj1.getThisHash());
+   EXPECT_EQ(zc_obj1.getTxHeight(), UINT32_MAX);
+
+   //grab both zc from async client
+   auto zc_prom2 = make_shared<promise<vector<Tx>>>();
+   auto zc_fut2 = zc_prom2->get_future();
+   auto zc_get2 =
+      [zc_prom2](ReturnMessage<vector<Tx>> txObj)->void
+   {
+      auto&& txVec = txObj.get();
+      zc_prom2->set_value(move(txVec));
+   };
+
+   set<BinaryData> bothZC = { ZChash1, ZChash2 };
+   bdvObj->getTxBatchByHash(bothZC, zc_get2);
+   auto zc_obj2 = zc_fut2.get();
+
+   ASSERT_EQ(zc_obj2.size(), 2);
+   EXPECT_EQ(ZChash1, zc_obj2[0].getThisHash());
+   EXPECT_EQ(zc_obj2[0].getTxHeight(), UINT32_MAX);
+
+   EXPECT_EQ(ZChash2, zc_obj2[1].getThisHash());
+   EXPECT_EQ(zc_obj2[1].getTxHeight(), UINT32_MAX);
+
+   //push an extra block
+   TestUtils::appendBlocks({ "2" }, blk0dat_);
+   DBTestUtils::triggerNewBlockNotification(theBDMt_);
+   pCallback->waitOnSignal(BDMAction_NewBlock);
+
+   //get the new ledgers
+   auto ledger3_prom =
+      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+   auto ledger3_fut = ledger3_prom->get_future();
+   auto ledger3_get =
+      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+   {
+      ledger3_prom->set_value(move(ledgerV.get()));
+   };
+   main_delegate.getHistoryPage(0, ledger3_get);
+   main_ledger = move(ledger3_fut.get());
+
+   //check ledgers
+   EXPECT_EQ(main_ledger.size(), 5);
+
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
+   EXPECT_EQ(main_ledger[0].getIndex(), 2);
+
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
+   EXPECT_EQ(main_ledger[1].getIndex(), 1);
+
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
+   EXPECT_EQ(main_ledger[4].getIndex(), 0);
+
+
+   //grab ZC1 from async client
+   auto zc_prom3 = make_shared<promise<Tx>>();
+   auto zc_fut3 = zc_prom3->get_future();
+   auto zc_get3 =
+      [zc_prom3](ReturnMessage<Tx> txObj)->void
+   {
+      auto&& tx = txObj.get();
+      zc_prom3->set_value(move(tx));
+   };
+
+   bdvObj->getTxByHash(ZChash1, zc_get3);
+   auto zc_obj3 = zc_fut3.get();
+   EXPECT_EQ(ZChash1, zc_obj3.getThisHash());
+   EXPECT_EQ(zc_obj3.getTxHeight(), 2);
+
+   //grab both zc from async client
+   auto zc_prom4 = make_shared<promise<vector<Tx>>>();
+   auto zc_fut4 = zc_prom4->get_future();
+   auto zc_get4 =
+      [zc_prom4](ReturnMessage<vector<Tx>> txObj)->void
+   {
+      auto&& txVec = txObj.get();
+      zc_prom4->set_value(move(txVec));
+   };
+
+   bdvObj->getTxBatchByHash(bothZC, zc_get4);
+   auto zc_obj4 = zc_fut4.get();
+
+   ASSERT_EQ(zc_obj4.size(), 2);
+   EXPECT_EQ(ZChash1, zc_obj4[0].getThisHash());
+   EXPECT_EQ(zc_obj4[0].getTxHeight(), 2);
+
+   EXPECT_EQ(ZChash2, zc_obj4[1].getThisHash());
+   EXPECT_EQ(zc_obj4[1].getTxHeight(), 2);
+
+   //disconnect
+   bdvObj->unregisterFromDB();
+
+   //cleanup
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+   bdvObj2->addPublicKey(serverPubkey);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
+   WebSocketServer::waitOnShutdown();
+
+   delete theBDMt_;
+   theBDMt_ = nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
+{
+   //public server
+   startupBIP150CTX(4, true);
+
+   TestUtils::setBlocks({ "0", "1" }, blk0dat_);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
+
+   vector<BinaryData> scrAddrVec;
+   scrAddrVec.push_back(TestChain::scrAddrA);
+   scrAddrVec.push_back(TestChain::scrAddrB);
+   scrAddrVec.push_back(TestChain::scrAddrC);
+
+   theBDMt_->start(config.initMode_);
+
+   auto pCallback = make_shared<DBTestUtils::UTCallback>();
+   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+   bdvObj->addPublicKey(serverPubkey);
+   bdvObj->connectToRemote();
+   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+
+   //go online
+   bdvObj->goOnline();
+   pCallback->waitOnSignal(BDMAction_Ready);
+
+   vector<string> walletRegIDs;
+
+   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+   walletRegIDs.push_back(
+      wallet1.registerAddresses(scrAddrVec, false));
+
+   //wait on registration ack
+   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+   //get wallets delegate
+   auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
+   auto del1_fut = del1_prom->get_future();
+   auto del1_get = [del1_prom](
+      ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
+   {
+      del1_prom->set_value(move(delegate.get()));
+   };
+   bdvObj->getLedgerDelegateForWallets(del1_get);
+   auto&& main_delegate = del1_fut.get();
+
+   auto ledger_prom =
+      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+   auto ledger_fut = ledger_prom->get_future();
+   auto ledger_get =
+      [ledger_prom](
+         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+   {
+      ledger_prom->set_value(move(ledgerV.get()));
+   };
+   main_delegate.getHistoryPage(0, ledger_get);
+   auto&& main_ledger = ledger_fut.get();
+
+   //check ledgers
+   EXPECT_EQ(main_ledger.size(), 2);
+
+   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
+   EXPECT_EQ(main_ledger[0].getIndex(), 0);
+
+   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+
+   //add the 2 zc
+   auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
+   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
+
+   auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
+   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
+
+   //push the first zc
+   bdvObj->broadcastZC(ZC1);
+   
+   {
+      set<BinaryData> zcHashes = { ZChash1 };
+      set<BinaryData> scrAddrSet;
+
+      Tx zctx1(ZC1);
+      for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
+         scrAddrSet.insert(zctx1.getScrAddrForTxOut(i));
+
+      pCallback->waitOnZc(zcHashes, scrAddrSet);
+   }
+
+   //push them again, should get already in mempool error
+   bdvObj->broadcastZC( { ZC1, ZC2 } );
+   pCallback->waitOnError(ZChash1, ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
+
+   {
+      set<BinaryData> zcHashes = { ZChash2 };
+      set<BinaryData> scrAddrSet;
+
+      Tx zctx2(ZC2);
+      for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
+         scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
+
+      pCallback->waitOnZc(zcHashes, scrAddrSet);
+   }
+
+   //get the new ledgers
+   auto ledger2_prom =
+      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+   auto ledger2_fut = ledger2_prom->get_future();
+   auto ledger2_get =
+      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+   {
+      ledger2_prom->set_value(move(ledgerV.get()));
+   };
+   main_delegate.getHistoryPage(0, ledger2_get);
+   main_ledger = move(ledger2_fut.get());
+
+   //check ledgers
+   EXPECT_EQ(main_ledger.size(), 4);
+
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
+   //zc index is 2 since 0 and 1 were assigned to the first zc: 0 at
+   //the solo broadcast, 1 at the batched broadcast, which had the first
+   //zc fail as already-in-mempool
+   EXPECT_EQ(main_ledger[0].getIndex(), 2); 
 
    EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
    EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
