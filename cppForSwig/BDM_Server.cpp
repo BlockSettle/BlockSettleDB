@@ -1527,23 +1527,33 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
          {
             auto& key = opPair.second.spender_;
             if (key.getSize() == 0)
-               continue;
+               continue; //no spender, move on
 
+            //check the cache for this resolved hash
             auto keyShort = key.getSliceRef(0, 6);
             auto cacheIter = cache.find(keyShort);
             if (cacheIter != cache.end())
             {
+               //set the spender hash and height
                key = cacheIter->second.first;
                opPair.second.height_ = cacheIter->second.second;
                continue;
             }
 
+            //create cache entry
+            auto cacheInsertIter = cache.emplace(
+               keyShort, pair<BinaryData, unsigned>()).first;
+
+            //resolve spender hash and extract height
             auto&& hash = db_->getHashForDBKey(keyShort);
             auto height = DBUtils::hgtxToHeight(key.getSliceRef(0, 4));
-            key = hash; opPair.second.height_ = height;
 
-            auto hashPair = make_pair(move(hash), height);
-            cache.insert(make_pair(keyShort, move(hashPair)));
+            //set hash and key
+            key = hash; opPair.second.height_ = height;
+            
+            //fill cache entry
+            cacheInsertIter->second.first = move(hash);
+            cacheInsertIter->second.second = height;
          }
       }
 

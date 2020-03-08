@@ -559,7 +559,8 @@ void ZeroConfContainer::parseNewZC(
    while (iter != zcMap.end())
    {
       if (iter->second->status() == Tx_Mined ||
-         iter->second->status() == Tx_Invalid)
+         iter->second->status() == Tx_Invalid || 
+         iter->second->status() == Tx_Skip)
          zcMap.erase(iter++);
       else
          ++iter;
@@ -2104,6 +2105,7 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::getBatchTxMap(
       if (!batch->errorCallback_)
          throw ZcBatchError();
 
+      unsigned invedZcCount = 0;
       vector<ZeroConfBatchFallbackStruct> txVec;
       txVec.reserve(batch->txMap_.size());
       {
@@ -2114,16 +2116,30 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::getBatchTxMap(
             auto iter = watcherMap_.find(keyPair.first);
             if (iter == watcherMap_.end())
             {
-               LOGERR << "missing tx in batch, unexpected behavior";
+               //this tx was inv'ed back to us from the watcher
+               //node, it should be processed by the parser
+               ++invedZcCount;
                continue;
             }
 
+            //create the fallback struct
             ZeroConfBatchFallbackStruct fallbackStruct;
             fallbackStruct.txHash_ = iter->first;
             fallbackStruct.rawTxPtr_ = iter->second;
             fallbackStruct.err_ = batchResult;
             fallbackStruct.zcKey_ = keyPair.second;
 
+            //find the pTx
+            auto batchTxIter = batch->txMap_.find(fallbackStruct.zcKey_);
+            if (batchTxIter == batch->txMap_.end())
+            {
+               LOGERR << "batch is missing a zckey!";
+               throw runtime_error("malformed zc batch");
+            }
+
+            //this tx was never inv'ed back to us, it should be skipped
+            //by the parser in the context of this batch
+            batchTxIter->second->state_ = ParsedTxStatus::Tx_Skip;
             txVec.emplace_back(move(fallbackStruct));
          }
       }
@@ -2143,7 +2159,15 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::getBatchTxMap(
       }
 
       batch->errorCallback_(move(txVec));
-      throw ZcBatchError();
+
+      //don't forward the batch if it has no zc ready to be parsed
+      if (invedZcCount == 0)
+         throw ZcBatchError();
+
+      //we have some inv'ed zc to parse but the batch timed out, we need to
+      //wait on the counter to match our local count of valid tx.
+      while (batch->counter_->load(memory_order_acquire) < invedZcCount)
+         this_thread::sleep_for(chrono::microseconds(1));
    }
 
    return move(batch->txMap_);

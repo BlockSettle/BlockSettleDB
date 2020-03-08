@@ -107,6 +107,15 @@ int WebSocketServer::callback(
       instance->clients_->unregisterBDV(bdr.toHexStr());
       instance->eraseId(session_data->id_, wsi);
 
+      if (instance->pendingWrites_.empty())
+         break;
+
+      //pending write queue iterator is always set entering the 
+      //lws callback unless the pending write set is empty
+      if (*instance->pendingWritesIter_ == wsi)
+         instance->pendingWritesIter_++;
+      
+      instance->pendingWrites_.erase(wsi);
       break;
    }
 
@@ -370,6 +379,7 @@ void WebSocketServer::webSocketService(int port)
    if (vhost == nullptr)
       throw LWS_Error("failed to create vhost");
 
+   pendingWritesIter_ = pendingWrites_.begin();
    run_.store(1, memory_order_relaxed);
    try
    {
@@ -695,8 +705,6 @@ void WebSocketServer::updateWriteMap()
 
          iter->second.emplace_back(move(packetList.second));
          auto insertIter = pendingWrites_.insert(packetList.first);
-         if (insertIter.second)
-            pendingWritesIter_ = ++insertIter.first;
          break;
       }      
    }

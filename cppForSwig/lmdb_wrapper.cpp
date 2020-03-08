@@ -3030,7 +3030,7 @@ void DBPair::open(const string& path, const string& dbName)
    if (isOpen())
       return;
    
-   unsigned flags = MDB_NOSYNC;
+   unsigned flags = MDB_NOSYNC | MDB_NOTLS;
 
    env_.open(path, flags);
    auto map_size = env_.getMapSize();

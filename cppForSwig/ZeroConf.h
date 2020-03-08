@@ -42,7 +42,8 @@ enum ParsedTxStatus
    Tx_ResolveAgain,
    Tx_Unresolved,
    Tx_Mined,
-   Tx_Invalid
+   Tx_Invalid,
+   Tx_Skip
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -285,7 +286,7 @@ struct ProcessPayloadTxPacket : public ZcGetPacket
       if (batchCtr_ == nullptr)
          throw std::runtime_error("null pointers");
 
-      auto val = batchCtr_->fetch_sub(1, std::memory_order_relaxed);
+      auto val = batchCtr_->fetch_sub(1, std::memory_order_release);
       if (val == 1)
          batchProm_->set_value(ArmoryErrorCodes::Success);
    }
