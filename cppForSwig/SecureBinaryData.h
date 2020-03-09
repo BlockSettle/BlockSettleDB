@@ -130,10 +130,10 @@ public:
       resize(0);
    }
 
-   void XOR(const SecureBinaryData& rhs)
+   void XOR(const BinaryDataRef& rhs)
    {
       if (getSize() > rhs.getSize())
-         throw std::runtime_error("invalid right hand statment length");
+         throw std::runtime_error("invalid rhs length");
 
       for (unsigned i = 0; i < getSize(); i++)
       {
