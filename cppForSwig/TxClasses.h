@@ -289,7 +289,7 @@ public:
 
    /////////////////////////////////////////////////////////////////////////////
    uint32_t    getLockTime(void) const { return lockTime_; }
-   uint64_t    getSumOfOutputs(void);
+   uint64_t    getSumOfOutputs(void) const;
 
 
    BinaryData getScrAddrForTxOut(uint32_t txOutIndex);
