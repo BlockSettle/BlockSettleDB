@@ -392,7 +392,7 @@ void Tx::unserialize(BinaryRefReader & brr)
 }
 
 /////////////////////////////////////////////////////////////////////////////
-uint64_t Tx::getSumOfOutputs(void)
+uint64_t Tx::getSumOfOutputs(void) const
 {
    uint64_t sumVal = 0;
    for (uint32_t i = 0; i<getNumTxOut(); i++)
