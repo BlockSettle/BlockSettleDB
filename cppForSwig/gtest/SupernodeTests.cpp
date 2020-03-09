@@ -7728,7 +7728,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_GetTxHash)
+TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 {
    //instantiate resolver feed overloaded object
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
@@ -7783,7 +7783,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxHash)
    bdvObj->goOnline();
    pCallback->waitOnSignal(BDMAction_Ready);
 
-   //grab existing tx
+   //grab mined tx
    auto&& ZC1 = TestUtils::getTx(5, 2); //block 5, tx 2
    auto&& hash1 = BtcUtils::getHash256(ZC1);
    
@@ -7800,7 +7800,10 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxHash)
       return fut.get();
    };
 
+   //fetch mined tx
    auto&& txObj1 = getTxLbd(hash1);
+
+   //fetch invalid tx
    auto&& txObj2 = getTxLbd(READHEX("000102030405060708090A0B0C0D0E0F000102030405060708090A0B0C0D0E0F"));
 
    try
@@ -7812,7 +7815,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxHash)
    catch (exception&)
    {
       ASSERT_FALSE(true);
-   }
+   }  
 
    try
    {
@@ -7827,6 +7830,312 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxHash)
    catch (...)
    {
       ASSERT_FALSE(true);
+   }
+
+   //test cache hit
+   auto&& txObj3 = getTxLbd(hash1);
+   try
+   {
+      auto&& tx = txObj3.get();
+      auto hash = BtcUtils::getHash256(tx->serialize());
+      EXPECT_EQ(hash, hash1);
+   }
+   catch (exception&)
+   {
+      ASSERT_FALSE(true);
+   }  
+
+   //grab a couple utxos
+   auto promUtxo = make_shared<promise<vector<UTXO>>>();
+   auto futUtxo = promUtxo->get_future();
+   auto lbdUtxo = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
+   {
+      promUtxo->set_value(msg.get());
+   };
+
+   wallet1.getSpendableTxOutListForValue(UINT64_MAX, lbdUtxo);
+   auto&& utxoVec = futUtxo.get();
+
+   //create 2 zc
+   BinaryData rawTx1;
+   {
+      //50 from E, 5 to A, change to C
+      Signer signer;
+
+      auto spender = make_shared<ScriptSpender>(utxoVec[0]);
+      signer.addSpender(spender);
+
+      auto recA = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
+      signer.addRecipient(recA);
+
+      auto recChange = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrC.getSliceCopy(1, 20), 
+         spender->getValue() - recA->getValue());
+      signer.addRecipient(recChange);
+
+      signer.setFeed(feed);
+      signer.sign();
+      rawTx1 = signer.serialize();
+   }
+   
+   BinaryData rawTx2;
+   {
+      //20 from B, 5 to C, change to E
+      Signer signer;
+
+      auto spender = make_shared<ScriptSpender>(utxoVec.back());
+      signer.addSpender(spender);
+
+      auto recC = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrC.getSliceCopy(1, 20), 5 * COIN);
+      signer.addRecipient(recC);
+
+      auto recChange = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrE.getSliceCopy(1, 20), 
+         spender->getValue() - recC->getValue());
+      signer.addRecipient(recChange);
+
+      signer.setFeed(feed);
+      signer.sign();
+      rawTx2 = signer.serialize();
+   }
+
+   //push the 2 zc through the node
+   DBTestUtils::ZcVector zcVec;
+   zcVec.push_back(rawTx1, 1000000000);
+   zcVec.push_back(rawTx2, 1000000001);
+   DBTestUtils::pushNewZc(theBDMt_, zcVec);
+
+   //wait on them
+   Tx tx1(rawTx1);
+   Tx tx2(rawTx2);
+   set<BinaryData> zcHashes = {tx1.getThisHash(), tx2.getThisHash()};
+
+   set<BinaryData> zcAddresses;
+   zcAddresses.insert(TestChain::scrAddrA);
+   zcAddresses.insert(TestChain::scrAddrB);
+   zcAddresses.insert(TestChain::scrAddrC);
+   zcAddresses.insert(TestChain::scrAddrE);
+
+   pCallback->waitOnZc(zcHashes, zcAddresses);
+
+   //grab them
+   auto&& txObj4 = getTxLbd(tx1.getThisHash()).get();
+   auto&& txObj5 = getTxLbd(tx2.getThisHash()).get();
+ 
+   ASSERT_NE(txObj4, nullptr);
+   ASSERT_NE(txObj5, nullptr);
+
+   EXPECT_EQ(txObj4->getThisHash(), tx1.getThisHash());
+   EXPECT_EQ(txObj4->getTxHeight(), UINT32_MAX);
+   EXPECT_EQ(txObj4->getTxIndex(), 0);
+
+   EXPECT_EQ(txObj5->getThisHash(), tx2.getThisHash());
+   EXPECT_EQ(txObj5->getTxHeight(), UINT32_MAX);
+   EXPECT_EQ(txObj5->getTxIndex(), 1);
+
+   //create 2 more zc
+   BinaryData rawTx3;
+   {
+      //25 from E, 5 to A, change to C
+      Signer signer;
+
+      auto spender = make_shared<ScriptSpender>(utxoVec[1]);
+      signer.addSpender(spender);
+
+      auto recA = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
+      signer.addRecipient(recA);
+
+      auto recChange = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrC.getSliceCopy(1, 20), 
+         spender->getValue() - recA->getValue());
+      signer.addRecipient(recChange);
+
+      signer.setFeed(feed);
+      signer.sign();
+      rawTx3 = signer.serialize();
+   }
+   
+   BinaryData rawTx4;
+   {
+      //50 from D, 5 to C, change to E
+      Signer signer;
+
+      auto spender = make_shared<ScriptSpender>(utxoVec[2]);
+      signer.addSpender(spender);
+
+      auto recC = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrC.getSliceCopy(1, 20), 5 * COIN);
+      signer.addRecipient(recC);
+
+      auto recChange = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrE.getSliceCopy(1, 20), 
+         spender->getValue() - recC->getValue());
+      signer.addRecipient(recChange);
+
+      signer.setFeed(feed);
+      signer.sign();
+      rawTx4 = signer.serialize();
+   }
+
+   //push the 2 zc through the rpc
+   bdvObj->broadcastThroughRPC(rawTx3);
+   bdvObj->broadcastThroughRPC(rawTx4);
+
+   //wait on them
+   Tx tx3(rawTx3);
+   Tx tx4(rawTx4);
+   zcHashes.clear();
+   zcHashes = {tx3.getThisHash(), tx4.getThisHash()};
+
+   zcAddresses.clear();
+   zcAddresses.insert(TestChain::scrAddrA);
+   zcAddresses.insert(TestChain::scrAddrC);
+   zcAddresses.insert(TestChain::scrAddrD);
+   zcAddresses.insert(TestChain::scrAddrE);
+
+   pCallback->waitOnZc(zcHashes, zcAddresses);
+
+   //grab them
+   auto&& txObj6 = getTxLbd(tx3.getThisHash()).get();
+   auto&& txObj7 = getTxLbd(tx4.getThisHash()).get();
+ 
+   ASSERT_NE(txObj6, nullptr);
+   ASSERT_NE(txObj7, nullptr);
+
+   EXPECT_EQ(txObj6->getThisHash(), tx3.getThisHash());
+   EXPECT_EQ(txObj6->getTxHeight(), UINT32_MAX);
+   EXPECT_EQ(txObj6->getTxIndex(), 2);
+
+   EXPECT_EQ(txObj7->getThisHash(), tx4.getThisHash());
+   EXPECT_EQ(txObj7->getTxHeight(), UINT32_MAX);
+   EXPECT_EQ(txObj7->getTxIndex(), 4);
+
+   {
+      //try to grab from another bdvobj
+      auto pCallback2 = make_shared<DBTestUtils::UTCallback>();
+      auto bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
+         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback2);
+      bdvObj2->addPublicKey(serverPubkey);
+      bdvObj2->connectToRemote();
+      bdvObj2->registerWithDB(NetworkConfig::getMagicBytes());
+
+      bdvObj2->goOnline();
+      pCallback2->waitOnSignal(BDMAction_Ready);
+
+      //
+      auto getTxLbd2 = [bdvObj2](const BinaryData& hash)->ReturnMessage<AsyncClient::TxResult>
+      {
+         auto promPtr = make_shared<promise<ReturnMessage<AsyncClient::TxResult>>>();
+         auto fut = promPtr->get_future();
+         auto lbd = [promPtr](ReturnMessage<AsyncClient::TxResult> txObj)
+         {
+            promPtr->set_value(txObj);
+         };
+
+         bdvObj2->getTxByHash(hash, lbd);
+         return fut.get();
+      };
+
+      //grab the zc
+      auto&& txObj8 = getTxLbd2(tx1.getThisHash()).get();
+      auto&& txObj10 = getTxLbd2(tx3.getThisHash()).get();
+   
+      ASSERT_NE(txObj8, nullptr);
+      ASSERT_NE(txObj10, nullptr);
+
+      EXPECT_EQ(txObj8->getThisHash(), tx1.getThisHash());
+      EXPECT_EQ(txObj8->getTxHeight(), UINT32_MAX);
+      EXPECT_EQ(txObj8->getTxIndex(), 0);
+
+      EXPECT_EQ(txObj10->getThisHash(), tx3.getThisHash());
+      EXPECT_EQ(txObj10->getTxHeight(), UINT32_MAX);
+      EXPECT_EQ(txObj10->getTxIndex(), 2);
+
+      //batch fetch partial cache hit
+      auto getTxLbd3 = [bdvObj2](const set<BinaryData>& hashes)->
+         ReturnMessage<AsyncClient::TxBatchResult>
+      {
+         auto promPtr = make_shared<promise<ReturnMessage<AsyncClient::TxBatchResult>>>();
+         auto fut = promPtr->get_future();
+         auto lbd = [promPtr](ReturnMessage<AsyncClient::TxBatchResult> txObj)
+         {
+            promPtr->set_value(txObj);
+         };
+
+         bdvObj2->getTxBatchByHash(hashes, lbd);
+         return fut.get();
+      };
+
+      zcHashes.clear();
+      zcHashes = 
+      {
+         tx1.getThisHash(), 
+         tx2.getThisHash(), 
+         tx3.getThisHash(), 
+         tx4.getThisHash()
+      };
+
+      auto&& txMap = getTxLbd3(zcHashes).get();
+      ASSERT_EQ(txMap.size(), 4);
+
+      auto iter = txMap.find(tx1.getThisHash());
+      ASSERT_NE(iter, txMap.end());
+      EXPECT_EQ(iter->second->getThisHash(), tx1.getThisHash());
+      EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
+      EXPECT_EQ(iter->second->getTxIndex(), 0);
+
+      iter = txMap.find(tx2.getThisHash());
+      ASSERT_NE(iter, txMap.end());
+      EXPECT_EQ(iter->second->getThisHash(), tx2.getThisHash());
+      EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
+      EXPECT_EQ(iter->second->getTxIndex(), 1);
+
+      iter = txMap.find(tx3.getThisHash());
+      ASSERT_NE(iter, txMap.end());
+      EXPECT_EQ(iter->second->getThisHash(), tx3.getThisHash());
+      EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
+      EXPECT_EQ(iter->second->getTxIndex(), 2);
+
+      iter = txMap.find(tx4.getThisHash());
+      ASSERT_NE(iter, txMap.end());
+      EXPECT_EQ(iter->second->getThisHash(), tx4.getThisHash());
+      EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
+      EXPECT_EQ(iter->second->getTxIndex(), 4);
+
+      //batch fetch full cache hit
+      txMap = getTxLbd3(zcHashes).get();
+      ASSERT_EQ(txMap.size(), 4);
+
+      iter = txMap.find(tx1.getThisHash());
+      ASSERT_NE(iter, txMap.end());
+      EXPECT_EQ(iter->second->getThisHash(), tx1.getThisHash());
+      EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
+      EXPECT_EQ(iter->second->getTxIndex(), 0);
+
+      iter = txMap.find(tx2.getThisHash());
+      ASSERT_NE(iter, txMap.end());
+      EXPECT_EQ(iter->second->getThisHash(), tx2.getThisHash());
+      EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
+      EXPECT_EQ(iter->second->getTxIndex(), 1);
+
+      iter = txMap.find(tx3.getThisHash());
+      ASSERT_NE(iter, txMap.end());
+      EXPECT_EQ(iter->second->getThisHash(), tx3.getThisHash());
+      EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
+      EXPECT_EQ(iter->second->getTxIndex(), 2);
+
+      iter = txMap.find(tx4.getThisHash());
+      ASSERT_NE(iter, txMap.end());
+      EXPECT_EQ(iter->second->getThisHash(), tx4.getThisHash());
+      EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
+      EXPECT_EQ(iter->second->getTxIndex(), 4);
+
+      //disconnect
+      bdvObj2->unregisterFromDB();
    }
 
    //disconnect
