@@ -89,7 +89,6 @@ typedef std::map<std::string, std::map<unsigned, FeeEstimateResult>> EstimateCac
 ////////////////////////////////////////////////////////////////////////////////
 class NodeChainState
 {
-   friend class CallbackReturn_NodeStatusStruct;
    friend class NodeRPC;
 
 private:

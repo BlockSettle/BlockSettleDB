@@ -1435,7 +1435,7 @@ void CallbackReturn_RawHeader::callback(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void AsyncClient::CallbackReturn_NodeStatusStruct::callback(
+void CallbackReturn_NodeStatusStruct::callback(
    const WebSocketMessagePartial& partialMsg)
 {
    try
