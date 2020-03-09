@@ -464,11 +464,15 @@ struct UTXO
    bool isInitialized(void) const { return script_.getSize() > 0; }
 };
 
+namespace AsyncClient
+{
+   struct CallbackReturn_VectorAddressBookEntry;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 class AddressBookEntry
 {
-   friend struct CallbackReturn_VectorAddressBookEntry;
+   friend struct AsyncClient::CallbackReturn_VectorAddressBookEntry;
 
 public:
 

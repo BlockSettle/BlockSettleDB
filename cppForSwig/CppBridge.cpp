@@ -1315,14 +1315,15 @@ unique_ptr<Message> CppBridge::peekChangeAddress(
 ////////////////////////////////////////////////////////////////////////////////
 void CppBridge::getTxByHash(const BinaryData& hash, unsigned msgid)
 {
-   auto lbd = [this, msgid](ReturnMessage<Tx> result)->void
+   auto lbd = [this, msgid](ReturnMessage<AsyncClient::TxResult> result)->void
    {
-      Tx tx;
+      shared_ptr<const Tx> tx;
       bool valid = false;
       try
       {
-         tx = move(result.get());
-         valid = true;
+         tx = result.get();
+         if (tx != nullptr)
+            valid = true;
       }
       catch(exception&)
       {}
@@ -1330,12 +1331,12 @@ void CppBridge::getTxByHash(const BinaryData& hash, unsigned msgid)
       auto msg = make_unique<BridgeTx>();
       if (valid)
       {
-         auto&& txRaw = tx.serialize();
+         auto&& txRaw = tx->serialize();
          msg->set_raw(txRaw.getCharPtr(), txRaw.getSize());
-         msg->set_isrbf(tx.isRBF());
-         msg->set_ischainedzc(tx.isChained());
-         msg->set_height(tx.getTxHeight());
-         msg->set_txindex(tx.getTxIndex());
+         msg->set_isrbf(tx->isRBF());
+         msg->set_ischainedzc(tx->isChained());
+         msg->set_height(tx->getTxHeight());
+         msg->set_txindex(tx->getTxIndex());
          msg->set_isvalid(true);
       }
       else
@@ -1576,7 +1577,7 @@ bool CppBridge::cs_ProcessCustomUtxoList(const ClientCommand& msg)
    vector<UTXO> utxos;
    for (unsigned i=0; i<msg.byteargs_size(); i++)
    {
-      auto& utxoSer = msg.byteargs(0);
+      auto& utxoSer = msg.byteargs(i);
       BridgeUtxo utxoProto;
       if (!utxoProto.ParseFromArray(utxoSer.c_str(), utxoSer.size()))
          return false;

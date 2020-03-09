@@ -241,9 +241,8 @@ AsyncClient::Blockchain BlockDataViewer::blockchain(void)
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::broadcastZC(const BinaryData& rawTx)
 {
-   auto&& txHash = BtcUtils::getHash256(rawTx.getRef());
-   Tx tx(rawTx);
-   cache_->insertTx(txHash, tx);
+   auto tx = make_shared<Tx>(rawTx);
+   cache_->insertTx(tx);
 
    auto payload = make_payload(Methods::broadcastZC);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -260,9 +259,8 @@ void BlockDataViewer::broadcastZC(const vector<BinaryData>& rawTxVec)
 
    for (auto& rawTx : rawTxVec)
    {
-      auto&& txHash = BtcUtils::getHash256(rawTx.getRef());
-      Tx tx(rawTx);
-      cache_->insertTx(txHash, tx);
+      auto tx = make_shared<Tx>(rawTx);
+      cache_->insertTx(tx);
 
       command->add_bindata(rawTx.getPtr(), rawTx.getSize());
    }
@@ -271,8 +269,8 @@ void BlockDataViewer::broadcastZC(const vector<BinaryData>& rawTxVec)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::getTxByHash(const BinaryData& txHash, 
-   function<void(ReturnMessage<Tx>)> callback)
+void BlockDataViewer::getTxByHash(
+   const BinaryData& txHash, const TxCallback& callback)
 {
    BinaryDataRef bdRef(txHash);
    BinaryData hash;
@@ -290,8 +288,8 @@ void BlockDataViewer::getTxByHash(const BinaryData& txHash,
    bool heightOnly = false;
    try
    {
-      auto& tx = cache_->getTx(bdRef);
-      if (tx.getTxHeight() == UINT32_MAX)
+      auto tx = cache_->getTx(bdRef);
+      if (tx->getTxHeight() == UINT32_MAX)
       {
          //Throw out of this scope if the tx is cached but lacks a valid height.
          //Flag to only fetch the height as well.
@@ -312,7 +310,7 @@ void BlockDataViewer::getTxByHash(const BinaryData& txHash,
       Therefor, it is always acceptable to create a new thread to fire the 
       callback from.
       */
-      ReturnMessage<Tx> rm(tx);
+      ReturnMessage<TxResult> rm(tx);
 
       thread thr(callback, move(rm));
       if (thr.joinable())
@@ -335,26 +333,27 @@ void BlockDataViewer::getTxByHash(const BinaryData& txHash,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::getTxBatchByHash(const set<BinaryData>& hashes,
-   function<void(ReturnMessage<vector<Tx>>)> callback)
+void BlockDataViewer::getTxBatchByHash(
+   const set<BinaryData>& hashes, const TxBatchCallback& callback)
 {
    //only accepts hashes in binary format
    auto payload = make_payload(Methods::getTxBatchByHash);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
 
-   std::map<BinaryData, bool> hashesToFetch;
-   std::vector<Tx> cachedTx;
+   map<BinaryData, bool> hashesToFetch;
+   TxBatchResult cachedTxs;
    for (auto& hash : hashes)
    {
+      auto insertIter = cachedTxs.emplace(hash, nullptr).first;
       try
       {
-         auto& tx = cache_->getTx(hash.getRef());
+         auto tx = cache_->getTx(hash.getRef());
 
          //flag to grab only the txheight if it's unset
-         if(tx.getTxHeight() == UINT32_MAX)
+         if(tx->getTxHeight() == UINT32_MAX)
             hashesToFetch.insert(make_pair(hash, true));
          else
-            cachedTx.push_back(tx);
+            insertIter->second = tx;
 
          continue;
       }
@@ -367,7 +366,7 @@ void BlockDataViewer::getTxBatchByHash(const set<BinaryData>& hashes,
    if (hashesToFetch.size() == 0)
    {
       //all tx in cache, fire the callback
-      ReturnMessage<vector<Tx>> rm(move(cachedTx));
+      ReturnMessage<TxBatchResult> rm(move(cachedTxs));
       thread thr(callback, move(rm));
       if (thr.joinable())
          thr.detach();
@@ -393,7 +392,7 @@ void BlockDataViewer::getTxBatchByHash(const set<BinaryData>& hashes,
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
       make_unique<CallbackReturn_TxBatch>(
-         cache_, cachedTx, hashesToFetch, callback);
+         cache_, cachedTxs, hashesToFetch, callback);
    sock_->pushPayload(move(payload), read_payload);
 }
 
@@ -557,6 +556,9 @@ void BlockDataViewer::getHistoryForWalletSelection(
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx)
 {
+   auto tx = make_shared<Tx>(rawTx);
+   cache_->insertTx(tx);
+
    auto payload = make_payload(Methods::broadcastThroughRPC);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->add_bindata(rawTx.getPtr(), rawTx.getSize());
@@ -1266,29 +1268,32 @@ void CallbackReturn_Tx::callback(
       ::Codec_CommonTypes::TxWithMetaData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      Tx tx;
+      shared_ptr<Tx> tx;
       if (msg.has_rawtx())
       {
+         tx = make_shared<Tx>();
+         
          auto& rawtx = msg.rawtx();
          BinaryDataRef ref;
          ref.setRef(rawtx);
 
-         tx.unserialize(ref);
-         tx.setChainedZC(msg.ischainedzc());
-         tx.setRBF(msg.isrbf());
-         tx.setTxHeight(msg.height());
-         tx.setTxIndex(msg.txindex());
+         tx->unserialize(ref);
+         tx->setChainedZC(msg.ischainedzc());
+         tx->setRBF(msg.isrbf());
+         tx->setTxHeight(msg.height());
+         tx->setTxIndex(msg.txindex());
          cache_->insertTx(txHash_, tx);
       }
       else
       {
-         auto& cachedTx = cache_->getTx(txHash_.getRef());
-         cachedTx.setTxHeight(msg.height());
-         cachedTx.setTxIndex(msg.txindex());
+         auto cachedTx = cache_->getTx_NoConst(txHash_.getRef());
+         cachedTx->setTxHeight(msg.height());
+         cachedTx->setTxIndex(msg.txindex());
          tx = cachedTx;
       }
       
-      ReturnMessage<Tx> rm(move(tx));
+      auto constTx = const_pointer_cast<const Tx>(tx);
+      ReturnMessage<TxResult> rm(move(constTx));
 
       if (runInCaller())
       {
@@ -1303,7 +1308,7 @@ void CallbackReturn_Tx::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<Tx> rm(e);
+      ReturnMessage<TxResult> rm(e);
       userCallbackLambda_(move(rm));
    }
 }
@@ -1317,53 +1322,58 @@ void CallbackReturn_TxBatch::callback(
       ::Codec_CommonTypes::ManyTxWithMetaData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      auto iter = callMap_.begin();
-      for (unsigned i = 0; i < msg.tx_size(); i++)
+      if (callMap_.size() != msg.tx_size())
+         throw runtime_error("call map size mismatch");
+
+      unsigned counter = 0;
+      for (auto callPair : callMap_)
       {
-         Tx tx;
-         auto& txHash = iter->first;
-         auto& txObj = msg.tx(i);
+         auto& txObj = msg.tx(counter++);
+         auto& txHash = callPair.first;
+         shared_ptr<Tx> tx;
 
          //invalid tx, no data to deser
-         if(txObj.txindex() == UINT32_MAX)
+         if(txObj.txindex() != UINT32_MAX)
+         {
+            if (!callPair.second)
+            {
+               tx = make_shared<Tx>();
+
+               BinaryDataRef ref;
+               ref.setRef(txObj.rawtx());
+
+               tx->unserialize(ref);
+               tx->setChainedZC(txObj.ischainedzc());
+               tx->setRBF(txObj.isrbf());
+               tx->setTxHeight(txObj.height());
+               tx->setTxIndex(txObj.txindex());
+
+               for (int y = 0; y<txObj.opid_size(); y++)
+                  tx->pushBackOpId(txObj.opid(y));
+               
+               cache_->insertTx(txHash, tx);
+            }
+            else
+            {
+               auto txFromCache = cache_->getTx_NoConst(txHash);
+               txFromCache->setTxHeight(txObj.height());
+               txFromCache->setTxIndex(txObj.txindex());
+
+               for (int y = 0; y<txObj.opid_size(); y++)
+                  txFromCache->pushBackOpId(txObj.opid(y));
+
+               tx = txFromCache;
+            }
+         }
+
+         if (tx == nullptr)
             continue;
 
-         if (!iter->second)
-         {
-            BinaryDataRef ref;
-            ref.setRef(txObj.rawtx());
-
-            tx.unserialize(ref);
-            tx.setChainedZC(txObj.ischainedzc());
-            tx.setRBF(txObj.isrbf());
-            tx.setTxHeight(txObj.height());
-            tx.setTxIndex(txObj.txindex());
-
-            for (int y = 0; y<txObj.opid_size(); y++)
-               tx.pushBackOpId(txObj.opid(y));
-            
-            cache_->insertTx(txHash, tx);
-         }
-         else
-         {
-            auto& txFromCache = cache_->getTx(txHash);
-            txFromCache.setTxHeight(txObj.height());
-            txFromCache.setTxIndex(txObj.txindex());
-
-            for (int y = 0; y<txObj.opid_size(); y++)
-               txFromCache.pushBackOpId(txObj.opid(y));
-
-            tx = txFromCache;
-         }
-
-         cachedTx_.emplace_back(tx);
-         ++iter;
+         auto constTx = static_pointer_cast<const Tx>(tx);
+         cachedTx_[txHash] = constTx;
       }
 
-      //order the tx vector before returning it
-      std::sort(cachedTx_.begin(), cachedTx_.end(), TxComparator());
-
-      ReturnMessage<vector<Tx>> rm(move(cachedTx_));
+      ReturnMessage<TxBatchResult> rm(move(cachedTx_));
 
       if (runInCaller())
       {
@@ -1378,7 +1388,7 @@ void CallbackReturn_TxBatch::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<vector<Tx>> rm(e);
+      ReturnMessage<TxBatchResult> rm(e);
       userCallbackLambda_(move(rm));
    }
 }
@@ -2139,10 +2149,17 @@ void CallbackReturn_SpentnessData::callback(
 // ClientCache
 //
 ///////////////////////////////////////////////////////////////////////////////
-void ClientCache::insertTx(const BinaryData& hash, const Tx& tx)
+void ClientCache::insertTx(std::shared_ptr<Tx> tx)
 {
    ReentrantLock(this);
-   txMap_.insert(make_pair(hash, tx));
+   txMap_.emplace(tx->getThisHash(), tx);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void ClientCache::insertTx(const BinaryData& hash, std::shared_ptr<Tx> tx)
+{
+   ReentrantLock(this);
+   txMap_.emplace(hash, tx);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2160,7 +2177,7 @@ void ClientCache::insertHeightForTxHash(BinaryData& hash, unsigned& height)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-const Tx& ClientCache::getTx(const BinaryDataRef& hashRef) const
+shared_ptr<const Tx> ClientCache::getTx(const BinaryDataRef& hashRef) const
 {
    ReentrantLock(this);
 
@@ -2168,7 +2185,20 @@ const Tx& ClientCache::getTx(const BinaryDataRef& hashRef) const
    if (iter == txMap_.end())
       throw NoMatch();
 
-   return iter->second;
+   auto constTx = const_pointer_cast<const Tx>(iter->second);
+   return constTx;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<Tx> ClientCache::getTx_NoConst(const BinaryDataRef& hashRef)
+{
+   ReentrantLock(this);
+
+   auto iter = txMap_.find(hashRef);
+   if (iter == txMap_.end())
+      throw NoMatch();
+
+   return iter->second;   
 }
 
 ///////////////////////////////////////////////////////////////////////////////

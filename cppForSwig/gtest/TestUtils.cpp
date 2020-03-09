@@ -867,12 +867,12 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   Tx getTxByHash(shared_ptr<AsyncClient::BlockDataViewer> bdv, 
-      const BinaryData& hash)
+   AsyncClient::TxResult getTxByHash(
+      shared_ptr<AsyncClient::BlockDataViewer> bdv, const BinaryData& hash)
    {
-      auto prom = make_shared<promise<Tx>>();
+      auto prom = make_shared<promise<AsyncClient::TxResult>>();
       auto fut = prom->get_future();
-      auto lbd = [prom](ReturnMessage<Tx> msg)->void
+      auto lbd = [prom](ReturnMessage<AsyncClient::TxResult> msg)->void
       {
          prom->set_value(msg.get());
       };

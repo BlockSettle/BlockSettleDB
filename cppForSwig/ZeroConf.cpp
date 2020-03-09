@@ -20,9 +20,6 @@ using namespace ArmoryThreading;
 
 #define ZC_GETDATA_TIMEOUT_MS 60000
 
-struct ZcBatchError
-{};
-
 ///////////////////////////////////////////////////////////////////////////////
 ZcPreprocessPacket::~ZcPreprocessPacket()
 {}
@@ -492,7 +489,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
 
       //setup batch with all tracked zc
       if (zcAction.batch_ == nullptr)
-         zcAction.batch_ = make_shared<ZeroConfBatch>();
+         zcAction.batch_ = make_shared<ZeroConfBatch>(false);
       zcAction.batch_->txMap_ = ss->txMap_;
       zcAction.batch_->isReadyPromise_->set_value(ArmoryErrorCodes::Success);
 
@@ -1599,7 +1596,8 @@ void ZeroConfContainer::pushZcPreprocessVec(shared_ptr<RequestZcPacket> req)
       return;
 
    //register batch with main zc processing thread
-   actionQueue_->pushGetZcRequest(req->hashes_, ZC_GETDATA_TIMEOUT_MS, {});
+   actionQueue_->initiateZcBatch(
+      req->hashes_, ZC_GETDATA_TIMEOUT_MS, {}, false);
 
    //queue up individual requests for parser threads to process
    zcPreprocessQueue_.push_back(move(req));
@@ -1644,14 +1642,17 @@ void ZeroConfContainer::handleInvTx()
             {
                BinaryData bd(invEntry.hash, sizeof(invEntry.hash));
                auto iter = watcherMap_.find(bd);
-               if (iter == watcherMap_.end())
+               if (iter == watcherMap_.end() || iter->second.inved_)
                   continue;
 
-               auto payloadTx = make_shared<ProcessPayloadTxPacket>(bd);
-               payloadTx->rawTx_ = iter->second;
+               //mark as fetched
+               iter->second.inved_ = true;
 
-               //cleanup this hash from the watcher map
-               watcherMap_.erase(iter);
+               //set parsedTx tx body
+               auto payloadTx = make_shared<ProcessPayloadTxPacket>(bd);
+               payloadTx->rawTx_ = iter->second.rawTxPtr_;
+
+               //push to preprocess threads
                zcPreprocessQueue_.push_back(move(payloadTx));
             }
          }
@@ -1861,7 +1862,7 @@ void ZeroConfContainer::processPayloadTx(
       return;
    }
 
-   //push raw tx with current time
+   //set raw tx and current time
    payloadPtr->pTx_->tx_.unserialize(*payloadPtr->rawTx_);
    payloadPtr->pTx_->tx_.setTxTime(time(0));
 
@@ -1893,12 +1894,12 @@ void ZeroConfContainer::broadcastZC(
       for (unsigned i=0; i < zcPacket->hashes_.size(); i++)
       {
          watcherMap_.insert(make_pair(
-            zcPacket->hashes_[i], zcPacket->zcVec_[i]));
+            zcPacket->hashes_[i], WatcherTxBody(zcPacket->zcVec_[i])));
       }
    }
 
    //sets up & pushes the zc batch for us
-   actionQueue_->pushGetZcRequest(zcPacket->hashes_, timeout_ms, cbk);
+   actionQueue_->initiateZcBatch(zcPacket->hashes_, timeout_ms, cbk, true);
 
    //push each zc on the process queue
    zcPreprocessQueue_.push_back(zcPacket);
@@ -2059,6 +2060,9 @@ void ZeroConfContainer::setWatcherNode(
 {
    auto getTxLambda = [this](vector<InvEntry> invVec)->void
    {
+      if (!zcEnabled_.load(std::memory_order_relaxed))
+         return;
+
       //push inv vector as watcher inv packet on the preprocessing queue
       auto payload = make_shared<ZcInvPayload>(true);
       payload->invVec_ = move(invVec);
@@ -2076,16 +2080,18 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::getBatchTxMap(
       throw ZcBatchError();
 
    //wait on the batch for the duration of the 
-   //timeout - time elapsed since creation
+   //timeout minus time elapsed since creation
    unsigned timeLeft = 0;
    auto delay = chrono::duration_cast<chrono::milliseconds>(
       chrono::system_clock::now() - batch->creationTime_);
    if (delay.count() < batch->timeout_)
       timeLeft = batch->timeout_ - delay.count();
 
+   auto timeLeftMs = chrono::milliseconds(timeLeft);
+
    ArmoryErrorCodes batchResult;
-   if (batch->isReadyFut_.wait_for(chrono::milliseconds(timeLeft)) !=
-      future_status::ready)
+   if (batch->timeout_ > 0 && 
+      batch->isReadyFut_.wait_for(timeLeftMs) != future_status::ready)
    {
       batchResult = ArmoryErrorCodes::ZcBatch_Timeout;
    }
@@ -2094,68 +2100,133 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::getBatchTxMap(
       batchResult = batch->isReadyFut_.get();
    }
 
-   if (batchResult != ArmoryErrorCodes::Success)
+   //purge the watcher map if this batch affects it
+   unique_ptr<map<BinaryData, WatcherTxBody>> batchWatcherMap = nullptr;
+   if (batch->hasWatcherEntries_)
    {
-      /*
-      Failed to get transactions for batch, fire the error callback
-      if set and throw.
-      */
-      
-      //skip if this batch doesn't have a callback to report errors
-      if (!batch->errorCallback_)
-         throw ZcBatchError();
+      unique_lock<mutex> lock(watcherMapMutex_);
 
-      unsigned invedZcCount = 0;
-      vector<ZeroConfBatchFallbackStruct> txVec;
-      txVec.reserve(batch->txMap_.size());
+      if (batchResult != ArmoryErrorCodes::Success && batch->errorCallback_)
       {
-         //sanity check
-         unique_lock<mutex> lock(watcherMapMutex_);
+         //save the entries locally if the batch timed out and has a callback
+         batchWatcherMap = make_unique<map<BinaryData, WatcherTxBody>>();
+
          for (auto& keyPair : batch->hashToKeyMap_)
          {
             auto iter = watcherMap_.find(keyPair.first);
             if (iter == watcherMap_.end())
             {
-               //this tx was inv'ed back to us from the watcher
-               //node, it should be processed by the parser
-               ++invedZcCount;
+               LOGERR << "missing watcher entry, this should not happen!";
+               LOGERR << "skipping this timed out batch, this needs reported to a dev";
+               throw ZcBatchError();
+            }
+
+            batchWatcherMap->emplace(iter->first, move(iter->second));
+            watcherMap_.erase(iter);
+         }
+      }
+      else
+      {
+         //otherwise just clear up the map
+         for (auto& keyPair : batch->hashToKeyMap_)
+         {
+            auto iter = watcherMap_.find(keyPair.first);
+            if (iter == watcherMap_.end())
+            {
+               LOGERR << "missing watcher entry, this should not happen!";
                continue;
             }
 
-            //create the fallback struct
-            ZeroConfBatchFallbackStruct fallbackStruct;
-            fallbackStruct.txHash_ = iter->first;
-            fallbackStruct.rawTxPtr_ = iter->second;
-            fallbackStruct.err_ = batchResult;
-            fallbackStruct.zcKey_ = keyPair.second;
-
-            //find the pTx
-            auto batchTxIter = batch->txMap_.find(fallbackStruct.zcKey_);
-            if (batchTxIter == batch->txMap_.end())
-            {
-               LOGERR << "batch is missing a zckey!";
-               throw runtime_error("malformed zc batch");
-            }
-
-            //this tx was never inv'ed back to us, it should be skipped
-            //by the parser in the context of this batch
-            batchTxIter->second->state_ = ParsedTxStatus::Tx_Skip;
-            txVec.emplace_back(move(fallbackStruct));
+            watcherMap_.erase(iter);
          }
       }
+   }
 
-      //sort tx vec so as to sustain processing order
-      sort(txVec.begin(), txVec.end());
+   if (batchResult != ArmoryErrorCodes::Success)
+   {
+      /*
+      Failed to get transactions for batch, fire the error callback
+      */
+      
+      //skip if this batch doesn't have a callback
+      if (!batch->errorCallback_ || !batch->hasWatcherEntries_)
+         throw ZcBatchError();
 
-      //check snapshot for collisions
-      for (auto& fallbackStruct : txVec)
+      unsigned invedZcCount = 0;
+      vector<ZeroConfBatchFallbackStruct> txVec;
+      set<BinaryDataRef> purgedHashes;
+      txVec.reserve(batch->txMap_.size());
+
+      //purge the batch of missing tx and their children
+      for (auto& txPair : batch->txMap_)
       {
-         auto iter = ss->txHashToDBKey_.find(fallbackStruct.txHash_);
-         if (iter == ss->txHashToDBKey_.end())
-            continue;
+         bool purge = false;
 
-         //already have this tx in our mempool
-         fallbackStruct.err_ = ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool;
+         //does this tx depend on a purged predecessor?
+         for (auto& txInObj : txPair.second->inputs_)
+         {
+            auto parentIter = purgedHashes.find(
+               txInObj.opRef_.getTxHashRef());
+
+            if (parentIter == purgedHashes.end())
+               continue;
+
+            //this zc depends on a purged zc, purge it too
+            purge = true;
+            break;
+         }
+
+         //was this tx inv'ed back to us?
+         bool inved = true;
+         auto iter = batchWatcherMap->find(txPair.second->getTxHash());
+
+         //map consistency is assured at the previous watcherMap purge 
+         //scope, this iterator is guaranteed valid
+         if (!iter->second.inved_)
+         {
+            inved = false;
+            purge = true;
+         }
+                        
+         if (!purge)
+         {
+            //sanity check
+            if (!inved)
+            {
+               LOGWARN << "keeping zc from timed out batch"
+                  << " that wasn't inved";
+            }
+
+            //we're keeping this tx
+            ++invedZcCount;
+            continue;
+         }
+
+         //create the fallback struct
+         ZeroConfBatchFallbackStruct fallbackStruct;
+         fallbackStruct.txHash_ = iter->first;
+         fallbackStruct.rawTxPtr_ = move(iter->second.rawTxPtr_);
+         fallbackStruct.err_ = batchResult;
+
+         //check snapshot for collisions
+         auto collisionIter = ss->txHashToDBKey_.find(iter->first.getRef());
+         if (collisionIter != ss->txHashToDBKey_.end())
+         {
+            //already have this tx in our mempool, report to callback
+            //but don't flag as purged (children are valid if any)
+            fallbackStruct.err_ = ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool;
+         }
+         else
+         {
+            //keep track of purged zc hashes
+            purgedHashes.insert(iter->first.getRef());
+         }
+
+         //flag tx to be skipped by parser
+         txPair.second->state_ = ParsedTxStatus::Tx_Skip;
+
+         //add to vector for error callback
+         txVec.emplace_back(move(fallbackStruct));
       }
 
       batch->errorCallback_(move(txVec));
@@ -2166,18 +2237,14 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::getBatchTxMap(
 
       //we have some inv'ed zc to parse but the batch timed out, we need to
       //wait on the counter to match our local count of valid tx.
-      while (batch->counter_->load(memory_order_acquire) < invedZcCount)
+      while (batch->txMap_.size() - 
+            batch->counter_->load(memory_order_acquire) < invedZcCount)
+      {
          this_thread::sleep_for(chrono::microseconds(1));
+      }
    }
 
    return move(batch->txMap_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void ZeroConfContainer::cleanupWatchedHash(const BinaryData& hash)
-{
-   unique_lock<mutex> lock(watcherMapMutex_);
-   watcherMap_.erase(hash);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2214,23 +2281,24 @@ BinaryData ZcActionQueue::getNewZCkey()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ZcActionQueue::pushGetZcRequest(
+shared_ptr<ZeroConfBatch> ZcActionQueue::initiateZcBatch(
    const vector<BinaryData>& zcHashes, unsigned timeout, 
-   const ZcBroadcastCallback& cbk)
+   const ZcBroadcastCallback& cbk, bool hasWatcherEntries)
 {
    set<BinaryDataRef> requestedTxHashes;
-   auto batch = make_shared<ZeroConfBatch>();
+   auto batch = make_shared<ZeroConfBatch>(hasWatcherEntries);
 
    for (auto& hash : zcHashes)
    {
       auto&& key = getNewZCkey();
       auto ptx = make_shared<ParsedTx>(key);
+      ptx->setTxHash(hash);
 
       //request packets need their tx hash registered with the request map
       requestedTxHashes.insert(hash.getRef());
 
       batch->hashToKeyMap_.emplace(
-         make_pair(hash, ptx->getKeyRef()));
+         make_pair(ptx->getTxHash().getRef(), ptx->getKeyRef()));
       batch->txMap_.emplace(make_pair(ptx->getKeyRef(), ptx));
    }
 
@@ -2249,6 +2317,8 @@ void ZcActionQueue::pushGetZcRequest(
    zac.action_ = Zc_NewTx;
    zac.batch_ = batch;
    newZcQueue_.push_back(move(zac));
+
+   return batch;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

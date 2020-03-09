@@ -152,6 +152,7 @@ public:
    void reset(void);
 
    const BinaryData& getTxHash(void) const;
+   void setTxHash(const BinaryData& hash) { txHash_ = hash; }
    BinaryDataRef getKeyRef(void) const { return zcKey_.getRef(); }
    const BinaryData& getKey(void) const { return zcKey_; }
 };
@@ -162,26 +163,23 @@ struct ZeroConfBatchFallbackStruct
    BinaryData txHash_;
    std::shared_ptr<BinaryData> rawTxPtr_;
    ArmoryErrorCodes err_;
-   BinaryData zcKey_;
-
-   bool operator<(const ZeroConfBatchFallbackStruct& rhs) const
-   {
-      return zcKey_ < rhs.zcKey_;
-   }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 typedef std::function<void(
    std::vector<ZeroConfBatchFallbackStruct>)> ZcBroadcastCallback;
 
+struct ZcBatchError
+{};
+
 ////////////////////////////////////////////////////////////////////////////////
 struct ZeroConfBatch
 {
-   //<zcKey ref, ParsedTx>. ParsedTx carries the key object.
+   //<zcKey ref, ParsedTx>, ParsedTx carries the key object
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> txMap_;
    
-   //<txHash ref, zcKey ref>. ParsedTx carries both hash and key objects.
-   std::map<BinaryData, BinaryDataRef> hashToKeyMap_;
+   //<txHash ref, zcKey ref>, ParsedTx carries both hash and key objects
+   std::map<BinaryDataRef, BinaryDataRef> hashToKeyMap_;
 
    std::shared_ptr<std::atomic<int>> counter_;
    std::shared_ptr<std::promise<ArmoryErrorCodes>> isReadyPromise_;
@@ -191,8 +189,11 @@ struct ZeroConfBatch
    std::chrono::system_clock::time_point creationTime_;
    ZcBroadcastCallback errorCallback_;
 
+   const bool hasWatcherEntries_;
+
 public:
-   ZeroConfBatch(void)
+   ZeroConfBatch(bool hasWatcherEntries) :
+      hasWatcherEntries_(hasWatcherEntries)
    {
       counter_ = std::make_shared<std::atomic<int>>();
       isReadyPromise_ = std::make_shared<std::promise<ArmoryErrorCodes>>();
@@ -420,9 +421,9 @@ public:
    void start(void);
    void shutdown(void);
 
-   void pushGetZcRequest(
+   std::shared_ptr<ZeroConfBatch> initiateZcBatch(
       const std::vector<BinaryData>&, unsigned,
-      const ZcBroadcastCallback&);
+      const ZcBroadcastCallback&, bool);
    std::shared_future<std::shared_ptr<ZcPurgePacket>> pushNewBlockNotification(
       Blockchain::ReorganizationState);
    const std::shared_ptr<
@@ -504,7 +505,17 @@ private:
    std::unique_ptr<ZeroConfCallbacks> bdvCallbacks_;
    std::unique_ptr<ZcActionQueue> actionQueue_;
 
-   std::map<BinaryData, std::shared_ptr<BinaryData>> watcherMap_;
+   struct WatcherTxBody
+   {
+      std::shared_ptr<BinaryData> rawTxPtr_;
+      bool inved_ = false;
+
+      WatcherTxBody(std::shared_ptr<BinaryData> rawTx) :
+         rawTxPtr_(rawTx)
+      {}
+   };
+
+   std::map<BinaryData, WatcherTxBody> watcherMap_;
    std::mutex watcherMapMutex_;
 
 private:
@@ -542,6 +553,9 @@ public:
       //register ZC callbacks
       auto processInvTx = [this](std::vector<InvEntry> entryVec)->void
       {
+         if (!zcEnabled_.load(std::memory_order_relaxed))
+            return;
+            
          auto payload = std::make_shared<ZcInvPayload>(false);
          payload->invVec_ = move(entryVec);
          zcWatcherQueue_.push_back(move(payload));
@@ -621,7 +635,6 @@ public:
       std::shared_ptr<ZeroConfSharedStateSnapshot>);
 
    ZcActionQueue* const actionQueue(void) const { return actionQueue_.get(); }
-   void cleanupWatchedHash(const BinaryData&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
