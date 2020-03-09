@@ -191,7 +191,8 @@ namespace DBTestUtils
    std::vector<uint64_t> getBalancesAndCount(AsyncClient::BtcWallet& wlt,
       uint32_t blockheight);
 
-   Tx getTxByHash(std::shared_ptr<AsyncClient::BlockDataViewer> bdv, 
+   AsyncClient::TxResult getTxByHash(
+      std::shared_ptr<AsyncClient::BlockDataViewer> bdv, 
       const BinaryData& hash);
 
    std::vector<UTXO> getSpendableTxOutListForValue(

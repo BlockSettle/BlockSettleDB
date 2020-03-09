@@ -40,6 +40,8 @@ struct UnitTestBlock
 ////////////////////////////////////////////////////////////////////////////////
 class NodeUnitTest : public BitcoinNodeInterface
 {
+   friend class NodeRPC_UnitTest;
+
 private:
    struct MinedHeader
    {
@@ -116,6 +118,9 @@ public:
    void connectToNode(bool) override;
    bool connected(void) const override { return true; }
    void shutdown(void) override;
+
+   //misc
+   void presentZcHash(const BinaryData&);
 };
 
 
