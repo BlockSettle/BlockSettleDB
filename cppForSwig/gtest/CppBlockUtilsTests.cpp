@@ -10723,7 +10723,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
       EXPECT_EQ(firstHash, txHash);
 
       auto&& tx = DBTestUtils::getTxByHash(bdvObj, firstHash);
-      EXPECT_EQ(tx.getThisHash(), firstHash);
+      EXPECT_EQ(tx->getThisHash(), firstHash);
 
       bdvObj->unregisterFromDB();
    }

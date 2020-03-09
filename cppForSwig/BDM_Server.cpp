@@ -683,7 +683,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
          auto& txHash = command->bindata(i);
          if (txHash.size() < 32)
          {
-            result.emplace_back(tx);
+            result.emplace_back();
             continue;
          }
 
@@ -709,7 +709,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
                tx.pushBackOpId(id);
          }
 
-         result.emplace_back(tx);
+         result.emplace_back(move(tx));
       }
 
       auto response = make_shared<::Codec_CommonTypes::ManyTxWithMetaData>();
@@ -2884,24 +2884,57 @@ void Clients::broadcastThroughRPC()
          break;
       }
 
+      //create & set a zc batch for this tx
+      Tx tx(*packet.rawTx_);
+      vector<BinaryData> hashes = { tx.getThisHash() };
+      auto zcPtr = bdmT_->bdm()->zeroConfCont();
+      auto batchPtr = zcPtr->actionQueue()->initiateZcBatch(
+            hashes, 0, nullptr, false);
+
+      //push to rpc
       auto result =
          bdmT_->bdm()->nodeRPC_->broadcastTx(packet.rawTx_->getRef());
 
-      if (result == 0)
+      switch (ArmoryErrorCodes(result))
       {
+      case ArmoryErrorCodes::Success:
+      {
+         /*
+         RPC zc broadcast will return success whether the tx was in 
+         the node's mempool or not.
+         */
+
+         //fulfill the batch to parse the tx
+         try 
+         {
+            //set the tx body and batch promise
+            auto txPtr = batchPtr->txMap_.begin()->second;
+            txPtr->tx_ = move(tx);
+            txPtr->tx_.setTxTime(time(0));
+            batchPtr->isReadyPromise_->set_value(ArmoryErrorCodes::Success);
+         }
+         catch (future_error&)
+         {
+            LOGWARN << "rpc broadcast promise was already set";
+         }
+
          LOGINFO << "rpc broadcast success";
-         continue;
+         break;
       }
 
-      Tx tx(*packet.rawTx_);
-      bdmT_->bdm()->zeroConfCont_->cleanupWatchedHash(tx.getThisHash());
+      default:
+         //fail the batch promise
+         batchPtr->isReadyPromise_->set_exception(
+            make_exception_ptr(ZcBatchError()));
 
-      auto notifPacket = make_shared<BDV_Notification_Packet>();
-      notifPacket->bdvPtr_ = packet.bdvPtr_;
-      notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-         packet.bdvPtr_->getID(), result,
-         tx.getThisHash(), "rpc broadcast error");
-      innerBDVNotifStack_.push_back(move(notifPacket));
+         //notify the bdv of the error
+         auto notifPacket = make_shared<BDV_Notification_Packet>();
+         notifPacket->bdvPtr_ = packet.bdvPtr_;
+         notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
+            packet.bdvPtr_->getID(), result,
+            *hashes.begin(), "rpc broadcast error");
+         innerBDVNotifStack_.push_back(move(notifPacket));
+      }
    }
 }
 
@@ -2980,8 +3013,6 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
                   fallbackStruct.txHash_, string());
 
                innerBDVNotifStack_.push_back(move(notifPacket));
-               bdmT_->bdm()->zeroConfCont_->cleanupWatchedHash(
-                  fallbackStruct.txHash_);
                continue;
             }
 
@@ -2995,10 +3026,6 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
 
          if (rpcPackets.empty())
             return;
-
-         //create new batch for timed out zc
-         bdmT_->bdm()->zeroConfCont_->actionQueue()->pushGetZcRequest(
-            zcHashVec, 10000, {});
 
          //push through rpc
          for (auto& packet : rpcPackets)

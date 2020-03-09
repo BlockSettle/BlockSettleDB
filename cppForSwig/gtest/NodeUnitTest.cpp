@@ -325,6 +325,12 @@ void NodeUnitTest::setReorgBranchPoint(shared_ptr<BlockHeader> header)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::presentZcHash(const BinaryData& hash)
+{
+   seenHashes_.insert(hash);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec, 
    bool stage)
 {
@@ -403,6 +409,8 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
          insertIter.first->second->rawTx_));
    }
 
+   rawTxMap_.update(rawTxMap);
+
    /*
    Do not push the tx to the db if it is flagged for staging. It will get
    pushed after the next mining call. This is mostly useful for reorgs 
@@ -411,7 +419,6 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
    if (stage)
       return;
 
-   rawTxMap_.update(rawTxMap);
    processInvTx(invVec);
 }
 
@@ -766,6 +773,15 @@ void NodeUnitTest::delayNextZc(unsigned count)
 ////////////////////////////////////////////////////////////////////////////////
 int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx)
 {
+   auto iface = primaryNode_->iface_;
+   if (iface == nullptr)
+      throw runtime_error("null iface ptr");
+
+   Tx tx(rawTx);
+   auto&& dbKey = iface->getDBKeyForHash(tx.getThisHash());
+   if (dbKey.getSize() == 6)
+      return (int)ArmoryErrorCodes::ZcBroadcast_AlreadyInChain;
+
    vector<pair<BinaryData, unsigned>> pushVec;
    pushVec.push_back(make_pair(BinaryData(rawTx), 0));
    primaryNode_->pushZC(pushVec, false);
