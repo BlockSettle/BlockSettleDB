@@ -289,10 +289,10 @@ public:
 
    /////////////////////////////////////////////////////////////////////////////
    uint32_t    getLockTime(void) const { return lockTime_; }
-   uint64_t    getSumOfOutputs(void);
+   uint64_t    getSumOfOutputs(void) const;
 
 
-   BinaryData getScrAddrForTxOut(uint32_t txOutIndex);
+   BinaryData getScrAddrForTxOut(uint32_t txOutIndex) const;
 
    /////////////////////////////////////////////////////////////////////////////
    // These are not pointers to persistent object, these methods actually 
@@ -320,8 +320,8 @@ public:
    void setTxIndex(uint32_t index) const { txIndex_ = index; }
 
    /////////////////////////////////////////////////////////////////////////////
-   void pprint(std::ostream & os = std::cout, int nIndent = 0, bool pBigendian = true);
-   void pprintAlot(std::ostream & os = std::cout);
+   void pprint(std::ostream & os = std::cout, int nIndent = 0, bool pBigendian = true) const;
+   void pprintAlot(std::ostream & os = std::cout) const;
 
    bool operator==(const Tx& rhs) const
    {
