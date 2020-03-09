@@ -68,7 +68,7 @@ void SocketService::serviceSockets()
                sockStruct.sockfd_, move(sockStruct))));
          }
       }
-      catch (IsEmpty&)
+      catch (ArmoryThreading::IsEmpty&)
       {
          return;
       }
