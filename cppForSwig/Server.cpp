@@ -134,6 +134,9 @@ int WebSocketServer::callback(
    {
       auto wsPtr = WebSocketServer::getInstance();
       
+      if (wsPtr->pendingWrites_.empty())
+         break;
+
       if (wsi != *wsPtr->pendingWritesIter_)
       {
          /*

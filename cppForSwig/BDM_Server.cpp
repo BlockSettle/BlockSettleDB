@@ -2909,7 +2909,7 @@ void Clients::broadcastThroughRPC()
          {
             //set the tx body and batch promise
             auto txPtr = batchPtr->txMap_.begin()->second;
-            txPtr->tx_ = move(tx);
+            txPtr->tx_.unserialize(*packet.rawTx_);
             txPtr->tx_.setTxTime(time(0));
             batchPtr->isReadyPromise_->set_value(ArmoryErrorCodes::Success);
          }

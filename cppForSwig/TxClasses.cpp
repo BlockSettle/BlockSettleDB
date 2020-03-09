@@ -402,7 +402,7 @@ uint64_t Tx::getSumOfOutputs(void) const
 }
 
 /////////////////////////////////////////////////////////////////////////////
-BinaryData Tx::getScrAddrForTxOut(uint32_t txOutIndex)
+BinaryData Tx::getScrAddrForTxOut(uint32_t txOutIndex) const
 {
    TxOut txout = getTxOutCopy(txOutIndex);
    return BtcUtils::getTxOutScrAddr(txout.getScript());
@@ -513,7 +513,7 @@ unsigned Tx::getZcIndex(void) const
 }
 
 /////////////////////////////////////////////////////////////////////////////
-void Tx::pprint(ostream & os, int nIndent, bool pBigendian)
+void Tx::pprint(ostream & os, int nIndent, bool pBigendian) const
 {
    string indent = "";
    for (int i = 0; i<nIndent; i++)
@@ -538,7 +538,7 @@ void Tx::pprint(ostream & os, int nIndent, bool pBigendian)
 // supposed to be not NULL.  I'd like to try to force a segfault here, if it
 // is going to happen, instead of letting it kill my program where I don't 
 // know what happened.
-void Tx::pprintAlot(ostream &)
+void Tx::pprintAlot(ostream &) const
 {
    cout << "Tx hash:   " << thisHash_.toHexStr(true) << endl;
 
