@@ -937,5 +937,39 @@ class CppBridge(object):
          name=None, args=[response], kwargs={})
       callbackThread.start()
 
+   #############################################################################
+   def createWallet(self, addrPoolSize, passphrase, controlPassphrase, \
+      shortLabel, longLabel, extraEntropy):
+      walletCreationStruct = ClientProto_pb2.BridgeCreateWalletStruct()
+      walletCreationStruct.lookup = addrPoolSize
+      walletCreationStruct.passphrase = passphrase
+      walletCreationStruct.controlPassphrase = controlPassphrase
+      walletCreationStruct.label = shortLabel
+      walletCreationStruct.description = longLabel
+      
+      if extraEntropy is not None:
+         walletCreationStruct.extraEntropy = extraEntropy
+
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.createWallet
+      packet.byteArgs.append(walletCreationStruct.SerializeToString())
+
+      fut = self.sendToBridge(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.WalletData()
+      response.ParseFromString(socketResponse)
+      return response
+
+   #############################################################################
+   def registerWallet(self, walletId, isNew):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.registerWallet
+      packet.stringArgs.append(walletId)
+      packet.intArgs.append(isNew)
+
+      self.sendToBridge(packet, False)
+     
+
 ################################################################################
 TheBridge = CppBridge()

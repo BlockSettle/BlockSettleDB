@@ -1718,7 +1718,7 @@ def toBytes(theStr, theEncoding=DEFAULT_ENCODING):
    elif isinstance(theStr, bytes):
       return theStr
    else:
-      LOGERROR('toBytes() not been defined for input: %s', str(type(theStr)))
+      raise Exception('toBytes() not been defined for input: %s', str(type(theStr)))
 
 
 def toUnicode(theStr, theEncoding=DEFAULT_ENCODING):
@@ -2038,12 +2038,6 @@ def bitset_to_int(bitset):
 
 
 EmptyHash = hex_to_binary('00'*32)
-
-
-class SecureBinaryData():
-
-   def __init__(self, data):
-      self.data = data
 
 
 ################################################################################

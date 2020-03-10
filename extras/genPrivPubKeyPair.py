@@ -8,7 +8,7 @@ import sys
 import os
 import ipaddress
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from CppBlockUtils import SecureBinaryData, CryptoECDSA
+from CppBlockUtils import CryptoECDSA
 
 # A simple program that generates a secp256k1 private key and accompanying
 # compressed public key, and outputs the hex strings to the terminal.

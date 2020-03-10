@@ -93,7 +93,6 @@ public:
 class WalletContainer
 {
    friend class WalletManager;
-   friend class PythonSigner;
    friend struct CoinSelectionInstance;
 
 private:
@@ -234,70 +233,6 @@ public:
    {
       return wallet_->hasAddrStr(addr);
    }
-
-   /*
-   const std::pair<BinaryData, AddressEntryType>& getAssetIDForAddr(
-      const std::string& addrStr) const
-   {
-      return wallet_->getAssetIDForAddrStr(addrStr);
-   }
-
-   const std::pair<BinaryData, AddressEntryType>& getAssetIDForAddr(
-      const BinaryData& scrAddr) const
-   {
-      return wallet_->getAssetIDForScrAddr(scrAddr);
-   }
-
-   const BinaryData& getScriptHashPreimage(const BinaryData& hash)
-   {
-      auto& assetID = wallet_->getAssetIDForScrAddr(hash);
-      auto addrPtr = wallet_->getAddressEntryForID(assetID.first);
-      return addrPtr->getPreimage();
-   }
-
-   AddressEntryType getAddrTypeForID(const BinaryData& ID)
-   {
-      return wallet_->getAddrTypeForID(ID);
-   }
-
-   AsyncClient::ScrAddrObj getAddrObjByID(const BinaryData& ID)
-   {
-      auto addrPtr = wallet_->getAddressEntryForID(ID);
-
-      uint64_t full = 0, spend = 0, unconf = 0;
-      auto balanceIter = balanceMap_.find(addrPtr->getPrefixedHash());
-      if (balanceIter != balanceMap_.end())
-      {
-         full = balanceIter->second[0];
-         spend = balanceIter->second[1];
-         unconf = balanceIter->second[2];
-      }
-
-      uint32_t count = 0;
-      auto countIter = countMap_.find(addrPtr->getPrefixedHash());
-      if (countIter != countMap_.end())
-         count = countIter->second;
-
-      BinaryRefReader brr(ID.getRef());
-      brr.advance(ID.getSize() - 4);
-      auto index = brr.get_uint32_t();
-
-      if (asyncWlt_ != nullptr)
-      {
-         AsyncClient::ScrAddrObj saObj(
-            asyncWlt_.get(), addrPtr->getPrefixedHash(), index,
-            full, spend, unconf, count);
-
-         return saObj;
-      }
-      else
-      {
-         AsyncClient::ScrAddrObj saObj(addrPtr->getPrefixedHash(), index);
-
-         return saObj;
-      }
-   }
-   */
 
    void createAddressBook(
       const std::function<void(ReturnMessage<std::vector<AddressBookEntry>>)>&);
@@ -449,6 +384,7 @@ private:
    std::shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_; 
 
 private:
+   std::shared_ptr<WalletContainer> addWallet(std::shared_ptr<AssetWallet>);
    void loadWallets(
       const std::function<SecureBinaryData(const std::set<BinaryData>&)>&);
 
@@ -489,7 +425,18 @@ public:
       return idSet;
    }
 
+   std::string registerWallet(const std::string& wltId, bool isNew)
+   {
+      auto iter = wallets_.find(wltId);
+      if (iter == wallets_.end())
+         throw std::runtime_error("unknown wallet id");
+      return iter->second->registerWithBDV(isNew);
+   }
+
    void updateStateFromDB(const std::function<void(void)>&);
+   std::shared_ptr<WalletContainer> createNewWallet(
+      const SecureBinaryData&, const SecureBinaryData&, //pass, control pass
+      const SecureBinaryData&, unsigned); //extra entropy, address lookup
 };
 
 #endif

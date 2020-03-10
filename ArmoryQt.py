@@ -42,7 +42,7 @@ import psutil
 
 from armorycolors import Colors, htmlColor, QAPP
 from armoryengine.ALL import *
-from armoryengine.ArmoryUtils import SecureBinaryData, HMAC256
+from armoryengine.ArmoryUtils import HMAC256
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
 from armoryengine.CppBridge import TheBridge
@@ -1157,7 +1157,7 @@ class ArmoryMainWindow(QMainWindow):
       allEntropy.write(source1)
       allEntropy.write(source2.getvalue())
       allEntropy.write(source3)
-      return SecureBinaryData(HMAC256(b'Armory Entropy', allEntropy.getvalue()))
+      return HMAC256(b'Armory Entropy', allEntropy.getvalue())
 
 
 
@@ -2735,7 +2735,6 @@ class ArmoryMainWindow(QMainWindow):
       self.walletIDSet.add(newWltID)
       self.walletIDList.append(newWltID)
       
-      self.loadCppWallets()
       newWallet.registerWallet(walletIsNew)
       
       showByDefault = (determineWalletType(newWallet, self)[0] != WLTTYPES.WatchOnly)

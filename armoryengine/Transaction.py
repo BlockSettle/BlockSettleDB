@@ -2767,7 +2767,6 @@ class UnsignedTransaction(AsciiSerializable):
          prevHash  = binary_to_hex(ustxi.outpoint.txHash, BIGENDIAN)[:8]
          prevIdx   = ustxi.outpoint.txOutIndex
          typeName  = CPP_TXOUT_SCRIPT_NAMES[ustxi.scriptType]
-         usesP2SH  = '*' if len(ustxi.p2shScript)>0 else ' '
          value     = coin2str(ustxi.value).lstrip().rjust(12)
          M,N       = ustxi.sigsNeeded, ustxi.keysListed
          contrib   = '(%s)'%ustxi.contribID if ustxi.contribID else ''
@@ -2775,7 +2774,6 @@ class UnsignedTransaction(AsciiSerializable):
 
          printStr  = ' '*2*indent
          printStr += '%(prevHash)s:%(prevIdx)d / ' % locals()
-         printStr += '%(typeName)s%(usesP2SH)s / '  % locals()
          printStr += '(M=%(M)d, N=%(N)d) / '  % locals()
          printStr += '%(value)s / %(contrib)s'  % locals()
          printStr += 'PubSz: ' + pubKeySz

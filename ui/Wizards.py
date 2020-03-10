@@ -165,33 +165,20 @@ class WalletWizard(ArmoryWizard):
    def createNewWalletFromWizard(self):
       entropy = None
       if self.walletCreationPage.isManualEncryption():
-         entropy = SecureBinaryData(
-            int_to_binary(self.manualEntropyPage.pageFrame.getEntropy()))
+         entropy = self.manualEntropyPage.pageFrame.getEntropy()
       else:
          entropy = self.main.getExtraEntropyForKeyGen()
       self.newWallet = PyBtcWallet().createNewWallet(
-         securePassphrase=self.setPassphrasePage.pageFrame.getPassphrase(),
+         passphrase=self.setPassphrasePage.pageFrame.getPassphrase(),
          kdfTargSec=self.walletCreationPage.pageFrame.getKdfSec(),
          kdfMaxMem=self.walletCreationPage.pageFrame.getKdfBytes(),
          shortLabel=self.walletCreationPage.pageFrame.getName(),
          longLabel=self.walletCreationPage.pageFrame.getDescription(),
-         doRegisterWithBDM=False,
-         extraEntropy=entropy,
-      )
-
-      self.newWallet.unlock(securePassphrase=
-               SecureBinaryData(self.setPassphrasePage.pageFrame.getPassphrase()))
-      # We always want to fill the address pool, right away.  
-      fillPoolProgress = DlgProgress(self, self.main, HBar=1, \
-                                     Title=self.tr("Creating Wallet") )
-      fillPoolProgress.exec_(self.newWallet.fillAddressPool, doRegister=False,
-                             Progress=fillPoolProgress.UpdateHBar)
+         extraEntropy=entropy)
 
       # Reopening from file helps make sure everything is correct -- don't
       # let the user use a wallet that triggers errors on reading it
-      wltpath = self.newWallet.walletPath
-      walletFromDisk = PyBtcWallet().readWalletFile(wltpath)
-      self.main.addWalletToApplication(walletFromDisk, walletIsNew=True)
+      self.main.addWalletToApplication(self.newWallet, walletIsNew=True)
    
    def cleanupPage(self, *args, **kwargs):
       if self.hasCWOWPage and self.currentPage() == self.createWOWPage:

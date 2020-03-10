@@ -2,7 +2,7 @@ import sys
 sys.path.append('..')
 from pytest.Tiab import TiabTest
 
-from CppBlockUtils import SecureBinaryData, CryptoECDSA, CryptoAES
+from CppBlockUtils import CryptoECDSA, CryptoAES
 from armoryengine.PyBtcAddress import PyBtcAddress
 from armoryengine.ArmoryUtils import *
 from armoryengine.BinaryUnpacker import BinaryUnpacker

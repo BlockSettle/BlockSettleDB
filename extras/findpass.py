@@ -12,7 +12,6 @@ import os
 
 from armoryengine.PyBtcWallet import PyBtcWallet
 from armoryengine.ArmoryUtils import RightNow
-from CppBlockUtils import SecureBinaryData
 from operator import add, mul
 # Give an upper limit for any method to return
 # if the limit is exceded raise MaxResultsExceeded exception

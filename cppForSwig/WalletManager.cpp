@@ -24,6 +24,46 @@ using namespace std;
 //// WalletManager
 ////
 ////////////////////////////////////////////////////////////////////////////////
+shared_ptr<WalletContainer> WalletManager::addWallet(
+   shared_ptr<AssetWallet> wltPtr)
+{
+   //check we dont have this wallet
+   auto iter = wallets_.find(wltPtr->getID());
+   if (iter != wallets_.end())
+      return iter->second;
+
+   //create wrapper object
+   auto wltContPtr = new WalletContainer(wltPtr->getID());
+   shared_ptr<WalletContainer> wltCont;
+   wltCont.reset(wltContPtr);
+   
+   //set bdvPtr if we have it
+   if (bdvPtr_ != nullptr)
+      wltCont->setBdvPtr(bdvPtr_);
+
+   //set & add to map
+   wltCont->setWalletPtr(wltPtr);
+   wallets_.insert(make_pair(wltPtr->getID(), wltCont));
+
+   //return it
+   return wltCont;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<WalletContainer> WalletManager::createNewWallet(
+   const SecureBinaryData& pass, const SecureBinaryData& controlPass,
+   const SecureBinaryData& extraEntropy, unsigned lookup)
+{
+   auto root = CryptoPRNG::generateRandom(32);
+   if (extraEntropy.getSize() >= 32)
+      root.XOR(extraEntropy);
+
+   auto wallet = AssetWallet_Single::createFromPrivateRoot_Armory135(
+      path_, root, {}, pass, controlPass, lookup);
+   return addWallet(wallet);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void WalletManager::loadWallets(
    const function<SecureBinaryData(const set<BinaryData>&)>& passLbd)
 {
@@ -71,13 +111,7 @@ void WalletManager::loadWallets(
       try
       {
          auto wltPtr = AssetWallet::loadMainWalletFromFile(wltPath, passLbd);
-         
-         auto wltContPtr = new WalletContainer(wltPtr->getID());
-         shared_ptr<WalletContainer> wltCont;
-         wltCont.reset(wltContPtr);
-
-         wltCont->setWalletPtr(wltPtr);
-         wallets_.insert(make_pair(wltPtr->getID(), wltCont));
+         addWallet(wltPtr);
       }
       catch (exception& e)
       {
@@ -103,14 +137,7 @@ void WalletManager::loadWallets(
 
       //missing v3.x version, let's migrate it
       auto wltPtr = a135.migrate(passLbd);
-
-      //insert the migration in the wallet map
-      auto wltContPtr = new WalletContainer(wltPtr->getID());
-      shared_ptr<WalletContainer> wltCont;
-      wltCont.reset(wltContPtr);
-      
-      wltCont->setWalletPtr(wltPtr);
-      wallets_.insert(make_pair(id, wltCont));
+      addWallet(wltPtr);
    }
 }
 

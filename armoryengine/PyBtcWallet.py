@@ -520,189 +520,10 @@ class PyBtcWallet(object):
       return addrStr in self.addrByString
 
    #############################################################################
-   #  THIS WAS CREATED ORIGINALLY TO SUPPORT BITSAFE INTEGRATION INTO ARMORY
-   #  But it's also a good first step into general BIP 32 support
-   def createWalletFromMasterPubKey(self, masterHex, \
-                                          isActuallyNew=True, \
-                                          doRegisterWithBDM=True):
-      # This function eats hex inputs. (Not sure why I chose to do that.)
-      # B/c we have a known starting pt. for keys, use that instead of trying to
-      # index off a chaincode value, as the value could be in the key.
-      p0 = masterHex.index('4104') + 1
-      pubkey = SecureBinaryData(hex_to_binary(masterHex[p0:p0+130]))
-      c0 = masterHex.index('4104') + 66
-      chain = SecureBinaryData(hex_to_binary(masterHex[c0:c0+64]))
+   def createNewWallet(self, passphrase=None, \
+      kdfTargSec=DEFAULT_COMPUTE_TIME_TARGET, kdfMaxMem=DEFAULT_MAXMEM_LIMIT, \
+      shortLabel='', longLabel='', extraEntropy=None):
 
-      # Create the root address object
-      rootAddr = PyBtcAddress().createFromPublicKeyData( pubkey )
-      rootAddr.markAsRootAddr(chain)
-      self.addrMap['ROOT'] = rootAddr
-
-      ekey = self.getChildExtPubFromRoot(0)
-      firstAddr = PyBtcAddress().createFromPublicKeyData(ekey.getPub())
-      firstAddr.chaincode = ekey.getChain()
-      firstAddr.chainIndex = 0
-      first160  = firstAddr.getAddr160()
-
-      # Update wallet object with the new data
-      # NEW IN WALLET VERSION 1.35:  unique ID is now based on
-      # the first chained address: this guarantees that the unique ID
-      # is based not only on the private key, BUT ALSO THE CHAIN CODE
-      self.useEncryption = False
-      self.addrMap[firstAddr.getAddr160()] = firstAddr
-      self.uniqueIDBin = (ADDRBYTE + firstAddr.getAddr160()[:5])[::-1]
-      self.uniqueIDB58 = binary_to_base58(self.uniqueIDBin)
-      self.labelName  = 'BitSafe Demo Wallet'
-      self.labelDescr = 'We\'ll be lucky if this works!'
-      self.lastComputedChainAddr160 = first160
-      self.lastComputedChainIndex  = firstAddr.chainIndex
-      self.highestUsedChainIndex   = firstAddr.chainIndex-1
-      self.wltCreateDate = long(RightNow())
-      self.linearAddr160List = [first160]
-      self.chainIndexMap[firstAddr.chainIndex] = first160
-      self.watchingOnly = True
-
-      # We don't have to worry about atomic file operations when
-      # creating the wallet: so we just do it naively here.
-      newWalletFilePath = os.path.join(ARMORY_HOME_DIR, 'bitsafe_demo_%s.wallet' % self.uniqueIDB58)
-      self.walletPath = newWalletFilePath
-      if not newWalletFilePath:
-         shortName = self.labelName .replace(' ','_')
-         # This was really only needed when we were putting name in filename
-         #for c in ',?;:\'"?/\\=+-|[]{}<>':
-            #shortName = shortName.replace(c,'_')
-         newName = buildWltFileName(self.uniqueIDB58)
-         self.walletPath = os.path.join(ARMORY_HOME_DIR, newName)
-
-      LOGINFO('   New wallet will be written to: %s', self.walletPath)
-      newfile = open(self.walletPath, 'wb')
-      fileData = BinaryPacker()
-
-      # packHeader method writes KDF params and root address
-      headerBytes = self.packHeader(fileData)
-
-      # We make sure we have byte locations of the two addresses, to start
-      self.addrMap[first160].walletByteLoc = headerBytes + 21
-
-      fileData.put(BINARY_CHUNK, '\x00' + first160 + firstAddr.serialize())
-
-
-      # Store the current localtime and blocknumber.  Block number is always 
-      # accurate if available, but time may not be exactly right.  Whenever 
-      # basing anything on time, please assume that it is up to one day off!
-      time0,blk0 = getCurrTimeAndBlock() if isActuallyNew else (0,0)
-
-      # Don't forget to sync the C++ wallet object
-      newfile.write(fileData.getBinaryString())
-      newfile.flush()
-      os.fsync(newfile.fileno())
-      newfile.close()
-
-      walletFileBackup = self.getWalletPath('backup')
-      shutil.copy(self.walletPath, walletFileBackup)
-
-
-      # Let's fill the address pool while we are unlocked
-      # It will get a lot more expensive if we do it on the next unlock
-      self.fillAddressPool(self.addrPoolSize, isActuallyNew=isActuallyNew, doRegister=doRegisterWithBDM)
-
-      return self
-
-
-   #############################################################################
-   def createNewWalletFromPKCC(self, plainPubKey, chaincode, newWalletFilePath=None, \
-                               isActuallyNew=False, doRegisterWithBDM=True, \
-                               skipBackupFile=False):
-      """
-      This method will create a new wallet based on a root public key, chain
-      code and wallet ID.
-      """
-
-      LOGINFO('***Creating watching-only wallet from a public key & chain code')
-
-      # Prep for C++ usage, then create the root address object and first public
-      # address and its Hash160.
-      plainPubKey = SecureBinaryData(plainPubKey)
-      chaincode = SecureBinaryData(chaincode)
-      rootAddr = PyBtcAddress().createFromPublicKeyData(plainPubKey)
-      rootAddr.markAsRootAddr(chaincode)
-      firstAddr = rootAddr.extendAddressChain()
-      first160  = firstAddr.getAddr160()
-
-      # Update wallet object with the new data.
-      # NEW IN WALLET VERSION 1.35: unique ID is now based on the first chained
-      # address. This guarantees that the unique ID is based not only on the
-      # private key, BUT ALSO THE CHAIN CODE.
-      self.useEncryption = False
-      self.watchingOnly = True
-      self.wltCreateDate = long(RightNow())
-
-      self.addrMap['ROOT'] = rootAddr
-      self.addrMap[firstAddr.getAddr160()] = firstAddr
-      self.uniqueIDBin = (ADDRBYTE + firstAddr.getAddr160()[:5])[::-1]
-      self.uniqueIDB58 = binary_to_base58(self.uniqueIDBin)
-      self.labelName  = (self.uniqueIDB58 + ' (Watch)')[:32]
-      self.labelDescr  = (self.uniqueIDB58 + ' (Watching-only copy)')[:256]
-      self.lastComputedChainAddr160 = first160
-      self.lastComputedChainIndex  = firstAddr.chainIndex
-      self.highestUsedChainIndex   = firstAddr.chainIndex-1
-      self.linearAddr160List = [first160]
-      self.chainIndexMap[firstAddr.chainIndex] = first160
-
-      # We don't have to worry about atomic file operations when creating the
-      # wallet, so we just do it here, naively.
-      self.walletPath = newWalletFilePath
-      if not newWalletFilePath:
-         shortName = self.labelName .replace(' ','_')
-         # This was really only needed when we were putting name in filename
-         #for c in ',?;:\'"?/\\=+-|[]{}<>':
-            #shortName = shortName.replace(c,'_')
-         newName = 'armory_%s_WatchOnly.wallet' % self.uniqueIDB58
-         self.walletPath = os.path.join(ARMORY_HOME_DIR, newName)
-
-      # Start writing the wallet.
-      LOGINFO('   New wallet will be written to: %s', self.walletPath)
-      newfile = open(self.walletPath, 'wb')
-      fileData = BinaryPacker()
-
-      # packHeader method writes KDF params and root address
-      headerBytes = self.packHeader(fileData)
-
-      # We make sure we have byte locations of the two addresses, to start
-      self.addrMap[first160].walletByteLoc = headerBytes + 21
-
-      fileData.put(BINARY_CHUNK, '\x00' + first160 + firstAddr.serialize())
-
-      # Store the current localtime and blocknumber. Block number is always 
-      # accurate if available, but time may not be exactly right. Whenever 
-      # basing anything on time, please assume that it is up to one day off!
-      time0,blk0 = getCurrTimeAndBlock() if isActuallyNew else (0,0)
-
-      # Write the actual wallet file and close it. Create a backup if necessary.
-      newfile.write(fileData.getBinaryString())
-      newfile.close()
-
-      if not skipBackupFile:
-         walletFileBackup = self.getWalletPath('backup')
-         shutil.copy(self.walletPath, walletFileBackup)
-
-      # Let's fill the address pool while we are unlocked. It will get a lot
-      # more expensive if we do it on the next unlock.
-      self.fillAddressPool(self.addrPoolSize, isActuallyNew=isActuallyNew, doRegister=doRegisterWithBDM)
-
-      return self
-
-
-   #############################################################################
-   def createNewWallet(self, newWalletFilePath=None, \
-                             plainRootKey=None, chaincode=None, \
-                             withEncrypt=True, IV=None, securePassphrase=None, \
-                             kdfTargSec=DEFAULT_COMPUTE_TIME_TARGET, \
-                             kdfMaxMem=DEFAULT_MAXMEM_LIMIT, \
-                             shortLabel='', longLabel='', isActuallyNew=True, \
-                             doRegisterWithBDM=True, skipBackupFile=False, \
-                             extraEntropy=None, Progress=emptyFunc, \
-                             armoryHomeDir = ARMORY_HOME_DIR):
       """
       This method will create a new wallet, using as much customizability
       as you want.  You can enable encryption, and set the target params
@@ -729,128 +550,17 @@ class PyBtcWallet(object):
       DO NOT CALL THIS FROM BDM METHOD.  IT MAY DEADLOCK.
       """
 
-      if securePassphrase:
-         securePassphrase = SecureBinaryData(securePassphrase)
-      if plainRootKey:
-         plainRootKey = SecureBinaryData(plainRootKey)
-      if chaincode:
-         chaincode = SecureBinaryData(chaincode)
-
-      if withEncrypt and not securePassphrase:
-         raise EncryptionError('Cannot create encrypted wallet without passphrase')
-
       LOGINFO('***Creating new deterministic wallet')
 
-      # Set up the KDF
-      if not withEncrypt:
-         self.kdfKey = None
-      else:
-         LOGINFO('(with encryption)')
-         self.kdf = KdfRomix()
-         LOGINFO('Target (time,RAM)=(%0.3f,%d)', kdfTargSec, kdfMaxMem)
-         (mem,niter,salt) = self.computeSystemSpecificKdfParams( \
-                                                kdfTargSec, kdfMaxMem)
-         self.kdf.usePrecomputedKdfParams(mem, niter, salt)
-         self.kdfKey = self.kdf.DeriveKey(securePassphrase)
+      #create cpp wallet
+      walletProto = TheBridge.createWallet(\
+         self.addrPoolSize, \
+         passphrase, "", \
+         #kdfTargSec, kdfMaxMem, \
+         shortLabel, longLabel,
+         extraEntropy)
 
-      if not plainRootKey:
-         # TODO: We should find a source for injecting extra entropy
-         #       At least, Crypto++ grabs from a few different sources, itself
-         if not extraEntropy:
-            extraEntropy = SecureBinaryData(0)
-         plainRootKey = SecureBinaryData().GenerateRandom(32, extraEntropy)
-
-      if not chaincode:
-         #chaincode = SecureBinaryData().GenerateRandom(32)
-         # For wallet 1.35a, derive chaincode deterministically from root key
-         # The root key already has 256 bits of entropy which is excessive,
-         # anyway.  And my original reason for having the chaincode random is 
-         # no longer valid.
-         chaincode = DeriveChaincodeFromRootKey(plainRootKey)
-            
-                             
-
-      # Create the root address object
-      rootAddr = PyBtcAddress().createFromPlainKeyData( \
-                                             plainRootKey, \
-                                             IV16=IV, \
-                                             willBeEncr=withEncrypt, \
-                                             generateIVIfNecessary=True)
-      rootAddr.markAsRootAddr(chaincode)
-
-      # This does nothing if no encryption
-      rootAddr.lock(self.kdfKey)
-      rootAddr.unlock(self.kdfKey)
-
-      firstAddr = rootAddr.extendAddressChain(self.kdfKey)
-      first160  = firstAddr.getAddr160()
-
-      # Update wallet object with the new data
-      # NEW IN WALLET VERSION 1.35:  unique ID is now based on
-      # the first chained address: this guarantees that the unique ID
-      # is based not only on the private key, BUT ALSO THE CHAIN CODE
-      self.useEncryption = withEncrypt
-      self.addrMap['ROOT'] = rootAddr
-      self.addrMap[firstAddr.getAddr160()] = firstAddr
-      self.uniqueIDBin = (ADDRBYTE + firstAddr.getAddr160()[:5])[::-1]
-      self.uniqueIDB58 = binary_to_base58(self.uniqueIDBin)
-      self.labelName  = shortLabel[:32]   # aka "Wallet Name"
-      self.labelDescr  = longLabel[:256]  # aka "Description"
-      self.lastComputedChainAddr160 = first160
-      self.lastComputedChainIndex  = firstAddr.chainIndex
-      self.highestUsedChainIndex   = firstAddr.chainIndex-1
-      self.wltCreateDate = long(RightNow())
-      self.linearAddr160List = [first160]
-      self.chainIndexMap[firstAddr.chainIndex] = first160
-
-      # We don't have to worry about atomic file operations when
-      # creating the wallet: so we just do it naively here.
-      self.walletPath = newWalletFilePath
-      if not newWalletFilePath:
-         shortName = self.labelName .replace(' ','_')
-         # This was really only needed when we were putting name in filename
-         #for c in ',?;:\'"?/\\=+-|[]{}<>':
-            #shortName = shortName.replace(c,'_')
-         newName = buildWltFileName(self.uniqueIDB58)
-         self.walletPath = os.path.join(armoryHomeDir, newName)
-
-      LOGINFO('   New wallet will be written to: %s', self.walletPath)
-      newfile = open(self.walletPath, 'wb')
-      fileData = BinaryPacker()
-
-      # packHeader method writes KDF params and root address
-      headerBytes = self.packHeader(fileData)
-
-      # We make sure we have byte locations of the two addresses, to start
-      self.addrMap[first160].walletByteLoc = headerBytes + 21
-
-      fileData.put(BINARY_CHUNK, '\x00' + first160 + firstAddr.serialize())
-
-
-      # Store the current localtime and blocknumber.  Block number is always 
-      # accurate if available, but time may not be exactly right.  Whenever 
-      # basing anything on time, please assume that it is up to one day off!
-      time0,blk0 = getCurrTimeAndBlock() if isActuallyNew else (0,0)
-
-      newfile.write(fileData.getBinaryString())
-      newfile.close()
-
-      if not skipBackupFile:
-         walletFileBackup = self.getWalletPath('backup')
-         shutil.copy(self.walletPath, walletFileBackup)
-
-      # Lock/unlock to make sure encrypted keys are computed and written to file
-      if self.useEncryption:
-         self.unlock(secureKdfOutput=self.kdfKey, Progress=Progress)
-
-      # Let's fill the address pool while we are unlocked
-      # It will get a lot more expensive if we do it on the next unlock
-      self.fillAddressPool(self.addrPoolSize, isActuallyNew=isActuallyNew,
-                              Progress=Progress, doRegister=doRegisterWithBDM)
-
-      if self.useEncryption:
-         self.lock()
-         
+      self.loadFromProtobufPayload(walletProto)
       return self
    
    #############################################################################
@@ -2116,6 +1826,10 @@ class PyBtcWallet(object):
 
       TheBridge.extendAddressPool(\
          self.uniqueIDB58, numPool, self.loadFromProtobufPayload)
+
+   #############################################################################
+   def registerWallet(self, isNew):
+      TheBridge.registerWallet(self.uniqueIDB58, isNew)
 
 ###############################################################################
 def getSuffixedPath(walletPath, nameSuffix):

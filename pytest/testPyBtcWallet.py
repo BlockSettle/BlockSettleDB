@@ -11,7 +11,6 @@ import os
 import unittest
 
 from armoryengine.MultiSigUtils import readLockboxesFile
-from CppBlockUtils import SecureBinaryData
 from armoryengine.ArmoryUtils import convertKeyDataToAddress, \
    hash256, binary_to_hex, hex_to_binary, CLI_OPTIONS, \
    WalletLockError, InterruptTestError, MULTISIG_FILE_NAME

@@ -150,6 +150,8 @@ private:
    //AsyncClient::BlockDataViewer setup
    void setupDB(void);
    void registerWallets(void);
+   void registerWallet(const std::string&, bool isNew);
+
    std::unique_ptr<::google::protobuf::Message> getNodeStatus(void);
 
    //balance and counts
@@ -168,6 +170,7 @@ private:
    std::unique_ptr<::google::protobuf::Message> peekChangeAddress(
       const std::string&, unsigned);
    void extendAddressPool(const std::string&, unsigned, unsigned);
+   std::string createWallet(const ::Codec_ClientProto::ClientCommand&);
 
 
    //ledgers

@@ -4,7 +4,6 @@ from armoryengine.PyBtcWallet import (PyBtcWallet, WLT_DATATYPE_KEYDATA, \
 
 import os
 import sys
-from CppBlockUtils import SecureBinaryData
 from armoryengine.ArmoryUtils import (binary_to_base58, RightNow, ADDRBYTE)
 from armoryengine.BinaryPacker import *
 import random

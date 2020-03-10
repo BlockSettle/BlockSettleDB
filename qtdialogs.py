@@ -2494,6 +2494,7 @@ class DlgKeypoolSettings(ArmoryDialog):
          fillAddressPoolProgress.exec_( \
                self.wlt.fillAddressPool, currPool + naddr,
                                         isActuallyNew=False)
+         self.wlt.registerWallet(True)
 
          self.lblAddrCompVal.setText('<font color="%s">%d</font>' % \
                         (cred, self.wlt.lastComputedChainIndex))

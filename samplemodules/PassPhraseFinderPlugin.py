@@ -6,7 +6,6 @@ from PyQt4.Qt import QPushButton, SIGNAL, QTextEdit, QScrollArea, QTabWidget, \
    QDialogButtonBox, QGridLayout, QLabel, QComboBox, QMenu, QCursor, QListWidget,\
    QListWidgetItem, QMessageBox, QString
 
-from CppBlockUtils import SecureBinaryData
 from armoryengine.ArmoryUtils import RightNow, script_to_addrStr, \
    addrStr_to_hash160, enum, isASCII, PyBackgroundThread
 from armoryengine.PyBtcWallet import PyBtcWallet
