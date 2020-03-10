@@ -1,3 +1,5 @@
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 ##############################################################################
 #                                                                            #
 # Copyright (C) 2016-17, goatpig                                             #
@@ -139,7 +141,7 @@ class AddressLabelFrame(object):
          
       def setType(self, _type):
          self.addrType = _type
-         self.typeLabel.setText(self.main.tr("<u><font color='blue'>%1</font></u>").arg(_type))
+         self.typeLabel.setText(self.main.tr("<u><font color='blue'>%s</font></u>" % _type))
          
       def getType(self):
          return self.addrType

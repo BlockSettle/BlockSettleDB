@@ -387,7 +387,8 @@ except that:
 * popen2 closes all filedescriptors by default, but you have to specify
   close_fds=True with subprocess.Popen.
 """
-from __future__ import print_function
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 
 import sys
 mswindows = (sys.platform == "win32")

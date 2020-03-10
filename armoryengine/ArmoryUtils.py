@@ -2286,8 +2286,8 @@ def unixTimeToFormatStr(unixTime, formatStr=DEFAULT_DATE_FORMAT):
    pleasant, human-readable format
    """
    dtobj = datetime.fromtimestamp(unixTime)
-   dtstr = u'' + dtobj.strftime(formatStr).decode('utf-8')
-   dtstr = dtstr.encode('ascii', errors='replace')
+   dtstr = '' + dtobj.strftime(formatStr)
+   dtstr = dtstr
    return dtstr[:-2] + dtstr[-2:].lower()
 
 def secondsToHumanTime(nSec):
@@ -3630,7 +3630,7 @@ class SettingsFile(object):
          try:
             # Skip anything that throws an exception
             valStr = ''
-            if   isinstance(val, str) or isinstance(val, unicode):
+            if   isinstance(val, str):
                valStr = val
             elif isinstance(val, int) or \
                  isinstance(val, float) or \
@@ -3642,7 +3642,7 @@ class SettingsFile(object):
             f.write(key.ljust(36).encode('utf-8'))
             f.write(b' | ')
             if valStr:
-               f.write(valStr)
+               f.write(valStr.encode('utf-8'))
             f.write(b'\n')
          except:
             LOGEXCEPT('Invalid entry in SettingsFile... skipping')
@@ -3670,9 +3670,9 @@ class SettingsFile(object):
          elif b:
             return float(v)
          else:
-            if v.lower()=='true':
+            if v.lower()==b'true':
                return True
-            elif v.lower()=='false':
+            elif v.lower()==b'false':
                return False
             else:
                return toUnicode(v)

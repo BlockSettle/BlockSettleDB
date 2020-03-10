@@ -1740,9 +1740,9 @@ class ArmoryMainWindow(QMainWindow):
    def getPreferredDateFormat(self):
       # Treat the format as "binary" to make sure any special symbols don't
       # interfere with the SettingsFile symbols
-      globalDefault = binary_to_hex(DEFAULT_DATE_FORMAT)
+      globalDefault = DEFAULT_DATE_FORMAT
       fmt = self.getSettingOrSetDefault('DateFormat', globalDefault)
-      return hex_to_binary(str(fmt))  # short hex strings could look like int()
+      return str(fmt)  # short hex strings could look like int()
 
    #############################################################################
    def setPreferredDateFormat(self, fmtStr):
@@ -1756,7 +1756,7 @@ class ArmoryMainWindow(QMainWindow):
             'it using only the strftime symbols shown in the help text.'), QMessageBox.Ok)
          return False
 
-      self.writeSetting('DateFormat', binary_to_hex(fmtStr))
+      self.writeSetting('DateFormat', fmtStr)
       return True
 
    #############################################################################

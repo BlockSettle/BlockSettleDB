@@ -1,4 +1,6 @@
 # -*- coding: UTF-8 -*-
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 
 ################################################################################
 #                                                                              #
@@ -8655,10 +8657,10 @@ class DlgSettings(ArmoryDialog):
 
       lblDescrHome = QRichLabel(self.tr('Bitcoin Home Dir:'))
       lblDefaultHome = QRichLabel(self.tr('Leave blank to use default datadir '
-                                  '(%1)').arg(BTC_HOME_DIR), size=2)
+                                  '(%s)' % BTC_HOME_DIR), size=2)
       lblDescrDbdir = QRichLabel(self.tr('Armory Database Dir:'))
       lblDefaultDbdir = QRichLabel(self.tr('Leave blank to use default datadir '
-                                  '(%1)').arg(ARMORY_DB_DIR), size=2)
+                                  '(%s)' % ARMORY_DB_DIR), size=2)
 
       self.btnSetHome = createDirectorySelectButton(self, self.edtSatoshiHomePath)
       self.btnSetDbdir = createDirectorySelectButton(self, self.edtArmoryDbdir)
@@ -8776,8 +8778,8 @@ class DlgSettings(ArmoryDialog):
                           'mouseover text of the "(?)" icon shows '
                           'the most commonly used codes/symbols.  '
                           'The text next to it shows how '
-                          '"%1" would be shown with the '
-                          'specified format.').arg(exampleStr))
+                          '"%s" would be shown with the '
+                          'specified format.' % exampleStr))
       lblDateFmt.setAlignment(Qt.AlignTop)
       fmt = self.main.getPreferredDateFormat()
       ttipStr = self.tr('Use any of the following symbols:<br>')
@@ -9015,8 +9017,8 @@ class DlgSettings(ArmoryDialog):
       self.lblSlider = QLabel()
       
       def getLblSliderText():
-         blocksToConfirm = unicode(self.sliderAutoFee.value())
-         return self.tr("Blocks to confirm: %1").arg(blocksToConfirm)
+         blocksToConfirm = str(self.sliderAutoFee.value())
+         return self.tr("Blocks to confirm: %s" % blocksToConfirm)
       
       def setLblSliderText():
          self.lblSlider.setText(getLblSliderText())
@@ -9189,7 +9191,7 @@ class DlgSettings(ArmoryDialog):
             self.main.settings.delete('SatoshiExe')
 
       # Check path is supplied for bitcoind home directory
-      pathHome = unicode(self.edtSatoshiHomePath.text()).strip()
+      pathHome = str(self.edtSatoshiHomePath.text()).strip()
       if len(pathHome) > 0:
          if not os.path.exists(pathHome):
             QMessageBox.warning(self, self.tr('Invalid Path'), self.tr(
@@ -9204,7 +9206,7 @@ class DlgSettings(ArmoryDialog):
          self.main.settings.delete('SatoshiDatadir')
 
       # Check path is supplied for armory db directory
-      pathDbdir = unicode(self.edtArmoryDbdir.text()).strip()
+      pathDbdir = str(self.edtArmoryDbdir.text()).strip()
       if len(pathDbdir) > 0:
          if not os.path.exists(pathDbdir):
             QMessageBox.warning(self, self.tr('Invalid Path'), self.tr(

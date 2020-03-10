@@ -1,4 +1,5 @@
-from __future__ import print_function
+from __future__ import (absolute_import, division,
+                        print_function, unicode_literals)
 ################################################################################
 #                                                                              #
 # Copyright (C) 2011-2015, Armory Technologies, Inc.                           #
@@ -156,9 +157,9 @@ def htmlColor(name):
    try:
       qcolor = Colors.__dict__[name]
       r,g,b = qcolor.red(), qcolor.green(), qcolor.blue()
-      rstr = hex(r)[2:].rjust(2, '0')
-      gstr = hex(g)[2:].rjust(2, '0')
-      bstr = hex(b)[2:].rjust(2, '0')
+      rstr = hex(r)[2:].encode('ascii').rjust(2, b'0').decode('ascii')
+      gstr = hex(g)[2:].encode('ascii').rjust(2, b'0').decode('ascii')
+      bstr = hex(b)[2:].encode('ascii').rjust(2, b'0').decode('ascii')
       return '#%s%s%s' % (rstr, gstr, bstr)
    except:
       raise InvalidColor('Invalid color: ' + name)
