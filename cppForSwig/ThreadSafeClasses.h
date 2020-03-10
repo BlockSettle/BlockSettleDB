@@ -396,6 +396,8 @@ private:
 private:
    void wait_on_data(void)
    {
+      std::unique_lock<std::mutex> lock(condVarMutex_);
+
 		auto completed = completed_.load(std::memory_order_relaxed);
 		if (completed)
 		{
@@ -405,7 +407,6 @@ private:
 				throw StopBlockingLoop();
 		}
 
-      std::unique_lock<std::mutex> lock(condVarMutex_);
       if (flag_ > 0)
          return;
 
@@ -488,6 +489,7 @@ public:
 
    void terminate(std::exception_ptr exceptptr = nullptr)
    {
+      std::unique_lock<std::mutex> lock(condVarMutex_);
 		if (exceptptr == nullptr)
 			exceptptr = std::make_exception_ptr(StopBlockingLoop());
 
@@ -509,7 +511,7 @@ public:
    }
 
    void completed(std::exception_ptr exceptptr = nullptr)
-   {
+   {      
 		if (exceptptr == nullptr)
 			exceptptr = std::make_exception_ptr(StopBlockingLoop());
 
