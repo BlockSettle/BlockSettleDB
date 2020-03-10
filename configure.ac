@@ -219,7 +219,7 @@ AC_PATH_PROG([PROTOC], [protoc], [])
 AS_IF([test x"$PROTOC" = x],
   [AC_MSG_ERROR([cannot find protoc (the Protocol Buffers compiler)])])
 
-if test x$use_pkgconfig = xyes -a test x$with_own_lws = xno; then
+if test x$use_pkgconfig$with_own_lws = xyesno; then
     PKG_CHECK_MODULES_STATIC([WEBSOCKETS], [libwebsockets_static >= 3.0.1],,[AC_MSG_ERROR(libwebsockets_static >= 3.0.1 not found.)])
     AC_MSG_CHECKING([libwebsockets lib path])
     PKG_CHECK_VAR([WEBSOCKETS_LIBDIR], [libwebsockets_static], [libdir])
