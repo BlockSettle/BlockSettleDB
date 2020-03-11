@@ -136,6 +136,9 @@ void BlockDataViewer::registerWithDB(BinaryData magic_word)
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::unregisterFromDB()
 {
+   if (sock_ == nullptr)
+      return;
+
    if (sock_->type() == SocketWS)
    {
       auto sockws = dynamic_pointer_cast<WebSocketClient>(sock_);
