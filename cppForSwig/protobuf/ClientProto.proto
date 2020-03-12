@@ -9,6 +9,7 @@ enum Methods
     setupDB = 10;
     goOnline = 11;
     registerWallets = 12;
+    registerWallet = 13;
     
     loadWallets = 20;
     getNodeStatus = 21;
@@ -31,6 +32,7 @@ enum Methods
     peekChangeAddress = 82;
     getHighestUsedIndex = 83;
     extendAddressPool = 84;
+    createWallet = 85;
 
     generateRandomHex = 90;
     getTxInScriptType = 91;
@@ -284,4 +286,17 @@ message BridgeInputSignedState
         required bytes pubKey = 1;
         required bool hasSig = 2;
     }
+}
+
+message BridgeCreateWalletStruct
+{
+    required uint32 lookup = 1;
+
+    optional string passphrase = 10;
+    optional string controlPassphrase = 11;
+
+    optional bytes extraEntropy = 20;
+
+    optional string label = 30;
+    optional string description = 31;
 }

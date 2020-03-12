@@ -344,9 +344,6 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
       Tx txNew(tx.first);
 
       //skip if we've seen this hash before
-      if (!seenHashes_.insert(txNew.getThisHash()).second && !stage)
-         return;
-
       obj->rawTx_ = tx.first;
       obj->hash_ = txNew.getThisHash();
       obj->order_ = counter_.fetch_add(1, memory_order_relaxed);
@@ -397,6 +394,9 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
       auto objPair = make_pair(obj->hash_.getRef(), move(obj));
       auto insertIter = mempool_.insert(move(objPair));
 
+      if (!seenHashes_.insert(txNew.getThisHash()).second)
+         continue;
+
       //add to inv vector
       InvEntry ie;
       ie.invtype_ = Inv_Msg_Witness_Tx;
@@ -419,6 +419,9 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
    if (stage)
       return;
 
+   if (invVec.empty())
+      return;
+      
    processInvTx(invVec);
 }
 
@@ -485,9 +488,13 @@ uint64_t NodeUnitTest::getFeeForTx(const Tx& tx) const
 ////////////////////////////////////////////////////////////////////////////////
 void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
 {
+   //need access to the db to check zc validity
+   if (iface_ == nullptr)
+      throw runtime_error("uninitialized lmdb_wrapper ptr");
+
    unique_lock<mutex> lock(sendMessageMutex_);
 
-   //mock the bitcoin node behavior to these sendMessage payloads
+   //mock the bitcoin node response to these sendMessage payloads
    switch (payload->type())
    {
    case Payload_inv:
@@ -542,7 +549,6 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
             obj->hash_ = hashBd;
             obj->order_ = counter_.fetch_add(1, memory_order_relaxed);
             
-            //TODO: tie this with zc delay and staging
             unsigned delay = 0;
             if (!zcDelays_.empty())
             {
@@ -560,9 +566,48 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
                   break;
             }
 
-            //add to utxo set
-            set<BinaryData> replacedHashes;
             Tx tx(obj->rawTx_);
+
+            //check outpoints are valid & spendable
+            for (unsigned i=0; i<tx.getNumTxIn(); i++)
+            {
+               auto txin = tx.getTxInCopy(i);
+               auto outpoint = txin.getOutPoint();
+
+               //does this outpoint exist?
+               auto zcIter = mempool_.find(outpoint.getTxHashRef());
+               if (zcIter != mempool_.end())
+               {
+                  //points to a zc, keep going
+                  continue;
+               }
+
+               auto&& dbKey = iface_->getDBKeyForHash(outpoint.getTxHash());
+               if (dbKey.getSize() == 0)
+               {
+                  //there is no tx with this hash, outpoint is invalid
+                  return;
+               }
+
+               //check spentness for this outpoint
+               StoredTxOut stxo;
+               BinaryRefReader keyReader(dbKey);
+               uint32_t blockid; uint8_t dup;
+               DBUtils::readBlkDataKeyNoPrefix(keyReader,
+                  blockid, dup, stxo.txIndex_);
+
+               auto headerPtr = blockchain_->getHeaderById(blockid);
+               stxo.blockHeight_ = headerPtr->getBlockHeight();
+               stxo.duplicateID_ = headerPtr->getDuplicateID();
+               stxo.txOutIndex_ = outpoint.getTxOutIndex();
+
+               iface_->getSpentness(stxo);
+               if (stxo.isSpent())
+                  return;
+            }
+
+            //check for RBFs & add to utxo set
+            set<BinaryData> replacedHashes;
             for (unsigned i=0; i<tx.getNumTxIn(); i++)
             {
                auto txin = tx.getTxInCopy(i);
@@ -598,13 +643,14 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
                Tx replaceTx(mempoolObj->rawTx_);
                if (!replaceTx.isRBF())
                {
-                  //replacement failure, deal with that
-                  throw runtime_error("first tx isn't rbf");
+                  //replaced tx isn't RBF
+                  return;
                }
 
                if (!tx.isRBF())
                {
-                  throw runtime_error("replacing tx isn't rbf");
+                  //replacing tx isn't RBF
+                  return;
                }
 
                //unit test shortcut: replace if the new tx fee is > 1 btc
@@ -777,15 +823,75 @@ int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx)
    if (iface == nullptr)
       throw runtime_error("null iface ptr");
 
+   
+
    Tx tx(rawTx);
    auto&& dbKey = iface->getDBKeyForHash(tx.getThisHash());
    if (dbKey.getSize() == 6)
       return (int)ArmoryErrorCodes::ZcBroadcast_AlreadyInChain;
+
+   //check zc outpoints are valid and spendable
+   auto nodeUT = dynamic_pointer_cast<NodeUnitTest>(primaryNode_);
+   if (nodeUT == nullptr)
+      throw runtime_error("invalid node ptr");
+
+   //check this zc isn't already in the node's mempool
+   {
+      auto mempoolIter = nodeUT->mempool_.find(tx.getThisHash());
+      if (mempoolIter != nodeUT->mempool_.end())
+         return (int)ArmoryErrorCodes::Success;
+   }
+
+   for (unsigned i=0; i<tx.getNumTxIn(); i++)
+   {
+      auto&& txin = tx.getTxInCopy(i);
+      auto&& outpoint = txin.getOutPoint();
+
+      //is another zc spending this outpoint?
+      auto iter = nodeUT->spenderSet_.find(outpoint.getTxHash());
+      if (iter != nodeUT->spenderSet_.end())
+      {
+         //cut corners here: skipping RBF checks
+         return (int)ArmoryErrorCodes::ZcBroadcast_Error;
+      }
+
+      //is this outpoint pointing to a zc?
+      auto mempoolIter = nodeUT->mempool_.find(outpoint.getTxHashRef());
+      if (mempoolIter != nodeUT->mempool_.end())
+      {
+         //spends from a zc, keep going
+         continue;
+      }
+
+      //is it in the chain?
+      auto&& dbKey = iface->getDBKeyForHash(outpoint.getTxHash());
+      if (dbKey.getSize() == 0)
+      {
+         //outpoint does not exist
+         return (int)ArmoryErrorCodes::ZcBroadcast_Error;        
+      }
+
+      //is this outpoint spent?
+      StoredTxOut stxo;
+      BinaryRefReader keyReader(dbKey);
+      uint32_t blockid; uint8_t dup;
+      DBUtils::readBlkDataKeyNoPrefix(keyReader,
+         blockid, dup, stxo.txIndex_);
+
+      auto headerPtr = nodeUT->blockchain_->getHeaderById(blockid);
+      stxo.blockHeight_ = headerPtr->getBlockHeight();
+      stxo.duplicateID_ = headerPtr->getDuplicateID();
+      stxo.txOutIndex_ = outpoint.getTxOutIndex();
+
+      iface->getSpentness(stxo);
+      if (stxo.isSpent())
+         return (int)ArmoryErrorCodes::ZcBroadcast_Error;        
+   }
 
    vector<pair<BinaryData, unsigned>> pushVec;
    pushVec.push_back(make_pair(BinaryData(rawTx), 0));
    primaryNode_->pushZC(pushVec, false);
    watcherNode_->pushZC(pushVec, false);
    
-   return 0; //success
+   return (int)ArmoryErrorCodes::Success;
 }
