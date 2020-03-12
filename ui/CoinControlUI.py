@@ -128,7 +128,7 @@ class CoinControlDlg(ArmoryDialog):
    #############################################################################
    def saveGeometrySettings(self):
       if self.isVisible() == True:
-         self.main.writeSetting('ccDlgGeometry', str(self.saveGeometry().toHex()))
+         self.main.writeSetting('ccDlgGeometry', self.saveGeometry().toHex())
          self.main.writeSetting('ccDlgAddrCols', saveTableView(self.ccView))  
    
    #############################################################################   
@@ -179,7 +179,7 @@ class RBFDlg(ArmoryDialog):
       
    #############################################################################
    def saveGeometrySettings(self):
-      self.main.writeSetting('rbfDlgGeometry', str(self.saveGeometry().toHex()))
+      self.main.writeSetting('rbfDlgGeometry', self.saveGeometry().toHex())
       self.main.writeSetting('rbfDlgAddrCols', saveTableView(self.rbfView))  
    
    #############################################################################   

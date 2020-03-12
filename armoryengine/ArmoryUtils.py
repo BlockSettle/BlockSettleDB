@@ -30,6 +30,7 @@ import multiprocessing
 import optparse
 import os
 import platform
+from PyQt4.QtCore import QByteArray
 import random
 import signal
 import smtplib
@@ -889,15 +890,15 @@ def chopLogFile(filename, size):
       print('Log file doesn\'t exist [yet]')
       return
 
-   logFile = open(filename, 'r')
+   logFile = open(filename, 'rb')
    logFile.seek(0,2) # move the cursor to the end of the file
    currentSize = logFile.tell()
    if currentSize > size:
       # this makes sure we don't get stuck reading an entire file
       # that is bigger than the available memory.
       # Also have to avoid cutting off the first line if truncating the file.
-      if currentSize > size+MEGABYTE:
-         logFile.seek(-(size+MEGABYTE), 2)
+      if currentSize > int(size)+int(MEGABYTE):
+         logFile.seek(-(int(size)+int(MEGABYTE)), 2)
       else:
          logFile.seek(0,0)
       logLines = logFile.readlines()
@@ -910,7 +911,7 @@ def chopLogFile(filename, size):
          if nBytes>size:
             break
 
-      logFile = open(filename, 'w')
+      logFile = open(filename, 'wb')
       for line in logLines[-nLines:]:
          logFile.write(line)
       logFile.close()
@@ -1212,11 +1213,11 @@ def GetSystemDetails():
 
       stat = MEMORYSTATUSEX()
       ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))
-      out.Memory = stat.ullTotalPhys/1024.
+      out.Memory = stat.ullTotalPhys//1024.
       out.CpuStr = platform.processor()
    elif OS_MACOSX:
       memsizeStr = subprocess_check_output('sysctl hw.memsize', shell=True)
-      out.Memory = int(memsizeStr.split(b": ")[1]) / 1024
+      out.Memory = int(memsizeStr.split(b": ")[1]) // 1024
       out.CpuStr = subprocess_check_output('sysctl -n machdep.cpu.brand_string', shell=True).decode('utf-8')
    else:
       out.CpuStr = 'Unknown'
@@ -1227,7 +1228,7 @@ def GetSystemDetails():
       out.IsX64 = platform.machine().lower() == 'amd64'
    else:
       out.IsX64 = platform.machine().lower() == 'x86_64'
-   out.Memory = out.Memory / (1024*1024.)
+   out.Memory = out.Memory // (1024*1024.)
 
    def getHddSize(adir):
       if OS_WINDOWS:
@@ -1239,8 +1240,8 @@ def GetSystemDetails():
       else:
          s = os.statvfs(adir)
          return s.f_bavail * s.f_frsize
-   out.HddAvailA = getHddSize(ARMORY_HOME_DIR) / (1024**3)
-   out.HddAvailB = getHddSize(BTC_HOME_DIR)    / (1024**3)
+   out.HddAvailA = getHddSize(ARMORY_HOME_DIR) // (1024**3)
+   out.HddAvailB = getHddSize(BTC_HOME_DIR)    // (1024**3)
    return out
 
 SystemSpecs = None
@@ -1718,14 +1719,17 @@ def toBytes(theStr, theEncoding=DEFAULT_ENCODING):
    elif isinstance(theStr, bytes):
       return theStr
    else:
-      raise Exception('toBytes() not been defined for input: %s', str(type(theStr)))
+      try:
+         return theStr.encode(theEncoding)
+      except:
+         raise Exception('toBytes() not been defined for input: %s', str(type(theStr)))
 
 
 def toUnicode(theStr, theEncoding=DEFAULT_ENCODING):
    if isinstance(theStr, str):
       return theStr
    elif isinstance(theStr, bytes):
-      return str(theStr, theEncoding)
+      return theStr.decode(theEncoding)
    else:
       try:
          return str(theStr)
@@ -3633,12 +3637,16 @@ class SettingsFile(object):
             if   isinstance(val, str):
                valStr = val
             elif isinstance(val, int) or \
-                 isinstance(val, float) or \
-                 isinstance(val, long):
+                 isinstance(val, float):
                valStr = str(val)
             elif isinstance(val, list) or \
                  isinstance(val, tuple):
                valStr = ' $  '.join([str(v) for v in val])
+            elif isinstance(val, QByteArray) and \
+                 sys.version_info >= (3,0):
+               valStr = str(val.data(), encoding='utf-8')
+            else:
+               valStr = str(val)
             f.write(key.ljust(36).encode('utf-8'))
             f.write(b' | ')
             if valStr:

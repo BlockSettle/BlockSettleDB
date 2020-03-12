@@ -13,12 +13,16 @@
 ##############################################################################
 from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
+import sip
+sip.setapi('QString', 2)
+sip.setapi('QVariant', 1)
 import gettext
 
 
 from copy import deepcopy
 from datetime import datetime
 from io import BytesIO
+from binascii import hexlify, unhexlify
 import hashlib
 import logging
 import math
@@ -847,7 +851,7 @@ class ArmoryMainWindow(QMainWindow):
       # loads the python files as raw chunks of text so we can
       # check hashes and signatures
       modMap = getModuleListNoZip(moduleDir)
-      for moduleName,infoMap in modMap.iteritems():
+      for moduleName,infoMap in modMap.items():
          module = dynamicImportNoZip(moduleDir, moduleName, globals())
          plugObj = module.PluginObject(self)
 
@@ -917,7 +921,7 @@ class ArmoryMainWindow(QMainWindow):
          # loads the python files as raw chunks of text so we can
          # check hashes and signatures
          modMap = getModuleList(modulesZipDirPath)
-         for moduleName,infoMap in modMap.iteritems():
+         for moduleName,infoMap in modMap.items():
             moduleZipPath = os.path.join(modulesZipDirPath, infoMap[MODULE_PATH_KEY])
             if  infoMap[MODULE_ZIP_STATUS_KEY] == MODULE_ZIP_STATUS.Invalid:
                reply = QMessageBox.warning(self, self.tr("Invalid Module"), self.tr(
@@ -1740,9 +1744,9 @@ class ArmoryMainWindow(QMainWindow):
    def getPreferredDateFormat(self):
       # Treat the format as "binary" to make sure any special symbols don't
       # interfere with the SettingsFile symbols
-      globalDefault = DEFAULT_DATE_FORMAT
+      globalDefault = hexlify(DEFAULT_DATE_FORMAT.encode('ascii')).decode('ascii')
       fmt = self.getSettingOrSetDefault('DateFormat', globalDefault)
-      return str(fmt)  # short hex strings could look like int()
+      return unhexlify(fmt).decode('utf-8')  # short hex strings could look like int()
 
    #############################################################################
    def setPreferredDateFormat(self, fmtStr):
@@ -1756,7 +1760,7 @@ class ArmoryMainWindow(QMainWindow):
             'it using only the strftime symbols shown in the help text.'), QMessageBox.Ok)
          return False
 
-      self.writeSetting('DateFormat', fmtStr)
+      self.writeSetting('DateFormat', hexlify(fmtStr.encode('utf-8')).decode('ascii'))
       return True
 
    #############################################################################
@@ -1917,7 +1921,7 @@ class ArmoryMainWindow(QMainWindow):
 
       # If the URI contains "req-" strings we don't recognize, throw error
       recognized = ['address','version','amount','label','message']
-      for key,value in uriDict.iteritems():
+      for key,value in uriDict.items():
          if key.startswith('req-') and not key[4:] in recognized:
             if click:
                QMessageBox.warning(self, self.tr('Unsupported URI'), self.tr('The "bitcoin:" link '
@@ -2069,7 +2073,7 @@ class ArmoryMainWindow(QMainWindow):
                continue
 
       LOGINFO('Number of wallets read in: %d', len(self.walletMap))
-      for wltID, wlt in self.walletMap.iteritems():
+      for wltID, wlt in self.walletMap.items():
          dispStr  = ('   Wallet (%s):' % wlt.uniqueIDB58).ljust(25)
          dispStr +=  '"'+wlt.labelName.ljust(32)+'"   '
          dispStr +=  '(Encrypted)' if wlt.useEncryption else '(No Encryption)'
@@ -2323,14 +2327,14 @@ class ArmoryMainWindow(QMainWindow):
 
    #############################################################################
    def getWalletForAddr160(self, addr160):
-      for wltID, wlt in self.walletMap.iteritems():
+      for wltID, wlt in self.walletMap.items():
          if wlt.hasAddr160(addr160) is not None:
             return wltID
       return ''
 
    #############################################################################
    def getWalletForAddressString(self, scrAddr):
-      for wltID, wlt in self.walletMap.iteritems():
+      for wltID, wlt in self.walletMap.items():
          if wlt.hasAddrString(scrAddr):
             return wltID
       return ''
@@ -2700,7 +2704,7 @@ class ArmoryMainWindow(QMainWindow):
       else:
 
          appendedComments = []
-         for wltID,wlt in self.walletMap.iteritems():
+         for wltID,wlt in self.walletMap.items():
             cmt = wlt.getAddrCommentIfAvail(txHash)
             if len(cmt)>0:
                appendedComments.append(cmt)
@@ -5356,7 +5360,7 @@ class ArmoryMainWindow(QMainWindow):
       try:
          # Save the main window geometry in the settings file
          try:
-            self.writeSetting('MainGeometry',   str(self.saveGeometry().toHex()))
+            self.writeSetting('MainGeometry',   self.saveGeometry().toHex())
             self.writeSetting('MainWalletCols', saveTableView(self.walletsView))
             self.writeSetting('MainLedgerCols', saveTableView(self.ledgerView))
          except:

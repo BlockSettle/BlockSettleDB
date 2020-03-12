@@ -1832,7 +1832,7 @@ class DlgLockboxManager(ArmoryDialog):
 
    #############################################################################
    def saveGeometrySettings(self):
-      self.main.writeSetting('LockboxGeometry', str(self.saveGeometry().toHex()))
+      self.main.writeSetting('LockboxGeometry', self.saveGeometry().toHex())
       self.main.writeSetting('LockboxAddrCols', saveTableView(self.lboxView))
       self.main.writeSetting('LockboxLedgerCols', saveTableView(self.ledgerView))
 

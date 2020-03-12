@@ -1,8 +1,10 @@
 from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
 #interface with cpp code over os pipe
+import errno
 import socket
 from armoryengine import ClientProto_pb2
+from armoryengine.ArmoryUtils import LOGDEBUG, LOGERROR
 from armoryengine.BDM import TheBDM
 from armoryengine.BinaryPacker import BinaryPacker, UINT32, BINARY_CHUNK, VAR_INT
 from struct import unpack
@@ -56,7 +58,7 @@ class CppBridge(object):
 
       #setup listener
       portNumber = 46122
-      self.listenSocket = socket.socket()
+      self.listenSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       self.listenSocket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR, 1)
       self.listenSocket.bind(("127.0.0.1", portNumber))
       self.listenSocket.listen(0)
@@ -99,7 +101,7 @@ class CppBridge(object):
 
 
       #send over the wire
-      self.clientSocket.send(bp.getBinaryString())
+      self.clientSocket.sendall(bp.getBinaryString())
 
       #return future to caller
       self.rwLock.release()
@@ -111,36 +113,46 @@ class CppBridge(object):
    def readBridgeSocket(self):
       while self.run is True:
 
+         response = bytearray()
+
          #wait for data on the socket
-         array = self.clientSocket.recv(4)
-         if len(array) == 0:
+         response += self.clientSocket.recv(4096)
+         if len(response) < 4:
             break
 
          #grab & check size header
-         packetLen = unpack('<I', array)[0]
+         packetLen = unpack('<I', response[:4])[0]
          if packetLen < 4:
             continue
 
+         self.clientSocket.setblocking(0)
          #grab full packet
-         response = bytearray()
          while self.run:
-            packet = self.clientSocket.recv(packetLen)
-            response += packet
-            if len(packet) < packetLen:
-               packetLen -= len(packet)
-               continue
-            break
+            try:
+               packet = self.clientSocket.recv(4096)
+               response += packet
+               if len(response) < packetLen + 4:
+                  continue
+               break
+            except socket.error as e:
+               err = e.args[0]
+               if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
+                  LOGDEBUG('No data available from socket.')
+                  continue
+               else:
+                  LOGERROR("Socket error: %s" % str(e))
+                  break
 
          #grab packet id
-         packetId = unpack('<I', response[0:4])[0]
+         packetId = unpack('<I', response[4:8])[0]
          if packetId == CPP_BDM_NOTIF_ID:
-            self.pushNotification(response[4:])
+            self.pushNotification(response[8:])
             continue
          elif packetId == CPP_PROGRESS_NOTIF_ID:
-            self.pushProgressNotification(response[4:])
+            self.pushProgressNotification(response[8:])
             continue
          elif packetId == CPP_PROMPT_USER_ID:
-            self.promptUser(response[4:])
+            self.promptUser(response[8:])
             continue
 
          #lock and look for future object in response dict
@@ -153,14 +165,16 @@ class CppBridge(object):
          replyObj = self.responseDict[packetId]
          del self.responseDict[packetId]
 
+         self.clientSocket.setblocking(1)
+
          #fill the promise & release lock
          self.rwLock.release()
 
          if isinstance(replyObj, PyPromFut):
-            replyObj.setVal(response[4:])
+            replyObj.setVal(response[8:])
 
          elif replyObj != None and replyObj[0] != None:
-            replyObj[0](response[4:], replyObj[1])
+            replyObj[0](response[8:], replyObj[1])
         
    #############################################################################
    def pushNotification(self, data):
