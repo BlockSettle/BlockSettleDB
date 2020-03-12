@@ -57,6 +57,7 @@ class CppBridge(object):
       #setup listener
       portNumber = 46122
       self.listenSocket = socket.socket()
+      self.listenSocket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR, 1)
       self.listenSocket.bind(("127.0.0.1", portNumber))
       self.listenSocket.listen(0)
 
