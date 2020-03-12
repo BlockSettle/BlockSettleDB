@@ -1577,6 +1577,7 @@ protected:
 
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
+      nodePtr->setIface(iface_);
 
       auto mockedShutdown = [](void)->void {};
       clients_ = new Clients(theBDMt_, mockedShutdown);

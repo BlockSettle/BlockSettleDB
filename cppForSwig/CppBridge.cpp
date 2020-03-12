@@ -392,6 +392,14 @@ void CppBridge::commandLoop()
                break;
             }
 
+            case Methods::registerWallet:
+            {
+               if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
+                  throw runtime_error("invalid command: registerWallet");
+               registerWallet(msg.stringargs(0), msg.intargs(0));
+               break;
+            }
+
             case Methods::goOnline:
             {
                if (bdvPtr_ == nullptr)
@@ -436,7 +444,7 @@ void CppBridge::commandLoop()
             case Methods::getHistoryPageForDelegate:
             {
                if (msg.stringargs_size() == 0 || msg.intargs_size() == 0)
-                  throw runtime_error("invalid command getHistoryPageForDelegate");
+                  throw runtime_error("invalid command: getHistoryPageForDelegate");
                getHistoryPageForDelegate(msg.stringargs(0), msg.intargs(0), id);
                break;
             }
@@ -450,7 +458,7 @@ void CppBridge::commandLoop()
             case Methods::getBalanceAndCount:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command getBalanceAndCount");
+                  throw runtime_error("invalid command: getBalanceAndCount");
                response = move(getBalanceAndCount(msg.stringargs(0)));
                break;
             }
@@ -458,7 +466,7 @@ void CppBridge::commandLoop()
             case Methods::getAddrCombinedList:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command getAddrCombinedList");
+                  throw runtime_error("invalid command: getAddrCombinedList");
                response = move(getAddrCombinedList(msg.stringargs(0)));
                break;           
             }
@@ -466,7 +474,7 @@ void CppBridge::commandLoop()
             case Methods::getHighestUsedIndex:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command getHighestUsedIndex");
+                  throw runtime_error("invalid command: getHighestUsedIndex");
                response = move(getHighestUsedIndex(msg.stringargs(0)));
                break;                      
             }
@@ -474,15 +482,24 @@ void CppBridge::commandLoop()
             case Methods::extendAddressPool:
             {
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-                  throw runtime_error("invalid command getHighestUsedIndex");
+                  throw runtime_error("invalid command: getHighestUsedIndex");
                extendAddressPool(msg.stringargs(0), msg.intargs(0), id);
                break;                      
+            }
+
+            case Methods::createWallet:
+            {
+               auto&& wltId = createWallet(msg);
+               auto replyMsg = make_unique<ReplyStrings>();
+               replyMsg->add_reply(wltId);
+               response = move(replyMsg);
+               break;
             }
          
             case Methods::getTxByHash:
             {
                if (msg.byteargs_size() != 1)
-                  throw runtime_error("invalid command getTxByHash");
+                  throw runtime_error("invalid command: getTxByHash");
                auto& byteargs = msg.byteargs(0);
                BinaryData hash((uint8_t*)byteargs.c_str(), byteargs.size());
                getTxByHash(hash, id);
@@ -492,7 +509,7 @@ void CppBridge::commandLoop()
             case Methods::getTxInScriptType:
             {
                if (msg.byteargs_size() != 2)
-                  throw runtime_error("invalid command getTxInScriptType");
+                  throw runtime_error("invalid command: getTxInScriptType");
                
                auto& script = msg.byteargs(0);
                BinaryData scriptBd((uint8_t*)script.c_str(), script.size());
@@ -507,7 +524,7 @@ void CppBridge::commandLoop()
             case Methods::getTxOutScriptType:
             {
                if (msg.byteargs_size() != 1)
-                  throw runtime_error("invalid command getTxOutScriptType");
+                  throw runtime_error("invalid command: getTxOutScriptType");
                auto& byteargs = msg.byteargs(0);
                BinaryData script((uint8_t*)byteargs.c_str(), byteargs.size());
                response = getTxOutScriptType(script);
@@ -517,7 +534,7 @@ void CppBridge::commandLoop()
             case Methods::getScrAddrForScript:
             {
                if (msg.byteargs_size() != 1)
-                  throw runtime_error("invalid command getScrAddrForScript");
+                  throw runtime_error("invalid command: getScrAddrForScript");
                auto& byteargs = msg.byteargs(0);
                BinaryData script((uint8_t*)byteargs.c_str(), byteargs.size());
                response = getScrAddrForScript(script);
@@ -527,7 +544,7 @@ void CppBridge::commandLoop()
             case Methods::getLastPushDataInScript:
             {
                if (msg.byteargs_size() != 1)
-                  throw runtime_error("invalid command getLastPushDataInScript");
+                  throw runtime_error("invalid command: getLastPushDataInScript");
                
                auto& script = msg.byteargs(0);
                BinaryData scriptBd((uint8_t*)script.c_str(), script.size());
@@ -539,7 +556,7 @@ void CppBridge::commandLoop()
             case Methods::getTxOutScriptForScrAddr:
             {
                if (msg.byteargs_size() != 1)
-                  throw runtime_error("invalid command getTxOutScriptForScrAddr");
+                  throw runtime_error("invalid command: getTxOutScriptForScrAddr");
                
                auto& script = msg.byteargs(0);
                BinaryData scriptBd((uint8_t*)script.c_str(), script.size());
@@ -551,7 +568,7 @@ void CppBridge::commandLoop()
             case Methods::getHeaderByHeight:
             {
                if (msg.intargs_size() != 1)
-                  throw runtime_error("invalid command getHeaderByHeight");
+                  throw runtime_error("invalid command: getHeaderByHeight");
                auto intArgs = msg.intargs(0);
                getHeaderByHeight(intArgs, id);
                break;
@@ -560,7 +577,7 @@ void CppBridge::commandLoop()
             case Methods::setupNewCoinSelectionInstance:
             {
                if (msg.intargs_size() != 1 || msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command setupNewCoinSelectionInstance");
+                  throw runtime_error("invalid command: setupNewCoinSelectionInstance");
 
                setupNewCoinSelectionInstance(msg.stringargs(0), msg.intargs(0), id);
                break;
@@ -569,7 +586,7 @@ void CppBridge::commandLoop()
             case Methods::destroyCoinSelectionInstance:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command destroyCoinSelectionInstance");
+                  throw runtime_error("invalid command: destroyCoinSelectionInstance");
 
                destroyCoinSelectionInstance(msg.stringargs(0));
                break;
@@ -578,7 +595,7 @@ void CppBridge::commandLoop()
             case Methods::resetCoinSelection:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command resetCoinSelection");
+                  throw runtime_error("invalid command: resetCoinSelection");
                resetCoinSelection(msg.stringargs(0));
                break;
             }
@@ -589,7 +606,7 @@ void CppBridge::commandLoop()
                   msg.stringargs_size() != 2 ||
                   msg.intargs_size() != 1)
                {
-                  throw runtime_error("invalid command setCoinSelectionRecipient");
+                  throw runtime_error("invalid command: setCoinSelectionRecipient");
                }
 
                auto success = setCoinSelectionRecipient(msg.stringargs(0), 
@@ -608,7 +625,7 @@ void CppBridge::commandLoop()
                   msg.intargs_size() != 1 ||
                   msg.floatargs_size() != 1)
                {
-                  throw runtime_error("invalid command cs_SelectUTXOs");
+                  throw runtime_error("invalid command: cs_SelectUTXOs");
                }
 
                auto success = cs_SelectUTXOs(msg.stringargs(0), 
@@ -623,7 +640,7 @@ void CppBridge::commandLoop()
             case Methods::cs_getUtxoSelection:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command cs_getUtxoSelection");
+                  throw runtime_error("invalid command: cs_getUtxoSelection");
 
                response = cs_getUtxoSelection(msg.stringargs(0));
                break;
@@ -632,7 +649,7 @@ void CppBridge::commandLoop()
             case Methods::cs_getFlatFee:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command cs_getFlatFee");
+                  throw runtime_error("invalid command: cs_getFlatFee");
 
                response = cs_getFlatFee(msg.stringargs(0));
                break;
@@ -641,7 +658,7 @@ void CppBridge::commandLoop()
             case Methods::cs_getFeeByte:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command cs_getFeeByte");
+                  throw runtime_error("invalid command: cs_getFeeByte");
 
                response = cs_getFeeByte(msg.stringargs(0));
                break;
@@ -660,7 +677,7 @@ void CppBridge::commandLoop()
             case Methods::generateRandomHex:
             {
                if (msg.intargs_size() != 1)
-                  throw runtime_error("invalid command generateRandomHex");
+                  throw runtime_error("invalid command: generateRandomHex");
                auto size = msg.intargs(0);
                auto&& str = fortuna_.generateRandom(size).toHexStr();
 
@@ -673,7 +690,7 @@ void CppBridge::commandLoop()
             case Methods::createAddressBook:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command createAddressBook");
+                  throw runtime_error("invalid command: createAddressBook");
                createAddressBook(msg.stringargs(0), id);
                break;
             }
@@ -681,7 +698,7 @@ void CppBridge::commandLoop()
             case Methods::getUtxosForValue:
             {
                if (msg.stringargs_size() != 1 || msg.longargs_size() != 1)
-                  throw runtime_error("invalid command getUtxosForValue");
+                  throw runtime_error("invalid command: getUtxosForValue");
                getUtxosForValue(msg.stringargs(0), msg.longargs(0), id);
                break;
             }
@@ -697,7 +714,7 @@ void CppBridge::commandLoop()
             case Methods::getRBFTxOutList:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command getRBFTxOutList");
+                  throw runtime_error("invalid command: getRBFTxOutList");
                getRBFTxOutList(msg.stringargs(0), id);
                break;
             }
@@ -705,7 +722,7 @@ void CppBridge::commandLoop()
             case Methods::getNewAddress:
             {
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-                  throw runtime_error("invalid command getNewAddress");
+                  throw runtime_error("invalid command: getNewAddress");
                response = getNewAddress(msg.stringargs(0), msg.intargs(0));
                break;
             }
@@ -713,7 +730,7 @@ void CppBridge::commandLoop()
             case Methods::getChangeAddress:
             {
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-                  throw runtime_error("invalid command getChangeAddress");
+                  throw runtime_error("invalid command: getChangeAddress");
                response = getChangeAddress(msg.stringargs(0), msg.intargs(0));
                break;
             }
@@ -721,7 +738,7 @@ void CppBridge::commandLoop()
             case Methods::peekChangeAddress:
             {
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-                  throw runtime_error("invalid command peekChangeAddress");
+                  throw runtime_error("invalid command: peekChangeAddress");
                response = peekChangeAddress(msg.stringargs(0), msg.intargs(0));
                break;
             }
@@ -729,7 +746,7 @@ void CppBridge::commandLoop()
             case Methods::getHash160:
             {
                if (msg.byteargs_size() != 1)
-                  throw runtime_error("invalid command getHash160");
+                  throw runtime_error("invalid command: getHash160");
                BinaryDataRef bdRef; bdRef.setRef(msg.byteargs(0));
                response = getHash160(bdRef);
                break;
@@ -744,7 +761,7 @@ void CppBridge::commandLoop()
             case Methods::destroySigner:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command destroySigner");            
+                  throw runtime_error("invalid command: destroySigner");            
                destroySigner(msg.stringargs(0));
                break;
             }
@@ -752,7 +769,7 @@ void CppBridge::commandLoop()
             case Methods::signer_SetVersion:
             {
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-                  throw runtime_error("invalid command signer_SetVersion");
+                  throw runtime_error("invalid command: signer_SetVersion");
                auto success = signer_SetVersion(msg.stringargs(0), msg.intargs(0));
                auto resultProto = make_unique<ReplyNumbers>();
                resultProto->add_ints(success);
@@ -763,7 +780,7 @@ void CppBridge::commandLoop()
             case Methods::signer_SetLockTime:
             {
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-                  throw runtime_error("invalid command signer_SetLockTime");
+                  throw runtime_error("invalid command: signer_SetLockTime");
                auto result = signer_SetLockTime(msg.stringargs(0), msg.intargs(0));
                auto resultProto = make_unique<ReplyNumbers>();
                resultProto->add_ints(result);
@@ -775,7 +792,7 @@ void CppBridge::commandLoop()
             {
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 2 ||
                   msg.byteargs_size() != 1 || msg.longargs_size() != 1)
-                  throw runtime_error("invalid command signer_addSpenderByOutpoint");
+                  throw runtime_error("invalid command: signer_addSpenderByOutpoint");
 
                BinaryDataRef hash; hash.setRef(msg.byteargs(0));
                auto result = signer_addSpenderByOutpoint(msg.stringargs(0), 
@@ -791,7 +808,7 @@ void CppBridge::commandLoop()
             {
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 1 ||
                   msg.byteargs_size() != 2 || msg.longargs_size() != 1)
-                  throw runtime_error("invalid command signer_populateUtxo");
+                  throw runtime_error("invalid command: signer_populateUtxo");
 
                BinaryDataRef hash; hash.setRef(msg.byteargs(0));
                BinaryDataRef script; script.setRef(msg.byteargs(1));
@@ -809,7 +826,7 @@ void CppBridge::commandLoop()
             {
                if (msg.stringargs_size() != 1 ||
                   msg.byteargs_size() != 1 || msg.longargs_size() != 1)
-                  throw runtime_error("invalid command signer_addRecipient");
+                  throw runtime_error("invalid command: signer_addRecipient");
 
                BinaryDataRef script; script.setRef(msg.byteargs(0));
                auto result = signer_addRecipient(msg.stringargs(0), 
@@ -824,7 +841,7 @@ void CppBridge::commandLoop()
             case Methods::signer_getSerializedState:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command signer_getSerializedState");
+                  throw runtime_error("invalid command: signer_getSerializedState");
                response = signer_getSerializedState(msg.stringargs(0));
                break;
             }
@@ -832,7 +849,7 @@ void CppBridge::commandLoop()
             case Methods::signer_unserializeState:
             {
                if (msg.stringargs_size() != 1 || msg.byteargs_size() != 1)
-                  throw runtime_error("invalid command signer_unserializeState");
+                  throw runtime_error("invalid command: signer_unserializeState");
 
                auto result = signer_unserializeState(
                   msg.stringargs(0), BinaryData::fromString(msg.byteargs(0)));
@@ -846,7 +863,7 @@ void CppBridge::commandLoop()
             case Methods::signer_signTx:
             {
                if (msg.stringargs_size() != 2)
-                  throw runtime_error("invalid command signer_signTx");
+                  throw runtime_error("invalid command: signer_signTx");
                signer_signTx(msg.stringargs(0), msg.stringargs(1), id);
                break;
             }
@@ -854,7 +871,7 @@ void CppBridge::commandLoop()
             case Methods::signer_getSignedTx:
             {
                if (msg.stringargs_size() != 1)
-                  throw runtime_error("invalid command signer_getSignedTx");
+                  throw runtime_error("invalid command: signer_getSignedTx");
 
                response = signer_getSignedTx(msg.stringargs(0));
                break;
@@ -865,7 +882,7 @@ void CppBridge::commandLoop()
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
                {
                   throw runtime_error(
-                     "invalid command signer_getSignedStateForInput");
+                     "invalid command: signer_getSignedStateForInput");
                }
                   
                response = signer_getSignedStateForInput(
@@ -876,7 +893,7 @@ void CppBridge::commandLoop()
             case Methods::returnPassphrase:
             {
                if (msg.stringargs_size() != 2)
-                  throw runtime_error("invalid command returnPassphrase");
+                  throw runtime_error("invalid command: returnPassphrase");
 
                auto result = returnPassphrase(msg.stringargs(0), msg.stringargs(1));
 
@@ -889,7 +906,7 @@ void CppBridge::commandLoop()
             case Methods::broadcastTx:
             {
                if (msg.byteargs_size() == 0)
-                  throw runtime_error("invalid command broadcastTx");
+                  throw runtime_error("invalid command: broadcastTx");
 
                vector<BinaryData> bdVec;
                for (unsigned i=0; i<msg.byteargs_size(); i++)
@@ -1088,6 +1105,13 @@ void CppBridge::registerWallets()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void CppBridge::registerWallet(const string& walletId, bool isNew)
+{
+   auto&& regId = wltManager_->registerWallet(walletId, isNew);
+   callbackPtr_->waitOnId(regId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 const string& CppBridge::getLedgerDelegateIdForWallets()
 {
    auto promPtr = make_shared<promise<AsyncClient::LedgerDelegate>>();
@@ -1260,6 +1284,58 @@ void CppBridge::extendAddressPool(
    thread thr(lbd);
    if (thr.joinable())
       thr.detach();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string CppBridge::createWallet(const ClientCommand& msg)
+{
+   if (msg.byteargs_size() != 1)
+      throw runtime_error("invalid create wallet payload");
+
+   BridgeCreateWalletStruct createWalletProto;
+   if (!createWalletProto.ParseFromString(msg.byteargs(0)))
+      throw runtime_error("failed to read create wallet protobuf message");
+
+   //extra entropy
+   SecureBinaryData extraEntropy;
+   if (createWalletProto.has_extraentropy())
+   {
+      extraEntropy = SecureBinaryData::fromString(
+         createWalletProto.extraentropy());
+   }
+
+   //passphrase
+   SecureBinaryData passphrase;
+   if (createWalletProto.has_passphrase())
+   {
+      passphrase = SecureBinaryData::fromString(
+         createWalletProto.passphrase());
+   }
+
+   //control passphrase
+   SecureBinaryData controlPass;
+   if (createWalletProto.has_controlpassphrase())
+   {
+      passphrase = SecureBinaryData::fromString(
+         createWalletProto.controlpassphrase());
+   }
+
+   //lookup
+   auto lookup = createWalletProto.lookup();
+
+   //create wallet
+   auto&& wallet = wltManager_->createNewWallet(
+      passphrase, controlPass, extraEntropy, lookup);
+
+   //set labels
+   auto wltPtr = wallet->getWalletPtr();
+
+   if (createWalletProto.has_label())
+      wltPtr->setLabel(createWalletProto.label());
+   if (createWalletProto.has_description())
+      wltPtr->setDescription(createWalletProto.description());
+
+   return wltPtr->getID();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
