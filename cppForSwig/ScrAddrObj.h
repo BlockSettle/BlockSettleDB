@@ -270,8 +270,12 @@ public:
       //return UINT32_MAX unless count has changed since last call
       //(or it's the first call)
       auto count = getTxioCountFromSSH();
+
+      // Disable last changed check as it breaks terminal when same wallet is removed and added again
+#if 0
       if (count == txioCountForLedgers_)
          return UINT32_MAX;
+#endif
 
       txioCountForLedgers_ = count;
       return count;
