@@ -288,7 +288,6 @@ public:
 
    std::shared_ptr<AssetEntry> getMainAccountAssetForIndex(unsigned) const;
    unsigned getMainAccountAssetCount(void) const;
-   const BinaryData& getMainAccountID(void) const { return mainAccount_; }
 
    const SecureBinaryData& getDecryptedPrivateKeyForAsset(
       std::shared_ptr<AssetEntry_Single>);

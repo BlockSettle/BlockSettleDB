@@ -4916,6 +4916,106 @@ TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
+{
+   vector<unsigned> derPath = {
+      0x80000050,
+      0x80005421,
+      0x80000024,
+      785
+   };
+
+   auto&& passphrase = SecureBinaryData::fromString("password");
+
+   //create regular wallet
+   auto&& seed = CryptoPRNG::generateRandom(32);
+   auto wlt = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_, seed, derPath, passphrase, controlPass_, 10);
+
+   //get xpub for main account
+   BIP32_Node seedNode;
+   seedNode.initFromSeed(seed);
+   for (auto& derId : derPath)
+      seedNode.derivePrivate(derId);
+
+   auto pubNode = seedNode.getPublicCopy();
+   auto xpub = pubNode.getBase58();
+
+   /* WO wallet creation */
+
+   //1: create wallet, this is a temporary hack as you can't create wallets
+   //without a seed atm (we're creating it from a random seed we have no use for)
+   auto wltWO = AssetWallet_Single::createFromSeed_BIP32_Blank(
+      homedir_, CryptoPRNG::generateRandom(32), passphrase, controlPass_);
+   
+   //2: create a public root asset from the xpub
+
+   //init bip32 node from xpub
+   BIP32_Node newPubNode;
+   newPubNode.initFromBase58(xpub);
+
+   //asset ctor moves root material in, gotta create copies from 
+   //the bip32 node object
+   auto pubkeyCopy = newPubNode.getPublicKey();
+   auto chaincodeCopy = newPubNode.getChaincode();
+
+   //init pub root from bip32 node data
+   auto pubRootAsset = make_shared<AssetEntry_BIP32Root>(
+      -1, BinaryData(), //not relevant, this stuff is ignored in this context
+
+      pubkeyCopy, //pub key
+      nullptr, //no priv key, this is a public node
+      chaincodeCopy, //have to pass the chaincode too
+
+      //aesthetical stuff, not mandatory, not useful for the crypto side of things
+      newPubNode.getDepth(), newPubNode.getLeafID(), newPubNode.getFingerPrint()
+   );
+
+   //3: create a custom bip32 account meta data object to setup the WO account
+   //structure (nodes & address types)
+   auto accountTypePtr = make_shared<AccountType_BIP32_Custom>(); //empty ctor
+   
+   //set nodes
+   set<unsigned> nodes = {
+      BIP32_SEGWIT_OUTER_ACCOUNT_DERIVATIONID, 
+      BIP32_SEGWIT_INNER_ACCOUNT_DERIVATIONID};
+   accountTypePtr->setNodes(nodes);
+
+   //populate address types, here native SegWit only
+   accountTypePtr->setAddressTypes({ AddressEntryType_P2WPKH });
+
+   //set the default address type as well
+   accountTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
+
+   //set address lookup
+   accountTypePtr->setAddressLookup(10);
+
+   //and finally internal accounts
+   accountTypePtr->setOuterAccountID(WRITE_UINT32_BE(*nodes.begin()));
+   accountTypePtr->setInnerAccountID(WRITE_UINT32_BE(*nodes.rbegin()));
+
+   //set account as main, there has to be a main account and this is the
+   //the first one in this wallet
+   accountTypePtr->setMain(true);
+
+   //4: feed it to the wallet
+   wltWO->createBIP32Account(
+      pubRootAsset, //root asset
+      
+      //no derivation path, the root is built from an xpub, we assume it's
+      //already derived to the relevant node
+      {},
+      accountTypePtr //account meta data
+   );
+
+   //5: check address chain matches with original wallet
+   auto addressWO = wltWO->getNewAddress();
+   auto addressOriginal = wlt->getNewAddress(AddressEntryType_P2WPKH);
+
+   EXPECT_EQ(addressWO->getAddress(), addressOriginal->getAddress());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, AddressEntryTypes)
 {
    //create wallet
