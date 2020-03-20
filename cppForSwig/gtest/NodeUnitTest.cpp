@@ -852,7 +852,7 @@ int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx)
       if (iter != nodeUT->spenderSet_.end())
       {
          //cut corners here: skipping RBF checks
-         return (int)ArmoryErrorCodes::ZcBroadcast_Error;
+         return (int)ArmoryErrorCodes::ZcBroadcast_VerifyRejected;
       }
 
       //is this outpoint pointing to a zc?
