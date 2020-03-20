@@ -1085,7 +1085,16 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
    }
 
    auto accountPtr = createAccount(accTypePtr);
-   accountPtr->extendPrivateChain(decryptedData_, accTypePtr->getAddressLookup());
+   if (!accTypePtr->isWatchingOnly())
+   {
+      accountPtr->extendPrivateChain(
+         decryptedData_, accTypePtr->getAddressLookup());
+   }
+   else
+   {
+      accountPtr->extendPublicChain(accTypePtr->getAddressLookup());
+   }
+
    return accountPtr->getID();
 }
 
@@ -1365,11 +1374,15 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
    const SecureBinaryData& passphrase,
    const SecureBinaryData& controlPassphrase)
 {
-   if (seed.getSize() == 0)
-      throw WalletException("empty seed");
-
    BIP32_Node rootNode;
-   rootNode.initFromSeed(seed);
+   try
+   {
+      if (seed.getSize() == 0)
+         throw WalletException("empty seed");
+      rootNode.initFromSeed(seed);
+   }
+   catch (const exception&)
+   {}
 
    //address accounts
    set<shared_ptr<AccountType>> accountTypes;
