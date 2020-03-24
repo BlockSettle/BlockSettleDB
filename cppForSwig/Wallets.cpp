@@ -1375,14 +1375,9 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
    const SecureBinaryData& controlPassphrase)
 {
    BIP32_Node rootNode;
-   try
-   {
-      if (seed.getSize() == 0)
-         throw WalletException("empty seed");
-      rootNode.initFromSeed(seed);
-   }
-   catch (const exception&)
-   {}
+   if (seed.getSize() == 0)
+      throw WalletException("empty seed");
+   rootNode.initFromSeed(seed);
 
    //address accounts
    set<shared_ptr<AccountType>> accountTypes;
