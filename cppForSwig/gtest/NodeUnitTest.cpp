@@ -391,8 +391,19 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
          ++poolIter;
       }
 
+      //add to mempool
       auto objPair = make_pair(obj->hash_.getRef(), move(obj));
       auto insertIter = mempool_.insert(move(objPair));
+
+      //populate spender set
+      for (unsigned i=0; i<txNew.getNumTxIn(); i++)
+      {
+         auto txin = txNew.getTxInCopy(i);
+         auto op = txin.getOutPoint();
+
+         auto& indexMap = spenderSet_[op.getTxHash()];
+         indexMap.emplace(op.getTxOutIndex(), txNew.getThisHash());
+      }
 
       if (!seenHashes_.insert(txNew.getThisHash()).second)
          continue;
@@ -852,7 +863,7 @@ int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx)
       if (iter != nodeUT->spenderSet_.end())
       {
          //cut corners here: skipping RBF checks
-         return (int)ArmoryErrorCodes::ZcBroadcast_Error;
+         return (int)ArmoryErrorCodes::ZcBroadcast_VerifyRejected;
       }
 
       //is this outpoint pointing to a zc?
