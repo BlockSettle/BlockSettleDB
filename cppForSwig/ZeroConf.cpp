@@ -1563,7 +1563,7 @@ void ZeroConfContainer::init(shared_ptr<ScrAddrFilter> saf, bool clearMempool)
 {
    LOGINFO << "Enabling zero-conf tracking";
 
-   scrAddrMap_ = saf->getScrAddrMapPtr();
+   scrAddrMap_ = saf->getZcFilterMapPtr();
    auto topId = loadZeroConfMempool(clearMempool);
 
    auto newZcPacketLbd = [this](ZcActionStruct zas)->void
@@ -1762,6 +1762,8 @@ void ZeroConfContainer::handleZcProcessingStructThread(void)
          auto rejectPacket = dynamic_pointer_cast<RejectPacket>(packet);
          if (rejectPacket == nullptr)
             break;
+
+         LOGWARN << "p2p reject: " << rejectPacket->txHash_.toHexStr();
 
          //grab the batch
          auto requestMap = actionQueue_->getRequestMap();

@@ -743,6 +743,30 @@ string AsyncClient::BtcWallet::setUnconfirmedTarget(unsigned confTarget)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+string AsyncClient::BtcWallet::unregisterAddresses(
+   const set<BinaryData>& addrSet)
+{
+   auto payload = BlockDataViewer::make_payload(Methods::unregisterAddresses);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+   command->set_walletid(walletID_);
+
+   auto&& registrationId = BtcUtils::fortuna_.generateRandom(5).toHexStr();
+   command->set_hash(registrationId);
+
+   for (auto& addr : addrSet)
+      command->add_bindata(addr.getCharPtr(), addr.getSize());
+
+   sock_->pushPayload(move(payload), nullptr);
+   return registrationId;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+string AsyncClient::BtcWallet::unregister()
+{
+   return unregisterAddresses({});
+}
+
+///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getBalancesAndCount(uint32_t blockheight, 
    function<void(ReturnMessage<vector<uint64_t>>)> callback)
 {

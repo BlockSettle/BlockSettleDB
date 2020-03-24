@@ -310,6 +310,9 @@ namespace AsyncClient
 
       virtual std::string registerAddresses(
          const std::vector<BinaryData>& addrVec, bool isNew);
+      std::string unregisterAddresses(const std::set<BinaryData>&);
+      std::string unregister(void);
+
       void createAddressBook(
          std::function<void(ReturnMessage<std::vector<AddressBookEntry>>)>) const;
 
@@ -425,7 +428,6 @@ namespace AsyncClient
       void unregisterFromDB(void);
       void shutdown(const std::string&);
       void shutdownNode(const std::string&);
-
 
       //ledgers
       void getLedgerDelegateForWallets(

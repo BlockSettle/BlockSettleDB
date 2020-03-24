@@ -38,18 +38,45 @@ namespace google
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+enum AddressBatchType
+{
+   AddressBatch_register,
+   AddressBatch_unregister
+};
+
 struct AddressBatch
 {
+   const AddressBatchType type_;
+
+   AddressBatch(AddressBatchType type) :
+      type_(type)
+   {}
+
+   virtual ~AddressBatch(void) = 0;
+};
+
+////
+struct RegistrationBatch : public AddressBatch
+{
    std::function<void(std::set<BinaryDataRef>&)> callback_;
-   
    std::set<BinaryDataRef> scrAddrSet_;
    std::shared_ptr<::google::protobuf::Message> msg_;
-   const std::string batchID_;
-   std::string walletID_;
    bool isNew_;
+   std::string walletID_;
 
-   AddressBatch(const std::string& id) :
-      batchID_(id)
+   RegistrationBatch(void) : 
+      AddressBatch(AddressBatch_register)
+   {}
+};
+
+////
+struct UnregistrationBatch : public AddressBatch
+{
+   std::set<BinaryData> scrAddrSet_;
+   std::function<void(void)> callback_;
+
+   UnregistrationBatch(void) :
+      AddressBatch(AddressBatch_unregister)
    {}
 };
 
@@ -134,7 +161,11 @@ private:
    LMDBBlockDatabase *const lmdb_;
 
    std::shared_ptr<ArmoryThreading::TransactionalMap<
-      BinaryDataRef, std::shared_ptr<AddrAndHash>>> scrAddrMap_;
+      BinaryDataRef, std::shared_ptr<AddrAndHash>>> scanFilterAddrMap_;
+   std::shared_ptr<ArmoryThreading::TransactionalMap<
+      BinaryDataRef, std::shared_ptr<AddrAndHash>>> zcFilterAddrMap_;
+
+
    ArmoryThreading::BlockingQueue<
       std::shared_ptr<AddressBatch>> registrationStack_;
 
@@ -148,12 +179,13 @@ private:
    void registrationThread(void);
 
    std::shared_ptr<ArmoryThreading::TransactionalMap<
-      BinaryDataRef, std::shared_ptr<AddrAndHash>>> getScrAddrMapPtr(void) const
+      BinaryDataRef, std::shared_ptr<AddrAndHash>>> getZcFilterMapPtr(void) const
    {
-      return scrAddrMap_;
+      return zcFilterAddrMap_;
    }
 
-   std::set<BinaryDataRef> updateAddrMap(const std::set<BinaryDataRef>&, unsigned);
+   std::set<BinaryDataRef> updateAddrMap(
+      const std::set<BinaryDataRef>&, unsigned, bool );
    void setSSHLastScanned(std::set<BinaryDataRef>&, unsigned);
 
 protected:
@@ -166,7 +198,11 @@ public:
    ScrAddrFilter(LMDBBlockDatabase* lmdb, unsigned sdbiKey)
       : sdbiKey_(sdbiKey), lmdb_(lmdb)
    {
-      scrAddrMap_ = std::make_shared<
+      scanFilterAddrMap_ = std::make_shared<
+         ArmoryThreading::TransactionalMap<
+         BinaryDataRef, std::shared_ptr<AddrAndHash>>>();
+
+      zcFilterAddrMap_ = std::make_shared<
          ArmoryThreading::TransactionalMap<
          BinaryDataRef, std::shared_ptr<AddrAndHash>>>();
    }
@@ -175,21 +211,22 @@ public:
    
    LMDBBlockDatabase* db() { return lmdb_; }
 
+   ////
    std::shared_ptr<const std::map<BinaryDataRef, std::shared_ptr<AddrAndHash>>>
-      getScrAddrMap(void) const
+      getScanFilterAddrMap(void) const
    { 
-      return scrAddrMap_->get(); 
+      return scanFilterAddrMap_->get(); 
    }
    
-   size_t getScrAddrCount(void) const
+   size_t getScanFilterAddrCount(void) const
    {
-      return scrAddrMap_->size();
+      return scanFilterAddrMap_->size();
    }
 
+   ////
    std::shared_ptr<std::map<TxOutScriptRef, int>> getOutScrRefMap(void);
-
    int32_t scanFrom(void) const;
-   void registerAddressBatch(std::shared_ptr<AddressBatch>);
+   void pushAddressBatch(std::shared_ptr<AddressBatch>);
 
    void resetSshDB(void);
 
@@ -213,6 +250,10 @@ public:
    void shutdown(void);
 
    void init(void);
+
+   ////
+   void unregisterAddresses(const std::set<BinaryDataRef>& scrAddrSet, 
+      const std::function<void(void)>& callback);
 
 //virtuals
 protected:

@@ -50,7 +50,7 @@ int32_t BlockchainScanner::check_merkle(int32_t scanFrom)
          scanFrom = sdbiblock->getBlockHeight();
 
       if (scanFrom > (int)topBlock->getBlockHeight() || 
-          scrAddrFilter_->getScrAddrMap()->size() == 0)
+          scrAddrFilter_->getScanFilterAddrMap()->size() == 0)
       {
          LOGINFO << "no history to scan";
          topScannedBlockHash_ = topBlock->getThisHash();
@@ -1025,7 +1025,7 @@ void BlockchainScanner::updateSSH(bool force, int32_t startHeight)
 
    //process ssh, list missing hashes for hash resolver
    map<BinaryData, StoredScriptHistory> sshMap;
-   auto scrAddrMap = scrAddrFilter_->getScrAddrMap();
+   auto scrAddrMap = scrAddrFilter_->getScanFilterAddrMap();
 
    {
       auto sshTx = db_->beginTransaction(SUBSSH, LMDB::ReadOnly);
@@ -1037,7 +1037,7 @@ void BlockchainScanner::updateSSH(bool force, int32_t startHeight)
          return this->db_->getValidDupIDForHeight(height);
       };
 
-      auto scrAddrMapPtr = scrAddrFilter_->getScrAddrMap();
+      auto scrAddrMapPtr = scrAddrFilter_->getScanFilterAddrMap();
       auto&& subsshparser_result = parseSubSsh(
          move(sshIter), startHeight, resolveHashes, 
          getDupForHeight, scrAddrMapPtr, BinaryData());
@@ -1194,7 +1194,7 @@ void BlockchainScanner::undo(Blockchain::ReorganizationState& reorgState)
        reorgState.reorgBranchPoint_->getBlockHeight())
       throw runtime_error("invalid reorg state");
 
-   auto scrAddrMap = scrAddrFilter_->getScrAddrMap();
+   auto scrAddrMap = scrAddrFilter_->getScanFilterAddrMap();
 
    while (blockPtr != reorgState.reorgBranchPoint_)
    {
