@@ -167,8 +167,14 @@ map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(BlockDataManager* bdm,
       //compute merkle
       vector<BinaryData> txHashes;
       for (auto& obj : mempoolV)
+      {
          txHashes.push_back(obj->hash_);
+
+         //purge spender set of this zc
+         purgeSpender(obj->rawTx_);
+      }
       auto merkleRoot = BtcUtils::calculateMerkleRoot(txHashes);
+
 
       //clear mempool
       mempool_ = move(purgedMempool);
@@ -434,6 +440,43 @@ void NodeUnitTest::pushZC(const vector<pair<BinaryData, unsigned>>& txVec,
       return;
       
    processInvTx(invVec);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::purgeSpender(const BinaryData& rawTx)
+{
+   Tx tx(rawTx);
+   for (unsigned i=0; i<tx.getNumTxIn(); i++)
+   {
+      auto txin = tx.getTxInCopy(i);
+      auto op = txin.getOutPoint();
+
+      auto hashIter = spenderSet_.find(op.getTxHash());
+      if (hashIter == spenderSet_.end())
+         continue;
+
+      hashIter->second.erase(op.getTxOutIndex());
+
+      if (hashIter->second.empty())
+         spenderSet_.erase(hashIter);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::evictZC(const BinaryData& txHash)
+{
+   /*remove a zc from the mempool*/
+   
+   //find in mempool
+   auto iter = mempool_.find(txHash.getRef());
+   if (iter == mempool_.end())
+      return;
+
+   //remove from spender set
+   purgeSpender(iter->second->rawTx_);
+
+   //remove from mempool
+   mempool_.erase(iter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -85,6 +85,9 @@ private:
 
    std::set<BinaryData> seenHashes_;
 
+private:
+   void purgeSpender(const BinaryData&);
+
 public:
    NodeUnitTest(uint32_t magic_word, bool watcher);
 
@@ -106,6 +109,7 @@ public:
 
    //<raw tx, blocks to wait until mining>
    void pushZC(const std::vector<std::pair<BinaryData, unsigned>>&, bool);
+   void evictZC(const BinaryData&);
    uint64_t getFeeForTx(const Tx&) const;
 
    //set
