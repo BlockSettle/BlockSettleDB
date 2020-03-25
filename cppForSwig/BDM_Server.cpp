@@ -47,6 +47,12 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
       return BDVCommandProcess_ZC_RPC;
    }
 
+   case Methods::unregisterAddresses:
+   {
+      resultingPayload = command;
+      return BDVCommandProcess_UnregisterAddresses;
+   }
+
    case Methods::waitOnBDVInit:
    case Methods::waitOnBDVNotification:
    {
@@ -1879,7 +1885,7 @@ void BDV_Server_Object::init()
       }
 
       //create address batch
-      auto batch = make_shared<AddressBatch>(bdvID_);
+      auto batch = make_shared<RegistrationBatch>();
       batch->isNew_ = false;
 
       //fill with addresses from protobuf payloads
@@ -1908,7 +1914,7 @@ void BDV_Server_Object::init()
 
       //register the batch
       auto saf = bdmPtr_->getScrAddrFilter();
-      saf->registerAddressBatch(batch);
+      saf->pushAddressBatch(batch);
       fut.get();
 
       //addresses are now registered, populate the wallet maps
@@ -2191,7 +2197,7 @@ void BDV_Server_Object::registerLockbox(
 void BDV_Server_Object::populateWallets(map<string, walletRegStruct>& wltMap)
 {
    auto safPtr = getSAF();
-   auto addrMap = safPtr->getScrAddrMap();
+   auto addrMap = safPtr->getScanFilterAddrMap();
 
    for (auto& wlt : wltMap)
    {
@@ -3045,7 +3051,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       if (message == nullptr)
          return nullptr;
 
-      //Reset result as it is the zc message. ZC replies are 
+      //Reset result as it is a zc message. ZC replies are 
       //delivered through the callback API.
       result = nullptr;
 
@@ -3066,6 +3072,126 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
          (uint8_t*)rawTx.c_str(), rawTx.size());
       packet.bdvPtr_ = bdvPtr;
       rpcBroadcastQueue_.push_back(move(packet));
+
+      break;
+   }
+
+   case BDVCommandProcess_UnregisterAddresses:
+   {
+      //cast to bdv_command
+      auto message = dynamic_pointer_cast<BDVCommand>(result);
+      if (message == nullptr)
+         return nullptr;
+
+      //Reset result, unregistration events are 
+      //notified through the callback API.
+      result = nullptr;
+
+      /*
+      in: 
+         hash: id for this registation event, will be
+            passed in the notification if set
+         
+         walletId: id of the relevant wallet
+         bindata: set of addresses to unregister (optional)
+
+      out:
+         void
+
+      Note: if bindata is set, these addresses will be unregistered
+         from the wallet and the address filter (if eligible). 
+
+         If bindata is empty, all the addresses in the wallet are 
+         unregistered from the address filter (if eligible) and the
+         wallet is erased from the parent bdv.
+      */
+
+      //sanity check
+      if (!message->has_walletid())
+         throw runtime_error("need wallet for address unregistration command");
+      
+      //registration event id
+      BinaryData refreshId;
+      if (message->has_hash())
+         refreshId = BinaryData::fromString(message->hash());
+
+      set<BinaryDataRef> addrSetRef;
+      const auto& walletId = message->walletid();
+      auto wltPtr = bdvPtr->getWalletOrLockbox(walletId);
+      if (wltPtr == nullptr)
+         throw runtime_error("missing wallet for this id");
+
+      //are we unregistering a whole wallet or just some addresses?
+      bool unregisterWallet = false;
+      if (message->bindata_size() == 0)
+      {
+         unregisterWallet = true;
+         auto addrMapPtr = wltPtr->getAddrMap();
+         for (auto& addrPair : *addrMapPtr)
+            addrSetRef.emplace(addrPair.first);
+      }
+      else
+      {
+         for (unsigned i=0; i<message->bindata_size(); i++)
+         {
+            const auto& scrAddrProto = message->bindata(i);
+            if (scrAddrProto.size() == 0 || scrAddrProto.size() > 50)
+               continue;
+
+            BinaryDataRef bdr; bdr.setRef(scrAddrProto);
+            addrSetRef.emplace(move(bdr));
+         }
+
+         //only unregistering some addresses, clean them up from the wallet
+         wltPtr->unregisterAddresses(addrSetRef);
+      }
+
+      //do not unregister an address if it's watched by another bdv
+      auto bdvMap = BDVs_.get();
+
+      auto scrAddrIter = addrSetRef.begin();
+      while (scrAddrIter != addrSetRef.end())
+      {
+         for (auto& bdv_pair : *bdvMap)
+         {
+            if (bdv_pair.second->hasScrAddress(*scrAddrIter) && 
+               bdv_pair.first == bdvPtr->bdvID_) //TODO: slow parsing, speed this up
+            {
+               addrSetRef.erase(scrAddrIter++);
+               continue;
+            }
+         }
+
+         ++scrAddrIter;
+      }
+
+      auto completionCallback = [this, bdvPtr, refreshId](void)->void
+      {
+         auto notifPacket = make_shared<BDV_Notification_Packet>();
+         notifPacket->bdvPtr_ = bdvPtr;
+         notifPacket->notifPtr_ = make_shared<BDV_Notification_Refresh>(
+            bdvPtr->getID(), BDV_registrationCompleted, refreshId);
+
+         innerBDVNotifStack_.push_back(move(notifPacket));
+      };
+
+      if (unregisterWallet)
+      {
+         //get rid of the wallet
+         bdvPtr->unregisterWallet(walletId);
+      }
+
+      if (addrSetRef.empty())
+      {
+         //fire the callback if there are no addresses to delete
+         completionCallback();
+      }
+      else
+      {
+         //unregister these addresses
+         auto safPtr = bdmT_->bdm()->getScrAddrFilter();
+         safPtr->unregisterAddresses(addrSetRef, completionCallback);
+      }
 
       break;
    }
@@ -3157,6 +3283,7 @@ shared_ptr<::Codec_BDVCommand::BDVCallback> UnitTest_Callback::getNotification()
 ///////////////////////////////////////////////////////////////////////////////
 set<string> ZeroConfCallbacks_BDV::hasScrAddr(const BinaryDataRef& addr) const
 {
+   //this is slow needs improved
    set<string> result;
    auto bdvPtr = clientsPtr_->BDVs_.get();
 

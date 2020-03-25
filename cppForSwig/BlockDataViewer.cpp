@@ -450,7 +450,7 @@ StoredHeader BlockDataViewer::getBlockFromDB(
 ////////////////////////////////////////////////////////////////////////////////
 bool BlockDataViewer::scrAddressIsRegistered(const BinaryData& scrAddr) const
 {
-   auto scrAddrMap = saf_->getScrAddrMap();
+   auto scrAddrMap = saf_->getScanFilterAddrMap();
    auto saIter = scrAddrMap->find(scrAddr);
 
    if (saIter == scrAddrMap->end())
@@ -1288,13 +1288,13 @@ void WalletGroup::registerAddresses(
          BDV_refreshAndRescan, id, move(zcNotifPacket));
    };
 
-   auto batch = make_shared<AddressBatch>(msg->hash());
+   auto batch = make_shared<RegistrationBatch>();
    batch->scrAddrSet_ = move(scrAddrSet);
    batch->msg_ = msg;
    batch->isNew_ = msg->flag();
    batch->callback_ = callback;
 
-   saf_->registerAddressBatch(batch);
+   saf_->pushAddressBatch(batch);
    theWallet->resetCounters();
 }
 

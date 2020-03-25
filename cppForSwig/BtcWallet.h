@@ -112,6 +112,10 @@ public:
 
    void setConfTarget(unsigned, const std::string&);
 
+   std::shared_ptr<const std::map<BinaryDataRef, std::shared_ptr<ScrAddrObj>>>
+      getAddrMap(void) const { return scrAddrMap_.get(); }
+   void unregisterAddresses(const std::set<BinaryDataRef>&);
+
 private:   
    
    //returns true on bootstrap and new block, false on ZC

@@ -93,7 +93,7 @@ void DatabaseBuilder::init()
       scrAddrFilter_->getAllScrAddrInDB();
 
       //don't scan without any registered addresses
-      if (scrAddrFilter_->getScrAddrMap()->size() == 0)
+      if (scrAddrFilter_->getScanFilterAddrMap()->size() == 0)
          return;
 
       //determine from which block to start scanning

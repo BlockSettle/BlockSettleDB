@@ -214,6 +214,9 @@ public:
       const std::map<BinaryDataRef, std::set<unsigned>>&, bool) const;
 
 protected:
+   static void unregisterAddresses(std::set<BinaryData>, const std::function<void(void)>&);
+
+protected:
    std::atomic<bool> rescanZC_;
 
    BlockDataManager* bdmPtr_ = nullptr;

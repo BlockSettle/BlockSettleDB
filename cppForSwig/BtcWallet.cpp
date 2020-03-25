@@ -796,3 +796,13 @@ void BtcWallet::setConfTarget(unsigned confTarget, const string& hash)
       bdvPtr_->flagRefresh(BDV_refreshSkipRescan, hashBd, nullptr);
    }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+void BtcWallet::unregisterAddresses(const std::set<BinaryDataRef>& addrSet)
+{
+   vector<BinaryDataRef> bdRefVec(addrSet.size());
+   bdRefVec.insert(bdRefVec.end(), addrSet.begin(), addrSet.end());
+
+   scrAddrMap_.erase(bdRefVec);
+   histPages_.reset();
+}
