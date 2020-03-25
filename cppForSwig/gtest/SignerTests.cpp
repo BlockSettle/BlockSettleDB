@@ -3222,17 +3222,15 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
          signer.addSpender(getSpenderPtr(utxo, feed));
       }
 
-      //spend 12 to addr0, nested P2WPKH
+      //spend 12 to addr0, nested P2K
       auto addr0 = assetWlt->getNewAddress(
-         AddressEntryType(
-         AddressEntryType_P2PK | AddressEntryType_P2SH | AddressEntryType_Compressed));
+         AddressEntryType(AddressEntryType_P2PK | AddressEntryType_P2SH));
       signer.addRecipient(addr0->getRecipient(12 * COIN));
       addrVec.push_back(addr0->getPrefixedHash());
 
-      //spend 15 to addr1, nested P2WPKH
+      //spend 15 to addr1, nested P2PK
       auto addr1 = assetWlt->getNewAddress(
-         AddressEntryType(
-         AddressEntryType_P2PK | AddressEntryType_P2SH | AddressEntryType_Compressed));
+         AddressEntryType(AddressEntryType_P2PK | AddressEntryType_P2SH));
       signer.addRecipient(addr1->getRecipient(15 * COIN));
       addrVec.push_back(addr1->getPrefixedHash());
 
@@ -3307,8 +3305,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
          //deal with change, no fee
          auto changeVal = total - spendVal;
          auto addr2 = assetWlt->getNewAddress(
-            AddressEntryType(
-            AddressEntryType_P2PK | AddressEntryType_P2SH | AddressEntryType_Compressed));
+            AddressEntryType(AddressEntryType_P2PK | AddressEntryType_P2SH));
          signer2.addRecipient(addr2->getRecipient(changeVal));
          addrVec.push_back(addr2->getPrefixedHash());
       }

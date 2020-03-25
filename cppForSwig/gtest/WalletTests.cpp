@@ -5096,6 +5096,115 @@ TEST_F(WalletsTest, AddressEntryTypes)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
+{
+   //create wallet
+   vector<unsigned> derPath = {
+      0x80000050,
+      0x80005421,
+      0x80000024,
+      785
+   };
+
+   auto&& passphrase = SecureBinaryData::fromString("password");
+
+   //create regular wallet
+   auto&& seed = CryptoPRNG::generateRandom(32);
+   auto wlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
+      homedir_, seed, passphrase, controlPass_);
+
+   //create account with all common uncompressed address types & their 
+   //compressed counterparts
+   auto accountTypePtr = make_shared<AccountType_BIP32_Custom>(); //empty ctor
+   
+   set<unsigned> nodes = {0, 1}; 
+   accountTypePtr->setNodes(nodes);
+   accountTypePtr->setOuterAccountID(WRITE_UINT32_BE(*nodes.begin()));
+   accountTypePtr->setInnerAccountID(WRITE_UINT32_BE(*nodes.rbegin()));
+
+   accountTypePtr->setDefaultAddressType(AddressEntryType_P2PKH);
+   accountTypePtr->setAddressTypes({ 
+      AddressEntryType_P2PKH, 
+      AddressEntryType(AddressEntryType_P2PKH | AddressEntryType_Uncompressed), 
+      AddressEntryType(AddressEntryType_P2PK | AddressEntryType_P2SH) });
+
+   accountTypePtr->setAddressLookup(20);
+   accountTypePtr->setMain(true);
+
+   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+   {
+      return passphrase;
+   };
+   wlt->setPassphrasePromptLambda(passphraseLbd);
+   wlt->createBIP32Account(
+      nullptr, 
+      derPath,
+      accountTypePtr);
+   wlt->resetPassphrasePromptLambda();
+
+   //grab addresses for each type, check vs manual instantiation
+   auto addr1 = wlt->getNewAddress(AddressEntryType_P2PKH);
+   auto addr2 = wlt->getNewAddress(
+      AddressEntryType(AddressEntryType_P2PKH | AddressEntryType_Uncompressed));
+   auto addr3 = wlt->getNewAddress(
+      AddressEntryType(AddressEntryType_P2PK | AddressEntryType_P2SH));
+
+   //derive the keys locally and reproduce the addresses
+   BIP32_Node bip32Node;
+   bip32Node.initFromSeed(seed);
+   for (auto& der : derPath)
+      bip32Node.derivePrivate(der);
+   bip32Node.derivePublic(0); //spender leaf
+
+   {
+      //addr1
+      auto nodeCopy = bip32Node.getPublicCopy();
+      nodeCopy.derivePublic(0); //asset #0
+
+      auto pubkey = nodeCopy.getPublicKey();
+      auto hash160 = BtcUtils::getHash160(pubkey);
+      BinaryWriter bw;
+      bw.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+      bw.put_BinaryData(hash160);
+
+      EXPECT_EQ(addr1->getPrefixedHash(), bw.getData());
+   }
+
+   {
+      //addr2
+      auto nodeCopy = bip32Node.getPublicCopy();
+      nodeCopy.derivePublic(1); //asset #1
+
+      auto pubkey = nodeCopy.getPublicKey();
+      auto pubkey2 = CryptoECDSA().UncompressPoint(pubkey);
+      auto hash160 = BtcUtils::getHash160(pubkey2);
+      BinaryWriter bw;
+      bw.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+      bw.put_BinaryData(hash160);
+
+      EXPECT_EQ(addr2->getPrefixedHash(), bw.getData());
+   }
+
+   {
+      //addr3
+      auto nodeCopy = bip32Node.getPublicCopy();
+      nodeCopy.derivePublic(2); //asset #2
+
+      auto pubkey = nodeCopy.getPublicKey();
+      BinaryWriter bw;
+      bw.put_uint8_t(33);
+      bw.put_BinaryData(pubkey);
+      bw.put_uint8_t(OP_CHECKSIG);
+
+      BinaryWriter p2shBw;
+      p2shBw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      p2shBw.put_BinaryData(BtcUtils::getHash160(bw.getData()));
+
+      EXPECT_EQ(addr3->getPrefixedHash(), p2shBw.getData());
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, BIP32_SaltedAccount)
 {
    vector<unsigned> derivationPath1 = {
