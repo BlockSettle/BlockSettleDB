@@ -11,7 +11,7 @@
 
 enum class ArmoryErrorCodes : int
 {
-    //bitcoin node rpc
+    //bitcoin node rpc errors
     ZcBroadcast_AlreadyInChain = -27, //Zc is already mined
     ZcBroadcast_VerifyRejected = -26, //failed verification
     ZcBroadcast_Error          = -25, //non specific error, most likely spent output
@@ -26,7 +26,12 @@ enum class ArmoryErrorCodes : int
 
     //zc parser
     ZcBatch_Timeout                 = 30000,
-    ZcBroadcast_AlreadyInMempool    = 30001
+    ZcBroadcast_AlreadyInMempool    = 30001,
+
+    //rpc code errors
+    RPCFailure_Unknown  = 40000,
+    RPCFailure_JSON     = 40001, //bitcoin node return is not JSON 
+    RPCFailure_Internal = 40002, //failed to setup the RPC connection
 };
 
 #endif

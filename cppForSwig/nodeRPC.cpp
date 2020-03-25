@@ -6,6 +6,7 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+#include "ArmoryErrors.h"
 #include "nodeRPC.h"
 #include "DBUtils.h"
 #include "BlockDataManagerConfig.h"
@@ -382,7 +383,7 @@ void NodeRPC::aggregateFeeEstimates()
 
    HttpSocket sock("127.0.0.1", bdmConfig_.rpcPort_);
    if (!setupConnection(sock))
-      throw RpcError();
+      throw RpcError("aggregateFeeEstimates: failed to setup RPC socket");
 
    auto newCache = make_shared<EstimateCache>();
 
@@ -539,23 +540,45 @@ int NodeRPC::broadcastTx(const BinaryDataRef& rawTx)
 
    json_obj.add_pair("params", json_array);
 
-   auto&& response = queryRPC(json_obj);
-   auto&& response_obj = JSON_decode(response);
-
-   if (!response_obj.isResponseValid(json_obj.id_))
+   string response;
+   try
    {
-      auto error_field = response_obj.getValForKey("error");
-      auto error_obj = dynamic_pointer_cast<JSON_object>(error_field);
-      if (error_obj == nullptr)
-         throw JSON_Exception("invalid response");
+      response = queryRPC(json_obj);
+      auto&& response_obj = JSON_decode(response);
 
-      auto code_field = error_obj->getValForKey("code");
-      auto code_val = dynamic_pointer_cast<JSON_number>(code_field);
+      if (!response_obj.isResponseValid(json_obj.id_))
+      {
+         auto error_field = response_obj.getValForKey("error");
+         auto error_obj = dynamic_pointer_cast<JSON_object>(error_field);
+         if (error_obj == nullptr)
+            throw JSON_Exception("invalid response");
 
-      return (int)code_val->val_;
+         auto code_field = error_obj->getValForKey("code");
+         auto code_val = dynamic_pointer_cast<JSON_number>(code_field);
+
+         return (int)code_val->val_;
+      }
+
+      return (int)ArmoryErrorCodes::Success;
    }
+   catch (RpcError& e)
+   {
+      LOGWARN << "RPC internal error: " << e.what();
+      return (int)ArmoryErrorCodes::RPCFailure_Internal;
+   }
+   catch (JSON_Exception& e)
+   {
+      LOGWARN << "RPC JSON error: " << e.what();
+      LOGWARN << "Node response was: ";
+      LOGWARN << response;
 
-   return 0;
+      return (int)ArmoryErrorCodes::RPCFailure_JSON;
+   }
+   catch (exception& e)
+   {
+      LOGWARN << "Unkown RPC error: " << e.what();
+      return (int)ArmoryErrorCodes::RPCFailure_Unknown;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -648,8 +671,9 @@ void NodeRPC::pollThread()
                continue;
             }
          }
-         catch (exception&)
+         catch (exception& e)
          {
+            LOGWARN << "fee poll check failed with error: " << e.what();
             status = false;
          }
       }
