@@ -174,7 +174,7 @@ void ScrAddrFilter::putMissingHashes(const set<BinaryData>& hashSet)
 void ScrAddrFilter::getScrAddrCurrentSyncState()
 {
    {
-      auto scraddrmap = scrAddrMap_->get();
+      auto scraddrmap = scanFilterAddrMap_->get();
       auto&& tx = lmdb_->beginTransaction(SSH, LMDB::ReadOnly);
 
       for (auto& scrAddr : *scraddrmap)
@@ -208,7 +208,7 @@ void ScrAddrFilter::setSSHLastScanned(set<BinaryDataRef>& addrSet,
 void ScrAddrFilter::setSSHLastScanned(unsigned height)
 {
    set<BinaryDataRef> addrSet;
-   auto addrMap = scrAddrMap_->get();
+   auto addrMap = scanFilterAddrMap_->get();
    for (auto& addr : *addrMap)
       addrSet.insert(addr.first);
 
@@ -217,33 +217,61 @@ void ScrAddrFilter::setSSHLastScanned(unsigned height)
 
 ///////////////////////////////////////////////////////////////////////////////
 set<BinaryDataRef> ScrAddrFilter::updateAddrMap(
-   const set<BinaryDataRef>& addrSet, unsigned height)
+   const set<BinaryDataRef>& addrSet, unsigned height, bool remove)
 {
-   set<BinaryDataRef> addrRefSet;
-   auto scraddrmap = scrAddrMap_->get();
-   map<BinaryDataRef, shared_ptr<AddrAndHash>> updateMap;
+   if (addrSet.empty())
+      return {};
 
-   for (auto& sa : addrSet)
+   switch (remove)
    {
-      auto iter = scraddrmap->find(sa);
-      if (iter != scraddrmap->end())
+   case false: 
+   {
+      //add addresses to both scan and zc filter maps
+      set<BinaryDataRef> addrRefSet;
+      auto scraddrmap = scanFilterAddrMap_->get();
+      map<BinaryDataRef, shared_ptr<AddrAndHash>> updateMap;
+      map<BinaryDataRef, shared_ptr<AddrAndHash>> zcUpdateMap;
+
+      for (auto& sa : addrSet)
       {
-         addrRefSet.insert(iter->first);
-         continue;
+         auto iter = scraddrmap->find(sa);
+         if (iter != scraddrmap->end())
+         {
+            //zc filter map may not have this address while the scan map does
+            addrRefSet.insert(iter->first);
+            zcUpdateMap.insert(*iter);
+            continue;
+         }
+
+         auto aah = make_shared<AddrAndHash>(sa);
+         aah->scannedHeight_ = height;
+         pair<BinaryDataRef, shared_ptr<AddrAndHash>> addrPair = { 
+            aah->scrAddr_.getRef(), aah };
+         
+         zcUpdateMap.insert(addrPair);
+         updateMap.insert(move(addrPair));
+         addrRefSet.insert(aah->scrAddr_.getRef());
       }
 
-      auto aah = make_shared<AddrAndHash>(sa);
-      aah->scannedHeight_ = height;
-      updateMap.insert(move(make_pair(aah->scrAddr_.getRef(), aah)));
-      addrRefSet.insert(aah->scrAddr_.getRef());
+      scanFilterAddrMap_->update(updateMap);
+      zcFilterAddrMap_->update(zcUpdateMap);
+      return addrRefSet;
    }
 
-   scrAddrMap_->update(updateMap);
-   return addrRefSet;
+   case true:
+   {
+      //remove addresses from the zc filter map only
+      vector<BinaryDataRef> removeVec;
+      removeVec.insert(removeVec.end(), addrSet.begin(), addrSet.end());
+      zcFilterAddrMap_->erase(removeVec);
+
+      return {};
+   }
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void ScrAddrFilter::registerAddressBatch(shared_ptr<AddressBatch> batch)
+void ScrAddrFilter::pushAddressBatch(shared_ptr<AddressBatch> batch)
 {
    registrationStack_.push_back(move(batch));
 }
@@ -264,80 +292,108 @@ void ScrAddrFilter::registrationThread()
          break;
       }
 
-      if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
+      switch (batch->type_)
       {
-         //no scanning required in supernode, just update the address map
-         auto&& scaSet = updateAddrMap(batch->scrAddrSet_, 0);
-         batch->callback_(scaSet);
-         continue;
-      }
+      case AddressBatch_register:
+      {
+         auto batchPtr = dynamic_pointer_cast<RegistrationBatch>(batch);
+         if (batchPtr == nullptr)
+            throw runtime_error("unexpected batch ptr type");
 
-      //filter out collisions
-      set<BinaryDataRef> addrSet;
-      {
-         auto scraddrmap = scrAddrMap_->get();
-         for (auto& sa : batch->scrAddrSet_)
+         if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
          {
-            BinaryData sabd(sa);
-            auto iter = scraddrmap->find(sa);
-            if (iter != scraddrmap->end())
-               continue;
-
-            addrSet.insert(sa);
+            //no scanning required in supernode, just update the address map
+            auto&& scaSet = updateAddrMap(batchPtr->scrAddrSet_, 0, false);
+            batchPtr->callback_(scaSet);
+            continue;
          }
+
+         //filter out collisions
+         set<BinaryDataRef> addrSet;
+         {
+            auto scraddrmap = scanFilterAddrMap_->get();
+            for (auto& sa : batchPtr->scrAddrSet_)
+            {
+               BinaryData sabd(sa);
+               auto iter = scraddrmap->find(sa);
+               if (iter != scraddrmap->end())
+                  continue;
+
+               addrSet.insert(sa);
+            }
+         }
+
+         if (addrSet.size() == 0 || !bdmIsRunning())
+         {
+            //all addresses are already registered
+            //or db isn't running yet
+            auto&& scaSet = updateAddrMap(batchPtr->scrAddrSet_, 0, false);
+            batchPtr->callback_(scaSet);
+            continue;
+         }
+
+         LOGINFO << "Starting address registration process";
+
+         //BDM is initialized and maintenance thread is running, scan batch
+         uint32_t topBlockHeight = blockchain()->top()->getBlockHeight();
+         
+         if (batchPtr->isNew_)
+         {
+            //batch is flagged as new, all addresses within it are assumed
+            //clean of history. Update the map and continue
+            auto&& scaSet = updateAddrMap(batchPtr->scrAddrSet_, 0, false);
+            setSSHLastScanned(addrSet, topBlockHeight);
+            batchPtr->callback_(scaSet);
+            continue;
+         }
+
+         //scan the batch
+         vector<string> walletIDs;
+         walletIDs.push_back(batchPtr->walletID_);
+         auto saf = getNew(SIDESCAN_ID);
+         saf->updateAddrMap(addrSet, 0, false);
+         saf->applyBlockRangeToDB(0, walletIDs, true);
+
+         //merge with main address filter
+         set<BinaryDataRef> newAddrSet;
+         auto newMap = saf->scanFilterAddrMap_->get();
+         for (auto& saPair : *newMap)
+            newAddrSet.insert(saPair.first);
+         scanFilterAddrMap_->update(*newMap);
+         updateAddressMerkleInDB();
+
+         //final scan to sync all addresses to same height
+         applyBlockRangeToDB(topBlockHeight + 1, walletIDs, false);
+         
+         //cleanup
+         saf->cleanUpSdbis();
+
+         //notify
+         for (const auto& wID : walletIDs)
+            LOGINFO << "Completed scan of wallet " << wID;
+
+         auto&& scaSet = updateAddrMap(batchPtr->scrAddrSet_, 0, false);
+         batchPtr->callback_(scaSet);
+         
+         break;
       }
 
-      if (addrSet.size() == 0 || !bdmIsRunning())
+      case AddressBatch_unregister:
       {
-         //all addresses are already registered
-         //or db isn't running yet
-         auto&& scaSet = updateAddrMap(batch->scrAddrSet_, 0);
-         batch->callback_(scaSet);
-         continue;
+         auto batchPtr = dynamic_pointer_cast<UnregistrationBatch>(batch);
+         if (batchPtr == nullptr)
+            throw runtime_error("unexpected batch ptr type");
+        
+         set<BinaryDataRef> scrAddrSet;
+         scrAddrSet.insert(
+            batchPtr->scrAddrSet_.begin(), batchPtr->scrAddrSet_.end());
+         updateAddrMap(scrAddrSet, 0, true);
+         if (batchPtr->callback_)
+            batchPtr->callback_();
+         
+         break;
       }
-
-      LOGINFO << "Starting address registration process";
-
-      //BDM is initialized and maintenance thread is running, scan batch
-      uint32_t topBlockHeight = blockchain()->top()->getBlockHeight();
-      
-      if (batch->isNew_)
-      {
-         //batch is flagged as new, all addresses within it are assumed
-         //clean of history. Update the map and continue
-         auto&& scaSet = updateAddrMap(batch->scrAddrSet_, 0);
-         setSSHLastScanned(addrSet, topBlockHeight);
-         batch->callback_(scaSet);
-         continue;
       }
-
-      //scan the batch
-      vector<string> walletIDs;
-      walletIDs.push_back(batch->walletID_);
-      auto saf = getNew(SIDESCAN_ID);
-      saf->updateAddrMap(addrSet, 0);
-      saf->applyBlockRangeToDB(0, walletIDs, true);
-
-      //merge with main address filter
-      set<BinaryDataRef> newAddrSet;
-      auto newMap = saf->scrAddrMap_->get();
-      for (auto& saPair : *newMap)
-         newAddrSet.insert(saPair.first);
-      scrAddrMap_->update(*newMap);
-      updateAddressMerkleInDB();
-
-      //final scan to sync all addresses to same height
-      applyBlockRangeToDB(topBlockHeight + 1, walletIDs, false);
-      
-      //cleanup
-      saf->cleanUpSdbis();
-
-      //notify
-      for (const auto& wID : walletIDs)
-         LOGINFO << "Completed scan of wallet " << wID;
-
-      auto&& scaSet = updateAddrMap(batch->scrAddrSet_, 0);
-      batch->callback_(scaSet);
    }
 }
 
@@ -346,9 +402,9 @@ int32_t ScrAddrFilter::scanFrom() const
 {
    int32_t lowestBlock = -1;
 
-   if (scrAddrMap_->size() > 0)
+   if (scanFilterAddrMap_->size() > 0)
    {
-      auto scraddrmap = scrAddrMap_->get();
+      auto scraddrmap = scanFilterAddrMap_->get();
       lowestBlock = scraddrmap->begin()->second->scannedHeight_;
 
       for (auto scrAddr : *scraddrmap)
@@ -371,7 +427,7 @@ int32_t ScrAddrFilter::scanFrom() const
 void ScrAddrFilter::resetSshDB()
 {
    auto tx = lmdb_->beginTransaction(SSH, LMDB::ReadWrite);
-   auto scraddrmap = scrAddrMap_->get();
+   auto scraddrmap = scanFilterAddrMap_->get();
    
    for (const auto& regScrAddr : *scraddrmap)
    {
@@ -405,16 +461,17 @@ void ScrAddrFilter::getAllScrAddrInDB()
          move(make_pair(aah->scrAddr_.getRef(), aah)));
    } 
 
-   scrAddrMap_->update(scrAddrMap);
+   //the zc filter map is only update once when users register address explictly
+   scanFilterAddrMap_->update(scrAddrMap);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 BinaryData ScrAddrFilter::getAddressMapMerkle(void) const
 {
    vector<BinaryData> addrVec;
-   addrVec.reserve(scrAddrMap_->size());
+   addrVec.reserve(scanFilterAddrMap_->size());
 
-   auto scraddrmap = scrAddrMap_->get();
+   auto scraddrmap = scanFilterAddrMap_->get();
    for (const auto& addr : *scraddrmap)
       addrVec.push_back(addr.second->getHash());
 
@@ -427,7 +484,7 @@ BinaryData ScrAddrFilter::getAddressMapMerkle(void) const
 ///////////////////////////////////////////////////////////////////////////////
 bool ScrAddrFilter::hasNewAddresses(void) const
 {
-   if (scrAddrMap_->size() == 0)
+   if (scanFilterAddrMap_->size() == 0)
       return false;
 
    //do not run before getAllScrAddrInDB
@@ -444,7 +501,7 @@ bool ScrAddrFilter::hasNewAddresses(void) const
       return false;
 
    //merkles don't match, check height in each address
-   auto scraddrmap = scrAddrMap_->get();
+   auto scraddrmap = scanFilterAddrMap_->get();
    auto scanfrom = scraddrmap->begin()->second;
    for (const auto& scrAddr : *scraddrmap)
    {
@@ -461,7 +518,7 @@ shared_ptr<map<TxOutScriptRef, int>> ScrAddrFilter::getOutScrRefMap(void)
    getScrAddrCurrentSyncState();
    auto outset = make_shared<map<TxOutScriptRef, int>>();
 
-   auto scrAddrMap = scrAddrMap_->get();
+   auto scrAddrMap = scanFilterAddrMap_->get();
 
    for (auto& scrAddr : *scrAddrMap)
    {
@@ -520,3 +577,26 @@ void ScrAddrFilter::init()
 
    thr_ = thread(thrLambda);
 }
+
+///////////////////////////////////////////////////////////////////////////////
+void ScrAddrFilter::unregisterAddresses(const set<BinaryDataRef>& scrAddrSet, 
+   const function<void(void)>& callback)
+{
+   /*
+   Remove addresses from the ScrAddrFilter zcFilter map
+   */
+
+   auto batch = make_shared<UnregistrationBatch>();
+   batch->scrAddrSet_.insert(scrAddrSet.begin(), scrAddrSet.end());
+   batch->callback_ = callback;
+
+   pushAddressBatch(move(batch));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+////
+//// AddressBatch
+////
+///////////////////////////////////////////////////////////////////////////////
+AddressBatch::~AddressBatch()
+{}

@@ -22,6 +22,7 @@ enum Methods
 	goOnline = 10;
 	registerWallet = 11;
 	registerLockbox = 12;
+	unregisterAddresses = 13;
 
 	getTopBlockHeight = 20;
 	getHeaderByHeight = 21;

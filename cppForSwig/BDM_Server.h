@@ -42,6 +42,7 @@ enum BDVCommandProcessingResultType
    BDVCommandProcess_Static,
    BDVCommandProcess_ZC_P2P,
    BDVCommandProcess_ZC_RPC,
+   BDVCommandProcess_UnregisterAddresses,
    BDVCommandProcess_PayloadNotReady
 };
 
