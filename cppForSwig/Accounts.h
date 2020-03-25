@@ -208,22 +208,23 @@ public:
       privateRoot, publicRoot, chainCode)
    {
       //uncompressed p2pkh
-      addressTypes_.insert(AddressEntryType_P2PKH);
+      addressTypes_.insert(AddressEntryType(
+         AddressEntryType_P2PKH | AddressEntryType_Uncompressed));
 
       //nested compressed p2pk
       addressTypes_.insert(AddressEntryType(
-         AddressEntryType_P2PK | AddressEntryType_Compressed | AddressEntryType_P2SH));
+         AddressEntryType_P2PK | AddressEntryType_P2SH));
 
       //nested p2wpkh
       addressTypes_.insert(AddressEntryType(
          AddressEntryType_P2WPKH | AddressEntryType_P2SH));
 
       //native p2wpkh
-      addressTypes_.insert(AddressEntryType(
-         AddressEntryType_P2WPKH));
+      addressTypes_.insert(AddressEntryType_P2WPKH);
 
       //default type
-      defaultAddressEntryType_ = AddressEntryType_P2PKH;
+      defaultAddressEntryType_ = AddressEntryType(
+         AddressEntryType_P2PKH | AddressEntryType_Uncompressed);
    }
 
    AccountTypeEnum type(void) const
@@ -320,14 +321,13 @@ public:
          depth, leafId)
    {
       //uncompressed p2pkh
-      addressTypes_.insert(AddressEntryType_P2PKH);
+      addressTypes_.insert(AddressEntryType(
+         AddressEntryType_P2PKH | AddressEntryType_Uncompressed));
 
       //compressed p2pkh
-      addressTypes_.insert(
-         AddressEntryType(AddressEntryType_Compressed | AddressEntryType_P2PKH));
+      addressTypes_.insert(AddressEntryType_P2PKH);
 
-      defaultAddressEntryType_ =
-         AddressEntryType(AddressEntryType_Compressed | AddressEntryType_P2PKH);
+      defaultAddressEntryType_ = AddressEntryType_P2PKH;
    }
 
    AccountTypeEnum type(void) const 
@@ -360,8 +360,7 @@ public:
          AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
 
       //default
-      defaultAddressEntryType_ =
-         AddressEntryType(AddressEntryType_P2WPKH);
+      defaultAddressEntryType_ = AddressEntryType_P2WPKH;
    }
 
 

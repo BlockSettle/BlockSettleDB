@@ -33,7 +33,7 @@ enum AddressEntryType
    AddressEntryType_P2PK = 2,
    AddressEntryType_P2WPKH = 3,
    AddressEntryType_Multisig = 4,
-   AddressEntryType_Compressed = 0x10000000,
+   AddressEntryType_Uncompressed = 0x10000000,
    AddressEntryType_P2SH = 0x40000000,
    AddressEntryType_P2WSH = 0x80000000
 };
