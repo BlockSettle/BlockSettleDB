@@ -343,6 +343,11 @@ public:
       const SecureBinaryData& seed,
       const SecureBinaryData& passphrase,
       const SecureBinaryData& controlPassphrase);
+
+   static std::shared_ptr<AssetWallet_Single> createSeedless_WatchingOnly(
+      const std::string& folder,
+      const std::string& walletID,
+      const SecureBinaryData& controlPassphrase);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
