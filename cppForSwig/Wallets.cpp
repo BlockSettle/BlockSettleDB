@@ -190,12 +190,19 @@ void AssetWallet_Single::readFromFile()
 
    {
       //root asset
-      BinaryWriter bwKey;
-      bwKey.put_uint32_t(ROOTASSET_KEY);
-      auto rootAssetRef = getDataRefForKey(tx.get(), bwKey.getData());
+      root_ = nullptr;
 
-      auto asset_root = AssetEntry::deserDBValue(-1, BinaryData(), rootAssetRef);
-      root_ = dynamic_pointer_cast<AssetEntry_Single>(asset_root);
+      try
+      {
+         BinaryWriter bwKey;
+         bwKey.put_uint32_t(ROOTASSET_KEY);
+         auto rootAssetRef = getDataRefForKey(tx.get(), bwKey.getData());
+
+         auto asset_root = AssetEntry::deserDBValue(-1, BinaryData(), rootAssetRef);
+         root_ = dynamic_pointer_cast<AssetEntry_Single>(asset_root);
+      }
+      catch(NoEntryInWalletException&)
+      {}
    }
 
    {
@@ -1499,6 +1506,44 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AssetWallet_Single> AssetWallet_Single::createSeedless_WatchingOnly(
+   const string& folder, const string& walletID,
+   const SecureBinaryData& controlPassphrase)
+{
+   auto&& masterID = walletID;
+
+   /*
+   Create control passphrase lambda. It gets wiped after the wallet is setup
+   */
+   auto controlPassLbd = 
+      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
+   {
+      return controlPassphrase;
+   };
+
+   //create wallet file and dbenv
+   stringstream pathSS;
+   pathSS << folder << "/armory_" << masterID << "_WatchingOnly.lmdb";
+   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
+
+   //address accounts
+   shared_ptr<AssetWallet_Single> walletPtr = nullptr;
+
+   //ctors move the arguments in, gotta create copies first
+   SecureBinaryData pubRoot;
+   walletPtr = initWalletDbFromPubRoot(
+      iface,
+      controlPassphrase,
+      masterID, walletID,
+      pubRoot, {}, 0);
+
+   //set as main
+   setMainWallet(iface, walletID);
+
+   return walletPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 string AssetWallet_Single::computeWalletID(
    shared_ptr<DerivationScheme> derScheme,
    shared_ptr<AssetEntry> rootEntry)
@@ -1701,9 +1746,12 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
    unsigned lookup)
 {
    //create root AssetEntry
-   auto rootAssetEntry = make_shared<AssetEntry_Single>(
-      -1, BinaryData(),
-      pubRoot, nullptr);
+   shared_ptr<AssetEntry_Single> rootAssetEntry = nullptr;
+   if (pubRoot.getSize() != 0)
+   {
+      rootAssetEntry = make_shared<AssetEntry_Single>(
+         -1, BinaryData(), pubRoot, nullptr);
+   }
 
    auto headerPtr = make_shared<WalletHeader_Single>();
    headerPtr->walletID_ = walletID;
@@ -1725,6 +1773,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
    {
       auto&& tx = iface->beginWriteTransaction(walletPtr->dbName_);
 
+      if (rootAssetEntry != nullptr)
       {
          //root asset
          BinaryWriter bwKey;
@@ -1773,12 +1822,11 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
 
    {
       //asset lookup
-      auto topEntryPtr = rootAssetEntry;
-
       if (lookup == UINT32_MAX)
          lookup = DERIVATION_LOOKUP;
 
-      walletPtr->extendPublicChain(lookup);
+      if (lookup > 0)
+         walletPtr->extendPublicChain(lookup);
    }
 
    return walletPtr;

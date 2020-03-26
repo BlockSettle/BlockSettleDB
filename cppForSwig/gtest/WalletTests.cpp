@@ -4945,8 +4945,8 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
 
    //1: create wallet, this is a temporary hack as you can't create wallets
    //without a seed atm (we're creating it from a random seed we have no use for)
-   auto wltWO = AssetWallet_Single::createFromSeed_BIP32_Blank(
-      homedir_, CryptoPRNG::generateRandom(32), passphrase, controlPass_);
+   auto wltWO = AssetWallet_Single::createSeedless_WatchingOnly(
+      homedir_, "walletWO1", controlPass_);
    
    //2: create a public root asset from the xpub
 
