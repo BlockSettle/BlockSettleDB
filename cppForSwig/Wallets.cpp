@@ -1860,6 +1860,9 @@ void AssetWallet_Single::changePrivateKeyPassphrase(
 void AssetWallet_Single::addPrivateKeyPassphrase(
    const function<SecureBinaryData(void)>& newPassLbd)
 {
+   if (root_ == nullptr || !root_->hasPrivateKey())
+      throw WalletException("wallet has no private root");
+
    auto&& masterKeyId = root_->getPrivateEncryptionKeyId();
    auto&& masterKdfId = root_->getKdfId();
 
@@ -1870,6 +1873,9 @@ void AssetWallet_Single::addPrivateKeyPassphrase(
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet_Single::erasePrivateKeyPassphrase()
 {
+   if (root_ == nullptr || !root_->hasPrivateKey())
+      throw WalletException("wallet has no private root");
+
    auto&& masterKeyId = root_->getPrivateEncryptionKeyId();
    auto&& masterKdfId = root_->getKdfId();
 
@@ -1942,6 +1948,7 @@ void AssetWallet_Single::copyPublicData(
       //open the relevant db name
       auto&& tx = iface->beginWriteTransaction(wlt->dbName_);
 
+      if (wlt->root_ != nullptr)
       {
          //copy root
          auto rootCopy = wlt->root_->getPublicCopy();
@@ -2046,6 +2053,10 @@ void AssetWallet_Single::setSeed(
 ////////////////////////////////////////////////////////////////////////////////
 bool AssetWallet_Single::isWatchingOnly() const
 {
+
+   if (root_ == nullptr)
+      return true;
+
    return !root_->hasPrivateKey();
 }
 
