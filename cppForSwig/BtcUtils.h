@@ -1367,25 +1367,10 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   static double convertDiffBitsToDouble(BinaryData const & diffBitsBinary)
-   {
-       uint32_t diffBits = READ_UINT32_LE(diffBitsBinary);
-       int nShift = (diffBits >> 24) & 0xff;
-       double dDiff = (double)0x0000ffff / (double)(diffBits & 0x00ffffff);
-   
-       while (nShift < 29)
-       {
-           dDiff *= 256.0;
-           nShift++;
-       }
-       while (nShift > 29)
-       {
-           dDiff /= 256.0;
-           nShift--;
-       }
-       return dDiff;
-   }
+   static double convertDiffBitsToDouble(BinaryData const & diffBitsBinary);
 
+   /////////////////////////////////////////////////////////////////////////////
+   static BinaryData convertDoubleToDiffBits(double diff);
 
    // This got more complicated when Bitcoin Core 0.8 switched from
    // blk0001.dat to blocks/blk00000.dat

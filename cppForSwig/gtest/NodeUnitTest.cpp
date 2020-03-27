@@ -64,23 +64,23 @@ void NodeUnitTest::notifyNewBlock(void)
 
 ////////////////////////////////////////////////////////////////////////////////
 map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(BlockDataManager* bdm,
-   unsigned count, const BinaryData& h160)
+   unsigned count, const BinaryData& h160, double diff)
 {
    Recipient_P2PKH recipient(h160, 50 * COIN);
-   return mineNewBlock(bdm, count, &recipient);
+   return mineNewBlock(bdm, count, &recipient, diff);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(BlockDataManager* bdm,
-   unsigned count, ScriptRecipient* recipient)
+   unsigned count, ScriptRecipient* recipient, double diff)
 {
-
+   auto diffBits = BtcUtils::convertDoubleToDiffBits(diff);
    if(header_.prevHash_.getSize() == 0)
    {
       auto top = blockchain_->top();
       header_.prevHash_ = top->getThisHash();
       header_.timestamp_ = top->getTimestamp();
-      header_.diffBits_  = top->getDiffBits();
+      header_.diffBits_  = diffBits;
       header_.blockHeight_ = top->getBlockHeight() + 1;
    }
 
@@ -198,7 +198,7 @@ map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(BlockDataManager* bdm,
          bwBlock.put_uint32_t(header_.timestamp_ + 600);
 
          //diff bits
-         bwBlock.put_BinaryData(header_.diffBits_);
+         bwBlock.put_BinaryData(diffBits);
 
          //nonce
          bwBlock.put_uint32_t(0);
@@ -209,7 +209,7 @@ map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(BlockDataManager* bdm,
          block.headerHash_ = header_.prevHash_;
          block.rawHeader_ = bwBlock.getDataRef();
          
-         block.diffBits_ = header_.diffBits_;
+         block.diffBits_ = diffBits;
          block.timestamp_ = header_.timestamp_;
          header_.timestamp_ += 600;
       }
@@ -309,6 +309,7 @@ map<unsigned, BinaryData> NodeUnitTest::mineNewBlock(BlockDataManager* bdm,
    else
    {
       //push db block notification
+      this_thread::sleep_for(chrono::milliseconds(100));
       notifyNewBlock();
    }
 
