@@ -575,6 +575,13 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
             if (!seenHashes_.insert(hashBd).second)
                break;
 
+            {
+               //or if we already have this tx
+               auto mempoolIter = mempool_.find(hashBd.getRef());
+               if (mempoolIter != mempool_.end())
+                  break;
+            }
+
             shared_ptr<Payload_Tx> payloadTx;
             {
                //consume getDataMap entry
