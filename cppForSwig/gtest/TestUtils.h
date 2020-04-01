@@ -217,10 +217,38 @@ namespace DBTestUtils
 
    private:
       ArmoryThreading::BlockingQueue<std::unique_ptr<BdmNotif>> actionStack_;
+      std::deque<std::unique_ptr<BdmNotif>> actionDeque_;
 
    public:
       UTCallback() : RemoteCallback()
       {}
+
+      std::unique_ptr<BdmNotif> waitOnNotification(BDMAction actionType)
+      {
+         {
+            auto iter = actionDeque_.begin();
+            while (iter != actionDeque_.end())
+            {
+               if ((*iter)->action_ == actionType)
+               {
+                  auto result = move(*iter);
+                  actionDeque_.erase(iter);
+                  return result;
+               }
+
+               ++iter;
+            }
+         }
+
+         while (true)
+         {
+            auto&& action = actionStack_.pop_front();
+            if (action->action_ == actionType)
+               return move(action);
+
+            actionDeque_.push_back(move(action));
+         }
+      }
 
       void run(BdmNotification bdmNotif)
       {
@@ -332,10 +360,7 @@ namespace DBTestUtils
          std::set<BinaryData> addrSet;
          while (1)
          {
-            auto&& action = actionStack_.pop_front();
-            if (action->action_ != BDMAction_ZC)
-               continue;
-
+            auto&& action = waitOnNotification(BDMAction_ZC);
             bool hasHashes = true;
             for (auto& txHash : action->idVec_)
             {
@@ -359,10 +384,7 @@ namespace DBTestUtils
       {
          while (1)
          {
-            auto&& action = actionStack_.pop_front();
-            if (action->action_ != BDMAction_BDV_Error)
-               continue;
-
+            auto&& action = waitOnNotification(BDMAction_BDV_Error);
             if (action->error_.errData_ == hash && 
                action->error_.errCode_ == (int)errorCode)
                break;
