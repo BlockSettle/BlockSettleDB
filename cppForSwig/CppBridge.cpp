@@ -1289,6 +1289,9 @@ void CppBridge::extendAddressPool(
 ////////////////////////////////////////////////////////////////////////////////
 string CppBridge::createWallet(const ClientCommand& msg)
 {
+   if (wltManager_ == nullptr)
+      throw runtime_error("wallet manager is not initialized");
+
    if (msg.byteargs_size() != 1)
       throw runtime_error("invalid create wallet payload");
 

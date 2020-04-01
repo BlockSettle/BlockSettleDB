@@ -902,7 +902,22 @@ vector<uint8_t> SimpleSocket::readFromSocket(void)
 ///////////////////////////////////////////////////////////////////////////////
 int SimpleSocket::writeToSocket(vector<uint8_t>& payload)
 {
-   return send(sockfd_, (char*)&payload[0], payload.size(), 0);
+   char *ptr = (char*)&payload[0];
+   size_t length = payload.size();
+   while (length > 0)
+   {
+      int pktsize = 4096;
+      if (length < pktsize)
+         pktsize = length;
+      int i = write(sockfd_, ptr, pktsize);
+      if (i >= 1) {
+         ptr += i;
+         length -= i;
+      } else {
+         LOGWARN << "Error writing packet" << i;
+      }
+   }
+   return length;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

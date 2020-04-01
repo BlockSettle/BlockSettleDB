@@ -58,10 +58,12 @@ void startupBIP151CTX()
 // RET: N/A
 void shutdownBIP151CTX()
 {
-   if(secp256k1_ecdh_ctx != nullptr)
+   secp256k1_context* ctx = secp256k1_ecdh_ctx;
+   secp256k1_ecdh_ctx = nullptr;
+
+   if(ctx != nullptr)
    {
-      secp256k1_context_destroy(secp256k1_ecdh_ctx);
-      secp256k1_ecdh_ctx = nullptr;
+      secp256k1_context_destroy(ctx);
    }
 }
 
