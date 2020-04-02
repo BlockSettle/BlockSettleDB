@@ -527,7 +527,7 @@ void NodeRPC::waitOnChainSync(function<void(void)> callbck)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-int NodeRPC::broadcastTx(const BinaryDataRef& rawTx)
+int NodeRPC::broadcastTx(const BinaryDataRef& rawTx, string& verbose)
 {
    ReentrantLock lock(this);
 
@@ -553,9 +553,12 @@ int NodeRPC::broadcastTx(const BinaryDataRef& rawTx)
          if (error_obj == nullptr)
             throw JSON_Exception("invalid response");
 
+         auto msg_field = error_obj->getValForKey("message");
+         auto msg_val = dynamic_pointer_cast<JSON_string>(msg_field);
+         verbose = msg_val->val_;
+         
          auto code_field = error_obj->getValForKey("code");
          auto code_val = dynamic_pointer_cast<JSON_number>(code_field);
-
          return (int)code_val->val_;
       }
 
