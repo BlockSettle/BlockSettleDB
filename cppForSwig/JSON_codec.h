@@ -129,7 +129,10 @@ public:
 
    JSON_object(void) :
       id_(id_counter_++)
-   {}
+   {
+      if (id_counter_ > 10000)
+         id_counter_ = 0;
+   }
 
    bool add_pair(const std::string& key, const std::string& val)
    {

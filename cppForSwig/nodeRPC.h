@@ -150,7 +150,7 @@ public:
    virtual ~NodeRPCInterface(void) = 0;
    virtual void shutdown(void) = 0;
 
-   virtual int broadcastTx(const BinaryDataRef&) = 0;
+   virtual int broadcastTx(const BinaryDataRef&, std::string&) = 0;
    virtual bool canPoll(void) const = 0;
    virtual RpcStatus testConnection() = 0;
    virtual void waitOnChainSync(std::function<void(void)>) = 0;
@@ -210,7 +210,7 @@ public:
    FeeEstimateResult getFeeByte(
       unsigned confTarget, const std::string& strategy) override;
 
-   int broadcastTx(const BinaryDataRef&) override;
+   int broadcastTx(const BinaryDataRef&, std::string&) override;
    void waitOnChainSync(std::function<void(void)>) override;
 };
 

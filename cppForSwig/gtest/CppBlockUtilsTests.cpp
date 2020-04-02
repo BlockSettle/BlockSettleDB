@@ -1182,11 +1182,11 @@ TEST_F(BinaryDataTest, Constructor)
    EXPECT_EQ(e.getSize(), 4);
    EXPECT_EQ(f.getSize(), 4);
 
-   EXPECT_TRUE( a.isNull());
-   EXPECT_FALSE(b.isNull());
-   EXPECT_FALSE(c.isNull());
-   EXPECT_FALSE(d.isNull());
-   EXPECT_FALSE(e.isNull());
+   EXPECT_TRUE( a.empty());
+   EXPECT_FALSE(b.empty());
+   EXPECT_FALSE(c.empty());
+   EXPECT_FALSE(d.empty());
+   EXPECT_FALSE(e.empty());
 
    BinaryDataRef g(f);
    BinaryDataRef h(d);
@@ -1704,15 +1704,15 @@ TEST_F(BinaryDataRefTest, Constructor)
    EXPECT_FALSE(i.getPtr()==NULL);
    EXPECT_EQ(i.getSize(), 8);
 
-   EXPECT_TRUE( a.isNull());
-   EXPECT_TRUE( b.isNull());
-   EXPECT_TRUE( c.isNull());
-   EXPECT_FALSE(d.isNull());
-   EXPECT_FALSE(e.isNull());
-   EXPECT_TRUE( f.isNull());
-   EXPECT_FALSE(g.isNull());
-   EXPECT_TRUE( h.isNull());
-   EXPECT_FALSE(i.isNull());
+   EXPECT_TRUE( a.empty());
+   EXPECT_TRUE( b.empty());
+   EXPECT_TRUE( c.empty());
+   EXPECT_FALSE(d.empty());
+   EXPECT_FALSE(e.empty());
+   EXPECT_TRUE( f.empty());
+   EXPECT_FALSE(g.empty());
+   EXPECT_TRUE( h.empty());
+   EXPECT_FALSE(i.empty());
 }
 
 
@@ -1758,15 +1758,15 @@ TEST_F(BinaryDataRefTest, PostConstruct)
    EXPECT_FALSE(i.getPtr()==NULL);
    EXPECT_EQ(i.getSize(), 8);
 
-   EXPECT_TRUE( a.isNull());
-   EXPECT_TRUE( b.isNull());
-   EXPECT_TRUE( c.isNull());
-   EXPECT_FALSE(d.isNull());
-   EXPECT_FALSE(e.isNull());
-   EXPECT_TRUE( f.isNull());
-   EXPECT_FALSE(g.isNull());
-   EXPECT_FALSE(h.isNull());
-   EXPECT_FALSE(i.isNull());
+   EXPECT_TRUE( a.empty());
+   EXPECT_TRUE( b.empty());
+   EXPECT_TRUE( c.empty());
+   EXPECT_FALSE(d.empty());
+   EXPECT_FALSE(e.empty());
+   EXPECT_TRUE( f.empty());
+   EXPECT_FALSE(g.empty());
+   EXPECT_FALSE(h.empty());
+   EXPECT_FALSE(i.empty());
 }
 
 
