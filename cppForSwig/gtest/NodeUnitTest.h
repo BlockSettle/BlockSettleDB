@@ -150,7 +150,7 @@ public:
    bool canPoll(void) const override { return false; }
 
    void waitOnChainSync(std::function<void(void)>) {}
-   int broadcastTx(const BinaryDataRef&) override;
+   int broadcastTx(const BinaryDataRef&, std::string&) override;
 
    FeeEstimateResult getFeeByte(
       unsigned, const std::string&) override

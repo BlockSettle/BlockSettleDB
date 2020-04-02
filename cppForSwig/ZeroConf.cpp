@@ -490,7 +490,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
       //setup batch with all tracked zc
       if (zcAction.batch_ == nullptr)
          zcAction.batch_ = make_shared<ZeroConfBatch>(false);
-      zcAction.batch_->txMap_ = ss->txMap_;
+      zcAction.batch_->zcMap_ = ss->txMap_;
       zcAction.batch_->isReadyPromise_->set_value(ArmoryErrorCodes::Success);
 
       if (!result)
@@ -1736,8 +1736,8 @@ void ZeroConfContainer::handleZcProcessingStructThread(void)
             if (keyIter == reqIter->second->hashToKeyMap_.end())
                break;
             
-            auto txIter = reqIter->second->txMap_.find(keyIter->second);
-            if (txIter == reqIter->second->txMap_.end())
+            auto txIter = reqIter->second->zcMap_.find(keyIter->second);
+            if (txIter == reqIter->second->zcMap_.end())
                break;
 
             payloadTx->pTx_ = txIter->second;
@@ -1881,14 +1881,20 @@ void ZeroConfContainer::broadcastZC(
    zcPacket->hashes_.reserve(rawZcVec.size());
    zcPacket->zcVec_.reserve(rawZcVec.size());
 
-   for (auto& rawZc : rawZcVec)
+   for (auto& rawZcRef : rawZcVec)
    {
-      auto rawZcPtr = make_shared<BinaryData>(rawZc);
+      if (rawZcRef.getSize() == 0)
+         continue;
+
+      auto rawZcPtr = make_shared<BinaryData>(rawZcRef);
       Tx tx(*rawZcPtr);
 
       zcPacket->hashes_.push_back(tx.getThisHash());
       zcPacket->zcVec_.push_back(rawZcPtr);
    }
+
+   if (zcPacket->zcVec_.empty())
+      return;
 
    {
       //update the watcher map
@@ -1900,7 +1906,7 @@ void ZeroConfContainer::broadcastZC(
       }
    }
 
-   //sets up & pushes the zc batch for us
+   //sets up & queues the zc batch for us
    actionQueue_->initiateZcBatch(zcPacket->hashes_, timeout_ms, cbk, true);
 
    //push each zc on the process queue
@@ -2157,10 +2163,10 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::getBatchTxMap(
       unsigned invedZcCount = 0;
       vector<ZeroConfBatchFallbackStruct> txVec;
       set<BinaryDataRef> purgedHashes;
-      txVec.reserve(batch->txMap_.size());
+      txVec.reserve(batch->zcMap_.size());
 
       //purge the batch of missing tx and their children
-      for (auto& txPair : batch->txMap_)
+      for (auto& txPair : batch->zcMap_)
       {
          bool purge = false;
 
@@ -2215,7 +2221,7 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::getBatchTxMap(
          if (collisionIter != ss->txHashToDBKey_.end())
          {
             //already have this tx in our mempool, report to callback
-            //but don't flag as purged (children are valid if any)
+            //but don't flag hash as purged (children need to be processed if any)
             fallbackStruct.err_ = ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool;
          }
          else
@@ -2239,14 +2245,14 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::getBatchTxMap(
 
       //we have some inv'ed zc to parse but the batch timed out, we need to
       //wait on the counter to match our local count of valid tx.
-      while (batch->txMap_.size() - 
-            batch->counter_->load(memory_order_acquire) < invedZcCount)
+      while (batch->zcMap_.size() - batch->counter_->load(memory_order_acquire) < 
+         invedZcCount)
       {
          this_thread::sleep_for(chrono::microseconds(1));
       }
    }
 
-   return move(batch->txMap_);
+   return batch->zcMap_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2301,10 +2307,10 @@ shared_ptr<ZeroConfBatch> ZcActionQueue::initiateZcBatch(
 
       batch->hashToKeyMap_.emplace(
          make_pair(ptx->getTxHash().getRef(), ptx->getKeyRef()));
-      batch->txMap_.emplace(make_pair(ptx->getKeyRef(), ptx));
+      batch->zcMap_.emplace(make_pair(ptx->getKeyRef(), ptx));
    }
 
-   batch->counter_->store(batch->txMap_.size(), memory_order_relaxed);
+   batch->counter_->store(batch->zcMap_.size(), memory_order_relaxed);
    batch->timeout_ = timeout; //in milliseconds
    batch->errorCallback_ = cbk;
 
@@ -2340,7 +2346,7 @@ void ZcActionQueue::processNewZcQueue()
       }
 
       /*
-      Populate local map with batch's txMap_ so that we can cleanup the
+      Populate local map with batch's zcMap_ so that we can cleanup the
       hashes from the request map after parsing.
       */
       if (zcAction.batch_ != nullptr)
@@ -2350,7 +2356,7 @@ void ZcActionQueue::processNewZcQueue()
          held by a ParsedTx and that has no guarantee of surviving the parsing 
          function, hence copying the entire map.
          */
-         zcMap = zcAction.batch_->txMap_;
+         zcMap = zcAction.batch_->zcMap_;
       }
 
       newZcFunction_(move(zcAction));

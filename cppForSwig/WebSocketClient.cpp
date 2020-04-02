@@ -356,6 +356,8 @@ int WebSocketClient::callback(struct lws *wsi,
       {
          LOGERR << "no error message was provided by lws";
       }
+
+      //fallthrough
    }
 
    case LWS_CALLBACK_CLIENT_CLOSED:
