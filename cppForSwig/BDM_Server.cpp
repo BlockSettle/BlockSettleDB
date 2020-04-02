@@ -2895,7 +2895,10 @@ void Clients::broadcastThroughRPC()
       vector<BinaryData> hashes = { tx.getThisHash() };
       auto zcPtr = bdmT_->bdm()->zeroConfCont();
       auto batchPtr = zcPtr->actionQueue()->initiateZcBatch(
-            hashes, 0, nullptr, false);
+            hashes, 
+            0, //no timeout, this batch promise has to be set to progress
+            nullptr, //no error callback
+            false); //we dont want to handle watcher node invs for these zc
 
       //push to rpc
       string verbose;
@@ -2915,7 +2918,7 @@ void Clients::broadcastThroughRPC()
          try 
          {
             //set the tx body and batch promise
-            auto txPtr = batchPtr->txMap_.begin()->second;
+            auto txPtr = batchPtr->zcMap_.begin()->second;
             txPtr->tx_.unserialize(*packet.rawTx_);
             txPtr->tx_.setTxTime(time(0));
             batchPtr->isReadyPromise_->set_value(ArmoryErrorCodes::Success);

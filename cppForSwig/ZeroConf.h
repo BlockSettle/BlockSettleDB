@@ -176,7 +176,7 @@ struct ZcBatchError
 struct ZeroConfBatch
 {
    //<zcKey ref, ParsedTx>, ParsedTx carries the key object
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> txMap_;
+   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> zcMap_;
    
    //<txHash ref, zcKey ref>, ParsedTx carries both hash and key objects
    std::map<BinaryDataRef, BinaryDataRef> hashToKeyMap_;
@@ -285,7 +285,10 @@ struct ProcessPayloadTxPacket : public ZcGetPacket
    void incrementCounter(void)
    {
       if (batchCtr_ == nullptr)
-         throw std::runtime_error("null pointers");
+      {
+         LOGERR << "null batch ptr";
+         throw std::runtime_error("null batch ptr");
+      }
 
       auto val = batchCtr_->fetch_sub(1, std::memory_order_release);
       if (val == 1)
