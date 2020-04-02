@@ -701,17 +701,17 @@ class SendBitcoinsFrame(ArmoryFrame):
          result = MsgBoxCustom(MSGBOX.Warning, self.tr('Recipient reuse'), \
             self.tr(
                'The transaction you crafted <b>reuses</b> the following recipient address(es):<br>'
-               '%1<br>'
-               ' The sum of values for this leg of the transaction amounts to %2 BTC. There is only'
-               ' a total of %3 BTC available in UTXOs to fund this leg of the'
+               '%s<br>'
+               ' The sum of values for this leg of the transaction amounts to %s BTC. There is only'
+               ' a total of %s BTC available in UTXOs to fund this leg of the'
                ' transaction without <b>damaging your privacy.</b>'
                '<br><br>In order to meet the full payment, Armory has to make use of extra '
                ' UTXOs, <u>and this will result in privacy loss on chain.</u> <br><br>'
                'To progress beyond this warning, choose Ignore. Otherwise'
-               ' the operation will be cancelled.'
-               ).arg(addrParagraph, \
+               ' the operation will be cancelled.' % \
+               (addrParagraph, \
                      coin2str(e.total(), 5, maxZeros=0), \
-                     coin2str(e.value(), 5, maxZeros=0)), \
+                     coin2str(e.value(), 5, maxZeros=0))), \
             wCancel=True, yesStr=self.tr('Ignore'), noStr=self.tr('Cancel'))
          
          if not result:
@@ -760,8 +760,8 @@ class SendBitcoinsFrame(ArmoryFrame):
       numChkFail = sum([1 if len(b)==0 else 0 for b in scripts])
       if not self.freeOfErrors:
          QMessageBox.critical(self, self.tr('Invalid Address'),
-               self.tr("You have entered %1 invalid addresses. "
-                       "The errors have been highlighted on the entry screen").arg(str(numChkFail)), QMessageBox.Ok)
+               self.tr("You have entered %s invalid addresses. "
+                       "The errors have been highlighted on the entry screen" % str(numChkFail)), QMessageBox.Ok)
 
          for row in range(len(self.widgetTable)):
             try:
@@ -771,8 +771,8 @@ class SendBitcoinsFrame(ArmoryFrame):
                   if addrList[row][0] in NETWORKS:
                      net = NETWORKS[addrList[row][0]]
                   QMessageBox.warning(self, self.tr('Wrong Network!'), self.tr(
-                     'Address %1 is for the wrong network!  You are on the <b>%2</b> '
-                     'and the address you supplied is for the the <b>%3</b>!').arg(row+1, NETWORKS[ADDRBYTE], net), QMessageBox.Ok)
+                     'Address %d is for the wrong network!  You are on the <b>%s</b> '
+                     'and the address you supplied is for the the <b>%s</b>!' % (row+1, NETWORKS[ADDRBYTE], net)), QMessageBox.Ok)
             except:
                pass
 
@@ -789,8 +789,8 @@ class SendBitcoinsFrame(ArmoryFrame):
             if len(opreturn_msg) > 80:
                self.updateAddrColor(row, Colors.SlightRed)
                QMessageBox.critical(self, self.tr('Negative Value'), \
-                  self.tr('You have specified a OP_RETURN message over 80 bytes long in recipient %1!'
-                          ).arg(row + 1), QMessageBox.Ok)
+                  self.tr('You have specified a OP_RETURN message over 80 bytes long in recipient %d!' % \
+                          (row + 1)), QMessageBox.Ok)
                return False
             
             opreturn_list.append(opreturn_msg)
@@ -802,19 +802,19 @@ class SendBitcoinsFrame(ArmoryFrame):
             if value == 0:
                QMessageBox.critical(self, self.tr('Zero Amount'), \
                   self.tr('You cannot send 0 BTC to any recipients.  <br>Please enter '
-                  'a positive amount for recipient %1.').arg(row+1), QMessageBox.Ok)
+                  'a positive amount for recipient %d.' % (row+1)), QMessageBox.Ok)
                return False
 
          except NegativeValueError:
             QMessageBox.critical(self, self.tr('Negative Value'), \
-               self.tr('You have specified a negative amount for recipient %1. <br>Only '
-               'positive values are allowed!.').arg(row + 1), QMessageBox.Ok)
+               self.tr('You have specified a negative amount for recipient %d. <br>Only '
+               'positive values are allowed!.' % (row + 1)), QMessageBox.Ok)
             return False
          except TooMuchPrecisionError:
             QMessageBox.critical(self, self.tr('Too much precision'), \
                self.tr('Bitcoins can only be specified down to 8 decimal places. '
                'The smallest value that can be sent is  0.0000 0001 BTC. '
-               'Please enter a new amount for recipient %1.').arg(row + 1), QMessageBox.Ok)
+               'Please enter a new amount for recipient %d.' % (row + 1)), QMessageBox.Ok)
             return False
          except ValueError:
             QMessageBox.critical(self, self.tr('Missing recipient amount'), \
@@ -823,7 +823,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          except:
             QMessageBox.critical(self, self.tr('Invalid Value String'), \
                self.tr('The amount you specified '
-               'to send to address %1 is invalid (%2).').arg(row + 1, valueStr), QMessageBox.Ok)
+               'to send to address %d is invalid (%s).' % (row + 1, valueStr)), QMessageBox.Ok)
             LOGERROR('Invalid amount specified: "%s"', valueStr)
             return False
 
@@ -837,7 +837,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          utxoSelect = self.getUsableTxOutList()
       except RuntimeError as e:
          QMessageBox.critical(self, self.tr('Coin Selection Failure'), \
-               self.tr('Coin selection failed with error: <b>%1<b/>').arg(e.message), \
+               self.tr('Coin selection failed with error: <b>%s<b/>' % e.message), \
                QMessageBox.Ok)
          return False
       
@@ -849,26 +849,26 @@ class SendBitcoinsFrame(ArmoryFrame):
          feebyteStr = "%.2f" % fee_byte
          if fee_byte > 10 * MIN_FEE_BYTE:
             reply = QMessageBox.warning(self, self.tr('Excessive Fee'), self.tr(
-               'Your transaction comes with a fee rate of <b>%1 satoshis per byte</b>. '
+               'Your transaction comes with a fee rate of <b>%s satoshis per byte</b>. '
                '</br></br> '
-               'This is at least an order of magnitude higher than the minimum suggested fee rate of <b>%2 satoshi/Byte</b>. '
+               'This is at least an order of magnitude higher than the minimum suggested fee rate of <b>%s satoshi/Byte</b>. '
                '<br><br>'
                'Are you <i>absolutely sure</i> that you want to send with this '
-               'fee? If you do not want to proceed with this fee rate, click "No".').arg(\
-                  feebyteStr, unicode(MIN_FEE_BYTE)), QMessageBox.Yes | QMessageBox.No)
+               'fee? If you do not want to proceed with this fee rate, click "No".' % \
+                  (feebyteStr, str(MIN_FEE_BYTE))), QMessageBox.Yes | QMessageBox.No)
    
             if not reply==QMessageBox.Yes:
                return False
             
          elif fee_byte < MIN_FEE_BYTE:
             reply = QMessageBox.warning(self, self.tr('Insufficient Fee'), self.tr(
-               'Your transaction comes with a fee rate of <b>%1 satoshi/Byte</b>. '
+               'Your transaction comes with a fee rate of <b>%s satoshi/Byte</b>. '
                '</br><br> '
-               'This is lower than the suggested minimum fee rate of <b>%2 satoshi/Byte</b>. '
+               'This is lower than the suggested minimum fee rate of <b>%s satoshi/Byte</b>. '
                '<br><br>'
                'Are you <i>absolutely sure</i> that you want to send with this '
-               'fee? If you do not want to proceed with this fee rate, click "No".').arg(\
-                  feebyteStr, unicode(MIN_FEE_BYTE)), QMessageBox.Yes | QMessageBox.No)
+               'fee? If you do not want to proceed with this fee rate, click "No".' % \
+                  (feebyteStr, str(MIN_FEE_BYTE))), QMessageBox.Yes | QMessageBox.No)
    
             if not reply==QMessageBox.Yes:
                return False         
@@ -1109,8 +1109,8 @@ class SendBitcoinsFrame(ArmoryFrame):
          
       def changeTypeMismatch(changetype, rectype):
          QMessageBox.warning(self, self.tr('Change address type mismatch'), self.tr(
-            "Armory is set to force the change address type to %1.<br>"
-            "All the recipients in this transaction are of the %2 type.<br><br>"
+            "Armory is set to force the change address type to %s.<br>"
+            "All the recipients in this transaction are of the %s type.<br><br>"
             
             "If sent as such, this transaction will damage your privacy. It is recommended "
             "you let Armory define the change script type automatically. You can do this "
@@ -1122,7 +1122,7 @@ class SendBitcoinsFrame(ArmoryFrame):
             "from these scripts.<br>"
             
             "If you use an offline signing setup, make sure your signer is up "
-            "to date.").arg(changetype, rectype), QMessageBox.Ok)
+            "to date." % (changetype, rectype)), QMessageBox.Ok)
          
       if changeType != 'Auto':
          if homogenousOutputs:
@@ -1264,7 +1264,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          QMessageBox.warning(self, self.tr('Invalid Input'), \
                self.tr('Cannot compute the maximum amount '
                'because there is an error in the amount '
-               'for recipient %1.').arg(r + 1,), QMessageBox.Ok)
+               'for recipient %s.' % (r + 1)), QMessageBox.Ok)
          return
 
       maxStr = coin2str((bal - (txFee + totalOther)), maxZeros=0)
@@ -1786,7 +1786,7 @@ class ReviewOfflineTxFrame(ArmoryDialog):
    
    def setUSTX(self, ustx):
       self.ustx = ustx
-      self.lblUTX.setText(self.tr('<b>Transaction Data</b> \t (Unsigned ID: %1)').arg(ustx.uniqueIDB58))
+      self.lblUTX.setText(self.tr('<b>Transaction Data</b> \t (Unsigned ID: %s)' % ustx.uniqueIDB58))
       self.txtUSTX.setText(ustx.serializeAscii())
    
    def setWallet(self, wlt):
@@ -2229,7 +2229,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
 
       if len(svpairsMine) == 0 and len(svpairs) > 1:
          QMessageBox.warning(self, self.tr('Missing Change'), self.tr(
-            'This transaction has %1 recipients, and none of them '
+            'This transaction has %d recipients, and none of them '
             'are addresses in this wallet (for receiving change). '
             'This can happen if you specified a custom change address '
             'for this transaction, or sometimes happens solely by '
@@ -2237,7 +2237,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
             'be the result of someone tampering with the transaction. '
             '<br><br>The transaction is valid and ready to be signed. '
             'Please verify the recipient and amounts carefully before '
-            'confirming the transaction on the next screen.').arg(len(svpairs)), QMessageBox.Ok)
+            'confirming the transaction on the next screen.' % len(svpairs)), QMessageBox.Ok)
 
       dlg = DlgConfirmSend(self.wlt, svpairs, theFee, self, self.main, pytxOrUstx=ustx)
       if not dlg.exec_():
@@ -2310,7 +2310,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
                QMessageBox.critical(self, self.tr('File Remove Error'), \
                   self.tr('The file could not be deleted.  If you want to delete '
                   'it, please do so manually.  The file was loaded from: '
-                  '<br><br>%1: ').arg(self.fileLoaded), QMessageBox.Ok)
+                  '<br><br>%s: ' % self.fileLoaded), QMessageBox.Ok)
 
          try:
             self.parent().accept()
@@ -2339,8 +2339,8 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
          self.fileLoaded = newSaveFile
          QMessageBox.information(self, self.tr('Transaction Saved!'), \
             self.tr('Your transaction has been saved to the following location:'
-            '\n\n%1\n\nIt can now be broadcast from any computer running '
-            'Armory in online mode.').arg(newSaveFile), QMessageBox.Ok)
+            '\n\n%s\n\nIt can now be broadcast from any computer running '
+            'Armory in online mode.' % newSaveFile), QMessageBox.Ok)
          return
 
    def saveTx(self):

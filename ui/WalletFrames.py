@@ -31,13 +31,13 @@ class LockboxSelectFrame(ArmoryFrame):
 
       if not self.lbox:
          QMessageBox.warning(self, self.tr("Invalid Lockbox"), self.tr(
-            'There was an error loading the specified lockbox (%1).').arg(spendFromLBID),
+            'There was an error loading the specified lockbox (%s).' % spendFromLBID),
          QMessageBox.Ok)
          self.reject()
          return
 
-      lblSpendFromLB = QRichLabel(self.tr('<font color="%1" size=4><b><u>Lockbox '
-         '%2 (%3-of-%4)</u></b></font>').arg(htmlColor('TextBlue'), self.lbox.uniqueIDB58).arg(self.lbox.M).arg(self.lbox.N))
+      lblSpendFromLB = QRichLabel(self.tr('<font color="%s" size=4><b><u>Lockbox '
+         '%s (%d-of-%d)</u></b></font>' % (htmlColor('TextBlue'), self.lbox.uniqueIDB58, self.lbox.M, self.lbox.N)))
       lblSpendFromLB.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
 
       lbls = []
@@ -49,7 +49,7 @@ class LockboxSelectFrame(ArmoryFrame):
       layoutDetails = QGridLayout()
       for i,lbl in enumerate(lbls):
          lbl.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-         lbl.setText('<b>' + unicode(lbls[i].text()) + '</b>')
+         lbl.setText('<b>' + str(lbls[i].text()) + '</b>')
          layoutDetails.addWidget(lbl, i+1, 0)
          
       # LockboxID
@@ -171,7 +171,7 @@ class SelectWalletFrame(ArmoryFrame):
 
       for i in range(len(lbls)):
          lbls[i].setAlignment(Qt.AlignLeft | Qt.AlignTop)
-         lbls[i].setText('<b>' + unicode(lbls[i].text()) + '</b>')
+         lbls[i].setText('<b>' + str(lbls[i].text()) + '</b>')
          
       self.dispID = QRichLabel('')
       self.dispName = QRichLabel('')
@@ -279,9 +279,9 @@ class SelectWalletFrame(ArmoryFrame):
          utxo = self.customUtxoList[0]
          binAddr = utxo.getRecipientScrAddr()
          aStr = hash160_to_addrStr(utxo.getRecipientHash160(), binAddr[0])
-         self.lblCoinCtrl.setText(self.tr('Source: %1...').arg(aStr[:12]))
+         self.lblCoinCtrl.setText(self.tr('Source: %s...' % aStr[:12]))
       elif nUtxo > 1:
-         self.lblCoinCtrl.setText(self.tr('Source: %1 Outputs').arg(nUtxo))
+         self.lblCoinCtrl.setText(self.tr('Source: %d Outputs' % nUtxo))
       
       self.updateOnCoinControl()
       
@@ -315,9 +315,9 @@ class SelectWalletFrame(ArmoryFrame):
          utxo = self.customUtxoList[0]
          binAddr = utxo.getRecipientScrAddr()
          aStr = hash160_to_addrStr(utxo.getRecipientHash160(), binAddr[0])
-         self.lblRBF.setText(self.tr('Source: %1...').arg(aStr[:12]))
+         self.lblRBF.setText(self.tr('Source: %s...' % aStr[:12]))
       else:
-         self.lblRBF.setText(self.tr("Source: %1 Outputs").arg(unicode(nUtxo)))    
+         self.lblRBF.setText(self.tr("Source: %s Outputs" % str(nUtxo)))
       
    def updateOnWalletChange(self, ignoredInt=None):
       """
@@ -599,7 +599,7 @@ class CardDeckFrame(ArmoryFrame):
       button.setDisabled(True)
       bits = int(math.log(
          math.factorial(52) / math.factorial(52-self.cardCount),2))
-      self.currentNum.setText(self.tr("Entropy: %1 bits").arg(bits))
+      self.currentNum.setText(self.tr("Entropy: %d bits" % bits))
 
    def getEntropy(self):
       cards = filter(lambda x: x != '', str(self.currentDeck.text()).split(' '))
@@ -949,7 +949,7 @@ class WalletBackupFrame(ArmoryFrame):
 
 
          
-      self.lblTitle.setText(self.tr('<b>Backup Options for Wallet "%1" (%2)</b>').arg(wltName, wltID))
+      self.lblTitle.setText(self.tr('<b>Backup Options for Wallet "%s" (%s)</b>' % (wltName, wltID)))
 
    #############################################################################
    def setDispFrame(self, index):

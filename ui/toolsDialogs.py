@@ -229,11 +229,11 @@ class SignatureVerificationWidget(QWidget):
       'The owner of the following Bitcoin address...'
       '<br>'
       '<blockquote>'
-      '<font face="Courier" size=4 color="#000060"><b>%1</b></font>'
+      '<font face="Courier" size=4 color="#000060"><b>%s</b></font>'
       '</blockquote>'
       '<br>'
       '... has produced a <b><u>valid</u></b> signature for '
-      'the following message:<br>').arg(addrB58))
+      'the following message:<br>' % addrB58))
          
       if addrB58:
          msg = messageString.replace('\r\n','\n')
@@ -242,16 +242,16 @@ class SignatureVerificationWidget(QWidget):
          # in the Message Signing/Verification dialog
          msg =  '<br>'.join([line[:60]+ '...'*(len(line)>60) for line in msg.split('<br>')][:12])
          MsgBoxCustom(MSGBOX.Good, self.tr('Verified!'), str(self.tr(
-            '%1`'
+            '%s`'
             '<hr>'
             '<blockquote>'
-            '<font face="Courier" color="#000060"><b>%2</b></font>'
+            '<font face="Courier" color="#000060"><b>%s</b></font>'
             '</blockquote>'
             '<hr><br>'
-            '<b>Please</b> make sure that the address above (%3...) matches the '
+            '<b>Please</b> make sure that the address above (%s...) matches the '
             'exact address you were expecting.  A valid signature is meaningless '
             'unless it is made '
-            'from a recognized address!').arg(ownerStr, msg, addrB58[:10])))
+            'from a recognized address!' % (ownerStr, msg, addrB58[:10]))))
          self.lblSigResult.setText(\
             '<font color="green">Valid Signature by %s</font>' % addrB58)
       else:

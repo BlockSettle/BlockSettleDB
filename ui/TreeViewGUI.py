@@ -75,14 +75,14 @@ class CoinControlUtxoItem():
       self.parent = parent
       
       if utxo.getTxHeight() == 2**32 - 1:
-         self.name = QObject().tr("ZC ID: %1 | TxOut: %2").arg(\
-            unicode(utxo.getTxIndex()), \
-            unicode(utxo.getTxOutIndex()))      
+         self.name = QObject().tr("ZC ID: %s | TxOut: %s" % \
+            (str(utxo.getTxIndex()), \
+            str(utxo.getTxOutIndex())))
       else:
-         self.name = QObject().tr("Block: #%1 | Tx: #%2 | TxOut: #%3").arg(\
-            unicode(utxo.getTxHeight()), \
-            unicode(utxo.getTxIndex()), \
-            unicode(utxo.getTxOutIndex()))
+         self.name = QObject().tr("Block: #%s | Tx: #%s | TxOut: #%s" % \
+            (str(utxo.getTxHeight()), \
+            str(utxo.getTxIndex()), \
+            str(utxo.getTxOutIndex())))
          
       
       self.state = Qt.Checked
@@ -132,14 +132,14 @@ class RBFutxoItem():
       self.utxo = utxo
       self.parent = parent
       if utxo.getTxHeight() == 2**32 - 1:
-         self.name = QObject().tr("ZC id: %1 | TxOut: %2").arg(\
-            unicode(utxo.getTxIndex()), \
-            unicode(utxo.getTxOutIndex()))
+         self.name = QObject().tr("ZC id: %s | TxOut: %s" % \
+            (str(utxo.getTxIndex()), \
+            str(utxo.getTxOutIndex())))
       else:
-         self.name = QObject().tr("Block: #%1 | Tx: #%2 | TxOut: #%3").arg(\
-            unicode(utxo.getTxHeight()), \
-            unicode(utxo.getTxIndex()), \
-            unicode(utxo.getTxOutIndex()))
+         self.name = QObject().tr("Block: #%s | Tx: #s2 | TxOut: #%s" % \
+            (str(utxo.getTxHeight()), \
+            str(utxo.getTxIndex()), \
+            str(utxo.getTxOutIndex())))
       
       self.state = Qt.Checked
       if utxo.isChecked() == False:
@@ -452,7 +452,7 @@ class RBFTxTreeNode(TreeNode):
    
    def __init__(self, parent, txhash, entryList):
       self.entryList = entryList
-      name = QObject().tr("Tx: %1").arg(txhash)
+      name = QObject().tr("Tx: %s" % txhash)
       #fee, fee_byte = getFeeForTx(txhash)
       #self.value = QObject().tr("Fee: %1 sat. (%2 sat/B)").arg(\
       #                        unicode(fee), unicode(fee_byte))

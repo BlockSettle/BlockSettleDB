@@ -34,8 +34,8 @@ class DlgLockboxEditor(ArmoryDialog):
       super(DlgLockboxEditor, self).__init__(parent, main)
 
       lblDescr = QRichLabel(self.tr(
-         '<b><u><font size=5 color="%1">Create Multi-signature Lockbox</font></u>'
-         ).arg(htmlColor("TextBlue")), hAlign=Qt.AlignHCenter)
+         '<b><u><font size=5 color="%1">Create Multi-signature Lockbox</font></u>' % \
+         htmlColor("TextBlue")), hAlign=Qt.AlignHCenter)
 
       lblDescr2 = QRichLabel(self.tr(
          'Create a "lockbox" to hold coins that have signing authority split '
@@ -111,7 +111,7 @@ class DlgLockboxEditor(ArmoryDialog):
          self.widgetMap[i] = {}
          self.widgetMap[i]['IMG_ICON'] = QLabel()
          self.widgetMap[i]['LBL_ROWN'] = QRichLabel(self.tr(
-            'Public Key #<font size=4 color="%1">%2</font>:').arg(htmlColor('TextBlue')).arg(i+1), doWrap=False, hAlign=Qt.AlignRight)
+            'Public Key #<font size=4 color="%s">%d</font>:' % (htmlColor('TextBlue'), i+1)), doWrap=False, hAlign=Qt.AlignRight)
          self.widgetMap[i]['LBL_WLTN'] = QRichLabel(self.tr('Name or ID:'), \
                                                     doWrap=False, \
                                                     hAlign=Qt.AlignRight)
@@ -232,8 +232,8 @@ class DlgLockboxEditor(ArmoryDialog):
 
       
       # Create the M,N select frame (stolen from frag-create dialog
-      lblMNSelect = QRichLabel(self.tr('<font color="%1" size=4><b>Create '
-         'Multi-Sig Lockbox</b></font>').arg(htmlColor("TextBlue")), \
+      lblMNSelect = QRichLabel(self.tr('<font color="%s" size=4><b>Create '
+         'Multi-Sig Lockbox</b></font>' % htmlColor("TextBlue")), \
          doWrap=False, hAlign=Qt.AlignHCenter)
 
       lblBelowM = QRichLabel(self.tr('<b>Required Signatures (M)</b> '), \
@@ -392,10 +392,10 @@ class DlgLockboxEditor(ArmoryDialog):
          self.formFilled = True
          #self.btnContinue.setEnabled(True)
          self.lblFinal.setText(self.tr(
-            'Using the <font color="%1"><b>%2</b></font> public keys above, '
+            'Using the <font color="%s"><b>%d</b></font> public keys above, '
             'a multi-sig lockbox will be created requiring '
-            '<font color="%3"><b>%4</b></font> signatures to spend '
-            'money.').arg(htmlColor('TextBlue')).arg(M).arg(htmlColor('TextBlue')).arg(N))
+            '<font color="%s"><b>%d</b></font> signatures to spend '
+            'money.' % (htmlColor('TextBlue'), M, htmlColor('TextBlue'), N)))
 
 
          
@@ -500,8 +500,8 @@ class DlgLockboxEditor(ArmoryDialog):
 
          if len(pkHex)==0:
             QMessageBox.critical(self, self.tr('Not Enough Keys'), self.tr(
-               'You specified less than <b>%1</b> public keys.  Please enter '
-               'a public key into every field before continuing.').arg(currN),
+               'You specified less than <b>%d</b> public keys.  Please enter '
+               'a public key into every field before continuing.' % currN),
                QMessageBox.Ok)
             return
          
@@ -515,8 +515,8 @@ class DlgLockboxEditor(ArmoryDialog):
             
          if not isValid: 
             QMessageBox.critical(self, self.tr('Invalid Public Key'), self.tr(
-               'The data specified for public key <b>%1</b> is not valid. '
-               'Please double-check the data was entered correctly.').arg(i+1),
+               'The data specified for public key <b>%d</b> is not valid. '
+               'Please double-check the data was entered correctly.' % (i+1)),
                QMessageBox.Ok)
             return
 
@@ -560,14 +560,14 @@ class DlgLockboxEditor(ArmoryDialog):
       if self.loadedID is not None:
          if not self.loadedID == lockboxID:
             reply = QMessageBox.warning(self, self.tr('Different Lockbox'), self.tr(
-               'You originally loaded lockbox (%1) but the edits you made '
-               'have caused it to become a new/different lockbox (%2). '
+               'You originally loaded lockbox (%s) but the edits you made '
+               'have caused it to become a new/different lockbox (%s). '
                'Changing the M-value, N-value, or any of the public keys '
                'will result in a new lockbox, unrelated to the original. '
                '<br><br>'
                '<b>If you click "Ok" a new lockbox will be created</b> instead '
                'of replacing the original.  If you do not need the original, '
-               'you can go the lockbox browser and manually remove it.').arg(self.loadedID, lockboxID), QMessageBox.Ok | QMessageBox.Cancel)
+               'you can go the lockbox browser and manually remove it.' % (self.loadedID, lockboxID)), QMessageBox.Ok | QMessageBox.Cancel)
             if not reply==QMessageBox.Ok:
                return
             else:
@@ -612,7 +612,7 @@ class DlgLockboxEditor(ArmoryDialog):
 def doExportLockbox(parent, main, lockbox):
    title = parent.tr('Export Lockbox Definition')
    descr = parent.tr(
-      '<b><font color="%1">IMPORTANT:</font> '
+      '<b><font color="%s">IMPORTANT:</font> '
       'All labels and descriptions you have entered for '
       'this lockbox are included in this text block below!</b>  '
       '<br><br>'
@@ -623,7 +623,7 @@ def doExportLockbox(parent, main, lockbox):
       '<br><br>'
       'All parties or devices that have [partial] signing authority '
       'over this lockbox need to import this data into their local '
-      'lockbox manager in order to use it.').arg(htmlColor('TextWarn'))
+      'lockbox manager in order to use it.' % htmlColor('TextWarn'))
    ftypes = ['Lockbox definitions (*.lockbox.def)']
    defaultFN = 'Lockbox_%s_.lockbox.def' % lockbox.asciiID
 
@@ -648,11 +648,11 @@ class DlgLockboxManager(ArmoryDialog):
 
       if len(self.main.allLockboxes) > 0:
          lblDescr = QRichLabel(self.tr(
-            '<font color="%1" size=4><b>Manage Multi-Sig Lockboxes</b></font> '
-            '<br>Double-click on a lockbox to edit').arg(htmlColor('TextBlue')), hAlign=Qt.AlignHCenter)
+            '<font color="%s" size=4><b>Manage Multi-Sig Lockboxes</b></font> '
+            '<br>Double-click on a lockbox to edit' % htmlColor('TextBlue')), hAlign=Qt.AlignHCenter)
       else:
          lblDescr = QRichLabel(self.tr(
-            '<font color="%1" size=4><b>Manage Multi-Sig Lockboxes</b></font> ').arg(htmlColor('TextBlue')), hAlign=Qt.AlignHCenter)
+            '<font color="%s" size=4><b>Manage Multi-Sig Lockboxes</b></font> ' % htmlColor('TextBlue')), hAlign=Qt.AlignHCenter)
       
       frmDescr = makeVertFrame([lblDescr], STYLE_RAISED)
 
@@ -1198,7 +1198,7 @@ class DlgLockboxManager(ArmoryDialog):
             self.chkSegWit.setEnabled(True)
             self.lblDispAddr.setText(self.tr(
                'Anyone can send funds to this lockbox using this '
-               'Bitcoin address: <br><b>%1</b>').arg(p2shAddr))
+               'Bitcoin address: <br><b>%s</b>' % p2shAddr))
             
       def setSWCheckBox(arg1, arg2):
          lbox = self.getSelectedLockbox()
@@ -1402,7 +1402,7 @@ class DlgLockboxManager(ArmoryDialog):
                self.tr('Armory encountered an error opening your web browser.  To view '
                'this transaction on blockchain.info, please copy and paste '
                'the following URL into your browser: '
-               '<br><br>%1').arg(blkExploreURL), QMessageBox.Ok)
+               '<br><br>%s' % blkExploreURL), QMessageBox.Ok)
       elif action==actCopyTxID:
          clipb = QApplication.clipboard()
          clipb.clear()
@@ -1423,7 +1423,7 @@ class DlgLockboxManager(ArmoryDialog):
       if True:  actionCopyAddr    = menu.addAction(self.tr("Copy P2SH address"))
       if True:  actionShowQRCode  = menu.addAction(self.tr("Display address QR code"))
       if not USE_TESTNET:
-         actionBlkChnInfo  = menu.addAction(self.tr("View address on %1").arg(BLOCKEXPLORE_NAME))
+         actionBlkChnInfo  = menu.addAction(self.tr("View address on %s" % BLOCKEXPLORE_NAME))
       else:
          actionBlkChnInfo = None
       if True:  actionReqPayment  = menu.addAction(self.tr("Request payment to this lockbox"))
@@ -1460,11 +1460,11 @@ class DlgLockboxManager(ArmoryDialog):
             except:
                QMessageBox.critical(self, self.tr('Could not open browser'), self.tr(
                   'Armory encountered an error opening your web browser.  To view '
-                  'this address on %1, please copy and paste '
+                  'this address on %s, please copy and paste '
                   'the following URL into your browser: '
                   '<br><br>'
-                  '<a href="%2">%3</a>').arg(BLOCKEXPLORE_NAME, urlToOpen,
-                  urlToOpen), QMessageBox.Ok)
+                  '<a href="%s">%s</a>' % (BLOCKEXPLORE_NAME, urlToOpen,
+                  urlToOpen)), QMessageBox.Ok)
             return
          elif action == actionShowQRCode:
             DlgQRCodeDisplay(self, self.main, p2shAddr, p2shAddr, createLockboxEntryStr(lboxId)).exec_()
@@ -1477,13 +1477,13 @@ class DlgLockboxManager(ArmoryDialog):
                   self.tr('You are about to request payment to a "P2SH" address '
                   'which is the format used for receiving to multi-signature '
                   'addresses/lockboxes.  "P2SH" are like regular Bitcoin  '
-                  'addresses but start with %1 instead of %2. '
+                  'addresses but start with %s instead of %s. '
                   '<br><br>'
                   'Unfortunately, not all software and services support sending '
                   'to P2SH addresses.  If the sender or service indicates '
                   'an error sending to this address, you might have to request '
                   'payment to a regular wallet address and then send the funds '
-                  'from that wallet to the lockbox once it is confirmed.').arg(newStartChar, oldStartChar),
+                  'from that wallet to the lockbox once it is confirmed.' % (newStartChar, oldStartChar)),
                   dnaaMsg=self.tr('Do not show this message again'))
                
                if reply[1]==True:
@@ -1506,7 +1506,7 @@ class DlgLockboxManager(ArmoryDialog):
                '<br><br>'
                'You are about to remove the following lockbox:'
                '<br><br>'
-               '<font color="%1">%2</font>').arg(htmlColor('TextBlue'), dispInfo['String']), QMessageBox.Yes | QMessageBox.No)
+               '<font color="%s">%s</font>' % (htmlColor('TextBlue'), dispInfo['String'])), QMessageBox.Yes | QMessageBox.No)
 
             if reply==QMessageBox.Yes:
                self.main.removeLockbox(lbox)
@@ -1523,8 +1523,8 @@ class DlgLockboxManager(ArmoryDialog):
          #      '<br><br>'
          #      'You are about to rescan the following lockbox: '
          #      '<br><br>'
-         #      '<font color="%1">%2</font>').arg(htmlColor('TextBlue'),
-         #      dispInfo['String']), QMessageBox.Yes | QMessageBox.No)
+         #      '<font color="%s">%s</font>' % (htmlColor('TextBlue'),
+         #      dispInfo['String'])), QMessageBox.Yes | QMessageBox.No)
          #
          #   if reply==QMessageBox.Yes:    
          #      lwlt = self.main.cppLockboxWltMap[lbox.uniqueIDB58]  
@@ -1557,9 +1557,9 @@ class DlgLockboxManager(ArmoryDialog):
       """
       
       if noSelection:
-         self.txtLockboxInfo.setText(self.tr('<br><br><font color="%1"><center><b> '
+         self.txtLockboxInfo.setText(self.tr('<br><br><font color="%s"><center><b> '
             'Select a lockbox from the table above to view its info</b></center> '
-            '</font>').arg(htmlColor('DisableFG')))
+            '</font>' % htmlColor('DisableFG')))
 
       for fn in self.updateDashFuncs:
          # Whoops, made the args inverses of what the func takes, oh well
@@ -1611,14 +1611,14 @@ class DlgLockboxManager(ArmoryDialog):
       formattedDate = unixTimeToFormatStr(lb.createDate, dateFmt)
       
       lines = QStringList()
-      lines.append(self.tr('<font color="%1" size=4><center><u>Lockbox Information for '
-         '<b>%2</b></u></center></font>').arg(htmlColor("TextBlue"), lb.uniqueIDB58))
-      lines.append(self.tr('<b>Multisig:</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%1-of-%2').arg(lb.M, lb.N))
-      lines.append(self.tr('<b>Lockbox ID:</b>&nbsp;&nbsp;&nbsp;&nbsp;%1').arg(lb.uniqueIDB58))
-      lines.append(self.tr('<b>P2SH Address:</b>&nbsp;&nbsp;%1').arg(binScript_to_p2shAddrStr(lb.binScript)))
-      lines.append(self.tr('<b>Lockbox Name:</b>&nbsp;&nbsp;%1').arg(lb.shortName))
-      lines.append(self.tr('<b>Created:</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%1').arg(formattedDate))
-      lines.append(self.tr('<b>Extended Info:</b><hr><blockquote>%1</blockquote><hr>').arg(longDescr))
+      lines.append(self.tr('<font color="%s" size=4><center><u>Lockbox Information for '
+         '<b>%s</b></u></center></font>' % (htmlColor("TextBlue"), lb.uniqueIDB58)))
+      lines.append(self.tr('<b>Multisig:</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%d-of-%d' % (lb.M, lb.N)))
+      lines.append(self.tr('<b>Lockbox ID:</b>&nbsp;&nbsp;&nbsp;&nbsp;%s' % lb.uniqueIDB58))
+      lines.append(self.tr('<b>P2SH Address:</b>&nbsp;&nbsp;%s' % binScript_to_p2shAddrStr(lb.binScript)))
+      lines.append(self.tr('<b>Lockbox Name:</b>&nbsp;&nbsp;%s' % lb.shortName))
+      lines.append(self.tr('<b>Created:</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%s' % formattedDate))
+      lines.append(self.tr('<b>Extended Info:</b><hr><blockquote>%s</blockquote><hr>' % longDescr))
       lines.append(self.tr('<b>Stored Key Details</b>'))
 
       for i in range(len(lb.dPubKeys)):
@@ -1629,10 +1629,10 @@ class DlgLockboxManager(ArmoryDialog):
          if len(comm.strip())==0:
             comm = '<No Info>'
 
-         lines.append(self.tr('&nbsp;&nbsp;<b>Key #%1</b>').arg(i+1))
-         lines.append(self.tr('&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Name/ID:</b>&nbsp;%1').arg(comm))
-         lines.append(self.tr('&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Address:</b>&nbsp;%1').arg(addr))
-         lines.append(self.tr('&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>PubKey:</b>&nbsp;&nbsp;%1').arg(pubk))
+         lines.append(self.tr('&nbsp;&nbsp;<b>Key #%d</b>' % (i+1)))
+         lines.append(self.tr('&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Name/ID:</b>&nbsp;%s' % comm))
+         lines.append(self.tr('&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>Address:</b>&nbsp;%s' % addr))
+         lines.append(self.tr('&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<b>PubKey:</b>&nbsp;&nbsp;%s' % pubk))
          lines.append(EMPTYLINE)
       lines.append(self.tr('</font>'))
       return lines.join('<br>')
@@ -1743,7 +1743,7 @@ class DlgLockboxManager(ArmoryDialog):
          '<br><br>'
          'You are about to remove the following lockbox: '
          '<br><br>'
-         '<font color="%1">%2</font>').arg(htmlColor('TextBlue'), dispInfo['String']), QMessageBox.Yes | QMessageBox.No)
+         '<font color="%s">%s</font>' % (htmlColor('TextBlue'), dispInfo['String'])), QMessageBox.Yes | QMessageBox.No)
 
       if reply==QMessageBox.Yes:
          lbObj = self.getSelectedLockbox()
@@ -1759,7 +1759,7 @@ class DlgLockboxManager(ArmoryDialog):
    def doFundIt(self):
 
       reply = QMessageBox.warning(self, self.tr('[WARNING]'), self.tr(
-         '<b><font color="%1">WARNING:</font> </b> '
+         '<b><font color="%s">WARNING:</font> </b> '
          'If this lockbox is being used to hold escrow for multiple parties, and '
          'requires being funded by multiple participants, you <u>must</u> use '
          'a special funding process to ensure simultaneous funding.  Otherwise, '
@@ -1772,8 +1772,8 @@ class DlgLockboxManager(ArmoryDialog):
          '<li>This lockbox is being used for personal savings</li>'
          '</ul>'
          'If the above does not apply to you, please press "Cancel" and '
-         'select the "Simulfund" checkbox on the lockbox dashboard.'
-         ).arg( htmlColor('TextWarn')),
+         'select the "Simulfund" checkbox on the lockbox dashboard.' % \
+         htmlColor('TextWarn')),
          QMessageBox.Ok | QMessageBox.Cancel)
 
 
@@ -1783,7 +1783,7 @@ class DlgLockboxManager(ArmoryDialog):
       lbID = self.getSelectedLBID()
       lb = self.main.getLockboxByID(lbID)
       prefillMap = {'lockbox': lbID, 
-                    'message': self.tr('Funding %1-of-%2').arg(lb.M, lb.N) }
+                    'message': self.tr('Funding %d-of-%d' % (lb.M, lb.N)) }
       
       DlgSendBitcoins(None, self, self.main, \
          wltIDList=prefillMap, spendFromLockboxID=lbID).exec_()
@@ -2008,8 +2008,8 @@ class DlgSimulfundSelect(ArmoryDialog):
       dispStr = self.main.getDisplayStringForScript(lbox.binScript)['String']
 
       lblTitle = QRichLabel(self.tr(
-         '<font color="%1" size=4><b>Simultaneous Lockbox '
-         'Funding</b></font>').arg(htmlColor('TextBlue')), hAlign=Qt.AlignHCenter)
+         '<font color="%s" size=4><b>Simultaneous Lockbox '
+         'Funding</b></font>' % htmlColor('TextBlue')), hAlign=Qt.AlignHCenter)
 
       lblDescr = QRichLabel(self.tr(
          'To have multiple parties simultaneously fund a lockbox, each party '
@@ -2029,7 +2029,7 @@ class DlgSimulfundSelect(ArmoryDialog):
          'send the result to all the other parties. '
          '<br><br>'
          'You are currently handling a Simulfunding operation for lockbox: '
-         '<br>%1.').arg(dispStr))
+         '<br>%s.' % dispStr))
          
 
       btnCreate  = QPushButton(self.tr('Create Promissory Note'))
@@ -2184,13 +2184,13 @@ class DlgSelectPublicKey(ArmoryDialog):
          'same way you would a regular offline transaction.  Additionally the '
          'offline computer will need to have Armory version 0.92 or later. '
          '<br><br>'
-         '<b><font color="%1">BACKUP WARNING</font></b>: '
+         '<b><font color="%s">BACKUP WARNING</font></b>: '
          'It is highly recommended that you select a public key from a '
          'wallet for which you have good backups!  If you are creating a lockbox '
          'requiring the same number of signatures as there are authorities '
          '(such as 2-of-2 or 3-of-3), the loss of the wallet <u>will</u> lead '
-         'to loss of lockbox funds!'
-         ).arg(htmlColor('TextRed')))
+         'to loss of lockbox funds!' % \
+         htmlColor('TextRed')))
 
       lblSelect  = QRichLabel(self.tr('Select Public Key:'), doWrap=False)
       lblContact = QRichLabel(self.tr('Notes or Contact Info:'), doWrap=False)
@@ -2473,12 +2473,12 @@ class DlgImportLockbox(ArmoryDialog):
          lbID = self.importedLockbox.uniqueIDB58
          if not self.main.getLockboxByID(lbID) is None:
             reply = QMessageBox.warning(self, self.tr("Duplicate Lockbox"), self.tr(
-               'You just attempted to import a lockbox with ID, %1.  This '
+               'You just attempted to import a lockbox with ID, %s.  This '
                'lockbox is already in your available list of lockboxes. '
                '<br><br>'
                'Even with the same ID, the lockbox information '
                'may be different.  Would you like to overwrite the lockbox '
-               'information already stored for %2?').arg(lbID,lbID), \
+               'information already stored for %s?' % (lbID,lbID)), \
                QMessageBox.Yes | QMessageBox.Cancel)
    
             if not reply==QMessageBox.Yes:
@@ -2698,11 +2698,11 @@ class DlgMultiSpendReview(ArmoryDialog):
 
          # The header line lists the name and value and any multisig pies
          if not contribLabel:
-            iWidgMap['HeadLbl'] = QRichLabel(self.tr('<b><u>Spending:</u> <font color="%1">%2</b></font>').arg(htmlColor('TextBlue'), iBundle.dispStr), doWrap=False)
+            iWidgMap['HeadLbl'] = QRichLabel(self.tr('<b><u>Spending:</u> <font color="%s">%s</b></font>' % (htmlColor('TextBlue'), iBundle.dispStr)), doWrap=False)
          else: 
             if contribID:
                contribID = ' (%s)' % contribID
-            iWidgMap['HeadLbl'] = QRichLabel(self.tr('<b><u>Contributor:</u> <font color="%1">%2</b>%3</font>').arg(htmlColor('TextBlue'), contribLabel, contribID), doWrap=False)
+            iWidgMap['HeadLbl'] = QRichLabel(self.tr('<b><u>Contributor:</u> <font color="%s">%s</b>%s</font>' % (htmlColor('TextBlue'), contribLabel, contribID)), doWrap=False)
 
 
          val = iBundle.sendAmt
@@ -2830,7 +2830,7 @@ class DlgMultiSpendReview(ArmoryDialog):
 
 
          oWidgMap['HeadLbl'] = QRichLabel(self.tr(
-            '<b><u>Receiving:</u>  <font color="%1">%2</font></b>').arg(htmlColor('TextBlue'), self.outputBundles[idStr].dispStr), \
+            '<b><u>Receiving:</u>  <font color="%s">%s</font></b>' % (htmlColor('TextBlue'), self.outputBundles[idStr].dispStr)), \
             doWrap=False)
          val = self.outputBundles[idStr].recvAmt
          oWidgMap['Amount'] = QMoneyLabel(val, txtSize=12, wBold=True)
@@ -3091,12 +3091,12 @@ class DlgMultiSpendReview(ArmoryDialog):
       if txss.canBroadcast:
          if not self.main.netMode == NETWORKMODE.Full:
             self.lblFinalMsg.setText(self.tr(
-            '<font color="%1">This transaction has enough signatures and '
-            'can be broadcast from any online computer (you are currently offline)</font>').arg(htmlColor('TextGreen')))
+            '<font color="%s">This transaction has enough signatures and '
+            'can be broadcast from any online computer (you are currently offline)</font>' % htmlColor('TextGreen')))
          else:
             self.lblFinalMsg.setText(self.tr(
-            '<font color="%1">This transaction has enough signatures and '
-            'can be broadcast</font>').arg(htmlColor('TextGreen')))            
+            '<font color="%s">This transaction has enough signatures and '
+            'can be broadcast</font>' % htmlColor('TextGreen')))
          self.btnFinalBroad.setVisible(True)
          self.btnFinalBroad.setEnabled(self.main.netMode == NETWORKMODE.Full)
          self.btnFinalExport.setVisible(True)
@@ -3104,9 +3104,9 @@ class DlgMultiSpendReview(ArmoryDialog):
          self.lblFinalChk.setPixmap(self.pixChk())
       else:
          self.lblFinalMsg.setText( self.tr(
-            '<font color="%1">This transaction is incomplete.  You can '
+            '<font color="%s">This transaction is incomplete.  You can '
             'add signatures then export and give to other parties or '
-            'devices to sign.</font>').arg(htmlColor('TextWarn')))
+            'devices to sign.</font>' % htmlColor('TextWarn')))
          self.btnFinalBroad.setVisible(False)
          self.btnFinalBroad.setEnabled(False)
          self.btnFinalExport.setVisible(True)
@@ -3203,8 +3203,8 @@ class DlgCreatePromNote(ArmoryDialog):
       self.skipExport = skipExport
 
       lblDescr  = QRichLabel(self.tr(
-         '<font color="%1" size=4><b>Create Simulfunding Promissory Note '
-         '</b></font>').arg(htmlColor('TextBlue')),
+         '<font color="%s" size=4><b>Create Simulfunding Promissory Note '
+         '</b></font>' % htmlColor('TextBlue')),
          hAlign=Qt.AlignHCenter, doWrap=False)
 
       lblDescr2 = QRichLabel(self.tr(
@@ -3431,7 +3431,7 @@ class DlgCreatePromNote(ArmoryDialog):
          return False
       except:
          QMessageBox.critical(self, self.tr('Invalid Value String'), self.tr(
-            'The amount you specified is invalid (%1).').arg(valueStr),
+            'The amount you specified is invalid (%s).' % valueStr),
             QMessageBox.Ok)
          LOGEXCEPT('Invalid amount specified: "%s"', valueStr)
          return False
@@ -3457,7 +3457,7 @@ class DlgCreatePromNote(ArmoryDialog):
          return False
       except:
          QMessageBox.critical(self, self.tr('Invalid Fee String'), self.tr(
-            'The amount you specified is invalid (%1).').arg(feeStr),
+            'The amount you specified is invalid (%s).' % feeStr),
             QMessageBox.Ok)
          LOGEXCEPT('Invalid amount specified: "%s"', feeStr)
          return False
@@ -3467,9 +3467,9 @@ class DlgCreatePromNote(ArmoryDialog):
       availBal = wlt.getBalance('Spendable')
       if totalAmt > availBal:
          QMessageBox.critical(self, self.tr('Not enough funds!'), self.tr(
-            'You specified <b>%1</b> BTC (amount + fee), but the selected wallet '
-            'only has <b>%2</b> BTC spendable.').arg(coin2strNZS(totalAmt),
-            coin2strNZS(availBal)), QMessageBox.Ok)
+            'You specified <b>%s</b> BTC (amount + fee), but the selected wallet '
+            'only has <b>%s</b> BTC spendable.' % (coin2strNZS(totalAmt),
+            coin2strNZS(availBal))), QMessageBox.Ok)
          return False
 
       utxoList = wlt.getUTXOListForSpendVal(totalAmt)
@@ -3597,8 +3597,8 @@ class DlgMergePromNotes(ArmoryDialog):
 
 
       lblTitle  = QRichLabel(self.tr(
-         '<font color="%1" size=4><b>Merge Promissory Notes '
-         '</b></font>').arg(htmlColor('TextBlue')),
+         '<font color="%s" size=4><b>Merge Promissory Notes '
+         '</b></font>' % htmlColor('TextBlue')),
          hAlign=Qt.AlignHCenter, doWrap=False)
          
       lblDescr = QRichLabel(self.tr(
@@ -3947,8 +3947,8 @@ class DlgSelectMultiSigOption(ArmoryDialog):
       self.btnSpend  = QPushButton(self.tr('Spend from a lockbox'))
 
       lblDescr  = QRichLabel(self.tr(
-         '<font color="%1" size=5><b>Multi-Sig Lockboxes '
-         '[EXPERIMENTAL]</b></font>').arg(htmlColor('TextBlue')),
+         '<font color="%s" size=5><b>Multi-Sig Lockboxes '
+         '[EXPERIMENTAL]</b></font>' % htmlColor('TextBlue')),
          hAlign=Qt.AlignHCenter, doWrap=False)
 
       lblDescr2 = QRichLabel(self.tr(

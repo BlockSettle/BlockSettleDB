@@ -4077,11 +4077,11 @@ class DlgImportPaperWallet(ArmoryDialog):
          pluralChar = '' if len(errorLines) == 1 else 's'
          article = ' an' if len(errorLines) == 1 else ''
          QMessageBox.question(self, self.tr('Errors Corrected!'), self.tr(
-            'Detected %n error(s) on line(s) %1 '
+            'Detected %d error(s) on line(s) %s '
             'in the data you entered.  Armory attempted to fix the '
             'error(s) but it is not always right.  Be sure '
-            'to verify the "Wallet Unique ID" closely on the next window.', "", len(errorLines)).arg(
-               englishNumberList(errorLines)), QMessageBox.Ok)
+            'to verify the "Wallet Unique ID" closely on the next window.' % (len(errorLines),
+               englishNumberList(errorLines))), "", QMessageBox.Ok)
 
       # If we got here, the data is valid, let's create the wallet and accept the dlg
       privKey = ''.join(self.wltDataLines[:2])
@@ -6269,7 +6269,7 @@ class DlgDisplayTxIn(ArmoryDialog):
          else:
             lbox = self.main.getLockboxByP2SHAddrStr(senderAddr)
             if lbox:
-               srcStr = self.tr('Lockbox %1-of-%2 "%3" (%4)').arg(lbox.M, lbox.N, lbox.shortName, lbox.uniqueIDB58)
+               srcStr = self.tr('Lockbox %d-of-%d "%s" (%s)' % (lbox.M, lbox.N, lbox.shortName, lbox.uniqueIDB58))
 
 
 
@@ -10879,11 +10879,11 @@ class DlgFragBackup(ArmoryDialog):
 
       BLUE = htmlColor('TextBlue')
       self.lblAboveFrags.setText(self.tr(
-         'Any <font color="%1"><b>%2</b></font> of these '
-         '<font color="%1"><b>%3</b></font>'
+         'Any <font color="%s"><b>%d</b></font> of these '
+         '<font color="%s"><b>%d</b></font>'
          'fragments are sufficient to restore your wallet, and each fragment '
-         'has the ID, <font color="%1"><b>%4</b></font>.  All fragments with the '
-         'same fragment ID are compatible with each other!').arg(BLUE).arg(M).arg(N).arg(self.fragPrefixStr))
+         'has the ID, <font color="%s"><b>%s</b></font>.  All fragments with the '
+         'same fragment ID are compatible with each other!' % (BLUE, M, BLUE, N, BLUE, self.fragPrefixStr)))
 
 
    #############################################################################

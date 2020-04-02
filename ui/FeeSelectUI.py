@@ -171,8 +171,8 @@ class FeeSelectionDialog(ArmoryDialog):
       self.lblSlider = QLabel()
       
       def getSliderLabelTxt():
-         return self.tr("Blocks to confirm: %1").arg(\
-            unicode(self.sliderAutoFeeByte.value()))
+         return self.tr("Blocks to confirm: %s" % \
+            str(self.sliderAutoFeeByte.value()))
          
       def updateAutoFeeByte():
          blocksToConfirm = self.sliderAutoFeeByte.value()
@@ -277,8 +277,8 @@ class FeeSelectionDialog(ArmoryDialog):
       self.comboStrat.setCurrentIndex(currentIndex)
 
       def getSliderLabelTxt():
-         return self.tr("Blocks to confirm: %1").arg(\
-               unicode(self.sliderAutoFeeByte.value()))
+         return self.tr("Blocks to confirm: %s" % \
+               str(self.sliderAutoFeeByte.value()))
          
       def updateAutoFeeByte():
          blocksToConfirm = self.sliderAutoFeeByte.value()

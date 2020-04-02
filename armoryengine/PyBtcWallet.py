@@ -356,7 +356,7 @@ class PyBtcWallet(object):
          
    #############################################################################
    def hasAnyImported(self):
-      for a160,addr in self.addrMap.iteritems():
+      for a160,addr in self.addrMap.items():
          if addr.chainIndex == -2:
             return True
       return False
@@ -817,7 +817,7 @@ class PyBtcWallet(object):
       onlineWallet.labelDescr = (longLabel + ' (Watching-only copy)')[:256]
 
       newAddrMap = {}
-      for addr160,addrObj in self.addrMap.iteritems():
+      for addr160,addrObj in self.addrMap.items():
          onlineWallet.addrMap[addr160] = addrObj.copy()
          onlineWallet.addrMap[addr160].binPrivKey32_Encr  = SecureBinaryData()
          onlineWallet.addrMap[addr160].binPrivKey32_Plain = SecureBinaryData()
@@ -1035,7 +1035,7 @@ class PyBtcWallet(object):
          i=1
          nAddr = len(self.addrMap)
          
-         for addr160,addr in self.addrMap.iteritems():
+         for addr160,addr in self.addrMap.items():
             Progress(i, nAddr)
             i = i +1
             
@@ -1052,7 +1052,7 @@ class PyBtcWallet(object):
 
          if updateSuccess:
             # Finally give the new data to the user
-            for addr160,addr in newAddrMap.iteritems():
+            for addr160,addr in newAddrMap.items():
                self.addrMap[addr160] = addr.copy()
          
          self.useEncryption = newUsesEncryption
@@ -1404,7 +1404,7 @@ class PyBtcWallet(object):
    def getAddrList(self):
       """ Returns list of PyBtcAddress objects """
       addrList = []
-      for addr160,addrObj in self.addrMap.iteritems():
+      for addr160,addrObj in self.addrMap.items():
          if addr160=='ROOT':
             continue
          # I assume these will be references, not copies
@@ -1454,7 +1454,7 @@ class PyBtcWallet(object):
          # Somehow the address isn't here, even though it is less than the
          # last computed index
          closestIdx = 0
-         for idx,addr160 in self.chainIndexMap.iteritems():
+         for idx,addr160 in self.chainIndexMap.items():
             if closestIdx<idx<=desiredIdx:
                closestIdx = idx
                

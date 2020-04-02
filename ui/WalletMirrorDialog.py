@@ -121,11 +121,11 @@ class MirrorWalletsDialog(ArmoryDialog):
    def buildProgressText(self):
       text = ""
       if self.progressStatus == STATUS_MIRROR:
-         text = QObject().tr("Mirroring wallet %1").arg(self.progressId)
+         text = QObject().tr("Mirroring wallet %s" % self.progressId)
       elif self.progressStatus == STATUS_SYNC:
-         text = QObject().tr("Synchronizing wallet %1").arg(self.progressId)
+         text = QObject().tr("Synchronizing wallet %s" % self.progressId)
       elif self.progressStatus == STATUS_IMPORTS:
-         text = QObject().tr("Checking imports for wallet %1").arg(self.progressId)
+         text = QObject().tr("Checking imports for wallet %s" % self.progressId)
                
       dotCount = self.counter % 5
       self.counter += 1

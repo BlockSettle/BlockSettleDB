@@ -780,7 +780,7 @@ class ArmoryMainWindow(QMainWindow):
          return
 
       currIdx  = max(self.comboWltSelect.currentIndex(), 0)
-      currText = unicode(self.comboWltSelect.currentText()).lower()
+      currText = str(self.comboWltSelect.currentText()).lower()
 
       if currText.lower().startswith('custom filter'):
          self.walletsView.showColumn(0)
@@ -824,7 +824,7 @@ class ArmoryMainWindow(QMainWindow):
                self.setWltSetting(wid, 'LedgerShow', True)
 
       self.mainLedgerCurrentPage = 1
-      self.PageLineEdit.setText(unicode(self.mainLedgerCurrentPage))
+      self.PageLineEdit.setText(str(self.mainLedgerCurrentPage))
 
       self.wltIDList = []
       for i,vis in enumerate(self.walletVisibleList):
@@ -859,21 +859,21 @@ class ArmoryMainWindow(QMainWindow):
             not hasattr(plugObj,'tabName'):
             LOGERROR('Module is malformed!  No tabToDisplay or tabName attrs')
             QMessageBox.critmoduleName(self, self.tr("Bad Module"), self.tr(
-               'The module you attempted to load (%1) is malformed.  It is '
+               'The module you attempted to load (%s) is malformed.  It is '
                'missing attributes that are needed for Armory to load it. '
-               'It will be skipped.').arg(moduleName), QMessageBox.Ok)
+               'It will be skipped.' % moduleName), QMessageBox.Ok)
             continue
 
          verPluginInt = getVersionInt(readVersionString(plugObj.maxVersion))
          verArmoryInt = getVersionInt(BTCARMORY_VERSION)
          if verArmoryInt >verPluginInt:
             reply = QMessageBox.warning(self, self.tr("Outdated Module"), self.tr(
-               'Module "%1" is only specified to work up to Armory version %2. '
+               'Module "%s" is only specified to work up to Armory version %2. '
                'You are using Armory version %3.  Please remove the module if '
                'you experience any problems with it, or contact the maintainer '
                'for a new version. '
                '<br><br> '
-               'Do you want to continue loading the module?').arg(moduleName),
+               'Do you want to continue loading the module?' % moduleName),
                QMessageBox.Yes | QMessageBox.No)
 
             if not reply==QMessageBox.Yes:
@@ -926,22 +926,22 @@ class ArmoryMainWindow(QMainWindow):
             if  infoMap[MODULE_ZIP_STATUS_KEY] == MODULE_ZIP_STATUS.Invalid:
                reply = QMessageBox.warning(self, self.tr("Invalid Module"), self.tr(
                   'Armory detected the following module which is '
-                  '<font color=%1><b>invalid</b></font>:'
+                  '<font color=%s><b>invalid</b></font>:'
                   '<br><br>'
-                  '   <b>Module Name:</b> %2<br>'
-                  '   <b>Module Path:</b> %3<br>'
+                  '   <b>Module Name:</b> %s<br>'
+                  '   <b>Module Path:</b> %s<br>'
                   '<br><br>'
                   'Armory will only run a module from a zip file that '
-                  'has the required stucture.').arg(htmlColor('TextRed'), moduleName, moduleZipPath), QMessageBox.Ok)
+                  'has the required stucture.' % (htmlColor('TextRed'), moduleName, moduleZipPath)), QMessageBox.Ok)
             elif not USE_TESTNET and not USE_REGTEST and infoMap[MODULE_ZIP_STATUS_KEY] == MODULE_ZIP_STATUS.Unsigned:
                reply = QMessageBox.warning(self, self.tr("UNSIGNED Module"), self.tr(
                   'Armory detected the following module which '
-                  '<font color="%1"><b>has not been signed by Armory</b></font> and may be dangerous: '
+                  '<font color="%s"><b>has not been signed by Armory</b></font> and may be dangerous: '
                   '<br><br>'
-                  '   <b>Module Name:</b> %2<br>'
-                  '   <b>Module Path:</b> %3<br>'
+                  '   <b>Module Name:</b> %s<br>'
+                  '   <b>Module Path:</b> %s<br>'
                   '<br><br>'
-                  'Armory will not allow you to run this module.').arg(htmlColor('TextRed'), moduleName, moduleZipPath), QMessageBox.Ok)
+                  'Armory will not allow you to run this module.' % (htmlColor('TextRed'), moduleName, moduleZipPath)), QMessageBox.Ok)
             else:
 
                ZipFile(moduleZipPath).extract(INNER_ZIP_FILENAME, self.tempModulesDirName)
@@ -954,21 +954,21 @@ class ArmoryMainWindow(QMainWindow):
                   not hasattr(plugObj,'tabName'):
                   LOGERROR('Module is malformed!  No tabToDisplay or tabName attrs')
                   QMessageBox.critmoduleName(self, self.tr("Bad Module"), self.tr(
-                     'The module you attempted to load (%1) is malformed.  It is '
+                     'The module you attempted to load (%s) is malformed.  It is '
                      'missing attributes that are needed for Armory to load it. '
-                     'It will be skipped.').arg(moduleName), QMessageBox.Ok)
+                     'It will be skipped.' % moduleName), QMessageBox.Ok)
                   continue
 
                verPluginInt = getVersionInt(readVersionString(plugObj.maxVersion))
                verArmoryInt = getVersionInt(BTCARMORY_VERSION)
                if verArmoryInt >verPluginInt:
                   reply = QMessageBox.warning(self, self.tr("Outdated Module"), self.tr(
-                     'Module %1 is only specified to work up to Armory version %2. '
-                     'You are using Armory version %3.  Please remove the module if '
+                     'Module %s is only specified to work up to Armory version %s. '
+                     'You are using Armory version %s.  Please remove the module if '
                      'you experience any problems with it, or contact the maintainer '
                      'for a new version.'
                      '<br><br>'
-                     'Do you want to continue loading the module?').arg(moduleName,  plugObj.maxVersion, getVersionString(BTCARMORY_VERSION)),
+                     'Do you want to continue loading the module?' % (moduleName,  plugObj.maxVersion, getVersionString(BTCARMORY_VERSION))),
                            QMessageBox.Yes | QMessageBox.No)
 
                   if not reply==QMessageBox.Yes:
@@ -1462,7 +1462,7 @@ class ArmoryMainWindow(QMainWindow):
          rtlength = GetModuleFileNameW(None, ctypes.byref(app_path), 1024)
          passstr = str(app_path.raw)
 
-         modulepathname += unicode(passstr[0:(rtlength*2)], encoding='utf16') + u'" "%1"'
+         modulepathname += str(passstr[0:(rtlength*2)], encoding='utf16') + u'" "%1"'
          modulepathname = modulepathname.encode('utf8')
 
          rootKey = 'bitcoin\\shell\\open\\command'
@@ -1526,7 +1526,7 @@ class ArmoryMainWindow(QMainWindow):
          if action=='DoIt':
 
             LOGINFO('Registering Armory  for current user')
-            baseDir = os.path.dirname(unicode(passstr[0:(rtlength*2)], encoding='utf16'))
+            baseDir = os.path.dirname(str(passstr[0:(rtlength*2)], encoding='utf16'))
             regKeys = []
             regKeys.append(['Software\\Classes\\bitcoin', '', 'URL:bitcoin Protocol'])
             regKeys.append(['Software\\Classes\\bitcoin', 'URL Protocol', ""])
@@ -1636,10 +1636,10 @@ class ArmoryMainWindow(QMainWindow):
          fn = 'armory_%s_%s_WatchOnly.wallet' % (wlt.uniqueIDB58, suffix)
          
       if export_rootpubkey is True:
-         savePath = unicode(self.getFileSave(defaultFilename=fn,
+         savePath = str(self.getFileSave(defaultFilename=fn,
                 ffilter=['Root Pubkey Text Files (*.rootpubkey)']))
       else:
-         savePath = unicode(self.getFileSave(defaultFilename=fn))
+         savePath = str(self.getFileSave(defaultFilename=fn))
                             
       if not len(savePath) > 0:
          return False
@@ -1673,7 +1673,7 @@ class ArmoryMainWindow(QMainWindow):
 
       QMessageBox.information(parent, self.tr('Backup Complete'), self.tr(
          'Your wallet was successfully backed up to the following '
-         'location:<br><br>%1').arg(savePath), QMessageBox.Ok)
+         'location:<br><br>%s' % savePath), QMessageBox.Ok)
       return True
 
 
@@ -1907,15 +1907,15 @@ class ArmoryMainWindow(QMainWindow):
          if click:
             QMessageBox.warning(self, self.tr('Wrong Network!'),
                self.tr('The address for the "bitcoin:" link you just clicked is '
-               'for the wrong network!  You are on the <b>%2</b> '
+               'for the wrong network!  You are on the <b>%s</b> '
                'and the address you supplied is for the '
-               '<b>%3</b>!').arg(NETWORKS[ADDRBYTE], net), QMessageBox.Ok)
+               '<b>%s</b>!' % (NETWORKS[ADDRBYTE], net)), QMessageBox.Ok)
          else:
             QMessageBox.warning(self, self.tr('Wrong Network!'),
                self.tr('The address for the "bitcoin:" link you just entered is '
-               'for the wrong network!  You are on the <b>%2</b> '
+               'for the wrong network!  You are on the <b>%s</b> '
                'and the address you supplied is for the '
-               '<b>%3</b>!').arg(NETWORKS[ADDRBYTE], net), QMessageBox.Ok)
+               '<b>%s</b>!' % (NETWORKS[ADDRBYTE], net)), QMessageBox.Ok)
          LOGERROR('URI link is for the wrong network!')
          return {}
 
@@ -2118,10 +2118,10 @@ class ArmoryMainWindow(QMainWindow):
       # calls a dialog produces better results but still freezes under some
       # circumstances.
       if not OS_MACOSX:
-         fullPath = unicode(QFileDialog.getSaveFileName(self, title, startPath,
+         fullPath = str(QFileDialog.getSaveFileName(self, title, startPath,
                                                         typesStr))
       else:
-         fullPath = unicode(QFileDialog.getSaveFileName(self, title, startPath,
+         fullPath = str(QFileDialog.getSaveFileName(self, title, startPath,
                                                         typesStr,
                                        options=QFileDialog.DontUseNativeDialog))
 
@@ -2147,12 +2147,12 @@ class ArmoryMainWindow(QMainWindow):
       types = list(ffilter)
       types.append(self.tr('All files (*)'))
       
-      typeStr = QString("")
+      typeStr = ""
       for i in range(0, len(types)):
          _type = types[i]         
-         typeStr += QString(_type)
+         typeStr += str(_type)
          if i < len(types) - 1:
-            typeStr += QString(";; ")
+            typeStr += str(";; ")
 
       # Open the native file load dialog and grab the loaded file/path unless
       # we're in OS X, where native dialogs sometimes freeze. Looks like a Qt
@@ -2160,10 +2160,10 @@ class ArmoryMainWindow(QMainWindow):
       # calls a dialog produces better results but still freezes under some
       # circumstances.
       if not OS_MACOSX:
-         fullPath = unicode(QFileDialog.getOpenFileName(self, title, defaultDir,
+         fullPath = str(QFileDialog.getOpenFileName(self, title, defaultDir,
                                                         typeStr))
       else:
-         fullPath = unicode(QFileDialog.getOpenFileName(self, title, defaultDir,
+         fullPath = str(QFileDialog.getOpenFileName(self, title, defaultDir,
                                                         typeStr,
                                        options=QFileDialog.DontUseNativeDialog))
 
@@ -2294,12 +2294,12 @@ class ArmoryMainWindow(QMainWindow):
       if contribID or contribLabel:
          if contribID:
             if contribLabel:
-               outStr = self.tr('Contributor "%1" (%2)').arg(contribLabel, contribID)
+               outStr = self.tr('Contributor "%s" (%s)' % (contribLabel, contribID))
             else:
-               outStr = self.tr('Contributor %1').arg(contribID)
+               outStr = self.tr('Contributor %s' % contribID)
          else:
             if contribLabel:
-               outStr = self.tr('Contributor "%1"').arg(contribLabel)
+               outStr = self.tr('Contributor "%s"' % contribLabel)
             else:
                outStr = self.tr('Unknown Contributor')
                LOGERROR('How did we get to this impossible else-statement?')
@@ -2454,7 +2454,7 @@ class ArmoryMainWindow(QMainWindow):
          lblcolor = htmlColor('DisableFG') if spendFunds==totalFunds else htmlColor('Foreground')
          goodColor= htmlColor('TextGreen')
          self.lblTotalFunds.setText('<b><font color="%s">%s</font></b>' % (btccolor,coin2str(totalFunds)))
-         self.lblTot.setText(self.tr('<b><font color="%1">Maximum Funds:</font></b>').arg(lblcolor))
+         self.lblTot.setText(self.tr('<b><font color="%s">Maximum Funds:</font></b>' % lblcolor))
          self.lblBTC1.setText('<b><font color="%s">BTC</font></b>' % lblcolor)
          self.lblSpendFunds.setText('<b><font color=%s>%s</font></b>' % (goodColor, coin2str(spendFunds)))
          self.lblUnconfFunds.setText(('<b><font color="%s">%s</font></b>' % \
@@ -2947,9 +2947,9 @@ class ArmoryMainWindow(QMainWindow):
          dispIn  = self.tr('multiple addresses')
       else:
          addrStr = hash160_to_addrStr(sweepList[0].getAddr160())
-         dispIn  = self.tr('address <b>%1</b>').arg(addrStr)
+         dispIn  = self.tr('address <b>%s</b>' % addrStr)
 
-      dispOut = self.tr('wallet <b>"%1"</b> (%2) ').arg(wlt.labelName, wlt.uniqueIDB58)
+      dispOut = self.tr('wallet <b>"%s"</b> (%s) ' % (wlt.labelName, wlt.uniqueIDB58))
       if DlgVerifySweep(dispIn, dispOut, outVal, fee).exec_():
          self.broadcastTransaction(finishedTx, dryRun=False)
 
@@ -3039,14 +3039,14 @@ class ArmoryMainWindow(QMainWindow):
          QMessageBox.warning(self, self.tr('Transaction Not Accepted'), self.tr(
             'The transaction that you just executed failed with '
             'the following error message: <br><br> '
-            '<b>%1</b>'
+            '<b>%s</b>'
             '<br><br>'
             '<br><br>On time out errors, the transaction may have actually succeeded '
             'and this message is displayed prematurely.  To confirm whether the '
             'the transaction actually succeeded, you can try this direct link '
-            'to %2: '
+            'to %s: '
             '<br><br>'
-            '<a href="%3">%4...</a>'
+            '<a href="%s">%s...</a>'
             '<br><br>'
             'If you do not see the '
             'transaction on that webpage within one minute, it failed and you '
@@ -3058,8 +3058,8 @@ class ArmoryMainWindow(QMainWindow):
             'is too low. Try again with a higher fee. '
             'If the problem persists, go to "<i>File</i>" -> '
             '"<i>Export Log File</i>" and then attach it to a support '
-            'ticket at <a href="%5">%5</a>').arg(errorMsg, BLOCKEXPLORE_NAME, blkexplURL, \
-            blkexplURL_short, supportURL), QMessageBox.Ok)
+            'ticket at <a href="%s">%s</a>' % (errorMsg, BLOCKEXPLORE_NAME, blkexplURL, \
+            blkexplURL_short, supportURL, supportURL)), QMessageBox.Ok)
       else:
          if errorMsgFromRPC == None:
             LOGERROR('Broadcast error: %s' % errorMsg)
@@ -3075,8 +3075,7 @@ class ArmoryMainWindow(QMainWindow):
             QMessageBox.warning(self, self.tr('Transaction Not Accepted'), self.tr(
                'The transaction that you just attempted to broadcast has failed with '
                'the following error: '
-               '<br><br><b>%1</b>'
-               ).arg(errorMsgFromRPC), QMessageBox.Ok)      
+               '<br><br><b>%s</b>' % errorMsgFromRPC), QMessageBox.Ok)
 
 
 
@@ -3124,8 +3123,8 @@ class ArmoryMainWindow(QMainWindow):
       if wltID in self.walletMap:
          QMessageBox.warning(self, self.tr('Duplicate Wallet!'), self.tr(
             'You selected a wallet that has the same ID as one already '
-            'in your wallet (%1)!  If you would like to import it anyway, '
-            'please delete the duplicate wallet in Armory, first.').arg(wltID), \
+            'in your wallet (%s)!  If you would like to import it anyway, '
+            'please delete the duplicate wallet in Armory, first.' % wltID), \
             QMessageBox.Ok)
          return
 
@@ -3206,7 +3205,7 @@ class ArmoryMainWindow(QMainWindow):
       row = self.ledgerView.selectedIndexes()[0].row()
       txHash = str(self.ledgerView.model().index(row, LEDGERCOLS.TxHash).data().toString())
       wltID  = str(self.ledgerView.model().index(row, LEDGERCOLS.WltID).data().toString())
-      txtime = unicode(self.ledgerView.model().index(row, LEDGERCOLS.DateStr).data().toString())
+      txtime = str(self.ledgerView.model().index(row, LEDGERCOLS.DateStr).data().toString())
 
       pytx = None
       txHashBin = hex_to_binary(txHash)
@@ -3244,7 +3243,7 @@ class ArmoryMainWindow(QMainWindow):
       if flagged:
          actBump    = menu.addAction(self.tr("Bump Fee"))
       actViewTx     = menu.addAction(self.tr("View Details"))
-      actViewBlkChn = menu.addAction(self.tr("View on %1").arg(BLOCKEXPLORE_NAME))
+      actViewBlkChn = menu.addAction(self.tr("View on %s" % BLOCKEXPLORE_NAME))
       actComment    = menu.addAction(self.tr("Change Comment"))
       actCopyTxID   = menu.addAction(self.tr("Copy Transaction ID"))
       actOpenWallet = menu.addAction(self.tr("Open Relevant Wallet"))
@@ -3261,7 +3260,7 @@ class ArmoryMainWindow(QMainWindow):
                'Armory encountered an error opening your web browser.  To view '
                'this transaction on blockchain.info, please copy and paste '
                'the following URL into your browser: '
-               '<br><br>%1').arg(BLOCKEXPLORE_URL_TX % txHash), QMessageBox.Ok)
+               '<br><br>%s' % (BLOCKEXPLORE_URL_TX % txHash)), QMessageBox.Ok)
       elif action==actCopyTxID:
          clipb = QApplication.clipboard()
          clipb.clear()
@@ -3339,7 +3338,7 @@ class ArmoryMainWindow(QMainWindow):
       descrStr = self.tr('You just clicked on a "bitcoin:" link requesting bitcoins '
                 'to be sent to the following address:<br> ')
 
-      descrStr += self.tr('<br>--<b>Address</b>:\t%1 ').arg(uriDict['address'])
+      descrStr += self.tr('<br>--<b>Address</b>:\t%s ' % uriDict['address'])
 
       #if uri_has('label'):
          #if len(uriDict['label'])>30:
@@ -3351,14 +3350,14 @@ class ArmoryMainWindow(QMainWindow):
       if uri_has('amount'):
          amt     = uriDict['amount']
          amtstr  = coin2str(amt, maxZeros=1)
-         descrStr += self.tr('<br>--<b>Amount</b>:\t%1 BTC').arg(amtstr)
+         descrStr += self.tr('<br>--<b>Amount</b>:\t%s BTC' % amtstr)
 
 
       if newMsg:
          if len(newMsg)>60:
-            descrStr += self.tr('<br>--<b>Message</b>:\t%1...').arg(newMsg[:60])
+            descrStr += self.tr('<br>--<b>Message</b>:\t%s...' % newMsg[:60])
          else:
-            descrStr += self.tr('<br>--<b>Message</b>:\t%1').arg(newMsg)
+            descrStr += self.tr('<br>--<b>Message</b>:\t%s' % newMsg)
 
       uriDict['message'] = newMsg
 
@@ -3528,7 +3527,7 @@ class ArmoryMainWindow(QMainWindow):
                                   ffilter=['Text Files (*.txt)'], \
                                   defaultFilename=defaultFN)
 
-      if len(unicode(saveFile)) > 0:
+      if len(str(saveFile)) > 0:
          fout = open(saveFile, 'wb')
          fout.write(getLastBytesOfFile(ARMORY_LOG_FILE, 256*1024))
          fout.write(getLastBytesOfFile(ARMCPP_LOG_FILE, 256*1024))
@@ -4176,10 +4175,10 @@ class ArmoryMainWindow(QMainWindow):
             'Armory could not find the blockchain files produced '
             'by Bitcoin Core.  Do you run Bitcoin Core (or bitcoind) '
             'from a non-standard directory?   Armory expects to '
-            'find the blkXXXX.dat files in <br><br>%1<br><br> '
+            'find the blkXXXX.dat files in <br><br>%s<br><br> '
             'If you know where they are located, please restart '
             'Armory using the " --satoshi-datadir=[path]" '
-            'to notify Armory where to find them.').arg(BLKFILE_DIR)
+            'to notify Armory where to find them.' % BLKFILE_DIR)
          elif state == 'Disconnected':
             return self.tr( \
             'Armory was previously online, but the connection to Bitcoin Core/'
@@ -4261,10 +4260,10 @@ class ArmoryMainWindow(QMainWindow):
             'Armory\'s communication with the Bitcoin network was interrupted. '
             'This usually does not happen unless you closed the process that '
             'Armory was using to communicate with the network. Armory requires '
-            '%1 to be running in the background, and this error pops up if it '
+            '%s to be running in the background, and this error pops up if it '
             'disappears.'
             '<br><br>You may continue in offline mode, or you can close '
-            'all Bitcoin processes and restart Armory.').arg(os.path.basename(TheSDM.executable))
+            'all Bitcoin processes and restart Armory.' % os.path.basename(TheSDM.executable))
          if state == 'OfflineBadConnection':
             return self.tr( \
             'Armory has experienced an issue trying to communicate with the '
@@ -4304,12 +4303,12 @@ class ArmoryMainWindow(QMainWindow):
             'last known working version (but not earlier than version 0.8.1) '
             'or delete everything <b>except</b> "wallet.dat" from your Bitcoin '
             'home directory '
-            '<font face="courier"><b>%1</b></font>'
+            '<font face="courier"><b>%s</b></font>'
             '<br><br>'
             'If you choose to delete the contents of the Bitcoin home '
             'directory, you will have to do a fresh download of the blockchain '
             'again, which will require a few hours the first '
-            'time.').arg(self.satoshiHomePath)
+            'time.' % self.satoshiHomePath)
          if state == 'OfflineBtcdCrashed':
             sout = '' if TheSDM.btcOut==None else str(TheSDM.btcOut)
             serr = '' if TheSDM.btcErr==None else str(TheSDM.btcErr)
@@ -4724,7 +4723,7 @@ class ArmoryMainWindow(QMainWindow):
       # (The last one is really only used to determine what info is most
       #  relevant to display to the user...it can be ignored in most cases)
       def getScript():
-         entered = unicode(addrEntryObjs['QLE_ADDR'].text()).strip()
+         entered = str(addrEntryObjs['QLE_ADDR'].text()).strip()
          return self.getScriptForUserString(entered)
 
       addrEntryObjs['CALLBACK_GETSCRIPT'] = getScript
@@ -4765,19 +4764,19 @@ class ArmoryMainWindow(QMainWindow):
          
          if haveRPC:           
             self.lblArmoryStatus.setText(\
-               self.tr('<font color=%1>Connected (%2 blocks)</font> ').arg(
-                  htmlColor('TextGreen'), str(TheBDM.getTopBlockHeight())))
+               self.tr('<font color=%s>Connected (%s blocks)</font> ' % \
+                  (htmlColor('TextGreen'), str(TheBDM.getTopBlockHeight()))))
          else:
             self.lblArmoryStatus.setText(\
-               self.tr('<font color=%1><b>Connected (%2 blocks)</b></font> ').arg(
-                  htmlColor('TextPurple'), str(TheBDM.getTopBlockHeight())))            
+               self.tr('<font color=%s><b>Connected (%s blocks)</b></font> ' % \
+                  (htmlColor('TextPurple'), str(TheBDM.getTopBlockHeight()))))
                   
          def getToolTipTextOnline():
-            tt = QString()
+            tt = ""
             if not haveRPC:
                tt = self.tr('RPC disabled!<br><br>')
             blkRecvAgo  = RightNow() - self.blkReceived
-            tt = tt + self.tr('Last block received %1 ago').arg(secondsToHumanTime(blkRecvAgo))
+            tt = tt + self.tr('Last block received %s ago' % secondsToHumanTime(blkRecvAgo))
             return tt
          
          self.lblArmoryStatus.setToolTipLambda(getToolTipTextOnline)
@@ -4785,15 +4784,15 @@ class ArmoryMainWindow(QMainWindow):
       elif self.nodeStatus.nodeStatus == NodeStatus_Offline or \
          not self.nodeStatus.isValid:
          self.lblArmoryStatus.setText(\
-               self.tr('<font color=%1><b>Node offline (%2 blocks)</b></font> ').arg(\
-                  htmlColor('TextRed')).arg(TheBDM.getTopBlockHeight()))    
+               self.tr('<font color=%s><b>Node offline (%d blocks)</b></font> ' % \
+                  (htmlColor('TextRed'), TheBDM.getTopBlockHeight())))
          
          def getToolTipTextOffline():
             blkRecvAgo  = RightNow() - self.blkReceived
             tt = self.tr(
             'Disconnected from Bitcoin Node, cannot update history '
-            '<br><br>Last known block: %1 <br>Received %2 ago').arg(\
-               TheBDM.getTopBlockHeight()).arg(secondsToHumanTime(blkRecvAgo))
+            '<br><br>Last known block: %d <br>Received %s ago' % \
+               (TheBDM.getTopBlockHeight(), secondsToHumanTime(blkRecvAgo)))
             return tt
          
          self.lblArmoryStatus.setToolTipLambda(getToolTipTextOffline)     
@@ -5050,7 +5049,7 @@ class ArmoryMainWindow(QMainWindow):
       if TheBDM.exception != "":
          QMessageBox.warning(self, self.tr('Database Error'), self.tr(
                            'The DB has returned the following error: <br><br> '
-                           '<b> %1 </b> <br><br> Armory will now shutdown.').arg(TheBDM.exception), QMessageBox.Ok)
+                           '<b> %s </b> <br><br> Armory will now shutdown.' % TheBDM.exception), QMessageBox.Ok)
          self.closeForReal()
 
       # SatoshiDaemonManager
@@ -5129,7 +5128,7 @@ class ArmoryMainWindow(QMainWindow):
       Function that prints a notification for a transaction that affects an
       address we control.
       '''
-      dispLines = QStringList()
+      dispLines = []
       title = ''
       totalStr = coin2strNZS(txAmt)
 
@@ -5140,14 +5139,14 @@ class ArmoryMainWindow(QMainWindow):
             dispName = '"%(name)s"' % { 'name' : wlt.labelName }
          else:
             dispName = '"%(shortname)s..."' % { 'shortname' : wlt.labelName[:17] }
-         dispName = self.tr('Wallet %1 (%2)').arg(dispName, wlt.uniqueIDB58)
+         dispName = self.tr('Wallet %s (%s)' % (dispName, wlt.uniqueIDB58))
       elif moneyID in self.cppLockboxWltMap:
          lbox = self.getLockboxByID(moneyID)
          if len(lbox.shortName) <= 20:
             dispName = '%(M)d-of-%(N)d "%(shortname)s"' % { 'M' : lbox.M, 'N' : lbox.N, 'shortname' : lbox.shortName}
          else:
             dispName = ('%(M)d-of-%(N)d "%(shortname)s..."') % {'M' : lbox.M, 'N' : lbox.N, 'shortname' : lbox.shortName[:17] }
-         dispName = self.tr('Lockbox %1 (%2)').arg(dispName, lbox.uniqueIDB58)
+         dispName = self.tr('Lockbox %s (%s)' % (dispName, lbox.uniqueIDB58))
       else:
          LOGERROR('Asked to show notification for wlt/lbox we do not have')
          return
@@ -5156,13 +5155,13 @@ class ArmoryMainWindow(QMainWindow):
       if ledgerAmt > 0:
          # Received!
          title = self.tr('Bitcoins Received!')
-         dispLines.append(self.tr('Amount:  %1 BTC').arg(totalStr ))
-         dispLines.append(self.tr('Recipient:  %1').arg(dispName))
+         dispLines.append(self.tr('Amount:  %s BTC' % totalStr))
+         dispLines.append(self.tr('Recipient:  %s' % dispName))
       elif ledgerAmt < 0:
          # Sent!
          title = self.tr('Bitcoins Sent!')
-         dispLines.append(self.tr('Amount:  %1 BTC').arg(totalStr))
-         dispLines.append(self.tr('Sender:  %1').arg(dispName))
+         dispLines.append(self.tr('Amount:  %s BTC' % totalStr))
+         dispLines.append(self.tr('Sender:  %s' % dispName))
 
       self.showTrayMsg(title, dispLines.join('\n'), \
                        QSystemTrayIcon.Information, 10000)
@@ -5212,7 +5211,7 @@ class ArmoryMainWindow(QMainWindow):
             wname = self.walletMap[moneyID].labelName
             if len(wname)>20:
                wname = wname[:17] + '...'
-            wltName = self.tr('Wallet "%1" (%2)').arg(wname, moneyID)
+            wltName = self.tr('Wallet "%s" (%s)' % (wname, moneyID))
          else:
             lbox   = self.getLockboxByID(moneyID)
             M      = self.getLockboxByID(moneyID).M
@@ -5220,7 +5219,7 @@ class ArmoryMainWindow(QMainWindow):
             lname  = self.getLockboxByID(moneyID).shortName
             if len(lname) > 20:
                lname = lname[:17] + '...'
-            wltName = self.tr('Lockbox %1-of-%2 "%3" (%4)').arg(M).arg(N).arg(lname, moneyID)
+            wltName = self.tr('Lockbox %d-of-%d "%s" (%s)' % (M, N, lname, moneyID))
 
          if le.isSentToSelf:
             # Used to display the sent-to-self amount, but if this is a lockbox
@@ -5232,18 +5231,18 @@ class ArmoryMainWindow(QMainWindow):
             #             'Wallet "%s" (%s) just sent %s BTC to itself!' % \
             #         (wlt.labelName, moneyID, coin2str(amt,maxZeros=1).strip()),
             self.showTrayMsg(self.tr('Your bitcoins just did a lap!'), \
-                             self.tr('%1 just sent some BTC to itself!').arg(wltName), \
+                             self.tr('%s just sent some BTC to itself!' % wltName), \
                              QSystemTrayIcon.Information, 10000)
             return
 
          # If coins were either received or sent from the loaded wlt/lbox
-         dispLines = QStringList()
+         dispLines = []
          totalStr = coin2strNZS(abs(le.value))
          title = None
          if le.value > 0:
             title = self.tr('Bitcoins Received!')
-            dispLines.append(self.tr('Amount:  %1 BTC').arg(totalStr))
-            dispLines.append(self.tr('From:    %2').arg(wltName))
+            dispLines.append(self.tr('Amount:  %s BTC' % totalStr))
+            dispLines.append(self.tr('From:    %s' % wltName))
          elif le.value < 0:
             try:
                recipStr = ''
@@ -5256,9 +5255,9 @@ class ArmoryMainWindow(QMainWindow):
                      recipStr = self.tr('<Multiple Recipients>')
 
                title = self.tr('Bitcoins Sent!')
-               dispLines.append(unicode(self.tr('Amount:  %1 BTC').arg(totalStr)))
-               dispLines.append(unicode(self.tr('From:    %1').arg(wltName )))
-               dispLines.append(unicode(self.tr('To:      %1').arg(recipStr)))
+               dispLines.append(str(self.tr('Amount:  %s BTC' % totalStr)))
+               dispLines.append(str(self.tr('From:    %s' % wltName )))
+               dispLines.append(str(self.tr('To:      %s' % recipStr)))
             except Exception as e:
                LOGERROR('tx broadcast systray display failed with error: %s' % e)
 
