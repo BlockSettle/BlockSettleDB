@@ -1142,7 +1142,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
 
    //create wallet file and dbenv
    stringstream pathSS;
-   pathSS << folder << "/armory_" << masterID << "_wallet.lmdb";
+   pathSS << folder << "/BlockSettle_" << masterID << "_wallet.lmdb";
    auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
 
    string walletID;
@@ -1215,7 +1215,7 @@ createFromPublicRoot_Armory135(
 
    //create wallet file and dbenv
    stringstream pathSS;
-   pathSS << folder << "/armory_" << masterID << "_WatchingOnly.lmdb";
+   pathSS << folder << "/BlockSettle_" << masterID << "_WatchingOnly.lmdb";
    auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
 
    string walletID;
@@ -1523,7 +1523,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createSeedless_WatchingOnly(
 
    //create wallet file and dbenv
    stringstream pathSS;
-   pathSS << folder << "/armory_" << masterID << "_WatchingOnly.lmdb";
+   pathSS << folder << "/BlockSettle_" << masterID << "_HW.lmdb";
    auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
 
    //address accounts
