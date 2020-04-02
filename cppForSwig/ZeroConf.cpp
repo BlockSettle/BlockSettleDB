@@ -1881,14 +1881,20 @@ void ZeroConfContainer::broadcastZC(
    zcPacket->hashes_.reserve(rawZcVec.size());
    zcPacket->zcVec_.reserve(rawZcVec.size());
 
-   for (auto& rawZc : rawZcVec)
+   for (auto& rawZcRef : rawZcVec)
    {
-      auto rawZcPtr = make_shared<BinaryData>(rawZc);
+      if (rawZcRef.getSize() == 0)
+         continue;
+
+      auto rawZcPtr = make_shared<BinaryData>(rawZcRef);
       Tx tx(*rawZcPtr);
 
       zcPacket->hashes_.push_back(tx.getThisHash());
       zcPacket->zcVec_.push_back(rawZcPtr);
    }
+
+   if (zcPacket->zcVec_.empty())
+      return;
 
    {
       //update the watcher map
@@ -1900,7 +1906,7 @@ void ZeroConfContainer::broadcastZC(
       }
    }
 
-   //sets up & pushes the zc batch for us
+   //sets up & queues the zc batch for us
    actionQueue_->initiateZcBatch(zcPacket->hashes_, timeout_ms, cbk, true);
 
    //push each zc on the process queue

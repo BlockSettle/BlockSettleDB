@@ -2109,7 +2109,7 @@ void BDV_Server_Object::processNotification(
       auto error = notif->mutable_error();
 
       error->set_code(payload->errStruct.errCode_);      
-      if (!payload->errStruct.errData_.isNull())
+      if (!payload->errStruct.errData_.empty())
       {
          error->set_errdata(
             payload->errStruct.errData_.getCharPtr(), 
@@ -2898,8 +2898,9 @@ void Clients::broadcastThroughRPC()
             hashes, 0, nullptr, false);
 
       //push to rpc
+      string verbose;
       auto result =
-         bdmT_->bdm()->nodeRPC_->broadcastTx(packet.rawTx_->getRef());
+         bdmT_->bdm()->nodeRPC_->broadcastTx(packet.rawTx_->getRef(), verbose);
 
       switch (ArmoryErrorCodes(result))
       {
@@ -2929,6 +2930,9 @@ void Clients::broadcastThroughRPC()
       }
 
       default:
+         LOGINFO << "RPC broadcast for tx: " << hashes.begin()->toHexStr() << 
+            ", verbose: " << verbose;
+
          //fail the batch promise
          batchPtr->isReadyPromise_->set_exception(
             make_exception_ptr(ZcBatchError()));
@@ -2936,9 +2940,11 @@ void Clients::broadcastThroughRPC()
          //notify the bdv of the error
          auto notifPacket = make_shared<BDV_Notification_Packet>();
          notifPacket->bdvPtr_ = packet.bdvPtr_;
+         stringstream errMsg;
+         errMsg << "RPC broadcast error: " << verbose;
          notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
             packet.bdvPtr_->getID(), result,
-            *hashes.begin(), "rpc broadcast error");
+            *hashes.begin(), errMsg.str());
          innerBDVNotifStack_.push_back(move(notifPacket));
       }
    }
@@ -3037,6 +3043,28 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
          for (auto& packet : rpcPackets)
             rpcBroadcastQueue_.push_back(move(packet));
       };
+
+      //run through submitted ZCs, prune already mined ones
+      for (auto& rawZcRef : rawZcVec)
+      {
+         Tx tx(rawZcRef);
+         auto hash = tx.getThisHash();
+
+         auto dbKey = bdvPtr->db_->getDBKeyForHash(hash);
+         if (!dbKey.empty())
+         {
+            //notify the bdv of the error
+            auto notifPacket = make_shared<BDV_Notification_Packet>();
+            notifPacket->bdvPtr_ = bdvPtr;
+            notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
+               bdvPtr->getID(), (int)ArmoryErrorCodes::ZcBroadcast_AlreadyInChain,
+               hash, "RPC broadcast error: Already in mempool");
+            innerBDVNotifStack_.push_back(move(notifPacket));
+
+            //reset data ref so as to not parse the zc
+            rawZcRef.reset();
+         }
+      }
 
       bdmT_->bdm()->zeroConfCont_->broadcastZC(
          rawZcVec, 5000, errorCallback);

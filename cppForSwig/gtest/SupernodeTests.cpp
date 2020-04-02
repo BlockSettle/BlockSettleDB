@@ -12081,6 +12081,81 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WebSocketTests, WebSocketStack_BroadcastAlreadyMinedTx)
+{
+   //public server
+   startupBIP150CTX(4, true);
+
+   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
+   theBDMt_->start(config.initMode_);
+
+   {
+      auto pCallback = make_shared<DBTestUtils::UTCallback>();
+      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      bdvObj->addPublicKey(serverPubkey);
+      bdvObj->connectToRemote();
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+
+      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+
+      vector<BinaryData> _scrAddrVec1;
+      _scrAddrVec1.push_back(TestChain::scrAddrA);
+      _scrAddrVec1.push_back(TestChain::scrAddrB);
+      _scrAddrVec1.push_back(TestChain::scrAddrC);
+      _scrAddrVec1.push_back(TestChain::scrAddrD);
+      _scrAddrVec1.push_back(TestChain::scrAddrE);
+      _scrAddrVec1.push_back(TestChain::scrAddrF);
+
+      vector<string> walletRegIDs;
+      walletRegIDs.push_back(
+         wallet1.registerAddresses(_scrAddrVec1, false));
+
+      //wait on registration ack
+      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+      //go online
+      bdvObj->goOnline();
+      pCallback->waitOnSignal(BDMAction_Ready);
+
+      //grab a mined tx with unspent outputs
+      auto&& ZC1 = TestUtils::getTx(5, 2); //block 5, tx 2
+      auto&& ZChash1 = BtcUtils::getHash256(ZC1);
+
+      //and one with spent outputs
+      auto&& ZC2 = TestUtils::getTx(2, 1); //block 5, tx 2
+      auto&& ZChash2 = BtcUtils::getHash256(ZC2);
+
+      //try and broadcast both
+      bdvObj->broadcastZC({ZC1, ZC2});
+
+      //wait on zc errors
+      pCallback->waitOnError(ZChash1, 
+         ArmoryErrorCodes::ZcBroadcast_AlreadyInChain);
+      
+      pCallback->waitOnError(ZChash2, 
+         ArmoryErrorCodes::ZcBroadcast_AlreadyInChain);
+   }
+
+   //cleanup
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+   bdvObj2->addPublicKey(serverPubkey);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
+   WebSocketServer::waitOnShutdown();
+
+   delete theBDMt_;
+   theBDMt_ = nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 /*
 Zc failure tests:
    p2p node down
