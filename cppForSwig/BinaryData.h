@@ -125,7 +125,8 @@ public:
       data_.clear();
    }
 
-   bool isNull(void) const { return (data_.size()==0);}
+   //bool isNull(void) const { return (data_.size()==0);}
+   bool empty(void) const { return (data_.size()==0);}
    bool isZero(void) const;
    
    BinaryData& operator=(const BinaryData &o)
@@ -621,7 +622,7 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    uint8_t const * getPtr(void) const       { return ptr_;    }
    size_t getSize(void) const               { return nBytes_; }
-   bool isNull(void) { return (ptr_==NULL);}
+   bool empty(void) { return (ptr_==NULL);}
 
    /////////////////////////////////////////////////////////////////////////////
    void setRef(uint8_t const * inData, size_t sz)          

@@ -237,7 +237,7 @@ bool ScrAddrObj::purgeZC(
       if (txioIter == zcTxios_.end())
          continue;
 
-      if (zc.second.isNull())
+      if (zc.second.empty())
       {
          //the entire entry needs to go
          zcTxios_.erase(txioIter);
