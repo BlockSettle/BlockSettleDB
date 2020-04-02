@@ -879,23 +879,54 @@ void NodeUnitTest::delayNextZc(unsigned count)
 // NodeRPC_UnitTest
 //
 ////////////////////////////////////////////////////////////////////////////////
-int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx)
+int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx, string&)
 {
    auto iface = primaryNode_->iface_;
    if (iface == nullptr)
       throw runtime_error("null iface ptr");
 
-   
-
-   Tx tx(rawTx);
-   auto&& dbKey = iface->getDBKeyForHash(tx.getThisHash());
-   if (dbKey.getSize() == 6)
-      return (int)ArmoryErrorCodes::ZcBroadcast_AlreadyInChain;
-
-   //check zc outpoints are valid and spendable
    auto nodeUT = dynamic_pointer_cast<NodeUnitTest>(primaryNode_);
    if (nodeUT == nullptr)
       throw runtime_error("invalid node ptr");
+   
+   
+   //is this tx already mined?
+   Tx tx(rawTx);
+   auto&& dbKey = iface->getDBKeyForHash(tx.getThisHash());
+   if (dbKey.getSize() == 6)
+   {
+      StoredTxOut stxo;
+      BinaryRefReader keyReader(dbKey);
+      uint32_t blockid; uint8_t dup;
+      DBUtils::readBlkDataKeyNoPrefix(keyReader,
+         blockid, dup, stxo.txIndex_);
+         
+      auto headerPtr = nodeUT->blockchain_->getHeaderById(blockid);
+      stxo.blockHeight_ = headerPtr->getBlockHeight();
+      stxo.duplicateID_ = headerPtr->getDuplicateID();
+
+      //are any of its outpouts spent?
+      unsigned spentCount = 0;
+      for (unsigned i=0; i<tx.getNumTxOut(); i++)
+      {
+         stxo.txOutIndex_ = i;
+         iface->getSpentness(stxo);
+         if (stxo.isSpent())
+            spentCount++;
+      } 
+
+      /*
+      A mined tx that with no output in the utxo set fails rpc broadcast with a
+      -25 error (node only has a snapshot of the utxo set, it cannot resolve 
+      "archived" outputs). Txs with unspent outputs will return already-in-chain
+      errors.
+      */
+
+      if (spentCount == tx.getNumTxOut())
+         return (int)ArmoryErrorCodes::ZcBroadcast_Error;        
+      else
+         return (int)ArmoryErrorCodes::ZcBroadcast_AlreadyInChain;
+   }
 
    //check this zc isn't already in the node's mempool
    {
@@ -904,6 +935,7 @@ int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx)
          return (int)ArmoryErrorCodes::Success;
    }
 
+   //check zc outpoints are valid and spendable
    for (unsigned i=0; i<tx.getNumTxIn(); i++)
    {
       auto&& txin = tx.getTxInCopy(i);
@@ -926,8 +958,8 @@ int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx)
       }
 
       //is it in the chain?
-      auto&& dbKey = iface->getDBKeyForHash(outpoint.getTxHash());
-      if (dbKey.getSize() == 0)
+      auto&& dbKeyInput = iface->getDBKeyForHash(outpoint.getTxHash());
+      if (dbKeyInput.getSize() == 0)
       {
          //outpoint does not exist
          return (int)ArmoryErrorCodes::ZcBroadcast_Error;        
@@ -935,7 +967,7 @@ int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx)
 
       //is this outpoint spent?
       StoredTxOut stxo;
-      BinaryRefReader keyReader(dbKey);
+      BinaryRefReader keyReader(dbKeyInput);
       uint32_t blockid; uint8_t dup;
       DBUtils::readBlkDataKeyNoPrefix(keyReader,
          blockid, dup, stxo.txIndex_);
