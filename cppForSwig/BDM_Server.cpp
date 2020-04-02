@@ -166,6 +166,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
          resultingPayload = response;
          break;
       }
+      break;
    }
 
    case Methods::registerWallet:
