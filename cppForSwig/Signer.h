@@ -19,7 +19,7 @@
 
 enum SpenderStatus
 {
-   SpenderStatus_Unkonwn,
+   SpenderStatus_Unknown,
    SpenderStatus_Partial,
    SpenderStatus_Resolved,
    SpenderStatus_Empty
@@ -37,10 +37,12 @@ enum SpenderStatus
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptSpender
 {
-private:
-   SpenderStatus legacyStatus_ = SpenderStatus_Unkonwn;
-   SpenderStatus segwitStatus_ = SpenderStatus_Unkonwn;
+protected:
+   SpenderStatus segwitStatus_ = SpenderStatus_Unknown;
+   BinaryData witnessData_;
 
+private:
+   SpenderStatus legacyStatus_ = SpenderStatus_Unknown;
    bool isP2SH_ = false;
 
    bool isCSV_ = false;
@@ -57,7 +59,6 @@ private:
    std::vector<BinaryData> sigVec_;
    BinaryData serializedScript_;
    mutable BinaryData serializedInput_;
-   BinaryData witnessData_;
 
    std::map<unsigned, std::shared_ptr<StackItem>> partialStack_;
    std::map<unsigned, std::shared_ptr<StackItem>> partialWitnessStack_;
@@ -97,7 +98,9 @@ public:
       utxo_(utxo), value_(utxo.getValue()), resolverFeed_(feed)
    {}
 
-   bool isSegWit(void) const { return segwitStatus_ != SpenderStatus_Unkonwn; }
+   virtual ~ScriptSpender() = default;
+
+   bool isSegWit(void) const { return segwitStatus_ != SpenderStatus_Unknown; }
    bool isP2SH(void) const { return isP2SH_; }
 
    //set
@@ -113,7 +116,7 @@ public:
    BinaryDataRef getOutputScript(void) const;
    BinaryDataRef getOutputHash(void) const;
    unsigned getOutputIndex(void) const;
-   BinaryDataRef getSerializedInput(void) const;
+   virtual BinaryDataRef getSerializedInput(void) const;
    BinaryData serializeAvailableStack(void) const;
    BinaryDataRef getWitnessData(void) const;
    BinaryData serializeAvailableWitnessData(void) const;
@@ -203,6 +206,34 @@ public:
    }
 };
 
+/////////////////// Spender that doesn't require resolution ///////////////////
+class ScriptSpender_Signed : public ScriptSpender
+{
+public:
+   ScriptSpender_Signed(const UTXO& utxo)  : ScriptSpender(utxo)
+   { }
+   ~ScriptSpender_Signed() override = default;
+
+   void setWitnessData(const BinaryData &wd)
+   {
+      witnessData_ = wd;
+      segwitStatus_ = SpenderStatus_Resolved;
+   }
+};
+
+class ScriptSpender_P2WPKH_Signed : public ScriptSpender_Signed
+{
+public:
+   ScriptSpender_P2WPKH_Signed(const UTXO& utxo) : ScriptSpender_Signed(utxo)
+   { }
+   ~ScriptSpender_P2WPKH_Signed() override = default;
+
+   BinaryDataRef getSerializedInput(void) const override
+   {
+      return {};
+   }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptSpender_BCH : public ScriptSpender
 {
@@ -223,6 +254,8 @@ public:
    ScriptSpender_BCH(const ScriptSpender& scriptSpender) :
       ScriptSpender(scriptSpender)
    {}
+
+   ~ScriptSpender_BCH() override = default;
 
    virtual uint8_t getSigHashByte(void) const
    {
