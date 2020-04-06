@@ -40,6 +40,7 @@ class ScriptSpender
 protected:
    SpenderStatus segwitStatus_ = SpenderStatus_Unknown;
    BinaryData witnessData_;
+   mutable BinaryData serializedInput_;
 
 private:
    SpenderStatus legacyStatus_ = SpenderStatus_Unknown;
@@ -58,13 +59,14 @@ private:
    std::shared_ptr<ResolverFeed> resolverFeed_;
    std::vector<BinaryData> sigVec_;
    BinaryData serializedScript_;
-   mutable BinaryData serializedInput_;
 
    std::map<unsigned, std::shared_ptr<StackItem>> partialStack_;
    std::map<unsigned, std::shared_ptr<StackItem>> partialWitnessStack_;
 
 protected:
    SIGHASH_TYPE sigHashType_ = SIGHASH_ALL;
+
+   BinaryData getSerializedOutpoint(void) const;
 
 private:
    static BinaryData serializeScript(
@@ -75,8 +77,6 @@ private:
 
    void updateStack(std::map<unsigned, std::shared_ptr<StackItem>>&,
       const std::vector<std::shared_ptr<StackItem>>&);
-
-   BinaryData getSerializedOutpoint(void) const;
 
 public:
    ScriptSpender(
@@ -230,7 +230,14 @@ public:
 
    BinaryDataRef getSerializedInput(void) const override
    {
-      return {};
+      BinaryWriter bw;
+      bw.put_BinaryData(getSerializedOutpoint());
+
+      bw.put_var_int(0);
+      bw.put_uint32_t(getSequence());
+
+      serializedInput_ = move(bw.getData());
+      return serializedInput_.getRef();
    }
 };
 
