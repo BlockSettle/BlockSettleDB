@@ -214,9 +214,12 @@ public:
    { }
    ~ScriptSpender_Signed() override = default;
 
-   void setWitnessData(const BinaryData &wd)
+   void setWitnessData(const BinaryData &inputSig)
    {
-      witnessData_ = wd;
+      BinaryWriter bw;
+      bw.put_var_int(2);   // itemCount - should be determined later if needed
+      bw.put_BinaryData(inputSig);
+      witnessData_ = bw.getData();
       segwitStatus_ = SpenderStatus_Resolved;
    }
 };
