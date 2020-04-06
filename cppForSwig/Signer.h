@@ -216,10 +216,20 @@ public:
 
    void setWitnessData(const BinaryData &inputSig)
    {
-      BinaryWriter bw;
-      bw.put_var_int(2);   // itemCount - should be determined later if needed
-      bw.put_BinaryData(inputSig);
-      witnessData_ = bw.getData();
+      if (inputSig[0] == 0x30) {
+         BinaryWriter bw;
+         bw.put_var_int(2);   // itemCount - should be determined later if needed
+         const size_t firstPartLen = inputSig[1] + 2; // + prefix and length byte
+         bw.put_var_int(firstPartLen);
+         bw.put_BinaryData(inputSig.getSliceCopy(0, firstPartLen));
+         const size_t secondPartLen = inputSig.getSize() - firstPartLen;
+         bw.put_var_int(secondPartLen);
+         bw.put_BinaryData(inputSig.getSliceCopy(firstPartLen, secondPartLen));
+         witnessData_ = bw.getData();
+      }
+      else {
+         witnessData_ = inputSig;
+      }
       segwitStatus_ = SpenderStatus_Resolved;
    }
 };
