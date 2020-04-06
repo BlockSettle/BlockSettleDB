@@ -236,7 +236,7 @@ public:
       bw.put_var_int(0);
       bw.put_uint32_t(getSequence());
 
-      serializedInput_ = move(bw.getData());
+      serializedInput_ = std::move(bw.getData());
       return serializedInput_.getRef();
    }
 };
