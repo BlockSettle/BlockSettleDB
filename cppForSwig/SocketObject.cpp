@@ -628,6 +628,8 @@ void PersistentSocket::signalService(uint8_t signal)
 ///////////////////////////////////////////////////////////////////////////////
 void PersistentSocket::init()
 {
+   run_.store(false, memory_order_relaxed);
+
 #ifndef _WIN32
    pipes_[0] = pipes_[1] = SOCK_MAX;
 #else

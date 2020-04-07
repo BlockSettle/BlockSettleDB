@@ -63,7 +63,12 @@ public:
    virtual size_t getSize(void) const = 0;
 
    //locals
-   uint64_t getValue(void) const { return value_; }
+   uint64_t getValue(void) const 
+   { 
+      if (value_ == 0)
+         throw ScriptRecipientException("invalid recipient value");
+      return value_; 
+   }
    void setValue(uint64_t val) { value_ = val; }
 
    //static
