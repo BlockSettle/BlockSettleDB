@@ -86,7 +86,7 @@ shared_ptr<ScriptRecipient> ScriptRecipient::deserialize(
 void Recipient_P2PKH::serialize()
 {
    BinaryWriter bw;
-   bw.put_uint64_t(value_);
+   bw.put_uint64_t(getValue());
 
    auto&& rawScript = BtcUtils::getP2PKHScript(h160_);
    bw.put_var_int(rawScript.getSize());
@@ -109,7 +109,7 @@ size_t Recipient_P2PKH::getSize() const
 void Recipient_P2PK::serialize()
 {
    BinaryWriter bw;
-   bw.put_uint64_t(value_);
+   bw.put_uint64_t(getValue());
 
    auto&& rawScript = BtcUtils::getP2PKScript(pubkey_);
 
@@ -133,7 +133,7 @@ size_t Recipient_P2PK::getSize() const
 void Recipient_P2WPKH::serialize()
 {
    BinaryWriter bw;
-   bw.put_uint64_t(value_);
+   bw.put_uint64_t(getValue());
 
    auto&& rawScript = BtcUtils::getP2WPKHOutputScript(h160_);
 
@@ -157,7 +157,7 @@ size_t Recipient_P2WPKH::getSize() const
 void Recipient_P2SH::serialize()
 {
    BinaryWriter bw;
-   bw.put_uint64_t(value_);
+   bw.put_uint64_t(getValue());
 
    auto&& rawScript = BtcUtils::getP2SHScript(h160_);
 
@@ -181,7 +181,7 @@ size_t Recipient_P2SH::getSize() const
 void Recipient_P2WSH::serialize()
 {
    BinaryWriter bw;
-   bw.put_uint64_t(value_);
+   bw.put_uint64_t(getValue());
 
    auto&& rawScript = BtcUtils::getP2WSHOutputScript(h256_);
 
@@ -253,7 +253,7 @@ void Recipient_Universal::serialize()
       return;
 
    BinaryWriter bw;
-   bw.put_uint64_t(value_);
+   bw.put_uint64_t(getValue());
    bw.put_var_int(binScript_.getSize());
    bw.put_BinaryData(binScript_);
 
