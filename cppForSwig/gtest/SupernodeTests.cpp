@@ -8214,14 +8214,14 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    //create 2 zc
    BinaryData rawTx1;
    {
-      //50 from E, 5 to A, change to C
+      //5 from E, 3 to A, change to C
       Signer signer;
 
       auto spender = make_shared<ScriptSpender>(utxoVec[0]);
       signer.addSpender(spender);
 
       auto recA = make_shared<Recipient_P2PKH>(
-         TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
+         TestChain::scrAddrA.getSliceCopy(1, 20), 3 * COIN);
       signer.addRecipient(recA);
 
       auto recChange = make_shared<Recipient_P2PKH>(
@@ -8315,14 +8315,14 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    
    BinaryData rawTx4;
    {
-      //50 from D, 5 to C, change to E
+      //5 from D, 4 to C, change to E
       Signer signer;
 
       auto spender = make_shared<ScriptSpender>(utxoVec[2]);
       signer.addSpender(spender);
 
       auto recC = make_shared<Recipient_P2PKH>(
-         TestChain::scrAddrC.getSliceCopy(1, 20), 5 * COIN);
+         TestChain::scrAddrC.getSliceCopy(1, 20), 4 * COIN);
       signer.addRecipient(recC);
 
       auto recChange = make_shared<Recipient_P2PKH>(

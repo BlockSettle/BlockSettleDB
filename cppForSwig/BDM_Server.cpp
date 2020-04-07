@@ -164,8 +164,8 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
          response->set_value(count);
 
          resultingPayload = response;
-         break;
       }
+      
       break;
    }
 
