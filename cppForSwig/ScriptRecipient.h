@@ -66,7 +66,7 @@ public:
    uint64_t getValue(void) const 
    { 
       if (value_ == 0)
-         throw std::runtime_error("invalid recipient value");
+         throw ScriptRecipientException("invalid recipient value");
       return value_; 
    }
    void setValue(uint64_t val) { value_ = val; }

@@ -73,7 +73,7 @@ shared_ptr<ScriptRecipient> ScriptRecipient::deserialize(
    }
 
    if (result_ptr == nullptr)
-      throw runtime_error("unexpected recipient script");
+      throw ScriptRecipientException("unexpected recipient script");
 
    return result_ptr;
 }
