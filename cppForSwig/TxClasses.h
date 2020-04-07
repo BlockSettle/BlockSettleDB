@@ -313,7 +313,7 @@ public:
       isChainedZc_ = isTrue;
    }
 
-   uint32_t getTxHeight(void) const { return txHeight_; }
+   virtual uint32_t getTxHeight(void) const { return txHeight_; }
    void setTxHeight(uint32_t height) const { txHeight_ = height; }
 
    uint32_t getTxIndex(void) const { return txIndex_; }
