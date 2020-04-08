@@ -116,9 +116,18 @@ class CppBridge(object):
          response = bytearray()
 
          #wait for data on the socket
-         response += self.clientSocket.recv(4096)
-         if len(response) < 4:
-            break
+         try:
+            response += self.clientSocket.recv(4096)
+            if len(response) < 4:
+               break
+         except socket.error as e:
+            err = e.args[0]
+            if err == errno.EAGAIN or err == errno.EWOULDBLOCK:
+               LOGDEBUG('No data available from socket.')
+               continue
+            else:
+               LOGERROR("Socket error: %s" % str(e))
+               break
 
          #grab & check size header
          packetLen = unpack('<I', response[:4])[0]
@@ -127,9 +136,9 @@ class CppBridge(object):
 
          self.clientSocket.setblocking(0)
          #grab full packet
-         while self.run:
+         while len(response) < packetLen + 4:
             try:
-               packet = self.clientSocket.recv(4096)
+               packet = self.clientSocket.recv(packetLen)
                response += packet
                if len(response) < packetLen + 4:
                   continue
@@ -414,6 +423,7 @@ class CppBridge(object):
 
    #############################################################################
    def getLastPushDataInScript(self, script):
+      print (script)
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.getLastPushDataInScript
       packet.byteArgs.append(script)
@@ -424,7 +434,10 @@ class CppBridge(object):
       response = ClientProto_pb2.ReplyBinary()
       response.ParseFromString(socketResponse)
       
-      return response.reply[0]
+      if len(response.reply) > 0:
+         return response.reply[0]
+      else:
+         return ""
 
    #############################################################################
    def getTxOutScriptForScrAddr(self, script):

@@ -26,6 +26,7 @@ enum CppBridgeState
 #define BRIDGE_CALLBACK_PROMPTUSER  UINT32_MAX - 2
 
 #define SHUTDOWN_PASSPROMPT_GUI     "concludePrompt"
+#define DISCONNECTED_CALLBACK_ID    0xff543ad8
 
 ////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char* argv[])
@@ -414,9 +415,12 @@ void CppBridge::commandLoop()
                if (writeThr_.joinable())
                   writeThr_.join();
 
-               bdvPtr_->unregisterFromDB();
-               bdvPtr_.reset();
-               callbackPtr_.reset();
+               if (bdvPtr_ != nullptr)
+               {
+                  bdvPtr_->unregisterFromDB();
+                  bdvPtr_.reset();
+                  callbackPtr_.reset();
+               }
 
                run = false;
                break;
@@ -1068,11 +1072,18 @@ void CppBridge::setupDB()
       wltManager_->setBdvPtr(bdvPtr_);
 
       //connect to db
-      bdvPtr_->connectToRemote();
-      bdvPtr_->registerWithDB(NetworkConfig::getMagicBytes());
+      try
+      {
+         bdvPtr_->connectToRemote();
+         bdvPtr_->registerWithDB(NetworkConfig::getMagicBytes());
 
-      //notify setup is done
-      callbackPtr_->notify_SetupDone();       
+         //notify setup is done
+         callbackPtr_->notify_SetupDone();
+      }
+      catch (exception& e)
+      {
+         LOGERR << "failed to connect to db with error: " << e.what();
+      }
    };
 
    thread thr(lbd);
@@ -1463,7 +1474,8 @@ unique_ptr<Message> CppBridge::getLastPushDataInScript(
 {
    auto msg = make_unique<ReplyBinary>();
    auto&& result = BtcUtils::getLastPushDataInScript(script);
-   msg->add_reply(result.getCharPtr(), result.getSize());
+   if (result.getSize() > 0)
+      msg->add_reply(result.getCharPtr(), result.getSize());
    return msg;
 }
 
@@ -2251,6 +2263,15 @@ void BridgeCallback::notify_Ready(unsigned height)
    auto msg = make_unique<CppBridgeCallback>();
    msg->set_type(BDMAction_Ready);
    msg->set_height(height);
+
+   pushNotifLbd_(move(msg), BRIDGE_CALLBACK_BDM);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void BridgeCallback::disconnected()
+{
+   auto msg = make_unique<CppBridgeCallback>();
+   msg->set_type(DISCONNECTED_CALLBACK_ID);
 
    pushNotifLbd_(move(msg), BRIDGE_CALLBACK_BDM);
 }

@@ -4450,35 +4450,18 @@ class ArmoryMainWindow(QMainWindow):
                setOnlyDashModeVisible()
                self.lblDashModeSync.setText( self.tr('Armory is <u>offline</u>'), \
                                                size=4, color='TextWarn', bold=True)
-               if TheSDM.satoshiIsAvailable():
-                  self.frmDashMidButtons.setVisible(True)
-                  setBtnRowVisible(DASHBTNS.Close, True)
-                  if CLI_OPTIONS.offline:
-                     # Forced offline but bitcoind is running
-                     LOGINFO('Dashboard switched to auto-OfflineForcedButSatoshiAvail')
-                     descr1 += self.GetDashStateText('Auto', 'OfflineForcedButSatoshiAvail')
-                     descr2 += self.GetDashFunctionalityText('Offline')
-                     self.lblDashDescr1.setText(descr1)
-                     self.lblDashDescr2.setText(descr2)
-                  else:
-                     LOGINFO('Dashboard switched to auto-OfflineSatoshiAvail')
-                     descr1 += self.GetDashStateText('Auto', 'OfflineSatoshiAvail')
-                     descr2 += self.GetDashFunctionalityText('Offline')
-                     self.lblDashDescr1.setText(descr1)
-                     self.lblDashDescr2.setText(descr2)
-               else:
-                  LOGINFO('Dashboard switched to auto-OfflineNoSatoshiNoInternet')
-                  setBtnFrameVisible(True, \
-                     self.tr('In case you actually do have internet access, you can use '
+
+               LOGINFO('Dashboard switched to auto-OfflineNoSatoshiNoInternet')
+               setBtnFrameVisible(True, \
+                  self.tr('In case you actually do have internet access, you can use '
                      'the following links to get Armory installed.  Or change '
                      'your settings.'))
-                  setBtnRowVisible(DASHBTNS.Browse, True)
-                  setBtnRowVisible(DASHBTNS.Settings, True)
-                  #setBtnRowVisible(DASHBTNS.Instruct, not OS_WINDOWS)
-                  descr1 += self.GetDashStateText('Auto','OfflineNoSatoshiNoInternet')
-                  descr2 += self.GetDashFunctionalityText('Offline')
-                  self.lblDashDescr1.setText(descr1)
-                  self.lblDashDescr2.setText(descr2)
+               setBtnRowVisible(DASHBTNS.Browse, True)
+               setBtnRowVisible(DASHBTNS.Settings, True)
+               descr1 += self.GetDashStateText('Auto','OfflineNoSatoshiNoInternet')
+               descr2 += self.GetDashFunctionalityText('Offline')
+               self.lblDashDescr1.setText(descr1)
+               self.lblDashDescr2.setText(descr2)
                   
          elif sdmStr == "NodeStatus_BadPath":
             setOnlyDashModeVisible()
@@ -4605,7 +4588,22 @@ class ArmoryMainWindow(QMainWindow):
          self.lblDashDescr2.setText('')
          self.mainDisplayTabs.setCurrentIndex(self.MAINTABS.Dash)
       elif bdmState == BDM_OFFLINE:
-         pass
+         self.mainDisplayTabs.setTabEnabled(self.MAINTABS.Ledger, False)
+         setOnlyDashModeVisible()
+         self.lblDashModeSync.setText( self.tr('Armory is <u>offline</u>'), \
+                                          size=4, color='TextWarn', bold=True)
+
+         LOGINFO('Dashboard switched to auto-OfflineNoSatoshiNoInternet')
+         setBtnFrameVisible(True, \
+            self.tr('In case you actually do have internet access, you can use '
+               'the following links to get Armory installed.  Or change '
+               'your settings.'))
+         setBtnRowVisible(DASHBTNS.Browse, True)
+         setBtnRowVisible(DASHBTNS.Settings, True)
+         descr1 += self.GetDashStateText('Auto','OfflineNoSatoshiNoInternet')
+         descr2 += self.GetDashFunctionalityText('Offline')
+         self.lblDashDescr1.setText(descr1)
+         self.lblDashDescr2.setText(descr2)
       else:
          LOGERROR('What the heck blockchain mode are we in?  %s', bdmState)
 
@@ -4757,7 +4755,8 @@ class ArmoryMainWindow(QMainWindow):
       
    #############################################################################      
    def updateStatusBarText(self):
-      if self.nodeStatus.nodeStatus == NodeStatus_Online and \
+      if self.nodeStatus != None and \
+         self.nodeStatus.nodeStatus == NodeStatus_Online and \
          self.nodeStatus.isValid:
          
          haveRPC = (self.nodeStatus.rpcStatus == RpcStatus_Online)
@@ -4781,7 +4780,8 @@ class ArmoryMainWindow(QMainWindow):
          
          self.lblArmoryStatus.setToolTipLambda(getToolTipTextOnline)
          
-      elif self.nodeStatus.nodeStatus == NodeStatus_Offline or \
+      elif self.nodeStatus == None or \
+         self.nodeStatus.nodeStatus == NodeStatus_Offline or \
          not self.nodeStatus.isValid:
          self.lblArmoryStatus.setText(\
                self.tr('<font color=%s><b>Node offline (%d blocks)</b></font> ' % \
@@ -4800,8 +4800,8 @@ class ArmoryMainWindow(QMainWindow):
    #############################################################################
    def handleCppNotification(self, action, args):
       if action == FINISH_LOAD_BLOCKCHAIN_ACTION:
-         #Blockchain just finished loading, finish initializing UI and render the
-         #ledgers
+         #Blockchain just finished loading, finish initializing UI and render
+         #the ledgers
          
          self.nodeStatus = TheBridge.getNodeStatus()
          if self.nodeStatus.isValid:
@@ -5007,6 +5007,10 @@ class ArmoryMainWindow(QMainWindow):
             txHash = errorStruct.extraMsg_
 
             self.zcBroadcastError(txHash, errorMsg)
+
+      elif action == BDV_DISCONNECTED:
+         self.setDashboardDetails()
+         self.updateStatusBarText()         
 
       #setup notifs
       elif action == SETUP_STEP2:

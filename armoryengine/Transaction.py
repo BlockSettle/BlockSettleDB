@@ -629,6 +629,8 @@ class PyTxIn(BlockComponent):
       if txInData.getRemainingSize() < scriptSize+4: raise UnserializeError
       self.binScript = txInData.get(BINARY_CHUNK, scriptSize)
       self.intSeq    = txInData.get(UINT32)
+      print ('txin binscript size: ' + str(scriptSize))
+      print ('txin binscript:' + binary_to_hex(self.binScript))
       return self
 
    def getOutPoint(self):
@@ -805,7 +807,7 @@ class PyTxWitness(BlockComponent):
       result = indstr + 'PyWitness:'
       result = ''.join([result, '\n',  indstr2 + 'Stack Size:', \
                                        str(self.binWitness[0])])
-      for i in range(0, len(self.binWitness)/2, 2):
+      for i in range(0, int(len(self.binWitness)/2), 2):
           result = ''.join([result, '\n',  indstr2 + 'Stack Item:', \
                                        str(self.binWitness[i])])
       return result

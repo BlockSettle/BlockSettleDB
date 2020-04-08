@@ -13966,6 +13966,7 @@ class DlgBroadcastBlindTx(ArmoryDialog):
    def txChanged(self):
       try:
          txt = str(self.txtRawTx.toPlainText()).strip()
+         print (txt)
          txt = ''.join(txt.split())  # removes all whitespace
          self.pytx = PyTx().unserialize(hex_to_binary(txt))
          self.txtTxInfo.setPlainText(self.pytx.toString())

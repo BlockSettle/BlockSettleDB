@@ -27,6 +27,7 @@ BDMAction_Exited        = 6
 BDMAction_ErrorMsg      = 7
 BDMAction_NodeStatus    = 8
 BDMAction_BDV_Error     = 9
+DISCONNECTED_CALLBACK_ID = 0xff543ad8
 
 CppBridge_Ready         = 20
 CppBridge_Registered    = 21
@@ -56,6 +57,7 @@ SCAN_ACTION = 'StartedWalletScan'
 NODESTATUS_UPDATE = 'NodeStatusUpdate'
 BDM_SCAN_PROGRESS = 'BDM_Progress'
 BDV_ERROR = 'BDV_Error'
+BDV_DISCONNECTED = 'BDV_Disconnected'
 
 SETUP_STEP2 = 'setup_step1_done'
 SETUP_STEP3 = 'setup_step2_done'
@@ -336,6 +338,11 @@ class BlockDataManager(object):
             argNodeStatus = ClientProto_pb2.BridgeNodeStatus()
             argNodeStatus.ParseFromString(notifProto.opaque[0])
             arglist.append(argNodeStatus)
+
+         elif action == DISCONNECTED_CALLBACK_ID:
+            TheBDM.setState(BDM_OFFLINE)
+            act = BDV_DISCONNECTED
+
 
          #setup notifs
          elif action == CppBridge_Ready:

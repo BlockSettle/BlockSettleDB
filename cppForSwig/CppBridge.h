@@ -89,8 +89,7 @@ public:
       unsigned progressNumeric
    ) override;
 
-   void disconnected(void) override
-   {}
+   void disconnected(void) override;
 
    //local notifications
    void notify_SetupDone(void);

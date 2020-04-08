@@ -2290,9 +2290,7 @@ def unixTimeToFormatStr(unixTime, formatStr=DEFAULT_DATE_FORMAT):
    pleasant, human-readable format
    """
    dtobj = datetime.fromtimestamp(unixTime)
-   dtstr = '' + dtobj.strftime(formatStr)
-   dtstr = dtstr
-   return dtstr[:-2] + dtstr[-2:].lower()
+   return dtobj
 
 def secondsToHumanTime(nSec):
    strPieces = []
