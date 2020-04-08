@@ -2248,7 +2248,10 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::getBatchTxMap(
       while (batch->zcMap_.size() - batch->counter_->load(memory_order_acquire) < 
          invedZcCount)
       {
-         this_thread::sleep_for(chrono::microseconds(1));
+         LOGWARN << "timedout batch waiting on " << invedZcCount << " inved tx: ";
+         LOGWARN << "batch size: " << batch->zcMap_.size() << ", counter: " << 
+            batch->counter_->load(memory_order_acquire);
+         this_thread::sleep_for(chrono::milliseconds(100));
       }
    }
 
