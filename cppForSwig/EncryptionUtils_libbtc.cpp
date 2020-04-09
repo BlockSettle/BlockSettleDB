@@ -386,12 +386,6 @@ bool CryptoECDSA::VerifyData(BinaryData const & binMessage,
    const BinaryData& sig,
    BinaryData const & cppPubKey) const
 {
-   /***
-   This is the faster sig verification, with less sanity checks and copies.
-   Meant for chain verifiation, use the SecureBinaryData versions for regular
-   verifications.
-   ***/
-
    //pub keys are already validated by the script parser
 
    // We execute the first SHA256 op, here.  Next one is done by Verifier

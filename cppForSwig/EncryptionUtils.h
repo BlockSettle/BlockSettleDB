@@ -321,8 +321,6 @@ public:
    bool VerifyPublicKeyValid(SecureBinaryData const & pubKey);
 
    /////////////////////////////////////////////////////////////////////////////
-   // The version with no mlock'd memory. Reduces copies for increased speed,
-   // meant for mined tx verification.
    bool VerifyData(BinaryData const & binMessage,
       const BinaryData& sig,
       BinaryData const & cppPubKey) const;
