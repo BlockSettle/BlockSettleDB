@@ -20,11 +20,14 @@ TransactionStub::~TransactionStub(void)
 //// TransactionVerifier
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-bool TransactionVerifier::verify(bool noCatch) const
+bool TransactionVerifier::verify(bool noCatch, bool strict) const
 {
-   //check outputs
-   if (checkOutputs() == UINT64_MAX)
-      return false;
+   if (strict)
+   {
+      //check value in vs value out
+      if (checkOutputs() == UINT64_MAX)
+         return false;
+   }
 
    //check signatures
    if (!noCatch)
@@ -36,9 +39,13 @@ bool TransactionVerifier::verify(bool noCatch) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TxEvalState TransactionVerifier::evaluateState() const
+TxEvalState TransactionVerifier::evaluateState(bool strict) const
 {
-   verify(false);
+   /*
+   Strict checks verify spend value as well but require the full supporting
+   utxo map. On by default.
+   */
+   verify(false, strict);
 
    return txEvalState_;
 }
@@ -46,10 +53,40 @@ TxEvalState TransactionVerifier::evaluateState() const
 ////////////////////////////////////////////////////////////////////////////////
 uint64_t TransactionVerifier::checkOutputs() const
 {
-   //check values and return fee 
+   /*check values and return fee, return UINT64_MAX on failure*/
    
-   //return UINT64_MAX on failure
-   return 0;
+   //tally spendVal
+   uint64_t spendVal = 0;
+   for (auto& txout : theTx_.txouts_)
+   {
+      auto val = (uint64_t*)(theTx_.data_ + txout.first);
+      spendVal += *val;
+   }
+
+   //tally input val
+   uint64_t inputVal = 0;
+   for (auto& txin : theTx_.txins_)
+   {
+      //grab outpoint
+      BinaryDataRef opHashRef(theTx_.data_ + txin.first, 32);
+      auto opId = (uint32_t*)(theTx_.data_ + txin.first + 32);
+
+      //find utxo
+      auto hashIter = utxos_.find(opHashRef);
+      if (hashIter == utxos_.end())
+         throw runtime_error("cannot verify tx cause a utxo is missing");
+
+      auto idIter = hashIter->second.find(*opId);
+      if (idIter == hashIter->second.end())
+         throw runtime_error("cannot verify tx cause a utxo is missing");
+
+      inputVal += idIter->second.getValue();
+   }
+
+   if (inputVal < spendVal)
+      return UINT64_MAX;
+
+   return inputVal - spendVal;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

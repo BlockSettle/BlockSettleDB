@@ -63,7 +63,7 @@ public:
    virtual size_t getSize(void) const = 0;
 
    //locals
-   uint64_t getValue(void) const 
+   virtual uint64_t getValue(void) const 
    { 
       if (value_ == 0)
          throw ScriptRecipientException("invalid recipient value");
@@ -186,6 +186,9 @@ public:
 
    void serialize(void);
    size_t getSize(void) const;
+
+   //override get value to avoid the throw since it has 0 for value
+   uint64_t getValue(void) const override { return 0; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

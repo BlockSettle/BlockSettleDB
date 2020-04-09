@@ -2269,12 +2269,12 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
       signer.addRecipient(recipientChange);
       signer.sign();
 
-      //2nd tx, 2nd utxo, 20 to scrAddrB, 10 new wallet
+      //2nd tx, 2nd utxo, 5 to scrAddrB, 5 new wallet
       Signer signer2;
       signer2.addSpender(getSpenderPtr(unspentVec[1], feed));
-      signer2.addRecipient(addr2_ptr->getRecipient(10 * COIN));
+      signer2.addRecipient(addr2_ptr->getRecipient(5 * COIN));
       auto recipientChange2 = make_shared<Recipient_P2PKH>(
-         TestChain::scrAddrB.getSliceCopy(1, 20), 20 * COIN);
+         TestChain::scrAddrB.getSliceCopy(1, 20), 5 * COIN);
       signer2.addRecipient(recipientChange2);
       signer2.sign();
 
@@ -2293,14 +2293,14 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
    EXPECT_EQ(scrObj->getFullBalance(), 52 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 90 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 75 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = assetWltDbObj->getScrAddrObjByKey(addr1_ptr->getPrefixedHash());
    EXPECT_EQ(scrObj->getFullBalance(), 3 * COIN);
    scrObj = assetWltDbObj->getScrAddrObjByKey(addr2_ptr->getPrefixedHash());
-   EXPECT_EQ(scrObj->getFullBalance(), 10 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
 
    //reorg the chain
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5", "4A", "5A" }, blk0dat_);
