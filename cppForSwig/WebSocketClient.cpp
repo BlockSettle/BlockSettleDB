@@ -54,6 +54,9 @@ void WebSocketClient::pushPayload(
    unique_ptr<Socket_WritePayload> write_payload,
    shared_ptr<Socket_ReadPayload> read_payload)
 {
+   if (run_.load(memory_order_relaxed) == 0)
+      throw LWS_Error("lws client down");
+
    unsigned id = requestID_.fetch_add(1, memory_order_relaxed);
    if (read_payload != nullptr)
    {

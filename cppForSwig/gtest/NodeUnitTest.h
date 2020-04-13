@@ -74,6 +74,7 @@ private:
    std::atomic<unsigned> skipZc_ = {0};
    std::mutex sendMessageMutex_;
    std::deque<unsigned> zcDelays_;
+   std::deque<unsigned> zcStalls_;
 
    MinedHeader header_;
 
@@ -105,6 +106,7 @@ public:
    void setReorgBranchPoint(std::shared_ptr<BlockHeader>);
    void skipZc(unsigned);
    void delayNextZc(unsigned);
+   void stallNextZc(unsigned);
    void setIface(LMDBBlockDatabase* iface) { iface_ = iface; }
 
    //<raw tx, blocks to wait until mining>
