@@ -162,6 +162,8 @@ struct ZeroConfBatchFallbackStruct
 {
    BinaryData txHash_;
    std::shared_ptr<BinaryData> rawTxPtr_;
+   std::set<std::string> extraRequestors_;
+
    ArmoryErrorCodes err_;
 };
 
@@ -359,7 +361,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 struct ZeroConfSharedStateSnapshot
 {
-   std::map<BinaryDataRef, BinaryDataRef> txHashToDBKey_; //<txHash, dbKey>
+   std::map<BinaryDataRef, BinaryDataRef> txHashToDBKey_; //<txHash, zcKey>
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> txMap_; //<zcKey, zcTx>
    std::set<BinaryData> txOutsSpentByZC_; //<txOutDbKeys>
 
@@ -386,6 +388,24 @@ struct ZeroConfSharedStateSnapshot
 
 class ZeroConfCallbacks;
 
+////////////////////////////////////////////////////////////////////////////////
+struct WatcherTxBody
+{
+   std::shared_ptr<BinaryData> rawTxPtr_;
+   bool inved_ = false;
+   std::set<std::string> extraRequestors_;
+
+   WatcherTxBody(std::shared_ptr<BinaryData> rawTx) :
+      rawTxPtr_(rawTx)
+   {}
+};
+
+////////////////////////////////////////////////////////////////////////////////
+struct BatchTxMap
+{
+   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> txMap_;
+   std::map<BinaryData, WatcherTxBody> watcherMap_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 struct ZcActionStruct
@@ -508,16 +528,6 @@ private:
    std::unique_ptr<ZeroConfCallbacks> bdvCallbacks_;
    std::unique_ptr<ZcActionQueue> actionQueue_;
 
-   struct WatcherTxBody
-   {
-      std::shared_ptr<BinaryData> rawTxPtr_;
-      bool inved_ = false;
-
-      WatcherTxBody(std::shared_ptr<BinaryData> rawTx) :
-         rawTxPtr_(rawTx)
-      {}
-   };
-
    std::map<BinaryData, WatcherTxBody> watcherMap_;
    std::mutex watcherMapMutex_;
 
@@ -610,7 +620,8 @@ public:
    }
 
    void broadcastZC(const std::vector<BinaryDataRef>& rawzc, 
-      uint32_t timeout_ms, const ZcBroadcastCallback&);
+      uint32_t timeout_ms, const ZcBroadcastCallback&,
+      const std::string& bdvID);
 
    bool isEnabled(void) const 
    { return zcEnabled_.load(std::memory_order_relaxed); }
@@ -633,7 +644,7 @@ public:
       Blockchain::ReorganizationState reorgState)
    { return actionQueue_->pushNewBlockNotification(reorgState); }
 
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> getBatchTxMap(
+   BatchTxMap getBatchTxMap(
       std::shared_ptr<ZeroConfBatch>,
       std::shared_ptr<ZeroConfSharedStateSnapshot>);
 
@@ -649,6 +660,8 @@ public:
    virtual std::set<std::string> hasScrAddr(const BinaryDataRef&) const = 0;
    virtual void pushZcNotification(
       ZeroConfContainer::NotificationPacket& packet) = 0;
+   virtual void pushZcError(const std::string&, const BinaryData&, 
+      ArmoryErrorCodes, const std::string&) = 0;
 };
 
 #endif

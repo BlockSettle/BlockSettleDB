@@ -618,6 +618,14 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
                zcDelays_.pop_front();
             }
 
+            if (!zcStalls_.empty())
+            {
+               auto stall = zcStalls_.front();
+               zcStalls_.pop_front();
+
+               this_thread::sleep_for(chrono::seconds(stall));
+            }
+
             obj->blocksUntilMined_ = delay;
             obj->staged_ = false;
 
@@ -864,14 +872,25 @@ void NodeUnitTest::watcherProcess()
 ////////////////////////////////////////////////////////////////////////////////
 void NodeUnitTest::skipZc(unsigned count)
 {
+   //the next [count] inv_tx sendMessage payloads will be skipped
    skipZc_.fetch_add(count, memory_order_relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void NodeUnitTest::delayNextZc(unsigned count)
 {
+   //next zeroconf p2p inved zc will skip [count] blocks before it mines
    unique_lock<mutex> lock(sendMessageMutex_);
    zcDelays_.push_back(count);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void NodeUnitTest::stallNextZc(unsigned seconds)
+{
+   //next zeroconf p2p inved zc will take [seconds] before replying with the 
+   //getData message
+   unique_lock<mutex> lock(sendMessageMutex_);
+   zcStalls_.push_back(seconds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,6 +25,7 @@
 #include "ZeroConf.h"
 #include "Server.h"
 #include "BtcWallet.h"
+#include "ArmoryErrors.h"
 
 #define MAX_CONTENT_LENGTH 1024*1024*1024
 #define CALLBACK_EXPIRE_COUNT 5
@@ -59,6 +60,7 @@ struct RpcBroadcastPacket
 {
    std::shared_ptr<BDV_Server_Object> bdvPtr_;
    std::shared_ptr<BinaryData> rawTx_;
+   std::vector<std::shared_ptr<BDV_Server_Object>> extraRequestors_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -213,8 +215,10 @@ public:
       clientsPtr_(clientsPtr)
    {}
 
-   std::set<std::string> hasScrAddr(const BinaryDataRef&) const;
-   void pushZcNotification(ZeroConfContainer::NotificationPacket& packet);
+   std::set<std::string> hasScrAddr(const BinaryDataRef&) const override;
+   void pushZcNotification(ZeroConfContainer::NotificationPacket&) override;
+   void pushZcError(const std::string&, const BinaryData&, 
+      ArmoryErrorCodes, const std::string&) override;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
