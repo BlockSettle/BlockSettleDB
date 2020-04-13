@@ -2879,6 +2879,17 @@ void Clients::messageParserThread(void)
 ///////////////////////////////////////////////////////////////////////////////
 void Clients::broadcastThroughRPC()
 {
+   auto notifyError = [this](
+      const BinaryData& hash, std::shared_ptr<BDV_Server_Object> bdvPtr,
+      int errCode, const std::string& verbose)->void
+   {
+      auto notifPacket = make_shared<BDV_Notification_Packet>();
+      notifPacket->bdvPtr_ = bdvPtr;
+      notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
+         bdvPtr->getID(), errCode, hash, verbose);
+      innerBDVNotifStack_.push_back(move(notifPacket));
+   };
+
    while (true)
    {
       RpcBroadcastPacket packet;
@@ -2929,6 +2940,14 @@ void Clients::broadcastThroughRPC()
             LOGWARN << "rpc broadcast promise was already set";
          }
 
+         //signal all extra requestors for an already-in-mempool error
+         for (auto& bdvPtr : packet.extraRequestors_)
+         {
+            notifyError(*hashes.begin(), bdvPtr, 
+               (int)ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, 
+               "Extra requestor RPC broadcast error: Already in mempool");
+         }
+
          LOGINFO << "rpc broadcast success";
          break;
       }
@@ -2942,14 +2961,17 @@ void Clients::broadcastThroughRPC()
             make_exception_ptr(ZcBatchError()));
 
          //notify the bdv of the error
-         auto notifPacket = make_shared<BDV_Notification_Packet>();
-         notifPacket->bdvPtr_ = packet.bdvPtr_;
          stringstream errMsg;
          errMsg << "RPC broadcast error: " << verbose;
-         notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-            packet.bdvPtr_->getID(), result,
-            *hashes.begin(), errMsg.str());
-         innerBDVNotifStack_.push_back(move(notifPacket));
+         notifyError(*hashes.begin(), packet.bdvPtr_, result, errMsg.str());         
+
+         //notify extra requestors of the error as well
+         for (auto& bdvPtr : packet.extraRequestors_)
+         {
+            stringstream reqMsg;
+            reqMsg << "Extra requestor broadcast error: " << verbose;
+            notifyError(*hashes.begin(), bdvPtr, result, reqMsg.str());
+         }
       }
    }
 }
@@ -3015,20 +3037,42 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
          vector<ZeroConfBatchFallbackStruct> zcVec)->void
       {
          vector<RpcBroadcastPacket> rpcPackets;
-         vector<BinaryData> zcHashVec;
 
+         auto bdvMap = BDVs_.get();
          for (auto& fallbackStruct : zcVec)
          {
+            vector<shared_ptr<BDV_Server_Object>> extraRequestors;
+            for (auto& extraBdvId : fallbackStruct.extraRequestors_)
+            {
+               auto iter = bdvMap->find(extraBdvId);
+               if (iter == bdvMap->end())
+                  continue;
+
+               extraRequestors.emplace_back(iter->second);
+            }
+
             if (fallbackStruct.err_ != ArmoryErrorCodes::ZcBatch_Timeout)
             {
-               //signal error and return
+               //signal error to caller
                auto notifPacket = make_shared<BDV_Notification_Packet>();
                notifPacket->bdvPtr_ = bdvPtr;
                notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
                   bdvPtr->getID(), (int)fallbackStruct.err_,
                   fallbackStruct.txHash_, string());
-
                innerBDVNotifStack_.push_back(move(notifPacket));
+
+               //then signal extra requestors
+               for (auto& extraBDV : extraRequestors)
+               {
+                  auto notifPacket = make_shared<BDV_Notification_Packet>();
+                  notifPacket->bdvPtr_ = extraBDV;
+                  notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
+                     extraBDV->getID(), (int)fallbackStruct.err_,
+                     fallbackStruct.txHash_, string());
+                  innerBDVNotifStack_.push_back(move(notifPacket));                  
+               }
+
+               //finally, skip RPC fallback
                continue;
             }
 
@@ -3036,8 +3080,8 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
             RpcBroadcastPacket packet;
             packet.rawTx_ = fallbackStruct.rawTxPtr_;
             packet.bdvPtr_ = bdvPtr;
+            packet.extraRequestors_ = move(extraRequestors);
             rpcPackets.push_back(move(packet));
-            zcHashVec.push_back(fallbackStruct.txHash_);
          }
 
          if (rpcPackets.empty())
@@ -3071,7 +3115,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       }
 
       bdmT_->bdm()->zeroConfCont_->broadcastZC(
-         rawZcVec, 5000, errorCallback);
+         rawZcVec, 5000, errorCallback, bdvPtr->getID());
 
       break;
    }
@@ -3332,9 +3376,9 @@ set<string> ZeroConfCallbacks_BDV::hasScrAddr(const BinaryDataRef& addr) const
 void ZeroConfCallbacks_BDV::pushZcNotification(
    ZeroConfContainer::NotificationPacket& packet)
 {
-   auto bdvPtr = clientsPtr_->BDVs_.get();
-   auto iter = bdvPtr->find(packet.bdvID_);
-   if (iter == bdvPtr->end())
+   auto bdvMap = clientsPtr_->BDVs_.get();
+   auto iter = bdvMap->find(packet.bdvID_);
+   if (iter == bdvMap->end())
    {
       LOGWARN << "pushed zc notification with invalid bdvid";
       return;
@@ -3343,6 +3387,25 @@ void ZeroConfCallbacks_BDV::pushZcNotification(
    auto notifPacket = make_shared<BDV_Notification_Packet>();
    notifPacket->bdvPtr_ = iter->second;
    notifPacket->notifPtr_ = make_shared<BDV_Notification_ZC>(packet);
+   clientsPtr_->innerBDVNotifStack_.push_back(move(notifPacket));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void ZeroConfCallbacks_BDV::pushZcError(const string& bdvID, 
+   const BinaryData& hash, ArmoryErrorCodes errCode, const string& verbose)
+{
+   auto bdvMap = clientsPtr_->BDVs_.get();
+   auto iter = bdvMap->find(bdvID);
+   if (iter == bdvMap->end())
+   {
+      LOGWARN << "pushed zc error with invalid bdvid";
+      return;
+   }
+
+   auto notifPacket = make_shared<BDV_Notification_Packet>();
+   notifPacket->bdvPtr_ = iter->second;
+   notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
+      bdvID, (int)errCode, hash, verbose);
    clientsPtr_->innerBDVNotifStack_.push_back(move(notifPacket));
 }
 

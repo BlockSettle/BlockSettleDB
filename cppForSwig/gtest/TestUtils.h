@@ -382,13 +382,31 @@ namespace DBTestUtils
 
       void waitOnError(const BinaryData& hash, ArmoryErrorCodes errorCode)
       {
-         while (1)
+         while (true)
          {
             auto&& action = waitOnNotification(BDMAction_BDV_Error);
             if (action->error_.errData_ == hash && 
                action->error_.errCode_ == (int)errorCode)
                break;
          }         
+      }
+
+      void waitOnErrors(const std::map<BinaryData, ArmoryErrorCodes>& errorMap)
+      {
+         auto mapCopy = errorMap;
+         while (true)
+         {
+            if (mapCopy.empty())
+               return;
+
+            auto&& action = waitOnNotification(BDMAction_BDV_Error);
+            auto iter = mapCopy.find(action->error_.errData_);
+            if (iter == mapCopy.end())
+               continue;
+            
+            if ((int)iter->second == action->error_.errCode_)
+               mapCopy.erase(iter);
+         }
       }
    };
 }

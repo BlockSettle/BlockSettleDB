@@ -927,6 +927,33 @@ void Signer::sign(void)
    //perma flag for segwit verification
    flags_ |= SCRIPT_VERIFY_SEGWIT;
 
+   /* sanity checks begin */
+
+   {
+      //sizes
+      if (spenders_.size() == 0)
+         throw runtime_error("tx has no spenders");
+
+      if (recipients_.size() == 0)
+         throw runtime_error("tx has no recipients");
+   }
+
+   {
+      //spendVal
+      uint64_t inputVal = 0;
+      for (unsigned i=0; i < spenders_.size(); i++)
+         inputVal += spenders_[i]->getValue();
+
+      uint64_t spendVal = 0;
+      for (unsigned i=0; i<recipients_.size(); i++)
+         spendVal += recipients_[i]->getValue();
+
+      if (inputVal < spendVal)
+         throw runtime_error("invalid spendVal");
+   }
+
+   /* sanity checks end */
+
    //run through each spenders
    for (unsigned i = 0; i < spenders_.size(); i++)
    {
@@ -1235,7 +1262,8 @@ unique_ptr<TransactionVerifier> Signer::getVerifier(shared_ptr<BCTX> bctx,
 
 ////////////////////////////////////////////////////////////////////////////////
 TxEvalState Signer::verify(const BinaryData& rawTx,
-   map<BinaryData, map<unsigned, UTXO>>& utxoMap, unsigned flags) const
+   map<BinaryData, map<unsigned, UTXO>>& utxoMap, 
+   unsigned flags, bool strict) const
 {
    auto bctx = BCTX::parse(rawTx);
 
@@ -1245,7 +1273,7 @@ TxEvalState Signer::verify(const BinaryData& rawTx,
    tsvFlags |= flags;
    tsv->setFlags(tsvFlags);
 
-   return tsv->evaluateState();
+   return tsv->evaluateState(strict);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

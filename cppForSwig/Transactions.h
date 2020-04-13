@@ -178,8 +178,8 @@ public:
       }
    }
    
-   bool verify(bool noCatch = true) const;
-   TxEvalState evaluateState() const;
+   bool verify(bool noCatch = true, bool strict = true) const;
+   TxEvalState evaluateState(bool strict = true) const;
 
    BinaryDataRef getSerializedOutputScripts(void) const;
    std::vector<TxInData> getTxInsData(void) const;

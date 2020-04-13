@@ -380,12 +380,6 @@ bool VerifyData_CryptoPP(BinaryData const & binMessage,
    const BinaryData& sig,
    BTC_PUBKEY const & cppPubKey)
 {
-   /***
-   This is the faster sig verification, with less sanity checks and copies.
-   Meant for chain verifiation, use the SecureBinaryData versions for regular
-   verifications.
-   ***/
-
    CryptoPP::SHA256  sha256;
    BTC_PRNG prng;
 
