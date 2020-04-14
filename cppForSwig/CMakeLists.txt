@@ -340,21 +340,21 @@ if(WITH_GUI)
     )
 endif()
 
-add_executable(BSArmoryDB
+add_executable(bsarmorydb
     main.cpp
 )
 
-set_target_properties(BSArmoryDB
+set_target_properties(bsarmorydb
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}
 )
 
-target_link_libraries(BSArmoryDB
+target_link_libraries(bsarmorydb
     ArmoryCLI
 )
 
 include(GNUInstallDirs)
 
-install(TARGETS BSArmoryDB DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS bsarmorydb DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_executable(BIP150KeyManager
     KeyManager.cpp

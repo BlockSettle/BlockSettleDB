@@ -46,51 +46,51 @@ SOCKET_SERVICE BlockDataManagerConfig::service_ = SERVICE_WEBSOCKET;
 ARMORY_OPERATION_MODE BlockDataManagerConfig::operationMode_ = OPERATION_REGULAR;
 
 ////////////////////////////////////////////////////////////////////////////////
-// ArmoryDB repo: Default directories switched - Armory -> ArmoryDB
+// ArmoryDB repo: Default directories switched - Armory -> ArmoryDB -> BSArmoryDB
 const string BlockDataManagerConfig::dbDirExtention_ = "/databases";
 #if defined(_WIN32)
 const string BlockDataManagerConfig::defaultDataDir_ = 
-   "~/ArmoryDB";
+   "~/BSArmoryDB";
 const string BlockDataManagerConfig::defaultBlkFileLocation_ = 
    "~/Bitcoin/blocks";
 
 const string BlockDataManagerConfig::defaultTestnetDataDir_ = 
-   "~/ArmoryDB/testnet3";
+   "~/BSArmoryDB/testnet3";
 const string BlockDataManagerConfig::defaultTestnetBlkFileLocation_ = 
    "~/Bitcoin/testnet3/blocks";
 
 const string BlockDataManagerConfig::defaultRegtestDataDir_ = 
-   "~/ArmoryDB/regtest";
+   "~/BSArmoryDB/regtest";
 const string BlockDataManagerConfig::defaultRegtestBlkFileLocation_ = 
    "~/Bitcoin/regtest/blocks";
 #elif defined(__APPLE__)
 const string BlockDataManagerConfig::defaultDataDir_ = 
-   "~/Library/Application Support/ArmoryDB";
+   "~/Library/Application Support/BSArmoryDB";
 const string BlockDataManagerConfig::defaultBlkFileLocation_ = 
    "~/Library/Application Support/Bitcoin/blocks";
 
 const string BlockDataManagerConfig::defaultTestnetDataDir_ = 
-   "~/Library/Application Support/ArmoryDB/testnet3";
+   "~/Library/Application Support/BSArmoryDB/testnet3";
 const string BlockDataManagerConfig::defaultTestnetBlkFileLocation_ =   
    "~/Library/Application Support/Bitcoin/testnet3/blocks";
 
 const string BlockDataManagerConfig::defaultRegtestDataDir_ = 
-   "~/Library/Application Support/ArmoryDB/regtest";
+   "~/Library/Application Support/BSArmoryDB/regtest";
 const string BlockDataManagerConfig::defaultRegtestBlkFileLocation_ = 
    "~/Library/Application Support/Bitcoin/regtest/blocks";
 #else
 const string BlockDataManagerConfig::defaultDataDir_ = 
-   "~/.armorydb";
+   "~/.bsarmorydb";
 const string BlockDataManagerConfig::defaultBlkFileLocation_ = 
    "~/.bitcoin/blocks";
 
 const string BlockDataManagerConfig::defaultTestnetDataDir_ = 
-   "~/.armorydb/testnet3";
+   "~/.bsarmorydb/testnet3";
 const string BlockDataManagerConfig::defaultTestnetBlkFileLocation_ = 
    "~/.bitcoin/testnet3/blocks";
 
 const string BlockDataManagerConfig::defaultRegtestDataDir_ = 
-   "~/.armorydb/regtest";
+   "~/.bsarmorydb/regtest";
 const string BlockDataManagerConfig::defaultRegtestBlkFileLocation_ = 
    "~/.bitcoin/regtest/blocks";
 #endif
