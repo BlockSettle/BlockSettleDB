@@ -316,8 +316,12 @@ protected:
 
    void evaluateSpenderStatus(void);
    BinaryData serializeAvailableResolvedData(void) const;
-   TxEvalState verify(const BinaryData& rawTx, 
-      std::map<BinaryData, std::map<unsigned, UTXO>>&, unsigned flags) const;
+   TxEvalState verify(
+      const BinaryData&, //raw tx
+      std::map<BinaryData, std::map<unsigned, UTXO>>&, //supporting outputs
+      unsigned, //flags
+      bool strict = true //strict verification (check balances)
+   ) const;
 
    virtual std::shared_ptr<ScriptSpender> convertSpender(std::shared_ptr<ScriptSpender>) const;
 
@@ -388,7 +392,7 @@ public:
          flags |= spender->getFlags();
       }
 
-      return verify(txdata, utxoMap, flags);
+      return verify(txdata, utxoMap, flags, true);
    }
 };
 
