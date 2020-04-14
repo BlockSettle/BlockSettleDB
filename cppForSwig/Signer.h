@@ -317,7 +317,7 @@ protected:
    void evaluateSpenderStatus(void);
    BinaryData serializeAvailableResolvedData(void) const;
    TxEvalState verify(const BinaryData& rawTx, 
-      std::map<BinaryData, std::map<unsigned, UTXO>>&, unsigned flags, bool strict = true) const;
+      std::map<BinaryData, std::map<unsigned, UTXO>>&, unsigned flags) const;
 
    virtual std::shared_ptr<ScriptSpender> convertSpender(std::shared_ptr<ScriptSpender>) const;
 
