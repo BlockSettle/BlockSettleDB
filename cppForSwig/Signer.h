@@ -245,46 +245,6 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class ScriptSpender_BCH : public ScriptSpender
-{
-public:
-   ScriptSpender_BCH(
-      const BinaryDataRef txHash, unsigned index, uint64_t value) :
-      ScriptSpender(txHash, index, value)
-   {}
-
-   ScriptSpender_BCH(const UTXO& utxo) :
-      ScriptSpender(utxo)
-   {}
-
-   ScriptSpender_BCH(const UTXO& utxo, std::shared_ptr<ResolverFeed> feed) :
-      ScriptSpender(utxo, feed)
-   {}
-
-   ScriptSpender_BCH(const ScriptSpender& scriptSpender) :
-      ScriptSpender(scriptSpender)
-   {}
-
-   ~ScriptSpender_BCH() override = default;
-
-   virtual uint8_t getSigHashByte(void) const
-   {
-      uint8_t hashbyte;
-      switch (sigHashType_)
-      {
-      case SIGHASH_ALL:
-         hashbyte = 0x40 | 1;
-         break;
-
-      default:
-         throw ScriptException("unsupported sighash type");
-      }
-
-      return hashbyte;
-   }
-};
-
-////////////////////////////////////////////////////////////////////////////////
 class Signer : public TransactionStub
 {
    friend class SignerProxyFromSigner;
@@ -316,8 +276,12 @@ protected:
 
    void evaluateSpenderStatus(void);
    BinaryData serializeAvailableResolvedData(void) const;
-   TxEvalState verify(const BinaryData& rawTx, 
-      std::map<BinaryData, std::map<unsigned, UTXO>>&, unsigned flags) const;
+   TxEvalState verify(
+      const BinaryData&, //raw tx
+      std::map<BinaryData, std::map<unsigned, UTXO>>&, //supporting outputs
+      unsigned, //flags
+      bool strict = true //strict verification (check balances)
+   ) const;
 
    virtual std::shared_ptr<ScriptSpender> convertSpender(std::shared_ptr<ScriptSpender>) const;
 
@@ -388,22 +352,8 @@ public:
          flags |= spender->getFlags();
       }
 
-      return verify(txdata, utxoMap, flags);
+      return verify(txdata, utxoMap, flags, true);
    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-class Signer_BCH : public Signer
-{
-protected:
-   std::shared_ptr<SigHashData> getSigHashDataForSpender(bool) const;
-   std::unique_ptr<TransactionVerifier> getVerifier(std::shared_ptr<BCTX>,
-      std::map<BinaryData, std::map<unsigned, UTXO>>&) const;
-   std::shared_ptr<ScriptSpender> convertSpender(std::shared_ptr<ScriptSpender>) const;
-
-public:
-   void addSpender_ByOutpoint(
-      const BinaryData& hash, unsigned index, unsigned sequence, uint64_t value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

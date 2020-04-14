@@ -130,16 +130,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class SigHashData_BCH : public SigHashDataSegWit
-{
-private:
-   uint32_t getSigHashAll_4Bytes(void) const
-   {
-      return 0x41;
-   }
-};
-
-////////////////////////////////////////////////////////////////////////////////
 class TransactionVerifier : public TransactionStub
 {
 public:
@@ -197,18 +187,5 @@ public:
    uint64_t getOutpointValue(unsigned) const;
    unsigned getTxInSequence(unsigned) const;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-class TransactionVerifier_BCH : public TransactionVerifier
-{
-protected:
-   std::unique_ptr<StackInterpreter> getStackInterpreter(unsigned) const;
-
-public:
-   TransactionVerifier_BCH(const BCTX& theTx, const utxoMap& utxos) :
-      TransactionVerifier(theTx, utxos)
-   {}
-};
-
 
 #endif
