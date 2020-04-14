@@ -1066,7 +1066,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       def getAddr(typeStr):
          typeInt = AddressEntryType_Default
          if typeStr == 'P2PKH':
-            typeInt = AddressEntryType_P2PKH
+            typeInt = AddressEntryType_P2PKH + AddressEntryType_Compressed
          elif typeStr == 'P2SH-P2WPKH':
             typeInt = AddressEntryType_P2SH + AddressEntryType_P2WPKH
          elif typeStr == 'P2SH-P2PK':

@@ -295,7 +295,7 @@ class LedgerDispModelSimple(QAbstractTableModel):
                                "It is recommended to wait for at least 1 confirmation before"
                                " accepting these as valid payment.")                  
                else:
-                  tooltipStr = self.tr('%1/6 confirmations').arg(rowData[COL.NumConf])
+                  tooltipStr = self.tr('%d/6 confirmations' % rowData[COL.NumConf])
                   tooltipStr += self.tr( '\n\nFor small transactions, 2 or 3 '
                                  'confirmations is usually acceptable. '
                                  'For larger transactions, you should '

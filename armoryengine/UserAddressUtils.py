@@ -11,6 +11,7 @@ from armoryengine.ArmoryUtils import *
 from armoryengine.MultiSigUtils import readLockboxEntryStr, calcLockboxID, \
                                        isBareLockbox, isP2SHLockbox
 from armoryengine.Transaction import getTxOutScriptType, getMultisigScriptInfo
+from armoryengine.CppBridge import TheBridge
 
 #############################################################################
 def getScriptForUserString(userStr, wltMap, lboxList):
@@ -85,7 +86,6 @@ def getScriptForUserString(userStr, wltMap, lboxList):
             wltID = getWltIDForScrAddr(a160, wltMap)
       else:
          try:
-            from CppBridge import TheBridge
             scrAddr = addrStr_to_scrAddr(userStr, ADDRBYTE, P2SHBYTE)
             a160 = scrAddr_to_hash160(scrAddr)[1]
             outScript = TheBridge.getTxOutScriptForScrAddr(scrAddr)
@@ -103,7 +103,6 @@ def getScriptForUserString(userStr, wltMap, lboxList):
             outScript = Cpp.BtcUtils.bech32ToScript(userStr, BECH32_PREFIX)
             isBech32 = True
             
-
       # Caller might be expecting to see None, instead of '' (empty string)
       wltID  = None if not wltID  else wltID
       lboxID = None if not lboxID else lboxID
@@ -225,10 +224,10 @@ def getDisplayStringForScript(binScript, wltMap, lboxList, maxChars=256,
 
 
    def truncateStr(theStr, maxLen):
-      if len(theStr) <= maxLen:
+      if len(theStr) <= (int)(maxLen):
          return theStr
       else:
-         return theStr[:maxLen-3] + '...'
+         return theStr[:(int)(maxLen)-3] + '...'
 
    if len(strType) > 0:
       # We have something to display... do it and return

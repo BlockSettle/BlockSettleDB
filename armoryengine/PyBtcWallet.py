@@ -1424,7 +1424,7 @@ class PyBtcWallet(object):
       addrList = []
       for a160 in self.linearAddr160List:
          addr = self.addrMap[a160]
-         if not a160=='ROOT' and (withImported or addr.chainIndex>=0):
+         if not str(a160)==str('ROOT') and (withImported or addr.chainIndex>=0):
             # Either we want imported addresses, or this isn't one
             if (withAddrPool or addr.chainIndex<=self.highestUsedChainIndex):
                addrList.append(addr)

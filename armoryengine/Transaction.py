@@ -629,8 +629,6 @@ class PyTxIn(BlockComponent):
       if txInData.getRemainingSize() < scriptSize+4: raise UnserializeError
       self.binScript = txInData.get(BINARY_CHUNK, scriptSize)
       self.intSeq    = txInData.get(UINT32)
-      print ('txin binscript size: ' + str(scriptSize))
-      print ('txin binscript:' + binary_to_hex(self.binScript))
       return self
 
    def getOutPoint(self):

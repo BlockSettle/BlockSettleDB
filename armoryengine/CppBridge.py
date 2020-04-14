@@ -10,6 +10,7 @@ from armoryengine.BinaryPacker import BinaryPacker, UINT32, BINARY_CHUNK, VAR_IN
 from struct import unpack
 import atexit
 import threading
+import binascii
 
 from armoryengine.ArmoryUtils import PassphraseError
 
@@ -117,7 +118,7 @@ class CppBridge(object):
 
          #wait for data on the socket
          try:
-            response += self.clientSocket.recv(4096)
+            response += self.clientSocket.recv(4)
             if len(response) < 4:
                break
          except socket.error as e:
@@ -423,7 +424,6 @@ class CppBridge(object):
 
    #############################################################################
    def getLastPushDataInScript(self, script):
-      print (script)
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.getLastPushDataInScript
       packet.byteArgs.append(script)

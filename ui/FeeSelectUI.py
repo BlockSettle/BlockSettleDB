@@ -376,7 +376,10 @@ class FeeSelectionDialog(ArmoryDialog):
          flatFee += " BTC"   
       
       if not isinstance(fee_byte, str):   
-         fee_byte = '%.2f' % fee_byte 
+         try:
+            fee_byte = '%.2f' % float(fee_byte)
+         except:
+            fee_byte = "N/A"
       
       lblStr = "Size: %s, Fee: %s" % (txSize, flatFee)
       if fee_byte != 'N/A':

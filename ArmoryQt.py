@@ -5266,9 +5266,9 @@ class ArmoryMainWindow(QMainWindow):
                LOGERROR('tx broadcast systray display failed with error: %s' % e)
 
          if title:
-            self.showTrayMsg(title, dispLines.join("\n"), \
+            self.showTrayMsg(title, "\n".join(dispLines), \
                        QSystemTrayIcon.Information, 10000)
-            LOGINFO(title + '\n' + dispLines.join("\n")) 
+            LOGINFO(title + '\n' + "\n".join(dispLines)) 
 
          # Wait for 5 seconds before processing the next queue object.
          self.notifyBlockedUntil = RightNow() + 5
