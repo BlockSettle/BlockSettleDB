@@ -801,18 +801,6 @@ public:
    }
 };
 
-
-////////////////////////////////////////////////////////////////////////////////
-class StackInterpreter_BCH : public StackInterpreter
-{
-protected:
-   SIGHASH_TYPE getSigHashSingleByte(uint8_t) const;
-
-public:
-   StackInterpreter_BCH(void);
-   StackInterpreter_BCH(const TransactionStub* stubPtr, unsigned inputId);
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 struct ReversedStackEntry;
 
