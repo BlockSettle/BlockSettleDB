@@ -132,17 +132,6 @@ unique_ptr<StackInterpreter> TransactionVerifier::getStackInterpreter(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<StackInterpreter> TransactionVerifier_BCH::getStackInterpreter(
-   unsigned inputid) const
-{
-   auto sstack = make_unique<StackInterpreter_BCH>(this, inputid);
-   auto flags = sstack->getFlags();
-   flags |= flags_;
-   sstack->setFlags(flags);
-   return move(sstack);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 TxInEvalState TransactionVerifier::checkSig(
    unsigned inputId, StackInterpreter* sstack_ptr) const
 {

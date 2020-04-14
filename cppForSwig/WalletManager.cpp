@@ -671,10 +671,17 @@ uint64_t CoinSelectionInstance::getSpendVal() const
 ////////////////////////////////////////////////////////////////////////////////
 void CoinSelectionInstance::checkSpendVal(uint64_t spendableBalance) const
 {
-   auto total = getSpendVal();
-   if (total == 0 || total > spendableBalance)
+   try
    {
-      throw CoinSelectionException("Invalid spend value");
+      auto total = getSpendVal();
+      if (total == 0 || total > spendableBalance)
+      {
+         throw CoinSelectionException("Invalid spend value");
+      }
+   }
+   catch (const ScriptRecipientException&)
+   {
+      throw CoinSelectionException("Invalid value in at least one recipient");
    }
 }
 
