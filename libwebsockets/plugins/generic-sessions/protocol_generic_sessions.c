@@ -1,22 +1,25 @@
 /*
- * ws protocol handler plugin for "generic sessions"
+ * libwebsockets - small server side websockets and web server implementation
  *
- * Copyright (C) 2010-2019 Andy Green <andy@warmcat.com>
+ * Copyright (C) 2010 - 2019 Andy Green <andy@warmcat.com>
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation:
- * version 2.1 of the License.
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to
+ * deal in the Software without restriction, including without limitation the
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
- * You should have received a copy of the GNU General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
- * MA  02110-1301  USA
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
  */
 
 #include "private-lwsgs.h"
@@ -108,11 +111,12 @@ lwsgs_subst(void *data, int index)
 static int
 lws_get_effective_host(struct lws *wsi, char *buf, size_t buflen)
 {
+#if defined(LWS_ROLE_H2)
 	/* h2 */
 	if (lws_hdr_copy(wsi, buf, buflen - 1,
 			 WSI_TOKEN_HTTP_COLON_AUTHORITY) > 0)
 		return 0;
-
+#endif
 	/* h1 */
 	if (lws_hdr_copy(wsi, buf, buflen - 1,  WSI_TOKEN_HOST) > 0)
 		return 0;
@@ -136,10 +140,12 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 	struct lws_session_info *sinfo;
 	char s[LWSGS_EMAIL_CONTENT_SIZE];
 	unsigned char *p, *start, *end;
-	lws_smtp_client_info_t sci;
 	const char *cp, *cp1;
 	sqlite3_stmt *sm;
 	lwsgw_hash sid;
+#if defined(LWS_WITH_SMTP)
+	lws_abs_t abs;
+#endif
 	int n;
 
 	switch (reason) {
@@ -157,10 +163,9 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 		vhd->timeout_anon_absolute_secs = 1200;
 		vhd->timeout_email_secs = 24 * 3600;
 
-		memset(&sci, 0, sizeof(sci));
 
-		strcpy(sci.helo, "unconfigured.com");
-		strcpy(sci.ip, "127.0.0.1");
+		strcpy(vhd->helo, "unconfigured.com");
+		strcpy(vhd->ip, "127.0.0.1");
 		strcpy(vhd->email_from, "noreply@unconfigured.com");
 		strcpy(vhd->email_title, "Registration Email from unconfigured");
 		vhd->urlroot[0] = '\0';
@@ -186,7 +191,7 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 				lws_strncpy(vhd->email_from, pvo->value,
 					sizeof(vhd->email_from));
 			if (!strcmp(pvo->name, "email-helo"))
-				lws_strncpy(sci.helo, pvo->value, sizeof(sci.helo));
+				lws_strncpy(vhd->helo, pvo->value, sizeof(vhd->helo));
 			if (!strcmp(pvo->name, "email-template"))
 				lws_strncpy(vhd->email_template, pvo->value,
 					sizeof(vhd->email_template));
@@ -200,7 +205,7 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 				lws_strncpy(vhd->email_confirm_url, pvo->value,
 					sizeof(vhd->email_confirm_url));
 			if (!strcmp(pvo->name, "email-server-ip"))
-				lws_strncpy(sci.ip, pvo->value, sizeof(sci.ip));
+				lws_strncpy(vhd->ip, pvo->value, sizeof(vhd->ip));
 
 			if (!strcmp(pvo->name, "timeout-idle-secs"))
 				vhd->timeout_idle_secs = atoi(pvo->value);
@@ -273,18 +278,41 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 			return 1;
 		}
 
-		sci.data = vhd;
-		sci.abs = lws_abstract_get_by_name("raw-skt");
-		sci.vh = lws_get_vhost(wsi);
+#if defined(LWS_WITH_SMTP)
 
-		vhd->smtp_client = lws_smtp_client_create(&sci);
-		if (!vhd->smtp_client) {
-			lwsl_err("%s: failed to create SMTP client\n", __func__);
+		memset(&abs, 0, sizeof(abs));
+		abs.vh = lws_get_vhost(wsi);
+
+		/* select the protocol and bind its tokens */
+
+		abs.ap = lws_abs_protocol_get_by_name("smtp");
+		if (!abs.ap)
 			return 1;
-		}
+
+		vhd->protocol_tokens[0].name_index = LTMI_PSMTP_V_HELO;
+		vhd->protocol_tokens[0].u.value = vhd->helo;
+
+		abs.ap_tokens = vhd->protocol_tokens;
+
+		/* select the transport and bind its tokens */
+
+		abs.at = lws_abs_transport_get_by_name("raw_skt");
+		if (!abs.at)
+			return 1;
+
+		vhd->transport_tokens[0].name_index = LTMI_PEER_V_DNS_ADDRESS;
+		vhd->transport_tokens[0].u.value = vhd->ip;
+		vhd->transport_tokens[1].name_index = LTMI_PEER_LV_PORT;
+		vhd->transport_tokens[1].u.lvalue = 25;
+
+		abs.at_tokens = vhd->transport_tokens;
+
+		vhd->smtp_client = lws_abs_bind_and_create_instance(&abs);
+		if (!vhd->smtp_client)
+			return 1;
 
 		lwsl_notice("%s: created SMTP client\n", __func__);
-
+#endif
 		break;
 
 	case LWS_CALLBACK_PROTOCOL_DESTROY:
@@ -293,8 +321,10 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 			sqlite3_close(vhd->pdb);
 			vhd->pdb = NULL;
 		}
+#if defined(LWS_WITH_SMTP)
 		if (vhd->smtp_client)
-			lws_smtp_client_destroy(&vhd->smtp_client);
+			lws_abs_destroy_instance(&vhd->smtp_client);
+#endif
 		break;
 
 	case LWS_CALLBACK_HTTP_WRITEABLE:
@@ -344,25 +374,25 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 			lwsgs_handler_confirm(vhd, wsi, pss);
 			goto redirect_with_cookie;
 		}
-		cp = strstr(cp, "lwsgs-check/");
-		if (cp) {
-			lwsgs_handler_check(vhd, wsi, pss, cp + 12);
+		cp1 = strstr(cp, "lwsgs-check/");
+		if (cp1) {
+			lwsgs_handler_check(vhd, wsi, pss, cp1 + 12);
 			/* second, async part will complete transaction */
 			break;
 		}
 
-		if (n >= 11 && !strcmp(cp + n - 11, "lwsgs-login"))
+		if (n >= 11 && cp && !strcmp(cp + n - 11, "lwsgs-login"))
 			break;
-		if (n >= 12 && !strcmp(cp + n - 12, "lwsgs-logout"))
+		if (n >= 12 && cp && !strcmp(cp + n - 12, "lwsgs-logout"))
 			break;
-		if (n >= 12 && !strcmp(cp + n - 12, "lwsgs-forgot"))
+		if (n >= 12 && cp && !strcmp(cp + n - 12, "lwsgs-forgot"))
 			break;
-		if (n >= 12 && !strcmp(cp + n - 12, "lwsgs-change"))
+		if (n >= 12 && cp && !strcmp(cp + n - 12, "lwsgs-change"))
 			break;
 
 		/* if no legitimate url for GET, return 404 */
 
-		lwsl_err("http doing 404 on %s\n", cp);
+		lwsl_err("%s: http doing 404 on %s\n", __func__, cp ? cp : "null");
 		lws_return_http_status(wsi, HTTP_STATUS_NOT_FOUND, NULL);
 
 		return -1;
@@ -409,9 +439,10 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 				goto redirect_with_cookie;
 			}
 		} else
-			lwsl_notice("failed to get sid from wsi\n");
+			lwsl_notice("%s: failed to get sid from wsi\n", __func__);
 
 		n = lwsgs_get_auth_level(vhd, username);
+		lwsl_notice("%s: lwsgs_get_auth_level '%s' says %d\n", __func__, username, n);
 
 		if ((args->max_len & n) != args->max_len) {
 			lwsl_notice("Access rights fail 0x%X vs 0x%X (cookie %s)\n",
@@ -482,8 +513,10 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 		break;
 
 	case LWS_CALLBACK_HTTP_BODY:
-		if (len < 2)
+		if (len < 2) {
+			lwsl_err("%s: HTTP_BODY: len %d < 2\n", __func__, (int)len);
 			break;
+		}
 
 		if (!pss->spa) {
 			pss->spa = lws_spa_create(wsi, param_names,
@@ -500,6 +533,8 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 		break;
 
 	case LWS_CALLBACK_HTTP_BODY_COMPLETION:
+
+		lwsl_debug("%s: LWS_CALLBACK_HTTP_BODY_COMPLETION\n", __func__);
 
 		if (!pss->spa)
 			break;
@@ -539,8 +574,10 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 					n = FGS_FORGOT_BAD;
 					goto reg_done;
 				}
+#if defined(LWS_WITH_SMTP)
 				/* get the email monitor to take a look */
-				lws_smtp_client_kick(vhd->smtp_client);
+				lws_smtpc_kick(vhd->smtp_client);
+#endif
 				n = FGS_FORGOT_GOOD;
 				goto reg_done;
 			}
@@ -560,9 +597,10 @@ callback_generic_sessions(struct lws *wsi, enum lws_callback_reasons reason,
 					n = FGS_REG_BAD;
 				else {
 					n = FGS_REG_GOOD;
-
+#if defined(LWS_WITH_SMTP)
 					/* get the email monitor to take a look */
-					lws_smtp_client_kick(vhd->smtp_client);
+					lws_smtpc_kick(vhd->smtp_client);
+#endif
 				}
 reg_done:
 				lws_snprintf(pss->onward, sizeof(pss->onward),
@@ -668,14 +706,16 @@ pass:
 					pss->login_expires))
 				goto try_to_reuse;
 
-			lwsl_notice("Creating new session: %s\n",
+			lwsl_notice("%s: Creating new session: %s\n", __func__,
 				    pss->login_session.id);
 		} else {
 			/*
 			 * we can just update the existing session to be
 			 * authorized
 			 */
-			lwsl_notice("Authorizing existing session %s", sid.id);
+			lwsl_notice("%s: Authorizing existing session %s, name %s\n",
+				    __func__, sid.id,
+				    lws_spa_get_string(pss->spa, FGS_USERNAME));
 			lwsgw_update_session(vhd, &sid,
 				lws_spa_get_string(pss->spa, FGS_USERNAME));
 			pss->login_session = sid;
@@ -855,7 +895,7 @@ static const struct lws_protocols protocols[] = {
 	},
 };
 
-LWS_EXTERN LWS_VISIBLE int
+LWS_VISIBLE int
 init_protocol_generic_sessions(struct lws_context *context,
 			struct lws_plugin_capability *c)
 {
@@ -873,7 +913,7 @@ init_protocol_generic_sessions(struct lws_context *context,
 	return 0;
 }
 
-LWS_EXTERN LWS_VISIBLE int
+LWS_VISIBLE int
 destroy_protocol_generic_sessions(struct lws_context *context)
 {
 	return 0;

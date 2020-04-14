@@ -1,25 +1,28 @@
 /*
- * lib/hpack.c
+ * libwebsockets - small server side websockets and web server implementation
  *
- * Copyright (C) 2014-2019 Andy Green <andy@warmcat.com>
+ * Copyright (C) 2010 - 2019 Andy Green <andy@warmcat.com>
  *
- *  This library is free software; you can redistribute it and/or
- *  modify it under the terms of the GNU Lesser General Public
- *  License as published by the Free Software Foundation:
- *  version 2.1 of the License.
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to
+ * deal in the Software without restriction, including without limitation the
+ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+ * sell copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- *  This library is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- *  Lesser General Public License for more details.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
- *  You should have received a copy of the GNU Lesser General Public
- *  License along with this library; if not, write to the Free Software
- *  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
- *  MA  02110-1301  USA
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+ * IN THE SOFTWARE.
  */
 
-#include "core/private.h"
+#include "private-lib-core.h"
 
 /*
  * Official static header table for HPACK
@@ -391,10 +394,9 @@ lws_token_from_index(struct lws *wsi, int index, const char **arg, int *len,
 		return -1;
 	}
 
-	if (index < (int)LWS_ARRAY_SIZE(static_token) ||
-	    index >= (int)LWS_ARRAY_SIZE(static_token) + dyn->used_entries) {
+	if (index >= (int)LWS_ARRAY_SIZE(static_token) + dyn->used_entries) {
 		lwsl_info("  %s: adjusted index %d >= %d\n", __func__, index,
-			    dyn->used_entries);
+				(int)LWS_ARRAY_SIZE(static_token) + dyn->used_entries);
 		lws_h2_goaway(wsi, H2_ERR_COMPRESSION_ERROR,
 			      "index out of range");
 		return -1;
@@ -593,13 +595,18 @@ lws_hpack_dynamic_size(struct lws *wsi, int size)
 		goto bail;
 
 	dyn = &nwsi->h2.h2n->hpack_dyn_table;
-	lwsl_info("%s: from %d to %d, lim %d\n", __func__,
+	lwsl_info("%s: from %d to %d, lim %u\n", __func__,
 		  (int)dyn->num_entries, size,
-		  nwsi->vhost->h2.set.s[H2SET_HEADER_TABLE_SIZE]);
+		  (unsigned int)nwsi->vhost->h2.set.s[H2SET_HEADER_TABLE_SIZE]);
+
+	if (!size) {
+		size = dyn->num_entries * 8;
+		lws_hpack_destroy_dynamic_header(wsi);
+	}
 
 	if (size > (int)nwsi->vhost->h2.set.s[H2SET_HEADER_TABLE_SIZE]) {
 		lwsl_info("rejecting hpack dyn size %u vs %u\n", size,
-				nwsi->vhost->h2.set.s[H2SET_HEADER_TABLE_SIZE]);
+			  (unsigned int)nwsi->vhost->h2.set.s[H2SET_HEADER_TABLE_SIZE]);
 
 		// this seems necessary to work with some browsers
 
@@ -747,10 +754,46 @@ lws_hpack_use_idx_hdr(struct lws *wsi, int idx, int known_token)
 	return 0;
 }
 
+#if !defined(LWS_WITH_HTTP_UNCOMMON_HEADERS) && !defined(LWS_ROLE_WS) && !defined(LWS_ROLE_H2)
 static uint8_t lws_header_implies_psuedoheader_map[] = {
-	0x07, 0x00, 0x00, 0x00, 0xf8, 0x00, 0x00, 0x00, 0x00 /* <-64 */,
-	0x0e /* <- 72 */, 0x04 /* <- 80 */, 0, 0, 0, 0
+	0x03,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
 };
+#endif
+#if  defined(LWS_WITH_HTTP_UNCOMMON_HEADERS) && !defined(LWS_ROLE_WS) && !defined(LWS_ROLE_H2)
+static uint8_t lws_header_implies_psuedoheader_map[] = {
+	0x07,0x00,0x00,0x00,0x00,0x00,0x00,0x0e,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+#endif
+#if !defined(LWS_WITH_HTTP_UNCOMMON_HEADERS) &&  defined(LWS_ROLE_WS) && !defined(LWS_ROLE_H2)
+static uint8_t lws_header_implies_psuedoheader_map[] = {
+	0x03,0x00,0x00,0x00,0x00,0x00,0x00,0x04,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+#endif
+#if  defined(LWS_WITH_HTTP_UNCOMMON_HEADERS) &&  defined(LWS_ROLE_WS) && !defined(LWS_ROLE_H2)
+static uint8_t lws_header_implies_psuedoheader_map[] = {
+	0x07,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x38,0x10,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+#endif
+#if !defined(LWS_WITH_HTTP_UNCOMMON_HEADERS) && !defined(LWS_ROLE_WS) &&  defined(LWS_ROLE_H2)
+static uint8_t lws_header_implies_psuedoheader_map[] = {
+	0x03,0x00,0x80,0x0f,0x00,0x00,0x00,0x00,0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+#endif
+#if  defined(LWS_WITH_HTTP_UNCOMMON_HEADERS) && !defined(LWS_ROLE_WS) &&  defined(LWS_ROLE_H2)
+static uint8_t lws_header_implies_psuedoheader_map[] = {
+	0x07,0x00,0x00,0x3e,0x00,0x00,0x00,0x80,0x03,0x01,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+#endif
+#if !defined(LWS_WITH_HTTP_UNCOMMON_HEADERS) &&  defined(LWS_ROLE_WS) &&  defined(LWS_ROLE_H2)
+static uint8_t lws_header_implies_psuedoheader_map[] = {
+	0x03,0x00,0x00,0x00,0x3e,0x00,0x00,0x00,0x00,0x08,0x00,0x00,0x00,0x00,0x00,0x00,
+};
+#endif
+#if  defined(LWS_WITH_HTTP_UNCOMMON_HEADERS) &&  defined(LWS_ROLE_WS) &&  defined(LWS_ROLE_H2)
+static uint8_t lws_header_implies_psuedoheader_map[] = {
+	0x07,0x00,0x00,0x00,0xf8,0x00,0x00,0x00,0x00,0x0e,0x04,0x00,0x00,0x00,0x00,0x00,
+};
+#endif
 
 static int
 lws_hpack_handle_pseudo_rules(struct lws *nwsi, struct lws *wsi, int m)
@@ -951,7 +994,7 @@ int lws_hpack_interpret(struct lws *wsi, unsigned char c)
 
 		/* extended integer done */
 		h2n->hpack_len += h2n->hpack_m;
-		lwsl_header("HPKS_IDX_EXT: hpack_len %d\n", h2n->hpack_len);
+		lwsl_header("HPKS_IDX_EXT: hpack_len %u\n", (unsigned int)h2n->hpack_len);
 
 		switch (h2n->hpack_type) {
 		case HPKT_INDEXED_HDR_7:
@@ -995,6 +1038,13 @@ int lws_hpack_interpret(struct lws *wsi, unsigned char c)
 			h2n->hpack = HPKS_HLEN_EXT;
 			break;
 		}
+
+		if (h2n->value && !h2n->hpack_len) {
+			lwsl_debug("%s: zero-length header data\n", __func__);
+			h2n->hpack = HPKS_TYPE;
+			goto fin;
+		}
+
 pre_data:
 		h2n->hpack = HPKS_DATA;
 		if (!h2n->value || !h2n->hdr_idx) {
@@ -1016,8 +1066,8 @@ pre_data:
 		} else {
 			n = lws_token_from_index(wsi, h2n->hdr_idx, NULL,
 						 NULL, NULL);
-			lwsl_header("  lws_tok_from_idx(%d) says %d\n",
-				   h2n->hdr_idx, n);
+			lwsl_header("  lws_tok_from_idx(%u) says %d\n",
+				   (unsigned int)h2n->hdr_idx, n);
 		}
 
 		if (n == LWS_HPACK_IGNORE_ENTRY || n == -1)
@@ -1172,7 +1222,7 @@ swallow:
 				      "Huffman padding excessive or wrong");
 			return 1;
 		}
-
+fin:
 		if (!h2n->value && (
 		    h2n->hpack_type == HPKT_LITERAL_HDR_VALUE ||
 		    h2n->hpack_type == HPKT_LITERAL_HDR_VALUE_INCR ||
@@ -1341,14 +1391,15 @@ int lws_add_http2_header_by_name(struct lws *wsi, const unsigned char *name,
 {
 	int len;
 
-	lwsl_header("%s: %p  %s:%s\n", __func__, *p, name, value);
+	lwsl_header("%s: %p  %s:%s (len %d)\n", __func__, *p, name, value,
+					length);
 
 	len = (int)strlen((char *)name);
 	if (len)
 		if (name[len - 1] == ':')
 			len--;
 
-	if (wsi->http2_substream && !strncmp((const char *)name,
+	if (wsi->mux_substream && !strncmp((const char *)name,
 					     "transfer-encoding", len)) {
 		lwsl_header("rejecting %s\n", name);
 
