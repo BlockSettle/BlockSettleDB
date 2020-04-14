@@ -340,21 +340,21 @@ if(WITH_GUI)
     )
 endif()
 
-add_executable(bsarmorydb
+add_executable(blocksettledb
     main.cpp
 )
 
-set_target_properties(bsarmorydb
+set_target_properties(blocksettledb
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}
 )
 
-target_link_libraries(bsarmorydb
+target_link_libraries(blocksettledb
     ArmoryCLI
 )
 
 include(GNUInstallDirs)
 
-install(TARGETS bsarmorydb DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS blocksettledb DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 add_executable(BIP150KeyManager
     KeyManager.cpp

@@ -1,4 +1,4 @@
-Source: armorydb
+Source: blocksettledb
 Section: net
 Priority: optional
 Maintainer: BlockSettle AB <hello@blocksettle.com>
@@ -6,7 +6,7 @@ Build-Depends: debhelper (>= 9), cmake, pkg-config, libprotobuf-dev, protobuf-co
 Standards-Version: 4.1.2
 Homepage: http://blocksettle.com
 
-Package: armorydb
+Package: blocksettledb
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Server part of Armory
