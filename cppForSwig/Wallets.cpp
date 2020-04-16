@@ -11,6 +11,29 @@
 
 using namespace std;
 
+namespace {
+
+string networkModeStr()
+{
+   switch (NetworkConfig::getMode()) {
+      case NETWORK_MODE_MAINNET:
+         return "mainnet";
+      case NETWORK_MODE_TESTNET:
+         return "testnet";
+      default:
+         throw std::runtime_error("NetworkConfig is not set");
+   }
+}
+
+string walletFileName(const string &folder, const string &walletId, const string &type)
+{
+   stringstream ss;
+   ss << folder << "/BlockSettle_" << networkModeStr() << "_" << walletId << "_" << type << ".lmdb";
+   return ss.str();
+}
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// AssetWallet
@@ -1141,9 +1164,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    };
 
    //create wallet file and dbenv
-   stringstream pathSS;
-   pathSS << folder << "/BlockSettle_" << masterID << "_wallet.lmdb";
-   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
+   string path = walletFileName(folder, masterID, "wallet");
+   auto iface = getIfaceFromFile(path, controlPassLbd);
 
    string walletID;
    {
@@ -1214,9 +1236,8 @@ createFromPublicRoot_Armory135(
    };
 
    //create wallet file and dbenv
-   stringstream pathSS;
-   pathSS << folder << "/BlockSettle_" << masterID << "_WatchingOnly.lmdb";
-   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
+   string path = walletFileName(folder, masterID, "WatchingOnly");
+   auto iface = getIfaceFromFile(path, controlPassLbd);
 
    string walletID;
    {
@@ -1449,13 +1470,13 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
    };
 
    //create wallet file and dbenv
-   stringstream pathSS;
+   string path;
    if (!isPublic)
-      pathSS << folder << "/BlockSettle_" << walletId << "_wallet.lmdb";
+      path = walletFileName(folder, walletId, "wallet");
    else
-      pathSS << folder << "/BlockSettle_" << walletId << "_WatchingOnly.lmdb";
+      path = walletFileName(folder, walletId, "WatchingOnly");
 
-   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
+   auto iface = getIfaceFromFile(path, controlPassLbd);
 
    string walletID;
    {
@@ -1522,9 +1543,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createSeedless_WatchingOnly(
    };
 
    //create wallet file and dbenv
-   stringstream pathSS;
-   pathSS << folder << "/BlockSettle_" << masterID << "_HW.lmdb";
-   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
+   string path = walletFileName(folder, walletID, "HW");
+   auto iface = getIfaceFromFile(path, controlPassLbd);
 
    //address accounts
    shared_ptr<AssetWallet_Single> walletPtr = nullptr;
