@@ -214,8 +214,14 @@ protected:
    { }
    ~ScriptSpender_Signed() override = default;
 public:
-   virtual void setSignedWitnessData(const BinaryData &inputSig, const int itemCount) {}
-   virtual void setSignedScript(const BinaryData& inputSig) {}
+   virtual void setSignedWitnessData(const BinaryData& inputSig, const int itemCount)
+   {
+      throw ScriptException("unimplemented");
+   }
+   virtual void setSignedScript(const BinaryData& inputSig)
+   {
+      throw ScriptException("unimplemented");
+   }
 };
 
 class ScriptSpender_P2SH_Signed : public ScriptSpender_Signed
@@ -225,7 +231,7 @@ public:
    { }
    ~ScriptSpender_P2SH_Signed() override = default;
 
-   void setSignedWitnessData(const BinaryData &inputSig, const int itemCount) override
+   void setSignedWitnessData(const BinaryData& inputSig, const int itemCount) override
    {
       BinaryWriter bw;
       bw.put_var_int(itemCount);
@@ -275,9 +281,11 @@ public:
       return serializedInput_.getRef();
    }
 
-   void setSignedScript(const BinaryData& inputSig) override {
+   void setSignedScript(const BinaryData& inputSig) override
+   {
       signedScript_ = inputSig;
    }
+
 private:
    BinaryData signedScript_;
 };
