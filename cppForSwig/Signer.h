@@ -209,12 +209,29 @@ public:
 /////////////////// Spender that doesn't require resolution ///////////////////
 class ScriptSpender_Signed : public ScriptSpender
 {
-public:
-   ScriptSpender_Signed(const UTXO& utxo)  : ScriptSpender(utxo)
+protected:
+   ScriptSpender_Signed(const UTXO& utxo) : ScriptSpender(utxo)
    { }
    ~ScriptSpender_Signed() override = default;
+public:
+   virtual void setSignedWitnessData(const BinaryData& inputSig, const int itemCount)
+   {
+      throw ScriptException("unimplemented");
+   }
+   virtual void setSignedScript(const BinaryData& inputSig)
+   {
+      throw ScriptException("unimplemented");
+   }
+};
 
-   void setWitnessData(const BinaryData &inputSig, const int itemCount)
+class ScriptSpender_P2SH_Signed : public ScriptSpender_Signed
+{
+public:
+   ScriptSpender_P2SH_Signed(const UTXO& utxo) : ScriptSpender_Signed(utxo)
+   { }
+   ~ScriptSpender_P2SH_Signed() override = default;
+
+   void setSignedWitnessData(const BinaryData& inputSig, const int itemCount) override
    {
       BinaryWriter bw;
       bw.put_var_int(itemCount);
@@ -224,10 +241,10 @@ public:
    }
 };
 
-class ScriptSpender_P2WPKH_Signed : public ScriptSpender_Signed
+class ScriptSpender_P2WPKH_Signed : public ScriptSpender_P2SH_Signed
 {
 public:
-   ScriptSpender_P2WPKH_Signed(const UTXO& utxo) : ScriptSpender_Signed(utxo)
+   ScriptSpender_P2WPKH_Signed(const UTXO& utxo) : ScriptSpender_P2SH_Signed(utxo)
    { }
    ~ScriptSpender_P2WPKH_Signed() override = default;
 
@@ -242,6 +259,35 @@ public:
       serializedInput_ = std::move(bw.getData());
       return serializedInput_.getRef();
    }
+};
+
+class ScriptSpender_Signed_Legacy : public ScriptSpender_Signed
+{
+public:
+   ScriptSpender_Signed_Legacy(const UTXO& utxo) : ScriptSpender_Signed(utxo)
+   { }
+   ~ScriptSpender_Signed_Legacy() override = default;
+
+   BinaryDataRef getSerializedInput(void) const override
+   {
+      BinaryWriter bw;
+      bw.put_BinaryData(getSerializedOutpoint());
+
+      bw.put_var_int(signedScript_.getSize());
+      bw.put_BinaryData(signedScript_);
+
+      bw.put_uint32_t(getSequence());
+      serializedInput_ = std::move(bw.getData());
+      return serializedInput_.getRef();
+   }
+
+   void setSignedScript(const BinaryData& inputSig) override
+   {
+      signedScript_ = inputSig;
+   }
+
+private:
+   BinaryData signedScript_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
