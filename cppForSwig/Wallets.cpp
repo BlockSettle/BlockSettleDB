@@ -20,6 +20,8 @@ string networkModeStr()
          return "mainnet";
       case NETWORK_MODE_TESTNET:
          return "testnet";
+      case NETWORK_MODE_REGTEST:
+         return "regtest";
       default:
          throw std::runtime_error("NetworkConfig is not set");
    }
