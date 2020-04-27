@@ -60,7 +60,9 @@ struct RpcBroadcastPacket
 {
    std::shared_ptr<BDV_Server_Object> bdvPtr_;
    std::shared_ptr<BinaryData> rawTx_;
-   std::vector<std::shared_ptr<BDV_Server_Object>> extraRequestors_;
+   std::string requestID_;
+   
+   std::map<std::string, std::shared_ptr<BDV_Server_Object>> extraRequestors_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -218,7 +220,7 @@ public:
    std::set<std::string> hasScrAddr(const BinaryDataRef&) const override;
    void pushZcNotification(ZeroConfContainer::NotificationPacket&) override;
    void pushZcError(const std::string&, const BinaryData&, 
-      ArmoryErrorCodes, const std::string&) override;
+      ArmoryErrorCodes, const std::string&, const std::string&) override;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

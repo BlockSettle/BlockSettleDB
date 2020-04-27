@@ -233,6 +233,8 @@ struct BdmNotification
    std::shared_ptr<::ClientClasses::NodeStatusStruct> nodeStatus_;
    BDV_Error_Struct error_;
 
+   std::string requestID_;
+
    BdmNotification(BDMAction action) :
       action_(action)
    {}

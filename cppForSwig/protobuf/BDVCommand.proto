@@ -134,6 +134,8 @@ message Notification
 		Codec_CommonTypes.ManyBinaryData ids = 7;
 		Codec_NodeStatus.Refresh refresh = 8;
 	}
+
+	optional string requestID = 20;
 }
 
 message BDVCallback

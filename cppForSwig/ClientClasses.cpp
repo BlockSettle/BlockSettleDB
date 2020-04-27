@@ -272,6 +272,7 @@ bool RemoteCallback::processNotifications(
             bdmNotif.ledgers_.push_back(le);
          }
 
+         bdmNotif.requestID_ = notif.requestid();
          run(move(bdmNotif));
 
          break;
@@ -381,6 +382,7 @@ bool RemoteCallback::processNotifications(
          bdmNotif.error_.errCode_ = msg.code();
          bdmNotif.error_.errorStr_ = msg.errstr();
          bdmNotif.error_.errData_ = BinaryData::fromString(msg.errdata());
+         bdmNotif.requestID_ = notif.requestid();
 
          BinaryDataRef errDataRef; errDataRef.setRef(msg.errdata());
          bdmNotif.error_.errData_ = errDataRef;

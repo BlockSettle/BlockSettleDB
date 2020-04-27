@@ -28,6 +28,9 @@
 #define DEFAULT_ZCTHREAD_COUNT 100
 #define WEBSOCKET_PORT 7681
 
+#define BROADCAST_ID_LENGTH 6
+#define REGISTER_ID_LENGH 5
+
 class BitcoinNodeInterface;
 class NodeRPCInterface;
 

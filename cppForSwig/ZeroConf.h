@@ -162,7 +162,7 @@ struct ZeroConfBatchFallbackStruct
 {
    BinaryData txHash_;
    std::shared_ptr<BinaryData> rawTxPtr_;
-   std::set<std::string> extraRequestors_;
+   std::map<std::string, std::string> extraRequestors_;
 
    ArmoryErrorCodes err_;
 };
@@ -192,6 +192,8 @@ struct ZeroConfBatch
    ZcBroadcastCallback errorCallback_;
 
    const bool hasWatcherEntries_;
+
+   std::pair<std::string, std::string> requestor_;
 
 public:
    ZeroConfBatch(bool hasWatcherEntries) :
@@ -393,7 +395,9 @@ struct WatcherTxBody
 {
    std::shared_ptr<BinaryData> rawTxPtr_;
    bool inved_ = false;
-   std::set<std::string> extraRequestors_;
+
+   //<request id, bdv id>
+   std::map<std::string, std::string> extraRequestors_;
 
    WatcherTxBody(std::shared_ptr<BinaryData> rawTx) :
       rawTxPtr_(rawTx)
@@ -405,6 +409,9 @@ struct BatchTxMap
 {
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> txMap_;
    std::map<BinaryData, WatcherTxBody> watcherMap_;
+   
+   //<request id, bdv id>
+   std::pair<std::string, std::string> requestor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -446,7 +453,9 @@ public:
 
    std::shared_ptr<ZeroConfBatch> initiateZcBatch(
       const std::vector<BinaryData>&, unsigned,
-      const ZcBroadcastCallback&, bool);
+      const ZcBroadcastCallback&, bool,
+      const std::string& = "", const std::string& = "");
+
    std::shared_future<std::shared_ptr<ZcPurgePacket>> pushNewBlockNotification(
       Blockchain::ReorganizationState);
    const std::shared_ptr<
@@ -480,12 +489,13 @@ public:
       std::shared_ptr<ZcPurgePacket> purgePacket_;
       std::shared_ptr<std::map<BinaryData, std::shared_ptr<std::set<BinaryDataRef>>>>
          newKeysAndScrAddr_;
+      std::string requestID_;
 
       //keep a reference to the snapshot so that other references live as long as this object
       std::shared_ptr<ZeroConfSharedStateSnapshot> ssPtr_;
 
-      NotificationPacket(const std::string& bdvID) :
-         bdvID_(bdvID)
+      NotificationPacket(const std::string& bdvID, const std::string& requestID) :
+         bdvID_(bdvID), requestID_(requestID)
       {}
    };
 
@@ -593,7 +603,8 @@ public:
    void parseNewZC(
       std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> zcMap,
       std::shared_ptr<ZeroConfSharedStateSnapshot>,
-      bool updateDB, bool notify);
+      bool updateDB, bool notify,
+      const std::pair<std::string, std::string>&);
    bool isTxOutSpentByZC(const BinaryData& dbKey) const;
 
    void clear(void);
@@ -621,7 +632,7 @@ public:
 
    void broadcastZC(const std::vector<BinaryDataRef>& rawzc, 
       uint32_t timeout_ms, const ZcBroadcastCallback&,
-      const std::string& bdvID);
+      const std::string& bdvID, const std::string& requestID);
 
    bool isEnabled(void) const 
    { return zcEnabled_.load(std::memory_order_relaxed); }
@@ -661,7 +672,7 @@ public:
    virtual void pushZcNotification(
       ZeroConfContainer::NotificationPacket& packet) = 0;
    virtual void pushZcError(const std::string&, const BinaryData&, 
-      ArmoryErrorCodes, const std::string&) = 0;
+      ArmoryErrorCodes, const std::string&, const std::string&) = 0;
 };
 
 #endif

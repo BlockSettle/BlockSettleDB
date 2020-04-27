@@ -185,6 +185,9 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
       if (!command->has_walletid() || command->walletid().size() == 0)
          throw runtime_error("malformed registerWallet command");
 
+      if (command->has_hash() && command->hash().size() != REGISTER_ID_LENGH * 2)
+            throw runtime_error("invalid registration id length");
+
       this->registerWallet(command);
       break;
    }
@@ -195,6 +198,9 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
 
       if (!command->has_walletid() || command->walletid().size() == 0)
          throw runtime_error("malformed registerLockbox command");
+
+      if (command->has_hash() && command->hash().size() != REGISTER_ID_LENGH * 2)
+            throw runtime_error("invalid registration id length");
 
       this->registerLockbox(command);
       break;
@@ -2035,6 +2041,9 @@ void BDV_Server_Object::processNotification(
             auto ledger_entry = ledgers->add_values();
             le.fillMessage(ledger_entry);
          }
+
+         if (!payload->packet_.requestID_.empty())
+            notif->set_requestid(payload->packet_.requestID_);
       }
 
       if (payload->packet_.purgePacket_ != nullptr &&
@@ -2120,6 +2129,11 @@ void BDV_Server_Object::processNotification(
       if (!payload->errStruct.errorStr_.empty())
       {
          error->set_errstr(payload->errStruct.errorStr_);
+      }
+
+      if (!payload->requestID_.empty())
+      {
+         notif->set_requestid(payload->requestID_);
       }
 
       break;
@@ -2355,24 +2369,25 @@ BDVCommandProcessingResultType BDV_Server_Object::processPayload(
 
       return BDVCommandProcess_Failure;
    }
-      try
-      {
-         return processCommand(message, result);
-      }
-      catch (exception &e)
-      {
-         auto errMsg = make_shared<::Codec_BDVCommand::BDV_Error>();
-         stringstream ss;
-         ss << "Error processing command: " << (int)message->method() << endl;
-         string errStr(e.what());
-         if (errStr.size() > 0)
-            ss << e.what();
+      
+   try
+   {
+      return processCommand(message, result);
+   }
+   catch (exception &e)
+   {
+      auto errMsg = make_shared<::Codec_BDVCommand::BDV_Error>();
+      stringstream ss;
+      ss << "Error processing command: " << (int)message->method() << endl;
+      string errStr(e.what());
+      if (errStr.size() > 0)
+         ss << e.what();
 
-         errMsg->set_code(-1);
-         errMsg->set_errstr(ss.str());
+      errMsg->set_code(-1);
+      errMsg->set_errstr(ss.str());
          
-         result = errMsg;
-      }
+      result = errMsg;
+   }
       
    return BDVCommandProcess_Failure;
 }
@@ -2881,12 +2896,13 @@ void Clients::broadcastThroughRPC()
 {
    auto notifyError = [this](
       const BinaryData& hash, std::shared_ptr<BDV_Server_Object> bdvPtr,
-      int errCode, const std::string& verbose)->void
+      int errCode, const std::string& verbose,
+      const string& requestID)->void
    {
       auto notifPacket = make_shared<BDV_Notification_Packet>();
       notifPacket->bdvPtr_ = bdvPtr;
       notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-         bdvPtr->getID(), errCode, hash, verbose);
+         bdvPtr->getID(), requestID, errCode, hash, verbose);
       innerBDVNotifStack_.push_back(move(notifPacket));
    };
 
@@ -2910,7 +2926,9 @@ void Clients::broadcastThroughRPC()
             hashes, 
             0, //no timeout, this batch promise has to be set to progress
             nullptr, //no error callback
-            false); //we dont want to handle watcher node invs for these zc
+            false, //we dont want to handle watcher node invs for these zc
+            packet.bdvPtr_->getID(),
+            packet.requestID_);
 
       //push to rpc
       string verbose;
@@ -2941,11 +2959,12 @@ void Clients::broadcastThroughRPC()
          }
 
          //signal all extra requestors for an already-in-mempool error
-         for (auto& bdvPtr : packet.extraRequestors_)
+         for (auto& requestor : packet.extraRequestors_)
          {
-            notifyError(*hashes.begin(), bdvPtr, 
+            notifyError(*hashes.begin(), requestor.second, 
                (int)ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, 
-               "Extra requestor RPC broadcast error: Already in mempool");
+               "Extra requestor RPC broadcast error: Already in mempool",
+               requestor.first);
          }
 
          LOGINFO << "rpc broadcast success";
@@ -2963,14 +2982,16 @@ void Clients::broadcastThroughRPC()
          //notify the bdv of the error
          stringstream errMsg;
          errMsg << "RPC broadcast error: " << verbose;
-         notifyError(*hashes.begin(), packet.bdvPtr_, result, errMsg.str());         
+         notifyError(*hashes.begin(), packet.bdvPtr_, 
+            result, errMsg.str(), packet.requestID_);         
 
          //notify extra requestors of the error as well
-         for (auto& bdvPtr : packet.extraRequestors_)
+         for (auto& requestor : packet.extraRequestors_)
          {
             stringstream reqMsg;
             reqMsg << "Extra requestor broadcast error: " << verbose;
-            notifyError(*hashes.begin(), bdvPtr, result, reqMsg.str());
+            notifyError(*hashes.begin(), requestor.second, 
+               result, reqMsg.str(), requestor.first);
          }
       }
    }
@@ -2984,18 +3005,18 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
    payload->bdvPtr_.reset();
 
    //process payload
-   shared_ptr<Message> result;
-   auto status = bdvPtr->processPayload(payload, result);
+   shared_ptr<Message> _result;
+   auto status = bdvPtr->processPayload(payload, _result);
 
    switch (status)
    {
    case BDVCommandProcess_Static:
    {
-      auto staticCommand = dynamic_pointer_cast<StaticCommand>(result);
+      auto staticCommand = dynamic_pointer_cast<StaticCommand>(_result);
       if (staticCommand == nullptr)
          return nullptr;
 
-      result = processUnregisteredCommand(payload->bdvID_, staticCommand);
+      _result = processUnregisteredCommand(payload->bdvID_, staticCommand);
       break;
    }
 
@@ -3006,16 +3027,19 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
    case BDVCommandProcess_ZC_P2P:
    {
       //cast to bdv_command
-      auto message = dynamic_pointer_cast<BDVCommand>(result);
+      auto message = dynamic_pointer_cast<BDVCommand>(_result);
       if (message == nullptr)
          return nullptr;
 
-      //Reset result as it is the zc message. ZC replies are 
-      //delivered through the callback API.
-      result = nullptr;
+      /*
+      Reset _result as broadcast commands do not have return values. 
+      ZC broadcast notifications are delivered through the callback API.
+      */
+      _result = nullptr;
 
       /*
-      in: raw tx as bindata[0]
+      in: raw tx as bindata
+          broadcastId as hash
       out: void
       */
 
@@ -3033,7 +3057,13 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
          rawZcVec.push_back(rawTxRef);
       }
 
-      auto errorCallback = [this, bdvPtr](
+      const auto& broadcastId = message->hash();
+      if (broadcastId.size() != BROADCAST_ID_LENGTH * 2)
+         return nullptr;
+
+      //TODO: do not tolerate duplicate broadcast ids
+
+      auto errorCallback = [this, bdvPtr, broadcastId](
          vector<ZeroConfBatchFallbackStruct> zcVec)->void
       {
          vector<RpcBroadcastPacket> rpcPackets;
@@ -3041,14 +3071,14 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
          auto bdvMap = BDVs_.get();
          for (auto& fallbackStruct : zcVec)
          {
-            vector<shared_ptr<BDV_Server_Object>> extraRequestors;
+            map<string, shared_ptr<BDV_Server_Object>> extraRequestors;
             for (auto& extraBdvId : fallbackStruct.extraRequestors_)
             {
-               auto iter = bdvMap->find(extraBdvId);
+               auto iter = bdvMap->find(extraBdvId.second);
                if (iter == bdvMap->end())
                   continue;
 
-               extraRequestors.emplace_back(iter->second);
+               extraRequestors.emplace(extraBdvId.first, iter->second);
             }
 
             if (fallbackStruct.err_ != ArmoryErrorCodes::ZcBatch_Timeout)
@@ -3057,7 +3087,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
                auto notifPacket = make_shared<BDV_Notification_Packet>();
                notifPacket->bdvPtr_ = bdvPtr;
                notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-                  bdvPtr->getID(), (int)fallbackStruct.err_,
+                  bdvPtr->getID(), broadcastId, (int)fallbackStruct.err_,
                   fallbackStruct.txHash_, string());
                innerBDVNotifStack_.push_back(move(notifPacket));
 
@@ -3065,9 +3095,9 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
                for (auto& extraBDV : extraRequestors)
                {
                   auto notifPacket = make_shared<BDV_Notification_Packet>();
-                  notifPacket->bdvPtr_ = extraBDV;
+                  notifPacket->bdvPtr_ = extraBDV.second;
                   notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-                     extraBDV->getID(), (int)fallbackStruct.err_,
+                     extraBDV.second->getID(), extraBDV.first, (int)fallbackStruct.err_,
                      fallbackStruct.txHash_, string());
                   innerBDVNotifStack_.push_back(move(notifPacket));                  
                }
@@ -3081,6 +3111,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
             packet.rawTx_ = fallbackStruct.rawTxPtr_;
             packet.bdvPtr_ = bdvPtr;
             packet.extraRequestors_ = move(extraRequestors);
+            packet.requestID_ = broadcastId;
             rpcPackets.push_back(move(packet));
          }
 
@@ -3105,8 +3136,9 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
             auto notifPacket = make_shared<BDV_Notification_Packet>();
             notifPacket->bdvPtr_ = bdvPtr;
             notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-               bdvPtr->getID(), (int)ArmoryErrorCodes::ZcBroadcast_AlreadyInChain,
-               hash, "RPC broadcast error: Already in mempool");
+               bdvPtr->getID(), broadcastId, 
+               (int)ArmoryErrorCodes::ZcBroadcast_AlreadyInChain,
+               hash, "RPC broadcast error: Already in chain");
             innerBDVNotifStack_.push_back(move(notifPacket));
 
             //reset data ref so as to not parse the zc
@@ -3115,7 +3147,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       }
 
       bdmT_->bdm()->zeroConfCont_->broadcastZC(
-         rawZcVec, 5000, errorCallback, bdvPtr->getID());
+         rawZcVec, 5000, errorCallback, bdvPtr->getID(), broadcastId);
 
       break;
    }
@@ -3123,13 +3155,15 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
    case BDVCommandProcess_ZC_RPC:
    {
       //cast to bdv_command
-      auto message = dynamic_pointer_cast<BDVCommand>(result);
+      auto message = dynamic_pointer_cast<BDVCommand>(_result);
       if (message == nullptr)
          return nullptr;
 
-      //Reset result as it is a zc message. ZC replies are 
-      //delivered through the callback API.
-      result = nullptr;
+      /*
+      Reset _result as broadcast commands do not have return values. 
+      ZC broadcast notifications are delivered through the callback API.
+      */
+      _result = nullptr;
 
       /*
       in: raw tx as bindata[0]
@@ -3139,6 +3173,12 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       if (message->bindata_size() != 1)
          break;
 
+      const auto& broadcastId = message->hash();
+      if (broadcastId.size() != BROADCAST_ID_LENGTH * 2)
+         break;
+
+      //TODO: do not tolerate duplicate broadcast ids
+
       auto& rawTx = message->bindata(0);
       if (rawTx.size() == 0)
          throw runtime_error("invalid tx size");
@@ -3147,6 +3187,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       packet.rawTx_ = make_shared<BinaryData>(
          (uint8_t*)rawTx.c_str(), rawTx.size());
       packet.bdvPtr_ = bdvPtr;
+      packet.requestID_ = broadcastId;
       rpcBroadcastQueue_.push_back(move(packet));
 
       break;
@@ -3155,13 +3196,13 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
    case BDVCommandProcess_UnregisterAddresses:
    {
       //cast to bdv_command
-      auto message = dynamic_pointer_cast<BDVCommand>(result);
+      auto message = dynamic_pointer_cast<BDVCommand>(_result);
       if (message == nullptr)
          return nullptr;
 
-      //Reset result, unregistration events are 
+      //Reset _result, unregistration events are 
       //notified through the callback API.
-      result = nullptr;
+      _result = nullptr;
 
       /*
       in: 
@@ -3184,12 +3225,22 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
 
       //sanity check
       if (!message->has_walletid())
-         throw runtime_error("need wallet for address unregistration command");
+      {
+         LOGERR << "need wallet for address unregistration command";
+         return nullptr;
+      }
       
       //registration event id
       BinaryData refreshId;
       if (message->has_hash())
+      {
          refreshId = BinaryData::fromString(message->hash());
+         if (refreshId.getSize() != REGISTER_ID_LENGH * 2)
+         {
+            LOGERR << "invalid registration id length";
+            return nullptr;
+         }
+      }
 
       set<BinaryDataRef> addrSetRef;
       const auto& walletId = message->walletid();
@@ -3276,7 +3327,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       break;
    }
 
-   return result;
+   return _result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3392,7 +3443,8 @@ void ZeroConfCallbacks_BDV::pushZcNotification(
 
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfCallbacks_BDV::pushZcError(const string& bdvID, 
-   const BinaryData& hash, ArmoryErrorCodes errCode, const string& verbose)
+   const BinaryData& hash, ArmoryErrorCodes errCode, const string& verbose,
+   const string& requestID)
 {
    auto bdvMap = clientsPtr_->BDVs_.get();
    auto iter = bdvMap->find(bdvID);
@@ -3405,7 +3457,7 @@ void ZeroConfCallbacks_BDV::pushZcError(const string& bdvID,
    auto notifPacket = make_shared<BDV_Notification_Packet>();
    notifPacket->bdvPtr_ = iter->second;
    notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-      bdvID, (int)errCode, hash, verbose);
+      bdvID, requestID, (int)errCode, hash, verbose);
    clientsPtr_->innerBDVNotifStack_.push_back(move(notifPacket));
 }
 

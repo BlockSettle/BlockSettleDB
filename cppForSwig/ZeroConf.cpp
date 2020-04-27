@@ -472,6 +472,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
    auto ss = ZeroConfSharedStateSnapshot::copy(snapshot_);
    map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap;
    map<BinaryData, WatcherTxBody> watcherMap;
+   pair<string, string> requestor;
 
    switch (zcAction.action_)
    {
@@ -508,6 +509,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
          auto batchTxMap = move(getBatchTxMap(zcAction.batch_, ss));
          zcMap = move(batchTxMap.txMap_);
          watcherMap = move(batchTxMap.watcherMap_);
+         requestor = move(batchTxMap.requestor_);
       }
       catch (ZcBatchError&)
       {
@@ -527,7 +529,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
       return;
    }
 
-   parseNewZC(move(zcMap), ss, true, notify);
+   parseNewZC(move(zcMap), ss, true, notify, requestor);
    if (zcAction.resultPromise_ != nullptr)
    {
       auto purgePacket = make_shared<ZcPurgePacket>();
@@ -565,9 +567,10 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
       //duplicate requestors
       for (auto& extra : watcherObj.second.extraRequestors_)
       {
-         bdvCallbacks_->pushZcError(extra, watcherObj.first, 
+         bdvCallbacks_->pushZcError(extra.second, watcherObj.first, 
             ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, 
-            "Extra requestor broadcast error: Already in mempool");
+            "Extra requestor broadcast error: Already in mempool",
+            extra.first);
       }
    }
 }
@@ -576,7 +579,8 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
 void ZeroConfContainer::parseNewZC(
    map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap,
    shared_ptr<ZeroConfSharedStateSnapshot> ss,
-   bool updateDB, bool notify)
+   bool updateDB, bool notify,
+   const pair<string, string>& requestor)
 {
    unique_lock<mutex> lock(parserMutex_);
    ZcUpdateBatch batch;
@@ -939,7 +943,11 @@ void ZeroConfContainer::parseNewZC(
       if (!bdvMap.second.first)
          continue;
 
-      NotificationPacket notificationPacket(bdvMap.first);
+      string requestID;
+      if (bdvMap.first == requestor.second)
+         requestID = requestor.first;
+
+      NotificationPacket notificationPacket(bdvMap.first, requestID);
       notificationPacket.ssPtr_ = ss;
 
       for (auto& sa : bdvMap.second.second.txioKeys_)
@@ -956,7 +964,6 @@ void ZeroConfContainer::parseNewZC(
          
          for (auto& txio : saIter->second)
             notifTxioMap.emplace(txio.first.getRef(), txio.second);
-
       }
 
       if (bdvMap.second.second.invalidatedKeys_.size() != 0)
@@ -1581,7 +1588,8 @@ unsigned ZeroConfContainer::loadZeroConfMempool(bool clearMempool)
       topId = READ_UINT32_BE(topZcKey.getSliceCopy(2, 4)) + 1;
 
       //no need to update the db nor notify bdvs on init
-      parseNewZC(move(zcMap), nullptr, false, false);
+      parseNewZC(
+         move(zcMap), nullptr, false, false, make_pair(string(), string()));
    }
 
    return topId;
@@ -1904,7 +1912,8 @@ void ZeroConfContainer::processPayloadTx(
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::broadcastZC(
    const vector<BinaryDataRef>& rawZcVec, uint32_t timeout_ms,
-   const ZcBroadcastCallback& cbk, const string& bdvID)
+   const ZcBroadcastCallback& cbk, 
+   const string& bdvID, const string& requestID)
 {
    auto zcPacket = make_shared<ZcBroadcastPacket>();
    zcPacket->hashes_.reserve(rawZcVec.size());
@@ -1940,13 +1949,14 @@ void ZeroConfContainer::broadcastZC(
          //already have this zc in an earlier batch, drop the hash & tie
          //it to the former callback
          hash.clear();
-         insertIter.first->second.extraRequestors_.insert(bdvID);
+         insertIter.first->second.extraRequestors_.emplace(
+            requestID, bdvID);
       }
    }
 
    //sets up & queues the zc batch for us
    if (actionQueue_->initiateZcBatch(
-      zcPacket->hashes_, timeout_ms, cbk, true) == nullptr)
+      zcPacket->hashes_, timeout_ms, cbk, true, bdvID, requestID) == nullptr)
    {
       //return if no batch was created
       return;
@@ -2155,6 +2165,7 @@ BatchTxMap ZeroConfContainer::getBatchTxMap(shared_ptr<ZeroConfBatch> batch,
    }
 
    BatchTxMap result;
+   result.requestor_ = batch->requestor_;
 
    //purge the watcher map if this batch affects it
    if (batch->hasWatcherEntries_)
@@ -2321,10 +2332,12 @@ BinaryData ZcActionQueue::getNewZCkey()
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<ZeroConfBatch> ZcActionQueue::initiateZcBatch(
    const vector<BinaryData>& zcHashes, unsigned timeout, 
-   const ZcBroadcastCallback& cbk, bool hasWatcherEntries)
+   const ZcBroadcastCallback& cbk, bool hasWatcherEntries,
+   const std::string& bdvId, const std::string& requestId)
 {
    set<BinaryDataRef> requestedTxHashes;
    auto batch = make_shared<ZeroConfBatch>(hasWatcherEntries);
+   batch->requestor_ = make_pair(requestId, bdvId);
 
    for (auto& hash : zcHashes)
    {

@@ -95,7 +95,7 @@ struct BDV_Notification_Refresh : public BDV_Notification
    BDV_Notification_Refresh(const std::string& bdvID,
       BDV_refresh refresh, const BinaryData& refreshID) :
       BDV_Notification(bdvID),
-      refresh_(refresh), refreshID_(refreshID), zcPacket_(bdvID)
+      refresh_(refresh), refreshID_(refreshID), zcPacket_(bdvID, "")
    {}
 
    BDV_Action action_type(void)
@@ -144,11 +144,12 @@ struct BDV_Notification_NodeStatus : public BDV_Notification
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_Notification_Error : public BDV_Notification
 {
+   const std::string requestID_;
    BDV_Error_Struct errStruct;
 
-   BDV_Notification_Error(const std::string& bdvID, int errCode, 
-      const BinaryData& errData, const std::string& errStr) :
-      BDV_Notification(bdvID)
+   BDV_Notification_Error(const std::string& bdvID, const std::string requestID, 
+      int errCode, const BinaryData& errData, const std::string& errStr) :
+      BDV_Notification(bdvID), requestID_(requestID)
    {
       errStruct.errCode_ = errCode;
       errStruct.errData_ = errData;

@@ -213,6 +213,7 @@ namespace DBTestUtils
          std::set<BinaryData> addrSet_;
          unsigned reorgHeight_ = UINT32_MAX;
          BDV_Error_Struct error_;
+         std::string requestID_;
       };
 
    private:
@@ -254,6 +255,7 @@ namespace DBTestUtils
       {
          auto notif = make_unique<BdmNotif>();
          notif->action_ = bdmNotif.action_;
+         notif->requestID_ = bdmNotif.requestID_;
 
          if (bdmNotif.action_ == BDMAction_Refresh)
          {
@@ -355,12 +357,20 @@ namespace DBTestUtils
 
       void waitOnZc(
          const std::set<BinaryData>& hashes, 
-         std::set<BinaryData> scrAddrSet)
+         std::set<BinaryData> scrAddrSet,
+         const std::string& broadcastID)
       {
          std::set<BinaryData> addrSet;
          while (1)
          {
             auto&& action = waitOnNotification(BDMAction_ZC);
+
+            if (!broadcastID.empty())
+            {
+               if (action->requestID_ != broadcastID)
+                  continue;
+            }
+
             bool hasHashes = true;
             for (auto& txHash : action->idVec_)
             {
@@ -380,19 +390,31 @@ namespace DBTestUtils
          }
       }
 
-      void waitOnError(const BinaryData& hash, ArmoryErrorCodes errorCode)
+      void waitOnError(const BinaryData& hash, ArmoryErrorCodes errorCode,
+         const std::string& requestID)
       {
+         if (requestID.empty())
+            throw std::runtime_error("empty request id");
+
          while (true)
          {
             auto&& action = waitOnNotification(BDMAction_BDV_Error);
+
+            if (action->requestID_ != requestID)
+               continue;
+
             if (action->error_.errData_ == hash && 
                action->error_.errCode_ == (int)errorCode)
                break;
          }         
       }
 
-      void waitOnErrors(const std::map<BinaryData, ArmoryErrorCodes>& errorMap)
+      void waitOnErrors(const std::map<BinaryData, ArmoryErrorCodes>& errorMap,
+         const std::string& requestID)
       {
+         if (requestID.empty())
+            throw std::runtime_error("empty request id");
+
          auto mapCopy = errorMap;
          while (true)
          {
@@ -400,6 +422,9 @@ namespace DBTestUtils
                return;
 
             auto&& action = waitOnNotification(BDMAction_BDV_Error);
+            if (action->requestID_ != requestID)
+               continue;
+
             auto iter = mapCopy.find(action->error_.errData_);
             if (iter == mapCopy.end())
                continue;
