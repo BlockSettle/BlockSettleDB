@@ -529,7 +529,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
       return;
    }
 
-   parseNewZC(move(zcMap), ss, true, notify, requestor);
+   parseNewZC(move(zcMap), ss, true, notify, requestor, watcherMap);
    if (zcAction.resultPromise_ != nullptr)
    {
       auto purgePacket = make_shared<ZcPurgePacket>();
@@ -580,7 +580,8 @@ void ZeroConfContainer::parseNewZC(
    map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap,
    shared_ptr<ZeroConfSharedStateSnapshot> ss,
    bool updateDB, bool notify,
-   const pair<string, string>& requestor)
+   const pair<string, string>& requestor,
+   std::map<BinaryData, WatcherTxBody>& watcherMap)
 {
    unique_lock<mutex> lock(parserMutex_);
    ZcUpdateBatch batch;
@@ -626,7 +627,7 @@ void ZeroConfContainer::parseNewZC(
 
    bool hasChanges = false;
 
-   map<string, pair<bool, ParsedZCData>> flaggedBDVs;
+   map<string, ParsedZCData> flaggedBDVs;
 
    //zckey fetch lambda
    auto getzckeyfortxhash = [&txhashmap]
@@ -859,12 +860,11 @@ void ZeroConfContainer::parseNewZC(
                }
             }
 
-            //notify BDVs
+            //flag affected BDVs
             for (auto& bdvMap : bulkData.flaggedBDVs_)
             {
                auto& parserResult = flaggedBDVs[bdvMap.first];
-               parserResult.second.mergeTxios(bdvMap.second);
-               parserResult.first = true;
+               parserResult.mergeTxios(bdvMap.second);
             }
          }
       }
@@ -904,9 +904,8 @@ void ZeroConfContainer::parseNewZC(
             for (auto& bdvid : bdvid_set)
             {
                auto& bdv = flaggedBDVs[bdvid];
-               bdv.second.invalidatedKeys_.insert(
+               bdv.invalidatedKeys_.insert(
                   make_pair(tx_pair.first, tx_pair.second->getTxHash()));
-               bdv.first = true;
                hasChanges = true;
             }
          }
@@ -938,44 +937,11 @@ void ZeroConfContainer::parseNewZC(
       newZcKeys->insert(move(addr_pair));
    }
 
-   for (auto& bdvMap : flaggedBDVs)
-   {
-      if (!bdvMap.second.first)
-         continue;
-
-      string requestID;
-      if (bdvMap.first == requestor.second)
-         requestID = requestor.first;
-
-      NotificationPacket notificationPacket(bdvMap.first, requestID);
-      notificationPacket.ssPtr_ = ss;
-
-      for (auto& sa : bdvMap.second.second.txioKeys_)
-      {
-         auto saIter = txiomap.find(sa);
-         if (saIter == txiomap.end())
-            continue;
-
-         //copy the txiomap for this scrAddr over to the notification object
-         auto notifPacketIter = notificationPacket.txioMap_.emplace(
-            saIter->first.getRef(), 
-            map<BinaryDataRef, shared_ptr<TxIOPair>>());
-         auto& notifTxioMap = notifPacketIter.first->second;
-         
-         for (auto& txio : saIter->second)
-            notifTxioMap.emplace(txio.first.getRef(), txio.second);
-      }
-
-      if (bdvMap.second.second.invalidatedKeys_.size() != 0)
-      {
-         notificationPacket.purgePacket_ = make_shared<ZcPurgePacket>();
-         notificationPacket.purgePacket_->invalidatedZcKeys_ =
-            move(bdvMap.second.second.invalidatedKeys_);
-      }
-
-      notificationPacket.newKeysAndScrAddr_ = newZcKeys;
-      bdvCallbacks_->pushZcNotification(notificationPacket);
-   }
+   bdvCallbacks_->pushZcNotification(
+      ss, newZcKeys,
+      flaggedBDVs, 
+      requestor.first, requestor.second, 
+      watcherMap);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1111,11 +1077,21 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
       pair<bool, set<string>> flaggedBDVs;
       flaggedBDVs.first = false;
 
+      
+      //Check if this address is being watched before looking for specific BDVs
       auto addrIter = mainAddressSet->find(addr.getRef());
       if (addrIter == mainAddressSet->end())
       {
          if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
+         {
+            /*
+            We got this far because no BDV is watching this address and the DB
+            is running as a supernode. In supernode we track all ZC regardless 
+            of watch status. Flag as true to process the ZC, but do not attach
+            a bdv ID as no clients will be notified of this zc.
+            */
             flaggedBDVs.first = true;
+         }
 
          return flaggedBDVs;
       }
@@ -1136,7 +1112,7 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
       key_txioPair[txiokey] = move(txio);
 
       for (auto& bdvId : flaggedBDVs)
-         bulkData.flaggedBDVs_[bdvId].txioKeys_.insert(sa);
+         bulkData.flaggedBDVs_[bdvId].scrAddrs_.insert(sa);
    };
 
    if (parsedTx.status() == Tx_Uninitialized ||
@@ -1588,8 +1564,11 @@ unsigned ZeroConfContainer::loadZeroConfMempool(bool clearMempool)
       topId = READ_UINT32_BE(topZcKey.getSliceCopy(2, 4)) + 1;
 
       //no need to update the db nor notify bdvs on init
+      map<BinaryData, WatcherTxBody> emptyWatcherMap;
       parseNewZC(
-         move(zcMap), nullptr, false, false, make_pair(string(), string()));
+         move(zcMap), nullptr, false, false, 
+         make_pair(string(), string()), 
+         emptyWatcherMap);
    }
 
    return topId;

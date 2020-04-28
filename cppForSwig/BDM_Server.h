@@ -26,6 +26,7 @@
 #include "Server.h"
 #include "BtcWallet.h"
 #include "ArmoryErrors.h"
+#include "ZeroConfNotifications.h"
 
 #define MAX_CONTENT_LENGTH 1024*1024*1024
 #define CALLBACK_EXPIRE_COUNT 5
@@ -202,25 +203,6 @@ public:
    void haltThreads(void);
    BDVCommandProcessingResultType processPayload(std::shared_ptr<BDV_Payload>&,
       std::shared_ptr<::google::protobuf::Message>&);
-};
-
-class Clients;
-
-///////////////////////////////////////////////////////////////////////////////
-class ZeroConfCallbacks_BDV : public ZeroConfCallbacks
-{
-private:
-   Clients * clientsPtr_;
-
-public:
-   ZeroConfCallbacks_BDV(Clients* clientsPtr) :
-      clientsPtr_(clientsPtr)
-   {}
-
-   std::set<std::string> hasScrAddr(const BinaryDataRef&) const override;
-   void pushZcNotification(ZeroConfContainer::NotificationPacket&) override;
-   void pushZcError(const std::string&, const BinaryData&, 
-      ArmoryErrorCodes, const std::string&, const std::string&) override;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

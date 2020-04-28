@@ -17,6 +17,7 @@
 #include "LedgerEntry.h"
 #include "ZeroConf.h"
 #include "nodeRPC.h"
+#include "ZeroConfNotifications.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_Notification
@@ -72,10 +73,10 @@ struct BDV_Notification_NewBlock : public BDV_Notification
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_Notification_ZC : public BDV_Notification
 {
-   const ZeroConfContainer::NotificationPacket packet_;
+   const ZcNotificationPacket packet_;
    std::vector<LedgerEntry> leVec_;
 
-   BDV_Notification_ZC(ZeroConfContainer::NotificationPacket& packet) :
+   BDV_Notification_ZC(ZcNotificationPacket& packet) :
       BDV_Notification(packet.bdvID_), packet_(std::move(packet))
    {}
 
@@ -90,12 +91,12 @@ struct BDV_Notification_Refresh : public BDV_Notification
 {
    const BDV_refresh refresh_;
    const BinaryData refreshID_;
-   ZeroConfContainer::NotificationPacket zcPacket_;
+   ZcNotificationPacket zcPacket_;
 
    BDV_Notification_Refresh(const std::string& bdvID,
       BDV_refresh refresh, const BinaryData& refreshID) :
       BDV_Notification(bdvID),
-      refresh_(refresh), refreshID_(refreshID), zcPacket_(bdvID, "")
+      refresh_(refresh), refreshID_(refreshID), zcPacket_(bdvID)
    {}
 
    BDV_Action action_type(void)

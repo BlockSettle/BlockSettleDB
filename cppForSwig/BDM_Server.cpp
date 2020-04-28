@@ -2029,37 +2029,7 @@ void BDV_Server_Object::processNotification(
    {
       auto&& payload =
          dynamic_pointer_cast<BDV_Notification_ZC>(notifPtr);
-
-      if (payload->leVec_.size() > 0)
-      {
-         auto notif = callbackPtr->add_notification();
-         notif->set_type(NotificationType::zc);
-         auto ledgers = notif->mutable_ledgers();
-
-         for (auto& le : payload->leVec_)
-         {
-            auto ledger_entry = ledgers->add_values();
-            le.fillMessage(ledger_entry);
-         }
-
-         if (!payload->packet_.requestID_.empty())
-            notif->set_requestid(payload->packet_.requestID_);
-      }
-
-      if (payload->packet_.purgePacket_ != nullptr &&
-         payload->packet_.purgePacket_->invalidatedZcKeys_.size() != 0)
-      {
-         auto notif = callbackPtr->add_notification();
-         notif->set_type(NotificationType::invalidated_zc);
-
-
-         auto ids = notif->mutable_ids();
-         for (auto& id : payload->packet_.purgePacket_->invalidatedZcKeys_)
-         {
-            auto idPtr = ids->add_value();
-            idPtr->set_data(id.second.getPtr(), id.second.getSize());
-         }
-      }
+      payload->packet_.toProtobufNotification(callbackPtr, payload->leVec_);
 
       break;
    }
@@ -2923,12 +2893,12 @@ void Clients::broadcastThroughRPC()
       vector<BinaryData> hashes = { tx.getThisHash() };
       auto zcPtr = bdmT_->bdm()->zeroConfCont();
       auto batchPtr = zcPtr->actionQueue()->initiateZcBatch(
-            hashes, 
-            0, //no timeout, this batch promise has to be set to progress
-            nullptr, //no error callback
-            false, //we dont want to handle watcher node invs for these zc
-            packet.bdvPtr_->getID(),
-            packet.requestID_);
+         hashes, 
+         0, //no timeout, this batch promise has to be set to progress
+         nullptr, //no error callback
+         false, //we dont want to handle watcher node invs for these zc
+         packet.bdvPtr_->getID(),
+         packet.requestID_);
 
       //push to rpc
       string verbose;
@@ -3401,64 +3371,6 @@ shared_ptr<::Codec_BDVCommand::BDVCallback> UnitTest_Callback::getNotification()
    {}
 
    return nullptr;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-//
-// ZeroConfCallbacks
-//
-///////////////////////////////////////////////////////////////////////////////
-set<string> ZeroConfCallbacks_BDV::hasScrAddr(const BinaryDataRef& addr) const
-{
-   //this is slow needs improved
-   set<string> result;
-   auto bdvPtr = clientsPtr_->BDVs_.get();
-
-   for (auto& bdv_pair : *bdvPtr)
-   {
-      if (bdv_pair.second->hasScrAddress(addr))
-         result.insert(bdv_pair.first);
-   }
-
-   return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void ZeroConfCallbacks_BDV::pushZcNotification(
-   ZeroConfContainer::NotificationPacket& packet)
-{
-   auto bdvMap = clientsPtr_->BDVs_.get();
-   auto iter = bdvMap->find(packet.bdvID_);
-   if (iter == bdvMap->end())
-   {
-      LOGWARN << "pushed zc notification with invalid bdvid";
-      return;
-   }
-
-   auto notifPacket = make_shared<BDV_Notification_Packet>();
-   notifPacket->bdvPtr_ = iter->second;
-   notifPacket->notifPtr_ = make_shared<BDV_Notification_ZC>(packet);
-   clientsPtr_->innerBDVNotifStack_.push_back(move(notifPacket));
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void ZeroConfCallbacks_BDV::pushZcError(const string& bdvID, 
-   const BinaryData& hash, ArmoryErrorCodes errCode, const string& verbose,
-   const string& requestID)
-{
-   auto bdvMap = clientsPtr_->BDVs_.get();
-   auto iter = bdvMap->find(bdvID);
-   if (iter == bdvMap->end())
-   {
-      LOGWARN << "pushed zc error with invalid bdvid";
-      return;
-   }
-
-   auto notifPacket = make_shared<BDV_Notification_Packet>();
-   notifPacket->bdvPtr_ = iter->second;
-   notifPacket->notifPtr_ = make_shared<BDV_Notification_Error>(
-      bdvID, requestID, (int)errCode, hash, verbose);
-   clientsPtr_->innerBDVNotifStack_.push_back(move(notifPacket));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

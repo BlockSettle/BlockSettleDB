@@ -5,7 +5,7 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016-2018, goatpig                                          //            
+//  Copyright (C) 2016-2020, goatpig                                          //            
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
 //                                                                            //
@@ -25,6 +25,7 @@
 #include "Blockchain.h"
 #include "ScrAddrFilter.h"
 #include "ArmoryErrors.h"
+#include "ZeroConfNotifications.h"
 
 #define GETZC_THREADCOUNT 5
 
@@ -323,26 +324,6 @@ struct RejectPacket : public ZcGetPacket
    {}
 };
 
-
-////////////////////////////////////////////////////////////////////////////////
-struct ParsedZCData
-{
-   std::set<BinaryData> txioKeys_;
-   std::map<BinaryData, BinaryData> invalidatedKeys_;
-
-   void mergeTxios(ParsedZCData& pzd)
-   {
-      txioKeys_.insert(pzd.txioKeys_.begin(), pzd.txioKeys_.end());
-   }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-struct ZcPurgePacket
-{
-   std::map<BinaryData, BinaryData> invalidatedZcKeys_;
-   std::map<BinaryData, BinaryData> minedTxioKeys_;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 struct ZcUpdateBatch
 {
@@ -386,22 +367,6 @@ struct ZeroConfSharedStateSnapshot
 
       return ss;
    }
-};
-
-class ZeroConfCallbacks;
-
-////////////////////////////////////////////////////////////////////////////////
-struct WatcherTxBody
-{
-   std::shared_ptr<BinaryData> rawTxPtr_;
-   bool inved_ = false;
-
-   //<request id, bdv id>
-   std::map<std::string, std::string> extraRequestors_;
-
-   WatcherTxBody(std::shared_ptr<BinaryData> rawTx) :
-      rawTxPtr_(rawTx)
-   {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -479,24 +444,6 @@ private:
       std::map<std::string, ParsedZCData> flaggedBDVs_;
 
       bool isEmpty(void) { return scrAddrTxioMap_.size() == 0; }
-   };
-
-public:
-   struct NotificationPacket
-   {
-      std::string bdvID_;
-      std::map<BinaryDataRef, std::map<BinaryDataRef, std::shared_ptr<TxIOPair>>> txioMap_;
-      std::shared_ptr<ZcPurgePacket> purgePacket_;
-      std::shared_ptr<std::map<BinaryData, std::shared_ptr<std::set<BinaryDataRef>>>>
-         newKeysAndScrAddr_;
-      std::string requestID_;
-
-      //keep a reference to the snapshot so that other references live as long as this object
-      std::shared_ptr<ZeroConfSharedStateSnapshot> ssPtr_;
-
-      NotificationPacket(const std::string& bdvID, const std::string& requestID) :
-         bdvID_(bdvID), requestID_(requestID)
-      {}
    };
 
 private:
@@ -604,7 +551,8 @@ public:
       std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> zcMap,
       std::shared_ptr<ZeroConfSharedStateSnapshot>,
       bool updateDB, bool notify,
-      const std::pair<std::string, std::string>&);
+      const std::pair<std::string, std::string>&,
+      std::map<BinaryData, WatcherTxBody>&);
    bool isTxOutSpentByZC(const BinaryData& dbKey) const;
 
    void clear(void);
@@ -660,19 +608,6 @@ public:
       std::shared_ptr<ZeroConfSharedStateSnapshot>);
 
    ZcActionQueue* const actionQueue(void) const { return actionQueue_.get(); }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-class ZeroConfCallbacks
-{
-public:
-   virtual ~ZeroConfCallbacks(void) = 0;
-
-   virtual std::set<std::string> hasScrAddr(const BinaryDataRef&) const = 0;
-   virtual void pushZcNotification(
-      ZeroConfContainer::NotificationPacket& packet) = 0;
-   virtual void pushZcError(const std::string&, const BinaryData&, 
-      ArmoryErrorCodes, const std::string&, const std::string&) = 0;
 };
 
 #endif
