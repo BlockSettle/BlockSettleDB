@@ -28,6 +28,9 @@ enum class ArmoryErrorCodes : int
     ZcBatch_Timeout                 = 30000,
     ZcBroadcast_AlreadyInMempool    = 30001,
 
+    //client already has a pending broadcast request for this zc
+    ZcBroadcast_Pending             = 30002, 
+
     //rpc code errors
     RPCFailure_Unknown  = 40000,
     RPCFailure_JSON     = 40001, //bitcoin node return is not JSON 
