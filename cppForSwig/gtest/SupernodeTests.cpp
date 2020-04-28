@@ -4577,7 +4577,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    auto&& ZChash2 = BtcUtils::getHash256(ZC2);
 
    vector<BinaryData> zcVec = {ZC1, ZC2};
-   bdvObj->broadcastZC(zcVec);
+   auto broadcastID = bdvObj->broadcastZC(zcVec);
    
    {
       set<BinaryData> zcHashes = { ZChash1, ZChash2 };
@@ -4591,7 +4591,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
       for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
          scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
 
-      pCallback->waitOnZc(zcHashes, scrAddrSet);
+      pCallback->waitOnZc(zcHashes, scrAddrSet, broadcastID);
    }
 
    //get the new ledgers
@@ -4849,22 +4849,23 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
    auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
    auto&& ZChash2 = BtcUtils::getHash256(ZC2);
 
-   bdvObj->broadcastThroughRPC(ZC1);
-   bdvObj->broadcastThroughRPC(ZC2);
+   auto broadcastId1 = bdvObj->broadcastThroughRPC(ZC1);
+   auto broadcastId2 = bdvObj->broadcastThroughRPC(ZC2);
    
    {
       set<BinaryData> zcHashes = { ZChash1, ZChash2 };
-      set<BinaryData> scrAddrSet;
+      set<BinaryData> scrAddrSet1, scrAddrSet2;
 
       Tx zctx1(ZC1);
       for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx1.getScrAddrForTxOut(i));
+         scrAddrSet1.insert(zctx1.getScrAddrForTxOut(i));
 
       Tx zctx2(ZC2);
       for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
+         scrAddrSet2.insert(zctx2.getScrAddrForTxOut(i));
 
-      pCallback->waitOnZc(zcHashes, scrAddrSet);
+      pCallback->waitOnZc({ZChash1}, scrAddrSet1, broadcastId1);
+      pCallback->waitOnZc({ZChash2}, scrAddrSet2, broadcastId2);
    }
 
    //get the new ledgers
@@ -5136,22 +5137,22 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
    //both these zc will be skipped by the p2p broadcast interface,
    //should trigger a RPC broadcast
    nodePtr_->skipZc(2);
-   bdvObj->broadcastZC(ZC1);
-   bdvObj->broadcastZC(ZC2);
+   auto broadcastId1 = bdvObj->broadcastZC(ZC1);
+   auto broadcastId2 = bdvObj->broadcastZC(ZC2);
    
    {
-      set<BinaryData> zcHashes = { ZChash1, ZChash2 };
-      set<BinaryData> scrAddrSet;
+      set<BinaryData> scrAddrSet1, scrAddrSet2;
 
       Tx zctx1(ZC1);
       for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx1.getScrAddrForTxOut(i));
+         scrAddrSet1.insert(zctx1.getScrAddrForTxOut(i));
 
       Tx zctx2(ZC2);
       for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
+         scrAddrSet2.insert(zctx2.getScrAddrForTxOut(i));
 
-      pCallback->waitOnZc(zcHashes, scrAddrSet);
+      pCallback->waitOnZc({ZChash1}, scrAddrSet1, broadcastId1);
+      pCallback->waitOnZc({ZChash2}, scrAddrSet2, broadcastId2);
    }
 
    //get the new ledgers
@@ -5413,7 +5414,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
    //should trigger a RPC broadcast
    nodePtr_->skipZc(2);
    vector<BinaryData> zcVec = {ZC1, ZC2};
-   bdvObj->broadcastZC(zcVec);
+   auto broadcastId1 = bdvObj->broadcastZC(zcVec);
    
    {
       set<BinaryData> zcHashes = { ZChash1, ZChash2 };
@@ -5427,7 +5428,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
       for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
          scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
 
-      pCallback->waitOnZc(zcHashes, scrAddrSet);
+      pCallback->waitOnZc(zcHashes, scrAddrSet, broadcastId1);
    }
 
    //get the new ledgers
@@ -5686,30 +5687,32 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
    auto&& ZChash2 = BtcUtils::getHash256(ZC2);
 
    //pushZC
-   bdvObj->broadcastZC(ZC1);
-   bdvObj->broadcastZC(ZC2);
+   auto broadcastId1 = bdvObj->broadcastZC(ZC1);
+   auto broadcastId2 = bdvObj->broadcastZC(ZC2);
    
    {
-      set<BinaryData> zcHashes = { ZChash1, ZChash2 };
-      set<BinaryData> scrAddrSet;
+      set<BinaryData> scrAddrSet1, scrAddrSet2;
 
       Tx zctx1(ZC1);
       for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx1.getScrAddrForTxOut(i));
+         scrAddrSet1.insert(zctx1.getScrAddrForTxOut(i));
 
       Tx zctx2(ZC2);
       for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
+         scrAddrSet2.insert(zctx2.getScrAddrForTxOut(i));
 
-      pCallback->waitOnZc(zcHashes, scrAddrSet);
+      pCallback->waitOnZc({ZChash1}, scrAddrSet1, broadcastId1);
+      pCallback->waitOnZc({ZChash2}, scrAddrSet2, broadcastId2);
    }
 
    //push them again, should get already in mempool error
-   bdvObj->broadcastZC(ZC1);
-   bdvObj->broadcastZC(ZC2);
+   auto broadcastId3 = bdvObj->broadcastZC(ZC1);
+   auto broadcastId4 = bdvObj->broadcastZC(ZC2);
 
-   pCallback->waitOnError(ZChash1, ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-   pCallback->waitOnError(ZChash2, ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
+   pCallback->waitOnError(
+      ZChash1, ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId3);
+   pCallback->waitOnError(
+      ZChash2, ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId4);
 
    //get the new ledgers
    auto ledger2_prom =
@@ -5967,7 +5970,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
    auto&& ZChash2 = BtcUtils::getHash256(ZC2);
 
    //push the first zc
-   bdvObj->broadcastZC(ZC1);
+   auto broadcastId1 = bdvObj->broadcastZC(ZC1);
    
    {
       set<BinaryData> zcHashes = { ZChash1 };
@@ -5977,12 +5980,13 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
       for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
          scrAddrSet.insert(zctx1.getScrAddrForTxOut(i));
 
-      pCallback->waitOnZc(zcHashes, scrAddrSet);
+      pCallback->waitOnZc(zcHashes, scrAddrSet, broadcastId1);
    }
 
    //push them again, should get already in mempool error for first zc, notif for 2nd
-   bdvObj->broadcastZC( { ZC1, ZC2 } );
-   pCallback->waitOnError(ZChash1, ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
+   auto broadcastId2 = bdvObj->broadcastZC( { ZC1, ZC2 } );
+   pCallback->waitOnError(
+      ZChash1, ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId2);
 
    {
       set<BinaryData> zcHashes = { ZChash2 };
@@ -5992,7 +5996,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
       for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
          scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
 
-      pCallback->waitOnZc(zcHashes, scrAddrSet);
+      pCallback->waitOnZc(zcHashes, scrAddrSet, broadcastId2);
    }
 
    //get the new ledgers
@@ -6263,7 +6267,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
    auto&& ZChash2 = BtcUtils::getHash256(ZC2);
 
    vector<BinaryData> zcVec = {ZC1, ZC2};
-   bdvObj->broadcastZC(zcVec);
+   auto broadcastId1 = bdvObj->broadcastZC(zcVec);
    
    {
       set<BinaryData> zcHashes = { ZChash1, ZChash2 };
@@ -6277,7 +6281,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
       for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
          scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
 
-      pCallback->waitOnZc(zcHashes, scrAddrSet);
+      pCallback->waitOnZc(zcHashes, scrAddrSet, broadcastId1);
    }
 
    //get the new ledgers
@@ -6650,32 +6654,33 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
       auto bd_FtoD = makeTxFromUtxo(utxoF, TestChain::scrAddrA);
 
       //broadcast
-      bdvObj->broadcastZC(bd_BtoC);
-      bdvObj->broadcastZC(bd_FtoD);
+      auto broadcastId1 = bdvObj->broadcastZC(bd_BtoC);
+      auto broadcastId2 = bdvObj->broadcastZC(bd_FtoD);
 
-      set<BinaryData> hashes, scrAddrSet;
+      set<BinaryData> scrAddrSet1, scrAddrSet2;
       
       {
          Tx tx1(bd_BtoC);
-         hashes.insert(tx1.getThisHash());
          
          Tx tx2(bd_FtoD);
-         hashes.insert(tx2.getThisHash());
          
-         scrAddrSet.insert(TestChain::scrAddrA);
-         scrAddrSet.insert(TestChain::scrAddrB);
-         scrAddrSet.insert(TestChain::scrAddrC);
-         scrAddrSet.insert(TestChain::scrAddrF);
-         pCallback->waitOnZc(hashes, scrAddrSet);
+         scrAddrSet1.insert(TestChain::scrAddrB);
+         scrAddrSet1.insert(TestChain::scrAddrC);
+
+         scrAddrSet2.insert(TestChain::scrAddrF);
+         scrAddrSet2.insert(TestChain::scrAddrA);
+
+         pCallback->waitOnZc({tx1.getThisHash()}, scrAddrSet1, broadcastId1);
+         pCallback->waitOnZc({tx2.getThisHash()}, scrAddrSet2, broadcastId2);
       }
 
       //tx from B to A, should fail with RBF low fee
       auto bd_BtoA = makeTx(TestChain::scrAddrB, TestChain::scrAddrA);
       Tx tx(bd_BtoA);
 
-      bdvObj->broadcastZC(bd_BtoA);
+      auto broadcastId3 = bdvObj->broadcastZC(bd_BtoA);
       pCallback->waitOnError(tx.getThisHash(), 
-         ArmoryErrorCodes::P2PReject_InsufficientFee);
+         ArmoryErrorCodes::P2PReject_InsufficientFee, broadcastId3);
  
       //mine
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA, 1);
@@ -8273,7 +8278,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    zcAddresses.insert(TestChain::scrAddrC);
    zcAddresses.insert(TestChain::scrAddrE);
 
-   pCallback->waitOnZc(zcHashes, zcAddresses);
+   pCallback->waitOnZc(zcHashes, zcAddresses, "");
 
    //grab them
    auto&& txObj4 = getTxLbd(tx1.getThisHash()).get();
@@ -8336,22 +8341,26 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    }
 
    //push the 2 zc through the rpc
-   bdvObj->broadcastThroughRPC(rawTx3);
-   bdvObj->broadcastThroughRPC(rawTx4);
+   auto broadcastId1 = bdvObj->broadcastThroughRPC(rawTx3);
+   auto broadcastId2 = bdvObj->broadcastThroughRPC(rawTx4);
 
    //wait on them
    Tx tx3(rawTx3);
    Tx tx4(rawTx4);
    zcHashes.clear();
-   zcHashes = {tx3.getThisHash(), tx4.getThisHash()};
 
-   zcAddresses.clear();
-   zcAddresses.insert(TestChain::scrAddrA);
-   zcAddresses.insert(TestChain::scrAddrC);
-   zcAddresses.insert(TestChain::scrAddrD);
-   zcAddresses.insert(TestChain::scrAddrE);
+   set<BinaryData> zcAddresses1;
+   zcAddresses1.insert(TestChain::scrAddrA);
+   zcAddresses1.insert(TestChain::scrAddrC);
+   zcAddresses1.insert(TestChain::scrAddrE);
 
-   pCallback->waitOnZc(zcHashes, zcAddresses);
+   set<BinaryData> zcAddresses2;
+   zcAddresses2.insert(TestChain::scrAddrD);
+   zcAddresses2.insert(TestChain::scrAddrC);
+   zcAddresses2.insert(TestChain::scrAddrE);
+
+   pCallback->waitOnZc({tx3.getThisHash()}, zcAddresses1, broadcastId1);
+   pCallback->waitOnZc({tx4.getThisHash()}, zcAddresses2, broadcastId2);
 
    //grab them
    auto&& txObj6 = getTxLbd(tx3.getThisHash()).get();
@@ -9294,7 +9303,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
       }
 
       //batch push tx
-      bdvObj->broadcastZC({ rawTx1, rawTx2, rawTx3 });
+      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1, rawTx2, rawTx3 });
 
       Tx tx1(rawTx1);
       Tx tx2(rawTx2);
@@ -9313,7 +9322,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
       scrAddrSet.insert(TestChain::scrAddrE);
       scrAddrSet.insert(TestChain::scrAddrF);
 
-      pCallback->waitOnZc(txHashes, scrAddrSet);
+      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
 
       //check balances
       combineBalances = getBalances();
@@ -9610,7 +9619,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
       Tx tx3(rawTx3);
 
       //push first tx
-      bdvObj->broadcastZC(rawTx1);
+      auto broadcastId1 = bdvObj->broadcastZC(rawTx1);
 
       set<BinaryData> txHashes;
       txHashes.insert(tx1.getThisHash());
@@ -9620,10 +9629,10 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
       scrAddrSet.insert(TestChain::scrAddrB);
       scrAddrSet.insert(TestChain::scrAddrD);
 
-      pCallback->waitOnZc(txHashes, scrAddrSet);
+      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
 
       //batch push all tx
-      bdvObj->broadcastZC({ rawTx1, rawTx2, rawTx3 });
+      auto broadcastId2 = bdvObj->broadcastZC({ rawTx1, rawTx2, rawTx3 });
       
       txHashes.clear();
       txHashes.insert(tx2.getThisHash());
@@ -9638,10 +9647,10 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 
       //wait on already in mempool error
       pCallback->waitOnError(tx1.getThisHash(), 
-         ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
+         ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId2);
 
       //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet);
+      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId2);
 
       //check balances
       combineBalances = getBalances();
@@ -9967,7 +9976,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
       DBTestUtils::pushNewZc(theBDMt_, zcVec, true);
 
       //batch push all tx
-      bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
+      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
       
       set<BinaryData> txHashes;
       txHashes.insert(tx1_B.getThisHash());
@@ -9984,7 +9993,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
       scrAddrSet.insert(TestChain::scrAddrF);
 
       //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet);
+      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
 
       //check balances
       combineBalances = getBalances();
@@ -10314,7 +10323,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
       pCallback->waitOnSignal(BDMAction_NewBlock);
 
       //batch push all tx
-      bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
+      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
       
       set<BinaryData> txHashes;
       txHashes.insert(tx1_C.getThisHash());
@@ -10329,7 +10338,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
       scrAddrSet.insert(TestChain::scrAddrF);
 
       //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet);
+      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
 
       //check balances
       combineBalances = getBalances();
@@ -10653,7 +10662,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
       nodePtr_->presentZcHash(tx2.getThisHash());
 
       //batch push all tx
-      bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
+      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
       
       set<BinaryData> txHashes;
       txHashes.insert(tx1_B.getThisHash());
@@ -10670,7 +10679,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
       scrAddrSet.insert(TestChain::scrAddrF);
 
       //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet);
+      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
 
       //check balances
       combineBalances = getBalances();
@@ -10979,7 +10988,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
       Tx tx3(rawTx3);
 
       //batch push all tx
-      bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
+      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
       
       set<BinaryData> txHashes;
       txHashes.insert(tx1_B.getThisHash());
@@ -10996,10 +11005,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
       scrAddrSet.insert(TestChain::scrAddrF);
 
       //wait on zc error for conflicting child
-      pCallback->waitOnError(tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected);
+      pCallback->waitOnError(
+         tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
 
       //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet);
+      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
 
       //check balances
       combineBalances = getBalances();
@@ -11317,14 +11327,14 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
          scrAddrSet.insert(TestChain::scrAddrD);
 
          //push the first zc
-         bdvObj->broadcastZC(rawTx1_B);
+         auto broadcastId1 = bdvObj->broadcastZC(rawTx1_B);
 
          //wait on notification
-         pCallback->waitOnZc(txHashes, scrAddrSet);
+         pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
       }
          
       //batch push all tx
-      bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
+      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
       
       set<BinaryData> txHashes;
       txHashes.insert(tx1_C.getThisHash());
@@ -11338,10 +11348,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
       scrAddrSet.insert(TestChain::scrAddrF);
 
       //wait on zc error for conflicting child
-      pCallback->waitOnError(tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected);
+      pCallback->waitOnError(
+         tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
 
       //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet);
+      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
 
       //check balances
       combineBalances = getBalances();
@@ -11665,12 +11676,12 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
          nodePtr_->pushZC({ {rawTx1_B, 0}, {rawTx2, 0} }, false);
 
          //wait on notification
-         pCallback->waitOnZc(txHashes, scrAddrSet);
+         pCallback->waitOnZc(txHashes, scrAddrSet, "");
       }
          
       //batch push first zc (already in chain), C (unrelated) 
       //and tx3 (child of first, mempool conflict with tx2)
-      bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx3 });
+      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx3 });
       
       set<BinaryData> txHashes;
       txHashes.insert(tx1_C.getThisHash());
@@ -11680,10 +11691,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
       scrAddrSet.insert(TestChain::scrAddrE);
 
       //wait on zc error for conflicting child
-      pCallback->waitOnError(tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected);
+      pCallback->waitOnError(
+         tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
 
       //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet);
+      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
 
       //check balances
       combineBalances = getBalances();
@@ -12006,15 +12018,15 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
          scrAddrSet.insert(TestChain::scrAddrF);
 
          //push the first zc and its child
-         bdvObj->broadcastZC({ rawTx1_B, rawTx2 });
+         auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx2 });
 
          //wait on notification
-         pCallback->waitOnZc(txHashes, scrAddrSet);
+         pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
       }
          
       //batch push first zc (already in chain), C (unrelated) 
       //and tx3 (child of first & C, mempool conflict with tx2 on utxo from first)
-      bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx3 });
+      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx3 });
       
       set<BinaryData> txHashes;
       txHashes.insert(tx1_C.getThisHash());
@@ -12024,10 +12036,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
       scrAddrSet.insert(TestChain::scrAddrE);
 
       //wait on zc error for conflicting child
-      pCallback->waitOnError(tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected);
+      pCallback->waitOnError(
+         tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
 
       //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet);
+      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
 
       //check balances
       combineBalances = getBalances();
@@ -12131,15 +12144,599 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastAlreadyMinedTx)
       auto&& ZChash2 = BtcUtils::getHash256(ZC2);
 
       //try and broadcast both
-      bdvObj->broadcastZC({ZC1, ZC2});
+      auto broadcastId1 = bdvObj->broadcastZC({ZC1, ZC2});
 
       //wait on zc errors
       pCallback->waitOnError(ZChash1, 
-         ArmoryErrorCodes::ZcBroadcast_AlreadyInChain);
+         ArmoryErrorCodes::ZcBroadcast_AlreadyInChain, broadcastId1);
       
       pCallback->waitOnError(ZChash2, 
-         ArmoryErrorCodes::ZcBroadcast_AlreadyInChain);
+         ArmoryErrorCodes::ZcBroadcast_AlreadyInChain, broadcastId1);
    }
+
+   //cleanup
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+   bdvObj2->addPublicKey(serverPubkey);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
+   WebSocketServer::waitOnShutdown();
+
+   delete theBDMt_;
+   theBDMt_ = nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
+{
+   struct WSClient
+   {
+      shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_;
+      AsyncClient::BtcWallet wlt_;
+      shared_ptr<DBTestUtils::UTCallback> callbackPtr_;
+
+      WSClient(
+         shared_ptr<AsyncClient::BlockDataViewer> bdvPtr, 
+         AsyncClient::BtcWallet& wlt,
+         shared_ptr<DBTestUtils::UTCallback> callbackPtr) :
+         bdvPtr_(bdvPtr), wlt_(move(wlt)), callbackPtr_(callbackPtr)
+      {}
+   };
+
+   //public server
+   startupBIP150CTX(4, true);
+
+   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
+   theBDMt_->start(config.initMode_);
+
+   //create BDV lambda
+   auto setupBDV = [this, &serverPubkey](void)->shared_ptr<WSClient>
+   {
+      auto pCallback = make_shared<DBTestUtils::UTCallback>();
+      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      bdvObj->addPublicKey(serverPubkey);
+      bdvObj->connectToRemote();
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+
+      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+
+      vector<BinaryData> _scrAddrVec1;
+      _scrAddrVec1.push_back(TestChain::scrAddrA);
+      _scrAddrVec1.push_back(TestChain::scrAddrB);
+      _scrAddrVec1.push_back(TestChain::scrAddrC);
+      _scrAddrVec1.push_back(TestChain::scrAddrD);
+      _scrAddrVec1.push_back(TestChain::scrAddrE);
+      _scrAddrVec1.push_back(TestChain::scrAddrF);
+
+      vector<string> walletRegIDs;
+      walletRegIDs.push_back(
+         wallet1.registerAddresses(_scrAddrVec1, false));
+
+      //wait on registration ack
+      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+      //go online
+      bdvObj->goOnline();
+      pCallback->waitOnSignal(BDMAction_Ready);
+
+      auto client = make_shared<WSClient>(bdvObj, wallet1, pCallback);
+      return client;
+   };
+
+   //create main bdv instance
+   auto mainInstance = setupBDV();
+
+   /*
+   create a batch of zc with chains:
+      1-2-3
+      1-4 (4 conflicts with 2)
+      5-6
+      7
+   */
+
+   vector<BinaryData> rawTxVec, zcHashes;
+   map<BinaryData, map<unsigned, UTXO>> outputMap;
+   {
+      //instantiate resolver feed overloaded object
+      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
+
+      auto addToFeed = [feed](const BinaryData& key)->void
+      {
+         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
+         feed->h160ToPubKey_.insert(datapair);
+         feed->pubKeyToPrivKey_[datapair.second] = key;
+      };
+
+      addToFeed(TestChain::privKeyAddrB);
+      addToFeed(TestChain::privKeyAddrC);
+      addToFeed(TestChain::privKeyAddrD);
+      addToFeed(TestChain::privKeyAddrE);
+      addToFeed(TestChain::privKeyAddrF);
+
+      //utxo from raw tx lambda
+      auto getUtxoFromRawTx = [&outputMap](BinaryData& rawTx, unsigned id)->UTXO
+      {
+         Tx tx(rawTx);
+         if (id > tx.getNumTxOut())
+            throw runtime_error("invalid txout count");
+
+         auto&& txOut = tx.getTxOutCopy(id);
+
+         UTXO utxo;
+         utxo.unserializeRaw(txOut.serialize());
+         utxo.txOutIndex_ = id;
+         utxo.txHash_ = tx.getThisHash();
+
+         auto& idMap = outputMap[utxo.txHash_];
+         idMap[id] = utxo;
+
+         return utxo;
+      };
+
+      //grab utxos for scrAddrB, scrAddrC, scrAddrE
+      auto promUtxo = make_shared<promise<vector<UTXO>>>();
+      auto futUtxo = promUtxo->get_future();
+      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
+      {
+         promUtxo->set_value(msg.get());
+      };
+
+      mainInstance->wlt_.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
+      vector<UTXO> utxosB, utxosC, utxosE;
+      {
+         auto&& utxoVec = futUtxo.get();
+         for (auto& utxo : utxoVec)
+         {
+            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
+               utxosB.push_back(utxo);
+            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
+               utxosC.push_back(utxo);
+            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrE)
+               utxosE.push_back(utxo);
+
+            auto& idMap = outputMap[utxo.txHash_];
+            idMap[utxo.txOutIndex_] = utxo;
+         }
+      }
+
+      ASSERT_FALSE(utxosB.empty());
+      ASSERT_FALSE(utxosC.empty());
+      ASSERT_FALSE(utxosE.empty());
+
+      /*create the transactions*/
+
+      //1
+      {
+         //20 from B, 5 to A, change to D
+         Signer signer;
+
+         auto spender = make_shared<ScriptSpender>(utxosB[0]);
+         signer.addSpender(spender);
+
+         auto recA = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
+         signer.addRecipient(recA);
+
+         auto recChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrD.getSliceCopy(1, 20), 
+            spender->getValue() - recA->getValue());
+         signer.addRecipient(recChange);
+
+         signer.setFeed(feed);
+         signer.sign();
+         rawTxVec.push_back(signer.serialize());
+         Tx tx(rawTxVec.back());
+         zcHashes.push_back(tx.getThisHash());
+      }
+
+      //2
+      {
+         auto utxoD = getUtxoFromRawTx(rawTxVec[0], 1);
+
+         //15 from D, 10 to E, change to F
+         Signer signer;
+
+         auto spender = make_shared<ScriptSpender>(utxoD);
+         signer.addSpender(spender);
+
+         auto recE = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
+         signer.addRecipient(recE);
+
+         auto recChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrF.getSliceCopy(1, 20), 
+            spender->getValue() - recE->getValue());
+         signer.addRecipient(recChange);
+
+         signer.setFeed(feed);
+         signer.sign();
+         rawTxVec.push_back(signer.serialize());
+         Tx tx(rawTxVec.back());
+         zcHashes.push_back(tx.getThisHash());
+      }
+      
+      //3
+      {
+         auto utxoF = getUtxoFromRawTx(rawTxVec[1], 1);
+
+         //5 from F, 5 to B
+         Signer signer;
+
+         auto spender = make_shared<ScriptSpender>(utxoF);
+         signer.addSpender(spender);
+
+         auto recB = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrB.getSliceCopy(1, 20), 5 * COIN);
+         signer.addRecipient(recB);
+
+         signer.setFeed(feed);
+         signer.sign();
+         rawTxVec.push_back(signer.serialize());
+         Tx tx(rawTxVec.back());
+         zcHashes.push_back(tx.getThisHash());
+      }
+
+      //4
+      {
+         auto utxoA = getUtxoFromRawTx(rawTxVec[0], 1);
+
+         //15 from D, 14 to C
+         Signer signer;
+
+         auto spender = make_shared<ScriptSpender>(utxoA);
+         signer.addSpender(spender);
+
+         auto recC = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrC.getSliceCopy(1, 20), 14 * COIN);
+         signer.addRecipient(recC);
+
+         signer.setFeed(feed);
+         signer.sign();
+         rawTxVec.push_back(signer.serialize());
+         Tx tx(rawTxVec.back());
+         zcHashes.push_back(tx.getThisHash());
+      }
+
+      //5
+      {
+         //10 from C, 10 to D
+         Signer signer;
+
+         auto spender = make_shared<ScriptSpender>(utxosC[0]);
+         signer.addSpender(spender);
+
+         auto recD = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrD.getSliceCopy(1, 20), 10 * COIN);
+         signer.addRecipient(recD);
+
+         signer.setFeed(feed);
+         signer.sign();
+         rawTxVec.push_back(signer.serialize());
+         Tx tx(rawTxVec.back());
+         zcHashes.push_back(tx.getThisHash());
+      }
+
+      //6
+      {
+         auto utxoD = getUtxoFromRawTx(rawTxVec[4], 0);
+
+         //10 from D, 5 to F, change to A
+         Signer signer;
+
+         auto spender = make_shared<ScriptSpender>(utxoD);
+         signer.addSpender(spender);
+
+         auto recF = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrF.getSliceCopy(1, 20), 5 * COIN);
+         signer.addRecipient(recF);
+
+         auto recChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrA.getSliceCopy(1, 20), 
+            spender->getValue() - recF->getValue());
+         signer.addRecipient(recChange);
+
+         signer.setFeed(feed);
+         signer.sign();
+         rawTxVec.push_back(signer.serialize());
+         Tx tx(rawTxVec.back());
+         zcHashes.push_back(tx.getThisHash());
+      }
+
+      //7
+      {
+         //20 from E, 10 to F, change to A
+         Signer signer;
+
+         auto spender = make_shared<ScriptSpender>(utxosE[0]);
+         signer.addSpender(spender);
+
+         auto recF = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrF.getSliceCopy(1, 20), 10 * COIN);
+         signer.addRecipient(recF);
+
+         auto recChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrA.getSliceCopy(1, 20), 
+            spender->getValue() - recF->getValue());
+         signer.addRecipient(recChange);
+
+         signer.setFeed(feed);
+         signer.sign();
+         rawTxVec.push_back(signer.serialize());
+         Tx tx(rawTxVec.back());
+         zcHashes.push_back(tx.getThisHash());
+      }      
+   }
+
+   //3 case1, 3 case2, 1 case3, 3 case4, 3 case5
+   unsigned N = 13;
+
+   //create N side instances
+   vector<shared_ptr<WSClient>> sideInstances;
+   for (unsigned i=0; i<N; i++)
+      sideInstances.emplace_back(setupBDV());
+
+   //get addresses for tx lambda
+   auto getAddressesForRawTx = [&outputMap](const Tx& tx)->set<BinaryData>
+   {
+      set<BinaryData> addrSet;
+
+      for (unsigned i=0; i<tx.getNumTxIn(); i++)
+      {
+         auto txin = tx.getTxInCopy(i);
+         auto op = txin.getOutPoint();
+
+         auto hashIter = outputMap.find(op.getTxHash());
+         EXPECT_TRUE(hashIter != outputMap.end());
+
+         auto idIter = hashIter->second.find(op.getTxOutIndex());
+         EXPECT_TRUE(idIter != hashIter->second.end());
+
+         auto& utxo = idIter->second;
+         addrSet.insert(utxo.getRecipientScrAddr());
+      }
+
+      for (unsigned i=0; i<tx.getNumTxOut(); i++)
+      {
+         auto txout = tx.getTxOutCopy(i);
+         addrSet.insert(txout.getScrAddressStr());
+      }
+
+      return addrSet;
+   };
+
+   set<BinaryData> mainScrAddrSet;
+   set<BinaryData> mainHashes;   
+   {
+      vector<unsigned> zcIds = {1, 2, 3, 5, 6};
+      for (auto& id : zcIds)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         mainHashes.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         mainScrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }   
+   }
+
+   //case 1
+   auto case1 = [&](unsigned instanceId)->void
+   {
+      auto instance = sideInstances[instanceId];
+
+      //push 1-2-3
+      vector<unsigned> zcIds = {1, 2, 3};
+
+      vector<BinaryData> zcs;
+      for (auto& id : zcIds)
+         zcs.push_back(rawTxVec[id - 1]);
+
+      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
+
+      //wait on broadcast errors
+      map<BinaryData, ArmoryErrorCodes> errorMap;
+      for (auto& id : zcIds)
+         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
+      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
+
+      //wait on zc
+      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+   };
+
+   //case 2
+   auto case2 = [&](unsigned instanceId)->void
+   {
+      auto instance = sideInstances[instanceId];
+
+      //push 5-6
+      vector<unsigned> zcIds = {5, 6};
+
+      vector<BinaryData> zcs;
+      for (auto& id : zcIds)
+         zcs.push_back(rawTxVec[id - 1]);
+
+      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
+
+      //wait on broadcast errors
+      map<BinaryData, ArmoryErrorCodes> errorMap;
+      for (auto& id : zcIds)
+         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
+      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
+
+      //wait on zc
+      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+   };
+
+   //case 3
+   auto case3 = [&](unsigned instanceId)->void
+   {
+      auto instance = sideInstances[instanceId];
+
+      //push 1-4 7
+      auto broadcastId1 = instance->bdvPtr_->broadcastZC({
+         rawTxVec[0], rawTxVec[3],
+         rawTxVec[6]
+      });
+
+      //don't grab 4 as it can't broadcast
+      vector<unsigned> zcIds = {1, 7};
+
+      vector<BinaryData> zcs;
+      for (auto& id : zcIds)
+         zcs.push_back(rawTxVec[id - 1]);
+
+      //wait on broadcast errors
+      instance->callbackPtr_->waitOnError(
+         zcHashes[0], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId1);
+
+      instance->callbackPtr_->waitOnError(
+         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
+
+      //wait on zc
+      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+
+      //wait on 7
+      Tx zc7(rawTxVec[6]);
+      auto&& addrSet = getAddressesForRawTx(zc7);
+      instance->callbackPtr_->waitOnZc({zcHashes[6]}, addrSet, broadcastId1);
+   };
+
+   //case 4
+   auto case4 = [&](unsigned instanceId)->void
+   {
+      auto instance = sideInstances[instanceId];
+
+      //push 5-6 7
+      vector<unsigned> zcIds = {5, 6, 7};
+
+      vector<BinaryData> zcs;
+      set<BinaryData> scrAddrSet;
+      set<BinaryData> hashes;
+      for (auto& id : zcIds)
+      {
+         zcs.push_back(rawTxVec[id - 1]);
+         Tx tx(zcs.back());
+         hashes.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
+      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
+
+      //wait on broadcast errors
+      map<BinaryData, ArmoryErrorCodes> errorMap;
+      for (auto& id : zcIds)
+         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
+      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
+
+      //wait on zc
+      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+   };
+
+   //case 5
+   auto case5 = [&](unsigned instanceId)->void
+   {
+      auto instance = sideInstances[instanceId];
+
+      //push 4 5-6
+      auto broadcastId1 = instance->bdvPtr_->broadcastZC({
+         rawTxVec[3], 
+         rawTxVec[4], rawTxVec[5]
+      });
+
+      //skip 4 as it can't broadcast
+      vector<unsigned> zcIds = {5, 6};
+
+      vector<BinaryData> zcs;
+      set<BinaryData> scrAddrSet;
+      set<BinaryData> hashes;
+      for (auto& id : zcIds)
+      {
+         zcs.push_back(rawTxVec[id - 1]);
+         Tx tx(zcs.back());
+         hashes.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
+      //wait on broadcast errors
+      map<BinaryData, ArmoryErrorCodes> errorMap;
+      for (auto& id : zcIds)
+         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
+      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
+
+      instance->callbackPtr_->waitOnError(
+         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
+
+      //wait on zc
+      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+   };
+
+   //main instance
+   {
+      //set zc inv delay, this will allow for batches in side jobs to 
+      //collide with the original one
+      nodePtr_->stallNextZc(3); //in seconds
+
+      //push 1-2-3 & 5-6
+      vector<unsigned> zcIds = {1, 2, 3, 5, 6};
+
+      vector<BinaryData> zcs;
+      set<BinaryData> scrAddrSet;
+      set<BinaryData> hashes;
+      for (auto& id : zcIds)
+      {
+         zcs.push_back(rawTxVec[id - 1]);
+         Tx tx(zcs.back());
+         hashes.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
+      auto broadcastId1 = mainInstance->bdvPtr_->broadcastZC(zcs);
+      
+      /*
+      delay for 1 second before starts side jobs to make sure the 
+      primary broadcast is first in line
+      */
+      this_thread::sleep_for(chrono::seconds(1));
+
+      //start the side jobs
+      vector<thread> threads;
+      for (unsigned i=0; i<3; i++)
+         threads.push_back(thread(case1, i));
+
+      for (unsigned i=3; i<6; i++)
+         threads.push_back(thread(case2, i));
+
+      //needs case3 to broadcast before case 4
+      threads.push_back(thread(case3, 6));
+      this_thread::sleep_for(chrono::milliseconds(500));
+
+      for (unsigned i=7; i<10; i++)
+         threads.push_back(thread(case4, i));
+
+      for (unsigned i=10; i<13; i++)
+         threads.push_back(thread(case5, i));
+
+      //wait on zc
+      mainInstance->callbackPtr_->waitOnZc(hashes, scrAddrSet, broadcastId1);
+
+      //wait on side jobs
+      for (auto& thr : threads)
+      {
+         if (thr.joinable())
+            thr.join();
+      }
+
+      //done
+   }
+
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
@@ -12523,16 +13120,16 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       for (auto& id : zcIds)
          zcs.push_back(rawTxVec[id - 1]);
 
-      instance->bdvPtr_->broadcastZC(zcs);
+      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
 
       //wait on broadcast errors
       map<BinaryData, ArmoryErrorCodes> errorMap;
       for (auto& id : zcIds)
          errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap);
+      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet);
+      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
    };
 
    //case 2
@@ -12547,16 +13144,16 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       for (auto& id : zcIds)
          zcs.push_back(rawTxVec[id - 1]);
 
-      instance->bdvPtr_->broadcastZC(zcs);
+      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
 
       //wait on broadcast errors
       map<BinaryData, ArmoryErrorCodes> errorMap;
       for (auto& id : zcIds)
          errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap);
+      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet);
+      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
    };
 
    //case 3
@@ -12565,7 +13162,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       auto instance = sideInstances[instanceId];
 
       //push 1-4 7
-      instance->bdvPtr_->broadcastZC({
+      auto broadcastId1 = instance->bdvPtr_->broadcastZC({
          rawTxVec[0], rawTxVec[3],
          rawTxVec[6]
       });
@@ -12579,18 +13176,18 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
       //wait on broadcast errors
       instance->callbackPtr_->waitOnError(
-         zcHashes[0], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
+         zcHashes[0], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId1);
 
       instance->callbackPtr_->waitOnError(
-         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected);
+         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet);
+      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
 
       //wait on 7
       Tx zc7(rawTxVec[6]);
       auto&& addrSet = getAddressesForRawTx(zc7);
-      instance->callbackPtr_->waitOnZc({zcHashes[6]}, addrSet);
+      instance->callbackPtr_->waitOnZc({zcHashes[6]}, addrSet, broadcastId1);
    };
 
    //case 4
@@ -12613,16 +13210,16 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
          scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
       }
 
-      instance->bdvPtr_->broadcastZC(zcs);
+      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
 
       //wait on broadcast errors
       map<BinaryData, ArmoryErrorCodes> errorMap;
       for (auto& id : zcIds)
          errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap);
+      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet);
+      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
    };
 
    //case 5
@@ -12631,7 +13228,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       auto instance = sideInstances[instanceId];
 
       //push 4 5-6
-      instance->bdvPtr_->broadcastZC({
+      auto broadcastId1 = instance->bdvPtr_->broadcastZC({
          rawTxVec[3], 
          rawTxVec[4], rawTxVec[5]
       });
@@ -12655,596 +13252,13 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       map<BinaryData, ArmoryErrorCodes> errorMap;
       for (auto& id : zcIds)
          errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap);
+      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
 
       instance->callbackPtr_->waitOnError(
-         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected);
+         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet);
-   };
-
-   //main instance
-   {
-      //set zc inv delay, this will allow for batches in side jobs to 
-      //collide with the original one
-      nodePtr_->stallNextZc(3); //in seconds
-
-      //push 1-2-3 & 5-6
-      vector<unsigned> zcIds = {1, 2, 3, 5, 6};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> scrAddrSet;
-      set<BinaryData> hashes;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(zcs.back());
-         hashes.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      mainInstance->bdvPtr_->broadcastZC(zcs);
-      
-      /*
-      delay for 1 second before starts side jobs to make sure the 
-      primary broadcast is first in line
-      */
-      this_thread::sleep_for(chrono::seconds(1));
-
-      //start the side jobs
-      vector<thread> threads;
-      for (unsigned i=0; i<3; i++)
-         threads.push_back(thread(case1, i));
-
-      for (unsigned i=3; i<6; i++)
-         threads.push_back(thread(case2, i));
-
-      //needs case3 to broadcast before case 4
-      threads.push_back(thread(case3, 6));
-      this_thread::sleep_for(chrono::milliseconds(500));
-
-      for (unsigned i=7; i<10; i++)
-         threads.push_back(thread(case4, i));
-
-      for (unsigned i=10; i<13; i++)
-         threads.push_back(thread(case5, i));
-
-      //wait on zc
-      mainInstance->callbackPtr_->waitOnZc(hashes, scrAddrSet);
-
-      //wait on side jobs
-      for (auto& thr : threads)
-      {
-         if (thr.joinable())
-            thr.join();
-      }
-
-      //done
-   }
-
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
-{
-   struct WSClient
-   {
-      shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_;
-      AsyncClient::BtcWallet wlt_;
-      shared_ptr<DBTestUtils::UTCallback> callbackPtr_;
-
-      WSClient(
-         shared_ptr<AsyncClient::BlockDataViewer> bdvPtr, 
-         AsyncClient::BtcWallet& wlt,
-         shared_ptr<DBTestUtils::UTCallback> callbackPtr) :
-         bdvPtr_(bdvPtr), wlt_(move(wlt)), callbackPtr_(callbackPtr)
-      {}
-   };
-
-   //public server
-   startupBIP150CTX(4, true);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   //create BDV lambda
-   auto setupBDV = [this, &serverPubkey](void)->shared_ptr<WSClient>
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      auto client = make_shared<WSClient>(bdvObj, wallet1, pCallback);
-      return client;
-   };
-
-   //create main bdv instance
-   auto mainInstance = setupBDV();
-
-   /*
-   create a batch of zc with chains:
-      1-2-3
-      1-4 (4 conflicts with 2)
-      5-6
-      7
-   */
-
-   vector<BinaryData> rawTxVec, zcHashes;
-   map<BinaryData, map<unsigned, UTXO>> outputMap;
-   {
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
-
-      //utxo from raw tx lambda
-      auto getUtxoFromRawTx = [&outputMap](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         auto& idMap = outputMap[utxo.txHash_];
-         idMap[id] = utxo;
-
-         return utxo;
-      };
-
-      //grab utxos for scrAddrB, scrAddrC, scrAddrE
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      mainInstance->wlt_.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB, utxosC, utxosE;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-               utxosB.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
-               utxosC.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrE)
-               utxosE.push_back(utxo);
-
-            auto& idMap = outputMap[utxo.txHash_];
-            idMap[utxo.txOutIndex_] = utxo;
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-      ASSERT_FALSE(utxosC.empty());
-      ASSERT_FALSE(utxosE.empty());
-
-      /*create the transactions*/
-
-      //1
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serialize());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //2
-      {
-         auto utxoD = getUtxoFromRawTx(rawTxVec[0], 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serialize());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-      
-      //3
-      {
-         auto utxoF = getUtxoFromRawTx(rawTxVec[1], 1);
-
-         //5 from F, 5 to B
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoF);
-         signer.addSpender(spender);
-
-         auto recB = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrB.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recB);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serialize());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //4
-      {
-         auto utxoA = getUtxoFromRawTx(rawTxVec[0], 1);
-
-         //15 from D, 14 to C
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoA);
-         signer.addSpender(spender);
-
-         auto recC = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20), 14 * COIN);
-         signer.addRecipient(recC);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serialize());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //5
-      {
-         //10 from C, 10 to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosC[0]);
-         signer.addSpender(spender);
-
-         auto recD = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recD);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serialize());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //6
-      {
-         auto utxoD = getUtxoFromRawTx(rawTxVec[4], 0);
-
-         //10 from D, 5 to F, change to A
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recF = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recF);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 
-            spender->getValue() - recF->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serialize());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //7
-      {
-         //20 from E, 10 to F, change to A
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosE[0]);
-         signer.addSpender(spender);
-
-         auto recF = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recF);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 
-            spender->getValue() - recF->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serialize());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }      
-   }
-
-   //3 case1, 3 case2, 1 case3, 3 case4, 3 case5
-   unsigned N = 13;
-
-   //create N side instances
-   vector<shared_ptr<WSClient>> sideInstances;
-   for (unsigned i=0; i<N; i++)
-      sideInstances.emplace_back(setupBDV());
-
-   //get addresses for tx lambda
-   auto getAddressesForRawTx = [&outputMap](const Tx& tx)->set<BinaryData>
-   {
-      set<BinaryData> addrSet;
-
-      for (unsigned i=0; i<tx.getNumTxIn(); i++)
-      {
-         auto txin = tx.getTxInCopy(i);
-         auto op = txin.getOutPoint();
-
-         auto hashIter = outputMap.find(op.getTxHash());
-         EXPECT_TRUE(hashIter != outputMap.end());
-
-         auto idIter = hashIter->second.find(op.getTxOutIndex());
-         EXPECT_TRUE(idIter != hashIter->second.end());
-
-         auto& utxo = idIter->second;
-         addrSet.insert(utxo.getRecipientScrAddr());
-      }
-
-      for (unsigned i=0; i<tx.getNumTxOut(); i++)
-      {
-         auto txout = tx.getTxOutCopy(i);
-         addrSet.insert(txout.getScrAddressStr());
-      }
-
-      return addrSet;
-   };
-
-   set<BinaryData> mainScrAddrSet;
-   set<BinaryData> mainHashes;   
-   {
-      vector<unsigned> zcIds = {1, 2, 3, 5, 6};
-      for (auto& id : zcIds)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         mainHashes.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         mainScrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }   
-   }
-
-   //case 1
-   auto case1 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 1-2-3
-      vector<unsigned> zcIds = {1, 2, 3};
-
-      vector<BinaryData> zcs;
-      for (auto& id : zcIds)
-         zcs.push_back(rawTxVec[id - 1]);
-
-      instance->bdvPtr_->broadcastZC(zcs);
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet);
-   };
-
-   //case 2
-   auto case2 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 5-6
-      vector<unsigned> zcIds = {5, 6};
-
-      vector<BinaryData> zcs;
-      for (auto& id : zcIds)
-         zcs.push_back(rawTxVec[id - 1]);
-
-      instance->bdvPtr_->broadcastZC(zcs);
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet);
-   };
-
-   //case 3
-   auto case3 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 1-4 7
-      instance->bdvPtr_->broadcastZC({
-         rawTxVec[0], rawTxVec[3],
-         rawTxVec[6]
-      });
-
-      //don't grab 4 as it can't broadcast
-      vector<unsigned> zcIds = {1, 7};
-
-      vector<BinaryData> zcs;
-      for (auto& id : zcIds)
-         zcs.push_back(rawTxVec[id - 1]);
-
-      //wait on broadcast errors
-      instance->callbackPtr_->waitOnError(
-         zcHashes[0], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-
-      instance->callbackPtr_->waitOnError(
-         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet);
-
-      //wait on 7
-      Tx zc7(rawTxVec[6]);
-      auto&& addrSet = getAddressesForRawTx(zc7);
-      instance->callbackPtr_->waitOnZc({zcHashes[6]}, addrSet);
-   };
-
-   //case 4
-   auto case4 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 5-6 7
-      vector<unsigned> zcIds = {5, 6, 7};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> scrAddrSet;
-      set<BinaryData> hashes;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(zcs.back());
-         hashes.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      instance->bdvPtr_->broadcastZC(zcs);
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet);
-   };
-
-   //case 5
-   auto case5 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 4 5-6
-      instance->bdvPtr_->broadcastZC({
-         rawTxVec[3], 
-         rawTxVec[4], rawTxVec[5]
-      });
-
-      //skip 4 as it can't broadcast
-      vector<unsigned> zcIds = {5, 6};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> scrAddrSet;
-      set<BinaryData> hashes;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(zcs.back());
-         hashes.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap);
-
-      instance->callbackPtr_->waitOnError(
-         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet);
+      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
    };
 
    //main instance
@@ -13267,7 +13281,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
          scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
       }
 
-      mainInstance->bdvPtr_->broadcastZC(zcs);
+      auto broadcastId1 = mainInstance->bdvPtr_->broadcastZC(zcs);
       
       /*
       delay for 1 second before starts side jobs to make sure the 
@@ -13294,7 +13308,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
          threads.push_back(thread(case5, i));
 
       //wait on zc
-      mainInstance->callbackPtr_->waitOnZc(hashes, scrAddrSet);
+      mainInstance->callbackPtr_->waitOnZc(hashes, scrAddrSet, broadcastId1);
 
       //wait on side jobs
       for (auto& thr : threads)

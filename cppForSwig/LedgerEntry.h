@@ -140,7 +140,7 @@ public:
    const std::set<BinaryData>& getScrAddrList(void) const
    { return scrAddrSet_; }
 
-   void fillMessage(::Codec_LedgerEntry::LedgerEntry* msg);
+   void fillMessage(::Codec_LedgerEntry::LedgerEntry* msg) const;
    
 public:
 
