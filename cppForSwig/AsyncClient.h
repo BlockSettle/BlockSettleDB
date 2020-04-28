@@ -502,10 +502,17 @@ namespace AsyncClient
          const std::map<BinaryData, std::set<unsigned>>&, bool,
          std::function<void(ReturnMessage<std::vector<UTXO>>)>);
 
-      //tx
-      void broadcastZC(const BinaryData& rawTx);
-      void broadcastZC(const std::vector<BinaryData>& rawTxVec);
-      void broadcastThroughRPC(const BinaryData& rawTx);
+      /*
+      Broadcast methods:
+        All broadcast methods generate and return a random BROADCAST_ID_LENGTH 
+        bytes long ID. This ID will be attached to the broadcast notification 
+        for the relevant transactions. Notifications for these transaction may
+        come with no ID attached, in which case these notifications are not the
+        result of your broadcast.
+      */
+      std::string broadcastZC(const BinaryData& rawTx);
+      std::string broadcastZC(const std::vector<BinaryData>& rawTxVec);
+      std::string broadcastThroughRPC(const BinaryData& rawTx);
 
       void getTxByHash(const BinaryData& txHash, const TxCallback&);
       void getTxBatchByHash(

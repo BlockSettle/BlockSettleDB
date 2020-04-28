@@ -17,6 +17,7 @@
 #include "LedgerEntry.h"
 #include "ZeroConf.h"
 #include "nodeRPC.h"
+#include "ZeroConfNotifications.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_Notification
@@ -72,10 +73,10 @@ struct BDV_Notification_NewBlock : public BDV_Notification
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_Notification_ZC : public BDV_Notification
 {
-   const ZeroConfContainer::NotificationPacket packet_;
+   const ZcNotificationPacket packet_;
    std::vector<LedgerEntry> leVec_;
 
-   BDV_Notification_ZC(ZeroConfContainer::NotificationPacket& packet) :
+   BDV_Notification_ZC(ZcNotificationPacket& packet) :
       BDV_Notification(packet.bdvID_), packet_(std::move(packet))
    {}
 
@@ -90,7 +91,7 @@ struct BDV_Notification_Refresh : public BDV_Notification
 {
    const BDV_refresh refresh_;
    const BinaryData refreshID_;
-   ZeroConfContainer::NotificationPacket zcPacket_;
+   ZcNotificationPacket zcPacket_;
 
    BDV_Notification_Refresh(const std::string& bdvID,
       BDV_refresh refresh, const BinaryData& refreshID) :
@@ -144,11 +145,12 @@ struct BDV_Notification_NodeStatus : public BDV_Notification
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_Notification_Error : public BDV_Notification
 {
+   const std::string requestID_;
    BDV_Error_Struct errStruct;
 
-   BDV_Notification_Error(const std::string& bdvID, int errCode, 
-      const BinaryData& errData, const std::string& errStr) :
-      BDV_Notification(bdvID)
+   BDV_Notification_Error(const std::string& bdvID, const std::string requestID, 
+      int errCode, const BinaryData& errData, const std::string& errStr) :
+      BDV_Notification(bdvID), requestID_(requestID)
    {
       errStruct.errCode_ = errCode;
       errStruct.errData_ = errData;

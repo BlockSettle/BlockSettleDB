@@ -745,7 +745,7 @@ tuple<uint64_t, uint64_t> BlockDataViewer::getAddrFullBalance(
 unique_ptr<BDV_Notification_ZC> BlockDataViewer::createZcNotification(
    function<bool(BinaryDataRef&)> filter)
 {
-   ZeroConfContainer::NotificationPacket packet(getID());
+   ZcNotificationPacket packet(getID());
 
    //grab zc map
    auto ss = zeroConfCont_->getSnapshot();

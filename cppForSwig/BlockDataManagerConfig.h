@@ -29,6 +29,8 @@
 #define WEBSOCKET_PORT 7681
 
 size_t MAX_THREADS();
+#define BROADCAST_ID_LENGTH 6
+#define REGISTER_ID_LENGH 5
 
 class BitcoinP2P;
 class BitcoinNodeInterface;

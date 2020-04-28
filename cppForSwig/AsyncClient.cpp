@@ -242,7 +242,7 @@ AsyncClient::Blockchain BlockDataViewer::blockchain(void)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::broadcastZC(const BinaryData& rawTx)
+string BlockDataViewer::broadcastZC(const BinaryData& rawTx)
 {
    auto tx = make_shared<Tx>(rawTx);
    cache_->insertTx(tx);
@@ -250,12 +250,17 @@ void BlockDataViewer::broadcastZC(const BinaryData& rawTx)
    auto payload = make_payload(Methods::broadcastZC);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->add_bindata(rawTx.getPtr(), rawTx.getSize());
+   
+   auto&& broadcastId = 
+      BtcUtils::fortuna_.generateRandom(BROADCAST_ID_LENGTH).toHexStr();
+   command->set_hash(broadcastId);
 
    sock_->pushPayload(move(payload), nullptr);
+   return broadcastId;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::broadcastZC(const vector<BinaryData>& rawTxVec)
+string BlockDataViewer::broadcastZC(const vector<BinaryData>& rawTxVec)
 {
    auto payload = make_payload(Methods::broadcastZC);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -268,7 +273,30 @@ void BlockDataViewer::broadcastZC(const vector<BinaryData>& rawTxVec)
       command->add_bindata(rawTx.getPtr(), rawTx.getSize());
    }
 
+   auto&& broadcastId = 
+      BtcUtils::fortuna_.generateRandom(BROADCAST_ID_LENGTH).toHexStr();
+   command->set_hash(broadcastId);
+
    sock_->pushPayload(move(payload), nullptr);
+   return broadcastId;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+string BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx)
+{
+   auto tx = make_shared<Tx>(rawTx);
+   cache_->insertTx(tx);
+
+   auto payload = make_payload(Methods::broadcastThroughRPC);
+   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
+   command->add_bindata(rawTx.getPtr(), rawTx.getSize());
+
+   auto&& broadcastId = 
+      BtcUtils::fortuna_.generateRandom(BROADCAST_ID_LENGTH).toHexStr();
+   command->set_hash(broadcastId);
+
+   sock_->pushPayload(move(payload), nullptr);
+   return broadcastId;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -557,19 +585,6 @@ void BlockDataViewer::getHistoryForWalletSelection(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::broadcastThroughRPC(const BinaryData& rawTx)
-{
-   auto tx = make_shared<Tx>(rawTx);
-   cache_->insertTx(tx);
-
-   auto payload = make_payload(Methods::broadcastThroughRPC);
-   auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
-   command->add_bindata(rawTx.getPtr(), rawTx.getSize());
-
-   sock_->pushPayload(move(payload), nullptr);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getSpentnessForOutputs(
    const map<BinaryData, set<unsigned>>& outputs,
    function<void(ReturnMessage<map<BinaryData, map<
@@ -720,7 +735,8 @@ string AsyncClient::BtcWallet::registerAddresses(
    command->set_flag(isNew);
    command->set_walletid(walletID_);
 
-   auto&& registrationId = BtcUtils::fortuna_.generateRandom(5).toHexStr();
+   auto&& registrationId = 
+      BtcUtils::fortuna_.generateRandom(REGISTER_ID_LENGH).toHexStr();
    command->set_hash(registrationId);
 
    for (auto& addr : addrVec)
@@ -737,7 +753,8 @@ string AsyncClient::BtcWallet::setUnconfirmedTarget(unsigned confTarget)
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
 
-   auto&& registrationId = BtcUtils::fortuna_.generateRandom(5).toHexStr();
+   auto&& registrationId = 
+      BtcUtils::fortuna_.generateRandom(REGISTER_ID_LENGH).toHexStr();
    command->set_hash(registrationId);
    command->set_height(confTarget);
 
@@ -753,7 +770,8 @@ string AsyncClient::BtcWallet::unregisterAddresses(
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
    command->set_walletid(walletID_);
 
-   auto&& registrationId = BtcUtils::fortuna_.generateRandom(5).toHexStr();
+   auto&& registrationId = 
+      BtcUtils::fortuna_.generateRandom(REGISTER_ID_LENGH).toHexStr();
    command->set_hash(registrationId);
 
    for (auto& addr : addrSet)
@@ -944,7 +962,8 @@ string AsyncClient::Lockbox::registerAddresses(
    command->set_flag(isNew);
    command->set_walletid(walletID_);
    
-   auto&& registrationId = BtcUtils::fortuna_.generateRandom(5).toHexStr();
+   auto&& registrationId = 
+      BtcUtils::fortuna_.generateRandom(REGISTER_ID_LENGH).toHexStr();
    command->set_hash(registrationId);
 
    for (auto& addr : addrVec)
