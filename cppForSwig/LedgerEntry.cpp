@@ -338,7 +338,7 @@ map<BinaryData, LedgerEntry> LedgerEntry::computeLedgerMap(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void LedgerEntry::fillMessage(::Codec_LedgerEntry::LedgerEntry* msg)
+void LedgerEntry::fillMessage(::Codec_LedgerEntry::LedgerEntry* msg) const
 {
    if (msg == nullptr)
    {
