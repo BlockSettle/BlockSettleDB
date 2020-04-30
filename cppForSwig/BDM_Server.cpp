@@ -2892,11 +2892,33 @@ void Clients::broadcastThroughRPC()
       Tx tx(*packet.rawTx_);
       vector<BinaryData> hashes = { tx.getThisHash() };
       auto zcPtr = bdmT_->bdm()->zeroConfCont();
+
+      //feed the watcher map with all relevant requestor/bdv ids
+      {
+         //if this is a RPC fallback from a timed out P2P zc push
+         //we may have extra requestors attached to this broadcast
+         map<string, string> extraRequestors;
+         for (auto& reqPair : packet.extraRequestors_)
+            extraRequestors.emplace(reqPair.first, reqPair.second->getID());
+
+         if (!zcPtr->setWatcherEntry(
+            *hashes.begin(), packet.rawTx_, //tx
+            packet.bdvPtr_->getID(), packet.requestID_, //main requestor
+            extraRequestors, //extra requestor, in case this is a fallback
+            false)) //do not process watcher node invs for this entry
+         {
+            //there is already a watcher entry for this tx, our request has been 
+            //attached to it, skip the RPC broadcast
+            cout << ". bypassing request " << packet.requestID_ << " for hash " << hashes.begin()->toHexStr() << endl;
+            continue;
+         }
+      }
+
       auto batchPtr = zcPtr->actionQueue()->initiateZcBatch(
          hashes, 
          0, //no timeout, this batch promise has to be set to progress
          nullptr, //no error callback
-         false, //we dont want to handle watcher node invs for these zc
+         true,
          packet.bdvPtr_->getID(),
          packet.requestID_);
 
