@@ -778,6 +778,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
       case SpenderStatus_Partial:
          partialStack_.insert(obj.partialStack_.begin(), obj.partialStack_.end());
          evaluatePartialStacks();
+         legacyStatus_ = SpenderStatus_Partial;
       }
    }
 
@@ -796,6 +797,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
          partialWitnessStack_.insert(
             obj.partialWitnessStack_.begin(), obj.partialWitnessStack_.end());
          evaluatePartialStacks();
+         segwitStatus_ = SpenderStatus_Partial;
       }
    }
 }
@@ -1117,10 +1119,10 @@ shared_ptr<ScriptSpender> Signer::getSpender(unsigned index) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef Signer::serialize(void) const
+BinaryDataRef Signer::serializeSignedTx(void) const
 {
-   if (serializedTx_.getSize() != 0)
-      return serializedTx_.getRef();
+   if (serializedSignedTx_.getSize() != 0)
+      return serializedSignedTx_.getRef();
 
    BinaryWriter bw;
 
@@ -1170,9 +1172,59 @@ BinaryDataRef Signer::serialize(void) const
    //lock time
    bw.put_uint32_t(lockTime_);
 
-   serializedTx_ = move(bw.getData());
+   serializedSignedTx_ = move(bw.getData());
 
-   return serializedTx_.getRef();
+   return serializedSignedTx_.getRef();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryDataRef Signer::serializeUnsignedTx(void)
+{
+   if (serializedUnsignedTx_.getSize() != 0)
+      return serializedUnsignedTx_.getRef();
+
+   evaluateSpenderStatus();
+
+   BinaryWriter bw;
+
+   //version
+   bw.put_uint32_t(version_);
+
+   if (isSegWit_)
+   {
+      //marker and flag
+      bw.put_uint8_t(0);
+      bw.put_uint8_t(1);
+   }
+
+   //txin count
+   if (spenders_.size() == 0)
+      throw runtime_error("no spenders");
+   bw.put_var_int(spenders_.size());
+
+   //txins
+   for (auto& spender : spenders_)
+      bw.put_BinaryDataRef(spender->getSerializedInput());
+
+   //txout count
+   if (recipients_.size() == 0)
+      throw runtime_error("no recipients");
+   bw.put_var_int(recipients_.size());
+
+   //txouts
+   for (auto& recipient : recipients_)
+      bw.put_BinaryDataRef(recipient->getSerializedScript());
+
+   //no witness data for unsigned transactions
+   for (auto& spender : spenders_)
+      bw.put_uint8_t(0);
+
+   //lock time
+   bw.put_uint32_t(lockTime_);
+
+   serializedUnsignedTx_ = move(bw.getData());
+
+   return serializedUnsignedTx_.getRef();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1180,7 +1232,7 @@ BinaryData Signer::serializeAvailableResolvedData(void) const
 {
    try
    {
-      auto&& serTx = serialize();
+      auto&& serTx = serializeSignedTx();
       return serTx;
    }
    catch (exception&)
@@ -1280,7 +1332,7 @@ TxEvalState Signer::verify(const BinaryData& rawTx,
 bool Signer::verify(void) 
 {
    //serialize signed tx
-   auto txdata = serialize();
+   auto txdata = serializeSignedTx();
 
    map<BinaryData, map<unsigned, UTXO>> utxoMap;
 
@@ -1451,7 +1503,7 @@ void Signer::deserializeState(
    Note that in case the local signer has several recipient with the same
    hash scripts, these won't be aggregated. Only those from the new_signer will.
 
-   As a general rule, do not create several outputs with the script hash.
+   As a general rule, do not create several outputs with the same script hash.
 
    NOTE: adding recipients or triggering an aggregation will render prior signatures 
    invalid. This code does NOT check for that. It's the caller's responsibility 
@@ -1528,13 +1580,12 @@ BinaryData Signer::getTxId()
 {
    try
    {
-      auto txdataref = serialize();
+      auto txdataref = serializeSignedTx();
       Tx tx(txdataref);
       return tx.getThisHash();
    }
    catch (exception&)
-   {
-   }
+   {}
 
    //tx isn't signed, let's check for SW inputs
    evaluateSpenderStatus();

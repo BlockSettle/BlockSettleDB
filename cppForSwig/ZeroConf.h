@@ -194,6 +194,7 @@ struct ZeroConfBatch
 
    const bool hasWatcherEntries_;
 
+   //<request id, bdv id>
    std::pair<std::string, std::string> requestor_;
 
 public:
@@ -486,7 +487,7 @@ private:
    std::unique_ptr<ZcActionQueue> actionQueue_;
 
    std::map<BinaryData, WatcherTxBody> watcherMap_;
-   std::mutex watcherMapMutex_;
+   ArmoryMutex watcherMapMutex_;
 
 private:
    BulkFilterData ZCisMineBulkFilter(ParsedTx & tx, const BinaryDataRef& ZCkey,
@@ -581,6 +582,11 @@ public:
    void broadcastZC(const std::vector<BinaryDataRef>& rawzc, 
       uint32_t timeout_ms, const ZcBroadcastCallback&,
       const std::string& bdvID, const std::string& requestID);
+   bool setWatcherEntry(
+      const BinaryData&, std::shared_ptr<BinaryData>, 
+      const std::string&, const std::string&,
+      std::map<std::string, std::string>&,
+      bool watchEntry = true);
 
    bool isEnabled(void) const 
    { return zcEnabled_.load(std::memory_order_relaxed); }

@@ -107,6 +107,7 @@ public:
    void skipZc(unsigned);
    void delayNextZc(unsigned);
    void stallNextZc(unsigned);
+
    void setIface(LMDBBlockDatabase* iface) { iface_ = iface; }
 
    //<raw tx, blocks to wait until mining>
@@ -136,6 +137,9 @@ class NodeRPC_UnitTest : public NodeRPCInterface
 private:
    std::shared_ptr<NodeUnitTest> primaryNode_;
    std::shared_ptr<NodeUnitTest> watcherNode_;
+   
+   std::deque<unsigned> zcStalls_;
+   std::mutex zcStallMutex_;
 
 public:
 
@@ -157,6 +161,9 @@ public:
    FeeEstimateResult getFeeByte(
       unsigned, const std::string&) override
    { return FeeEstimateResult(); }
+
+   //locals
+   void stallNextZc(unsigned);
 };
 
 #endif

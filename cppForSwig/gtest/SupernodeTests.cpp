@@ -1404,7 +1404,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx1 = signer.serialize();
+      rawTx1 = signer.serializeSignedTx();
    }
 
    {
@@ -1425,7 +1425,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx2 = signer.serialize();
+      rawTx2 = signer.serializeSignedTx();
    }
 
    //4 outputs
@@ -1462,7 +1462,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx3 = signer.serialize();
+      rawTx3 = signer.serializeSignedTx();
    }
 
    /*stage the transactions*/
@@ -1866,11 +1866,11 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
-      Tx zctx(signer.serialize());
+      Tx zctx(signer.serializeSignedTx());
       ZChash = zctx.getThisHash();
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 1300000000);
+      zcVec.push_back(signer.serializeSignedTx(), 1300000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -2279,10 +2279,10 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
       signer2.sign();
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
       ZCHash1 = zcVec.zcVec_.back().first.getThisHash();
 
-      zcVec.push_back(signer2.serialize(), 14100000);
+      zcVec.push_back(signer2.serializeSignedTx(), 14100000);
       ZCHash2 = zcVec.zcVec_.back().first.getThisHash();
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
@@ -2535,7 +2535,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       auto&& zcHash = signer.getTxId();
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -2715,7 +2715,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       ASSERT_TRUE(txinEval.isSignedForPubKey(asset_single->getPubKey()->getCompressedKey()));
    }
 
-   auto&& tx1 = signer3.serialize();
+   auto&& tx1 = signer3.serializeSignedTx();
    auto&& zcHash = signer3.getTxId();
 
    //broadcast the last one
@@ -2910,7 +2910,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
-      auto rawTx = signer.serialize();
+      auto rawTx = signer.serializeSignedTx();
       DBTestUtils::ZcVector zcVec;
       zcVec.push_back(rawTx, 14000000);
 
@@ -2983,7 +2983,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
          signer3.sign();
       }
 
-      auto rawTx = signer3.serialize();
+      auto rawTx = signer3.serializeSignedTx();
       DBTestUtils::ZcVector zcVec3;
       zcVec3.push_back(rawTx, 15000000);
 
@@ -3085,7 +3085,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
       }
       EXPECT_TRUE(signer2.verify());
 
-      auto rawTx = signer2.serialize();
+      auto rawTx = signer2.serializeSignedTx();
       DBTestUtils::ZcVector zcVec2;
       zcVec2.push_back(rawTx, 17000000);
 
@@ -3357,8 +3357,8 @@ TEST_F(BlockUtilsWithWalletTest, ZC_MineAfter1Block)
 
       signer.setFeed(feed);
       signer.sign();
-      auto rawTx = signer.serialize();
-      zcVec.push_back(signer.serialize(), 130000000, 0);
+      auto rawTx = signer.serializeSignedTx();
+      zcVec.push_back(signer.serializeSignedTx(), 130000000, 0);
    }
    
    //spend from B to C
@@ -3372,7 +3372,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_MineAfter1Block)
 
       signer.setFeed(feed);
       signer.sign();
-      zcVec.push_back(signer.serialize(), 131000000, 1);
+      zcVec.push_back(signer.serializeSignedTx(), 131000000, 1);
    }
 
    auto hash1 = zcVec.zcVec_[0].first.getThisHash();
@@ -3463,9 +3463,12 @@ protected:
          *(uint32_t*)magicBytes.getPtr(), false);
       auto watcherPtr = make_shared<NodeUnitTest>(
          *(uint32_t*)magicBytes.getPtr(), true);
-      config.bitcoinNodes_ = make_pair(nodePtr_, watcherPtr);
-      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(
+
+      rpcNode_ =  make_shared<NodeRPC_UnitTest>(
          nodePtr_, watcherPtr);
+
+      config.bitcoinNodes_ = make_pair(nodePtr_, watcherPtr);
+      config.rpcNode_ = rpcNode_;
 
       //randomized peer keys, in ram only
       config.ephemeralPeers_ = true;
@@ -3574,6 +3577,7 @@ protected:
    string wallet1id;
 
    shared_ptr<NodeUnitTest> nodePtr_;
+   shared_ptr<NodeRPC_UnitTest> rpcNode_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -6530,7 +6534,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
       signer.addRecipient(recPtr);
 
       signer.sign();
-      return signer.serialize();
+      return signer.serializeSignedTx();
    };
 
    //grab utxo from db
@@ -6982,8 +6986,8 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
             signer.setFeed(feed);
             signer.sign();
-            auto rawTx = signer.serialize();
-            zcVec.push_back(signer.serialize(), 130000000, stagger++);
+            auto rawTx = signer.serializeSignedTx();
+            zcVec.push_back(signer.serializeSignedTx(), 130000000, stagger++);
          }
 
          if (stagger < loopCount)
@@ -7762,7 +7766,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       signer.addRecipient(recPtr);
 
       signer.sign();
-      return signer.serialize();
+      return signer.serializeSignedTx();
    };
 
    //grab utxo from db
@@ -7982,7 +7986,6 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       //mine 3 blocks to outpace original chain
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB, 3);
       EXPECT_EQ(pCallback->waitOnReorg(), 5);
-      cout << "had reorg" << endl;
 
       //wait on ZC now, as the staged transactions have been pushed
       pCallback->waitOnSignal(BDMAction_ZC);
@@ -8236,7 +8239,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx1 = signer.serialize();
+      rawTx1 = signer.serializeSignedTx();
    }
    
    BinaryData rawTx2;
@@ -8258,7 +8261,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx2 = signer.serialize();
+      rawTx2 = signer.serializeSignedTx();
    }
 
    //push the 2 zc through the node
@@ -8315,7 +8318,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx3 = signer.serialize();
+      rawTx3 = signer.serializeSignedTx();
    }
    
    BinaryData rawTx4;
@@ -8337,7 +8340,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx4 = signer.serialize();
+      rawTx4 = signer.serializeSignedTx();
    }
 
    //push the 2 zc through the rpc
@@ -8643,7 +8646,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
             signer.setFeed(feed);
             signer.sign();
-            zcVec.push_back(signer.serialize(), 130000000, stagger++);
+            zcVec.push_back(signer.serializeSignedTx(), 130000000, stagger++);
          }
 
          if (stagger < loopCount)
@@ -8924,10 +8927,10 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
             signer.setFeed(zcFeed);
             signer.sign();
-            auto rawTx = signer.serialize();
+            auto rawTx = signer.serializeSignedTx();
             Tx tx(rawTx);
             newZcHashes.insert(make_pair(tx.getThisHash(), count++));
-            zcVec.push_back(signer.serialize(), 130000000, stagger++);
+            zcVec.push_back(signer.serializeSignedTx(), 130000000, stagger++);
          }
       }
 
@@ -9240,7 +9243,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1 = signer.serialize();
+         rawTx1 = signer.serializeSignedTx();
       }
 
       {
@@ -9263,7 +9266,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -9299,7 +9302,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
 
       //batch push tx
@@ -9552,7 +9555,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1 = signer.serialize();
+         rawTx1 = signer.serializeSignedTx();
       }
 
       {
@@ -9575,7 +9578,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -9611,7 +9614,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1(rawTx1);
@@ -9880,7 +9883,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -9902,7 +9905,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -9926,7 +9929,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -9962,7 +9965,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -10223,7 +10226,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -10245,7 +10248,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -10269,7 +10272,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -10305,7 +10308,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -10568,7 +10571,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -10590,7 +10593,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -10614,7 +10617,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -10650,7 +10653,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -10909,7 +10912,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -10931,7 +10934,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -10955,7 +10958,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -10979,7 +10982,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -11239,7 +11242,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -11261,7 +11264,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -11285,7 +11288,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -11309,7 +11312,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -11582,7 +11585,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -11604,7 +11607,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -11628,7 +11631,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -11652,7 +11655,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -11925,7 +11928,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -11947,7 +11950,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -11971,7 +11974,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -11997,7 +12000,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -12331,7 +12334,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12357,7 +12360,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12378,7 +12381,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12399,7 +12402,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12418,7 +12421,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12444,7 +12447,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12468,7 +12471,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }      
@@ -12532,9 +12535,30 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
       //push 1-2-3
       vector<unsigned> zcIds = {1, 2, 3};
 
+      //ids for the zc we are not broadcasting but which addresses we watch
+      vector<unsigned> zcIds_skipped = {5, 6};
+
       vector<BinaryData> zcs;
+      set<BinaryData> addrSet;
+      set<BinaryData> hashSet;
       for (auto& id : zcIds)
+      {
          zcs.push_back(rawTxVec[id - 1]);
+         Tx tx(rawTxVec[id - 1]);
+         hashSet.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
+      set<BinaryData> addrSet_skipped;
+      set<BinaryData> hashSet_skipped;
+      for (auto& id : zcIds_skipped)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet_skipped.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
+      }
 
       auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
 
@@ -12545,7 +12569,8 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
       instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //case 2
@@ -12555,10 +12580,29 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
       //push 5-6
       vector<unsigned> zcIds = {5, 6};
+      vector<unsigned> zcIds_skipped = {1, 2, 3};
 
       vector<BinaryData> zcs;
+      set<BinaryData> addrSet;
+      set<BinaryData> hashSet;
       for (auto& id : zcIds)
+      {
          zcs.push_back(rawTxVec[id - 1]);
+         Tx tx(rawTxVec[id - 1]);
+         hashSet.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }   
+
+      set<BinaryData> addrSet_skipped;
+      set<BinaryData> hashSet_skipped;
+      for (auto& id : zcIds_skipped)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet_skipped.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
+      }
 
       auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
 
@@ -12569,7 +12613,8 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
       instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //case 3
@@ -12585,10 +12630,28 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
       //don't grab 4 as it can't broadcast
       vector<unsigned> zcIds = {1, 7};
+      vector<unsigned> zcIds_skipped = {2, 3, 5, 6};
 
-      vector<BinaryData> zcs;
+      set<BinaryData> addrSet;
+      set<BinaryData> hashSet;
       for (auto& id : zcIds)
-         zcs.push_back(rawTxVec[id - 1]);
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }  
+
+      set<BinaryData> addrSet_skipped;
+      set<BinaryData> hashSet_skipped;
+      for (auto& id : zcIds_skipped)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet_skipped.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
 
       //wait on broadcast errors
       instance->callbackPtr_->waitOnError(
@@ -12598,12 +12661,10 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
          zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
 
       //wait on 7
-      Tx zc7(rawTxVec[6]);
-      auto&& addrSet = getAddressesForRawTx(zc7);
-      instance->callbackPtr_->waitOnZc({zcHashes[6]}, addrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //case 4
@@ -12613,17 +12674,28 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
       //push 5-6 7
       vector<unsigned> zcIds = {5, 6, 7};
+      vector<unsigned> zcIds_skipped = {1, 2, 3};
 
       vector<BinaryData> zcs;
-      set<BinaryData> scrAddrSet;
-      set<BinaryData> hashes;
+      set<BinaryData> addrSet;
+      set<BinaryData> hashSet;
       for (auto& id : zcIds)
       {
          zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(zcs.back());
-         hashes.insert(tx.getThisHash());
+         Tx tx(rawTxVec[id - 1]);
+         hashSet.insert(tx.getThisHash());
          auto localAddrSet = getAddressesForRawTx(tx);
-         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
+         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
+      set<BinaryData> addrSet_skipped;
+      set<BinaryData> hashSet_skipped;
+      for (auto& id : zcIds_skipped)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet_skipped.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
       }
 
       auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
@@ -12635,7 +12707,8 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
       instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //case 5
@@ -12651,17 +12724,26 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
       //skip 4 as it can't broadcast
       vector<unsigned> zcIds = {5, 6};
+      vector<unsigned> zcIds_skipped = {1, 2, 3};
 
-      vector<BinaryData> zcs;
-      set<BinaryData> scrAddrSet;
-      set<BinaryData> hashes;
+      set<BinaryData> addrSet;
+      set<BinaryData> hashSet;
       for (auto& id : zcIds)
       {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(zcs.back());
-         hashes.insert(tx.getThisHash());
+         Tx tx(rawTxVec[id - 1]);
+         hashSet.insert(tx.getThisHash());
          auto localAddrSet = getAddressesForRawTx(tx);
-         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
+         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
+      set<BinaryData> addrSet_skipped;
+      set<BinaryData> hashSet_skipped;
+      for (auto& id : zcIds_skipped)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet_skipped.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
       }
 
       //wait on broadcast errors
@@ -12674,7 +12756,8 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
          zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //main instance
@@ -12701,7 +12784,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
       auto broadcastId1 = mainInstance->bdvPtr_->broadcastZC(zcs);
       
       /*
-      delay for 1 second before starts side jobs to make sure the 
+      delay for 1 second before starting side jobs to make sure the 
       primary broadcast is first in line
       */
       this_thread::sleep_for(chrono::seconds(1));
@@ -12753,7 +12836,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
+TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 {
    struct WSClient
    {
@@ -12788,6 +12871,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      pCallback->bdvId_ = bdvObj->getID();
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -12915,7 +12999,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12941,7 +13025,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12962,7 +13046,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12983,7 +13067,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13002,7 +13086,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13028,7 +13112,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13052,10 +13136,10 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
-      }      
+      }
    }
 
    //3 case1, 3 case2, 1 case3, 3 case4, 3 case5
@@ -13116,9 +13200,30 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       //push 1-2-3
       vector<unsigned> zcIds = {1, 2, 3};
 
+      //ids for the zc we are not broadcasting but which addresses we watch
+      vector<unsigned> zcIds_skipped = {5, 6};
+
       vector<BinaryData> zcs;
+      set<BinaryData> addrSet;
+      set<BinaryData> hashSet;
       for (auto& id : zcIds)
+      {
          zcs.push_back(rawTxVec[id - 1]);
+         Tx tx(rawTxVec[id - 1]);
+         hashSet.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
+      set<BinaryData> addrSet_skipped;
+      set<BinaryData> hashSet_skipped;
+      for (auto& id : zcIds_skipped)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet_skipped.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
+      }
 
       auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
 
@@ -13129,7 +13234,8 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //case 2
@@ -13139,10 +13245,29 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
       //push 5-6
       vector<unsigned> zcIds = {5, 6};
+      vector<unsigned> zcIds_skipped = {1, 2, 3};
 
       vector<BinaryData> zcs;
+      set<BinaryData> addrSet;
+      set<BinaryData> hashSet;
       for (auto& id : zcIds)
+      {
          zcs.push_back(rawTxVec[id - 1]);
+         Tx tx(rawTxVec[id - 1]);
+         hashSet.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }   
+
+      set<BinaryData> addrSet_skipped;
+      set<BinaryData> hashSet_skipped;
+      for (auto& id : zcIds_skipped)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet_skipped.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
+      }
 
       auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
 
@@ -13153,7 +13278,8 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //case 3
@@ -13169,10 +13295,28 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
       //don't grab 4 as it can't broadcast
       vector<unsigned> zcIds = {1, 7};
+      vector<unsigned> zcIds_skipped = {2, 3, 5, 6};
 
-      vector<BinaryData> zcs;
+      set<BinaryData> addrSet;
+      set<BinaryData> hashSet;
       for (auto& id : zcIds)
-         zcs.push_back(rawTxVec[id - 1]);
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }  
+
+      set<BinaryData> addrSet_skipped;
+      set<BinaryData> hashSet_skipped;
+      for (auto& id : zcIds_skipped)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet_skipped.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
 
       //wait on broadcast errors
       instance->callbackPtr_->waitOnError(
@@ -13182,12 +13326,10 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
          zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
 
       //wait on 7
-      Tx zc7(rawTxVec[6]);
-      auto&& addrSet = getAddressesForRawTx(zc7);
-      instance->callbackPtr_->waitOnZc({zcHashes[6]}, addrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //case 4
@@ -13197,17 +13339,28 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
       //push 5-6 7
       vector<unsigned> zcIds = {5, 6, 7};
+      vector<unsigned> zcIds_skipped = {1, 2, 3};
 
       vector<BinaryData> zcs;
-      set<BinaryData> scrAddrSet;
-      set<BinaryData> hashes;
+      set<BinaryData> addrSet;
+      set<BinaryData> hashSet;
       for (auto& id : zcIds)
       {
          zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(zcs.back());
-         hashes.insert(tx.getThisHash());
+         Tx tx(rawTxVec[id - 1]);
+         hashSet.insert(tx.getThisHash());
          auto localAddrSet = getAddressesForRawTx(tx);
-         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
+         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
+      set<BinaryData> addrSet_skipped;
+      set<BinaryData> hashSet_skipped;
+      for (auto& id : zcIds_skipped)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet_skipped.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
       }
 
       auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
@@ -13219,7 +13372,8 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //case 5
@@ -13235,17 +13389,26 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
       //skip 4 as it can't broadcast
       vector<unsigned> zcIds = {5, 6};
+      vector<unsigned> zcIds_skipped = {1, 2, 3};
 
-      vector<BinaryData> zcs;
-      set<BinaryData> scrAddrSet;
-      set<BinaryData> hashes;
+      set<BinaryData> addrSet;
+      set<BinaryData> hashSet;
       for (auto& id : zcIds)
       {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(zcs.back());
-         hashes.insert(tx.getThisHash());
+         Tx tx(rawTxVec[id - 1]);
+         hashSet.insert(tx.getThisHash());
          auto localAddrSet = getAddressesForRawTx(tx);
-         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
+         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
+      set<BinaryData> addrSet_skipped;
+      set<BinaryData> hashSet_skipped;
+      for (auto& id : zcIds_skipped)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         hashSet_skipped.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
       }
 
       //wait on broadcast errors
@@ -13258,7 +13421,8 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
          zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
 
       //wait on zc
-      instance->callbackPtr_->waitOnZc(mainHashes, mainScrAddrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //main instance
@@ -13284,7 +13448,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       auto broadcastId1 = mainInstance->bdvPtr_->broadcastZC(zcs);
       
       /*
-      delay for 1 second before starts side jobs to make sure the 
+      delay for 1 second before starting side jobs to make sure the 
       primary broadcast is first in line
       */
       this_thread::sleep_for(chrono::seconds(1));
@@ -13309,6 +13473,369 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
       //wait on zc
       mainInstance->callbackPtr_->waitOnZc(hashes, scrAddrSet, broadcastId1);
+
+      //wait on side jobs
+      for (auto& thr : threads)
+      {
+         if (thr.joinable())
+            thr.join();
+      }
+
+      //done
+   }
+
+
+   //cleanup
+   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
+      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+   bdvObj2->addPublicKey(serverPubkey);
+   bdvObj2->connectToRemote();
+
+   bdvObj2->shutdown(config.cookie_);
+   WebSocketServer::waitOnShutdown();
+
+   delete theBDMt_;
+   theBDMt_ = nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
+{
+   struct WSClient
+   {
+      shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_;
+      AsyncClient::BtcWallet wlt_;
+      shared_ptr<DBTestUtils::UTCallback> callbackPtr_;
+
+      WSClient(
+         shared_ptr<AsyncClient::BlockDataViewer> bdvPtr, 
+         AsyncClient::BtcWallet& wlt,
+         shared_ptr<DBTestUtils::UTCallback> callbackPtr) :
+         bdvPtr_(bdvPtr), wlt_(move(wlt)), callbackPtr_(callbackPtr)
+      {}
+   };
+
+   //public server
+   startupBIP150CTX(4, true);
+
+   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
+   WebSocketServer::initAuthPeers(authPeersPassLbd_);
+   WebSocketServer::start(theBDMt_, true);
+   auto&& serverPubkey = WebSocketServer::getPublicKey();
+   theBDMt_->start(config.initMode_);
+
+   //create BDV lambda
+   auto setupBDV = [this, &serverPubkey](void)->shared_ptr<WSClient>
+   {
+      auto pCallback = make_shared<DBTestUtils::UTCallback>();
+      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
+         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      bdvObj->addPublicKey(serverPubkey);
+      bdvObj->connectToRemote();
+      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      pCallback->bdvId_ = bdvObj->getID();
+
+      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
+
+      vector<BinaryData> _scrAddrVec1;
+      _scrAddrVec1.push_back(TestChain::scrAddrA);
+      _scrAddrVec1.push_back(TestChain::scrAddrB);
+      _scrAddrVec1.push_back(TestChain::scrAddrC);
+      _scrAddrVec1.push_back(TestChain::scrAddrD);
+      _scrAddrVec1.push_back(TestChain::scrAddrE);
+      _scrAddrVec1.push_back(TestChain::scrAddrF);
+
+      vector<string> walletRegIDs;
+      walletRegIDs.push_back(
+         wallet1.registerAddresses(_scrAddrVec1, false));
+
+      //wait on registration ack
+      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
+
+      //go online
+      bdvObj->goOnline();
+      pCallback->waitOnSignal(BDMAction_Ready);
+
+      auto client = make_shared<WSClient>(bdvObj, wallet1, pCallback);
+      return client;
+   };
+
+   //create main bdv instance
+   auto mainInstance = setupBDV();
+
+   /*
+   create a batch of zc with chains:
+      1-2
+      3
+   */
+
+   vector<BinaryData> rawTxVec, zcHashes;
+   map<BinaryData, map<unsigned, UTXO>> outputMap;
+   {
+      //instantiate resolver feed overloaded object
+      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
+
+      auto addToFeed = [feed](const BinaryData& key)->void
+      {
+         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
+         feed->h160ToPubKey_.insert(datapair);
+         feed->pubKeyToPrivKey_[datapair.second] = key;
+      };
+
+      addToFeed(TestChain::privKeyAddrB);
+      addToFeed(TestChain::privKeyAddrC);
+      addToFeed(TestChain::privKeyAddrD);
+      addToFeed(TestChain::privKeyAddrE);
+      addToFeed(TestChain::privKeyAddrF);
+
+      //utxo from raw tx lambda
+      auto getUtxoFromRawTx = [&outputMap](BinaryData& rawTx, unsigned id)->UTXO
+      {
+         Tx tx(rawTx);
+         if (id > tx.getNumTxOut())
+            throw runtime_error("invalid txout count");
+
+         auto&& txOut = tx.getTxOutCopy(id);
+
+         UTXO utxo;
+         utxo.unserializeRaw(txOut.serialize());
+         utxo.txOutIndex_ = id;
+         utxo.txHash_ = tx.getThisHash();
+
+         auto& idMap = outputMap[utxo.txHash_];
+         idMap[id] = utxo;
+
+         return utxo;
+      };
+
+      //grab utxos for scrAddrB, scrAddrC, scrAddrE
+      auto promUtxo = make_shared<promise<vector<UTXO>>>();
+      auto futUtxo = promUtxo->get_future();
+      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
+      {
+         promUtxo->set_value(msg.get());
+      };
+
+      mainInstance->wlt_.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
+      vector<UTXO> utxosB, utxosC, utxosE;
+      {
+         auto&& utxoVec = futUtxo.get();
+         for (auto& utxo : utxoVec)
+         {
+            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
+               utxosB.push_back(utxo);
+            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
+               utxosC.push_back(utxo);
+            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrE)
+               utxosE.push_back(utxo);
+
+            auto& idMap = outputMap[utxo.txHash_];
+            idMap[utxo.txOutIndex_] = utxo;
+         }
+      }
+
+      ASSERT_FALSE(utxosB.empty());
+      ASSERT_FALSE(utxosC.empty());
+      ASSERT_FALSE(utxosE.empty());
+
+      /*create the transactions*/
+
+      //1
+      {
+         //20 from B, 5 to A, change to D
+         Signer signer;
+
+         auto spender = make_shared<ScriptSpender>(utxosB[0]);
+         signer.addSpender(spender);
+
+         auto recA = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
+         signer.addRecipient(recA);
+
+         auto recChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrD.getSliceCopy(1, 20), 
+            spender->getValue() - recA->getValue());
+         signer.addRecipient(recChange);
+
+         signer.setFeed(feed);
+         signer.sign();
+         rawTxVec.push_back(signer.serializeSignedTx());
+         Tx tx(rawTxVec.back());
+         zcHashes.push_back(tx.getThisHash());
+      }
+
+      //2
+      {
+         auto utxoD = getUtxoFromRawTx(rawTxVec[0], 1);
+
+         //15 from D, 10 to E, change to F
+         Signer signer;
+
+         auto spender = make_shared<ScriptSpender>(utxoD);
+         signer.addSpender(spender);
+
+         auto recE = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
+         signer.addRecipient(recE);
+
+         auto recChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrF.getSliceCopy(1, 20), 
+            spender->getValue() - recE->getValue());
+         signer.addRecipient(recChange);
+
+         signer.setFeed(feed);
+         signer.sign();
+         rawTxVec.push_back(signer.serializeSignedTx());
+         Tx tx(rawTxVec.back());
+         zcHashes.push_back(tx.getThisHash());
+      }
+      
+      //3
+      {
+         //20 from E, 10 to F, change to A
+         Signer signer;
+
+         auto spender = make_shared<ScriptSpender>(utxosE[0]);
+         signer.addSpender(spender);
+
+         auto recF = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrF.getSliceCopy(1, 20), 10 * COIN);
+         signer.addRecipient(recF);
+
+         auto recChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrA.getSliceCopy(1, 20), 
+            spender->getValue() - recF->getValue());
+         signer.addRecipient(recChange);
+
+         signer.setFeed(feed);
+         signer.sign();
+         rawTxVec.push_back(signer.serializeSignedTx());
+         Tx tx(rawTxVec.back());
+         zcHashes.push_back(tx.getThisHash());
+      }
+   }
+
+   unsigned N = 1;
+
+   //create N side instances
+   vector<shared_ptr<WSClient>> sideInstances;
+   for (unsigned i=0; i<N; i++)
+      sideInstances.emplace_back(setupBDV());   
+
+   //get addresses for tx lambda
+   auto getAddressesForRawTx = [&outputMap](const Tx& tx)->set<BinaryData>
+   {
+      set<BinaryData> addrSet;
+
+      for (unsigned i=0; i<tx.getNumTxIn(); i++)
+      {
+         auto txin = tx.getTxInCopy(i);
+         auto op = txin.getOutPoint();
+
+         auto hashIter = outputMap.find(op.getTxHash());
+         EXPECT_TRUE(hashIter != outputMap.end());
+
+         auto idIter = hashIter->second.find(op.getTxOutIndex());
+         EXPECT_TRUE(idIter != hashIter->second.end());
+
+         auto& utxo = idIter->second;
+         addrSet.insert(utxo.getRecipientScrAddr());
+      }
+
+      for (unsigned i=0; i<tx.getNumTxOut(); i++)
+      {
+         auto txout = tx.getTxOutCopy(i);
+         addrSet.insert(txout.getScrAddressStr());
+      }
+
+      return addrSet;
+   };
+
+   set<BinaryData> mainScrAddrSet;
+   set<BinaryData> mainHashes;   
+   {
+      vector<unsigned> zcIds = {1, 2};
+      for (auto& id : zcIds)
+      {
+         Tx tx(rawTxVec[id - 1]);
+         mainHashes.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         mainScrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }   
+   }
+
+   //case 1
+   auto case1 = [&](unsigned instanceId)->void
+   {
+      auto instance = sideInstances[instanceId];
+
+      //push 1-2, 3
+      vector<unsigned> zcIds = {1, 2, 3};
+
+      vector<BinaryData> zcs;
+      set<BinaryData> addrSet;
+      set<BinaryData> hashSet;
+      for (auto& id : zcIds)
+      {
+         zcs.push_back(rawTxVec[id - 1]);
+         Tx tx(rawTxVec[id - 1]);
+         hashSet.insert(tx.getThisHash());
+         auto localAddrSet = getAddressesForRawTx(tx);
+         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
+      }
+
+      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
+
+      //wait on broadcast errors
+      map<BinaryData, ArmoryErrorCodes> errorMap;
+      errorMap.emplace(zcHashes[0], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
+      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
+
+      //wait on zc
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
+   };
+
+   //main instance
+   {
+      //set RPC, this will allow for batches in side jobs to 
+      //collide with the original one
+      rpcNode_->stallNextZc(3); //in seconds
+
+      //push 1-2
+
+      set<BinaryData> scrAddrSet1, scrAddrSet2;
+      BinaryData hash1, hash2;
+         
+      {
+         Tx tx(rawTxVec[0]);
+         hash1 = tx.getThisHash();
+         scrAddrSet1 = getAddressesForRawTx(tx);
+      }
+
+      {
+         Tx tx(rawTxVec[1]);
+         hash2 = tx.getThisHash();
+         scrAddrSet2 = getAddressesForRawTx(tx);
+      }
+
+      auto broadcastId1 = mainInstance->bdvPtr_->broadcastThroughRPC(rawTxVec[0]);
+      auto broadcastId2 = mainInstance->bdvPtr_->broadcastThroughRPC(rawTxVec[1]);
+
+      /*
+      delay for 1 second before starting side jobs to make sure the 
+      primary broadcast is first in line
+      */
+      this_thread::sleep_for(chrono::seconds(1));
+
+      //start the side jobs
+      vector<thread> threads;
+      threads.push_back(thread(case1, 0));
+
+      //wait on zc
+      mainInstance->callbackPtr_->waitOnZc({hash1}, scrAddrSet1, broadcastId1);
+      mainInstance->callbackPtr_->waitOnZc({hash2}, scrAddrSet2, broadcastId2);
 
       //wait on side jobs
       for (auto& thr : threads)

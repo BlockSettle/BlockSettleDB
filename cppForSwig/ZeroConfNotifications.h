@@ -187,6 +187,7 @@ struct WatcherTxBody
 {
    std::shared_ptr<BinaryData> rawTxPtr_;
    bool inved_ = false;
+   bool ignoreWatcherNodeInv_ = false;
 
    //<request id, bdv id>
    std::map<std::string, std::string> extraRequestors_;

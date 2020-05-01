@@ -156,4 +156,11 @@ public:
    }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+class ArmoryMutex : public Lockable
+{
+   void initAfterLock(void) override {}
+   void cleanUpBeforeUnlock(void) override {}
+};
+
 #endif
