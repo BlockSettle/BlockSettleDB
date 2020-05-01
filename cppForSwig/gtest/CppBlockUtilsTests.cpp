@@ -8373,7 +8373,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
-      auto rawTx = signer.serialize();
+      auto rawTx = signer.serializeSignedTx();
       DBTestUtils::ZcVector zcVec;
       zcVec.push_back(rawTx, 14000000);
 
@@ -8475,7 +8475,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       signer2.sign();
       EXPECT_TRUE(signer2.verify());
 
-      auto rawTx = signer2.serialize();
+      auto rawTx = signer2.serializeSignedTx();
       DBTestUtils::ZcVector zcVec2;
       zcVec2.push_back(rawTx, 15000000);
 
@@ -8579,7 +8579,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       }
       EXPECT_TRUE(signer3.verify());
 
-      auto rawTx = signer3.serialize();
+      auto rawTx = signer3.serializeSignedTx();
       DBTestUtils::ZcVector zcVec3;
       zcVec3.push_back(rawTx, 16000000);
 
@@ -8706,7 +8706,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       signer2.sign();
       EXPECT_TRUE(signer2.verify());
 
-      auto rawTx = signer2.serialize();
+      auto rawTx = signer2.serializeSignedTx();
       DBTestUtils::ZcVector zcVec2;
       zcVec2.push_back(rawTx, 17000000);
 
@@ -8922,7 +8922,7 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
-      auto rawTx = signer.serialize();
+      auto rawTx = signer.serializeSignedTx();
       DBTestUtils::ZcVector zcVec;
       zcVec.push_back(rawTx, 14000000);
 
@@ -9218,7 +9218,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
       signer2.sign();
       EXPECT_TRUE(signer2.verify());
 
-      auto rawTx = signer2.serialize();
+      auto rawTx = signer2.serializeSignedTx();
       DBTestUtils::ZcVector zcVec2;
       zcVec2.push_back(rawTx, 15000000);
 
@@ -9494,7 +9494,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
-      auto rawTx = signer.serialize();
+      auto rawTx = signer.serializeSignedTx();
       DBTestUtils::ZcVector zcVec;
       zcVec.push_back(rawTx, 14000000);
 
@@ -9580,7 +9580,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
          signer3.sign();
       }
 
-      auto rawTx = signer3.serialize();
+      auto rawTx = signer3.serializeSignedTx();
       DBTestUtils::ZcVector zcVec3;
       zcVec3.push_back(rawTx, 15000000);
 
@@ -9703,7 +9703,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       }
       EXPECT_TRUE(signer2.verify());
 
-      auto rawTx = signer2.serialize();
+      auto rawTx = signer2.serializeSignedTx();
       DBTestUtils::ZcVector zcVec2;
       zcVec2.push_back(rawTx, 17000000);
 
@@ -10947,7 +10947,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
-      auto rawTx = signer.serialize();
+      auto rawTx = signer.serializeSignedTx();
       DBTestUtils::ZcVector zcVec;
       zcVec.push_back(rawTx, 14000000);
 

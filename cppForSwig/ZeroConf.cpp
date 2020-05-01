@@ -1653,13 +1653,17 @@ void ZeroConfContainer::handleInvTx()
             This is an inv tx payload from the watcher node, check it against 
             our outstanding broadcasts
             */
-            unique_lock<mutex> lock(watcherMapMutex_);
+            SingleLock lock(&watcherMapMutex_);
             for (auto& invEntry : invPayload->invVec_)
             {
                BinaryData bd(invEntry.hash, sizeof(invEntry.hash));
                auto iter = watcherMap_.find(bd);
-               if (iter == watcherMap_.end() || iter->second.inved_)
+               if (iter == watcherMap_.end() || 
+                  iter->second.inved_ ||
+                  iter->second.ignoreWatcherNodeInv_)
+               {
                   continue;
+               }
 
                //mark as fetched
                iter->second.inved_ = true;
@@ -1915,21 +1919,20 @@ void ZeroConfContainer::broadcastZC(
 
    {
       //update the watcher map
-      unique_lock<mutex> lock(watcherMapMutex_);
+      ReentrantLock lock(&watcherMapMutex_);
       for (unsigned i=0; i < zcPacket->hashes_.size(); i++)
       {
          auto& hash = zcPacket->hashes_[i];
-         auto insertIter = watcherMap_.insert(make_pair(
-            hash, WatcherTxBody(zcPacket->zcVec_[i])));
-
-         if (insertIter.second)
+         map<string, string> emptyMap;
+         if (setWatcherEntry(
+            hash, zcPacket->zcVec_[i],
+            requestID, bdvID, emptyMap))
+         {
             continue;
+         }
 
-         //already have this zc in an earlier batch, drop the hash & tie
-         //it to the former callback
+         //already have this zc in an earlier batch, drop the hash
          hash.clear();
-         insertIter.first->second.extraRequestors_.emplace(
-            requestID, bdvID);
       }
    }
 
@@ -1943,6 +1946,52 @@ void ZeroConfContainer::broadcastZC(
 
    //push each zc on the process queue
    zcPreprocessQueue_.push_back(zcPacket);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool ZeroConfContainer::setWatcherEntry(
+   const BinaryData& hash, shared_ptr<BinaryData> rawTxPtr, 
+   const std::string& requestID, const std::string& bdvID,
+   std::map<std::string, std::string>& extraRequestors,
+   bool watchEntry)
+{
+   //lock 
+   ReentrantLock lock(&watcherMapMutex_);
+
+   //try to insert
+   auto insertIter = watcherMap_.insert(make_pair(
+      hash, WatcherTxBody(rawTxPtr)));
+
+   if (insertIter.second)
+   {
+      //set the watcher node flag
+      insertIter.first->second.ignoreWatcherNodeInv_ = !watchEntry;
+
+      //set extra requestors
+      if (!extraRequestors.empty())
+         insertIter.first->second.extraRequestors_ = move(extraRequestors);
+
+      //return successful insertion
+      return true;
+   }
+   else
+   {
+      //already have this hash, do not change the watcher node flag
+
+      //tie this request to the existing watcher entry
+      insertIter.first->second.extraRequestors_.emplace(
+         requestID, bdvID);
+
+      //add the extra requestors if any
+      if (!extraRequestors.empty())
+      {
+         insertIter.first->second.extraRequestors_.insert(
+            extraRequestors.begin(), extraRequestors.end());
+      }
+
+      //return failed insertion
+      return false;
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2149,7 +2198,7 @@ BatchTxMap ZeroConfContainer::getBatchTxMap(shared_ptr<ZeroConfBatch> batch,
    //purge the watcher map if this batch affects it
    if (batch->hasWatcherEntries_)
    {
-      unique_lock<mutex> lock(watcherMapMutex_);
+      SingleLock lock(&watcherMapMutex_);
       for (auto& keyPair : batch->hashToKeyMap_)
       {
          auto iter = watcherMap_.find(keyPair.first);

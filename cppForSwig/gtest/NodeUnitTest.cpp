@@ -879,7 +879,7 @@ void NodeUnitTest::skipZc(unsigned count)
 ////////////////////////////////////////////////////////////////////////////////
 void NodeUnitTest::delayNextZc(unsigned count)
 {
-   //next zeroconf p2p inved zc will skip [count] blocks before it mines
+   //next p2p inved zc will skip [count] blocks before it mines
    unique_lock<mutex> lock(sendMessageMutex_);
    zcDelays_.push_back(count);
 }
@@ -887,7 +887,7 @@ void NodeUnitTest::delayNextZc(unsigned count)
 ////////////////////////////////////////////////////////////////////////////////
 void NodeUnitTest::stallNextZc(unsigned seconds)
 {
-   //next zeroconf p2p inved zc will take [seconds] before replying with the 
+   //next p2p inved zc will take [seconds] before replying with the 
    //getData message
    unique_lock<mutex> lock(sendMessageMutex_);
    zcStalls_.push_back(seconds);
@@ -897,6 +897,15 @@ void NodeUnitTest::stallNextZc(unsigned seconds)
 //
 // NodeRPC_UnitTest
 //
+////////////////////////////////////////////////////////////////////////////////
+void NodeRPC_UnitTest::stallNextZc(unsigned seconds)
+{
+   //next RPC broadcast will take [seconds] before replying with the 
+   //getData message
+   unique_lock<mutex> lock(zcStallMutex_);
+   zcStalls_.push_back(seconds);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx, string&)
 {
@@ -908,6 +917,16 @@ int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx, string&)
    if (nodeUT == nullptr)
       throw runtime_error("invalid node ptr");
    
+   {
+      unique_lock<mutex> lock(zcStallMutex_);
+      if (!zcStalls_.empty())
+      {
+         auto stall = zcStalls_.front();
+         zcStalls_.pop_front();
+
+         this_thread::sleep_for(chrono::seconds(stall));
+      }
+   }
    
    //is this tx already mined?
    Tx tx(rawTx);
