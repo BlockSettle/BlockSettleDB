@@ -253,7 +253,8 @@ protected:
    unsigned version_ = 1;
    unsigned lockTime_ = 0;
 
-   mutable BinaryData serializedTx_;
+   mutable BinaryData serializedSignedTx_;
+   mutable BinaryData serializedUnsignedTx_;
    mutable BinaryData serializedOutputs_;
 
    std::vector<std::shared_ptr<ScriptSpender>> spenders_;
@@ -296,33 +297,34 @@ public:
    { recipients_.push_back(recipient); }
 
    void sign(void);
-   BinaryDataRef serialize(void) const;
+   BinaryDataRef serializeSignedTx(void) const;
+   BinaryDataRef serializeUnsignedTx(void);
    
    bool verify(void);
    bool verifyRawTx(const BinaryData& rawTx,
       const std::map<BinaryData, std::map<unsigned, BinaryData> >& rawUTXOs);
 
    ////
-   BinaryDataRef getSerializedOutputScripts(void) const;
-   std::vector<TxInData> getTxInsData(void) const;
-   BinaryData getSubScript(unsigned index) const;
-   BinaryDataRef getWitnessData(unsigned inputId) const;
+   BinaryDataRef getSerializedOutputScripts(void) const override;
+   std::vector<TxInData> getTxInsData(void) const override;   
+   BinaryData getSubScript(unsigned index) const override;
+   BinaryDataRef getWitnessData(unsigned inputId) const override;
    bool isInputSW(unsigned inputId) const;
 
-   uint32_t getVersion(void) const { return version_; }
-   uint32_t getTxOutCount(void) const { return recipients_.size(); }
+   uint32_t getVersion(void) const override { return version_; }
+   uint32_t getTxOutCount(void) const override { return recipients_.size(); }
    std::shared_ptr<ScriptSpender> getSpender(unsigned) const;
 
-   uint32_t getLockTime(void) const { return lockTime_; }
+   uint32_t getLockTime(void) const override { return lockTime_; }
    void setLockTime(unsigned locktime) { lockTime_ = locktime; }
    void setVersion(unsigned version) { version_ = version; }
 
    //sw methods
-   BinaryData serializeAllOutpoints(void) const;
-   BinaryData serializeAllSequences(void) const;
-   BinaryDataRef getOutpoint(unsigned) const;
-   uint64_t getOutpointValue(unsigned) const;
-   unsigned getTxInSequence(unsigned) const;
+   BinaryData serializeAllOutpoints(void) const override;
+   BinaryData serializeAllSequences(void) const override;
+   BinaryDataRef getOutpoint(unsigned) const override;
+   uint64_t getOutpointValue(unsigned) const override;
+   unsigned getTxInSequence(unsigned) const override;
    const BinaryData& getSigForInputIndex(unsigned) const;
 
    BinaryData serializeState(void) const;

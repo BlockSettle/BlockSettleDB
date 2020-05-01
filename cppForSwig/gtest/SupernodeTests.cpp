@@ -1404,7 +1404,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx1 = signer.serialize();
+      rawTx1 = signer.serializeSignedTx();
    }
 
    {
@@ -1425,7 +1425,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx2 = signer.serialize();
+      rawTx2 = signer.serializeSignedTx();
    }
 
    //4 outputs
@@ -1462,7 +1462,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx3 = signer.serialize();
+      rawTx3 = signer.serializeSignedTx();
    }
 
    /*stage the transactions*/
@@ -1866,11 +1866,11 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
-      Tx zctx(signer.serialize());
+      Tx zctx(signer.serializeSignedTx());
       ZChash = zctx.getThisHash();
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 1300000000);
+      zcVec.push_back(signer.serializeSignedTx(), 1300000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -2279,10 +2279,10 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
       signer2.sign();
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
       ZCHash1 = zcVec.zcVec_.back().first.getThisHash();
 
-      zcVec.push_back(signer2.serialize(), 14100000);
+      zcVec.push_back(signer2.serializeSignedTx(), 14100000);
       ZCHash2 = zcVec.zcVec_.back().first.getThisHash();
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
@@ -2535,7 +2535,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       auto&& zcHash = signer.getTxId();
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -2715,7 +2715,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       ASSERT_TRUE(txinEval.isSignedForPubKey(asset_single->getPubKey()->getCompressedKey()));
    }
 
-   auto&& tx1 = signer3.serialize();
+   auto&& tx1 = signer3.serializeSignedTx();
    auto&& zcHash = signer3.getTxId();
 
    //broadcast the last one
@@ -2910,7 +2910,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
-      auto rawTx = signer.serialize();
+      auto rawTx = signer.serializeSignedTx();
       DBTestUtils::ZcVector zcVec;
       zcVec.push_back(rawTx, 14000000);
 
@@ -2983,7 +2983,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
          signer3.sign();
       }
 
-      auto rawTx = signer3.serialize();
+      auto rawTx = signer3.serializeSignedTx();
       DBTestUtils::ZcVector zcVec3;
       zcVec3.push_back(rawTx, 15000000);
 
@@ -3085,7 +3085,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
       }
       EXPECT_TRUE(signer2.verify());
 
-      auto rawTx = signer2.serialize();
+      auto rawTx = signer2.serializeSignedTx();
       DBTestUtils::ZcVector zcVec2;
       zcVec2.push_back(rawTx, 17000000);
 
@@ -3357,8 +3357,8 @@ TEST_F(BlockUtilsWithWalletTest, ZC_MineAfter1Block)
 
       signer.setFeed(feed);
       signer.sign();
-      auto rawTx = signer.serialize();
-      zcVec.push_back(signer.serialize(), 130000000, 0);
+      auto rawTx = signer.serializeSignedTx();
+      zcVec.push_back(signer.serializeSignedTx(), 130000000, 0);
    }
    
    //spend from B to C
@@ -3372,7 +3372,7 @@ TEST_F(BlockUtilsWithWalletTest, ZC_MineAfter1Block)
 
       signer.setFeed(feed);
       signer.sign();
-      zcVec.push_back(signer.serialize(), 131000000, 1);
+      zcVec.push_back(signer.serializeSignedTx(), 131000000, 1);
    }
 
    auto hash1 = zcVec.zcVec_[0].first.getThisHash();
@@ -6534,7 +6534,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
       signer.addRecipient(recPtr);
 
       signer.sign();
-      return signer.serialize();
+      return signer.serializeSignedTx();
    };
 
    //grab utxo from db
@@ -6986,8 +6986,8 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
             signer.setFeed(feed);
             signer.sign();
-            auto rawTx = signer.serialize();
-            zcVec.push_back(signer.serialize(), 130000000, stagger++);
+            auto rawTx = signer.serializeSignedTx();
+            zcVec.push_back(signer.serializeSignedTx(), 130000000, stagger++);
          }
 
          if (stagger < loopCount)
@@ -7766,7 +7766,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       signer.addRecipient(recPtr);
 
       signer.sign();
-      return signer.serialize();
+      return signer.serializeSignedTx();
    };
 
    //grab utxo from db
@@ -8239,7 +8239,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx1 = signer.serialize();
+      rawTx1 = signer.serializeSignedTx();
    }
    
    BinaryData rawTx2;
@@ -8261,7 +8261,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx2 = signer.serialize();
+      rawTx2 = signer.serializeSignedTx();
    }
 
    //push the 2 zc through the node
@@ -8318,7 +8318,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx3 = signer.serialize();
+      rawTx3 = signer.serializeSignedTx();
    }
    
    BinaryData rawTx4;
@@ -8340,7 +8340,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
       signer.setFeed(feed);
       signer.sign();
-      rawTx4 = signer.serialize();
+      rawTx4 = signer.serializeSignedTx();
    }
 
    //push the 2 zc through the rpc
@@ -8646,7 +8646,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
             signer.setFeed(feed);
             signer.sign();
-            zcVec.push_back(signer.serialize(), 130000000, stagger++);
+            zcVec.push_back(signer.serializeSignedTx(), 130000000, stagger++);
          }
 
          if (stagger < loopCount)
@@ -8927,10 +8927,10 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
             signer.setFeed(zcFeed);
             signer.sign();
-            auto rawTx = signer.serialize();
+            auto rawTx = signer.serializeSignedTx();
             Tx tx(rawTx);
             newZcHashes.insert(make_pair(tx.getThisHash(), count++));
-            zcVec.push_back(signer.serialize(), 130000000, stagger++);
+            zcVec.push_back(signer.serializeSignedTx(), 130000000, stagger++);
          }
       }
 
@@ -9243,7 +9243,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1 = signer.serialize();
+         rawTx1 = signer.serializeSignedTx();
       }
 
       {
@@ -9266,7 +9266,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -9302,7 +9302,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
 
       //batch push tx
@@ -9555,7 +9555,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1 = signer.serialize();
+         rawTx1 = signer.serializeSignedTx();
       }
 
       {
@@ -9578,7 +9578,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -9614,7 +9614,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1(rawTx1);
@@ -9883,7 +9883,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -9905,7 +9905,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -9929,7 +9929,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -9965,7 +9965,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -10226,7 +10226,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -10248,7 +10248,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -10272,7 +10272,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -10308,7 +10308,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -10571,7 +10571,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -10593,7 +10593,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -10617,7 +10617,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -10653,7 +10653,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -10912,7 +10912,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -10934,7 +10934,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -10958,7 +10958,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -10982,7 +10982,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -11242,7 +11242,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -11264,7 +11264,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -11288,7 +11288,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -11312,7 +11312,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -11585,7 +11585,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -11607,7 +11607,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -11631,7 +11631,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -11655,7 +11655,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -11928,7 +11928,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_B = signer.serialize();
+         rawTx1_B = signer.serializeSignedTx();
       }
 
       BinaryData rawTx1_C;
@@ -11950,7 +11950,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx1_C = signer.serialize();
+         rawTx1_C = signer.serializeSignedTx();
       }
 
       BinaryData rawTx2;
@@ -11974,7 +11974,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx2 = signer.serialize();
+         rawTx2 = signer.serializeSignedTx();
       }
 
       BinaryData rawTx3;
@@ -12000,7 +12000,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
          signer.setFeed(feed);
          signer.sign();
-         rawTx3 = signer.serialize();
+         rawTx3 = signer.serializeSignedTx();
       }
       
       Tx tx1_B(rawTx1_B);
@@ -12334,7 +12334,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12360,7 +12360,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12381,7 +12381,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12402,7 +12402,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12421,7 +12421,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12447,7 +12447,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -12471,7 +12471,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }      
@@ -12999,7 +12999,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13025,7 +13025,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13046,7 +13046,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13067,7 +13067,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13086,7 +13086,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13112,7 +13112,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13136,7 +13136,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13661,7 +13661,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13687,7 +13687,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }
@@ -13711,7 +13711,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
 
          signer.setFeed(feed);
          signer.sign();
-         rawTxVec.push_back(signer.serialize());
+         rawTxVec.push_back(signer.serializeSignedTx());
          Tx tx(rawTxVec.back());
          zcHashes.push_back(tx.getThisHash());
       }

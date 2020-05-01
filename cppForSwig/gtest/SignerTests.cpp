@@ -298,6 +298,7 @@ TEST_F(SignerTest, DISABLED_CheckChain_Test)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, Signer_Test)
 {
+   //
    TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
 
    initBDM();
@@ -536,7 +537,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -635,14 +636,14 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       EXPECT_TRUE(signer2.verify());
 
       DBTestUtils::ZcVector zcVec2;
-      auto txref = signer2.serialize();
+      auto txref = signer2.serializeSignedTx();
 
       //size estimate should not deviate from the signed tx size by more than 4 bytes
       //per input (DER sig size variance)
       EXPECT_TRUE(csi.getSizeEstimate() < txref.getSize() + utxoSelect.size() * 2);
       EXPECT_TRUE(csi.getSizeEstimate() > txref.getSize() - utxoSelect.size() * 2);
 
-      zcVec2.push_back(signer2.serialize(), 15000000);
+      zcVec2.push_back(signer2.serializeSignedTx(), 15000000);
 
       //check fee/byte matches tx size
       auto totalFee = total - zcVec2.zcVec_[0].first.getSumOfOutputs();
@@ -749,14 +750,14 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       EXPECT_TRUE(signer3.verify());
 
       DBTestUtils::ZcVector zcVec2;
-      auto txref = signer3.serialize();
+      auto txref = signer3.serializeSignedTx();
 
       //size estimate should not deviate from the signed tx size by more than 4 bytes
       //per input (DER sig size variance)
       EXPECT_TRUE(csi.getSizeEstimate() < txref.getSize() + utxoSelect.size() * 2);
       EXPECT_TRUE(csi.getSizeEstimate() > txref.getSize() - utxoSelect.size() * 2);
 
-      zcVec2.push_back(signer3.serialize(), 15000000);
+      zcVec2.push_back(signer3.serializeSignedTx(), 15000000);
 
       //check fee/byte matches tx size
       auto totalFee = total - zcVec2.zcVec_[0].first.getSumOfOutputs();
@@ -946,7 +947,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -1007,6 +1008,18 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
          signer2.addRecipient(addrVec[2]->getRecipient(changeVal));
       }
 
+      //grab the unsigned tx and get the tx hash from it
+      BinaryData txHashUnsigned;
+      {
+         auto unsignedTxRaw = signer2.serializeUnsignedTx();
+
+         Tx unsignedTx(unsignedTxRaw);
+         txHashUnsigned = unsignedTx.getThisHash();
+      }
+
+      auto hashFromSigner = signer2.getTxId();
+      EXPECT_EQ(txHashUnsigned, hashFromSigner);
+
       //sign, verify & broadcast
       {
          auto&& lock = assetWlt->lockDecryptedContainer();
@@ -1015,7 +1028,11 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       EXPECT_TRUE(signer2.verify());
 
       DBTestUtils::ZcVector zcVec2;
-      zcVec2.push_back(signer2.serialize(), 15000000);
+      auto signedTxRaw = signer2.serializeSignedTx();
+      zcVec2.push_back(signedTxRaw, 15000000);
+
+      Tx signedTx(signedTxRaw);
+      EXPECT_EQ(signedTx.getThisHash(), txHashUnsigned);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec2);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -1224,7 +1241,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -1247,7 +1264,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
 
    //lambda to sign with each wallet
-   auto signPerWallet = [&](shared_ptr<AssetWallet_Single> wltPtr)->BinaryData
+   auto signPerWallet = [&](shared_ptr<AssetWallet_Single> wltPtr, 
+      BinaryData& unsignedHash)->BinaryData
    {
       ////spend 18 back to scrAddrB, with change to self
 
@@ -1288,6 +1306,14 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       auto opreturn_msg = BinaryData::fromString("testing op_return 0123");
       signer2.addRecipient(make_shared<Recipient_OPRETURN>(opreturn_msg));
 
+      {
+         auto hash = signer2.getTxId();
+         auto unsignedTx = signer2.serializeUnsignedTx();
+         Tx tx(unsignedTx);
+         unsignedHash = tx.getThisHash();
+         EXPECT_EQ(unsignedHash, hash);
+      }
+
       //sign, verify & return signed tx
       {
          auto lock = wltPtr->lockDecryptedContainer();
@@ -1295,13 +1321,25 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       }
       EXPECT_TRUE(signer2.verify());
 
-      return signer2.serialize();
+      return signer2.serializeSignedTx();
    };
 
    //call lambda with each wallet
-   auto&& tx1 = signPerWallet(assetWlt_1);
-   auto&& tx2 = signPerWallet(assetWlt_2);
-   auto&& tx3 = signPerWallet(assetWlt_3);
+   BinaryData unsignedHash1, unsignedHash2, unsignedHash3;
+   auto&& tx1 = signPerWallet(assetWlt_1, unsignedHash1);
+   auto&& tx2 = signPerWallet(assetWlt_2, unsignedHash2);
+   auto&& tx3 = signPerWallet(assetWlt_3, unsignedHash3);
+
+   {
+      Tx tx_1(tx1);
+      EXPECT_EQ(tx_1.getThisHash(), unsignedHash1);
+      
+      Tx tx_2(tx2);
+      EXPECT_EQ(tx_2.getThisHash(), unsignedHash2);
+      
+      Tx tx_3(tx3);
+      EXPECT_EQ(tx_3.getThisHash(), unsignedHash3);
+   }
 
    //broadcast the last one
    DBTestUtils::ZcVector zcVec;
@@ -1518,7 +1556,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       auto&& zcHash = signer.getTxId();
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -1698,7 +1736,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       ASSERT_TRUE(txinEval.isSignedForPubKey(asset_single->getPubKey()->getCompressedKey()));
    }
 
-   auto&& tx1 = signer3.serialize();
+   auto&& tx1 = signer3.serializeSignedTx();
    auto&& zcHash = signer3.getTxId();
 
    //broadcast the last one
@@ -1904,7 +1942,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -2036,7 +2074,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       EXPECT_TRUE(false);
    }
 
-   auto&& tx1 = signer5.serialize();
+   auto&& tx1 = signer5.serializeSignedTx();
 
    //broadcast the last one
    DBTestUtils::ZcVector zcVec;
@@ -2237,7 +2275,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -2421,7 +2459,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       EXPECT_TRUE(false);
    }
 
-   auto&& tx1 = signer7.serialize();
+   auto&& tx1 = signer7.serializeSignedTx();
 
    //broadcast the last one
    DBTestUtils::ZcVector zcVec;
@@ -2452,6 +2490,809 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
    scrObj = wlt_2->getScrAddrObjByKey(hashVec_2[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
+{
+   //create spender lamba
+   auto getSpenderPtr = [](
+      const UnspentTxOut& utxo,
+      shared_ptr<ResolverFeed> feed)
+      ->shared_ptr<ScriptSpender>
+   {
+      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
+         move(utxo.txHash_), move(utxo.script_));
+
+      return make_shared<ScriptSpender>(entry, feed);
+   };
+
+   //
+   TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
+
+   initBDM();
+
+   theBDMt_->start(config.initMode_);
+   auto&& bdvID = DBTestUtils::registerBDV(
+      clients_, NetworkConfig::getMagicBytes());
+
+   vector<BinaryData> scrAddrVec;
+   scrAddrVec.push_back(TestChain::scrAddrA);
+   scrAddrVec.push_back(TestChain::scrAddrB);
+   scrAddrVec.push_back(TestChain::scrAddrC);
+   scrAddrVec.push_back(TestChain::scrAddrD);
+   scrAddrVec.push_back(TestChain::scrAddrE);
+
+   //// create 2 assetWlt ////
+
+   //create a root private key
+   auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+      homedir_,
+      CryptoPRNG::generateRandom(32), //root as rvalue
+      {},
+      SecureBinaryData(), //empty passphrase
+      SecureBinaryData(),
+      3); //set lookup computation to 3 entries
+
+   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+      homedir_,
+      move(CryptoPRNG::generateRandom(32)), //root as rvalue
+      {},
+      SecureBinaryData(), //empty passphrase
+      SecureBinaryData(),
+      3); //set lookup computation to 3 entries
+
+   //register with db
+   vector<shared_ptr<AddressEntry>> addrVec_1;
+   addrVec_1.push_back(assetWlt_1->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(AddressEntryType_P2WPKH));
+
+   vector<BinaryData> hashVec_1;
+   for (auto addrPtr : addrVec_1)
+      hashVec_1.push_back(addrPtr->getPrefixedHash());
+
+   vector<shared_ptr<AddressEntry>> addrVec_2;
+   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
+
+   vector<BinaryData> hashVec_2;
+   for (auto addrPtr : addrVec_2)
+      hashVec_2.push_back(addrPtr->getPrefixedHash());
+
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec_1, assetWlt_1->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec_2, assetWlt_2->getID());
+
+   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
+
+   //wait on signals
+   DBTestUtils::goOnline(clients_, bdvID);
+   DBTestUtils::waitOnBDMReady(clients_, bdvID);
+   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
+   auto wlt_1 = bdvPtr->getWalletOrLockbox(assetWlt_1->getID());
+   auto wlt_2 = bdvPtr->getWalletOrLockbox(assetWlt_2->getID());
+
+   //check balances
+   const ScrAddrObj* scrObj;
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+
+   //check new wallet balances
+   scrObj = wlt_1->getScrAddrObjByKey(hashVec_1[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = wlt_2->getScrAddrObjByKey(hashVec_2[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   {
+      ////spend 12 to wlt_1, 15 to wlt_2 from wlt
+      ////send rest back to scrAddrA
+
+      auto spendVal = 27 * COIN;
+      Signer signer;
+
+      //instantiate resolver feed overloaded object
+      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
+
+      auto addToFeed = [feed](const BinaryData& key)->void
+      {
+         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
+         feed->h160ToPubKey_.insert(datapair);
+         feed->pubKeyToPrivKey_[datapair.second] = key;
+      };
+
+      addToFeed(TestChain::privKeyAddrB);
+      addToFeed(TestChain::privKeyAddrC);
+      addToFeed(TestChain::privKeyAddrD);
+      addToFeed(TestChain::privKeyAddrE);
+
+      //get utxo list for spend value
+      auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
+
+      vector<UnspentTxOut> utxoVec;
+      uint64_t tval = 0;
+      auto utxoIter = unspentVec.begin();
+      while (utxoIter != unspentVec.end())
+      {
+         tval += utxoIter->getValue();
+         utxoVec.push_back(*utxoIter);
+
+         if (tval > spendVal)
+            break;
+
+         ++utxoIter;
+      }
+
+      //create script spender objects
+      uint64_t total = 0;
+      for (auto& utxo : utxoVec)
+      {
+         total += utxo.getValue();
+         signer.addSpender(getSpenderPtr(utxo, feed));
+      }
+
+      //spend 12 to p2pkh script hash
+      signer.addRecipient(addrVec_1[0]->getRecipient(12 * COIN));
+
+      //spend 15 to p2pkh script hash
+      signer.addRecipient(addrVec_2[0]->getRecipient(15 * COIN));
+
+      if (total > spendVal)
+      {
+         //change to scrAddrD, no fee
+         auto changeVal = total - spendVal;
+         auto recipientChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrD.getSliceCopy(1, 20), changeVal);
+         signer.addRecipient(recipientChange);
+      }
+
+      //sign, verify then broadcast
+      signer.sign();
+      EXPECT_TRUE(signer.verify());
+
+      DBTestUtils::ZcVector zcVec;
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
+
+      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+   }
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   //check new wallet balances
+   scrObj = wlt_1->getScrAddrObjByKey(hashVec_1[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 12 * COIN);
+   scrObj = wlt_2->getScrAddrObjByKey(hashVec_2[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 15 * COIN);
+
+   //spend 18 back to wlt, split change among the 2
+
+   //get utxo list for spend value
+   auto&& unspentVec_1 =
+      wlt_1->getSpendableTxOutListZC();
+   auto&& unspentVec_2 =
+      wlt_2->getSpendableTxOutListZC();
+
+   BinaryData serializedSignerState;
+
+   {
+      //create first signer, set outpoint from wlt_1 and change to wlt_1
+      auto spendVal = 8 * COIN;
+      Signer signer2;
+      signer2.setFlags(SCRIPT_VERIFY_SEGWIT);
+
+      //create feed from asset wallet 1
+
+      //create wlt_1 spenders
+      auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
+      uint64_t total = 0;
+      for (auto& utxo : unspentVec_1)
+      {
+         total += utxo.getValue();
+         signer2.addSpender(getSpenderPtr(utxo, _assetFeed));
+      }
+
+      //spend 18 to addrB, use P2PKH
+      auto recipient2 = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrB.getSliceCopy(1, 20), 18 * COIN);
+      signer2.addRecipient(recipient2);
+
+      //change back to wlt_1
+      if (total > spendVal)
+      {
+         //spend 4 to p2pkh script hash
+         signer2.addRecipient(addrVec_1[1]->getRecipient(total - spendVal));
+      }
+
+      //get txid to resolve the spender, ignore it as it is 
+      //invalid for now (incomplete tx structure)
+      auto txid = signer2.getTxId();
+
+      //spender resolved state should be seralized along
+      serializedSignerState = move(signer2.serializeState());
+   }
+
+   BinaryData unsignedTxRaw, unsignedHash;
+   {
+      //serialize signer 2, deser with signer3 and populate with outpoint and 
+      //change from wlt_2
+      auto spendVal = 10 * COIN;
+      Signer signer3;
+      signer3.deserializeState(serializedSignerState);
+
+      //add spender from wlt_2
+      uint64_t total = 0;
+      for (auto& utxo : unspentVec_2)
+      {
+         auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+         total += utxo.getValue();
+         signer3.addSpender(getSpenderPtr(utxo, _assetFeed));
+      }
+
+      //set change
+      if (total > spendVal)
+      {
+         //spend 4 to p2pkh script hash
+         signer3.addRecipient(addrVec_2[1]->getRecipient(total - spendVal));
+      }
+
+      //get txid & unsigned tx, should be valid now
+      unsignedHash = signer3.getTxId();
+      unsignedTxRaw = signer3.serializeUnsignedTx();
+
+      //spender resolved state should be seralized along
+      serializedSignerState = move(signer3.serializeState());
+   }
+
+   auto assetFeed2 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
+   auto assetFeed3 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+
+   //deser to new signer, this time populate with feed and utxo from wlt_1
+   Signer signer4;
+   for (auto& utxo : unspentVec_1)
+   {
+      signer4.addSpender(getSpenderPtr(utxo, assetFeed2));
+   }
+
+   signer4.deserializeState(serializedSignerState);
+
+   {
+      auto lock = assetWlt_1->lockDecryptedContainer();
+      signer4.sign();
+   }
+
+   try
+   {
+      signer4.verify();
+      EXPECT_TRUE(false);
+   }
+   catch (...)
+   {
+   }
+
+   EXPECT_FALSE(signer4.isValid());
+
+   //deser from same state into wlt_2 signer
+   Signer signer5;
+
+   //in this case, we can't set the utxos first then deser the state, as it would break
+   //utxo ordering. we have to deser first, then populate utxos
+   signer5.deserializeState(serializedSignerState);
+
+   for (auto& utxo : unspentVec_2)
+   {
+      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
+         move(utxo.txHash_), move(utxo.script_));
+
+      signer5.populateUtxo(entry);
+   }
+
+   //finally set the feed
+   signer5.setFeed(assetFeed3);
+
+   {
+      auto lock = assetWlt_2->lockDecryptedContainer();
+      signer5.sign();
+   }
+
+   try
+   {
+      signer5.verify();
+      EXPECT_TRUE(false);
+   }
+   catch (...)
+   {
+   }
+
+   //now serialize both signers into the final signer, verify and broadcast
+   Signer signer6;
+   signer6.deserializeState(signer4.serializeState());
+   signer6.deserializeState(signer5.serializeState());
+
+   ASSERT_TRUE(signer6.isValid());
+   try
+   {
+      signer6.verify();
+   }
+   catch (...)
+   {
+      EXPECT_TRUE(false);
+   }
+
+   //try again in the opposite order, that should not matter
+   Signer signer7;
+   signer7.deserializeState(signer5.serializeState());
+   signer7.deserializeState(signer4.serializeState());
+
+   ASSERT_TRUE(signer7.isValid());
+   try
+   {
+      signer7.verify();
+   }
+   catch (...)
+   {
+      EXPECT_TRUE(false);
+   }
+
+   auto&& tx1 = signer7.serializeSignedTx();
+
+   //broadcast the last one
+   DBTestUtils::ZcVector zcVec;
+   zcVec.push_back(tx1, 15000000);
+
+   DBTestUtils::pushNewZc(theBDMt_, zcVec);
+   DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 48 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   //check new wallet balances
+   scrObj = wlt_1->getScrAddrObjByKey(hashVec_1[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = wlt_1->getScrAddrObjByKey(hashVec_1[1]);
+   EXPECT_EQ(scrObj->getFullBalance(), 4 * COIN);
+
+   scrObj = wlt_2->getScrAddrObjByKey(hashVec_2[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = wlt_2->getScrAddrObjByKey(hashVec_2[1]);
+   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
+
+   //compare hashes with unsigned counterparts
+   Tx unsignedTx(unsignedTxRaw);
+   EXPECT_EQ(unsignedTx.getThisHash(), unsignedHash);
+   EXPECT_EQ(unsignedTx.getThisHash(), signer7.getTxId());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Nested)
+{
+   //create spender lamba
+   auto getSpenderPtr = [](
+      const UnspentTxOut& utxo,
+      shared_ptr<ResolverFeed> feed)
+      ->shared_ptr<ScriptSpender>
+   {
+      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
+         move(utxo.txHash_), move(utxo.script_));
+
+      return make_shared<ScriptSpender>(entry, feed);
+   };
+
+   //
+   TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
+
+   initBDM();
+
+   theBDMt_->start(config.initMode_);
+   auto&& bdvID = DBTestUtils::registerBDV(
+      clients_, NetworkConfig::getMagicBytes());
+
+   vector<BinaryData> scrAddrVec;
+   scrAddrVec.push_back(TestChain::scrAddrA);
+   scrAddrVec.push_back(TestChain::scrAddrB);
+   scrAddrVec.push_back(TestChain::scrAddrC);
+   scrAddrVec.push_back(TestChain::scrAddrD);
+   scrAddrVec.push_back(TestChain::scrAddrE);
+
+   //// create 2 assetWlt ////
+
+   //create a root private key
+   auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+      homedir_,
+      CryptoPRNG::generateRandom(32), //root as rvalue
+      {},
+      SecureBinaryData(), //empty passphrase
+      SecureBinaryData(),
+      3); //set lookup computation to 3 entries
+
+   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+      homedir_,
+      move(CryptoPRNG::generateRandom(32)), //root as rvalue
+      {},
+      SecureBinaryData(), //empty passphrase
+      SecureBinaryData(),
+      3); //set lookup computation to 3 entries
+
+   //register with db
+   auto addr_type_nested_p2wsh = AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH);
+   vector<shared_ptr<AddressEntry>> addrVec_1;
+   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2wsh));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2wsh));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2wsh));
+
+   vector<BinaryData> hashVec_1;
+   for (auto addrPtr : addrVec_1)
+      hashVec_1.push_back(addrPtr->getPrefixedHash());
+
+   vector<shared_ptr<AddressEntry>> addrVec_2;
+   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
+
+   vector<BinaryData> hashVec_2;
+   for (auto addrPtr : addrVec_2)
+      hashVec_2.push_back(addrPtr->getPrefixedHash());
+
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec_1, assetWlt_1->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec_2, assetWlt_2->getID());
+
+   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
+
+   //wait on signals
+   DBTestUtils::goOnline(clients_, bdvID);
+   DBTestUtils::waitOnBDMReady(clients_, bdvID);
+   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
+   auto wlt_1 = bdvPtr->getWalletOrLockbox(assetWlt_1->getID());
+   auto wlt_2 = bdvPtr->getWalletOrLockbox(assetWlt_2->getID());
+
+   //check balances
+   const ScrAddrObj* scrObj;
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+
+   //check new wallet balances
+   scrObj = wlt_1->getScrAddrObjByKey(hashVec_1[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = wlt_2->getScrAddrObjByKey(hashVec_2[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   {
+      ////spend 12 to wlt_1, 15 to wlt_2 from wlt
+      ////send rest back to scrAddrA
+
+      auto spendVal = 27 * COIN;
+      Signer signer;
+
+      //instantiate resolver feed overloaded object
+      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
+
+      auto addToFeed = [feed](const BinaryData& key)->void
+      {
+         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
+         feed->h160ToPubKey_.insert(datapair);
+         feed->pubKeyToPrivKey_[datapair.second] = key;
+      };
+
+      addToFeed(TestChain::privKeyAddrB);
+      addToFeed(TestChain::privKeyAddrC);
+      addToFeed(TestChain::privKeyAddrD);
+      addToFeed(TestChain::privKeyAddrE);
+
+      //get utxo list for spend value
+      auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
+
+      vector<UnspentTxOut> utxoVec;
+      uint64_t tval = 0;
+      auto utxoIter = unspentVec.begin();
+      while (utxoIter != unspentVec.end())
+      {
+         tval += utxoIter->getValue();
+         utxoVec.push_back(*utxoIter);
+
+         if (tval > spendVal)
+            break;
+
+         ++utxoIter;
+      }
+
+      //create script spender objects
+      uint64_t total = 0;
+      for (auto& utxo : utxoVec)
+      {
+         total += utxo.getValue();
+         signer.addSpender(getSpenderPtr(utxo, feed));
+      }
+
+      //spend 12 to p2pkh script hash
+      signer.addRecipient(addrVec_1[0]->getRecipient(12 * COIN));
+
+      //spend 15 to p2pkh script hash
+      signer.addRecipient(addrVec_2[0]->getRecipient(15 * COIN));
+
+      if (total > spendVal)
+      {
+         //change to scrAddrD, no fee
+         auto changeVal = total - spendVal;
+         auto recipientChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrD.getSliceCopy(1, 20), changeVal);
+         signer.addRecipient(recipientChange);
+      }
+
+      //sign, verify then broadcast
+      signer.sign();
+      EXPECT_TRUE(signer.verify());
+
+      DBTestUtils::ZcVector zcVec;
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
+
+      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+   }
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   //check new wallet balances
+   scrObj = wlt_1->getScrAddrObjByKey(hashVec_1[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 12 * COIN);
+   scrObj = wlt_2->getScrAddrObjByKey(hashVec_2[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 15 * COIN);
+
+   //spend 18 back to wlt, split change among the 2
+
+   //get utxo list for spend value
+   auto&& unspentVec_1 =
+      wlt_1->getSpendableTxOutListZC();
+   auto&& unspentVec_2 =
+      wlt_2->getSpendableTxOutListZC();
+
+   BinaryData serializedSignerState;
+
+   {
+      //create first signer, set outpoint from wlt_1 and change to wlt_1
+      auto spendVal = 8 * COIN;
+      Signer signer2;
+      signer2.setFlags(SCRIPT_VERIFY_SEGWIT);
+
+      //create feed from asset wallet 1
+
+      //create wlt_1 spenders
+      auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
+      uint64_t total = 0;
+      for (auto& utxo : unspentVec_1)
+      {
+         total += utxo.getValue();
+         signer2.addSpender(getSpenderPtr(utxo, _assetFeed));
+      }
+
+      //spend 18 to addrB, use P2PKH
+      auto recipient2 = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrB.getSliceCopy(1, 20), 18 * COIN);
+      signer2.addRecipient(recipient2);
+
+      //change back to wlt_1
+      if (total > spendVal)
+      {
+         //spend 4 to p2pkh script hash
+         signer2.addRecipient(addrVec_1[1]->getRecipient(total - spendVal));
+      }
+
+      //get txid to resolve the spender, ignore it as it is 
+      //invalid for now (incomplete tx structure)
+      auto txid = signer2.getTxId();
+
+      //spender resolved state should be seralized along
+      serializedSignerState = move(signer2.serializeState());
+   }
+
+   BinaryData unsignedTxRaw, unsignedHash;
+   {
+      //serialize signer 2, deser with signer3 and populate with outpoint and 
+      //change from wlt_2
+      auto spendVal = 10 * COIN;
+      Signer signer3;
+      signer3.setFlags(SCRIPT_VERIFY_SEGWIT);
+      signer3.deserializeState(serializedSignerState);
+
+      //add spender from wlt_2
+      uint64_t total = 0;
+      for (auto& utxo : unspentVec_2)
+      {
+         auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+         total += utxo.getValue();
+         signer3.addSpender(getSpenderPtr(utxo, _assetFeed));
+      }
+
+      //set change
+      if (total > spendVal)
+      {
+         //spend 4 to p2pkh script hash
+         signer3.addRecipient(addrVec_2[1]->getRecipient(total - spendVal));
+      }
+
+      //get txid & unsigned tx, should be valid now
+      unsignedHash = signer3.getTxId();
+      unsignedTxRaw = signer3.serializeUnsignedTx();
+
+      //spender resolved state should be seralized along
+      serializedSignerState = move(signer3.serializeState());
+   }
+
+   auto assetFeed2 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
+   auto assetFeed3 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+
+   //deser to new signer, this time populate with feed and utxo from wlt_1
+   Signer signer4;
+   signer4.setFlags(SCRIPT_VERIFY_SEGWIT);
+
+   for (auto& utxo : unspentVec_1)
+   {
+      signer4.addSpender(getSpenderPtr(utxo, assetFeed2));
+   }
+
+   signer4.deserializeState(serializedSignerState);
+
+   {
+      signer4.setFeed(assetFeed2);
+      auto lock = assetWlt_1->lockDecryptedContainer();
+      signer4.sign();
+   }
+
+   try
+   {
+      signer4.verify();
+      EXPECT_TRUE(false);
+   }
+   catch (...)
+   {
+   }
+
+   EXPECT_FALSE(signer4.isValid());
+
+   //deser from same state into wlt_2 signer
+   Signer signer5;
+
+   //in this case, we can't set the utxos first then deser the state, as it would break
+   //utxo ordering. we have to deser first, then populate utxos
+   signer5.deserializeState(serializedSignerState);
+
+   for (auto& utxo : unspentVec_2)
+   {
+      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
+         move(utxo.txHash_), move(utxo.script_));
+
+      signer5.populateUtxo(entry);
+   }
+
+   //finally set the feed
+   signer5.setFeed(assetFeed3);
+
+   {
+      auto lock = assetWlt_2->lockDecryptedContainer();
+      signer5.sign();
+   }
+
+   try
+   {
+      signer5.verify();
+      EXPECT_TRUE(false);
+   }
+   catch (...)
+   {
+   }
+
+   //now serialize both signers into the final signer, verify and broadcast
+   Signer signer6;
+   signer6.deserializeState(signer4.serializeState());
+   signer6.deserializeState(signer5.serializeState());
+
+   ASSERT_TRUE(signer6.isValid());
+   try
+   {
+      signer6.verify();
+   }
+   catch (...)
+   {
+      EXPECT_TRUE(false);
+   }
+
+   //try again in the opposite order, that should not matter
+   Signer signer7;
+   signer7.deserializeState(signer5.serializeState());
+   signer7.deserializeState(signer4.serializeState());
+
+   ASSERT_TRUE(signer7.isValid());
+   try
+   {
+      signer7.verify();
+   }
+   catch (...)
+   {
+      EXPECT_TRUE(false);
+   }
+
+   auto&& tx1 = signer7.serializeSignedTx();
+
+   //broadcast the last one
+   DBTestUtils::ZcVector zcVec;
+   zcVec.push_back(tx1, 15000000);
+
+   DBTestUtils::pushNewZc(theBDMt_, zcVec);
+   DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 48 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   //check new wallet balances
+   scrObj = wlt_1->getScrAddrObjByKey(hashVec_1[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = wlt_1->getScrAddrObjByKey(hashVec_1[1]);
+   EXPECT_EQ(scrObj->getFullBalance(), 4 * COIN);
+
+   scrObj = wlt_2->getScrAddrObjByKey(hashVec_2[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = wlt_2->getScrAddrObjByKey(hashVec_2[1]);
+   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
+
+   //compare hashes with unsigned counterparts
+   Tx unsignedTx(unsignedTxRaw);
+   EXPECT_EQ(unsignedTx.getThisHash(), unsignedHash);
+   EXPECT_EQ(unsignedTx.getThisHash(), signer7.getTxId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2515,10 +3356,10 @@ TEST_F(SignerTest, GetUnsignedTxId)
       hashVec_1.push_back(addrPtr->getPrefixedHash());
 
    vector<shared_ptr<AddressEntry>> addrVec_2;
-   auto addr_type_nested_p2wsh = AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH);
-   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2wsh));
-   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2wsh));
-   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2wsh));
+   auto addr_type_nested_p2sh = AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH);
+   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2sh));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2sh));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2sh));
 
    vector<BinaryData> hashVec_2;
    for (auto addrPtr : addrVec_2)
@@ -2633,7 +3474,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -2995,7 +3836,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -3066,7 +3907,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       EXPECT_TRUE(signer2.verify());
 
       DBTestUtils::ZcVector zcVec2;
-      zcVec2.push_back(signer2.serialize(), 15000000);
+      zcVec2.push_back(signer2.serializeSignedTx(), 15000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec2);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -3248,7 +4089,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -3322,7 +4163,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       EXPECT_TRUE(signer2.verify());
 
       DBTestUtils::ZcVector zcVec2;
-      zcVec2.push_back(signer2.serialize(), 15000000);
+      zcVec2.push_back(signer2.serializeSignedTx(), 15000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec2);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -3505,7 +4346,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -3594,7 +4435,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       EXPECT_TRUE(signer2.verify());
 
       DBTestUtils::ZcVector zcVec2;
-      zcVec2.push_back(signer2.serialize(), 15000000);
+      zcVec2.push_back(signer2.serializeSignedTx(), 15000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec2);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -3716,7 +4557,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       EXPECT_TRUE(signer3.verify());
 
       DBTestUtils::ZcVector zcVec3;
-      zcVec3.push_back(signer3.serialize(), 15000000);
+      zcVec3.push_back(signer3.serializeSignedTx(), 15000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec3);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -3915,7 +4756,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -4017,7 +4858,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -4183,7 +5024,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -4284,7 +5125,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -4448,7 +5289,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -4549,7 +5390,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -4733,7 +5574,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -4834,7 +5675,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -5028,7 +5869,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -5128,7 +5969,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       EXPECT_TRUE(signer.verify());
 
       DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serialize(), 14000000);
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);

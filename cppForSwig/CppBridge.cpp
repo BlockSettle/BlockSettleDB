@@ -2000,7 +2000,7 @@ unique_ptr<Message> CppBridge::signer_getSignedTx(const string& id) const
    BinaryDataRef data;
    try
    {
-      data = iter->second->signer_.serialize();
+      data = iter->second->signer_.serializeSignedTx();
    }
    catch (ScriptException&)
    {}
