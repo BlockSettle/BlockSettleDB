@@ -346,6 +346,7 @@ public:
    { outpointIdVec_.push_back(id); }
 
    unsigned getZcIndex(void) const;
+   bool isSegWit(void) const;
 
 private:
    // Full copy of the serialized tx
