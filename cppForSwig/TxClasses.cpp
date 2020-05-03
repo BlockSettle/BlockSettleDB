@@ -409,6 +409,15 @@ BinaryData Tx::getScrAddrForTxOut(uint32_t txOutIndex) const
 }
 
 /////////////////////////////////////////////////////////////////////////////
+bool Tx::isSegWit() const 
+{ 
+   if (!isInitialized())
+      throw runtime_error("uninitialized tx");
+      
+   return usesWitness_; 
+}
+
+/////////////////////////////////////////////////////////////////////////////
 // This is not a pointer to persistent object, this method actually CREATES
 // the TxIn.   But it's fast and doesn't hold a lot of post-construction
 // information, so it can probably just be computed on the fly
