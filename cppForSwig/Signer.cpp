@@ -1415,6 +1415,8 @@ BinaryData Signer::serializeState() const
 Signer Signer::createFromState(const BinaryData& state)
 {
    Signer signer;
+   signer.resetFlags();
+   
    BinaryRefReader brr(state.getRef());
 
    signer.version_ = brr.get_uint32_t();

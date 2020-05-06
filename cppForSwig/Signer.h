@@ -287,6 +287,13 @@ protected:
    virtual std::shared_ptr<ScriptSpender> convertSpender(std::shared_ptr<ScriptSpender>) const;
 
 public:
+   Signer(void) :
+      TransactionStub(
+         SCRIPT_VERIFY_P2SH | 
+         SCRIPT_VERIFY_SEGWIT | 
+         SCRIPT_VERIFY_P2SH_SHA256)
+   {}
+
    void addSpender(std::shared_ptr<ScriptSpender> spender)
    { spenders_.push_back(spender); }
 

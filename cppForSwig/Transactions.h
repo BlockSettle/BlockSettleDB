@@ -45,6 +45,13 @@ public:
    mutable std::map<unsigned, size_t> lastCodeSeparatorMap_;
 
 public:
+   TransactionStub(void)
+   {}
+
+   TransactionStub(unsigned flags) :
+      flags_(flags)
+   {}
+
    virtual ~TransactionStub(void) = 0;
 
    virtual BinaryDataRef getSerializedOutputScripts(void) const = 0;
@@ -66,6 +73,7 @@ public:
    //flags
    unsigned getFlags(void) const { return flags_; }
    void setFlags(unsigned flags) { flags_ = flags; }
+   void resetFlags (void) { flags_ = 0; }
 
    //op_cs
    void setLastOpCodeSeparator(unsigned index, size_t offset) const
