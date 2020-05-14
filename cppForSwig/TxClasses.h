@@ -451,6 +451,11 @@ struct UTXO
       return rhs.getTxOutIndex() == getTxOutIndex();
    }
 
+   bool operator!=(const UTXO& rhs) const
+   {
+      return !(*this == rhs);
+   }
+
    bool operator<(const UTXO& rhs) const
    {
       if (txHash_ != rhs.txHash_)

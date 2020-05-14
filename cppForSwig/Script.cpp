@@ -16,9 +16,6 @@ using namespace std;
 StackValue::~StackValue()
 {}
 
-ResolvedStack::~ResolvedStack()
-{}
-
 ResolverFeed::~ResolverFeed()
 {}
 
@@ -1353,6 +1350,9 @@ void StackResolver::resolveStack()
 
       case StackValueType_Sig:
       {
+         if (proxy_ == nullptr)
+            break;
+
          //grab pubkey from reference, then sign
          auto ref = dynamic_pointer_cast<StackValue_Sig>(
             stackItem->resolvedValue_);
@@ -1364,6 +1364,9 @@ void StackResolver::resolveStack()
 
       case StackValueType_Multisig:
       {
+         if (proxy_ == nullptr)
+            break;
+
          auto msObj = dynamic_pointer_cast<StackValue_Multisig>(
             stackItem->resolvedValue_);
 
@@ -1443,23 +1446,19 @@ void StackResolver::resolveStack()
             resolver.setFlags(flags_);
             resolver.isSW_ = true;
 
+            shared_ptr<ResolvedStack> stackptr;
+            
             try
             {
                //failed SW should just result in an empty stack instead of an actual throw
-               auto newResolvedStack = make_shared<ResolvedStackWitness>(resolvedStack_);
-               resolvedStack_ = newResolvedStack;
-
-               auto stackptr = move(resolver.getResolvedStack());
-
-               auto stackptrLegacy = dynamic_pointer_cast<ResolvedStackLegacy>(stackptr);
-               if (stackptrLegacy == nullptr)
-                  throw runtime_error("unexpected resolved stack ptr type");
-
-               newResolvedStack->setWitnessStack(
-                  stackptrLegacy->getStack());
+               stackptr = move(resolver.getResolvedStack());
             }
             catch (exception&)
             { }
+
+            if (resolvedStack_ == nullptr)
+               resolvedStack_ = make_shared<ResolvedStack>();
+            resolvedStack_->setWitnessStack(stackptr);
          }
       }
    }
@@ -1483,7 +1482,8 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
    if (resolvedStack_ != nullptr)
       count = resolvedStack_->stackSize();
 
-   vector<shared_ptr<StackItem>> resolvedStack;
+   vector<shared_ptr<StackItem>> stackItemVec;
+   unsigned sigCount = 0;
 
    for (auto& stackItem : stack_)
    {
@@ -1497,7 +1497,7 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
          auto val = dynamic_pointer_cast<StackValue_Static>(
             stackItem->resolvedValue_);
 
-         resolvedStack.push_back(
+         stackItemVec.push_back(
             make_shared<StackItem_PushData>(
                count++, move(val->value_)));
          break;
@@ -1508,7 +1508,7 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
          auto val = dynamic_pointer_cast<StackValue_FromFeed>(
             stackItem->resolvedValue_);
 
-         resolvedStack.push_back(
+         stackItemVec.push_back(
             make_shared<StackItem_PushData>(
                count++, move(val->value_)));
          break;
@@ -1519,7 +1519,7 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
          auto val = dynamic_pointer_cast<StackValue_Reference>(
             stackItem->resolvedValue_);
 
-         resolvedStack.push_back(
+         stackItemVec.push_back(
             make_shared<StackItem_PushData>(
                count++, move(val->value_)));
          break;
@@ -1530,9 +1530,13 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
          auto val = dynamic_pointer_cast<StackValue_Sig>(
             stackItem->resolvedValue_);
 
-         resolvedStack.push_back(
+         if (!val->sig_.empty())
+            ++sigCount;
+
+         stackItemVec.push_back(
             make_shared<StackItem_Sig>(
                count++, move(val->sig_)));
+
          break;
       }
 
@@ -1542,7 +1546,7 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
             stackItem->resolvedValue_);
 
          //push lead 0 to cover for OP_CMS bug
-         resolvedStack.push_back(
+         stackItemVec.push_back(
             make_shared<StackItem_OpCode>(count++, 0));
 
          auto stackitem_ms = make_shared<StackItem_MultiSig>(
@@ -1551,10 +1555,12 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
          //sigs
          for (auto& sig : msObj->sig_)
             stackitem_ms->setSig(sig.first, sig.second);
-         resolvedStack.push_back(stackitem_ms);
+         stackItemVec.push_back(stackitem_ms);
 
          if (msObj->sig_.size() < msObj->m_)
             isValid = false;
+ 
+         sigCount += msObj->sig_.size();
 
          break;
       }
@@ -1563,17 +1569,13 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
          throw runtime_error("unexpected stack value type");
       }
    }
-   
+
    if (resolvedStack_ == nullptr)
-      resolvedStack_ = make_shared<ResolvedStackLegacy>();
-
-   auto resolvedStackPtr = dynamic_pointer_cast<ResolvedStackLegacy>(resolvedStack_);
-   if (resolvedStackPtr == nullptr)
-      throw runtime_error("unexpected resolved stack ptr type");
-
-   resolvedStackPtr->setStack(move(resolvedStack));
-   resolvedStackPtr->isValid_ = isValid;
-   resolvedStackPtr->flagP2SH(isP2SH_);
+      resolvedStack_ = make_shared<ResolvedStack>();
+   
+   resolvedStack_->setStackData(move(stackItemVec), sigCount);
+   resolvedStack_->isValid_ = isValid;
+   resolvedStack_->flagP2SH(isP2SH_);
 
    return resolvedStack_;
 }

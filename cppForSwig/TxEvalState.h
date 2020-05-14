@@ -30,7 +30,13 @@ private:
    bool validStack_ = false;
 
    unsigned n_ = 0;
-   unsigned m_ = 0;
+
+   /*
+   Fail all sigs count by setting m_ to UINT32_MAX. This guarantees sig checks
+   can fail prior to setting m_ and still evaluate as failures (otherwise, any
+   sig count >= m_ when m_ is 0 if unset).
+   */
+   unsigned m_ = UINT32_MAX; 
 
    std::map<BinaryData, bool> pubKeyState_;
 

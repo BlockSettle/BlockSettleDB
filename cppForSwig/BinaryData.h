@@ -622,7 +622,7 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    uint8_t const * getPtr(void) const       { return ptr_;    }
    size_t getSize(void) const               { return nBytes_; }
-   bool empty(void) { return (ptr_==NULL);}
+   bool empty(void) const { return (ptr_==NULL);}
 
    /////////////////////////////////////////////////////////////////////////////
    void setRef(uint8_t const * inData, size_t sz)          
@@ -1016,6 +1016,15 @@ public:
    {
       bdStr_.copyTo(targPtr, pos_, nBytes);
       pos_ += nBytes;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   BinaryDataRef get_BinaryDataRef(unsigned nBytes)
+   {
+      auto bdr = bdStr_.getSliceRef(pos_, nBytes);
+      pos_ += nBytes;
+
+      return bdr;
    }
 
 
