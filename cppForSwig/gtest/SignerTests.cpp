@@ -1592,11 +1592,13 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    Signer signer2;
    signer2.setFlags(SCRIPT_VERIFY_SEGWIT);
 
-   //get utxo list for spend value
+   //get the zc utxo (ms script)
    auto&& unspentVec =
       ms_wlt->getSpendableTxOutListZC();
+   ASSERT_EQ(unspentVec.size(), 1);
 
    auto&& unspentVec_singleSig = wlt_singleSig->getSpendableTxOutListZC();
+   ASSERT_EQ(unspentVec_singleSig.size(), 1);
 
    unspentVec.insert(unspentVec.end(),
       unspentVec_singleSig.begin(), unspentVec_singleSig.end());
@@ -1627,6 +1629,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    }
 
    //sign, verify & return signed tx
+   signer2.resolveSpenders();
    auto&& signerState = signer2.evaluateSignedState();
 
    {
@@ -1654,12 +1657,11 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       EXPECT_TRUE(false);
    }
    catch (...)
-   {
-   }
+   {}
 
    {
       //signer state with 1 sig
-      EXPECT_FALSE(signer2.isValid());
+      EXPECT_FALSE(signer2.isSigned());
       signerState = signer2.evaluateSignedState();
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2);
@@ -1680,7 +1682,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 
    {
       //make sure sig was properly carried over with state
-      EXPECT_FALSE(signer3.isValid());
+      EXPECT_FALSE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2);
@@ -1697,6 +1699,15 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    {
       auto lock = assetWlt_2->lockDecryptedContainer();
       signer3.sign();
+
+      signerState = signer3.evaluateSignedState();
+      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      auto&& txinEval = signerState.getSignedStateForInput(0);
+      EXPECT_EQ(txinEval.getSigCount(), 2);
+
+      auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset2);
+      ASSERT_NE(asset_single, nullptr);
+      ASSERT_TRUE(txinEval.isSignedForPubKey(asset_single->getPubKey()->getCompressedKey()));
    }
 
    {
@@ -1708,7 +1719,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    }
 
 
-   ASSERT_TRUE(signer3.isValid());
+   ASSERT_TRUE(signer3.isSigned());
    try
    {
       signer3.verify();
@@ -1720,7 +1731,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 
    {
       //should have 2 sigs now
-      EXPECT_TRUE(signer3.isValid());
+      EXPECT_TRUE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2);
@@ -2053,7 +2064,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
    {
    }
 
-   EXPECT_FALSE(signer4.isValid());
+   EXPECT_FALSE(signer4.isResolved());
+   EXPECT_FALSE(signer4.isSigned());
 
    Signer signer5;
    signer5.deserializeState(signer4.serializeState());
@@ -2064,7 +2076,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       signer5.sign();
    }
 
-   ASSERT_TRUE(signer5.isValid());
+   ASSERT_TRUE(signer5.isSigned());
    try
    {
       signer5.verify();
@@ -2394,8 +2406,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
    catch (...)
    {
    }
-
-   EXPECT_FALSE(signer4.isValid());
+   
+   EXPECT_FALSE(signer4.isResolved());
+   EXPECT_FALSE(signer4.isSigned());
 
    //deser from same state into wlt_2 signer
    Signer signer5;
@@ -2434,7 +2447,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
    signer6.deserializeState(signer4.serializeState());
    signer6.deserializeState(signer5.serializeState());
 
-   ASSERT_TRUE(signer6.isValid());
+   ASSERT_TRUE(signer6.isSigned());
    try
    {
       signer6.verify();
@@ -2449,7 +2462,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
    signer7.deserializeState(signer5.serializeState());
    signer7.deserializeState(signer4.serializeState());
 
-   ASSERT_TRUE(signer7.isValid());
+   ASSERT_TRUE(signer7.isSigned());
    try
    {
       signer7.verify();
@@ -2761,6 +2774,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 
       //spender resolved state should be seralized along
       serializedSignerState = move(signer3.serializeState());
+
+      EXPECT_TRUE(signer3.isResolved());
    }
 
    auto assetFeed2 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
@@ -2789,7 +2804,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
    {
    }
 
-   EXPECT_FALSE(signer4.isValid());
+   EXPECT_TRUE(signer4.isResolved());
 
    //deser from same state into wlt_2 signer
    Signer signer5;
@@ -2828,7 +2843,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
    signer6.deserializeState(signer4.serializeState());
    signer6.deserializeState(signer5.serializeState());
 
-   ASSERT_TRUE(signer6.isValid());
+   ASSERT_TRUE(signer6.isSigned());
    try
    {
       signer6.verify();
@@ -2843,7 +2858,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
    signer7.deserializeState(signer5.serializeState());
    signer7.deserializeState(signer4.serializeState());
 
-   ASSERT_TRUE(signer7.isValid());
+   ASSERT_TRUE(signer7.isSigned());
    try
    {
       signer7.verify();
@@ -3193,7 +3208,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    {
    }
 
-   EXPECT_FALSE(signer4.isValid());
+   EXPECT_TRUE(signer4.isResolved());
+   EXPECT_FALSE(signer4.isSigned());
 
    //deser from same state into wlt_2 signer
    Signer signer5;
@@ -3232,7 +3248,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    signer6.deserializeState(signer4.serializeState());
    signer6.deserializeState(signer5.serializeState());
 
-   ASSERT_TRUE(signer6.isValid());
+   ASSERT_TRUE(signer6.isSigned());
    try
    {
       signer6.verify();
@@ -3247,7 +3263,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    signer7.deserializeState(signer5.serializeState());
    signer7.deserializeState(signer4.serializeState());
 
-   ASSERT_TRUE(signer7.isValid());
+   ASSERT_TRUE(signer7.isSigned());
    try
    {
       signer7.verify();
@@ -3592,7 +3608,8 @@ TEST_F(SignerTest, GetUnsignedTxId)
    {
    }
 
-   EXPECT_FALSE(signer4.isValid());
+   EXPECT_FALSE(signer4.isResolved());
+   EXPECT_FALSE(signer4.isSigned());
 
    //should fail to get txid
    try

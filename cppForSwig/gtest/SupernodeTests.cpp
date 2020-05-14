@@ -2638,7 +2638,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
    {
       //signer state with 1 sig
-      EXPECT_FALSE(signer2.isValid());
+      EXPECT_FALSE(signer2.isSigned());
       signerState = signer2.evaluateSignedState();
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2);
@@ -2659,7 +2659,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
    {
       //make sure sig was properly carried over with state
-      EXPECT_FALSE(signer3.isValid());
+      EXPECT_FALSE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2);
@@ -2687,7 +2687,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    }
 
 
-   ASSERT_TRUE(signer3.isValid());
+   ASSERT_TRUE(signer3.isSigned());
    try
    {
       signer3.verify();
@@ -2699,7 +2699,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
    {
       //should have 2 sigs now
-      EXPECT_TRUE(signer3.isValid());
+      EXPECT_TRUE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2);
@@ -13551,7 +13551,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
+TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_RPCThenP2P)
 {
    struct WSClient
    {
