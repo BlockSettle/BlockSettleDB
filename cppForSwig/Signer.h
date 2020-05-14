@@ -19,10 +19,22 @@
 
 enum SpenderStatus
 {
+   //Not parsed yet/failed to parse entirely. This is 
+   //an invalid state
    SpenderStatus_Unknown,
-   SpenderStatus_Partial,
+
+   //As the name suggests. This is a valid state
+   SpenderStatus_Empty,
+
+   //All public data has been resolved. This is a valid state
    SpenderStatus_Resolved,
-   SpenderStatus_Empty
+
+   //Resolved & partially signed (only applies to multisig scripts)
+   //This is an invalid state
+   SpenderStatus_PartiallySigned,
+
+   //Resolved & signed. This is a valid state
+   SpenderStatus_Signed
 };
 
 #define SERIALIZED_SCRIPT_PREFIX 0x01
@@ -45,6 +57,7 @@ protected:
 private:
    SpenderStatus legacyStatus_ = SpenderStatus_Unknown;
    bool isP2SH_ = false;
+   bool isSegWit_ = false;
 
    bool isCSV_ = false;
    bool isCLTV_ = false;
@@ -78,6 +91,8 @@ private:
    void updateStack(std::map<unsigned, std::shared_ptr<StackItem>>&,
       const std::vector<std::shared_ptr<StackItem>>&);
 
+   bool compareEvalState(const ScriptSpender&) const;
+
 public:
    ScriptSpender(
       const BinaryDataRef txHash, unsigned index, uint64_t value) :
@@ -100,14 +115,13 @@ public:
 
    virtual ~ScriptSpender() = default;
 
-   bool isSegWit(void) const { return segwitStatus_ != SpenderStatus_Unknown; }
+   bool isSegWit(void) const { return isSegWit_; }
    bool isP2SH(void) const { return isP2SH_; }
 
    //set
    void setSigHashType(SIGHASH_TYPE sht) { sigHashType_ = sht; }
    void setSequence(unsigned s) { sequence_ = s; }
-   void setStack(const std::vector<std::shared_ptr<StackItem>>& stack);
-   void setWitnessData(const std::vector<std::shared_ptr<StackItem>>& stack);
+   void setWitnessData(const std::vector<std::shared_ptr<StackItem>>&);
    void flagP2SH(bool flag) { isP2SH_ = flag; }
 
    //get
@@ -116,7 +130,7 @@ public:
    BinaryDataRef getOutputScript(void) const;
    BinaryDataRef getOutputHash(void) const;
    unsigned getOutputIndex(void) const;
-   virtual BinaryDataRef getSerializedInput(void) const;
+   virtual BinaryDataRef getSerializedInput(bool) const;
    BinaryData serializeAvailableStack(void) const;
    BinaryDataRef getWitnessData(void) const;
    BinaryData serializeAvailableWitnessData(void) const;
@@ -162,15 +176,21 @@ public:
       return hashbyte;
    }
 
-   void updatePartialStack(const std::vector<std::shared_ptr<StackItem>>& stack)
+   void updatePartialStack(
+      const std::vector<std::shared_ptr<StackItem>>& stack, unsigned sigCount)
    {
-      if (legacyStatus_ == SpenderStatus_Resolved)
+      if (legacyStatus_ == SpenderStatus_Signed)
+         return;
+
+      if (legacyStatus_ == SpenderStatus_Resolved && sigCount == 0)
          return;
 
       if (stack.size() != 0)
       {
          updateStack(partialStack_, stack);
-         legacyStatus_ = SpenderStatus_Partial;
+
+         if (sigCount > 0)
+            legacyStatus_ = SpenderStatus_PartiallySigned;
       }
       else
       {
@@ -178,17 +198,21 @@ public:
       }
    }
 
-   void updatePartialWitnessStack(const std::vector<std::shared_ptr<StackItem>>& stack)
+   void updatePartialWitnessStack(
+      const std::vector<std::shared_ptr<StackItem>>& stack, unsigned sigCount)
    {
-      if (segwitStatus_ == SpenderStatus_Resolved)
+      if (segwitStatus_ == SpenderStatus_Signed)
+         return;
+
+      if (segwitStatus_ >= SpenderStatus_Resolved && sigCount == 0)
          return;
 
       updateStack(partialWitnessStack_, stack);
-      segwitStatus_ = SpenderStatus_Partial;
    }
    
-   void evaluatePartialStacks(void);
-   bool resolved(void) const;
+   void evaluatePartialStacks();
+   bool isResolved(void) const;
+   bool isSigned(void) const;
 
    BinaryData serializeState(void) const;
    static std::shared_ptr<ScriptSpender> deserializeState(
@@ -204,6 +228,9 @@ public:
    {
       return this->getOutpoint() == rhs.getOutpoint();
    }
+
+   void evaluateStack(StackResolver&, bool&);
+   bool verifyEvalState(unsigned);
 };
 
 /////////////////// Spender that doesn't require resolution ///////////////////
@@ -231,7 +258,7 @@ public:
    { }
    ~ScriptSpender_P2WPKH_Signed() override = default;
 
-   BinaryDataRef getSerializedInput(void) const override
+   BinaryDataRef getSerializedInput(bool) const override
    {
       BinaryWriter bw;
       bw.put_BinaryData(getSerializedOutpoint());
@@ -272,19 +299,10 @@ protected:
       std::shared_ptr<SigHashData>,
       unsigned index);
 
-   virtual std::unique_ptr<TransactionVerifier> getVerifier(std::shared_ptr<BCTX>,
-      std::map<BinaryData, std::map<unsigned, UTXO>>&) const;
+   static std::unique_ptr<TransactionVerifier> getVerifier(std::shared_ptr<BCTX>,
+      std::map<BinaryData, std::map<unsigned, UTXO>>&);
 
-   void evaluateSpenderStatus(void);
    BinaryData serializeAvailableResolvedData(void) const;
-   TxEvalState verify(
-      const BinaryData&, //raw tx
-      std::map<BinaryData, std::map<unsigned, UTXO>>&, //supporting outputs
-      unsigned, //flags
-      bool strict = true //strict verification (check balances)
-   ) const;
-
-   virtual std::shared_ptr<ScriptSpender> convertSpender(std::shared_ptr<ScriptSpender>) const;
 
 public:
    Signer(void) :
@@ -294,6 +312,15 @@ public:
          SCRIPT_VERIFY_P2SH_SHA256)
    {}
 
+   //static
+   static TxEvalState verify(
+      const BinaryData&, //raw tx
+      std::map<BinaryData, std::map<unsigned, UTXO>>&, //supporting outputs
+      unsigned, //flags
+      bool strict = true //strict verification (check balances)
+      );
+
+   //locals
    void addSpender(std::shared_ptr<ScriptSpender> spender)
    { spenders_.push_back(spender); }
 
@@ -303,10 +330,16 @@ public:
    void addRecipient(std::shared_ptr<ScriptRecipient> recipient)
    { recipients_.push_back(recipient); }
 
+   //resolve output scripts, fill public data when applicable
+   void resolveSpenders(void);
+
+   //resolve spenders & sign them
    void sign(void);
+
    BinaryDataRef serializeSignedTx(void) const;
-   BinaryDataRef serializeUnsignedTx(void);
+   BinaryDataRef serializeUnsignedTx(bool loose = false);
    
+   //verify tx signatures
    bool verify(void);
    bool verifyRawTx(const BinaryData& rawTx,
       const std::map<BinaryData, std::map<unsigned, BinaryData> >& rawUTXOs);
@@ -336,7 +369,8 @@ public:
 
    BinaryData serializeState(void) const;
    void deserializeState(const BinaryData&);
-   bool isValid(void) const;
+   bool isResolved(void) const;
+   bool isSigned(void) const;
    
    void setFeed(std::shared_ptr<ResolverFeed> feedPtr) { resolverPtr_ = feedPtr; }
    void resetFeeds(void);
@@ -348,7 +382,6 @@ public:
 
    TxEvalState evaluateSignedState(void)
    {
-      evaluateSpenderStatus();
       auto&& txdata = serializeAvailableResolvedData();
 
       std::map<BinaryData, std::map<unsigned, UTXO>> utxoMap;
@@ -363,6 +396,8 @@ public:
 
       return verify(txdata, utxoMap, flags, true);
    }
+
+   bool verifySpenderEvalState(void) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
