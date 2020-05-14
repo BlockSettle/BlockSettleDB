@@ -3271,15 +3271,20 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       auto scrAddrIter = addrSetRef.begin();
       while (scrAddrIter != addrSetRef.end())
       {
+         bool hasCollision = false;
          for (auto& bdv_pair : *bdvMap)
          {
             if (bdv_pair.second->hasScrAddress(*scrAddrIter) && 
-               bdv_pair.first == bdvPtr->bdvID_) //TODO: slow parsing, speed this up
+               bdv_pair.first != bdvPtr->bdvID_) //TODO: slow parsing, speed this up
             {
+               hasCollision = true;
                addrSetRef.erase(scrAddrIter++);
-               continue;
+               break;
             }
          }
+
+         if (hasCollision)
+            continue;
 
          ++scrAddrIter;
       }
