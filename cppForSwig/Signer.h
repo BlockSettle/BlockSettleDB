@@ -64,13 +64,11 @@ private:
 
    UTXO utxo_;
    const uint64_t value_ = UINT64_MAX;
-   BinaryDataRef p2shScript_;
    unsigned sequence_ = UINT32_MAX;
    mutable BinaryData outpoint_;
 
    //
    std::shared_ptr<ResolverFeed> resolverFeed_;
-   std::vector<BinaryData> sigVec_;
    BinaryData serializedScript_;
 
    std::map<unsigned, std::shared_ptr<StackItem>> partialStack_;
@@ -139,8 +137,6 @@ public:
    std::shared_ptr<ResolverFeed> getFeed(void) const { return resolverFeed_; }
    const UTXO& getUtxo(void) const { return utxo_; }
    void setUtxo(const UTXO& utxo) { utxo_ = utxo; }
-
-   const BinaryData& getSingleSig(void) const;
 
    unsigned getFlags(void) const
    {
@@ -365,7 +361,6 @@ public:
    BinaryDataRef getOutpoint(unsigned) const override;
    uint64_t getOutpointValue(unsigned) const override;
    unsigned getTxInSequence(unsigned) const override;
-   const BinaryData& getSigForInputIndex(unsigned) const;
 
    BinaryData serializeState(void) const;
    void deserializeState(const BinaryData&);

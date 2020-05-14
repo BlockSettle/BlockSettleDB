@@ -76,17 +76,6 @@ BinaryDataRef ScriptSpender::getOutpoint() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& ScriptSpender::getSingleSig(void) const
-{
-   if (sigVec_.size() == 0)
-      throw ScriptException("no sig for script (yet?)");
-   else if (sigVec_.size() > 1)
-      throw ScriptException("script does not yield a single signature");
-
-   return sigVec_[0];
-}
-
-////////////////////////////////////////////////////////////////////////////////
 BinaryData ScriptSpender::serializeScript(
    const vector<shared_ptr<StackItem>>& stack, bool no_throw)
 {
@@ -648,7 +637,6 @@ void ScriptSpender::evaluatePartialStacks()
       {
          switch (stackState)
          {
-
             case SpenderStatus_PartiallySigned:
             {
                //do not set the script, keep the stack
@@ -1187,9 +1175,6 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
    }
 
    if (isP2SH_ != rhs.isP2SH_)
-      return false;
-
-   if (isP2SH_ && p2shScript_ != rhs.p2shScript_)
       return false;
 
    if (isCSV_ != rhs.isCSV_ || isCLTV_ != rhs.isCLTV_)
@@ -1899,13 +1884,6 @@ bool Signer::verifyRawTx(const BinaryData& rawTx,
       verify(rawTx, utxoMap, SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_SEGWIT);
 
    return evalState.isValid();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const BinaryData& Signer::getSigForInputIndex(unsigned id) const
-{
-   auto spender = getSpender(id);
-   return spender->getSingleSig();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
