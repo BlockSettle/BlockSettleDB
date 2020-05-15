@@ -38,6 +38,19 @@ struct UnitTestBlock
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+struct MempoolObject
+{
+   BinaryData rawTx_;
+   BinaryData hash_;
+   unsigned order_;
+   unsigned blocksUntilMined_ = 0;
+   bool staged_;
+
+   bool operator<(const MempoolObject& rhs) const 
+   { return order_ < rhs.order_; }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 class NodeUnitTest : public BitcoinNodeInterface
 {
    friend class NodeRPC_UnitTest;
@@ -50,18 +63,6 @@ private:
 
       unsigned timestamp_;
       BinaryData diffBits_;
-   };
-
-   struct MempoolObject
-   {
-      BinaryData rawTx_;
-      BinaryData hash_;
-      unsigned order_;
-      unsigned blocksUntilMined_ = 0;
-      bool staged_;
-
-      bool operator<(const MempoolObject& rhs) const 
-      { return order_ < rhs.order_; }
    };
 
    std::map<BinaryDataRef, std::shared_ptr<MempoolObject>> mempool_;
@@ -85,6 +86,7 @@ private:
    LMDBBlockDatabase* iface_ = nullptr;
 
    std::set<BinaryData> seenHashes_;
+   bool checkSigs_ = true;
 
 private:
    void purgeSpender(const BinaryData&);
@@ -108,7 +110,7 @@ public:
    void delayNextZc(unsigned);
    void stallNextZc(unsigned);
 
-   void setIface(LMDBBlockDatabase* iface) { iface_ = iface; }
+   void checkSigs(bool check) { checkSigs_ = check; }
 
    //<raw tx, blocks to wait until mining>
    void pushZC(const std::vector<std::pair<BinaryData, unsigned>>&, bool);
@@ -118,6 +120,7 @@ public:
    //set
    void setBlockchain(std::shared_ptr<Blockchain>);
    void setBlockFiles(std::shared_ptr<BlockFiles>);
+   void setIface(LMDBBlockDatabase* iface) { iface_ = iface; }
 
    //virtuals
    void sendMessage(std::unique_ptr<Payload>) override;

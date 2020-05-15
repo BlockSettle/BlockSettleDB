@@ -8,10 +8,78 @@
 
 #include "NodeUnitTest.h"
 #include "../BlockUtils.h"
+#include "Signer.h"
 
 using namespace std;
 using namespace ArmoryThreading;
 
+////////////////////////////////////////////////////////////////////////////////
+int verifyTxSigs(const BinaryData& rawTx, const LMDBBlockDatabase* iface, 
+   const map<BinaryDataRef, shared_ptr<MempoolObject>>& mempool)
+{
+   Tx tx(rawTx);
+
+   map<BinaryData, map<unsigned, UTXO>> utxoMap;
+   for (unsigned i=0; i<tx.getNumTxIn(); i++)
+   {
+      //grab all utxos
+      auto&& txin = tx.getTxInCopy(i);
+      auto&& outpoint = txin.getOutPoint();
+         
+      StoredTxOut stxo;
+      if (iface->getStoredTxOut(
+         stxo, outpoint.getTxHash(), outpoint.getTxOutIndex()))
+      {
+         UTXO utxo(
+            stxo.getValue(), stxo.getHeight(), 
+            stxo.txIndex_, outpoint.getTxOutIndex(), 
+            outpoint.getTxHash(), stxo.getScriptRef());
+
+         auto& idMap = utxoMap[outpoint.getTxHash()];
+         idMap.emplace(outpoint.getTxOutIndex(), utxo);
+         continue; //got the output, on to the next outpoint
+      }
+
+      //see if this is a zc outpoint instead
+      auto mempoolIter = mempool.find(outpoint.getTxHash());
+      if (mempoolIter == mempool.end())
+      {
+         //couldn't find utxo
+         return (int)ArmoryErrorCodes::ZcBroadcast_Error;
+      }
+
+      Tx zcTx(mempoolIter->second->rawTx_);
+      if (outpoint.getTxOutIndex() >= zcTx.getNumTxOut())
+      {
+         //couldn't find utxo
+         return (int)ArmoryErrorCodes::ZcBroadcast_Error;
+      }
+
+      //grab output from tx, convert to utxo
+      auto txOutCopy = zcTx.getTxOutCopy(outpoint.getTxOutIndex());
+      UTXO utxo; 
+      utxo.unserializeRaw(txOutCopy.serializeRef());
+      utxo.txOutIndex_ = outpoint.getTxOutIndex();
+
+      auto& idMap = utxoMap[outpoint.getTxHash()];
+      idMap.emplace(outpoint.getTxOutIndex(), utxo);
+   }
+
+   auto evalState = Signer::verify(
+      rawTx, utxoMap, 
+      unsigned(SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_SEGWIT | SCRIPT_VERIFY_P2SH_SHA256), 
+      true);
+
+   if (!evalState.isValid())
+   {
+      cout << "sig failure" << endl;
+      return (int)ArmoryErrorCodes::ZcBroadcast_VerifyRejected;
+   }
+
+   return (int)ArmoryErrorCodes::Success;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 BlockingQueue<BinaryData> NodeUnitTest::watcherInvQueue_;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -636,6 +704,16 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
                   break;
             }
 
+            //check sigs
+            if (checkSigs_)
+            {
+               if (verifyTxSigs(obj->rawTx_, iface_, mempool_) != 
+                  (int)ArmoryErrorCodes::Success)
+               {
+                  break;
+               }
+            }
+
             Tx tx(obj->rawTx_);
 
             //check outpoints are valid & spendable
@@ -954,7 +1032,7 @@ int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx, string&)
       } 
 
       /*
-      A mined tx that with no output in the utxo set fails rpc broadcast with a
+      A mined tx with no output in the utxo set fails rpc broadcast with a
       -25 error (node only has a snapshot of the utxo set, it cannot resolve 
       "archived" outputs). Txs with unspent outputs will return already-in-chain
       errors.
@@ -971,6 +1049,14 @@ int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx, string&)
       auto mempoolIter = nodeUT->mempool_.find(tx.getThisHash());
       if (mempoolIter != nodeUT->mempool_.end())
          return (int)ArmoryErrorCodes::Success;
+   }
+
+   //check sigs
+   if (nodeUT->checkSigs_)
+   {
+      auto sigState = verifyTxSigs(rawTx, iface, nodeUT->mempool_);
+      if (sigState != (int)ArmoryErrorCodes::Success)
+         return sigState;
    }
 
    //check zc outpoints are valid and spendable

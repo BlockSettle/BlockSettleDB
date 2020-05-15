@@ -2638,7 +2638,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
    {
       //signer state with 1 sig
-      EXPECT_FALSE(signer2.isValid());
+      EXPECT_FALSE(signer2.isSigned());
       signerState = signer2.evaluateSignedState();
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2);
@@ -2659,7 +2659,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
    {
       //make sure sig was properly carried over with state
-      EXPECT_FALSE(signer3.isValid());
+      EXPECT_FALSE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2);
@@ -2687,7 +2687,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    }
 
 
-   ASSERT_TRUE(signer3.isValid());
+   ASSERT_TRUE(signer3.isSigned());
    try
    {
       signer3.verify();
@@ -2699,7 +2699,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
    {
       //should have 2 sigs now
-      EXPECT_TRUE(signer3.isValid());
+      EXPECT_TRUE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2);
@@ -4506,6 +4506,13 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    //public server
    startupBIP150CTX(4, true);
 
+   /*
+   Some sigs in static test chain are borked. P2SH scripts are borked too. This
+   test plucks transactions from the static chain to push as ZC. Skip sig checks
+   on the unit test mock P2P node to avoid faililng the test.
+   */
+   nodePtr_->checkSigs(false);
+
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
@@ -4779,6 +4786,13 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
    //public server
    startupBIP150CTX(4, true);
 
+   /*
+   Some sigs in static test chain are borked. P2SH scripts are borked too. This
+   test plucks transactions from the static chain to push as ZC. Skip sig checks
+   on the unit test mock P2P node to avoid faililng the test.
+   */
+   nodePtr_->checkSigs(false);
+
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
@@ -4853,7 +4867,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
    auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
    auto&& ZChash2 = BtcUtils::getHash256(ZC2);
 
+   cout << "- broadcasting tx " << ZChash1.toHexStr() << endl;
    auto broadcastId1 = bdvObj->broadcastThroughRPC(ZC1);
+
+   cout << "- broadcasting tx " << ZChash2.toHexStr() << endl;
    auto broadcastId2 = bdvObj->broadcastThroughRPC(ZC2);
    
    {
@@ -5063,6 +5080,13 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
 {
    //public server
    startupBIP150CTX(4, true);
+
+   /*
+   Some sigs in static test chain are borked. P2SH scripts are borked too. This
+   test plucks transactions from the static chain to push as ZC. Skip sig checks
+   on the unit test mock P2P node to avoid faililng the test.
+   */
+   nodePtr_->checkSigs(false);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -5340,6 +5364,13 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
    //public server
    startupBIP150CTX(4, true);
 
+   /*
+   Some sigs in static test chain are borked. P2SH scripts are borked too. This
+   test plucks transactions from the static chain to push as ZC. Skip sig checks
+   on the unit test mock P2P node to avoid faililng the test.
+   */
+   nodePtr_->checkSigs(false);
+
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
@@ -5615,6 +5646,13 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
 {
    //public server
    startupBIP150CTX(4, true);
+
+   /*
+   Some sigs in static test chain are borked. P2SH scripts are borked too. This
+   test plucks transactions from the static chain to push as ZC. Skip sig checks
+   on the unit test mock P2P node to avoid faililng the test.
+   */
+   nodePtr_->checkSigs(false);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -5898,6 +5936,13 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
 {
    //public server
    startupBIP150CTX(4, true);
+
+   /*
+   Some sigs in static test chain are borked. P2SH scripts are borked too. This
+   test plucks transactions from the static chain to push as ZC. Skip sig checks
+   on the unit test mock P2P node to avoid faililng the test.
+   */
+   nodePtr_->checkSigs(false);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -6184,6 +6229,13 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
 {
+   /*
+   Some sigs in static test chain are borked. P2SH scripts are borked too. This
+   test plucks transactions from the static chain to push as ZC. Skip sig checks
+   on the unit test mock P2P node to avoid faililng the test.
+   */
+   nodePtr_->checkSigs(false);
+
    //grab the first zc
    auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
    auto&& ZChash1 = BtcUtils::getHash256(ZC1);
@@ -12871,7 +12923,6 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-      pCallback->bdvId_ = bdvObj->getID();
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -13500,7 +13551,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
+TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_RPCThenP2P)
 {
    struct WSClient
    {
@@ -13535,7 +13586,6 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-      pCallback->bdvId_ = bdvObj->getID();
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 

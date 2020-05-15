@@ -1021,6 +1021,7 @@ struct StackItem_Sig : public StackItem
 
    bool isSame(const StackItem* obj) const;
    BinaryData serialize(void) const;
+   bool isValid(void) const override { return !data_.empty(); }
 };
 
 ////
@@ -1042,7 +1043,7 @@ struct StackItem_MultiSig : public StackItem
    bool isSame(const StackItem* obj) const;
    void merge(const StackItem* obj);
 
-   bool isValid(void) const { return sigs_.size() == m_; }
+   bool isValid(void) const override { return sigs_.size() == m_; }
    BinaryData serialize(void) const;
 };
 
@@ -1081,68 +1082,44 @@ class ResolvedStack
 {
    friend class StackResolver;
 
-protected:
+private:
    bool isValid_ = false;
    bool isP2SH_ = false;
 
-public:
-   virtual ~ResolvedStack(void) = 0;
+   std::vector<std::shared_ptr<StackItem>> stack_;
+   unsigned sigCount_ = 0;
 
+   std::shared_ptr<ResolvedStack> witnessStack_ = nullptr;
+
+public:
    bool isValid(void) const { return isValid_; }
    bool isP2SH(void) const { return isP2SH_; }
+   unsigned getSigCount(void) const { return sigCount_; }
+
    void flagP2SH(bool flag) { isP2SH_ = flag; }
+   size_t stackSize(void) const { return stack_.size(); }
 
-   virtual size_t stackSize(void) const = 0;
-};
+   std::shared_ptr<ResolvedStack> getWitnessStack(void) const 
+   { 
+      return witnessStack_; 
+   }
 
-////
-class ResolvedStackLegacy : public ResolvedStack
-{
-private:
-   std::vector<std::shared_ptr<StackItem>> stack_;
+   void setWitnessStack(std::shared_ptr<ResolvedStack> stack)
+   {
+      witnessStack_ = stack;
+   }
 
-public:
-   void setStack(std::vector<std::shared_ptr<StackItem>> stack)
+   void setStackData(std::vector<std::shared_ptr<StackItem>> stack, 
+      unsigned sigCount)
    { 
       stack_.insert(stack_.end(), stack.begin(), stack.end());
+      sigCount_ += sigCount;
    }
 
    const std::vector<std::shared_ptr<StackItem>>& getStack(void) const
    { 
       return stack_; 
    }
-
-   BinaryData serializeStack(void) const;
-   size_t stackSize(void) const { return stack_.size(); }
-};
-
-////
-class ResolvedStackWitness : public ResolvedStackLegacy
-{
-private:
-   std::vector<std::shared_ptr<StackItem>> witnessStack_;
-
-public:
-   ResolvedStackWitness(std::shared_ptr<ResolvedStack> stackptr)
-   {
-      if (stackptr == nullptr)
-         return;
-
-      auto stackptrLegacy = std::dynamic_pointer_cast<ResolvedStackLegacy>(stackptr);
-      if (stackptrLegacy == nullptr)
-         throw std::runtime_error("unexpected resolved stack ptr type");
-
-      setStack(stackptrLegacy->getStack());
-   }
-
-   void setWitnessStack(std::vector<std::shared_ptr<StackItem>> stack)
-   { witnessStack_ = move(stack); }
-   
-   const std::vector<std::shared_ptr<StackItem>>& getWitnessStack(void) const
-   { return witnessStack_; }
-
-   BinaryData serializeWitnessStack(void) const;
-   size_t stackSize(void) const { return witnessStack_.size(); }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

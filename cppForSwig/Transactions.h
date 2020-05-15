@@ -45,6 +45,13 @@ public:
    mutable std::map<unsigned, size_t> lastCodeSeparatorMap_;
 
 public:
+   TransactionStub(void)
+   {}
+
+   TransactionStub(unsigned flags) :
+      flags_(flags)
+   {}
+
    virtual ~TransactionStub(void) = 0;
 
    virtual BinaryDataRef getSerializedOutputScripts(void) const = 0;
@@ -66,6 +73,7 @@ public:
    //flags
    unsigned getFlags(void) const { return flags_; }
    void setFlags(unsigned flags) { flags_ = flags; }
+   void resetFlags (void) { flags_ = 0; }
 
    //op_cs
    void setLastOpCodeSeparator(unsigned index, size_t offset) const
@@ -152,7 +160,10 @@ protected:
 public:
    TransactionVerifier(const BCTX& theTx, const utxoMap& utxos) :
       utxos_(utxos), theTx_(theTx)
-   {}
+   {
+      if (theTx.usesWitness_)
+         setFlags(SCRIPT_VERIFY_SEGWIT);
+   }
 
    TransactionVerifier(
       const BCTX& theTx, const std::vector<UnspentTxOut>& utxoVec) :
@@ -166,6 +177,9 @@ public:
          auto& inner_map = utxos_[utxo.getTxHash()];
          inner_map.insert(std::make_pair(utxo.getTxOutIndex(), std::move(new_obj)));
       }
+
+      if (theTx.usesWitness_)
+         setFlags(SCRIPT_VERIFY_SEGWIT);
    }
    
    bool verify(bool noCatch = true, bool strict = true) const;
