@@ -197,34 +197,6 @@ public:
    void injectSignature(SecureBinaryData&, unsigned sigId = UINT32_MAX);
 };
 
-class ScriptSpender_Signed_Legacy : public ScriptSpender_Signed
-{
-public:
-   ScriptSpender_Signed_Legacy(const UTXO& utxo) : ScriptSpender_Signed(utxo)
-   { }
-   ~ScriptSpender_Signed_Legacy() override = default;
-
-   BinaryDataRef getSerializedInput(bool) const override
-   {
-      BinaryWriter bw;
-      bw.put_BinaryData(getSerializedOutpoint());
-
-      bw.put_var_int(signedScript_.getSize());
-      bw.put_BinaryData(signedScript_);
-
-      bw.put_uint32_t(getSequence());
-      serializedInput_ = std::move(bw.getData());
-      return serializedInput_.getRef();
-   }
-
-   void setSignedScript(const BinaryData& inputSig) override
-   {
-      signedScript_ = inputSig;
-   }
-
-private:
-   BinaryData signedScript_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 class Signer : public TransactionStub
