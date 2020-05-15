@@ -49,6 +49,7 @@ enum SpenderStatus
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptSpender
 {
+   friend class Signer;
 protected:
    SpenderStatus segwitStatus_ = SpenderStatus_Unknown;
    BinaryData witnessData_;
@@ -72,9 +73,7 @@ private:
    std::map<unsigned, std::shared_ptr<StackItem>> partialStack_;
    std::map<unsigned, std::shared_ptr<StackItem>> partialWitnessStack_;
 
-protected:
    SIGHASH_TYPE sigHashType_ = SIGHASH_ALL;
-
    BinaryData getSerializedOutpoint(void) const;
 
 private:
@@ -89,6 +88,13 @@ private:
 
    bool compareEvalState(const ScriptSpender&) const;
    BinaryData getSerializedInputScript(void) const;
+
+   void evaluateStack(StackResolver&);
+   void updatePartialStack(
+      const std::vector<std::shared_ptr<StackItem>>&, unsigned);
+   void updatePartialWitnessStack(
+      const std::vector<std::shared_ptr<StackItem>>&, unsigned);
+   void evaluatePartialStacks();
 
 public:
    ScriptSpender(
@@ -167,44 +173,10 @@ public:
 
       return hashbyte;
    }
-
-   void updatePartialStack(
-      const std::vector<std::shared_ptr<StackItem>>& stack, unsigned sigCount)
-   {
-      if (legacyStatus_ == SpenderStatus_Signed)
-         return;
-
-      if (legacyStatus_ == SpenderStatus_Resolved && sigCount == 0)
-         return;
-
-      if (stack.size() != 0)
-      {
-         updateStack(partialStack_, stack);
-
-         if (sigCount > 0)
-            legacyStatus_ = SpenderStatus_PartiallySigned;
-      }
-      else
-      {
-         legacyStatus_ = SpenderStatus_Empty;
-      }
-   }
-
-   void updatePartialWitnessStack(
-      const std::vector<std::shared_ptr<StackItem>>& stack, unsigned sigCount)
-   {
-      if (segwitStatus_ == SpenderStatus_Signed)
-         return;
-
-      if (segwitStatus_ >= SpenderStatus_Resolved && sigCount == 0)
-         return;
-
-      updateStack(partialWitnessStack_, stack);
-   }
    
-   void evaluatePartialStacks();
    bool isResolved(void) const;
    bool isSigned(void) const;
+   bool isInitialized(void) const;
 
    BinaryData serializeState(void) const;
    static std::shared_ptr<ScriptSpender> deserializeState(
@@ -221,8 +193,8 @@ public:
       return this->getOutpoint() == rhs.getOutpoint();
    }
 
-   void evaluateStack(StackResolver&);
    bool verifyEvalState(unsigned);
+   void injectSignature(SecureBinaryData&, unsigned sigId = UINT32_MAX);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -351,6 +323,9 @@ public:
    bool verifySpenderEvalState(void) const;
    bool isSegWit(void) const;
    bool hasLegacyInputs (void) const;
+
+   void injectSignature(
+      unsigned, SecureBinaryData&, unsigned sigId = UINT32_MAX);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

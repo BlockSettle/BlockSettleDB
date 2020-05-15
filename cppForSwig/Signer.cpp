@@ -902,6 +902,9 @@ void ScriptSpender::merge(const ScriptSpender& obj)
    if (!utxo_.isInitialized() && obj.utxo_.isInitialized())
       utxo_ = obj.utxo_;
 
+   if (utxo_.value_ != obj.value_)
+      throw runtime_error("spender merge value mismatch");
+
    isP2SH_ |= obj.isP2SH_;
    isCLTV_ |= obj.isCLTV_;
    isCSV_  |= obj.isCSV_;
@@ -1182,6 +1185,21 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+bool ScriptSpender::isInitialized() const 
+{
+   if (legacyStatus_ == SpenderStatus_Unknown &&
+      segwitStatus_ == SpenderStatus_Unknown &&
+      isP2SH_ == false && 
+      partialStack_.empty() && partialWitnessStack_.empty() &&
+      serializedScript_.empty() && witnessData_.empty())
+   {
+      return false;
+   }
+
+   return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 bool ScriptSpender::verifyEvalState(unsigned flags)
 {
    /*
@@ -1189,17 +1207,16 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    script
    */
 
+   //uninitialized spender, nothing to check
+   if (!isInitialized())
+   {
+      return true;
+   }
+
    //sanity check: needs a utxo set to be resolved
    if (!utxo_.isInitialized())
    {
-      if (legacyStatus_ != SpenderStatus_Unknown ||
-         segwitStatus_ != SpenderStatus_Unknown ||
-         serializedScript_.getSize() != 0 ||
-         witnessData_.getSize() != 0)
-         return false;
-
-      //no resolved script to check, return true
-      return true;
+      return false;
    }
 
    ScriptSpender spenderVerify(utxo_);
@@ -1322,9 +1339,44 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::updatePartialStack(
+   const vector<shared_ptr<StackItem>>& stack, unsigned sigCount)
+{
+   if (legacyStatus_ == SpenderStatus_Signed)
+      return;
+
+   if (legacyStatus_ == SpenderStatus_Resolved && sigCount == 0)
+      return;
+
+   if (stack.size() != 0)
+   {
+      updateStack(partialStack_, stack);
+
+      if (sigCount > 0)
+         legacyStatus_ = SpenderStatus_PartiallySigned;
+   }
+   else
+   {
+      legacyStatus_ = SpenderStatus_Empty;
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::updatePartialWitnessStack(
+   const vector<shared_ptr<StackItem>>& stack, unsigned sigCount)
+{
+   if (segwitStatus_ == SpenderStatus_Signed)
+      return;
+
+   if (segwitStatus_ >= SpenderStatus_Resolved && sigCount == 0)
+      return;
+
+   updateStack(partialWitnessStack_, stack);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void ScriptSpender::evaluateStack(StackResolver& resolver)
 {
-
    auto resolvedStack = resolver.getResolvedStack();
    if (resolvedStack == nullptr)
       throw runtime_error("null resolved stack");
@@ -1338,8 +1390,11 @@ void ScriptSpender::evaluateStack(StackResolver& resolver)
    auto resolvedStackWitness = resolvedStack->getWitnessStack();
    if (resolvedStackWitness == nullptr)
    {
-      if (segwitStatus_ < SpenderStatus_Resolved)
+      if (legacyStatus_ != SpenderStatus_Empty &&
+         segwitStatus_ < SpenderStatus_Resolved)
+      {
          segwitStatus_ = SpenderStatus_Empty; 
+      }
       return;
    }
 
@@ -1369,6 +1424,70 @@ bool ScriptSpender::isSegWit() const
    }
    
    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
+{
+   //sanity checks
+   if (!isResolved())
+      throw runtime_error("cannot inject sig into unresolved spender");
+
+   if (isSigned())
+      throw runtime_error("spender is alreayd signed!");
+
+   map<unsigned, shared_ptr<StackItem>>* stackPtr = nullptr;
+   
+   //grab the stack carrying the sig(s)
+   if (isSegWit())
+      stackPtr = &partialWitnessStack_;
+   else
+      stackPtr = &partialStack_;
+
+   //find the stack sig object
+   bool injected = false;
+   for (auto& stackEntry : *stackPtr)
+   {
+      switch (stackEntry.second->type_)
+      {
+      case StackItemType_Sig:
+      {
+         if (stackEntry.second->isValid())
+            throw runtime_error("stack sig entry already filled");
+
+         auto newSigEntry = make_shared<StackItem_Sig>(
+            stackEntry.second->getId(), move(sig));
+         stackEntry.second = newSigEntry;
+         injected = true;
+
+         break;
+      }
+
+      case StackItemType_MultiSig:
+      {
+         if (sigId == UINT32_MAX)
+            throw runtime_error("unset sig id");
+         
+         auto msEntryPtr = 
+            dynamic_pointer_cast<StackItem_MultiSig>(stackEntry.second);
+         if (msEntryPtr == nullptr)
+            throw runtime_error("invalid ms stack entry");
+
+         msEntryPtr->setSig(sigId, sig);
+         injected = true;
+
+         break;
+      }
+
+      default:
+         break;
+      }
+   }
+
+   if (!injected)
+      throw runtime_error("failed to find sig entry in stack");
+
+   evaluatePartialStacks();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1865,7 +1984,15 @@ TxEvalState Signer::verify(const BinaryData& rawTx,
 bool Signer::verify(void) 
 {
    //serialize signed tx
-   auto txdata = serializeSignedTx();
+   BinaryData txdata;
+   try
+   {
+      txdata = move(serializeSignedTx());
+   }
+   catch(const exception&)
+   {
+      return false;
+   }
 
    map<BinaryData, map<unsigned, UTXO>> utxoMap;
 
@@ -2222,6 +2349,18 @@ bool Signer::hasLegacyInputs() const
 
    return false;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::injectSignature(
+   unsigned inputIndex, SecureBinaryData& sig, unsigned sigId)
+{
+   if (spenders_.size() < inputIndex)
+      throw runtime_error("invalid spender index");
+
+   auto& spender = spenders_[inputIndex];
+   spender->injectSignature(sig, sigId);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
