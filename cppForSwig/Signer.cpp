@@ -399,7 +399,21 @@ BinaryData ScriptSpender::getSerializedOutpoint() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef ScriptSpender::getSerializedInput(bool withSig) const
+BinaryData ScriptSpender::getSerializedInputScript() const
+{
+   //if we have a serialized script already, return that
+   if (!serializedScript_.empty())
+      return serializedScript_;
+      
+   //otherwise, serialize it from the stack
+   vector<shared_ptr<StackItem>> partial_stack;
+   for (auto& stack_item : partialStack_)
+      partial_stack.push_back(stack_item.second);
+   return serializeScript(partial_stack, true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData ScriptSpender::getSerializedInput(bool withSig) const
 {
    if (legacyStatus_ == SpenderStatus_Unknown)
    {
@@ -423,15 +437,16 @@ BinaryDataRef ScriptSpender::getSerializedInput(bool withSig) const
       }
    }
    
+   auto serializedScript = getSerializedInputScript();
+
    BinaryWriter bw;
    bw.put_BinaryData(getSerializedOutpoint());
 
-   bw.put_var_int(serializedScript_.getSize());
-   bw.put_BinaryData(serializedScript_);
+   bw.put_var_int(serializedScript.getSize());
+   bw.put_BinaryData(serializedScript);
    bw.put_uint32_t(sequence_);
 
-   serializedInput_ = move(bw.getData());
-   return serializedInput_.getRef();
+   return bw.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -573,12 +588,10 @@ void ScriptSpender::updateStack(map<unsigned, shared_ptr<StackItem>>& stackMap,
 void ScriptSpender::evaluatePartialStacks()
 {
    auto parseStack = [](
-      const map<unsigned, shared_ptr<StackItem>>& stack, bool& hasSigs)
+      const map<unsigned, shared_ptr<StackItem>>& stack)
       ->SpenderStatus
    {
       SpenderStatus stackState = SpenderStatus_Resolved;
-      hasSigs = false;
-
       for (auto& item_pair : stack)
       {
          auto& stack_item = item_pair.second;
@@ -586,7 +599,6 @@ void ScriptSpender::evaluatePartialStacks()
          {
             case StackItemType_MultiSig:
             {
-               hasSigs = true;
                if (stack_item->isValid())
                {
                   stackState = SpenderStatus_Signed;
@@ -607,7 +619,6 @@ void ScriptSpender::evaluatePartialStacks()
 
             case StackItemType_Sig:
             {
-               hasSigs = true;
                if (stack_item->isValid())
                   stackState = SpenderStatus_Signed;
                break;
@@ -630,32 +641,19 @@ void ScriptSpender::evaluatePartialStacks()
       const function<void(const vector<shared_ptr<StackItem>>&)>& setScript)
       ->void
    {
-      bool hasSigs;
-      auto stackState = parseStack(stack, hasSigs);
+      auto stackState = parseStack(stack);
 
       if (stackState >= spenderState)
       {
          switch (stackState)
          {
+            case SpenderStatus_Resolved:
             case SpenderStatus_PartiallySigned:
             {
                //do not set the script, keep the stack
                break;
             }
 
-            case SpenderStatus_Resolved:
-            {
-               if (hasSigs)
-               {
-                  //this script requires signatures but we have none.
-                  //keep the stack.
-                  break;
-               }
-
-               //this script does not require sigs and is resolved, 
-               //fallthrough to set the script and clear the stack
-            }
-            
             case SpenderStatus_Signed:
             {
                //set the script, clear the stack
@@ -730,15 +728,14 @@ BinaryData ScriptSpender::serializeState() const
       bw.put_uint64_t(value_);
    }
 
-   if (legacyStatus_ == SpenderStatus_Resolved ||
-      legacyStatus_ == SpenderStatus_Signed)
+   if (legacyStatus_ == SpenderStatus_Signed)
    {
       //put resolved script
       bw.put_uint8_t(SERIALIZED_SCRIPT_PREFIX);
       bw.put_var_int(serializedScript_.getSize());
       bw.put_BinaryData(serializedScript_);
    }
-   else if (legacyStatus_ == SpenderStatus_PartiallySigned)
+   else if (legacyStatus_ >= SpenderStatus_Resolved)
    {
       bw.put_uint8_t(LEGACY_STACK_PARTIAL);
       bw.put_var_int(partialStack_.size());
@@ -914,19 +911,21 @@ void ScriptSpender::merge(const ScriptSpender& obj)
    {
       switch (obj.legacyStatus_)
       {
+      case SpenderStatus_Resolved:
       case SpenderStatus_PartiallySigned:
       {
          partialStack_.insert(
             obj.partialStack_.begin(), obj.partialStack_.end());
          evaluatePartialStacks();
          
-         //evaluatePartialStacks will set the relevant legacy status 
-         //so we break out of the switch scope so as to not overwrite
-         //the status unnecessarely
+         /*
+         evaluatePartialStacks will set the relevant legacy status, 
+         therefor we break out of the switch scope so as to not overwrite
+         the status unnecessarely
+         */
          break;
       }
 
-      case SpenderStatus_Resolved:
       case SpenderStatus_Signed:
       {
          serializedScript_ = obj.serializedScript_;
@@ -1231,18 +1230,16 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    auto feed = make_shared<ResolverFeedLocal>();
 
    //look for push data in the sigScript
-   BinaryRefReader brr(serializedScript_.getRef());
+   auto&& legacyScript = getSerializedInputScript();
+
    try
    {
-      while (brr.getSizeRemaining() > 0)
+      auto pushDataVec = BtcUtils::splitPushOnlyScriptRefs(legacyScript);
+      for (auto& pushData : pushDataVec)
       {
-         //grab next data from the script as if it's push data
-         auto len = brr.get_var_int();
-         auto val = brr.get_BinaryDataRef(len);
-
          //hash it and add to the feed's hash map
-         auto hash = BtcUtils::getHash160(val);
-         feed->hashMap.emplace(hash, val);
+         auto hash = BtcUtils::getHash160(pushData);
+         feed->hashMap.emplace(hash, pushData);
       }
    }
    catch (const runtime_error&)
@@ -1294,6 +1291,13 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
          //sha256 in case it's a p2wsh preimage
          auto hash256 = BtcUtils::getSha256(val);
          feed->hashMap.emplace(hash256, val);
+      }
+
+      if (brSW.getSizeRemaining() > 0)
+      {
+         //unparsed data remains in the witness data script, 
+         //this shouldn't happen
+         return false;
       }
    }
    catch (const runtime_error&)

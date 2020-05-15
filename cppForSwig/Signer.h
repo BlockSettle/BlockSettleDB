@@ -90,6 +90,7 @@ private:
       const std::vector<std::shared_ptr<StackItem>>&);
 
    bool compareEvalState(const ScriptSpender&) const;
+   BinaryData getSerializedInputScript(void) const;
 
 public:
    ScriptSpender(
@@ -128,7 +129,7 @@ public:
    BinaryDataRef getOutputScript(void) const;
    BinaryDataRef getOutputHash(void) const;
    unsigned getOutputIndex(void) const;
-   virtual BinaryDataRef getSerializedInput(bool) const;
+   BinaryData getSerializedInput(bool) const;
    BinaryData serializeAvailableStack(void) const;
    BinaryDataRef getWitnessData(void) const;
    BinaryData serializeAvailableWitnessData(void) const;
@@ -227,44 +228,6 @@ public:
 
    void evaluateStack(StackResolver&, bool&);
    bool verifyEvalState(unsigned);
-};
-
-/////////////////// Spender that doesn't require resolution ///////////////////
-class ScriptSpender_Signed : public ScriptSpender
-{
-public:
-   ScriptSpender_Signed(const UTXO& utxo)  : ScriptSpender(utxo)
-   { }
-   ~ScriptSpender_Signed() override = default;
-
-   void setWitnessData(const BinaryData &inputSig, const int itemCount)
-   {
-      BinaryWriter bw;
-      bw.put_var_int(itemCount);
-      bw.put_BinaryData(inputSig);
-      witnessData_ = bw.getData();
-      segwitStatus_ = SpenderStatus_Resolved;
-   }
-};
-
-class ScriptSpender_P2WPKH_Signed : public ScriptSpender_Signed
-{
-public:
-   ScriptSpender_P2WPKH_Signed(const UTXO& utxo) : ScriptSpender_Signed(utxo)
-   { }
-   ~ScriptSpender_P2WPKH_Signed() override = default;
-
-   BinaryDataRef getSerializedInput(bool) const override
-   {
-      BinaryWriter bw;
-      bw.put_BinaryData(getSerializedOutpoint());
-
-      bw.put_var_int(0);
-      bw.put_uint32_t(getSequence());
-
-      serializedInput_ = std::move(bw.getData());
-      return serializedInput_.getRef();
-   }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
