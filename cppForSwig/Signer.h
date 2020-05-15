@@ -114,8 +114,8 @@ public:
 
    virtual ~ScriptSpender() = default;
 
-   bool isSegWit(void) const { return isSegWit_; }
    bool isP2SH(void) const { return isP2SH_; }
+   bool isSegWit(void) const;
 
    //set
    void setSigHashType(SIGHASH_TYPE sht) { sigHashType_ = sht; }
@@ -141,12 +141,9 @@ public:
 
    unsigned getFlags(void) const
    {
-      unsigned flags = 0;
+      unsigned flags = SCRIPT_VERIFY_SEGWIT;
       if (isP2SH_)
-         flags |= SCRIPT_VERIFY_P2SH;
-
-      if (isSegWit())
-         flags |= SCRIPT_VERIFY_SEGWIT | SCRIPT_VERIFY_P2SH_SHA256;
+         flags |= SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_P2SH_SHA256;
 
       if (isCSV_)
          flags |= SCRIPT_VERIFY_CHECKSEQUENCEVERIFY;
@@ -226,7 +223,7 @@ public:
       return this->getOutpoint() == rhs.getOutpoint();
    }
 
-   void evaluateStack(StackResolver&, bool&);
+   void evaluateStack(StackResolver&);
    bool verifyEvalState(unsigned);
 };
 
@@ -247,8 +244,6 @@ protected:
    std::vector<std::shared_ptr<ScriptRecipient>> recipients_;
 
    std::shared_ptr<ResolverFeed> resolverPtr_;
-
-   mutable bool isSegWit_ = false;
 
 protected:
    virtual std::shared_ptr<SigHashData> getSigHashDataForSpender(bool) const;
@@ -356,6 +351,8 @@ public:
    }
 
    bool verifySpenderEvalState(void) const;
+   bool isSegWit(void) const;
+   bool hasLegacyInputs (void) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

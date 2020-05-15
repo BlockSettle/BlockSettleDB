@@ -326,18 +326,18 @@ bool ScriptSpender::isResolved() const
 
    if (!isSegWit_)
    {
-      if (legacyStatus_ < SpenderStatus_Resolved)
-         return false;
+      if (legacyStatus_ >= SpenderStatus_Resolved)
+         return true;
    }
    else
    {
       //If this spender is SW, only emtpy (native sw) and resolved (nested sw) 
       //states are valid. The SW stack should not be empty for a SW input
-      if (legacyStatus_ == SpenderStatus_Empty ||
-         legacyStatus_ == SpenderStatus_Resolved)
+      if ((legacyStatus_ == SpenderStatus_Empty ||
+         legacyStatus_ == SpenderStatus_Resolved) &&
+         segwitStatus_ >= SpenderStatus_Resolved)
       {
-         if (segwitStatus_ >= SpenderStatus_Resolved)
-            return true;
+         return true;
       }
 
    }
@@ -1311,9 +1311,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    {
       StackResolver resolver(getOutputScript(), feed, nullptr);
       resolver.setFlags(flags);
-
-      bool isSegWit = false;
-      spenderVerify.evaluateStack(resolver, isSegWit);
+      spenderVerify.evaluateStack(resolver);
    }
    catch (exception&)
    {}
@@ -1325,7 +1323,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptSpender::evaluateStack(StackResolver& resolver, bool& isSegWit)
+void ScriptSpender::evaluateStack(StackResolver& resolver)
 {
 
    auto resolvedStack = resolver.getResolvedStack();
@@ -1346,12 +1344,21 @@ void ScriptSpender::evaluateStack(StackResolver& resolver, bool& isSegWit)
       return;
    }
 
-   isSegWit_ = isSegWit = true;
+   isSegWit_ = true;
 
    updatePartialWitnessStack(
       resolvedStackWitness->getStack(), 
       resolvedStackWitness->getSigCount());
    evaluatePartialStacks();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool ScriptSpender::isSegWit() const
+{
+   if (!isResolved())
+      throw runtime_error("cannot get segwit status from unresolved spender");
+   
+   return isSegWit_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1540,7 +1547,7 @@ void Signer::sign(void)
 
       try
       {
-         spender->evaluateStack(resolver, isSegWit_);
+         spender->evaluateStack(resolver);
       }
       catch (...)
       {
@@ -1577,7 +1584,7 @@ void Signer::resolveSpenders()
 
       try
       {
-         spender->evaluateStack(resolver, isSegWit_);
+         spender->evaluateStack(resolver);
       }
       catch (exception&)
       {
@@ -1635,7 +1642,8 @@ BinaryDataRef Signer::serializeSignedTx(void) const
    //version
    bw.put_uint32_t(version_);
 
-   if (isSegWit_)
+   bool isSW = isSegWit();
+   if (isSW)
    {
       //marker and flag
       bw.put_uint8_t(0);
@@ -1660,7 +1668,7 @@ BinaryDataRef Signer::serializeSignedTx(void) const
    for (auto& recipient : recipients_)
       bw.put_BinaryDataRef(recipient->getSerializedScript());
 
-   if (isSegWit_)
+   if (isSW)
    {
       //witness data
       for (auto& spender : spenders_)
@@ -1696,7 +1704,8 @@ BinaryDataRef Signer::serializeUnsignedTx(bool loose)
    //version
    bw.put_uint32_t(version_);
 
-   if (isSegWit_)
+   bool isSW = isSegWit();
+   if (isSW)
    {
       //marker and flag
       bw.put_uint8_t(0);
@@ -1757,7 +1766,8 @@ BinaryData Signer::serializeAvailableResolvedData(void) const
    //version
    bw.put_uint32_t(version_);
 
-   if (isSegWit_)
+   bool isSW = isSegWit();
+   if (isSW)
    {
       //marker and flag
       bw.put_uint8_t(0);
@@ -1778,7 +1788,7 @@ BinaryData Signer::serializeAvailableResolvedData(void) const
    for (auto& recipient : recipients_)
       bw.put_BinaryDataRef(recipient->getSerializedScript());
 
-   if (isSegWit_)
+   if (isSW)
    {
       //witness data
       for (auto& spender : spenders_)
@@ -1809,7 +1819,6 @@ shared_ptr<SigHashData> Signer::getSigHashDataForSpender(bool sw) const
          sigHashDataObject_ = make_shared<SigHashDataSegWit>();
 
       SHD = sigHashDataObject_;
-      isSegWit_ = true;
    }
    else
    {
@@ -1897,7 +1906,6 @@ BinaryData Signer::serializeState() const
    bw.put_uint32_t(version_);
    bw.put_uint32_t(lockTime_);
    bw.put_uint32_t(flags_);
-   bw.put_uint8_t(isSegWit_);
 
    bw.put_var_int(spenders_.size());
    for (auto& spender : spenders_)
@@ -1929,7 +1937,6 @@ Signer Signer::createFromState(const BinaryData& state)
    signer.version_ = brr.get_uint32_t();
    signer.lockTime_ = brr.get_uint32_t();
    signer.flags_ = brr.get_uint32_t();
-   signer.isSegWit_ = brr.get_uint8_t();
 
    auto spender_count = brr.get_var_int();
    for (unsigned i = 0; i < spender_count; i++)
@@ -1964,7 +1971,6 @@ void Signer::deserializeState(
    version_ = new_signer.version_;
    lockTime_ = new_signer.lockTime_;
    flags_ |= new_signer.flags_;
-   isSegWit_ |= new_signer.isSegWit_;
 
    auto find_spender = [this](shared_ptr<ScriptSpender> obj)->
       shared_ptr<ScriptSpender>
@@ -2181,6 +2187,30 @@ bool Signer::verifySpenderEvalState() const
    }
 
    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool Signer::isSegWit() const
+{
+   for (auto& spender : spenders_)
+   {
+      if (spender->isSegWit())
+         return true;
+   }
+
+   return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool Signer::hasLegacyInputs() const
+{
+   for (auto& spender : spenders_)
+   {
+      if (!spender->isSegWit())
+         return true;
+   }
+
+   return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
