@@ -291,7 +291,7 @@ public:
    { }
    ~ScriptSpender_Signed_Legacy() override = default;
 
-   BinaryDataRef getSerializedInput(void) const override
+   BinaryDataRef getSerializedInput(bool) const override
    {
       BinaryWriter bw;
       bw.put_BinaryData(getSerializedOutpoint());
