@@ -801,7 +801,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
    //create spender lamba
    auto getSpenderPtr = [](
       const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
+      shared_ptr<ResolverFeed> feed = nullptr)
       ->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
@@ -978,6 +978,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
 
       auto spendVal = 18 * COIN;
       Signer signer2;
+      Signer signer_nofeed;
       signer2.setFlags(SCRIPT_VERIFY_SEGWIT);
 
       //get utxo list for spend value
@@ -992,6 +993,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       {
          total += utxo.getValue();
          signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer_nofeed.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -999,6 +1001,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       auto recipient2 = make_shared<Recipient_P2PKH>(
          TestChain::scrAddrB.getSliceCopy(1, 20), spendVal);
       signer2.addRecipient(recipient2);
+      signer_nofeed.addRecipient(recipient2);
 
       if (total > spendVal)
       {
@@ -1006,6 +1009,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
          auto changeVal = total - spendVal;
          auto addr2 = assetWlt->getNewAddress(AddressEntryType_P2WPKH);
          signer2.addRecipient(addrVec[2]->getRecipient(changeVal));
+         signer_nofeed.addRecipient(addrVec[2]->getRecipient(changeVal));
       }
 
       //grab the unsigned tx and get the tx hash from it
@@ -1019,6 +1023,9 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
 
       auto hashFromSigner = signer2.getTxId();
       EXPECT_EQ(txHashUnsigned, hashFromSigner);
+
+      auto hashFromUnresolvedSigner = signer_nofeed.getTxId();
+      EXPECT_EQ(hashFromSigner, hashFromUnresolvedSigner);
 
       //sign, verify & broadcast
       {
@@ -2957,11 +2964,11 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       3); //set lookup computation to 3 entries
 
    //register with db
-   auto addr_type_nested_p2wsh = AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH);
+   auto addr_type_nested_p2sh = AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH);
    vector<shared_ptr<AddressEntry>> addrVec_1;
-   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2wsh));
-   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2wsh));
-   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2wsh));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2sh));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2sh));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2sh));
 
    vector<BinaryData> hashVec_1;
    for (auto addrPtr : addrVec_1)

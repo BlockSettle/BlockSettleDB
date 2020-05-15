@@ -57,8 +57,6 @@ protected:
 private:
    SpenderStatus legacyStatus_ = SpenderStatus_Unknown;
    bool isP2SH_ = false;
-   bool isSegWit_ = false;
-
    bool isCSV_ = false;
    bool isCLTV_ = false;
 

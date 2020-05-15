@@ -324,7 +324,7 @@ bool ScriptSpender::isResolved() const
    if (!utxo_.isInitialized())
       return false;
 
-   if (!isSegWit_)
+   if (!isSegWit())
    {
       if (legacyStatus_ >= SpenderStatus_Resolved)
          return true;
@@ -356,7 +356,7 @@ bool ScriptSpender::isSigned() const
    if (!utxo_.isInitialized())
       return false;
 
-   if (!isSegWit_)
+   if (!isSegWit())
    {
       if (legacyStatus_ == SpenderStatus_Signed &&
          segwitStatus_ == SpenderStatus_Empty)
@@ -422,7 +422,7 @@ BinaryData ScriptSpender::getSerializedInput(bool withSig) const
 
    if (withSig)
    {
-      if (!isSegWit_)
+      if (!isSegWit())
       {
          if (legacyStatus_ != SpenderStatus_Signed)
             throw ScriptException("spender is missing sigs");        
@@ -478,7 +478,7 @@ BinaryData ScriptSpender::serializeAvailableStack() const
 ////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef ScriptSpender::getWitnessData(void) const
 {
-   if (isSegWit_)
+   if (isSegWit())
    {
       if(segwitStatus_ != SpenderStatus_Signed)
          throw runtime_error("witness data missing signature");
@@ -700,7 +700,6 @@ BinaryData ScriptSpender::serializeState() const
    bp.putBits(legacyStatus_, 4);
    bp.putBits(segwitStatus_, 4);
    bp.putBit(isP2SH_);
-   bp.putBit(isSegWit_);
    bp.putBit(isCSV_);
    bp.putBit(isCLTV_);
 
@@ -830,7 +829,6 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
    script_spender->segwitStatus_ = (SpenderStatus)bup.getBits(4);
 
    script_spender->isP2SH_ = bup.getBit();
-   script_spender->isSegWit_ = bup.getBit();
    script_spender->isCSV_  = bup.getBit();
    script_spender->isCLTV_ = bup.getBit();
 
@@ -905,7 +903,8 @@ void ScriptSpender::merge(const ScriptSpender& obj)
       utxo_ = obj.utxo_;
 
    isP2SH_ |= obj.isP2SH_;
-   isSegWit_ |= obj.isSegWit_;
+   isCLTV_ |= obj.isCLTV_;
+   isCSV_  |= obj.isCSV_;
 
    if (legacyStatus_ != SpenderStatus_Signed)
    {
@@ -1344,8 +1343,6 @@ void ScriptSpender::evaluateStack(StackResolver& resolver)
       return;
    }
 
-   isSegWit_ = true;
-
    updatePartialWitnessStack(
       resolvedStackWitness->getStack(), 
       resolvedStackWitness->getSigCount());
@@ -1355,10 +1352,23 @@ void ScriptSpender::evaluateStack(StackResolver& resolver)
 ////////////////////////////////////////////////////////////////////////////////
 bool ScriptSpender::isSegWit() const
 {
-   if (!isResolved())
-      throw runtime_error("cannot get segwit status from unresolved spender");
+   switch (legacyStatus_)
+   {
+   case SpenderStatus_Empty:
+      return true; //empty legacy input means sw
+
+   case SpenderStatus_Resolved:
+   {
+      //resolved legacy status could mean nested sw
+      if (segwitStatus_ >= SpenderStatus_Resolved)
+         return true;
+   }
+
+   default:
+      break;
+   }
    
-   return isSegWit_;
+   return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
