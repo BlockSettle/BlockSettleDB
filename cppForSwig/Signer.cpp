@@ -324,20 +324,20 @@ bool ScriptSpender::isResolved() const
    if (!utxo_.isInitialized())
       return false;
 
-   if (!isSegWit_)
+   if (!isSegWit())
    {
-      if (legacyStatus_ < SpenderStatus_Resolved)
-         return false;
+      if (legacyStatus_ >= SpenderStatus_Resolved)
+         return true;
    }
    else
    {
       //If this spender is SW, only emtpy (native sw) and resolved (nested sw) 
       //states are valid. The SW stack should not be empty for a SW input
-      if (legacyStatus_ == SpenderStatus_Empty ||
-         legacyStatus_ == SpenderStatus_Resolved)
+      if ((legacyStatus_ == SpenderStatus_Empty ||
+         legacyStatus_ == SpenderStatus_Resolved) &&
+         segwitStatus_ >= SpenderStatus_Resolved)
       {
-         if (segwitStatus_ >= SpenderStatus_Resolved)
-            return true;
+         return true;
       }
 
    }
@@ -356,7 +356,7 @@ bool ScriptSpender::isSigned() const
    if (!utxo_.isInitialized())
       return false;
 
-   if (!isSegWit_)
+   if (!isSegWit())
    {
       if (legacyStatus_ == SpenderStatus_Signed &&
          segwitStatus_ == SpenderStatus_Empty)
@@ -399,7 +399,21 @@ BinaryData ScriptSpender::getSerializedOutpoint() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef ScriptSpender::getSerializedInput(bool withSig) const
+BinaryData ScriptSpender::getSerializedInputScript() const
+{
+   //if we have a serialized script already, return that
+   if (!serializedScript_.empty())
+      return serializedScript_;
+      
+   //otherwise, serialize it from the stack
+   vector<shared_ptr<StackItem>> partial_stack;
+   for (auto& stack_item : partialStack_)
+      partial_stack.push_back(stack_item.second);
+   return serializeScript(partial_stack, true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData ScriptSpender::getSerializedInput(bool withSig) const
 {
    if (legacyStatus_ == SpenderStatus_Unknown)
    {
@@ -408,7 +422,7 @@ BinaryDataRef ScriptSpender::getSerializedInput(bool withSig) const
 
    if (withSig)
    {
-      if (!isSegWit_)
+      if (!isSegWit())
       {
          if (legacyStatus_ != SpenderStatus_Signed)
             throw ScriptException("spender is missing sigs");        
@@ -423,15 +437,16 @@ BinaryDataRef ScriptSpender::getSerializedInput(bool withSig) const
       }
    }
    
+   auto serializedScript = getSerializedInputScript();
+
    BinaryWriter bw;
    bw.put_BinaryData(getSerializedOutpoint());
 
-   bw.put_var_int(serializedScript_.getSize());
-   bw.put_BinaryData(serializedScript_);
+   bw.put_var_int(serializedScript.getSize());
+   bw.put_BinaryData(serializedScript);
    bw.put_uint32_t(sequence_);
 
-   serializedInput_ = move(bw.getData());
-   return serializedInput_.getRef();
+   return bw.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -463,7 +478,7 @@ BinaryData ScriptSpender::serializeAvailableStack() const
 ////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef ScriptSpender::getWitnessData(void) const
 {
-   if (isSegWit_)
+   if (isSegWit())
    {
       if(segwitStatus_ != SpenderStatus_Signed)
          throw runtime_error("witness data missing signature");
@@ -573,12 +588,10 @@ void ScriptSpender::updateStack(map<unsigned, shared_ptr<StackItem>>& stackMap,
 void ScriptSpender::evaluatePartialStacks()
 {
    auto parseStack = [](
-      const map<unsigned, shared_ptr<StackItem>>& stack, bool& hasSigs)
+      const map<unsigned, shared_ptr<StackItem>>& stack)
       ->SpenderStatus
    {
       SpenderStatus stackState = SpenderStatus_Resolved;
-      hasSigs = false;
-
       for (auto& item_pair : stack)
       {
          auto& stack_item = item_pair.second;
@@ -586,7 +599,6 @@ void ScriptSpender::evaluatePartialStacks()
          {
             case StackItemType_MultiSig:
             {
-               hasSigs = true;
                if (stack_item->isValid())
                {
                   stackState = SpenderStatus_Signed;
@@ -607,7 +619,6 @@ void ScriptSpender::evaluatePartialStacks()
 
             case StackItemType_Sig:
             {
-               hasSigs = true;
                if (stack_item->isValid())
                   stackState = SpenderStatus_Signed;
                break;
@@ -630,32 +641,19 @@ void ScriptSpender::evaluatePartialStacks()
       const function<void(const vector<shared_ptr<StackItem>>&)>& setScript)
       ->void
    {
-      bool hasSigs;
-      auto stackState = parseStack(stack, hasSigs);
+      auto stackState = parseStack(stack);
 
       if (stackState >= spenderState)
       {
          switch (stackState)
          {
+            case SpenderStatus_Resolved:
             case SpenderStatus_PartiallySigned:
             {
                //do not set the script, keep the stack
                break;
             }
 
-            case SpenderStatus_Resolved:
-            {
-               if (hasSigs)
-               {
-                  //this script requires signatures but we have none.
-                  //keep the stack.
-                  break;
-               }
-
-               //this script does not require sigs and is resolved, 
-               //fallthrough to set the script and clear the stack
-            }
-            
             case SpenderStatus_Signed:
             {
                //set the script, clear the stack
@@ -702,7 +700,6 @@ BinaryData ScriptSpender::serializeState() const
    bp.putBits(legacyStatus_, 4);
    bp.putBits(segwitStatus_, 4);
    bp.putBit(isP2SH_);
-   bp.putBit(isSegWit_);
    bp.putBit(isCSV_);
    bp.putBit(isCLTV_);
 
@@ -730,15 +727,14 @@ BinaryData ScriptSpender::serializeState() const
       bw.put_uint64_t(value_);
    }
 
-   if (legacyStatus_ == SpenderStatus_Resolved ||
-      legacyStatus_ == SpenderStatus_Signed)
+   if (legacyStatus_ == SpenderStatus_Signed)
    {
       //put resolved script
       bw.put_uint8_t(SERIALIZED_SCRIPT_PREFIX);
       bw.put_var_int(serializedScript_.getSize());
       bw.put_BinaryData(serializedScript_);
    }
-   else if (legacyStatus_ == SpenderStatus_PartiallySigned)
+   else if (legacyStatus_ >= SpenderStatus_Resolved)
    {
       bw.put_uint8_t(LEGACY_STACK_PARTIAL);
       bw.put_var_int(partialStack_.size());
@@ -833,7 +829,6 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
    script_spender->segwitStatus_ = (SpenderStatus)bup.getBits(4);
 
    script_spender->isP2SH_ = bup.getBit();
-   script_spender->isSegWit_ = bup.getBit();
    script_spender->isCSV_  = bup.getBit();
    script_spender->isCLTV_ = bup.getBit();
 
@@ -907,26 +902,32 @@ void ScriptSpender::merge(const ScriptSpender& obj)
    if (!utxo_.isInitialized() && obj.utxo_.isInitialized())
       utxo_ = obj.utxo_;
 
+   if (utxo_.value_ != obj.value_)
+      throw runtime_error("spender merge value mismatch");
+
    isP2SH_ |= obj.isP2SH_;
-   isSegWit_ |= obj.isSegWit_;
+   isCLTV_ |= obj.isCLTV_;
+   isCSV_  |= obj.isCSV_;
 
    if (legacyStatus_ != SpenderStatus_Signed)
    {
       switch (obj.legacyStatus_)
       {
+      case SpenderStatus_Resolved:
       case SpenderStatus_PartiallySigned:
       {
          partialStack_.insert(
             obj.partialStack_.begin(), obj.partialStack_.end());
          evaluatePartialStacks();
          
-         //evaluatePartialStacks will set the relevant legacy status 
-         //so we break out of the switch scope so as to not overwrite
-         //the status unnecessarely
+         /*
+         evaluatePartialStacks will set the relevant legacy status, 
+         therefor we break out of the switch scope so as to not overwrite
+         the status unnecessarely
+         */
          break;
       }
 
-      case SpenderStatus_Resolved:
       case SpenderStatus_Signed:
       {
          serializedScript_ = obj.serializedScript_;
@@ -1184,6 +1185,21 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+bool ScriptSpender::isInitialized() const 
+{
+   if (legacyStatus_ == SpenderStatus_Unknown &&
+      segwitStatus_ == SpenderStatus_Unknown &&
+      isP2SH_ == false && 
+      partialStack_.empty() && partialWitnessStack_.empty() &&
+      serializedScript_.empty() && witnessData_.empty())
+   {
+      return false;
+   }
+
+   return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 bool ScriptSpender::verifyEvalState(unsigned flags)
 {
    /*
@@ -1191,17 +1207,16 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    script
    */
 
+   //uninitialized spender, nothing to check
+   if (!isInitialized())
+   {
+      return true;
+   }
+
    //sanity check: needs a utxo set to be resolved
    if (!utxo_.isInitialized())
    {
-      if (legacyStatus_ != SpenderStatus_Unknown ||
-         segwitStatus_ != SpenderStatus_Unknown ||
-         serializedScript_.getSize() != 0 ||
-         witnessData_.getSize() != 0)
-         return false;
-
-      //no resolved script to check, return true
-      return true;
+      return false;
    }
 
    ScriptSpender spenderVerify(utxo_);
@@ -1231,18 +1246,16 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    auto feed = make_shared<ResolverFeedLocal>();
 
    //look for push data in the sigScript
-   BinaryRefReader brr(serializedScript_.getRef());
+   auto&& legacyScript = getSerializedInputScript();
+
    try
    {
-      while (brr.getSizeRemaining() > 0)
+      auto pushDataVec = BtcUtils::splitPushOnlyScriptRefs(legacyScript);
+      for (auto& pushData : pushDataVec)
       {
-         //grab next data from the script as if it's push data
-         auto len = brr.get_var_int();
-         auto val = brr.get_BinaryDataRef(len);
-
          //hash it and add to the feed's hash map
-         auto hash = BtcUtils::getHash160(val);
-         feed->hashMap.emplace(hash, val);
+         auto hash = BtcUtils::getHash160(pushData);
+         feed->hashMap.emplace(hash, pushData);
       }
    }
    catch (const runtime_error&)
@@ -1295,6 +1308,13 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
          auto hash256 = BtcUtils::getSha256(val);
          feed->hashMap.emplace(hash256, val);
       }
+
+      if (brSW.getSizeRemaining() > 0)
+      {
+         //unparsed data remains in the witness data script, 
+         //this shouldn't happen
+         return false;
+      }
    }
    catch (const runtime_error&)
    {
@@ -1307,9 +1327,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    {
       StackResolver resolver(getOutputScript(), feed, nullptr);
       resolver.setFlags(flags);
-
-      bool isSegWit = false;
-      spenderVerify.evaluateStack(resolver, isSegWit);
+      spenderVerify.evaluateStack(resolver);
    }
    catch (exception&)
    {}
@@ -1321,9 +1339,44 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptSpender::evaluateStack(StackResolver& resolver, bool& isSegWit)
+void ScriptSpender::updatePartialStack(
+   const vector<shared_ptr<StackItem>>& stack, unsigned sigCount)
 {
+   if (legacyStatus_ == SpenderStatus_Signed)
+      return;
 
+   if (legacyStatus_ == SpenderStatus_Resolved && sigCount == 0)
+      return;
+
+   if (stack.size() != 0)
+   {
+      updateStack(partialStack_, stack);
+
+      if (sigCount > 0)
+         legacyStatus_ = SpenderStatus_PartiallySigned;
+   }
+   else
+   {
+      legacyStatus_ = SpenderStatus_Empty;
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::updatePartialWitnessStack(
+   const vector<shared_ptr<StackItem>>& stack, unsigned sigCount)
+{
+   if (segwitStatus_ == SpenderStatus_Signed)
+      return;
+
+   if (segwitStatus_ >= SpenderStatus_Resolved && sigCount == 0)
+      return;
+
+   updateStack(partialWitnessStack_, stack);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::evaluateStack(StackResolver& resolver)
+{
    auto resolvedStack = resolver.getResolvedStack();
    if (resolvedStack == nullptr)
       throw runtime_error("null resolved stack");
@@ -1337,16 +1390,103 @@ void ScriptSpender::evaluateStack(StackResolver& resolver, bool& isSegWit)
    auto resolvedStackWitness = resolvedStack->getWitnessStack();
    if (resolvedStackWitness == nullptr)
    {
-      if (segwitStatus_ < SpenderStatus_Resolved)
+      if (legacyStatus_ != SpenderStatus_Empty &&
+         segwitStatus_ < SpenderStatus_Resolved)
+      {
          segwitStatus_ = SpenderStatus_Empty; 
+      }
       return;
    }
-
-   isSegWit_ = isSegWit = true;
 
    updatePartialWitnessStack(
       resolvedStackWitness->getStack(), 
       resolvedStackWitness->getSigCount());
+   evaluatePartialStacks();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool ScriptSpender::isSegWit() const
+{
+   switch (legacyStatus_)
+   {
+   case SpenderStatus_Empty:
+      return true; //empty legacy input means sw
+
+   case SpenderStatus_Resolved:
+   {
+      //resolved legacy status could mean nested sw
+      if (segwitStatus_ >= SpenderStatus_Resolved)
+         return true;
+   }
+
+   default:
+      break;
+   }
+   
+   return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
+{
+   //sanity checks
+   if (!isResolved())
+      throw runtime_error("cannot inject sig into unresolved spender");
+
+   if (isSigned())
+      throw runtime_error("spender is alreayd signed!");
+
+   map<unsigned, shared_ptr<StackItem>>* stackPtr = nullptr;
+   
+   //grab the stack carrying the sig(s)
+   if (isSegWit())
+      stackPtr = &partialWitnessStack_;
+   else
+      stackPtr = &partialStack_;
+
+   //find the stack sig object
+   bool injected = false;
+   for (auto& stackEntry : *stackPtr)
+   {
+      switch (stackEntry.second->type_)
+      {
+      case StackItemType_Sig:
+      {
+         if (stackEntry.second->isValid())
+            throw runtime_error("stack sig entry already filled");
+
+         auto newSigEntry = make_shared<StackItem_Sig>(
+            stackEntry.second->getId(), move(sig));
+         stackEntry.second = newSigEntry;
+         injected = true;
+
+         break;
+      }
+
+      case StackItemType_MultiSig:
+      {
+         if (sigId == UINT32_MAX)
+            throw runtime_error("unset sig id");
+         
+         auto msEntryPtr = 
+            dynamic_pointer_cast<StackItem_MultiSig>(stackEntry.second);
+         if (msEntryPtr == nullptr)
+            throw runtime_error("invalid ms stack entry");
+
+         msEntryPtr->setSig(sigId, sig);
+         injected = true;
+
+         break;
+      }
+
+      default:
+         break;
+      }
+   }
+
+   if (!injected)
+      throw runtime_error("failed to find sig entry in stack");
+
    evaluatePartialStacks();
 }
 
@@ -1536,7 +1676,7 @@ void Signer::sign(void)
 
       try
       {
-         spender->evaluateStack(resolver, isSegWit_);
+         spender->evaluateStack(resolver);
       }
       catch (...)
       {
@@ -1573,7 +1713,7 @@ void Signer::resolveSpenders()
 
       try
       {
-         spender->evaluateStack(resolver, isSegWit_);
+         spender->evaluateStack(resolver);
       }
       catch (exception&)
       {
@@ -1631,7 +1771,8 @@ BinaryDataRef Signer::serializeSignedTx(void) const
    //version
    bw.put_uint32_t(version_);
 
-   if (isSegWit_)
+   bool isSW = isSegWit();
+   if (isSW)
    {
       //marker and flag
       bw.put_uint8_t(0);
@@ -1656,7 +1797,7 @@ BinaryDataRef Signer::serializeSignedTx(void) const
    for (auto& recipient : recipients_)
       bw.put_BinaryDataRef(recipient->getSerializedScript());
 
-   if (isSegWit_)
+   if (isSW)
    {
       //witness data
       for (auto& spender : spenders_)
@@ -1692,7 +1833,8 @@ BinaryDataRef Signer::serializeUnsignedTx(bool loose)
    //version
    bw.put_uint32_t(version_);
 
-   if (isSegWit_)
+   bool isSW = isSegWit();
+   if (isSW)
    {
       //marker and flag
       bw.put_uint8_t(0);
@@ -1753,7 +1895,8 @@ BinaryData Signer::serializeAvailableResolvedData(void) const
    //version
    bw.put_uint32_t(version_);
 
-   if (isSegWit_)
+   bool isSW = isSegWit();
+   if (isSW)
    {
       //marker and flag
       bw.put_uint8_t(0);
@@ -1774,7 +1917,7 @@ BinaryData Signer::serializeAvailableResolvedData(void) const
    for (auto& recipient : recipients_)
       bw.put_BinaryDataRef(recipient->getSerializedScript());
 
-   if (isSegWit_)
+   if (isSW)
    {
       //witness data
       for (auto& spender : spenders_)
@@ -1805,7 +1948,6 @@ shared_ptr<SigHashData> Signer::getSigHashDataForSpender(bool sw) const
          sigHashDataObject_ = make_shared<SigHashDataSegWit>();
 
       SHD = sigHashDataObject_;
-      isSegWit_ = true;
    }
    else
    {
@@ -1842,7 +1984,15 @@ TxEvalState Signer::verify(const BinaryData& rawTx,
 bool Signer::verify(void) 
 {
    //serialize signed tx
-   auto txdata = serializeSignedTx();
+   BinaryData txdata;
+   try
+   {
+      txdata = move(serializeSignedTx());
+   }
+   catch(const exception&)
+   {
+      return false;
+   }
 
    map<BinaryData, map<unsigned, UTXO>> utxoMap;
 
@@ -1893,7 +2043,6 @@ BinaryData Signer::serializeState() const
    bw.put_uint32_t(version_);
    bw.put_uint32_t(lockTime_);
    bw.put_uint32_t(flags_);
-   bw.put_uint8_t(isSegWit_);
 
    bw.put_var_int(spenders_.size());
    for (auto& spender : spenders_)
@@ -1925,7 +2074,6 @@ Signer Signer::createFromState(const BinaryData& state)
    signer.version_ = brr.get_uint32_t();
    signer.lockTime_ = brr.get_uint32_t();
    signer.flags_ = brr.get_uint32_t();
-   signer.isSegWit_ = brr.get_uint8_t();
 
    auto spender_count = brr.get_var_int();
    for (unsigned i = 0; i < spender_count; i++)
@@ -1960,7 +2108,6 @@ void Signer::deserializeState(
    version_ = new_signer.version_;
    lockTime_ = new_signer.lockTime_;
    flags_ |= new_signer.flags_;
-   isSegWit_ |= new_signer.isSegWit_;
 
    auto find_spender = [this](shared_ptr<ScriptSpender> obj)->
       shared_ptr<ScriptSpender>
@@ -2178,6 +2325,42 @@ bool Signer::verifySpenderEvalState() const
 
    return true;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+bool Signer::isSegWit() const
+{
+   for (auto& spender : spenders_)
+   {
+      if (spender->isSegWit())
+         return true;
+   }
+
+   return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool Signer::hasLegacyInputs() const
+{
+   for (auto& spender : spenders_)
+   {
+      if (!spender->isSegWit())
+         return true;
+   }
+
+   return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::injectSignature(
+   unsigned inputIndex, SecureBinaryData& sig, unsigned sigId)
+{
+   if (spenders_.size() < inputIndex)
+      throw runtime_error("invalid spender index");
+
+   auto& spender = spenders_[inputIndex];
+   spender->injectSignature(sig, sigId);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

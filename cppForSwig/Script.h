@@ -1006,8 +1006,8 @@ struct StackItem_PushData : public StackItem
       StackItem(StackItemType_PushData, id), data_(std::move(data))
    {}
 
-   bool isSame(const StackItem* obj) const;
-   BinaryData serialize(void) const;
+   bool isSame(const StackItem* obj) const override;
+   BinaryData serialize(void) const override;
 };
 
 ////
@@ -1019,8 +1019,8 @@ struct StackItem_Sig : public StackItem
       StackItem(StackItemType_Sig, id), data_(std::move(data))
    {}
 
-   bool isSame(const StackItem* obj) const;
-   BinaryData serialize(void) const;
+   bool isSame(const StackItem* obj) const override; 
+   BinaryData serialize(void) const override;
    bool isValid(void) const override { return !data_.empty(); }
 };
 
@@ -1040,11 +1040,11 @@ struct StackItem_MultiSig : public StackItem
       sigs_.insert(std::move(sigpair));
    }
 
-   bool isSame(const StackItem* obj) const;
+   bool isSame(const StackItem* obj) const override;
    void merge(const StackItem* obj);
 
    bool isValid(void) const override { return sigs_.size() == m_; }
-   BinaryData serialize(void) const;
+   BinaryData serialize(void) const override;
 };
 
 ////
@@ -1057,8 +1057,8 @@ struct StackItem_OpCode : public StackItem
       opcode_(opcode)
    {}
 
-   bool isSame(const StackItem* obj) const;
-   BinaryData serialize(void) const;
+   bool isSame(const StackItem* obj) const override;
+   BinaryData serialize(void) const override;
 };
 
 ////

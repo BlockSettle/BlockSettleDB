@@ -49,6 +49,7 @@ enum SpenderStatus
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptSpender
 {
+   friend class Signer;
 protected:
    SpenderStatus segwitStatus_ = SpenderStatus_Unknown;
    BinaryData witnessData_;
@@ -57,8 +58,6 @@ protected:
 private:
    SpenderStatus legacyStatus_ = SpenderStatus_Unknown;
    bool isP2SH_ = false;
-   bool isSegWit_ = false;
-
    bool isCSV_ = false;
    bool isCLTV_ = false;
 
@@ -74,9 +73,7 @@ private:
    std::map<unsigned, std::shared_ptr<StackItem>> partialStack_;
    std::map<unsigned, std::shared_ptr<StackItem>> partialWitnessStack_;
 
-protected:
    SIGHASH_TYPE sigHashType_ = SIGHASH_ALL;
-
    BinaryData getSerializedOutpoint(void) const;
 
 private:
@@ -90,6 +87,14 @@ private:
       const std::vector<std::shared_ptr<StackItem>>&);
 
    bool compareEvalState(const ScriptSpender&) const;
+   BinaryData getSerializedInputScript(void) const;
+
+   void evaluateStack(StackResolver&);
+   void updatePartialStack(
+      const std::vector<std::shared_ptr<StackItem>>&, unsigned);
+   void updatePartialWitnessStack(
+      const std::vector<std::shared_ptr<StackItem>>&, unsigned);
+   void evaluatePartialStacks();
 
 public:
    ScriptSpender(
@@ -113,8 +118,8 @@ public:
 
    virtual ~ScriptSpender() = default;
 
-   bool isSegWit(void) const { return isSegWit_; }
    bool isP2SH(void) const { return isP2SH_; }
+   bool isSegWit(void) const;
 
    //set
    void setSigHashType(SIGHASH_TYPE sht) { sigHashType_ = sht; }
@@ -128,7 +133,7 @@ public:
    BinaryDataRef getOutputScript(void) const;
    BinaryDataRef getOutputHash(void) const;
    unsigned getOutputIndex(void) const;
-   virtual BinaryDataRef getSerializedInput(bool) const;
+   BinaryData getSerializedInput(bool) const;
    BinaryData serializeAvailableStack(void) const;
    BinaryDataRef getWitnessData(void) const;
    BinaryData serializeAvailableWitnessData(void) const;
@@ -140,12 +145,9 @@ public:
 
    unsigned getFlags(void) const
    {
-      unsigned flags = 0;
+      unsigned flags = SCRIPT_VERIFY_SEGWIT;
       if (isP2SH_)
-         flags |= SCRIPT_VERIFY_P2SH;
-
-      if (isSegWit())
-         flags |= SCRIPT_VERIFY_SEGWIT | SCRIPT_VERIFY_P2SH_SHA256;
+         flags |= SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_P2SH_SHA256;
 
       if (isCSV_)
          flags |= SCRIPT_VERIFY_CHECKSEQUENCEVERIFY;
@@ -171,44 +173,10 @@ public:
 
       return hashbyte;
    }
-
-   void updatePartialStack(
-      const std::vector<std::shared_ptr<StackItem>>& stack, unsigned sigCount)
-   {
-      if (legacyStatus_ == SpenderStatus_Signed)
-         return;
-
-      if (legacyStatus_ == SpenderStatus_Resolved && sigCount == 0)
-         return;
-
-      if (stack.size() != 0)
-      {
-         updateStack(partialStack_, stack);
-
-         if (sigCount > 0)
-            legacyStatus_ = SpenderStatus_PartiallySigned;
-      }
-      else
-      {
-         legacyStatus_ = SpenderStatus_Empty;
-      }
-   }
-
-   void updatePartialWitnessStack(
-      const std::vector<std::shared_ptr<StackItem>>& stack, unsigned sigCount)
-   {
-      if (segwitStatus_ == SpenderStatus_Signed)
-         return;
-
-      if (segwitStatus_ >= SpenderStatus_Resolved && sigCount == 0)
-         return;
-
-      updateStack(partialWitnessStack_, stack);
-   }
    
-   void evaluatePartialStacks();
    bool isResolved(void) const;
    bool isSigned(void) const;
+   bool isInitialized(void) const;
 
    BinaryData serializeState(void) const;
    static std::shared_ptr<ScriptSpender> deserializeState(
@@ -225,93 +193,10 @@ public:
       return this->getOutpoint() == rhs.getOutpoint();
    }
 
-   void evaluateStack(StackResolver&, bool&);
    bool verifyEvalState(unsigned);
+   void injectSignature(SecureBinaryData&, unsigned sigId = UINT32_MAX);
 };
 
-/////////////////// Spender that doesn't require resolution ///////////////////
-class ScriptSpender_Signed : public ScriptSpender
-{
-protected:
-   ScriptSpender_Signed(const UTXO& utxo) : ScriptSpender(utxo)
-   { }
-   ~ScriptSpender_Signed() override = default;
-public:
-   virtual void setSignedWitnessData(const BinaryData& inputSig, const int itemCount)
-   {
-      throw ScriptException("unimplemented");
-   }
-   virtual void setSignedScript(const BinaryData& inputSig)
-   {
-      throw ScriptException("unimplemented");
-   }
-};
-
-class ScriptSpender_P2SH_Signed : public ScriptSpender_Signed
-{
-public:
-   ScriptSpender_P2SH_Signed(const UTXO& utxo) : ScriptSpender_Signed(utxo)
-   { }
-   ~ScriptSpender_P2SH_Signed() override = default;
-
-   void setSignedWitnessData(const BinaryData& inputSig, const int itemCount) override
-   {
-      BinaryWriter bw;
-      bw.put_var_int(itemCount);
-      bw.put_BinaryData(inputSig);
-      witnessData_ = bw.getData();
-      segwitStatus_ = SpenderStatus_Resolved;
-   }
-};
-
-class ScriptSpender_P2WPKH_Signed : public ScriptSpender_P2SH_Signed
-{
-public:
-   ScriptSpender_P2WPKH_Signed(const UTXO& utxo) : ScriptSpender_P2SH_Signed(utxo)
-   { }
-   ~ScriptSpender_P2WPKH_Signed() override = default;
-
-   BinaryDataRef getSerializedInput(bool) const override
-   {
-      BinaryWriter bw;
-      bw.put_BinaryData(getSerializedOutpoint());
-
-      bw.put_var_int(0);
-      bw.put_uint32_t(getSequence());
-
-      serializedInput_ = std::move(bw.getData());
-      return serializedInput_.getRef();
-   }
-};
-
-class ScriptSpender_Signed_Legacy : public ScriptSpender_Signed
-{
-public:
-   ScriptSpender_Signed_Legacy(const UTXO& utxo) : ScriptSpender_Signed(utxo)
-   { }
-   ~ScriptSpender_Signed_Legacy() override = default;
-
-   BinaryDataRef getSerializedInput(bool) const override
-   {
-      BinaryWriter bw;
-      bw.put_BinaryData(getSerializedOutpoint());
-
-      bw.put_var_int(signedScript_.getSize());
-      bw.put_BinaryData(signedScript_);
-
-      bw.put_uint32_t(getSequence());
-      serializedInput_ = std::move(bw.getData());
-      return serializedInput_.getRef();
-   }
-
-   void setSignedScript(const BinaryData& inputSig) override
-   {
-      signedScript_ = inputSig;
-   }
-
-private:
-   BinaryData signedScript_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 class Signer : public TransactionStub
@@ -330,8 +215,6 @@ protected:
    std::vector<std::shared_ptr<ScriptRecipient>> recipients_;
 
    std::shared_ptr<ResolverFeed> resolverPtr_;
-
-   mutable bool isSegWit_ = false;
 
 protected:
    virtual std::shared_ptr<SigHashData> getSigHashDataForSpender(bool) const;
@@ -439,6 +322,11 @@ public:
    }
 
    bool verifySpenderEvalState(void) const;
+   bool isSegWit(void) const;
+   bool hasLegacyInputs (void) const;
+
+   void injectSignature(
+      unsigned, SecureBinaryData&, unsigned sigId = UINT32_MAX);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
