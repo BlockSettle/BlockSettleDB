@@ -406,10 +406,10 @@ BinaryData ScriptSpender::getSerializedInputScript() const
       return serializedScript_;
       
    //otherwise, serialize it from the stack
-   vector<shared_ptr<StackItem>> partial_stack;
-   for (auto& stack_item : partialStack_)
-      partial_stack.push_back(stack_item.second);
-   return serializeScript(partial_stack, true);
+   vector<shared_ptr<StackItem>> stack;
+   for (auto& stack_item : legacyStack_)
+      stack.push_back(stack_item.second);
+   return serializeScript(stack, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -459,11 +459,11 @@ BinaryData ScriptSpender::serializeAvailableStack() const
    catch (exception&)
    {}
 
-   vector<shared_ptr<StackItem>> partial_stack;
-   for (auto& stack_item : partialStack_)
-      partial_stack.push_back(stack_item.second);
+   vector<shared_ptr<StackItem>> stack;
+   for (auto& stack_item : legacyStack_)
+      stack.push_back(stack_item.second);
 
-   auto&& serialized_script = serializeScript(partial_stack, true);
+   auto&& serialized_script = serializeScript(stack, true);
 
    BinaryWriter bw;
    bw.put_BinaryData(getSerializedOutpoint());
@@ -501,13 +501,13 @@ BinaryData ScriptSpender::serializeAvailableWitnessData(void) const
    catch (exception&)
    {}
 
-   vector<shared_ptr<StackItem>> partial_stack;
-   for (auto& stack_item : partialWitnessStack_)
-      partial_stack.push_back(stack_item.second);
+   vector<shared_ptr<StackItem>> stack;
+   for (auto& stack_item : witnessStack_)
+      stack.push_back(stack_item.second);
 
    //serialize and get item count
    unsigned itemCount = 0;
-   auto&& data = serializeWitnessData(partial_stack, itemCount, true);
+   auto&& data = serializeWitnessData(stack, itemCount, true);
 
    //put stack item count
    BinaryWriter bw;
@@ -585,8 +585,14 @@ void ScriptSpender::updateStack(map<unsigned, shared_ptr<StackItem>>& stackMap,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptSpender::evaluatePartialStacks()
+void ScriptSpender::processStacks()
 {
+   /*
+   Process the respective stacks, set the serialized input scripts if the 
+   stacks carry enough data and clear the stacks. Otherwise, leave the 
+   input/witness script empty and preserve the stack as is.
+   */
+   
    auto parseStack = [](
       const map<unsigned, shared_ptr<StackItem>>& stack)
       ->SpenderStatus
@@ -676,17 +682,17 @@ void ScriptSpender::evaluatePartialStacks()
       }
    };
 
-   if (partialStack_.size() > 0)
+   if (legacyStack_.size() > 0)
    {
-      updateState(partialStack_, legacyStatus_, [this](
+      updateState(legacyStack_, legacyStatus_, [this](
          const vector<shared_ptr<StackItem>>& stackVec) 
          { serializedScript_ = move(serializeScript(stackVec)); }
       );
    }
    
-   if (partialWitnessStack_.size() > 0)
+   if (witnessStack_.size() > 0)
    {
-      updateState(partialWitnessStack_, segwitStatus_, [this](
+      updateState(witnessStack_, segwitStatus_, [this](
          const vector<shared_ptr<StackItem>>& stackVec) 
          { this->setWitnessData(stackVec); }
       );
@@ -736,11 +742,11 @@ BinaryData ScriptSpender::serializeState() const
    }
    else if (legacyStatus_ >= SpenderStatus_Resolved)
    {
-      bw.put_uint8_t(LEGACY_STACK_PARTIAL);
-      bw.put_var_int(partialStack_.size());
+      bw.put_uint8_t(LEGACY_STACK);
+      bw.put_var_int(legacyStack_.size());
 
       //put partial stack
-      for (auto item_pair : partialStack_)
+      for (auto item_pair : legacyStack_)
       {
          auto&& ser_item = item_pair.second->serialize();
          bw.put_var_int(ser_item.getSize());
@@ -757,11 +763,11 @@ BinaryData ScriptSpender::serializeState() const
    }
    else if (segwitStatus_ >= SpenderStatus_Resolved)
    {
-      bw.put_uint8_t(WITNESS_STACK_PARTIAL);
-      bw.put_var_int(partialWitnessStack_.size());
+      bw.put_uint8_t(WITNESS_STACK);
+      bw.put_var_int(witnessStack_.size());
 
       //put partial stack
-      for (auto item_pair : partialWitnessStack_)
+      for (auto item_pair : witnessStack_)
       {
          auto&& ser_item = item_pair.second->serialize();
          bw.put_var_int(ser_item.getSize());
@@ -855,7 +861,7 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
          break;
       }
 
-      case LEGACY_STACK_PARTIAL:
+      case LEGACY_STACK:
       {
          auto count = brr.get_var_int();
 
@@ -863,14 +869,14 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
          {
             auto len = brr.get_var_int();
             auto stack_item = StackItem::deserialize(brr.get_BinaryDataRef(len));
-            script_spender->partialStack_.insert(make_pair(
+            script_spender->legacyStack_.insert(make_pair(
                stack_item->getId(), stack_item));
          }
 
          break;
       }
 
-      case WITNESS_STACK_PARTIAL:
+      case WITNESS_STACK:
       {
          auto count = brr.get_var_int();
           
@@ -878,7 +884,7 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
          {
             auto len = brr.get_var_int();
             auto stack_item = StackItem::deserialize(brr.get_BinaryDataRef(len));
-            script_spender->partialWitnessStack_.insert(make_pair(
+            script_spender->witnessStack_.insert(make_pair(
                stack_item->getId(), stack_item));
          }
 
@@ -916,12 +922,12 @@ void ScriptSpender::merge(const ScriptSpender& obj)
       case SpenderStatus_Resolved:
       case SpenderStatus_PartiallySigned:
       {
-         partialStack_.insert(
-            obj.partialStack_.begin(), obj.partialStack_.end());
-         evaluatePartialStacks();
+         legacyStack_.insert(
+            obj.legacyStack_.begin(), obj.legacyStack_.end());
+         processStacks();
          
          /*
-         evaluatePartialStacks will set the relevant legacy status, 
+         processStacks will set the relevant legacy status, 
          therefor we break out of the switch scope so as to not overwrite
          the status unnecessarely
          */
@@ -948,9 +954,9 @@ void ScriptSpender::merge(const ScriptSpender& obj)
       case SpenderStatus_Resolved:
       case SpenderStatus_PartiallySigned:
       {
-         partialWitnessStack_.insert(
-            obj.partialWitnessStack_.begin(), obj.partialWitnessStack_.end());
-         evaluatePartialStacks();
+         witnessStack_.insert(
+            obj.witnessStack_.begin(), obj.witnessStack_.end());
+         processStacks();
          break;
       }      
 
@@ -1023,11 +1029,11 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
    auto serializeStack = [](
       const ScriptSpender& scriptSpender)->BinaryData
    {
-      vector<shared_ptr<StackItem>> partial_stack;
-      for (auto& stack_item : scriptSpender.partialStack_)
-         partial_stack.push_back(stack_item.second);
+      vector<shared_ptr<StackItem>> stack;
+      for (auto& stack_item : scriptSpender.legacyStack_)
+         stack.push_back(stack_item.second);
 
-      return ScriptSpender::serializeScript(partial_stack, true);
+      return ScriptSpender::serializeScript(stack, true);
    };
 
    auto isStackMultiSig = [](
@@ -1126,7 +1132,7 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
 
       //theirs cannot have a serialized script because theirs cannot be signed
       //grab the resolved data from the partial stack instead
-      auto isMultiSig = isStackMultiSig(rhs.partialStack_);
+      auto isMultiSig = isStackMultiSig(rhs.legacyStack_);
       auto theirSerializedScript = serializeStack(rhs);
       auto theirScriptItems = getResolvedItems(theirSerializedScript, false);
 
@@ -1166,7 +1172,7 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
       auto ourScriptItems = getResolvedItems(ourSerializedScript, true);
 
       //grab theirs
-      auto isMultiSig = isStackMultiSig(rhs.partialWitnessStack_);
+      auto isMultiSig = isStackMultiSig(rhs.witnessStack_);
       auto theirSerializedScript = rhs.serializeAvailableWitnessData();
       auto theirScriptItems = getResolvedItems(theirSerializedScript, true);
 
@@ -1190,7 +1196,7 @@ bool ScriptSpender::isInitialized() const
    if (legacyStatus_ == SpenderStatus_Unknown &&
       segwitStatus_ == SpenderStatus_Unknown &&
       isP2SH_ == false && 
-      partialStack_.empty() && partialWitnessStack_.empty() &&
+      legacyStack_.empty() && witnessStack_.empty() &&
       serializedScript_.empty() && witnessData_.empty())
    {
       return false;
@@ -1268,13 +1274,13 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    BinaryReader brSW;
    if (witnessData_.empty())
    {
-      vector<shared_ptr<StackItem>> partial_stack;
-      for (auto& stack_item : partialWitnessStack_)
-         partial_stack.push_back(stack_item.second);
+      vector<shared_ptr<StackItem>> stack;
+      for (auto& stack_item : witnessStack_)
+         stack.push_back(stack_item.second);
 
       //serialize and get item count
       unsigned itemCount = 0;
-      auto&& data = serializeWitnessData(partial_stack, itemCount, true);
+      auto&& data = serializeWitnessData(stack, itemCount, true);
 
       //put stack item count
       BinaryWriter bw;
@@ -1327,7 +1333,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    {
       StackResolver resolver(getOutputScript(), feed, nullptr);
       resolver.setFlags(flags);
-      spenderVerify.evaluateStack(resolver);
+      spenderVerify.parseScripts(resolver);
    }
    catch (exception&)
    {}
@@ -1339,7 +1345,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptSpender::updatePartialStack(
+void ScriptSpender::updateLegacyStack(
    const vector<shared_ptr<StackItem>>& stack, unsigned sigCount)
 {
    if (legacyStatus_ == SpenderStatus_Signed)
@@ -1350,7 +1356,7 @@ void ScriptSpender::updatePartialStack(
 
    if (stack.size() != 0)
    {
-      updateStack(partialStack_, stack);
+      updateStack(legacyStack_, stack);
 
       if (sigCount > 0)
          legacyStatus_ = SpenderStatus_PartiallySigned;
@@ -1362,7 +1368,7 @@ void ScriptSpender::updatePartialStack(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptSpender::updatePartialWitnessStack(
+void ScriptSpender::updateWitnessStack(
    const vector<shared_ptr<StackItem>>& stack, unsigned sigCount)
 {
    if (segwitStatus_ == SpenderStatus_Signed)
@@ -1371,21 +1377,23 @@ void ScriptSpender::updatePartialWitnessStack(
    if (segwitStatus_ >= SpenderStatus_Resolved && sigCount == 0)
       return;
 
-   updateStack(partialWitnessStack_, stack);
+   updateStack(witnessStack_, stack);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptSpender::evaluateStack(StackResolver& resolver)
+void ScriptSpender::parseScripts(StackResolver& resolver)
 {
+   //parse the utxo scripts, fill the relevant stacks
+
    auto resolvedStack = resolver.getResolvedStack();
    if (resolvedStack == nullptr)
       throw runtime_error("null resolved stack");
 
    flagP2SH(resolvedStack->isP2SH());
-   updatePartialStack(
+   updateLegacyStack(
       resolvedStack->getStack(), 
       resolvedStack->getSigCount());
-   evaluatePartialStacks();
+   processStacks();
 
    auto resolvedStackWitness = resolvedStack->getWitnessStack();
    if (resolvedStackWitness == nullptr)
@@ -1398,10 +1406,10 @@ void ScriptSpender::evaluateStack(StackResolver& resolver)
       return;
    }
 
-   updatePartialWitnessStack(
+   updateWitnessStack(
       resolvedStackWitness->getStack(), 
       resolvedStackWitness->getSigCount());
-   evaluatePartialStacks();
+   processStacks();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1440,9 +1448,9 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
    
    //grab the stack carrying the sig(s)
    if (isSegWit())
-      stackPtr = &partialWitnessStack_;
+      stackPtr = &witnessStack_;
    else
-      stackPtr = &partialStack_;
+      stackPtr = &legacyStack_;
 
    //find the stack sig object
    bool injected = false;
@@ -1487,7 +1495,7 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
    if (!injected)
       throw runtime_error("failed to find sig entry in stack");
 
-   evaluatePartialStacks();
+   processStacks();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1676,7 +1684,7 @@ void Signer::sign(void)
 
       try
       {
-         spender->evaluateStack(resolver);
+         spender->parseScripts(resolver);
       }
       catch (...)
       {
@@ -1713,7 +1721,7 @@ void Signer::resolveSpenders()
 
       try
       {
-         spender->evaluateStack(resolver);
+         spender->parseScripts(resolver);
       }
       catch (exception&)
       {

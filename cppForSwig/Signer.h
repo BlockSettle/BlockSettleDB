@@ -40,8 +40,8 @@ enum SpenderStatus
 #define SERIALIZED_SCRIPT_PREFIX 0x01
 #define WITNESS_SCRIPT_PREFIX    0x02
 
-#define LEGACY_STACK_PARTIAL    0x03
-#define WITNESS_STACK_PARTIAL   0x04
+#define LEGACY_STACK    0x03
+#define WITNESS_STACK   0x04
 
 #define PREFIX_UTXO        0x05
 #define PREFIX_OUTPOINT    0x06
@@ -70,8 +70,8 @@ private:
    std::shared_ptr<ResolverFeed> resolverFeed_;
    BinaryData serializedScript_;
 
-   std::map<unsigned, std::shared_ptr<StackItem>> partialStack_;
-   std::map<unsigned, std::shared_ptr<StackItem>> partialWitnessStack_;
+   std::map<unsigned, std::shared_ptr<StackItem>> legacyStack_;
+   std::map<unsigned, std::shared_ptr<StackItem>> witnessStack_;
 
    SIGHASH_TYPE sigHashType_ = SIGHASH_ALL;
    BinaryData getSerializedOutpoint(void) const;
@@ -83,18 +83,18 @@ private:
       const std::vector<std::shared_ptr<StackItem>>& stack,
       unsigned& itemCount, bool no_throw=false);
 
-   void updateStack(std::map<unsigned, std::shared_ptr<StackItem>>&,
-      const std::vector<std::shared_ptr<StackItem>>&);
-
    bool compareEvalState(const ScriptSpender&) const;
    BinaryData getSerializedInputScript(void) const;
 
-   void evaluateStack(StackResolver&);
-   void updatePartialStack(
+   void parseScripts(StackResolver&);
+   void processStacks();
+
+   void updateStack(std::map<unsigned, std::shared_ptr<StackItem>>&,
+      const std::vector<std::shared_ptr<StackItem>>&);
+   void updateLegacyStack(
       const std::vector<std::shared_ptr<StackItem>>&, unsigned);
-   void updatePartialWitnessStack(
+   void updateWitnessStack(
       const std::vector<std::shared_ptr<StackItem>>&, unsigned);
-   void evaluatePartialStacks();
 
 public:
    ScriptSpender(
