@@ -2606,10 +2606,11 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    }
 
    //sign, verify & return signed tx
+   signer2.resolveSpenders();
    auto&& signerState = signer2.evaluateSignedState();
 
    {
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      ASSERT_EQ(signerState.getEvalMapSize(), 2);
 
       auto&& txinEval = signerState.getSignedStateForInput(0);
       auto& pubkeyMap = txinEval.getPubKeyMap();
@@ -2627,14 +2628,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       signer2.sign();
    }
 
-   try
-   {
-      signer2.verify();
-      EXPECT_TRUE(false);
-   }
-   catch (...)
-   {
-   }
+   EXPECT_FALSE(signer2.verify());
 
    {
       //signer state with 1 sig
