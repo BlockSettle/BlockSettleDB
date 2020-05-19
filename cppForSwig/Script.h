@@ -30,6 +30,8 @@
 #include "SigHashEnum.h"
 #include "TxEvalState.h"
 
+#include "protobuf/Signer.pb.h"
+
 
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptException : public std::runtime_error
@@ -992,9 +994,10 @@ public:
    unsigned getId(void) const { return id_; }
 
    virtual bool isValid(void) const { return true; }
-   virtual BinaryData serialize(void) const = 0;
+   virtual void serialize(Codec_SignerState::StackEntryState&) const = 0;
 
-   static std::shared_ptr<StackItem> deserialize(const BinaryDataRef&);
+   static std::shared_ptr<StackItem> deserialize(
+      const Codec_SignerState::StackEntryState&);
 };
 
 ////
@@ -1007,7 +1010,7 @@ struct StackItem_PushData : public StackItem
    {}
 
    bool isSame(const StackItem* obj) const override;
-   BinaryData serialize(void) const override;
+   void serialize(Codec_SignerState::StackEntryState&) const override;
 };
 
 ////
@@ -1020,7 +1023,7 @@ struct StackItem_Sig : public StackItem
    {}
 
    bool isSame(const StackItem* obj) const override; 
-   BinaryData serialize(void) const override;
+   void serialize(Codec_SignerState::StackEntryState&) const override;
    bool isValid(void) const override { return !data_.empty(); }
 };
 
@@ -1044,7 +1047,7 @@ struct StackItem_MultiSig : public StackItem
    void merge(const StackItem* obj);
 
    bool isValid(void) const override { return sigs_.size() == m_; }
-   BinaryData serialize(void) const override;
+   void serialize(Codec_SignerState::StackEntryState&) const override;
 };
 
 ////
@@ -1058,7 +1061,7 @@ struct StackItem_OpCode : public StackItem
    {}
 
    bool isSame(const StackItem* obj) const override;
-   BinaryData serialize(void) const override;
+   void serialize(Codec_SignerState::StackEntryState&) const override;
 };
 
 ////
@@ -1072,7 +1075,7 @@ struct StackItem_SerializedScript : public StackItem
    {}
 
    bool isSame(const StackItem* obj) const;
-   BinaryData serialize(void) const;
+   void serialize(Codec_SignerState::StackEntryState&) const;
 };
 
 class SignerProxy;

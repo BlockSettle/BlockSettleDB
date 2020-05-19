@@ -17,6 +17,8 @@
 #include "ScriptRecipient.h"
 #include "TxEvalState.h"
 
+#include "protobuf/Signer.pb.h"
+
 enum SpenderStatus
 {
    //Not parsed yet/failed to parse entirely. This is 
@@ -36,15 +38,6 @@ enum SpenderStatus
    //Resolved & signed. This is a valid state
    SpenderStatus_Signed
 };
-
-#define SERIALIZED_SCRIPT_PREFIX 0x01
-#define WITNESS_SCRIPT_PREFIX    0x02
-
-#define LEGACY_STACK    0x03
-#define WITNESS_STACK   0x04
-
-#define PREFIX_UTXO        0x05
-#define PREFIX_OUTPOINT    0x06
 
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptSpender
@@ -178,9 +171,9 @@ public:
    bool isSigned(void) const;
    bool isInitialized(void) const;
 
-   BinaryData serializeState(void) const;
+   void serializeState(Codec_SignerState::ScriptSpenderState&) const;
    static std::shared_ptr<ScriptSpender> deserializeState(
-      const BinaryDataRef&);
+      const Codec_SignerState::ScriptSpenderState&);
 
    void merge(const ScriptSpender&);
    bool hasUTXO(void) const { return utxo_.isInitialized(); }
@@ -227,6 +220,9 @@ protected:
       std::map<BinaryData, std::map<unsigned, UTXO>>&);
 
    BinaryData serializeAvailableResolvedData(void) const;
+
+   static Signer createFromState(const std::string&);
+   static Signer createFromState(const Codec_SignerState::SignerState&);
 
 public:
    Signer(void) :
@@ -290,16 +286,14 @@ public:
    uint64_t getOutpointValue(unsigned) const override;
    unsigned getTxInSequence(unsigned) const override;
 
-   BinaryData serializeState(void) const;
-   void deserializeState(const BinaryData&);
+   Codec_SignerState::SignerState serializeState(void) const;
+   void deserializeState(const Codec_SignerState::SignerState&);
    bool isResolved(void) const;
    bool isSigned(void) const;
    
    void setFeed(std::shared_ptr<ResolverFeed> feedPtr) { resolverPtr_ = feedPtr; }
    void resetFeeds(void);
    void populateUtxo(const UTXO& utxo);
-
-   static Signer createFromState(const BinaryData&);
 
    BinaryData getTxId(void);
 

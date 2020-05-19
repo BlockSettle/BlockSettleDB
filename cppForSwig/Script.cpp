@@ -9,6 +9,7 @@
 #include "Script.h"
 #include "Transactions.h"
 #include "Signer.h"
+#include "make_unique.h"
 
 using namespace std;
 
@@ -88,134 +89,140 @@ void StackItem_MultiSig::merge(const StackItem* obj)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData StackItem_PushData::serialize(void) const
+void StackItem_PushData::serialize(
+   Codec_SignerState::StackEntryState& protoMsg) const
 {
-   BinaryWriter bw;
-   bw.put_uint32_t(id_);
-   bw.put_uint8_t(STACKITEM_PUSHDATA_PREFIX);
-   bw.put_var_int(data_.getSize());
-   bw.put_BinaryData(data_);
+   protoMsg.set_entry_type(Codec_SignerState::StackEntryState_Types::PushData);
+   protoMsg.set_entry_id(id_);
 
-   return bw.getData();
+   protoMsg.set_stackentry_data(data_.getPtr(), data_.getSize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData StackItem_Sig::serialize(void) const
+void StackItem_Sig::serialize(
+   Codec_SignerState::StackEntryState& protoMsg) const
 {
-   BinaryWriter bw;
-   bw.put_uint32_t(id_);
-   bw.put_uint8_t(STACKITEM_SIG_PREFIX);
-   bw.put_var_int(data_.getSize());
-   bw.put_BinaryData(data_);
+   protoMsg.set_entry_type(Codec_SignerState::StackEntryState_Types::SingleSig);
+   protoMsg.set_entry_id(id_);
 
-   return bw.getData();
+   protoMsg.set_stackentry_data(data_.getPtr(), data_.getSize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData StackItem_MultiSig::serialize(void) const
+void StackItem_MultiSig::serialize(
+   Codec_SignerState::StackEntryState& protoMsg) const
 {
-   BinaryWriter bw;
-   bw.put_uint32_t(id_);
-   bw.put_uint8_t(STACKITEM_MULTISIG_PREFIX);
-   bw.put_uint16_t(m_);
-   bw.put_var_int(sigs_.size());
+   protoMsg.set_entry_type(Codec_SignerState::StackEntryState_Types::MultiSig);
+   protoMsg.set_entry_id(id_);
    
+   auto stackEntry = protoMsg.mutable_multisig_data();
+   stackEntry->set_m(m_);
+
    for (auto& sig_pair : sigs_)
    {
-      bw.put_uint16_t(sig_pair.first);
-      bw.put_var_int(sig_pair.second.getSize());
-      bw.put_BinaryData(sig_pair.second);
+      stackEntry->add_sig_index(sig_pair.first);
+      stackEntry->add_sig_data(
+         sig_pair.second.getPtr(), sig_pair.second.getSize());
    }
-
-   return bw.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData StackItem_OpCode::serialize(void) const
+void StackItem_OpCode::serialize(
+   Codec_SignerState::StackEntryState& protoMsg) const
 {
-   BinaryWriter bw;
-   bw.put_uint32_t(id_);
-   bw.put_uint8_t(STACKITEM_OPCODE_PREFIX);
-   bw.put_uint8_t(opcode_);
+   protoMsg.set_entry_type(Codec_SignerState::StackEntryState_Types::OpCode);
+   protoMsg.set_entry_id(id_);
 
-   return bw.getData();
+   protoMsg.set_opcode(opcode_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData StackItem_SerializedScript::serialize(void) const
+void StackItem_SerializedScript::serialize(
+   Codec_SignerState::StackEntryState& protoMsg) const
 {
-   BinaryWriter bw;
-   bw.put_uint32_t(id_);
-   bw.put_uint8_t(STACKITEM_SERSCRIPT_PREFIX);
-   bw.put_var_int(data_.getSize());
-   bw.put_BinaryData(data_);
+   protoMsg.set_entry_type(Codec_SignerState::StackEntryState_Types::Script);
+   protoMsg.set_entry_id(id_);
 
-   return bw.getData();
+   protoMsg.set_stackentry_data(data_.getPtr(), data_.getSize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<StackItem> StackItem::deserialize(const BinaryDataRef& dataRef)
+shared_ptr<StackItem> StackItem::deserialize(
+   const Codec_SignerState::StackEntryState& protoMsg)
 {
    shared_ptr<StackItem> itemPtr;
 
-   BinaryRefReader brr(dataRef);
+   auto id = protoMsg.entry_id();
 
-   auto id = brr.get_uint32_t();
-   auto prefix = brr.get_uint8_t();
-
-   switch (prefix)
+   switch (protoMsg.entry_type())
    {
-   case STACKITEM_PUSHDATA_PREFIX:
+   case Codec_SignerState::StackEntryState_Types::PushData:
    {
-      auto len = brr.get_var_int();
-      auto&& data = brr.get_BinaryData(len);
+      if (!protoMsg.has_stackentry_data())
+         throw runtime_error("missing push data field");
 
+      auto&& data = BinaryDataRef::fromString(protoMsg.stackentry_data());
       itemPtr = make_shared<StackItem_PushData>(id, move(data));
+
       break;
    }
 
-   case STACKITEM_SIG_PREFIX:
+   case Codec_SignerState::StackEntryState_Types::SingleSig:
    {
-      auto len = brr.get_var_int();
-      SecureBinaryData data(brr.get_BinaryData(len));
+      if (!protoMsg.has_stackentry_data())
+         throw runtime_error("missing sig data field");
+
+      auto&& data = SecureBinaryData::fromString(protoMsg.stackentry_data());
 
       itemPtr = make_shared<StackItem_Sig>(id, move(data));
       break;
    }
 
-   case STACKITEM_MULTISIG_PREFIX:
+   case Codec_SignerState::StackEntryState_Types::MultiSig:
    {
-      auto m = brr.get_uint16_t();
-      auto item_ms = make_shared<StackItem_MultiSig>(id, m);
+      if (!protoMsg.has_multisig_data())
+         throw runtime_error("missing multisig data field");
 
-      auto count = brr.get_var_int();
-      for (unsigned i = 0; i < count; i++)
+      const auto& msData = protoMsg.multisig_data();
+
+      //sanity check
+      if (msData.sig_data_size() != msData.sig_index_size())
+         throw runtime_error("multisig data mismatch");
+
+      auto m = msData.m();
+      auto itemMs = make_shared<StackItem_MultiSig>(id, m);
+
+      for (unsigned i = 0; i < msData.sig_index_size(); i++)
       {
-         auto pos = brr.get_uint16_t();
-         auto len = brr.get_var_int();
-         SecureBinaryData data(brr.get_BinaryData(len));
+         auto pos = msData.sig_index(i);
+         auto&& data = SecureBinaryData::fromString(msData.sig_data(i));
 
-         item_ms->setSig(pos, data);
+         itemMs->setSig(pos, data);
       }
 
-      itemPtr = item_ms;
+      itemPtr = itemMs;
       break;
    }
 
-   case STACKITEM_OPCODE_PREFIX:
+   case Codec_SignerState::StackEntryState_Types::OpCode:
    {
-      auto opcode = brr.get_uint8_t();
-
+      if (!protoMsg.has_opcode())
+         throw runtime_error("missing opcode data field");
+      
+      auto opcode = protoMsg.opcode();
       itemPtr = make_shared<StackItem_OpCode>(id, opcode);
+
       break;
    }
 
-   case STACKITEM_SERSCRIPT_PREFIX:
+   case Codec_SignerState::StackEntryState_Types::Script:
    {
-      auto len = brr.get_var_int();
-      auto&& data = brr.get_BinaryData(len);
+      if (!protoMsg.has_stackentry_data())
+         throw runtime_error("missing push data field");
 
+      auto&& data = BinaryDataRef::fromString(protoMsg.stackentry_data());
       itemPtr = make_shared<StackItem_SerializedScript>(id, move(data));
+
       break;
    }
 
@@ -311,7 +318,7 @@ void StackInterpreter::processScript(
 void StackInterpreter::processScript(BinaryRefReader& brr, bool isOutputScript)
 {
    if (txStubPtr_ == nullptr)
-      throw ("uninitialized stack");
+      throw ScriptException("uninitialized stack");
 
    if (isOutputScript)
       outputScriptRef_ = brr.getRawRef();

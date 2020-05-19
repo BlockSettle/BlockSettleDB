@@ -89,10 +89,10 @@ public:
          throw ScriptRecipientException("a160 is not 20 bytes long!");
    }
 
-   void serialize(void);
+   void serialize(void) override;
 
    //return size is static
-   size_t getSize(void) const;
+   size_t getSize(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,10 +109,10 @@ public:
          throw ScriptRecipientException("a160 is not 20 bytes long!");
    }
 
-   void serialize(void);
+   void serialize(void) override;
 
    //return size is static
-   size_t getSize(void) const;
+   size_t getSize(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,8 +129,8 @@ public:
          throw ScriptRecipientException("a160 is not 20 bytes long!");
    }
 
-   void serialize(void);
-   size_t getSize(void) const;
+   void serialize(void) override;
+   size_t getSize(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,8 +147,8 @@ public:
          throw ScriptRecipientException("a160 is not 20 bytes long!");
    }
 
-   void serialize(void);
-   size_t getSize(void) const;
+   void serialize(void) override;
+   size_t getSize(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,8 +165,8 @@ public:
          throw ScriptRecipientException("a256 is not 32 bytes long!");
    }
 
-   void serialize(void);
-   size_t getSize(void) const;
+   void serialize(void) override;
+   size_t getSize(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,8 +184,8 @@ public:
             "OP_RETURN message cannot exceed 80 bytes");
    }
 
-   void serialize(void);
-   size_t getSize(void) const;
+   void serialize(void) override;
+   size_t getSize(void) const override;
 
    //override get value to avoid the throw since it has 0 for value
    uint64_t getValue(void) const override { return 0; }
@@ -202,8 +202,8 @@ public:
       ScriptRecipient(SST_UNIVERSAL, val), binScript_(script)
    {}
 
-   void serialize(void);
-   size_t getSize(void) const;
+   void serialize(void) override;
+   size_t getSize(void) const override;
 };
 
 #endif

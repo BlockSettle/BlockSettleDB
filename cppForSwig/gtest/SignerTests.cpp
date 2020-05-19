@@ -1978,7 +1978,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
    auto&& unspentVec_2 =
       wlt_2->getSpendableTxOutListZC();
 
-   BinaryData serializedSignerState;
+   Codec_SignerState::SignerState serializedSignerState;
 
    auto assetFeed2 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
    auto assetFeed3 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
@@ -2296,7 +2296,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
    auto&& unspentVec_2 =
       wlt_2->getSpendableTxOutListZC();
 
-   BinaryData serializedSignerState;
+   Codec_SignerState::SignerState serializedSignerState;
 
    {
       //create first signer, set outpoint from wlt_1 and change to wlt_1
@@ -2653,7 +2653,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
    auto&& unspentVec_2 =
       wlt_2->getSpendableTxOutListZC();
 
-   BinaryData serializedSignerState;
+   Codec_SignerState::SignerState serializedSignerState;
 
    {
       //create first signer, set outpoint from wlt_1 and change to wlt_1
@@ -3026,7 +3026,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    auto&& unspentVec_2 =
       wlt_2->getSpendableTxOutListZC();
 
-   BinaryData serializedSignerState;
+   Codec_SignerState::SignerState serializedSignerState;
 
    {
       //create first signer, set outpoint from wlt_1 and change to wlt_1
@@ -3410,7 +3410,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
    auto&& unspentVec_2 =
       wlt_2->getSpendableTxOutListZC();
 
-   BinaryData serializedSignerState;
+   Codec_SignerState::SignerState serializedSignerState;
 
    {
       //create first signer, set outpoint from wlt_1 and change to wlt_1

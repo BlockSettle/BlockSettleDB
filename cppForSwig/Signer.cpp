@@ -592,7 +592,7 @@ void ScriptSpender::processStacks()
    stacks carry enough data and clear the stacks. Otherwise, leave the 
    input/witness script empty and preserve the stack as is.
    */
-   
+
    auto parseStack = [](
       const map<unsigned, shared_ptr<StackItem>>& stack)
       ->SpenderStatus
@@ -700,203 +700,138 @@ void ScriptSpender::processStacks()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData ScriptSpender::serializeState() const
+void ScriptSpender::serializeState(
+   Codec_SignerState::ScriptSpenderState& protoMsg) const
 {
-   BitPacker<uint16_t> bp;
-   bp.putBits(legacyStatus_, 4);
-   bp.putBits(segwitStatus_, 4);
-   bp.putBit(isP2SH_);
-   bp.putBit(isCSV_);
-   bp.putBit(isCLTV_);
+   protoMsg.set_version_max(SCRIPT_SPENDER_VERSION_MAX);
+   protoMsg.set_version_min(SCRIPT_SPENDER_VERSION_MIN);
 
-   BinaryWriter bw;
-   bw.put_uint8_t(SCRIPT_SPENDER_VERSION_MAX);
-   bw.put_uint8_t(SCRIPT_SPENDER_VERSION_MIN);
+   protoMsg.set_legacy_status((uint8_t)legacyStatus_);
+   protoMsg.set_segwit_status((uint8_t)segwitStatus_);
 
-   bw.put_BitPacker(bp);
-   bw.put_uint8_t(sigHashType_);
-   bw.put_uint32_t(sequence_);
+   protoMsg.set_sighash_type((uint8_t)sigHashType_);
+   protoMsg.set_sequence(sequence_);
+
+   protoMsg.set_is_p2sh(isP2SH_);
+   protoMsg.set_is_csv(isCSV_);
+   protoMsg.set_is_cltv(isCLTV_);
 
    if (hasUTXO())
    {
-      bw.put_uint8_t(PREFIX_UTXO);
-      auto&& ser_utxo = utxo_.serialize();
-      bw.put_var_int(ser_utxo.getSize());
-      bw.put_BinaryData(ser_utxo);
+      auto utxoEntry = protoMsg.mutable_utxo();
+      utxo_.toProtobuf(*utxoEntry);
    }
    else
    {
-      auto outpoint = getOutpoint();
-      bw.put_uint8_t(PREFIX_OUTPOINT);
-      bw.put_var_int(outpoint.getSize());
-      bw.put_BinaryData(outpoint);
-      bw.put_uint64_t(value_);
+      auto outpoint = protoMsg.mutable_outpoint();
+      
+      auto outputHashRef = getOutputHash();
+      outpoint->set_txhash(outputHashRef.getPtr(), outputHashRef.getSize());
+      outpoint->set_txoutindex(getOutputIndex());
+      outpoint->set_value(getValue());
+      outpoint->set_isspent(false);
    }
 
    if (legacyStatus_ == SpenderStatus_Signed)
    {
       //put resolved script
-      bw.put_uint8_t(SERIALIZED_SCRIPT_PREFIX);
-      bw.put_var_int(serializedScript_.getSize());
-      bw.put_BinaryData(serializedScript_);
+      protoMsg.set_sig_script(
+         serializedScript_.getPtr(), serializedScript_.getSize());
    }
    else if (legacyStatus_ >= SpenderStatus_Resolved)
    {
-      bw.put_uint8_t(LEGACY_STACK);
-      bw.put_var_int(legacyStack_.size());
-
-      //put partial stack
-      for (auto item_pair : legacyStack_)
+      //put legacy stack
+      for (auto stackItem : legacyStack_)
       {
-         auto&& ser_item = item_pair.second->serialize();
-         bw.put_var_int(ser_item.getSize());
-         bw.put_BinaryData(ser_item);
+         auto stackEntry = protoMsg.add_legacy_stack();
+         stackItem.second->serialize(*stackEntry);
       }
    }
 
    if (segwitStatus_ == SpenderStatus_Signed)
    {
       //put resolved witness data
-      bw.put_uint8_t(WITNESS_SCRIPT_PREFIX);
-      bw.put_var_int(witnessData_.getSize());
-      bw.put_BinaryData(witnessData_);
+      protoMsg.set_witness_data(
+         witnessData_.getPtr(), witnessData_.getSize());
    }
    else if (segwitStatus_ >= SpenderStatus_Resolved)
    {
-      bw.put_uint8_t(WITNESS_STACK);
-      bw.put_var_int(witnessStack_.size());
-
-      //put partial stack
-      for (auto item_pair : witnessStack_)
+      //put witness stack
+      for (auto stackItem : witnessStack_)
       {
-         auto&& ser_item = item_pair.second->serialize();
-         bw.put_var_int(ser_item.getSize());
-         bw.put_BinaryData(ser_item);
+         auto stackEntry = protoMsg.add_witness_stack();
+         stackItem.second->serialize(*stackEntry);
       }
    }
-
-   return bw.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
-   const BinaryDataRef& dataRef)
+   const Codec_SignerState::ScriptSpenderState& protoMsg)
 {
-   BinaryRefReader brr(dataRef);
-
-   auto maxVer = brr.get_uint8_t();
-   auto minVer = brr.get_uint8_t();
+   auto maxVer = protoMsg.version_max();
+   auto minVer = protoMsg.version_min();
    if (maxVer != SCRIPT_SPENDER_VERSION_MAX || 
       minVer != SCRIPT_SPENDER_VERSION_MIN)
    {
       throw runtime_error("serialized spender version mismatch");
    }
 
-   //BitPacker pushes in BE
-   BitUnpacker<uint16_t> bup(brr.get_uint16_t(BE)); 
-   auto sighash_type = (SIGHASH_TYPE)brr.get_uint8_t();
-   auto sequence = brr.get_uint32_t();
-   
-   shared_ptr<ScriptSpender> script_spender;
+   shared_ptr<ScriptSpender> resultPtr;
 
-   auto prefix = brr.get_uint8_t();
-   switch (prefix)
+   if (protoMsg.has_utxo())
    {
-   case PREFIX_UTXO:
+      auto&& utxo = UTXO::fromProtobuf(protoMsg.utxo());
+      resultPtr = make_shared<ScriptSpender>(utxo);
+   }
+   else if (protoMsg.has_outpoint())
    {
-      auto utxo_len = brr.get_var_int();
-      auto utxo_data = brr.get_BinaryDataRef(utxo_len);
-      UTXO utxo;
-      utxo.unserialize(utxo_data);
-      script_spender = make_shared<ScriptSpender>(utxo);
-      break;
+      const auto& outpoint = protoMsg.outpoint();
+      auto outpointHash = BinaryDataRef::fromString(outpoint.txhash());
+
+      resultPtr = make_shared<ScriptSpender>(
+         outpointHash, outpoint.txoutindex(), outpoint.value());
+   }
+   else
+   {
+      throw runtime_error("missing utxo/outpoint");
    }
 
-   case PREFIX_OUTPOINT:
+   resultPtr->legacyStatus_ = (SpenderStatus)protoMsg.legacy_status();
+   resultPtr->segwitStatus_ = (SpenderStatus)protoMsg.segwit_status();
+
+   resultPtr->isP2SH_ = protoMsg.is_p2sh();
+   resultPtr->isCSV_  = protoMsg.is_csv();
+   resultPtr->isCLTV_ = protoMsg.is_cltv();
+
+   resultPtr->sequence_ = protoMsg.sequence();
+   resultPtr->sigHashType_ = (SIGHASH_TYPE)protoMsg.sighash_type();
+
+   if (protoMsg.has_sig_script())
    {
-      auto outpoint_len = brr.get_var_int();
-      auto outpoint = brr.get_BinaryDataRef(outpoint_len);
-
-      BinaryRefReader brr_outpoint(outpoint);
-      auto hash_ref = brr_outpoint.get_BinaryDataRef(32);
-      auto idx = brr_outpoint.get_uint32_t();
-      auto val = brr.get_uint64_t();
-
-      script_spender = make_shared<ScriptSpender>(hash_ref, idx, val);
-      break;
+      resultPtr->serializedScript_ = BinaryData::fromString(protoMsg.sig_script());
    }
 
-   default:
-      throw runtime_error("invalid prefix for utxo/outpoint deser");
-   }
-
-
-   script_spender->legacyStatus_ = (SpenderStatus)bup.getBits(4);
-   script_spender->segwitStatus_ = (SpenderStatus)bup.getBits(4);
-
-   script_spender->isP2SH_ = bup.getBit();
-   script_spender->isCSV_  = bup.getBit();
-   script_spender->isCLTV_ = bup.getBit();
-
-   script_spender->sequence_ = sequence;
-   script_spender->sigHashType_ = sighash_type;
-
-   while (brr.getSizeRemaining() > 0)
+   for (unsigned i=0; i<protoMsg.legacy_stack_size(); i++)
    {
-      auto prefix = brr.get_uint8_t();
-
-      switch (prefix)
-      {
-      case SERIALIZED_SCRIPT_PREFIX:
-      {
-         auto len = brr.get_var_int();
-         script_spender->serializedScript_ = move(brr.get_BinaryData(len));
-         break;
-      }
-
-      case WITNESS_SCRIPT_PREFIX:
-      {
-         auto len = brr.get_var_int();
-         script_spender->witnessData_ = move(brr.get_BinaryData(len));
-         break;
-      }
-
-      case LEGACY_STACK:
-      {
-         auto count = brr.get_var_int();
-
-         for (unsigned i = 0; i < count; i++)
-         {
-            auto len = brr.get_var_int();
-            auto stack_item = StackItem::deserialize(brr.get_BinaryDataRef(len));
-            script_spender->legacyStack_.insert(make_pair(
-               stack_item->getId(), stack_item));
-         }
-
-         break;
-      }
-
-      case WITNESS_STACK:
-      {
-         auto count = brr.get_var_int();
-          
-         for (unsigned i = 0; i < count; i++)
-         {
-            auto len = brr.get_var_int();
-            auto stack_item = StackItem::deserialize(brr.get_BinaryDataRef(len));
-            script_spender->witnessStack_.insert(make_pair(
-               stack_item->getId(), stack_item));
-         }
-
-         break;
-      }
-
-      default:
-         throw ScriptException("invalid spender state");
-      }
+      const auto& stackItem = protoMsg.legacy_stack(i);
+      auto stackObjPtr = StackItem::deserialize(stackItem);
+      resultPtr->legacyStack_.emplace(stackObjPtr->getId(), stackObjPtr);
    }
 
-   return script_spender;
+   if (protoMsg.has_witness_data())
+   {
+      resultPtr->witnessData_ = BinaryData::fromString(protoMsg.witness_data());
+   }
+
+   for (unsigned i=0; i<protoMsg.witness_stack_size(); i++)
+   {
+      const auto& stackItem = protoMsg.witness_stack(i);
+      auto stackObjPtr = StackItem::deserialize(stackItem);
+      resultPtr->witnessStack_.emplace(stackObjPtr->getId(), stackObjPtr);
+   }
+
+   return resultPtr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2045,62 +1980,60 @@ bool Signer::verifyRawTx(const BinaryData& rawTx,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData Signer::serializeState() const
+Codec_SignerState::SignerState Signer::serializeState() const
 {
-   BinaryWriter bw;
-   bw.put_uint32_t(version_);
-   bw.put_uint32_t(lockTime_);
-   bw.put_uint32_t(flags_);
+   Codec_SignerState::SignerState protoMsg;
+   
+   protoMsg.set_flags(flags_);
+   protoMsg.set_tx_version(version_);
+   protoMsg.set_locktime(lockTime_);
 
-   bw.put_var_int(spenders_.size());
    for (auto& spender : spenders_)
    {
-      auto&& state = spender->serializeState();
-      bw.put_var_int(state.getSize());
-      bw.put_BinaryData(state);
+      auto spenderProto = protoMsg.add_spenders();
+      spender->serializeState(*spenderProto);
    }
 
-   bw.put_var_int(recipients_.size());
    for (auto& recipient : recipients_)
    {
-      auto&& state = recipient->getSerializedScript();
-      bw.put_var_int(state.getSize());
-      bw.put_BinaryData(state);
+      auto& data = recipient->getSerializedScript();
+      protoMsg.add_recipients(data.getPtr(), data.getSize());
    }
 
-   return bw.getData();
+   return protoMsg;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-Signer Signer::createFromState(const BinaryData& state)
+Signer Signer::createFromState(const string& protoStr)
+{
+   Codec_SignerState::SignerState protoMsg;
+   protoMsg.ParseFromString(protoStr);
+
+   return createFromState(protoMsg);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+Signer Signer::createFromState(const Codec_SignerState::SignerState& protoMsg)
 {
    Signer signer;
    signer.resetFlags();
 
-   BinaryRefReader brr(state.getRef());
+   signer.version_ = protoMsg.tx_version();
+   signer.lockTime_ = protoMsg.locktime();
+   signer.flags_ = protoMsg.flags();
 
-   signer.version_ = brr.get_uint32_t();
-   signer.lockTime_ = brr.get_uint32_t();
-   signer.flags_ = brr.get_uint32_t();
-
-   auto spender_count = brr.get_var_int();
-   for (unsigned i = 0; i < spender_count; i++)
+   for (unsigned i = 0; i < protoMsg.spenders_size(); i++)
    {
-      auto spender_len = brr.get_var_int();
-      auto spender_data = brr.get_BinaryDataRef(spender_len);
 
-      auto spender_ptr = ScriptSpender::deserializeState(spender_data);
-      signer.spenders_.push_back(spender_ptr);
+      auto spenderPtr = ScriptSpender::deserializeState(protoMsg.spenders(i));
+      signer.spenders_.push_back(spenderPtr);
    }
 
-   auto recipient_count = brr.get_var_int();
-   for (unsigned i = 0; i < recipient_count; i++)
+   for (unsigned i = 0; i < protoMsg.recipients_size(); i++)
    {
-      auto recipient_len = brr.get_var_int();
-      auto recipient_data = brr.get_BinaryDataRef(recipient_len);
-
-      auto recipient_ptr = ScriptRecipient::deserialize(recipient_data);
-      signer.recipients_.push_back(recipient_ptr);
+      auto&& recipientData = BinaryDataRef::fromString(protoMsg.recipients(i));
+      auto recipientPtr = ScriptRecipient::deserialize(recipientData);
+      signer.recipients_.push_back(recipientPtr);
    }
 
    return signer;
@@ -2108,10 +2041,10 @@ Signer Signer::createFromState(const BinaryData& state)
 
 ////////////////////////////////////////////////////////////////////////////////
 void Signer::deserializeState(
-   const BinaryData& data)
+   const Codec_SignerState::SignerState& protoMsg)
 {
    //deser into a new object
-   auto&& new_signer = createFromState(data);
+   auto&& new_signer = createFromState(protoMsg);
 
    version_ = new_signer.version_;
    lockTime_ = new_signer.lockTime_;

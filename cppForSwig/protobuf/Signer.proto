@@ -1,0 +1,76 @@
+syntax = "proto2";
+
+import "Utxo.proto";
+
+package Codec_SignerState;
+
+enum StackEntryState_Types
+{
+    OpCode = 1;
+    SingleSig = 2;
+    MultiSig = 3;
+    PushData = 4;
+    Script = 5;
+};
+
+message StackEntryState_Data
+{
+    repeated bytes data = 1;
+};
+
+message StackEntryState_MultiSig
+{
+    required uint32 m = 1;
+    repeated uint32 sig_index = 2;
+    repeated bytes  sig_data = 3;
+};
+
+message StackEntryState
+{
+    required StackEntryState_Types entry_type = 1;
+    required uint32 entry_id = 2;
+    oneof entry_data
+    {
+        bytes stackentry_data = 10;
+        uint32 opcode = 11;
+        StackEntryState_MultiSig multisig_data = 12;
+    }
+};
+
+message ScriptSpenderState
+{
+    required uint32 version_max = 1;
+    required uint32 version_min = 2;
+
+    required uint32 legacy_status = 10;
+    required uint32 segwit_status = 11;
+    required uint32 sighash_type = 12;
+    required uint32 sequence = 13;
+
+    required bool is_p2sh = 20;
+    required bool is_csv = 21;
+    required bool is_cltv = 22;
+
+    oneof output
+    {
+        Codec_Utxo.Utxo     utxo = 30;
+        Codec_Utxo.Outpoint outpoint = 31;
+    }
+
+    optional bytes sig_script = 40;
+    optional bytes witness_data = 41;
+
+    repeated StackEntryState legacy_stack = 42;
+    repeated StackEntryState witness_stack = 43;
+}
+
+message SignerState
+{
+    required uint32 flags = 1;
+
+    required uint32 tx_version = 10;
+    required uint32 locktime = 11;
+
+    repeated ScriptSpenderState spenders = 20;
+    repeated bytes recipients = 21;
+}

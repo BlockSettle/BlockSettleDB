@@ -1907,9 +1907,13 @@ unique_ptr<Message> CppBridge::signer_getSerializedState(const string& id) const
    if (iter == signerMap_.end())
       throw runtime_error("invalid signer id");
  
-   auto&& serData = iter->second->signer_.serializeState();
+   auto signerState = iter->second->signer_.serializeState();
+   string signerStateStr;
+   if (!signerState.SerializeToString(&signerStateStr))
+      throw runtime_error("failed to serialized signer state");
+
    auto msg = make_unique<ReplyBinary>();
-   msg->add_reply(serData.toCharPtr(), serData.getSize());
+   msg->add_reply(signerStateStr);
    return msg;
 }
 
@@ -1923,7 +1927,11 @@ bool CppBridge::signer_unserializeState(
 
    try
    {
-      iter->second->signer_.deserializeState(state);
+      Codec_SignerState::SignerState signerState;
+      if (!signerState.ParseFromArray(state.getPtr(), state.getSize()))
+         throw runtime_error("invalid signer state");
+
+      iter->second->signer_.deserializeState(signerState);
    }
    catch (exception&)
    {
