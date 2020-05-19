@@ -637,6 +637,16 @@ public:
    void setRef(BinaryData const & bd)                      
                   { setRef( bd.getPtr(), bd.getSize() ); }
 
+   static BinaryDataRef fromString(const std::string& str, size_t len=SIZE_MAX)
+   {
+      if (len == SIZE_MAX)
+         len = str.size();
+         
+      BinaryDataRef data;
+      data.setRef((const uint8_t*)str.c_str(), len);
+      return data;
+   }
+
    /////////////////////////////////////////////////////////////////////////////
    // UNSAFE -- you don't know if outData holds enough space for this
    void copyTo(uint8_t* outData) const { memcpy( outData, ptr_, (size_t)nBytes_); }
