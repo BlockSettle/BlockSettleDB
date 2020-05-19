@@ -1662,18 +1662,12 @@ void CallbackReturn_VectorUTXO::callback(
       ::Codec_Utxo::ManyUtxo utxos;
       AsyncClient::deserialize(&utxos, partialMsg);
 
-      vector<UTXO> utxovec(utxos.value_size());
+      vector<UTXO> utxovec;
+      utxovec.reserve(utxos.value_size());
       for (int i = 0; i < utxos.value_size(); i++)
       {
          auto& proto_utxo = utxos.value(i);
-         auto& utxo = utxovec[i];
-
-         utxo.value_ = proto_utxo.value();
-         utxo.script_.copyFrom(proto_utxo.script());
-         utxo.txHeight_ = proto_utxo.txheight();
-         utxo.txIndex_ = proto_utxo.txindex();
-         utxo.txOutIndex_ = proto_utxo.txoutindex();
-         utxo.txHash_.copyFrom(proto_utxo.txhash());
+         utxovec.emplace_back(UTXO::fromProtobuf(proto_utxo));
       }
 
       ReturnMessage<vector<UTXO>> rm(utxovec);
