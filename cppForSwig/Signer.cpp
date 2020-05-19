@@ -402,8 +402,8 @@ BinaryData ScriptSpender::getSerializedOutpoint() const
 BinaryData ScriptSpender::getSerializedInputScript() const
 {
    //if we have a serialized script already, return that
-   if (!serializedScript_.empty())
-      return serializedScript_;
+   if (!inputScript_.empty())
+      return inputScript_;
       
    //otherwise, serialize it from the stack
    vector<shared_ptr<StackItem>> stack;
@@ -686,7 +686,7 @@ void ScriptSpender::processStacks()
    {
       updateState(legacyStack_, legacyStatus_, [this](
          const vector<shared_ptr<StackItem>>& stackVec) 
-         { serializedScript_ = move(serializeScript(stackVec)); }
+         { inputScript_ = move(serializeScript(stackVec)); }
       );
    }
    
@@ -736,7 +736,7 @@ void ScriptSpender::serializeState(
    {
       //put resolved script
       protoMsg.set_sig_script(
-         serializedScript_.getPtr(), serializedScript_.getSize());
+         inputScript_.getPtr(), inputScript_.getSize());
    }
    else if (legacyStatus_ >= SpenderStatus_Resolved)
    {
@@ -809,7 +809,7 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
 
    if (protoMsg.has_sig_script())
    {
-      resultPtr->serializedScript_ = BinaryData::fromString(protoMsg.sig_script());
+      resultPtr->inputScript_ = BinaryData::fromString(protoMsg.sig_script());
    }
 
    for (unsigned i=0; i<protoMsg.legacy_stack_size(); i++)
@@ -871,7 +871,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
 
       case SpenderStatus_Signed:
       {
-         serializedScript_ = obj.serializedScript_;
+         inputScript_ = obj.inputScript_;
          //fallthrough
       }
       
@@ -1051,25 +1051,25 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
    //legacy stack
    {
       //grab our resolved items from the script
-      BinaryData ourSerializedScript;
+      BinaryData ourSigScript;
       if (legacyStatus_ == SpenderStatus_Signed)
       {
          //signed spenders have a serialized sigScript and no stack items
-         ourSerializedScript = serializedScript_;
+         ourSigScript = inputScript_;
       }
       else
       {
          //everything else only has a stack
-         ourSerializedScript = serializeStack(*this);
+         ourSigScript = serializeStack(*this);
       }
 
-      auto ourScriptItems = getResolvedItems(ourSerializedScript, false);
+      auto ourScriptItems = getResolvedItems(ourSigScript, false);
 
       //theirs cannot have a serialized script because theirs cannot be signed
       //grab the resolved data from the partial stack instead
       auto isMultiSig = isStackMultiSig(rhs.legacyStack_);
-      auto theirSerializedScript = serializeStack(rhs);
-      auto theirScriptItems = getResolvedItems(theirSerializedScript, false);
+      auto theirSigScript = serializeStack(rhs);
+      auto theirScriptItems = getResolvedItems(theirSigScript, false);
 
       //compare
       if (!compareScriptItems(ourScriptItems, theirScriptItems, isMultiSig))
@@ -1092,24 +1092,24 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
    //witness stack
    {
       //grab our resolved items from the witness data
-      BinaryData ourSerializedScript;
+      BinaryData ourWitnessData;
       if (segwitStatus_ == SpenderStatus_Signed)
       {
          //signed spenders have a serialized sigScript and no stack items
-         ourSerializedScript = witnessData_;
+         ourWitnessData = witnessData_;
       }
       else
       {
          //everything else only has a stack
-         ourSerializedScript = serializeAvailableWitnessData();
+         ourWitnessData = serializeAvailableWitnessData();
       }
 
-      auto ourScriptItems = getResolvedItems(ourSerializedScript, true);
+      auto ourScriptItems = getResolvedItems(ourWitnessData, true);
 
       //grab theirs
       auto isMultiSig = isStackMultiSig(rhs.witnessStack_);
-      auto theirSerializedScript = rhs.serializeAvailableWitnessData();
-      auto theirScriptItems = getResolvedItems(theirSerializedScript, true);
+      auto theirWitnessData = rhs.serializeAvailableWitnessData();
+      auto theirScriptItems = getResolvedItems(theirWitnessData, true);
 
       //compare
       if (!compareScriptItems(ourScriptItems, theirScriptItems, isMultiSig))
@@ -1132,7 +1132,7 @@ bool ScriptSpender::isInitialized() const
       segwitStatus_ == SpenderStatus_Unknown &&
       isP2SH_ == false && 
       legacyStack_.empty() && witnessStack_.empty() &&
-      serializedScript_.empty() && witnessData_.empty())
+      inputScript_.empty() && witnessData_.empty())
    {
       return false;
    }

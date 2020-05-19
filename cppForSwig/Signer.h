@@ -43,12 +43,14 @@ enum SpenderStatus
 class ScriptSpender
 {
    friend class Signer;
-protected:
-   SpenderStatus segwitStatus_ = SpenderStatus_Unknown;
-   BinaryData witnessData_;
-   mutable BinaryData serializedInput_;
 
 private:
+   SpenderStatus segwitStatus_ = SpenderStatus_Unknown;
+   BinaryData witnessData_;
+   BinaryData inputScript_;
+
+   mutable BinaryData serializedInput_;
+
    SpenderStatus legacyStatus_ = SpenderStatus_Unknown;
    bool isP2SH_ = false;
    bool isCSV_ = false;
@@ -61,7 +63,6 @@ private:
 
    //
    std::shared_ptr<ResolverFeed> resolverFeed_;
-   BinaryData serializedScript_;
 
    std::map<unsigned, std::shared_ptr<StackItem>> legacyStack_;
    std::map<unsigned, std::shared_ptr<StackItem>> witnessStack_;
