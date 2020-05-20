@@ -2904,7 +2904,6 @@ void Clients::broadcastThroughRPC()
          {
             //there is already a watcher entry for this tx, our request has been 
             //attached to it, skip the RPC broadcast
-            cout << ". bypassing request " << packet.requestID_ << " for hash " << hashes.begin()->toHexStr() << endl;
             continue;
          }
       }
