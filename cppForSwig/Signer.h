@@ -234,6 +234,8 @@ public:
          SCRIPT_VERIFY_P2SH_SHA256)
    {}
 
+   Signer(const Codec_SignerState::SignerState&);
+
    //static
    static TxEvalState verify(
       const BinaryData&, //raw tx
