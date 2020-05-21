@@ -758,6 +758,9 @@ unsigned LMDBBlockDatabase::getHeightForTxHash(
    const BinaryDataRef& hash) const
 {
    auto&& dbkey = getDBKeyForHash(hash);
+   if (dbkey.empty())
+      return UINT32_MAX;
+      
    auto hgtx = dbkey.getSliceRef(0, 4);
 
    if (getDbType() == ARMORY_DB_SUPER)

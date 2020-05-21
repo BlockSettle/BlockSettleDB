@@ -1688,12 +1688,33 @@ void ZeroConfContainer::handleInvTx()
                increaseParserThreadPool(invVec.size());
 
             auto request = make_shared<RequestZcPacket>();
+            SingleLock lock(&watcherMapMutex_);
+
             for (auto& entry : invVec)
             {
                BinaryDataRef hash(entry.hash, sizeof(entry.hash));
+
+               /*
+               Skip this hash if it's in our watcher map. Invs from the network 
+               will never trigger this condition. Invs from the tx we broadcast
+               through the p2p interface neither, as we present the hash to 
+               kickstart the chain of events (node won't inv back a hash it was
+               inv'ed to).
+
+               Only a native RPC broadcast can trigger this condition, as the
+               node will inv all peers it has not received this hash from. We do
+               not want to create an unnecessary batch for native RPC pushes, so
+               we skip those.
+               */
+               if (watcherMap_.find(hash) != watcherMap_.end())
+                  continue;
+
                request->hashes_.emplace_back(hash);
             }
          
+            if (request->hashes_.empty())
+               break;
+
             pushZcPreprocessVec(request);
          }
 
@@ -1926,7 +1947,7 @@ void ZeroConfContainer::broadcastZC(
          map<string, string> emptyMap;
          if (setWatcherEntry(
             hash, zcPacket->zcVec_[i],
-            requestID, bdvID, emptyMap))
+            bdvID, requestID, emptyMap))
          {
             continue;
          }
@@ -1951,7 +1972,7 @@ void ZeroConfContainer::broadcastZC(
 ///////////////////////////////////////////////////////////////////////////////
 bool ZeroConfContainer::setWatcherEntry(
    const BinaryData& hash, shared_ptr<BinaryData> rawTxPtr, 
-   const std::string& requestID, const std::string& bdvID,
+   const std::string& bdvID, const std::string& requestID,
    std::map<std::string, std::string>& extraRequestors,
    bool watchEntry)
 {

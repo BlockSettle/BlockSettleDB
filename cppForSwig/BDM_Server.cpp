@@ -1439,12 +1439,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
       for (auto& utxo : utxoVec)
       {
          auto utxoPtr = response->add_value();
-         utxoPtr->set_value(utxo.value_);
-         utxoPtr->set_script(utxo.script_.getPtr(), utxo.script_.getSize());
-         utxoPtr->set_txheight(utxo.txHeight_);
-         utxoPtr->set_txindex(utxo.txIndex_);
-         utxoPtr->set_txoutindex(utxo.txOutIndex_);
-         utxoPtr->set_txhash(utxo.txHash_.getPtr(), utxo.txHash_.getSize());
+         utxo.toProtobuf(*utxoPtr);
       }
 
       resultingPayload = response;
@@ -2909,7 +2904,6 @@ void Clients::broadcastThroughRPC()
          {
             //there is already a watcher entry for this tx, our request has been 
             //attached to it, skip the RPC broadcast
-            cout << ". bypassing request " << packet.requestID_ << " for hash " << hashes.begin()->toHexStr() << endl;
             continue;
          }
       }

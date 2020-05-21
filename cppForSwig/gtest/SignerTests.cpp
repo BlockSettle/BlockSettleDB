@@ -1978,7 +1978,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
    auto&& unspentVec_2 =
       wlt_2->getSpendableTxOutListZC();
 
-   BinaryData serializedSignerState;
+   Codec_SignerState::SignerState serializedSignerState;
 
    auto assetFeed2 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
    auto assetFeed3 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
@@ -2296,7 +2296,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
    auto&& unspentVec_2 =
       wlt_2->getSpendableTxOutListZC();
 
-   BinaryData serializedSignerState;
+   Codec_SignerState::SignerState serializedSignerState;
 
    {
       //create first signer, set outpoint from wlt_1 and change to wlt_1
@@ -2653,7 +2653,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
    auto&& unspentVec_2 =
       wlt_2->getSpendableTxOutListZC();
 
-   BinaryData serializedSignerState;
+   Codec_SignerState::SignerState serializedSignerState;
 
    {
       //create first signer, set outpoint from wlt_1 and change to wlt_1
@@ -2697,8 +2697,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       //serialize signer 2, deser with signer3 and populate with outpoint and 
       //change from wlt_2
       auto spendVal = 10 * COIN;
-      Signer signer3;
-      signer3.deserializeState(serializedSignerState);
+      Signer signer3(serializedSignerState);
 
       //add spender from wlt_2
       uint64_t total = 0;
@@ -2772,16 +2771,14 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
    EXPECT_FALSE(signer5.verify());
 
    //now serialize both signers into the final signer, verify and broadcast
-   Signer signer6;
-   signer6.deserializeState(signer4.serializeState());
+   Signer signer6(signer4.serializeState());
    signer6.deserializeState(signer5.serializeState());
 
    ASSERT_TRUE(signer6.isSigned());
    EXPECT_TRUE(signer6.verify());
 
    //try again in the opposite order, that should not matter
-   Signer signer7;
-   signer7.deserializeState(signer5.serializeState());
+   Signer signer7(signer5.serializeState());
    signer7.deserializeState(signer4.serializeState());
 
    ASSERT_TRUE(signer7.isSigned());
@@ -3026,7 +3023,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    auto&& unspentVec_2 =
       wlt_2->getSpendableTxOutListZC();
 
-   BinaryData serializedSignerState;
+   Codec_SignerState::SignerState serializedSignerState;
 
    {
       //create first signer, set outpoint from wlt_1 and change to wlt_1
@@ -3148,16 +3145,14 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    EXPECT_FALSE(signer5.verify());
 
    //now serialize both signers into the final signer, verify and broadcast
-   Signer signer6;
-   signer6.deserializeState(signer4.serializeState());
+   Signer signer6(signer4.serializeState());
    signer6.deserializeState(signer5.serializeState());
 
    ASSERT_TRUE(signer6.isSigned());
    EXPECT_TRUE(signer6.verify());
 
    //try again in the opposite order, that should not matter
-   Signer signer7;
-   signer7.deserializeState(signer5.serializeState());
+   Signer signer7(signer5.serializeState());
    signer7.deserializeState(signer4.serializeState());
 
    ASSERT_TRUE(signer7.isSigned());
@@ -3410,7 +3405,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
    auto&& unspentVec_2 =
       wlt_2->getSpendableTxOutListZC();
 
-   BinaryData serializedSignerState;
+   Codec_SignerState::SignerState serializedSignerState;
 
    {
       //create first signer, set outpoint from wlt_1 and change to wlt_1

@@ -676,8 +676,8 @@ namespace DBTestUtils
             {
                cout << " to " << txio.second.getDBKeyOfInput().toHexStr();
             }
- 
-	    cout << ", isUTXO: " << txio.second.isUTXO();
+
+            cout << ", isUTXO: " << txio.second.isUTXO();
             cout << endl;
          }
       }
