@@ -17,6 +17,8 @@
 #include "ScriptRecipient.h"
 #include "TxEvalState.h"
 
+#include "protobuf/Signer.pb.h"
+
 enum SpenderStatus
 {
    //Not parsed yet/failed to parse entirely. This is 
@@ -37,25 +39,18 @@ enum SpenderStatus
    SpenderStatus_Signed
 };
 
-#define SERIALIZED_SCRIPT_PREFIX 0x01
-#define WITNESS_SCRIPT_PREFIX    0x02
-
-#define LEGACY_STACK_PARTIAL    0x03
-#define WITNESS_STACK_PARTIAL   0x04
-
-#define PREFIX_UTXO        0x05
-#define PREFIX_OUTPOINT    0x06
-
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptSpender
 {
    friend class Signer;
-protected:
-   SpenderStatus segwitStatus_ = SpenderStatus_Unknown;
-   BinaryData witnessData_;
-   mutable BinaryData serializedInput_;
 
 private:
+   SpenderStatus segwitStatus_ = SpenderStatus_Unknown;
+   BinaryData witnessData_;
+   BinaryData inputScript_;
+
+   mutable BinaryData serializedInput_;
+
    SpenderStatus legacyStatus_ = SpenderStatus_Unknown;
    bool isP2SH_ = false;
    bool isCSV_ = false;
@@ -68,10 +63,9 @@ private:
 
    //
    std::shared_ptr<ResolverFeed> resolverFeed_;
-   BinaryData serializedScript_;
 
-   std::map<unsigned, std::shared_ptr<StackItem>> partialStack_;
-   std::map<unsigned, std::shared_ptr<StackItem>> partialWitnessStack_;
+   std::map<unsigned, std::shared_ptr<StackItem>> legacyStack_;
+   std::map<unsigned, std::shared_ptr<StackItem>> witnessStack_;
 
    SIGHASH_TYPE sigHashType_ = SIGHASH_ALL;
    BinaryData getSerializedOutpoint(void) const;
@@ -83,18 +77,18 @@ private:
       const std::vector<std::shared_ptr<StackItem>>& stack,
       unsigned& itemCount, bool no_throw=false);
 
-   void updateStack(std::map<unsigned, std::shared_ptr<StackItem>>&,
-      const std::vector<std::shared_ptr<StackItem>>&);
-
    bool compareEvalState(const ScriptSpender&) const;
    BinaryData getSerializedInputScript(void) const;
 
-   void evaluateStack(StackResolver&);
-   void updatePartialStack(
+   void parseScripts(StackResolver&);
+   void processStacks();
+
+   void updateStack(std::map<unsigned, std::shared_ptr<StackItem>>&,
+      const std::vector<std::shared_ptr<StackItem>>&);
+   void updateLegacyStack(
       const std::vector<std::shared_ptr<StackItem>>&, unsigned);
-   void updatePartialWitnessStack(
+   void updateWitnessStack(
       const std::vector<std::shared_ptr<StackItem>>&, unsigned);
-   void evaluatePartialStacks();
 
 public:
    ScriptSpender(
@@ -178,9 +172,9 @@ public:
    bool isSigned(void) const;
    bool isInitialized(void) const;
 
-   BinaryData serializeState(void) const;
+   void serializeState(Codec_SignerState::ScriptSpenderState&) const;
    static std::shared_ptr<ScriptSpender> deserializeState(
-      const BinaryDataRef&);
+      const Codec_SignerState::ScriptSpenderState&);
 
    void merge(const ScriptSpender&);
    bool hasUTXO(void) const { return utxo_.isInitialized(); }
@@ -228,6 +222,9 @@ protected:
       std::map<BinaryData, std::map<unsigned, UTXO>>&);
 
    BinaryData serializeAvailableResolvedData(void) const;
+
+   static Signer createFromState(const std::string&);
+   static Signer createFromState(const Codec_SignerState::SignerState&);
 
 public:
    Signer(void) :
@@ -291,16 +288,14 @@ public:
    uint64_t getOutpointValue(unsigned) const override;
    unsigned getTxInSequence(unsigned) const override;
 
-   BinaryData serializeState(void) const;
-   void deserializeState(const BinaryData&);
+   Codec_SignerState::SignerState serializeState(void) const;
+   void deserializeState(const Codec_SignerState::SignerState&);
    bool isResolved(void) const;
    bool isSigned(void) const;
    
    void setFeed(std::shared_ptr<ResolverFeed> feedPtr) { resolverPtr_ = feedPtr; }
    void resetFeeds(void);
    void populateUtxo(const UTXO& utxo);
-
-   static Signer createFromState(const BinaryData&);
 
    BinaryData getTxId(void);
 

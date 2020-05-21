@@ -2606,10 +2606,11 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    }
 
    //sign, verify & return signed tx
+   signer2.resolveSpenders();
    auto&& signerState = signer2.evaluateSignedState();
 
    {
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      ASSERT_EQ(signerState.getEvalMapSize(), 2);
 
       auto&& txinEval = signerState.getSignedStateForInput(0);
       auto& pubkeyMap = txinEval.getPubKeyMap();
@@ -2627,14 +2628,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       signer2.sign();
    }
 
-   try
-   {
-      signer2.verify();
-      EXPECT_TRUE(false);
-   }
-   catch (...)
-   {
-   }
+   EXPECT_FALSE(signer2.verify());
 
    {
       //signer state with 1 sig
@@ -4904,21 +4898,9 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
    //check ledgers
    EXPECT_EQ(main_ledger.size(), 4);
 
-   /*
-   First ZC gets pushed through RPC and gets assigned zc id 0.
-   The RPC broadcast leads to an inv payload from the node. Since
-   this is a native RPC broadcast, the primary node will see the inv
-   and create a batch for it, assigning zc id 1. This zc will be pulled
-   from the node but fail to parse, as it will be already in the zc 
-   snapshot and get discarded.
-
-   Then the second ZC will be pushed through RPC, which will assign it
-   zc id 2.
-   */
-
    EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
    EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
+   EXPECT_EQ(main_ledger[0].getIndex(), 1);
 
    EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
    EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
@@ -8430,7 +8412,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
    EXPECT_EQ(txObj7->getThisHash(), tx4.getThisHash());
    EXPECT_EQ(txObj7->getTxHeight(), UINT32_MAX);
-   EXPECT_EQ(txObj7->getTxIndex(), 4);
+   EXPECT_EQ(txObj7->getTxIndex(), 3);
 
    {
       //try to grab from another bdvobj
@@ -8523,7 +8505,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx4.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 4);
+      EXPECT_EQ(iter->second->getTxIndex(), 3);
 
       //batch fetch full cache hit
       txMap = getTxLbd3(zcHashes).get();
@@ -8551,8 +8533,23 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx4.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 4);
+      EXPECT_EQ(iter->second->getTxIndex(), 3);
 
+      //batch fetch an empty hash
+      {
+         auto promPtr = make_shared<promise<ReturnMessage<AsyncClient::TxBatchResult>>>();
+         auto fut = promPtr->get_future();
+         auto lbd = [promPtr](ReturnMessage<AsyncClient::TxBatchResult> txObj)
+         {
+            promPtr->set_value(txObj);
+         };
+
+         set<BinaryData> hashesEmpty;
+         hashesEmpty.insert(BtcUtils::EmptyHash());
+         bdvObj2->getTxBatchByHash(hashesEmpty, lbd);
+         auto&& reply = fut.get();
+      }
+      
       //disconnect
       bdvObj2->unregisterFromDB();
    }
@@ -13551,7 +13548,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_RPCThenP2P)
+TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
 {
    struct WSClient
    {

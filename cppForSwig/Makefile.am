@@ -161,6 +161,7 @@ PROTOBUF_PROTO = protobuf/AddressBook.proto \
 	protobuf/FeeEstimate.proto \
 	protobuf/LedgerEntry.proto \
 	protobuf/NodeStatus.proto \
+	protobuf/Signer.proto \
 	protobuf/Utxo.proto
 
 PROTOBUF_CC = protobuf/AddressBook.pb.cc \
@@ -171,6 +172,7 @@ PROTOBUF_CC = protobuf/AddressBook.pb.cc \
 	protobuf/FeeEstimate.pb.cc \
 	protobuf/LedgerEntry.pb.cc \
 	protobuf/NodeStatus.pb.cc \
+	protobuf/Signer.pb.cc \
 	protobuf/Utxo.pb.cc
 
 PROTOBUF_H = protobuf/AddressBook.pb.h \
@@ -181,7 +183,8 @@ PROTOBUF_H = protobuf/AddressBook.pb.h \
 	protobuf/FeeEstimate.pb.h \
 	protobuf/LedgerEntry.pb.h \
 	protobuf/NodeStatus.pb.h \
-	protobuf/Utxo.pb.h
+	protobuf/Signer.pb.h \
+	protobuf/Utxo.pb.h 
 
 # Protobuf files required for distribution but not installation.
 dist_noinst_DATA = $(PROTOBUF_PROTO)

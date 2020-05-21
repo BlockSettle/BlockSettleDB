@@ -656,6 +656,39 @@ unsigned UTXO::getWitnessDataSize(void) const
    return witnessDataSizeBytes_;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+void UTXO::toProtobuf(Codec_Utxo::Utxo& utxoProto) const
+{
+   utxoProto.set_value(value_);
+   utxoProto.set_script(script_.getPtr(), script_.getSize());
+   utxoProto.set_txheight(txHeight_);
+   utxoProto.set_txindex(txIndex_);
+   utxoProto.set_txoutindex(txOutIndex_);
+   utxoProto.set_txhash(txHash_.getPtr(), txHash_.getSize());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+UTXO UTXO::fromProtobuf(const Codec_Utxo::Utxo& utxoProto)
+{
+   UTXO result;
+   
+   result.value_ = utxoProto.value();
+   result.script_ = BinaryData::fromString(utxoProto.script());
+
+   if (utxoProto.has_txheight())
+      result.txHeight_ = utxoProto.txheight();
+
+   if (utxoProto.has_txindex())
+      result.txIndex_ = utxoProto.txindex();
+
+   if (utxoProto.has_txoutindex())
+      result.txOutIndex_ = utxoProto.txoutindex();
+
+   if (utxoProto.has_txhash())
+      result.txHash_ = BinaryData::fromString(utxoProto.txhash());
+
+   return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

@@ -70,11 +70,9 @@ int verifyTxSigs(const BinaryData& rawTx, const LMDBBlockDatabase* iface,
       unsigned(SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_SEGWIT | SCRIPT_VERIFY_P2SH_SHA256), 
       true);
 
-   if (!evalState.isValid())
-   {
-      cout << "sig failure" << endl;
+
+   if (!evalState.isValid()) //invalid sig
       return (int)ArmoryErrorCodes::ZcBroadcast_VerifyRejected;
-   }
 
    return (int)ArmoryErrorCodes::Success;
 }
@@ -697,13 +695,6 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
             obj->blocksUntilMined_ = delay;
             obj->staged_ = false;
 
-            //check for collision
-            {
-               auto collision = mempool_.find(obj->hash_.getRef());
-               if (collision != mempool_.end())
-                  break;
-            }
-
             //check sigs
             if (checkSigs_)
             {
@@ -717,6 +708,7 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
             Tx tx(obj->rawTx_);
 
             //check outpoints are valid & spendable
+            bool opFailure = false;
             for (unsigned i=0; i<tx.getNumTxIn(); i++)
             {
                auto txin = tx.getTxInCopy(i);
@@ -734,7 +726,8 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
                if (dbKey.getSize() == 0)
                {
                   //there is no tx with this hash, outpoint is invalid
-                  return;
+                  opFailure = true;
+                  break;
                }
 
                //check spentness for this outpoint
@@ -751,10 +744,17 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
 
                iface_->getSpentness(stxo);
                if (stxo.isSpent())
-                  return;
+               {
+                  opFailure = true;
+                  break;
+               }
             }
 
+            if (opFailure)
+               break;
+
             //check for RBFs & add to utxo set
+            bool replaceFailure = false;
             set<BinaryData> replacedHashes;
             for (unsigned i=0; i<tx.getNumTxIn(); i++)
             {
@@ -792,13 +792,15 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
                if (!replaceTx.isRBF())
                {
                   //replaced tx isn't RBF
-                  return;
+                  replaceFailure = true;
+                  break;
                }
 
                if (!tx.isRBF())
                {
                   //replacing tx isn't RBF
-                  return;
+                  replaceFailure = true;
+                  break;
                }
 
                //unit test shortcut: replace if the new tx fee is > 1 btc
@@ -816,7 +818,9 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
                   memcpy(&rejectPayload->extra_[0], hashBd.getPtr(), 32);
                   
                   processGetTx(move(rejectPayload));
-                  return;
+                  
+                  replaceFailure = true;
+                  break;
                }
                
                //replace spender
@@ -825,6 +829,9 @@ void NodeUnitTest::sendMessage(unique_ptr<Payload> payload)
                //flag replaced tx
                replacedHashes.insert(idIter->second);               
             }
+
+            if (replaceFailure)
+               break;
 
             for (auto& hash : replacedHashes)
             {
@@ -1108,6 +1115,7 @@ int NodeRPC_UnitTest::broadcastTx(const BinaryDataRef& rawTx, string&)
 
    vector<pair<BinaryData, unsigned>> pushVec;
    pushVec.push_back(make_pair(BinaryData(rawTx), 0));
+
    primaryNode_->pushZC(pushVec, false);
    watcherNode_->pushZC(pushVec, false);
    
