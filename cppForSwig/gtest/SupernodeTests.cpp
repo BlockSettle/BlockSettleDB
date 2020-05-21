@@ -4861,10 +4861,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
    auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
    auto&& ZChash2 = BtcUtils::getHash256(ZC2);
 
-   cout << "- broadcasting tx " << ZChash1.toHexStr() << endl;
    auto broadcastId1 = bdvObj->broadcastThroughRPC(ZC1);
-
-   cout << "- broadcasting tx " << ZChash2.toHexStr() << endl;
    auto broadcastId2 = bdvObj->broadcastThroughRPC(ZC2);
    
    {
