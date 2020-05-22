@@ -207,6 +207,7 @@ set(PROTOBUF_FILES
     LedgerEntry.proto
     NodeStatus.proto
     Utxo.proto
+    Signer.proto
 )
 
 find_program(PROTOC_EXECUTABLE protoc)
