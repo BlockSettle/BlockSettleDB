@@ -298,7 +298,14 @@ struct ProcessPayloadTxPacket : public ZcGetPacket
 
       auto val = batchCtr_->fetch_sub(1, std::memory_order_release);
       if (val == 1)
+      try
+      {
          batchProm_->set_value(ArmoryErrorCodes::Success);
+      }
+      catch (const std::future_error&)
+      {
+         LOGWARN << "batch promise already set";
+      }
    }
 };
 
@@ -390,27 +397,58 @@ struct ZcActionStruct
    Blockchain::ReorganizationState reorgState_;
 };
 
+typedef ArmoryThreading::BlockingQueue<std::shared_ptr<ZcGetPacket>> PreprocessQueue;
+
 ////////////////////////////////////////////////////////////////////////////////
 class ZcActionQueue
 {
 private:
+   //ready batches will be passed to this function
    std::function<void(ZcActionStruct)> newZcFunction_;
+
+   //getData responses that have been matched to their batch will be posted 
+   //to this queue
+   std::shared_ptr<PreprocessQueue> zcPreprocessQueue_;
+
+   //current top ZC id, incremented as new zc is pushed from the node/broadcasts
    std::atomic<uint32_t> topId_;
-   std::thread parserThread_;
+
+   std::vector<std::thread> processThreads_;
+
+   //queue of batches served to newZcFunction_
    ArmoryThreading::BlockingQueue<ZcActionStruct> newZcQueue_;
 
-   ArmoryThreading::TransactionalMap<
-      BinaryData, std::shared_ptr<ZeroConfBatch>> reqTxHashMap_;
+   //queue of batches for the matcher thread to populate its local map of 
+   //hashes to batches
+   ArmoryThreading::Queue<std::shared_ptr<ZeroConfBatch>> batchQueue_;
+
+   //queue of getData response from the node
+   ArmoryThreading::BlockingQueue<
+      std::shared_ptr<ZcGetPacket>> getDataResponseQueue_;
+
+   //queue of hashes to clear from macther thread local map
+   ArmoryThreading::Queue<std::set<BinaryData>> hashesToClear_;
+
+   //tracks the size of the matcher thread local map, for unit test 
+   //coverage purposes
+   std::atomic<unsigned> matcherMapSize_;
 
 private:
    void processNewZcQueue(void);
    BinaryData getNewZCkey(void);
 
+   //matcher thread
+   void getDataToBatchMatcherThread(void);
+
 public:
-   ZcActionQueue(unsigned topId, std::function<void(ZcActionStruct)> func) :
-      newZcFunction_(func)
+   ZcActionQueue(
+      std::function<void(ZcActionStruct)> func, 
+      std::shared_ptr<PreprocessQueue> zcPreprocessQueue,      
+      unsigned topId) :
+      newZcFunction_(func), zcPreprocessQueue_(zcPreprocessQueue)
    {
       topId_.store(topId, std::memory_order_relaxed);
+      matcherMapSize_.store(0, std::memory_order_relaxed);
       start();
    }
 
@@ -424,10 +462,14 @@ public:
 
    std::shared_future<std::shared_ptr<ZcPurgePacket>> pushNewBlockNotification(
       Blockchain::ReorganizationState);
-   const std::shared_ptr<
-      const std::map<BinaryData, std::shared_ptr<ZeroConfBatch>>>
-      getRequestMap(void) const
-   { return reqTxHashMap_.get(); }
+   
+   void queueGetDataResponse(std::shared_ptr<ZcGetPacket>);
+   void queueBatch(std::shared_ptr<ZeroConfBatch>);
+
+   unsigned getMatcherMapSize(void) const 
+   { 
+      return matcherMapSize_.load(std::memory_order_relaxed); 
+   }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -465,8 +507,7 @@ private:
    LMDBBlockDatabase* db_;
    std::shared_ptr<BitcoinNodeInterface> networkNode_;
 
-   ArmoryThreading::BlockingQueue<
-      std::shared_ptr<ZcGetPacket>> zcPreprocessQueue_;
+   std::shared_ptr<PreprocessQueue> zcPreprocessQueue_;
    ArmoryThreading::BlockingQueue<
       std::shared_ptr<ZcPreprocessPacket>> zcWatcherQueue_;
    ArmoryThreading::BlockingQueue<
@@ -520,6 +561,8 @@ public:
       db_(db), networkNode_(node), maxZcThreadCount_(maxZcThread)
    {
       zcEnabled_.store(false, std::memory_order_relaxed);
+
+      zcPreprocessQueue_ = std::make_shared<PreprocessQueue>();
 
       //register ZC callbacks
       auto processInvTx = [this](std::vector<InvEntry> entryVec)->void
@@ -614,6 +657,11 @@ public:
       std::shared_ptr<ZeroConfSharedStateSnapshot>);
 
    ZcActionQueue* const actionQueue(void) const { return actionQueue_.get(); }
+
+   unsigned getMatcherMapSize(void) const 
+   { 
+      return actionQueue_->getMatcherMapSize(); 
+   }
 };
 
 #endif
