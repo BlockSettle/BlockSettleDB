@@ -266,15 +266,6 @@ public:
    bool shutdown();
    void join();
 
-   void cleanUp(void)
-   {
-      if (pimpl == nullptr)
-         return;
-
-      delete pimpl;
-      pimpl = nullptr;
-   }
-
 private:
    static void* thrun(void *);
    void run();

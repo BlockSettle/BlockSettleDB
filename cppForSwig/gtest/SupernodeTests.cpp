@@ -4023,6 +4023,8 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
@@ -4490,6 +4492,8 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
@@ -4770,6 +4774,8 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
@@ -5049,6 +5055,8 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -5333,6 +5341,8 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
@@ -5615,6 +5625,8 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -5905,6 +5917,8 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -6201,6 +6215,8 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
@@ -6489,6 +6505,8 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -6783,6 +6801,8 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;   
 }
@@ -6899,6 +6919,8 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -7182,6 +7204,8 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
@@ -7370,6 +7394,8 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -7724,6 +7750,8 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -8116,6 +8144,8 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -8563,6 +8593,8 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -9108,6 +9140,8 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
@@ -9419,6 +9453,8 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -9747,6 +9783,8 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -10090,6 +10128,8 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -10436,6 +10476,8 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
@@ -10777,6 +10819,8 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
@@ -11106,6 +11150,8 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -11450,6 +11496,8 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
@@ -11792,6 +11840,8 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -12137,6 +12187,8 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -12877,12 +12929,14 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
 
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+
    delete theBDMt_;
    theBDMt_ = nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
+TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 {
    struct WSClient
    {
@@ -13272,15 +13326,15 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
       auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
 
+      //wait on zc
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
+
       //wait on broadcast errors
       map<BinaryData, ArmoryErrorCodes> errorMap;
       for (auto& id : zcIds)
          errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
       instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //case 2
@@ -13316,15 +13370,16 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
       auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
 
+      //wait on zc
+      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
+      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
+
       //wait on broadcast errors
       map<BinaryData, ArmoryErrorCodes> errorMap;
       for (auto& id : zcIds)
          errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
       instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
 
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //case 3
@@ -13362,6 +13417,11 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
          addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
       }
 
+      //wait on zc
+      instance->callbackPtr_->waitOnZc_OutOfOrder(hashSet_skipped, "");
+
+      //wait on 7
+      instance->callbackPtr_->waitOnZc_OutOfOrder(hashSet, broadcastId1);
 
       //wait on broadcast errors
       instance->callbackPtr_->waitOnError(
@@ -13369,12 +13429,6 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
       instance->callbackPtr_->waitOnError(
          zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-
-      //wait on 7
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
    };
 
    //case 4
@@ -13472,7 +13526,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
    //main instance
    {
-      //skip all zc to force a RPC callback
+      //skip all zc to force a RPC fallback
       nodePtr_->skipZc(100000);
 
       //push 1-2-3 & 5-6
@@ -13529,7 +13583,6 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
       //done
    }
 
-
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
@@ -13539,6 +13592,8 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_BroadcastSameZC_ManyThreads_RPCFa
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -13891,7 +13946,6 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
       //done
    }
 
-
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
@@ -13901,6 +13955,8 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
 
    bdvObj2->shutdown(config.cookie_);
    WebSocketServer::waitOnShutdown();
+
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
