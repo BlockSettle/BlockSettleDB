@@ -743,6 +743,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
             txPtr->add_opid(opID);
       }
 
+      response->set_isvalid(true);
       resultingPayload = response;
       break;
    }
@@ -2546,6 +2547,7 @@ void Clients::processShutdownCommand(shared_ptr<StaticCommand> command)
    {
       if (bdmT_->bdm()->nodeRPC_ != nullptr)
          bdmT_->bdm()->nodeRPC_->shutdown();
+      break;
    }
 
    default:
@@ -2601,7 +2603,6 @@ void Clients::shutdown()
    //shutdown ZC container
    bdmT_->bdm()->disableZeroConf();
    bdmT_->bdm()->getScrAddrFilter()->shutdown();
-   bdmT_->cleanUp();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
