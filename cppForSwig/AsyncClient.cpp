@@ -12,6 +12,7 @@
 #include "BDVCodec.h"
 #include "google/protobuf/io/zero_copy_stream_impl_lite.h"
 #include "google/protobuf/text_format.h"
+#include "ArmoryErrors.h"
 
 using namespace std;
 using namespace AsyncClient;
@@ -1368,8 +1369,19 @@ void CallbackReturn_TxBatch::callback(
       ::Codec_CommonTypes::ManyTxWithMetaData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
+      if (!msg.isvalid())
+      {
+         throw ClientMessageError(
+            "invalid TxBatch response", 
+            (int)ArmoryErrorCodes::GetTxBatchError_Invalid);
+      }
+
       if (callMap_.size() != msg.tx_size())
-         throw runtime_error("call map size mismatch");
+      {
+         throw ClientMessageError(
+            "call map size mismatch", 
+            (int)ArmoryErrorCodes::GetTxBatchError_CallMap);
+      }
 
       unsigned counter = 0;
       for (auto callPair : callMap_)

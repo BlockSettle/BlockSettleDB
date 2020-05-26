@@ -31,10 +31,14 @@ enum class ArmoryErrorCodes : int
     //client already has a pending broadcast request for this zc
     ZcBroadcast_Pending             = 30002, 
 
-    //rpc code errors
+    //rpc error codes
     RPCFailure_Unknown  = 40000,
     RPCFailure_JSON     = 40001, //bitcoin node return is not JSON 
     RPCFailure_Internal = 40002, //failed to setup the RPC connection
+
+    //getTxBatchByHash
+    GetTxBatchError_Invalid = 50001, //response isn't flagged as valid
+    GetTxBatchError_CallMap = 50002, //mismatch between result and call map
 };
 
 #endif

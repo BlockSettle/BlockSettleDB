@@ -43,6 +43,7 @@ message TxWithMetaData
 message ManyTxWithMetaData
 {
 	repeated TxWithMetaData tx = 1;
+	required bool isvalid = 100;
 }
 
 message BinaryDataAndHeight

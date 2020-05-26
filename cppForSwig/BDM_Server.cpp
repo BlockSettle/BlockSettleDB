@@ -743,6 +743,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
             txPtr->add_opid(opID);
       }
 
+      response->set_isvalid(true);
       resultingPayload = response;
       break;
    }
