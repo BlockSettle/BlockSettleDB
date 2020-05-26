@@ -219,6 +219,7 @@ namespace DBTestUtils
    private:
       ArmoryThreading::BlockingQueue<std::unique_ptr<BdmNotif>> actionStack_;
       std::deque<std::unique_ptr<BdmNotif>> actionDeque_;
+      std::vector<BdmNotif> zcNotifVec_;
 
    public:
       UTCallback() : RemoteCallback()
@@ -386,6 +387,46 @@ namespace DBTestUtils
 
             addrSet.insert(action->addrSet_.begin(), action->addrSet_.end());
             if (addrSet == scrAddrSet)
+               break;
+         }
+      }
+
+      void waitOnZc_OutOfOrder(
+         const std::set<BinaryData>& hashes, 
+         const std::string& broadcastID)
+      {
+         std::set<BinaryData> hashSet;
+
+         for (auto& pastNotif : zcNotifVec_)
+         {
+            for (auto& txHash : pastNotif.idVec_)
+            {
+               if (hashes.find(txHash) != hashes.end())
+                  hashSet.insert(txHash);
+            }
+
+            if (hashSet == hashes)
+               return;
+         }
+
+         while (1)
+         {
+            auto&& action = waitOnNotification(BDMAction_ZC);
+            zcNotifVec_.push_back(*action);
+
+            if (!broadcastID.empty())
+            {
+               if (action->requestID_ != broadcastID)
+                  continue;
+            }
+
+            for (auto& txHash : action->idVec_)
+            {
+               if (hashes.find(txHash) != hashes.end())
+                  hashSet.insert(txHash);
+            }
+
+            if (hashSet == hashes)
                break;
          }
       }

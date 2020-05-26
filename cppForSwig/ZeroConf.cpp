@@ -1586,7 +1586,8 @@ void ZeroConfContainer::init(shared_ptr<ScrAddrFilter> saf, bool clearMempool)
    {
       this->parseNewZC(move(zas));
    };
-   actionQueue_ = make_unique<ZcActionQueue>(topId, newZcPacketLbd);
+   actionQueue_ = make_unique<ZcActionQueue>(
+      newZcPacketLbd, zcPreprocessQueue_, topId);
 
    auto updateZcThread = [this](void)->void
    {
@@ -1616,7 +1617,7 @@ void ZeroConfContainer::pushZcPreprocessVec(shared_ptr<RequestZcPacket> req)
       req->hashes_, ZC_GETDATA_TIMEOUT_MS, {}, false);
 
    //queue up individual requests for parser threads to process
-   zcPreprocessQueue_.push_back(move(req));
+   zcPreprocessQueue_->push_back(move(req));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1673,7 +1674,7 @@ void ZeroConfContainer::handleInvTx()
                payloadTx->rawTx_ = iter->second.rawTxPtr_;
 
                //push to preprocess threads
-               zcPreprocessQueue_.push_back(move(payloadTx));
+               actionQueue_->queueGetDataResponse(move(payloadTx));
             }
          }
          else
@@ -1736,7 +1737,7 @@ void ZeroConfContainer::handleZcProcessingStructThread(void)
       shared_ptr<ZcGetPacket> packet;
       try
       {
-         packet = move(zcPreprocessQueue_.pop_front());
+         packet = move(zcPreprocessQueue_->pop_front());
       }
       catch (StopBlockingLoop&)
       {
@@ -1760,30 +1761,6 @@ void ZeroConfContainer::handleZcProcessingStructThread(void)
          if (payloadTx == nullptr)
             throw runtime_error("unexpected payload type");
 
-         if (payloadTx->batchCtr_ == nullptr)
-         {
-            //grab the batch
-            auto requestMap = actionQueue_->getRequestMap();
-            auto reqIter = requestMap->find(payloadTx->txHash_);
-            if (reqIter == requestMap->end())
-               break;
-
-            //tie the tx to its batch
-            payloadTx->batchCtr_ = reqIter->second->counter_;
-            payloadTx->batchProm_ = reqIter->second->isReadyPromise_;
-            
-            auto keyIter = reqIter->second->hashToKeyMap_.find(
-               payloadTx->txHash_.getRef());
-            if (keyIter == reqIter->second->hashToKeyMap_.end())
-               break;
-            
-            auto txIter = reqIter->second->zcMap_.find(keyIter->second);
-            if (txIter == reqIter->second->zcMap_.end())
-               break;
-
-            payloadTx->pTx_ = txIter->second;
-         }
-
          processPayloadTx(payloadTx);
          break;
       }
@@ -1795,25 +1772,6 @@ void ZeroConfContainer::handleZcProcessingStructThread(void)
             break;
             
          pushZcPacketThroughP2P(*broadcastPacket);
-         break;
-      }
-
-      case ZcGetPacketType_Reject:
-      {
-         auto rejectPacket = dynamic_pointer_cast<RejectPacket>(packet);
-         if (rejectPacket == nullptr)
-            break;
-
-         LOGWARN << "p2p reject: " << rejectPacket->txHash_.toHexStr();
-
-         //grab the batch
-         auto requestMap = actionQueue_->getRequestMap();
-         auto reqIter = requestMap->find(rejectPacket->txHash_);
-         if (reqIter == requestMap->end())
-            break;
-
-         reqIter->second->isReadyPromise_->set_value(
-            ArmoryErrorCodes(rejectPacket->code_));
          break;
       }
 
@@ -1843,7 +1801,7 @@ void ZeroConfContainer::processTxGetDataReply(unique_ptr<Payload> payload)
       txData->rawTx_ = make_shared<BinaryData>(
          &payloadtx->getRawTx()[0], payloadtx->getRawTx().size());
 
-      zcPreprocessQueue_.push_back(move(txData));
+      actionQueue_->queueGetDataResponse(move(txData));
       break;
    }
 
@@ -1868,7 +1826,7 @@ void ZeroConfContainer::processTxGetDataReply(unique_ptr<Payload> payload)
          payloadReject->getExtra().size());
 
       auto rejectPacket = make_shared<RejectPacket>(hash, payloadReject->code());
-      zcPreprocessQueue_.push_back(move(rejectPacket));
+      actionQueue_->queueGetDataResponse(move(rejectPacket));
       break;
    }
 
@@ -1966,7 +1924,7 @@ void ZeroConfContainer::broadcastZC(
    }
 
    //push each zc on the process queue
-   zcPreprocessQueue_.push_back(zcPacket);
+   zcPreprocessQueue_->push_back(zcPacket);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2073,13 +2031,10 @@ void ZeroConfContainer::pushZcPacketThroughP2P(ZcBroadcastPacket& packet)
 void ZeroConfContainer::shutdown()
 {
    if (actionQueue_ != nullptr)
-   {
       actionQueue_->shutdown();
-      actionQueue_ = nullptr;
-   }
 
    zcWatcherQueue_.terminate();
-   zcPreprocessQueue_.terminate();
+   zcPreprocessQueue_->terminate();
    updateBatch_.terminate();
 
    vector<thread::id> idVec;
@@ -2357,15 +2312,25 @@ void ZcActionQueue::start()
       processNewZcQueue();
    };
 
-   parserThread_ = thread(processZcThread);
+   auto matcherThread = [this](void)->void
+   {
+      getDataToBatchMatcherThread();
+   };
+
+   processThreads_.push_back(thread(processZcThread));
+   processThreads_.push_back(thread(matcherThread));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void ZcActionQueue::shutdown()
 {
    newZcQueue_.terminate();
-   if (parserThread_.joinable())
-      parserThread_.join();
+   getDataResponseQueue_.terminate();
+   for (auto& thr : processThreads_)
+   {
+      if (thr.joinable())
+         thr.join();
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2384,7 +2349,6 @@ shared_ptr<ZeroConfBatch> ZcActionQueue::initiateZcBatch(
    const ZcBroadcastCallback& cbk, bool hasWatcherEntries,
    const std::string& bdvId, const std::string& requestId)
 {
-   set<BinaryDataRef> requestedTxHashes;
    auto batch = make_shared<ZeroConfBatch>(hasWatcherEntries);
    batch->requestor_ = make_pair(requestId, bdvId);
 
@@ -2397,9 +2361,6 @@ shared_ptr<ZeroConfBatch> ZcActionQueue::initiateZcBatch(
       auto&& key = getNewZCkey();
       auto ptx = make_shared<ParsedTx>(key);
       ptx->setTxHash(hash);
-
-      //request packets need their tx hash registered with the request map
-      requestedTxHashes.insert(hash.getRef());
 
       batch->hashToKeyMap_.emplace(
          make_pair(ptx->getTxHash().getRef(), ptx->getKeyRef()));
@@ -2416,17 +2377,13 @@ shared_ptr<ZeroConfBatch> ZcActionQueue::initiateZcBatch(
    batch->timeout_ = timeout; //in milliseconds
    batch->errorCallback_ = cbk;
 
-   {
-      map<BinaryData, shared_ptr<ZeroConfBatch>> updateMap;
-      for (auto& hashRef : requestedTxHashes)
-         updateMap.insert(make_pair(hashRef, batch));
-      reqTxHashMap_.update(updateMap);
-   }
-
    ZcActionStruct zac;
    zac.action_ = Zc_NewTx;
    zac.batch_ = batch;
    newZcQueue_.push_back(move(zac));
+
+   auto batchCopy = batch;
+   batchQueue_.push_back(move(batchCopy));
 
    return batch;
 }
@@ -2467,10 +2424,10 @@ void ZcActionQueue::processNewZcQueue()
          continue;
 
       //cleanup request map
-      vector<BinaryData> hashVec(zcMap.size());
+      set<BinaryData> hashSet;
       for (auto& zcPair : zcMap)
-         hashVec.push_back(zcPair.first);
-      reqTxHashMap_.erase(hashVec);
+         hashSet.insert(zcPair.second->getTxHash());
+      hashesToClear_.push_back(move(hashSet));
    }
 }
 
@@ -2489,6 +2446,129 @@ ZcActionQueue::pushNewBlockNotification(
    newZcQueue_.push_back(move(zcaction));
    
    return fut;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ZcActionQueue::queueGetDataResponse(std::shared_ptr<ZcGetPacket> payloadTx)
+{
+   getDataResponseQueue_.push_back(move(payloadTx));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ZcActionQueue::getDataToBatchMatcherThread()
+{
+   bool run = true;
+   map<BinaryData, shared_ptr<ZeroConfBatch>> hashToBatchMap;
+   while (run)
+   {
+      //queue of outstanding node getdata packets that need matched with 
+      //their parent batch - blocking
+      shared_ptr<ZcGetPacket> zcPacket;
+      try
+      {    
+         zcPacket = getDataResponseQueue_.pop_front();
+      }
+      catch (const StopBlockingLoop&)
+      {
+         run = false;
+      }
+
+      //queue of new batches - non blocking
+      while (true)
+      {
+         try
+         {
+            auto batch = batchQueue_.pop_front();
+
+            //populate local map with hashes from this batch, do not
+            //overwrite existing entries (older batches should get 
+            //precedence over a shared tx hash)
+            for (auto& hashPair : batch->hashToKeyMap_)
+               hashToBatchMap.emplace(hashPair.first, batch);
+         }
+         catch (const IsEmpty&)
+         {
+            break;
+         }
+      }
+
+      if (zcPacket != nullptr)
+      {
+         switch (zcPacket->type_)
+         {
+         case ZcGetPacketType_Payload:
+         {
+            auto payloadTx = dynamic_pointer_cast<ProcessPayloadTxPacket>(zcPacket);
+            if (payloadTx == nullptr)
+               break;
+
+            //look for parent batch in local map
+            auto iter = hashToBatchMap.find(payloadTx->txHash_);
+            if (iter != hashToBatchMap.end())
+            {
+               //tie the tx to its batch
+               payloadTx->batchCtr_ = iter->second->counter_;
+               payloadTx->batchProm_ = iter->second->isReadyPromise_;
+                  
+               auto keyIter = iter->second->hashToKeyMap_.find(
+                  payloadTx->txHash_.getRef());
+               if (keyIter != iter->second->hashToKeyMap_.end())
+               { 
+                  auto txIter = iter->second->zcMap_.find(keyIter->second);
+                  if (txIter != iter->second->zcMap_.end())
+                  {
+                     payloadTx->pTx_ = txIter->second;
+                     zcPreprocessQueue_->push_back(payloadTx);
+                  }
+               }
+
+               hashToBatchMap.erase(iter);
+            }
+
+            break;
+         }
+
+         case ZcGetPacketType_Reject:
+         {
+            auto rejectPacket = dynamic_pointer_cast<RejectPacket>(zcPacket);
+            if (rejectPacket == nullptr)
+               break;
+
+            //grab the batch
+            auto iter = hashToBatchMap.find(rejectPacket->txHash_);
+            if (iter != hashToBatchMap.end())
+            {
+               iter->second->isReadyPromise_->set_value(
+                  ArmoryErrorCodes(rejectPacket->code_));
+               
+               hashToBatchMap.erase(iter);
+            }
+
+            break;
+         }
+
+         default:
+            break;
+         }
+      }
+
+      //queue of hashes to purge from the local map
+      while (true)
+      {
+         try
+         {
+            auto&& hashSet = hashesToClear_.pop_front();
+            for (auto& hash : hashSet)
+               hashToBatchMap.erase(hash);
+         }
+         catch (const IsEmpty&)
+         {
+            break;
+         }
+      }
+
+      matcherMapSize_.store(hashToBatchMap.size(), memory_order_relaxed);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
