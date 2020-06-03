@@ -1623,19 +1623,30 @@ void ZeroConfContainer::pushZcPreprocessVec(shared_ptr<RequestZcPacket> req)
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::handleInvTx()
 {
+   shared_ptr<RequestZcPacket> request = nullptr;
+
    while (true)
    {
       shared_ptr<ZcPreprocessPacket> packet;
+      ZcPreprocessPacketType packetType;
       try
       {
-         packet = move(zcWatcherQueue_.pop_front());
+         //pop every seconds
+         packet = move(zcWatcherQueue_.pop_front(
+            std::chrono::milliseconds(1000)));
+         packetType = packet->type();
       }
-      catch(StopBlockingLoop&)
+      catch (const StackTimedOutException&)
+      {
+         //progress with an empty packet
+         packetType = ZcPreprocessPacketType_Inv;
+      }
+      catch (const StopBlockingLoop&)
       {
          break;
       }
 
-      switch (packet->type())
+      switch (packetType)
       {
       case ZcPreprocessPacketType_Inv:
       {
@@ -1645,10 +1656,7 @@ void ZeroConfContainer::handleInvTx()
             continue;
 
          auto invPayload = dynamic_pointer_cast<ZcInvPayload>(packet);
-         if (invPayload == nullptr)
-            throw runtime_error("packet type mismatch");
-
-         if (invPayload->watcher_)
+         if (invPayload != nullptr && invPayload->watcher_)
          {
             /*
             This is an inv tx payload from the watcher node, check it against 
@@ -1683,40 +1691,46 @@ void ZeroConfContainer::handleInvTx()
             inv tx from the process node, send a getdata request for these hashes
             */
 
-            auto& invVec = invPayload->invVec_;
-            if (parserThreadCount_ < invVec.size() &&
-               parserThreadCount_ < maxZcThreadCount_)
-               increaseParserThreadPool(invVec.size());
+            if (request == nullptr)
+               request = make_shared<RequestZcPacket>();
 
-            auto request = make_shared<RequestZcPacket>();
-            SingleLock lock(&watcherMapMutex_);
-
-            for (auto& entry : invVec)
+            if (invPayload != nullptr)
             {
-               BinaryDataRef hash(entry.hash, sizeof(entry.hash));
+               auto& invVec = invPayload->invVec_;
+               if (parserThreadCount_ < invVec.size() &&
+                  parserThreadCount_ < maxZcThreadCount_)
+                  increaseParserThreadPool(invVec.size());
 
-               /*
-               Skip this hash if it's in our watcher map. Invs from the network 
-               will never trigger this condition. Invs from the tx we broadcast
-               through the p2p interface neither, as we present the hash to 
-               kickstart the chain of events (node won't inv back a hash it was
-               inv'ed to).
+               SingleLock lock(&watcherMapMutex_);
 
-               Only a native RPC broadcast can trigger this condition, as the
-               node will inv all peers it has not received this hash from. We do
-               not want to create an unnecessary batch for native RPC pushes, so
-               we skip those.
-               */
-               if (watcherMap_.find(hash) != watcherMap_.end())
-                  continue;
+               for (auto& entry : invVec)
+               {
+                  BinaryDataRef hash(entry.hash, sizeof(entry.hash));
 
-               request->hashes_.emplace_back(hash);
+                  /*
+                  Skip this hash if it's in our watcher map. Invs from the network 
+                  will never trigger this condition. Invs from the tx we broadcast
+                  through the p2p interface neither, as we present the hash to 
+                  kickstart the chain of events (node won't inv back a hash it was
+                  inv'ed to).
+
+                  Only a native RPC broadcast can trigger this condition, as the
+                  node will inv all peers it has not received this hash from. We do
+                  not want to create an unnecessary batch for native RPC pushes, so
+                  we skip those.
+                  */
+                  if (watcherMap_.find(hash) != watcherMap_.end())
+                     continue;
+
+                  request->hashes_.emplace_back(hash);
+               }
             }
          
-            if (request->hashes_.empty())
+            if (!request->ready())
                break;
 
             pushZcPreprocessVec(request);
+            request.reset();
          }
 
          //register batch with main zc processing thread

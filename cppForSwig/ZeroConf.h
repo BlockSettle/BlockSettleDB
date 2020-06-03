@@ -268,10 +268,31 @@ struct ZcGetPacket
 struct RequestZcPacket : public ZcGetPacket
 {
    std::vector<BinaryData> hashes_;
+   std::chrono::steady_clock::time_point timestamp_;
 
    RequestZcPacket(void) : 
       ZcGetPacket(ZcGetPacketType_Request)
-   {}
+   {
+      timestamp_ = std::chrono::steady_clock::now();
+   }
+
+   bool ready(void) const
+   {
+      //skip if we have no hashes to request
+      if (hashes_.empty())
+         return false;
+
+      //progress if we have 30+ hashes
+      if (hashes_.size() >= 30)
+         return true;
+
+      //or if the request packet is older than 1 second
+      auto timediff = std::chrono::steady_clock::now() - timestamp_;
+      if (timediff >= std::chrono::seconds(1))
+         return true;
+
+      return false;
+   }
 };
 
 ////
@@ -508,10 +529,9 @@ private:
    std::shared_ptr<BitcoinNodeInterface> networkNode_;
 
    std::shared_ptr<PreprocessQueue> zcPreprocessQueue_;
-   ArmoryThreading::BlockingQueue<
+   ArmoryThreading::TimedQueue<
       std::shared_ptr<ZcPreprocessPacket>> zcWatcherQueue_;
-   ArmoryThreading::BlockingQueue<
-      ZcUpdateBatch> updateBatch_;
+   ArmoryThreading::BlockingQueue<ZcUpdateBatch> updateBatch_;
 
    std::mutex parserMutex_;
    std::mutex parserThreadMutex_;
