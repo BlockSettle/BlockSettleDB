@@ -753,6 +753,7 @@ public:
    // still using the old name even though no block data is stored anymore
    BinaryData getRawBlock(uint32_t height, uint8_t dupId) const;
    bool getStoredHeader(StoredHeader&, uint32_t, uint8_t, bool withTx = true) const;
+   bool getStoredHeader(StoredHeader&, std::shared_ptr<BlockHeader>, bool withTx = true) const;
 
    /////////////////////////////////////////////////////////////////////////////
    // StoredTx Accessors

@@ -1223,8 +1223,16 @@ void BlockchainScanner_Super::undo(Blockchain::ReorganizationState& reorgState)
    if (reorgState.prevTop_->getBlockHeight() <=
       reorgState.reorgBranchPoint_->getBlockHeight())
    {
-      LOGERR << "invalid reorg state";
-      throw runtime_error("invalid reorg state");
+      stringstream ss; 
+      ss << "Invalid reorg state:" << endl << endl <<
+         "  previous top height: " << 
+         reorgState.prevTop_->getBlockHeight() <<
+         "  branch point height: " << 
+         reorgState.reorgBranchPoint_->getBlockHeight() << endl;
+
+      auto&& errStr = ss.str();
+      LOGERR << errStr; 
+      throw runtime_error(errStr);
    }
 
    auto blockPtr = reorgState.prevTop_;

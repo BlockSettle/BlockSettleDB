@@ -236,6 +236,7 @@ public:
    BinaryData getDBKey(bool withPrefix = true) const;
    BinaryData getDBKeyOfChild(uint16_t i, bool withPrefix = true) const;
    BinaryData getHgtX(void) const { return getDBKey(false).getSliceCopy(0, 4); }
+   const BinaryData& getThisHash(void) const { return thisHash_; }
 
    void pprintOneLine(uint32_t indent = 3);
 
@@ -347,7 +348,6 @@ public:
 
    void pprintOneLine(uint32_t indent=3);
 
-   virtual DBTx& getTxByIndex(uint16_t index) = 0;
    virtual void unserializeFullBlock(BinaryRefReader brr,
       bool doFrag = true,
       bool withPrefix8 = false) = 0;
@@ -410,8 +410,13 @@ public:
    
    void pprintFullBlock(uint32_t indent = 3);
 
-   virtual DBTx& getTxByIndex(uint16_t index)
-   { return static_cast<DBTx&>(stxMap_[index]); }
+   const StoredTx& getTxByIndex(uint16_t index) const
+   { 
+      auto iter = stxMap_.find(index);
+      if (iter == stxMap_.end())
+         throw std::runtime_error("invalid tx index");
+      return iter->second;
+   }
 
    ///
    std::map<uint16_t, StoredTx> stxMap_;
