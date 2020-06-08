@@ -33,6 +33,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 struct BCTX
 {
+private:
+   mutable BinaryData txHash_;
+
+public:
    const uint8_t* data_;
    const size_t size_;
 
@@ -44,8 +48,6 @@ struct BCTX
    std::vector<OffsetAndSize> txins_;
    std::vector<OffsetAndSize> txouts_;
    std::vector<OffsetAndSize> witnesses_;
-
-   mutable BinaryData txHash_;
 
    bool isCoinbase_ = false;
 

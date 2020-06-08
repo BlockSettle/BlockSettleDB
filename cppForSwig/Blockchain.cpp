@@ -287,10 +287,7 @@ shared_ptr<BlockHeader> Blockchain::organizeChain(bool forceRebuild, bool verbos
          headerPair.second->isMainBranch_ = false;
       }
       topBlockPtr_ = NULL;
-      topID_.store(0, memory_order_relaxed);
    }
-
-   unsigned topID = topID_.load(memory_order_relaxed);
 
    // Set genesis block
    auto genBlock = getGenesisBlock();
@@ -358,9 +355,6 @@ shared_ptr<BlockHeader> Blockchain::organizeChain(bool forceRebuild, bool verbos
       thisHeaderPtr->isOrphan_       = false;
       heightMap[thisHeaderPtr->getBlockHeight()] = thisHeaderPtr;
 
-      if (thisHeaderPtr->uniqueID_ > topID)
-         topID = thisHeaderPtr->uniqueID_;
-
       auto prevHash = thisHeaderPtr->getPrevHashRef();
       auto childIter = headermap->find(prevHash);
       if (childIter == headermap->end())
@@ -380,7 +374,6 @@ shared_ptr<BlockHeader> Blockchain::organizeChain(bool forceRebuild, bool verbos
    heightMap[thisHeaderPtr->getBlockHeight()] = thisHeaderPtr;
    headersByHeight_.update(heightMap);
 
-   topID_.store(topID + 1, memory_order_relaxed);
    topBlockId_ = newTopBlock->getThisID();
    atomic_store(&topBlockPtr_, newTopBlock);
 
@@ -554,7 +547,7 @@ void Blockchain::putNewBareHeaders(LMDBBlockDatabase *db)
 
 /////////////////////////////////////////////////////////////////////////////
 set<uint32_t> Blockchain::addBlocksInBulk(
-   const map<BinaryData, shared_ptr<BlockHeader>>& bhMap, bool flag)
+   const map<BinaryData, shared_ptr<BlockHeader>>& bhMap, bool areNew)
 {
    if (bhMap.size() == 0)
       return set<uint32_t>();
@@ -579,22 +572,34 @@ set<uint32_t> Blockchain::addBlocksInBulk(
 
          toAddMap.insert(header_pair);
          idMap[header_pair.second->getThisID()] = header_pair.second;
-         if (flag)
+         if (areNew)
             newlyParsedBlocks_.push_back(header_pair.second);
          returnSet.insert(header_pair.second->getThisID());
       }
    }
 
-   headerMap_.update(toAddMap);
-   headersById_.update(idMap);
-   
+   if (!areNew)
    {
-      auto headeridmap = headersById_.get();
-      auto localTop = headeridmap->rbegin()->first;
-      if (topID_.load(memory_order_relaxed) < localTop)
-         topID_.store(localTop + 1, memory_order_relaxed);
+      /*
+      Only set the top id when blocks are originally loaded,
+      do not allow the process to backtrack the top id to a 
+      lower value (i.e. if the block insertion was rejected).
+
+      It is crucial block IDs are not reused.
+      */
+
+      unsigned topID = topID_.load(memory_order_relaxed);
+      for (auto& header_pair : bhMap)
+      {
+         if (topID < header_pair.second->getThisID())
+            topID = header_pair.second->getThisID();
+      }
+
+      topID_.store(topID, memory_order_relaxed);
    }
 
+   headerMap_.update(toAddMap);
+   headersById_.update(idMap);
    return returnSet;
 }
 
