@@ -356,8 +356,11 @@ void StoredHeader::unserializeFullBlock(BinaryRefReader brr,
       stx.version_       = thisTx.getVersion();
       stx.txIndex_       = tx;
 
+      bool isCoinbase = thisTx.getTxInCopy(0).isCoinbase();
+
       // Regardless of whether the tx is fragged, we still need the STXO map
       // to be updated and consistent
+      auto endOfTx = brr.getPosition();
       brr.resetPosition();
       brr.advance(txStart + thisTx.getTxOutOffset(0));
       for(uint32_t txo=0; txo < thisTx.getNumTxOut(); txo++)
@@ -371,15 +374,14 @@ void StoredHeader::unserializeFullBlock(BinaryRefReader brr,
          stxo.duplicateID_    = UINT8_MAX;
          stxo.txIndex_        = tx;
          stxo.txOutIndex_     = txo;
-         stxo.isCoinbase_     = thisTx.getTxInCopy(0).isCoinbase();
+         stxo.isCoinbase_     = isCoinbase;
          stxo.parentHash_     = stx.thisHash_;
       }
 
-      // Sitting at the nLockTime, 4 bytes before the end
-      brr.advance(4);
-
-      // Finally, add the 
-      stxMap_[tx] = stx;
+      // Let's skip to the end of the Tx, there may be witness data to parse
+      // which this code skips. We need the brr sitting at the next tx.
+      brr.resetPosition();
+      brr.advance(endOfTx);
    }
 
    if (nTx == 0 || nTx != allTxHashes.size())

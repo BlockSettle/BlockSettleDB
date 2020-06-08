@@ -16,6 +16,48 @@
 using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////
+void dumpBlock(
+   shared_ptr<Blockchain> bcPtr,
+   LMDBBlockDatabase* db,
+   shared_ptr<BlockHeader> bh)
+{
+   //grab the block
+   StoredHeader sbh;
+   db->getStoredHeader(sbh, bh, true);
+
+   cout << "###############################################" << endl;
+
+   //header
+   cout << "# hash: " << bh->getThisHash().toHexStr() << endl;
+   cout << "# prev: " << bh->getPrevHash().toHexStr() << endl;
+   cout << "# height: " << bh->getBlockHeight() << endl;
+   cout << "# diffsum: " << bh->getDifficultySum() << endl;
+   cout << "# size: " << bh->getBlockSize() << endl;
+   cout << "########" << endl;
+   cout << "# tx count: " << sbh.getNumTx() << endl;
+
+   /*for (unsigned i=0; i<sbh.getNumTx(); i++)
+   {
+      auto& tx = sbh.getTxByIndex(i);
+      cout << "#  hash: " << tx.getThisHash().toHexStr() << endl;
+   }*/
+
+   cout << endl;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void dumpBlock(
+   shared_ptr<Blockchain> bcPtr,
+   LMDBBlockDatabase* db,
+   unsigned blockId)
+{
+   //grab the header by id
+   auto bh = bcPtr->getHeaderById(blockId);
+
+   dumpBlock(bcPtr, db, bh);
+}
+
+/////////////////////////////////////////////////////////////////////////////
 DatabaseBuilder::DatabaseBuilder(BlockFiles& blockFiles, 
    BlockDataManager& bdm,
    const ProgressCallback &progress,
@@ -47,16 +89,20 @@ void DatabaseBuilder::init()
    if (bdmConfig_.reportProgress_)
       progress_(BDMPhase_OrganizingChain, 0, UINT32_MAX, 0);
 
+   LOGINFO << "organizing chain";
    auto&& initialReorgState = blockchain_->forceOrganize();
+   LOGINFO << "updating branches";
    blockchain_->updateBranchingMaps(db_, initialReorgState);
 
    try
    {
+      unsigned rewindCount = 100;
+
       //rewind the top block offset to catch on missed blocks for db init
       auto topBlock = blockchain_->top();
       auto rewindHeight = topBlock->getBlockHeight();
-      if (rewindHeight > 100)
-         rewindHeight -= 100;
+      if (rewindHeight > rewindCount)
+         rewindHeight -= rewindCount;
       else
          rewindHeight = 1;
 
@@ -64,7 +110,7 @@ void DatabaseBuilder::init()
       topBlockOffset_.fileID_ = rewindBlock->getBlockFileNum();
       topBlockOffset_.offset_ = rewindBlock->getOffset();
 
-      LOGINFO << "Rewinding 100 blocks";
+      LOGINFO << "Rewinding " << rewindCount << " blocks";
    }
    catch (exception&)
    {}
@@ -238,6 +284,7 @@ BlockOffset DatabaseBuilder::loadBlockHeadersFromDB(
    };
 
    db_->readAllHeaders(callback);
+   LOGINFO << "grabbed all headers in db";
    blockchain_->addBlocksInBulk(headerMap, false);
 
    LOGINFO << "Found " << headerMap.size() << " headers in db";
@@ -853,7 +900,7 @@ void DatabaseBuilder::commitAllTxHints(
          auto&& txHashPrefix = txn->getHash().getSliceCopy(0, 4);
          StoredTxHints& stxh = txHints[txHashPrefix];
 
-         //pull txHint from memory first, don't want to override 
+         //pull txHint from memory first, don't want to overwrite
          //existing hints
          if (stxh.isNull())
             db_->getStoredTxHints(stxh, txHashPrefix);
@@ -1076,8 +1123,8 @@ void DatabaseBuilder::verifyTransactions()
 
                //check hash
                auto _txn = txns[txid];
-               _txn->getHash();
-               if (hashref != _txn->txHash_)
+               const auto& txhash = _txn->getHash();
+               if (hashref != txhash.getRef())
                   continue;
 
                //grab output

@@ -1927,12 +1927,26 @@ bool LMDBBlockDatabase::getStoredHeader(
 {
    try
    {
-      if (blkFolder_.size() == 0)
-         throw LmdbWrapperException("invalid blkFolder");
-
       auto bh = blockchainPtr_->getHeaderByHeight(height, dupId);
       if (bh->getDuplicateID() != dupId)
          throw LmdbWrapperException("invalid dupId");
+
+      return getStoredHeader(sbh, bh, withTx);
+   }
+   catch (...)
+   {
+      return false;
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool LMDBBlockDatabase::getStoredHeader(
+   StoredHeader& sbh, shared_ptr<BlockHeader> bh, bool withTx) const
+{
+   try
+   {
+      if (blkFolder_.size() == 0)
+         throw LmdbWrapperException("invalid blkFolder");
 
       //open block file
       BlockDataLoader bdl(blkFolder_);

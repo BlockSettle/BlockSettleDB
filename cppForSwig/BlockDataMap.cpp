@@ -75,8 +75,8 @@ void BlockData::deserialize(const uint8_t* data, size_t size,
       }
       else
       {
-         txn->getHash();
-         allhashes.push_back(txn->txHash_);
+         auto& txhash = txn->getHash();
+         allhashes.push_back(txhash);
       }
    }
 
