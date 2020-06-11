@@ -31,6 +31,63 @@ ZcGetPacket::~ZcGetPacket()
 ///////////////////////////////////////////////////////////////////////////////
 //ZeroConfContainer Methods
 ///////////////////////////////////////////////////////////////////////////////
+ZeroConfContainer::ZeroConfContainer(LMDBBlockDatabase* db,
+   std::shared_ptr<BitcoinNodeInterface> node, unsigned maxZcThread) :
+   db_(db), networkNode_(node), maxZcThreadCount_(maxZcThread)
+{
+   zcEnabled_.store(false, memory_order_relaxed);
+
+   zcPreprocessQueue_ = make_shared<PreprocessQueue>();
+
+   //register ZC callbacks
+   auto processInvTx = [this](vector<InvEntry> entryVec)->void
+   {
+      if (!zcEnabled_.load(memory_order_relaxed))
+         return;
+            
+      auto payload = make_shared<ZcInvPayload>(false);
+      payload->invVec_ = move(entryVec);
+      zcWatcherQueue_.push_back(move(payload));
+   };
+
+   networkNode_->registerInvTxLambda(processInvTx);
+
+   auto getTx = [this](unique_ptr<Payload> payload)->void
+   {
+      this->processTxGetDataReply(move(payload));
+   };
+   networkNode_->registerGetTxCallback(getTx);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool ZeroConfContainer::isEnabled() const 
+{ 
+   return zcEnabled_.load(std::memory_order_relaxed);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_future<shared_ptr<ZcPurgePacket>> 
+ZeroConfContainer::pushNewBlockNotification(
+   Blockchain::ReorganizationState reorgState)
+{ 
+   return actionQueue_->pushNewBlockNotification(reorgState); 
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void ZeroConfContainer::setZeroConfCallbacks(
+   std::unique_ptr<ZeroConfCallbacks> ptr)
+{
+   bdvCallbacks_ = std::move(ptr);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<ZeroConfSharedStateSnapshot> ZeroConfContainer::getSnapshot() const
+{
+   auto ss = atomic_load_explicit(&snapshot_, memory_order_acquire);
+   return ss;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 Tx ZeroConfContainer::getTxByHash(const BinaryData& txHash) const
 {
    auto ss = getSnapshot();
@@ -2326,6 +2383,12 @@ BatchTxMap ZeroConfContainer::getBatchTxMap(shared_ptr<ZeroConfBatch> batch,
 
    result.txMap_ = batch->zcMap_;
    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+unsigned ZeroConfContainer::getMatcherMapSize(void) const 
+{ 
+   return actionQueue_->getMatcherMapSize(); 
 }
 
 ////////////////////////////////////////////////////////////////////////////////

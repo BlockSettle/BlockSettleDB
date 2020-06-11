@@ -595,59 +595,29 @@ private:
 
 public:
    ZeroConfContainer(LMDBBlockDatabase* db,
-      std::shared_ptr<BitcoinNodeInterface> node, unsigned maxZcThread) :
-      db_(db), networkNode_(node), maxZcThreadCount_(maxZcThread)
-   {
-      zcEnabled_.store(false, std::memory_order_relaxed);
-
-      zcPreprocessQueue_ = std::make_shared<PreprocessQueue>();
-
-      //register ZC callbacks
-      auto processInvTx = [this](std::vector<InvEntry> entryVec)->void
-      {
-         if (!zcEnabled_.load(std::memory_order_relaxed))
-            return;
-            
-         auto payload = std::make_shared<ZcInvPayload>(false);
-         payload->invVec_ = move(entryVec);
-         zcWatcherQueue_.push_back(move(payload));
-      };
-
-      networkNode_->registerInvTxLambda(processInvTx);
-
-      auto getTx = [this](std::unique_ptr<Payload> payload)->void
-      {
-         this->processTxGetDataReply(move(payload));
-      };
-      networkNode_->registerGetTxCallback(getTx);
-   }
+      std::shared_ptr<BitcoinNodeInterface> node, unsigned maxZcThread);
 
    //action queue
    std::shared_future<std::shared_ptr<ZcPurgePacket>> pushNewBlockNotification(
-      Blockchain::ReorganizationState reorgState)
-   { return actionQueue_->pushNewBlockNotification(reorgState); }
-
-   //
+      Blockchain::ReorganizationState reorgState);
+   unsigned getMatcherMapSize(void) const;
 
    // setup methods
    void init(std::shared_ptr<ScrAddrFilter>, bool clearMempool);
    void shutdown();
    void clear(void);
-   bool isEnabled(void) const 
-   { return zcEnabled_.load(std::memory_order_relaxed); }
+   bool isEnabled(void) const;
 
    void setWatcherNode(std::shared_ptr<BitcoinNodeInterface> watcherNode);
-   void setZeroConfCallbacks(std::unique_ptr<ZeroConfCallbacks> ptr)
-   {
-      bdvCallbacks_ = std::move(ptr);
-   }
+   void setZeroConfCallbacks(std::unique_ptr<ZeroConfCallbacks> ptr);
    //
 
-   //broadcast & helpers methods      
+   //broadcast      
    void broadcastZC(const std::vector<BinaryDataRef>& rawzc, 
       uint32_t timeout_ms, const ZcBroadcastCallback&,
       const std::string& bdvID, const std::string& requestID);
 
+   //broadcast helpers
    bool insertWatcherEntry(
       const BinaryData&, std::shared_ptr<BinaryData>, 
       const std::string&, const std::string&,
@@ -677,21 +647,12 @@ public:
    const std::map<BinaryData, std::shared_ptr<TxIOPair>>&
       getTxioMapForScrAddr(const BinaryData&) const;
 
-   std::shared_ptr<ZeroConfSharedStateSnapshot> getSnapshot(void) const
-   {
-      auto ss = std::atomic_load_explicit(&snapshot_, std::memory_order_acquire);
-      return ss;
-   }
+   std::shared_ptr<ZeroConfSharedStateSnapshot> getSnapshot(void) const;
 
    std::shared_ptr<ParsedTx> getTxByKey(const BinaryData&) const;
    TxOut getTxOutCopy(const BinaryDataRef, unsigned) const;
    BinaryDataRef getKeyForHash(const BinaryDataRef&) const;
    BinaryDataRef getHashForKey(const BinaryDataRef&) const;
-
-   unsigned getMatcherMapSize(void) const 
-   { 
-      return actionQueue_->getMatcherMapSize(); 
-   }
 };
 
 #endif
