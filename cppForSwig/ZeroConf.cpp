@@ -471,7 +471,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
    map<BinaryData, BinaryData> minedKeys;
    auto ss = ZeroConfSharedStateSnapshot::copy(snapshot_);
    map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap;
-   map<BinaryData, WatcherTxBody> watcherMap;
+   map<BinaryData, shared_ptr<WatcherTxBody>> watcherMap;
    pair<string, string> requestor;
 
    switch (zcAction.action_)
@@ -546,33 +546,6 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
 
       zcAction.resultPromise_->set_value(purgePacket);
    }
-
-   if (watcherMap.empty())
-      return;
-   
-   //process duplicate broadcast requests
-   for (auto& watcherObj : watcherMap)
-   {
-      if (watcherObj.second.extraRequestors_.empty())
-         continue;
-
-      auto keyIter = snapshot_->txHashToDBKey_.find(watcherObj.first);
-      if (keyIter == snapshot_->txHashToDBKey_.end())
-      {
-         //tx was not added to mempool, skip
-         continue;
-      }
-
-      //tx was added to mempool, report already-in-mempool error to 
-      //duplicate requestors
-      for (auto& extra : watcherObj.second.extraRequestors_)
-      {
-         bdvCallbacks_->pushZcError(extra.second, watcherObj.first, 
-            ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, 
-            "Extra requestor broadcast error: Already in mempool",
-            extra.first);
-      }
-   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -581,7 +554,7 @@ void ZeroConfContainer::parseNewZC(
    shared_ptr<ZeroConfSharedStateSnapshot> ss,
    bool updateDB, bool notify,
    const pair<string, string>& requestor,
-   std::map<BinaryData, WatcherTxBody>& watcherMap)
+   std::map<BinaryData, shared_ptr<WatcherTxBody>>& watcherMap)
 {
    unique_lock<mutex> lock(parserMutex_);
    ZcUpdateBatch batch;
@@ -1564,7 +1537,7 @@ unsigned ZeroConfContainer::loadZeroConfMempool(bool clearMempool)
       topId = READ_UINT32_BE(topZcKey.getSliceCopy(2, 4)) + 1;
 
       //no need to update the db nor notify bdvs on init
-      map<BinaryData, WatcherTxBody> emptyWatcherMap;
+      map<BinaryData, shared_ptr<WatcherTxBody>> emptyWatcherMap;
       parseNewZC(
          move(zcMap), nullptr, false, false, 
          make_pair(string(), string()), 
@@ -1668,18 +1641,18 @@ void ZeroConfContainer::handleInvTx()
                BinaryData bd(invEntry.hash, sizeof(invEntry.hash));
                auto iter = watcherMap_.find(bd);
                if (iter == watcherMap_.end() || 
-                  iter->second.inved_ ||
-                  iter->second.ignoreWatcherNodeInv_)
+                  iter->second->inved_ ||
+                  iter->second->ignoreWatcherNodeInv_)
                {
                   continue;
                }
 
                //mark as fetched
-               iter->second.inved_ = true;
+               iter->second->inved_ = true;
 
                //set parsedTx tx body
                auto payloadTx = make_shared<ProcessPayloadTxPacket>(bd);
-               payloadTx->rawTx_ = iter->second.rawTxPtr_;
+               payloadTx->rawTx_ = iter->second->rawTxPtr_;
 
                //push to preprocess threads
                actionQueue_->queueGetDataResponse(move(payloadTx));
@@ -1917,7 +1890,7 @@ void ZeroConfContainer::broadcastZC(
       {
          auto& hash = zcPacket->hashes_[i];
          map<string, string> emptyMap;
-         if (setWatcherEntry(
+         if (insertWatcherEntry(
             hash, zcPacket->zcVec_[i],
             bdvID, requestID, emptyMap))
          {
@@ -1942,7 +1915,7 @@ void ZeroConfContainer::broadcastZC(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool ZeroConfContainer::setWatcherEntry(
+bool ZeroConfContainer::insertWatcherEntry(
    const BinaryData& hash, shared_ptr<BinaryData> rawTxPtr, 
    const std::string& bdvID, const std::string& requestID,
    std::map<std::string, std::string>& extraRequestors,
@@ -1951,20 +1924,23 @@ bool ZeroConfContainer::setWatcherEntry(
    //lock 
    ReentrantLock lock(&watcherMapMutex_);
 
-   //try to insert
-   auto insertIter = watcherMap_.insert(make_pair(
-      hash, WatcherTxBody(rawTxPtr)));
+   auto iter = watcherMap_.find(hash);
 
-   if (insertIter.second)
+   //try to insert
+   if (iter == watcherMap_.end())
    {
+      auto insertIter = watcherMap_.emplace(
+         hash, 
+         make_shared<WatcherTxBody>(rawTxPtr));
+
       //set the watcher node flag
-      insertIter.first->second.ignoreWatcherNodeInv_ = !watchEntry;
+      insertIter.first->second->ignoreWatcherNodeInv_ = !watchEntry;
 
       //set extra requestors
       if (!extraRequestors.empty())
-         insertIter.first->second.extraRequestors_ = move(extraRequestors);
+         insertIter.first->second->extraRequestors_ = move(extraRequestors);
 
-      //return successful insertion
+      //return true for successful insertion
       return true;
    }
    else
@@ -1972,19 +1948,48 @@ bool ZeroConfContainer::setWatcherEntry(
       //already have this hash, do not change the watcher node flag
 
       //tie this request to the existing watcher entry
-      insertIter.first->second.extraRequestors_.emplace(
+      iter->second->extraRequestors_.emplace(
          requestID, bdvID);
-
+      
       //add the extra requestors if any
       if (!extraRequestors.empty())
       {
-         insertIter.first->second.extraRequestors_.insert(
+         iter->second->extraRequestors_.insert(
             extraRequestors.begin(), extraRequestors.end());
       }
 
-      //return failed insertion
+      //return false for failed insertion
       return false;
    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<WatcherTxBody> ZeroConfContainer::eraseWatcherEntry(
+   const BinaryData& hash)
+{
+   //lock 
+   ReentrantLock lock(&watcherMapMutex_);
+
+   auto iter = watcherMap_.find(hash);
+   if (iter == watcherMap_.end())
+      return nullptr;
+
+   auto objPtr = move(iter->second);   
+   watcherMap_.erase(iter);
+   
+   return objPtr;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+std::shared_ptr<ZeroConfBatch> ZeroConfContainer::initiateZcBatch(
+   const vector<BinaryData>& zcHashes, unsigned timeout, 
+   const ZcBroadcastCallback& cbk, bool hasWatcherEntries,
+   const std::string& bdvId, const std::string& requestId)
+{
+   return actionQueue_->initiateZcBatch(
+      zcHashes, timeout, 
+      cbk, hasWatcherEntries, 
+      bdvId, requestId);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2185,7 +2190,7 @@ BatchTxMap ZeroConfContainer::getBatchTxMap(shared_ptr<ZeroConfBatch> batch,
    BatchTxMap result;
    result.requestor_ = batch->requestor_;
 
-   //purge the watcher map if this batch affects it
+   //purge the watcher map of the hashes this batch registered
    if (batch->hasWatcherEntries_)
    {
       SingleLock lock(&watcherMapMutex_);
@@ -2199,7 +2204,16 @@ BatchTxMap ZeroConfContainer::getBatchTxMap(shared_ptr<ZeroConfBatch> batch,
             throw ZcBatchError();
          }
 
+         //save watcher object in the batch, mostly to carry the extra
+         //requestors over
          result.watcherMap_.emplace(iter->first, move(iter->second));
+
+         /*
+         Watcher map entries are only set by broadcast requests.
+         These are currated to avoid collisions, therefor a batch will
+         only carry the hashes for the watcher entries it created. Thus
+         it is safe to erase all matched hashes from the map.
+         */
          watcherMap_.erase(iter);
       }
    }
@@ -2244,7 +2258,7 @@ BatchTxMap ZeroConfContainer::getBatchTxMap(shared_ptr<ZeroConfBatch> batch,
 
          //map consistency is assured in the watcherMap purge 
          //scope, this iterator is guaranteed valid
-         if (!iter->second.inved_)
+         if (!iter->second->inved_)
          {
             inved = false;
             purge = true;
@@ -2267,9 +2281,9 @@ BatchTxMap ZeroConfContainer::getBatchTxMap(shared_ptr<ZeroConfBatch> batch,
          //create the fallback struct
          ZeroConfBatchFallbackStruct fallbackStruct;
          fallbackStruct.txHash_ = iter->first;
-         fallbackStruct.rawTxPtr_ = move(iter->second.rawTxPtr_);
+         fallbackStruct.rawTxPtr_ = move(iter->second->rawTxPtr_);
          fallbackStruct.err_ = batchResult;
-         fallbackStruct.extraRequestors_ = move(iter->second.extraRequestors_);
+         fallbackStruct.extraRequestors_ = move(iter->second->extraRequestors_);
 
          //check snapshot for collisions
          auto collisionIter = ss->txHashToDBKey_.find(iter->first.getRef());
