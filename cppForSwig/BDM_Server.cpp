@@ -2351,6 +2351,8 @@ BDVCommandProcessingResultType BDV_Server_Object::processPayload(
 
       errMsg->set_code(-1);
       errMsg->set_errstr(ss.str());
+
+      LOGERR << errMsg->errstr();
          
       result = errMsg;
    }
