@@ -2897,7 +2897,7 @@ void Clients::broadcastThroughRPC()
          for (auto& reqPair : packet.extraRequestors_)
             extraRequestors.emplace(reqPair.first, reqPair.second->getID());
 
-         if (!zcPtr->setWatcherEntry(
+         if (!zcPtr->insertWatcherEntry(
             *hashes.begin(), packet.rawTx_, //tx
             packet.bdvPtr_->getID(), packet.requestID_, //main requestor
             extraRequestors, //extra requestor, in case this is a fallback
@@ -2909,7 +2909,7 @@ void Clients::broadcastThroughRPC()
          }
       }
 
-      auto batchPtr = zcPtr->actionQueue()->initiateZcBatch(
+      auto batchPtr = zcPtr->initiateZcBatch(
          hashes, 
          0, //no timeout, this batch promise has to be set to progress
          nullptr, //no error callback
@@ -2961,6 +2961,45 @@ void Clients::broadcastThroughRPC()
       default:
          LOGINFO << "RPC broadcast for tx: " << hashes.begin()->toHexStr() << 
             ", verbose: " << verbose;
+
+         //cleanup watcher map
+         auto watcherEntry = zcPtr->eraseWatcherEntry(*hashes.begin());
+         if (watcherEntry != nullptr)
+         {
+            /*
+            The watcher entry may have received extra requestors we
+            didn't start with. We need to add those to our RPC packet
+            requestor map. Those carry full on BDV objects so we need
+            to curate the map first (for our own extra requestors), then
+            resolve the IDs to the BDV objects.
+            */
+            auto extraReqIter = watcherEntry->extraRequestors_.begin();
+            while (extraReqIter != watcherEntry->extraRequestors_.end())
+            {
+               if (packet.extraRequestors_.find(extraReqIter->first) !=
+                  packet.extraRequestors_.end())
+               {
+                  watcherEntry->extraRequestors_.erase(extraReqIter++);
+                  continue;
+               }
+
+               ++extraReqIter;
+            }
+
+            if (!watcherEntry->extraRequestors_.empty())
+            {
+               auto bdvMap = BDVs_.get();
+               for (auto& extraReq : watcherEntry->extraRequestors_)
+               {
+                  auto bdvIter = bdvMap->find(extraReq.second);
+                  if (bdvIter == bdvMap->end())
+                     continue;
+
+                  packet.extraRequestors_.emplace(
+                     extraReq.first, bdvIter->second);
+               }
+            }
+         }
 
          //fail the batch promise
          batchPtr->isReadyPromise_->set_exception(

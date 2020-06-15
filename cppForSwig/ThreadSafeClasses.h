@@ -577,50 +577,50 @@ public:
 
    T pop_front(std::chrono::milliseconds timeout = std::chrono::milliseconds(600000))
    {
-	//block until timeout expires or data is available
-	//return data or throw IsEmpty or StackTimedOutException
+      //block until timeout expires or data is available
+      //return data or throw IsEmpty or StackTimedOutException
 
-	waiting_.fetch_add(1, std::memory_order_relaxed);
-	try
-	{
-	   while (1)
-	   {
-		auto terminate = terminate_.load(std::memory_order_relaxed);
-		if (terminate)
-		   throw StopBlockingLoop();
+      waiting_.fetch_add(1, std::memory_order_relaxed);
+      try
+      {
+         while (1)
+         {
+         auto terminate = terminate_.load(std::memory_order_relaxed);
+         if (terminate)
+            throw StopBlockingLoop();
 
-		//try to pop_front
-		try
-		{
-		   auto&& retval = Queue<T>::pop_front();
-		   waiting_.fetch_sub(1, std::memory_order_relaxed);
-		   return std::move(retval);
-		}
-		catch (IsEmpty&)
-		{}
-		
-		auto before = std::chrono::high_resolution_clock::now();
-		auto status = wait_on_data(timeout);
+         //try to pop_front
+         try
+         {
+            auto&& retval = Queue<T>::pop_front();
+            waiting_.fetch_sub(1, std::memory_order_relaxed);
+            return std::move(retval);
+         }
+         catch (IsEmpty&)
+         {}
+         
+         auto before = std::chrono::high_resolution_clock::now();
+         auto status = wait_on_data(timeout);
 
-		if (status == std::cv_status::timeout) //future timed out
-		   throw StackTimedOutException();
+         if (status == std::cv_status::timeout) //future timed out
+            throw StackTimedOutException();
 
-		auto after = std::chrono::high_resolution_clock::now();
-		auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(after - before);
-		if (timediff <= timeout)
-		   timeout -= timediff;
-		else
-		   timeout = std::chrono::milliseconds(0);
-	   }
-	}
-	catch (...)
-	{
-	   //loop stopped unexpectedly
-	   waiting_.fetch_sub(1, std::memory_order_relaxed);
-      std::rethrow_exception(std::current_exception());
-	}
+         auto after = std::chrono::high_resolution_clock::now();
+         auto timediff = std::chrono::duration_cast<std::chrono::milliseconds>(after - before);
+         if (timediff <= timeout)
+            timeout -= timediff;
+         else
+            timeout = std::chrono::milliseconds(0);
+         }
+      }
+      catch (...)
+      {
+         //loop stopped unexpectedly
+         waiting_.fetch_sub(1, std::memory_order_relaxed);
+         std::rethrow_exception(std::current_exception());
+      }
 
-	return T();
+      return T();
    }
 
    std::vector<T> pop_all(std::chrono::seconds timeout = std::chrono::seconds(600))
