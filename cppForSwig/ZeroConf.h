@@ -29,6 +29,14 @@
 
 #define GETZC_THREADCOUNT 5
 
+#define ZC_BUFFER_LIFETIME_SEC 1
+#ifndef UNIT_TESTS
+   #define ZC_BUFFER_SIZE_THRESHOLD 30
+#else
+   //for unit tests, trigger zc buffers as soon as a single zc is in
+   #define ZC_BUFFER_SIZE_THRESHOLD 1
+#endif 
+
 enum ZcAction
 {
    Zc_NewTx,
@@ -282,20 +290,26 @@ struct RequestZcPacket : public ZcGetPacket
       if (hashes_.empty())
          return false;
 
-      //progress if we have 30+ hashes
-      if (hashes_.size() >= 30)
-         return true;
+      /*
+      Buffer zc from the network node until we have enough 
+      to process or enough that has elapsed. This reduces
+      the zc snapshot replacement frequency.
+      */
 
-      //or if the request packet is older than 1 second
-      #ifdef UNIT_TESTS
-      auto timediff = std::chrono::steady_clock::now() - timestamp_;
-      if (timediff >= std::chrono::seconds(1))
+      if (hashes_.size() >= ZC_BUFFER_SIZE_THRESHOLD)
+      {
+         //buffer is ready if we have over ZC_BUFFER_SIZE_THRESHOLD hashes
          return true;
+      }
+
+      auto timediff = std::chrono::steady_clock::now() - timestamp_;
+      if (timediff >= std::chrono::seconds(ZC_BUFFER_LIFETIME_SEC))
+      {
+         //or if the buffer is older than ZC_BUFFER_LIFETIME_SEC seconds
+         return true;
+      }
 
       return false;
-      #else
-      return true;
-      #endif
    }
 };
 
