@@ -287,11 +287,15 @@ struct RequestZcPacket : public ZcGetPacket
          return true;
 
       //or if the request packet is older than 1 second
+      #ifdef UNIT_TESTS
       auto timediff = std::chrono::steady_clock::now() - timestamp_;
       if (timediff >= std::chrono::seconds(1))
          return true;
 
       return false;
+      #else
+      return true;
+      #endif
    }
 };
 
