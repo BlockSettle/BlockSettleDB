@@ -1350,19 +1350,11 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
   
    //instantiate resolver feed overloaded object
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-   auto addToFeed = [feed](const BinaryData& key)->void
-   {
-      auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-      feed->h160ToPubKey_.insert(datapair);
-      feed->pubKeyToPrivKey_[datapair.second] = key;
-   };
-
-   addToFeed(TestChain::privKeyAddrB);
-   addToFeed(TestChain::privKeyAddrC);
-   addToFeed(TestChain::privKeyAddrD);
-   addToFeed(TestChain::privKeyAddrE);
-   addToFeed(TestChain::privKeyAddrF);
+   feed->addPrivKey(TestChain::privKeyAddrB);
+   feed->addPrivKey(TestChain::privKeyAddrC);
+   feed->addPrivKey(TestChain::privKeyAddrD);
+   feed->addPrivKey(TestChain::privKeyAddrE);
+   feed->addPrivKey(TestChain::privKeyAddrF);
 
    /*create the transactions*/
 
@@ -1810,18 +1802,10 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
 
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
 
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
@@ -2244,19 +2228,11 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
 
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(UINT64_MAX);
@@ -2476,18 +2452,10 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
 
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
@@ -2843,18 +2811,10 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
 
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
 
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
@@ -3264,17 +3224,9 @@ TEST_F(BlockUtilsWithWalletTest, ZC_InOut_SameBlock)
 TEST_F(BlockUtilsWithWalletTest, ZC_MineAfter1Block)
 {
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-   auto addToFeed = [feed](const BinaryData& key)->void
-   {
-      auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-      feed->h160ToPubKey_.insert(datapair);
-      feed->pubKeyToPrivKey_[datapair.second] = key;
-   };
-
-   addToFeed(TestChain::privKeyAddrB);
-   addToFeed(TestChain::privKeyAddrC);
-   addToFeed(TestChain::privKeyAddrD);
+   feed->addPrivKey(TestChain::privKeyAddrB);
+   feed->addPrivKey(TestChain::privKeyAddrC);
+   feed->addPrivKey(TestChain::privKeyAddrD);
 
    ////
    vector<BinaryData> scrAddrVec;
@@ -6517,19 +6469,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
 {
    //instantiate resolver feed overloaded object
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-   auto addToFeed = [feed](const BinaryData& key)->void
-   {
-      auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-      feed->h160ToPubKey_.insert(datapair);
-      feed->pubKeyToPrivKey_[datapair.second] = key;
-   };
-
-   addToFeed(TestChain::privKeyAddrB);
-   addToFeed(TestChain::privKeyAddrC);
-   addToFeed(TestChain::privKeyAddrD);
-   addToFeed(TestChain::privKeyAddrE);
-   addToFeed(TestChain::privKeyAddrF);
+   feed->addPrivKey(TestChain::privKeyAddrB);
+   feed->addPrivKey(TestChain::privKeyAddrC);
+   feed->addPrivKey(TestChain::privKeyAddrD);
+   feed->addPrivKey(TestChain::privKeyAddrE);
+   feed->addPrivKey(TestChain::privKeyAddrF);
 
    //public server
    startupBIP150CTX(4, true);
@@ -6930,14 +6874,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
 TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 {
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-   auto addToFeed = [feed](const BinaryData& key)->void
-   {
-      auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-      feed->h160ToPubKey_.insert(datapair);
-      feed->pubKeyToPrivKey_[datapair.second] = key;
-   };
-
-   addToFeed(TestChain::privKeyAddrB);
+   feed->addPrivKey(TestChain::privKeyAddrB);
 
    //public server
    startupBIP150CTX(4, true);
@@ -7762,19 +7699,11 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 {
    //instantiate resolver feed overloaded object
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-   auto addToFeed = [feed](const BinaryData& key)->void
-   {
-      auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-      feed->h160ToPubKey_.insert(datapair);
-      feed->pubKeyToPrivKey_[datapair.second] = key;
-   };
-
-   addToFeed(TestChain::privKeyAddrB);
-   addToFeed(TestChain::privKeyAddrC);
-   addToFeed(TestChain::privKeyAddrD);
-   addToFeed(TestChain::privKeyAddrE);
-   addToFeed(TestChain::privKeyAddrF);
+   feed->addPrivKey(TestChain::privKeyAddrB);
+   feed->addPrivKey(TestChain::privKeyAddrC);
+   feed->addPrivKey(TestChain::privKeyAddrD);
+   feed->addPrivKey(TestChain::privKeyAddrE);
+   feed->addPrivKey(TestChain::privKeyAddrF);
 
    //public server
    startupBIP150CTX(4, true);
@@ -8156,19 +8085,11 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 {
    //instantiate resolver feed overloaded object
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-   auto addToFeed = [feed](const BinaryData& key)->void
-   {
-      auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-      feed->h160ToPubKey_.insert(datapair);
-      feed->pubKeyToPrivKey_[datapair.second] = key;
-   };
-
-   addToFeed(TestChain::privKeyAddrB);
-   addToFeed(TestChain::privKeyAddrC);
-   addToFeed(TestChain::privKeyAddrD);
-   addToFeed(TestChain::privKeyAddrE);
-   addToFeed(TestChain::privKeyAddrF);
+   feed->addPrivKey(TestChain::privKeyAddrB);
+   feed->addPrivKey(TestChain::privKeyAddrC);
+   feed->addPrivKey(TestChain::privKeyAddrD);
+   feed->addPrivKey(TestChain::privKeyAddrE);
+   feed->addPrivKey(TestChain::privKeyAddrF);
 
    //public server
    startupBIP150CTX(4, true);
@@ -8640,14 +8561,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 {
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-   auto addToFeed = [feed](const BinaryData& key)->void
-   {
-      auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-      feed->h160ToPubKey_.insert(datapair);
-      feed->pubKeyToPrivKey_[datapair.second] = key;
-   };
-
-   addToFeed(TestChain::privKeyAddrB);
+   feed->addPrivKey(TestChain::privKeyAddrB);
 
    //public server
    startupBIP150CTX(4, true);
@@ -9283,19 +9197,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
    
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //grab utxos for scrAddrB
       auto promUtxo = make_shared<promise<vector<UTXO>>>();
@@ -9597,19 +9503,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
    
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //grab utxos for scrAddrB
       auto promUtxo = make_shared<promise<vector<UTXO>>>();
@@ -9927,19 +9825,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
    
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //grab utxos for scrAddrB & scrAddrC
       auto promUtxo = make_shared<promise<vector<UTXO>>>();
@@ -10272,19 +10162,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
    
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //grab utxos for scrAddrB & scrAddrC
       auto promUtxo = make_shared<promise<vector<UTXO>>>();
@@ -10619,19 +10501,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
    
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //grab utxos for scrAddrB & scrAddrC
       auto promUtxo = make_shared<promise<vector<UTXO>>>();
@@ -10962,19 +10836,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
    
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //grab utxos for scrAddrB & scrAddrC
       auto promUtxo = make_shared<promise<vector<UTXO>>>();
@@ -11294,19 +11160,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
    
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //grab utxos for scrAddrB & scrAddrC
       auto promUtxo = make_shared<promise<vector<UTXO>>>();
@@ -11639,19 +11497,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
    
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //grab utxos for scrAddrB & scrAddrC
       auto promUtxo = make_shared<promise<vector<UTXO>>>();
@@ -11984,19 +11834,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
    
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //grab utxos for scrAddrB & scrAddrC
       auto promUtxo = make_shared<promise<vector<UTXO>>>();
@@ -12383,19 +12225,11 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
    {
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //utxo from raw tx lambda
       auto getUtxoFromRawTx = [&outputMap](BinaryData& rawTx, unsigned id)->UTXO
@@ -13049,19 +12883,11 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
    {
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //utxo from raw tx lambda
       auto getUtxoFromRawTx = [&outputMap](BinaryData& rawTx, unsigned id)->UTXO
@@ -13711,19 +13537,11 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
    {
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //utxo from raw tx lambda
       auto getUtxoFromRawTx = [&outputMap](BinaryData& rawTx, unsigned id)->UTXO
@@ -14099,19 +13917,11 @@ TEST_F(WebSocketTests, WebSocketStack_RebroadcastInvalidBatch)
    
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
-      addToFeed(TestChain::privKeyAddrF);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrF);
 
       //grab utxos for scrAddrB
       auto promUtxo = make_shared<promise<vector<UTXO>>>();

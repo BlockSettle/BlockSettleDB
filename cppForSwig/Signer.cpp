@@ -13,9 +13,6 @@
 
 using namespace std;
 
-#define SCRIPT_SPENDER_VERSION_MAX 1
-#define SCRIPT_SPENDER_VERSION_MIN 0
-
 StackItem::~StackItem()
 {}
 
@@ -700,7 +697,7 @@ void ScriptSpender::processStacks()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptSpender::serializeState(
+void ScriptSpender::serializeStateHeader(
    Codec_SignerState::ScriptSpenderState& protoMsg) const
 {
    protoMsg.set_version_max(SCRIPT_SPENDER_VERSION_MAX);
@@ -715,7 +712,12 @@ void ScriptSpender::serializeState(
    protoMsg.set_is_p2sh(isP2SH_);
    protoMsg.set_is_csv(isCSV_);
    protoMsg.set_is_cltv(isCLTV_);
+}
 
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::serializeStateUtxo(
+   Codec_SignerState::ScriptSpenderState& protoMsg) const
+{
    if (hasUTXO())
    {
       auto utxoEntry = protoMsg.mutable_utxo();
@@ -731,7 +733,12 @@ void ScriptSpender::serializeState(
       outpoint->set_value(getValue());
       outpoint->set_isspent(false);
    }
+}
 
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::serializeLegacyState(
+   Codec_SignerState::ScriptSpenderState& protoMsg) const
+{
    if (legacyStatus_ == SpenderStatus_Signed)
    {
       //put resolved script
@@ -747,7 +754,12 @@ void ScriptSpender::serializeState(
          stackItem.second->serialize(*stackEntry);
       }
    }
+}
 
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::serializeSegwitState(
+   Codec_SignerState::ScriptSpenderState& protoMsg) const
+{
    if (segwitStatus_ == SpenderStatus_Signed)
    {
       //put resolved witness data
@@ -766,6 +778,16 @@ void ScriptSpender::serializeState(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::serializeState(
+   Codec_SignerState::ScriptSpenderState& protoMsg) const
+{
+   serializeStateHeader(protoMsg);
+   serializeStateUtxo(protoMsg);
+   serializeLegacyState(protoMsg);
+   serializeSegwitState(protoMsg);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
    const Codec_SignerState::ScriptSpenderState& protoMsg)
 {
@@ -774,7 +796,7 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
    if (maxVer != SCRIPT_SPENDER_VERSION_MAX || 
       minVer != SCRIPT_SPENDER_VERSION_MIN)
    {
-      throw runtime_error("serialized spender version mismatch");
+      throw SignerDeserializationError("serialized spender version mismatch");
    }
 
    shared_ptr<ScriptSpender> resultPtr;
@@ -788,13 +810,15 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
    {
       const auto& outpoint = protoMsg.outpoint();
       auto outpointHash = BinaryDataRef::fromString(outpoint.txhash());
+      if (outpointHash.getSize() != 32)
+         throw SignerDeserializationError("invalid outpoint hash");
 
       resultPtr = make_shared<ScriptSpender>(
          outpointHash, outpoint.txoutindex(), outpoint.value());
    }
    else
    {
-      throw runtime_error("missing utxo/outpoint");
+      throw SignerDeserializationError("missing utxo/outpoint");
    }
 
    resultPtr->legacyStatus_ = (SpenderStatus)protoMsg.legacy_status();
@@ -2093,13 +2117,13 @@ void Signer::deserializeState(
       {
          local_spender->merge(*spender);
          if (!local_spender->verifyEvalState(flags_))
-            throw runtime_error("merged spender has inconsistent state");
+            throw SignerDeserializationError("merged spender has inconsistent state");
       }
       else
       {
          spenders_.push_back(spender);
          if (!spenders_.back()->verifyEvalState(flags_))
-            throw runtime_error("unserialized spender has inconsistent state");
+            throw SignerDeserializationError("unserialized spender has inconsistent state");
       }
    }
 

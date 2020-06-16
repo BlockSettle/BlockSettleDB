@@ -19,6 +19,19 @@
 
 #include "protobuf/Signer.pb.h"
 
+#define SCRIPT_SPENDER_VERSION_MAX 1
+#define SCRIPT_SPENDER_VERSION_MIN 0
+
+////////////////////////////////////////////////////////////////////////////////
+class SignerDeserializationError : public std::runtime_error
+{
+public:
+   SignerDeserializationError(const std::string& e) :
+      std::runtime_error(e)
+   {}
+};
+
+////////////////////////////////////////////////////////////////////////////////
 enum SpenderStatus
 {
    //Not parsed yet/failed to parse entirely. This is 
@@ -56,7 +69,6 @@ private:
    bool isCSV_ = false;
    bool isCLTV_ = false;
 
-   UTXO utxo_;
    const uint64_t value_ = UINT64_MAX;
    unsigned sequence_ = UINT32_MAX;
    mutable BinaryData outpoint_;
@@ -69,6 +81,9 @@ private:
 
    SIGHASH_TYPE sigHashType_ = SIGHASH_ALL;
    BinaryData getSerializedOutpoint(void) const;
+
+protected:
+   UTXO utxo_;
 
 private:
    static BinaryData serializeScript(
@@ -89,6 +104,16 @@ private:
       const std::vector<std::shared_ptr<StackItem>>&, unsigned);
    void updateWitnessStack(
       const std::vector<std::shared_ptr<StackItem>>&, unsigned);
+
+protected:
+   virtual void serializeStateHeader(
+      Codec_SignerState::ScriptSpenderState&) const;
+   virtual void serializeStateUtxo(
+      Codec_SignerState::ScriptSpenderState&) const;
+   virtual void serializeLegacyState(
+      Codec_SignerState::ScriptSpenderState&) const;
+   virtual void serializeSegwitState(
+      Codec_SignerState::ScriptSpenderState&) const;
 
 public:
    ScriptSpender(

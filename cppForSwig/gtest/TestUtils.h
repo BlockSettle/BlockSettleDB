@@ -156,7 +156,8 @@ namespace DBTestUtils
 
    void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec, bool stage = false);
    void setNextZcPushDelay(unsigned);
-   std::pair<BinaryData, BinaryData> getAddrAndPubKeyFromPrivKey(BinaryData privKey);
+   std::pair<BinaryData, BinaryData> getAddrAndPubKeyFromPrivKey(
+      BinaryData privKey, bool compressed = false);
 
    Tx getTxByHash(Clients* clients, const std::string bdvId,
       const BinaryData& txHash);
@@ -482,25 +483,39 @@ namespace ResolverUtils
    ////////////////////////////////////////////////////////////////////////////////
    struct TestResolverFeed : public ResolverFeed
    {
-      std::map<BinaryData, BinaryData> h160ToPubKey_;
+   private:
+      std::map<BinaryData, BinaryData> hashToPreimage_;
       std::map<BinaryData, SecureBinaryData> pubKeyToPrivKey_;
 
-      BinaryData getByVal(const BinaryData& val)
+   public:
+      BinaryData getByVal(const BinaryData& val) override
       {
-         auto iter = h160ToPubKey_.find(val);
-         if (iter == h160ToPubKey_.end())
+         auto iter = hashToPreimage_.find(val);
+         if (iter == hashToPreimage_.end())
             throw std::runtime_error("invalid value");
 
          return iter->second;
       }
 
-      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
+      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey) override
       {
          auto iter = pubKeyToPrivKey_.find(pubkey);
          if (iter == pubKeyToPrivKey_.end())
             throw std::runtime_error("invalid pubkey");
 
          return iter->second;
+      }
+
+      void addPrivKey(const SecureBinaryData& key, bool compressed = false)
+      {
+         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key, compressed);
+         hashToPreimage_.insert(datapair);
+         pubKeyToPrivKey_[datapair.second] = key;
+      }
+
+      void addValPair(const BinaryData& key, const BinaryData& val)
+      {
+         hashToPreimage_.emplace(key, val);
       }
    };
 

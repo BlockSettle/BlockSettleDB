@@ -687,6 +687,9 @@ UTXO UTXO::fromProtobuf(const Codec_Utxo::Utxo& utxoProto)
    if (utxoProto.has_txhash())
       result.txHash_ = BinaryData::fromString(utxoProto.txhash());
 
+   if (result.txHash_.getSize() != 32)
+      throw runtime_error("invalid utxo hash size");
+
    return result;
 }
 
