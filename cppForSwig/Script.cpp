@@ -1336,6 +1336,9 @@ void StackResolver::resolveStack()
       case StackValueType_FromFeed:
       {
          //grab from feed
+         if (feed_ == nullptr)
+            break;
+
          auto fromFeed = dynamic_pointer_cast<StackValue_FromFeed>(
             stackItem->resolvedValue_);
          fromFeed->value_ = feed_->getByVal(fromFeed->requestString_);
@@ -1386,7 +1389,7 @@ void StackResolver::resolveStack()
             {
                auto thisKeyId = keyCount++;
                auto&& sig = proxy_->sign(script_, *pubkeyIter++, isSW_);
-               msObj->sig_.insert(make_pair(keyCount, move(sig)));
+               msObj->sig_.insert(make_pair(thisKeyId, move(sig)));
                ++sigCount;
                if (sigCount >= msObj->m_)
                   break;

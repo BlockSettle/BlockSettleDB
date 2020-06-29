@@ -938,6 +938,8 @@ public:
 
    virtual BinaryData getByVal(const BinaryData&) = 0;
    virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData&) = 0;
+   
+   virtual std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -964,6 +966,12 @@ public:
    const SecureBinaryData& getPrivKeyForPubkey(const BinaryData&)
    {
       throw std::runtime_error("invalid value");
+   }
+
+   std::vector<uint32_t> resolveBip32PathForPubkey(
+      const BinaryData& pubkey) override
+   {
+      return feedPtr_->resolveBip32PathForPubkey(pubkey);
    }
 };
 
@@ -1011,6 +1019,7 @@ struct StackItem_PushData : public StackItem
 
    bool isSame(const StackItem* obj) const override;
    void serialize(Codec_SignerState::StackEntryState&) const override;
+   bool isValid(void) const override { return !data_.empty(); }
 };
 
 ////
@@ -1078,7 +1087,10 @@ struct StackItem_SerializedScript : public StackItem
    void serialize(Codec_SignerState::StackEntryState&) const;
 };
 
-class SignerProxy;
+namespace ArmorySigner
+{
+   class SignerProxy;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 class ResolvedStack
@@ -1140,7 +1152,7 @@ private:
 
    const BinaryDataRef script_;
    std::shared_ptr<ResolverFeed> feed_;
-   std::shared_ptr<SignerProxy> proxy_;
+   std::shared_ptr<ArmorySigner::SignerProxy> proxy_;
 
 private:
    std::shared_ptr<ReversedStackEntry> pop_back(void)
@@ -1263,7 +1275,7 @@ private:
 public:
    StackResolver(BinaryDataRef script,
       std::shared_ptr<ResolverFeed> feed,
-      std::shared_ptr<SignerProxy> proxy) :
+      std::shared_ptr<ArmorySigner::SignerProxy> proxy) :
       script_(script), feed_(feed), proxy_(proxy)
    {}
 
@@ -1279,6 +1291,7 @@ public:
    std::shared_ptr<ResolvedStack> getResolvedStack();
    unsigned getFlags(void) const { return flags_; }
    void setFlags(unsigned flags) { flags_ = flags; }
+   std::shared_ptr<ResolverFeed> getFeed(void) const { return feed_; }
 };
 
 #endif
