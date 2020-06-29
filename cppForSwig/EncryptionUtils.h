@@ -305,7 +305,7 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    // For signing and verification, pass in original, UN-HASHED binary string.
    // For signing, k-value can use a PRNG or deterministic value (RFC 6979).
-   static SecureBinaryData SignData(SecureBinaryData const & binToSign, 
+   static SecureBinaryData SignData(BinaryData const & binToSign, 
       SecureBinaryData const & cppPrivKey, const bool& detSign = true);
 
    /////////////////////////////////////////////////////////////////////////////
