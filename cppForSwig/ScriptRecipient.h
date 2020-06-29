@@ -13,6 +13,8 @@
 #include "BinaryData.h"
 #include "BtcUtils.h"
 
+#include "protobuf/Signer.pb.h"
+
 ////
 enum SpendScriptType
 {
@@ -34,6 +36,8 @@ public:
    {}
 };
 
+class TxOut;
+
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptRecipient
 {
@@ -42,6 +46,7 @@ protected:
    uint64_t value_ = UINT64_MAX;
 
    BinaryData script_;
+   std::map<BinaryData, std::vector<uint32_t>> bip32Paths_;
 
 public:
    //tors
@@ -70,9 +75,21 @@ public:
       return value_; 
    }
    void setValue(uint64_t val) { value_ = val; }
+   void addBip32Path(const BinaryData&, const std::vector<uint32_t>&);
+   std::map<BinaryData, std::vector<uint32_t>> getBip32Paths(void) const
+   {
+      return bip32Paths_; 
+   }
+
+   void toProtobuf(Codec_SignerState::RecipientState&);
+   void toPSBT(BinaryWriter&) const;
 
    //static
-   static std::shared_ptr<ScriptRecipient> deserialize(const BinaryDataRef& dataPtr);
+   static std::shared_ptr<ScriptRecipient> fromScript(BinaryDataRef);
+   static std::shared_ptr<ScriptRecipient> fromPSBT(
+      BinaryRefReader& brr, const TxOut&);
+   static std::shared_ptr<ScriptRecipient> fromProtobuf(
+      const Codec_SignerState::RecipientState&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

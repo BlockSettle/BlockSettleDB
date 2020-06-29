@@ -22,11 +22,31 @@
 #define SCRIPT_SPENDER_VERSION_MAX 1
 #define SCRIPT_SPENDER_VERSION_MIN 0
 
+namespace ArmorySigner
+{
 ////////////////////////////////////////////////////////////////////////////////
 class SignerDeserializationError : public std::runtime_error
 {
 public:
    SignerDeserializationError(const std::string& e) :
+      std::runtime_error(e)
+   {}
+};
+
+////
+class SpenderException : public std::runtime_error
+{
+public:
+   SpenderException(const std::string& e) :
+      std::runtime_error(e)
+   {}
+};
+
+////
+class PSBTDeserializationError : public std::runtime_error
+{
+public:
+   PSBTDeserializationError (const std::string& e) :
       std::runtime_error(e)
    {}
 };
@@ -59,8 +79,8 @@ class ScriptSpender
 
 private:
    SpenderStatus segwitStatus_ = SpenderStatus_Unknown;
-   BinaryData witnessData_;
-   BinaryData inputScript_;
+   BinaryData finalWitnessData_;
+   BinaryData finalInputScript_;
 
    mutable BinaryData serializedInput_;
 
@@ -69,7 +89,6 @@ private:
    bool isCSV_ = false;
    bool isCLTV_ = false;
 
-   const uint64_t value_ = UINT64_MAX;
    unsigned sequence_ = UINT32_MAX;
    mutable BinaryData outpoint_;
 
@@ -82,6 +101,9 @@ private:
    SIGHASH_TYPE sigHashType_ = SIGHASH_ALL;
    BinaryData getSerializedOutpoint(void) const;
 
+   std::shared_ptr<std::map<BinaryData, Tx>> txMap_;
+   std::map<BinaryData, std::vector<uint32_t>> bip32Paths_;
+
 protected:
    UTXO utxo_;
 
@@ -93,7 +115,7 @@ private:
       unsigned& itemCount, bool no_throw=false);
 
    bool compareEvalState(const ScriptSpender&) const;
-   BinaryData getSerializedInputScript(void) const;
+   BinaryData getFinalizedInputScript(void) const;
 
    void parseScripts(StackResolver&);
    void processStacks();
@@ -105,6 +127,10 @@ private:
    void updateWitnessStack(
       const std::vector<std::shared_ptr<StackItem>>&, unsigned);
 
+   BinaryDataRef getRedeemScriptFromStack(
+      const std::map<unsigned, std::shared_ptr<StackItem>>*) const;
+   std::map<BinaryData, BinaryData> getPartialSigs(void) const;
+
 protected:
    virtual void serializeStateHeader(
       Codec_SignerState::ScriptSpenderState&) const;
@@ -115,10 +141,17 @@ protected:
    virtual void serializeSegwitState(
       Codec_SignerState::ScriptSpenderState&) const;
 
+   void serializePSBTData(
+      Codec_SignerState::ScriptSpenderState&) const;
+   
+private:
+   ScriptSpender(void)
+   {}
+
+   void merge(const ScriptSpender&);
+
 public:
-   ScriptSpender(
-      const BinaryDataRef txHash, unsigned index, uint64_t value) :
-      value_(value)
+   ScriptSpender(const BinaryDataRef txHash, unsigned index)
    {
       BinaryWriter bw;
       bw.put_BinaryDataRef(txHash);
@@ -128,11 +161,11 @@ public:
    }
 
    ScriptSpender(const UTXO& utxo) :
-      utxo_(utxo), value_(utxo.getValue())
+      utxo_(utxo)
    {}
 
    ScriptSpender(const UTXO& utxo, std::shared_ptr<ResolverFeed> feed) :
-      utxo_(utxo), value_(utxo.getValue()), resolverFeed_(feed)
+      utxo_(utxo), resolverFeed_(feed)
    {}
 
    virtual ~ScriptSpender() = default;
@@ -153,11 +186,12 @@ public:
    BinaryDataRef getOutputHash(void) const;
    unsigned getOutputIndex(void) const;
    BinaryData getSerializedInput(bool) const;
+   BinaryData serializeEmptyInput(void) const;
    BinaryData serializeAvailableStack(void) const;
-   BinaryDataRef getWitnessData(void) const;
+   BinaryDataRef getFinalizedWitnessData(void) const;
    BinaryData serializeAvailableWitnessData(void) const;
    BinaryDataRef getOutpoint(void) const;
-   uint64_t getValue(void) const { return value_; }
+   uint64_t getValue(void) const;
    std::shared_ptr<ResolverFeed> getFeed(void) const { return resolverFeed_; }
    const UTXO& getUtxo(void) const { return utxo_; }
    void setUtxo(const UTXO& utxo) { utxo_ = utxo; }
@@ -201,19 +235,38 @@ public:
    static std::shared_ptr<ScriptSpender> deserializeState(
       const Codec_SignerState::ScriptSpenderState&);
 
-   void merge(const ScriptSpender&);
-   bool hasUTXO(void) const { return utxo_.isInitialized(); }
+   bool canBeResolved(void) const;
 
    bool hasFeed(void) const { return resolverFeed_ != nullptr; }
    void setFeed(std::shared_ptr<ResolverFeed> feedPtr) { resolverFeed_ = feedPtr; }
 
    bool operator==(const ScriptSpender& rhs)
    {
-      return this->getOutpoint() == rhs.getOutpoint();
+      try
+      {
+         return this->getOutpoint() == rhs.getOutpoint();
+      }
+      catch (const std::exception&)
+      {
+         return false;
+      }
    }
 
    bool verifyEvalState(unsigned);
    void injectSignature(SecureBinaryData&, unsigned sigId = UINT32_MAX);
+
+   void toPSBT(BinaryWriter& bw, std::shared_ptr<ResolverFeed>) const;
+   static std::shared_ptr<ScriptSpender> fromPSBT(
+      BinaryRefReader&, const TxIn&, std::shared_ptr<std::map<BinaryData, Tx>>);
+
+   void setTxMap(std::shared_ptr<std::map<BinaryData, Tx>>);
+   bool setSupportingTx(BinaryDataRef rawTx);
+   bool setSupportingTx(Tx);
+
+   const Tx& getSupportingTx(void) const;
+   bool haveSupportingTx(void) const;
+   std::map<unsigned, BinaryData> getRelevantPubkeys(
+      const std::shared_ptr<ResolverFeed>) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -233,22 +286,27 @@ protected:
    std::vector<std::shared_ptr<ScriptRecipient>> recipients_;
 
    std::shared_ptr<ResolverFeed> resolverPtr_;
+   std::shared_ptr<std::map<BinaryData, Tx>> supportingTxMap_;
 
 protected:
    virtual std::shared_ptr<SigHashData> getSigHashDataForSpender(bool) const;
-   SecureBinaryData sign(
+   SecureBinaryData signScript(
       BinaryDataRef script,
       const SecureBinaryData& privKey, 
       std::shared_ptr<SigHashData>,
       unsigned index);
 
-   static std::unique_ptr<TransactionVerifier> getVerifier(std::shared_ptr<BCTX>,
+   static std::unique_ptr<TransactionVerifier> getVerifier(
+      std::shared_ptr<BCTX>,
       std::map<BinaryData, std::map<unsigned, UTXO>>&);
 
    BinaryData serializeAvailableResolvedData(void) const;
 
    static Signer createFromState(const std::string&);
    static Signer createFromState(const Codec_SignerState::SignerState&);
+   void deserializeSupportingTxMap(const Codec_SignerState::SignerState&);
+
+   void parseScripts(bool);
 
 public:
    Signer(void) :
@@ -256,11 +314,30 @@ public:
          SCRIPT_VERIFY_P2SH | 
          SCRIPT_VERIFY_SEGWIT | 
          SCRIPT_VERIFY_P2SH_SHA256)
-   {}
+   {
+      supportingTxMap_ = std::make_shared<std::map<BinaryData, Tx>>();
+   }
 
    Signer(const Codec_SignerState::SignerState&);
 
-   //static
+   /*sigs*/
+
+   //create sigs
+   void sign(void);
+   void injectSignature(
+      unsigned, SecureBinaryData&, unsigned sigId = UINT32_MAX);
+
+   //sighash prestate methods
+   BinaryData serializeAllOutpoints(void) const override;
+   BinaryData serializeAllSequences(void) const override;
+   BinaryDataRef getOutpoint(unsigned) const override;
+
+   //checks sigs
+   bool verify(void) const;
+   bool verifyRawTx(const BinaryData& rawTx,
+      const std::map<BinaryData, std::map<unsigned, BinaryData> >& rawUTXOs);
+
+   TxEvalState evaluateSignedState(void) const;
    static TxEvalState verify(
       const BinaryData&, //raw tx
       std::map<BinaryData, std::map<unsigned, UTXO>>&, //supporting outputs
@@ -268,86 +345,80 @@ public:
       bool strict = true //strict verification (check balances)
       );
 
-   //locals
-   void addSpender(std::shared_ptr<ScriptSpender> spender)
-   { spenders_.push_back(spender); }
+   /*script fetching*/
 
-   virtual void addSpender_ByOutpoint(
-      const BinaryData& hash, unsigned index, unsigned sequence, uint64_t value);
-   
-   void addRecipient(std::shared_ptr<ScriptRecipient> recipient)
-   { recipients_.push_back(recipient); }
-
-   //resolve output scripts, fill public data when applicable
-   void resolveSpenders(void);
-
-   //resolve spenders & sign them
-   void sign(void);
-
-   BinaryDataRef serializeSignedTx(void) const;
-   BinaryDataRef serializeUnsignedTx(bool loose = false);
-   
-   //verify tx signatures
-   bool verify(void);
-   bool verifyRawTx(const BinaryData& rawTx,
-      const std::map<BinaryData, std::map<unsigned, BinaryData> >& rawUTXOs);
-
-   ////
    BinaryDataRef getSerializedOutputScripts(void) const override;
    std::vector<TxInData> getTxInsData(void) const override;   
    BinaryData getSubScript(unsigned index) const override;
    BinaryDataRef getWitnessData(unsigned inputId) const override;
-   bool isInputSW(unsigned inputId) const;
+   static std::map<unsigned, BinaryData> getPubkeysForScript(
+      BinaryDataRef&, std::shared_ptr<ResolverFeed>);
 
-   uint32_t getVersion(void) const override { return version_; }
-   uint32_t getTxOutCount(void) const override { return recipients_.size(); }
+   /*spender data getters*/
+
    std::shared_ptr<ScriptSpender> getSpender(unsigned) const;
-
-   uint32_t getLockTime(void) const override { return lockTime_; }
-   void setLockTime(unsigned locktime) { lockTime_ = locktime; }
-   void setVersion(unsigned version) { version_ = version; }
-
-   //sw methods
-   BinaryData serializeAllOutpoints(void) const override;
-   BinaryData serializeAllSequences(void) const override;
-   BinaryDataRef getOutpoint(unsigned) const override;
    uint64_t getOutpointValue(unsigned) const override;
    unsigned getTxInSequence(unsigned) const override;
 
+   /*ser/deser operations*/
+
+   //serialize tx
+   BinaryDataRef serializeSignedTx(void) const;
+   BinaryDataRef serializeUnsignedTx(bool loose = false);
+   
+   BinaryData getTxId(void);
+
+   //state import/export
    Codec_SignerState::SignerState serializeState(void) const;
    void deserializeState(const Codec_SignerState::SignerState&);
+   void merge(Signer& rhs);
+
+   //PSBT
+   BinaryData toPSBT(void) const;
+   static Signer fromPSBT(BinaryDataRef);
+   static Signer fromPSBT(const std::string&);
+
+   /*signer state*/
+
+   //state resolution
+   void resolveSpenders(void);
+   bool verifySpenderEvalState(void) const;
+
+   //sig state
    bool isResolved(void) const;
    bool isSigned(void) const;
    
-   void setFeed(std::shared_ptr<ResolverFeed> feedPtr) { resolverPtr_ = feedPtr; }
-   void resetFeeds(void);
-   void populateUtxo(const UTXO& utxo);
-
-   BinaryData getTxId(void);
-
-   TxEvalState evaluateSignedState(void)
-   {
-      auto&& txdata = serializeAvailableResolvedData();
-
-      std::map<BinaryData, std::map<unsigned, UTXO>> utxoMap;
-      unsigned flags = 0;
-      for (auto& spender : spenders_)
-      {
-         auto& indexMap = utxoMap[spender->getOutputHash()];
-         indexMap[spender->getOutputIndex()] = spender->getUtxo();
-
-         flags |= spender->getFlags();
-      }
-
-      return verify(txdata, utxoMap, flags, true);
-   }
-
-   bool verifySpenderEvalState(void) const;
+   //sw state
+   bool isInputSW(unsigned inputId) const;
    bool isSegWit(void) const;
    bool hasLegacyInputs (void) const;
 
-   void injectSignature(
-      unsigned, SecureBinaryData&, unsigned sigId = UINT32_MAX);
+   /*signer setup*/
+
+   //tx setup
+   uint32_t getLockTime(void) const override { return lockTime_; }
+   void setLockTime(unsigned locktime) { lockTime_ = locktime; }
+   uint32_t getVersion(void) const override { return version_; }
+   void setVersion(unsigned version) { version_ = version; }
+
+   //spender setup
+   void populateUtxo(const UTXO& utxo);
+   void addSpender(std::shared_ptr<ScriptSpender>);
+   virtual void addSpender_ByOutpoint(
+      const BinaryData& hash, unsigned index, unsigned sequence);
+   
+   //recipient setup
+   void addRecipient(std::shared_ptr<ScriptRecipient> recipient)
+   { recipients_.push_back(recipient); }
+   uint32_t getTxOutCount(void) const override { return recipients_.size(); }
+ 
+   //feeds setup
+   void setFeed(std::shared_ptr<ResolverFeed> feedPtr) { resolverPtr_ = feedPtr; }
+   void resetFeeds(void);
+
+   //supporting tx
+   void addSupportingTx(BinaryDataRef);
+   void addSupportingTx(Tx);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -378,19 +449,93 @@ private:
 
 public:
    SignerProxyFromSigner(Signer* signer,
-      unsigned index)
-   {
-      auto spender = signer->getSpender(index);
-      setLambda(signer, spender, index, spender->getFeed());
-   }
-
-   SignerProxyFromSigner(Signer* signer,
       unsigned index, std::shared_ptr<ResolverFeed> feedPtr)
    {
       auto spender = signer->getSpender(index);
       setLambda(signer, spender, index, feedPtr);
    }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+struct ResolverFeed_SpenderResolutionChecks : public ResolverFeed
+{
+   std::map<BinaryData, BinaryData> hashMap;
+
+   BinaryData getByVal(const BinaryData& val) override
+   {
+      auto iter = hashMap.find(val);
+      if (iter == hashMap.end())
+         throw std::runtime_error("invalid value");
+
+      return iter->second;
+   }
+      
+   const SecureBinaryData& getPrivKeyForPubkey(const BinaryData&) override
+   {
+      throw std::runtime_error("invalid value");
+   }
+
+   std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) override
+   {
+      throw std::runtime_error("invalid pubkey");
+   }
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+namespace PSBT
+{
+   /////////////////////////////////////////////////////////////////////////////
+   enum ENUM_GLOBAL
+   {
+      PSBT_GLOBAL_UNSIGNED_TX = 0,
+      PSBT_GLOBAL_XPUB        = 1,
+      PSBT_GLOBAL_VERSION     = 0xfb,
+      PSBT_GLOBAL_PROPRIETARY = 0xfc,
+      PSBT_GLOBAL_SEPARATOR   = 0xff,
+      PSBT_GLOBAL_MAGICWORD   = 0x70736274
+   };
+
+   ////
+   enum ENUM_INPUT
+   {
+      PSBT_IN_NON_WITNESS_UTXO      = 0,
+      PSBT_IN_WITNESS_UTXO          = 1, 
+      PSBT_IN_PARTIAL_SIG           = 2,
+      PSBT_IN_SIGHASH_TYPE          = 3,
+      PSBT_IN_REDEEM_SCRIPT         = 4,
+      PSBT_IN_WITNESS_SCRIPT        = 5,
+      PSBT_IN_BIP32_DERIVATION      = 6,
+      PSBT_IN_FINAL_SCRIPTSIG       = 7,
+      PSBT_IN_FINAL_SCRIPTWITNESS   = 8,
+      PSBT_IN_POR_COMMITMENT        = 9,
+      PSBT_IN_PROPRIETARY           = 0xfc
+   };
+
+   ////
+   enum ENUM_OUTPUT
+   {
+      PSBT_OUT_REDEEM_SCRIPT     = 0,
+      PSBT_OUT_WITNESS_SCRIPT    = 1,
+      PSBT_OUT_BIP32_DERIVATION  = 2,
+      PSBT_OUT_PROPRIETARY       = 0xfc
+   };
+
+   //exceptions
+   class DeserError : std::runtime_error
+   {
+   public:
+      DeserError(const std::string& err) :
+         std::runtime_error(err)
+      {}
+   };
+
+   //ser
+   void init(BinaryWriter&);
+   void setUnsignedTx(BinaryWriter&, const BinaryData&);
+   void setSeparator(BinaryWriter&);
+}; //namespace ArmorySigner::PSBT
+}; //namespace ArmorySigner
 
 #endif
 

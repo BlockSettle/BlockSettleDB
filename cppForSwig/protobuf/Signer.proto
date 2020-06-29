@@ -37,6 +37,12 @@ message StackEntryState
     }
 };
 
+message PSBT_BIP32Path
+{
+    required bytes pubkey = 1;
+    repeated uint32 steps = 2;
+};
+
 message ScriptSpenderState
 {
     required uint32 version_max = 1;
@@ -62,6 +68,14 @@ message ScriptSpenderState
 
     repeated StackEntryState legacy_stack = 42;
     repeated StackEntryState witness_stack = 43;
+
+    repeated PSBT_BIP32Path bip32Paths = 50;
+}
+
+message RecipientState
+{
+    required bytes data = 1;
+    repeated PSBT_BIP32Path bip32Paths = 10;
 }
 
 message SignerState
@@ -72,5 +86,6 @@ message SignerState
     required uint32 locktime = 11;
 
     repeated ScriptSpenderState spenders = 20;
-    repeated bytes recipients = 21;
+    repeated RecipientState recipients = 21;
+    repeated bytes supportingtx = 22;
 }
