@@ -278,8 +278,8 @@ public:
    const BinaryData& createBIP32Account(
       std::shared_ptr<AssetEntry_BIP32Root> parentNode,
       std::vector<unsigned> derPath,
-      bool isMain = false);
-   const BinaryData& createBIP32Account(
+      bool isSegWit, bool isMain = false);
+   const BinaryData& createCustomBIP32Account(
       std::shared_ptr<AssetEntry_BIP32Root> parentNode,
       std::vector<unsigned> derPath,
       std::shared_ptr<AccountType_BIP32_Custom>);
@@ -502,7 +502,7 @@ public:
    }
 
    //virtual
-   BinaryData getByVal(const BinaryData& key)
+   BinaryData getByVal(const BinaryData& key) override
    {
       //check cached hits first
       auto iter = hash_to_preimage_.find(key);
@@ -532,7 +532,8 @@ public:
       return addrPtr->getPreimage();
    }
 
-   virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
+   virtual const SecureBinaryData& getPrivKeyForPubkey(
+      const BinaryData& pubkey) override
    {
       //check cache first
       auto pubkeyref = BinaryDataRef(pubkey);
@@ -578,6 +579,11 @@ public:
       DecryptedDataContainerException means the wallet failed to decrypt the 
       encrypted pubkey (bad passphrase or unlocked wallet most likely).
       */
+   }
+
+   std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) override
+   {
+      throw std::runtime_error("invalid pubkey");
    }
 
    void seedFromAddressEntry(std::shared_ptr<AddressEntry> addrPtr)
@@ -682,14 +688,14 @@ public:
    }
 
    //virtual
-   BinaryData getByVal(const BinaryData&)
+   BinaryData getByVal(const BinaryData&) override
    {
       //find id for the key
       throw std::runtime_error("no preimages in multisig feed");
       return BinaryData();
    }
 
-   virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
+   virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey) override
    {
       auto pubkeyref = BinaryDataRef(pubkey);
       auto iter = pubkey_to_asset_.find(pubkeyref);
@@ -698,6 +704,11 @@ public:
 
       const auto& privkeyAsset = iter->second->getPrivKey();
       return wltPtr_->getDecryptedValue(privkeyAsset);
+   }
+
+   std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) override
+   {
+      throw std::runtime_error("invalid pubkey");
    }
 };
 

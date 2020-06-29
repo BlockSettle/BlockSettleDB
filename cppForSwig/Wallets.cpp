@@ -965,7 +965,7 @@ const string& AssetWallet::getDescription() const
 ////////////////////////////////////////////////////////////////////////////////
 const BinaryData& AssetWallet_Single::createBIP32Account(
    shared_ptr<AssetEntry_BIP32Root> parentNode, 
-   vector<unsigned> derPath, bool isMain)
+   vector<unsigned> derPath, bool isSegWit, bool isMain)
 {
    shared_ptr<AssetEntry_BIP32Root> root = parentNode;
    if (parentNode == nullptr)
@@ -974,7 +974,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
    if (root == nullptr)
       throw AccountException("no valid root to create BIP32 account from");
 
-   shared_ptr<AccountType_BIP32_Legacy> accountTypePtr = nullptr;
+   shared_ptr<AccountType_BIP32> accountTypePtr = nullptr;
    if(root->getPrivKey() != nullptr)
    {
       //try to decrypt the root's private key to get full derivation
@@ -988,9 +988,18 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
          auto chaincode = root->getChaincode();
 
          SecureBinaryData dummy;
-         accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
-            privKey, dummy, chaincode, derPath,
-            root->getDepth(), root->getLeafID());
+         if (!isSegWit)
+         {
+            accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
+               privKey, dummy, chaincode, derPath,
+               root->getDepth(), root->getLeafID());
+         }
+         else
+         {
+            accountTypePtr = make_shared<AccountType_BIP32_SegWit>(
+               privKey, dummy, chaincode, derPath,
+               root->getDepth(), root->getLeafID());
+         }
       }
       catch(exception&)
       {}
@@ -1004,9 +1013,18 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
       auto chaincode = root->getChaincode();
 
       SecureBinaryData dummy1;
-      accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
-         dummy1, pubkey, chaincode, derPath,
-         root->getDepth(), root->getLeafID());
+      if (!isSegWit)
+      {
+         accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
+            dummy1, pubkey, chaincode, derPath,
+            root->getDepth(), root->getLeafID());
+      }
+      else
+      {
+         accountTypePtr = make_shared<AccountType_BIP32_SegWit>(
+            dummy1, pubkey, chaincode, derPath,
+            root->getDepth(), root->getLeafID());
+      }
    }
 
    if (isMain || accounts_.size() == 0)
@@ -1019,7 +1037,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AssetWallet_Single::createBIP32Account(
+const BinaryData& AssetWallet_Single::createCustomBIP32Account(
    std::shared_ptr<AssetEntry_BIP32Root> parentNode,
    std::vector<unsigned> derPath,
    std::shared_ptr<AccountType_BIP32_Custom> accTypePtr)
