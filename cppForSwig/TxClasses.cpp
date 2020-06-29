@@ -363,7 +363,7 @@ BinaryData Tx::serializeNoWitness(void) const
 }
 
 /////////////////////////////////////////////////////////////////////////////
-BinaryData Tx::getThisHash(void) const
+const BinaryData& Tx::getThisHash(void) const
 {
    if (thisHash_.getSize() == 0)
    {
@@ -424,6 +424,9 @@ bool Tx::isSegWit() const
 TxIn Tx::getTxInCopy(int i) const
 {
    assert(isInitialized());
+   if (offsetsTxIn_.empty() || i >= offsetsTxIn_.size() - 1)
+      throw range_error("index out of bound");
+
    uint32_t txinSize = offsetsTxIn_[i + 1] - offsetsTxIn_[i];
    TxIn out;
    out.unserialize_checked(
@@ -440,12 +443,8 @@ TxIn Tx::getTxInCopy(int i) const
 // information, so it can probably just be computed on the fly
 TxOut Tx::getTxOutCopy(int i) const
 {
-   if (!isInitialized())
-      int abc = 0;
-
-   assert(isInitialized());
-   
-   if (i >= offsetsTxOut_.size() - 1)
+   assert(isInitialized());  
+   if (offsetsTxOut_.empty() || i >= offsetsTxOut_.size() - 1)
       throw range_error("index out of bound");
 
    uint32_t txoutSize = offsetsTxOut_[i + 1] - offsetsTxOut_[i];
@@ -587,8 +586,8 @@ void Tx::pprintAlot(ostream &) const
 BinaryData UTXO::serialize() const
 {
    BinaryWriter bw;
-   //8 + 4 + 2 + 2 + 32 + scriptsize
-   bw.reserve(18 + txHash_.getSize() + script_.getSize());
+   //8 + 4 + 2 + 2 + (1 + hash) + (3 + script) + 4
+   bw.reserve(26 + txHash_.getSize() + script_.getSize());
    bw.put_uint64_t(value_);
    bw.put_uint32_t(txHeight_);
    bw.put_uint16_t(txIndex_);
@@ -601,7 +600,19 @@ BinaryData UTXO::serialize() const
    bw.put_BinaryData(script_);
    bw.put_uint32_t(preferredSequence_);
 
-   return move(bw.getData());
+   return bw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData UTXO::serializeTxOut() const
+{
+   BinaryWriter bw;
+   bw.reserve(11 + script_.getSize());
+   bw.put_uint64_t(value_);
+   bw.put_var_int(script_.getSize());
+   bw.put_BinaryData(script_);
+
+   return bw.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
