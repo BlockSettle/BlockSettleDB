@@ -2034,6 +2034,9 @@ public:
    
    ////
    static int get_varint_len(const int64_t& value);
+
+   ////
+   static std::map<BinaryDataRef, BinaryDataRef> getPSBTDataPairs(BinaryRefReader&);
 };
    
 #endif
