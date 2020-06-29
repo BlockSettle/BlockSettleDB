@@ -13,6 +13,7 @@
 
 #include "TestUtils.h"
 using namespace std;
+using namespace ArmorySigner;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -8929,6 +8930,11 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
                throw std::runtime_error("invalid value");
             return iter->second;
          }
+
+         std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) override
+         {
+            throw std::runtime_error("invalid pubkey");
+         }
       };
 
       auto zcFeed = make_shared<ResolverUT>(keyPairs);
@@ -11960,7 +11966,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
          Signer signer;
 
          auto spender1 = make_shared<ScriptSpender>(utxoD);
-         auto spender2 = make_shared<ScriptSpender>(utxoD);
+         auto spender2 = make_shared<ScriptSpender>(utxoE);
          signer.addSpender(spender1);
          signer.addSpender(spender2);
 
