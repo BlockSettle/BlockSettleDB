@@ -768,7 +768,7 @@ void AddressAccount::make_new(
             -1, full_account_id,
             pubkey, nullptr,
             chaincode,
-            node.getDepth(), node.getLeafID(), node.getFingerPrint());
+            node.getDepth(), node.getLeafID(), node.getParentFingerprint());
       }
       else
       {
@@ -806,7 +806,7 @@ void AddressAccount::make_new(
             -1, full_account_id,
             pubkey, priv_asset,
             chaincode,
-            node.getDepth(), node.getLeafID(), node.getFingerPrint());
+            node.getDepth(), node.getLeafID(), node.getParentFingerprint());
       }
 
       return rootAsset;
