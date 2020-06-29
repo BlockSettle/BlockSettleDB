@@ -21,7 +21,7 @@ private:
    SecureBinaryData pubkey_;
 
    uint32_t depth_ = 0;
-   uint32_t fingerprint_ = 0;
+   uint32_t parentFingerprint_ = 0;
    uint32_t child_num_ = 0;
 
 private:
@@ -30,7 +30,7 @@ private:
    void init(void);
 
    void setupNode(btc_hdnode*) const;
-   void setupFromNode(btc_hdnode*);
+   void setupFromNode(const btc_hdnode*);
 
 public:
    BIP32_Node(void)
@@ -46,7 +46,8 @@ public:
    //gets
    SecureBinaryData getBase58(void) const { return encodeBase58(); }
    uint8_t getDepth(void) const { return depth_; }
-   uint32_t getFingerPrint(void) const { return fingerprint_; }
+   uint32_t getParentFingerprint(void) const { return parentFingerprint_; }
+   uint32_t getThisFingerprint(void) const;
    unsigned getLeafID(void) const { return child_num_; }
    BIP32_Node getPublicCopy(void) const;
 
