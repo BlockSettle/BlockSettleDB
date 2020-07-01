@@ -122,10 +122,8 @@ private:
 
    void updateStack(std::map<unsigned, std::shared_ptr<StackItem>>&,
       const std::vector<std::shared_ptr<StackItem>>&);
-   void updateLegacyStack(
-      const std::vector<std::shared_ptr<StackItem>>&, unsigned);
-   void updateWitnessStack(
-      const std::vector<std::shared_ptr<StackItem>>&, unsigned);
+   void updateLegacyStack(const std::vector<std::shared_ptr<StackItem>>&);
+   void updateWitnessStack(const std::vector<std::shared_ptr<StackItem>>&);
 
    BinaryDataRef getRedeemScriptFromStack(
       const std::map<unsigned, std::shared_ptr<StackItem>>*) const;
@@ -254,6 +252,7 @@ public:
 
    bool verifyEvalState(unsigned);
    void injectSignature(SecureBinaryData&, unsigned sigId = UINT32_MAX);
+   void sign(std::shared_ptr<SignerProxy>);
 
    void toPSBT(BinaryWriter& bw, std::shared_ptr<ResolverFeed>) const;
    static std::shared_ptr<ScriptSpender> fromPSBT(
@@ -381,7 +380,7 @@ public:
    /*signer state*/
 
    //state resolution
-   void resolveSpenders(void);
+   void resolvePublicData(void);
    bool verifySpenderEvalState(void) const;
 
    //sig state
@@ -479,6 +478,10 @@ struct ResolverFeed_SpenderResolutionChecks : public ResolverFeed
    {
       throw std::runtime_error("invalid pubkey");
    }
+
+   void setBip32PathForPubkey(
+      const BinaryData&, const std::vector<uint32_t>&) override
+   {}
 };
 
 

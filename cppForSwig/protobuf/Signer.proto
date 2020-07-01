@@ -18,11 +18,20 @@ message StackEntryState_Data
     repeated bytes data = 1;
 };
 
+message StackEntryState_Sig
+{
+    required bytes script = 1;
+    required bytes pubkey = 2;
+};
+
 message StackEntryState_MultiSig
 {
     required uint32 m = 1;
-    repeated uint32 sig_index = 2;
-    repeated bytes  sig_data = 3;
+    required bytes  script = 2;
+
+    repeated uint32 sig_index = 10;
+    repeated bytes  pubkey_data = 11;
+    repeated bytes  sig_data = 12;
 };
 
 message StackEntryState
@@ -34,6 +43,7 @@ message StackEntryState
         bytes stackentry_data = 10;
         uint32 opcode = 11;
         StackEntryState_MultiSig multisig_data = 12;
+        StackEntryState_Sig sig_data = 13;
     }
 };
 

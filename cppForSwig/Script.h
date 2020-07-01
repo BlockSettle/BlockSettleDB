@@ -47,6 +47,9 @@ struct OpCode
    size_t offset_;
    uint8_t opcode_;
    BinaryDataRef dataRef_;
+
+   virtual ~OpCode(void) 
+   {}
 };
 
 struct ReversedStackEntry;
@@ -868,7 +871,7 @@ struct StackValue_FromFeed : public StackValue
 struct StackValue_Sig : public StackValue
 {
    std::shared_ptr<ReversedStackEntry> pubkeyRef_;
-   SecureBinaryData sig_;
+   BinaryData script_;
 
    StackValue_Sig(std::shared_ptr<ReversedStackEntry> ref) :
       StackValue(StackValueType_Sig), pubkeyRef_(ref)
@@ -878,11 +881,11 @@ struct StackValue_Sig : public StackValue
 ////
 struct StackValue_Multisig : public StackValue
 {
-   const std::vector<BinaryDataRef> pubkeyVec_;
-   std::map<unsigned, SecureBinaryData> sig_;
+   std::vector<BinaryData> pubkeyVec_;
+   BinaryData script_;
    const unsigned m_;
 
-   StackValue_Multisig(std::vector<BinaryDataRef> pubkeyVec, unsigned m) :
+   StackValue_Multisig(std::vector<BinaryData>& pubkeyVec, unsigned m) :
       StackValue(StackValueType_Multisig), 
       pubkeyVec_(std::move(pubkeyVec)), m_(m)
    {}
@@ -939,42 +942,12 @@ public:
    virtual BinaryData getByVal(const BinaryData&) = 0;
    virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData&) = 0;
    
+   virtual void setBip32PathForPubkey(
+      const BinaryData&, const std::vector<uint32_t>&) = 0;
    virtual std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class ResolverFeedPublic : public ResolverFeed
-{
-   //can only return public wallet data
-
-private:
-   ResolverFeed* feedPtr_ = nullptr;
-
-public:
-   ResolverFeedPublic(ResolverFeed* feedPtr) :
-      feedPtr_(feedPtr)
-   {}
-
-   BinaryData getByVal(const BinaryData& key)
-   {
-      if (feedPtr_ == nullptr)
-         throw std::runtime_error("invalid value");
-
-      return feedPtr_->getByVal(key);
-   }
-
-   const SecureBinaryData& getPrivKeyForPubkey(const BinaryData&)
-   {
-      throw std::runtime_error("invalid value");
-   }
-
-   std::vector<uint32_t> resolveBip32PathForPubkey(
-      const BinaryData& pubkey) override
-   {
-      return feedPtr_->resolveBip32PathForPubkey(pubkey);
-   }
-};
-
 enum StackItemType
 {
    StackItemType_PushData,
@@ -984,7 +957,7 @@ enum StackItemType
    StackItemType_SerializedScript
 };
 
-////////////////////////////////////////////////////////////////////////////////
+////
 struct StackItem
 {
 protected:
@@ -1025,25 +998,42 @@ struct StackItem_PushData : public StackItem
 ////
 struct StackItem_Sig : public StackItem
 {
-   const SecureBinaryData data_;
+   const BinaryData pubkey_;
+   const BinaryData script_;
+   SecureBinaryData sig_;
 
-   StackItem_Sig(unsigned id, SecureBinaryData&& data) :
-      StackItem(StackItemType_Sig, id), data_(std::move(data))
+   StackItem_Sig(unsigned id, BinaryData& pubkey, BinaryData& script) :
+      StackItem(StackItemType_Sig, id), 
+      pubkey_(std::move(pubkey)), 
+      script_(std::move(script))
    {}
 
    bool isSame(const StackItem* obj) const override; 
    void serialize(Codec_SignerState::StackEntryState&) const override;
-   bool isValid(void) const override { return !data_.empty(); }
+   void injectSig(SecureBinaryData& sig)
+   {
+      sig_ = std::move(sig);
+   }
+   bool isValid(void) const override 
+   { 
+      return !sig_.empty(); 
+   }
 };
 
 ////
 struct StackItem_MultiSig : public StackItem
 {
    std::map<unsigned, SecureBinaryData> sigs_;
+   const std::vector<BinaryData> pubkeyVec_;
+   const BinaryData script_;
    const unsigned m_;
 
-   StackItem_MultiSig(unsigned id, unsigned m) :
-      StackItem(StackItemType_MultiSig, id), m_(m)
+   StackItem_MultiSig(
+      unsigned id, unsigned m, 
+      std::vector<BinaryData>& pubkeyVec, 
+      BinaryData& script) :
+      StackItem(StackItemType_MultiSig, id), m_(m),
+      pubkeyVec_(std::move(pubkeyVec)), script_(std::move(script))
    {}
 
    void setSig(unsigned id, SecureBinaryData& sig)
@@ -1098,19 +1088,13 @@ class ResolvedStack
    friend class StackResolver;
 
 private:
-   bool isValid_ = false;
    bool isP2SH_ = false;
 
    std::vector<std::shared_ptr<StackItem>> stack_;
-   unsigned sigCount_ = 0;
-
    std::shared_ptr<ResolvedStack> witnessStack_ = nullptr;
 
 public:
-   bool isValid(void) const { return isValid_; }
    bool isP2SH(void) const { return isP2SH_; }
-   unsigned getSigCount(void) const { return sigCount_; }
-
    void flagP2SH(bool flag) { isP2SH_ = flag; }
    size_t stackSize(void) const { return stack_.size(); }
 
@@ -1124,11 +1108,9 @@ public:
       witnessStack_ = stack;
    }
 
-   void setStackData(std::vector<std::shared_ptr<StackItem>> stack, 
-      unsigned sigCount)
+   void setStackData(std::vector<std::shared_ptr<StackItem>> stack)
    { 
       stack_.insert(stack_.end(), stack.begin(), stack.end());
-      sigCount_ += sigCount;
    }
 
    const std::vector<std::shared_ptr<StackItem>>& getStack(void) const
@@ -1152,7 +1134,6 @@ private:
 
    const BinaryDataRef script_;
    std::shared_ptr<ResolverFeed> feed_;
-   std::shared_ptr<ArmorySigner::SignerProxy> proxy_;
 
 private:
    std::shared_ptr<ReversedStackEntry> pop_back(void)
@@ -1274,9 +1255,8 @@ private:
 
 public:
    StackResolver(BinaryDataRef script,
-      std::shared_ptr<ResolverFeed> feed,
-      std::shared_ptr<ArmorySigner::SignerProxy> proxy) :
-      script_(script), feed_(feed), proxy_(proxy)
+      std::shared_ptr<ResolverFeed> feed) :
+      script_(script), feed_(feed)
    {}
 
    ~StackResolver(void)

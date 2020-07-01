@@ -146,8 +146,8 @@ BinaryData ScriptSpender::serializeScript(
          }
 
          bwStack.put_BinaryData(
-            BtcUtils::getPushDataHeader(stackItem_sig->data_));
-         bwStack.put_BinaryData(stackItem_sig->data_);
+            BtcUtils::getPushDataHeader(stackItem_sig->sig_));
+         bwStack.put_BinaryData(stackItem_sig->sig_);
          break;
       }
 
@@ -269,8 +269,8 @@ BinaryData ScriptSpender::serializeWitnessData(
             break;
          }
 
-         bwStack.put_var_int(stackItem_sig->data_.getSize());
-         bwStack.put_BinaryData(stackItem_sig->data_);
+         bwStack.put_var_int(stackItem_sig->sig_.getSize());
+         bwStack.put_BinaryData(stackItem_sig->sig_);
          break;
       }
 
@@ -1364,7 +1364,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
 
    try
    {
-      StackResolver resolver(getOutputScript(), feed, nullptr);
+      StackResolver resolver(getOutputScript(), feed);
       resolver.setFlags(flags);
       spenderVerify.parseScripts(resolver);
    }
@@ -1379,20 +1379,14 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
 
 ////////////////////////////////////////////////////////////////////////////////
 void ScriptSpender::updateLegacyStack(
-   const vector<shared_ptr<StackItem>>& stack, unsigned sigCount)
+   const vector<shared_ptr<StackItem>>& stack)
 {
-   if (legacyStatus_ == SpenderStatus_Signed)
-      return;
-
-   if (legacyStatus_ == SpenderStatus_Resolved && sigCount == 0)
+   if (legacyStatus_ >= SpenderStatus_Resolved)
       return;
 
    if (stack.size() != 0)
    {
       updateStack(legacyStack_, stack);
-
-      if (sigCount > 0)
-         legacyStatus_ = SpenderStatus_PartiallySigned;
    }
    else
    {
@@ -1402,12 +1396,9 @@ void ScriptSpender::updateLegacyStack(
 
 ////////////////////////////////////////////////////////////////////////////////
 void ScriptSpender::updateWitnessStack(
-   const vector<shared_ptr<StackItem>>& stack, unsigned sigCount)
+   const vector<shared_ptr<StackItem>>& stack)
 {
-   if (segwitStatus_ == SpenderStatus_Signed)
-      return;
-
-   if (segwitStatus_ >= SpenderStatus_Resolved && sigCount == 0)
+   if (segwitStatus_ >= SpenderStatus_Resolved)
       return;
 
    updateStack(witnessStack_, stack);
@@ -1425,9 +1416,7 @@ void ScriptSpender::parseScripts(StackResolver& resolver)
    flagP2SH(resolvedStack->isP2SH());
 
    //push the legacy resolved data into the local legacy stack
-   updateLegacyStack(
-      resolvedStack->getStack(), 
-      resolvedStack->getSigCount());
+   updateLegacyStack(resolvedStack->getStack());
    
    //parse the legacy stack, will set the legacy status
    processStacks();
@@ -1445,9 +1434,7 @@ void ScriptSpender::parseScripts(StackResolver& resolver)
    }
    else
    {
-      updateWitnessStack(
-         resolvedStackWitness->getStack(), 
-         resolvedStackWitness->getSigCount());
+      updateWitnessStack(resolvedStackWitness->getStack());
       processStacks();
    }
 
@@ -1472,6 +1459,84 @@ void ScriptSpender::parseScripts(StackResolver& resolver)
          continue;
       }
    }  
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::sign(shared_ptr<SignerProxy> proxy)
+{
+   auto signStack = [proxy](
+      map<unsigned, shared_ptr<StackItem>>& stackMap, bool isSW)->void
+   {
+      for (auto& stackEntryPair : stackMap)
+      {
+         auto stackItem = stackEntryPair.second;
+         switch (stackItem->type_)
+         {
+         case StackItemType_Sig:
+         {
+            if (stackItem->isValid())
+               throw SpenderException("stack sig entry already filled");
+
+            auto sigItem =  dynamic_pointer_cast<StackItem_Sig>(stackItem);
+            if (sigItem == nullptr)
+               throw runtime_error("unexpected stack item type");
+
+            sigItem->sig_ = 
+               move(proxy->sign(sigItem->script_, sigItem->pubkey_, isSW));
+            break;
+         }
+
+         case StackItemType_MultiSig:
+         {
+            auto msEntryPtr = 
+               dynamic_pointer_cast<StackItem_MultiSig>(stackItem);
+            if (msEntryPtr == nullptr)
+               throw SpenderException("invalid ms stack entry");
+
+
+            unsigned sigCount = 0;
+            unsigned keyCount = 0;
+            auto pubkeyIter = msEntryPtr->pubkeyVec_.rbegin();
+            while (pubkeyIter != msEntryPtr->pubkeyVec_.rend())
+            {
+               auto thisKeyId = keyCount++;
+               if (msEntryPtr->sigs_.find(thisKeyId) != msEntryPtr->sigs_.end())
+                  continue;
+               
+               try
+               {
+                  auto&& sig = proxy->sign(msEntryPtr->script_, *pubkeyIter, isSW);
+                  msEntryPtr->sigs_.emplace(thisKeyId, move(sig));
+                  ++sigCount;
+                  if (sigCount >= msEntryPtr->m_)
+                     break;
+               }
+               catch (runtime_error&)
+               {
+                  //feed is missing private key, nothing to do
+               }
+
+               ++pubkeyIter;
+            }
+
+            break;
+         }
+
+         default:
+            break;
+         }
+      }
+   };
+
+   try
+   {
+      signStack(legacyStack_, false);
+      signStack(witnessStack_, true);
+
+      processStacks();
+   }
+   catch (const exception&)
+   {}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1516,18 +1581,21 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
 
    //find the stack sig object
    bool injected = false;
-   for (auto& stackEntry : *stackPtr)
+   for (auto& stackItemPair : *stackPtr)
    {
-      switch (stackEntry.second->type_)
+      auto& stackItem = stackItemPair.second;
+      switch (stackItem->type_)
       {
       case StackItemType_Sig:
       {
-         if (stackEntry.second->isValid())
+         if (stackItem->isValid())
             throw SpenderException("stack sig entry already filled");
 
-         auto newSigEntry = make_shared<StackItem_Sig>(
-            stackEntry.second->getId(), move(sig));
-         stackEntry.second = newSigEntry;
+         auto stackItemSig = dynamic_pointer_cast<StackItem_Sig>(stackItem);
+         if (stackItemSig == nullptr)
+            throw SpenderException("unexpected stack item type");
+
+         stackItemSig->injectSig(sig);
          injected = true;
 
          break;
@@ -1539,7 +1607,7 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
             throw SpenderException("unset sig id");
          
          auto msEntryPtr = 
-            dynamic_pointer_cast<StackItem_MultiSig>(stackEntry.second);
+            dynamic_pointer_cast<StackItem_MultiSig>(stackItem);
          if (msEntryPtr == nullptr)
             throw SpenderException("invalid ms stack entry");
 
@@ -2002,10 +2070,7 @@ shared_ptr<ScriptSpender> ScriptSpender::fromPSBT(
       //resolve
       try
       {
-         StackResolver resolver(
-            spender->getOutputScript(),
-            feed,
-            nullptr);
+         StackResolver resolver(spender->getOutputScript(), feed);
          resolver.setFlags(         
             SCRIPT_VERIFY_P2SH | 
             SCRIPT_VERIFY_SEGWIT | 
@@ -2313,14 +2378,7 @@ void Signer::sign(void)
          throw runtime_error("tx has no recipients");
    }
 
-   parseScripts(false);
-}
 
-////////////////////////////////////////////////////////////////////////////////
-void Signer::parseScripts(bool onlyPublic)
-{
-   if (!onlyPublic)
-   {
       /*
       Try to check input value vs output value. We're not guaranteed to 
       have this information, since we may be partially signing this 
@@ -2343,18 +2401,36 @@ void Signer::parseScripts(bool onlyPublic)
       {
          //missing input value data, skip the spendVal check
       }
+
+   //resolve
+   resolvePublicData();
+
+   //sign sig stack entries in each spender
+   for (unsigned i=0; i < spenders_.size(); i++)
+   {
+      auto& spender = spenders_[i];
+      if (!spender->isResolved())
+         continue;
+
+      auto feed = spender->getFeed();
+      if (feed == nullptr)
+         feed = resolverPtr_;
+      
+      auto proxy = make_shared<SignerProxyFromSigner>(this, i, feed);
+      spender->sign(proxy);
    }
+}
 
-   /* sanity checks end */
-
+////////////////////////////////////////////////////////////////////////////////
+void Signer::resolvePublicData()
+{
    //run through each spenders
    for (unsigned i = 0; i < spenders_.size(); i++)
    {
       auto& spender = spenders_[i];
       shared_ptr<ResolverFeed> feed;
 
-      if (spender->isSigned() ||
-         (onlyPublic && isResolved()))
+      if (isResolved())
          continue;
 
       if (!spender->canBeResolved())
@@ -2365,17 +2441,10 @@ void Signer::parseScripts(bool onlyPublic)
       else if (resolverPtr_ != nullptr)
          feed = resolverPtr_;
 
-      //resolve spender script
-      shared_ptr<SignerProxy> proxy = nullptr;
-      if (!onlyPublic)
-         proxy = make_shared<SignerProxyFromSigner>(this, i, feed);
-      else if (feed != nullptr)
-         feed = make_shared<ResolverFeedPublic>(feed.get());
-      
+      //resolve spender script    
       StackResolver resolver(
          spender->getOutputScript(),
-         feed,
-         proxy);
+         feed);
 
       //check Script.h for signer flags
       resolver.setFlags(flags_);
@@ -2419,12 +2488,6 @@ void Signer::parseScripts(bool onlyPublic)
          }
       }
    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void Signer::resolveSpenders()
-{
-   parseScripts(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2526,7 +2589,7 @@ BinaryDataRef Signer::serializeUnsignedTx(bool loose)
    if (serializedUnsignedTx_.getSize() != 0)
       return serializedUnsignedTx_.getRef();
 
-   resolveSpenders();
+   resolvePublicData();
 
    BinaryWriter bw;
 
@@ -3015,7 +3078,7 @@ BinaryData Signer::getTxId()
    {}
 
    //tx isn't signed, let's check for SW inputs
-   resolveSpenders();
+   resolvePublicData();
    
    //serialize the tx
    BinaryWriter bw;
