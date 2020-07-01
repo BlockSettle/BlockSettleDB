@@ -1149,7 +1149,6 @@ public:
    static uint8_t getMultisigAddrList( BinaryData const & script, 
       std::vector<BinaryData> & addr160List)
    {
-
       std::vector<BinaryData> pkList;
       uint32_t M = getMultisigPubKeyList(script, pkList);
       size_t   N = pkList.size();

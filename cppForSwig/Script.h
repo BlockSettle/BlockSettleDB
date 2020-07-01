@@ -881,13 +881,10 @@ struct StackValue_Sig : public StackValue
 ////
 struct StackValue_Multisig : public StackValue
 {
-   std::vector<BinaryData> pubkeyVec_;
    BinaryData script_;
-   const unsigned m_;
 
-   StackValue_Multisig(std::vector<BinaryData>& pubkeyVec, unsigned m) :
-      StackValue(StackValueType_Multisig), 
-      pubkeyVec_(std::move(pubkeyVec)), m_(m)
+   StackValue_Multisig(const BinaryData& script) :
+      StackValue(StackValueType_Multisig), script_(script)
    {}
 };
 
@@ -1023,19 +1020,13 @@ struct StackItem_Sig : public StackItem
 ////
 struct StackItem_MultiSig : public StackItem
 {
-   std::map<unsigned, SecureBinaryData> sigs_;
-   const std::vector<BinaryData> pubkeyVec_;
    const BinaryData script_;
-   const unsigned m_;
 
-   StackItem_MultiSig(
-      unsigned id, unsigned m, 
-      std::vector<BinaryData>& pubkeyVec, 
-      BinaryData& script) :
-      StackItem(StackItemType_MultiSig, id), m_(m),
-      pubkeyVec_(std::move(pubkeyVec)), script_(std::move(script))
-   {}
+   std::map<unsigned, SecureBinaryData> sigs_;
+   std::vector<BinaryData> pubkeyVec_;
+   unsigned m_;
 
+   StackItem_MultiSig(unsigned, BinaryData&);
    void setSig(unsigned id, SecureBinaryData& sig)
    {
       auto sigpair = std::make_pair(id, std::move(sig));

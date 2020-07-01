@@ -264,8 +264,7 @@ public:
 
    const Tx& getSupportingTx(void) const;
    bool haveSupportingTx(void) const;
-   std::map<unsigned, BinaryData> getRelevantPubkeys(
-      const std::shared_ptr<ResolverFeed>) const;
+   std::map<unsigned, BinaryData> getRelevantPubkeys() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,12 +26,10 @@ message StackEntryState_Sig
 
 message StackEntryState_MultiSig
 {
-    required uint32 m = 1;
-    required bytes  script = 2;
+    required bytes  script = 1;
 
     repeated uint32 sig_index = 10;
-    repeated bytes  pubkey_data = 11;
-    repeated bytes  sig_data = 12;
+    repeated bytes  sig_data = 11;
 };
 
 message StackEntryState

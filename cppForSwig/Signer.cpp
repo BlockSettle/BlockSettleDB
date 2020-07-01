@@ -1443,7 +1443,7 @@ void ScriptSpender::parseScripts(StackResolver& resolver)
    if (feed == nullptr)
       return;
 
-   auto pubKeys = getRelevantPubkeys(feed);
+   auto pubKeys = getRelevantPubkeys();
    for (auto& pubKeyPair : pubKeys)
    {
       try
@@ -1493,30 +1493,23 @@ void ScriptSpender::sign(shared_ptr<SignerProxy> proxy)
             if (msEntryPtr == nullptr)
                throw SpenderException("invalid ms stack entry");
 
-
-            unsigned sigCount = 0;
-            unsigned keyCount = 0;
-            auto pubkeyIter = msEntryPtr->pubkeyVec_.rbegin();
-            while (pubkeyIter != msEntryPtr->pubkeyVec_.rend())
+            for (unsigned i=0; i < msEntryPtr->pubkeyVec_.size(); i++)
             {
-               auto thisKeyId = keyCount++;
-               if (msEntryPtr->sigs_.find(thisKeyId) != msEntryPtr->sigs_.end())
+               if (msEntryPtr->sigs_.find(i) != msEntryPtr->sigs_.end())
                   continue;
                
+               const auto& pubkey = msEntryPtr->pubkeyVec_[i];
                try
                {
-                  auto&& sig = proxy->sign(msEntryPtr->script_, *pubkeyIter, isSW);
-                  msEntryPtr->sigs_.emplace(thisKeyId, move(sig));
-                  ++sigCount;
-                  if (sigCount >= msEntryPtr->m_)
+                  auto&& sig = proxy->sign(msEntryPtr->script_, pubkey, isSW);
+                  msEntryPtr->sigs_.emplace(i, move(sig));
+                  if (msEntryPtr->sigs_.size() >= msEntryPtr->m_)
                      break;
                }
                catch (runtime_error&)
                {
                   //feed is missing private key, nothing to do
                }
-
-               ++pubkeyIter;
             }
 
             break;
@@ -1635,21 +1628,54 @@ BinaryDataRef ScriptSpender::getRedeemScriptFromStack(
    if (stackPtr == nullptr)   
       return BinaryDataRef();
 
+   shared_ptr<StackItem> firstPushData;
+   
+   //look for redeem script from sig stack items
    for (auto stackPair : *stackPtr)
    {
       auto stackItem = stackPair.second;
-      if (stackItem->type_ == StackItemType_PushData)
+      switch (stackItem->type_)
       {
-         auto stackItem_pushdata = 
-            dynamic_pointer_cast<StackItem_PushData>(stackItem);
-         if (stackItem_pushdata == nullptr)
-            continue;
+      case StackItemType_PushData:
+      {
+         //grab first push data entry in stack
+         if (firstPushData == nullptr)
+            firstPushData = stackItem;
+         break;
+      }
 
-         return stackItem_pushdata->data_.getRef();
+      case StackItemType_Sig:
+      {
+         auto sig = dynamic_pointer_cast<StackItem_Sig>(stackItem);
+         if (sig == nullptr)
+            break;
+
+         return sig->script_.getRef();
+      }
+
+      case StackItemType_MultiSig:
+      {
+         auto msig = dynamic_pointer_cast<StackItem_MultiSig>(stackItem);
+         if (msig == nullptr)
+            break;
+
+         return msig->script_.getRef();
+      }
+
+      default:
+         break;
       }
    }
 
-   return BinaryDataRef();
+   //if we couldn't find sig entries, let's try the first push data entry
+   if (firstPushData == nullptr || !firstPushData->isValid())
+      return BinaryDataRef();
+
+   auto pushdata = dynamic_pointer_cast<StackItem_PushData>(firstPushData);
+   if (pushdata == nullptr)
+      return BinaryDataRef();
+
+   return pushdata->data_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1661,64 +1687,44 @@ map<BinaryData, BinaryData> ScriptSpender::getPartialSigs() const
    else
       stackPtr = &witnessStack_;
 
-   //get redeem script
-   auto redeemScript = getRedeemScriptFromStack(stackPtr);
-   if (redeemScript.empty())
-      return {};
-
-   //look for sig stack entry relevant to the redeem script type
-   map<BinaryData, BinaryData> sigMap;
-   auto scriptType = BtcUtils::getTxOutScriptType(redeemScript);
-   switch (scriptType)
+   //look for multsig stack entry
+   shared_ptr<StackItem_MultiSig> stackItemMultisig = nullptr;
+   for (const auto& stackObj : *stackPtr)
    {
-   case TXOUT_SCRIPT_MULTISIG:
-   {  
-      //look for multsig stack entry
-      shared_ptr<StackItem_MultiSig> stackItemMultisig = nullptr;
-      for (const auto& stackObj : *stackPtr)
+      auto stackItem = stackObj.second;
+      if (stackItem->type_ == StackItemType_MultiSig)
       {
-         auto stackItem = stackObj.second;
-         if (stackItem->type_ == StackItemType_MultiSig)
-         {
-            stackItemMultisig = 
-               dynamic_pointer_cast<StackItem_MultiSig>(stackItem);
-            break;
-         }
+         stackItemMultisig = 
+            dynamic_pointer_cast<StackItem_MultiSig>(stackItem);
+         break;
       }
-
-      if (stackItemMultisig == nullptr)
-         return {};
-
-      auto pubkeyMap = Signer::getPubkeysForScript(redeemScript, nullptr);
-      for (const auto& pubkeyPair : pubkeyMap)
-      {
-         auto sigIter = stackItemMultisig->sigs_.find(pubkeyPair.first);
-         if (sigIter == stackItemMultisig->sigs_.end())
-            continue;
-
-         sigMap.emplace(pubkeyPair.second, sigIter->second);
-      }
-
-      break;
    }
 
-   default:
-      LOGWARN << "unsupported script type to extract partial sigs from: " << 
-         (int)scriptType;
+   if (stackItemMultisig == nullptr)
       return {};
+
+   map<BinaryData, BinaryData> sigMap;
+   for (const auto& sigPair : stackItemMultisig->sigs_)
+   {
+      if (sigPair.first > stackItemMultisig->pubkeyVec_.size())
+      {
+         LOGWARN << "sig index out of bounds";
+         break;
+      }
+
+      const auto& pubkey = stackItemMultisig->pubkeyVec_[sigPair.first];
+      sigMap.emplace(pubkey, sigPair.second);
    }
 
    return sigMap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-map<unsigned, BinaryData> ScriptSpender::getRelevantPubkeys(
-   shared_ptr<ResolverFeed> feedPtr) const
+map<unsigned, BinaryData> ScriptSpender::getRelevantPubkeys() const
 {
    if (!isResolved())
       return {};
 
-   BinaryDataRef redeemScript;
    if (isSigned())
    {
       /*spender is signed, redeem script is finalized*/
@@ -1726,21 +1732,48 @@ map<unsigned, BinaryData> ScriptSpender::getRelevantPubkeys(
    }
    else
    {
-      /*spender is unsigned, redeem script will be in the stack*/
-      if (!isSegWit())
+      auto stack = &legacyStack_;
+      if (isSegWit())
+         stack = &witnessStack_;
+
+      for (auto& stackEntryPair : *stack)
       {
-         //look in legacy stack
-         redeemScript = getRedeemScriptFromStack(&legacyStack_);
-      }
-      else
-      {
-         //look in witness stack
-         redeemScript = getRedeemScriptFromStack(&witnessStack_);
+         const auto& stackItem = stackEntryPair.second;
+         switch (stackItem->type_)
+         {
+         case StackItemType_Sig:
+         {
+            auto sig = dynamic_pointer_cast<StackItem_Sig>(stackItem);
+            if (stackItem == nullptr)
+               break;
+
+            map<unsigned, BinaryData> pubkeyMap;
+            pubkeyMap.emplace(0, sig->pubkey_);
+            return pubkeyMap;
+         }
+
+         case StackItemType_MultiSig:
+         {
+            auto msig = dynamic_pointer_cast<StackItem_MultiSig>(stackItem);
+            if (stackItem == nullptr)
+               break;
+
+            map<unsigned, BinaryData> pubkeyMap;
+            for (unsigned i=0; i<msig->pubkeyVec_.size(); i++)
+            {
+               auto& pubkey = msig->pubkeyVec_[i];
+               pubkeyMap.emplace(i, pubkey);
+            }
+            return pubkeyMap;
+         }
+
+         default:
+            break;
+         }
       }
    }
 
-   //parse redeem script for pubkeys
-   return Signer::getPubkeysForScript(redeemScript, feedPtr);
+   return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2082,7 +2115,7 @@ shared_ptr<ScriptSpender> ScriptSpender::fromPSBT(
       {}
 
       //get pubkeys
-      auto pubkeys = spender->getRelevantPubkeys(feed);
+      auto pubkeys = spender->getRelevantPubkeys();
 
       //check pubkeys are relevant
       {

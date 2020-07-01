@@ -118,11 +118,7 @@ void StackItem_MultiSig::serialize(
    protoMsg.set_entry_id(id_);
    
    auto stackEntry = protoMsg.mutable_multisig_data();
-   stackEntry->set_m(m_);
    stackEntry->set_script(script_.getPtr(), script_.getSize());
-
-   for (auto& pubkey : pubkeyVec_)
-      stackEntry->add_pubkey_data(pubkey.getPtr(), pubkey.getSize());
 
    for (auto& sig_pair : sigs_)
    {
@@ -193,30 +189,14 @@ shared_ptr<StackItem> StackItem::deserialize(
          throw runtime_error("missing multisig data field");
 
       const auto& msData = protoMsg.multisig_data();
-
-      //sanity checks
-      auto keyCount = msData.pubkey_data_size();
-      auto m = msData.m();
-
-      if (keyCount < m)
-         throw runtime_error("multisig data missing pubkeys");
-         
       if (msData.sig_data_size() != msData.sig_index_size())
          throw runtime_error("multisig data mismatch");
-
-      //pubkey vector
-      vector<BinaryData> pubkeys;
-      for (unsigned i=0; i<keyCount; i++)
-      {
-         auto pubkey = BinaryData::fromString(msData.pubkey_data(i));
-         pubkeys.emplace_back(move(pubkey));
-      }
 
       //script
       auto script = BinaryData::fromString(msData.script());
 
       //instantiate stack object
-      auto itemMs = make_shared<StackItem_MultiSig>(id, m, pubkeys, script);
+      auto itemMs = make_shared<StackItem_MultiSig>(id, script);
 
       //fill it with carried over sigs
       for (unsigned i = 0; i < msData.sig_index_size(); i++)
@@ -259,6 +239,20 @@ shared_ptr<StackItem> StackItem::deserialize(
 
    return itemPtr;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+StackItem_MultiSig::StackItem_MultiSig(unsigned id, BinaryData& script) :
+   StackItem(StackItemType_MultiSig, id), script_(std::move(script))
+{
+   m_ = BtcUtils::getMultisigPubKeyList(script_, pubkeyVec_);
+
+   if (m_ < 1 || m_ >= 16)
+      throw runtime_error("invalid m");
+
+   if (pubkeyVec_.size() < m_)
+      throw runtime_error("invalid pubkey count");
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1351,7 +1345,7 @@ void StackResolver::resolveStack()
                throw ScriptException("OP_CMS m > n");
 
             stackItem->resolvedValue_ = 
-               make_shared<StackValue_Multisig>(pubKeyVec, (unsigned)m_sig_val);
+               make_shared<StackValue_Multisig>(script_);
 
             break;
          }
@@ -1399,9 +1393,7 @@ void StackResolver::resolveStack()
 
       case StackValueType_Multisig:
       {
-         auto msObj = dynamic_pointer_cast<StackValue_Multisig>(
-            stackItem->resolvedValue_);
-         msObj->script_ = script_;
+         //nothing to do
          break;
       }
 
@@ -1551,8 +1543,8 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
          stackItemVec.push_back(
             make_shared<StackItem_OpCode>(count++, 0));
 
-         auto stackitem_ms = make_shared<StackItem_MultiSig>(
-            count++, msObj->m_, msObj->pubkeyVec_, msObj->script_);
+         auto stackitem_ms = 
+            make_shared<StackItem_MultiSig>(count++, msObj->script_);
          stackItemVec.push_back(stackitem_ms);
          
          break;
