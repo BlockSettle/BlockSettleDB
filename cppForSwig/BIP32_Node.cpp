@@ -129,7 +129,7 @@ void BIP32_Node::initFromBase58(const SecureBinaryData& b58)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BIP32_Node::initFromPrivateKey(
+btc_hdnode BIP32_Node::getHDNodeFromPrivateKey(
    uint8_t depth, unsigned leaf_id, unsigned fingerPrint,
    const SecureBinaryData& privKey, const SecureBinaryData& chaincode)
 {
@@ -148,7 +148,18 @@ void BIP32_Node::initFromPrivateKey(
    node.fingerprint = fingerPrint;
 
    btc_hdnode_fill_public_key(&node);
+   return node;
+}
 
+////////////////////////////////////////////////////////////////////////////////
+void BIP32_Node::initFromPrivateKey(
+   uint8_t depth, unsigned leaf_id, unsigned fingerPrint,
+   const SecureBinaryData& privKey, const SecureBinaryData& chaincode)
+{
+   auto node = getHDNodeFromPrivateKey(
+      depth, leaf_id, fingerPrint,
+      privKey, chaincode);
+   
    setupFromNode(&node);
 }
 

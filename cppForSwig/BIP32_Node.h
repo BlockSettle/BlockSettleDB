@@ -36,6 +36,7 @@ public:
    BIP32_Node(void)
    {}
 
+   //init
    void initFromSeed(const SecureBinaryData&);
    void initFromBase58(const SecureBinaryData&);
    void initFromPrivateKey(uint8_t depth, unsigned leaf_id, unsigned fingerprint,
@@ -54,7 +55,10 @@ public:
    const SecureBinaryData& getChaincode(void) const { return chaincode_; }
    const SecureBinaryData& getPrivateKey(void) const { return privkey_; }
    const SecureBinaryData& getPublicKey(void) const { return pubkey_; }
+   
+   bool isPublic(void) const;
 
+   //moves
    SecureBinaryData&& moveChaincode(void) { return std::move(chaincode_); }
    SecureBinaryData&& movePrivateKey(void) { return std::move(privkey_); }
    SecureBinaryData&& movePublicKey(void) { return std::move(pubkey_); }
@@ -63,7 +67,10 @@ public:
    void derivePrivate(unsigned);
    void derivePublic(unsigned);
 
-   bool isPublic(void) const;
+   //static
+   static btc_hdnode getHDNodeFromPrivateKey(
+      uint8_t depth, unsigned leaf_id, unsigned fingerprint,
+      const SecureBinaryData& privKey, const SecureBinaryData& chaincode);
 };
 
 #endif
