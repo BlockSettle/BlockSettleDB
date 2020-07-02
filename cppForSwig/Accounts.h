@@ -101,8 +101,7 @@ enum AccountTypeEnum
    salts per asset.
    */
    AccountTypeEnum_ECDH,
-   
-   AccountTypeEnum_BIP44,
+
    AccountTypeEnum_Custom
 };
 
