@@ -127,6 +127,8 @@ public:
       const std::shared_ptr<Asset_EncryptedData>& data);
    const SecureBinaryData& getDecryptedPrivateData(
       const Asset_EncryptedData* data);
+   const SecureBinaryData& getDecryptedPrivateData(const BinaryData&) const;
+   const BinaryData& insertDecryptedPrivateData(const uint8_t*, size_t);
 
    SecureBinaryData encryptData(
       Cipher* const cipher, const SecureBinaryData& data);
