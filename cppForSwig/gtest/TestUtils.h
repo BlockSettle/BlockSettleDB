@@ -529,7 +529,7 @@ namespace ResolverUtils
          return iter->second;
       }
 
-      void seedBip32Path(
+      void setBip32PathForPubkey(
          const BinaryData& pubkey, const std::vector<uint32_t>& path)
       {
          bip32Paths_.emplace(pubkey, path);
@@ -579,6 +579,10 @@ namespace ResolverUtils
       {
          throw std::runtime_error("invalid pubkey");
       }
+
+      void setBip32PathForPubkey(
+         const BinaryData&, const std::vector<uint32_t>&) override
+      {}
    };
 
    /////////////////////////////////////////////////////////////////////////////
@@ -641,6 +645,9 @@ namespace ResolverUtils
          throw std::runtime_error("invalid pubkey");
       }
 
+      void setBip32PathForPubkey(
+         const BinaryData&, const std::vector<uint32_t>&) override
+      {}
    };
 }
 

@@ -1597,7 +1597,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    }
 
    //sign, verify & return signed tx
-   signer2.resolveSpenders();
+   signer2.resolvePublicData();
    auto&& signerState = signer2.evaluateSignedState();
 
    {
@@ -5896,7 +5896,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       }
 
       //resolve signer
-      signer_inject.resolveSpenders();
+      signer_inject.resolvePublicData();
       EXPECT_FALSE(signer_inject.verify());
       EXPECT_FALSE(signer_inject.isSigned());
 
@@ -6050,7 +6050,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       }
 
       //resolve signer
-      signer_inject.resolveSpenders();
+      signer_inject.resolvePublicData();
       EXPECT_FALSE(signer_inject.verify());
       EXPECT_FALSE(signer_inject.isSigned());
 
@@ -6360,7 +6360,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    //sign, verify & return signed tx
    Signer signer_inject;
    signer_inject.deserializeState(signer2.serializeState());
-   signer2.resolveSpenders();
+   signer2.resolvePublicData();
    auto&& signerState = signer2.evaluateSignedState();
 
    {
@@ -6518,7 +6518,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    //resolve spender
    {
       signer_inject.setFeed(assetFeed);
-      signer_inject.resolveSpenders();
+      signer_inject.resolvePublicData();
       EXPECT_FALSE(signer_inject.isResolved());
       EXPECT_FALSE(signer_inject.isSigned());
       EXPECT_FALSE(signer_inject.verify());
@@ -6526,7 +6526,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       signer_inject.resetFeeds();
       auto assetFeed5 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
       signer_inject.setFeed(assetFeed5);
-      signer_inject.resolveSpenders();
+      signer_inject.resolvePublicData();
       EXPECT_TRUE(signer_inject.isResolved());
       EXPECT_FALSE(signer_inject.isSigned());
       EXPECT_FALSE(signer_inject.verify());
@@ -6727,7 +6727,7 @@ TEST_F(SignerTest, Serialization)
    for (unsigned i=3; i<6; i++)
       signer1.addRecipient(recipients[i]);
 
-   signer1.resolveSpenders();
+   signer1.resolvePublicData();
    EXPECT_TRUE(signer1.isResolved());
    EXPECT_FALSE(signer1.isSigned());
    EXPECT_FALSE(signer1.verify());
@@ -6795,7 +6795,7 @@ TEST_F(SignerTest, Serialization)
          for (unsigned i=3; i<6; i++)
             signer3.addRecipient(recipients[i]);
 
-         signer3.resolveSpenders();
+         signer3.resolvePublicData();
          auto serState2 = signer3.serializeState();
 
          try
@@ -6825,7 +6825,7 @@ TEST_F(SignerTest, Serialization)
          for (unsigned i=3; i<6; i++)
             signer3.addRecipient(recipients[i]);
 
-         signer3.resolveSpenders();
+         signer3.resolvePublicData();
          auto serState2 = signer3.serializeState();
 
          try
@@ -6894,7 +6894,7 @@ TEST_F(SignerTest, Serialization)
          for (unsigned i=3; i<6; i++)
             signer3.addRecipient(recipients[i]);
 
-         signer3.resolveSpenders();
+         signer3.resolvePublicData();
          auto serState2 = signer3.serializeState();
 
          try
@@ -6924,7 +6924,7 @@ TEST_F(SignerTest, Serialization)
          for (unsigned i=3; i<6; i++)
             signer3.addRecipient(recipients[i]);
 
-         signer3.resolveSpenders();
+         signer3.resolvePublicData();
          auto serState2 = signer3.serializeState();
 
          try
@@ -7063,7 +7063,7 @@ TEST_F(SignerTest, Serialization)
          for (unsigned i=3; i<6; i++)
             signer3.addRecipient(recipients[i]);
 
-         signer3.resolveSpenders();
+         signer3.resolvePublicData();
          auto serState2 = signer3.serializeState();
 
          try
@@ -7097,7 +7097,7 @@ TEST_F(SignerTest, Serialization)
          for (unsigned i=3; i<6; i++)
             signer3.addRecipient(recipients[i]);
 
-         signer3.resolveSpenders();
+         signer3.resolvePublicData();
          auto serState2 = signer3.serializeState();
 
          try
@@ -7131,7 +7131,7 @@ TEST_F(SignerTest, Serialization)
          for (unsigned i=3; i<6; i++)
             signer3.addRecipient(recipients[i]);
 
-         signer3.resolveSpenders();
+         signer3.resolvePublicData();
          auto serState2 = signer3.serializeState();
 
          try
@@ -7163,7 +7163,7 @@ TEST_F(SignerTest, Serialization)
          for (unsigned i=3; i<6; i++)
             signer3.addRecipient(recipients[i]);
 
-         signer3.resolveSpenders();
+         signer3.resolvePublicData();
          auto serState2 = signer3.serializeState();
 
          try
@@ -7847,6 +7847,12 @@ TEST_F(SignerTest, PSBT)
    node.initFromBase58(b58seed);
    auto masterFingerprint = node.getThisFingerprint();
 
+   //create a wallet from that seed to test bip32 on the fly derivation
+   auto wallet = AssetWallet_Single::createFromBIP32Node(
+      node, {}, 
+      SecureBinaryData(), SecureBinaryData(), 
+      homedir_, 0);
+
    // 0'/0'
    node.derivePrivate(0x80000000);
    node.derivePrivate(0x80000000);
@@ -7892,10 +7898,11 @@ TEST_F(SignerTest, PSBT)
    }
 
    //resolve scripts
+   BinaryData resolvedPSBT;
    {
       auto signer = createSigner();
 
-      auto psbtTestVal = READHEX(
+      resolvedPSBT = READHEX(
          "70736274ff01009a020000000258e87a21b56daf0c23be8e7070456c336f7cba"
          "a5c8757924f545887bb2abdd750000000000ffffffff838d0427d0ec650a68aa"
          "46bb0b098aea4422c071b2ca78352a077959d07cea1d0100000000ffffffff02"
@@ -7934,7 +7941,7 @@ TEST_F(SignerTest, PSBT)
             masterFingerprint,
             0x80000000, 0x80000000,
             i ^ 0x80000000};
-         feed->seedBip32Path(pubKeys[i], path);
+         feed->setBip32PathForPubkey(pubKeys[i], path);
 
          auto hash = BtcUtils::getHash160(pubKeys[i]);
          feed->addValPair(hash, pubKeys[i]);
@@ -7965,18 +7972,18 @@ TEST_F(SignerTest, PSBT)
 
       //resolve
       signer.setFeed(feed);
-      signer.resolveSpenders();
+      signer.resolvePublicData();
       auto psbt = signer.toPSBT();
-      EXPECT_EQ(psbt, psbtTestVal);
+      EXPECT_EQ(psbt, resolvedPSBT);
 
-      auto signer2 = Signer::fromPSBT(psbtTestVal);
-      EXPECT_EQ(psbtTestVal, signer2.toPSBT());
+      auto signer2 = Signer::fromPSBT(resolvedPSBT);
+      EXPECT_EQ(resolvedPSBT, signer2.toPSBT());
 
       Signer signer3(signer.serializeState());
-      EXPECT_EQ(psbtTestVal, signer3.toPSBT());     
+      EXPECT_EQ(resolvedPSBT, signer3.toPSBT());     
    }
 
-   //sign 1 half
+   //sign first half
    BinaryData psbtHalf1;
    {
       auto signer = createSigner();
@@ -8026,7 +8033,7 @@ TEST_F(SignerTest, PSBT)
             masterFingerprint,
             0x80000000, 0x80000000,
             i ^ 0x80000000};
-         feed->seedBip32Path(pubKeys[i], path);
+         feed->setBip32PathForPubkey(pubKeys[i], path);
 
          auto hash = BtcUtils::getHash160(pubKeys[i]);
          feed->addValPair(hash, pubKeys[i]);
@@ -8066,7 +8073,7 @@ TEST_F(SignerTest, PSBT)
       EXPECT_EQ(psbtHalf1, signer2.toPSBT());
 
       Signer signer3(signer.serializeState());
-      EXPECT_EQ(psbtHalf1, signer3.toPSBT());     
+      EXPECT_EQ(psbtHalf1, signer3.toPSBT());
    }
 
    //signer other half
@@ -8084,7 +8091,7 @@ TEST_F(SignerTest, PSBT)
             masterFingerprint,
             0x80000000, 0x80000000,
             i ^ 0x80000000};
-         feed->seedBip32Path(pubKeys[i], path);
+         feed->setBip32PathForPubkey(pubKeys[i], path);
 
          auto hash = BtcUtils::getHash160(pubKeys[i]);
          feed->addValPair(hash, pubKeys[i]);
@@ -8143,7 +8150,19 @@ TEST_F(SignerTest, PSBT)
       EXPECT_EQ(psbtTestVal, signer3.toPSBT());
 
       Signer signer4(signer.serializeState());
-      EXPECT_EQ(psbtTestVal, signer4.toPSBT());     
+      EXPECT_EQ(psbtTestVal, signer4.toPSBT());
+
+      //sign with wallet
+      {
+         auto signer5 = Signer::fromPSBT(resolvedPSBT);
+         auto wltFeed = make_shared<ResolverFeed_AssetWalletSingle>(wallet);
+         signer5.setFeed(wltFeed);
+
+         auto lock = wallet->lockDecryptedContainer();
+         signer5.sign();
+
+         EXPECT_EQ(signer5.toPSBT(), psbtTestVal);
+      }
    }
 }
 

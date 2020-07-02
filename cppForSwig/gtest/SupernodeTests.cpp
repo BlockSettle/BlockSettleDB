@@ -2575,7 +2575,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    }
 
    //sign, verify & return signed tx
-   signer2.resolveSpenders();
+   signer2.resolvePublicData();
    auto&& signerState = signer2.evaluateSignedState();
 
    {
@@ -8935,6 +8935,9 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
          {
             throw std::runtime_error("invalid pubkey");
          }
+
+         void setBip32PathForPubkey(const BinaryData&, const vector<uint32_t>&) override
+         {}
       };
 
       auto zcFeed = make_shared<ResolverUT>(keyPairs);
