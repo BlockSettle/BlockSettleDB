@@ -1523,6 +1523,7 @@ void ScriptSpender::sign(shared_ptr<SignerProxy> proxy)
 
    try
    {
+      
       signStack(legacyStack_, false);
       signStack(witnessStack_, true);
 
@@ -2260,6 +2261,13 @@ uint64_t ScriptSpender::getValue() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::seedResolver(shared_ptr<ResolverFeed> ptr) const
+{
+   for (auto& bip32Path : bip32Paths_)
+      ptr->setBip32PathForPubkey(bip32Path.first, bip32Path.second);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// Signer
 ////////////////////////////////////////////////////////////////////////////////
@@ -2402,38 +2410,37 @@ void Signer::sign(void)
 
    /* sanity checks begin */
 
-   {
-      //sizes
-      if (spenders_.size() == 0)
-         throw runtime_error("tx has no spenders");
+   //sizes
+   if (spenders_.size() == 0)
+      throw runtime_error("tx has no spenders");
 
-      if (recipients_.size() == 0)
-         throw runtime_error("tx has no recipients");
+   if (recipients_.size() == 0)
+      throw runtime_error("tx has no recipients");
+
+   /*
+   Try to check input value vs output value. We're not guaranteed to 
+   have this information, since we may be partially signing this 
+   transaction. In that case, skip this step
+   */
+   try
+   {
+      uint64_t inputVal = 0;
+      for (unsigned i=0; i < spenders_.size(); i++)
+         inputVal += spenders_[i]->getValue();
+
+      uint64_t spendVal = 0;
+      for (unsigned i=0; i<recipients_.size(); i++)
+         spendVal += recipients_[i]->getValue();
+
+      if (inputVal < spendVal)
+         throw runtime_error("invalid spendVal");
+   }
+   catch (const SpenderException&)
+   {
+      //missing input value data, skip the spendVal check
    }
 
-
-      /*
-      Try to check input value vs output value. We're not guaranteed to 
-      have this information, since we may be partially signing this 
-      transaction. In that case, skip this step
-      */
-      try
-      {
-         uint64_t inputVal = 0;
-         for (unsigned i=0; i < spenders_.size(); i++)
-            inputVal += spenders_[i]->getValue();
-
-         uint64_t spendVal = 0;
-         for (unsigned i=0; i<recipients_.size(); i++)
-            spendVal += recipients_[i]->getValue();
-
-         if (inputVal < spendVal)
-            throw runtime_error("invalid spendVal");
-      }
-      catch (const SpenderException&)
-      {
-         //missing input value data, skip the spendVal check
-      }
+   /* sanity checks end */
 
    //resolve
    resolvePublicData();
@@ -2449,6 +2456,7 @@ void Signer::sign(void)
       if (feed == nullptr)
          feed = resolverPtr_;
       
+      spender->seedResolver(feed);
       auto proxy = make_shared<SignerProxyFromSigner>(this, i, feed);
       spender->sign(proxy);
    }

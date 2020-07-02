@@ -252,6 +252,7 @@ public:
 
    bool verifyEvalState(unsigned);
    void injectSignature(SecureBinaryData&, unsigned sigId = UINT32_MAX);
+   void seedResolver(std::shared_ptr<ResolverFeed>) const;
    void sign(std::shared_ptr<SignerProxy>);
 
    void toPSBT(BinaryWriter& bw, std::shared_ptr<ResolverFeed>) const;
