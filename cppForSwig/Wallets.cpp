@@ -1066,7 +1066,7 @@ const BinaryData& AssetWallet_Single::createCustomBIP32Account(
          //derive account root
          BIP32_Node bip32Node;
          bip32Node.initFromPrivateKey(
-            root->getDepth(), root->getLeafID(), root->getFingerPrint(),
+            root->getDepth(), root->getLeafID(), root->getParentFingerprint(),
             privKey, chaincode);
          for (auto& path : derPath)
             bip32Node.derivePrivate(path);
@@ -1097,7 +1097,7 @@ const BinaryData& AssetWallet_Single::createCustomBIP32Account(
 
       BIP32_Node bip32Node;
       bip32Node.initFromPublicKey(
-         root->getDepth(), root->getLeafID(), root->getFingerPrint(),
+         root->getDepth(), root->getLeafID(), root->getParentFingerprint(),
          pubkey, chaincode);
       for (auto& path : derPath)
          bip32Node.derivePublic(path);
@@ -1617,11 +1617,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
       }
    }
 
-   if (armory135AccCount > 0 && isBip32)
-      throw AccountException("account type mismatch");
-
    //default to bip32 root if there are no account types specified
-   if (armory135AccCount == 0 && !isBip32)
+   if (armory135AccCount == 0)
       isBip32 = true;
 
    shared_ptr<AssetEntry_Single> rootAssetEntry;
@@ -1861,6 +1858,47 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
    }
    
    return getDecryptedValue(assetPrivKey);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const BinaryData& AssetWallet_Single::derivePrivKeyFromPath_WithFingerprint(
+   const std::vector<uint32_t>& path)
+{
+   //grab root
+   auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
+   if (rootBip32 == nullptr)
+      throw runtime_error("missing root");
+
+   //check fingerprint
+   auto fingerprint = path[0];
+   auto rootFingerprint = rootBip32->getThisFingerprint();
+   if (fingerprint != rootFingerprint)
+      throw runtime_error("root mismatch");
+
+   //decrypt root
+   auto privKey = decryptedData_->getDecryptedPrivateData(rootBip32->getPrivKey());
+   auto chaincode = rootBip32->getChaincode();
+
+   //derive
+   auto hdNode = 
+      BIP32_Node::getHDNodeFromPrivateKey(0, 0, 0, privKey, chaincode);
+
+   for (unsigned i=1; i<path.size(); i++)
+   {
+      if (!btc_hdnode_private_ckd(&hdNode, path[i]))
+         throw std::runtime_error("failed to derive bip32 private key");
+   }
+
+   //add to decrypted data container and return id
+   return decryptedData_->insertDecryptedPrivateData(
+      hdNode.private_key, BTC_ECKEY_PKEY_LENGTH);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const SecureBinaryData& AssetWallet_Single::getDecrypedPrivateKeyForId(
+   const BinaryData& id) const
+{
+   return decryptedData_->getDecryptedPrivateData(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

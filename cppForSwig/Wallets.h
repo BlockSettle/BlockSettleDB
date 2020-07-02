@@ -291,6 +291,9 @@ public:
 
    const SecureBinaryData& getDecryptedPrivateKeyForAsset(
       std::shared_ptr<AssetEntry_Single>);
+   const BinaryData& derivePrivKeyFromPath_WithFingerprint(
+      const std::vector<uint32_t>&);
+   const SecureBinaryData& getDecrypedPrivateKeyForId(const BinaryData&) const;
 
    std::shared_ptr<EncryptedSeed> getEncryptedSeed(void) const { return seed_; }
 
@@ -392,6 +395,7 @@ private:
 protected:
    std::map<BinaryData, BinaryData> hash_to_preimage_;
    std::map<BinaryData, std::shared_ptr<AssetEntry_Single>> pubkey_to_asset_;
+   std::map<BinaryData, std::pair<std::vector<uint32_t>, BinaryData>> bip32Paths_;
 
 private:
 
@@ -536,10 +540,31 @@ public:
       const BinaryData& pubkey) override
    {
       //check cache first
-      auto pubkeyref = BinaryDataRef(pubkey);
-      auto iter = pubkey_to_asset_.find(pubkeyref);
-      if (iter != pubkey_to_asset_.end())
-         return wltPtr_->getDecryptedPrivateKeyForAsset(iter->second);
+      {
+         auto pubkeyref = pubkey.getRef();
+         auto cacheIter = pubkey_to_asset_.find(pubkeyref);
+         if (cacheIter != pubkey_to_asset_.end())
+         {
+            return wltPtr_->getDecryptedPrivateKeyForAsset(
+               cacheIter->second);
+         }
+      }
+
+      //if we have a bip32 path hint for this pubkey, use that
+      {
+         auto pathIter = bip32Paths_.find(pubkey);
+         if (pathIter != bip32Paths_.end())
+         {
+            if (pathIter->second.second.empty())
+            {
+               pathIter->second.second = 
+                  wltPtr_->derivePrivKeyFromPath_WithFingerprint(
+                     pathIter->second.first);
+            }
+
+            return wltPtr_->getDecrypedPrivateKeyForId(pathIter->second.second);
+         }
+      }
 
       /*
       Lacking a cache hit, we need to get the asset for this pubkey. All
@@ -608,6 +633,12 @@ public:
 
       //seed the predecessor too
       seedFromAddressEntry(addrNested->getPredecessor());
+   }
+
+   void setBip32PathForPubkey(
+      const BinaryData& pubkey, const std::vector<uint32_t>& path) override
+   {
+      bip32Paths_.emplace(pubkey, make_pair(path, BinaryData()));
    }
 };
 
@@ -710,6 +741,10 @@ public:
    {
       throw std::runtime_error("invalid pubkey");
    }
+
+   void setBip32PathForPubkey(
+      const BinaryData&, const std::vector<uint32_t>&) override
+   {}
 };
 
 #endif
