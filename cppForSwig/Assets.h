@@ -524,7 +524,8 @@ private:
    const SecureBinaryData chaincode_;
    const uint8_t depth_;
    const unsigned leafID_;
-   const unsigned fingerPrint_;
+   const uint32_t parentFingerprint_;
+   mutable uint32_t thisFingerprint_ = UINT32_MAX;
 
 public:
    //tors
@@ -535,7 +536,7 @@ public:
       uint8_t depth, unsigned leafID, unsigned fingerPrint) :
       AssetEntry_Single(id, accountID, pubkey, privkey),
       chaincode_(chaincode),
-      depth_(depth), leafID_(leafID), fingerPrint_(fingerPrint)
+      depth_(depth), leafID_(leafID), parentFingerprint_(fingerPrint)
    {}
 
    AssetEntry_BIP32Root(int id, const BinaryData& accountID,
@@ -547,7 +548,7 @@ public:
       AssetEntry_Single(id, accountID,
          pubkeyUncompressed, pubkeyCompressed, privkey),
       chaincode_(chaincode),
-      depth_(depth), leafID_(leafID), fingerPrint_(fingerPrint)
+      depth_(depth), leafID_(leafID), parentFingerprint_(fingerPrint)
    {}
 
    AssetEntry_BIP32Root(int id, const BinaryData& accountID,
@@ -557,13 +558,14 @@ public:
       uint8_t depth, unsigned leafID, unsigned fingerPrint) :
       AssetEntry_Single(id, accountID, pubkey, privkey),
       chaincode_(chaincode),
-      depth_(depth), leafID_(leafID), fingerPrint_(fingerPrint)
+      depth_(depth), leafID_(leafID), parentFingerprint_(fingerPrint)
    {}
 
    //local
    uint8_t getDepth(void) const { return depth_; }
    unsigned getLeafID(void) const { return leafID_; }
-   unsigned getFingerPrint(void) const { return fingerPrint_; }
+   unsigned getParentFingerprint(void) const { return parentFingerprint_; }
+   unsigned getThisFingerprint(void) const;
    const SecureBinaryData& getChaincode(void) const { return chaincode_; }
 
    //virtual
