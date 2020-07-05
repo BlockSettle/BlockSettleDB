@@ -4969,7 +4969,10 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
       chaincodeCopy, //have to pass the chaincode too
 
       //aesthetical stuff, not mandatory, not useful for the crypto side of things
-      newPubNode.getDepth(), newPubNode.getLeafID(), newPubNode.getParentFingerprint()
+      newPubNode.getDepth(), newPubNode.getLeafID(), newPubNode.getParentFingerprint(),
+
+      //derivation path for this root, only relevant for path discovery & PSBT
+      vector<uint32_t>()
    );
 
    //3: create a custom bip32 account meta data object to setup the WO account

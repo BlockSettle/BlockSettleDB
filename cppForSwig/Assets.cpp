@@ -15,7 +15,7 @@
 #define CIPHER_DATA_VERSION            0x00000001
 
 #define ASSETENTRY_SINGLE_VERSION      0x00000001
-#define ASSETENTRY_BIP32ROOT_VERSION   0x00000001
+#define ASSETENTRY_BIP32ROOT_VERSION   0x00000002
 
 #define ENCRYPTED_SEED_VERSION         0x00000001
 #define ENCRYPTION_KEY_VERSION         0x00000001
@@ -352,12 +352,21 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
       switch (version)
       {
       case 0x00000001:
+      case 0x00000002:
       {
          auto depth = brrVal.get_uint8_t();
          auto leafid = brrVal.get_uint32_t();
          auto fingerprint = brrVal.get_uint32_t();
          auto cclen = brrVal.get_var_int();
          auto&& chaincode = brrVal.get_BinaryData(cclen);
+
+         vector<uint32_t> derPath;
+         if (version >= 0x00000002)
+         {
+            auto count = brrVal.get_var_int();
+            for (unsigned i=0; i<count; i++)
+               derPath.push_back(brrVal.get_uint32_t());
+         }
 
          shared_ptr<Asset_PrivateKey> privKeyPtr;
          SecureBinaryData pubKeyCompressed;
@@ -368,7 +377,8 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
          auto rootEntry = make_shared<AssetEntry_BIP32Root>(
             index, account_id,
             pubKeyUncompressed, pubKeyCompressed, privKeyPtr,
-            chaincode, depth, leafid, fingerprint);
+            chaincode, depth, leafid, fingerprint,
+            derPath);
 
          rootEntry->doNotCommit();
          return rootEntry;
@@ -430,6 +440,10 @@ BinaryData AssetEntry_BIP32Root::serialize() const
 
    auto pubkey = getPubKey();
    auto privkey = getPrivKey();
+
+   bw.put_var_int(derivationPath_.size());
+   for (auto& step : derivationPath_)
+      bw.put_uint32_t(step);
 
    bw.put_BinaryData(pubkey->serialize());
    if (privkey != nullptr && privkey->hasData())
@@ -529,7 +543,8 @@ shared_ptr<AssetEntry_Single> AssetEntry_BIP32Root::getPublicCopy()
    auto pubkey = getPubKey();
    auto woCopy = make_shared<AssetEntry_BIP32Root>(
       index_, getAccountID(), pubkey, nullptr,
-      chaincode_, depth_, leafID_, parentFingerprint_);
+      chaincode_, depth_, leafID_, parentFingerprint_,
+      derivationPath_);
 
    return woCopy;
 }

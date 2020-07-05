@@ -297,6 +297,9 @@ public:
 
    std::shared_ptr<EncryptedSeed> getEncryptedSeed(void) const { return seed_; }
 
+   std::vector<uint32_t> getBip32PathForAsset(std::shared_ptr<AssetEntry>) const;
+   std::vector<uint32_t> getBip32PathForAssetID(const BinaryData&) const;
+
    //virtual
    const SecureBinaryData& getDecryptedValue(
       std::shared_ptr<Asset_EncryptedData>);
@@ -606,9 +609,22 @@ public:
       */
    }
 
-   std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) override
+   std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData& pubkey) override
    {
-      throw std::runtime_error("invalid pubkey");
+      //check cache first
+      {
+         auto pubkeyref = pubkey.getRef();
+         auto cacheIter = pubkey_to_asset_.find(pubkeyref);
+         if (cacheIter != pubkey_to_asset_.end())
+            return wltPtr_->getBip32PathForAsset(cacheIter->second);
+      }
+
+      auto&& hash = BtcUtils::getHash160(pubkey);
+      auto assetPair = getAssetPairForKey(hash);
+      if (assetPair.first == nullptr)
+         throw NoAssetException("invalid pubkey");
+
+      return wltPtr_->getBip32PathForAsset(assetPair.first);
    }
 
    void seedFromAddressEntry(std::shared_ptr<AddressEntry> addrPtr)

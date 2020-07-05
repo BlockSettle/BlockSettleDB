@@ -1630,7 +1630,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
       rootAssetEntry = make_shared<AssetEntry_BIP32Root>(
          -1, BinaryData(),
          pubkey, rootAsset,
-         chaincode, 0, 0, 0);
+         chaincode, 0, 0, 0, vector<uint32_t>());
    }
    else
    {
@@ -2109,11 +2109,49 @@ void AssetWallet_Single::setSeed(
 ////////////////////////////////////////////////////////////////////////////////
 bool AssetWallet_Single::isWatchingOnly() const
 {
-
    if (root_ == nullptr)
       return true;
 
    return !root_->hasPrivateKey();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<uint32_t> AssetWallet_Single::getBip32PathForAsset(
+   shared_ptr<AssetEntry> asset) const
+{
+   const auto& id = asset->getID();
+   return getBip32PathForAssetID(id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<uint32_t> AssetWallet_Single::getBip32PathForAssetID(
+   const BinaryData& id) const
+{
+   if (id.getSize() != 12)
+      throw runtime_error("invalid asset id length");
+
+   //get root
+   auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
+   if (rootBip32 == nullptr)
+      throw runtime_error("missing root");
+
+   //get fingerprint and see path
+   auto rootFingerprint = rootBip32->getThisFingerprint();
+   vector<uint32_t> path = { rootFingerprint };
+
+   //grab account
+   auto account = getAccountForID(id);
+
+   //get account path
+   auto accountPath = account->getAccountBip32PathForId(id);
+   path.insert(path.end(), accountPath.begin(), accountPath.end());
+
+   //append asset step
+   BinaryRefReader brr(id.getRef());
+   brr.advance(8);
+   path.push_back(brr.get_uint32_t(BE));
+
+   return path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

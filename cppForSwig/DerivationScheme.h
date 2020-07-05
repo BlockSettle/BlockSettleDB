@@ -162,7 +162,7 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class DerivationScheme_BIP32_Salted : public DerivationScheme_BIP32
+struct DerivationScheme_BIP32_Salted : public DerivationScheme_BIP32
 {
 private:
    const SecureBinaryData salt_;

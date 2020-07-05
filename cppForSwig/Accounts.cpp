@@ -757,9 +757,14 @@ void AddressAccount::make_new(
             accBip32->getDepth(), accBip32->getLeafID(), accBip32->getFingerPrint(),
             accBip32->getPublicRoot(), accBip32->getChaincode());
          
+         auto derPath = accBip32->getDerivationPath();
+         
          //check AccountType_BIP32_Custom comments for more info
          if(node_id != UINT32_MAX)
+         {
             node.derivePublic(node_id);
+            derPath.push_back(node_id);
+         }
 
          chaincode = node.moveChaincode();
          auto pubkey = node.movePublicKey();
@@ -768,7 +773,8 @@ void AddressAccount::make_new(
             -1, full_account_id,
             pubkey, nullptr,
             chaincode,
-            node.getDepth(), node.getLeafID(), node.getParentFingerprint());
+            node.getDepth(), node.getLeafID(), node.getParentFingerprint(),
+            derPath);
       }
       else
       {
@@ -777,9 +783,14 @@ void AddressAccount::make_new(
             accBip32->getDepth(), accBip32->getLeafID(), accBip32->getFingerPrint(),
             accBip32->getPrivateRoot(), accBip32->getChaincode());
 
+         auto derPath = accBip32->getDerivationPath();
+
          //check AccountType_BIP32_Custom comments for more info
          if (node_id != UINT32_MAX)
+         {  
             node.derivePrivate(node_id);
+            derPath.push_back(node_id);
+         }
 
          chaincode = node.moveChaincode();
          
@@ -806,7 +817,8 @@ void AddressAccount::make_new(
             -1, full_account_id,
             pubkey, priv_asset,
             chaincode,
-            node.getDepth(), node.getLeafID(), node.getParentFingerprint());
+            node.getDepth(), node.getLeafID(), node.getParentFingerprint(),
+            derPath);
       }
 
       return rootAsset;
@@ -1810,6 +1822,31 @@ shared_ptr<Asset_PrivateKey> AddressAccount::fillPrivateKey(
       throw AccountException("unknown asset id");
 
    return iter->second->fillPrivateKey(ddc, id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<uint32_t> AddressAccount::getAccountBip32PathForId(
+   const BinaryData& id) const
+{
+   //sanity check
+   if (id.getSize() != 12)
+      throw AccountException("invalid asset id");
+
+   //get the asset account
+   auto accID = id.getSliceRef(4, 4);
+   auto iter = assetAccounts_.find(accID);
+   if (iter == assetAccounts_.end())
+      throw AccountException("unknown asset id");
+
+   //grab the account's root
+   auto root = iter->second->root_;
+
+   //is it bip32?
+   auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(root);
+   if (rootBip32 == nullptr)
+      throw AccountException("account isn't bip32");
+
+   return rootBip32->getDerivationPath();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

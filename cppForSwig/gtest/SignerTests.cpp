@@ -7771,6 +7771,84 @@ TEST_F(SignerTest, Serialization)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(SignerTest, Bip32PathDiscovery)
+{
+   auto seed = CryptoPRNG::generateRandom(32);
+
+   BIP32_Node node;
+   node.initFromSeed(seed);
+   auto masterFingerprint = node.getThisFingerprint();
+
+   vector<uint32_t> derPath = { 0x80000001, 0x80000056, 0x88ef9a00 };
+
+   for (auto& step : derPath)
+      node.derivePrivate(step);
+   node.derivePublic(0);
+
+   map<BinaryData, vector<uint32_t>> keyAndPath;
+   for (unsigned i=0; i<10; i++)
+   {
+      auto nodeSoft = node;
+      nodeSoft.derivePublic(i);
+
+      vector<uint32_t> path = { masterFingerprint };
+      path.insert(path.end(), derPath.begin(), derPath.end());
+      path.push_back(0);
+      path.push_back(i);
+
+      keyAndPath.emplace(nodeSoft.getPublicKey(), path);
+   }
+
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData();
+   };
+
+   string wltPath;
+   {
+      auto wallet = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_, seed, derPath, 
+      SecureBinaryData(), SecureBinaryData(), 
+      10);
+
+      wltPath = wallet->getDbFilename();
+      auto woWalletPath = wallet->forkWatchingOnly(wltPath, passLbd);
+      auto woWallet = AssetWallet::loadMainWalletFromFile(woWalletPath, passLbd);
+      auto woWalletSingle = dynamic_pointer_cast<AssetWallet_Single>(woWallet);
+
+      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(wallet);
+      for (auto& keyPathPair : keyAndPath)
+      {
+         EXPECT_EQ(
+            resolver->resolveBip32PathForPubkey(keyPathPair.first), 
+            keyPathPair.second);
+      }
+
+      auto resolverPublic = make_shared<ResolverFeed_AssetWalletSingle>(woWalletSingle);
+      for (auto& keyPathPair : keyAndPath)
+      {
+         EXPECT_EQ(
+            resolver->resolveBip32PathForPubkey(keyPathPair.first), 
+            keyPathPair.second);
+      }
+   }
+
+   //reopen the wallet, check again
+   {
+      auto loadedWlt = AssetWallet::loadMainWalletFromFile(wltPath, passLbd);
+      auto loadedWltSingle = dynamic_pointer_cast<AssetWallet_Single>(loadedWlt);
+      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(loadedWltSingle);
+
+      for (auto& keyPathPair : keyAndPath)
+      {
+         EXPECT_EQ(
+            resolver->resolveBip32PathForPubkey(keyPathPair.first), 
+            keyPathPair.second);
+      }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, PSBT)
 {
    //
@@ -7965,9 +8043,8 @@ TEST_F(SignerTest, PSBT)
          feed->addValPair(hash160, p2wshScript);
       }
 
-      //set utxo for the second spender
+      //set supporting data
       signer.populateUtxo(utxo1_1);
-
       signer.addSupportingTx(supportingTx2);
 
       //resolve
@@ -7980,7 +8057,7 @@ TEST_F(SignerTest, PSBT)
       EXPECT_EQ(resolvedPSBT, signer2.toPSBT());
 
       Signer signer3(signer.serializeState());
-      EXPECT_EQ(resolvedPSBT, signer3.toPSBT());     
+      EXPECT_EQ(resolvedPSBT, signer3.toPSBT());
    }
 
    //sign first half
