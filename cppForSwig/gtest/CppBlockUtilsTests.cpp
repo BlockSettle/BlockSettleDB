@@ -14,6 +14,7 @@
 #include "../hkdf.h"
 
 using namespace std;
+using namespace ArmorySigner;
 
 ////////////////////////////////////////////////////////////////////////////////
 // RFC 5869 (HKDF) unit tests for SHA-256.
@@ -8312,18 +8313,10 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
 
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
 
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
@@ -8414,18 +8407,10 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
 
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
 
       //get utxo list for spend value
       auto&& unspentVec = wlt->getRBFTxOutList();
@@ -8645,18 +8630,10 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
 
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
 
       //get utxo list for spend value
       auto&& unspentVec = wlt->getRBFTxOutList();
@@ -8861,18 +8838,10 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
 
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
 
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
@@ -9176,9 +9145,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
       auto feed = make_shared<ResolverUtils::HybridFeed>(assetWlt);
       auto addToFeed = [feed](const BinaryData& key)->void
       {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->testFeed_.h160ToPubKey_.insert(datapair);
-         feed->testFeed_.pubKeyToPrivKey_[datapair.second] = key;
+         feed->testFeed_.addPrivKey(key);
       };
 
       addToFeed(TestChain::privKeyAddrD);
@@ -9433,18 +9400,10 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
 
       //instantiate resolver feed overloaded object
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-      auto addToFeed = [feed](const BinaryData& key)->void
-      {
-         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-         feed->h160ToPubKey_.insert(datapair);
-         feed->pubKeyToPrivKey_[datapair.second] = key;
-      };
-
-      addToFeed(TestChain::privKeyAddrB);
-      addToFeed(TestChain::privKeyAddrC);
-      addToFeed(TestChain::privKeyAddrD);
-      addToFeed(TestChain::privKeyAddrE);
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
 
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
@@ -10868,17 +10827,9 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
 
    //signer feed
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-
-   auto addToFeed = [feed](const BinaryData& key)->void
-   {
-      auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key);
-      feed->h160ToPubKey_.insert(datapair);
-      feed->pubKeyToPrivKey_[datapair.second] = key;
-   };
-
-   addToFeed(TestChain::privKeyAddrB);
-   addToFeed(TestChain::privKeyAddrC);
-   addToFeed(TestChain::privKeyAddrE);
+   feed->addPrivKey(TestChain::privKeyAddrB);
+   feed->addPrivKey(TestChain::privKeyAddrC);
+   feed->addPrivKey(TestChain::privKeyAddrE);
 
    //create spender lambda
    auto getSpenderPtr = [](

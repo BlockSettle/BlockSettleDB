@@ -17,7 +17,6 @@ using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////
 void dumpBlock(
-   shared_ptr<Blockchain> bcPtr,
    LMDBBlockDatabase* db,
    shared_ptr<BlockHeader> bh)
 {
@@ -54,7 +53,7 @@ void dumpBlock(
    //grab the header by id
    auto bh = bcPtr->getHeaderById(blockId);
 
-   dumpBlock(bcPtr, db, bh);
+   dumpBlock(db, bh);
 }
 
 /////////////////////////////////////////////////////////////////////////////

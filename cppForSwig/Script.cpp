@@ -41,7 +41,7 @@ bool StackItem_Sig::isSame(const StackItem* obj) const
    if (obj_cast == nullptr)
       return false;
 
-   return data_ == obj_cast->data_;
+   return pubkey_ == obj_cast->pubkey_ && script_ == obj_cast->script_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,7 +105,9 @@ void StackItem_Sig::serialize(
    protoMsg.set_entry_type(Codec_SignerState::StackEntryState_Types::SingleSig);
    protoMsg.set_entry_id(id_);
 
-   protoMsg.set_stackentry_data(data_.getPtr(), data_.getSize());
+   auto sigEntry = protoMsg.mutable_sig_data();
+   sigEntry->set_pubkey(pubkey_.getPtr(), pubkey_.getSize());
+   sigEntry->set_script(script_.getPtr(), script_.getSize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,7 +118,7 @@ void StackItem_MultiSig::serialize(
    protoMsg.set_entry_id(id_);
    
    auto stackEntry = protoMsg.mutable_multisig_data();
-   stackEntry->set_m(m_);
+   stackEntry->set_script(script_.getPtr(), script_.getSize());
 
    for (auto& sig_pair : sigs_)
    {
@@ -169,12 +171,15 @@ shared_ptr<StackItem> StackItem::deserialize(
 
    case Codec_SignerState::StackEntryState_Types::SingleSig:
    {
-      if (!protoMsg.has_stackentry_data())
+      if (!protoMsg.has_sig_data())
          throw runtime_error("missing sig data field");
 
-      auto&& data = SecureBinaryData::fromString(protoMsg.stackentry_data());
+      const auto& sigData = protoMsg.sig_data();
 
-      itemPtr = make_shared<StackItem_Sig>(id, move(data));
+      auto pubkey = BinaryData::fromString(sigData.pubkey());
+      auto script = BinaryData::fromString(sigData.script());
+
+      itemPtr = make_shared<StackItem_Sig>(id, pubkey, script);
       break;
    }
 
@@ -184,14 +189,16 @@ shared_ptr<StackItem> StackItem::deserialize(
          throw runtime_error("missing multisig data field");
 
       const auto& msData = protoMsg.multisig_data();
-
-      //sanity check
       if (msData.sig_data_size() != msData.sig_index_size())
          throw runtime_error("multisig data mismatch");
 
-      auto m = msData.m();
-      auto itemMs = make_shared<StackItem_MultiSig>(id, m);
+      //script
+      auto script = BinaryData::fromString(msData.script());
 
+      //instantiate stack object
+      auto itemMs = make_shared<StackItem_MultiSig>(id, script);
+
+      //fill it with carried over sigs
       for (unsigned i = 0; i < msData.sig_index_size(); i++)
       {
          auto pos = msData.sig_index(i);
@@ -232,6 +239,20 @@ shared_ptr<StackItem> StackItem::deserialize(
 
    return itemPtr;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+StackItem_MultiSig::StackItem_MultiSig(unsigned id, BinaryData& script) :
+   StackItem(StackItemType_MultiSig, id), script_(std::move(script))
+{
+   m_ = BtcUtils::getMultisigPubKeyList(script_, pubkeyVec_);
+
+   if (m_ < 1 || m_ >= 16)
+      throw runtime_error("invalid m");
+
+   if (pubkeyVec_.size() < m_)
+      throw runtime_error("invalid pubkey count");
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1110,62 +1131,62 @@ void StackResolver::processOpCode(const OpCode& oc)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+BinaryData resolveReferenceValue(shared_ptr<ReversedStackEntry> inPtr)
+{
+   auto currentPtr = inPtr;
+   while (true)
+   {
+      if (currentPtr->parent_ != nullptr)
+      {
+         currentPtr = currentPtr->parent_;
+      }
+      else if (currentPtr->static_)
+      {
+         return currentPtr->staticData_;
+      }
+      else
+      {
+         switch (currentPtr->resolvedValue_->type())
+         {
+         case StackValueType_Static:
+         {
+            auto staticVal = dynamic_pointer_cast<StackValue_Static>(
+               currentPtr->resolvedValue_);
+
+            return staticVal->value_;
+         }
+
+         case StackValueType_FromFeed:
+         {
+            auto feedVal = dynamic_pointer_cast<StackValue_FromFeed>(
+               currentPtr->resolvedValue_);
+
+            return feedVal->value_;
+         }
+
+         case StackValueType_Reference:
+         {
+            auto refVal = dynamic_pointer_cast<StackValue_Reference>(
+               currentPtr->resolvedValue_);
+
+            currentPtr = refVal->valueReference_;
+            break;
+         }
+
+         default:
+            throw ScriptException("unexpected StackValue type \
+               during reference resolution");
+         }
+      }
+
+      if (currentPtr == inPtr)
+         throw ScriptException("infinite loop in reference resolution");
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void StackResolver::resolveStack()
 {
-   auto resolveReferenceValue = [](
-      shared_ptr<ReversedStackEntry> inPtr)->BinaryData
-   {
-      auto currentPtr = inPtr;
-      while (1)
-      {
-         if (currentPtr->parent_ != nullptr)
-         {
-            currentPtr = currentPtr->parent_;
-         }
-         else if (currentPtr->static_)
-         {
-            return currentPtr->staticData_;
-         }
-         else
-         {
-            switch (currentPtr->resolvedValue_->type())
-            {
-            case StackValueType_Static:
-            {
-               auto staticVal = dynamic_pointer_cast<StackValue_Static>(
-                  currentPtr->resolvedValue_);
-
-               return staticVal->value_;
-            }
-
-            case StackValueType_FromFeed:
-            {
-               auto feedVal = dynamic_pointer_cast<StackValue_FromFeed>(
-                  currentPtr->resolvedValue_);
-
-               return feedVal->value_;
-            }
-
-            case StackValueType_Reference:
-            {
-               auto refVal = dynamic_pointer_cast<StackValue_Reference>(
-                  currentPtr->resolvedValue_);
-
-               currentPtr = refVal->valueReference_;
-               break;
-            }
-
-            default:
-               throw ScriptException("unexpected StackValue type \
-                  during reference resolution");
-            }
-         }
-
-         if (currentPtr == inPtr)
-            throw ScriptException("infinite loop in reference resolution");
-      }
-   };
-
    unsigned static_count = 0;
 
    auto stackIter = stack_.rbegin();
@@ -1191,11 +1212,13 @@ void StackResolver::resolveStack()
          case OP_EQUAL:
          case OP_EQUALVERIFY:
          {
-            //TODO: use something safer than a C style cast
-            auto opcodeExPtr = (ExtendedOpCode*)opcodePtr.get();
-            if (opcodeExPtr->referenceStackItemVec_.size() != 1)
+            auto opcodeExPtr = dynamic_pointer_cast<ExtendedOpCode>(opcodePtr);
+            if (opcodeExPtr == nullptr || 
+               opcodeExPtr->referenceStackItemVec_.size() != 1)
+            {
                throw ScriptException(
                   "invalid stack item reference count for op_equal resolution");
+            }
 
             auto& stackItemRefPtr = opcodeExPtr->referenceStackItemVec_[0];
 
@@ -1267,10 +1290,12 @@ void StackResolver::resolveStack()
          case OP_CHECKSIG:
          case OP_CHECKSIGVERIFY:
          {
-            auto opcodeExPtr = (ExtendedOpCode*)opcodePtr.get();
+            auto opcodeExPtr = dynamic_cast<ExtendedOpCode*>(opcodePtr.get());
             if (opcodeExPtr == nullptr)
+            {
                throw ScriptException(
                "expected extended op code entry for op_checksig resolution");
+            }
 
             //second item of checksigs are pubkeys, skip
             if (opcodeExPtr->itemIndex_ == 2)
@@ -1306,11 +1331,11 @@ void StackResolver::resolveStack()
             auto n_item = getStackItem();
             auto n_item_val = rawBinaryToInt(n_item->staticData_);
 
-            vector<BinaryDataRef> pubKeyVec;
+            vector<BinaryData> pubKeyVec;
             for (unsigned y = 0; y < n_item_val; y++)
             {
                auto pubkey = getStackItem();
-               pubKeyVec.push_back(pubkey->staticData_.getRef());
+               pubKeyVec.emplace_back(pubkey->staticData_.getRef());
             }
 
             auto m_sig = getStackItem();
@@ -1319,8 +1344,8 @@ void StackResolver::resolveStack()
             if (m_sig_val > n_item_val)
                throw ScriptException("OP_CMS m > n");
 
-            stackItem->resolvedValue_ =
-               make_shared<StackValue_Multisig>(move(pubKeyVec), (unsigned)m_sig_val);
+            stackItem->resolvedValue_ = 
+               make_shared<StackValue_Multisig>(script_);
 
             break;
          }
@@ -1336,6 +1361,9 @@ void StackResolver::resolveStack()
       case StackValueType_FromFeed:
       {
          //grab from feed
+         if (feed_ == nullptr)
+            break;
+
          auto fromFeed = dynamic_pointer_cast<StackValue_FromFeed>(
             stackItem->resolvedValue_);
          fromFeed->value_ = feed_->getByVal(fromFeed->requestString_);
@@ -1344,7 +1372,7 @@ void StackResolver::resolveStack()
          {
             //if this output is flagged as p2sh, this value is the script
             //process that script and set the resolved stack
-            StackResolver resolver(fromFeed->value_, feed_, proxy_);
+            StackResolver resolver(fromFeed->value_, feed_);
             resolver.setFlags(flags_);
             resolver.isSW_ = isSW_;
 
@@ -1357,46 +1385,15 @@ void StackResolver::resolveStack()
 
       case StackValueType_Sig:
       {
-         if (proxy_ == nullptr)
-            break;
-
-         //grab pubkey from reference, then sign
          auto ref = dynamic_pointer_cast<StackValue_Sig>(
             stackItem->resolvedValue_);
-
-         auto&& pubkey = resolveReferenceValue(ref->pubkeyRef_);
-         ref->sig_ = move(proxy_->sign(script_, pubkey, isSW_));
+         ref->script_ = script_;
          break;
       }
 
       case StackValueType_Multisig:
       {
-         if (proxy_ == nullptr)
-            break;
-
-         auto msObj = dynamic_pointer_cast<StackValue_Multisig>(
-            stackItem->resolvedValue_);
-
-         unsigned sigCount = 0;
-         unsigned keyCount = 0;
-         auto pubkeyIter = msObj->pubkeyVec_.rbegin();
-         while (pubkeyIter != msObj->pubkeyVec_.rend())
-         {
-            try
-            {
-               auto thisKeyId = keyCount++;
-               auto&& sig = proxy_->sign(script_, *pubkeyIter++, isSW_);
-               msObj->sig_.insert(make_pair(keyCount, move(sig)));
-               ++sigCount;
-               if (sigCount >= msObj->m_)
-                  break;
-            }
-            catch (runtime_error&)
-            {
-               //feed is missing private key, nothing to do
-            }
-         }
-
+         //nothing to do
          break;
       }
 
@@ -1449,7 +1446,7 @@ void StackResolver::resolveStack()
                throw ScriptException("invalid SW script format");
             }
             
-            StackResolver resolver(swScript, feed_, proxy_);
+            StackResolver resolver(swScript, feed_);
             resolver.setFlags(flags_);
             resolver.isSW_ = true;
 
@@ -1474,23 +1471,15 @@ void StackResolver::resolveStack()
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
 {
-   if (resolvedStack_ != nullptr)
-   {
-      if (resolvedStack_->isValid())
-         return resolvedStack_;
-   }
-
    BinaryRefReader brr(script_);
    processScript(brr);
    resolveStack();
 
-   bool isValid = true;
    unsigned count = 0;
    if (resolvedStack_ != nullptr)
       count = resolvedStack_->stackSize();
 
    vector<shared_ptr<StackItem>> stackItemVec;
-   unsigned sigCount = 0;
 
    for (auto& stackItem : stack_)
    {
@@ -1537,12 +1526,10 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
          auto val = dynamic_pointer_cast<StackValue_Sig>(
             stackItem->resolvedValue_);
 
-         if (!val->sig_.empty())
-            ++sigCount;
-
+         auto pubkey = resolveReferenceValue(val->pubkeyRef_);
          stackItemVec.push_back(
             make_shared<StackItem_Sig>(
-               count++, move(val->sig_)));
+               count++, pubkey, val->script_));
 
          break;
       }
@@ -1556,19 +1543,10 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
          stackItemVec.push_back(
             make_shared<StackItem_OpCode>(count++, 0));
 
-         auto stackitem_ms = make_shared<StackItem_MultiSig>(
-            count++, msObj->m_);
-
-         //sigs
-         for (auto& sig : msObj->sig_)
-            stackitem_ms->setSig(sig.first, sig.second);
+         auto stackitem_ms = 
+            make_shared<StackItem_MultiSig>(count++, msObj->script_);
          stackItemVec.push_back(stackitem_ms);
-
-         if (msObj->sig_.size() < msObj->m_)
-            isValid = false;
- 
-         sigCount += msObj->sig_.size();
-
+         
          break;
       }
 
@@ -1580,8 +1558,7 @@ shared_ptr<ResolvedStack> StackResolver::getResolvedStack()
    if (resolvedStack_ == nullptr)
       resolvedStack_ = make_shared<ResolvedStack>();
    
-   resolvedStack_->setStackData(move(stackItemVec), sigCount);
-   resolvedStack_->isValid_ = isValid;
+   resolvedStack_->setStackData(move(stackItemVec));
    resolvedStack_->flagP2SH(isP2SH_);
 
    return resolvedStack_;

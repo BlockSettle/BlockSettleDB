@@ -612,44 +612,66 @@ int BtcUtils::get_varint_len(const int64_t& value)
    return 9;
 }
 
-   /////////////////////////////////////////////////////////////////////////////
-   double BtcUtils::convertDiffBitsToDouble(BinaryData const & diffBitsBinary)
-   {
-       uint32_t diffBits = READ_UINT32_LE(diffBitsBinary);
-       int nShift = (diffBits >> 24) & 0xff;
-       double dDiff = (double)0x0000ffff / (double)(diffBits & 0x00ffffff);
+/////////////////////////////////////////////////////////////////////////////
+double BtcUtils::convertDiffBitsToDouble(BinaryData const & diffBitsBinary)
+{
+   uint32_t diffBits = READ_UINT32_LE(diffBitsBinary);
+   int nShift = (diffBits >> 24) & 0xff;
+   double dDiff = (double)0x0000ffff / (double)(diffBits & 0x00ffffff);
    
-       while (nShift < 29)
-       {
-           dDiff *= 256.0;
-           nShift++;
-       }
-       while (nShift > 29)
-       {
-           dDiff /= 256.0;
-           nShift--;
-       }
-       return dDiff;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   BinaryData BtcUtils::convertDoubleToDiffBits(double diff)
+   while (nShift < 29)
    {
-      //quick and dirty, for unit test reorg purposes
-      unsigned nShift = 29;
-      while (diff > 16777215.0)
-      {
-         diff /= 256.0;
-         --nShift;
-      }
-
-      BinaryData diffBits(4);
-      auto ptr = diffBits.getPtr();
-
-      auto val = 65535.0 / diff;
-      unsigned* bits = (unsigned*)ptr;
-      *bits = ((unsigned)val);
-      ptr[3] = nShift;
-
-      return diffBits;
+      dDiff *= 256.0;
+      nShift++;
    }
+   while (nShift > 29)
+   {
+      dDiff /= 256.0;
+      nShift--;
+   }
+   return dDiff;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+BinaryData BtcUtils::convertDoubleToDiffBits(double diff)
+{
+   //quick and dirty, for unit test reorg purposes
+   unsigned nShift = 29;
+   while (diff > 16777215.0)
+   {
+      diff /= 256.0;
+      --nShift;
+   }
+
+   BinaryData diffBits(4);
+   auto ptr = diffBits.getPtr();
+
+   auto val = 65535.0 / diff;
+   unsigned* bits = (unsigned*)ptr;
+   *bits = ((unsigned)val);
+   ptr[3] = nShift;
+
+   return diffBits;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+map<BinaryDataRef, BinaryDataRef> BtcUtils::getPSBTDataPairs(
+   BinaryRefReader& brr)
+{
+   map<BinaryDataRef, BinaryDataRef> result;
+   while (true)
+   {
+      auto keylen = brr.get_var_int();
+      if (keylen == 0)
+         break;
+
+      auto key = brr.get_BinaryDataRef(keylen);
+
+      auto vallen = brr.get_var_int();
+      auto val = brr.get_BinaryDataRef(vallen);
+
+      result.emplace(key, val);
+   }
+
+   return result;
+}

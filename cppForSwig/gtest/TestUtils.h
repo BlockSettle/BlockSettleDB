@@ -156,7 +156,8 @@ namespace DBTestUtils
 
    void pushNewZc(BlockDataManagerThread* bdmt, const ZcVector& zcVec, bool stage = false);
    void setNextZcPushDelay(unsigned);
-   std::pair<BinaryData, BinaryData> getAddrAndPubKeyFromPrivKey(BinaryData privKey);
+   std::pair<BinaryData, BinaryData> getAddrAndPubKeyFromPrivKey(
+      BinaryData privKey, bool compressed = false);
 
    Tx getTxByHash(Clients* clients, const std::string bdvId,
       const BinaryData& txHash);
@@ -482,25 +483,56 @@ namespace ResolverUtils
    ////////////////////////////////////////////////////////////////////////////////
    struct TestResolverFeed : public ResolverFeed
    {
-      std::map<BinaryData, BinaryData> h160ToPubKey_;
+   private:
+      std::map<BinaryData, BinaryData> hashToPreimage_;
       std::map<BinaryData, SecureBinaryData> pubKeyToPrivKey_;
 
-      BinaryData getByVal(const BinaryData& val)
+      std::map<BinaryData, std::vector<uint32_t>> bip32Paths_;
+
+   public:
+      BinaryData getByVal(const BinaryData& val) override
       {
-         auto iter = h160ToPubKey_.find(val);
-         if (iter == h160ToPubKey_.end())
+         auto iter = hashToPreimage_.find(val);
+         if (iter == hashToPreimage_.end())
             throw std::runtime_error("invalid value");
 
          return iter->second;
       }
 
-      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
+      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey) override
       {
          auto iter = pubKeyToPrivKey_.find(pubkey);
          if (iter == pubKeyToPrivKey_.end())
             throw std::runtime_error("invalid pubkey");
 
          return iter->second;
+      }
+
+      void addPrivKey(const SecureBinaryData& key, bool compressed = false)
+      {
+         auto&& datapair = DBTestUtils::getAddrAndPubKeyFromPrivKey(key, compressed);
+         hashToPreimage_.insert(datapair);
+         pubKeyToPrivKey_[datapair.second] = key;
+      }
+
+      void addValPair(const BinaryData& key, const BinaryData& val)
+      {
+         hashToPreimage_.emplace(key, val);
+      }
+
+      std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData& pubkey) override
+      {
+         auto iter = bip32Paths_.find(pubkey);
+         if (iter == bip32Paths_.end())
+            throw std::runtime_error("missing path");
+
+         return iter->second;
+      }
+
+      void setBip32PathForPubkey(
+         const BinaryData& pubkey, const std::vector<uint32_t>& path)
+      {
+         bip32Paths_.emplace(pubkey, path);
       }
    };
 
@@ -519,31 +551,38 @@ namespace ResolverUtils
          feedPtr_ = std::make_shared<ResolverFeed_AssetWalletSingle>(wltPtr);
       }
 
-      BinaryData getByVal(const BinaryData& val)
+      BinaryData getByVal(const BinaryData& val) override
       {
          try
          {
             return testFeed_.getByVal(val);
          }
          catch (std::runtime_error&)
-         {
-         }
+         {}
 
          return feedPtr_->getByVal(val);
       }
 
-      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
+      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey) override
       {
          try
          {
             return testFeed_.getPrivKeyForPubkey(pubkey);
          }
          catch (std::runtime_error&)
-         {
-         }
+         {}
 
          return feedPtr_->getPrivKeyForPubkey(pubkey);
       }
+
+      std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) override
+      {
+         throw std::runtime_error("invalid pubkey");
+      }
+
+      void setBip32PathForPubkey(
+         const BinaryData&, const std::vector<uint32_t>&) override
+      {}
    };
 
    /////////////////////////////////////////////////////////////////////////////
@@ -586,7 +625,7 @@ namespace ResolverUtils
          addAddressEntry(addrPtr);
       }
 
-      BinaryData getByVal(const BinaryData& key)
+      BinaryData getByVal(const BinaryData& key) override
       {
          auto keyRef = BinaryDataRef(key);
          auto iter = hash_to_preimage_.find(keyRef);
@@ -596,10 +635,19 @@ namespace ResolverUtils
          return iter->second;
       }
 
-      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
+      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey) override
       {
          return wltFeed_->getPrivKeyForPubkey(pubkey);
       }
+
+      std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) override
+      {
+         throw std::runtime_error("invalid pubkey");
+      }
+
+      void setBip32PathForPubkey(
+         const BinaryData&, const std::vector<uint32_t>&) override
+      {}
    };
 }
 

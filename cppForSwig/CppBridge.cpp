@@ -14,6 +14,7 @@ using namespace std;
 using namespace ::google::protobuf;
 using namespace ::Codec_ClientProto;
 using namespace ArmoryThreading;
+using namespace ArmorySigner;
 
 enum CppBridgeState
 {
@@ -795,12 +796,12 @@ void CppBridge::commandLoop()
             case Methods::signer_addSpenderByOutpoint:
             {
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 2 ||
-                  msg.byteargs_size() != 1 || msg.longargs_size() != 1)
+                  msg.byteargs_size() != 1)
                   throw runtime_error("invalid command: signer_addSpenderByOutpoint");
 
                BinaryDataRef hash; hash.setRef(msg.byteargs(0));
                auto result = signer_addSpenderByOutpoint(msg.stringargs(0), 
-                  hash, msg.intargs(0), msg.intargs(1), msg.longargs(0));
+                  hash, msg.intargs(0), msg.intargs(1));
 
                auto resultProto = make_unique<ReplyNumbers>();
                resultProto->add_ints(result);
@@ -1846,13 +1847,13 @@ bool CppBridge::signer_SetLockTime(const string& id, unsigned locktime)
 ////////////////////////////////////////////////////////////////////////////////
 bool CppBridge::signer_addSpenderByOutpoint(
    const string& id, const BinaryDataRef& hash, 
-   unsigned txOutId, unsigned sequence, uint64_t value)
+   unsigned txOutId, unsigned sequence)
 {
    auto iter = signerMap_.find(id);
    if (iter == signerMap_.end())
       return false;
 
-   iter->second->signer_.addSpender_ByOutpoint(hash, txOutId, sequence, value);
+   iter->second->signer_.addSpender_ByOutpoint(hash, txOutId, sequence);
    return true;
 }
 

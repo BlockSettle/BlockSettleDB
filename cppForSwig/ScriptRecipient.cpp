@@ -7,6 +7,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "ScriptRecipient.h"
+#include "TxClasses.h"
+#include "Signer.h"
 
 using namespace std;
 
@@ -19,12 +21,11 @@ ScriptRecipient::~ScriptRecipient()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<ScriptRecipient> ScriptRecipient::deserialize(
-   const BinaryDataRef& dataPtr)
+shared_ptr<ScriptRecipient> ScriptRecipient::fromScript(BinaryDataRef dataRef)
 {
    shared_ptr<ScriptRecipient> result_ptr;
 
-   BinaryRefReader brr(dataPtr);
+   BinaryRefReader brr(dataRef);
 
    auto value = brr.get_uint64_t();
    auto script = brr.get_BinaryDataRef(brr.getSizeRemaining());
@@ -76,6 +77,119 @@ shared_ptr<ScriptRecipient> ScriptRecipient::deserialize(
       throw ScriptRecipientException("unexpected recipient script");
 
    return result_ptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptRecipient> ScriptRecipient::fromPSBT(
+   BinaryRefReader& brr, const TxOut& txout)
+{
+   auto globalDataPairs = BtcUtils::getPSBTDataPairs(brr);
+   map<BinaryData, vector<uint32_t>> bip32Paths;
+
+   for (const auto& dataPair : globalDataPairs)
+   {
+      const auto& key = dataPair.first;
+      const auto& val = dataPair.second;
+      
+      //key type
+      auto typePtr = key.getPtr();
+
+      switch (*typePtr)
+      {
+      case ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION:
+      {
+         auto pubkeyRef = key.getSliceRef(1, key.getSize() - 1);
+         auto insertIter = bip32Paths.emplace(pubkeyRef, vector<uint32_t>());
+         if (!insertIter.second)
+            throw ArmorySigner::PSBTDeserializationError("txout pubkey collision");
+
+         BinaryRefReader brrVal(val);
+         while (brrVal.getSizeRemaining() > 0)
+            insertIter.first->second.emplace_back(brrVal.get_uint32_t());
+
+         break;
+      }
+
+      default: 
+         throw ArmorySigner::PSBTDeserializationError("unexpected txout key");
+      }
+   }
+
+   auto scriptRecipient = ScriptRecipient::fromScript(txout.serializeRef());
+   for (auto& bip32Path : bip32Paths)
+      scriptRecipient->addBip32Path(bip32Path.first, bip32Path.second);
+
+   return scriptRecipient;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptRecipient::toPSBT(BinaryWriter& bw) const
+{
+   for (auto& bip32Path : bip32Paths_)
+   {
+      bw.put_uint8_t(34); //key length
+      bw.put_uint8_t(2); //key type
+      bw.put_BinaryData(bip32Path.first);
+
+      //path
+      bw.put_var_int(bip32Path.second.size() * 4);
+      for (auto& step : bip32Path.second)
+         bw.put_uint32_t(step);         
+   }
+         
+   //terminate
+   bw.put_uint8_t(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptRecipient::toProtobuf(Codec_SignerState::RecipientState& protoMsg)
+{ 
+   const auto& script = getSerializedScript();
+   protoMsg.set_data(script.getPtr(), script.getSize());
+   
+   for (auto& keyPair : bip32Paths_)
+   {
+      auto pathPtr = protoMsg.add_bip32paths();
+      pathPtr->set_pubkey(keyPair.first.getPtr(), keyPair.first.getSize());
+
+      for (auto& step : keyPair.second)
+         pathPtr->add_steps(step);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptRecipient> ScriptRecipient::fromProtobuf(
+   const Codec_SignerState::RecipientState& protoMsg)
+{
+   BinaryDataRef scriptRef;
+   scriptRef.setRef(protoMsg.data());
+   auto recipient = fromScript(scriptRef);
+
+   for (unsigned i=0; i<protoMsg.bip32paths_size(); i++)
+   {
+      const auto& pathMsg = protoMsg.bip32paths(i);
+      auto key = BinaryData::fromString(pathMsg.pubkey());
+
+      vector<uint32_t> steps;
+      for (unsigned y=0; y<pathMsg.steps_size(); y++)
+         steps.emplace_back(pathMsg.steps(y));
+
+      recipient->addBip32Path(key, steps);
+   }
+
+   return recipient;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptRecipient::addBip32Path(
+   const BinaryData& pubkey, const std::vector<uint32_t>& bip32Path)
+{
+   auto insertIter = bip32Paths_.emplace(pubkey, bip32Path);
+   if (!insertIter.second)
+   {
+      if (insertIter.first->second != bip32Path)
+         throw ScriptRecipientException("bip32Path conflict");
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

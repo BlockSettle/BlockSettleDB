@@ -105,7 +105,7 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 struct CppBridgeSignerStruct
 {
-   Signer signer_;
+   ArmorySigner::Signer signer_;
    std::unique_ptr<TxEvalState> signState_;
 };
 
@@ -208,8 +208,7 @@ private:
    bool signer_SetLockTime(const std::string&, unsigned);
    
    bool signer_addSpenderByOutpoint(
-      const std::string&, const BinaryDataRef&, unsigned, unsigned, 
-      uint64_t);
+      const std::string&, const BinaryDataRef&, unsigned, unsigned);
    bool signer_populateUtxo(
       const std::string&, const BinaryDataRef&, unsigned, uint64_t, 
       const BinaryDataRef&);

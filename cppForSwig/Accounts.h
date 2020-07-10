@@ -101,8 +101,7 @@ enum AccountTypeEnum
    salts per asset.
    */
    AccountTypeEnum_ECDH,
-   
-   AccountTypeEnum_BIP44,
+
    AccountTypeEnum_Custom
 };
 
@@ -243,7 +242,7 @@ struct AccountType_BIP32 : public AccountType_WithRoot
 {   
    friend struct AccountType_BIP32_Custom;
 private:
-   const std::vector<unsigned> derivationPath_;
+   const std::vector<uint32_t> derivationPath_;
    unsigned depth_ = 0;
    unsigned leafId_ = 0;
    unsigned fingerPrint_ = 0;
@@ -303,6 +302,8 @@ public:
    unsigned getDepth(void) const { return depth_; }
    unsigned getLeafID(void) const { return leafId_; }
    unsigned getFingerPrint(void) const { return fingerPrint_; }
+   std::vector<uint32_t> getDerivationPath(void) const 
+   { return derivationPath_; }
 };
 
 
@@ -676,6 +677,9 @@ private:
    std::shared_ptr<Asset_PrivateKey> fillPrivateKey(
       std::shared_ptr<DecryptedDataContainer> ddc,
       const BinaryData& id);
+
+   std::vector<uint32_t> getAccountBip32PathForId(
+      const BinaryData&) const;
 
 public:
    AddressAccount(std::shared_ptr<WalletDBInterface> iface,

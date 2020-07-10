@@ -317,7 +317,7 @@ bool CryptoECDSA::VerifyPublicKeyValid(SecureBinaryData const & pubKey)
 //         A flag indicating if deterministic signing is used  (const bool&)
 // Output: None
 // Return: The signature of the data  (SecureBinaryData)
-SecureBinaryData SignData_CryptoPP(SecureBinaryData const & binToSign, 
+SecureBinaryData SignData_CryptoPP(BinaryData const & binToSign, 
                                        BTC_PRIVKEY const & cppPrivKey,
                                        const bool& detSign)
 {
@@ -329,7 +329,7 @@ SecureBinaryData SignData_CryptoPP(SecureBinaryData const & binToSign,
    BTC_PRNG prng;
 
    // Execute the first sha256 op -- the signer will do the other one
-   SecureBinaryData hashVal(32);
+   BinaryData hashVal(32);
    sha256.CalculateDigest(hashVal.getPtr(), 
                           binToSign.getPtr(), 
                           binToSign.getSize());
@@ -361,7 +361,7 @@ SecureBinaryData SignData_CryptoPP(SecureBinaryData const & binToSign,
 //         A flag indicating if deterministic signing is used  (const bool&)
 // Output: None
 // Return: The signature of the data  (SecureBinaryData)
-SecureBinaryData CryptoECDSA::SignData(SecureBinaryData const & binToSign,
+SecureBinaryData CryptoECDSA::SignData(BinaryData const & binToSign,
    SecureBinaryData const & binPrivKey,
    const bool& detSign)
 {

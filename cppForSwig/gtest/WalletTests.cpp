@@ -10,6 +10,7 @@
 #include "TestUtils.h"
 
 using namespace std;
+using namespace ArmorySigner;
 
 ////////////////////////////////////////////////////////////////////////////////
 class AddressTests : public ::testing::Test
@@ -4678,7 +4679,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
    //add bip32 account for derivationPath1
-   auto accountID1 = assetWlt->createBIP32Account(nullptr, derivationPath1);
+   auto accountID1 = assetWlt->createBIP32Account(nullptr, derivationPath1, false);
 
    //derive bip32 node
    BIP32_Node seedNode;
@@ -4748,7 +4749,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    accountTypePtr->setAddressLookup(100);
 
    //add bip32 custom account for derivationPath2
-   auto accountID2 = assetWlt->createBIP32Account(
+   auto accountID2 = assetWlt->createCustomBIP32Account(
       nullptr, derivationPath2, accountTypePtr);
 
    BIP32_Node seedNode2;
@@ -4968,7 +4969,10 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
       chaincodeCopy, //have to pass the chaincode too
 
       //aesthetical stuff, not mandatory, not useful for the crypto side of things
-      newPubNode.getDepth(), newPubNode.getLeafID(), newPubNode.getFingerPrint()
+      newPubNode.getDepth(), newPubNode.getLeafID(), newPubNode.getParentFingerprint(),
+
+      //derivation path for this root, only relevant for path discovery & PSBT
+      vector<uint32_t>()
    );
 
    //3: create a custom bip32 account meta data object to setup the WO account
@@ -4999,7 +5003,7 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
    accountTypePtr->setMain(true);
 
    //4: feed it to the wallet
-   wltWO->createBIP32Account(
+   wltWO->createCustomBIP32Account(
       pubRootAsset, //root asset
       
       //no derivation path, the root is built from an xpub, we assume it's
@@ -5136,7 +5140,7 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
       return passphrase;
    };
    wlt->setPassphrasePromptLambda(passphraseLbd);
-   wlt->createBIP32Account(
+   wlt->createCustomBIP32Account(
       nullptr, 
       derPath,
       accountTypePtr);
@@ -5261,11 +5265,11 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
          { AddressEntryType_P2WPKH });
 
       //add bip32 account for derivationPath1
-      accountID1 = assetWlt->createBIP32Account(
+      accountID1 = assetWlt->createCustomBIP32Account(
          nullptr, derivationPath1, saltedAccType1);
 
       //add bip32 account for derivationPath2
-      accountID2 = assetWlt->createBIP32Account(
+      accountID2 = assetWlt->createCustomBIP32Account(
          nullptr, derivationPath2, saltedAccType2);
 
       //grab the accounts

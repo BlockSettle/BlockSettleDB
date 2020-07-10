@@ -990,7 +990,7 @@ const string& AssetWallet::getDescription() const
 ////////////////////////////////////////////////////////////////////////////////
 const BinaryData& AssetWallet_Single::createBIP32Account(
    shared_ptr<AssetEntry_BIP32Root> parentNode, 
-   vector<unsigned> derPath, bool isMain)
+   vector<unsigned> derPath, bool isSegWit, bool isMain)
 {
    shared_ptr<AssetEntry_BIP32Root> root = parentNode;
    if (parentNode == nullptr)
@@ -999,7 +999,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
    if (root == nullptr)
       throw AccountException("no valid root to create BIP32 account from");
 
-   shared_ptr<AccountType_BIP32_Legacy> accountTypePtr = nullptr;
+   shared_ptr<AccountType_BIP32> accountTypePtr = nullptr;
    if(root->getPrivKey() != nullptr)
    {
       //try to decrypt the root's private key to get full derivation
@@ -1013,9 +1013,18 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
          auto chaincode = root->getChaincode();
 
          SecureBinaryData dummy;
-         accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
-            privKey, dummy, chaincode, derPath,
-            root->getDepth(), root->getLeafID());
+         if (!isSegWit)
+         {
+            accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
+               privKey, dummy, chaincode, derPath,
+               root->getDepth(), root->getLeafID());
+         }
+         else
+         {
+            accountTypePtr = make_shared<AccountType_BIP32_SegWit>(
+               privKey, dummy, chaincode, derPath,
+               root->getDepth(), root->getLeafID());
+         }
       }
       catch(exception&)
       {}
@@ -1029,9 +1038,18 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
       auto chaincode = root->getChaincode();
 
       SecureBinaryData dummy1;
-      accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
-         dummy1, pubkey, chaincode, derPath,
-         root->getDepth(), root->getLeafID());
+      if (!isSegWit)
+      {
+         accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
+            dummy1, pubkey, chaincode, derPath,
+            root->getDepth(), root->getLeafID());
+      }
+      else
+      {
+         accountTypePtr = make_shared<AccountType_BIP32_SegWit>(
+            dummy1, pubkey, chaincode, derPath,
+            root->getDepth(), root->getLeafID());
+      }
    }
 
    if (isMain || accounts_.size() == 0)
@@ -1044,7 +1062,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AssetWallet_Single::createBIP32Account(
+const BinaryData& AssetWallet_Single::createCustomBIP32Account(
    std::shared_ptr<AssetEntry_BIP32Root> parentNode,
    std::vector<unsigned> derPath,
    std::shared_ptr<AccountType_BIP32_Custom> accTypePtr)
@@ -1073,7 +1091,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
          //derive account root
          BIP32_Node bip32Node;
          bip32Node.initFromPrivateKey(
-            root->getDepth(), root->getLeafID(), root->getFingerPrint(),
+            root->getDepth(), root->getLeafID(), root->getParentFingerprint(),
             privKey, chaincode);
          for (auto& path : derPath)
             bip32Node.derivePrivate(path);
@@ -1104,7 +1122,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
 
       BIP32_Node bip32Node;
       bip32Node.initFromPublicKey(
-         root->getDepth(), root->getLeafID(), root->getFingerPrint(),
+         root->getDepth(), root->getLeafID(), root->getParentFingerprint(),
          pubkey, chaincode);
       for (auto& path : derPath)
          bip32Node.derivePublic(path);
@@ -1632,11 +1650,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
       }
    }
 
-   if (armory135AccCount > 0 && isBip32)
-      throw AccountException("account type mismatch");
-
    //default to bip32 root if there are no account types specified
-   if (armory135AccCount == 0 && !isBip32)
+   if (armory135AccCount == 0)
       isBip32 = true;
 
    shared_ptr<AssetEntry_Single> rootAssetEntry;
@@ -1648,7 +1663,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
       rootAssetEntry = make_shared<AssetEntry_BIP32Root>(
          -1, BinaryData(),
          pubkey, rootAsset,
-         chaincode, 0, 0, 0);
+         chaincode, 0, 0, 0, vector<uint32_t>());
    }
    else
    {
@@ -1879,6 +1894,47 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+const BinaryData& AssetWallet_Single::derivePrivKeyFromPath_WithFingerprint(
+   const std::vector<uint32_t>& path)
+{
+   //grab root
+   auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
+   if (rootBip32 == nullptr)
+      throw runtime_error("missing root");
+
+   //check fingerprint
+   auto fingerprint = path[0];
+   auto rootFingerprint = rootBip32->getThisFingerprint();
+   if (fingerprint != rootFingerprint)
+      throw runtime_error("root mismatch");
+
+   //decrypt root
+   auto privKey = decryptedData_->getDecryptedPrivateData(rootBip32->getPrivKey());
+   auto chaincode = rootBip32->getChaincode();
+
+   //derive
+   auto hdNode = 
+      BIP32_Node::getHDNodeFromPrivateKey(0, 0, 0, privKey, chaincode);
+
+   for (unsigned i=1; i<path.size(); i++)
+   {
+      if (!btc_hdnode_private_ckd(&hdNode, path[i]))
+         throw std::runtime_error("failed to derive bip32 private key");
+   }
+
+   //add to decrypted data container and return id
+   return decryptedData_->insertDecryptedPrivateData(
+      hdNode.private_key, BTC_ECKEY_PKEY_LENGTH);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const SecureBinaryData& AssetWallet_Single::getDecrypedPrivateKeyForId(
+   const BinaryData& id) const
+{
+   return decryptedData_->getDecryptedPrivateData(id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void AssetWallet_Single::changePrivateKeyPassphrase(
    const std::function<SecureBinaryData(void)>& newPassLbd)
 {
@@ -2086,11 +2142,49 @@ void AssetWallet_Single::setSeed(
 ////////////////////////////////////////////////////////////////////////////////
 bool AssetWallet_Single::isWatchingOnly() const
 {
-
    if (root_ == nullptr)
       return true;
 
    return !root_->hasPrivateKey();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<uint32_t> AssetWallet_Single::getBip32PathForAsset(
+   shared_ptr<AssetEntry> asset) const
+{
+   const auto& id = asset->getID();
+   return getBip32PathForAssetID(id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<uint32_t> AssetWallet_Single::getBip32PathForAssetID(
+   const BinaryData& id) const
+{
+   if (id.getSize() != 12)
+      throw runtime_error("invalid asset id length");
+
+   //get root
+   auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
+   if (rootBip32 == nullptr)
+      throw runtime_error("missing root");
+
+   //get fingerprint and see path
+   auto rootFingerprint = rootBip32->getThisFingerprint();
+   vector<uint32_t> path = { rootFingerprint };
+
+   //grab account
+   auto account = getAccountForID(id);
+
+   //get account path
+   auto accountPath = account->getAccountBip32PathForId(id);
+   path.insert(path.end(), accountPath.begin(), accountPath.end());
+
+   //append asset step
+   BinaryRefReader brr(id.getRef());
+   brr.advance(8);
+   path.push_back(brr.get_uint32_t(BE));
+
+   return path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

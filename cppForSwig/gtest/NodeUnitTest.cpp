@@ -12,6 +12,7 @@
 
 using namespace std;
 using namespace ArmoryThreading;
+using namespace ArmorySigner;
 
 ////////////////////////////////////////////////////////////////////////////////
 int verifyTxSigs(const BinaryData& rawTx, const LMDBBlockDatabase* iface, 

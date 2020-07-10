@@ -278,8 +278,8 @@ public:
    const BinaryData& createBIP32Account(
       std::shared_ptr<AssetEntry_BIP32Root> parentNode,
       std::vector<unsigned> derPath,
-      bool isMain = false);
-   const BinaryData& createBIP32Account(
+      bool isSegWit, bool isMain = false);
+   const BinaryData& createCustomBIP32Account(
       std::shared_ptr<AssetEntry_BIP32Root> parentNode,
       std::vector<unsigned> derPath,
       std::shared_ptr<AccountType_BIP32_Custom>);
@@ -291,8 +291,14 @@ public:
 
    const SecureBinaryData& getDecryptedPrivateKeyForAsset(
       std::shared_ptr<AssetEntry_Single>);
+   const BinaryData& derivePrivKeyFromPath_WithFingerprint(
+      const std::vector<uint32_t>&);
+   const SecureBinaryData& getDecrypedPrivateKeyForId(const BinaryData&) const;
 
    std::shared_ptr<EncryptedSeed> getEncryptedSeed(void) const { return seed_; }
+
+   std::vector<uint32_t> getBip32PathForAsset(std::shared_ptr<AssetEntry>) const;
+   std::vector<uint32_t> getBip32PathForAssetID(const BinaryData&) const;
 
    //virtual
    const SecureBinaryData& getDecryptedValue(
@@ -392,6 +398,7 @@ private:
 protected:
    std::map<BinaryData, BinaryData> hash_to_preimage_;
    std::map<BinaryData, std::shared_ptr<AssetEntry_Single>> pubkey_to_asset_;
+   std::map<BinaryData, std::pair<std::vector<uint32_t>, BinaryData>> bip32Paths_;
 
 private:
 
@@ -502,7 +509,7 @@ public:
    }
 
    //virtual
-   BinaryData getByVal(const BinaryData& key)
+   BinaryData getByVal(const BinaryData& key) override
    {
       //check cached hits first
       auto iter = hash_to_preimage_.find(key);
@@ -532,13 +539,35 @@ public:
       return addrPtr->getPreimage();
    }
 
-   virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
+   virtual const SecureBinaryData& getPrivKeyForPubkey(
+      const BinaryData& pubkey) override
    {
       //check cache first
-      auto pubkeyref = BinaryDataRef(pubkey);
-      auto iter = pubkey_to_asset_.find(pubkeyref);
-      if (iter != pubkey_to_asset_.end())
-         return wltPtr_->getDecryptedPrivateKeyForAsset(iter->second);
+      {
+         auto pubkeyref = pubkey.getRef();
+         auto cacheIter = pubkey_to_asset_.find(pubkeyref);
+         if (cacheIter != pubkey_to_asset_.end())
+         {
+            return wltPtr_->getDecryptedPrivateKeyForAsset(
+               cacheIter->second);
+         }
+      }
+
+      //if we have a bip32 path hint for this pubkey, use that
+      {
+         auto pathIter = bip32Paths_.find(pubkey);
+         if (pathIter != bip32Paths_.end())
+         {
+            if (pathIter->second.second.empty())
+            {
+               pathIter->second.second = 
+                  wltPtr_->derivePrivKeyFromPath_WithFingerprint(
+                     pathIter->second.first);
+            }
+
+            return wltPtr_->getDecrypedPrivateKeyForId(pathIter->second.second);
+         }
+      }
 
       /*
       Lacking a cache hit, we need to get the asset for this pubkey. All
@@ -580,6 +609,24 @@ public:
       */
    }
 
+   std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData& pubkey) override
+   {
+      //check cache first
+      {
+         auto pubkeyref = pubkey.getRef();
+         auto cacheIter = pubkey_to_asset_.find(pubkeyref);
+         if (cacheIter != pubkey_to_asset_.end())
+            return wltPtr_->getBip32PathForAsset(cacheIter->second);
+      }
+
+      auto&& hash = BtcUtils::getHash160(pubkey);
+      auto assetPair = getAssetPairForKey(hash);
+      if (assetPair.first == nullptr)
+         throw NoAssetException("invalid pubkey");
+
+      return wltPtr_->getBip32PathForAsset(assetPair.first);
+   }
+
    void seedFromAddressEntry(std::shared_ptr<AddressEntry> addrPtr)
    {
       try
@@ -602,6 +649,12 @@ public:
 
       //seed the predecessor too
       seedFromAddressEntry(addrNested->getPredecessor());
+   }
+
+   void setBip32PathForPubkey(
+      const BinaryData& pubkey, const std::vector<uint32_t>& path) override
+   {
+      bip32Paths_.emplace(pubkey, make_pair(path, BinaryData()));
    }
 };
 
@@ -682,14 +735,14 @@ public:
    }
 
    //virtual
-   BinaryData getByVal(const BinaryData&)
+   BinaryData getByVal(const BinaryData&) override
    {
       //find id for the key
       throw std::runtime_error("no preimages in multisig feed");
       return BinaryData();
    }
 
-   virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
+   virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey) override
    {
       auto pubkeyref = BinaryDataRef(pubkey);
       auto iter = pubkey_to_asset_.find(pubkeyref);
@@ -699,6 +752,15 @@ public:
       const auto& privkeyAsset = iter->second->getPrivKey();
       return wltPtr_->getDecryptedValue(privkeyAsset);
    }
+
+   std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) override
+   {
+      throw std::runtime_error("invalid pubkey");
+   }
+
+   void setBip32PathForPubkey(
+      const BinaryData&, const std::vector<uint32_t>&) override
+   {}
 };
 
 #endif
