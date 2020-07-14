@@ -1911,6 +1911,19 @@ void ScriptSpender::toPSBT(
       }
    }
 
+   //proprietary data
+   for (auto& data : prioprietaryPSBTData_)
+   {
+      //key
+      bw.put_var_int(data.first.getSize() + 1);
+      bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_PROPRIETARY);
+      bw.put_BinaryData(data.first);
+
+      //val
+      bw.put_var_int(data.second.getSize());
+      bw.put_BinaryData(data.second);
+   }
+
    //terminate
    bw.put_uint8_t(0);
 }
@@ -1926,6 +1939,7 @@ shared_ptr<ScriptSpender> ScriptSpender::fromPSBT(
 
    map<BinaryDataRef, BinaryDataRef> partialSigs;
    map<BinaryData, vector<uint32_t>> bip32paths;
+   map<BinaryData, BinaryData> prioprietaryPSBTData;
          
    BinaryDataRef redeemScript;
    BinaryDataRef witnessScript;
@@ -2034,6 +2048,15 @@ shared_ptr<ScriptSpender> ScriptSpender::fromPSBT(
             throw PSBTDeserializationError("unvalid finalized witness script key len");
 
          finalWitnessScript = val;  
+         break;
+      }
+
+      case PSBT::ENUM_INPUT::PSBT_IN_PROPRIETARY:
+      {
+         //proprietary data doesn't have to be interpreted but
+         //it needs carried over
+         prioprietaryPSBTData.emplace(
+            key.getSliceRef(1, key.getSize() - 1), val);
          break;
       }
 
@@ -2157,6 +2180,8 @@ shared_ptr<ScriptSpender> ScriptSpender::fromPSBT(
 
       spender->setSigHashType((SIGHASH_TYPE)sigHash);
    }
+
+   spender->prioprietaryPSBTData_ = move(prioprietaryPSBTData);
 
    return spender;
 }
@@ -3268,7 +3293,22 @@ BinaryData Signer::toPSBT() const
       unsignedTx = move(bw.getData());
    }
 
+   //unsigned tx
    PSBT::setUnsignedTx(bw, unsignedTx);
+
+   //proprietary data
+   for (auto& data : prioprietaryPSBTData_)
+   {
+      //key
+      bw.put_var_int(data.first.getSize() + 1);
+      bw.put_uint8_t(PSBT::ENUM_GLOBAL::PSBT_GLOBAL_PROPRIETARY);
+      bw.put_BinaryData(data.first);
+
+      //val
+      bw.put_var_int(data.second.getSize());
+      bw.put_BinaryData(data.second);
+   }
+
    PSBT::setSeparator(bw);
 
    /*inputs*/
@@ -3361,8 +3401,10 @@ Signer Signer::fromPSBT(BinaryDataRef psbtRef)
 
       case PSBT::ENUM_GLOBAL::PSBT_GLOBAL_PROPRIETARY:
       {
-         //skip for now
-
+         //prioprietary data doesn't have to be interpreted but needs
+         //carried across
+         signer.prioprietaryPSBTData_.emplace(
+            key.getSliceRef(1, key.getSize() - 1), val);
          break;
       }
 

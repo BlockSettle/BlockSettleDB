@@ -46,7 +46,9 @@ protected:
    uint64_t value_ = UINT64_MAX;
 
    BinaryData script_;
+
    std::map<BinaryData, std::vector<uint32_t>> bip32Paths_;
+   std::map<BinaryData, BinaryData> prioprietaryPSBTData_;
 
 public:
    //tors

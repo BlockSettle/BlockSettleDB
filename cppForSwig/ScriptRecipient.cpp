@@ -85,6 +85,7 @@ shared_ptr<ScriptRecipient> ScriptRecipient::fromPSBT(
 {
    auto globalDataPairs = BtcUtils::getPSBTDataPairs(brr);
    map<BinaryData, vector<uint32_t>> bip32Paths;
+   std::map<BinaryData, BinaryData> prioprietaryPSBTData;
 
    for (const auto& dataPair : globalDataPairs)
    {
@@ -110,14 +111,21 @@ shared_ptr<ScriptRecipient> ScriptRecipient::fromPSBT(
          break;
       }
 
+      case ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_PROPRIETARY:
+      {
+         prioprietaryPSBTData.emplace(
+            key.getSliceRef(1, key.getSize() - 1), val);
+         break;
+      }
+
       default: 
          throw ArmorySigner::PSBTDeserializationError("unexpected txout key");
       }
    }
 
    auto scriptRecipient = ScriptRecipient::fromScript(txout.serializeRef());
-   for (auto& bip32Path : bip32Paths)
-      scriptRecipient->addBip32Path(bip32Path.first, bip32Path.second);
+   scriptRecipient->bip32Paths_ = move(bip32Paths);
+   scriptRecipient->prioprietaryPSBTData_ = move(prioprietaryPSBTData);
 
    return scriptRecipient;
 }
@@ -128,13 +136,27 @@ void ScriptRecipient::toPSBT(BinaryWriter& bw) const
    for (auto& bip32Path : bip32Paths_)
    {
       bw.put_uint8_t(34); //key length
-      bw.put_uint8_t(2); //key type
+      bw.put_uint8_t( //key type
+         ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION);
       bw.put_BinaryData(bip32Path.first);
 
       //path
       bw.put_var_int(bip32Path.second.size() * 4);
       for (auto& step : bip32Path.second)
          bw.put_uint32_t(step);         
+   }
+
+   for (auto& data : prioprietaryPSBTData_)
+   {
+      //key
+      bw.put_var_int(data.first.getSize() + 1);
+      bw.put_uint8_t(
+         ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_PROPRIETARY);
+      bw.put_BinaryData(data.first);
+
+      //val
+      bw.put_var_int(data.second.getSize());
+      bw.put_BinaryData(data.second);
    }
          
    //terminate

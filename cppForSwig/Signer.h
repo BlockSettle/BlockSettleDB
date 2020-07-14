@@ -104,6 +104,8 @@ private:
    std::shared_ptr<std::map<BinaryData, Tx>> txMap_;
    std::map<BinaryData, std::vector<uint32_t>> bip32Paths_;
 
+   std::map<BinaryData, BinaryData> prioprietaryPSBTData_;
+
 protected:
    UTXO utxo_;
 
@@ -286,6 +288,8 @@ protected:
 
    std::shared_ptr<ResolverFeed> resolverPtr_;
    std::shared_ptr<std::map<BinaryData, Tx>> supportingTxMap_;
+
+   std::map<BinaryData, BinaryData> prioprietaryPSBTData_;
 
 protected:
    virtual std::shared_ptr<SigHashData> getSigHashDataForSpender(bool) const;
