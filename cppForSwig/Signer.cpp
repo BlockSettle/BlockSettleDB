@@ -3055,6 +3055,8 @@ void Signer::merge(const Signer& rhs)
 
       if (local_recipient == nullptr)
          recipients_.push_back(recipient);
+      else 
+         local_recipient->merge(recipient);
    }
 }
 

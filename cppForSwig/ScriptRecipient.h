@@ -84,6 +84,7 @@ public:
 
    void toProtobuf(Codec_SignerState::RecipientState&) const;
    void toPSBT(BinaryWriter&) const;
+   void merge(std::shared_ptr<ScriptRecipient>);
 
    //static
    static std::shared_ptr<ScriptRecipient> fromScript(BinaryDataRef);

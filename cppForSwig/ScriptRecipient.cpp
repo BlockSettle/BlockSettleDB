@@ -216,6 +216,27 @@ void ScriptRecipient::addBip32Path(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void ScriptRecipient::merge(shared_ptr<ScriptRecipient> recipientPtr)
+{
+   if (type_ != recipientPtr->type_ || 
+      value_ != recipientPtr->value_)
+      throw ScriptRecipientException("recipient mismatch");
+
+   serialize();
+   recipientPtr->serialize();
+   if (script_ != recipientPtr->script_)
+      throw ScriptRecipientException("recipient mismatch");
+
+   bip32Paths_.insert(
+      recipientPtr->bip32Paths_.begin(),
+      recipientPtr->bip32Paths_.end());
+
+   prioprietaryPSBTData_.insert(
+      recipientPtr->prioprietaryPSBTData_.begin(),
+      recipientPtr->prioprietaryPSBTData_.end());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 //
 // Recipient_P2PKH
 //
