@@ -995,8 +995,8 @@ struct StackItem_PushData : public StackItem
 ////
 struct StackItem_Sig : public StackItem
 {
-   const BinaryData pubkey_;
-   const BinaryData script_;
+   BinaryData pubkey_;
+   BinaryData script_;
    SecureBinaryData sig_;
 
    StackItem_Sig(unsigned id, BinaryData& pubkey, BinaryData& script) :
@@ -1006,6 +1006,7 @@ struct StackItem_Sig : public StackItem
    {}
 
    bool isSame(const StackItem* obj) const override; 
+   void merge(const StackItem* obj);
    void serialize(Codec_SignerState::StackEntryState&) const override;
    void injectSig(SecureBinaryData& sig)
    {
@@ -1015,6 +1016,7 @@ struct StackItem_Sig : public StackItem
    { 
       return !sig_.empty(); 
    }
+
 };
 
 ////

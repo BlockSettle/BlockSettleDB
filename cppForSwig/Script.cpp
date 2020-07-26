@@ -76,6 +76,24 @@ bool StackItem_SerializedScript::isSame(const StackItem* obj) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void StackItem_Sig::merge(const StackItem *obj)
+{
+   auto obj_cast = dynamic_cast<const StackItem_Sig*>(obj);
+   if (obj_cast == nullptr)
+      throw ScriptException("unexpected StackItem type");
+
+   if (script_.empty())
+      script_ = obj_cast->script_;
+   else if (script_ != obj_cast->script_)
+      throw ScriptException("sig item script mismatch");
+   
+   if (pubkey_.empty())
+      pubkey_ = obj_cast->pubkey_;
+   else if (pubkey_ != obj_cast->pubkey_)
+      throw ScriptException("sig item pubkey mismatch");
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void StackItem_MultiSig::merge(const StackItem* obj)
 {
    auto obj_cast = dynamic_cast<const StackItem_MultiSig*>(obj);
