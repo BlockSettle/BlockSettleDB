@@ -164,7 +164,8 @@ void ScriptRecipient::toPSBT(BinaryWriter& bw) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptRecipient::toProtobuf(Codec_SignerState::RecipientState& protoMsg)
+void ScriptRecipient::toProtobuf(
+   Codec_SignerState::RecipientState& protoMsg) const
 { 
    const auto& script = getSerializedScript();
    protoMsg.set_data(script.getPtr(), script.getSize());
@@ -219,7 +220,7 @@ void ScriptRecipient::addBip32Path(
 // Recipient_P2PKH
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_P2PKH::serialize()
+void Recipient_P2PKH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
@@ -242,7 +243,7 @@ size_t Recipient_P2PKH::getSize() const
 // Recipient_P2PK
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_P2PK::serialize()
+void Recipient_P2PK::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
@@ -266,7 +267,7 @@ size_t Recipient_P2PK::getSize() const
 // Recipient_P2WPKH
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_P2WPKH::serialize()
+void Recipient_P2WPKH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
@@ -290,7 +291,7 @@ size_t Recipient_P2WPKH::getSize() const
 // Recipient_P2SH
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_P2SH::serialize()
+void Recipient_P2SH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
@@ -314,7 +315,7 @@ size_t Recipient_P2SH::getSize() const
 // Recipient_P2WSH
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_P2WSH::serialize()
+void Recipient_P2WSH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
@@ -338,7 +339,7 @@ size_t Recipient_P2WSH::getSize() const
 // Recipient_OPRETURN
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_OPRETURN::serialize()
+void Recipient_OPRETURN::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(0);
@@ -383,7 +384,7 @@ size_t Recipient_OPRETURN::getSize() const
 // Recipient_Universal
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_Universal::serialize()
+void Recipient_Universal::serialize() const
 {
    if (script_.getSize() != 0)
       return;
