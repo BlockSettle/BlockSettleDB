@@ -8225,15 +8225,12 @@ TEST_F(BlockUtilsBare, Load4Blocks_ZC_GetUtxos)
 TEST_F(BlockUtilsBare, Replace_ZC_Test)
 {
    //create spender lambda
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      auto spender = make_shared<ScriptSpender>(entry, feed);
+      auto spender = make_shared<ScriptSpender>(entry);
       spender->setSequence(UINT32_MAX - 2);
 
       return spender;
@@ -8340,7 +8337,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to first address
@@ -8363,6 +8360,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -8434,7 +8432,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, feed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to first address
@@ -8457,6 +8455,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       }
 
       //sign, verify then broadcast
+      signer2.setFeed(feed);
       signer2.sign();
       EXPECT_TRUE(signer2.verify());
 
@@ -8535,7 +8534,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer3.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 4 to first address
@@ -8560,6 +8559,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       //sign, verify then broadcast
       {
          auto lock = assetWlt->lockDecryptedContainer();
+         signer3.setFeed(assetFeed);
          signer3.sign();
       }
       EXPECT_TRUE(signer3.verify());
@@ -8657,7 +8657,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, feed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to first address
@@ -8680,6 +8680,7 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
       }
 
       //sign, verify then broadcast
+      signer2.setFeed(feed);
       signer2.sign();
       EXPECT_TRUE(signer2.verify());
 
@@ -8749,15 +8750,12 @@ TEST_F(BlockUtilsBare, Replace_ZC_Test)
 TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
 {
    //create spender lambda
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      auto spender = make_shared<ScriptSpender>(entry, feed);
+      auto spender = make_shared<ScriptSpender>(entry);
       spender->setSequence(UINT32_MAX - 2);
 
       return spender;
@@ -8865,7 +8863,7 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to first address
@@ -8888,6 +8886,7 @@ TEST_F(BlockUtilsBare, RegisterAddress_AfterZC)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -8982,14 +8981,13 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
 {
    //create spender lambda
    auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
+      const UnspentTxOut& utxo)
       ->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      auto spender = make_shared<ScriptSpender>(entry, feed);
+      auto spender = make_shared<ScriptSpender>(entry);
       spender->setSequence(UINT32_MAX - 2);
 
       return spender;
@@ -9173,7 +9171,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, feed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       auto addr2 = assetWlt->getNewAddress(
@@ -9182,6 +9180,7 @@ TEST_F(BlockUtilsBare, TwoZC_CheckLedgers)
       addrVec.push_back(addr2->getPrefixedHash());
 
       //sign, verify then broadcast
+      signer2.setFeed(feed);
       signer2.sign();
       EXPECT_TRUE(signer2.verify());
 
@@ -9311,14 +9310,13 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
 {
    //create spender lambda
    auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed, bool flagRBF)
+      const UnspentTxOut& utxo, bool flagRBF)
       ->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      auto spender = make_shared<ScriptSpender>(entry, feed);
+      auto spender = make_shared<ScriptSpender>(entry);
 
       if(flagRBF)
          spender->setSequence(UINT32_MAX - 2);
@@ -9427,7 +9425,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed, true));
+         signer.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spend 12 to first address
@@ -9450,6 +9448,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -9514,7 +9513,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, assetFeed, true));
+         signer3.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spend 4 to new address
@@ -9536,6 +9535,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       //sign, verify then broadcast
       {
          auto lock = assetWlt->lockDecryptedContainer();
+         signer3.setFeed(assetFeed);
          signer3.sign();
       }
 
@@ -9637,7 +9637,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed, true));
+         signer2.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spend 5 to new address
@@ -9658,6 +9658,7 @@ TEST_F(BlockUtilsBare, ChainZC_RBFchild_Test)
       //sign, verify then broadcast
       {
          auto lock = assetWlt->lockDecryptedContainer();
+         signer2.setFeed(assetFeed);
          signer2.sign();
       }
       EXPECT_TRUE(signer2.verify());
@@ -9849,23 +9850,6 @@ TEST_F(BlockUtilsBare, Load5Blocks_CheckWalletFilters)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsBare, ZC_InOut_SameBlock)
 {
-   //create spender lambda
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed, bool flagRBF)
-      ->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      auto spender = make_shared<ScriptSpender>(entry, feed);
-
-      if (flagRBF)
-         spender->setSequence(UINT32_MAX - 2);
-
-      return spender;
-   };
-
    BinaryData ZCHash1, ZCHash2, ZCHash3;
 
    //
@@ -10832,12 +10816,9 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
    feed->addPrivKey(TestChain::privKeyAddrE);
 
    //create spender lambda
-   auto getSpenderPtr = [](
-      const UTXO& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UTXO& utxo)->shared_ptr<ScriptSpender>
    {
-      auto spender = make_shared<ScriptSpender>(utxo, feed);
+      auto spender = make_shared<ScriptSpender>(utxo);
       spender->setSequence(UINT32_MAX - 2);
 
       return spender;
@@ -10876,7 +10857,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spendVal to scrAddrD
@@ -10895,6 +10876,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 

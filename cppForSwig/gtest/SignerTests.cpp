@@ -339,13 +339,12 @@ TEST_F(SignerTest, Signer_Test)
    auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
    //create script spender objects
-   auto getSpenderPtr = [feed](
-      const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    uint64_t total = 0;
@@ -369,6 +368,7 @@ TEST_F(SignerTest, Signer_Test)
       signer.addRecipient(recipientA);
    }
 
+   signer.setFeed(feed);
    signer.sign();
    EXPECT_TRUE(signer.verify());
 }
@@ -377,15 +377,12 @@ TEST_F(SignerTest, Signer_Test)
 TEST_F(SignerTest, SpendTest_SizeEstimates)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -491,7 +488,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to first address
@@ -518,6 +515,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       signer.addRecipient(make_shared<Recipient_OPRETURN>(opreturn_msg));
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -593,7 +591,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       for (auto& utxo : utxoSelect)
       {
          total += utxo.getValue();
-         signer2.addSpender(make_shared<ScriptSpender>(utxo, assetFeed));
+         signer2.addSpender(make_shared<ScriptSpender>(utxo));
       }
 
       //add recipients to signer
@@ -615,6 +613,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       //sign, verify & broadcast
       {
          auto&& lock = assetWlt->lockDecryptedContainer();
+         signer2.setFeed(assetFeed);
          signer2.sign();
       }
 
@@ -716,7 +715,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       for (auto& utxo : utxoSelect)
       {
          total += utxo.getValue();
-         signer3.addSpender(make_shared<ScriptSpender>(utxo, assetFeed));
+         signer3.addSpender(make_shared<ScriptSpender>(utxo));
       }
 
       //add recipients to signer
@@ -729,6 +728,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       //sign, verify & broadcast
       {
          auto&& lock = assetWlt->lockDecryptedContainer();
+         signer3.setFeed(assetFeed);
          signer3.sign();
       }
 
@@ -784,15 +784,12 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
 TEST_F(SignerTest, SpendTest_P2WPKH)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed = nullptr)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -901,7 +898,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to addr0, use P2WPKH
@@ -920,6 +917,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -969,7 +967,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
          signer_nofeed.addSpender(getSpenderPtr(utxo));
       }
 
@@ -992,6 +990,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       //grab the unsigned tx and get the tx hash from it
       BinaryData txHashUnsigned;
       {
+         signer2.setFeed(assetFeed);
          auto unsignedTxRaw = signer2.serializeUnsignedTx();
 
          Tx unsignedTx(unsignedTxRaw);
@@ -1047,15 +1046,12 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
 TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -1193,7 +1189,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 27 nested p2wsh script hash
@@ -1213,6 +1209,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       signer.addRecipient(make_shared<Recipient_OPRETURN>(opreturn_msg));
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -1262,7 +1259,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -1283,6 +1280,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       signer2.addRecipient(make_shared<Recipient_OPRETURN>(opreturn_msg));
 
       {
+         signer2.setFeed(assetFeed);
          auto hash = signer2.getTxId();
          auto unsignedTx = signer2.serializeUnsignedTx();
          Tx tx(unsignedTx);
@@ -1345,15 +1343,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -1500,7 +1495,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 20 to nested p2wsh script hash
@@ -1519,6 +1514,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
       auto&& zcHash = signer.getTxId();
@@ -1580,7 +1576,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    for (auto& utxo : unspentVec)
    {
       total += utxo.getValue();
-      signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+      signer2.addSpender(getSpenderPtr(utxo));
    }
 
    //creates outputs
@@ -1597,6 +1593,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    }
 
    //sign, verify & return signed tx
+   signer2.setFeed(assetFeed);
    signer2.resolvePublicData();
    auto&& signerState = signer2.evaluateSignedState();
 
@@ -1674,7 +1671,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 
    {
       auto assetFeed4 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
-      signer3.resetFeeds();
+      signer3.resetFeed();
       signer3.setFeed(assetFeed4);
       auto lock = assetWlt_2->lockDecryptedContainer();
       signer3.sign();
@@ -1743,15 +1740,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -1876,7 +1870,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to p2pkh script hash
@@ -1895,6 +1889,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -1948,7 +1943,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       for (auto& utxo : unspentVec_1)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed2));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 18 to addrB, use P2PKH
@@ -1962,7 +1957,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
          //spend 4 to p2pkh script hash
          signer2.addRecipient(addrVec_1[1]->getRecipient(total - spendVal));
       }
-
+      
       serializedSignerState = move(signer2.serializeState());
    }
 
@@ -1977,7 +1972,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       for (auto& utxo : unspentVec_2)
       {
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, assetFeed3));
+         signer3.addSpender(getSpenderPtr(utxo));
       }
 
       //set change
@@ -2053,15 +2048,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -2186,7 +2178,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to p2pkh script hash
@@ -2205,6 +2197,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -2256,7 +2249,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       for (auto& utxo : unspentVec_1)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, nullptr));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 18 to addrB, use P2PKH
@@ -2286,7 +2279,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       for (auto& utxo : unspentVec_2)
       {
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, nullptr));
+         signer3.addSpender(getSpenderPtr(utxo));
       }
 
       //set change
@@ -2304,9 +2297,10 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 
    //deser to new signer, this time populate with feed and utxo from wlt_1
    Signer signer4;
+   signer4.setFeed(assetFeed2);
    for (auto& utxo : unspentVec_1)
    {
-      signer4.addSpender(getSpenderPtr(utxo, assetFeed2));
+      signer4.addSpender(getSpenderPtr(utxo));
    }
 
    signer4.deserializeState(serializedSignerState);
@@ -2398,15 +2392,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -2531,7 +2522,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to p2pkh script hash
@@ -2550,6 +2541,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -2602,7 +2594,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       for (auto& utxo : unspentVec_1)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, _assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 18 to addrB, use P2PKH
@@ -2617,9 +2609,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
          signer2.addRecipient(addrVec_1[1]->getRecipient(total - spendVal));
       }
 
-      //get txid to resolve the spender, ignore it as it is 
-      //invalid for now (incomplete tx structure)
-      auto txid = signer2.getTxId();
+      signer2.setFeed(_assetFeed);
+      signer2.resolvePublicData();
 
       //spender resolved state should be seralized along
       serializedSignerState = move(signer2.serializeState());
@@ -2636,9 +2627,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       uint64_t total = 0;
       for (auto& utxo : unspentVec_2)
       {
-         auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, _assetFeed));
+         signer3.addSpender(getSpenderPtr(utxo));
       }
 
       //set change
@@ -2648,7 +2638,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
          signer3.addRecipient(addrVec_2[1]->getRecipient(total - spendVal));
       }
 
-      //get txid & unsigned tx, should be valid now
+      //get txid & unsigned tx, should be valid
+      auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+      signer3.setFeed(_assetFeed);
       unsignedHash = signer3.getTxId();
       unsignedTxRaw = signer3.serializeUnsignedTx();
 
@@ -2663,9 +2655,10 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 
    //deser to new signer, this time populate with feed and utxo from wlt_1
    Signer signer4;
+   signer4.setFeed(assetFeed2);
    for (auto& utxo : unspentVec_1)
    {
-      signer4.addSpender(getSpenderPtr(utxo, assetFeed2));
+      signer4.addSpender(getSpenderPtr(utxo));
    }
 
    signer4.deserializeState(serializedSignerState);
@@ -2759,15 +2752,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Nested)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -2893,7 +2883,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to p2pkh script hash
@@ -2912,6 +2902,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -2964,7 +2955,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       for (auto& utxo : unspentVec_1)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, _assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 18 to addrB, use P2PKH
@@ -2979,9 +2970,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
          signer2.addRecipient(addrVec_1[1]->getRecipient(total - spendVal));
       }
 
-      //get txid to resolve the spender, ignore it as it is 
-      //invalid for now (incomplete tx structure)
-      auto txid = signer2.getTxId();
+      signer2.setFeed(_assetFeed);
+      signer2.resolvePublicData();
 
       //spender resolved state should be seralized along
       serializedSignerState = move(signer2.serializeState());
@@ -3000,9 +2990,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       uint64_t total = 0;
       for (auto& utxo : unspentVec_2)
       {
-         auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, _assetFeed));
+         signer3.addSpender(getSpenderPtr(utxo));
       }
 
       //set change
@@ -3013,6 +3002,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       }
 
       //get txid & unsigned tx, should be valid now
+      auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+      signer3.setFeed(_assetFeed);
       unsignedHash = signer3.getTxId();
       unsignedTxRaw = signer3.serializeUnsignedTx();
 
@@ -3026,10 +3017,11 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    //deser to new signer, this time populate with feed and utxo from wlt_1
    Signer signer4;
    signer4.setFlags(SCRIPT_VERIFY_SEGWIT);
+   signer4.setFeed(assetFeed2);
 
    for (auto& utxo : unspentVec_1)
    {
-      signer4.addSpender(getSpenderPtr(utxo, assetFeed2));
+      signer4.addSpender(getSpenderPtr(utxo));
    }
 
    signer4.deserializeState(serializedSignerState);
@@ -3125,15 +3117,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 TEST_F(SignerTest, GetUnsignedTxId)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -3260,7 +3249,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to p2pkh script hash
@@ -3281,6 +3270,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
       try
       {
          //shouldn't be able to get txid on legacy unsigned tx
+         signer.setFeed(feed);
          signer.getTxId();
          EXPECT_TRUE(false);
       }
@@ -3461,15 +3451,12 @@ TEST_F(SignerTest, GetUnsignedTxId)
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -3575,7 +3562,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to addr0, nested P2WPKH
@@ -3600,6 +3587,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -3647,7 +3635,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -3669,6 +3657,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       //sign, verify & broadcast
       {
          auto lock = assetWlt->lockDecryptedContainer();
+         signer2.setFeed(assetFeed);
          signer2.sign();
       }
 
@@ -3706,15 +3695,12 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -3820,7 +3806,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to addr0, nested P2K
@@ -3845,6 +3831,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -3892,7 +3879,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -3918,6 +3905,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       //sign, verify & broadcast
       {
          auto lock = assetWlt->lockDecryptedContainer();
+         signer2.setFeed(assetFeed);
          signer2.sign();
       }
       EXPECT_TRUE(signer2.verify());
@@ -3954,15 +3942,12 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
 TEST_F(SignerTest, SpendTest_FromAccount_Reload)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -4075,7 +4060,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to addr0, use P2WPKH
@@ -4094,6 +4079,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -4156,7 +4142,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -4182,6 +4168,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       //sign, verify & broadcast
       {
          auto&& lock = assetWlt->lockDecryptedContainer();
+         signer2.setFeed(assetFeed);
          signer2.sign();
       }
       EXPECT_TRUE(signer2.verify());
@@ -4291,7 +4278,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer3.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -4304,6 +4291,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       //sign, verify & broadcast
       {
          auto&& lock = assetWlt->lockDecryptedContainer();
+         signer3.setFeed(assetFeed);
          signer3.sign();
       }
       EXPECT_TRUE(signer3.verify());
@@ -4342,15 +4330,12 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
 TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -4479,7 +4464,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -4496,6 +4481,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -4581,7 +4567,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -4596,6 +4582,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 
          assetWlt->setPassphrasePromptLambda(passlbd);
          auto lock = assetWlt->lockDecryptedContainer();
+         signer.setFeed(feed);
          signer.sign();
       }
 
@@ -4632,15 +4619,12 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -4740,7 +4724,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -4756,6 +4740,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -4840,7 +4825,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -4855,6 +4840,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 
          assetWlt->setPassphrasePromptLambda(passlbd);
          auto lock = assetWlt->lockDecryptedContainer();
+         signer.setFeed(feed);
          signer.sign();
       }
 
@@ -4889,15 +4875,12 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -4997,7 +4980,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5013,6 +4996,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -5097,7 +5081,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5112,6 +5096,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 
          assetWlt->setPassphrasePromptLambda(passlbd);
          auto lock = assetWlt->lockDecryptedContainer();
+         signer.setFeed(feed);
          signer.sign();
       }
 
@@ -5146,15 +5131,12 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -5274,7 +5256,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5290,6 +5272,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -5374,7 +5357,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5389,6 +5372,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 
          assetWlt->setPassphrasePromptLambda(passlbd);
          auto lock = assetWlt->lockDecryptedContainer();
+         signer.setFeed(feed);
          signer.sign();
       }
 
@@ -5428,15 +5412,12 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    auto&& pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
 
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //setup bdm
@@ -5561,7 +5542,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5577,6 +5558,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -5660,7 +5642,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5675,6 +5657,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 
          assetWlt->setPassphrasePromptLambda(passlbd);
          auto lock = assetWlt->lockDecryptedContainer();
+         signer.setFeed(feed);
          signer.sign();
       }
 
@@ -5709,15 +5692,12 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 TEST_F(SignerTest, SpendTest_InjectSignature)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed = nullptr)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -5828,8 +5808,8 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
-         signer_inject.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
+         signer_inject.addSpender(getSpenderPtr(utxo));
          ++sigCount;
       }
 
@@ -5853,6 +5833,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
 
 
       //sign & verify
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -5896,6 +5877,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       }
 
       //resolve signer
+      signer_inject.setFeed(feed);
       signer_inject.resolvePublicData();
       EXPECT_FALSE(signer_inject.verify());
       EXPECT_FALSE(signer_inject.isSigned());
@@ -5964,8 +5946,8 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
-         signer_inject.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
+         signer_inject.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -5999,6 +5981,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       //sign & verify
       {
          auto&& lock = assetWlt->lockDecryptedContainer();
+      signer2.setFeed(assetFeed);
          signer2.sign();
       }
       EXPECT_TRUE(signer2.verify());
@@ -6050,6 +6033,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       }
 
       //resolve signer
+      signer_inject.setFeed(assetFeed);
       signer_inject.resolvePublicData();
       EXPECT_FALSE(signer_inject.verify());
       EXPECT_FALSE(signer_inject.isSigned());
@@ -6106,15 +6090,12 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
 TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -6261,7 +6242,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 20 to nested p2wsh script hash
@@ -6280,6 +6261,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
       auto&& zcHash = signer.getTxId();
@@ -6341,7 +6323,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    for (auto& utxo : unspentVec)
    {
       total += utxo.getValue();
-      signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+      signer2.addSpender(getSpenderPtr(utxo));
    }
 
    //creates outputs
@@ -6360,6 +6342,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    //sign, verify & return signed tx
    Signer signer_inject;
    signer_inject.deserializeState(signer2.serializeState());
+   signer2.setFeed(assetFeed);
    signer2.resolvePublicData();
    auto&& signerState = signer2.evaluateSignedState();
 
@@ -6437,7 +6420,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 
    {
       auto assetFeed4 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
-      signer3.resetFeeds();
+      signer3.resetFeed();
       signer3.setFeed(assetFeed4);
       auto lock = assetWlt_2->lockDecryptedContainer();
       signer3.sign();
@@ -6523,7 +6506,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       EXPECT_FALSE(signer_inject.isSigned());
       EXPECT_FALSE(signer_inject.verify());
 
-      signer_inject.resetFeeds();
+      signer_inject.resetFeed();
       auto assetFeed5 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
       signer_inject.setFeed(assetFeed5);
       signer_inject.resolvePublicData();
