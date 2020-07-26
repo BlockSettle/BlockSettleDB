@@ -518,12 +518,12 @@ public:
       PersistentSocket(addr, port), readDataStack_(readStack)
    {}
 
-   SocketType type(void) const { return SocketBitcoinP2P; }
+   SocketType type(void) const override { return SocketBitcoinP2P; }
 
    void pushPayload(
       std::unique_ptr<Socket_WritePayload>,
-      std::shared_ptr<Socket_ReadPayload>);
-   void respond(std::vector<uint8_t>&);
+      std::shared_ptr<Socket_ReadPayload>) override;
+   void respond(std::vector<uint8_t>&) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -255,6 +255,26 @@ void SocketPrototype::listen(AcceptCallback callback, SOCKET& sockfd)
 //// PersistentSocket
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+PersistentSocket::PersistentSocket(const string& addr, const string& port) :
+   SocketPrototype(addr, port)
+{
+   shutdownProm_ = make_unique<promise<bool>>();
+   shutdownFut_ = shutdownProm_->get_future();
+
+   init();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+PersistentSocket::PersistentSocket(SOCKET sockfd) :
+   SocketPrototype(), sockfd_(sockfd)
+{
+   shutdownProm_ = make_unique<promise<bool>>();
+   shutdownFut_ = shutdownProm_->get_future();
+
+   init();
+}
+
+///////////////////////////////////////////////////////////////////////////////
 #ifndef _WIN32
 void PersistentSocket::socketService_nix()
 {
@@ -744,15 +764,21 @@ bool PersistentSocket::connectToRemote()
 ///////////////////////////////////////////////////////////////////////////////
 void PersistentSocket::shutdown()
 {
+   unique_lock<mutex> lock(shutdownMutex_);
+   if (shutdownFut_.wait_for(chrono::seconds(0)) == future_status::ready)
+      return;
+
    readQueue_.terminate();
    signalService(1);
 
-   for (auto& thr : threads_)
-      if (thr.joinable())
-         thr.join();
+   shutdownProm_->set_value(true);
+}
 
-   cleanUpPipes();
-   closeSocket(sockfd_);
+///////////////////////////////////////////////////////////////////////////////
+void PersistentSocket::blockUntilClosed() const
+{
+   auto futCopy = shutdownFut_;
+   futCopy.wait();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

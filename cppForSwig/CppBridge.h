@@ -40,16 +40,14 @@ private:
    std::unique_ptr<std::shared_future<SecureBinaryData>> futPtr_;
 
    const std::string id_;
-   std::shared_ptr<ArmoryThreading::BlockingQueue<
-      std::unique_ptr<WritePayload_Bridge>>> writeQueue_;
+   std::function<void(std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
 
    std::set<BinaryData> ids_;
 
 public:
    BridgePassphrasePrompt(const std::string id,
-   std::shared_ptr<ArmoryThreading::BlockingQueue<
-      std::unique_ptr<WritePayload_Bridge>>> queuePtr) :
-      id_(id), writeQueue_(queuePtr)
+      std::function<void(std::unique_ptr<WritePayload_Bridge>)> lbd) :
+      id_(id), writeLambda_(lbd)
    {}
 
    PassphraseLambda getLambda(::Codec_ClientProto::BridgePromptType);
@@ -114,20 +112,14 @@ class CppBridge
 {
 private:
    const std::string path_;
-   const std::string port_;
 
    const std::string dbAddr_;
    const std::string dbPort_;
 
-   std::unique_ptr<SimpleSocket> sockPtr_;
    std::shared_ptr<WalletManager> wltManager_;
    std::shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_;
 
    std::shared_ptr<BridgeCallback> callbackPtr_;
-
-   std::thread writeThr_;
-   std::shared_ptr<ArmoryThreading::BlockingQueue<
-      std::unique_ptr<WritePayload_Bridge>>> writeQueue_;
 
    std::map<std::string, AsyncClient::LedgerDelegate> delegateMap_;
    std::map<std::string, std::shared_ptr<CoinSelectionInstance>> csMap_;
@@ -138,10 +130,9 @@ private:
    std::mutex passPromptMutex_;
    std::map<std::string, std::shared_ptr<BridgePassphrasePrompt>> promptMap_;
 
-private:
-   //write to socket thread
-   void writeThread(void);
+   std::function<void(std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
 
+private:
    //wallet setup
    void loadWallets(unsigned id);
    std::unique_ptr<::google::protobuf::Message> createWalletPacket(void);
@@ -244,13 +235,40 @@ private:
    bool returnPassphrase(const std::string&, const std::string&);
 
 public:
-   CppBridge(const std::string& path, const std::string& port,
+   CppBridge(const std::string& path,
       const std::string& dbAddr, const std::string& dbPort) :
-      path_(path), port_(port), dbAddr_(dbAddr), dbPort_(dbPort)
+      path_(path), dbAddr_(dbAddr), dbPort_(dbPort)
    {}
 
-   void commandLoop(void);
-   void writeToClient(std::unique_ptr<::google::protobuf::Message> msgPtr, unsigned id);
+   bool processData(std::vector<uint8_t> socketData);
+   void writeToClient(
+      std::unique_ptr<::google::protobuf::Message> msgPtr, unsigned id);
+   
+   void setWriteLambda(
+      std::function<void(std::unique_ptr<WritePayload_Bridge>)> lbd)
+   {
+      writeLambda_ = lbd;
+   }
+};
+
+////
+class CppBridgeSocket : public PersistentSocket
+{
+private:
+   std::shared_ptr<CppBridge> bridgePtr_;
+
+public:
+   CppBridgeSocket(
+      const std::string& addr, const std::string& port,
+      std::shared_ptr<CppBridge> bridgePtr) :
+      PersistentSocket(addr, port), bridgePtr_(bridgePtr)
+   {}
+
+   SocketType type(void) const override { return SocketBitcoinP2P; }
+   void respond(std::vector<uint8_t>& data) override;
+   void pushPayload(
+      std::unique_ptr<Socket_WritePayload>,
+      std::shared_ptr<Socket_ReadPayload>) override;
 };
 
 #endif
