@@ -93,8 +93,6 @@ private:
    mutable BinaryData outpoint_;
 
    //
-   std::shared_ptr<ResolverFeed> resolverFeed_;
-
    std::map<unsigned, std::shared_ptr<StackItem>> legacyStack_;
    std::map<unsigned, std::shared_ptr<StackItem>> witnessStack_;
 
@@ -107,7 +105,7 @@ private:
    std::map<BinaryData, BinaryData> prioprietaryPSBTData_;
 
 protected:
-   UTXO utxo_;
+   mutable UTXO utxo_;
 
 private:
    static BinaryData serializeScript(
@@ -117,7 +115,7 @@ private:
       unsigned& itemCount, bool no_throw=false);
 
    bool compareEvalState(const ScriptSpender&) const;
-   BinaryData getFinalizedInputScript(void) const;
+   BinaryData getAvailableInputScript(void) const;
 
    void parseScripts(StackResolver&);
    void processStacks();
@@ -148,6 +146,7 @@ private:
    ScriptSpender(void)
    {}
 
+   void setUtxo(const UTXO& utxo) { utxo_ = utxo; }
    void merge(const ScriptSpender&);
 
 public:
@@ -162,10 +161,6 @@ public:
 
    ScriptSpender(const UTXO& utxo) :
       utxo_(utxo)
-   {}
-
-   ScriptSpender(const UTXO& utxo, std::shared_ptr<ResolverFeed> feed) :
-      utxo_(utxo), resolverFeed_(feed)
    {}
 
    virtual ~ScriptSpender() = default;
@@ -192,9 +187,8 @@ public:
    BinaryData serializeAvailableWitnessData(void) const;
    BinaryDataRef getOutpoint(void) const;
    uint64_t getValue(void) const;
-   std::shared_ptr<ResolverFeed> getFeed(void) const { return resolverFeed_; }
-   const UTXO& getUtxo(void) const { return utxo_; }
-   void setUtxo(const UTXO& utxo) { utxo_ = utxo; }
+   
+   const UTXO& getUtxo(void) const;
 
    unsigned getFlags(void) const
    {
@@ -237,9 +231,6 @@ public:
 
    bool canBeResolved(void) const;
 
-   bool hasFeed(void) const { return resolverFeed_ != nullptr; }
-   void setFeed(std::shared_ptr<ResolverFeed> feedPtr) { resolverFeed_ = feedPtr; }
-
    bool operator==(const ScriptSpender& rhs)
    {
       try
@@ -257,7 +248,7 @@ public:
    void seedResolver(std::shared_ptr<ResolverFeed>) const;
    void sign(std::shared_ptr<SignerProxy>);
 
-   void toPSBT(BinaryWriter& bw, std::shared_ptr<ResolverFeed>) const;
+   void toPSBT(BinaryWriter& bw) const;
    static std::shared_ptr<ScriptSpender> fromPSBT(
       BinaryRefReader&, const TxIn&, std::shared_ptr<std::map<BinaryData, Tx>>);
 
@@ -268,6 +259,9 @@ public:
    const Tx& getSupportingTx(void) const;
    bool haveSupportingTx(void) const;
    std::map<unsigned, BinaryData> getRelevantPubkeys() const;
+
+   const std::map<BinaryData, std::vector<unsigned>> getBip32Paths(void) const
+   { return bip32Paths_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,6 +357,9 @@ public:
    uint64_t getOutpointValue(unsigned) const override;
    unsigned getTxInSequence(unsigned) const override;
 
+   /*recipient data getters*/
+   std::shared_ptr<ScriptRecipient> getRecipient(unsigned) const;
+
    /*ser/deser operations*/
 
    //serialize tx
@@ -370,11 +367,12 @@ public:
    BinaryDataRef serializeUnsignedTx(bool loose = false);
    
    BinaryData getTxId(void);
+   BinaryData getTxId_const(void) const;
 
    //state import/export
    Codec_SignerState::SignerState serializeState(void) const;
    void deserializeState(const Codec_SignerState::SignerState&);
-   void merge(Signer& rhs);
+   void merge(const Signer& rhs);
 
    //PSBT
    BinaryData toPSBT(void) const;
@@ -413,15 +411,24 @@ public:
    //recipient setup
    void addRecipient(std::shared_ptr<ScriptRecipient> recipient)
    { recipients_.push_back(recipient); }
+
+   //counts
+   uint32_t getTxInCount(void) const { return spenders_.size(); }
    uint32_t getTxOutCount(void) const override { return recipients_.size(); }
  
    //feeds setup
-   void setFeed(std::shared_ptr<ResolverFeed> feedPtr) { resolverPtr_ = feedPtr; }
-   void resetFeeds(void);
+   void setFeed(std::shared_ptr<ResolverFeed> feedPtr) 
+   { resolverPtr_ = feedPtr; }
+   void resetFeed(void);
 
    //supporting tx
    void addSupportingTx(BinaryDataRef);
    void addSupportingTx(Tx);
+   const Tx& getSupportingTx(const BinaryData&) const;
+
+   //values
+   uint64_t getTotalInputsValue(void) const;
+   uint64_t getTotalOutputsValue(void) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

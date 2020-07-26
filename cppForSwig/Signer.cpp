@@ -24,24 +24,30 @@ StackItem::~StackItem()
 //// ScriptSpender
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+const UTXO& ScriptSpender::getUtxo() const
+{
+   if (!utxo_.isInitialized())
+   {
+      if (!haveSupportingTx())
+         throw SpenderException("missing both utxo & supporting tx");
+      
+      utxo_.txHash_ = getOutputHash();
+      utxo_.txOutIndex_ = getOutputIndex();
+
+      const auto& supportingTx = getSupportingTx();
+      auto opId = getOutputIndex();
+      auto txOutCopy = supportingTx.getTxOutCopy(opId);
+      utxo_.unserializeRaw(txOutCopy.serializeRef());
+   }
+
+   return utxo_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef ScriptSpender::getOutputScript() const
 {
-   if (utxo_.isInitialized())
-      return utxo_.getScript();
-   
-   if (!haveSupportingTx())
-      throw SpenderException("missing both utxo & supporting tx");
-
-   const auto& supportingTx = getSupportingTx();
-   auto opId = getOutputIndex();
-   auto txOutCopy = supportingTx.getTxOutCopy(opId);
-   auto scriptOffset = 
-      supportingTx.getTxOutOffset(opId) + txOutCopy.getScriptOffset();
-
-   BinaryDataRef scriptRef(
-      supportingTx.getPtr() + scriptOffset, 
-      txOutCopy.getScriptSize());
-   return scriptRef;
+   const auto& utxo = getUtxo();
+   return utxo.getScript();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -411,7 +417,7 @@ BinaryData ScriptSpender::getSerializedOutpoint() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData ScriptSpender::getFinalizedInputScript() const
+BinaryData ScriptSpender::getAvailableInputScript() const
 {
    //if we have a serialized script already, return that
    if (!finalInputScript_.empty())
@@ -449,7 +455,7 @@ BinaryData ScriptSpender::getSerializedInput(bool withSig) const
       }
    }
    
-   auto serializedScript = getFinalizedInputScript();
+   auto serializedScript = getAvailableInputScript();
 
    BinaryWriter bw;
    bw.put_BinaryData(getSerializedOutpoint());
@@ -600,14 +606,11 @@ void ScriptSpender::updateStack(map<unsigned, shared_ptr<StackItem>>& stackMap,
 
       case StackItemType_Sig:
       {
-         if (iter_pair.first->second->isValid())
-            break;
+         auto stack_item_sig = 
+            dynamic_pointer_cast<StackItem_Sig>(iter_pair.first->second);
 
-         if (stack_item->type_ == StackItemType_Sig && stack_item->isValid())
-         {
-            iter_pair.first->second = stack_item;
-            break;
-         }
+         stack_item_sig->merge(stack_item.get());
+         break;
       }
 
       default:
@@ -1184,13 +1187,13 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
    //legacy stack
    {
       //grab our resolved items from the script
-      BinaryData ourSigScript = getFinalizedInputScript();
+      BinaryData ourSigScript = getAvailableInputScript();
       auto ourScriptItems = getResolvedItems(ourSigScript, false);
 
       //theirs cannot have a serialized script because theirs cannot be signed
       //grab the resolved data from the partial stack instead
       auto isMultiSig = isStackMultiSig(rhs.legacyStack_);
-      auto theirSigScript = rhs.getFinalizedInputScript();
+      auto theirSigScript = rhs.getAvailableInputScript();
       auto theirScriptItems = getResolvedItems(theirSigScript, false);
 
       //compare
@@ -1285,7 +1288,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    auto feed = make_shared<ResolverFeed_SpenderResolutionChecks>();
 
    //look for push data in the sigScript
-   auto&& legacyScript = getFinalizedInputScript();
+   auto&& legacyScript = getAvailableInputScript();
 
    try
    {
@@ -1778,12 +1781,8 @@ map<unsigned, BinaryData> ScriptSpender::getRelevantPubkeys() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptSpender::toPSBT(
-   BinaryWriter& bw, shared_ptr<ResolverFeed> feedPtr) const
+void ScriptSpender::toPSBT(BinaryWriter& bw) const
 {
-   if (resolverFeed_ != nullptr)
-      feedPtr = resolverFeed_;
-
    //supporting tx or utxo
    bool hasSupportingOutput = false;
    if (haveSupportingTx())
@@ -1890,7 +1889,7 @@ void ScriptSpender::toPSBT(
    else
    {
       //scriptSig
-      auto finalizedInputScript = getFinalizedInputScript();
+      auto finalizedInputScript = getAvailableInputScript();
       if (!finalizedInputScript.empty())
       {
          bw.put_uint8_t(1);
@@ -2474,15 +2473,11 @@ void Signer::sign(void)
    for (unsigned i=0; i < spenders_.size(); i++)
    {
       auto& spender = spenders_[i];
-      if (!spender->isResolved())
+      if (!spender->isResolved() || spender->isSigned())
          continue;
-
-      auto feed = spender->getFeed();
-      if (feed == nullptr)
-         feed = resolverPtr_;
       
-      spender->seedResolver(feed);
-      auto proxy = make_shared<SignerProxyFromSigner>(this, i, feed);
+      spender->seedResolver(resolverPtr_);
+      auto proxy = make_shared<SignerProxyFromSigner>(this, i, resolverPtr_);
       spender->sign(proxy);
    }
 }
@@ -2494,7 +2489,6 @@ void Signer::resolvePublicData()
    for (unsigned i = 0; i < spenders_.size(); i++)
    {
       auto& spender = spenders_[i];
-      shared_ptr<ResolverFeed> feed;
 
       if (isResolved())
          continue;
@@ -2502,15 +2496,10 @@ void Signer::resolvePublicData()
       if (!spender->canBeResolved())
          continue;
 
-      if (spender->hasFeed())
-         feed = spender->getFeed();
-      else if (resolverPtr_ != nullptr)
-         feed = resolverPtr_;
-
       //resolve spender script    
       StackResolver resolver(
          spender->getOutputScript(),
-         feed);
+         resolverPtr_);
 
       //check Script.h for signer flags
       resolver.setFlags(flags_);
@@ -2519,8 +2508,9 @@ void Signer::resolvePublicData()
       {
          spender->parseScripts(resolver);
       }
-      catch (...)
+      catch (const exception& e)
       {
+         auto abc = e.what();
          continue;
       }
    }
@@ -2587,6 +2577,15 @@ shared_ptr<ScriptSpender> Signer::getSpender(unsigned index) const
       throw ScriptException("invalid spender index");
 
    return spenders_[index];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptRecipient> Signer::getRecipient(unsigned index) const
+{
+   if (index > recipients_.size())
+      throw ScriptException("invalid spender index");
+
+   return recipients_[index];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2977,7 +2976,7 @@ void Signer::deserializeState(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Signer::merge(Signer& rhs)
+void Signer::merge(const Signer& rhs)
 {
    version_ = rhs.version_;
    lockTime_ = rhs.lockTime_;
@@ -3033,7 +3032,9 @@ void Signer::merge(Signer& rhs)
    }
 
 
-   /*Recipients are told apart by their script hash. Several recipients with
+   /* OBSOLETE: comment needs reworded after new implementation
+
+   Recipients are told apart by their script hash. Several recipients with
    the same script hash will be aggregated into a single one.
 
    Note that in case the local signer has several recipient with the same
@@ -3054,9 +3055,6 @@ void Signer::merge(Signer& rhs)
 
       if (local_recipient == nullptr)
          recipients_.push_back(recipient);
-      else
-         local_recipient->setValue(
-            local_recipient->getValue() + recipient->getValue());
    }
 }
 
@@ -3093,10 +3091,9 @@ bool Signer::isSigned() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Signer::resetFeeds(void)
+void Signer::resetFeed(void)
 {
-   for (auto& spender : spenders_)
-      spender->setFeed(nullptr);
+   resolverPtr_ = nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3104,35 +3101,38 @@ void Signer::populateUtxo(const UTXO& utxo)
 {
    for (auto& spender : spenders_)
    {
-      const auto& spenderUtxo = spender->getUtxo();
-      if (spenderUtxo.isInitialized())
+      try
       {
-         if (spenderUtxo == utxo)
-            return;
+         const auto& spenderUtxo = spender->getUtxo();
+         if (spenderUtxo.isInitialized())
+         {
+            if (spenderUtxo == utxo)
+               return;
+         }
       }
-      else
-      {
-         auto outpoint = spender->getOutpoint();
-         BinaryRefReader brr(outpoint);
+      catch (const exception&)
+      {}
+
+      auto outpoint = spender->getOutpoint();
+      BinaryRefReader brr(outpoint);
          
-         auto&& hash = brr.get_BinaryDataRef(32);
-         if (hash != utxo.getTxHash())
-            continue;
+      auto&& hash = brr.get_BinaryDataRef(32);
+      if (hash != utxo.getTxHash())
+         continue;
 
-         auto txoutid = brr.get_uint32_t();
-         if (txoutid != utxo.getTxOutIndex())
-            continue;
+      auto txoutid = brr.get_uint32_t();
+      if (txoutid != utxo.getTxOutIndex())
+         continue;
 
-         spender->setUtxo(utxo);
-         return;
-      }
+      spender->setUtxo(utxo);
+      return;
    }
 
    throw runtime_error("could not match utxo to any spender");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData Signer::getTxId()
+BinaryData Signer::getTxId_const() const
 {
    try
    {
@@ -3143,10 +3143,6 @@ BinaryData Signer::getTxId()
    catch (exception&)
    {}
 
-   //tx isn't signed, let's check for SW inputs
-   resolvePublicData();
-   
-   //serialize the tx
    BinaryWriter bw;
 
    //version
@@ -3172,6 +3168,15 @@ BinaryData Signer::getTxId()
 
    //hash and return
    return BtcUtils::getHash256(bw.getDataRef());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData Signer::getTxId()
+{
+   if (!isResolved())
+      resolvePublicData();
+
+   return getTxId_const();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3313,7 +3318,7 @@ BinaryData Signer::toPSBT() const
 
    /*inputs*/
    for (auto& spender : spenders_)
-      spender->toPSBT(bw, resolverPtr_);
+      spender->toPSBT(bw);
 
    /*outputs*/
    for (auto recipient : recipients_)
@@ -3401,10 +3406,8 @@ Signer Signer::fromPSBT(BinaryDataRef psbtRef)
 
       case PSBT::ENUM_GLOBAL::PSBT_GLOBAL_PROPRIETARY:
       {
-         //prioprietary data doesn't have to be interpreted but needs
-         //carried across
-         signer.prioprietaryPSBTData_.emplace(
-            key.getSliceRef(1, key.getSize() - 1), val);
+         //skip for now
+
          break;
       }
 
@@ -3463,6 +3466,16 @@ void Signer::addSupportingTx(Tx tx)
       return;
 
    supportingTxMap_->emplace(tx.getThisHash(), move(tx));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const Tx& Signer::getSupportingTx(const BinaryData& hash) const
+{
+   auto iter = supportingTxMap_->find(hash);
+   if (iter == supportingTxMap_->end())
+      throw runtime_error("unknown supporting tx hash");
+   
+   return iter->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3528,6 +3541,26 @@ map<unsigned, BinaryData> Signer::getPubkeysForScript(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+uint64_t Signer::getTotalInputsValue(void) const
+{
+   uint64_t val = 0;
+   for (auto& spender : spenders_)
+      val += spender->getValue();
+
+   return val;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint64_t Signer::getTotalOutputsValue(void) const
+{
+   uint64_t val = 0;
+   for (auto& recip : recipients_)
+      val += val;
+
+   return val;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// SignerProxy
 ////////////////////////////////////////////////////////////////////////////////
@@ -3549,7 +3582,7 @@ void SignerProxyFromSigner::setLambda(
       auto SHD = signer->getSigHashDataForSpender(sw);
 
       //get priv key for pubkey
-      auto&& privKey = feedPtr->getPrivKeyForPubkey(pubkey);
+      const auto& privKey = feedPtr->getPrivKeyForPubkey(pubkey);
 
       //sign
       auto&& sig = signer->signScript(script, privKey, SHD, index);
