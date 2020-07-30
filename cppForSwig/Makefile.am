@@ -131,6 +131,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	log.cpp \
 	NetworkConfig.cpp \
 	ReentrantLock.cpp \
+	ResolverFeed.cpp \
 	Script.cpp \
 	SecureBinaryData.cpp \
 	ScriptRecipient.cpp \
