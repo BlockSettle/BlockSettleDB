@@ -8916,12 +8916,12 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
             return iter->second;
          }
 
-         std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) override
+         BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override
          {
             throw std::runtime_error("invalid pubkey");
          }
 
-         void setBip32PathForPubkey(const BinaryData&, const vector<uint32_t>&) override
+         void setBip32PathForPubkey(const BinaryData&, const BIP32_AssetPath&) override
          {}
       };
 

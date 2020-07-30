@@ -4740,7 +4740,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    };
 
    auto accountTypePtr =
-      make_shared<AccountType_BIP32_Custom>();
+      make_shared<AccountType_BIP32_Custom>(derivationPath2);
    accountTypePtr->setAddressTypes({ AddressEntryType_P2WPKH, AddressEntryType_P2PK });
    accountTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
    accountTypePtr->setNodes({ 50, 60 });
@@ -4750,7 +4750,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
 
    //add bip32 custom account for derivationPath2
    auto accountID2 = assetWlt->createCustomBIP32Account(
-      nullptr, derivationPath2, accountTypePtr);
+      nullptr, accountTypePtr);
 
    BIP32_Node seedNode2;
    seedNode2.initFromSeed(seed);
@@ -4936,6 +4936,7 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
    //get xpub for main account
    BIP32_Node seedNode;
    seedNode.initFromSeed(seed);
+   auto seedFingerprint = seedNode.getThisFingerprint();
    for (auto& derId : derPath)
       seedNode.derivePrivate(derId);
 
@@ -4969,15 +4970,18 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
       chaincodeCopy, //have to pass the chaincode too
 
       //aesthetical stuff, not mandatory, not useful for the crypto side of things
-      newPubNode.getDepth(), newPubNode.getLeafID(), newPubNode.getParentFingerprint(),
+      newPubNode.getDepth(), newPubNode.getLeafID(), 
+
+      //used for bip32 path detection when resolving/signing
+      newPubNode.getParentFingerprint(), seedFingerprint,
 
       //derivation path for this root, only relevant for path discovery & PSBT
-      vector<uint32_t>()
+      derPath
    );
 
    //3: create a custom bip32 account meta data object to setup the WO account
    //structure (nodes & address types)
-   auto accountTypePtr = make_shared<AccountType_BIP32_Custom>(); //empty ctor
+   auto accountTypePtr = make_shared<AccountType_BIP32_Custom>(vector<unsigned>()); //empty ctor
    
    //set nodes
    set<unsigned> nodes = {
@@ -5005,10 +5009,6 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
    //4: feed it to the wallet
    wltWO->createCustomBIP32Account(
       pubRootAsset, //root asset
-      
-      //no derivation path, the root is built from an xpub, we assume it's
-      //already derived to the relevant node
-      {},
       accountTypePtr //account meta data
    );
 
@@ -5119,7 +5119,7 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
 
    //create account with all common uncompressed address types & their 
    //compressed counterparts
-   auto accountTypePtr = make_shared<AccountType_BIP32_Custom>(); //empty ctor
+   auto accountTypePtr = make_shared<AccountType_BIP32_Custom>(derPath);
    
    set<unsigned> nodes = {0, 1}; 
    accountTypePtr->setNodes(nodes);
@@ -5142,7 +5142,6 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
    wlt->setPassphrasePromptLambda(passphraseLbd);
    wlt->createCustomBIP32Account(
       nullptr, 
-      derPath,
       accountTypePtr);
    wlt->resetPassphrasePromptLambda();
 
@@ -5249,7 +5248,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
 
       //create accounts
       auto saltedAccType1 = 
-         make_shared<AccountType_BIP32_Salted>(salt1);   
+         make_shared<AccountType_BIP32_Salted>(derivationPath1, salt1);   
       saltedAccType1->setAddressLookup(40);
       saltedAccType1->setDefaultAddressType(
          AddressEntryType_P2WPKH);
@@ -5257,7 +5256,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
          { AddressEntryType_P2WPKH });
 
       auto saltedAccType2 =
-         make_shared<AccountType_BIP32_Salted>(salt2);
+         make_shared<AccountType_BIP32_Salted>(derivationPath2, salt2);
       saltedAccType2->setAddressLookup(40);
       saltedAccType2->setDefaultAddressType(
          AddressEntryType_P2WPKH);
@@ -5266,11 +5265,11 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
 
       //add bip32 account for derivationPath1
       accountID1 = assetWlt->createCustomBIP32Account(
-         nullptr, derivationPath1, saltedAccType1);
+         nullptr, saltedAccType1);
 
       //add bip32 account for derivationPath2
       accountID2 = assetWlt->createCustomBIP32Account(
-         nullptr, derivationPath2, saltedAccType2);
+         nullptr, saltedAccType2);
 
       //grab the accounts
       auto accountSalted1 = assetWlt->getAccountForID(
