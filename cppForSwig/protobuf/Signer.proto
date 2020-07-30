@@ -45,10 +45,18 @@ message StackEntryState
     }
 };
 
-message PSBT_BIP32Path
+message BIP32PublicRoot
+{
+    required string xpub = 1;
+    required uint32 fingerprint = 2;
+    repeated uint32 path = 3;
+}
+
+message PubkeyBIP32Path
 {
     required bytes pubkey = 1;
-    repeated uint32 steps = 2;
+    required uint32 fingerprint = 2;
+    repeated uint32 path = 3;
 };
 
 message ScriptSpenderState
@@ -77,13 +85,13 @@ message ScriptSpenderState
     repeated StackEntryState legacy_stack = 42;
     repeated StackEntryState witness_stack = 43;
 
-    repeated PSBT_BIP32Path bip32Paths = 50;
+    repeated PubkeyBIP32Path bip32Paths = 50;
 }
 
 message RecipientState
 {
     required bytes data = 1;
-    repeated PSBT_BIP32Path bip32Paths = 10;
+    repeated PubkeyBIP32Path bip32Paths = 10;
 }
 
 message SignerState
@@ -96,4 +104,5 @@ message SignerState
     repeated ScriptSpenderState spenders = 20;
     repeated RecipientState recipients = 21;
     repeated bytes supportingtx = 22;
+    repeated BIP32PublicRoot bip32Roots = 23;
 }
