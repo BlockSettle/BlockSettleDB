@@ -242,7 +242,7 @@ struct AccountType_BIP32 : public AccountType_WithRoot
 {   
    friend struct AccountType_BIP32_Custom;
 private:
-   const std::vector<uint32_t> derivationPath_;
+   std::vector<uint32_t> derivationPath_;
    unsigned depth_ = 0;
    unsigned leafId_ = 0;
    unsigned fingerPrint_ = 0;
@@ -250,17 +250,21 @@ private:
    SecureBinaryData derivedRoot_;
    SecureBinaryData derivedChaincode_;
 
+protected:
+   unsigned seedFingerprint_ = UINT32_MAX;
+
 private:
    void deriveFromRoot(void);
 
 protected:
    AccountType_BIP32(
       const std::vector<unsigned>& derivationPath,
-      unsigned depth, unsigned leafId, unsigned fingerPrint) :
+      unsigned depth, unsigned leafId, 
+      unsigned fingerPrint, unsigned seedFingerprint) :
       derivationPath_(derivationPath),
-      depth_(depth), leafId_(leafId), fingerPrint_(fingerPrint)
+      depth_(depth), leafId_(leafId), 
+      fingerPrint_(fingerPrint), seedFingerprint_(seedFingerprint)
    {}
-
 
 public:
    AccountType_BIP32(
@@ -268,10 +272,12 @@ public:
       SecureBinaryData& publicRoot,
       SecureBinaryData& chainCode,
       const std::vector<unsigned>& derivationPath,
-      unsigned depth, unsigned leafId) :
+      unsigned depth, unsigned leafId, 
+      unsigned fingerPrint, unsigned seedFingerprint) :
       AccountType_WithRoot(privateRoot, publicRoot, chainCode),
       derivationPath_(derivationPath),
-      depth_(depth), leafId_(leafId)
+      depth_(depth), leafId_(leafId), 
+      fingerPrint_(fingerPrint), seedFingerprint_(seedFingerprint)
    {
       deriveFromRoot();
    }
@@ -304,6 +310,8 @@ public:
    unsigned getFingerPrint(void) const { return fingerPrint_; }
    std::vector<uint32_t> getDerivationPath(void) const 
    { return derivationPath_; }
+
+   unsigned getSeedFingerprint(void) const { return seedFingerprint_; }
 };
 
 
@@ -316,10 +324,11 @@ public:
       SecureBinaryData& publicRoot,
       SecureBinaryData& chainCode,
       const std::vector<unsigned>& derivationPath,
-      unsigned depth, unsigned leafId) :
+      unsigned depth, unsigned leafId, 
+      unsigned fingerprint, unsigned seedFingerprint) :
       AccountType_BIP32(
          privateRoot, publicRoot, chainCode, derivationPath,
-         depth, leafId)
+         depth, leafId, fingerprint, seedFingerprint)
    {
       //uncompressed p2pkh
       addressTypes_.insert(AddressEntryType(
@@ -348,10 +357,11 @@ public:
       SecureBinaryData& publicRoot,
       SecureBinaryData& chainCode,
       const std::vector<unsigned>& derivationPath,
-      unsigned depth, unsigned leafId) :
+      unsigned depth, unsigned leafId, 
+      unsigned fingerprint, unsigned seedFingerprint) :
       AccountType_BIP32(
          privateRoot, publicRoot, chainCode, derivationPath,
-         depth, leafId)
+         depth, leafId, fingerprint, seedFingerprint)
    {
       //p2wpkh
       addressTypes_.insert(AddressEntryType_P2WPKH);
@@ -389,6 +399,15 @@ private:
    void setPrivateKey(const SecureBinaryData&);
    void setPublicKey(const SecureBinaryData&);
    void setChaincode(const SecureBinaryData&);
+   void setDerivationPath(std::vector<unsigned> derPath)
+   {
+      derivationPath_ = derPath;
+   }
+
+   void setSeedFingerprint(unsigned fingerprint) 
+   { 
+      seedFingerprint_ = fingerprint; 
+   }
 
 public:
    AccountType_BIP32_Custom(
@@ -396,14 +415,16 @@ public:
       SecureBinaryData& publicRoot,
       SecureBinaryData& chainCode,
       const std::vector<unsigned>& derivationPath,
-      unsigned depth, unsigned leafId) :
+      unsigned depth, unsigned leafId, 
+      unsigned fingerprint, unsigned seedFingerprint) :
          AccountType_BIP32(
-         privateRoot, publicRoot, chainCode, derivationPath,
-         depth, leafId)
+            privateRoot, publicRoot, chainCode, 
+            derivationPath, depth, leafId, 
+            fingerprint, seedFingerprint)
    {}
 
-   AccountType_BIP32_Custom(void) :
-      AccountType_BIP32(std::vector<unsigned>(), 0, 0, 0)
+   AccountType_BIP32_Custom(const std::vector<unsigned>& derivationPath) :
+      AccountType_BIP32(derivationPath, 0, 0, 0, UINT32_MAX)
    {}
 
    /***
@@ -452,16 +473,19 @@ public:
       SecureBinaryData& publicRoot,
       SecureBinaryData& chainCode,
       const std::vector<unsigned>& derivationPath,
-      unsigned depth, unsigned leafId,
+      unsigned depth, unsigned leafId, 
+      unsigned fingerprint, unsigned seedFingerprint,
       const SecureBinaryData& salt) :
       AccountType_BIP32_Custom(
          privateRoot, publicRoot, chainCode, derivationPath,
-         depth, leafId),
+         depth, leafId, fingerprint, seedFingerprint),
       salt_(salt)
    {}
 
-   AccountType_BIP32_Salted(const SecureBinaryData& salt) :
-      AccountType_BIP32_Custom(), salt_(salt)
+   AccountType_BIP32_Salted(
+      const std::vector<unsigned>& derivationPath,
+      const SecureBinaryData& salt) :
+      AccountType_BIP32_Custom(derivationPath), salt_(salt)
    {}
 
    AccountTypeEnum type(void) const 
@@ -676,7 +700,7 @@ private:
       std::shared_ptr<DecryptedDataContainer> ddc,
       const BinaryData& id);
 
-   std::vector<uint32_t> getAccountBip32PathForId(
+   std::shared_ptr<AssetEntry_BIP32Root> getBip32RootForAssetId(
       const BinaryData&) const;
 
 public:

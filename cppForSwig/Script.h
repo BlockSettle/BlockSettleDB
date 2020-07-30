@@ -29,9 +29,9 @@
 #include "BtcUtils.h"
 #include "SigHashEnum.h"
 #include "TxEvalState.h"
+#include "ResolverFeed.h"
 
 #include "protobuf/Signer.pb.h"
-
 
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptException : public std::runtime_error
@@ -931,20 +931,6 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class ResolverFeed
-{
-public:
-   virtual ~ResolverFeed(void) = 0;
-
-   virtual BinaryData getByVal(const BinaryData&) = 0;
-   virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData&) = 0;
-   
-   virtual void setBip32PathForPubkey(
-      const BinaryData&, const std::vector<uint32_t>&) = 0;
-   virtual std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
 enum StackItemType
 {
    StackItemType_PushData,
@@ -1126,7 +1112,7 @@ private:
    bool isSW_ = false;
 
    const BinaryDataRef script_;
-   std::shared_ptr<ResolverFeed> feed_;
+   std::shared_ptr<ArmorySigner::ResolverFeed> feed_;
 
 private:
    std::shared_ptr<ReversedStackEntry> pop_back(void)
@@ -1248,7 +1234,7 @@ private:
 
 public:
    StackResolver(BinaryDataRef script,
-      std::shared_ptr<ResolverFeed> feed) :
+      std::shared_ptr<ArmorySigner::ResolverFeed> feed) :
       script_(script), feed_(feed)
    {}
 
@@ -1264,7 +1250,7 @@ public:
    std::shared_ptr<ResolvedStack> getResolvedStack();
    unsigned getFlags(void) const { return flags_; }
    void setFlags(unsigned flags) { flags_ = flags; }
-   std::shared_ptr<ResolverFeed> getFeed(void) const { return feed_; }
+   std::shared_ptr<ArmorySigner::ResolverFeed> getFeed(void) const { return feed_; }
 };
 
 #endif

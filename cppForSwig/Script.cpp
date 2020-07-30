@@ -12,12 +12,10 @@
 #include "make_unique.h"
 
 using namespace std;
+using namespace ArmorySigner;
 
 //dtors
 StackValue::~StackValue()
-{}
-
-ResolverFeed::~ResolverFeed()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////

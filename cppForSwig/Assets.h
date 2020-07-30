@@ -524,10 +524,24 @@ private:
    const SecureBinaryData chaincode_;
    const uint8_t depth_;
    const unsigned leafID_;
-   const uint32_t parentFingerprint_;
    const std::vector<uint32_t> derivationPath_;
    
+   /*
+   Fingerprint of the parent (see BIP32 specs), 0 for roots derived from
+   a seed (there is no parent)
+   */
+   const uint32_t parentFingerprint_;
+   
+   /*
+   Own fingerprint, 4 first bytes of hash256 of the root's public key
+   */
    mutable uint32_t thisFingerprint_ = UINT32_MAX;
+
+   /*
+   Fingerprint of the node generated from a seed (no derivation), equal 
+   to thisFingerprint when parentFingerprint is 0
+   */
+   unsigned seedFingerprint_ = UINT32_MAX;
 
 public:
    //tors
@@ -535,11 +549,13 @@ public:
       SecureBinaryData& pubkey,
       std::shared_ptr<Asset_PrivateKey> privkey,
       const SecureBinaryData& chaincode,
-      uint8_t depth, unsigned leafID, unsigned fingerPrint,
+      uint8_t depth, unsigned leafID, 
+      unsigned fingerPrint, unsigned seedFingerprint,
       const std::vector<uint32_t>& derPath) :
       AssetEntry_Single(id, accountID, pubkey, privkey),
       chaincode_(chaincode),
-      depth_(depth), leafID_(leafID), parentFingerprint_(fingerPrint),
+      depth_(depth), leafID_(leafID), 
+      parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
       derivationPath_(derPath)
    {}
 
@@ -548,12 +564,14 @@ public:
       SecureBinaryData& pubkeyCompressed,
       std::shared_ptr<Asset_PrivateKey> privkey,
       const SecureBinaryData& chaincode,
-      uint8_t depth, unsigned leafID, unsigned fingerPrint,
+      uint8_t depth, unsigned leafID, 
+      unsigned fingerPrint, unsigned seedFingerprint,
       const std::vector<uint32_t>& derPath) :
       AssetEntry_Single(id, accountID,
          pubkeyUncompressed, pubkeyCompressed, privkey),
       chaincode_(chaincode),
-      depth_(depth), leafID_(leafID), parentFingerprint_(fingerPrint),
+      depth_(depth), leafID_(leafID),
+      parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
       derivationPath_(derPath)
    {}
 
@@ -561,11 +579,13 @@ public:
       std::shared_ptr<Asset_PublicKey> pubkey,
       std::shared_ptr<Asset_PrivateKey> privkey,
       const SecureBinaryData& chaincode,
-      uint8_t depth, unsigned leafID, unsigned fingerPrint,
+      uint8_t depth, unsigned leafID, 
+      unsigned fingerPrint, unsigned seedFingerprint,
       const std::vector<uint32_t>& derPath) :
       AssetEntry_Single(id, accountID, pubkey, privkey),
       chaincode_(chaincode),
-      depth_(depth), leafID_(leafID), parentFingerprint_(fingerPrint),
+      depth_(depth), leafID_(leafID),
+      parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
       derivationPath_(derPath)
    {}
 
@@ -574,9 +594,12 @@ public:
    unsigned getLeafID(void) const { return leafID_; }
    unsigned getParentFingerprint(void) const { return parentFingerprint_; }
    unsigned getThisFingerprint(void) const;
+   unsigned getSeedFingerprint(void) const;
+   std::string getXPub(void) const;
    const SecureBinaryData& getChaincode(void) const { return chaincode_; }
    const std::vector<uint32_t>& getDerivationPath(void) const 
    { return derivationPath_; }
+
 
    //virtual
    BinaryData serialize(void) const;

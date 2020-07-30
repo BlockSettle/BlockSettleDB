@@ -773,7 +773,8 @@ void AddressAccount::make_new(
             -1, full_account_id,
             pubkey, nullptr,
             chaincode,
-            node.getDepth(), node.getLeafID(), node.getParentFingerprint(),
+            node.getDepth(), node.getLeafID(), 
+            node.getParentFingerprint(), accBip32->getSeedFingerprint(),
             derPath);
       }
       else
@@ -817,7 +818,8 @@ void AddressAccount::make_new(
             -1, full_account_id,
             pubkey, priv_asset,
             chaincode,
-            node.getDepth(), node.getLeafID(), node.getParentFingerprint(),
+            node.getDepth(), node.getLeafID(), 
+            node.getParentFingerprint(), accBip32->getSeedFingerprint(),
             derPath);
       }
 
@@ -1825,15 +1827,15 @@ shared_ptr<Asset_PrivateKey> AddressAccount::fillPrivateKey(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<uint32_t> AddressAccount::getAccountBip32PathForId(
-   const BinaryData& id) const
+shared_ptr<AssetEntry_BIP32Root> AddressAccount::getBip32RootForAssetId(
+   const BinaryData& assetId) const
 {
    //sanity check
-   if (id.getSize() != 12)
+   if (assetId.getSize() != 12)
       throw AccountException("invalid asset id");
 
    //get the asset account
-   auto accID = id.getSliceRef(4, 4);
+   auto accID = assetId.getSliceRef(4, 4);
    auto iter = assetAccounts_.find(accID);
    if (iter == assetAccounts_.end())
       throw AccountException("unknown asset id");
@@ -1846,7 +1848,7 @@ vector<uint32_t> AddressAccount::getAccountBip32PathForId(
    if (rootBip32 == nullptr)
       throw AccountException("account isn't bip32");
 
-   return rootBip32->getDerivationPath();
+   return rootBip32;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

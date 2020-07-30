@@ -10,6 +10,7 @@
 #include "BlockDataManagerConfig.h"
 
 using namespace std;
+using namespace ArmorySigner;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -974,6 +975,8 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
    if (root == nullptr)
       throw AccountException("no valid root to create BIP32 account from");
 
+   auto seedFingerprint = root->getSeedFingerprint();
+
    shared_ptr<AccountType_BIP32> accountTypePtr = nullptr;
    if(root->getPrivKey() != nullptr)
    {
@@ -992,13 +995,15 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
          {
             accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
                privKey, dummy, chaincode, derPath,
-               root->getDepth(), root->getLeafID());
+               root->getDepth(), root->getLeafID(), 
+               root->getParentFingerprint(), seedFingerprint);
          }
          else
          {
             accountTypePtr = make_shared<AccountType_BIP32_SegWit>(
                privKey, dummy, chaincode, derPath,
-               root->getDepth(), root->getLeafID());
+               root->getDepth(), root->getLeafID(), 
+               root->getParentFingerprint(), seedFingerprint);
          }
       }
       catch(exception&)
@@ -1017,13 +1022,15 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
       {
          accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
             dummy1, pubkey, chaincode, derPath,
-            root->getDepth(), root->getLeafID());
+            root->getDepth(), root->getLeafID(), 
+            root->getParentFingerprint(), seedFingerprint);
       }
       else
       {
          accountTypePtr = make_shared<AccountType_BIP32_SegWit>(
             dummy1, pubkey, chaincode, derPath,
-            root->getDepth(), root->getLeafID());
+            root->getDepth(), root->getLeafID(), 
+            root->getParentFingerprint(), seedFingerprint);
       }
    }
 
@@ -1039,7 +1046,6 @@ const BinaryData& AssetWallet_Single::createBIP32Account(
 ////////////////////////////////////////////////////////////////////////////////
 const BinaryData& AssetWallet_Single::createCustomBIP32Account(
    std::shared_ptr<AssetEntry_BIP32Root> parentNode,
-   std::vector<unsigned> derPath,
    std::shared_ptr<AccountType_BIP32_Custom> accTypePtr)
 {
    shared_ptr<AssetEntry_BIP32Root> root = parentNode;
@@ -1068,7 +1074,7 @@ const BinaryData& AssetWallet_Single::createCustomBIP32Account(
          bip32Node.initFromPrivateKey(
             root->getDepth(), root->getLeafID(), root->getParentFingerprint(),
             privKey, chaincode);
-         for (auto& path : derPath)
+         for (auto& path : accTypePtr->getDerivationPath())
             bip32Node.derivePrivate(path);
 
          auto derivedKey = bip32Node.movePrivateKey();
@@ -1099,7 +1105,7 @@ const BinaryData& AssetWallet_Single::createCustomBIP32Account(
       bip32Node.initFromPublicKey(
          root->getDepth(), root->getLeafID(), root->getParentFingerprint(),
          pubkey, chaincode);
-      for (auto& path : derPath)
+      for (auto& path : accTypePtr->getDerivationPath())
          bip32Node.derivePublic(path);
 
       auto derivedKey = bip32Node.movePublicKey();
@@ -1108,6 +1114,17 @@ const BinaryData& AssetWallet_Single::createCustomBIP32Account(
       accTypePtr->setChaincode(derivedCode);
       accTypePtr->setPublicKey(derivedKey);
    }
+
+   //update the derivation path, it should be root's + account's
+   vector<unsigned> derivationPath = root->getDerivationPath();
+   for (auto& path : accTypePtr->getDerivationPath())
+      derivationPath.push_back(path);
+   accTypePtr->setDerivationPath(derivationPath);
+
+   //if we provided a root, set the account seed fingerprint to
+   //that carried by the root
+   if (parentNode != nullptr)
+      accTypePtr->setSeedFingerprint(root->getSeedFingerprint());
 
    auto accountPtr = createAccount(accTypePtr);
    if (!accTypePtr->isWatchingOnly())
@@ -1308,14 +1325,18 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
       make_shared<AccountType_BIP32_Legacy>(
          privateRootCopy_1,
          dummy1, chaincode1,
-         derivationPath, 0, 0));
+         derivationPath, 
+         0, 0, 
+         0, rootNode.getThisFingerprint()));
    (*accountTypes.begin())->setMain(true);
 
    accountTypes.insert(
       make_shared<AccountType_BIP32_SegWit>(
          privateRootCopy_2,
          dummy2, chaincode2,
-         derivationPath, 0, 0));
+         derivationPath, 
+         0, 0, 
+         0, rootNode.getThisFingerprint()));
 
    auto walletPtr = createFromBIP32Node(
       rootNode, 
@@ -1365,7 +1386,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
 
       accountTypes.insert(make_shared<AccountType_BIP32_Custom>(
          privateRootCopy, dummy, chainCodeCopy, derivationPath,
-         node.getDepth(), node.getLeafID()));
+         node.getDepth(), node.getLeafID(), 
+         node.getParentFingerprint(), node.getThisFingerprint()));
       (*accountTypes.begin())->setMain(true);
    }
    else
@@ -1377,7 +1399,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
 
       accountTypes.insert(make_shared<AccountType_BIP32_Custom>(
          dummy1, pubkey_copy, chaincode_copy, derivationPath,
-         node.getDepth(), node.getLeafID()));
+         node.getDepth(), node.getLeafID(), 
+         node.getParentFingerprint(), node.getThisFingerprint()));
       (*accountTypes.begin())->setMain(true);
    }
 
@@ -1630,7 +1653,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
       rootAssetEntry = make_shared<AssetEntry_BIP32Root>(
          -1, BinaryData(),
          pubkey, rootAsset,
-         chaincode, 0, 0, 0, vector<uint32_t>());
+         chaincode, 0, 0, 0, 0, vector<uint32_t>());
    }
    else
    {
@@ -1861,18 +1884,19 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AssetWallet_Single::derivePrivKeyFromPath_WithFingerprint(
-   const std::vector<uint32_t>& path)
+const BinaryData& AssetWallet_Single::derivePrivKeyFromPath(
+   const BIP32_AssetPath& path)
 {
-   //grab root
+   auto derPath = path.getDerivationPathFromSeed();
+
+   //grab wallet root
    auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
    if (rootBip32 == nullptr)
       throw runtime_error("missing root");
 
    //check fingerprint
-   auto fingerprint = path[0];
    auto rootFingerprint = rootBip32->getThisFingerprint();
-   if (fingerprint != rootFingerprint)
+   if (path.getSeedFingerprint() != rootFingerprint)
       throw runtime_error("root mismatch");
 
    //decrypt root
@@ -1883,9 +1907,9 @@ const BinaryData& AssetWallet_Single::derivePrivKeyFromPath_WithFingerprint(
    auto hdNode = 
       BIP32_Node::getHDNodeFromPrivateKey(0, 0, 0, privKey, chaincode);
 
-   for (unsigned i=1; i<path.size(); i++)
+   for (unsigned i=0; i<derPath.size(); i++)
    {
-      if (!btc_hdnode_private_ckd(&hdNode, path[i]))
+      if (!btc_hdnode_private_ckd(&hdNode, derPath[i]))
          throw std::runtime_error("failed to derive bip32 private key");
    }
 
@@ -2116,42 +2140,72 @@ bool AssetWallet_Single::isWatchingOnly() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<uint32_t> AssetWallet_Single::getBip32PathForAsset(
-   shared_ptr<AssetEntry> asset) const
+BIP32_AssetPath AssetWallet_Single::getBip32PathForAssetID(
+   const BinaryData& id) const
 {
-   const auto& id = asset->getID();
-   return getBip32PathForAssetID(id);
+   auto asset = getAssetForID(id);
+   return getBip32PathForAsset(asset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<uint32_t> AssetWallet_Single::getBip32PathForAssetID(
-   const BinaryData& id) const
+BIP32_AssetPath AssetWallet_Single::getBip32PathForAsset(
+   shared_ptr<AssetEntry> asset) const
 {
+   const auto& id = asset->getID();
    if (id.getSize() != 12)
       throw runtime_error("invalid asset id length");
+
+   auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(asset);
+   if (assetSingle == nullptr)
+      throw runtime_error("unexpected asset type");
+   
+   auto pubKeyPtr = assetSingle->getPubKey();
+   if (pubKeyPtr == nullptr)
+      throw runtime_error("asset is missing public key");
+
+   const auto& pubkey = pubKeyPtr->getCompressedKey();
+   
+   auto account = getAccountForID(id);
+   auto accountRoot = account->getBip32RootForAssetId(id);
+   auto accountPath = accountRoot->getDerivationPath();
+
+   //asset step
+   BinaryRefReader brr(id.getRef());
+   brr.advance(8);
+   auto assetStep = brr.get_uint32_t(BE);
 
    //get root
    auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
    if (rootBip32 == nullptr)
-      throw runtime_error("missing root");
+   {
+      /* 
+      Wallet has no root, we have to use the account's root instead. It should
+      carry the path from its seed as well as the seed's fingerprint
+      */
 
-   //get fingerprint and see path
-   auto rootFingerprint = rootBip32->getThisFingerprint();
-   vector<uint32_t> path = { rootFingerprint };
+      auto rootObj = make_shared<BIP32_PublicDerivedRoot>(
+         accountRoot->getXPub(), 
+         accountPath, 
+         accountRoot->getSeedFingerprint());
 
-   //grab account
-   auto account = getAccountForID(id);
+      return BIP32_AssetPath(
+         pubkey,
+         { assetStep }, 
+         accountRoot->getThisFingerprint(), 
+         rootObj);
+   }
+   else
+   {
+      //wallet has a root, build path from that
+      auto rootPath = accountRoot->getDerivationPath();
+      rootPath.push_back(assetStep);
 
-   //get account path
-   auto accountPath = account->getAccountBip32PathForId(id);
-   path.insert(path.end(), accountPath.begin(), accountPath.end());
-
-   //append asset step
-   BinaryRefReader brr(id.getRef());
-   brr.advance(8);
-   path.push_back(brr.get_uint32_t(BE));
-
-   return path;
+      return BIP32_AssetPath(
+         pubkey,
+         rootPath,
+         rootBip32->getThisFingerprint(),
+         nullptr);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2218,4 +2272,263 @@ const SecureBinaryData& AssetWallet_Multisig::getDecryptedValue(
    shared_ptr<Asset_EncryptedData> assetPtr)
 {
    return decryptedData_->getDecryptedPrivateData(assetPtr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// ResolverFeed_AssetWalletSingle
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+void ResolverFeed_AssetWalletSingle::addToMap(shared_ptr<AddressEntry> addrPtr)
+{
+   try
+   {
+      BinaryDataRef hash(addrPtr->getHash());
+      BinaryDataRef preimage(addrPtr->getPreimage());
+
+      hash_to_preimage_.insert(make_pair(hash, preimage));
+   }
+   catch (const exception&)
+   {}
+
+   auto addr_nested = dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
+   if (addr_nested != nullptr)
+   {
+      addToMap(addr_nested->getPredecessor());
+      return;
+   }
+
+   auto addr_with_asset = dynamic_pointer_cast<AddressEntry_WithAsset>(addrPtr);
+   if (addr_with_asset != nullptr)
+   {
+      BinaryDataRef preimage(addrPtr->getPreimage());
+      auto& asset = addr_with_asset->getAsset();
+
+      auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
+      if (asset_single == nullptr)
+         throw WalletException("multisig asset in asset_single resolver");
+
+      pubkey_to_asset_.insert(make_pair(preimage, asset_single));
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+pair<shared_ptr<AssetEntry>, AddressEntryType> 
+   ResolverFeed_AssetWalletSingle::getAssetPairForKey(const BinaryData& key) const
+{
+   //run through accounts
+   auto& accounts = wltPtr_->accounts_;
+   for (auto& accPair : accounts)
+   {
+      /*
+      Accounts store script hashes with their relevant prefix, resolver
+      uses unprefixed hashes as found in the actual outputs. Hence,
+      all possible script prefixes will be prepended to the key to
+      look for the relevant asset ID
+      */
+
+      auto accPtr = accPair.second;
+
+      auto prefixSet = accPtr->getAddressTypeSet();
+      auto& hashMap = accPtr->getAddressHashMap();
+      set<uint8_t> usedPrefixes;
+
+      for (auto& addrType : prefixSet)
+      {
+         BinaryWriter prefixedKey;
+         try
+         {
+            auto prefix = AddressEntry::getPrefixByte(addrType);
+
+            //skip prefixes already used
+            auto insertIter = usedPrefixes.insert(prefix);
+            if (!insertIter.second)
+               continue;
+
+            prefixedKey.put_uint8_t(prefix);
+         }
+         catch (const AddressException&)
+         {}
+
+         prefixedKey.put_BinaryData(key);
+
+         auto iter = hashMap.find(prefixedKey.getData());
+         if (iter == hashMap.end())
+            continue;
+
+         /*
+         We have a hit for this prefix, return the asset and its
+         address type. 
+            
+         Note that we can't use addrType, as it may use a prefix 
+         shared across several address types (i.e. P2SH-P2PK and 
+         P2SH-P2WPKH).
+
+         Therefor, we return the address type attached to hash 
+         rather the one used to roll the prefix.
+         */
+
+         auto asset =
+            accPtr->getAssetForID(iter->second.first.getSliceRef(4, 8));
+         return make_pair(asset, iter->second.second);
+      }
+   }
+
+   return make_pair(nullptr, AddressEntryType_Default);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData ResolverFeed_AssetWalletSingle::getByVal(const BinaryData& key)
+{
+   //check cached hits first
+   auto iter = hash_to_preimage_.find(key);
+   if (iter != hash_to_preimage_.end())
+      return iter->second;
+
+   //short of that, try to get the asset for this key
+   auto assetPair = getAssetPairForKey(key);
+   if (assetPair.first == nullptr || 
+      assetPair.second == AddressEntryType_Default)
+   {
+      throw runtime_error("could not resolve key");
+   }
+
+   auto addrPtr = AddressEntry::instantiate(
+      assetPair.first, assetPair.second);
+
+   /*
+   We cache all hits at this stage to speed up further resolution.
+
+   In the case of nested addresses, we have to cache the predessors
+   anyways as they are most likely going to be requested later, yet
+   there is no guarantee the account address hashmap which our
+   resolution is based on carries the predecessor hashes. addToMap
+   takes care of this for us.
+   */
+
+   addToMap(addrPtr);
+   return addrPtr->getPreimage();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const SecureBinaryData& ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
+   const BinaryData& pubkey)
+{
+   //check cache first
+   {
+      auto pubkeyref = pubkey.getRef();
+      auto cacheIter = pubkey_to_asset_.find(pubkeyref);
+      if (cacheIter != pubkey_to_asset_.end())
+      {
+         return wltPtr_->getDecryptedPrivateKeyForAsset(
+            cacheIter->second);
+      }
+   }
+
+   //if we have a bip32 path hint for this pubkey, use that
+   {
+      auto pathIter = bip32Paths_.find(pubkey);
+      if (pathIter != bip32Paths_.end())
+      {
+         if (pathIter->second.second.empty())
+         {
+            pathIter->second.second = 
+               wltPtr_->derivePrivKeyFromPath(pathIter->second.first);
+         }
+
+         return wltPtr_->getDecrypedPrivateKeyForId(pathIter->second.second);
+      }
+   }
+
+   /*
+   Lacking a cache hit, we need to get the asset for this pubkey. All
+   pubkeys are carried as assets, and all assets are expressed as all
+   possible script hash variations within an account's hash map.
+
+   Therefor, converting this pubkey to one of the eligible script hash
+   variation should yield a hit from the key to asset resolution logic.
+
+   From that asset object, we can then get the private key.
+
+   Conveniently, the only hash ever used on public keys is
+   BtcUtils::getHash160
+   */
+
+   auto&& hash = BtcUtils::getHash160(pubkey);
+   auto assetPair = getAssetPairForKey(hash);
+   if (assetPair.first == nullptr)
+      throw NoAssetException("invalid pubkey");
+
+   auto assetSingle =
+      dynamic_pointer_cast<AssetEntry_Single>(assetPair.first);
+   if (assetSingle == nullptr)
+      throw logic_error("invalid asset type");
+
+   return wltPtr_->getDecryptedPrivateKeyForAsset(assetSingle);
+
+   /*
+   In case of NoAssetException failure, it is still possible this public key 
+   is used in an exotic script (multisig or other).
+   Use ResolverFeed_AssetWalletSingle_Exotic for a wallet carrying
+   that kind of scripts.
+
+   logic_error means the asset was found but it does not carry the private 
+   key.
+
+   DecryptedDataContainerException means the wallet failed to decrypt the 
+   encrypted pubkey (bad passphrase or unlocked wallet most likely).
+   */
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BIP32_AssetPath ResolverFeed_AssetWalletSingle::resolveBip32PathForPubkey(
+   const BinaryData& pubkey)
+{
+   //check cache first
+   {
+      auto pubkeyref = pubkey.getRef();
+      auto cacheIter = pubkey_to_asset_.find(pubkeyref);
+      if (cacheIter != pubkey_to_asset_.end())
+         return wltPtr_->getBip32PathForAsset(cacheIter->second);
+   }
+
+   auto&& hash = BtcUtils::getHash160(pubkey);
+   auto assetPair = getAssetPairForKey(hash);
+   if (assetPair.first == nullptr)
+      throw NoAssetException("invalid pubkey");
+
+   return wltPtr_->getBip32PathForAsset(assetPair.first);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ResolverFeed_AssetWalletSingle::seedFromAddressEntry(
+   shared_ptr<AddressEntry> addrPtr)
+{
+   try
+   {
+      //add hash to preimage pair
+      auto& hash = addrPtr->getHash();
+      auto& preimage = addrPtr->getPreimage();
+      hash_to_preimage_.insert(make_pair(hash, preimage));
+   }
+   catch (AddressException&)
+   {
+      return;
+   }
+
+   //is this address nested?
+   auto addrNested =
+      dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
+   if (addrNested == nullptr)
+      return; //return if not
+
+   //seed the predecessor too
+   seedFromAddressEntry(addrNested->getPredecessor());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ResolverFeed_AssetWalletSingle::setBip32PathForPubkey(
+   const BinaryData& pubkey, const BIP32_AssetPath& path)
+{
+   bip32Paths_.emplace(pubkey, make_pair(path, BinaryData()));
 }
