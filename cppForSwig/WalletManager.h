@@ -31,7 +31,7 @@ struct CoinSelectionInstance
 private:
    CoinSelection cs_;
 
-   std::map<unsigned, std::shared_ptr<ScriptRecipient> > recipients_;
+   std::map<unsigned, std::shared_ptr<ArmorySigner::ScriptRecipient>> recipients_;
    UtxoSelection selection_;
    std::shared_ptr<AssetWallet> const walletPtr_;
 
@@ -63,7 +63,9 @@ public:
    void updateOpReturnRecipient(unsigned, const BinaryData&);
    void removeRecipient(unsigned);
    void resetRecipients(void);
-   const std::map<unsigned, std::shared_ptr<ScriptRecipient> >& getRecipients(void) const {
+   const std::map<unsigned, std::shared_ptr<ArmorySigner::ScriptRecipient>>& 
+   getRecipients(void) const 
+   {
       return recipients_;
    }
 
@@ -86,7 +88,8 @@ public:
    bool isSW(void) const { return selection_.witnessSize_ != 0; }
    void rethrow(void) { cs_.rethrow(); }
 
-   static std::shared_ptr<ScriptRecipient> createRecipient(const BinaryData&, uint64_t);
+   static std::shared_ptr<ArmorySigner::ScriptRecipient> createRecipient(
+      const BinaryData&, uint64_t);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

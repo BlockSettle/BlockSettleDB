@@ -113,7 +113,8 @@ struct RestrictedUtxoSet
 ////////////////////////////////////////////////////////////////////////////////
 struct PaymentStruct
 {
-   const std::map<unsigned, std::shared_ptr<ScriptRecipient>> recipients_;
+   const std::map<unsigned, 
+      std::shared_ptr<ArmorySigner::ScriptRecipient>> recipients_;
    
    const uint64_t fee_;
    const float fee_byte_;
@@ -123,7 +124,8 @@ struct PaymentStruct
 
    const unsigned flags_ = 0;
 
-   PaymentStruct(std::map<unsigned, std::shared_ptr<ScriptRecipient>>& recipients,
+   PaymentStruct(std::map<unsigned, 
+      std::shared_ptr<ArmorySigner::ScriptRecipient>>& recipients,
       uint64_t fee, float fee_byte, unsigned flags) :
       recipients_(recipients), fee_(fee), fee_byte_(fee_byte),
       flags_(flags)
