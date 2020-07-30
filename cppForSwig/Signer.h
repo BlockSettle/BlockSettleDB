@@ -11,11 +11,12 @@
 
 #include <set>
 
-#include "EncryptionUtils.h"
+#include "TxEvalState.h"
 #include "TxClasses.h"
+#include "EncryptionUtils.h"
 #include "Transactions.h"
 #include "ScriptRecipient.h"
-#include "TxEvalState.h"
+#include "ResolverFeed.h"
 
 #include "protobuf/Signer.pb.h"
 
@@ -100,7 +101,7 @@ private:
    BinaryData getSerializedOutpoint(void) const;
 
    std::shared_ptr<std::map<BinaryData, Tx>> txMap_;
-   std::map<BinaryData, std::vector<uint32_t>> bip32Paths_;
+   std::map<BinaryData, BIP32_AssetPath> bip32Paths_;
 
    std::map<BinaryData, BinaryData> prioprietaryPSBTData_;
 
@@ -139,7 +140,7 @@ protected:
    virtual void serializeSegwitState(
       Codec_SignerState::ScriptSpenderState&) const;
 
-   void serializePSBTData(
+   void serializePathData(
       Codec_SignerState::ScriptSpenderState&) const;
    
 private:
@@ -148,6 +149,9 @@ private:
 
    void setUtxo(const UTXO& utxo) { utxo_ = utxo; }
    void merge(const ScriptSpender&);
+   
+   std::map<BinaryData, BIP32_AssetPath>& getBip32Paths(void)
+   { return bip32Paths_; }
 
 public:
    ScriptSpender(const BinaryDataRef txHash, unsigned index)
@@ -259,9 +263,6 @@ public:
    const Tx& getSupportingTx(void) const;
    bool haveSupportingTx(void) const;
    std::map<unsigned, BinaryData> getRelevantPubkeys() const;
-
-   const std::map<BinaryData, std::vector<unsigned>> getBip32Paths(void) const
-   { return bip32Paths_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,6 +284,7 @@ protected:
    std::shared_ptr<ResolverFeed> resolverPtr_;
    std::shared_ptr<std::map<BinaryData, Tx>> supportingTxMap_;
 
+   std::map<unsigned, std::shared_ptr<BIP32_PublicDerivedRoot>> bip32PublicRoots_;
    std::map<BinaryData, BinaryData> prioprietaryPSBTData_;
 
 protected:
@@ -304,6 +306,8 @@ protected:
    void deserializeSupportingTxMap(const Codec_SignerState::SignerState&);
 
    void parseScripts(bool);
+   void addBip32Root(std::shared_ptr<BIP32_PublicDerivedRoot>);
+   void matchAssetPathsWithRoots(void);
 
 public:
    Signer(void) :
@@ -485,14 +489,9 @@ struct ResolverFeed_SpenderResolutionChecks : public ResolverFeed
       throw std::runtime_error("invalid value");
    }
 
-   std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) override
-   {
-      throw std::runtime_error("invalid pubkey");
-   }
-
+   BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override;
    void setBip32PathForPubkey(
-      const BinaryData&, const std::vector<uint32_t>&) override
-   {}
+      const BinaryData&, const BIP32_AssetPath&) override;
 };
 
 

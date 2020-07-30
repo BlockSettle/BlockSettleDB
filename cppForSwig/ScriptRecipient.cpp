@@ -11,6 +11,7 @@
 #include "Signer.h"
 
 using namespace std;
+using namespace ArmorySigner;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -84,7 +85,7 @@ shared_ptr<ScriptRecipient> ScriptRecipient::fromPSBT(
    BinaryRefReader& brr, const TxOut& txout)
 {
    auto globalDataPairs = BtcUtils::getPSBTDataPairs(brr);
-   map<BinaryData, vector<uint32_t>> bip32Paths;
+   map<BinaryData, BIP32_AssetPath> bip32Paths;
    std::map<BinaryData, BinaryData> prioprietaryPSBTData;
 
    for (const auto& dataPair : globalDataPairs)
@@ -99,14 +100,12 @@ shared_ptr<ScriptRecipient> ScriptRecipient::fromPSBT(
       {
       case ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION:
       {
-         auto pubkeyRef = key.getSliceRef(1, key.getSize() - 1);
-         auto insertIter = bip32Paths.emplace(pubkeyRef, vector<uint32_t>());
+         auto assetPath = BIP32_AssetPath::fromPSBT(key, val);
+         auto insertIter = bip32Paths.emplace(
+            assetPath.getPublicKey(), move(assetPath));
+
          if (!insertIter.second)
             throw ArmorySigner::PSBTDeserializationError("txout pubkey collision");
-
-         BinaryRefReader brrVal(val);
-         while (brrVal.getSizeRemaining() > 0)
-            insertIter.first->second.emplace_back(brrVal.get_uint32_t());
 
          break;
       }
@@ -141,9 +140,7 @@ void ScriptRecipient::toPSBT(BinaryWriter& bw) const
       bw.put_BinaryData(bip32Path.first);
 
       //path
-      bw.put_var_int(bip32Path.second.size() * 4);
-      for (auto& step : bip32Path.second)
-         bw.put_uint32_t(step);         
+      bip32Path.second.toPSBT(bw);
    }
 
    for (auto& data : prioprietaryPSBTData_)
@@ -173,10 +170,7 @@ void ScriptRecipient::toProtobuf(
    for (auto& keyPair : bip32Paths_)
    {
       auto pathPtr = protoMsg.add_bip32paths();
-      pathPtr->set_pubkey(keyPair.first.getPtr(), keyPair.first.getSize());
-
-      for (auto& step : keyPair.second)
-         pathPtr->add_steps(step);
+      keyPair.second.toProtobuf(*pathPtr);
    }
 }
 
@@ -190,24 +184,17 @@ shared_ptr<ScriptRecipient> ScriptRecipient::fromProtobuf(
 
    for (unsigned i=0; i<protoMsg.bip32paths_size(); i++)
    {
-      const auto& pathMsg = protoMsg.bip32paths(i);
-      auto key = BinaryData::fromString(pathMsg.pubkey());
-
-      vector<uint32_t> steps;
-      for (unsigned y=0; y<pathMsg.steps_size(); y++)
-         steps.emplace_back(pathMsg.steps(y));
-
-      recipient->addBip32Path(key, steps);
+      auto path = BIP32_AssetPath::fromProtobuf(protoMsg.bip32paths(i));
+      recipient->addBip32Path(path);
    }
 
    return recipient;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptRecipient::addBip32Path(
-   const BinaryData& pubkey, const std::vector<uint32_t>& bip32Path)
+void ScriptRecipient::addBip32Path(const BIP32_AssetPath& bip32Path)
 {
-   auto insertIter = bip32Paths_.emplace(pubkey, bip32Path);
+   auto insertIter = bip32Paths_.emplace(bip32Path.getPublicKey(), bip32Path);
    if (!insertIter.second)
    {
       if (insertIter.first->second != bip32Path)

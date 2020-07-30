@@ -12,6 +12,7 @@
 #include "make_unique.h"
 
 #include "BIP32_Node.h"
+#include "Assets.h"
 
 using namespace std;
 using namespace ArmorySigner;
@@ -816,16 +817,13 @@ void ScriptSpender::serializeSegwitState(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptSpender::serializePSBTData(
+void ScriptSpender::serializePathData(
    Codec_SignerState::ScriptSpenderState& protoMsg) const
 {
    for (auto bip32Path : bip32Paths_)
    {
       auto pathEntry = protoMsg.add_bip32paths();
-      pathEntry->set_pubkey(bip32Path.first.getPtr(), bip32Path.first.getSize());
-      
-      for (auto& step : bip32Path.second)
-         pathEntry->add_steps(step);
+      bip32Path.second.toProtobuf(*pathEntry);
    }
 }
 
@@ -837,7 +835,7 @@ void ScriptSpender::serializeState(
    serializeStateUtxo(protoMsg);
    serializeLegacyState(protoMsg);
    serializeSegwitState(protoMsg);
-   serializePSBTData(protoMsg);
+   serializePathData(protoMsg);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -910,16 +908,8 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
 
    for (unsigned i=0; i<protoMsg.bip32paths_size(); i++)
    {
-      const auto& pathEntry = protoMsg.bip32paths(i);
-      
-      BinaryDataRef keyRef; 
-      keyRef.setRef(pathEntry.pubkey());
-
-      vector<uint32_t> path;
-      for (unsigned y=0; y<pathEntry.steps_size(); y++)
-         path.emplace_back(pathEntry.steps(y));
-
-      resultPtr->bip32Paths_.emplace(keyRef, move(path));
+      auto pathObj = BIP32_AssetPath::fromProtobuf(protoMsg.bip32paths(i));
+      resultPtr->bip32Paths_.emplace(pathObj.getPublicKey(), move(pathObj));
    }
 
    return resultPtr;
@@ -1452,7 +1442,7 @@ void ScriptSpender::parseScripts(StackResolver& resolver)
       try
       {
          auto bip32path = feed->resolveBip32PathForPubkey(pubKeyPair.second);
-         if (bip32path.empty())
+         if (!bip32path.isValid())
             continue;
 
          bip32Paths_.emplace(pubKeyPair.second, bip32path);
@@ -1876,14 +1866,15 @@ void ScriptSpender::toPSBT(BinaryWriter& bw) const
       //pubkeys
       for (auto& bip32Path : bip32Paths_)
       {
+         if (!bip32Path.second.isValid())
+            continue;
+
          bw.put_uint8_t(34);
          bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_BIP32_DERIVATION);
          bw.put_BinaryData(bip32Path.first);
 
          //path
-         bw.put_var_int(bip32Path.second.size() * 4);
-         for (auto& step : bip32Path.second)
-            bw.put_uint32_t(step);      
+         bip32Path.second.toPSBT(bw);
       }
    }
    else
@@ -1937,7 +1928,7 @@ shared_ptr<ScriptSpender> ScriptSpender::fromPSBT(
    bool haveSupportingTx = false;
 
    map<BinaryDataRef, BinaryDataRef> partialSigs;
-   map<BinaryData, vector<uint32_t>> bip32paths;
+   map<BinaryData, BIP32_AssetPath> bip32paths;
    map<BinaryData, BinaryData> prioprietaryPSBTData;
          
    BinaryDataRef redeemScript;
@@ -2020,14 +2011,12 @@ shared_ptr<ScriptSpender> ScriptSpender::fromPSBT(
 
       case PSBT::ENUM_INPUT::PSBT_IN_BIP32_DERIVATION:
       {
-         auto pubKey = key.getSliceRef(1, key.getSize() - 1);
-         auto insertIter = bip32paths.emplace(pubKey, vector<uint32_t>());
+         auto assetPath = BIP32_AssetPath::fromPSBT(key, val);
+         auto insertIter = bip32paths.emplace(
+            assetPath.getPublicKey(), assetPath);
+
          if (!insertIter.second)
             throw PSBTDeserializationError("bip32 path collision");
-
-         BinaryRefReader valReader(val);
-         while (valReader.getSizeRemaining() > 0)
-            insertIter.first->second.emplace_back(valReader.get_uint32_t());
          
          break;
       }
@@ -2486,10 +2475,8 @@ void Signer::sign(void)
 void Signer::resolvePublicData()
 {
    //run through each spenders
-   for (unsigned i = 0; i < spenders_.size(); i++)
+   for (auto& spender : spenders_)
    {
-      auto& spender = spenders_[i];
-
       if (isResolved())
          continue;
 
@@ -2508,10 +2495,15 @@ void Signer::resolvePublicData()
       {
          spender->parseScripts(resolver);
       }
-      catch (const exception& e)
+      catch (const exception&)
+      {}
+
+      auto spenderBip32Paths = spender->getBip32Paths();
+      for (const auto& pathPair : spenderBip32Paths)
       {
-         auto abc = e.what();
-         continue;
+         const auto& assetPath = pathPair.second;
+         if (assetPath.hasRoot())
+            addBip32Root(assetPath.getRoot());
       }
    }
 
@@ -2533,10 +2525,10 @@ void Signer::resolvePublicData()
          {
             auto bip32path = 
                resolverPtr_->resolveBip32PathForPubkey(pubKeyPair.second);
-            if (bip32path.empty())
+            if (!bip32path.isValid())
                continue;
 
-            recipients_[i]->addBip32Path(pubKeyPair.second, bip32path);
+            recipients_[i]->addBip32Path(bip32path);
          }
          catch (const exception&)
          {
@@ -2912,6 +2904,18 @@ Codec_SignerState::SignerState Signer::serializeState() const
       }
    }
 
+   for (auto& bip32PublicRoot : bip32PublicRoots_)
+   {
+      auto& rootPtr = bip32PublicRoot.second;
+      auto pubRoot = protoMsg.add_bip32roots();
+      
+      pubRoot->set_xpub(rootPtr->getXPub());
+      pubRoot->set_fingerprint(rootPtr->getSeedFingerprint());
+      
+      for (auto& step : rootPtr->getPath())
+         pubRoot->add_path(step);
+   }
+
    return protoMsg;
 }
 
@@ -2961,6 +2965,24 @@ Signer Signer::createFromState(const Codec_SignerState::SignerState& protoMsg)
    }
 
    signer.deserializeSupportingTxMap(protoMsg);
+   
+   for (unsigned i=0; i<protoMsg.bip32roots_size(); i++)
+   {
+      auto& root = protoMsg.bip32roots(i);
+
+      vector<unsigned> path;
+      for (unsigned y=0; y<root.path_size(); y++)
+         path.push_back(root.path(y));
+
+      auto bip32root = make_shared<BIP32_PublicDerivedRoot>(
+         root.xpub(), path, root.fingerprint());
+
+      signer.bip32PublicRoots_.emplace(
+         bip32root->getThisFingerprint(), bip32root);
+   }
+
+   signer.matchAssetPathsWithRoots();
+
    return signer;
 }
 
@@ -3032,13 +3054,12 @@ void Signer::merge(const Signer& rhs)
    }
 
 
-   /* OBSOLETE: comment needs reworded after new implementation
-
+   /*
    Recipients are told apart by their script hash. Several recipients with
-   the same script hash will be aggregated into a single one.
+   the same script hash will be merged.
 
    Note that in case the local signer has several recipient with the same
-   hash scripts, these won't be aggregated. Only those from the new_signer will.
+   hash scripts, these won't be aggregated. Only those from the rhs will.
 
    As a general rule, do not create several outputs with the same script hash.
 
@@ -3058,6 +3079,11 @@ void Signer::merge(const Signer& rhs)
       else 
          local_recipient->merge(recipient);
    }
+
+   //merge bip32 roots
+   bip32PublicRoots_.insert(
+      rhs.bip32PublicRoots_.begin(), rhs.bip32PublicRoots_.end());
+   matchAssetPathsWithRoots();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3563,6 +3589,35 @@ uint64_t Signer::getTotalOutputsValue(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void Signer::addBip32Root(shared_ptr<BIP32_PublicDerivedRoot> rootPtr)
+{
+   if (rootPtr == nullptr)
+      return;
+   
+   bip32PublicRoots_.emplace(rootPtr->getThisFingerprint(), rootPtr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::matchAssetPathsWithRoots()
+{
+   for (auto& spender : spenders_)
+   {
+      auto& paths = spender->getBip32Paths();
+
+      for (auto& pathPair : paths)
+      {
+         auto fingerprint = pathPair.second.getThisFingerprint();
+      
+         auto iter = bip32PublicRoots_.find(fingerprint);
+         if (iter == bip32PublicRoots_.end())
+            continue;
+
+         pathPair.second.setRoot(iter->second);
+      }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// SignerProxy
 ////////////////////////////////////////////////////////////////////////////////
@@ -3607,6 +3662,22 @@ void SignerProxyFromSigner::setLambda(
 
    signerLambda_ = signerLBD;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// ResolverFeed_SpenderResolutionChecks
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+BIP32_AssetPath ResolverFeed_SpenderResolutionChecks::resolveBip32PathForPubkey(
+   const BinaryData&)
+{
+   throw std::runtime_error("invalid pubkey");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ResolverFeed_SpenderResolutionChecks::setBip32PathForPubkey(
+   const BinaryData&, const BIP32_AssetPath&)
+{}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

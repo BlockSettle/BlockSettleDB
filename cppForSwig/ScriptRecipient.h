@@ -12,9 +12,14 @@
 #include <stdint.h>
 #include "BinaryData.h"
 #include "BtcUtils.h"
+#include "ResolverFeed.h"
 
 #include "protobuf/Signer.pb.h"
 
+class TxOut;
+
+namespace ArmorySigner
+{
 ////
 enum SpendScriptType
 {
@@ -36,8 +41,6 @@ public:
    {}
 };
 
-class TxOut;
-
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptRecipient
 {
@@ -46,7 +49,7 @@ protected:
    uint64_t value_ = UINT64_MAX;
 
    mutable BinaryData script_;
-   std::map<BinaryData, std::vector<uint32_t>> bip32Paths_;
+   std::map<BinaryData, BIP32_AssetPath> bip32Paths_;
    std::map<BinaryData, BinaryData> prioprietaryPSBTData_;
 
 public:
@@ -76,8 +79,8 @@ public:
       return value_; 
    }
 
-   void addBip32Path(const BinaryData&, const std::vector<uint32_t>&);
-   std::map<BinaryData, std::vector<uint32_t>> getBip32Paths(void) const
+   void addBip32Path(const BIP32_AssetPath&);
+   const std::map<BinaryData, BIP32_AssetPath>& getBip32Paths(void) const
    {
       return bip32Paths_; 
    }
@@ -224,5 +227,5 @@ public:
    void serialize(void) const override;
    size_t getSize(void) const override;
 };
-
+}; //namespace ArmorySigner
 #endif
