@@ -339,13 +339,12 @@ TEST_F(SignerTest, Signer_Test)
    auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
    //create script spender objects
-   auto getSpenderPtr = [feed](
-      const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    uint64_t total = 0;
@@ -369,6 +368,7 @@ TEST_F(SignerTest, Signer_Test)
       signer.addRecipient(recipientA);
    }
 
+   signer.setFeed(feed);
    signer.sign();
    EXPECT_TRUE(signer.verify());
 }
@@ -377,15 +377,12 @@ TEST_F(SignerTest, Signer_Test)
 TEST_F(SignerTest, SpendTest_SizeEstimates)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -491,7 +488,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to first address
@@ -518,6 +515,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       signer.addRecipient(make_shared<Recipient_OPRETURN>(opreturn_msg));
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -593,7 +591,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       for (auto& utxo : utxoSelect)
       {
          total += utxo.getValue();
-         signer2.addSpender(make_shared<ScriptSpender>(utxo, assetFeed));
+         signer2.addSpender(make_shared<ScriptSpender>(utxo));
       }
 
       //add recipients to signer
@@ -615,6 +613,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       //sign, verify & broadcast
       {
          auto&& lock = assetWlt->lockDecryptedContainer();
+         signer2.setFeed(assetFeed);
          signer2.sign();
       }
 
@@ -716,7 +715,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       for (auto& utxo : utxoSelect)
       {
          total += utxo.getValue();
-         signer3.addSpender(make_shared<ScriptSpender>(utxo, assetFeed));
+         signer3.addSpender(make_shared<ScriptSpender>(utxo));
       }
 
       //add recipients to signer
@@ -729,6 +728,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       //sign, verify & broadcast
       {
          auto&& lock = assetWlt->lockDecryptedContainer();
+         signer3.setFeed(assetFeed);
          signer3.sign();
       }
 
@@ -784,15 +784,12 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
 TEST_F(SignerTest, SpendTest_P2WPKH)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed = nullptr)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -901,7 +898,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to addr0, use P2WPKH
@@ -920,6 +917,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -969,7 +967,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
          signer_nofeed.addSpender(getSpenderPtr(utxo));
       }
 
@@ -992,6 +990,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       //grab the unsigned tx and get the tx hash from it
       BinaryData txHashUnsigned;
       {
+         signer2.setFeed(assetFeed);
          auto unsignedTxRaw = signer2.serializeUnsignedTx();
 
          Tx unsignedTx(unsignedTxRaw);
@@ -1047,15 +1046,12 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
 TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -1193,7 +1189,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 27 nested p2wsh script hash
@@ -1213,6 +1209,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       signer.addRecipient(make_shared<Recipient_OPRETURN>(opreturn_msg));
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -1262,7 +1259,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -1283,6 +1280,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       signer2.addRecipient(make_shared<Recipient_OPRETURN>(opreturn_msg));
 
       {
+         signer2.setFeed(assetFeed);
          auto hash = signer2.getTxId();
          auto unsignedTx = signer2.serializeUnsignedTx();
          Tx tx(unsignedTx);
@@ -1345,15 +1343,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -1500,7 +1495,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 20 to nested p2wsh script hash
@@ -1519,6 +1514,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
       auto&& zcHash = signer.getTxId();
@@ -1580,7 +1576,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    for (auto& utxo : unspentVec)
    {
       total += utxo.getValue();
-      signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+      signer2.addSpender(getSpenderPtr(utxo));
    }
 
    //creates outputs
@@ -1597,6 +1593,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    }
 
    //sign, verify & return signed tx
+   signer2.setFeed(assetFeed);
    signer2.resolvePublicData();
    auto&& signerState = signer2.evaluateSignedState();
 
@@ -1674,7 +1671,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 
    {
       auto assetFeed4 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
-      signer3.resetFeeds();
+      signer3.resetFeed();
       signer3.setFeed(assetFeed4);
       auto lock = assetWlt_2->lockDecryptedContainer();
       signer3.sign();
@@ -1743,15 +1740,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -1876,7 +1870,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to p2pkh script hash
@@ -1895,6 +1889,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -1948,7 +1943,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       for (auto& utxo : unspentVec_1)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed2));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 18 to addrB, use P2PKH
@@ -1962,7 +1957,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
          //spend 4 to p2pkh script hash
          signer2.addRecipient(addrVec_1[1]->getRecipient(total - spendVal));
       }
-
+      
       serializedSignerState = move(signer2.serializeState());
    }
 
@@ -1977,7 +1972,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       for (auto& utxo : unspentVec_2)
       {
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, assetFeed3));
+         signer3.addSpender(getSpenderPtr(utxo));
       }
 
       //set change
@@ -2053,15 +2048,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -2186,7 +2178,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to p2pkh script hash
@@ -2205,6 +2197,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -2256,7 +2249,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       for (auto& utxo : unspentVec_1)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, nullptr));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 18 to addrB, use P2PKH
@@ -2286,7 +2279,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       for (auto& utxo : unspentVec_2)
       {
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, nullptr));
+         signer3.addSpender(getSpenderPtr(utxo));
       }
 
       //set change
@@ -2304,9 +2297,10 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 
    //deser to new signer, this time populate with feed and utxo from wlt_1
    Signer signer4;
+   signer4.setFeed(assetFeed2);
    for (auto& utxo : unspentVec_1)
    {
-      signer4.addSpender(getSpenderPtr(utxo, assetFeed2));
+      signer4.addSpender(getSpenderPtr(utxo));
    }
 
    signer4.deserializeState(serializedSignerState);
@@ -2398,15 +2392,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -2531,7 +2522,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to p2pkh script hash
@@ -2550,6 +2541,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -2602,7 +2594,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       for (auto& utxo : unspentVec_1)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, _assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 18 to addrB, use P2PKH
@@ -2617,9 +2609,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
          signer2.addRecipient(addrVec_1[1]->getRecipient(total - spendVal));
       }
 
-      //get txid to resolve the spender, ignore it as it is 
-      //invalid for now (incomplete tx structure)
-      auto txid = signer2.getTxId();
+      signer2.setFeed(_assetFeed);
+      signer2.resolvePublicData();
 
       //spender resolved state should be seralized along
       serializedSignerState = move(signer2.serializeState());
@@ -2636,9 +2627,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       uint64_t total = 0;
       for (auto& utxo : unspentVec_2)
       {
-         auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, _assetFeed));
+         signer3.addSpender(getSpenderPtr(utxo));
       }
 
       //set change
@@ -2648,7 +2638,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
          signer3.addRecipient(addrVec_2[1]->getRecipient(total - spendVal));
       }
 
-      //get txid & unsigned tx, should be valid now
+      //get txid & unsigned tx, should be valid
+      auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+      signer3.setFeed(_assetFeed);
       unsignedHash = signer3.getTxId();
       unsignedTxRaw = signer3.serializeUnsignedTx();
 
@@ -2663,9 +2655,10 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 
    //deser to new signer, this time populate with feed and utxo from wlt_1
    Signer signer4;
+   signer4.setFeed(assetFeed2);
    for (auto& utxo : unspentVec_1)
    {
-      signer4.addSpender(getSpenderPtr(utxo, assetFeed2));
+      signer4.addSpender(getSpenderPtr(utxo));
    }
 
    signer4.deserializeState(serializedSignerState);
@@ -2759,15 +2752,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Nested)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -2893,7 +2883,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to p2pkh script hash
@@ -2912,6 +2902,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -2964,7 +2955,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       for (auto& utxo : unspentVec_1)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, _assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 18 to addrB, use P2PKH
@@ -2979,9 +2970,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
          signer2.addRecipient(addrVec_1[1]->getRecipient(total - spendVal));
       }
 
-      //get txid to resolve the spender, ignore it as it is 
-      //invalid for now (incomplete tx structure)
-      auto txid = signer2.getTxId();
+      signer2.setFeed(_assetFeed);
+      signer2.resolvePublicData();
 
       //spender resolved state should be seralized along
       serializedSignerState = move(signer2.serializeState());
@@ -3000,9 +2990,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       uint64_t total = 0;
       for (auto& utxo : unspentVec_2)
       {
-         auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, _assetFeed));
+         signer3.addSpender(getSpenderPtr(utxo));
       }
 
       //set change
@@ -3013,6 +3002,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       }
 
       //get txid & unsigned tx, should be valid now
+      auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+      signer3.setFeed(_assetFeed);
       unsignedHash = signer3.getTxId();
       unsignedTxRaw = signer3.serializeUnsignedTx();
 
@@ -3026,10 +3017,11 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    //deser to new signer, this time populate with feed and utxo from wlt_1
    Signer signer4;
    signer4.setFlags(SCRIPT_VERIFY_SEGWIT);
+   signer4.setFeed(assetFeed2);
 
    for (auto& utxo : unspentVec_1)
    {
-      signer4.addSpender(getSpenderPtr(utxo, assetFeed2));
+      signer4.addSpender(getSpenderPtr(utxo));
    }
 
    signer4.deserializeState(serializedSignerState);
@@ -3125,15 +3117,12 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 TEST_F(SignerTest, GetUnsignedTxId)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -3260,7 +3249,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to p2pkh script hash
@@ -3281,6 +3270,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
       try
       {
          //shouldn't be able to get txid on legacy unsigned tx
+         signer.setFeed(feed);
          signer.getTxId();
          EXPECT_TRUE(false);
       }
@@ -3461,15 +3451,12 @@ TEST_F(SignerTest, GetUnsignedTxId)
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -3490,17 +3477,29 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 
    //// create assetWlt ////
 
-   //create a root private key
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   //create empty bip32 wallet
+   auto&& wltSeed = CryptoPRNG::generateRandom(32);
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
       homedir_,
-      move(wltRoot), //root as a r value
-      {},
+      wltSeed,
       SecureBinaryData(),
-      SecureBinaryData(),
-      3); //lookup computation
+      SecureBinaryData());
 
-   //register with db
+   //add p2sh-p2wpkh account
+   vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
+
+   auto mainAccType =
+      make_shared<AccountType_BIP32>(derPath);
+   mainAccType->setMain(true);
+   mainAccType->setAddressLookup(3);
+   mainAccType->setDefaultAddressType(
+      AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
+   mainAccType->setAddressTypes(
+      { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
+
+   auto accountID = assetWlt->createBIP32Account(mainAccType);
+
+   //// register with db ////
    vector<BinaryData> addrVec;
 
    auto hashSet = assetWlt->getAddrHashSet();
@@ -3575,18 +3574,16 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to addr0, nested P2WPKH
-      auto addr0 = assetWlt->getNewAddress(
-         AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH));
+      auto addr0 = assetWlt->getNewAddress();
       signer.addRecipient(addr0->getRecipient(12 * COIN));
       addrVec.push_back(addr0->getPrefixedHash());
 
       //spend 15 to addr1, nested P2WPKH
-      auto addr1 = assetWlt->getNewAddress(
-         AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH));
+      auto addr1 = assetWlt->getNewAddress();
       signer.addRecipient(addr1->getRecipient(15 * COIN));
       addrVec.push_back(addr1->getPrefixedHash());
 
@@ -3600,6 +3597,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -3628,7 +3626,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
    scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 15 * COIN);
 
-   {
+   /*{
       ////spend 18 back to scrAddrB, with change to addr[2]
 
       auto spendVal = 18 * COIN;
@@ -3647,7 +3645,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -3669,6 +3667,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       //sign, verify & broadcast
       {
          auto lock = assetWlt->lockDecryptedContainer();
+         signer2.setFeed(assetFeed);
          signer2.sign();
       }
 
@@ -3676,6 +3675,665 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 
       DBTestUtils::ZcVector zcVec2;
       zcVec2.push_back(signer2.serializeSignedTx(), 15000000);
+
+      DBTestUtils::pushNewZc(theBDMt_, zcVec2);
+      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+   }*/
+
+   Codec_SignerState::SignerState signerState;
+   {
+      ////spend 18 back to scrAddrB, with change to addr[2]
+
+      auto spendVal = 18 * COIN;
+      Signer signer2;
+      signer2.setFlags(SCRIPT_VERIFY_SEGWIT);
+
+      //get utxo list for spend value
+      auto&& unspentVec =
+         dbAssetWlt->getSpendableTxOutListZC();
+
+      //create feed from asset wallet
+      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+
+      //create spenders
+      uint64_t total = 0;
+      for (auto& utxo : unspentVec)
+      {
+         total += utxo.getValue();
+         signer2.addSpender(getSpenderPtr(utxo));
+      }
+
+      //creates outputs
+      //spend 18 to addr 0, use P2PKH
+      auto recipient2 = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrB.getSliceCopy(1, 20), spendVal);
+      signer2.addRecipient(recipient2);
+
+      if (total > spendVal)
+      {
+         //deal with change, no fee
+         auto changeVal = total - spendVal;
+         auto addr2 = assetWlt->getNewAddress();
+         signer2.addRecipient(addr2->getRecipient(changeVal));
+         addrVec.push_back(addr2->getPrefixedHash());
+      }
+
+      //sign, verify & broadcast
+      {
+         signer2.setFeed(assetFeed);
+         signer2.resolvePublicData();
+      }
+
+      EXPECT_FALSE(signer2.verify());
+      signerState = signer2.serializeState();
+   }
+
+   {
+      Signer signer3(signerState);
+      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+
+      //sign, verify & broadcast
+      {
+         auto lock = assetWlt->lockDecryptedContainer();
+         signer3.setFeed(assetFeed);
+         signer3.sign();
+      }
+
+      EXPECT_TRUE(signer3.verify());
+
+      DBTestUtils::ZcVector zcVec2;
+      zcVec2.push_back(signer3.serializeSignedTx(), 15000000);
+
+      DBTestUtils::pushNewZc(theBDMt_, zcVec2);
+      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+   }
+
+
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 48 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   //check new wallet balances
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[1]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[2]);
+   EXPECT_EQ(scrObj->getFullBalance(), 9 * COIN);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
+{
+   //create spender lamba
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
+   {
+      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
+         move(utxo.txHash_), move(utxo.script_));
+
+      return make_shared<ScriptSpender>(entry);
+   };
+
+   //
+   TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
+
+   initBDM();
+
+   theBDMt_->start(config.initMode_);
+   auto&& bdvID = DBTestUtils::registerBDV(
+      clients_, NetworkConfig::getMagicBytes());
+
+   vector<BinaryData> scrAddrVec;
+   scrAddrVec.push_back(TestChain::scrAddrA);
+   scrAddrVec.push_back(TestChain::scrAddrB);
+   scrAddrVec.push_back(TestChain::scrAddrC);
+   scrAddrVec.push_back(TestChain::scrAddrD);
+   scrAddrVec.push_back(TestChain::scrAddrE);
+
+   //// create assetWlt ////
+
+   auto&& wltSeed = CryptoPRNG::generateRandom(32);
+   string woPath, wltPath;
+
+   {
+      //create bip32 wallet
+      auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
+         homedir_,
+         wltSeed,
+         SecureBinaryData(),
+         SecureBinaryData());
+
+      //add p2sh-p2wpkh account
+      vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
+      auto mainAccType =
+         make_shared<AccountType_BIP32>(derPath);
+      mainAccType->setMain(true);
+      mainAccType->setAddressLookup(3);
+      mainAccType->setDefaultAddressType(
+         AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
+      mainAccType->setAddressTypes(
+         { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
+
+      set<unsigned> nodes = { 0, 1 };
+      mainAccType->setNodes(nodes);
+      mainAccType->setOuterAccountID(WRITE_UINT32_BE(*nodes.begin()));
+      mainAccType->setInnerAccountID(WRITE_UINT32_BE(*nodes.rbegin()));
+
+      auto accountID = assetWlt->createBIP32Account(mainAccType);
+
+      //make a WO copy
+      wltPath = assetWlt->getDbFilename();
+      woPath = AssetWallet::forkWatchingOnly(wltPath, nullptr);
+   }
+   unlink(wltPath.c_str());
+   auto wltWO = dynamic_pointer_cast<AssetWallet_Single>(
+      AssetWallet::loadMainWalletFromFile(woPath, nullptr));
+
+   //recreate empty bip32 wallet
+   auto emptyWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
+      homedir_,
+      wltSeed,
+      SecureBinaryData(),
+      SecureBinaryData());
+
+   //// register with db ////
+   vector<BinaryData> addrVec;
+
+   auto hashSet = wltWO->getAddrHashSet();
+   vector<BinaryData> hashVec;
+   hashVec.insert(hashVec.begin(), hashSet.begin(), hashSet.end());
+
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec, wltWO->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+
+   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
+
+   //wait on signals
+   DBTestUtils::goOnline(clients_, bdvID);
+   DBTestUtils::waitOnBDMReady(clients_, bdvID);
+   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
+   auto dbAssetWlt = bdvPtr->getWalletOrLockbox(wltWO->getID());
+
+
+   //check balances
+   const ScrAddrObj* scrObj;
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+
+   //check new wallet balances
+   for (auto& scripthash : hashSet)
+   {
+      scrObj = dbAssetWlt->getScrAddrObjByKey(scripthash);
+      EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   }
+
+   {
+      ////spend 27 from wlt to assetWlt's first 2 unused addresses
+      ////send rest back to scrAddrA
+
+      auto spendVal = 27 * COIN;
+      Signer signer;
+
+      //instantiate resolver feed overloaded object
+      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+
+      //get utxo list for spend value
+      auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
+
+      vector<UnspentTxOut> utxoVec;
+      uint64_t tval = 0;
+      auto utxoIter = unspentVec.begin();
+      while (utxoIter != unspentVec.end())
+      {
+         tval += utxoIter->getValue();
+         utxoVec.push_back(*utxoIter);
+
+         if (tval > spendVal)
+            break;
+
+         ++utxoIter;
+      }
+
+      //create script spender objects
+      uint64_t total = 0;
+      for (auto& utxo : utxoVec)
+      {
+         total += utxo.getValue();
+         signer.addSpender(getSpenderPtr(utxo));
+      }
+
+      //spend 12 to addr0, nested P2WPKH
+      auto addr0 = wltWO->getNewAddress();
+      signer.addRecipient(addr0->getRecipient(12 * COIN));
+      addrVec.push_back(addr0->getPrefixedHash());
+
+      //spend 15 to addr1, nested P2WPKH
+      auto addr1 = wltWO->getNewAddress();
+      signer.addRecipient(addr1->getRecipient(15 * COIN));
+      addrVec.push_back(addr1->getPrefixedHash());
+
+      if (total > spendVal)
+      {
+         //change to scrAddrD, no fee
+         auto changeVal = total - spendVal;
+         auto recipientChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrD.getSliceCopy(1, 20), changeVal);
+         signer.addRecipient(recipientChange);
+      }
+
+      //sign, verify then broadcast
+      signer.setFeed(feed);
+      signer.sign();
+      EXPECT_TRUE(signer.verify());
+
+      DBTestUtils::ZcVector zcVec;
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
+
+      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+   }
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   //check new wallet balances
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 12 * COIN);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[1]);
+   EXPECT_EQ(scrObj->getFullBalance(), 15 * COIN);
+
+   //-- resolve unsigned tx with WO wallet --//
+   Codec_SignerState::SignerState signerState;
+   {
+      ////spend 18 back to scrAddrB, with change to addr[2]
+
+      auto spendVal = 18 * COIN;
+      Signer signer2;
+      signer2.setFlags(SCRIPT_VERIFY_SEGWIT);
+
+      //get utxo list for spend value
+      auto&& unspentVec =
+         dbAssetWlt->getSpendableTxOutListZC();
+
+      //create feed from asset wallet
+      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(wltWO);
+
+      //create spenders
+      uint64_t total = 0;
+      for (auto& utxo : unspentVec)
+      {
+         total += utxo.getValue();
+         signer2.addSpender(getSpenderPtr(utxo));
+      }
+
+      //creates outputs
+      //spend 18 to addr 0, use P2PKH
+      auto recipient2 = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrB.getSliceCopy(1, 20), spendVal);
+      signer2.addRecipient(recipient2);
+
+      if (total > spendVal)
+      {
+         //deal with change, no fee
+         auto changeVal = total - spendVal;
+         auto addr2 = wltWO->getNewAddress();
+         signer2.addRecipient(addr2->getRecipient(changeVal));
+         addrVec.push_back(addr2->getPrefixedHash());
+      }
+
+      //sign, verify & broadcast
+      {
+         signer2.setFeed(assetFeed);
+         signer2.resolvePublicData();
+      }
+
+      EXPECT_FALSE(signer2.verify());
+      signerState = signer2.serializeState();
+   }
+
+   //-- sign tx with empty wallet --//
+   {
+      Signer signer3(signerState);
+      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(emptyWlt);
+
+      //sign, verify & broadcast
+      {
+         auto lock = emptyWlt->lockDecryptedContainer();
+         signer3.setFeed(assetFeed);
+         signer3.sign();
+      }
+
+      EXPECT_TRUE(signer3.verify());
+
+      DBTestUtils::ZcVector zcVec2;
+      zcVec2.push_back(signer3.serializeSignedTx(), 15000000);
+
+      DBTestUtils::pushNewZc(theBDMt_, zcVec2);
+      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+   }
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 48 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   //check new wallet balances
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[1]);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[2]);
+   EXPECT_EQ(scrObj->getFullBalance(), 9 * COIN);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
+{
+   //create spender lamba
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
+   {
+      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
+         move(utxo.txHash_), move(utxo.script_));
+
+      return make_shared<ScriptSpender>(entry);
+   };
+
+   //
+   TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
+
+   initBDM();
+
+   theBDMt_->start(config.initMode_);
+   auto&& bdvID = DBTestUtils::registerBDV(
+      clients_, NetworkConfig::getMagicBytes());
+
+   vector<BinaryData> scrAddrVec;
+   scrAddrVec.push_back(TestChain::scrAddrA);
+   scrAddrVec.push_back(TestChain::scrAddrB);
+   scrAddrVec.push_back(TestChain::scrAddrC);
+   scrAddrVec.push_back(TestChain::scrAddrD);
+   scrAddrVec.push_back(TestChain::scrAddrE);
+
+   //// create assetWlt ////
+
+   //create empty bip32 wallet
+   auto&& wltSeed = CryptoPRNG::generateRandom(32);
+   auto emptyWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
+      homedir_,
+      wltSeed,
+      SecureBinaryData(),
+      SecureBinaryData());
+
+   //create empty WO wallet
+   auto wltWO = AssetWallet_Single::createSeedless_WatchingOnly(
+      homedir_, "walletWO1", SecureBinaryData());
+
+   //derive public root
+   vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
+   BIP32_Node seedNode;
+   seedNode.initFromSeed(wltSeed);
+   auto seedFingerprint = seedNode.getThisFingerprint();
+   for (auto& derId : derPath)
+      seedNode.derivePrivate(derId);
+
+   auto pubNode = seedNode.getPublicCopy();
+   auto pubkeyCopy = pubNode.getPublicKey();
+   auto chaincodeCopy = pubNode.getChaincode();
+
+   auto pubRootAsset = make_shared<AssetEntry_BIP32Root>(
+      -1, BinaryData(), //not relevant, this stuff is ignored in this context
+
+      pubkeyCopy, //pub key
+      nullptr, //no priv key, this is a public node
+      chaincodeCopy, //have to pass the chaincode too
+
+      //aesthetical stuff, not mandatory, not useful for the crypto side of things
+      pubNode.getDepth(), pubNode.getLeafID(), pubNode.getParentFingerprint(), seedFingerprint,
+
+      //derivation path for this root, only relevant for path discovery & PSBT
+      derPath
+   );
+
+   //add p2sh-p2wpkh account
+   auto mainAccType =
+      make_shared<AccountType_BIP32>(vector<unsigned>());
+   mainAccType->setMain(true);
+   mainAccType->setAddressLookup(3);
+   mainAccType->setDefaultAddressType(
+      AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
+   mainAccType->setAddressTypes(
+      { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
+
+   auto accountID = wltWO->createBIP32Account_WithParent(
+      pubRootAsset, mainAccType);
+
+   //// register with db ////
+   vector<BinaryData> addrVec;
+
+   auto hashSet = wltWO->getAddrHashSet();
+   vector<BinaryData> hashVec;
+   hashVec.insert(hashVec.begin(), hashSet.begin(), hashSet.end());
+
+   DBTestUtils::registerWallet(clients_, bdvID, hashVec, wltWO->getID());
+   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
+
+   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
+
+   //wait on signals
+   DBTestUtils::goOnline(clients_, bdvID);
+   DBTestUtils::waitOnBDMReady(clients_, bdvID);
+   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
+   auto dbAssetWlt = bdvPtr->getWalletOrLockbox(wltWO->getID());
+
+
+   //check balances
+   const ScrAddrObj* scrObj;
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+
+   //check new wallet balances
+   for (auto& scripthash : hashSet)
+   {
+      scrObj = dbAssetWlt->getScrAddrObjByKey(scripthash);
+      EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   }
+
+   {
+      ////spend 27 from wlt to assetWlt's first 2 unused addresses
+      ////send rest back to scrAddrA
+
+      auto spendVal = 27 * COIN;
+      Signer signer;
+
+      //instantiate resolver feed overloaded object
+      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
+      feed->addPrivKey(TestChain::privKeyAddrB);
+      feed->addPrivKey(TestChain::privKeyAddrC);
+      feed->addPrivKey(TestChain::privKeyAddrD);
+      feed->addPrivKey(TestChain::privKeyAddrE);
+
+      //get utxo list for spend value
+      auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
+
+      vector<UnspentTxOut> utxoVec;
+      uint64_t tval = 0;
+      auto utxoIter = unspentVec.begin();
+      while (utxoIter != unspentVec.end())
+      {
+         tval += utxoIter->getValue();
+         utxoVec.push_back(*utxoIter);
+
+         if (tval > spendVal)
+            break;
+
+         ++utxoIter;
+      }
+
+      //create script spender objects
+      uint64_t total = 0;
+      for (auto& utxo : utxoVec)
+      {
+         total += utxo.getValue();
+         signer.addSpender(getSpenderPtr(utxo));
+      }
+
+      //spend 12 to addr0, nested P2WPKH
+      auto addr0 = wltWO->getNewAddress();
+      signer.addRecipient(addr0->getRecipient(12 * COIN));
+      addrVec.push_back(addr0->getPrefixedHash());
+
+      //spend 15 to addr1, nested P2WPKH
+      auto addr1 = wltWO->getNewAddress();
+      signer.addRecipient(addr1->getRecipient(15 * COIN));
+      addrVec.push_back(addr1->getPrefixedHash());
+
+      if (total > spendVal)
+      {
+         //change to scrAddrD, no fee
+         auto changeVal = total - spendVal;
+         auto recipientChange = make_shared<Recipient_P2PKH>(
+            TestChain::scrAddrD.getSliceCopy(1, 20), changeVal);
+         signer.addRecipient(recipientChange);
+      }
+
+      //sign, verify then broadcast
+      signer.setFeed(feed);
+      signer.sign();
+      EXPECT_TRUE(signer.verify());
+
+      DBTestUtils::ZcVector zcVec;
+      zcVec.push_back(signer.serializeSignedTx(), 14000000);
+
+      DBTestUtils::pushNewZc(theBDMt_, zcVec);
+      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
+   }
+
+   //check balances
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
+   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
+   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
+   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
+   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
+   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
+   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+
+   //check new wallet balances
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
+   EXPECT_EQ(scrObj->getFullBalance(), 12 * COIN);
+   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[1]);
+   EXPECT_EQ(scrObj->getFullBalance(), 15 * COIN);
+
+   Codec_SignerState::SignerState signerState;
+   {
+      ////spend 18 back to scrAddrB, with change to addr[2]
+
+      auto spendVal = 18 * COIN;
+      Signer signer2;
+      signer2.setFlags(SCRIPT_VERIFY_SEGWIT);
+
+      //get utxo list for spend value
+      auto&& unspentVec =
+         dbAssetWlt->getSpendableTxOutListZC();
+
+      //create feed from asset wallet
+      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(wltWO);
+
+      //create spenders
+      uint64_t total = 0;
+      for (auto& utxo : unspentVec)
+      {
+         total += utxo.getValue();
+         signer2.addSpender(getSpenderPtr(utxo));
+      }
+
+      //creates outputs
+      //spend 18 to addr 0, use P2PKH
+      auto recipient2 = make_shared<Recipient_P2PKH>(
+         TestChain::scrAddrB.getSliceCopy(1, 20), spendVal);
+      signer2.addRecipient(recipient2);
+
+      if (total > spendVal)
+      {
+         //deal with change, no fee
+         auto changeVal = total - spendVal;
+         auto addr2 = wltWO->getNewAddress();
+         signer2.addRecipient(addr2->getRecipient(changeVal));
+         addrVec.push_back(addr2->getPrefixedHash());
+      }
+
+      //sign, verify & broadcast
+      {
+         signer2.setFeed(assetFeed);
+         signer2.resolvePublicData();
+      }
+
+      EXPECT_FALSE(signer2.verify());
+      signerState = signer2.serializeState();
+   }
+
+   {
+      Signer signer3(signerState);
+      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(emptyWlt);
+
+      //sign, verify & broadcast
+      {
+         auto lock = emptyWlt->lockDecryptedContainer();
+         signer3.setFeed(assetFeed);
+         signer3.sign();
+      }
+
+      EXPECT_TRUE(signer3.verify());
+
+      DBTestUtils::ZcVector zcVec2;
+      zcVec2.push_back(signer3.serializeSignedTx(), 15000000);
 
       DBTestUtils::pushNewZc(theBDMt_, zcVec2);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
@@ -3706,15 +4364,12 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -3820,7 +4475,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to addr0, nested P2K
@@ -3845,6 +4500,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -3892,7 +4548,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -3918,6 +4574,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       //sign, verify & broadcast
       {
          auto lock = assetWlt->lockDecryptedContainer();
+         signer2.setFeed(assetFeed);
          signer2.sign();
       }
       EXPECT_TRUE(signer2.verify());
@@ -3954,15 +4611,12 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
 TEST_F(SignerTest, SpendTest_FromAccount_Reload)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -4075,7 +4729,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 12 to addr0, use P2WPKH
@@ -4094,6 +4748,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -4156,7 +4811,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -4182,6 +4837,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       //sign, verify & broadcast
       {
          auto&& lock = assetWlt->lockDecryptedContainer();
+         signer2.setFeed(assetFeed);
          signer2.sign();
       }
       EXPECT_TRUE(signer2.verify());
@@ -4291,7 +4947,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer3.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -4304,6 +4960,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       //sign, verify & broadcast
       {
          auto&& lock = assetWlt->lockDecryptedContainer();
+         signer3.setFeed(assetFeed);
          signer3.sign();
       }
       EXPECT_TRUE(signer3.verify());
@@ -4342,15 +4999,12 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
 TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -4381,9 +5035,10 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       passphrase);
 
    //salted account
+   vector<unsigned> derPath = { 0x80000099, 0x80000001 };
    auto&& salt = CryptoPRNG::generateRandom(32);
    auto saltedAccType =
-      make_shared<AccountType_BIP32_Salted>(salt);
+      make_shared<AccountType_BIP32_Salted>(derPath, salt);
    saltedAccType->setAddressLookup(5);
    saltedAccType->setDefaultAddressType(
       AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
@@ -4396,20 +5051,19 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    };
    assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
-   auto accountID1 = assetWlt->createCustomBIP32Account(
-      nullptr, { 0x80000099, 0x80000001 }, saltedAccType);
+   auto accountID1 = assetWlt->createBIP32Account(saltedAccType);
 
    //regular account
+   vector<unsigned> derPath2 = { 0x80000099, 0x80000001 };
    auto mainAccType =
-      make_shared<AccountType_BIP32_Custom>();
+      make_shared<AccountType_BIP32>(derPath2);
    mainAccType->setAddressLookup(5);
    mainAccType->setDefaultAddressType(
       AddressEntryType_P2WPKH);
    mainAccType->setAddressTypes(
       { AddressEntryType_P2WPKH });
 
-   auto accountID2 = assetWlt->createCustomBIP32Account(
-      nullptr, { 0x80000099, 0x80000000 }, mainAccType);
+   auto accountID2 = assetWlt->createBIP32Account(mainAccType);
 
    assetWlt->resetPassphrasePromptLambda();
 
@@ -4479,7 +5133,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -4496,6 +5150,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -4581,7 +5236,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -4596,6 +5251,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 
          assetWlt->setPassphrasePromptLambda(passlbd);
          auto lock = assetWlt->lockDecryptedContainer();
+         signer.setFeed(feed);
          signer.sign();
       }
 
@@ -4632,15 +5288,12 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -4740,7 +5393,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -4756,6 +5409,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -4840,7 +5494,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -4855,6 +5509,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 
          assetWlt->setPassphrasePromptLambda(passlbd);
          auto lock = assetWlt->lockDecryptedContainer();
+         signer.setFeed(feed);
          signer.sign();
       }
 
@@ -4889,15 +5544,12 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -4997,7 +5649,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5013,6 +5665,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -5097,7 +5750,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5112,6 +5765,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 
          assetWlt->setPassphrasePromptLambda(passlbd);
          auto lock = assetWlt->lockDecryptedContainer();
+         signer.setFeed(feed);
          signer.sign();
       }
 
@@ -5146,15 +5800,12 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -5184,9 +5835,10 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       passphrase,
       SecureBinaryData::fromString("control"));
 
+   vector<unsigned> derPath = {0x80000099, 0x80000001};
    auto&& salt = CryptoPRNG::generateRandom(32);
    auto saltedAccType =
-      make_shared<AccountType_BIP32_Salted>(salt);
+      make_shared<AccountType_BIP32_Salted>(derPath, salt);
    saltedAccType->setAddressLookup(5);
    saltedAccType->setDefaultAddressType(
       AddressEntryType_P2WPKH);
@@ -5201,8 +5853,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
    //add salted account
-   auto accountID = assetWlt->createCustomBIP32Account(
-      nullptr, {0x80000099, 0x80000001}, saltedAccType);
+   auto accountID = assetWlt->createBIP32Account(saltedAccType);
 
    assetWlt->resetPassphrasePromptLambda();
 
@@ -5274,7 +5925,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5290,6 +5941,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -5374,7 +6026,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5389,6 +6041,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 
          assetWlt->setPassphrasePromptLambda(passlbd);
          auto lock = assetWlt->lockDecryptedContainer();
+         signer.setFeed(feed);
          signer.sign();
       }
 
@@ -5428,15 +6081,12 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    auto&& pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
 
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //setup bdm
@@ -5561,7 +6211,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5577,6 +6227,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -5660,7 +6311,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend spendVal to newAddr
@@ -5675,6 +6326,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 
          assetWlt->setPassphrasePromptLambda(passlbd);
          auto lock = assetWlt->lockDecryptedContainer();
+         signer.setFeed(feed);
          signer.sign();
       }
 
@@ -5709,15 +6361,12 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 TEST_F(SignerTest, SpendTest_InjectSignature)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed = nullptr)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -5828,8 +6477,8 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
-         signer_inject.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
+         signer_inject.addSpender(getSpenderPtr(utxo));
          ++sigCount;
       }
 
@@ -5853,6 +6502,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
 
 
       //sign & verify
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -5896,6 +6546,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       }
 
       //resolve signer
+      signer_inject.setFeed(feed);
       signer_inject.resolvePublicData();
       EXPECT_FALSE(signer_inject.verify());
       EXPECT_FALSE(signer_inject.isSigned());
@@ -5964,8 +6615,8 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed));
-         signer_inject.addSpender(getSpenderPtr(utxo, assetFeed));
+         signer2.addSpender(getSpenderPtr(utxo));
+         signer_inject.addSpender(getSpenderPtr(utxo));
       }
 
       //creates outputs
@@ -5999,6 +6650,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       //sign & verify
       {
          auto&& lock = assetWlt->lockDecryptedContainer();
+      signer2.setFeed(assetFeed);
          signer2.sign();
       }
       EXPECT_TRUE(signer2.verify());
@@ -6050,6 +6702,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       }
 
       //resolve signer
+      signer_inject.setFeed(assetFeed);
       signer_inject.resolvePublicData();
       EXPECT_FALSE(signer_inject.verify());
       EXPECT_FALSE(signer_inject.isSigned());
@@ -6106,15 +6759,12 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
 TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -6261,7 +6911,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 20 to nested p2wsh script hash
@@ -6280,6 +6930,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
       auto&& zcHash = signer.getTxId();
@@ -6341,7 +6992,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    for (auto& utxo : unspentVec)
    {
       total += utxo.getValue();
-      signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+      signer2.addSpender(getSpenderPtr(utxo));
    }
 
    //creates outputs
@@ -6360,6 +7011,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    //sign, verify & return signed tx
    Signer signer_inject;
    signer_inject.deserializeState(signer2.serializeState());
+   signer2.setFeed(assetFeed);
    signer2.resolvePublicData();
    auto&& signerState = signer2.evaluateSignedState();
 
@@ -6437,7 +7089,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 
    {
       auto assetFeed4 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
-      signer3.resetFeeds();
+      signer3.resetFeed();
       signer3.setFeed(assetFeed4);
       auto lock = assetWlt_2->lockDecryptedContainer();
       signer3.sign();
@@ -6523,7 +7175,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       EXPECT_FALSE(signer_inject.isSigned());
       EXPECT_FALSE(signer_inject.verify());
 
-      signer_inject.resetFeeds();
+      signer_inject.resetFeed();
       auto assetFeed5 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
       signer_inject.setFeed(assetFeed5);
       signer_inject.resolvePublicData();
@@ -7819,17 +8471,23 @@ TEST_F(SignerTest, Bip32PathDiscovery)
       auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(wallet);
       for (auto& keyPathPair : keyAndPath)
       {
-         EXPECT_EQ(
-            resolver->resolveBip32PathForPubkey(keyPathPair.first), 
-            keyPathPair.second);
+         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
+         vector<unsigned> pathVec;
+         pathVec.push_back(resolvedPath.getThisFingerprint());
+         pathVec.insert(pathVec.end(),
+            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
+         EXPECT_EQ(pathVec, keyPathPair.second);
       }
 
       auto resolverPublic = make_shared<ResolverFeed_AssetWalletSingle>(woWalletSingle);
       for (auto& keyPathPair : keyAndPath)
       {
-         EXPECT_EQ(
-            resolver->resolveBip32PathForPubkey(keyPathPair.first), 
-            keyPathPair.second);
+         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
+         vector<unsigned> pathVec;
+         pathVec.push_back(resolvedPath.getThisFingerprint());
+         pathVec.insert(pathVec.end(),
+            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
+         EXPECT_EQ(pathVec, keyPathPair.second);
       }
    }
 
@@ -7841,9 +8499,12 @@ TEST_F(SignerTest, Bip32PathDiscovery)
 
       for (auto& keyPathPair : keyAndPath)
       {
-         EXPECT_EQ(
-            resolver->resolveBip32PathForPubkey(keyPathPair.first), 
-            keyPathPair.second);
+         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
+         vector<unsigned> pathVec;
+         pathVec.push_back(resolvedPath.getThisFingerprint());
+         pathVec.insert(pathVec.end(),
+            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
+         EXPECT_EQ(pathVec, keyPathPair.second);
       }
    }
 }
@@ -7929,7 +8590,7 @@ TEST_F(SignerTest, PSBT)
    auto wallet = AssetWallet_Single::createFromBIP32Node(
       node, {}, 
       SecureBinaryData(), SecureBinaryData(), 
-      homedir_, 0);
+      homedir_);
 
    // 0'/0'
    node.derivePrivate(0x80000000);
@@ -8015,11 +8676,10 @@ TEST_F(SignerTest, PSBT)
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
       for (unsigned i=0; i<pubKeys.size(); i++)
       {
-         auto path = {
-            masterFingerprint,
-            0x80000000, 0x80000000,
-            i ^ 0x80000000};
-         feed->setBip32PathForPubkey(pubKeys[i], path);
+         feed->setBip32PathForPubkey(pubKeys[i], BIP32_AssetPath(
+            pubKeys[i],
+            {0x80000000, 0x80000000, i ^ 0x80000000}, 
+            masterFingerprint, nullptr));
 
          auto hash = BtcUtils::getHash160(pubKeys[i]);
          feed->addValPair(hash, pubKeys[i]);
@@ -8106,11 +8766,10 @@ TEST_F(SignerTest, PSBT)
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
       for (unsigned i=0; i<pubKeys.size(); i++)
       {
-         auto path = {
-            masterFingerprint,
-            0x80000000, 0x80000000,
-            i ^ 0x80000000};
-         feed->setBip32PathForPubkey(pubKeys[i], path);
+         feed->setBip32PathForPubkey(pubKeys[i], 
+            BIP32_AssetPath(pubKeys[i],
+               {0x80000000, 0x80000000, i ^ 0x80000000},
+               masterFingerprint, nullptr));
 
          auto hash = BtcUtils::getHash160(pubKeys[i]);
          feed->addValPair(hash, pubKeys[i]);
@@ -8164,11 +8823,10 @@ TEST_F(SignerTest, PSBT)
       auto feed = make_shared<ResolverUtils::TestResolverFeed>();
       for (unsigned i=0; i<pubKeys.size(); i++)
       {
-         auto path = {
-            masterFingerprint,
-            0x80000000, 0x80000000,
-            i ^ 0x80000000};
-         feed->setBip32PathForPubkey(pubKeys[i], path);
+         feed->setBip32PathForPubkey(pubKeys[i], BIP32_AssetPath(
+            pubKeys[i],
+            {0x80000000, 0x80000000, i ^ 0x80000000},
+            masterFingerprint, nullptr));
 
          auto hash = BtcUtils::getHash160(pubKeys[i]);
          feed->addValPair(hash, pubKeys[i]);

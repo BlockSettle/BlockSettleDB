@@ -15,6 +15,7 @@
 #endif
 
 using namespace std;
+using namespace ArmorySigner;
 
 #define WALLET_135_HEADER "\xbaWALLET\x00"
 #define PYBTC_ADDRESS_SIZE 237

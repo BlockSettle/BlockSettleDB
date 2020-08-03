@@ -153,24 +153,33 @@ void AuthorizedPeers::createWallet(
    //Default peers wallet password. Asset wallets always encrypt private keys, 
    //have to provide a password at creation.
    auto&& password = SecureBinaryData::fromString(PEERS_WALLET_PASSWORD);
-
-   //Default peers wallet derivation path. Using m/'account/'0.
-   vector<unsigned> derPath;
-   derPath.push_back(PEERS_WALLET_BIP32_ACCOUNT);
-   derPath.push_back(0xF0000000);
-
-   //generate bip32 node from random seed, get xpriv
-   auto&& seed = CryptoPRNG::generateRandom(32);
-
-   BIP32_Node root;
-   root.initFromSeed(seed);
-   auto b58 = root.getBase58();
-
-   //initializing wallet from xpriv, use customized derivation path
    auto&& controlPassphrase = passLbd(set<BinaryData>());
-   wallet_ = AssetWallet_Single::createFromBase58_BIP32(
-      baseDir, b58, derPath, password, controlPassphrase, 2);
-   
+
+   {
+      //Default peers wallet derivation path. Using m/'account/'0.
+      vector<unsigned> derPath;
+      derPath.push_back(PEERS_WALLET_BIP32_ACCOUNT);
+      derPath.push_back(0xF0000000);
+
+      //generate bip32 node from random seed
+      auto&& seed = CryptoPRNG::generateRandom(32);
+
+      auto account = make_shared<AccountType_BIP32>(derPath);
+      account->setMain(true);
+      account->setAddressLookup(2);
+
+      wallet_ = AssetWallet_Single::createFromSeed_BIP32_Blank(
+         baseDir, seed, password, controlPassphrase);
+      auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wallet_);
+
+      auto privKeyPassLbd = [&password](const set<BinaryData>&)->SecureBinaryData
+      {
+         return password;
+      };
+      wallet_->setPassphrasePromptLambda(privKeyPassLbd);
+      wltSingle->createBIP32Account(account);
+   }
+
    //add the peers meta account
    wallet_->addMetaAccount(MetaAccount_AuthPeers);
 

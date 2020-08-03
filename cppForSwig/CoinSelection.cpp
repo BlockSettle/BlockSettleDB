@@ -9,6 +9,7 @@
 #include "CoinSelection.h"
 
 using namespace std;
+using namespace ArmorySigner;
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //

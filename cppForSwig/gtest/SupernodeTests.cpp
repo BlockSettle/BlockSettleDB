@@ -1758,14 +1758,13 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
 {
    //create script spender objects
    auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
+      const UnspentTxOut& utxo)
       ->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      auto spender = make_shared<ScriptSpender>(entry, feed);
+      auto spender = make_shared<ScriptSpender>(entry);
       spender->setSequence(UINT32_MAX - 2);
 
       return spender;
@@ -1830,7 +1829,7 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spendVal to addrE
@@ -1848,6 +1847,7 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -2161,14 +2161,13 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
 {
    //create spender lamba
    auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
+      const UnspentTxOut& utxo)
       ->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -2239,20 +2238,22 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(UINT64_MAX);
 
       //consume 1st utxo, send 2 to scrAddrA, 3 to new wallet
-      signer.addSpender(getSpenderPtr(unspentVec[0], feed));
+      signer.addSpender(getSpenderPtr(unspentVec[0]));
       signer.addRecipient(addr1_ptr->getRecipient(3 * COIN));
       auto recipientChange = make_shared<Recipient_P2PKH>(
          TestChain::scrAddrA.getSliceCopy(1, 20), 2 * COIN);
       signer.addRecipient(recipientChange);
+      signer.setFeed(feed);
       signer.sign();
 
       //2nd tx, 2nd utxo, 5 to scrAddrB, 5 new wallet
       Signer signer2;
-      signer2.addSpender(getSpenderPtr(unspentVec[1], feed));
+      signer2.addSpender(getSpenderPtr(unspentVec[1]));
       signer2.addRecipient(addr2_ptr->getRecipient(5 * COIN));
       auto recipientChange2 = make_shared<Recipient_P2PKH>(
          TestChain::scrAddrB.getSliceCopy(1, 20), 5 * COIN);
       signer2.addRecipient(recipientChange2);
+      signer2.setFeed(feed);
       signer2.sign();
 
       DBTestUtils::ZcVector zcVec;
@@ -2328,15 +2329,12 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
 TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 {
    //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed)
-      ->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      return make_shared<ScriptSpender>(entry, feed);
+      return make_shared<ScriptSpender>(entry);
    };
 
    //
@@ -2480,7 +2478,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed));
+         signer.addSpender(getSpenderPtr(utxo));
       }
 
       //spend 20 to nested p2wsh script hash
@@ -2499,6 +2497,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
       auto&& zcHash = signer.getTxId();
@@ -2558,7 +2557,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    for (auto& utxo : unspentVec)
    {
       total += utxo.getValue();
-      signer2.addSpender(getSpenderPtr(utxo, assetFeed));
+      signer2.addSpender(getSpenderPtr(utxo));
    }
 
    //creates outputs
@@ -2575,6 +2574,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    }
 
    //sign, verify & return signed tx
+   signer2.setFeed(assetFeed);
    signer2.resolvePublicData();
    auto&& signerState = signer2.evaluateSignedState();
 
@@ -2643,7 +2643,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
    {
       auto assetFeed4 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
-      signer3.resetFeeds();
+      signer3.resetFeed();
       signer3.setFeed(assetFeed4);
       auto lock = assetWlt_2->lockDecryptedContainer();
       signer3.sign();
@@ -2721,14 +2721,13 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
 {
    //create spender lambda
    auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed, bool flagRBF)
+      const UnspentTxOut& utxo, bool flagRBF)
       ->shared_ptr<ScriptSpender>
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
          move(utxo.txHash_), move(utxo.script_));
 
-      auto spender = make_shared<ScriptSpender>(entry, feed);
+      auto spender = make_shared<ScriptSpender>(entry);
 
       if (flagRBF)
          spender->setSequence(UINT32_MAX - 2);
@@ -2839,7 +2838,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, feed, true));
+         signer.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spend 12 to first address
@@ -2862,6 +2861,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
       }
 
       //sign, verify then broadcast
+      signer.setFeed(feed);
       signer.sign();
       EXPECT_TRUE(signer.verify());
 
@@ -2913,7 +2913,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
       for (auto& utxo : unspentVec)
       {
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, assetFeed, true));
+         signer3.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spend 4 to new address
@@ -2935,6 +2935,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
       //sign, verify then broadcast
       {
          auto lock = assetWlt->lockDecryptedContainer();
+         signer3.setFeed(assetFeed);
          signer3.sign();
       }
 
@@ -3015,7 +3016,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, assetFeed, true));
+         signer2.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spend 5 to new address
@@ -3036,6 +3037,7 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
       //sign, verify then broadcast
       {
          auto lock = assetWlt->lockDecryptedContainer();
+         signer2.setFeed(assetFeed);
          signer2.sign();
       }
       EXPECT_TRUE(signer2.verify());
@@ -3137,23 +3139,6 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsWithWalletTest, ZC_InOut_SameBlock)
 {
-   //create spender lambda
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo,
-      shared_ptr<ResolverFeed> feed, bool flagRBF)
-      ->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      auto spender = make_shared<ScriptSpender>(entry, feed);
-
-      if (flagRBF)
-         spender->setSequence(UINT32_MAX - 2);
-
-      return spender;
-   };
-
    BinaryData ZCHash1, ZCHash2, ZCHash3;
 
    //
@@ -8931,12 +8916,12 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
             return iter->second;
          }
 
-         std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) override
+         BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override
          {
             throw std::runtime_error("invalid pubkey");
          }
 
-         void setBip32PathForPubkey(const BinaryData&, const vector<uint32_t>&) override
+         void setBip32PathForPubkey(const BinaryData&, const BIP32_AssetPath&) override
          {}
       };
 

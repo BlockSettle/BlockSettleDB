@@ -10,6 +10,7 @@
 #include "BtcUtils.h"
 #include "ScriptRecipient.h"
 #include "make_unique.h"
+#include "BIP32_Node.h"
 
 #define ASSET_VERSION                  0x00000001
 #define CIPHER_DATA_VERSION            0x00000001
@@ -359,10 +360,12 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
          auto fingerprint = brrVal.get_uint32_t();
          auto cclen = brrVal.get_var_int();
          auto&& chaincode = brrVal.get_BinaryData(cclen);
+         unsigned seedFingerprint = UINT32_MAX;
 
          vector<uint32_t> derPath;
          if (version >= 0x00000002)
          {
+            seedFingerprint = brrVal.get_uint32_t();
             auto count = brrVal.get_var_int();
             for (unsigned i=0; i<count; i++)
                derPath.push_back(brrVal.get_uint32_t());
@@ -377,7 +380,7 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
          auto rootEntry = make_shared<AssetEntry_BIP32Root>(
             index, account_id,
             pubKeyUncompressed, pubKeyCompressed, privKeyPtr,
-            chaincode, depth, leafid, fingerprint,
+            chaincode, depth, leafid, fingerprint, seedFingerprint,
             derPath);
 
          rootEntry->doNotCommit();
@@ -441,6 +444,7 @@ BinaryData AssetEntry_BIP32Root::serialize() const
    auto pubkey = getPubKey();
    auto privkey = getPrivKey();
 
+   bw.put_uint32_t(seedFingerprint_);
    bw.put_var_int(derivationPath_.size());
    for (auto& step : derivationPath_)
       bw.put_uint32_t(step);
@@ -543,7 +547,7 @@ shared_ptr<AssetEntry_Single> AssetEntry_BIP32Root::getPublicCopy()
    auto pubkey = getPubKey();
    auto woCopy = make_shared<AssetEntry_BIP32Root>(
       index_, getAccountID(), pubkey, nullptr,
-      chaincode_, depth_, leafID_, parentFingerprint_,
+      chaincode_, depth_, leafID_, parentFingerprint_, seedFingerprint_,
       derivationPath_);
 
    return woCopy;
@@ -567,6 +571,37 @@ unsigned AssetEntry_BIP32Root::getThisFingerprint() const
    }
 
    return thisFingerprint_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unsigned AssetEntry_BIP32Root::getSeedFingerprint() const
+{
+   //if we have an explicit seed fingerpint, return it
+   if (seedFingerprint_ != UINT32_MAX)
+      return seedFingerprint_;
+
+   if (parentFingerprint_ == 0)
+   {
+      //otherwise, if it this root is from the seed (parent is 0), return
+      //this fingerprint
+      return getThisFingerprint();
+   }
+
+   throw runtime_error("missing seed fingerprint");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string AssetEntry_BIP32Root::getXPub(void) const
+{
+   auto pubkey = getPubKey();
+   BIP32_Node node;
+   node.initFromPublicKey(
+      depth_, leafID_, parentFingerprint_,
+      pubkey->getCompressedKey(), chaincode_);
+   
+   auto base58 = node.getBase58();
+   string b58str(base58.toCharPtr(), base58.getSize());
+   return b58str;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

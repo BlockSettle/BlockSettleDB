@@ -12,9 +12,14 @@
 #include <stdint.h>
 #include "BinaryData.h"
 #include "BtcUtils.h"
+#include "ResolverFeed.h"
 
 #include "protobuf/Signer.pb.h"
 
+class TxOut;
+
+namespace ArmorySigner
+{
 ////
 enum SpendScriptType
 {
@@ -36,8 +41,6 @@ public:
    {}
 };
 
-class TxOut;
-
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptRecipient
 {
@@ -45,8 +48,9 @@ protected:
    const SpendScriptType type_;
    uint64_t value_ = UINT64_MAX;
 
-   BinaryData script_;
-   std::map<BinaryData, std::vector<uint32_t>> bip32Paths_;
+   mutable BinaryData script_;
+   std::map<BinaryData, BIP32_AssetPath> bip32Paths_;
+   std::map<BinaryData, BinaryData> prioprietaryPSBTData_;
 
 public:
    //tors
@@ -55,7 +59,7 @@ public:
    {}
 
    //virtuals
-   virtual const BinaryData& getSerializedScript(void)
+   virtual const BinaryData& getSerializedScript(void) const
    {
       if (script_.getSize() == 0)
          serialize();
@@ -64,7 +68,7 @@ public:
    }
 
    virtual ~ScriptRecipient(void) = 0;
-   virtual void serialize(void) = 0;
+   virtual void serialize(void) const = 0;
    virtual size_t getSize(void) const = 0;
 
    //locals
@@ -74,15 +78,16 @@ public:
          throw ScriptRecipientException("invalid recipient value");
       return value_; 
    }
-   void setValue(uint64_t val) { value_ = val; }
-   void addBip32Path(const BinaryData&, const std::vector<uint32_t>&);
-   std::map<BinaryData, std::vector<uint32_t>> getBip32Paths(void) const
+
+   void addBip32Path(const BIP32_AssetPath&);
+   const std::map<BinaryData, BIP32_AssetPath>& getBip32Paths(void) const
    {
       return bip32Paths_; 
    }
 
-   void toProtobuf(Codec_SignerState::RecipientState&);
+   void toProtobuf(Codec_SignerState::RecipientState&) const;
    void toPSBT(BinaryWriter&) const;
+   void merge(std::shared_ptr<ScriptRecipient>);
 
    //static
    static std::shared_ptr<ScriptRecipient> fromScript(BinaryDataRef);
@@ -106,9 +111,9 @@ public:
          throw ScriptRecipientException("a160 is not 20 bytes long!");
    }
 
-   void serialize(void) override;
+   void serialize(void) const override;
 
-   //return size is static
+   //return size is harcoded
    size_t getSize(void) const override;
 };
 
@@ -126,9 +131,9 @@ public:
          throw ScriptRecipientException("a160 is not 20 bytes long!");
    }
 
-   void serialize(void) override;
+   void serialize(void) const override;
 
-   //return size is static
+   //return size is hardcoded
    size_t getSize(void) const override;
 };
 
@@ -146,7 +151,7 @@ public:
          throw ScriptRecipientException("a160 is not 20 bytes long!");
    }
 
-   void serialize(void) override;
+   void serialize(void) const override;
    size_t getSize(void) const override;
 };
 
@@ -164,7 +169,7 @@ public:
          throw ScriptRecipientException("a160 is not 20 bytes long!");
    }
 
-   void serialize(void) override;
+   void serialize(void) const override;
    size_t getSize(void) const override;
 };
 
@@ -182,7 +187,7 @@ public:
          throw ScriptRecipientException("a256 is not 32 bytes long!");
    }
 
-   void serialize(void) override;
+   void serialize(void) const override;
    size_t getSize(void) const override;
 };
 
@@ -201,7 +206,7 @@ public:
             "OP_RETURN message cannot exceed 80 bytes");
    }
 
-   void serialize(void) override;
+   void serialize(void) const override;
    size_t getSize(void) const override;
 
    //override get value to avoid the throw since it has 0 for value
@@ -219,8 +224,8 @@ public:
       ScriptRecipient(SST_UNIVERSAL, val), binScript_(script)
    {}
 
-   void serialize(void) override;
+   void serialize(void) const override;
    size_t getSize(void) const override;
 };
-
+}; //namespace ArmorySigner
 #endif

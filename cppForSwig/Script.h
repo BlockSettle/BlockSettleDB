@@ -29,9 +29,9 @@
 #include "BtcUtils.h"
 #include "SigHashEnum.h"
 #include "TxEvalState.h"
+#include "ResolverFeed.h"
 
 #include "protobuf/Signer.pb.h"
-
 
 ////////////////////////////////////////////////////////////////////////////////
 class ScriptException : public std::runtime_error
@@ -931,20 +931,6 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class ResolverFeed
-{
-public:
-   virtual ~ResolverFeed(void) = 0;
-
-   virtual BinaryData getByVal(const BinaryData&) = 0;
-   virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData&) = 0;
-   
-   virtual void setBip32PathForPubkey(
-      const BinaryData&, const std::vector<uint32_t>&) = 0;
-   virtual std::vector<uint32_t> resolveBip32PathForPubkey(const BinaryData&) = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
 enum StackItemType
 {
    StackItemType_PushData,
@@ -995,8 +981,8 @@ struct StackItem_PushData : public StackItem
 ////
 struct StackItem_Sig : public StackItem
 {
-   const BinaryData pubkey_;
-   const BinaryData script_;
+   BinaryData pubkey_;
+   BinaryData script_;
    SecureBinaryData sig_;
 
    StackItem_Sig(unsigned id, BinaryData& pubkey, BinaryData& script) :
@@ -1006,6 +992,7 @@ struct StackItem_Sig : public StackItem
    {}
 
    bool isSame(const StackItem* obj) const override; 
+   void merge(const StackItem* obj);
    void serialize(Codec_SignerState::StackEntryState&) const override;
    void injectSig(SecureBinaryData& sig)
    {
@@ -1015,6 +1002,7 @@ struct StackItem_Sig : public StackItem
    { 
       return !sig_.empty(); 
    }
+
 };
 
 ////
@@ -1124,7 +1112,7 @@ private:
    bool isSW_ = false;
 
    const BinaryDataRef script_;
-   std::shared_ptr<ResolverFeed> feed_;
+   std::shared_ptr<ArmorySigner::ResolverFeed> feed_;
 
 private:
    std::shared_ptr<ReversedStackEntry> pop_back(void)
@@ -1246,7 +1234,7 @@ private:
 
 public:
    StackResolver(BinaryDataRef script,
-      std::shared_ptr<ResolverFeed> feed) :
+      std::shared_ptr<ArmorySigner::ResolverFeed> feed) :
       script_(script), feed_(feed)
    {}
 
@@ -1262,7 +1250,7 @@ public:
    std::shared_ptr<ResolvedStack> getResolvedStack();
    unsigned getFlags(void) const { return flags_; }
    void setFlags(unsigned flags) { flags_ = flags; }
-   std::shared_ptr<ResolverFeed> getFeed(void) const { return feed_; }
+   std::shared_ptr<ArmorySigner::ResolverFeed> getFeed(void) const { return feed_; }
 };
 
 #endif

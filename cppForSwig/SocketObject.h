@@ -199,6 +199,10 @@ private:
 
    std::atomic<bool> run_;
 
+   std::shared_future<bool> shutdownFut_;
+   std::unique_ptr<std::promise<bool>> shutdownProm_;
+   std::mutex shutdownMutex_;
+
 #ifdef _WIN32
    WSAEVENT events_[2];
 #else
@@ -226,21 +230,20 @@ protected:
    void queuePayloadForWrite(std::vector<uint8_t>&);
 
 public:
-   PersistentSocket(const std::string& addr, const std::string& port) :
-      SocketPrototype(addr, port)
-   {
-      init();
-   }
-
-   PersistentSocket(SOCKET sockfd) :
-      SocketPrototype(), sockfd_(sockfd)
-   {
-      init();
-   }
+   PersistentSocket(const std::string& addr, const std::string& port);
+   PersistentSocket(SOCKET sockfd);
 
    ~PersistentSocket(void)
    {
-      shutdown();
+      for (auto& thr : threads_)
+      {
+         if (thr.joinable())
+            thr.join();
+      }
+      threads_.clear();
+
+      cleanUpPipes();
+      closeSocket(sockfd_);
    }
 
    void shutdown();
@@ -250,6 +253,8 @@ public:
    bool connectToRemote(void);
    bool isValid(void) const { return sockfd_ != SOCK_MAX; }
    bool testConnection(void) { return isValid(); }
+
+   void blockUntilClosed(void) const;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

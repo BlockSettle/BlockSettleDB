@@ -773,7 +773,8 @@ void AddressAccount::make_new(
             -1, full_account_id,
             pubkey, nullptr,
             chaincode,
-            node.getDepth(), node.getLeafID(), node.getParentFingerprint(),
+            node.getDepth(), node.getLeafID(), 
+            node.getParentFingerprint(), accBip32->getSeedFingerprint(),
             derPath);
       }
       else
@@ -817,14 +818,15 @@ void AddressAccount::make_new(
             -1, full_account_id,
             pubkey, priv_asset,
             chaincode,
-            node.getDepth(), node.getLeafID(), node.getParentFingerprint(),
+            node.getDepth(), node.getLeafID(), 
+            node.getParentFingerprint(), accBip32->getSeedFingerprint(),
             derPath);
       }
 
       return rootAsset;
    };
 
-   //asset account lambda
+   //create account
    auto createNewAccount = [this](
       shared_ptr<AssetEntry_BIP32Root> rootAsset,
       shared_ptr<DerivationScheme_BIP32> derScheme)->
@@ -862,6 +864,7 @@ void AddressAccount::make_new(
       return asset_account;
    };
 
+   //body
    switch (accType->type())
    {
    case AccountTypeEnum_ArmoryLegacy:
@@ -913,39 +916,7 @@ void AddressAccount::make_new(
       break;
    }
 
-   case AccountTypeEnum_BIP32_Legacy:
-   case AccountTypeEnum_BIP32_SegWit:
-   {
-      auto accBip32 = dynamic_pointer_cast<AccountType_BIP32>(accType);
-      if (accBip32 == nullptr)
-         throw runtime_error("unexpected account type");
-
-      ID_ = accBip32->getAccountID();
-
-      auto accType_bip32 = dynamic_pointer_cast<AccountType_BIP32>(accType);
-      if (accType_bip32 == nullptr)
-         throw AccountException("unexpected bip32 account type ptr");
-
-      auto&& nodes = accType_bip32->getNodes();
-      for (auto& node : nodes)
-      {
-         //check AccountType_BIP32_Custom comments for more info
-         if (node == UINT32_MAX)
-            throw AccountException("UINT32_MAX is a reserved node value");
-
-         auto root_obj = createRootAsset(
-            accBip32, node,
-            move(cipher->getCopy()));
-         auto account_obj = createNewAccount(
-            root_obj, nullptr);
-         
-         addAccount(account_obj);
-      }
-
-      break;
-   }
-
-   case AccountTypeEnum_BIP32_Custom:
+   case AccountTypeEnum_BIP32:
    case AccountTypeEnum_BIP32_Salted:
    {
       auto accBip32 = dynamic_pointer_cast<AccountType_BIP32>(accType);
@@ -1825,15 +1796,15 @@ shared_ptr<Asset_PrivateKey> AddressAccount::fillPrivateKey(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<uint32_t> AddressAccount::getAccountBip32PathForId(
-   const BinaryData& id) const
+shared_ptr<AssetEntry_BIP32Root> AddressAccount::getBip32RootForAssetId(
+   const BinaryData& assetId) const
 {
    //sanity check
-   if (id.getSize() != 12)
+   if (assetId.getSize() != 12)
       throw AccountException("invalid asset id");
 
    //get the asset account
-   auto accID = id.getSliceRef(4, 4);
+   auto accID = assetId.getSliceRef(4, 4);
    auto iter = assetAccounts_.find(accID);
    if (iter == assetAccounts_.end())
       throw AccountException("unknown asset id");
@@ -1846,7 +1817,7 @@ vector<uint32_t> AddressAccount::getAccountBip32PathForId(
    if (rootBip32 == nullptr)
       throw AccountException("account isn't bip32");
 
-   return rootBip32->getDerivationPath();
+   return rootBip32;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1914,79 +1885,42 @@ BinaryData AccountType_ArmoryLegacy::getInnerAccountID(void) const
 //// AccountType_BIP32
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-AccountType_BIP32::~AccountType_BIP32()
-{}
-
-////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32::deriveFromRoot()
-{
-   //create root and chaincode
-   if (isWatchingOnly())
-   {
-      if (publicRoot_.getSize() == 0)
-         throw AccountException("empty public root");
-
-      if (chainCode_.getSize() == 0)
-         throw AccountException("empty chaincode");
-
-      BIP32_Node node;
-      node.initFromPublicKey(depth_, leafId_, fingerPrint_,
-         publicRoot_, chainCode_);
-
-      for (auto& index : derivationPath_)
-         node.derivePublic(index);
-
-      derivedRoot_ = node.movePublicKey();
-      derivedChaincode_ = node.moveChaincode();
-      depth_ = node.getDepth();
-      leafId_ = node.getLeafID();
-   }
-   else
-   {
-      if (privateRoot_.getSize() == 0)
-         throw AccountException("empty private root");
-
-      if (chainCode_.getSize() == 0)
-         throw AccountException("empty chaincode");
-         
-      BIP32_Node node;
-      node.initFromPrivateKey(
-         depth_, leafId_, fingerPrint_, privateRoot_, chainCode_);
-
-      //derive
-      for (auto& index : derivationPath_)
-         node.derivePrivate(index);
-
-      derivedRoot_ = node.movePrivateKey();
-      derivedChaincode_ = node.moveChaincode();
-      depth_ = node.getDepth();
-      leafId_ = node.getLeafID();
-   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
 BinaryData AccountType_BIP32::getAccountID() const
 {
-   BinaryData accountID;
-   if (isWatchingOnly())
-   {
-      //this ensures address accounts of different types based on the same
-      //bip32 root do not end up with the same id
-      auto rootCopy = derivedRoot_;
-      rootCopy.getPtr()[0] ^= (uint8_t)type();
+   //this ensures address accounts of different types based on the same
+   //bip32 root do not end up with the same id
 
-      auto&& pub_hash160 = BtcUtils::getHash160(rootCopy);
-      accountID = move(pub_hash160.getSliceCopy(0, 4));
-   }
-   else
-   {
-      
-      auto&& root_pub = CryptoECDSA().ComputePublicKey(derivedRoot_);
-      root_pub.getPtr()[0] ^= (uint8_t)type();
+   BinaryWriter bw;
+   bw.put_BinaryData(getPublicRoot());
+   if (bw.getSize() == 0)
+      throw AccountException("empty public root");
 
-      auto&& pub_hash160 = BtcUtils::getHash160(root_pub);
-      accountID = move(pub_hash160.getSliceCopy(0, 4));
-   }
+   //add in unique data identifying this account
+
+   //account soft derivation paths
+   for (auto& node : nodes_)
+      bw.put_uint32_t(node, BE);
+   
+   //accounts structure
+   if (!outerAccount_.empty())
+      bw.put_BinaryData(outerAccount_);
+   
+   if (!innerAccount_.empty())
+      bw.put_BinaryData(innerAccount_);
+
+   //address types
+   for (auto& addressType : addressTypes_)
+      bw.put_uint32_t(addressType, BE);
+   
+   //default address
+   bw.put_uint32_t(defaultAddressEntryType_);
+
+   //main flag
+   bw.put_uint8_t(isMain_);
+
+   //hash, use first 4 bytes
+   auto&& pub_hash160 = BtcUtils::getHash160(bw.getData());
+   auto accountID = move(pub_hash160.getSliceCopy(0, 4));
 
    if (accountID == WRITE_UINT32_BE(ARMORY_LEGACY_ACCOUNTID) ||
        accountID == WRITE_UINT32_BE(IMPORTS_ACCOUNTID))
@@ -1996,69 +1930,24 @@ BinaryData AccountType_BIP32::getAccountID() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-//// AccountType_BIP32_Legacy
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-set<unsigned> AccountType_BIP32_Legacy::getNodes(void) const
+void AccountType_BIP32::addAddressType(AddressEntryType addrType)
 {
-   set<unsigned> result;
-   result.insert(BIP32_LEGACY_OUTER_ACCOUNT_DERIVATIONID);
-   result.insert(BIP32_LEGACY_INNER_ACCOUNT_DERIVATIONID);
-
-   return result;
+   addressTypes_.insert(addrType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_BIP32_Legacy::getOuterAccountID(void) const
+void AccountType_BIP32::setDefaultAddressType(AddressEntryType addrType)
 {
-   return WRITE_UINT32_BE(BIP32_LEGACY_OUTER_ACCOUNT_DERIVATIONID);
+   defaultAddressEntryType_ = addrType;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_BIP32_Legacy::getInnerAccountID(void) const
-{
-   return WRITE_UINT32_BE(BIP32_LEGACY_INNER_ACCOUNT_DERIVATIONID);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-//// AccountType_BIP32_SegWit
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-set<unsigned> AccountType_BIP32_SegWit::getNodes(void) const
-{
-   set<unsigned> result;
-   result.insert(BIP32_SEGWIT_OUTER_ACCOUNT_DERIVATIONID);
-   result.insert(BIP32_SEGWIT_INNER_ACCOUNT_DERIVATIONID);
-
-   return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_BIP32_SegWit::getOuterAccountID(void) const
-{
-   return WRITE_UINT32_BE(BIP32_SEGWIT_OUTER_ACCOUNT_DERIVATIONID);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_BIP32_SegWit::getInnerAccountID(void) const
-{
-   return WRITE_UINT32_BE(BIP32_SEGWIT_INNER_ACCOUNT_DERIVATIONID);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-//// AccountType_BIP32_Custom
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32_Custom::setNodes(const std::set<unsigned>& nodes)
+void AccountType_BIP32::setNodes(const std::set<unsigned>& nodes)
 {
    nodes_ = nodes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_BIP32_Custom::getOuterAccountID(void) const
+BinaryData AccountType_BIP32::getOuterAccountID(void) const
 {
    if (outerAccount_.getSize() > 0)
       return outerAccount_;
@@ -2067,7 +1956,7 @@ BinaryData AccountType_BIP32_Custom::getOuterAccountID(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_BIP32_Custom::getInnerAccountID(void) const
+BinaryData AccountType_BIP32::getInnerAccountID(void) const
 {
    if (innerAccount_.getSize() > 0)
       return innerAccount_;
@@ -2076,45 +1965,41 @@ BinaryData AccountType_BIP32_Custom::getInnerAccountID(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unsigned AccountType_BIP32_Custom::getAddressLookup() const
+unsigned AccountType_BIP32::getAddressLookup() const
 {
    if (addressLookup_ == UINT32_MAX)
-      throw AccountException("uninitialiazed address lookup");
+      throw AccountException("uninitialized address lookup");
    return addressLookup_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32_Custom::setOuterAccountID(const BinaryData& outerAccount)
+void AccountType_BIP32::setOuterAccountID(const BinaryData& outerAccount)
 {
    outerAccount_ = outerAccount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32_Custom::setInnerAccountID(const BinaryData& innerAccount)
+void AccountType_BIP32::setInnerAccountID(const BinaryData& innerAccount)
 {
    innerAccount_ = innerAccount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32_Custom::setPrivateKey(const SecureBinaryData& key)
+void AccountType_BIP32::setPrivateKey(const SecureBinaryData& key)
 {
    privateRoot_ = key;
-   derivedRoot_ = key;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32_Custom::setPublicKey(const SecureBinaryData& key)
+void AccountType_BIP32::setPublicKey(const SecureBinaryData& key)
 {
    publicRoot_ = key;
-   if (isWatchingOnly())
-      derivedRoot_ = key;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32_Custom::setChaincode(const SecureBinaryData& key)
+void AccountType_BIP32::setChaincode(const SecureBinaryData& key)
 {
    chainCode_ = key;
-   derivedChaincode_ = key;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2124,7 +2009,7 @@ void AccountType_BIP32_Custom::setChaincode(const SecureBinaryData& key)
 ////////////////////////////////////////////////////////////////////////////////
 bool AccountType_ECDH::isWatchingOnly(void) const
 {
-   return privateKey_.getSize() == 0;
+   return privateKey_.empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

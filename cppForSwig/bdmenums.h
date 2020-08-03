@@ -83,7 +83,8 @@ enum SocketType
    SocketHttp,
    SocketWS,
    SocketBitcoinP2P,
-   SocketSimple
+   SocketSimple,
+   SocketCppBridge,
 };
 
 enum BDV_Action
