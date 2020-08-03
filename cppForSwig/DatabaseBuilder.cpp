@@ -1008,8 +1008,17 @@ void DatabaseBuilder::commitAllStxos(
    auto&& tx = db_->beginTransaction(STXO, LMDB::ReadWrite);
 
    for (auto& bwPair : serializedStxos)
+   {
+      if (bwPair.first.getSize() == 6)
+      {
+         auto key = db_->getValueNoCopy(STXO, bwPair.first.getRef());
+         if (!key.empty())
+            throw runtime_error("attempting to override existing stxo key, aborting");
+      }
+
       db_->putValue(
          STXO, bwPair.first.getRef(), bwPair.second.getDataRef());
+   }
 }
 
 /////////////////////////////////////////////////////////////////////////////
