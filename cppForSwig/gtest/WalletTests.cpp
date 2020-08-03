@@ -3709,7 +3709,12 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       0x8000c103,
    };
 
-   auto newAccId = assetWlt->createBIP32Account(nullptr, derPath2, false);
+   auto accTypePtr = make_shared<AccountType_BIP32>(derPath2);
+   accTypePtr->setAddressLookup(10);
+   accTypePtr->setNodes({0, 1});
+   accTypePtr->setOuterAccountID(WRITE_UINT32_BE(0));
+
+   auto newAccId = assetWlt->createBIP32Account(accTypePtr);
    auto accPtr = assetWlt->getAccountForID(newAccId);
    ASSERT_NE(accPtr, nullptr);
 
@@ -4530,17 +4535,25 @@ TEST_F(WalletsTest, BIP32_Chain)
    SecureBinaryData wltSeed = READHEX("000102030405060708090a0b0c0d0e0f");
    BIP32_Node seedNode;
    seedNode.initFromSeed(wltSeed);
-   auto b58 = seedNode.getBase58();
 
    //0'/1/2'/2
-   vector<unsigned> derivationPath = { 0x80000000, 1, 0x80000002 };
-   auto assetWlt = AssetWallet_Single::createFromBase58_BIP32(
-      homedir_,
-      b58, //root as a r value
-      derivationPath,
-      SecureBinaryData::fromString("test"), //set passphrase to "test"
-      controlPass_,
-      4); //set lookup computation to 4 entries
+   vector<unsigned> derivationPath = { 0x80000000, 1, 0x80000002 };         
+   auto account = make_shared<AccountType_BIP32>(derivationPath);
+   account->setMain(true);
+   account->setAddressLookup(4);
+
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
+      homedir_, wltSeed, 
+      SecureBinaryData::fromString("test"), controlPass_);
+
+   {
+      auto passphraseLbd = [](const set<BinaryData>&)->SecureBinaryData
+      {
+         return SecureBinaryData::fromString("test");
+      };
+      assetWlt->setPassphrasePromptLambda(passphraseLbd);
+      assetWlt->createBIP32Account(account);
+   }
 
    auto passphrasePrompt = [](const set<BinaryData>&)->SecureBinaryData
    {
@@ -4575,21 +4588,46 @@ TEST_F(WalletsTest, BIP32_Public_Chain)
    SecureBinaryData wltSeed = READHEX("000102030405060708090a0b0c0d0e0f");
    BIP32_Node seedNode;
    seedNode.initFromSeed(wltSeed);
+   auto seedFingerprint = seedNode.getThisFingerprint();
    for (auto& derId : derivationPath)
       seedNode.derivePrivate(derId);
 
    auto pubSeedNode = seedNode.getPublicCopy();
-   auto b58 = pubSeedNode.getBase58();
+   auto pubkeyCopy = pubSeedNode.getPublicKey();
+   auto chaincodeCopy = pubSeedNode.getChaincode();
+
+   auto pubRootAsset = make_shared<AssetEntry_BIP32Root>(
+      -1, BinaryData(), //not relevant, this stuff is ignored in this context
+
+      pubkeyCopy, //pub key
+      nullptr, //no priv key, this is a public node
+      chaincodeCopy, //have to pass the chaincode too
+
+      //aesthetical stuff, not mandatory, not useful for the crypto side of things
+      pubSeedNode.getDepth(), pubSeedNode.getLeafID(), pubSeedNode.getParentFingerprint(), seedFingerprint,
+
+      //derivation path for this root, only relevant for path discovery & PSBT
+      derivationPath
+   );
 
    //2
    vector<unsigned> derivationPath_Soft = { 2 };
-   auto assetWlt = AssetWallet_Single::createFromBase58_BIP32(
+   auto mainAccType =
+      make_shared<AccountType_BIP32>(derivationPath_Soft);
+   mainAccType->setMain(true);
+   mainAccType->setAddressLookup(4);
+   mainAccType->setDefaultAddressType(
+      AddressEntryType(AddressEntryType_P2WPKH));
+   mainAccType->setAddressTypes(
+      { AddressEntryType(AddressEntryType_P2WPKH) });
+
+   auto assetWlt = AssetWallet_Single::createSeedless_WatchingOnly(
       homedir_,
-      b58, //root as a r value
-      derivationPath_Soft,
-      SecureBinaryData(), //set passphrase to "test"
-      controlPass_,
-      4); //set lookup computation to 4 entries
+      "a wallet",
+      controlPass_); //set lookup computation to 4 entries
+
+   assetWlt->createBIP32Account_WithParent(
+      pubRootAsset, mainAccType);
 
    auto accID = assetWlt->getMainAccountID();
    auto assetPtr = assetWlt->getAccountRoot(accID);
@@ -4678,8 +4716,14 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    };
    assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
+   auto accountPtr = make_shared<AccountType_BIP32>(derivationPath1);
+   accountPtr->setMain(true);
+   accountPtr->setNodes({0, 1});
+   accountPtr->setOuterAccountID(WRITE_UINT32_BE(0));
+   accountPtr->setAddressLookup(10);
+
    //add bip32 account for derivationPath1
-   auto accountID1 = assetWlt->createBIP32Account(nullptr, derivationPath1, false);
+   auto accountID1 = assetWlt->createBIP32Account(accountPtr);
 
    //derive bip32 node
    BIP32_Node seedNode;
@@ -4740,7 +4784,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    };
 
    auto accountTypePtr =
-      make_shared<AccountType_BIP32_Custom>(derivationPath2);
+      make_shared<AccountType_BIP32>(derivationPath2);
    accountTypePtr->setAddressTypes({ AddressEntryType_P2WPKH, AddressEntryType_P2PK });
    accountTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
    accountTypePtr->setNodes({ 50, 60 });
@@ -4749,8 +4793,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    accountTypePtr->setAddressLookup(100);
 
    //add bip32 custom account for derivationPath2
-   auto accountID2 = assetWlt->createCustomBIP32Account(
-      nullptr, accountTypePtr);
+   auto accountID2 = assetWlt->createBIP32Account(accountTypePtr);
 
    BIP32_Node seedNode2;
    seedNode2.initFromSeed(seed);
@@ -4981,7 +5024,7 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
 
    //3: create a custom bip32 account meta data object to setup the WO account
    //structure (nodes & address types)
-   auto accountTypePtr = make_shared<AccountType_BIP32_Custom>(vector<unsigned>()); //empty ctor
+   auto accountTypePtr = make_shared<AccountType_BIP32>(vector<unsigned>()); //empty ctor
    
    //set nodes
    set<unsigned> nodes = {
@@ -5007,7 +5050,7 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
    accountTypePtr->setMain(true);
 
    //4: feed it to the wallet
-   wltWO->createCustomBIP32Account(
+   wltWO->createBIP32Account_WithParent(
       pubRootAsset, //root asset
       accountTypePtr //account meta data
    );
@@ -5119,7 +5162,7 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
 
    //create account with all common uncompressed address types & their 
    //compressed counterparts
-   auto accountTypePtr = make_shared<AccountType_BIP32_Custom>(derPath);
+   auto accountTypePtr = make_shared<AccountType_BIP32>(derPath);
    
    set<unsigned> nodes = {0, 1}; 
    accountTypePtr->setNodes(nodes);
@@ -5140,9 +5183,7 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
       return passphrase;
    };
    wlt->setPassphrasePromptLambda(passphraseLbd);
-   wlt->createCustomBIP32Account(
-      nullptr, 
-      accountTypePtr);
+   wlt->createBIP32Account(accountTypePtr);
    wlt->resetPassphrasePromptLambda();
 
    //grab addresses for each type, check vs manual instantiation
@@ -5264,12 +5305,10 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
          { AddressEntryType_P2WPKH });
 
       //add bip32 account for derivationPath1
-      accountID1 = assetWlt->createCustomBIP32Account(
-         nullptr, saltedAccType1);
+      accountID1 = assetWlt->createBIP32Account(saltedAccType1);
 
       //add bip32 account for derivationPath2
-      accountID2 = assetWlt->createCustomBIP32Account(
-         nullptr, saltedAccType2);
+      accountID2 = assetWlt->createBIP32Account(saltedAccType2);
 
       //grab the accounts
       auto accountSalted1 = assetWlt->getAccountForID(
@@ -5705,6 +5744,155 @@ TEST_F(WalletsTest, ECDH_Account)
          auto iter = addrHashSet.find(bwAddr.getData());
          EXPECT_NE(iter, addrHashSet.end());
       }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, AssetPathResolution)
+{
+   //seed shared across all wallet instances
+   auto seed = CryptoPRNG::generateRandom(32);
+
+   vector<uint32_t> derPath = {
+      0x800012ab,
+      0x8000ff13,
+      0x80050000
+   };
+
+   BIP32_Node node;
+   node.initFromSeed(seed);
+   auto seedFingerprint = node.getThisFingerprint();
+
+   for (auto& step : derPath)
+      node.derivePrivate(step);
+
+   auto pubNode = node.getPublicCopy();
+
+   node.derivePublic(0);
+   node.derivePublic(5);
+
+   auto pubkey = node.getPublicKey();
+   auto xpub = node.getBase58();
+   string xpubStr(xpub.getCharPtr(), xpub.getSize());
+
+   auto checkWlt = [&pubkey, &xpubStr, &derPath](shared_ptr<AssetWallet> wltPtr)->bool
+   {
+      auto fullPath = derPath;
+      fullPath.push_back(0);
+      fullPath.push_back(5);
+
+      auto wlt_single = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);
+      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(wlt_single);
+      auto assetPath = resolver->resolveBip32PathForPubkey(pubkey);
+      auto pathFromSeed = assetPath.getDerivationPathFromSeed();
+
+      if (fullPath.size() != pathFromSeed.size())
+         return false;
+
+      for (unsigned i=0; i<pathFromSeed.size(); i++)
+      {
+         if (pathFromSeed[i] != fullPath[i])
+            return false;
+      }
+
+      auto pubkeyHash = BtcUtils::getHash160(pubkey);
+      auto assetPair = resolver->getAssetPairForKey(pubkeyHash);
+      if (assetPair.first == nullptr)
+         return false;
+
+      auto assetXPub = wlt_single->getXpubForAssetID(assetPair.first->getID());
+      if (assetXPub != xpubStr)
+         return false;
+
+      return true;
+   };
+
+   {
+      //create from seed
+      auto wlt = AssetWallet_Single::createFromSeed_BIP32(
+         homedir_, seed, derPath, 
+         SecureBinaryData(), SecureBinaryData(),
+         10);
+      EXPECT_TRUE(checkWlt(wlt));
+
+      //create a WO copy
+      auto filename = wlt->getDbFilename();
+      auto woFilename = AssetWallet_Single::forkWatchingOnly(filename);
+
+      //cleanup original wallet
+      wlt.reset();
+      unlink(filename.c_str());
+
+      //check WO wallet
+      auto wltWO = AssetWallet_Single::loadMainWalletFromFile(
+         woFilename, 
+         [](const set<BinaryData>&)->SecureBinaryData{return SecureBinaryData();});
+      EXPECT_TRUE(checkWlt(wltWO));
+
+      //cleanup WO
+      wltWO.reset();
+      unlink(woFilename.c_str());
+   }
+
+   {
+      //empty wallet + custom account
+      auto wlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
+         homedir_, seed, 
+         SecureBinaryData(), SecureBinaryData());
+
+      auto account = make_shared<AccountType_BIP32>(derPath);
+      account->setMain(true);
+      account->setNodes({0});
+      account->setDefaultAddressType(
+         AddressEntryType(AddressEntryType_P2WPKH));
+      account->setAddressTypes(
+         { AddressEntryType(AddressEntryType_P2WPKH) });
+      account->setAddressLookup(10);
+
+      wlt->createBIP32Account(account);
+      EXPECT_TRUE(checkWlt(wlt));
+
+      auto filename = wlt->getDbFilename();
+      wlt.reset();
+      unlink(filename.c_str());
+   }
+
+   {
+      //empty WO wallet
+      auto wltWO = AssetWallet_Single::createSeedless_WatchingOnly(
+         homedir_, "walletWO1", SecureBinaryData());
+
+      auto pubkey = pubNode.getPublicKey();
+      auto chaincode = pubNode.getChaincode();
+
+      auto pubRootAsset = make_shared<AssetEntry_BIP32Root>(
+         -1, BinaryData(), //not relevant, this stuff is ignored in this context
+
+         pubkey, //pub key
+         nullptr, //no priv key, this is a public node
+         chaincode, //have to pass the chaincode too
+
+         //aesthetical stuff, not mandatory, not useful for the crypto side of things
+         pubNode.getDepth(), pubNode.getLeafID(), pubNode.getParentFingerprint(), seedFingerprint,
+
+         //derivation path for this root, used for path discovery & PSBT
+         derPath
+      );
+
+      //add account
+      auto mainAccType =
+         make_shared<AccountType_BIP32>(vector<unsigned>());
+      mainAccType->setMain(true);
+      mainAccType->setAddressLookup(10);
+      mainAccType->setNodes({0});
+      mainAccType->setDefaultAddressType(
+         AddressEntryType(AddressEntryType_P2WPKH));
+      mainAccType->setAddressTypes(
+         { AddressEntryType(AddressEntryType_P2WPKH) });
+
+      auto accountID = wltWO->createBIP32Account_WithParent(
+         pubRootAsset, mainAccType);
+      EXPECT_TRUE(checkWlt(wltWO));
    }
 }
 

@@ -3489,7 +3489,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
    vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
 
    auto mainAccType =
-      make_shared<AccountType_BIP32_Custom>(derPath);
+      make_shared<AccountType_BIP32>(derPath);
    mainAccType->setMain(true);
    mainAccType->setAddressLookup(3);
    mainAccType->setDefaultAddressType(
@@ -3497,8 +3497,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
    mainAccType->setAddressTypes(
       { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
 
-   auto accountID = assetWlt->createCustomBIP32Account(
-      nullptr, mainAccType);
+   auto accountID = assetWlt->createBIP32Account(mainAccType);
 
    //// register with db ////
    vector<BinaryData> addrVec;
@@ -3816,7 +3815,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
       //add p2sh-p2wpkh account
       vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
       auto mainAccType =
-         make_shared<AccountType_BIP32_Custom>(derPath);
+         make_shared<AccountType_BIP32>(derPath);
       mainAccType->setMain(true);
       mainAccType->setAddressLookup(3);
       mainAccType->setDefaultAddressType(
@@ -3829,8 +3828,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
       mainAccType->setOuterAccountID(WRITE_UINT32_BE(*nodes.begin()));
       mainAccType->setInnerAccountID(WRITE_UINT32_BE(*nodes.rbegin()));
 
-      auto accountID = assetWlt->createCustomBIP32Account(
-         nullptr, mainAccType);
+      auto accountID = assetWlt->createBIP32Account(mainAccType);
 
       //make a WO copy
       wltPath = assetWlt->getDbFilename();
@@ -4135,7 +4133,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
 
    //add p2sh-p2wpkh account
    auto mainAccType =
-      make_shared<AccountType_BIP32_Custom>(vector<unsigned>());
+      make_shared<AccountType_BIP32>(vector<unsigned>());
    mainAccType->setMain(true);
    mainAccType->setAddressLookup(3);
    mainAccType->setDefaultAddressType(
@@ -4143,7 +4141,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
    mainAccType->setAddressTypes(
       { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
 
-   auto accountID = wltWO->createCustomBIP32Account(
+   auto accountID = wltWO->createBIP32Account_WithParent(
       pubRootAsset, mainAccType);
 
    //// register with db ////
@@ -5053,21 +5051,19 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    };
    assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
-   auto accountID1 = assetWlt->createCustomBIP32Account(
-      nullptr, saltedAccType);
+   auto accountID1 = assetWlt->createBIP32Account(saltedAccType);
 
    //regular account
    vector<unsigned> derPath2 = { 0x80000099, 0x80000001 };
    auto mainAccType =
-      make_shared<AccountType_BIP32_Custom>(derPath2);
+      make_shared<AccountType_BIP32>(derPath2);
    mainAccType->setAddressLookup(5);
    mainAccType->setDefaultAddressType(
       AddressEntryType_P2WPKH);
    mainAccType->setAddressTypes(
       { AddressEntryType_P2WPKH });
 
-   auto accountID2 = assetWlt->createCustomBIP32Account(
-      nullptr, mainAccType);
+   auto accountID2 = assetWlt->createBIP32Account(mainAccType);
 
    assetWlt->resetPassphrasePromptLambda();
 
@@ -5857,8 +5853,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
    //add salted account
-   auto accountID = assetWlt->createCustomBIP32Account(
-      nullptr, saltedAccType);
+   auto accountID = assetWlt->createBIP32Account(saltedAccType);
 
    assetWlt->resetPassphrasePromptLambda();
 
@@ -8595,7 +8590,7 @@ TEST_F(SignerTest, PSBT)
    auto wallet = AssetWallet_Single::createFromBIP32Node(
       node, {}, 
       SecureBinaryData(), SecureBinaryData(), 
-      homedir_, 0);
+      homedir_);
 
    // 0'/0'
    node.derivePrivate(0x80000000);
