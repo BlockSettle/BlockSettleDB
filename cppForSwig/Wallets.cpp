@@ -965,100 +965,25 @@ const string& AssetWallet::getDescription() const
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 const BinaryData& AssetWallet_Single::createBIP32Account(
-   shared_ptr<AssetEntry_BIP32Root> parentNode, 
-   vector<unsigned> derPath, bool isSegWit, bool isMain)
+   std::shared_ptr<AccountType_BIP32> accTypePtr)
 {
-   shared_ptr<AssetEntry_BIP32Root> root = parentNode;
-   if (parentNode == nullptr)
-      root = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
-
-   if (root == nullptr)
-      throw AccountException("no valid root to create BIP32 account from");
-
-   auto seedFingerprint = root->getSeedFingerprint();
-
-   shared_ptr<AccountType_BIP32> accountTypePtr = nullptr;
-   if(root->getPrivKey() != nullptr)
-   {
-      //try to decrypt the root's private key to get full derivation
-      try
-      {
-         //lock for decryption
-         auto lock = lockDecryptedContainer();
-
-         //decrypt root
-         auto privKey = decryptedData_->getDecryptedPrivateData(root->getPrivKey());
-         auto chaincode = root->getChaincode();
-
-         SecureBinaryData dummy;
-         if (!isSegWit)
-         {
-            accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
-               privKey, dummy, chaincode, derPath,
-               root->getDepth(), root->getLeafID(), 
-               root->getParentFingerprint(), seedFingerprint);
-         }
-         else
-         {
-            accountTypePtr = make_shared<AccountType_BIP32_SegWit>(
-               privKey, dummy, chaincode, derPath,
-               root->getDepth(), root->getLeafID(), 
-               root->getParentFingerprint(), seedFingerprint);
-         }
-      }
-      catch(exception&)
-      {}
-   }
-
-   if (accountTypePtr == nullptr)
-   {
-      //can't get the private key, if we can derive this only from 
-      //the pubkey then do it, otherwise throw
-      auto pubkey = root->getPubKey()->getCompressedKey();
-      auto chaincode = root->getChaincode();
-
-      SecureBinaryData dummy1;
-      if (!isSegWit)
-      {
-         accountTypePtr = make_shared<AccountType_BIP32_Legacy>(
-            dummy1, pubkey, chaincode, derPath,
-            root->getDepth(), root->getLeafID(), 
-            root->getParentFingerprint(), seedFingerprint);
-      }
-      else
-      {
-         accountTypePtr = make_shared<AccountType_BIP32_SegWit>(
-            dummy1, pubkey, chaincode, derPath,
-            root->getDepth(), root->getLeafID(), 
-            root->getParentFingerprint(), seedFingerprint);
-      }
-   }
-
-   if (isMain || accounts_.size() == 0)
-      accountTypePtr->setMain(true);
-
-   auto&& tx = iface_->beginWriteTransaction(dbName_);
-   auto accountPtr = createAccount(accountTypePtr);
-   accountPtr->extendPrivateChain(decryptedData_, DERIVATION_LOOKUP);
-   return accountPtr->getID();
+   //passes wallet's root as parent
+   auto root = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
+   return createBIP32Account_WithParent(root, accTypePtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AssetWallet_Single::createCustomBIP32Account(
-   std::shared_ptr<AssetEntry_BIP32Root> parentNode,
-   std::shared_ptr<AccountType_BIP32_Custom> accTypePtr)
+const BinaryData& AssetWallet_Single::createBIP32Account_WithParent(
+   std::shared_ptr<AssetEntry_BIP32Root> root,
+   std::shared_ptr<AccountType_BIP32> accTypePtr)
 {
-   shared_ptr<AssetEntry_BIP32Root> root = parentNode;
-   if (parentNode == nullptr)
-      root = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
-
    if (root == nullptr)
       throw AccountException("no valid root to create BIP32 account from");
 
    bool isDerived = false;
    if (root->getPrivKey() != nullptr)
    {
-      //try to decrypt the root's private to get full derivation
+      //try to decrypt the root's private key to get full derivation
       try
       {
          //lock for decryption
@@ -1084,7 +1009,11 @@ const BinaryData& AssetWallet_Single::createCustomBIP32Account(
          accTypePtr->setChaincode(derivedCode);
          accTypePtr->setPrivateKey(derivedKey);
          accTypePtr->setPublicKey(pubkey);
+         accTypePtr->setFingerprint(bip32Node.getParentFingerprint());
 
+         accTypePtr->setDepth(bip32Node.getDepth());
+         accTypePtr->setLeafId(bip32Node.getLeafID());
+         
          isDerived = true;
       }
       catch (exception&)
@@ -1096,7 +1025,7 @@ const BinaryData& AssetWallet_Single::createCustomBIP32Account(
    if (!isDerived)
    {
       //can't get the private key, if we can derive this only from 
-      //the pubkey then do it, otherwise throw
+      //the pubkey then do it, otherwise it will throw
 
       auto pubkey = root->getPubKey()->getCompressedKey();
       auto chaincode = root->getChaincode();
@@ -1113,6 +1042,10 @@ const BinaryData& AssetWallet_Single::createCustomBIP32Account(
 
       accTypePtr->setChaincode(derivedCode);
       accTypePtr->setPublicKey(derivedKey);
+      accTypePtr->setFingerprint(bip32Node.getParentFingerprint());
+
+      accTypePtr->setDepth(bip32Node.getDepth());
+      accTypePtr->setLeafId(bip32Node.getLeafID());
    }
 
    //update the derivation path, it should be root's + account's
@@ -1121,10 +1054,8 @@ const BinaryData& AssetWallet_Single::createCustomBIP32Account(
       derivationPath.push_back(path);
    accTypePtr->setDerivationPath(derivationPath);
 
-   //if we provided a root, set the account seed fingerprint to
-   //that carried by the root
-   if (parentNode != nullptr)
-      accTypePtr->setSeedFingerprint(root->getSeedFingerprint());
+   //set the account seed fingerprint
+   accTypePtr->setSeedFingerprint(root->getSeedFingerprint());
 
    auto accountPtr = createAccount(accTypePtr);
    if (!accTypePtr->isWatchingOnly())
@@ -1197,17 +1128,11 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
       walletID = move(computeWalletID(derScheme, asset_single));
    }
    
+   //for account creation
    SecureBinaryData dummyPubKey;
    auto&& privateRootCopy = privateRoot.copy();
 
-   //address accounts
-   set<shared_ptr<AccountType>> accountTypes;
-   accountTypes.insert(
-      make_shared<AccountType_ArmoryLegacy>(
-      privateRootCopy, 
-      dummyPubKey, chaincode));
-   (*accountTypes.begin())->setMain(true);
-   
+   //create empty wallet
    SecureBinaryData dummy;
    auto walletPtr = initWalletDb(
       iface,
@@ -1215,13 +1140,33 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
       passphrase, 
       controlPassphrase,
       privateRoot, 
-      dummy,
-      move(accountTypes),
-      lookup - 1);
+      dummy);
 
    //set as main
    setMainWallet(iface, walletID);
 
+   //add account
+   auto account135 = make_shared<AccountType_ArmoryLegacy>(
+      privateRootCopy, dummyPubKey, chaincode);
+   account135->setMain(true);
+
+   if (passphrase.getSize() > 0)
+   {
+      //custom passphrase, set prompt lambda for the chain extention
+      auto passphraseLambda =
+         [&passphrase](const set<BinaryData>&)->SecureBinaryData
+      {
+         return passphrase;
+      };
+
+      walletPtr->decryptedData_->setPassphrasePromptLambda(passphraseLambda);
+   }
+
+   auto accountPtr = walletPtr->createAccount(account135);
+   accountPtr->extendPrivateChain(
+      walletPtr->decryptedData_, lookup - 1);
+
+   walletPtr->resetPassphrasePromptLambda();
    return walletPtr;
 }
 
@@ -1267,27 +1212,28 @@ createFromPublicRoot_Armory135(
       walletID = move(computeWalletID(derScheme, asset_single));
    }
 
-   //address accounts
+   //needed for account creation
    SecureBinaryData dummy;
    auto&& pubRootCopy = pubRoot.copy();
    auto&& chainCodeCopy = chainCode.copy();
 
-   set<shared_ptr<AccountType>> accountTypes;
-   accountTypes.insert(
-      make_shared<AccountType_ArmoryLegacy>(
-      dummy, pubRootCopy, chainCodeCopy));
-   (*accountTypes.begin())->setMain(true);
-
+   //create wallet
    auto walletPtr = initWalletDbFromPubRoot(
       iface, 
       controlPassphrase,
       masterID, walletID,
-      pubRoot, 
-      accountTypes,
-      lookup - 1);
+      pubRoot);
 
    //set as main
    setMainWallet(iface, walletID);
+
+   //add account
+   auto account135 = make_shared<AccountType_ArmoryLegacy>(
+      dummy, pubRootCopy, chainCodeCopy);
+   account135->setMain(true);
+
+   auto accountPtr = walletPtr->createAccount(account135);
+   accountPtr->extendPublicChain(lookup - 1);
 
    return walletPtr;
 }
@@ -1308,7 +1254,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    rootNode.initFromSeed(seed);
 
    //address accounts
-   set<shared_ptr<AccountType>> accountTypes;
+   set<shared_ptr<AccountType_BIP32>> accountTypes;
 
    /*
    Derive 2 hardcoded paths on top of the main derivatrionPath for
@@ -1321,96 +1267,71 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    auto chaincode1 = rootNode.getChaincode();
    auto chaincode2 = rootNode.getChaincode();
 
-   accountTypes.insert(
-      make_shared<AccountType_BIP32_Legacy>(
-         privateRootCopy_1,
-         dummy1, chaincode1,
-         derivationPath, 
-         0, 0, 
-         0, rootNode.getThisFingerprint()));
-   (*accountTypes.begin())->setMain(true);
+   //TODO: make this bip44 compliant
+   {
+      //legacy account
+      auto legacyAcc = 
+         make_shared<AccountType_BIP32>(derivationPath);
 
-   accountTypes.insert(
-      make_shared<AccountType_BIP32_SegWit>(
-         privateRootCopy_2,
-         dummy2, chaincode2,
-         derivationPath, 
-         0, 0, 
-         0, rootNode.getThisFingerprint()));
+      //nodes
+      legacyAcc->setNodes({
+         BIP32_LEGACY_OUTER_ACCOUNT_DERIVATIONID, 
+         BIP32_LEGACY_INNER_ACCOUNT_DERIVATIONID});
+      legacyAcc->setOuterAccountID(
+         WRITE_UINT32_BE(BIP32_LEGACY_OUTER_ACCOUNT_DERIVATIONID));
+      legacyAcc->setInnerAccountID(
+         WRITE_UINT32_BE(BIP32_LEGACY_INNER_ACCOUNT_DERIVATIONID));
+
+      //lookup
+      legacyAcc->setAddressLookup(lookup);
+
+      //address types
+      legacyAcc->addAddressType(AddressEntryType(
+         AddressEntryType_P2PKH | AddressEntryType_Uncompressed));
+      legacyAcc->addAddressType(AddressEntryType_P2PKH);
+      legacyAcc->setDefaultAddressType(AddressEntryType_P2PKH);
+
+      legacyAcc->setMain(true);
+      accountTypes.insert(legacyAcc);
+   }
+
+   //TODO: make this bip84 compliant
+   {
+      //sw account
+      auto segwitAcc = 
+         make_shared<AccountType_BIP32>(derivationPath);
+         
+      //nodes
+      segwitAcc->setNodes({
+         BIP32_SEGWIT_OUTER_ACCOUNT_DERIVATIONID, 
+         BIP32_SEGWIT_INNER_ACCOUNT_DERIVATIONID});
+      segwitAcc->setOuterAccountID(
+         WRITE_UINT32_BE(BIP32_SEGWIT_OUTER_ACCOUNT_DERIVATIONID));
+      segwitAcc->setInnerAccountID(
+         WRITE_UINT32_BE(BIP32_SEGWIT_INNER_ACCOUNT_DERIVATIONID));
+
+      //lookup
+      segwitAcc->setAddressLookup(lookup);
+
+      //address types
+      segwitAcc->addAddressType(AddressEntryType_P2WPKH);
+      segwitAcc->addAddressType(
+         AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
+      segwitAcc->setDefaultAddressType(AddressEntryType_P2WPKH);
+
+      accountTypes.insert(segwitAcc);
+   }
+
 
    auto walletPtr = createFromBIP32Node(
       rootNode, 
       accountTypes, 
       passphrase, 
       controlPassphrase,
-      folder, 
-      lookup);
+      folder);
 
    //save the seed
    walletPtr->setSeed(seed, passphrase);
-
-   return walletPtr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBase58_BIP32(
-   const string& folder,
-   const SecureBinaryData& base58,
-   const vector<unsigned>& derivationPath,
-   const SecureBinaryData& passphrase,
-   const SecureBinaryData& controlPassphrase,
-   unsigned lookup)
-{
-   //setup node
-   BIP32_Node node;
-   node.initFromBase58(base58);
-
-   bool isPublic = false;
-   if (node.isPublic())
-      isPublic = true;
-
-   //address accounts
-   set<shared_ptr<AccountType>> accountTypes;
-
-   /*
-   Unlike wallets setup from seeds, we do not make any assumption with those setup from
-   a xpriv/xpub and only use what's provided in derivationPath. It is the caller's
-   responsibility to run sanity checks.
-   */
-
-   if (!isPublic)
-   {
-      auto privateRootCopy = node.getPrivateKey();
-      SecureBinaryData dummy;
-      auto chainCodeCopy = node.getChaincode();
-
-      accountTypes.insert(make_shared<AccountType_BIP32_Custom>(
-         privateRootCopy, dummy, chainCodeCopy, derivationPath,
-         node.getDepth(), node.getLeafID(), 
-         node.getParentFingerprint(), node.getThisFingerprint()));
-      (*accountTypes.begin())->setMain(true);
-   }
-   else
-   {
-      //ctors move the arguments in, gotta create copies first
-      auto pubkey_copy = node.getPublicKey();
-      auto chaincode_copy = node.getChaincode();
-      SecureBinaryData dummy1;
-
-      accountTypes.insert(make_shared<AccountType_BIP32_Custom>(
-         dummy1, pubkey_copy, chaincode_copy, derivationPath,
-         node.getDepth(), node.getLeafID(), 
-         node.getParentFingerprint(), node.getThisFingerprint()));
-      (*accountTypes.begin())->setMain(true);
-   }
-
-   auto walletPtr = createFromBIP32Node(
-      node,
-      accountTypes,
-      passphrase,
-      controlPassphrase,      
-      folder, 
-      lookup);
 
    return walletPtr;
 }
@@ -1428,7 +1349,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
    rootNode.initFromSeed(seed);
 
    //address accounts
-   set<shared_ptr<AccountType>> accountTypes;
+   set<shared_ptr<AccountType_BIP32>> accountTypes;
 
    /*
    no accounts are setup for a blank wallet
@@ -1439,8 +1360,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
       accountTypes,
       passphrase,
       controlPassphrase,      
-      folder,
-      0);
+      folder);
 
    //save the seed
    walletPtr->setSeed(seed, passphrase);
@@ -1451,11 +1371,10 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
    const BIP32_Node& node,
-   set<shared_ptr<AccountType>> accountTypes,
+   set<shared_ptr<AccountType_BIP32>> accountTypes,
    const SecureBinaryData& passphrase,
    const SecureBinaryData& controlPassphrase,
-   const string& folder,
-   unsigned lookup)
+   const string& folder)
 {
    bool isPublic = false;
    if (node.isPublic())
@@ -1501,7 +1420,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
       walletID = move(computeWalletID(derScheme, asset_single));
    }
 
-   //address accounts
+   //create wallet
    shared_ptr<AssetWallet_Single> walletPtr = nullptr;
 
    if (!isPublic)
@@ -1512,9 +1431,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
          passphrase,
          controlPassphrase,
          node.getPrivateKey(),
-         node.getChaincode(),
-         move(accountTypes),
-         lookup);
+         node.getChaincode());
    }
    else
    {
@@ -1524,14 +1441,24 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
          iface,
          controlPassphrase,
          masterID, walletID,
-         pubkey_copy,
-         move(accountTypes),
-         lookup);
+         pubkey_copy);
    }
 
    //set as main
    setMainWallet(iface, walletID);
 
+   //add accounts
+   auto passLbd = 
+      [&passphrase](const set<BinaryData>&)->SecureBinaryData
+   {
+      return passphrase;
+   };
+   walletPtr->setPassphrasePromptLambda(passLbd);
+
+   for (auto accountPtr : accountTypes)
+      walletPtr->createBIP32Account(accountPtr);
+
+   walletPtr->resetPassphrasePromptLambda();
    return walletPtr;
 }
 
@@ -1565,7 +1492,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createSeedless_WatchingOnly(
       iface,
       controlPassphrase,
       masterID, walletID,
-      pubRoot, {}, 0);
+      pubRoot);
 
    //set as main
    setMainWallet(iface, walletID);
@@ -1596,9 +1523,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    const SecureBinaryData& passphrase,
    const SecureBinaryData& controlPassphrase,
    const SecureBinaryData& privateRoot,
-   const SecureBinaryData& chaincode,
-   set<shared_ptr<AccountType>> accountTypes,
-   unsigned lookup)
+   const SecureBinaryData& chaincode)
 {
    auto headerPtr = make_shared<WalletHeader_Single>();
    headerPtr->walletID_ = walletID;
@@ -1623,63 +1548,18 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    auto rootAsset = make_shared<Asset_PrivateKey>(
       WRITE_UINT32_BE(UINT32_MAX), encryptedRoot, move(rootCipher));
 
-   bool isBip32 = false;
-   unsigned armory135AccCount = 0;
-   for (auto& account : accountTypes)
-   {
-      switch (account->type())
-      {
-      case AccountTypeEnum_ArmoryLegacy:
-      {
-         ++armory135AccCount;
-         break;
-      }
-
-      default:
-         continue;
-      }
-   }
-
-   //default to bip32 root if there are no account types specified
-   if (armory135AccCount == 0)
-      isBip32 = true;
-
-   shared_ptr<AssetEntry_Single> rootAssetEntry;
-   if (isBip32)
-   {
-      if (chaincode.getSize() == 0)
-         throw WalletException("emtpy chaincode for bip32 root");
-
-      rootAssetEntry = make_shared<AssetEntry_BIP32Root>(
+   //default to bip32 root
+   auto rootAssetEntry = make_shared<AssetEntry_BIP32Root>(
          -1, BinaryData(),
          pubkey, rootAsset,
          chaincode, 0, 0, 0, 0, vector<uint32_t>());
-   }
-   else
-   {
-      rootAssetEntry = make_shared<AssetEntry_Single>(
-         -1, BinaryData(),
-         pubkey, rootAsset);
-   }
 
+   //create wallet
    auto walletPtr = make_shared<AssetWallet_Single>(iface, headerPtr, masterID);
 
    //add kdf & master key
    walletPtr->decryptedData_->addKdf(masterKeyStruct.kdf_);
    walletPtr->decryptedData_->addEncryptionKey(masterKeyStruct.masterKey_);
-
-   //set passphrase lambda if necessary
-   if (passphrase.getSize() > 0)
-   {
-      //custom passphrase, set prompt lambda for the chain extention
-      auto passphraseLambda =
-         [&passphrase](const set<BinaryData>&)->SecureBinaryData
-      {
-         return passphrase;
-      };
-
-      walletPtr->decryptedData_->setPassphrasePromptLambda(passphraseLambda);
-   }
 
    auto controlPassLbd = 
       [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
@@ -1711,55 +1591,14 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
       }
 
       {
-         //accounts
-         for (auto& accountType : accountTypes)
-         {
-            //instantiate AddressAccount object from AccountType
-            auto account_ptr = make_shared<AddressAccount>(
-               iface, walletPtr->dbName_);
-
-            auto&& cipher_copy = cipher->getCopy();
-            account_ptr->make_new(accountType,
-               walletPtr->decryptedData_,
-               move(cipher_copy));
-
-            //commit to disk
-            account_ptr->commit();
-
-            if (accountType->isMain())
-               walletPtr->mainAccount_ = account_ptr->getID();
-         }
-
          //comment account
-         walletPtr->addMetaAccount(MetaAccountType::MetaAccount_Comments);
-
-         //main account
-         if (walletPtr->mainAccount_.getSize() > 0)
-         {
-            BinaryWriter bwKey;
-            bwKey.put_uint32_t(MAIN_ACCOUNT_KEY);
-
-            BinaryWriter bwData;
-            bwData.put_var_int(walletPtr->mainAccount_.getSize());
-            bwData.put_BinaryData(walletPtr->mainAccount_);
-            tx->insert(bwKey.getData(), bwData.getData());
-         }
+         walletPtr->addMetaAccount(
+            MetaAccountType::MetaAccount_Comments);
       }
    }
 
    //init walletptr from file
    walletPtr->readFromFile();
-
-   {
-      //asset lookup
-      if (lookup == UINT32_MAX)
-         lookup = DERIVATION_LOOKUP;
-
-      if (lookup != 0)
-         walletPtr->extendPrivateChain(lookup);
-   }
-
-   walletPtr->decryptedData_->resetPassphraseLambda();
    return walletPtr;
 }
 
@@ -1768,9 +1607,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
    shared_ptr<WalletDBInterface> iface,
    const SecureBinaryData& controlPassphrase,
    const string& masterID, const string& walletID,
-   SecureBinaryData& pubRoot,
-   set<shared_ptr<AccountType>> accountTypes,
-   unsigned lookup)
+   SecureBinaryData& pubRoot)
 {
    //create root AssetEntry
    shared_ptr<AssetEntry_Single> rootAssetEntry = nullptr;
@@ -1812,50 +1649,14 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbFromPubRoot(
       }
 
       {
-         //accounts
-         for (auto& accountType : accountTypes)
-         {
-            //instantiate AddressAccount object from AccountType
-            auto account_ptr = make_shared<AddressAccount>(
-               iface, walletPtr->dbName_);
-            account_ptr->make_new(accountType, nullptr, nullptr);
-
-            //commit to disk
-            account_ptr->commit();
-
-            if (accountType->isMain())
-               walletPtr->mainAccount_ = account_ptr->getID();
-         }
-
          //comment account
-         walletPtr->addMetaAccount(MetaAccountType::MetaAccount_Comments);
-
-         //main account
-         if (walletPtr->mainAccount_.getSize() > 0)
-         {
-            BinaryWriter bwKey;
-            bwKey.put_uint32_t(MAIN_ACCOUNT_KEY);
-
-            BinaryWriter bwData;
-            bwData.put_var_int(walletPtr->mainAccount_.getSize());
-            bwData.put_BinaryData(walletPtr->mainAccount_);
-            tx->insert(bwKey.getData(), bwData.getData());
-         }
+         walletPtr->addMetaAccount(
+            MetaAccountType::MetaAccount_Comments);
       }
    }
 
    //init walletptr from file
    walletPtr->readFromFile();
-
-   {
-      //asset lookup
-      if (lookup == UINT32_MAX)
-         lookup = DERIVATION_LOOKUP;
-
-      if (lookup > 0)
-         walletPtr->extendPublicChain(lookup);
-   }
-
    return walletPtr;
 }
 
@@ -2153,15 +1954,15 @@ BIP32_AssetPath AssetWallet_Single::getBip32PathForAsset(
 {
    const auto& id = asset->getID();
    if (id.getSize() != 12)
-      throw runtime_error("invalid asset id length");
+      throw WalletException("invalid asset id length");
 
    auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(asset);
    if (assetSingle == nullptr)
-      throw runtime_error("unexpected asset type");
+      throw WalletException("unexpected asset type");
    
    auto pubKeyPtr = assetSingle->getPubKey();
    if (pubKeyPtr == nullptr)
-      throw runtime_error("asset is missing public key");
+      throw WalletException("asset is missing public key");
 
    const auto& pubkey = pubKeyPtr->getCompressedKey();
    
@@ -2206,6 +2007,43 @@ BIP32_AssetPath AssetWallet_Single::getBip32PathForAsset(
          rootBip32->getThisFingerprint(),
          nullptr);
    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string AssetWallet_Single::getXpubForAssetID(const BinaryData& id) const
+{
+   if (id.getSize() != 12)
+      throw WalletException("unexpected asset id length");
+
+   BinaryRefReader brrId(id.getRef());
+   brrId.advance(4);
+   auto accountID = brrId.get_BinaryData(4);
+   auto assetID = brrId.get_uint32_t(BE);
+
+   //grab account
+   auto addrAccount = getAccountForID(id);
+   auto accountMap = addrAccount->getAccountMap();
+
+   auto accIter = accountMap.find(accountID);
+   if (accIter == accountMap.end())
+      throw WalletException("invalid account id");
+
+   //setup bip32 node from root pubkey
+   auto root = dynamic_pointer_cast<AssetEntry_BIP32Root>(
+      accIter->second->getRoot());
+   if (root == nullptr)
+      throw WalletException("unexpected type for account root");
+
+   BIP32_Node node;
+   node.initFromPublicKey(
+      root->getDepth(), root->getLeafID(), root->getParentFingerprint(),
+      root->getPubKey()->getCompressedKey(), root->getChaincode());
+
+   //derive with asset's step
+   node.derivePublic(assetID);
+
+   auto b58sbd = node.getBase58();
+   return string(b58sbd.getCharPtr(), b58sbd.getSize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -212,7 +212,7 @@ public:
    static std::string getMainWalletID(std::shared_ptr<WalletDBInterface>);
   
    static std::string forkWatchingOnly(
-      const std::string&, const PassphraseLambda&);
+      const std::string&, const PassphraseLambda& = nullptr);
    static std::shared_ptr<AssetWallet> loadMainWalletFromFile(
       const std::string& path, const PassphraseLambda&);
 };
@@ -238,17 +238,13 @@ protected:
       const SecureBinaryData& passphrase,
       const SecureBinaryData& controlPassphrase,
       const SecureBinaryData& privateRoot,
-      const SecureBinaryData& chaincode,
-      std::set<std::shared_ptr<AccountType>> accountTypes,
-      unsigned lookup);
+      const SecureBinaryData& chaincode);
 
    static std::shared_ptr<AssetWallet_Single> initWalletDbFromPubRoot(
       std::shared_ptr<WalletDBInterface> iface,
       const SecureBinaryData& controlPassphrase,
       const std::string& masterID, const std::string& walletID,
-      SecureBinaryData& pubRoot,
-      std::set<std::shared_ptr<AccountType>> accountTypes,
-      unsigned lookup);
+      SecureBinaryData& pubRoot);
 
    static std::string computeWalletID(
       std::shared_ptr<DerivationScheme>,
@@ -277,12 +273,10 @@ public:
    const SecureBinaryData& getArmory135Chaincode(void) const;
    
    const BinaryData& createBIP32Account(
+      std::shared_ptr<AccountType_BIP32>);
+   const BinaryData& createBIP32Account_WithParent(
       std::shared_ptr<AssetEntry_BIP32Root> parentNode,
-      std::vector<unsigned> derPath,
-      bool isSegWit, bool isMain = false);
-   const BinaryData& createCustomBIP32Account(
-      std::shared_ptr<AssetEntry_BIP32Root> parentNode,
-      std::shared_ptr<AccountType_BIP32_Custom>);
+      std::shared_ptr<AccountType_BIP32>);
 
    bool isWatchingOnly(void) const;
 
@@ -299,6 +293,8 @@ public:
    ArmorySigner::BIP32_AssetPath getBip32PathForAsset(std::shared_ptr<AssetEntry>) const;
    ArmorySigner::BIP32_AssetPath getBip32PathForAssetID(const BinaryData&) const;
 
+   std::string getXpubForAssetID(const BinaryData&) const;
+
    //virtual
    const SecureBinaryData& getDecryptedValue(
       std::shared_ptr<Asset_EncryptedData>);
@@ -306,11 +302,10 @@ public:
    //static
    static std::shared_ptr<AssetWallet_Single> createFromBIP32Node(
       const BIP32_Node& node,
-      std::set<std::shared_ptr<AccountType>> accountTypes,
+      std::set<std::shared_ptr<AccountType_BIP32>> accountTypes,
       const SecureBinaryData& passphrase,
       const SecureBinaryData& controlPassphrase,
-      const std::string& folder,
-      unsigned lookup);
+      const std::string& folder);
 
    static std::shared_ptr<AssetWallet_Single> createFromPrivateRoot_Armory135(
       const std::string& folder,
@@ -333,14 +328,6 @@ public:
       const std::vector<unsigned>& derivationPath,
       const SecureBinaryData& passphrase,
       const SecureBinaryData& controlPassphrase,
-      unsigned lookup);
-
-   static std::shared_ptr<AssetWallet_Single> createFromBase58_BIP32(
-      const std::string& folder,
-      const SecureBinaryData& b58,
-      const std::vector<unsigned>& derivationPath,
-      const SecureBinaryData& passphrase,
-      const SecureBinaryData& controlPassphrase,      
       unsigned lookup);
 
    static std::shared_ptr<AssetWallet_Single> createFromSeed_BIP32_Blank(
@@ -403,8 +390,6 @@ protected:
 private:
 
    void addToMap(std::shared_ptr<AddressEntry>);
-   std::pair<std::shared_ptr<AssetEntry>, AddressEntryType> 
-      getAssetPairForKey(const BinaryData&) const;
 
 public:
    //tors
@@ -422,8 +407,11 @@ public:
    
    //local
    void seedFromAddressEntry(std::shared_ptr<AddressEntry>);
-   void setBip32PathForPubkey(
-      const BinaryData& pubkey, const ArmorySigner::BIP32_AssetPath& path) override;
+   void setBip32PathForPubkey(const BinaryData& pubkey, 
+      const ArmorySigner::BIP32_AssetPath& path) override;
+      
+   std::pair<std::shared_ptr<AssetEntry>, AddressEntryType> 
+      getAssetPairForKey(const BinaryData&) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
