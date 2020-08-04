@@ -475,6 +475,8 @@ public:
    BinaryData getFullID(void) const { return parent_id_ + id_; }
    const SecureBinaryData& getChaincode(void) const;
 
+   void extendPublicChain(unsigned);
+
    //static
    static void putData(LMDB* db, const BinaryData& key, const BinaryData& data);
    static std::shared_ptr<AssetAccount> loadFromDisk(const BinaryData& key, 
