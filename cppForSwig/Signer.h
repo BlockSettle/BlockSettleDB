@@ -150,9 +150,6 @@ private:
    void setUtxo(const UTXO& utxo) { utxo_ = utxo; }
    void merge(const ScriptSpender&);
    
-   std::map<BinaryData, BIP32_AssetPath>& getBip32Paths(void)
-   { return bip32Paths_; }
-
 public:
    ScriptSpender(const BinaryDataRef txHash, unsigned index)
    {
@@ -263,6 +260,9 @@ public:
    const Tx& getSupportingTx(void) const;
    bool haveSupportingTx(void) const;
    std::map<unsigned, BinaryData> getRelevantPubkeys() const;
+
+   std::map<BinaryData, BIP32_AssetPath>& getBip32Paths(void)
+   { return bip32Paths_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
