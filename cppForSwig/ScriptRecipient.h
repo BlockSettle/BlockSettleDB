@@ -85,9 +85,20 @@ public:
       return bip32Paths_; 
    }
 
-   void toProtobuf(Codec_SignerState::RecipientState&) const;
+   void toProtobuf(Codec_SignerState::RecipientState&, unsigned) const;
    void toPSBT(BinaryWriter&) const;
    void merge(std::shared_ptr<ScriptRecipient>);
+
+   bool isSame(const ScriptRecipient& rhs)
+   {
+      if (type_ != rhs.type_)
+         return false;
+
+      if (value_ != rhs.value_)
+         return false;
+
+      return (getSerializedScript() == rhs.getSerializedScript());
+   }
 
    //static
    static std::shared_ptr<ScriptRecipient> fromScript(BinaryDataRef);

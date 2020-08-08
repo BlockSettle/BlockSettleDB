@@ -91,6 +91,7 @@ message ScriptSpenderState
 message RecipientState
 {
     required bytes data = 1;
+    required uint32 groupid = 2;
     repeated PubkeyBIP32Path bip32Paths = 10;
 }
 

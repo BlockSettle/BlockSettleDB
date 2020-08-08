@@ -162,10 +162,11 @@ void ScriptRecipient::toPSBT(BinaryWriter& bw) const
 
 ////////////////////////////////////////////////////////////////////////////////
 void ScriptRecipient::toProtobuf(
-   Codec_SignerState::RecipientState& protoMsg) const
+   Codec_SignerState::RecipientState& protoMsg, unsigned group) const
 { 
    const auto& script = getSerializedScript();
    protoMsg.set_data(script.getPtr(), script.getSize());
+   protoMsg.set_groupid(group);
    
    for (auto& keyPair : bip32Paths_)
    {
