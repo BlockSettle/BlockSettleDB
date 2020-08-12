@@ -111,10 +111,13 @@ struct RestrictedUtxoSet
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct PaymentStruct
+class PaymentStruct
 {
-   const std::map<unsigned, 
-      std::shared_ptr<ArmorySigner::ScriptRecipient>>& recipients_;
+   using RecipientMap = const std::map<unsigned, 
+      std::vector<std::shared_ptr<ArmorySigner::ScriptRecipient>>>;
+
+private:
+   const RecipientMap& recipients_;
    
    const uint64_t fee_;
    const float fee_byte_;
@@ -122,11 +125,11 @@ struct PaymentStruct
    uint64_t spendVal_;
    size_t size_;
 
-   const unsigned flags_ = 0;
+   const uint32_t flags_ = 0;
 
-   PaymentStruct(const std::map<
-      unsigned, std::shared_ptr<ArmorySigner::ScriptRecipient>>& recipients,
-      uint64_t fee, float fee_byte, unsigned flags) :
+public:
+   PaymentStruct(const RecipientMap& recipients,
+      uint64_t fee, float fee_byte, uint32_t flags) :
       recipients_(recipients), fee_(fee), fee_byte_(fee_byte),
       flags_(flags)
    {
@@ -134,6 +137,16 @@ struct PaymentStruct
    }
 
    void init(void);
+   size_t getRecipientCount(void) const;
+   const RecipientMap& getRecipientMap(void) const { return recipients_; }
+
+   uint64_t fee(void) const { return fee_; }
+   float fee_byte(void) const { return fee_byte_; }
+
+   uint64_t spendVal(void) const { return spendVal_; }
+   size_t size(void) const { return size_; }
+
+   uint32_t flags(void) const { return flags_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

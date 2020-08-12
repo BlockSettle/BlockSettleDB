@@ -35,43 +35,47 @@ vector<UTXO> CoinSelection::checkForRecipientReuse(
    set<BinaryData> addrSet;
    uint64_t spendSum = 0;
 
-   for (auto& recipient : payStruct.recipients_)
+   const auto& recMap = payStruct.getRecipientMap();
+   for (const auto& group : recMap)
    {
-      auto& output = recipient.second->getSerializedScript();
-      if (output.getSize() < 9)
-         continue;
+      for (const auto& recipient : group.second)
+      {
+         auto& output = recipient->getSerializedScript();
+         if (output.getSize() < 9)
+            continue;
 
-      BinaryRefReader brr(output.getRef());
-      brr.advance(8);
-      auto scriptLen = brr.get_var_int();
-      auto script = brr.get_BinaryDataRef(scriptLen);
+         BinaryRefReader brr(output.getRef());
+         brr.advance(8);
+         auto scriptLen = brr.get_var_int();
+         auto script = brr.get_BinaryDataRef(scriptLen);
 
-      auto&& scrAddr = BtcUtils::getScrAddrForScript(script);
+         auto&& scrAddr = BtcUtils::getScrAddrForScript(script);
 
-      auto addrBookIter = addrBook_.find(scrAddr);
-      if (addrBookIter == addrBook_.end())
-         continue;
+         auto addrBookIter = addrBook_.find(scrAddr);
+         if (addrBookIter == addrBook_.end())
+            continue;
 
-      //log recipient
-      addrSet.insert(scrAddr);
-      spendSum += recipient.second->getValue();
+         //log recipient
+         addrSet.insert(scrAddr);
+         spendSum += recipient->getValue();
 
-      //round up utxos
-      auto&& txHashVec = addrBookIter->getTxHashList();
-      for (auto& txhash : txHashVec)
-         r_utxos.filterUtxos(txhash);
+         //round up utxos
+         auto&& txHashVec = addrBookIter->getTxHashList();
+         for (auto& txhash : txHashVec)
+            r_utxos.filterUtxos(txhash);
+      }
    }
 
    auto available_balance = r_utxos.getBalance();
    auto balance_and_fee = available_balance;
-   if (payStruct.fee_ > 0)
+   if (payStruct.fee() > 0)
    {
-      balance_and_fee += payStruct.fee_;
+      balance_and_fee += payStruct.fee();
    }
    else
    {
-      balance_and_fee += r_utxos.getFeeSum(payStruct.fee_byte_);
-      balance_and_fee += uint64_t(payStruct.fee_byte_ * payStruct.size_);
+      balance_and_fee += r_utxos.getFeeSum(payStruct.fee_byte());
+      balance_and_fee += uint64_t(payStruct.fee_byte() * payStruct.size());
    }
 
    if (spendSum > 0 && balance_and_fee < spendSum)
@@ -104,7 +108,7 @@ UtxoSelection CoinSelection::getUtxoSelectionForRecipients(
 
    if (utxoVec.size() == 0)
    {
-      updateUtxoVector(payStruct.spendVal_);
+      updateUtxoVector(payStruct.spendVal());
       return getUtxoSelection(payStruct, utxoVec_);
    }
    else
@@ -119,7 +123,7 @@ UtxoSelection CoinSelection::getUtxoSelection(
 {
    //sanity check
    auto utxoVecVal = tallyValue(utxoVec);
-   if (utxoVecVal < payStruct.spendVal_)
+   if (utxoVecVal < payStruct.spendVal())
       throw CoinSelectionException("spend value > usable balance");
 
    if (topHeight_ == UINT32_MAX)
@@ -127,20 +131,20 @@ UtxoSelection CoinSelection::getUtxoSelection(
 
    vector<UtxoSelection> selections;
 
-   bool useExhaustiveList = payStruct.flags_ & USE_FULL_CUSTOM_LIST;
+   bool useExhaustiveList = payStruct.flags() & USE_FULL_CUSTOM_LIST;
    if (!useExhaustiveList)
    {
-      uint64_t compiledFee_oneOutput = payStruct.fee_;
-      uint64_t compiledFee_manyOutputs = payStruct.fee_;
-      if (payStruct.fee_ == 0 && payStruct.fee_byte_ > 0.0f)
+      uint64_t compiledFee_oneOutput = payStruct.fee();
+      uint64_t compiledFee_manyOutputs = payStruct.fee();
+      if (payStruct.fee() == 0 && payStruct.fee_byte() > 0.0f)
       {
          //no flat fee but a fee_byte is available
 
          //1 uncompressed p2pkh input + txoutSizeByte + 1 change output
-         compiledFee_oneOutput = float(215 + payStruct.size_) * payStruct.fee_byte_;
+         compiledFee_oneOutput = float(215 + payStruct.size()) * payStruct.fee_byte();
 
          //figure out average txin count
-         float valPct = float(payStruct.spendVal_) / float(utxoVecVal);
+         float valPct = float(payStruct.spendVal()) / float(utxoVecVal);
          if (valPct > 1.0f)
             valPct = 1.0f;
 
@@ -148,7 +152,7 @@ UtxoSelection CoinSelection::getUtxoSelection(
 
          //medianTxInCount p2pkh inputs + txoutSizeByte + 1 change output
          compiledFee_manyOutputs = 10 + 
-            float(averageTxInCount * 180 + 35 + payStruct.size_) * payStruct.fee_byte_;
+            float(averageTxInCount * 180 + 35 + payStruct.size()) * payStruct.fee_byte();
       }
 
       //create deterministic selections
@@ -158,25 +162,25 @@ UtxoSelection CoinSelection::getUtxoSelection(
 
          //one utxo, single val
          auto&& utxos1 = CoinSubSelection::selectOneUtxo_SingleSpendVal(
-            sortedVec, payStruct.spendVal_, compiledFee_oneOutput);
+            sortedVec, payStruct.spendVal(), compiledFee_oneOutput);
          if (utxos1.size() > 0)
             selections.push_back(move(UtxoSelection(utxos1)));
 
          //one utxo, double val
          auto&& utxos2 = CoinSubSelection::selectOneUtxo_DoubleSpendVal(
-            sortedVec, payStruct.spendVal_, compiledFee_oneOutput);
+            sortedVec, payStruct.spendVal(), compiledFee_oneOutput);
          if (utxos2.size())
             selections.push_back(move(UtxoSelection(utxos2)));
 
          //many utxos, single val
          auto&& utxos3 = CoinSubSelection::selectManyUtxo_SingleSpendVal(
-            sortedVec, payStruct.spendVal_, compiledFee_manyOutputs);
+            sortedVec, payStruct.spendVal(), compiledFee_manyOutputs);
          if (utxos3.size() > 0)
             selections.push_back(move(UtxoSelection(utxos3)));
 
          //many utxos, double val
          auto&& utxos4 = CoinSubSelection::selectManyUtxo_DoubleSpendVal(
-            sortedVec, payStruct.spendVal_, compiledFee_manyOutputs);
+            sortedVec, payStruct.spendVal(), compiledFee_manyOutputs);
          if (utxos4.size() > 0)
             selections.push_back(move(UtxoSelection(utxos4)));
       }
@@ -190,13 +194,13 @@ UtxoSelection CoinSelection::getUtxoSelection(
 
             //many utxo, single val
             auto&& utxos5 = CoinSubSelection::selectManyUtxo_SingleSpendVal(
-               sortedVec, payStruct.spendVal_, compiledFee_manyOutputs);
+               sortedVec, payStruct.spendVal(), compiledFee_manyOutputs);
             if (utxos5.size() > 0)
                selections.push_back(move(UtxoSelection(utxos5)));
 
             //many utxos, double val
             auto&& utxos6 = CoinSubSelection::selectManyUtxo_DoubleSpendVal(
-               sortedVec, payStruct.spendVal_, compiledFee_manyOutputs);
+               sortedVec, payStruct.spendVal(), compiledFee_manyOutputs);
             if (utxos6.size() > 0)
                selections.push_back(move(UtxoSelection(utxos6)));
          }
@@ -240,7 +244,7 @@ UtxoSelection CoinSelection::getUtxoSelection(
    fleshOutSelection(utxoVec, *selectPtr, payStruct);
 
    //one last shuffle for the good measure
-   bool shuffle = payStruct.flags_ & SHUFFLE_ENTRIES;
+   bool shuffle = payStruct.flags() & SHUFFLE_ENTRIES;
    if (shuffle)
       selectPtr->shuffle();
 
@@ -315,7 +319,7 @@ void CoinSelection::fleshOutSelection(const vector<UTXO>& utxoVec,
 {
    //TODO: this is specialized for fee_byte, add a flat fee spec as well
 
-   auto newOutputCount = payStruct.recipients_.size();
+   auto newOutputCount = payStruct.getRecipientCount();
    if (utxoSelect.hasChange_)
       ++newOutputCount;
 
@@ -861,10 +865,10 @@ float SelectionScoring::computeScore(
    score.numAddrFactor_ = 4.0f / pow(float(addrSet.size() + 1), 2);
 
    //get trailing 0 count for change and spendval
-   auto targetVal = payStruct.spendVal_ + utxoSelect.fee_;
+   auto targetVal = payStruct.spendVal() + utxoSelect.fee_;
    auto changeVal = utxoSelect.value_ - targetVal;
    auto changeVal_zeroCount = (int)getTrailingZeroCount(changeVal);
-   auto spendVal_zeroCount = (int)getTrailingZeroCount(payStruct.spendVal_);
+   auto spendVal_zeroCount = (int)getTrailingZeroCount(payStruct.spendVal());
 
    //compute outAnonFactor
    if (changeVal == 0)
@@ -971,7 +975,7 @@ void UtxoSelection::computeSizeAndFee(
       sw = true;
    }
 
-   auto txOutSize = payStruct.size_;
+   auto txOutSize = payStruct.size();
 
    //version + locktime + txin count + txout count + txinSize + txoutSize
    unsigned txSize = 10 + txInSize + txOutSize;
@@ -982,24 +986,24 @@ void UtxoSelection::computeSizeAndFee(
    }
 
    bool forcedFee = false;
-   uint64_t compiled_fee = payStruct.fee_;
+   uint64_t compiled_fee = payStruct.fee();
    if (compiled_fee != 0)
    {
       fee_byte_ = float(compiled_fee) / float(txSize - witnessSize_ * 0.75f);
       forcedFee = true;
    }
-   else if (payStruct.fee_byte_ > 0.0f)
+   else if (payStruct.fee_byte() > 0.0f)
    {
-      compiled_fee = uint64_t(float(txSize - witnessSize_) * payStruct.fee_byte_);
-      compiled_fee += uint64_t(float(witnessSize_) * payStruct.fee_byte_ * 0.25f);
+      compiled_fee = uint64_t(float(txSize - witnessSize_) * payStruct.fee_byte());
+      compiled_fee += uint64_t(float(witnessSize_) * payStruct.fee_byte() * 0.25f);
 
-      fee_byte_ = payStruct.fee_byte_;
+      fee_byte_ = payStruct.fee_byte();
    }
 
    fee_ = compiled_fee;
 
    //figure out change + sanity check
-   uint64_t targetVal = payStruct.spendVal_ + fee_;
+   uint64_t targetVal = payStruct.spendVal() + fee_;
 
    uint64_t changeVal = value_ - targetVal;
    if (changeVal < fee_ && !forcedFee)
@@ -1015,7 +1019,7 @@ void UtxoSelection::computeSizeAndFee(
          fee_byte_ = float(compiled_fee) / float(txSize - witnessSize_ * 0.75f);
          fee_ = compiled_fee;
 
-         targetVal = payStruct.spendVal_ + compiled_fee;
+         targetVal = payStruct.spendVal() + compiled_fee;
       }
    }
    
@@ -1039,15 +1043,15 @@ void UtxoSelection::computeSizeAndFee(
    if (sw)
       size_ += 2 + witnessSize_ + utxoVec_.size();
 
-   targetVal = payStruct.spendVal_ + fee_;
+   targetVal = payStruct.spendVal() + fee_;
    changeVal = value_ - targetVal;
 
-   bool adjustFee = payStruct.flags_ & ADJUST_FEE;
+   bool adjustFee = payStruct.flags() & ADJUST_FEE;
 
       if (adjustFee && !forcedFee && changeVal > 0)
    {
       auto spendVal_ZeroCount = 
-         (int)SelectionScoring::getTrailingZeroCount(payStruct.spendVal_);
+         (int)SelectionScoring::getTrailingZeroCount(payStruct.spendVal());
 
       auto change_ZeroCount = 
          (int)SelectionScoring::getTrailingZeroCount(changeVal);
@@ -1089,25 +1093,38 @@ void UtxoSelection::shuffle()
 ////////////////////////////////////////////////////////////////////////////////
 void PaymentStruct::init()
 {
-   if (recipients_.size() == 0)
+   if (getRecipientCount() == 0)
       throw CoinSelectionException("empty recipients map");
 
    spendVal_ = 0;
    size_ = 0;
 
-   for (auto& recipient : recipients_)
+   for (const auto& group : recipients_)
    {
-      auto rcVal = recipient.second->getValue();
-      if (rcVal == 0)
+      for (auto& recipient : group.second)
       {
-         auto rc_opreturn = 
-            dynamic_pointer_cast<Recipient_OPRETURN>(recipient.second);
+         auto rcVal = recipient->getValue();
+         if (rcVal == 0)
+         {
+            auto rc_opreturn = 
+               dynamic_pointer_cast<Recipient_OPRETURN>(recipient);
 
-         if (rc_opreturn == nullptr)
-            throw CoinSelectionException("recipient has null value");
+            if (rc_opreturn == nullptr)
+               throw CoinSelectionException("recipient has null value");
+         }
+
+         spendVal_ += rcVal;
+         size_ += recipient->getSize();
       }
-
-      spendVal_ += rcVal;
-      size_ += recipient.second->getSize();
    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+size_t PaymentStruct::getRecipientCount() const
+{
+   size_t count = 0;
+   for (const auto& group : recipients_)
+      count += group.second.size();
+   
+   return count;
 }

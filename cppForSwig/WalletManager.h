@@ -31,7 +31,10 @@ struct CoinSelectionInstance
 private:
    CoinSelection cs_;
 
-   std::map<unsigned, std::shared_ptr<ArmorySigner::ScriptRecipient>> recipients_;
+   using RecipientMap = std::map<unsigned, 
+      std::vector<std::shared_ptr<ArmorySigner::ScriptRecipient>>>;
+   
+   RecipientMap recipients_;
    UtxoSelection selection_;
    std::shared_ptr<AssetWallet> const walletPtr_;
 
@@ -63,11 +66,7 @@ public:
    void updateOpReturnRecipient(unsigned, const BinaryData&);
    void removeRecipient(unsigned);
    void resetRecipients(void);
-   const std::map<unsigned, std::shared_ptr<ArmorySigner::ScriptRecipient>>& 
-   getRecipients(void) const 
-   {
-      return recipients_;
-   }
+   const RecipientMap& getRecipients(void) const { return recipients_; }
 
    bool selectUTXOs(uint64_t fee, float fee_byte, unsigned flags);
    void processCustomUtxoList(
