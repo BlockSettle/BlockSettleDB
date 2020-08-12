@@ -443,6 +443,16 @@ public:
    uint64_t getTotalInputsValue(void) const;
    uint64_t getTotalOutputsValue(void) const;
 
+   //resets
+   void clearSpenders(void) { spenders_.clear(); }
+   void clearRecipients(void) { recipients_.clear(); }
+   void clear(void)
+   {
+      clearSpenders();
+      clearRecipients();
+      resetFeed();
+   }
+
    /*
    Message signing: get resolver for wallet holding the private key
    and lock it before calling signMessage. verifyMessageSignature
