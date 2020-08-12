@@ -145,6 +145,7 @@ public:
 
    uint64_t spendVal(void) const { return spendVal_; }
    size_t size(void) const { return size_; }
+   void addToSize(size_t val) { size_ += val; }
 
    uint32_t flags(void) const { return flags_; }
 };
