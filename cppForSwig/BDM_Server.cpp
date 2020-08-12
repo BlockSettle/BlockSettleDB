@@ -3272,7 +3272,10 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       const auto& walletId = message->walletid();
       auto wltPtr = bdvPtr->getWalletOrLockbox(walletId);
       if (wltPtr == nullptr)
-         throw runtime_error("missing wallet for this id");
+      {
+         LOGWARN << "trying to unregister unknown wallet";
+         break;
+      }
 
       //are we unregistering a whole wallet or just some addresses?
       bool unregisterWallet = false;
