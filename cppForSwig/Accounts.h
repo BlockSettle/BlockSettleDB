@@ -464,9 +464,6 @@ public:
    std::shared_ptr<AssetEntry> getAssetForID(const BinaryData&) const;
    std::shared_ptr<AssetEntry> getAssetForIndex(unsigned id) const;
 
-   // temporary moved from private to public session to allow the build of old code
-   void extendPublicChain(unsigned);
-
    void updateAddressHashMap(const std::set<AddressEntryType>&);
    const std::map<BinaryData, std::map<AddressEntryType, BinaryData>>&
       getAddressHashMap(const std::set<AddressEntryType>&);
