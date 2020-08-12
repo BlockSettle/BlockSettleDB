@@ -277,6 +277,8 @@ public:
 class Signer : public TransactionStub
 {
    friend class SignerProxyFromSigner;
+   using RecipientMap = 
+      std::map<unsigned, std::vector<std::shared_ptr<ScriptRecipient>>>;
 
 protected:
    unsigned version_ = 1;
@@ -287,8 +289,7 @@ protected:
    mutable BinaryData serializedOutputs_;
 
    std::vector<std::shared_ptr<ScriptSpender>> spenders_;
-   std::map<unsigned, std::vector<
-      std::shared_ptr<ScriptRecipient>>> recipients_;
+   RecipientMap recipients_;
 
    std::shared_ptr<ResolverFeed> resolverPtr_;
    std::shared_ptr<std::map<BinaryData, Tx>> supportingTxMap_;
@@ -425,6 +426,7 @@ public:
    void addRecipient(std::shared_ptr<ScriptRecipient>);
    void addRecipient(std::shared_ptr<ScriptRecipient>, unsigned);
    std::vector<std::shared_ptr<ScriptRecipient>> getRecipientVector(void) const;
+   const RecipientMap& getRecipientMap(void) const { return recipients_; }
 
    //counts
    uint32_t getTxInCount(void) const { return spenders_.size(); }
