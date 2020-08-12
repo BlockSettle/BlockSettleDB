@@ -2295,10 +2295,10 @@ Signer::Signer(const Codec_SignerState::SignerState& protoMsg) :
 ////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef Signer::getSerializedOutputScripts(void) const
 {
-   if (serializedOutputs_.getSize() == 0)
+   if (serializedOutputs_.empty())
    {
       BinaryWriter bw;
-      for (auto& recipient : recipients_)
+      for (auto& recipient : getRecipientVector())
       {
          auto&& serializedOutput = recipient->getSerializedScript();
          bw.put_BinaryData(serializedOutput);
@@ -2427,7 +2427,8 @@ void Signer::sign(void)
    if (spenders_.size() == 0)
       throw runtime_error("tx has no spenders");
 
-   if (recipients_.size() == 0)
+   auto recVector = getRecipientVector();
+   if (recVector.size() == 0)
       throw runtime_error("tx has no recipients");
 
    /*
@@ -2442,8 +2443,8 @@ void Signer::sign(void)
          inputVal += spenders_[i]->getValue();
 
       uint64_t spendVal = 0;
-      for (unsigned i=0; i<recipients_.size(); i++)
-         spendVal += recipients_[i]->getValue();
+      for (auto& recipient : recVector)
+         spendVal += recipient->getValue();
 
       if (inputVal < spendVal)
          throw runtime_error("invalid spendVal");
@@ -2510,9 +2511,9 @@ void Signer::resolvePublicData()
    if (resolverPtr_ == nullptr)
       return;
 
-   for (unsigned i=0; i < recipients_.size(); i++)
+   for (auto& recipient : getRecipientVector())
    {
-      const auto& serializedOutput = recipients_[i]->getSerializedScript();
+      const auto& serializedOutput = recipient->getSerializedScript();
       BinaryRefReader brr(serializedOutput);
       brr.advance(8);
       auto len = brr.get_var_int();
@@ -2528,7 +2529,7 @@ void Signer::resolvePublicData()
             if (!bip32path.isValid())
                continue;
 
-            recipients_[i]->addBip32Path(bip32path);
+            recipient->addBip32Path(bip32path);
          }
          catch (const exception&)
          {
@@ -2574,10 +2575,11 @@ shared_ptr<ScriptSpender> Signer::getSpender(unsigned index) const
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<ScriptRecipient> Signer::getRecipient(unsigned index) const
 {
-   if (index > recipients_.size())
+   auto recVector = getRecipientVector();
+   if (index > recVector.size())
       throw ScriptException("invalid spender index");
 
-   return recipients_[index];
+   return recVector[index];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2609,12 +2611,13 @@ BinaryDataRef Signer::serializeSignedTx(void) const
       bw.put_BinaryData(spender->getSerializedInput(true));
 
    //txout count
-   if (recipients_.size() == 0)
+   auto recVector = getRecipientVector();
+   if (recVector.size() == 0)
       throw runtime_error("no recipients");
-   bw.put_var_int(recipients_.size());
+   bw.put_var_int(recVector.size());
 
    //txouts
-   for (auto& recipient : recipients_)
+   for (auto& recipient : recVector)
       bw.put_BinaryData(recipient->getSerializedScript());
 
    if (isSW)
@@ -2675,16 +2678,17 @@ BinaryDataRef Signer::serializeUnsignedTx(bool loose)
       bw.put_BinaryData(spender->getSerializedInput(false));
 
    //txout count
-   if (recipients_.size() == 0)
+   auto recVector = getRecipientVector();
+   if (recVector.size() == 0)
    {
       if (!loose)
          throw runtime_error("no recipients");
    }
 
-   bw.put_var_int(recipients_.size());
+   bw.put_var_int(recVector.size());
 
    //txouts
-   for (auto& recipient : recipients_)
+   for (auto& recipient : recVector)
       bw.put_BinaryData(recipient->getSerializedScript());
 
    //no witness data for unsigned transactions
@@ -2731,10 +2735,11 @@ BinaryData Signer::serializeAvailableResolvedData(void) const
       bw.put_BinaryData(spender->serializeAvailableStack());
 
    //txout count
-   bw.put_var_int(recipients_.size());
+   auto recVector = getRecipientVector();
+   bw.put_var_int(recVector.size());
 
    //txouts
-   for (auto& recipient : recipients_)
+   for (auto& recipient : recVector)
       bw.put_BinaryData(recipient->getSerializedScript());
 
    if (isSW)
@@ -2889,10 +2894,13 @@ Codec_SignerState::SignerState Signer::serializeState() const
       spender->serializeState(*spenderProto);
    }
 
-   for (auto& recipient : recipients_)
+   for (auto& group : recipients_)
    {
-      auto recMsgPtr = protoMsg.add_recipients();
-      recipient->toProtobuf(*recMsgPtr);
+      for (auto& recipient : group.second)
+      {
+         auto recMsgPtr = protoMsg.add_recipients();
+         recipient->toProtobuf(*recMsgPtr, group.first);
+      }
    }
 
    if (supportingTxMap_ != nullptr)
@@ -2960,8 +2968,9 @@ Signer Signer::createFromState(const Codec_SignerState::SignerState& protoMsg)
 
    for (unsigned i = 0; i < protoMsg.recipients_size(); i++)
    {
+      const auto& recipientMsg = protoMsg.recipients(i);
       auto recipientPtr = ScriptRecipient::fromProtobuf(protoMsg.recipients(i));
-      signer.recipients_.push_back(recipientPtr);
+      signer.addRecipient(recipientPtr, recipientMsg.groupid());
    }
 
    signer.deserializeSupportingTxMap(protoMsg);
@@ -3016,11 +3025,16 @@ void Signer::merge(const Signer& rhs)
       return nullptr;
    };
 
-   auto find_recipient = [this](shared_ptr<ScriptRecipient> obj)->
+   auto find_recipient = [this](
+      shared_ptr<ScriptRecipient> obj, unsigned groupid)->
       shared_ptr<ScriptRecipient>
    {
+      auto groupIter = this->recipients_.find(groupid);
+      if (groupIter == this->recipients_.end())
+         return nullptr;
+
       auto& scriptHash = obj->getSerializedScript();
-      for (auto rec : this->recipients_)
+      for (auto& rec : groupIter->second)
       {
          if (scriptHash == rec->getSerializedScript())
             return rec;
@@ -3070,14 +3084,17 @@ void Signer::merge(const Signer& rhs)
    As with spenders, new recipients are pushed back.
    */
 
-   for (auto& recipient : rhs.recipients_)
+   for (auto& group : rhs.recipients_)
    {
-      auto local_recipient = find_recipient(recipient);
+      for (auto& recipient : group.second)
+      {
+         auto local_recipient = find_recipient(recipient, group.first);
 
-      if (local_recipient == nullptr)
-         recipients_.push_back(recipient);
-      else 
-         local_recipient->merge(recipient);
+         if (local_recipient == nullptr)
+            addRecipient(recipient, group.first);
+         else
+            local_recipient->merge(recipient);
+      }
    }
 
    //merge bip32 roots
@@ -3187,8 +3204,9 @@ BinaryData Signer::getTxId_const() const
    }
 
    //outputs
-   bw.put_var_int(recipients_.size());
-   for (auto recipient : recipients_)
+   auto recipientVec = getRecipientVector();
+   bw.put_var_int(recipientVec.size());
+   for (auto recipient : recipientVec)
       bw.put_BinaryData(recipient->getSerializedScript());
 
    //locktime
@@ -3230,6 +3248,52 @@ void Signer::addSpender(std::shared_ptr<ScriptSpender> ptr)
 
    ptr->setTxMap(supportingTxMap_);
    spenders_.emplace_back(ptr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::addRecipient(shared_ptr<ScriptRecipient> rec)
+{
+   addRecipient(rec, DEFAULT_RECIPIENT_GROUP);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::addRecipient(shared_ptr<ScriptRecipient> rec, unsigned groupId)
+{
+   //do not tolerate recipient duplication within a same group
+   auto iter = recipients_.find(groupId);
+   if (iter == recipients_.end())
+   {
+      auto insertIter = recipients_.emplace(
+         groupId, vector<shared_ptr<ScriptRecipient>>());
+
+      iter = insertIter.first;
+   }
+
+   auto& recVector = iter->second;
+
+   for (const auto& recFromVector : recVector)
+   {
+      if (recFromVector->isSame(*rec))
+      {
+         throw runtime_error(
+            "recipient duplication is not tolerated within groups");
+      }
+   }
+
+   recVector.emplace_back(rec);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<shared_ptr<ScriptRecipient>> Signer::getRecipientVector() const
+{
+   vector<shared_ptr<ScriptRecipient>> result;
+   for (auto& group : recipients_)
+   {
+      for (auto& rec : group.second)
+         result.emplace_back(rec);
+   }
+
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3314,10 +3378,11 @@ BinaryData Signer::toPSBT() const
          bw.put_BinaryData(spender->serializeEmptyInput());
 
       //txout count
-      bw.put_var_int(recipients_.size());
+      auto recVector = getRecipientVector();
+      bw.put_var_int(recVector.size());
 
       //txouts
-      for (auto& recipient : recipients_)
+      for (auto& recipient : recVector)
          bw.put_BinaryData(recipient->getSerializedScript());
 
       //lock time
@@ -3349,7 +3414,7 @@ BinaryData Signer::toPSBT() const
       spender->toPSBT(bw);
 
    /*outputs*/
-   for (auto recipient : recipients_)
+   for (auto recipient : getRecipientVector())
       recipient->toPSBT(bw);
 
    //return
@@ -3582,10 +3647,23 @@ uint64_t Signer::getTotalInputsValue(void) const
 uint64_t Signer::getTotalOutputsValue(void) const
 {
    uint64_t val = 0;
-   for (auto& recip : recipients_)
-      val += val;
+   for (const auto& group : recipients_)
+   {
+      for (const auto& recipient : group.second)
+         val += recipient->getValue();
+   }
 
    return val;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint32_t Signer::getTxOutCount() const
+{
+   uint32_t count = 0;
+   for (const auto& group : recipients_)
+      count += group.second.size();
+
+   return count;   
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3615,6 +3693,22 @@ void Signer::matchAssetPathsWithRoots()
          pathPair.second.setRoot(iter->second);
       }
    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData Signer::signMessage(
+   const BinaryData&,
+   const BinaryData&,
+   std::shared_ptr<ResolverFeed>)
+{
+   throw runtime_error("TODO: implement me");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool Signer::verifyMessageSignature(
+   const BinaryData&, const BinaryData&)
+{
+   throw runtime_error("TODO: implement me");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -596,8 +596,11 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
 
       //add recipients to signer
       auto& csRecipients = csi.getRecipients();
-      for (auto& csRec : csRecipients)
-         signer2.addRecipient(csRec.second);
+      for (const auto& group : csRecipients)
+      {
+         for (const auto& recipient : group.second)
+            signer2.addRecipient(recipient, group.first);
+      }
 
       if (total > spendVal)
       {
@@ -720,8 +723,11 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
 
       //add recipients to signer
       auto& csRecipients = csi.getRecipients();
-      for (auto& csRec : csRecipients)
-         signer3.addRecipient(csRec.second);
+      for (const auto& group : csRecipients)
+      {
+         for (const auto& recipient : group.second)
+            signer3.addRecipient(recipient, group.first);
+      }
 
       EXPECT_EQ(total, spendVal + feeVal2);
 

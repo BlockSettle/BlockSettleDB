@@ -22,6 +22,7 @@
 
 #define SCRIPT_SPENDER_VERSION_MAX 1
 #define SCRIPT_SPENDER_VERSION_MIN 0
+#define DEFAULT_RECIPIENT_GROUP 0xFFFFFFFF
 
 namespace ArmorySigner
 {
@@ -164,6 +165,12 @@ public:
       utxo_(utxo)
    {}
 
+   ScriptSpender(const ScriptSpender& ss)
+   {
+      outpoint_ = ss.getOutpoint();
+      merge(ss);
+   }
+
    virtual ~ScriptSpender() = default;
 
    bool isP2SH(void) const { return isP2SH_; }
@@ -280,7 +287,8 @@ protected:
    mutable BinaryData serializedOutputs_;
 
    std::vector<std::shared_ptr<ScriptSpender>> spenders_;
-   std::vector<std::shared_ptr<ScriptRecipient>> recipients_;
+   std::map<unsigned, std::vector<
+      std::shared_ptr<ScriptRecipient>>> recipients_;
 
    std::shared_ptr<ResolverFeed> resolverPtr_;
    std::shared_ptr<std::map<BinaryData, Tx>> supportingTxMap_;
@@ -413,13 +421,14 @@ public:
    virtual void addSpender_ByOutpoint(
       const BinaryData& hash, unsigned index, unsigned sequence);
    
-   //recipient setup
-   void addRecipient(std::shared_ptr<ScriptRecipient> recipient)
-   { recipients_.push_back(recipient); }
+   //recipients
+   void addRecipient(std::shared_ptr<ScriptRecipient>);
+   void addRecipient(std::shared_ptr<ScriptRecipient>, unsigned);
+   std::vector<std::shared_ptr<ScriptRecipient>> getRecipientVector(void) const;
 
    //counts
    uint32_t getTxInCount(void) const { return spenders_.size(); }
-   uint32_t getTxOutCount(void) const override { return recipients_.size(); }
+   uint32_t getTxOutCount(void) const override;
  
    //feeds setup
    void setFeed(std::shared_ptr<ResolverFeed> feedPtr) 
@@ -434,6 +443,30 @@ public:
    //values
    uint64_t getTotalInputsValue(void) const;
    uint64_t getTotalOutputsValue(void) const;
+
+   //resets
+   void clearSpenders(void) { spenders_.clear(); }
+   void clearRecipients(void) { recipients_.clear(); }
+   void clear(void)
+   {
+      clearSpenders();
+      clearRecipients();
+      resetFeed();
+   }
+
+   /*
+   Message signing: get resolver for wallet holding the private key
+   and lock it before calling signMessage. verifyMessageSignature
+   can be called anytime.
+   */
+   static BinaryData signMessage(
+      const BinaryData& message,
+      const BinaryData& pubkey,
+      std::shared_ptr<ResolverFeed> walletResolver);
+
+   static bool verifyMessageSignature(
+      const BinaryData& message,
+      const BinaryData& pubkey);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
