@@ -189,8 +189,7 @@ public:
    BinaryDataRef getOutputHash(void) const;
    unsigned getOutputIndex(void) const;
    BinaryData getSerializedInput(bool) const;
-   BinaryData serializeEmptyInput(void) const;
-   BinaryData serializeAvailableStack(void) const;
+   BinaryData getEmptySerializedInput(void) const;
    BinaryDataRef getFinalizedWitnessData(void) const;
    BinaryData serializeAvailableWitnessData(void) const;
    BinaryDataRef getOutpoint(void) const;
