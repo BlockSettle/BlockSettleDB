@@ -469,37 +469,11 @@ BinaryData ScriptSpender::getSerializedInput(bool withSig) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData ScriptSpender::serializeEmptyInput() const
+BinaryData ScriptSpender::getEmptySerializedInput() const
 {
    BinaryWriter bw;
    bw.put_BinaryData(getSerializedOutpoint());
    bw.put_uint8_t(0);
-   bw.put_uint32_t(sequence_);
-
-   return bw.getData();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryData ScriptSpender::serializeAvailableStack() const
-{
-   try
-   {
-      return getSerializedInput(false);
-   }
-   catch (exception&)
-   {}
-
-   vector<shared_ptr<StackItem>> stack;
-   for (auto& stack_item : legacyStack_)
-      stack.push_back(stack_item.second);
-
-   auto&& serialized_script = serializeScript(stack, true);
-
-   BinaryWriter bw;
-   bw.put_BinaryData(getSerializedOutpoint());
-
-   bw.put_var_int(serialized_script.getSize());
-   bw.put_BinaryData(serialized_script);
    bw.put_uint32_t(sequence_);
 
    return bw.getData();
@@ -2732,7 +2706,16 @@ BinaryData Signer::serializeAvailableResolvedData(void) const
 
    //txins
    for (auto& spender : spenders_)
-      bw.put_BinaryData(spender->serializeAvailableStack());
+   {
+      try
+      {
+         bw.put_BinaryData(spender->getSerializedInput(false));
+      }
+      catch (const exception&)
+      {
+         bw.put_BinaryData(spender->getEmptySerializedInput());
+      }
+   }
 
    //txout count
    auto recVector = getRecipientVector();
@@ -3375,7 +3358,7 @@ BinaryData Signer::toPSBT() const
 
       //txins
       for (auto& spender : spenders_)
-         bw.put_BinaryData(spender->serializeEmptyInput());
+         bw.put_BinaryData(spender->getEmptySerializedInput());
 
       //txout count
       auto recVector = getRecipientVector();
