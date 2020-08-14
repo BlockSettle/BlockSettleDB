@@ -7,8 +7,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "ScriptRecipient.h"
+#include "TxClasses.h"
+#include "Signer.h"
 
 using namespace std;
+using namespace ArmorySigner;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -19,12 +22,11 @@ ScriptRecipient::~ScriptRecipient()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<ScriptRecipient> ScriptRecipient::deserialize(
-   const BinaryDataRef& dataPtr)
+shared_ptr<ScriptRecipient> ScriptRecipient::fromScript(BinaryDataRef dataRef)
 {
    shared_ptr<ScriptRecipient> result_ptr;
 
-   BinaryRefReader brr(dataPtr);
+   BinaryRefReader brr(dataRef);
 
    auto value = brr.get_uint64_t();
    auto script = brr.get_BinaryDataRef(brr.getSizeRemaining());
@@ -79,11 +81,155 @@ shared_ptr<ScriptRecipient> ScriptRecipient::deserialize(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptRecipient> ScriptRecipient::fromPSBT(
+   BinaryRefReader& brr, const TxOut& txout)
+{
+   auto globalDataPairs = BtcUtils::getPSBTDataPairs(brr);
+   map<BinaryData, BIP32_AssetPath> bip32Paths;
+   std::map<BinaryData, BinaryData> prioprietaryPSBTData;
+
+   for (const auto& dataPair : globalDataPairs)
+   {
+      const auto& key = dataPair.first;
+      const auto& val = dataPair.second;
+      
+      //key type
+      auto typePtr = key.getPtr();
+
+      switch (*typePtr)
+      {
+      case ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION:
+      {
+         auto assetPath = BIP32_AssetPath::fromPSBT(key, val);
+         auto insertIter = bip32Paths.emplace(
+            assetPath.getPublicKey(), move(assetPath));
+
+         if (!insertIter.second)
+            throw ArmorySigner::PSBTDeserializationError("txout pubkey collision");
+
+         break;
+      }
+
+      case ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_PROPRIETARY:
+      {
+         prioprietaryPSBTData.emplace(
+            key.getSliceRef(1, key.getSize() - 1), val);
+         break;
+      }
+
+      default: 
+         throw ArmorySigner::PSBTDeserializationError("unexpected txout key");
+      }
+   }
+
+   auto scriptRecipient = ScriptRecipient::fromScript(txout.serializeRef());
+   scriptRecipient->bip32Paths_ = move(bip32Paths);
+   scriptRecipient->prioprietaryPSBTData_ = move(prioprietaryPSBTData);
+
+   return scriptRecipient;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptRecipient::toPSBT(BinaryWriter& bw) const
+{
+   for (auto& bip32Path : bip32Paths_)
+   {
+      bw.put_uint8_t(34); //key length
+      bw.put_uint8_t( //key type
+         ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION);
+      bw.put_BinaryData(bip32Path.first);
+
+      //path
+      bip32Path.second.toPSBT(bw);
+   }
+
+   for (auto& data : prioprietaryPSBTData_)
+   {
+      //key
+      bw.put_var_int(data.first.getSize() + 1);
+      bw.put_uint8_t(
+         ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_PROPRIETARY);
+      bw.put_BinaryData(data.first);
+
+      //val
+      bw.put_var_int(data.second.getSize());
+      bw.put_BinaryData(data.second);
+   }
+         
+   //terminate
+   bw.put_uint8_t(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptRecipient::toProtobuf(
+   Codec_SignerState::RecipientState& protoMsg, unsigned group) const
+{ 
+   const auto& script = getSerializedScript();
+   protoMsg.set_data(script.getPtr(), script.getSize());
+   protoMsg.set_groupid(group);
+   
+   for (auto& keyPair : bip32Paths_)
+   {
+      auto pathPtr = protoMsg.add_bip32paths();
+      keyPair.second.toProtobuf(*pathPtr);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptRecipient> ScriptRecipient::fromProtobuf(
+   const Codec_SignerState::RecipientState& protoMsg)
+{
+   BinaryDataRef scriptRef;
+   scriptRef.setRef(protoMsg.data());
+   auto recipient = fromScript(scriptRef);
+
+   for (unsigned i=0; i<protoMsg.bip32paths_size(); i++)
+   {
+      auto path = BIP32_AssetPath::fromProtobuf(protoMsg.bip32paths(i));
+      recipient->addBip32Path(path);
+   }
+
+   return recipient;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptRecipient::addBip32Path(const BIP32_AssetPath& bip32Path)
+{
+   auto insertIter = bip32Paths_.emplace(bip32Path.getPublicKey(), bip32Path);
+   if (!insertIter.second)
+   {
+      if (insertIter.first->second != bip32Path)
+         throw ScriptRecipientException("bip32Path conflict");
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptRecipient::merge(shared_ptr<ScriptRecipient> recipientPtr)
+{
+   if (type_ != recipientPtr->type_ || 
+      value_ != recipientPtr->value_)
+      throw ScriptRecipientException("recipient mismatch");
+
+   serialize();
+   recipientPtr->serialize();
+   if (script_ != recipientPtr->script_)
+      throw ScriptRecipientException("recipient mismatch");
+
+   bip32Paths_.insert(
+      recipientPtr->bip32Paths_.begin(),
+      recipientPtr->bip32Paths_.end());
+
+   prioprietaryPSBTData_.insert(
+      recipientPtr->prioprietaryPSBTData_.begin(),
+      recipientPtr->prioprietaryPSBTData_.end());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 //
 // Recipient_P2PKH
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_P2PKH::serialize()
+void Recipient_P2PKH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
@@ -106,7 +252,7 @@ size_t Recipient_P2PKH::getSize() const
 // Recipient_P2PK
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_P2PK::serialize()
+void Recipient_P2PK::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
@@ -130,7 +276,7 @@ size_t Recipient_P2PK::getSize() const
 // Recipient_P2WPKH
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_P2WPKH::serialize()
+void Recipient_P2WPKH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
@@ -154,7 +300,7 @@ size_t Recipient_P2WPKH::getSize() const
 // Recipient_P2SH
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_P2SH::serialize()
+void Recipient_P2SH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
@@ -178,7 +324,7 @@ size_t Recipient_P2SH::getSize() const
 // Recipient_P2WSH
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_P2WSH::serialize()
+void Recipient_P2WSH::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(getValue());
@@ -202,7 +348,7 @@ size_t Recipient_P2WSH::getSize() const
 // Recipient_OPRETURN
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_OPRETURN::serialize()
+void Recipient_OPRETURN::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint64_t(0);
@@ -247,7 +393,7 @@ size_t Recipient_OPRETURN::getSize() const
 // Recipient_Universal
 //
 ////////////////////////////////////////////////////////////////////////////////
-void Recipient_Universal::serialize()
+void Recipient_Universal::serialize() const
 {
    if (script_.getSize() != 0)
       return;

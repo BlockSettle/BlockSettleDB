@@ -15,6 +15,7 @@
 #endif
 
 using namespace std;
+using namespace ArmorySigner;
 
 #define WALLET_135_HEADER "\xbaWALLET\x00"
 #define PYBTC_ADDRESS_SIZE 237
@@ -583,7 +584,10 @@ void CoinSelectionInstance::addRecipient(
 {
    if (hash.getSize() == 0)
       throw CoinSelectionException("empty script hash");
-   recipients_.insert(make_pair(id, createRecipient(hash, value)));
+   
+   vector<shared_ptr<ScriptRecipient>> recVec;
+   recVec.emplace_back(createRecipient(hash, value));
+   recipients_.emplace(id, move(recVec));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -642,9 +646,15 @@ void CoinSelectionInstance::updateOpReturnRecipient(
    recipients_.erase(id);
 
    auto recipient = make_shared<Recipient_OPRETURN>(message);
-   recipients_.insert(make_pair(id, recipient));
+   auto iter = recipients_.find(id);
+   if (iter == recipients_.end())
+   {
+      LOGERR << "missing op return recipient";
+      throw runtime_error("missing op return recipient");
+   }
+   iter->second.clear();
+   iter->second.emplace_back(recipient);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 void CoinSelectionInstance::removeRecipient(unsigned id)
@@ -662,8 +672,11 @@ void CoinSelectionInstance::resetRecipients()
 uint64_t CoinSelectionInstance::getSpendVal() const
 {
    uint64_t total = 0;
-   for (auto& recPair : recipients_)
-      total += recPair.second->getValue();
+   for (const auto& group : recipients_)
+   {
+      for (const auto& recipient : group.second)
+         total += recipient->getValue();
+   }
 
    return total;
 }
@@ -700,8 +713,11 @@ uint64_t CoinSelectionInstance::getFeeForMaxValUtxoVector(
    const vector<BinaryData>& serializedUtxos, float fee_byte)
 {
    auto txoutsize = 0;
-   for (auto& rec : recipients_)
-      txoutsize += rec.second->getSize();
+   for (const auto& group : recipients_)
+   {
+      for (const auto& recipient : group.second)
+         txoutsize += recipient->getSize();
+   }
 
    vector<UTXO> utxoVec;
    if (serializedUtxos.size() > 0)

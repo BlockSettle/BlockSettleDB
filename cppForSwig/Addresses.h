@@ -12,9 +12,9 @@
 #include <memory>
 
 #include "BinaryData.h"
-#include "ScriptRecipient.h"
 #include "Assets.h"
 #include "BlockDataManagerConfig.h"
+#include "ScriptRecipient.h"
 
 class AddressException : public std::runtime_error
 {
@@ -68,7 +68,7 @@ public:
    virtual const BinaryData& getID(void) const = 0;
 
    virtual const std::string& getAddress() const = 0;
-   virtual std::shared_ptr<ScriptRecipient> getRecipient(uint64_t) const = 0;
+   virtual std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(uint64_t) const = 0;
    
    virtual const BinaryData& getHash(void) const = 0;
    virtual const BinaryData& getPrefixedHash(void) const = 0;
@@ -131,7 +131,8 @@ public:
    const BinaryData& getHash(void) const;
    const BinaryData& getPreimage(void) const;
 
-   std::shared_ptr<ScriptRecipient> getRecipient(uint64_t) const;
+   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+      uint64_t) const override;
    const BinaryData& getScript(void) const;
 
    //size (accounts for outpoint and sequence)
@@ -160,7 +161,8 @@ public:
    const BinaryData& getPrefixedHash(void) const;
    const BinaryData& getPreimage(void) const;
 
-   std::shared_ptr<ScriptRecipient> getRecipient(uint64_t) const;
+   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+      uint64_t) const override;
    const BinaryData& getScript(void) const;
 
    //size (accounts for outpoint and sequence)
@@ -189,7 +191,8 @@ public:
    const BinaryData& getPrefixedHash(void) const;
    const BinaryData& getPreimage(void) const;
 
-   std::shared_ptr<ScriptRecipient> getRecipient(uint64_t) const;
+   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+      uint64_t) const override;
    const BinaryData& getScript(void) const;
 
    //size (accounts for outpoint and sequence)
@@ -219,7 +222,8 @@ public:
    const BinaryData& getPrefixedHash(void) const;
    const BinaryData& getPreimage(void) const;
 
-   std::shared_ptr<ScriptRecipient> getRecipient(uint64_t) const;
+   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+      uint64_t) const override;
    const BinaryData& getScript(void) const;
 
    //size (accounts for outpoint and sequence)
@@ -267,7 +271,8 @@ public:
    const BinaryData& getPreimage(void) const;
    
    const BinaryData& getScript(void) const;
-   std::shared_ptr<ScriptRecipient> getRecipient(uint64_t) const;
+   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+      uint64_t) const override;
 
    AddressEntryType getType(void) const;
 
@@ -302,7 +307,8 @@ public:
    const BinaryData& getPreimage(void) const;
 
    const BinaryData& getScript(void) const;
-   std::shared_ptr<ScriptRecipient> getRecipient(uint64_t) const;
+   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+      uint64_t) const override;
 
    AddressEntryType getType(void) const;
 

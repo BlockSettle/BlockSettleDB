@@ -11,10 +11,11 @@
 #include "Transactions.h"
 #include "make_unique.h"
 
-using namespace std;
+#include "BIP32_Node.h"
+#include "Assets.h"
 
-#define SCRIPT_SPENDER_VERSION_MAX 1
-#define SCRIPT_SPENDER_VERSION_MIN 0
+using namespace std;
+using namespace ArmorySigner;
 
 StackItem::~StackItem()
 {}
@@ -24,12 +25,30 @@ StackItem::~StackItem()
 //// ScriptSpender
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef ScriptSpender::getOutputScript() const
+const UTXO& ScriptSpender::getUtxo() const
 {
    if (!utxo_.isInitialized())
-      throw runtime_error("missing utxo");
+   {
+      if (!haveSupportingTx())
+         throw SpenderException("missing both utxo & supporting tx");
+      
+      utxo_.txHash_ = getOutputHash();
+      utxo_.txOutIndex_ = getOutputIndex();
 
-   return utxo_.getScript();
+      const auto& supportingTx = getSupportingTx();
+      auto opId = getOutputIndex();
+      auto txOutCopy = supportingTx.getTxOutCopy(opId);
+      utxo_.unserializeRaw(txOutCopy.serializeRef());
+   }
+
+   return utxo_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryDataRef ScriptSpender::getOutputScript() const
+{
+   const auto& utxo = getUtxo();
+   return utxo.getScript();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +58,7 @@ BinaryDataRef ScriptSpender::getOutputHash() const
       return utxo_.getTxHash();
 
    if (outpoint_.getSize() != 36)
-      throw runtime_error("missing utxo");
+      throw SpenderException("missing utxo");
 
    BinaryRefReader brr(outpoint_);
    return brr.get_BinaryDataRef(32);
@@ -52,7 +71,7 @@ unsigned ScriptSpender::getOutputIndex() const
       return utxo_.getTxOutIndex();
    
    if (outpoint_.getSize() != 36)
-      throw runtime_error("missing utxo");
+      throw SpenderException("missing utxo");
 
    BinaryRefReader brr(outpoint_);
    brr.advance(32);
@@ -134,8 +153,8 @@ BinaryData ScriptSpender::serializeScript(
          }
 
          bwStack.put_BinaryData(
-            BtcUtils::getPushDataHeader(stackItem_sig->data_));
-         bwStack.put_BinaryData(stackItem_sig->data_);
+            BtcUtils::getPushDataHeader(stackItem_sig->sig_));
+         bwStack.put_BinaryData(stackItem_sig->sig_);
          break;
       }
 
@@ -257,8 +276,8 @@ BinaryData ScriptSpender::serializeWitnessData(
             break;
          }
 
-         bwStack.put_var_int(stackItem_sig->data_.getSize());
-         bwStack.put_BinaryData(stackItem_sig->data_);
+         bwStack.put_var_int(stackItem_sig->sig_.getSize());
+         bwStack.put_BinaryData(stackItem_sig->sig_);
          break;
       }
 
@@ -321,7 +340,7 @@ BinaryData ScriptSpender::serializeWitnessData(
 ////////////////////////////////////////////////////////////////////////////////
 bool ScriptSpender::isResolved() const
 {
-   if (!utxo_.isInitialized())
+   if (!canBeResolved())
       return false;
 
    if (!isSegWit())
@@ -353,7 +372,7 @@ bool ScriptSpender::isSigned() const
    legacy: empty, SW: signed
    legacy: resolved, SW: signed
    */
-   if (!utxo_.isInitialized())
+   if (!canBeResolved())
       return false;
 
    if (!isSegWit())
@@ -393,17 +412,17 @@ BinaryData ScriptSpender::getSerializedOutpoint() const
    }
 
    if (outpoint_.getSize() != 36)
-      throw ScriptException("missing outpoint");
+      throw SpenderException("missing outpoint");
 
    return outpoint_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData ScriptSpender::getSerializedInputScript() const
+BinaryData ScriptSpender::getAvailableInputScript() const
 {
    //if we have a serialized script already, return that
-   if (!inputScript_.empty())
-      return inputScript_;
+   if (!finalInputScript_.empty())
+      return finalInputScript_;
       
    //otherwise, serialize it from the stack
    vector<shared_ptr<StackItem>> stack;
@@ -417,7 +436,7 @@ BinaryData ScriptSpender::getSerializedInput(bool withSig) const
 {
    if (legacyStatus_ == SpenderStatus_Unknown)
    {
-      throw ScriptException("unresolved spender");
+      throw SpenderException("unresolved spender");
    }
 
    if (withSig)
@@ -425,19 +444,19 @@ BinaryData ScriptSpender::getSerializedInput(bool withSig) const
       if (!isSegWit())
       {
          if (legacyStatus_ != SpenderStatus_Signed)
-            throw ScriptException("spender is missing sigs");        
+            throw SpenderException("spender is missing sigs");        
       }
       else
       {
          if (legacyStatus_ != SpenderStatus_Empty && 
             legacyStatus_ != SpenderStatus_Resolved)
          {
-            throw ScriptException("invalid legacy state for sw spender");                   
+            throw SpenderException("invalid legacy state for sw spender");                   
          }
       }
    }
    
-   auto serializedScript = getSerializedInputScript();
+   auto serializedScript = getAvailableInputScript();
 
    BinaryWriter bw;
    bw.put_BinaryData(getSerializedOutpoint());
@@ -450,33 +469,18 @@ BinaryData ScriptSpender::getSerializedInput(bool withSig) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData ScriptSpender::serializeAvailableStack() const
+BinaryData ScriptSpender::getEmptySerializedInput() const
 {
-   try
-   {
-      return getSerializedInput(false);
-   }
-   catch (exception&)
-   {}
-
-   vector<shared_ptr<StackItem>> stack;
-   for (auto& stack_item : legacyStack_)
-      stack.push_back(stack_item.second);
-
-   auto&& serialized_script = serializeScript(stack, true);
-
    BinaryWriter bw;
    bw.put_BinaryData(getSerializedOutpoint());
-
-   bw.put_var_int(serialized_script.getSize());
-   bw.put_BinaryData(serialized_script);
+   bw.put_uint8_t(0);
    bw.put_uint32_t(sequence_);
 
    return bw.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef ScriptSpender::getWitnessData(void) const
+BinaryDataRef ScriptSpender::getFinalizedWitnessData(void) const
 {
    if (isSegWit())
    {
@@ -488,7 +492,7 @@ BinaryDataRef ScriptSpender::getWitnessData(void) const
       throw runtime_error("unresolved witness");
    }
 
-   return witnessData_.getRef();
+   return finalWitnessData_.getRef();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -496,7 +500,7 @@ BinaryData ScriptSpender::serializeAvailableWitnessData(void) const
 {
    try
    {
-      return getWitnessData();
+      return getFinalizedWitnessData();
    }
    catch (exception&)
    {}
@@ -533,7 +537,7 @@ void ScriptSpender::setWitnessData(const vector<shared_ptr<StackItem>>& stack)
    //put serialized stack
    bw.put_BinaryData(data);
 
-   witnessData_ = bw.getData();
+   finalWitnessData_ = bw.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -556,6 +560,16 @@ void ScriptSpender::updateStack(map<unsigned, shared_ptr<StackItem>>& stackMap,
 
       switch (iter_pair.first->second->type_)
       {
+      case StackItemType_PushData:
+      {
+         if (!iter_pair.first->second->isValid())
+            iter_pair.first->second = stack_item;
+         else if (stack_item->isValid())
+            throw ScriptException("invalid push_data");            
+
+         break;
+      }
+
       case StackItemType_MultiSig:
       {
          auto stack_item_ms = 
@@ -567,15 +581,11 @@ void ScriptSpender::updateStack(map<unsigned, shared_ptr<StackItem>>& stackMap,
 
       case StackItemType_Sig:
       {
-         if (iter_pair.first->second->isValid())
-            break;
+         auto stack_item_sig = 
+            dynamic_pointer_cast<StackItem_Sig>(iter_pair.first->second);
 
-         if (stack_item->type_ == StackItemType_Sig && stack_item->isValid())
-         {
-            iter_pair.first->second = stack_item;
-            break;
-         }
-
+         stack_item_sig->merge(stack_item.get());
+         break;
       }
 
       default:
@@ -617,7 +627,7 @@ void ScriptSpender::processStacks()
                if (stack_item_ms == nullptr)
                   throw runtime_error("unexpected stack item type");
 
-               if (stack_item_ms->m_ > 0)
+               if (stack_item_ms->sigs_.size() > 0)
                   stackState = SpenderStatus_PartiallySigned;
                   
                break;
@@ -686,7 +696,7 @@ void ScriptSpender::processStacks()
    {
       updateState(legacyStack_, legacyStatus_, [this](
          const vector<shared_ptr<StackItem>>& stackVec) 
-         { inputScript_ = move(serializeScript(stackVec)); }
+         { finalInputScript_ = move(serializeScript(stackVec)); }
       );
    }
    
@@ -700,7 +710,7 @@ void ScriptSpender::processStacks()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptSpender::serializeState(
+void ScriptSpender::serializeStateHeader(
    Codec_SignerState::ScriptSpenderState& protoMsg) const
 {
    protoMsg.set_version_max(SCRIPT_SPENDER_VERSION_MAX);
@@ -715,8 +725,13 @@ void ScriptSpender::serializeState(
    protoMsg.set_is_p2sh(isP2SH_);
    protoMsg.set_is_csv(isCSV_);
    protoMsg.set_is_cltv(isCLTV_);
+}
 
-   if (hasUTXO())
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::serializeStateUtxo(
+   Codec_SignerState::ScriptSpenderState& protoMsg) const
+{
+   if (utxo_.isInitialized())
    {
       auto utxoEntry = protoMsg.mutable_utxo();
       utxo_.toProtobuf(*utxoEntry);
@@ -728,15 +743,20 @@ void ScriptSpender::serializeState(
       auto outputHashRef = getOutputHash();
       outpoint->set_txhash(outputHashRef.getPtr(), outputHashRef.getSize());
       outpoint->set_txoutindex(getOutputIndex());
-      outpoint->set_value(getValue());
+      outpoint->set_value(UINT64_MAX);
       outpoint->set_isspent(false);
    }
+}
 
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::serializeLegacyState(
+   Codec_SignerState::ScriptSpenderState& protoMsg) const
+{
    if (legacyStatus_ == SpenderStatus_Signed)
    {
       //put resolved script
       protoMsg.set_sig_script(
-         inputScript_.getPtr(), inputScript_.getSize());
+         finalInputScript_.getPtr(), finalInputScript_.getSize());
    }
    else if (legacyStatus_ >= SpenderStatus_Resolved)
    {
@@ -747,12 +767,17 @@ void ScriptSpender::serializeState(
          stackItem.second->serialize(*stackEntry);
       }
    }
+}
 
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::serializeSegwitState(
+   Codec_SignerState::ScriptSpenderState& protoMsg) const
+{
    if (segwitStatus_ == SpenderStatus_Signed)
    {
       //put resolved witness data
       protoMsg.set_witness_data(
-         witnessData_.getPtr(), witnessData_.getSize());
+         finalWitnessData_.getPtr(), finalWitnessData_.getSize());
    }
    else if (segwitStatus_ >= SpenderStatus_Resolved)
    {
@@ -766,6 +791,28 @@ void ScriptSpender::serializeState(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::serializePathData(
+   Codec_SignerState::ScriptSpenderState& protoMsg) const
+{
+   for (auto bip32Path : bip32Paths_)
+   {
+      auto pathEntry = protoMsg.add_bip32paths();
+      bip32Path.second.toProtobuf(*pathEntry);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::serializeState(
+   Codec_SignerState::ScriptSpenderState& protoMsg) const
+{
+   serializeStateHeader(protoMsg);
+   serializeStateUtxo(protoMsg);
+   serializeLegacyState(protoMsg);
+   serializeSegwitState(protoMsg);
+   serializePathData(protoMsg);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
    const Codec_SignerState::ScriptSpenderState& protoMsg)
 {
@@ -774,7 +821,7 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
    if (maxVer != SCRIPT_SPENDER_VERSION_MAX || 
       minVer != SCRIPT_SPENDER_VERSION_MIN)
    {
-      throw runtime_error("serialized spender version mismatch");
+      throw SignerDeserializationError("serialized spender version mismatch");
    }
 
    shared_ptr<ScriptSpender> resultPtr;
@@ -788,13 +835,15 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
    {
       const auto& outpoint = protoMsg.outpoint();
       auto outpointHash = BinaryDataRef::fromString(outpoint.txhash());
+      if (outpointHash.getSize() != 32)
+         throw SignerDeserializationError("invalid outpoint hash");
 
       resultPtr = make_shared<ScriptSpender>(
-         outpointHash, outpoint.txoutindex(), outpoint.value());
+         outpointHash, outpoint.txoutindex());
    }
    else
    {
-      throw runtime_error("missing utxo/outpoint");
+      throw SignerDeserializationError("missing utxo/outpoint");
    }
 
    resultPtr->legacyStatus_ = (SpenderStatus)protoMsg.legacy_status();
@@ -809,7 +858,7 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
 
    if (protoMsg.has_sig_script())
    {
-      resultPtr->inputScript_ = BinaryData::fromString(protoMsg.sig_script());
+      resultPtr->finalInputScript_ = BinaryData::fromString(protoMsg.sig_script());
    }
 
    for (unsigned i=0; i<protoMsg.legacy_stack_size(); i++)
@@ -821,7 +870,7 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
 
    if (protoMsg.has_witness_data())
    {
-      resultPtr->witnessData_ = BinaryData::fromString(protoMsg.witness_data());
+      resultPtr->finalWitnessData_ = BinaryData::fromString(protoMsg.witness_data());
    }
 
    for (unsigned i=0; i<protoMsg.witness_stack_size(); i++)
@@ -829,6 +878,12 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
       const auto& stackItem = protoMsg.witness_stack(i);
       auto stackObjPtr = StackItem::deserialize(stackItem);
       resultPtr->witnessStack_.emplace(stackObjPtr->getId(), stackObjPtr);
+   }
+
+   for (unsigned i=0; i<protoMsg.bip32paths_size(); i++)
+   {
+      auto pathObj = BIP32_AssetPath::fromProtobuf(protoMsg.bip32paths(i));
+      resultPtr->bip32Paths_.emplace(pathObj.getPublicKey(), move(pathObj));
    }
 
    return resultPtr;
@@ -840,11 +895,44 @@ void ScriptSpender::merge(const ScriptSpender& obj)
    if (isSigned())
       return;
 
-   if (!utxo_.isInitialized() && obj.utxo_.isInitialized())
-      utxo_ = obj.utxo_;
+   //do we have supporting data?
+   {
+      //sanity check on obj
+      BinaryDataRef objOpHash;
+      uint64_t objOpVal;
+      try
+      {
+         objOpHash = obj.getOutputHash();
+         objOpVal = obj.getValue();
+      }
+      catch (const exception&)
+      {
+         //obj has no supporting data, it doesn't carry anything to merge
+         return;
+      }
 
-   if (utxo_.value_ != obj.value_)
-      throw runtime_error("spender merge value mismatch");
+      try
+      {
+         if (getOutputHash() != objOpHash)
+            throw runtime_error("spender output hash mismatch");
+
+         if (getOutputIndex() != obj.getOutputIndex())
+            throw runtime_error("spender output index mismatch");
+
+         if (getValue() != objOpVal)
+            throw runtime_error("spender output value mismatch");           
+      }
+      catch (const SpenderException&)
+      {
+         //missing supporting data, get it from obj
+         if (obj.utxo_.isInitialized())
+            utxo_ = obj.utxo_;
+         else if (!obj.outpoint_.empty())
+            outpoint_ = obj.outpoint_;
+         else
+            throw runtime_error("impossible condition, how did we get here??");
+      }
+   }
 
    isP2SH_ |= obj.isP2SH_;
    isCLTV_ |= obj.isCLTV_;
@@ -857,8 +945,12 @@ void ScriptSpender::merge(const ScriptSpender& obj)
       case SpenderStatus_Resolved:
       case SpenderStatus_PartiallySigned:
       {
-         legacyStack_.insert(
-            obj.legacyStack_.begin(), obj.legacyStack_.end());
+         //merge the stacks
+         vector<shared_ptr<StackItem>> objStackVec;
+         for (auto& stackItemPtr : obj.legacyStack_)
+            objStackVec.emplace_back(stackItemPtr.second);
+
+         updateStack(legacyStack_, objStackVec);
          processStacks();
          
          /*
@@ -871,7 +963,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
 
       case SpenderStatus_Signed:
       {
-         inputScript_ = obj.inputScript_;
+         finalInputScript_ = obj.finalInputScript_;
          //fallthrough
       }
       
@@ -889,15 +981,19 @@ void ScriptSpender::merge(const ScriptSpender& obj)
       case SpenderStatus_Resolved:
       case SpenderStatus_PartiallySigned:
       {
-         witnessStack_.insert(
-            obj.witnessStack_.begin(), obj.witnessStack_.end());
+         //merge the stacks
+         vector<shared_ptr<StackItem>> objStackVec;
+         for (auto& stackItemPtr : obj.witnessStack_)
+            objStackVec.emplace_back(stackItemPtr.second);
+
+         updateStack(witnessStack_, objStackVec);
          processStacks();
          break;
       }      
 
       case SpenderStatus_Signed:
       {
-         witnessData_ = obj.witnessData_;
+         finalWitnessData_ = obj.finalWitnessData_;
          //fallthrough
       }
 
@@ -1031,9 +1127,13 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
       return false;
    };
 
-   //value checks
-   if (value_ != rhs.value_ || utxo_ != rhs.utxo_)
-      return false;
+   //check utxos
+   {
+      if (getOutputHash() != rhs.getOutputHash() ||
+         getOutputIndex() != rhs.getOutputIndex() ||
+         getValue() != getValue())
+         return false;
+   }
    
    //legacy status
    if (legacyStatus_ != rhs.legacyStatus_)
@@ -1051,24 +1151,13 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
    //legacy stack
    {
       //grab our resolved items from the script
-      BinaryData ourSigScript;
-      if (legacyStatus_ == SpenderStatus_Signed)
-      {
-         //signed spenders have a serialized sigScript and no stack items
-         ourSigScript = inputScript_;
-      }
-      else
-      {
-         //everything else only has a stack
-         ourSigScript = serializeStack(*this);
-      }
-
+      BinaryData ourSigScript = getAvailableInputScript();
       auto ourScriptItems = getResolvedItems(ourSigScript, false);
 
       //theirs cannot have a serialized script because theirs cannot be signed
       //grab the resolved data from the partial stack instead
       auto isMultiSig = isStackMultiSig(rhs.legacyStack_);
-      auto theirSigScript = serializeStack(rhs);
+      auto theirSigScript = rhs.getAvailableInputScript();
       auto theirScriptItems = getResolvedItems(theirSigScript, false);
 
       //compare
@@ -1092,18 +1181,7 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
    //witness stack
    {
       //grab our resolved items from the witness data
-      BinaryData ourWitnessData;
-      if (segwitStatus_ == SpenderStatus_Signed)
-      {
-         //signed spenders have a serialized sigScript and no stack items
-         ourWitnessData = witnessData_;
-      }
-      else
-      {
-         //everything else only has a stack
-         ourWitnessData = serializeAvailableWitnessData();
-      }
-
+      BinaryData ourWitnessData = serializeAvailableWitnessData();
       auto ourScriptItems = getResolvedItems(ourWitnessData, true);
 
       //grab theirs
@@ -1132,7 +1210,7 @@ bool ScriptSpender::isInitialized() const
       segwitStatus_ == SpenderStatus_Unknown &&
       isP2SH_ == false && 
       legacyStack_.empty() && witnessStack_.empty() &&
-      inputScript_.empty() && witnessData_.empty())
+      finalInputScript_.empty() && finalWitnessData_.empty())
    {
       return false;
    }
@@ -1155,39 +1233,26 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    }
 
    //sanity check: needs a utxo set to be resolved
-   if (!utxo_.isInitialized())
+   if (!canBeResolved())
    {
       return false;
    }
 
-   ScriptSpender spenderVerify(utxo_);
+   ScriptSpender spenderVerify;
    spenderVerify.sequence_ = sequence_;
 
+   if (utxo_.isInitialized())
+      spenderVerify.utxo_ = utxo_;
+   else
+      spenderVerify.outpoint_ = outpoint_;
+
+   spenderVerify.txMap_ = txMap_;
+
    /*construct public resolver from the serialized script*/
-
-   struct ResolverFeedLocal : public ResolverFeed
-   {
-      map<BinaryData, BinaryData> hashMap;
-
-      BinaryData getByVal(const BinaryData& val) override
-      {
-         auto iter = hashMap.find(val);
-         if (iter == hashMap.end())
-            throw std::runtime_error("invalid value");
-
-         return iter->second;
-      }
-      
-      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData&) override
-      {
-         throw std::runtime_error("invalid value");
-      }
-   };
-
-   auto feed = make_shared<ResolverFeedLocal>();
+   auto feed = make_shared<ResolverFeed_SpenderResolutionChecks>();
 
    //look for push data in the sigScript
-   auto&& legacyScript = getSerializedInputScript();
+   auto&& legacyScript = getAvailableInputScript();
 
    try
    {
@@ -1207,7 +1272,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    //same with the witness data
 
    BinaryReader brSW;
-   if (witnessData_.empty())
+   if (finalWitnessData_.empty())
    {
       vector<shared_ptr<StackItem>> stack;
       for (auto& stack_item : witnessStack_)
@@ -1228,7 +1293,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
    }
    else
    {
-      brSW.setNewData(witnessData_);
+      brSW.setNewData(finalWitnessData_);
    }
 
    try
@@ -1266,7 +1331,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
 
    try
    {
-      StackResolver resolver(getOutputScript(), feed, nullptr);
+      StackResolver resolver(getOutputScript(), feed);
       resolver.setFlags(flags);
       spenderVerify.parseScripts(resolver);
    }
@@ -1281,20 +1346,14 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
 
 ////////////////////////////////////////////////////////////////////////////////
 void ScriptSpender::updateLegacyStack(
-   const vector<shared_ptr<StackItem>>& stack, unsigned sigCount)
+   const vector<shared_ptr<StackItem>>& stack)
 {
-   if (legacyStatus_ == SpenderStatus_Signed)
-      return;
-
-   if (legacyStatus_ == SpenderStatus_Resolved && sigCount == 0)
+   if (legacyStatus_ >= SpenderStatus_Resolved)
       return;
 
    if (stack.size() != 0)
    {
       updateStack(legacyStack_, stack);
-
-      if (sigCount > 0)
-         legacyStatus_ = SpenderStatus_PartiallySigned;
    }
    else
    {
@@ -1304,12 +1363,9 @@ void ScriptSpender::updateLegacyStack(
 
 ////////////////////////////////////////////////////////////////////////////////
 void ScriptSpender::updateWitnessStack(
-   const vector<shared_ptr<StackItem>>& stack, unsigned sigCount)
+   const vector<shared_ptr<StackItem>>& stack)
 {
-   if (segwitStatus_ == SpenderStatus_Signed)
-      return;
-
-   if (segwitStatus_ >= SpenderStatus_Resolved && sigCount == 0)
+   if (segwitStatus_ >= SpenderStatus_Resolved)
       return;
 
    updateStack(witnessStack_, stack);
@@ -1318,33 +1374,130 @@ void ScriptSpender::updateWitnessStack(
 ////////////////////////////////////////////////////////////////////////////////
 void ScriptSpender::parseScripts(StackResolver& resolver)
 {
-   //parse the utxo scripts, fill the relevant stacks
+   /*parse the utxo scripts, fill the relevant stacks*/
 
    auto resolvedStack = resolver.getResolvedStack();
    if (resolvedStack == nullptr)
       throw runtime_error("null resolved stack");
 
    flagP2SH(resolvedStack->isP2SH());
-   updateLegacyStack(
-      resolvedStack->getStack(), 
-      resolvedStack->getSigCount());
+
+   //push the legacy resolved data into the local legacy stack
+   updateLegacyStack(resolvedStack->getStack());
+   
+   //parse the legacy stack, will set the legacy status
    processStacks();
 
+   //same with the witness stack
    auto resolvedStackWitness = resolvedStack->getWitnessStack();
    if (resolvedStackWitness == nullptr)
    {
-      if (legacyStatus_ != SpenderStatus_Empty &&
+      if (legacyStatus_ >= SpenderStatus_Resolved &&
          segwitStatus_ < SpenderStatus_Resolved)
       {
+         //this is a pure legacy redeem script
          segwitStatus_ = SpenderStatus_Empty; 
       }
-      return;
+   }
+   else
+   {
+      updateWitnessStack(resolvedStackWitness->getStack());
+      processStacks();
    }
 
-   updateWitnessStack(
-      resolvedStackWitness->getStack(), 
-      resolvedStackWitness->getSigCount());
-   processStacks();
+   //resolve pubkeys
+   auto feed = resolver.getFeed();
+   if (feed == nullptr)
+      return;
+
+   auto pubKeys = getRelevantPubkeys();
+   for (auto& pubKeyPair : pubKeys)
+   {
+      try
+      {
+         auto bip32path = feed->resolveBip32PathForPubkey(pubKeyPair.second);
+         if (!bip32path.isValid())
+            continue;
+
+         bip32Paths_.emplace(pubKeyPair.second, bip32path);
+      }
+      catch (const exception&)
+      {
+         continue;
+      }
+   }  
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::sign(shared_ptr<SignerProxy> proxy)
+{
+   auto signStack = [proxy](
+      map<unsigned, shared_ptr<StackItem>>& stackMap, bool isSW)->void
+   {
+      for (auto& stackEntryPair : stackMap)
+      {
+         auto stackItem = stackEntryPair.second;
+         switch (stackItem->type_)
+         {
+         case StackItemType_Sig:
+         {
+            if (stackItem->isValid())
+               throw SpenderException("stack sig entry already filled");
+
+            auto sigItem =  dynamic_pointer_cast<StackItem_Sig>(stackItem);
+            if (sigItem == nullptr)
+               throw runtime_error("unexpected stack item type");
+
+            sigItem->sig_ = 
+               move(proxy->sign(sigItem->script_, sigItem->pubkey_, isSW));
+            break;
+         }
+
+         case StackItemType_MultiSig:
+         {
+            auto msEntryPtr = 
+               dynamic_pointer_cast<StackItem_MultiSig>(stackItem);
+            if (msEntryPtr == nullptr)
+               throw SpenderException("invalid ms stack entry");
+
+            for (unsigned i=0; i < msEntryPtr->pubkeyVec_.size(); i++)
+            {
+               if (msEntryPtr->sigs_.find(i) != msEntryPtr->sigs_.end())
+                  continue;
+               
+               const auto& pubkey = msEntryPtr->pubkeyVec_[i];
+               try
+               {
+                  auto&& sig = proxy->sign(msEntryPtr->script_, pubkey, isSW);
+                  msEntryPtr->sigs_.emplace(i, move(sig));
+                  if (msEntryPtr->sigs_.size() >= msEntryPtr->m_)
+                     break;
+               }
+               catch (runtime_error&)
+               {
+                  //feed is missing private key, nothing to do
+               }
+            }
+
+            break;
+         }
+
+         default:
+            break;
+         }
+      }
+   };
+
+   try
+   {
+      
+      signStack(legacyStack_, false);
+      signStack(witnessStack_, true);
+
+      processStacks();
+   }
+   catch (const exception&)
+   {}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1377,7 +1530,7 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
       throw runtime_error("cannot inject sig into unresolved spender");
 
    if (isSigned())
-      throw runtime_error("spender is alreayd signed!");
+      throw runtime_error("spender is already signed!");
 
    map<unsigned, shared_ptr<StackItem>>* stackPtr = nullptr;
    
@@ -1389,18 +1542,21 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
 
    //find the stack sig object
    bool injected = false;
-   for (auto& stackEntry : *stackPtr)
+   for (auto& stackItemPair : *stackPtr)
    {
-      switch (stackEntry.second->type_)
+      auto& stackItem = stackItemPair.second;
+      switch (stackItem->type_)
       {
       case StackItemType_Sig:
       {
-         if (stackEntry.second->isValid())
-            throw runtime_error("stack sig entry already filled");
+         if (stackItem->isValid())
+            throw SpenderException("stack sig entry already filled");
 
-         auto newSigEntry = make_shared<StackItem_Sig>(
-            stackEntry.second->getId(), move(sig));
-         stackEntry.second = newSigEntry;
+         auto stackItemSig = dynamic_pointer_cast<StackItem_Sig>(stackItem);
+         if (stackItemSig == nullptr)
+            throw SpenderException("unexpected stack item type");
+
+         stackItemSig->injectSig(sig);
          injected = true;
 
          break;
@@ -1409,12 +1565,12 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
       case StackItemType_MultiSig:
       {
          if (sigId == UINT32_MAX)
-            throw runtime_error("unset sig id");
+            throw SpenderException("unset sig id");
          
          auto msEntryPtr = 
-            dynamic_pointer_cast<StackItem_MultiSig>(stackEntry.second);
+            dynamic_pointer_cast<StackItem_MultiSig>(stackItem);
          if (msEntryPtr == nullptr)
-            throw runtime_error("invalid ms stack entry");
+            throw SpenderException("invalid ms stack entry");
 
          msEntryPtr->setSig(sigId, sig);
          injected = true;
@@ -1428,9 +1584,674 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
    }
 
    if (!injected)
-      throw runtime_error("failed to find sig entry in stack");
+      throw SpenderException("failed to find sig entry in stack");
 
    processStacks();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryDataRef ScriptSpender::getRedeemScriptFromStack(
+   const map<unsigned, shared_ptr<StackItem>>* stackPtr) const
+{
+   if (stackPtr == nullptr)   
+      return BinaryDataRef();
+
+   shared_ptr<StackItem> firstPushData;
+   
+   //look for redeem script from sig stack items
+   for (auto stackPair : *stackPtr)
+   {
+      auto stackItem = stackPair.second;
+      switch (stackItem->type_)
+      {
+      case StackItemType_PushData:
+      {
+         //grab first push data entry in stack
+         if (firstPushData == nullptr)
+            firstPushData = stackItem;
+         break;
+      }
+
+      case StackItemType_Sig:
+      {
+         auto sig = dynamic_pointer_cast<StackItem_Sig>(stackItem);
+         if (sig == nullptr)
+            break;
+
+         return sig->script_.getRef();
+      }
+
+      case StackItemType_MultiSig:
+      {
+         auto msig = dynamic_pointer_cast<StackItem_MultiSig>(stackItem);
+         if (msig == nullptr)
+            break;
+
+         return msig->script_.getRef();
+      }
+
+      default:
+         break;
+      }
+   }
+
+   //if we couldn't find sig entries, let's try the first push data entry
+   if (firstPushData == nullptr || !firstPushData->isValid())
+      return BinaryDataRef();
+
+   auto pushdata = dynamic_pointer_cast<StackItem_PushData>(firstPushData);
+   if (pushdata == nullptr)
+      return BinaryDataRef();
+
+   return pushdata->data_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+map<BinaryData, BinaryData> ScriptSpender::getPartialSigs() const
+{
+   const map<unsigned, shared_ptr<StackItem>>* stackPtr = nullptr;
+   if (!isSegWit())
+      stackPtr = &legacyStack_;
+   else
+      stackPtr = &witnessStack_;
+
+   //look for multsig stack entry
+   shared_ptr<StackItem_MultiSig> stackItemMultisig = nullptr;
+   for (const auto& stackObj : *stackPtr)
+   {
+      auto stackItem = stackObj.second;
+      if (stackItem->type_ == StackItemType_MultiSig)
+      {
+         stackItemMultisig = 
+            dynamic_pointer_cast<StackItem_MultiSig>(stackItem);
+         break;
+      }
+   }
+
+   if (stackItemMultisig == nullptr)
+      return {};
+
+   map<BinaryData, BinaryData> sigMap;
+   for (const auto& sigPair : stackItemMultisig->sigs_)
+   {
+      if (sigPair.first > stackItemMultisig->pubkeyVec_.size())
+      {
+         LOGWARN << "sig index out of bounds";
+         break;
+      }
+
+      const auto& pubkey = stackItemMultisig->pubkeyVec_[sigPair.first];
+      sigMap.emplace(pubkey, sigPair.second);
+   }
+
+   return sigMap;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+map<unsigned, BinaryData> ScriptSpender::getRelevantPubkeys() const
+{
+   if (!isResolved())
+      return {};
+
+   if (isSigned())
+   {
+      /*spender is signed, redeem script is finalized*/
+      throw runtime_error("need implemented");
+   }
+   else
+   {
+      auto stack = &legacyStack_;
+      if (isSegWit())
+         stack = &witnessStack_;
+
+      for (auto& stackEntryPair : *stack)
+      {
+         const auto& stackItem = stackEntryPair.second;
+         switch (stackItem->type_)
+         {
+         case StackItemType_Sig:
+         {
+            auto sig = dynamic_pointer_cast<StackItem_Sig>(stackItem);
+            if (stackItem == nullptr)
+               break;
+
+            map<unsigned, BinaryData> pubkeyMap;
+            pubkeyMap.emplace(0, sig->pubkey_);
+            return pubkeyMap;
+         }
+
+         case StackItemType_MultiSig:
+         {
+            auto msig = dynamic_pointer_cast<StackItem_MultiSig>(stackItem);
+            if (stackItem == nullptr)
+               break;
+
+            map<unsigned, BinaryData> pubkeyMap;
+            for (unsigned i=0; i<msig->pubkeyVec_.size(); i++)
+            {
+               auto& pubkey = msig->pubkeyVec_[i];
+               pubkeyMap.emplace(i, pubkey);
+            }
+            return pubkeyMap;
+         }
+
+         default:
+            break;
+         }
+      }
+   }
+
+   return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::toPSBT(BinaryWriter& bw) const
+{
+   //supporting tx or utxo
+   bool hasSupportingOutput = false;
+   if (haveSupportingTx())
+   {
+      //key length
+      bw.put_uint8_t(1);
+      
+      //supporting tx key
+      bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_NON_WITNESS_UTXO);
+
+      //tx
+      const auto& supportingTx = getSupportingTx();
+      bw.put_var_int(supportingTx.getSize());
+      bw.put_BinaryData(supportingTx.getPtr(), supportingTx.getSize());
+      
+      hasSupportingOutput = true;
+   }
+   else if (isSegWit() && utxo_.isInitialized())
+   {
+      //utxo
+      bw.put_uint8_t(1);
+      bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_WITNESS_UTXO);
+
+      auto rawUtxo = utxo_.serializeTxOut();
+      bw.put_var_int(rawUtxo.getSize());
+      bw.put_BinaryData(rawUtxo);
+
+      hasSupportingOutput = true;
+   }
+
+   //partial sigs
+   {
+      /*
+      This section only applies to MS or exotic scripts that can be 
+      partially signed. Single sig scripts go to the finalized
+      section right away.
+      */
+
+      auto partialSigs = getPartialSigs();
+      for (auto& sigPair : partialSigs)
+      {
+         bw.put_var_int(sigPair.first.getSize() + 1);
+         bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_PARTIAL_SIG);
+         bw.put_BinaryData(sigPair.first);
+
+         bw.put_var_int(sigPair.second.getSize());
+         bw.put_BinaryData(sigPair.second);
+      }
+   }
+
+   //sig hash, conditional on utxo/prevTx presence
+   if (hasSupportingOutput && !isSigned())
+   {
+      bw.put_uint8_t(1);
+      bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_SIGHASH_TYPE);
+
+      bw.put_uint8_t(4);
+      bw.put_uint32_t((uint32_t)sigHashType_);
+   }
+
+   //redeem script
+   if (!isSigned())
+   {
+      auto redeemScript = getRedeemScriptFromStack(&legacyStack_);
+      if (!redeemScript.empty())
+      {
+         bw.put_uint8_t(1);
+         bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_REDEEM_SCRIPT);
+         
+         bw.put_var_int(redeemScript.getSize());
+         bw.put_BinaryDataRef(redeemScript);
+      }
+   }
+
+   //witness script
+   if (isSegWit())
+   {
+      auto witnessScript = getRedeemScriptFromStack(&witnessStack_);
+      if (!witnessScript.empty())
+      {
+         bw.put_uint8_t(1);
+         bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_WITNESS_SCRIPT);
+         
+         bw.put_var_int(witnessScript.getSize());
+         bw.put_BinaryDataRef(witnessScript);
+      }
+   }
+
+   if (!isSigned())
+   {
+      //pubkeys
+      for (auto& bip32Path : bip32Paths_)
+      {
+         if (!bip32Path.second.isValid())
+            continue;
+
+         bw.put_uint8_t(34);
+         bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_BIP32_DERIVATION);
+         bw.put_BinaryData(bip32Path.first);
+
+         //path
+         bip32Path.second.toPSBT(bw);
+      }
+   }
+   else
+   {
+      //scriptSig
+      auto finalizedInputScript = getAvailableInputScript();
+      if (!finalizedInputScript.empty())
+      {
+         bw.put_uint8_t(1);
+         bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_FINAL_SCRIPTSIG);
+
+         bw.put_var_int(finalizedInputScript.getSize());
+         bw.put_BinaryData(finalizedInputScript);
+      }
+
+      auto finalizedWitnessData = getFinalizedWitnessData();
+      if (!finalizedWitnessData.empty())
+      {
+         bw.put_uint8_t(1);
+         bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_FINAL_SCRIPTWITNESS);
+
+         bw.put_var_int(finalizedWitnessData.getSize());
+         bw.put_BinaryData(finalizedWitnessData);
+      }
+   }
+
+   //proprietary data
+   for (auto& data : prioprietaryPSBTData_)
+   {
+      //key
+      bw.put_var_int(data.first.getSize() + 1);
+      bw.put_uint8_t(PSBT::ENUM_INPUT::PSBT_IN_PROPRIETARY);
+      bw.put_BinaryData(data.first);
+
+      //val
+      bw.put_var_int(data.second.getSize());
+      bw.put_BinaryData(data.second);
+   }
+
+   //terminate
+   bw.put_uint8_t(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptSpender> ScriptSpender::fromPSBT(
+   BinaryRefReader& brr, 
+   const TxIn& txin, 
+   shared_ptr<map<BinaryData, Tx>> txMap)
+{
+   UTXO utxo;
+   bool haveSupportingTx = false;
+
+   map<BinaryDataRef, BinaryDataRef> partialSigs;
+   map<BinaryData, BIP32_AssetPath> bip32paths;
+   map<BinaryData, BinaryData> prioprietaryPSBTData;
+         
+   BinaryDataRef redeemScript;
+   BinaryDataRef witnessScript;
+   BinaryDataRef finalRedeemScript;
+   BinaryDataRef finalWitnessScript;
+
+   uint32_t sigHash = (uint32_t)SIGHASH_ALL;
+
+   auto inputDataPairs = BtcUtils::getPSBTDataPairs(brr);
+   for (const auto& dataPair : inputDataPairs)
+   {
+      const auto& key = dataPair.first;
+      const auto& val = dataPair.second;
+
+      //key type
+      auto typePtr = key.getPtr();
+      switch (*typePtr)
+      {
+      case PSBT::ENUM_INPUT::PSBT_IN_NON_WITNESS_UTXO:
+      {
+         if (txMap == nullptr)
+            throw PSBTDeserializationError("null txmap");
+
+         //supporting tx, key has to be 1 byte long
+         if (key.getSize() != 1)
+            throw PSBTDeserializationError("unvalid supporting tx key len");
+
+         Tx tx(val);
+         txMap->emplace(tx.getThisHash(), move(tx));
+         haveSupportingTx = true;
+         break;
+      }
+         
+      case PSBT::ENUM_INPUT::PSBT_IN_WITNESS_UTXO:
+      {
+         //utxo, key has to be 1 byte long
+         if (key.getSize() != 1)
+            throw PSBTDeserializationError("unvalid utxo key len");
+
+         utxo.unserializeRaw(val);
+         break;
+      }
+
+      case PSBT::ENUM_INPUT::PSBT_IN_PARTIAL_SIG:
+      {
+         partialSigs.emplace(key.getSliceRef(1, key.getSize() - 1), val);
+         break;
+      }
+
+      case PSBT::ENUM_INPUT::PSBT_IN_SIGHASH_TYPE:
+      {
+         if (key.getSize() != 1)
+            throw PSBTDeserializationError("unvalid sighash key len");
+            
+         if (val.getSize() != 4)
+            throw PSBTDeserializationError("invalid sighash val length");
+
+         sigHash = *(uint32_t*)val.getPtr();
+         break;
+      }
+
+      case PSBT::ENUM_INPUT::PSBT_IN_REDEEM_SCRIPT:
+      {
+         if (key.getSize() != 1)
+            throw PSBTDeserializationError("unvalid redeem script key len");
+            
+         redeemScript = val;
+         break;
+      }
+
+      case PSBT::ENUM_INPUT::PSBT_IN_WITNESS_SCRIPT:
+      {
+         if (key.getSize() != 1)
+            throw PSBTDeserializationError("unvalid witness script key len");
+
+         witnessScript = val;
+         break;
+      }
+
+      case PSBT::ENUM_INPUT::PSBT_IN_BIP32_DERIVATION:
+      {
+         auto assetPath = BIP32_AssetPath::fromPSBT(key, val);
+         auto insertIter = bip32paths.emplace(
+            assetPath.getPublicKey(), assetPath);
+
+         if (!insertIter.second)
+            throw PSBTDeserializationError("bip32 path collision");
+         
+         break;
+      }
+
+      case PSBT::ENUM_INPUT::PSBT_IN_FINAL_SCRIPTSIG:
+      {
+         if (key.getSize() != 1)
+            throw PSBTDeserializationError("unvalid finalized input script key len");
+
+         finalRedeemScript = val;  
+         break;
+      }
+
+      case PSBT::ENUM_INPUT::PSBT_IN_FINAL_SCRIPTWITNESS:
+      {
+         if (key.getSize() != 1)
+            throw PSBTDeserializationError("unvalid finalized witness script key len");
+
+         finalWitnessScript = val;  
+         break;
+      }
+
+      case PSBT::ENUM_INPUT::PSBT_IN_PROPRIETARY:
+      {
+         //proprietary data doesn't have to be interpreted but
+         //it needs carried over
+         prioprietaryPSBTData.emplace(
+            key.getSliceRef(1, key.getSize() - 1), val);
+         break;
+      }
+
+      default:
+         throw PSBTDeserializationError("unexpected txin key");
+      }
+   }
+
+   //create spender
+   shared_ptr<ScriptSpender> spender;
+   auto outpoint = txin.getOutPoint();
+
+   if (!haveSupportingTx && utxo.isInitialized())
+   {
+      utxo.txHash_ = outpoint.getTxHash();
+      utxo.txOutIndex_ = outpoint.getTxOutIndex();
+      spender = make_shared<ScriptSpender>(utxo);
+   }
+   else
+   {
+      spender = make_shared<ScriptSpender>(
+         outpoint.getTxHash(), outpoint.getTxOutIndex());
+   }
+
+   spender->setTxMap(txMap);
+   auto feed = make_shared<ResolverFeed_SpenderResolutionChecks>();
+
+   bool isSigned = false;
+   if (!finalRedeemScript.empty())
+   {
+      spender->finalInputScript_ = finalRedeemScript;
+      spender->legacyStatus_ = SpenderStatus_Signed;
+      spender->segwitStatus_ = SpenderStatus_Empty;
+      isSigned = true;
+   }
+   
+   if (!finalWitnessScript.empty())
+   {
+      spender->finalWitnessData_ = finalWitnessScript;
+      spender->segwitStatus_ = SpenderStatus_Signed;
+      if (isSigned)
+         spender->legacyStatus_ = SpenderStatus_Resolved;
+      else
+         spender->legacyStatus_ = SpenderStatus_Empty;
+      isSigned = true;
+   }
+
+   if (!isSigned)
+   {
+      //redeem scripts
+      if (!redeemScript.empty())
+      {
+         //add to custom feed
+         auto hash = BtcUtils::getHash160(redeemScript);
+         feed->hashMap.emplace(hash, redeemScript);
+      }
+
+      if (!witnessScript.empty())
+      {
+         //add to custom feed
+         auto hash = BtcUtils::getHash160(witnessScript);
+         feed->hashMap.emplace(hash, witnessScript);
+
+         hash = BtcUtils::getSha256(witnessScript);
+         feed->hashMap.emplace(hash, witnessScript);
+      }
+
+      //resolve
+      try
+      {
+         StackResolver resolver(spender->getOutputScript(), feed);
+         resolver.setFlags(         
+            SCRIPT_VERIFY_P2SH | 
+            SCRIPT_VERIFY_SEGWIT | 
+            SCRIPT_VERIFY_P2SH_SHA256);
+
+         spender->parseScripts(resolver);
+      }
+      catch (const exception&)
+      {}
+
+      //get pubkeys
+      auto pubkeys = spender->getRelevantPubkeys();
+
+      //check pubkeys are relevant
+      {
+         set<BinaryDataRef> pubkeyRefs;
+         for (auto& pubkey : pubkeys)
+            pubkeyRefs.emplace(pubkey.second.getRef());
+
+         for (auto& bip32path : bip32paths)
+         {
+            auto iter = pubkeyRefs.find(bip32path.first);
+            if (iter == pubkeyRefs.end())
+            {
+               throw PSBTDeserializationError(
+                  "have bip32path for unrelated pubkey");
+            }
+
+            spender->bip32Paths_.emplace(bip32path);
+         }
+      }
+
+      //inject partial sigs
+      if (!partialSigs.empty())
+      {
+         for (auto& pubkey : pubkeys)
+         {
+            auto iter = partialSigs.find(pubkey.second);
+            if (iter == partialSigs.end())
+               continue;
+
+            SecureBinaryData sig(iter->second);
+            spender->injectSignature(sig, pubkey.first);
+            partialSigs.erase(iter);
+         }
+
+         if (!partialSigs.empty())
+            throw PSBTDeserializationError("couldn't inject sigs");
+      }
+
+      spender->setSigHashType((SIGHASH_TYPE)sigHash);
+   }
+
+   spender->prioprietaryPSBTData_ = move(prioprietaryPSBTData);
+
+   return spender;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::setTxMap(shared_ptr<map<BinaryData, Tx>> txMap)
+{
+   txMap_ = txMap;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool ScriptSpender::setSupportingTx(BinaryDataRef rawTx)
+{
+   if (rawTx.empty())
+      return false;
+
+   try
+   {
+      Tx tx(rawTx);
+      return setSupportingTx(move(tx));
+   }
+   catch (const exception&)
+   {}
+
+   return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool ScriptSpender::setSupportingTx(Tx supportingTx)
+{
+   /*
+   Returns true if the supporting tx is relevant to this spender, false 
+   otherwise
+   */
+   if (supportingTx.getThisHash() != getOutputHash())
+      return false;
+
+   auto insertIter = txMap_->emplace(
+      supportingTx.getThisHash(), move(supportingTx));
+   
+   return insertIter.second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool ScriptSpender::haveSupportingTx() const
+{
+   if (txMap_ == nullptr)
+      return false;
+
+   try
+   {        
+      auto hash = getOutputHash();
+      auto iter = txMap_->find(hash);
+      return (iter != txMap_->end());
+   }
+   catch (const exception&)
+   {}
+
+   return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const Tx& ScriptSpender::getSupportingTx() const
+{
+   if (txMap_ == nullptr)
+      throw SpenderException("missing tx map");;
+
+   auto hash = getOutputHash();
+   auto iter = txMap_->find(hash);
+   if (iter == txMap_->end())
+      throw SpenderException("missing supporting tx");
+
+   return iter->second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool ScriptSpender::canBeResolved() const
+{
+   if (utxo_.isInitialized())
+      return true;
+
+   if (outpoint_.getSize() != 36)
+      return false;
+
+   return haveSupportingTx();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint64_t ScriptSpender::getValue() const
+{
+   if (utxo_.isInitialized())
+      return utxo_.getValue();
+
+   if (!haveSupportingTx())
+      throw SpenderException("missing both supporting tx and utxo");
+
+   auto index = getOutputIndex();
+   const auto& supportingTx = getSupportingTx();
+   auto txOutCopy = supportingTx.getTxOutCopy(index);
+
+   return txOutCopy.getValue();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::seedResolver(shared_ptr<ResolverFeed> ptr) const
+{
+   for (auto& bip32Path : bip32Paths_)
+      ptr->setBip32PathForPubkey(bip32Path.first, bip32Path.second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1441,16 +2262,17 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
 Signer::Signer(const Codec_SignerState::SignerState& protoMsg) :
    TransactionStub()
 {
+   supportingTxMap_ = std::make_shared<std::map<BinaryData, Tx>>();
    deserializeState(protoMsg);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef Signer::getSerializedOutputScripts(void) const
 {
-   if (serializedOutputs_.getSize() == 0)
+   if (serializedOutputs_.empty())
    {
       BinaryWriter bw;
-      for (auto& recipient : recipients_)
+      for (auto& recipient : getRecipientVector())
       {
          auto&& serializedOutput = recipient->getSerializedScript();
          bw.put_BinaryData(serializedOutput);
@@ -1491,7 +2313,7 @@ BinaryData Signer::getSubScript(unsigned index) const
 BinaryDataRef Signer::getWitnessData(unsigned index) const
 {
    auto spender = getSpender(index);
-   return spender->getWitnessData();
+   return spender->getFinalizedWitnessData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1528,18 +2350,24 @@ BinaryData Signer::serializeAllSequences(void) const
 ////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef Signer::getOutpoint(unsigned index) const
 {
+   if (index >= spenders_.size())  
+      throw runtime_error("invalid spender index");
    return spenders_[index]->getOutpoint();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 uint64_t Signer::getOutpointValue(unsigned index) const
 {
+   if (index >= spenders_.size())  
+      throw runtime_error("invalid spender index");
    return spenders_[index]->getValue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 unsigned Signer::getTxInSequence(unsigned index) const
 {
+   if (index >= spenders_.size())  
+      throw runtime_error("invalid spender index");
    return spenders_[index]->getSequence();
 }
 
@@ -1569,57 +2397,71 @@ void Signer::sign(void)
 
    /* sanity checks begin */
 
-   {
-      //sizes
-      if (spenders_.size() == 0)
-         throw runtime_error("tx has no spenders");
+   //sizes
+   if (spenders_.size() == 0)
+      throw runtime_error("tx has no spenders");
 
-      if (recipients_.size() == 0)
-         throw runtime_error("tx has no recipients");
-   }
+   auto recVector = getRecipientVector();
+   if (recVector.size() == 0)
+      throw runtime_error("tx has no recipients");
 
+   /*
+   Try to check input value vs output value. We're not guaranteed to 
+   have this information, since we may be partially signing this 
+   transaction. In that case, skip this step
+   */
+   try
    {
-      //spendVal
       uint64_t inputVal = 0;
       for (unsigned i=0; i < spenders_.size(); i++)
          inputVal += spenders_[i]->getValue();
 
       uint64_t spendVal = 0;
-      for (unsigned i=0; i<recipients_.size(); i++)
-         spendVal += recipients_[i]->getValue();
+      for (auto& recipient : recVector)
+         spendVal += recipient->getValue();
 
       if (inputVal < spendVal)
          throw runtime_error("invalid spendVal");
    }
+   catch (const SpenderException&)
+   {
+      //missing input value data, skip the spendVal check
+   }
 
    /* sanity checks end */
 
-   //run through each spenders
-   for (unsigned i = 0; i < spenders_.size(); i++)
+   //resolve
+   resolvePublicData();
+
+   //sign sig stack entries in each spender
+   for (unsigned i=0; i < spenders_.size(); i++)
    {
       auto& spender = spenders_[i];
-
-      if (spender->isSigned())
+      if (!spender->isResolved() || spender->isSigned())
          continue;
-
-      if (!spender->hasUTXO())
-         continue;
-
-      if (!spender->hasFeed())
-      {
-         if (resolverPtr_ == nullptr)
-            continue;
-
-         spender->setFeed(resolverPtr_);
-      }
-
-      //resolve spender script
-      auto proxy = make_shared<SignerProxyFromSigner>(this, i);
       
+      spender->seedResolver(resolverPtr_);
+      auto proxy = make_shared<SignerProxyFromSigner>(this, i, resolverPtr_);
+      spender->sign(proxy);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::resolvePublicData()
+{
+   //run through each spenders
+   for (auto& spender : spenders_)
+   {
+      if (isResolved())
+         continue;
+
+      if (!spender->canBeResolved())
+         continue;
+
+      //resolve spender script    
       StackResolver resolver(
          spender->getOutputScript(),
-         spender->getFeed(),
-         proxy);
+         resolverPtr_);
 
       //check Script.h for signer flags
       resolver.setFlags(flags_);
@@ -1628,60 +2470,58 @@ void Signer::sign(void)
       {
          spender->parseScripts(resolver);
       }
-      catch (...)
+      catch (const exception&)
+      {}
+
+      auto spenderBip32Paths = spender->getBip32Paths();
+      for (const auto& pathPair : spenderBip32Paths)
       {
-         continue;
+         const auto& assetPath = pathPair.second;
+         if (assetPath.hasRoot())
+            addBip32Root(assetPath.getRoot());
       }
    }
-}
 
-////////////////////////////////////////////////////////////////////////////////
-void Signer::resolveSpenders()
-{
-   //run through each spenders
-   for (unsigned i = 0; i < spenders_.size(); i++)
+   if (resolverPtr_ == nullptr)
+      return;
+
+   for (auto& recipient : getRecipientVector())
    {
-      auto& spender = spenders_[i];
-      
-      if (spender->isResolved())
-         continue;
-      
-      if (!spender->hasUTXO())
-         continue;
+      const auto& serializedOutput = recipient->getSerializedScript();
+      BinaryRefReader brr(serializedOutput);
+      brr.advance(8);
+      auto len = brr.get_var_int();
+      auto scriptRef = brr.get_BinaryDataRef(len);
 
-      auto publicResolver = make_shared<ResolverFeedPublic>(resolverPtr_.get());
-      if (spender->hasFeed())
-         publicResolver = make_shared<ResolverFeedPublic>(spender->getFeed().get());
-
-      //resolve spender script
-      StackResolver resolver(
-         spender->getOutputScript(),
-         publicResolver,
-         nullptr);
-
-      resolver.setFlags(flags_);
-
-      try
+      auto pubKeys = Signer::getPubkeysForScript(scriptRef, resolverPtr_);
+      for (const auto& pubKeyPair : pubKeys)
       {
-         spender->parseScripts(resolver);
-      }
-      catch (exception&)
-      {
-         //nothing to do here, just trying to evaluate signing status
-         continue;
+         try
+         {
+            auto bip32path = 
+               resolverPtr_->resolveBip32PathForPubkey(pubKeyPair.second);
+            if (!bip32path.isValid())
+               continue;
+
+            recipient->addBip32Path(bip32path);
+         }
+         catch (const exception&)
+         {
+            continue;
+         }
       }
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-SecureBinaryData Signer::sign(
+SecureBinaryData Signer::signScript(
    BinaryDataRef script,
    const SecureBinaryData& privKey,
    shared_ptr<SigHashData> SHD, unsigned index)
 {
    auto spender = spenders_[index];
 
-   auto&& dataToHash = SHD->getDataForSigHash(
+   auto hashToSign = SHD->getDataForSigHash(
       spender->getSigHashType(), *this,
       script, index);
    
@@ -1694,11 +2534,7 @@ SecureBinaryData Signer::sign(
    LOGWARN << "   message: " << dataToHash.toHexStr();
 #endif
 
-   SecureBinaryData dataSBD(dataToHash);
-   auto&& sig = CryptoECDSA().SignData(dataSBD, privKey, false);
-
-
-   return sig;
+   return CryptoECDSA().SignData(hashToSign, privKey, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1708,6 +2544,16 @@ shared_ptr<ScriptSpender> Signer::getSpender(unsigned index) const
       throw ScriptException("invalid spender index");
 
    return spenders_[index];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptRecipient> Signer::getRecipient(unsigned index) const
+{
+   auto recVector = getRecipientVector();
+   if (index > recVector.size())
+      throw ScriptException("invalid spender index");
+
+   return recVector[index];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1736,23 +2582,24 @@ BinaryDataRef Signer::serializeSignedTx(void) const
 
    //txins
    for (auto& spender : spenders_)
-      bw.put_BinaryDataRef(spender->getSerializedInput(true));
+      bw.put_BinaryData(spender->getSerializedInput(true));
 
    //txout count
-   if (recipients_.size() == 0)
+   auto recVector = getRecipientVector();
+   if (recVector.size() == 0)
       throw runtime_error("no recipients");
-   bw.put_var_int(recipients_.size());
+   bw.put_var_int(recVector.size());
 
    //txouts
-   for (auto& recipient : recipients_)
-      bw.put_BinaryDataRef(recipient->getSerializedScript());
+   for (auto& recipient : recVector)
+      bw.put_BinaryData(recipient->getSerializedScript());
 
    if (isSW)
    {
       //witness data
       for (auto& spender : spenders_)
       {
-         BinaryDataRef witnessRef = spender->getWitnessData();
+         BinaryDataRef witnessRef = spender->getFinalizedWitnessData();
          
          //account for empty witness data
          if (witnessRef.getSize() == 0)
@@ -1776,7 +2623,7 @@ BinaryDataRef Signer::serializeUnsignedTx(bool loose)
    if (serializedUnsignedTx_.getSize() != 0)
       return serializedUnsignedTx_.getRef();
 
-   resolveSpenders();
+   resolvePublicData();
 
    BinaryWriter bw;
 
@@ -1802,20 +2649,21 @@ BinaryDataRef Signer::serializeUnsignedTx(bool loose)
 
    //txins
    for (auto& spender : spenders_)
-      bw.put_BinaryDataRef(spender->getSerializedInput(false));
+      bw.put_BinaryData(spender->getSerializedInput(false));
 
    //txout count
-   if (recipients_.size() == 0)
+   auto recVector = getRecipientVector();
+   if (recVector.size() == 0)
    {
       if (!loose)
          throw runtime_error("no recipients");
    }
 
-   bw.put_var_int(recipients_.size());
+   bw.put_var_int(recVector.size());
 
    //txouts
-   for (auto& recipient : recipients_)
-      bw.put_BinaryDataRef(recipient->getSerializedScript());
+   for (auto& recipient : recVector)
+      bw.put_BinaryData(recipient->getSerializedScript());
 
    //no witness data for unsigned transactions
    for (auto& spender : spenders_)
@@ -1858,14 +2706,24 @@ BinaryData Signer::serializeAvailableResolvedData(void) const
 
    //txins
    for (auto& spender : spenders_)
-      bw.put_BinaryDataRef(spender->serializeAvailableStack());
+   {
+      try
+      {
+         bw.put_BinaryData(spender->getSerializedInput(false));
+      }
+      catch (const exception&)
+      {
+         bw.put_BinaryData(spender->getEmptySerializedInput());
+      }
+   }
 
    //txout count
-   bw.put_var_int(recipients_.size());
+   auto recVector = getRecipientVector();
+   bw.put_var_int(recVector.size());
 
    //txouts
-   for (auto& recipient : recipients_)
-      bw.put_BinaryDataRef(recipient->getSerializedScript());
+   for (auto& recipient : recVector)
+      bw.put_BinaryData(recipient->getSerializedScript());
 
    if (isSW)
    {
@@ -1931,7 +2789,25 @@ TxEvalState Signer::verify(const BinaryData& rawTx,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool Signer::verify(void) 
+TxEvalState Signer::evaluateSignedState(void) const
+{
+   auto&& txdata = serializeAvailableResolvedData();
+
+   std::map<BinaryData, std::map<unsigned, UTXO>> utxoMap;
+   unsigned flags = 0;
+   for (auto& spender : spenders_)
+   {
+      auto& indexMap = utxoMap[spender->getOutputHash()];
+      indexMap[spender->getOutputIndex()] = spender->getUtxo();
+
+      flags |= spender->getFlags();
+   }
+
+   return verify(txdata, utxoMap, flags, true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool Signer::verify(void) const
 {
    //serialize signed tx
    BinaryData txdata;
@@ -2001,10 +2877,34 @@ Codec_SignerState::SignerState Signer::serializeState() const
       spender->serializeState(*spenderProto);
    }
 
-   for (auto& recipient : recipients_)
+   for (auto& group : recipients_)
    {
-      auto& data = recipient->getSerializedScript();
-      protoMsg.add_recipients(data.getPtr(), data.getSize());
+      for (auto& recipient : group.second)
+      {
+         auto recMsgPtr = protoMsg.add_recipients();
+         recipient->toProtobuf(*recMsgPtr, group.first);
+      }
+   }
+
+   if (supportingTxMap_ != nullptr)
+   {
+      for (auto& supportingTx : *supportingTxMap_)
+      {
+         protoMsg.add_supportingtx(
+            supportingTx.second.getPtr(), supportingTx.second.getSize());
+      }
+   }
+
+   for (auto& bip32PublicRoot : bip32PublicRoots_)
+   {
+      auto& rootPtr = bip32PublicRoot.second;
+      auto pubRoot = protoMsg.add_bip32roots();
+      
+      pubRoot->set_xpub(rootPtr->getXPub());
+      pubRoot->set_fingerprint(rootPtr->getSeedFingerprint());
+      
+      for (auto& step : rootPtr->getPath())
+         pubRoot->add_path(step);
    }
 
    return protoMsg;
@@ -2020,6 +2920,20 @@ Signer Signer::createFromState(const string& protoStr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void Signer::deserializeSupportingTxMap(
+   const Codec_SignerState::SignerState& protoMsg)
+{
+   for (unsigned i = 0; i < protoMsg.supportingtx_size(); i++)
+   {
+      BinaryDataRef rawTxRef;
+      rawTxRef.setRef(protoMsg.supportingtx(i));
+
+      Tx tx(rawTxRef);
+      supportingTxMap_->emplace(tx.getThisHash(), move(tx));
+   }   
+}
+
+////////////////////////////////////////////////////////////////////////////////
 Signer Signer::createFromState(const Codec_SignerState::SignerState& protoMsg)
 {
    Signer signer;
@@ -2031,17 +2945,35 @@ Signer Signer::createFromState(const Codec_SignerState::SignerState& protoMsg)
 
    for (unsigned i = 0; i < protoMsg.spenders_size(); i++)
    {
-
       auto spenderPtr = ScriptSpender::deserializeState(protoMsg.spenders(i));
-      signer.spenders_.push_back(spenderPtr);
+      signer.addSpender(spenderPtr);
    }
 
    for (unsigned i = 0; i < protoMsg.recipients_size(); i++)
    {
-      auto&& recipientData = BinaryDataRef::fromString(protoMsg.recipients(i));
-      auto recipientPtr = ScriptRecipient::deserialize(recipientData);
-      signer.recipients_.push_back(recipientPtr);
+      const auto& recipientMsg = protoMsg.recipients(i);
+      auto recipientPtr = ScriptRecipient::fromProtobuf(protoMsg.recipients(i));
+      signer.addRecipient(recipientPtr, recipientMsg.groupid());
    }
+
+   signer.deserializeSupportingTxMap(protoMsg);
+   
+   for (unsigned i=0; i<protoMsg.bip32roots_size(); i++)
+   {
+      auto& root = protoMsg.bip32roots(i);
+
+      vector<unsigned> path;
+      for (unsigned y=0; y<root.path_size(); y++)
+         path.push_back(root.path(y));
+
+      auto bip32root = make_shared<BIP32_PublicDerivedRoot>(
+         root.xpub(), path, root.fingerprint());
+
+      signer.bip32PublicRoots_.emplace(
+         bip32root->getThisFingerprint(), bip32root);
+   }
+
+   signer.matchAssetPathsWithRoots();
 
    return signer;
 }
@@ -2052,10 +2984,17 @@ void Signer::deserializeState(
 {
    //deser into a new object
    auto&& new_signer = createFromState(protoMsg);
+   new_signer.deserializeSupportingTxMap(protoMsg);
 
-   version_ = new_signer.version_;
-   lockTime_ = new_signer.lockTime_;
-   flags_ |= new_signer.flags_;
+   merge(new_signer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::merge(const Signer& rhs)
+{
+   version_ = rhs.version_;
+   lockTime_ = rhs.lockTime_;
+   flags_ |= rhs.flags_;
 
    auto find_spender = [this](shared_ptr<ScriptSpender> obj)->
       shared_ptr<ScriptSpender>
@@ -2069,11 +3008,16 @@ void Signer::deserializeState(
       return nullptr;
    };
 
-   auto find_recipient = [this](shared_ptr<ScriptRecipient> obj)->
+   auto find_recipient = [this](
+      shared_ptr<ScriptRecipient> obj, unsigned groupid)->
       shared_ptr<ScriptRecipient>
    {
+      auto groupIter = this->recipients_.find(groupid);
+      if (groupIter == this->recipients_.end())
+         return nullptr;
+
       auto& scriptHash = obj->getSerializedScript();
-      for (auto rec : this->recipients_)
+      for (auto& rec : groupIter->second)
       {
          if (scriptHash == rec->getSerializedScript())
             return rec;
@@ -2084,31 +3028,35 @@ void Signer::deserializeState(
 
    //Merge new signer with this. As a general rule, the added entries are all 
    //pushed back.
+   supportingTxMap_->insert(
+      rhs.supportingTxMap_->begin(), rhs.supportingTxMap_->end());
 
    //merge spender
-   for (auto& spender : new_signer.spenders_)
+   for (auto& spender : rhs.spenders_)
    {
       auto local_spender = find_spender(spender);
       if (local_spender != nullptr)
       {
          local_spender->merge(*spender);
          if (!local_spender->verifyEvalState(flags_))
-            throw runtime_error("merged spender has inconsistent state");
+            throw SignerDeserializationError("merged spender has inconsistent state");
       }
       else
       {
+         spender->txMap_ = supportingTxMap_;
          spenders_.push_back(spender);
          if (!spenders_.back()->verifyEvalState(flags_))
-            throw runtime_error("unserialized spender has inconsistent state");
+            throw SignerDeserializationError("unserialized spender has inconsistent state");
       }
    }
 
 
-   /*Recipients are told apart by their script hash. Several recipients with
-   the same script hash will be aggregated into a single one.
+   /*
+   Recipients are told apart by their script hash. Several recipients with
+   the same script hash will be merged.
 
    Note that in case the local signer has several recipient with the same
-   hash scripts, these won't be aggregated. Only those from the new_signer will.
+   hash scripts, these won't be aggregated. Only those from the rhs will.
 
    As a general rule, do not create several outputs with the same script hash.
 
@@ -2119,16 +3067,23 @@ void Signer::deserializeState(
    As with spenders, new recipients are pushed back.
    */
 
-   for (auto& recipient : new_signer.recipients_)
+   for (auto& group : rhs.recipients_)
    {
-      auto local_recipient = find_recipient(recipient);
+      for (auto& recipient : group.second)
+      {
+         auto local_recipient = find_recipient(recipient, group.first);
 
-      if (local_recipient == nullptr)
-         recipients_.push_back(recipient);
-      else
-         local_recipient->setValue(
-            local_recipient->getValue() + recipient->getValue());
+         if (local_recipient == nullptr)
+            addRecipient(recipient, group.first);
+         else
+            local_recipient->merge(recipient);
+      }
    }
+
+   //merge bip32 roots
+   bip32PublicRoots_.insert(
+      rhs.bip32PublicRoots_.begin(), rhs.bip32PublicRoots_.end());
+   matchAssetPathsWithRoots();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2164,10 +3119,9 @@ bool Signer::isSigned() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Signer::resetFeeds(void)
+void Signer::resetFeed(void)
 {
-   for (auto& spender : spenders_)
-      spender->setFeed(nullptr);
+   resolverPtr_ = nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2175,35 +3129,38 @@ void Signer::populateUtxo(const UTXO& utxo)
 {
    for (auto& spender : spenders_)
    {
-      if (spender->hasUTXO())
+      try
       {
-         auto& spender_utxo = spender->getUtxo();
-         if (spender_utxo == utxo)
-            return;
+         const auto& spenderUtxo = spender->getUtxo();
+         if (spenderUtxo.isInitialized())
+         {
+            if (spenderUtxo == utxo)
+               return;
+         }
       }
-      else
-      {
-         auto outpoint = spender->getOutpoint();
-         BinaryRefReader brr(outpoint);
+      catch (const exception&)
+      {}
+
+      auto outpoint = spender->getOutpoint();
+      BinaryRefReader brr(outpoint);
          
-         auto&& hash = brr.get_BinaryDataRef(32);
-         if (hash != utxo.getTxHash())
-            continue;
+      auto&& hash = brr.get_BinaryDataRef(32);
+      if (hash != utxo.getTxHash())
+         continue;
 
-         auto txoutid = brr.get_uint32_t();
-         if (txoutid != utxo.getTxOutIndex())
-            continue;
+      auto txoutid = brr.get_uint32_t();
+      if (txoutid != utxo.getTxOutIndex())
+         continue;
 
-         spender->setUtxo(utxo);
-         return;
-      }
+      spender->setUtxo(utxo);
+      return;
    }
 
    throw runtime_error("could not match utxo to any spender");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData Signer::getTxId()
+BinaryData Signer::getTxId_const() const
 {
    try
    {
@@ -2214,10 +3171,6 @@ BinaryData Signer::getTxId()
    catch (exception&)
    {}
 
-   //tx isn't signed, let's check for SW inputs
-   resolveSpenders();
-   
-   //serialize the tx
    BinaryWriter bw;
 
    //version
@@ -2230,13 +3183,14 @@ BinaryData Signer::getTxId()
       if (!spender->isSegWit() && !spender->isSigned())
          throw runtime_error("cannot get hash for unsigned legacy tx");
 
-      bw.put_BinaryDataRef(spender->getSerializedInput(false));
+      bw.put_BinaryData(spender->getSerializedInput(false));
    }
 
    //outputs
-   bw.put_var_int(recipients_.size());
-   for (auto recipient : recipients_)
-      bw.put_BinaryDataRef(recipient->getSerializedScript());
+   auto recipientVec = getRecipientVector();
+   bw.put_var_int(recipientVec.size());
+   for (auto recipient : recipientVec)
+      bw.put_BinaryData(recipient->getSerializedScript());
 
    //locktime
    bw.put_uint32_t(lockTime_);
@@ -2246,13 +3200,83 @@ BinaryData Signer::getTxId()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Signer::addSpender_ByOutpoint(
-   const BinaryData& hash, unsigned index, unsigned sequence, uint64_t value)
+BinaryData Signer::getTxId()
 {
-   auto spender = make_shared<ScriptSpender>(hash, index, value);
+   if (!isResolved())
+      resolvePublicData();
+
+   return getTxId_const();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::addSpender_ByOutpoint(
+   const BinaryData& hash, unsigned index, unsigned sequence)
+{
+   auto spender = make_shared<ScriptSpender>(hash, index);
    spender->setSequence(sequence);
 
    addSpender(spender);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::addSpender(std::shared_ptr<ScriptSpender> ptr)
+{
+   for (const auto& spender : spenders_)
+   {
+      if (*ptr == *spender)
+      {
+         throw ScriptException("already carrying this spender");
+      }
+   }
+
+   ptr->setTxMap(supportingTxMap_);
+   spenders_.emplace_back(ptr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::addRecipient(shared_ptr<ScriptRecipient> rec)
+{
+   addRecipient(rec, DEFAULT_RECIPIENT_GROUP);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::addRecipient(shared_ptr<ScriptRecipient> rec, unsigned groupId)
+{
+   //do not tolerate recipient duplication within a same group
+   auto iter = recipients_.find(groupId);
+   if (iter == recipients_.end())
+   {
+      auto insertIter = recipients_.emplace(
+         groupId, vector<shared_ptr<ScriptRecipient>>());
+
+      iter = insertIter.first;
+   }
+
+   auto& recVector = iter->second;
+
+   for (const auto& recFromVector : recVector)
+   {
+      if (recFromVector->isSame(*rec))
+      {
+         throw runtime_error(
+            "recipient duplication is not tolerated within groups");
+      }
+   }
+
+   recVector.emplace_back(rec);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<shared_ptr<ScriptRecipient>> Signer::getRecipientVector() const
+{
+   vector<shared_ptr<ScriptRecipient>> result;
+   for (auto& group : recipients_)
+   {
+      for (auto& rec : group.second)
+         result.emplace_back(rec);
+   }
+
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2309,6 +3333,366 @@ void Signer::injectSignature(
    spender->injectSignature(sig, sigId);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+BinaryData Signer::toPSBT() const
+{
+   //init
+   BinaryWriter bw;
+   PSBT::init(bw);
+
+   /*
+   Serialize the unsigned tx. PSBT requires non SW formating for this field
+   and preimages are carried in dedicated input fields so we'll be using 
+   dedicated serialization instead of relying on the existing unsigned tx
+   code (which is used to yield hashes from unsigned SW transactions).
+   */
+   BinaryData unsignedTx;
+   {
+      BinaryWriter bw;
+
+      //version
+      bw.put_uint32_t(version_);
+
+      //txin count
+      bw.put_var_int(spenders_.size());
+
+      //txins
+      for (auto& spender : spenders_)
+         bw.put_BinaryData(spender->getEmptySerializedInput());
+
+      //txout count
+      auto recVector = getRecipientVector();
+      bw.put_var_int(recVector.size());
+
+      //txouts
+      for (auto& recipient : recVector)
+         bw.put_BinaryData(recipient->getSerializedScript());
+
+      //lock time
+      bw.put_uint32_t(lockTime_);
+
+      unsignedTx = move(bw.getData());
+   }
+
+   //unsigned tx
+   PSBT::setUnsignedTx(bw, unsignedTx);
+
+   //proprietary data
+   for (auto& data : prioprietaryPSBTData_)
+   {
+      //key
+      bw.put_var_int(data.first.getSize() + 1);
+      bw.put_uint8_t(PSBT::ENUM_GLOBAL::PSBT_GLOBAL_PROPRIETARY);
+      bw.put_BinaryData(data.first);
+
+      //val
+      bw.put_var_int(data.second.getSize());
+      bw.put_BinaryData(data.second);
+   }
+
+   PSBT::setSeparator(bw);
+
+   /*inputs*/
+   for (auto& spender : spenders_)
+      spender->toPSBT(bw);
+
+   /*outputs*/
+   for (auto recipient : getRecipientVector())
+      recipient->toPSBT(bw);
+
+   //return
+   return bw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+Signer Signer::fromPSBT(const string& psbtString)
+{
+   BinaryDataRef psbtRef;
+   psbtRef.setRef(psbtString);
+
+   return Signer::fromPSBT(psbtRef);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+Signer Signer::fromPSBT(BinaryDataRef psbtRef)
+{
+   Signer signer;
+   BinaryRefReader brr(psbtRef);
+
+   /** header section **/
+
+   //magic word
+   auto magic = brr.get_uint32_t(BE);
+
+   //separator
+   auto separator = brr.get_uint8_t();
+
+   if (magic != PSBT::ENUM_GLOBAL::PSBT_GLOBAL_MAGICWORD || 
+      separator != PSBT::ENUM_GLOBAL::PSBT_GLOBAL_SEPARATOR)
+   {
+      throw PSBTDeserializationError("invalid header");
+   }
+
+   /** global section **/
+   uint32_t psbtVersion = 0;
+   BinaryDataRef unsignedTxRef;
+
+   //getPSBTDataPairs guarantees keys aren't empty
+   auto globalDataPairs = BtcUtils::getPSBTDataPairs(brr);
+
+   for (const auto& dataPair : globalDataPairs)
+   {
+      const auto& key = dataPair.first;
+      const auto& val = dataPair.second;
+      
+      //key type
+      auto typePtr = key.getPtr();
+
+      switch (*typePtr)
+      {
+      case PSBT::ENUM_GLOBAL::PSBT_GLOBAL_UNSIGNED_TX:
+      {
+         //key has to be 1 byte long
+         if (key.getSize() != 1)
+            throw PSBTDeserializationError("invalid unsigned tx key length");
+
+         unsignedTxRef = val;
+         break;
+      }
+
+      case PSBT::ENUM_GLOBAL::PSBT_GLOBAL_XPUB:
+      {
+         //skip for now
+
+         break;
+      }
+
+      case PSBT::ENUM_GLOBAL::PSBT_GLOBAL_VERSION:
+      {
+         //sanity checks
+         if (key.getSize() != 1)
+            throw PSBTDeserializationError("invalid version key length");
+         
+         if (val.getSize() != 4)
+            throw PSBTDeserializationError("invalid version val length");
+
+         psbtVersion = *(uint32_t*)val.getPtr();
+         break;
+      }
+
+      case PSBT::ENUM_GLOBAL::PSBT_GLOBAL_PROPRIETARY:
+      {
+         //skip for now
+
+         break;
+      }
+
+      default:
+         throw PSBTDeserializationError("unexpected global key");
+      }
+   }
+
+   //sanity check
+   if (unsignedTxRef.empty())
+      throw PSBTDeserializationError("missing unsigned tx");
+
+   Tx unsignedTx(unsignedTxRef);
+   signer.setVersion(unsignedTx.getVersion());
+
+   /** txin section **/
+   for (unsigned i=0; i<unsignedTx.getNumTxIn(); i++)
+   {
+      auto txinCopy = unsignedTx.getTxInCopy(i);
+      auto spender = ScriptSpender::fromPSBT(
+         brr, txinCopy, signer.supportingTxMap_);
+
+      signer.addSpender(spender);
+   }
+
+   /** txout section **/
+   for (unsigned i=0; i<unsignedTx.getNumTxOut(); i++)
+   {
+      auto txoutCopy = unsignedTx.getTxOutCopy(i);
+      auto recipient = ScriptRecipient::fromPSBT(brr, txoutCopy);
+      signer.addRecipient(recipient);
+   }
+
+   return signer;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::addSupportingTx(BinaryDataRef rawTxRef)
+{
+   if (rawTxRef.empty())
+      return;
+
+   try
+   {
+      Tx tx(rawTxRef);
+      addSupportingTx(move(tx));
+   }
+   catch (const exception&)
+   {}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::addSupportingTx(Tx tx)
+{
+   if (!tx.isInitialized())
+      return;
+
+   supportingTxMap_->emplace(tx.getThisHash(), move(tx));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const Tx& Signer::getSupportingTx(const BinaryData& hash) const
+{
+   auto iter = supportingTxMap_->find(hash);
+   if (iter == supportingTxMap_->end())
+      throw runtime_error("unknown supporting tx hash");
+   
+   return iter->second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+map<unsigned, BinaryData> Signer::getPubkeysForScript(
+   BinaryDataRef& scriptRef, shared_ptr<ResolverFeed> feedPtr)
+{
+   auto scriptType = BtcUtils::getTxOutScriptType(scriptRef);
+   map<unsigned, BinaryData> pubkeyMap;
+
+   switch (scriptType)
+   {
+   case TXOUT_SCRIPT_P2WPKH:
+   {
+      auto hash = scriptRef.getSliceRef(2, 20);
+      if (feedPtr != nullptr)
+      {
+         try
+         {
+            pubkeyMap.emplace(0, feedPtr->getByVal(hash));
+         }
+         catch (const exception&)
+         {}
+      }
+      break;
+   }
+
+   case TXOUT_SCRIPT_STDHASH160:
+   {
+      auto hash = scriptRef.getSliceRef(3, 20);
+      if (feedPtr != nullptr)
+      {
+         try
+         {
+            pubkeyMap.emplace(0, feedPtr->getByVal(hash));
+         }
+         catch (const exception&)
+         {}
+      }
+      break;
+   }
+
+   case TXOUT_SCRIPT_STDPUBKEY33:
+   {
+      pubkeyMap.emplace(0, scriptRef.getSliceRef(1, 33));
+      break;
+   }
+
+   case TXOUT_SCRIPT_MULTISIG:
+   {
+      vector<BinaryData> pubKeys;
+      BtcUtils::getMultisigPubKeyList(scriptRef, pubKeys);
+
+      for (unsigned i=0; i<pubKeys.size(); i++)
+         pubkeyMap.emplace(i, move(pubKeys[i]));
+      break;
+   }
+
+   default:
+      break;
+   }
+
+   return pubkeyMap;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint64_t Signer::getTotalInputsValue(void) const
+{
+   uint64_t val = 0;
+   for (auto& spender : spenders_)
+      val += spender->getValue();
+
+   return val;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint64_t Signer::getTotalOutputsValue(void) const
+{
+   uint64_t val = 0;
+   for (const auto& group : recipients_)
+   {
+      for (const auto& recipient : group.second)
+         val += recipient->getValue();
+   }
+
+   return val;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint32_t Signer::getTxOutCount() const
+{
+   uint32_t count = 0;
+   for (const auto& group : recipients_)
+      count += group.second.size();
+
+   return count;   
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::addBip32Root(shared_ptr<BIP32_PublicDerivedRoot> rootPtr)
+{
+   if (rootPtr == nullptr)
+      return;
+   
+   bip32PublicRoots_.emplace(rootPtr->getThisFingerprint(), rootPtr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::matchAssetPathsWithRoots()
+{
+   for (auto& spender : spenders_)
+   {
+      auto& paths = spender->getBip32Paths();
+
+      for (auto& pathPair : paths)
+      {
+         auto fingerprint = pathPair.second.getThisFingerprint();
+      
+         auto iter = bip32PublicRoots_.find(fingerprint);
+         if (iter == bip32PublicRoots_.end())
+            continue;
+
+         pathPair.second.setRoot(iter->second);
+      }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData Signer::signMessage(
+   const BinaryData&,
+   const BinaryData&,
+   std::shared_ptr<ResolverFeed>)
+{
+   throw runtime_error("TODO: implement me");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool Signer::verifyMessageSignature(
+   const BinaryData&, const BinaryData&)
+{
+   throw runtime_error("TODO: implement me");
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -2326,13 +3710,16 @@ void SignerProxyFromSigner::setLambda(
    auto signerLBD = [signer, spender, index, feedPtr]
       (BinaryDataRef script, const BinaryData& pubkey, bool sw)->SecureBinaryData
    {
+      if (signer == nullptr || feedPtr == nullptr || spender == nullptr)
+         throw runtime_error("proxy carries null pointers");
+
       auto SHD = signer->getSigHashDataForSpender(sw);
 
       //get priv key for pubkey
-      auto&& privKey = feedPtr->getPrivKeyForPubkey(pubkey);
+      const auto& privKey = feedPtr->getPrivKeyForPubkey(pubkey);
 
       //sign
-      auto&& sig = signer->sign(script, privKey, SHD, index);
+      auto&& sig = signer->signScript(script, privKey, SHD, index);
 
       //convert to DER
 #ifndef LIBBTC_ONLY
@@ -2351,4 +3738,47 @@ void SignerProxyFromSigner::setLambda(
    };
 
    signerLambda_ = signerLBD;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// ResolverFeed_SpenderResolutionChecks
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+BIP32_AssetPath ResolverFeed_SpenderResolutionChecks::resolveBip32PathForPubkey(
+   const BinaryData&)
+{
+   throw std::runtime_error("invalid pubkey");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void ResolverFeed_SpenderResolutionChecks::setBip32PathForPubkey(
+   const BinaryData&, const BIP32_AssetPath&)
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// PSBT
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+void PSBT::init(BinaryWriter& bw)
+{
+   bw.put_uint32_t(PSBT::ENUM_GLOBAL::PSBT_GLOBAL_MAGICWORD, BE);
+   bw.put_uint8_t(PSBT::ENUM_GLOBAL::PSBT_GLOBAL_SEPARATOR);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PSBT::setUnsignedTx(BinaryWriter& bw, const BinaryData& unsignedTx)
+{
+   bw.put_uint8_t(1);
+   bw.put_uint8_t(PSBT::ENUM_GLOBAL::PSBT_GLOBAL_UNSIGNED_TX);
+
+   bw.put_var_int(unsignedTx.getSize());
+   bw.put_BinaryData(unsignedTx);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PSBT::setSeparator(BinaryWriter& bw)
+{
+   bw.put_uint8_t(0);
 }

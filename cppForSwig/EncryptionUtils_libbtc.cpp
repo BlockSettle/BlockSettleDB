@@ -354,17 +354,13 @@ bool CryptoECDSA::VerifyPublicKeyValid(SecureBinaryData const & pubKey)
 //         A flag indicating if deterministic signing is used  (const bool&)
 // Output: None
 // Return: The signature of the data  (SecureBinaryData)
-SecureBinaryData CryptoECDSA::SignData(SecureBinaryData const & binToSign, 
+SecureBinaryData CryptoECDSA::SignData(BinaryData const & binToSign, 
    SecureBinaryData const & cppPrivKey, const bool&)
 {
-   // We trick the Crypto++ ECDSA module by passing it a single-hashed
-   // message, it will do the second hash before it signs it.  This is 
-   // exactly what we need.
-
    //hash message
-   SecureBinaryData digest1(32), digest2(32);
-   sha256_Raw(binToSign.getPtr(), binToSign.getSize(), digest1.getPtr());
-   sha256_Raw(digest1.getPtr(), 32, digest2.getPtr());
+   BinaryData digest(32);
+   sha256_Raw(binToSign.getPtr(), binToSign.getSize(), digest.getPtr());
+   sha256_Raw(digest.getPtr(), 32, digest.getPtr());
 
    // Only use RFC 6979
    SecureBinaryData sig(74);
@@ -374,7 +370,7 @@ SecureBinaryData CryptoECDSA::SignData(SecureBinaryData const & binToSign,
    btc_privkey_init(&pkey);
    memcpy(pkey.privkey, cppPrivKey.getPtr(), 32);
 
-   btc_key_sign_hash(&pkey, digest2.getPtr(), sig.getPtr(), &outlen);
+   btc_key_sign_hash(&pkey, digest.getPtr(), sig.getPtr(), &outlen);
    if(outlen != 74)
       sig.resize(outlen);
 

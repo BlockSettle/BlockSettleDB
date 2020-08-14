@@ -201,6 +201,7 @@ public:
    BinaryDataRef      getScriptRef(void);
    TXOUT_SCRIPT_TYPE  getScriptType(void) const { return scriptType_; }
    uint32_t           getScriptSize(void) const { return getSize() - scriptOffset_; }
+   size_t             getScriptOffset(void) const { return scriptOffset_; }
 
    // SWIG doesn't handle these enums well, so we will provide some direct bools
    bool isScriptStandard(void)    { return scriptType_ != TXOUT_SCRIPT_NONSTANDARD; }
@@ -212,8 +213,8 @@ public:
 
 
    /////////////////////////////////////////////////////////////////////////////
-   BinaryData         serialize(void) { return BinaryData(dataCopy_); }
-   BinaryDataRef      serializeRef(void) { return dataCopy_; }
+   BinaryData serialize(void) const { return BinaryData(dataCopy_); }
+   BinaryDataRef serializeRef(void) const { return dataCopy_.getRef(); }
 
    /////////////////////////////////////////////////////////////////////////////
    void unserialize_checked(uint8_t const *   ptr,
@@ -266,7 +267,7 @@ public:
    uint32_t           getVersion(void)   const { return READ_UINT32_LE(dataCopy_.getPtr()); }
    size_t             getNumTxIn(void)   const { return offsetsTxIn_.size() - 1; }
    size_t             getNumTxOut(void)  const { return offsetsTxOut_.size() - 1; }
-   BinaryData         getThisHash(void)  const;
+   const BinaryData&  getThisHash(void)  const;
    bool               isInitialized(void) const { return isInitialized_; }
    bool               isCoinbase(void) const;
 
@@ -439,6 +440,7 @@ struct UTXO
    BinaryData serialize(void) const;
    void unserialize(const BinaryData&);
    void unserializeRaw(const BinaryData&);
+   BinaryData serializeTxOut(void) const;
 
    //coin seletion methods
    bool isSegWit(void) const { return isInputSW_; }

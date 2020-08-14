@@ -42,11 +42,11 @@ void BIP32_Node::setupNode(btc_hdnode* node) const
 
    node->depth = depth_;
    node->child_num = child_num_;
-   node->fingerprint = fingerprint_;
+   node->fingerprint = parentFingerprint_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BIP32_Node::setupFromNode(btc_hdnode* node)
+void BIP32_Node::setupFromNode(const btc_hdnode* node)
 {
    init();
    memcpy(chaincode_.getPtr(), node->chain_code, BTC_BIP32_CHAINCODE_SIZE);
@@ -55,7 +55,7 @@ void BIP32_Node::setupFromNode(btc_hdnode* node)
 
    depth_ = node->depth;
    child_num_ = node->child_num;
-   fingerprint_ = node->fingerprint;
+   parentFingerprint_ = node->fingerprint;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,7 +129,7 @@ void BIP32_Node::initFromBase58(const SecureBinaryData& b58)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void BIP32_Node::initFromPrivateKey(
+btc_hdnode BIP32_Node::getHDNodeFromPrivateKey(
    uint8_t depth, unsigned leaf_id, unsigned fingerPrint,
    const SecureBinaryData& privKey, const SecureBinaryData& chaincode)
 {
@@ -148,7 +148,18 @@ void BIP32_Node::initFromPrivateKey(
    node.fingerprint = fingerPrint;
 
    btc_hdnode_fill_public_key(&node);
+   return node;
+}
 
+////////////////////////////////////////////////////////////////////////////////
+void BIP32_Node::initFromPrivateKey(
+   uint8_t depth, unsigned leaf_id, unsigned fingerPrint,
+   const SecureBinaryData& privKey, const SecureBinaryData& chaincode)
+{
+   auto node = getHDNodeFromPrivateKey(
+      depth, leaf_id, fingerPrint,
+      privKey, chaincode);
+   
    setupFromNode(&node);
 }
 
@@ -169,7 +180,7 @@ void BIP32_Node::initFromPublicKey(
 
    depth_ = depth;
    child_num_ = leaf_id;
-   fingerprint_ = fingerPrint;
+   parentFingerprint_ = fingerPrint;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,17 +212,29 @@ BIP32_Node BIP32_Node::getPublicCopy() const
 {
    BIP32_Node copy;
    copy.initFromPublicKey(
-      getDepth(), getLeafID(), getFingerPrint(), getPublicKey(), getChaincode());
+      getDepth(), getLeafID(), getParentFingerprint(), 
+      getPublicKey(), getChaincode());
 
-   copy.fingerprint_ = fingerprint_;
    return copy;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 bool BIP32_Node::isPublic() const
 {
-   if (privkey_.getSize() == 0 || privkey_ == BtcUtils::EmptyHash())
+   if (privkey_.empty() || privkey_ == BtcUtils::EmptyHash())
       return true;
 
    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint32_t BIP32_Node::getThisFingerprint() const
+{
+   if (pubkey_.empty())
+      throw std::runtime_error("missing public key");
+
+   auto hash = BtcUtils::getHash160(pubkey_);
+   auto fingerprint = (uint32_t*)hash.getPtr();
+
+   return *fingerprint;
 }

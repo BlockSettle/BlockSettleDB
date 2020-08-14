@@ -14,6 +14,7 @@ using namespace std;
 using namespace ::google::protobuf;
 using namespace ::Codec_ClientProto;
 using namespace ArmoryThreading;
+using namespace ArmorySigner;
 
 enum CppBridgeState
 {
@@ -43,12 +44,30 @@ int main(int argc, char* argv[])
    STARTLOGGING(bdmConfig.logFilePath_, LogLvlDebug);
 
    //setup the bridge
-   auto bridge = make_unique<CppBridge>(
-      bdmConfig.dataDir_, "46122",
+   auto bridge = make_shared<CppBridge>(
+      bdmConfig.dataDir_,
       "127.0.0.1", bdmConfig.listenPort_);
-  
-   //enter the command loop
-   bridge->commandLoop();
+   
+   //setup the socket
+   auto sockPtr = make_shared<CppBridgeSocket>("127.0.0.1", "46122", bridge);
+
+   //set bridge write lambda
+   auto pushPayloadLbd = [sockPtr](
+      std::unique_ptr<WritePayload_Bridge> payload)->void
+   {
+      sockPtr->pushPayload(move(payload), nullptr);
+   };
+   bridge->setWriteLambda(pushPayloadLbd);
+
+   //connect
+   if (!sockPtr->connectToRemote())
+   {
+      LOGERR << "cannot find ArmoryQt client, shutting down";
+      return -1;
+   }
+
+   //block main thread till socket dies
+   sockPtr->blockUntilClosed();
 
    //done
    LOGINFO << "exiting";
@@ -299,7 +318,7 @@ PassphraseLambda BridgePassphrasePrompt::getLambda(BridgePromptType type)
       auto payload = make_unique<WritePayload_Bridge>();
       payload->message_ = move(msg);
       payload->id_ = BRIDGE_CALLBACK_PROMPTUSER;
-      writeQueue_->push_back(move(payload));
+      writeLambda_(move(payload));
 
       if (exit)
          return {};
@@ -320,62 +339,65 @@ void BridgePassphrasePrompt::setReply(const string& passphrase)
 
 ////////////////////////////////////////////////////////////////////////////////
 ////
+////  CppBridgeSocket
+////
+////////////////////////////////////////////////////////////////////////////////
+void CppBridgeSocket::respond(std::vector<uint8_t>& data)
+{
+   if (data.empty())
+   {
+      //shutdown condition
+      shutdown();
+      return;
+   }
+
+   if (!bridgePtr_->processData(move(data)))
+      shutdown();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CppBridgeSocket::pushPayload(
+   unique_ptr<Socket_WritePayload> write_payload,
+   shared_ptr<Socket_ReadPayload>)
+{
+   if (write_payload == nullptr)
+      return;
+
+   vector<uint8_t> data;
+   write_payload->serialize(data);
+   queuePayloadForWrite(data);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////
 ////  CppBridge
 ////
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::commandLoop()
-{  
-   writeQueue_ = make_shared<BlockingQueue<unique_ptr<WritePayload_Bridge>>>();
-   auto writeLbd = [this](void)->void
+bool CppBridge::processData(vector<uint8_t> socketData)
+{
+   size_t offset = 0;
+   while (offset + 4 < socketData.size())
    {
-      this->writeThread();
-   };
-   writeThr_ = thread(writeLbd);
+      auto lenPtr = (uint32_t*)(&socketData[0] + offset);
+      offset += 4;
+      if (*lenPtr > socketData.size() - offset)
+         break;
 
-   //sanity check
-   if (sockPtr_ != nullptr)
-      throw runtime_error("socket already exists");
-
-   //create socket and connect it
-   sockPtr_ = make_unique<SimpleSocket>("127.0.0.1", port_);
-   sockPtr_->connectToRemote();
-
-   //command processing loop
-   vector<uint8_t> socketData;
-   bool run = true;
-   while (run)
-   {
+      ClientCommand msg;
+      if (!msg.ParseFromArray(&socketData[offset], *lenPtr))
       {
-         auto payload = sockPtr_->readFromSocket();
-         if (payload.size() == 0)
-            break;
-
-         socketData.insert(socketData.end(), payload.begin(), payload.end());
-      }
-
-      size_t offset = 0;
-      while (offset + 4 < socketData.size())
-      {
-         auto lenPtr = (uint32_t*)(&socketData[0] + offset);
-         offset += 4;
-         if (*lenPtr > socketData.size() - offset)
-            break;
-
-         ClientCommand msg;
-         if (!msg.ParseFromArray(&socketData[offset], *lenPtr))
-         {
-            LOGERR << "failed to parse protobuf msg";
-            offset += *lenPtr;
-            continue;
-         }
+         LOGERR << "failed to parse protobuf msg";
          offset += *lenPtr;
+         continue;
+      }
+      offset += *lenPtr;
 
-         auto id = msg.payloadid();
-         unique_ptr<Message> response;
+      auto id = msg.payloadid();
+      unique_ptr<Message> response;
 
-         switch (msg.method())
-         {
-            case Methods::loadWallets:
+      switch (msg.method())
+      {
+         case Methods::loadWallets:
             {
                loadWallets(id);
                break;
@@ -411,10 +433,6 @@ void CppBridge::commandLoop()
 
             case Methods::shutdown:
             {
-               writeQueue_->terminate();
-               if (writeThr_.joinable())
-                  writeThr_.join();
-
                if (bdvPtr_ != nullptr)
                {
                   bdvPtr_->unregisterFromDB();
@@ -422,8 +440,7 @@ void CppBridge::commandLoop()
                   callbackPtr_.reset();
                }
 
-               run = false;
-               break;
+               return false;
             }
 
             case Methods::getLedgerDelegateIdForWallets:
@@ -795,12 +812,12 @@ void CppBridge::commandLoop()
             case Methods::signer_addSpenderByOutpoint:
             {
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 2 ||
-                  msg.byteargs_size() != 1 || msg.longargs_size() != 1)
+                  msg.byteargs_size() != 1)
                   throw runtime_error("invalid command: signer_addSpenderByOutpoint");
 
                BinaryDataRef hash; hash.setRef(msg.byteargs(0));
                auto result = signer_addSpenderByOutpoint(msg.stringargs(0), 
-                  hash, msg.intargs(0), msg.intargs(1), msg.longargs(0));
+                  hash, msg.intargs(0), msg.intargs(1));
 
                auto resultProto = make_unique<ReplyNumbers>();
                resultProto->add_ints(result);
@@ -931,23 +948,9 @@ void CppBridge::commandLoop()
 
          //write response to socket
          writeToClient(move(response), id);
-      }
-
-      if (offset == socketData.size())
-      {
-         socketData.clear();
-         continue;
-      }
-
-      memcpy(&socketData[0], &socketData[offset], socketData.size() - offset);
    }
 
-   //wind down
-   writeQueue_->terminate();
-   sockPtr_->shutdown();
-
-   if (writeThr_.joinable())
-      writeThr_.join();
+   return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -956,26 +959,7 @@ void CppBridge::writeToClient(unique_ptr<Message> msgPtr, unsigned id)
    auto payload = make_unique<WritePayload_Bridge>();
    payload->message_ = move(msgPtr);
    payload->id_ = id;
-   writeQueue_->push_back(move(payload));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void CppBridge::writeThread()
-{
-   while(true)
-   {
-      unique_ptr<WritePayload_Bridge> payload;
-      try
-      {
-         payload = move(writeQueue_->pop_front());
-      }
-      catch (StopBlockingLoop&)
-      {
-         break;
-      }
-
-      sockPtr_->pushPayload(move(payload), nullptr);
-   }
+   writeLambda_(move(payload));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -983,7 +967,7 @@ PassphraseLambda CppBridge::createPassphrasePrompt(BridgePromptType type)
 {
    unique_lock<mutex> lock(passPromptMutex_);
    auto&& id = fortuna_.generateRandom(6).toHexStr();
-   auto passPromptObj = make_shared<BridgePassphrasePrompt>(id, writeQueue_);
+   auto passPromptObj = make_shared<BridgePassphrasePrompt>(id, writeLambda_);
 
    promptMap_.insert(make_pair(id, passPromptObj));
    return passPromptObj->getLambda(type);
@@ -1846,13 +1830,13 @@ bool CppBridge::signer_SetLockTime(const string& id, unsigned locktime)
 ////////////////////////////////////////////////////////////////////////////////
 bool CppBridge::signer_addSpenderByOutpoint(
    const string& id, const BinaryDataRef& hash, 
-   unsigned txOutId, unsigned sequence, uint64_t value)
+   unsigned txOutId, unsigned sequence)
 {
    auto iter = signerMap_.find(id);
    if (iter == signerMap_.end())
       return false;
 
-   iter->second->signer_.addSpender_ByOutpoint(hash, txOutId, sequence, value);
+   iter->second->signer_.addSpender_ByOutpoint(hash, txOutId, sequence);
    return true;
 }
 
@@ -1967,7 +1951,7 @@ void CppBridge::signer_signTx(
          auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);      
          auto feed = make_shared<ResolverFeed_AssetWalletSingle>(wltSingle);
 
-         signerPtr->signer_.resetFeeds();
+         signerPtr->signer_.resetFeed();
          signerPtr->signer_.setFeed(feed);
 
          //create & set wallet lambda

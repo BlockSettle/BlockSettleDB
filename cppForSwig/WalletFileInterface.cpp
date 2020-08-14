@@ -464,10 +464,6 @@ unsigned DBInterface::getEntryCount(void) const
 void WalletDBInterface::setupEnv(const string& path,
    const PassphraseLambda& passLbd)
 {
-   //sanity check
-   if (!passLbd)
-      throw WalletInterfaceException("null passphrase lambda");
-
    auto lock = unique_lock<mutex>(setupMutex_);
    if (dbEnv_ != nullptr)
       return;
@@ -827,7 +823,7 @@ MasterKeyStruct WalletDBInterface::initWalletHeaderObject(
    default key
    */
    unique_ptr<DecryptedEncryptionKey> topEncryptionKey;
-   if (passphrase.getSize() > 0)
+   if (!passphrase.empty())
    {
       //copy passphrase
       auto&& passphraseCopy = passphrase.copy();
@@ -882,7 +878,9 @@ shared_ptr<WalletHeader_Control> WalletDBInterface::setupControlDB(
    const PassphraseLambda& passLbd)
 {
    //prompt for passphrase
-   SecureBinaryData passphrase = passLbd(set<BinaryData>());
+   SecureBinaryData passphrase;
+   if (passLbd) 
+      passphrase = passLbd(set<BinaryData>());
 
    //create control meta object
    auto headerPtr = make_shared<WalletHeader_Control>();

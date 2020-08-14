@@ -18,11 +18,18 @@ message StackEntryState_Data
     repeated bytes data = 1;
 };
 
+message StackEntryState_Sig
+{
+    required bytes script = 1;
+    required bytes pubkey = 2;
+};
+
 message StackEntryState_MultiSig
 {
-    required uint32 m = 1;
-    repeated uint32 sig_index = 2;
-    repeated bytes  sig_data = 3;
+    required bytes  script = 1;
+
+    repeated uint32 sig_index = 10;
+    repeated bytes  sig_data = 11;
 };
 
 message StackEntryState
@@ -34,7 +41,22 @@ message StackEntryState
         bytes stackentry_data = 10;
         uint32 opcode = 11;
         StackEntryState_MultiSig multisig_data = 12;
+        StackEntryState_Sig sig_data = 13;
     }
+};
+
+message BIP32PublicRoot
+{
+    required string xpub = 1;
+    required uint32 fingerprint = 2;
+    repeated uint32 path = 3;
+}
+
+message PubkeyBIP32Path
+{
+    required bytes pubkey = 1;
+    required uint32 fingerprint = 2;
+    repeated uint32 path = 3;
 };
 
 message ScriptSpenderState
@@ -62,6 +84,15 @@ message ScriptSpenderState
 
     repeated StackEntryState legacy_stack = 42;
     repeated StackEntryState witness_stack = 43;
+
+    repeated PubkeyBIP32Path bip32Paths = 50;
+}
+
+message RecipientState
+{
+    required bytes data = 1;
+    required uint32 groupid = 2;
+    repeated PubkeyBIP32Path bip32Paths = 10;
 }
 
 message SignerState
@@ -72,5 +103,7 @@ message SignerState
     required uint32 locktime = 11;
 
     repeated ScriptSpenderState spenders = 20;
-    repeated bytes recipients = 21;
+    repeated RecipientState recipients = 21;
+    repeated bytes supportingtx = 22;
+    repeated BIP32PublicRoot bip32Roots = 23;
 }

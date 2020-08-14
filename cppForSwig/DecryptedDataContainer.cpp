@@ -91,6 +91,14 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
 const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
    const Asset_EncryptedData* dataPtr)
 {
+   /*
+   Decrypt data from asset, insert it in decrypted data locked container.
+   Return reference from that. Return straight from container if decrypted
+   data is already.
+
+   Data is keyed by its asset id.
+   */
+
    //sanity check
    if (!ownsLock())
       throw DecryptedDataContainerException("unlocked/does not own lock");
@@ -170,6 +178,48 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
 
    //insert the newly decrypted data in the container and return
    return insertDecryptedData(move(decryptedDataPtr));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
+   const BinaryData& id) const
+{
+   /*
+   Get decrypted data from locked container by key. Throw on failure.
+   */
+
+   if (lockedDecryptedData_ == nullptr)
+      throw DecryptedDataContainerException("container is not locked");
+
+   auto decrKeyIter = lockedDecryptedData_->privateData_.find(id);
+   if (decrKeyIter == lockedDecryptedData_->privateData_.end())
+      throw DecryptedDataContainerException("could not get encryption key");
+
+   return decrKeyIter->second->getDataRef();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const BinaryData& DecryptedDataContainer::insertDecryptedPrivateData(
+   const uint8_t* data, size_t len)
+{
+   /*
+   Insert random data in the locked decrypted container, generate random key. 
+   Return the key.
+   */
+
+   if (lockedDecryptedData_ == nullptr)
+      throw DecryptedDataContainerException("container is not locked");
+
+   //random id
+   auto id = CryptoPRNG::generateRandom(16);
+   SecureBinaryData sbd(len);
+   memcpy(sbd.getPtr(), data, len);
+
+   auto decrDataPtr = make_unique<DecryptedData>(id, sbd);
+
+   auto insertIter = 
+      lockedDecryptedData_->privateData_.emplace(move(id), move(decrDataPtr));
+   return insertIter.first->first;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
