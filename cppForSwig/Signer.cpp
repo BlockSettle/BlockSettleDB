@@ -14,6 +14,8 @@
 #include "BIP32_Node.h"
 #include "Assets.h"
 
+#include "Addresses.h"
+
 using namespace std;
 using namespace ArmorySigner;
 
@@ -3680,18 +3682,135 @@ void Signer::matchAssetPathsWithRoots()
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData Signer::signMessage(
-   const BinaryData&,
-   const BinaryData&,
-   std::shared_ptr<ResolverFeed>)
+   const BinaryData& message, const BinaryData& scrAddr,
+   std::shared_ptr<ResolverFeed> walletFeed)
 {
-   throw runtime_error("TODO: implement me");
+   //get pubkey for scrAddr. Resolver takes unprefixed hashes
+   if (scrAddr.getSize() < 21)
+      throw runtime_error("invalid scrAddr");
+
+   auto pubkey = walletFeed->getByVal(
+      scrAddr.getSliceRef(1, scrAddr.getSize() - 1));
+   bool compressed = true;
+   if (pubkey.getSize() == 65)
+      compressed = false;
+
+   //get private key for pubkey
+   auto privkey = walletFeed->getPrivKeyForPubkey(pubkey);
+
+   //sign
+   return CryptoECDSA::SignBitcoinMessage(
+      message.getRef(), privkey, compressed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 bool Signer::verifyMessageSignature(
-   const BinaryData&, const BinaryData&)
+   const BinaryData& message, const BinaryData& scrAddr, const BinaryData& sig)
 {
-   throw runtime_error("TODO: implement me");
+   BinaryData pubkey;
+   try
+   {
+      pubkey = CryptoECDSA::VerifyBitcoinMessage(message, sig);
+   }
+   catch (const std::exception& e)
+   {
+      LOGWARN << "failed to verify bitcoin message "
+         "signature with the following error: ";
+      LOGWARN << "   " << e.what();
+
+      return false;
+   }
+
+   /*
+   The sig carries a pubkey. VerifyBitcoinMessage generates that pubkey.
+   We need to convert it to an address hash to check it against the expected 
+   scrAddr
+   */
+
+   //create asset from pubkey
+   SecureBinaryData sbdPubkey(pubkey);
+   auto assetPubkey = make_shared<Asset_PublicKey>(sbdPubkey);
+   auto assetPtr = make_shared<AssetEntry_Single>(
+      -1, BinaryData(), assetPubkey, nullptr);
+
+   //check scrAddr type, try to generate equivalent address hash
+   auto scrType = BtcUtils::getScriptTypeForScrAddr(scrAddr.getRef());
+   switch (scrType)
+   {
+      case TXOUT_SCRIPT_P2WPKH:
+      {
+         auto addrPtr = make_shared<AddressEntry_P2WPKH>(assetPtr);
+         if (addrPtr->getPrefixedHash() == scrAddr)
+            return true;
+         
+         break;
+      }
+
+      case TXOUT_SCRIPT_STDHASH160:
+      {
+         auto addrPtr = make_shared<AddressEntry_P2PKH>(
+            assetPtr, (pubkey.getSize() == 33) ? true : false);
+            
+         if (addrPtr->getPrefixedHash() == scrAddr)
+            return true;
+         
+         break;
+      }
+
+      case TXOUT_SCRIPT_P2SH:
+      {
+         /*
+         This is a complicated case, the scrAddr provides no information as
+         to what script type preceeds the p2sh hash. We'll try p2wpkh and p2pk
+         since these are common in armory.
+         */
+
+         auto addrPtr1 = make_shared<AddressEntry_P2WPKH>(assetPtr);
+         auto p2shAddr = make_shared<AddressEntry_P2SH>(addrPtr1);
+         if (p2shAddr->getPrefixedHash() == scrAddr)
+            return true;
+
+         auto addrPtr2 = make_shared<AddressEntry_P2PK>(assetPtr, true);
+         p2shAddr = make_shared<AddressEntry_P2SH>(addrPtr2);
+         if (p2shAddr->getPrefixedHash() == scrAddr)
+            return true;
+
+         break;
+      }
+
+      default:
+         LOGWARN << "could not generate scrAddr from pubkey";
+         return false;
+   }
+
+   LOGWARN << "failed to match sig's pubkey to scrAddr";
+   return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void Signer::prettyPrint() const
+{
+   //WIP
+
+   cout << endl;
+   for (auto& spender : spenders_)
+   {
+
+   }
+
+   for (auto& group : recipients_)
+   {
+      auto groupId = WRITE_UINT32_BE(group.first);
+      cout << " recipient group: " << groupId.toHexStr() << endl;
+
+      for (const auto& rec : group.second)
+      {
+         cout <<  "  val: " << rec->getValue() << 
+            ", addr: " << rec->getSerializedScript().toHexStr() << endl;
+      }
+   }
+
+   cout << endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

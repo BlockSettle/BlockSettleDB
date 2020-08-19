@@ -454,6 +454,9 @@ public:
       resetFeed();
    }
 
+   //debug
+   void prettyPrint(void) const;
+
    /*
    Message signing: get resolver for wallet holding the private key
    and lock it before calling signMessage. verifyMessageSignature
@@ -461,12 +464,13 @@ public:
    */
    static BinaryData signMessage(
       const BinaryData& message,
-      const BinaryData& pubkey,
+      const BinaryData& scrAddr,
       std::shared_ptr<ResolverFeed> walletResolver);
 
    static bool verifyMessageSignature(
       const BinaryData& message,
-      const BinaryData& pubkey);
+      const BinaryData& scraddr, 
+      const BinaryData& sig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
