@@ -34,9 +34,11 @@ typedef enum
    SCRIPT_PREFIX_HASH160 = 0x00,
    SCRIPT_PREFIX_P2SH = 0x05,
    SCRIPT_PREFIX_HASH160_TESTNET = 0x6f,
-   SCRIPT_PREFIX_P2SH_TESTNET = 0xc4,
+   PRIVKEY_PREFIX = 0x80,
    SCRIPT_PREFIX_P2WPKH = 0x90,
    SCRIPT_PREFIX_P2WSH = 0x95,
+   SCRIPT_PREFIX_P2SH_TESTNET = 0xc4,
+   PRIVKEY_PREFIX_TESTNET = 0xef,
    SCRIPT_PREFIX_MULTISIG = 0xfe,
    SCRIPT_PREFIX_NONSTD = 0xff,
    SCRIPT_PREFIX_OPRETURN = 0x6a
@@ -59,6 +61,7 @@ private:
 
    static uint8_t pubkeyHashPrefix_;
    static uint8_t scriptHashPrefix_;
+   static uint8_t privKeyPrefix_;
 
    static NETWORK_MODE mode_;
    static const btc_chainparams* chain_params_;
@@ -69,6 +72,7 @@ public:
 
    static uint8_t getPubkeyHashPrefix(void);
    static uint8_t getScriptHashPrefix(void);
+   static uint8_t getPrivKeyPrefix(void);
 
    static const BinaryData& getGenesisBlockHash(void);
    static const BinaryData& getGenesisTxHash(void);
