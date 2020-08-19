@@ -198,6 +198,9 @@ btc_bool btc_ecc_sign_compact_recoverable(const uint8_t* private_key, const uint
 
 btc_bool btc_ecc_recover_pubkey(const unsigned char* sigrec, const uint256 hash, const int recid, uint8_t* public_key, size_t *outlen)
 {
+    if (outlen == NULL) 
+        return false;
+
     assert(secp256k1_ctx);
 
     secp256k1_pubkey pubkey;
@@ -209,8 +212,11 @@ btc_bool btc_ecc_recover_pubkey(const unsigned char* sigrec, const uint256 hash,
     if (!secp256k1_ecdsa_recover(secp256k1_ctx, &pubkey, &sig, hash))
         return 0;
 
-    if (!secp256k1_ec_pubkey_serialize(secp256k1_ctx, public_key, outlen, &pubkey, SECP256K1_EC_COMPRESSED))
+    if (!secp256k1_ec_pubkey_serialize(secp256k1_ctx, public_key, outlen, &pubkey, 
+        (*outlen == 33) ? SECP256K1_EC_COMPRESSED : SECP256K1_EC_UNCOMPRESSED))
+    {
         return 0;
+    }
 
     return 1;
 }

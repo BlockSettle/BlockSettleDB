@@ -275,6 +275,9 @@ public:
 // static methods.  So we will invoke these via CryptoECDSA().Function()
 class CryptoECDSA
 {
+private:
+   static const std::string bitcoinMessageMagic_;
+
 public:
    CryptoECDSA(void) {}
 
@@ -379,6 +382,17 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    static BinaryData computeLowS(BinaryDataRef s);
 #endif
+
+   /////////////////////////////////////////////////////////////////////////////
+   // takes unhashed, unprefixed message
+   static BinaryData SignBitcoinMessage(
+      const BinaryDataRef& msg, 
+      const SecureBinaryData& privKey, 
+      bool compressedPubKey);
+   
+   static BinaryData VerifyBitcoinMessage(
+      const BinaryDataRef& msg,
+      const BinaryDataRef& sig);
 };
 
 #endif

@@ -1075,6 +1075,7 @@ public:
    static BinaryData getTxOutScrAddr(BinaryDataRef script,
       TXOUT_SCRIPT_TYPE type = TXOUT_SCRIPT_NONSTANDARD);
    static BinaryData getTxOutScriptForScrAddr(BinaryDataRef scrAddr);
+   static TXOUT_SCRIPT_TYPE getScriptTypeForScrAddr(BinaryDataRef);
 
 
    /////////////////////////////////////////////////////////////////////////////
@@ -2024,6 +2025,9 @@ public:
 
    static std::string base64_encode(const std::string&);
    static std::string base64_decode(const std::string&);
+
+   static std::string encodePrivKeyBase58(const SecureBinaryData&);
+   static SecureBinaryData decodePrivKeyBase58(const std::string&);
 
    ////
    static const std::string swHeaderMain_;
