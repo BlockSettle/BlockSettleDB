@@ -124,19 +124,19 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const;
-   const std::string& getAddress(void) const;
+   const BinaryData& getID(void) const override;
+   const std::string& getAddress(void) const override;
 
-   const BinaryData& getPrefixedHash(void) const;
-   const BinaryData& getHash(void) const;
-   const BinaryData& getPreimage(void) const;
+   const BinaryData& getPrefixedHash(void) const override;
+   const BinaryData& getHash(void) const override;
+   const BinaryData& getPreimage(void) const override;
 
    std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
       uint64_t) const override;
-   const BinaryData& getScript(void) const;
+   const BinaryData& getScript(void) const override;
 
    //size (accounts for outpoint and sequence)
-   size_t getInputSize(void) const;
+   size_t getInputSize(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,19 +154,19 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const;
-   const std::string& getAddress(void) const;
+   const BinaryData& getID(void) const override;
+   const std::string& getAddress(void) const override;
 
-   const BinaryData& getHash(void) const;
-   const BinaryData& getPrefixedHash(void) const;
-   const BinaryData& getPreimage(void) const;
+   const BinaryData& getHash(void) const override;
+   const BinaryData& getPrefixedHash(void) const override;
+   const BinaryData& getPreimage(void) const override;
 
    std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
       uint64_t) const override;
-   const BinaryData& getScript(void) const;
+   const BinaryData& getScript(void) const override;
 
    //size (accounts for outpoint and sequence)
-   size_t getInputSize(void) const;
+   size_t getInputSize(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,20 +184,20 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const;
-   const std::string& getAddress(void) const;
+   const BinaryData& getID(void) const override;
+   const std::string& getAddress(void) const override;
 
-   const BinaryData& getHash(void) const;
-   const BinaryData& getPrefixedHash(void) const;
-   const BinaryData& getPreimage(void) const;
+   const BinaryData& getHash(void) const override;
+   const BinaryData& getPrefixedHash(void) const override;
+   const BinaryData& getPreimage(void) const override;
 
    std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
       uint64_t) const override;
-   const BinaryData& getScript(void) const;
+   const BinaryData& getScript(void) const override;
 
    //size (accounts for outpoint and sequence)
-   size_t getInputSize(void) const { return 40; }
-   size_t getWitnessDataSize(void) const { return 108; }
+   size_t getInputSize(void) const override { return 40; }
+   size_t getWitnessDataSize(void) const override { return 108; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,19 +215,19 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const;
-   const std::string& getAddress(void) const;
+   const BinaryData& getID(void) const override;
+   const std::string& getAddress(void) const override;
 
-   const BinaryData& getHash(void) const;
-   const BinaryData& getPrefixedHash(void) const;
-   const BinaryData& getPreimage(void) const;
+   const BinaryData& getHash(void) const override;
+   const BinaryData& getPrefixedHash(void) const override;
+   const BinaryData& getPreimage(void) const override;
 
    std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
       uint64_t) const override;
-   const BinaryData& getScript(void) const;
+   const BinaryData& getScript(void) const override;
 
    //size (accounts for outpoint and sequence)
-   size_t getInputSize(void) const;
+   size_t getInputSize(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,21 +263,21 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const;
-   const std::string& getAddress(void) const;
+   const BinaryData& getID(void) const override;
+   const std::string& getAddress(void) const override;
 
-   const BinaryData& getHash(void) const;
-   const BinaryData& getPrefixedHash(void) const;
-   const BinaryData& getPreimage(void) const;
+   const BinaryData& getHash(void) const override;
+   const BinaryData& getPrefixedHash(void) const override;
+   const BinaryData& getPreimage(void) const override;
    
    const BinaryData& getScript(void) const;
    std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
       uint64_t) const override;
 
-   AddressEntryType getType(void) const;
+   AddressEntryType getType(void) const override;
 
    //size (accounts for outpoint and sequence)
-   size_t getInputSize(void) const;
+   size_t getInputSize(void) const override;
 };
 
 
@@ -299,22 +299,22 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const;
-   const std::string& getAddress(void) const;
+   const BinaryData& getID(void) const override;
+   const std::string& getAddress(void) const override;
 
-   const BinaryData& getHash(void) const;
-   const BinaryData& getPrefixedHash(void) const;
-   const BinaryData& getPreimage(void) const;
+   const BinaryData& getHash(void) const override;
+   const BinaryData& getPrefixedHash(void) const override;
+   const BinaryData& getPreimage(void) const override;
 
-   const BinaryData& getScript(void) const;
+   const BinaryData& getScript(void) const override;
    std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
       uint64_t) const override;
 
-   AddressEntryType getType(void) const;
+   AddressEntryType getType(void) const override;
 
    //size (accounts for outpoint and sequence)
-   size_t getInputSize(void) const { return 41; }
-   size_t getWitnessDataSize(void) const;
+   size_t getInputSize(void) const override { return 41; }
+   size_t getWitnessDataSize(void) const override;
 };
 
 #endif

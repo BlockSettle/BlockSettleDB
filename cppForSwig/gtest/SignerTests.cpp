@@ -8908,6 +8908,90 @@ TEST_F(SignerTest, PSBT)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(SignerTest, BitcoinMessage)
+{
+   NetworkConfig::selectNetwork(NETWORK_MODE_TESTNET);
+   struct ResolverFeed_SignMessage : public ResolverFeed
+   {
+      std::map<BinaryData, BinaryData> addrToPubKey;
+      std::map<BinaryData, SecureBinaryData> pubKeyToPrivKey;
+
+      BinaryData getByVal(const BinaryData& val) override
+      {
+         return addrToPubKey[val];
+      }
+         
+      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& key) override
+      {
+         return pubKeyToPrivKey[key];
+      }
+         
+      void setBip32PathForPubkey(
+         const BinaryData&, const BIP32_AssetPath&) override {}
+
+      BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override 
+      {
+         throw runtime_error("nope");
+      }
+   };
+
+   string message("abcd");
+
+   //randomized run
+   {
+      auto privkey = CryptoPRNG::generateRandom(32);
+      auto pubkey = CryptoECDSA().ComputePublicKey(privkey, true);
+      auto pubkeyCopy = pubkey;
+
+      auto assetPubKey = make_shared<Asset_PublicKey>(pubkeyCopy);
+      auto assetSingle = make_shared<AssetEntry_Single>(
+         -1, BinaryData(), assetPubKey, nullptr);
+      auto addr = make_shared<AddressEntry_P2WPKH>(assetSingle);
+
+      auto resolver = make_shared<ResolverFeed_SignMessage>();
+      resolver->addrToPubKey.emplace(addr->getHash(), pubkey);
+      resolver->pubKeyToPrivKey.emplace(pubkey, privkey);
+
+      auto msgBD = BinaryData::fromString(message);
+      auto sig = Signer::signMessage(msgBD, addr->getPrefixedHash(), resolver);
+               
+      EXPECT_TRUE(Signer::verifyMessageSignature(
+         msgBD, addr->getPrefixedHash(), sig));
+   }
+
+   //// check vs static sig
+   {
+      auto sig = string("IFGmuRxItnOy/Dj26RhwJ1FrHo4gi2jB4JewKqIH0pRxIaiRVCKsyiML9nx34G5MCgfrRD6U21HmJguXBHgWNso=");
+      auto privkey = READHEX("e805a7c5b46d4d8458c35a75edbed01b0ed9552761278053f56bf6afad07e1f0");
+      auto privkeyB58 = string("cVMiqxWqJpPL1bUnHafgr3XhuTkgZeTjWxmL1csYcaPdA8y1nxhB");
+
+      auto privKeyDecode = BtcUtils::decodePrivKeyBase58(privkeyB58);
+      ASSERT_EQ(privKeyDecode, privkey);
+
+      auto pubkey = CryptoECDSA().ComputePublicKey(privKeyDecode, true);
+      auto pubkeyCopy = pubkey;
+
+      auto assetPubKey = make_shared<Asset_PublicKey>(pubkeyCopy);
+      auto assetSingle = make_shared<AssetEntry_Single>(
+         -1, BinaryData(), assetPubKey, nullptr);
+      auto addr = make_shared<AddressEntry_P2WPKH>(assetSingle);
+
+      auto resolver = make_shared<ResolverFeed_SignMessage>();
+      resolver->addrToPubKey.emplace(addr->getHash(), pubkey);
+      resolver->pubKeyToPrivKey.emplace(pubkey, privKeyDecode);
+
+      auto msgBD = BinaryData::fromString(message);
+      auto sigCompute = Signer::signMessage(msgBD, addr->getPrefixedHash(), resolver);
+      auto sigDecode = BtcUtils::base64_decode(sig);
+      auto sigDecodeBD = BinaryData::fromString(BtcUtils::base64_decode(sig));
+
+      EXPECT_EQ(sigCompute, sigDecodeBD);
+      EXPECT_TRUE(Signer::verifyMessageSignature(
+         msgBD, addr->getPrefixedHash(), sigDecodeBD));
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 // Now actually execute all the tests
 ////////////////////////////////////////////////////////////////////////////////

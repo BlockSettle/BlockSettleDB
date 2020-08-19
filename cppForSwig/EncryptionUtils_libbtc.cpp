@@ -10,12 +10,15 @@
 #include "log.h"
 #include "btc/ecc.h"
 #include "btc/sha2.h"
+#include "btc/hash.h"
 #include "btc/ripemd160.h"
 #include "btc/ctaes.h"
 
 using namespace std;
 
 #define CRYPTO_DEBUG false
+
+const string CryptoECDSA::bitcoinMessageMagic_("Bitcoin Signed Message:\n");
 
 /////////////////////////////////////////////////////////////////////////////
 //// CryptoPRNG
@@ -563,6 +566,71 @@ SecureBinaryData CryptoECDSA::PubKeyScalarMultiply(
       throw runtime_error("failed to compress point");
 
    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData CryptoECDSA::SignBitcoinMessage(
+   const BinaryDataRef& msg, 
+   const SecureBinaryData& privKey, 
+   bool compressedPubKey)
+{
+   //prepend message
+   BinaryWriter msgToSign;
+   msgToSign.put_var_int(bitcoinMessageMagic_.size());
+   msgToSign.put_String(bitcoinMessageMagic_);
+   msgToSign.put_var_int(msg.getSize());
+   msgToSign.put_BinaryDataRef(msg);
+
+   //hash it
+   BinaryData digest(32);
+   btc_hash(msgToSign.getDataRef().getPtr(), msgToSign.getSize(), digest.getPtr());
+
+   //sign
+   int rec = -1;
+   BinaryData result(65);
+   size_t outlen = 0;
+
+   if (!btc_ecc_sign_compact_recoverable(
+      privKey.getPtr(), digest.getPtr(), result.getPtr() + 1, &outlen, &rec))
+   {
+      throw runtime_error("failed to sign message");
+   }
+
+   *result.getPtr() = 27 + rec + (compressedPubKey ? 4 : 0);
+   return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData CryptoECDSA::VerifyBitcoinMessage(
+   const BinaryDataRef& msg, const BinaryDataRef& sig)
+{
+   //prepend message
+   BinaryWriter msgToSign;
+   msgToSign.put_var_int(bitcoinMessageMagic_.size());
+   msgToSign.put_String(bitcoinMessageMagic_);
+   msgToSign.put_var_int(msg.getSize());
+   msgToSign.put_BinaryDataRef(msg);
+
+   //hash it
+   BinaryData digest(32);
+   btc_hash(msgToSign.getDataRef().getPtr(), msgToSign.getSize(), digest.getPtr());
+
+   //check sig and recover pubkey
+   bool compressed = ((*sig.getPtr() - 27) & 4) != 0;
+   int recid = (*sig.getPtr() - 27) & 3;
+   
+   size_t outlen; 
+   outlen = compressed ? 33 : 65;
+   BinaryData pubkey(outlen);
+
+   if (!btc_ecc_recover_pubkey(sig.getPtr() + 1, digest.getPtr(), recid, 
+      pubkey.getPtr(), &outlen))
+   {
+      throw runtime_error("failed to verify message signature");
+   }
+
+   //return the pubkey, caller will check vs expected address
+   return pubkey;
 }
 
 /////////////////////////////////////////////////////////////////////////////

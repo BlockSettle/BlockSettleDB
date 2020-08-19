@@ -355,6 +355,32 @@ BinaryData BtcUtils::getTxOutScriptForScrAddr(BinaryDataRef scrAddr)
 }
 
 /////////////////////////////////////////////////////////////////////////////
+TXOUT_SCRIPT_TYPE BtcUtils::getScriptTypeForScrAddr(BinaryDataRef scrAddr)
+{
+   if (scrAddr.getSize() == 21)
+   {
+      auto h160Prefix = NetworkConfig::getPubkeyHashPrefix();
+      auto scriptPrefix = NetworkConfig::getScriptHashPrefix();
+
+      auto prefix = *scrAddr.getPtr();
+      if (prefix == h160Prefix)
+         return TXOUT_SCRIPT_STDHASH160;
+      else if (prefix == SCRIPT_PREFIX_P2WPKH)
+         return TXOUT_SCRIPT_P2WPKH;
+      else if (prefix == scriptPrefix)
+         return TXOUT_SCRIPT_P2SH;
+   }
+   else if (scrAddr.getSize() == 32)
+   {
+      auto prefix = *scrAddr.getPtr();
+      if (prefix == SCRIPT_PREFIX_P2WSH)
+         return TXOUT_SCRIPT_P2WSH;
+   }
+
+   return TXOUT_SCRIPT_NONSTANDARD;
+}
+
+/////////////////////////////////////////////////////////////////////////////
 //no copy version, the regular one is too slow for scanning operations
 TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)
 {
@@ -494,40 +520,89 @@ string BtcUtils::base64_encode(const string& in)
 ////////////////////////////////////////////////////////////////////////////////
 string BtcUtils::base64_decode(const string& in)
 {
-   size_t count = in.size() / 4;
+   size_t count = (in.size() + 3) / 4;
    string result;
-   result.resize(count * 3 + 4);
+   result.resize(count * 3);
    auto ptr = in.c_str();
    auto result_ptr = (uint8_t*)result.c_str();
 
-   size_t len = 0;
-   for (unsigned i = 0; i < count; i++)
+   unsigned y=0;
    {
+      unsigned i=0;
       uint32_t val = 0;
-      for (unsigned y = 0; y < 4; y++)
+      for (; y < in.size(); y++)
       {
-         auto val8 = ptr[i * 4 + y];
+         if (y % 4 == 0 && y != 0)
+         {
+            result_ptr[i * 3] = (val & 0xFF000000) >> 24;
+            result_ptr[i * 3 + 1] = (val & 0x00FF0000) >> 16;
+            result_ptr[i * 3 + 2] = (val & 0x0000FF00) >> 8;
+            val = 0;
+            ++i;
+         }
+
+         auto val8 = ptr[y];
          auto iter = base64Vals_.find(val8);
          if (iter == base64Vals_.end())
          {
             if (val8 == '=')
                break;
+
             throw runtime_error("invalid b64 character");
          }
 
-         uint32_t bits = iter->second << (26 - (6 * y));
+         uint32_t bits = iter->second << (26 - (6 * (y % 4)));
          val |= bits;
-         ++len;
       }
-
+         
       result_ptr[i * 3] = (val & 0xFF000000) >> 24;
       result_ptr[i * 3 + 1] = (val & 0x00FF0000) >> 16;
       result_ptr[i * 3 + 2] = (val & 0x0000FF00) >> 8;
    }
 
-   result_ptr[len] = 0;
-   result.resize(len+1);
+   y *= 3;
+   auto len = y / 4;
+   result.resize(len);
    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string BtcUtils::encodePrivKeyBase58(const SecureBinaryData& privKey)
+{
+   BinaryWriter bwPrivKey;
+   bwPrivKey.put_uint8_t(NetworkConfig::getPrivKeyPrefix());
+   bwPrivKey.put_BinaryData(privKey);
+   bwPrivKey.put_uint8_t(0x01);
+
+   auto&& checksum = getHash256(bwPrivKey.getData());
+   bwPrivKey.put_BinaryDataRef(checksum.getSliceRef(0, 4));
+
+   return base58_encode(bwPrivKey.getData());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+SecureBinaryData BtcUtils::decodePrivKeyBase58(const string& strPrivKey)
+{
+   SecureBinaryData decodedKey(base58_decode(strPrivKey));
+
+   BinaryRefReader brr(decodedKey.getRef());
+
+   //prefix
+   auto prefix = brr.get_uint8_t();
+   if (prefix != NetworkConfig::getPrivKeyPrefix())
+      throw runtime_error("network prefix mismatch");
+   brr.rewind(1);
+
+   //key
+   auto keyRef = brr.get_BinaryDataRef(brr.getSize() - 4);
+
+   //checksum
+   auto checksum = brr.get_BinaryDataRef(4);
+   auto hash = BtcUtils::getHash256(keyRef);
+   if (hash.getSliceRef(0, 4) != checksum)
+      throw runtime_error("privkey checksum mismatch");
+
+   return SecureBinaryData(keyRef.getSliceRef(1, 32));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

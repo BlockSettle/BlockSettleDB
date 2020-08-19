@@ -12,9 +12,12 @@ using namespace std;
 
 uint8_t NetworkConfig::pubkeyHashPrefix_;
 uint8_t NetworkConfig::scriptHashPrefix_;
+uint8_t NetworkConfig::privKeyPrefix_;
+
 BinaryData NetworkConfig::genesisBlockHash_;
 BinaryData NetworkConfig::genesisTxHash_;
 BinaryData NetworkConfig::magicBytes_;
+
 NETWORK_MODE NetworkConfig::mode_;
 const btc_chainparams* NetworkConfig::chain_params_ = nullptr;
 string NetworkConfig::bech32Prefix_;
@@ -32,6 +35,7 @@ void NetworkConfig::selectNetwork(NETWORK_MODE mode)
       magicBytes_ = READHEX(MAINNET_MAGIC_BYTES);
       pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160;
       scriptHashPrefix_ = SCRIPT_PREFIX_P2SH;
+      privKeyPrefix_ = PRIVKEY_PREFIX;
       bech32Prefix_ = "bc";
 
       chain_params_ = &btc_chainparams_main;
@@ -45,6 +49,7 @@ void NetworkConfig::selectNetwork(NETWORK_MODE mode)
       magicBytes_ = READHEX(TESTNET_MAGIC_BYTES);
       pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160_TESTNET;
       scriptHashPrefix_ = SCRIPT_PREFIX_P2SH_TESTNET;
+      privKeyPrefix_ = PRIVKEY_PREFIX_TESTNET;
       bech32Prefix_ = "tb";
 
       chain_params_ = &btc_chainparams_test;
@@ -58,6 +63,7 @@ void NetworkConfig::selectNetwork(NETWORK_MODE mode)
       magicBytes_ = READHEX(REGTEST_MAGIC_BYTES);
       pubkeyHashPrefix_ = SCRIPT_PREFIX_HASH160_TESTNET;
       scriptHashPrefix_ = SCRIPT_PREFIX_P2SH_TESTNET;
+      privKeyPrefix_ = PRIVKEY_PREFIX_TESTNET;
       bech32Prefix_ = "tb";
 
       chain_params_ = &btc_chainparams_regtest;
@@ -101,6 +107,18 @@ uint8_t NetworkConfig::getScriptHashPrefix(void)
    }
 
    return scriptHashPrefix_; 
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint8_t NetworkConfig::getPrivKeyPrefix(void)
+{
+   if (!isInitialized())
+   {
+      LOGERR << "NetworkConfig is uninitialized!";
+      throw runtime_error("NetworkConfig is uninitialized!");
+   }
+
+   return privKeyPrefix_; 
 }
 
 ////////////////////////////////////////////////////////////////////////////////

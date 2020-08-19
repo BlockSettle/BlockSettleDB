@@ -663,6 +663,22 @@ SecureBinaryData CryptoECDSA::PubKeyScalarMultiply(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+BinaryData CryptoECDSA::SignBitcoinMessage(
+   const BinaryDataRef& msg, 
+   const SecureBinaryData& privKey, 
+   bool compressedPubKey)
+{
+   throw runtime_error("SignBitcoinMessage not implemented with cryptopp");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData CryptoECDSA::VerifyBitcoinMessage(
+   const BinaryDataRef& msg, const BinaryDataRef& sig)
+{
+   throw runtime_error("VerifyBitcoinMessage not implemented with cryptopp");
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void CryptoSHA2::getHash256(BinaryDataRef bdr, uint8_t* digest)
 {
    CryptoPP::SHA256  sha256;
