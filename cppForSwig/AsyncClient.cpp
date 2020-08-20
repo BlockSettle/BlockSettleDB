@@ -2277,3 +2277,66 @@ const unsigned& ClientCache::getHeightForTxHash(const BinaryData& height) const
    return iter->second;
 }
 
+///////////////////////////////////////////////////////////////////////////////
+//
+// OutpointBatch/Data
+//
+///////////////////////////////////////////////////////////////////////////////
+void OutpointBatch::prettyPrint() const
+{
+   stringstream ss;
+
+   ss << " - cutoffs: " << heightCutoff_ << ", " << zcIndexCutoff_ << endl;
+   ss << " - address count: " << outpoints_.size() << endl;
+   
+   for (const auto& addrPair : outpoints_)
+   {
+      //convert scrAddr to address string
+      auto addrStr = BtcUtils::getAddressStrFromScrAddr(addrPair.first);
+
+      //address & outpoint count
+      ss << "  ." << addrStr << ", op count: " << 
+         addrPair.second.size() << endl;
+
+      //outpoint data
+      map<unsigned, map<BinaryDataRef, vector<OutpointData>>> heightHashMap;
+      for (const auto& op : addrPair.second)
+      {
+         auto height = op.txHeight_;
+         const auto& hash = op.txHash_;
+
+         auto& hashMap = heightHashMap[height];
+         auto& opVec = hashMap[hash.getRef()];
+         opVec.emplace_back(op);
+      }
+
+      for (const auto& hashMap : heightHashMap)
+      {
+         ss << "   *height: " << hashMap.first << endl;
+         
+         for (const auto& opMap : hashMap.second)
+         {
+            ss << "    .hash: " << opMap.first.toHexStr(true) << endl;
+
+            for (const auto& op : opMap.second)
+               op.prettyPrint(ss);
+         }
+      }
+
+      ss << endl;
+   }
+
+   cout << ss.str();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void OutpointData::prettyPrint(ostream& st) const
+{
+   st << "     _id: " << txOutIndex_ << ", value: " << value_ << endl;
+
+   st << "      spender: ";
+   if (spenderHash_.empty())
+      st << "N/A" << endl;
+   else
+      st << spenderHash_.toHexStr(true) << endl;
+}
