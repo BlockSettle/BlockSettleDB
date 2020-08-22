@@ -940,6 +940,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
    isCLTV_ |= obj.isCLTV_;
    isCSV_  |= obj.isCSV_;
 
+   //legacy stack
    if (legacyStatus_ != SpenderStatus_Signed)
    {
       switch (obj.legacyStatus_)
@@ -976,6 +977,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
       }
    }
 
+   //segwit stack
    if (segwitStatus_ != SpenderStatus_Signed)
    {
       switch (obj.segwitStatus_)
@@ -1004,6 +1006,9 @@ void ScriptSpender::merge(const ScriptSpender& obj)
             segwitStatus_ = obj.segwitStatus_;
       }
    }
+
+   //bip32 paths
+   bip32Paths_.insert(obj.bip32Paths_.begin(), obj.bip32Paths_.end());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3045,8 +3050,9 @@ void Signer::merge(const Signer& rhs)
       }
       else
       {
-         spender->txMap_ = supportingTxMap_;
-         spenders_.push_back(spender);
+         auto newSpender = make_shared<ScriptSpender>(*spender);
+         newSpender->txMap_ = supportingTxMap_;
+         spenders_.push_back(newSpender);
          if (!spenders_.back()->verifyEvalState(flags_))
             throw SignerDeserializationError("unserialized spender has inconsistent state");
       }
@@ -3054,19 +3060,9 @@ void Signer::merge(const Signer& rhs)
 
 
    /*
-   Recipients are told apart by their script hash. Several recipients with
-   the same script hash will be merged.
-
-   Note that in case the local signer has several recipient with the same
-   hash scripts, these won't be aggregated. Only those from the rhs will.
-
-   As a general rule, do not create several outputs with the same script hash.
-
-   NOTE: adding recipients or triggering an aggregation will render prior signatures 
-   invalid. This code does NOT check for that. It's the caller's responsibility 
-   to check for this condition.
-
-   As with spenders, new recipients are pushed back.
+   Recipients are told apart by their group id. Within a group, they are 
+   differentiated by their script hash. Collisions within a group are 
+   not tolerated.
    */
 
    for (auto& group : rhs.recipients_)
