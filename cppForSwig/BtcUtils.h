@@ -1076,6 +1076,7 @@ public:
       TXOUT_SCRIPT_TYPE type = TXOUT_SCRIPT_NONSTANDARD);
    static BinaryData getTxOutScriptForScrAddr(BinaryDataRef scrAddr);
    static TXOUT_SCRIPT_TYPE getScriptTypeForScrAddr(BinaryDataRef);
+   static std::string getAddressStrFromScrAddr(BinaryDataRef);
 
 
    /////////////////////////////////////////////////////////////////////////////

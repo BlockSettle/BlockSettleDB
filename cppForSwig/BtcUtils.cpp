@@ -381,6 +381,31 @@ TXOUT_SCRIPT_TYPE BtcUtils::getScriptTypeForScrAddr(BinaryDataRef scrAddr)
 }
 
 /////////////////////////////////////////////////////////////////////////////
+std::string BtcUtils::getAddressStrFromScrAddr(BinaryDataRef scrAddrRef)
+{
+   auto scrType = getScriptTypeForScrAddr(scrAddrRef);
+   switch (scrType) 
+   {
+   case TXOUT_SCRIPT_P2WPKH:
+   case TXOUT_SCRIPT_P2WSH:
+   {
+      auto scrAddrNoPrefix = 
+         scrAddrRef.getSliceRef(1, scrAddrRef.getSize() -1);
+      return BtcUtils::scrAddrToSegWitAddress(scrAddrNoPrefix);
+   }
+
+   case TXOUT_SCRIPT_STDHASH160:
+   case TXOUT_SCRIPT_P2SH:
+   {
+      return BtcUtils::scrAddrToBase58(scrAddrRef);         
+   }
+
+   default:
+      throw runtime_error("unsupported address type");
+   }
+}
+
+/////////////////////////////////////////////////////////////////////////////
 //no copy version, the regular one is too slow for scanning operations
 TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)
 {

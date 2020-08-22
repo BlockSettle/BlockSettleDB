@@ -3632,60 +3632,6 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
    scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 15 * COIN);
 
-   /*{
-      ////spend 18 back to scrAddrB, with change to addr[2]
-
-      auto spendVal = 18 * COIN;
-      Signer signer2;
-      signer2.setFlags(SCRIPT_VERIFY_SEGWIT);
-
-      //get utxo list for spend value
-      auto&& unspentVec =
-         dbAssetWlt->getSpendableTxOutListZC();
-
-      //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
-
-      //create spenders
-      uint64_t total = 0;
-      for (auto& utxo : unspentVec)
-      {
-         total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo));
-      }
-
-      //creates outputs
-      //spend 18 to addr 0, use P2PKH
-      auto recipient2 = make_shared<Recipient_P2PKH>(
-         TestChain::scrAddrB.getSliceCopy(1, 20), spendVal);
-      signer2.addRecipient(recipient2);
-
-      if (total > spendVal)
-      {
-         //deal with change, no fee
-         auto changeVal = total - spendVal;
-         auto addr2 = assetWlt->getNewAddress(
-            AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH));
-         signer2.addRecipient(addr2->getRecipient(changeVal));
-         addrVec.push_back(addr2->getPrefixedHash());
-      }
-
-      //sign, verify & broadcast
-      {
-         auto lock = assetWlt->lockDecryptedContainer();
-         signer2.setFeed(assetFeed);
-         signer2.sign();
-      }
-
-      EXPECT_TRUE(signer2.verify());
-
-      DBTestUtils::ZcVector zcVec2;
-      zcVec2.push_back(signer2.serializeSignedTx(), 15000000);
-
-      DBTestUtils::pushNewZc(theBDMt_, zcVec2);
-      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-   }*/
-
    Codec_SignerState::SignerState signerState;
    {
       ////spend 18 back to scrAddrB, with change to addr[2]
@@ -3754,8 +3700,6 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
    }
 
-
-
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
    EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
@@ -3810,6 +3754,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
    auto&& wltSeed = CryptoPRNG::generateRandom(32);
    string woPath, wltPath;
 
+   Signer signer3;
    {
       //create bip32 wallet
       auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
@@ -4017,6 +3962,12 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
          addrVec.push_back(addr2->getPrefixedHash());
       }
 
+      /*
+      Merge state of signer2 into signer3. This is to check that
+      resolved data merges in properly into existing spender objects
+      */
+      signer3.deserializeState(signer2.serializeState());
+
       //sign, verify & broadcast
       {
          signer2.setFeed(assetFeed);
@@ -4029,7 +3980,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
 
    //-- sign tx with empty wallet --//
    {
-      Signer signer3(signerState);
+      signer3.deserializeState(signerState);
       auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(emptyWlt);
 
       //sign, verify & broadcast

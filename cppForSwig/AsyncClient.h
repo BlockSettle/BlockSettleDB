@@ -40,6 +40,9 @@ struct OutpointData
    bool isSpent_;
 
    BinaryData spenderHash_;
+
+   //debug
+   void prettyPrint(std::ostream&) const;
 };
 
 ////
@@ -49,6 +52,9 @@ struct OutpointBatch
    unsigned zcIndexCutoff_;
 
    std::map<BinaryData, std::vector<OutpointData>> outpoints_;
+
+   //debug
+   void prettyPrint(void) const;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
