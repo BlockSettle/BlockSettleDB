@@ -3801,12 +3801,19 @@ void Signer::prettyPrint() const
 
       for (const auto& rec : group.second)
       {
+         auto serTxOut = rec->getSerializedScript();
+         BinaryRefReader brr(serTxOut);
+         brr.advance(8);
+         auto len = brr.get_var_int();
+         auto txOutScript = brr.get_BinaryDataRef(len);
+
+         auto scrRef = BtcUtils::getTxOutScrAddrNoCopy(txOutScript);
+         auto addrStr = BtcUtils::getAddressStrFromScrAddr(scrRef.getScrAddr());
+         
          cout <<  "  val: " << rec->getValue() << 
-            ", addr: " << rec->getSerializedScript().toHexStr() << endl;
+            ", addr: " << addrStr << endl;
       }
    }
-
-   cout << endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
