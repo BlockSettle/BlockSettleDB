@@ -2262,6 +2262,43 @@ void ScriptSpender::seedResolver(shared_ptr<ResolverFeed> ptr) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void ScriptSpender::prettyPrint(ostream& os) const
+{
+   auto statusStrLbd = [](SpenderStatus status)->string
+   {
+      switch (status)
+      {
+      case SpenderStatus_Unknown: 
+         return string("Unknown");
+
+      case SpenderStatus_Empty:
+         return string("Empty");
+
+      case SpenderStatus_Resolved:
+         return string("Resolved");
+
+      case SpenderStatus_PartiallySigned:
+         return string("Partially signed");
+
+      case SpenderStatus_Signed:
+         return string("Signed");
+
+      default:
+         break;
+      }
+
+      return string("N/A");
+   };
+
+   //hash and id
+   os << "  * hash: " << getOutputHash().toHexStr(true) << 
+      ", id: " << getOutputIndex() << endl;
+
+   os << "    Legacy status: " << statusStrLbd(legacyStatus_) <<
+      ", Segwit status: " << statusStrLbd(segwitStatus_) << endl;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// Signer
 ////////////////////////////////////////////////////////////////////////////////
@@ -3788,16 +3825,27 @@ void Signer::prettyPrint() const
 {
    //WIP
 
+   auto signEvalState = evaluateSignedState();
+
    cout << endl;
+   stringstream ss;
+   unsigned i=0;
    for (auto& spender : spenders_)
    {
+      spender->prettyPrint(ss);
+      if (spender->isSigned())
+      {
+         auto txInEvalState = signEvalState.getSignedStateForInput(i);
+         ss << "    signed state: " << txInEvalState.isValid() << endl;
+      }
 
+      ++i;
    }
 
    for (auto& group : recipients_)
    {
       auto groupId = WRITE_UINT32_BE(group.first);
-      cout << " recipient group: " << groupId.toHexStr() << endl;
+      ss << " recipient group: " << groupId.toHexStr() << endl;
 
       for (const auto& rec : group.second)
       {
@@ -3810,10 +3858,12 @@ void Signer::prettyPrint() const
          auto scrRef = BtcUtils::getTxOutScrAddrNoCopy(txOutScript);
          auto addrStr = BtcUtils::getAddressStrFromScrAddr(scrRef.getScrAddr());
          
-         cout <<  "  val: " << rec->getValue() << 
+         ss <<  "  val: " << rec->getValue() << 
             ", addr: " << addrStr << endl;
       }
    }
+
+   cout << ss.str();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
