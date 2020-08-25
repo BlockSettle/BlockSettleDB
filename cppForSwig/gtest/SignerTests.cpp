@@ -403,7 +403,6 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
 
    //// create assetWlt ////
 
-   //create a root private key
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
@@ -816,7 +815,6 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
 
    //// create assetWlt ////
 
-   //create a root private key
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
@@ -1078,7 +1076,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 
    //// create 3 assetWlt ////
 
-   //create a root private key
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
@@ -1375,7 +1372,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 
    //// create 3 assetWlt ////
 
-   //create a root private key
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
@@ -1772,7 +1768,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
 
    //// create 2 assetWlt ////
 
-   //create a root private key
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       CryptoPRNG::generateRandom(32), //root as rvalue
@@ -2080,7 +2075,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 
    //// create 2 assetWlt ////
 
-   //create a root private key
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       CryptoPRNG::generateRandom(32), //root as rvalue
@@ -2423,12 +2417,16 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 2 assetWlt ////
+   vector<unsigned> derPath = {
+      0x8000546e,
+      0x80000001,
+      0x80000000
+   };
 
-   //create a root private key
-   auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       CryptoPRNG::generateRandom(32), //root as rvalue
-      {},
+      derPath,
       SecureBinaryData(), //empty passphrase
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
@@ -2618,6 +2616,23 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       signer2.setFeed(_assetFeed);
       signer2.resolvePublicData();
 
+      {
+         auto assetID = assetWlt_1->getAssetIDForScrAddr(
+            (*addrVec_1.begin())->getPrefixedHash());
+         auto accountPtr = assetWlt_1->getAccountForID(assetID.first);
+
+         EXPECT_NE(signer2.getTxInCount(), 0) ;
+         for (unsigned i=0; i<signer2.getTxInCount(); i++)
+         {
+            auto spender = signer2.getSpender(i);
+            auto bip32Paths = spender->getBip32Paths();
+            EXPECT_FALSE(bip32Paths.empty());
+
+            for (const auto& pathData : bip32Paths)
+               EXPECT_TRUE(accountPtr->hasBip32Path(pathData.second));
+         }
+      }
+
       //spender resolved state should be seralized along
       serializedSignerState = move(signer2.serializeState());
    }
@@ -2783,12 +2798,16 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 2 assetWlt ////
+   vector<unsigned> derPath = {
+      0x8000546e,
+      0x80000001,
+      0x80000000
+   };
 
-   //create a root private key
-   auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       CryptoPRNG::generateRandom(32), //root as rvalue
-      {},
+      derPath,
       SecureBinaryData(), //empty passphrase
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
@@ -2976,9 +2995,35 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
          signer2.addRecipient(addrVec_1[1]->getRecipient(total - spendVal));
       }
 
+      {
+         EXPECT_NE(signer2.getTxInCount(), 0) ;
+         for (unsigned i=0; i<signer2.getTxInCount(); i++)
+         {
+            auto spender = signer2.getSpender(i);
+            auto bip32Paths = spender->getBip32Paths();
+            EXPECT_TRUE(bip32Paths.empty());
+         }
+      }
+
       signer2.setFeed(_assetFeed);
       signer2.resolvePublicData();
 
+      {
+         auto assetID = assetWlt_1->getAssetIDForScrAddr(
+            (*addrVec_1.begin())->getPrefixedHash());
+         auto accountPtr = assetWlt_1->getAccountForID(assetID.first);
+
+         EXPECT_NE(signer2.getTxInCount(), 0) ;
+         for (unsigned i=0; i<signer2.getTxInCount(); i++)
+         {
+            auto spender = signer2.getSpender(i);
+            auto bip32Paths = spender->getBip32Paths();
+            EXPECT_FALSE(bip32Paths.empty());
+
+            for (const auto& pathData : bip32Paths)
+               EXPECT_TRUE(accountPtr->hasBip32Path(pathData.second));
+         }
+      }
       //spender resolved state should be seralized along
       serializedSignerState = move(signer2.serializeState());
    }
@@ -3148,12 +3193,16 @@ TEST_F(SignerTest, GetUnsignedTxId)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 2 assetWlt ////
+   vector<unsigned> derPath = {
+      0x8000546e,
+      0x80000001,
+      0x80000000
+   };
 
-   //create a root private key
-   auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   auto assetWlt_1 = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       CryptoPRNG::generateRandom(32), //root as rvalue
-      {},
+      derPath,
       SecureBinaryData(), //empty passphrase
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
@@ -3391,6 +3440,28 @@ TEST_F(SignerTest, GetUnsignedTxId)
    {
       auto lock = assetWlt_1->lockDecryptedContainer();
       signer4.sign();
+   }
+
+   {
+      auto mainAccountID = assetWlt_1->getMainAccountID();
+      auto mainAccount = assetWlt_1->getAccountForID(mainAccountID);
+
+      EXPECT_NE(signer4.getTxInCount(), 0) ;
+      for (unsigned i=0; i<signer4.getTxInCount(); i++)
+      {
+         auto spender = signer4.getSpender(i);
+         auto bip32Paths = spender->getBip32Paths();
+         if (i < unspentVec_1.size())
+         {
+            EXPECT_FALSE(bip32Paths.empty());
+            for (const auto& pathData : bip32Paths)
+               EXPECT_TRUE(mainAccount->hasBip32Path(pathData.second));
+         }
+         else
+         {
+            EXPECT_TRUE(bip32Paths.empty());
+         }
+      }
    }
 
    EXPECT_FALSE(signer4.verify());
@@ -4347,7 +4418,6 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
 
    //// create assetWlt ////
 
-   //create a root private key
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
@@ -4594,7 +4664,6 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
 
    //// create assetWlt ////
 
-   //create a root private key
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
@@ -4982,7 +5051,6 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 
    //// create assetWlt ////
 
-   //create a root private key
    auto passphrase = SecureBinaryData::fromString("test");
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
@@ -5271,7 +5339,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 
    //// create assetWlt ////
 
-   //create a root private key
    auto passphrase = SecureBinaryData::fromString("test");
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
@@ -5527,7 +5594,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 
    //// create assetWlt ////
 
-   //create a root private key
    auto passphrase = SecureBinaryData::fromString("test");
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
@@ -5783,7 +5849,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 
    //// create assetWlt ////
 
-   //create a root private key
    auto passphrase = SecureBinaryData::fromString("test");
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
@@ -6064,7 +6129,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 
    //// create assetWlt ////
 
-   //create a root private key
    auto passphrase = SecureBinaryData::fromString("test");
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
@@ -6344,7 +6408,6 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
 
    //// create assetWlt ////
 
-   //create a root private key
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
@@ -6742,7 +6805,6 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 
    //// create 3 assetWlt ////
 
-   //create a root private key
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt_1 = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
