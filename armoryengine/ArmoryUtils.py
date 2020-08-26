@@ -61,14 +61,15 @@ except:
    
 #pass sys.argv to the cpp config file parser, get the fleshed out verison 
 #in return
-#sys.argv = ConfigFile_fleshOutArgs("armoryqt.conf", sys.argv)
+
+####TODO: flesh out args with content of config file
 
 DEFAULT = 'DEFAULT'
 LEVELDB_BLKDATA = 'leveldb_blkdata'
 LEVELDB_HEADERS = 'leveldb_headers'
 
 # Version Numbers
-BTCARMORY_VERSION    = (0, 96,  5, 0)  # (Major, Minor, Bugfix, AutoIncrement)
+BTCARMORY_VERSION    = (0, 96, 99, 0)  # (Major, Minor, Bugfix, AutoIncrement)
 PYBTCWALLET_VERSION  = (1, 35,  0, 0)  # (Major, Minor, Bugfix, AutoIncrement)
 
 # ARMORY_DONATION_ADDR = '1ArmoryXcfq7TnCSuZa9fQjRYwJ4bkRKfv'
@@ -127,13 +128,11 @@ parser.add_option("--disable-detsign", dest="enableDetSign", action="store_false
 parser.add_option("--enable-detsign", dest="enableDetSign", action="store_true", help="Enable Transaction Deterministic Signing (RFC 6979) - Enabled by default")
 parser.add_option("--armorydb-ip", dest="armorydb_ip", default=ARMORYDB_DEFAULT_IP, type="str", help="Set remote DB IP (default: 127.0.0.1)")
 parser.add_option("--armorydb-port", dest="armorydb_port", default=ARMORYDB_DEFAULT_PORT, type="str", help="Set remote DB port (default: 9001)")
-parser.add_option("--force-fcgi", dest="force_fcgi", default=False, action="store_true", help="Force the use of fcgi sockets when pointing to a custom DB IP")
 parser.add_option("--ram-usage", dest="ram_usage", default=-1, type="int", help="Set maximum ram during scans, as 128MB increments. Defaults to 4")
 parser.add_option("--thread-count", dest="thread_count", default=-1, type="int", help="Set max thread count during builds and scans. Defaults to CPU total thread count")
 parser.add_option("--db-type", dest="db_type", default="DB_FULL", type="str", help="Set db mode, defaults to DB_FULL")
 parser.add_option("--language", dest="language", default="en", type="str", help="""Set the language for the client to display in. Use the ISO 639-1 language code to choose a language. 
                                                                                  Options are da, de, en, es, el, fr, he, hr, id, ru, sv. Default is en. """)
-parser.add_option("--force-enable-segwit", dest="force_segwit", default=False, action="store_true", help="Allow SegWit address generation in offline mode")
 
 parser.set_defaults(enableDetSign=True)
 
@@ -297,13 +296,8 @@ if CLI_OPTIONS.interport < 0:
 # all zero-conf UTXOs as unspendable, including sent-to-self (change)
 IGNOREZC  = CLI_OPTIONS.ignoreAllZC
 
-FORCE_SEGWIT = False
-if CLI_OPTIONS.offline:
-   FORCE_SEGWIT = CLI_OPTIONS.force_segwit
-
 #db address
 ARMORYDB_IP = CLI_OPTIONS.armorydb_ip
-FORCE_FCGI = CLI_OPTIONS.force_fcgi
 
 usesDefaultDbPort = True
 ARMORYDB_PORT = CLI_OPTIONS.armorydb_port
@@ -1180,15 +1174,15 @@ def GetSystemDetails():
    if OS_LINUX:
       # Get total RAM
       freeStr = subprocess_check_output('free -m', shell=True)
-      totalMemory = freeStr.split('\n')[1].split()[1]
+      totalMemory = freeStr.split(b'\n')[1].split()[1]
       out.Memory = int(totalMemory) * 1024
 
       # Get CPU name
       out.CpuStr = 'Unknown'
       cpuinfo = subprocess_check_output(['cat','/proc/cpuinfo'])
-      for line in cpuinfo.split('\n'):
-         if line.strip().lower().startswith('model name'):
-            out.CpuStr = line.split(':')[1].strip()
+      for line in cpuinfo.split(b'\n'):
+         if line.strip().lower().startswith(b'model name'):
+            out.CpuStr = line.split(b':')[1].strip()
             break
 
 
@@ -1284,7 +1278,7 @@ LOGINFO('   Satoshi BTC directory : ' + BTC_HOME_DIR)
 LOGINFO('   Armory home dir       : ' + ARMORY_HOME_DIR)
 LOGINFO('Detected System Specs    : ')
 LOGINFO('   Total Available RAM   : %0.2f GB', SystemSpecs.Memory)
-LOGINFO('   CPU ID string         : ' + SystemSpecs.CpuStr)
+LOGINFO('   CPU ID string         : ' + SystemSpecs.CpuStr.decode(encoding='UTF-8'))
 LOGINFO('   Number of CPU cores   : %d cores', SystemSpecs.NumCores)
 LOGINFO('   System is 64-bit      : ' + str(SystemSpecs.IsX64))
 LOGINFO('   Preferred Encoding    : ' + prefEnc)
@@ -1995,7 +1989,7 @@ def binary_to_hex(b, endOut=LITTLEENDIAN, endIn=LITTLEENDIAN):
    Converts binary to hexadecimal.  Endianness is only switched
    if (endIn != endOut)
    """
-   hout = b.encode('hex_codec')
+   hout = b.hex()
    if not endOut==endIn:
       hout = hex_switchEndian(hout)
    return hout
@@ -2336,14 +2330,14 @@ def bytesToHumanSize(nBytes):
 ##### HEXSTR/VARINT #####
 def packVarInt(n):
    """ Writes 1,3,5 or 9 bytes depending on the size of n """
-   if   n < 0xfd:  return [chr(n), 1]
+   if   n < 0xfd:  return pack('B', n)
    elif n < 1<<16: return [b'\xfd'+pack('<H',n), 3]
    elif n < 1<<32: return [b'\xfe'+pack('<I',n), 5]
    else:           return [b'\xff'+pack('<Q',n), 9]
 
 def unpackVarInt(hvi):
    """ Returns a pair: the integer value and number of bytes read """
-   code = unpack('<B', hvi[0])[0]
+   code = unpack('<B', hvi[0:1])[0]
    if   code  < 0xfd: return [code, 1]
    elif code == 0xfd: return [unpack('<H',hvi[1:3])[0], 3]
    elif code == 0xfe: return [unpack('<I',hvi[1:5])[0], 5]
@@ -2673,7 +2667,7 @@ def createTestingSubsets( fragIndices, M, maxTestCount=20):
 
       if numCombo <= maxTestCount:
          LOGINFO('Testing all %s combinations...' % numCombo)
-         for x in xrange(2**numIdx):
+         for x in range(2**numIdx):
             bits = int_to_bitset(x)
             if not bits.count('1') == M:
                continue
@@ -3721,3 +3715,44 @@ def touchFile(fname):
       os.fsync(f.fileno())
       f.close()
 
+#################
+# bridge setup
+#################
+
+def startBridge():
+   from armoryengine.CppBridge import TheBridge
+
+   #gather cli args for bridge
+   bridgeArgs = []
+
+   #testnet
+   if USE_TESTNET:
+      bridgeArgs.append(["testnet", ""])
+
+   #db type
+   bridgeArgs.append(["db-type", CLI_OPTIONS.db_type])
+
+   #db ip & port
+   bridgeArgs.append(["armorydb-ip", ARMORYDB_IP])
+   bridgeArgs.append(["armorydb-port", ARMORYDB_PORT])
+
+   #datadir
+   bridgeArgs.append(["datadir", ARMORY_HOME_DIR])
+
+   #enforce --public for now
+   bridgeArgs.append(["public", ""])
+
+   #offline 
+   if CLI_OPTIONS.offline:
+      bridgeArgs.append(["offline", ""])      
+
+   stringArgs = ""
+   for argPair in bridgeArgs:
+      stringArgs += " --"
+      stringArgs += argPair[0]
+      if len(argPair[1]) > 0:
+         stringArgs += "="
+         stringArgs += argPair[1]
+
+   #set bridge
+   TheBridge.start(stringArgs)

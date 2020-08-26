@@ -1372,7 +1372,7 @@ class ArmoryMainWindow(QMainWindow):
 
             #seek to end of file
             FFrdf.seek(-11, 2)
-            i=0;
+            i=0
 
             #add the missing nodes
             if rdfsch == -1:
@@ -1403,157 +1403,7 @@ class ArmoryMainWindow(QMainWindow):
 
    #############################################################################
    def setupUriRegistration(self, justDoIt=False):
-      """
-      Setup Armory as the default application for handling bitcoin: links
-      """
-      LOGINFO('setupUriRegistration')
-
-      if USE_TESTNET or USE_REGTEST:
-         return
-
-      if OS_LINUX:
-         out,err = execAndWait('gconftool-2 --get /desktop/gnome/url-handlers/bitcoin/command')
-         out2,err = execAndWait('xdg-mime query default x-scheme-handler/bitcoin')
-
-         #check FF protocol association
-         self.registerBitcoinWithFF(async_=True)
-
-         def setAsDefault():
-            LOGINFO('Setting up Armory as default URI handler...')
-            execAndWait('gconftool-2 -t string -s /desktop/gnome/url-handlers/bitcoin/command "python2 %s \"%%s\""' % __file__)
-            execAndWait('gconftool-2 -s /desktop/gnome/url-handlers/bitcoin/needs_terminal false -t bool')
-            execAndWait('gconftool-2 -t bool -s /desktop/gnome/url-handlers/bitcoin/enabled true')
-            execAndWait('xdg-mime default armory.desktop x-scheme-handler/bitcoin')
-
-
-         if ('no value' in out.lower() or 'no value' in err.lower()) and not 'armory.desktop' in out2.lower():
-            # Silently add Armory if it's never been set before
-            setAsDefault()
-         elif (not 'armory' in out.lower() or not 'armory.desktop' in out2.lower()) and not self.firstLoad:
-            # If another application has it, ask for permission to change it
-            # Don't bother the user on the first load with it if verification is
-            # needed.  They have enough to worry about with this weird new program...
-            if not self.getSettingOrSetDefault('DNAA_DefaultApp', False):
-               reply = MsgBoxWithDNAA(self, self, MSGBOX.Question, self.tr('Default URL Handler'),
-                  self.tr('Armory is not set as your default application for handling '
-                  '"bitcoin:" links.  Would you like to use Armory as the '
-                  'default?'), self.tr('Do not ask this question again'))
-               if reply[0]==True:
-                  setAsDefault()
-               if reply[1]==True:
-                  self.writeSetting('DNAA_DefaultApp', True)
-
-      elif OS_WINDOWS:
-         # Check for existing registration (user first, then root, if necessary)
-         action = 'DoNothing'
-         modulepathname = '"'
-         if getattr(sys, 'frozen', False):
-            app_dir = os.path.dirname(sys.executable)
-            app_path = os.path.join(app_dir, sys.executable)
-         elif __file__:
-            return #running from a .py script, not gonna register URI on Windows
-
-         #justDoIt = True
-         import ctypes
-         GetModuleFileNameW = ctypes.windll.kernel32.GetModuleFileNameW
-         GetModuleFileNameW.restype = ctypes.c_int
-         app_path = ctypes.create_string_buffer(1024)
-         rtlength = ctypes.c_int()
-         rtlength = GetModuleFileNameW(None, ctypes.byref(app_path), 1024)
-         passstr = str(app_path.raw)
-
-         modulepathname += str(passstr[0:(rtlength*2)], encoding='utf16') + u'" "%1"'
-         modulepathname = modulepathname.encode('utf8')
-
-         rootKey = 'bitcoin\\shell\\open\\command'
-         try:
-            userKey = 'Software\\Classes\\' + rootKey
-            registryKey = OpenKey(HKEY_CURRENT_USER, userKey, 0, KEY_READ)
-            val,code = QueryValueEx(registryKey, '')
-            if 'armory' in val.lower():
-               if val.lower()==modulepathname.lower():
-                  LOGINFO('Armory already registered for current user.  Done!')
-                  return
-               else:
-                  action = 'DoIt' #armory is registered, but to another path
-            else:
-               # Already set to something (at least created, which is enough)
-               action = 'AskUser'
-         except:
-            # No user-key set, check if root-key is set
-            try:
-               registryKey = OpenKey(HKEY_CLASSES_ROOT, rootKey, 0, KEY_READ)
-               val,code = QueryValueEx(registryKey, '')
-               if 'armory' in val.lower():
-                  LOGINFO('Armory already registered at admin level.  Done!')
-                  return
-               else:
-                  # Root key is set (or at least created, which is enough)
-                  action = 'AskUser'
-            except:
-               action = 'DoIt'
-
-         dontAsk = self.getSettingOrSetDefault('DNAA_DefaultApp', False)
-         dontAskDefault = self.getSettingOrSetDefault('AlwaysArmoryURI', False)
-         if justDoIt:
-            LOGINFO('URL-register: just doing it')
-            action = 'DoIt'
-         elif dontAsk and dontAskDefault:
-            LOGINFO('URL-register: user wants to do it by default')
-            action = 'DoIt'
-         elif action=='AskUser' and not self.firstLoad and not dontAsk:
-            # If another application has it, ask for permission to change it
-            # Don't bother the user on the first load with it if verification is
-            # needed.  They have enough to worry about with this weird new program...
-            reply = MsgBoxWithDNAA(self, self, MSGBOX.Question, self.tr('Default URL Handler'),
-               self.tr('Armory is not set as your default application for handling '
-               '"bitcoin:" links.  Would you like to use Armory as the '
-               'default?'), self.tr('Do not ask this question again'))
-
-            if reply[1]==True:
-               LOGINFO('URL-register:  do not ask again:  always %s', str(reply[0]))
-               self.writeSetting('DNAA_DefaultApp', True)
-               self.writeSetting('AlwaysArmoryURI', reply[0])
-
-            if reply[0]==True:
-               action = 'DoIt'
-            else:
-               LOGINFO('User requested not to use Armory as URI handler')
-               return
-
-         # Finally, do it if we're supposed to!
-         LOGINFO('URL-register action: %s', action)
-         if action=='DoIt':
-
-            LOGINFO('Registering Armory  for current user')
-            baseDir = os.path.dirname(str(passstr[0:(rtlength*2)], encoding='utf16'))
-            regKeys = []
-            regKeys.append(['Software\\Classes\\bitcoin', '', 'URL:bitcoin Protocol'])
-            regKeys.append(['Software\\Classes\\bitcoin', 'URL Protocol', ""])
-            regKeys.append(['Software\\Classes\\bitcoin\\shell', '', None])
-            regKeys.append(['Software\\Classes\\bitcoin\\shell\\open', '',  None])
-
-            for key,name,val in regKeys:
-               dkey = '%s\\%s' % (key,name)
-               LOGINFO('\tWriting key: [HKEY_CURRENT_USER\\] ' + dkey)
-               registryKey = CreateKey(HKEY_CURRENT_USER, key)
-               SetValueEx(registryKey, name, 0, REG_SZ, val)
-               CloseKey(registryKey)
-
-            regKeysU = []
-            regKeysU.append(['Software\\Classes\\bitcoin\\shell\\open\\command',  '', \
-                           modulepathname])
-            regKeysU.append(['Software\\Classes\\bitcoin\\DefaultIcon', '',  \
-                          '"%s\\armory48x48.ico"' % baseDir])
-            for key,name,val in regKeysU:
-               dkey = '%s\\%s' % (key,name)
-               LOGINFO('\tWriting key: [HKEY_CURRENT_USER\\] ' + dkey)
-               registryKey = CreateKey(HKEY_CURRENT_USER, key)
-               #hKey = ctypes.c_int(registryKey.handle)
-               #ctypes.windll.Advapi32.RegSetValueEx(hKey, None, 0, REG_SZ, val, (len(val)+1))
-               SetValueEx(registryKey, name, 0, REG_SZ, val)
-               CloseKey(registryKey)
-
+      pass
 
    #############################################################################
    def warnNewUSTXFormat(self):
@@ -4804,9 +4654,6 @@ class ArmoryMainWindow(QMainWindow):
          #the ledgers
          
          self.nodeStatus = TheBridge.getNodeStatus()
-         if self.nodeStatus.isValid:
-            TheBDM.setWitness(self.nodeStatus.isSegWitEnabled)
-
          self.updateWalletData()
          for wltid in self.walletMap:
             self.walletMap[wltid].detectHighestUsedIndex()
@@ -5874,6 +5721,9 @@ class ArmoryMainWindow(QMainWindow):
 ############################################
 
 if 1:
+   #start cppbridge
+   from armoryengine import ArmoryUtils
+   ArmoryUtils.startBridge()
 
    pixLogo = QPixmap(':/splashlogo.png')
    if USE_TESTNET or USE_REGTEST:
@@ -5887,6 +5737,7 @@ if 1:
    # Will make this customizable
    QAPP.setFont(GETFONT('var'))
 
+   #setup main dialog
    form = ArmoryMainWindow(splashScreen=SPLASH)
    form.show()
 

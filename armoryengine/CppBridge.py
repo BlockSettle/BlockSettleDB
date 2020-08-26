@@ -11,6 +11,9 @@ from struct import unpack
 import atexit
 import threading
 import binascii
+import subprocess
+
+from concurrent.futures import ThreadPoolExecutor
 
 from armoryengine.ArmoryUtils import PassphraseError
 
@@ -50,35 +53,49 @@ class CppBridge(object):
 
    #############################################################################
    def __init__(self):
+      pass
 
+   #############################################################################
+   def start(self, stringArgs):
       self.run = True
       self.rwLock = threading.Lock()
 
       self.idCounter = 0
       self.responseDict = {}
 
+      #dtor emulation to gracefully close sockets
+      atexit.register(self.shutdown)
+
+      self.executor = ThreadPoolExecutor(max_workers=2)
+      listenFut = self.executor.submit(self.listenOnBridge)
+      self.processFut = self.executor.submit(self.spawnBridge, stringArgs)
+
+      self.clientSocket = listenFut.result()
+      self.clientFut = self.executor.submit(self.readBridgeSocket)
+
+   #############################################################################
+   def listenOnBridge(self):
       #setup listener
+
       portNumber = 46122
       self.listenSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       self.listenSocket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR, 1)
       self.listenSocket.bind(("127.0.0.1", portNumber))
-      self.listenSocket.listen(0)
+      self.listenSocket.listen()
 
-      #block until bridge process has connected
-      (self.clientSocket, clientIP) = self.listenSocket.accept()
+      clientSocket, clientIP = self.listenSocket.accept()
+      return clientSocket
 
-      #dtor emulation to gracefully close sockets
-      atexit.register(self.shutdown)
-
-      #start read thread
-      self.readThread = threading.Thread(\
-         group=None, target=self.readBridgeSocket, \
-         name=None, args=(), kwargs={})
-      self.readThread.start()
+   #############################################################################
+   def spawnBridge(self, stringArgs):
+      subprocess.run(["./CppBridge", stringArgs])
 
    #############################################################################
    def sendToBridge(self, msg, needsReply=True, callback=None, cbArgs=[]):
       #grab id from msg counter
+      if self.run == False:
+         return
+      
       msg.payloadId = self.idCounter
       self.idCounter = self.idCounter + 1
 
@@ -113,7 +130,6 @@ class CppBridge(object):
    #############################################################################
    def readBridgeSocket(self):
       while self.run is True:
-
          response = bytearray()
 
          #wait for data on the socket
@@ -128,6 +144,7 @@ class CppBridge(object):
                continue
             else:
                LOGERROR("Socket error: %s" % str(e))
+               self.run = False
                break
 
          #grab & check size header
@@ -259,7 +276,7 @@ class CppBridge(object):
       self.listenSocket.close()
 
       self.rwLock.release()
-      self.readThread.join()
+      self.clientFut.result()
 
    #############################################################################
    def setupDB(self):
