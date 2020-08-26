@@ -17,6 +17,7 @@
 
 #define ASSETENTRY_SINGLE_VERSION      0x00000001
 #define ASSETENTRY_BIP32ROOT_VERSION   0x00000002
+#define ASSETENTRY_LEGACYROOT_VERSION  0x00000001
 
 #define ENCRYPTED_SEED_VERSION         0x00000001
 #define ENCRYPTION_KEY_VERSION         0x00000001
@@ -394,6 +395,35 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
       break;
    }
 
+   case AssetEntryType_ArmoryLegacyRoot:
+   {
+      switch (version)
+      {
+      case 0x00000001:
+      {
+         auto cclen = brrVal.get_var_int();
+         auto&& chaincode = brrVal.get_BinaryData(cclen);
+
+         shared_ptr<Asset_PrivateKey> privKeyPtr;
+         SecureBinaryData pubKeyCompressed;
+         SecureBinaryData pubKeyUncompressed;
+
+         getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
+
+         auto rootEntry = make_shared<AssetEntry_ArmoryLegacyRoot>(
+            index, account_id,
+            pubKeyCompressed, privKeyPtr,
+            chaincode);
+
+         rootEntry->doNotCommit();
+         return rootEntry;
+      }
+
+      default:
+         throw AssetException("unsupported legacy root version");
+      }
+   }
+
    default:
       throw AssetException("invalid asset entry type");
    }
@@ -602,6 +632,38 @@ string AssetEntry_BIP32Root::getXPub(void) const
    auto base58 = node.getBase58();
    string b58str(base58.toCharPtr(), base58.getSize());
    return b58str;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// Asset
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+BinaryData AssetEntry_ArmoryLegacyRoot::serialize() const
+{
+   BinaryWriter bw;
+
+   bw.put_uint32_t(ASSETENTRY_LEGACYROOT_VERSION);
+
+   auto entryType = getType();
+   bw.put_uint8_t(entryType);
+
+   bw.put_var_int(chaincode_.getSize());
+   bw.put_BinaryData(chaincode_);
+
+   auto pubkey = getPubKey();
+   auto privkey = getPrivKey();
+
+   bw.put_BinaryData(pubkey->serialize());
+   if (privkey != nullptr && privkey->hasData())
+      bw.put_BinaryData(privkey->serialize());
+
+   BinaryWriter finalBw;
+
+   finalBw.put_var_int(bw.getSize());
+   finalBw.put_BinaryData(bw.getData());
+
+   return finalBw.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

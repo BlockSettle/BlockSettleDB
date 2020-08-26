@@ -1140,7 +1140,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
       passphrase, 
       controlPassphrase,
       privateRoot, 
-      dummy);
+      dummy, 
+      0); //pass 0 for the fingerprint to signal legacy wallet
 
    //set as main
    setMainWallet(iface, walletID);
@@ -1431,17 +1432,12 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
          passphrase,
          controlPassphrase,
          node.getPrivateKey(),
-         node.getChaincode());
+         node.getChaincode(),
+         node.getThisFingerprint());
    }
    else
    {
-      //ctors move the arguments in, gotta create copies first
-      auto pubkey_copy = node.getPublicKey();
-      walletPtr = initWalletDbFromPubRoot(
-         iface,
-         controlPassphrase,
-         masterID, walletID,
-         pubkey_copy);
+      throw runtime_error("invalid for bip32 wallets");
    }
 
    //set as main
@@ -1523,7 +1519,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    const SecureBinaryData& passphrase,
    const SecureBinaryData& controlPassphrase,
    const SecureBinaryData& privateRoot,
-   const SecureBinaryData& chaincode)
+   const SecureBinaryData& chaincode, 
+   uint32_t seedFingerprint)
 {
    auto headerPtr = make_shared<WalletHeader_Single>();
    headerPtr->walletID_ = walletID;
@@ -1548,11 +1545,22 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    auto rootAsset = make_shared<Asset_PrivateKey>(
       WRITE_UINT32_BE(UINT32_MAX), encryptedRoot, move(rootCipher));
 
-   //default to bip32 root
-   auto rootAssetEntry = make_shared<AssetEntry_BIP32Root>(
+   unique_ptr<AssetEntry> rootAssetEntry;
+   if (seedFingerprint != 0)
+   {
+      //bip32 root
+      rootAssetEntry = make_unique<AssetEntry_BIP32Root>(
          -1, BinaryData(),
          pubkey, rootAsset,
-         chaincode, 0, 0, 0, 0, vector<uint32_t>());
+         chaincode, 0, 0, 0, seedFingerprint, vector<uint32_t>());
+   }
+   else
+   {
+      //legacy armory root
+      rootAssetEntry = make_unique<AssetEntry_ArmoryLegacyRoot>(
+         -1, BinaryData(),
+         pubkey, rootAsset, chaincode);
+   }
 
    //create wallet
    auto walletPtr = make_shared<AssetWallet_Single>(iface, headerPtr, masterID);
