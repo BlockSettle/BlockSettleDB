@@ -269,6 +269,9 @@ public:
 
    std::map<BinaryData, BIP32_AssetPath>& getBip32Paths(void)
    { return bip32Paths_; }
+
+   //debug
+   void prettyPrint(std::ostream&) const;
 };
 
 

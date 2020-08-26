@@ -10,6 +10,7 @@
 #include "Accounts.h"
 #include "DecryptedDataContainer.h"
 #include "BIP32_Node.h"
+#include "ResolverFeed.h"
 
 using namespace std;
 
@@ -1818,6 +1819,45 @@ shared_ptr<AssetEntry_BIP32Root> AddressAccount::getBip32RootForAssetId(
       throw AccountException("account isn't bip32");
 
    return rootBip32;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool AddressAccount::hasBip32Path(
+   const ArmorySigner::BIP32_AssetPath& path) const
+{
+   //look for an account which root's path matches that of our desired path
+   for (const auto& accountPair : assetAccounts_)
+   {
+      const auto& accountPtr = accountPair.second;
+      
+      auto root = accountPtr->root_;
+      auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(root);
+      if (rootBip32 == nullptr)
+         continue;
+
+      auto rootPath = rootBip32->getDerivationPath();
+      auto assetPath = path.getDerivationPathFromSeed();
+      if (rootPath.empty() || 
+         (rootPath.size() > assetPath.size()))
+      {
+         continue;
+      }
+
+      bool match = true;
+      for (unsigned i=0; i<rootPath.size(); i++)
+      {
+         if (rootPath[i] != assetPath[i])
+         {
+            match = false;
+            break;
+         }
+      }
+
+      if (match)
+         return true;
+   }
+
+   return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
