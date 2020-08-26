@@ -260,19 +260,17 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
       map<string, string> args;
       for (int i = 1; i < argc; i++)
       {
-         //check prefix
-         if (strlen(argv[i]) < 2)
-            throw DbErrorMsg("invalid CLI arg");
-
-         string prefix(argv[i], 2);
-         if (prefix != "--")
-            throw DbErrorMsg("invalid CLI arg");
+         string line(argv[i], strlen(argv[i]));
 
          //string prefix and tokenize
-         string line(argv[i] + 2);
-         auto&& argkeyval = getKeyValFromLine(line, '=');
-         args.insert(make_pair(
-            argkeyval.first, stripQuotes(argkeyval.second)));
+         auto strings = tokenizeLine(line, "--");
+         for (auto& line : strings)
+         {
+            auto keyVal = getKeyValFromLine(line, '=');
+            
+            args.insert(make_pair(
+               keyVal.first, stripQuotes(keyVal.second)));
+         }
       }
 
       processArgs(args, true);
@@ -374,8 +372,6 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
          {
             stringstream ss;
             ss << path << " is not a valid path";
-
-            cout << ss.str() << endl;
             throw DbErrorMsg(ss.str());
          }
       };
@@ -660,6 +656,57 @@ pair<string, string> BlockDataManagerConfig::getKeyValFromLine(
       getline(ss, output.second);
 
    return output;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+vector<string> BlockDataManagerConfig::tokenizeLine(
+   const string& line, const string& token)
+{
+   if (token.empty() || line.empty())
+      return {};
+
+   vector<string> result;
+
+   unsigned i=0;
+   unsigned tkId = 0;
+   while (i < line.size())
+   {
+      if (line.c_str()[i] == token.c_str()[tkId])
+      {
+         ++tkId;
+         if (tkId == token.size())
+         {
+            ++i;
+            auto y = i;
+            while (i < line.size() -1)
+            {
+               if (line.c_str()[i] == ' ')
+                  break;
+               ++i;
+            }
+
+            if (i >= y)
+            {
+               //keep last char in the line
+               if (i==line.size() -1)
+                  ++i;
+               
+               string str(line.c_str() + y, i-y);
+               result.emplace_back(move(str));
+            }
+
+            tkId = 0;
+         }
+      }
+      else
+      {
+         tkId = 0;
+      }
+
+      ++i;
+   }
+
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

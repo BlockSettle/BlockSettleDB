@@ -107,6 +107,8 @@ public:
    static std::pair<std::string, std::string> getKeyValFromLine(const std::string&, char delim);
    static std::string stripQuotes(const std::string& input);
    static std::vector<std::string> keyValToArgv(const std::map<std::string, std::string>&);
+   static std::vector<std::string> tokenizeLine(
+      const std::string&, const std::string&);
 
    static bool testConnection(const std::string& ip, const std::string& port);
    static std::string hasLocalDB(const std::string& datadir, const std::string& port);
