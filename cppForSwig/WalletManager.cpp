@@ -73,8 +73,10 @@ void WalletManager::loadWallets(
    dir = opendir(path_.c_str());
    if (dir == nullptr)
    {
-      LOGERR << "invalid datadir path";
-      throw runtime_error("invalid datadir path");
+      stringstream ss;
+      ss << path_ << "is not a valid datadir";
+      LOGERR << ss.str();
+      throw runtime_error(ss.str());
    }
 
    vector<string> walletPaths;
