@@ -879,15 +879,15 @@ class PyTx(BlockComponent):
       else:
          txData.rewind(2)
       numInputs  = txData.get(VAR_INT)
-      for i in xrange(numInputs):
+      for i in range(numInputs):
          txin = PyTxIn().unserialize(txData)
          self.inputs.append( txin )
 
       numOutputs = txData.get(VAR_INT)
-      for i in xrange(numOutputs):
+      for i in range(numOutputs):
          self.outputs.append( PyTxOut().unserialize(txData) )
       if self.useWitness:
-         for i in xrange(numInputs):
+         for i in range(numInputs):
             self.witnesses.append( PyTxWitness().unserialize(txData))
 
       self.lockTime   = txData.get(UINT32)

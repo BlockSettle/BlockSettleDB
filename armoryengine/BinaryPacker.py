@@ -71,9 +71,9 @@ class BinaryPacker(object):
       elif varType == INT64:
          self.binaryConcat.write(pack(E+'q', theData))
       elif varType == VAR_INT:
-         self.binaryConcat.write(packVarInt(theData)[0])
+         self.binaryConcat.write(packVarInt(theData))
       elif varType == VAR_STR:
-         self.binaryConcat.write(packVarInt(len(theData))[0])
+         self.binaryConcat.write(packVarInt(len(theData)))
          self.binaryConcat.write(theData)
       elif varType == FLOAT:
          self.binaryConcat.write(pack(E+'f', theData))
