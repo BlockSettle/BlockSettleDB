@@ -17,6 +17,7 @@
 
 #define ASSETENTRY_SINGLE_VERSION      0x00000001
 #define ASSETENTRY_BIP32ROOT_VERSION   0x00000002
+#define ASSETENTRY_LEGACYROOT_VERSION  0x00000001
 
 #define ENCRYPTED_SEED_VERSION         0x00000001
 #define ENCRYPTION_KEY_VERSION         0x00000001
@@ -377,11 +378,23 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
 
          getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
 
-         auto rootEntry = make_shared<AssetEntry_BIP32Root>(
+         shared_ptr<AssetEntry_BIP32Root> rootEntry;
+         if (!pubKeyCompressed.empty())
+         {
+            rootEntry = make_shared<AssetEntry_BIP32Root>(
             index, account_id,
-            pubKeyUncompressed, pubKeyCompressed, privKeyPtr,
+            pubKeyCompressed, privKeyPtr,
             chaincode, depth, leafid, fingerprint, seedFingerprint,
             derPath);
+         }
+         else
+         {
+            rootEntry = make_shared<AssetEntry_BIP32Root>(
+            index, account_id,
+            pubKeyUncompressed, privKeyPtr,
+            chaincode, depth, leafid, fingerprint, seedFingerprint,
+            derPath);
+         }
 
          rootEntry->doNotCommit();
          return rootEntry;
@@ -392,6 +405,35 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
       }
 
       break;
+   }
+
+   case AssetEntryType_ArmoryLegacyRoot:
+   {
+      switch (version)
+      {
+      case 0x00000001:
+      {
+         auto cclen = brrVal.get_var_int();
+         auto&& chaincode = brrVal.get_BinaryData(cclen);
+
+         shared_ptr<Asset_PrivateKey> privKeyPtr;
+         SecureBinaryData pubKeyCompressed;
+         SecureBinaryData pubKeyUncompressed;
+
+         getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
+
+         auto rootEntry = make_shared<AssetEntry_ArmoryLegacyRoot>(
+            index, account_id,
+            pubKeyCompressed, privKeyPtr,
+            chaincode);
+
+         rootEntry->doNotCommit();
+         return rootEntry;
+      }
+
+      default:
+         throw AssetException("unsupported legacy root version");
+      }
    }
 
    default:
@@ -542,6 +584,57 @@ shared_ptr<AssetEntry_Single> AssetEntry_Single::getPublicCopy()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// AssetEntry_BIP32Root
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+AssetEntry_BIP32Root::AssetEntry_BIP32Root(int id, const BinaryData& accountID,
+   SecureBinaryData& pubkey, shared_ptr<Asset_PrivateKey> privkey,
+   const SecureBinaryData& chaincode,
+   uint8_t depth, unsigned leafID, 
+   unsigned fingerPrint, unsigned seedFingerprint,
+   const vector<uint32_t>& derPath) :
+   AssetEntry_Single(id, accountID, pubkey, privkey),
+   chaincode_(chaincode),
+   depth_(depth), leafID_(leafID), 
+   parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
+   derivationPath_(derPath)
+{
+   checkSeedFingerprint(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+AssetEntry_BIP32Root::AssetEntry_BIP32Root(int id, const BinaryData& accountID,
+   shared_ptr<Asset_PublicKey> pubkey, shared_ptr<Asset_PrivateKey> privkey,
+   const SecureBinaryData& chaincode,
+   uint8_t depth, unsigned leafID, 
+   unsigned fingerPrint, unsigned seedFingerprint,
+   const vector<uint32_t>& derPath) :
+   AssetEntry_Single(id, accountID, pubkey, privkey),
+   chaincode_(chaincode),
+   depth_(depth), leafID_(leafID),
+   parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
+   derivationPath_(derPath)
+{
+   checkSeedFingerprint(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AssetEntry_BIP32Root::checkSeedFingerprint(bool strongCheck) const
+{
+   if (seedFingerprint_ != 0)
+      return;
+
+   stringstream ss;
+   ss << "BIP32 root " << getThisFingerprint() << 
+      " is missing seed fingerprint. You should regenerate this wallet!";
+   cout << ss.str() << endl;
+
+   if (strongCheck)
+      throw runtime_error(ss.str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry_Single> AssetEntry_BIP32Root::getPublicCopy()
 {
    auto pubkey = getPubKey();
@@ -574,8 +667,10 @@ unsigned AssetEntry_BIP32Root::getThisFingerprint() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unsigned AssetEntry_BIP32Root::getSeedFingerprint() const
+unsigned AssetEntry_BIP32Root::getSeedFingerprint(bool strongCheck) const
 {
+   checkSeedFingerprint(strongCheck);
+
    //if we have an explicit seed fingerpint, return it
    if (seedFingerprint_ != UINT32_MAX)
       return seedFingerprint_;
@@ -602,6 +697,38 @@ string AssetEntry_BIP32Root::getXPub(void) const
    auto base58 = node.getBase58();
    string b58str(base58.toCharPtr(), base58.getSize());
    return b58str;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// Asset
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+BinaryData AssetEntry_ArmoryLegacyRoot::serialize() const
+{
+   BinaryWriter bw;
+
+   bw.put_uint32_t(ASSETENTRY_LEGACYROOT_VERSION);
+
+   auto entryType = getType();
+   bw.put_uint8_t(entryType);
+
+   bw.put_var_int(chaincode_.getSize());
+   bw.put_BinaryData(chaincode_);
+
+   auto pubkey = getPubKey();
+   auto privkey = getPrivKey();
+
+   bw.put_BinaryData(pubkey->serialize());
+   if (privkey != nullptr && privkey->hasData())
+      bw.put_BinaryData(privkey->serialize());
+
+   BinaryWriter finalBw;
+
+   finalBw.put_var_int(bw.getSize());
+   finalBw.put_BinaryData(bw.getData());
+
+   return finalBw.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

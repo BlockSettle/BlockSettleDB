@@ -67,7 +67,8 @@ enum AssetEntryType
 {
    AssetEntryType_Single = 0x01,
    AssetEntryType_Multisig,
-   AssetEntryType_BIP32Root
+   AssetEntryType_BIP32Root,
+   AssetEntryType_ArmoryLegacyRoot
 };
 
 enum ScriptHashType
@@ -188,7 +189,7 @@ public:
    const SecureBinaryData& getUncompressedKey(void) const { return uncompressed_; }
    const SecureBinaryData& getCompressedKey(void) const { return compressed_; }
 
-   BinaryData serialize(void) const;
+   BinaryData serialize(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -346,7 +347,7 @@ public:
    {}
 
    ////
-   BinaryData serialize(void) const;
+   BinaryData serialize(void) const override;
    BinaryData getId(void) const { return id_; }
    bool isSame(Asset_EncryptedData* const) const;
 
@@ -382,7 +383,7 @@ public:
    {}
 
    ////
-   BinaryData serialize(void) const;
+   BinaryData serialize(void) const override;
    BinaryData getId(void) const { return id_; }
    bool isSame(Asset_EncryptedData* const) const;
 
@@ -411,7 +412,7 @@ public:
    {}
    
    //virtual
-   BinaryData serialize(void) const;
+   BinaryData serialize(void) const override;
    bool isSame(Asset_EncryptedData* const) const;
    BinaryData getId(void) const { return SEED_ID; }
 
@@ -509,12 +510,33 @@ public:
    std::shared_ptr<Asset_PrivateKey> getPrivKey(void) const { return privkey_; }
 
    //virtual
-   virtual BinaryData serialize(void) const;
+   virtual BinaryData serialize(void) const override;
    bool hasPrivateKey(void) const;
    const BinaryData& getPrivateEncryptionKeyId(void) const override;
    const BinaryData& getKdfId(void) const;
 
    virtual std::shared_ptr<AssetEntry_Single> getPublicCopy(void);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class AssetEntry_ArmoryLegacyRoot : public AssetEntry_Single
+{
+private:
+   const SecureBinaryData chaincode_;
+
+public:
+   //tors
+   AssetEntry_ArmoryLegacyRoot(int id, const BinaryData& accountID,
+      SecureBinaryData& pubkey,
+      std::shared_ptr<Asset_PrivateKey> privkey,
+      const SecureBinaryData& chaincode):
+      AssetEntry_Single(id, accountID, pubkey, privkey),
+      chaincode_(chaincode)
+   {}
+
+   BinaryData serialize(void) const override;
+   const AssetEntryType getType(void) const override 
+   { return AssetEntryType_ArmoryLegacyRoot; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -545,64 +567,40 @@ private:
 
 public:
    //tors
-   AssetEntry_BIP32Root(int id, const BinaryData& accountID,
-      SecureBinaryData& pubkey,
-      std::shared_ptr<Asset_PrivateKey> privkey,
-      const SecureBinaryData& chaincode,
-      uint8_t depth, unsigned leafID, 
-      unsigned fingerPrint, unsigned seedFingerprint,
-      const std::vector<uint32_t>& derPath) :
-      AssetEntry_Single(id, accountID, pubkey, privkey),
-      chaincode_(chaincode),
-      depth_(depth), leafID_(leafID), 
-      parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
-      derivationPath_(derPath)
-   {}
+   AssetEntry_BIP32Root(
+      int, const BinaryData&, //id & account id
+      SecureBinaryData&, //pubkey
+      std::shared_ptr<Asset_PrivateKey>, //privkey
+      const SecureBinaryData&, //chaincode
+      uint8_t, unsigned, //depth, leafID 
+      unsigned, unsigned, //fingerprint, seed fingerprint
+      const std::vector<uint32_t>&); //der path
 
-   AssetEntry_BIP32Root(int id, const BinaryData& accountID,
-      SecureBinaryData& pubkeyUncompressed,
-      SecureBinaryData& pubkeyCompressed,
-      std::shared_ptr<Asset_PrivateKey> privkey,
-      const SecureBinaryData& chaincode,
-      uint8_t depth, unsigned leafID, 
-      unsigned fingerPrint, unsigned seedFingerprint,
-      const std::vector<uint32_t>& derPath) :
-      AssetEntry_Single(id, accountID,
-         pubkeyUncompressed, pubkeyCompressed, privkey),
-      chaincode_(chaincode),
-      depth_(depth), leafID_(leafID),
-      parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
-      derivationPath_(derPath)
-   {}
-
-   AssetEntry_BIP32Root(int id, const BinaryData& accountID,
-      std::shared_ptr<Asset_PublicKey> pubkey,
-      std::shared_ptr<Asset_PrivateKey> privkey,
-      const SecureBinaryData& chaincode,
-      uint8_t depth, unsigned leafID, 
-      unsigned fingerPrint, unsigned seedFingerprint,
-      const std::vector<uint32_t>& derPath) :
-      AssetEntry_Single(id, accountID, pubkey, privkey),
-      chaincode_(chaincode),
-      depth_(depth), leafID_(leafID),
-      parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
-      derivationPath_(derPath)
-   {}
+   AssetEntry_BIP32Root(
+      int, const BinaryData&,
+      std::shared_ptr<Asset_PublicKey>,
+      std::shared_ptr<Asset_PrivateKey>,
+      const SecureBinaryData&,
+      uint8_t, unsigned, 
+      unsigned, unsigned,
+      const std::vector<uint32_t>&);
 
    //local
    uint8_t getDepth(void) const { return depth_; }
    unsigned getLeafID(void) const { return leafID_; }
    unsigned getParentFingerprint(void) const { return parentFingerprint_; }
    unsigned getThisFingerprint(void) const;
-   unsigned getSeedFingerprint(void) const;
+   unsigned getSeedFingerprint(bool) const;
    std::string getXPub(void) const;
    const SecureBinaryData& getChaincode(void) const { return chaincode_; }
    const std::vector<uint32_t>& getDerivationPath(void) const 
    { return derivationPath_; }
 
+   //sanity check
+   void checkSeedFingerprint(bool) const;
 
    //virtual
-   BinaryData serialize(void) const;
+   BinaryData serialize(void) const override;
    const AssetEntryType getType(void) const override 
    { return AssetEntryType_BIP32Root; }
 
@@ -649,7 +647,7 @@ public:
    unsigned getN(void) const { return n_; }
 
    //virtual
-   BinaryData serialize(void) const
+   BinaryData serialize(void) const override
    {
       throw AssetException("no serialization for MS assets");
    }
@@ -711,7 +709,7 @@ public:
    {}
 
    //virtuals
-   BinaryData serialize(void) const;
+   BinaryData serialize(void) const override;
    BinaryData getDbKey(void) const;
    void deserializeDBValue(const BinaryDataRef&);
    void clear(void);
@@ -744,7 +742,7 @@ public:
    {}
 
    //virtuals
-   BinaryData serialize(void) const;
+   BinaryData serialize(void) const override;
    BinaryData getDbKey(void) const;
    void deserializeDBValue(const BinaryDataRef&);
    void clear(void);
@@ -773,7 +771,7 @@ public:
    {}
 
    //virtuals
-   BinaryData serialize(void) const;
+   BinaryData serialize(void) const override;
    BinaryData getDbKey(void) const;
    void deserializeDBValue(const BinaryDataRef&);
    void clear(void);
@@ -798,7 +796,7 @@ public:
    {}
 
    //virtuals
-   BinaryData serialize(void) const;
+   BinaryData serialize(void) const override;
    BinaryData getDbKey(void) const;
    void deserializeDBValue(const BinaryDataRef&);
    void clear(void);

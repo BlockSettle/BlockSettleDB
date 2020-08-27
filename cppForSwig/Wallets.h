@@ -238,7 +238,8 @@ protected:
       const SecureBinaryData& passphrase,
       const SecureBinaryData& controlPassphrase,
       const SecureBinaryData& privateRoot,
-      const SecureBinaryData& chaincode);
+      const SecureBinaryData& chaincode,
+      uint32_t seedFingerprint);
 
    static std::shared_ptr<AssetWallet_Single> initWalletDbFromPubRoot(
       std::shared_ptr<WalletDBInterface> iface,
