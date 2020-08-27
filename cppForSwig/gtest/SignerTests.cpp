@@ -2649,7 +2649,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       for (auto& utxo : unspentVec_2)
       {
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo));
+         auto spender = getSpenderPtr(utxo);
+         spender->setSequence(UINT32_MAX - 2);
+         signer3.addSpender(spender);         
       }
 
       //set change

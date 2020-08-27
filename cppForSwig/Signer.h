@@ -168,6 +168,7 @@ public:
    ScriptSpender(const ScriptSpender& ss)
    {
       outpoint_ = ss.getOutpoint();
+      sequence_ = ss.sequence_;
       merge(ss);
    }
 
