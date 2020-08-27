@@ -894,6 +894,14 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
 ////////////////////////////////////////////////////////////////////////////////
 void ScriptSpender::merge(const ScriptSpender& obj)
 {
+   /*
+   Do not tolerate sequence mismatch. Sequence should be updated explicitly
+   if the transaction scheme calls for it.
+   */
+   if (sequence_ != obj.sequence_)
+      throw runtime_error("sequence mismatch");
+
+   //nothing to merge if the spender is already signed
    if (isSigned())
       return;
 
