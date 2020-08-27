@@ -1055,7 +1055,7 @@ const BinaryData& AssetWallet_Single::createBIP32Account_WithParent(
    accTypePtr->setDerivationPath(derivationPath);
 
    //set the account seed fingerprint
-   accTypePtr->setSeedFingerprint(root->getSeedFingerprint());
+   accTypePtr->setSeedFingerprint(root->getSeedFingerprint(false));
 
    auto accountPtr = createAccount(accTypePtr);
    if (!accTypePtr->isWatchingOnly())
@@ -1995,7 +1995,7 @@ BIP32_AssetPath AssetWallet_Single::getBip32PathForAsset(
       auto rootObj = make_shared<BIP32_PublicDerivedRoot>(
          accountRoot->getXPub(), 
          accountPath, 
-         accountRoot->getSeedFingerprint());
+         accountRoot->getSeedFingerprint(true));
 
       return BIP32_AssetPath(
          pubkey,

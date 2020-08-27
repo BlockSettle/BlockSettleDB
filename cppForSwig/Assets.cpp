@@ -378,11 +378,23 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
 
          getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
 
-         auto rootEntry = make_shared<AssetEntry_BIP32Root>(
+         shared_ptr<AssetEntry_BIP32Root> rootEntry;
+         if (!pubKeyCompressed.empty())
+         {
+            rootEntry = make_shared<AssetEntry_BIP32Root>(
             index, account_id,
-            pubKeyUncompressed, pubKeyCompressed, privKeyPtr,
+            pubKeyCompressed, privKeyPtr,
             chaincode, depth, leafid, fingerprint, seedFingerprint,
             derPath);
+         }
+         else
+         {
+            rootEntry = make_shared<AssetEntry_BIP32Root>(
+            index, account_id,
+            pubKeyUncompressed, privKeyPtr,
+            chaincode, depth, leafid, fingerprint, seedFingerprint,
+            derPath);
+         }
 
          rootEntry->doNotCommit();
          return rootEntry;
@@ -572,6 +584,57 @@ shared_ptr<AssetEntry_Single> AssetEntry_Single::getPublicCopy()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//// AssetEntry_BIP32Root
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+AssetEntry_BIP32Root::AssetEntry_BIP32Root(int id, const BinaryData& accountID,
+   SecureBinaryData& pubkey, shared_ptr<Asset_PrivateKey> privkey,
+   const SecureBinaryData& chaincode,
+   uint8_t depth, unsigned leafID, 
+   unsigned fingerPrint, unsigned seedFingerprint,
+   const vector<uint32_t>& derPath) :
+   AssetEntry_Single(id, accountID, pubkey, privkey),
+   chaincode_(chaincode),
+   depth_(depth), leafID_(leafID), 
+   parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
+   derivationPath_(derPath)
+{
+   checkSeedFingerprint(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+AssetEntry_BIP32Root::AssetEntry_BIP32Root(int id, const BinaryData& accountID,
+   shared_ptr<Asset_PublicKey> pubkey, shared_ptr<Asset_PrivateKey> privkey,
+   const SecureBinaryData& chaincode,
+   uint8_t depth, unsigned leafID, 
+   unsigned fingerPrint, unsigned seedFingerprint,
+   const vector<uint32_t>& derPath) :
+   AssetEntry_Single(id, accountID, pubkey, privkey),
+   chaincode_(chaincode),
+   depth_(depth), leafID_(leafID),
+   parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
+   derivationPath_(derPath)
+{
+   checkSeedFingerprint(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AssetEntry_BIP32Root::checkSeedFingerprint(bool strongCheck) const
+{
+   if (seedFingerprint_ != 0)
+      return;
+
+   stringstream ss;
+   ss << "BIP32 root " << getThisFingerprint() << 
+      " is missing seed fingerprint. You should regenerate this wallet!";
+   cout << ss.str() << endl;
+
+   if (strongCheck)
+      throw runtime_error(ss.str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry_Single> AssetEntry_BIP32Root::getPublicCopy()
 {
    auto pubkey = getPubKey();
@@ -604,8 +667,10 @@ unsigned AssetEntry_BIP32Root::getThisFingerprint() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unsigned AssetEntry_BIP32Root::getSeedFingerprint() const
+unsigned AssetEntry_BIP32Root::getSeedFingerprint(bool strongCheck) const
 {
+   checkSeedFingerprint(strongCheck);
+
    //if we have an explicit seed fingerpint, return it
    if (seedFingerprint_ != UINT32_MAX)
       return seedFingerprint_;

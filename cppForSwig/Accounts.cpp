@@ -1843,7 +1843,7 @@ bool AddressAccount::hasBip32Path(
          continue;
       }
 
-      if (rootBip32->getSeedFingerprint() != path.getSeedFingerprint())
+      if (rootBip32->getSeedFingerprint(true) != path.getSeedFingerprint())
          return false;
 
       bool match = true;
