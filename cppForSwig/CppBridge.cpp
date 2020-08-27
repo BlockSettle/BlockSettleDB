@@ -42,6 +42,7 @@ int main(int argc, char* argv[])
 
    //enable logs
    STARTLOGGING(bdmConfig.logFilePath_, LogLvlDebug);
+   LOGENABLESTDOUT();
 
    //setup the bridge
    auto bridge = make_shared<CppBridge>(
