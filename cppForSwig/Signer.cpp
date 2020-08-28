@@ -1102,11 +1102,25 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
       if (ours == theirs)
          return true;
 
-      if (theirs.size() == 0)
+      if (theirs.empty())
       {
-         //if ours isn't empty, theirs cannot be empty (it needs the 
-         //resolved data at least)
-         return false;
+         /*
+         If ours isn't empty, theirs cannot be empty (it needs the 
+         resolved data at least). Edge case: ours carry only empty
+         data vectors.
+         */
+
+         bool empty = true;
+         for (const auto& ourItem : ours)
+         {
+            if (!ourItem.empty())
+            {
+               empty = false;
+               break;
+            }
+         }
+
+         return empty;
       }
 
       if (isMultiSig)
@@ -2602,7 +2616,7 @@ shared_ptr<ScriptSpender> Signer::getSpender(unsigned index) const
 shared_ptr<ScriptRecipient> Signer::getRecipient(unsigned index) const
 {
    auto recVector = getRecipientVector();
-   if (index > recVector.size())
+   if (index >= recVector.size())
       throw ScriptException("invalid spender index");
 
    return recVector[index];
