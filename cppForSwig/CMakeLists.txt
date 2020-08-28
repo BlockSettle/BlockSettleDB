@@ -196,6 +196,7 @@ list(APPEND LIBARMORYCOMMON_SOURCES
     WebSocketMessage.cpp
     DBUtils.cpp
     ZeroConfNotifications.cpp
+    ResolverFeed.cpp
 )
 
 set(PROTOBUF_FILES
