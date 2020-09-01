@@ -1642,22 +1642,8 @@ def script_to_addrStr(binScript):
 
 ################################################################################
 def scrAddr_to_addrStr(scrAddr):
-   if len(scrAddr)==0:
-      raise BadAddressError('Empty scrAddr')
-
-   prefix = scrAddr[0]
-   if not prefix in SCRADDR_BYTE_LIST or not len(scrAddr)==21:
-      raise BadAddressError('Invalid ScrAddress')
-
-   if prefix==ADDRBYTE:
-      return hash160_to_addrStr(scrAddr[1:])
-   elif prefix==P2SHBYTE:
-      return hash160_to_p2shAddrStr(scrAddr[1:])
-   elif prefix==SCRADDR_P2WPKH_BYTE or prefix==SCRADDR_P2WSH_BYTE:
-      return Cpp.BtcUtils_scriptToBech32(scrAddr[1:], BECH32_PREFIX)
-   else:
-      LOGERROR('Unsupported scrAddr type: "%s"' % binary_to_hex(scrAddr))
-      raise BadAddressError('Can only convert P2PKH and P2SH scripts')
+   from armoryengine.CppBridge import TheBridge
+   return TheBridge.getAddrStrForScrAddr(scrAddr)
 
 ################################################################################
 # We beat around the bush here, to make sure it goes through addrStr which
@@ -1677,9 +1663,9 @@ def addrStr_to_scrAddr(addrStr, p2pkhByte = ADDRBYTE, p2shByte = P2SHBYTE):
       BadAddressError('Invalid address: "%s"' % addrStr)
 
    atype, a160 = addrStr_to_hash160(addrStr, True, p2pkhByte, p2shByte)
-   if atype==p2pkhByte:
+   if atype==int.from_bytes(p2pkhByte, "little"):
       return p2pkhByte + a160
-   elif atype==p2shByte:
+   elif atype==int.from_bytes(p2shByte, "little"):
       return p2shByte + a160
    else:
       BadAddressError('Invalid address: "%s"' % addrStr)
@@ -1810,7 +1796,7 @@ NONSTDPREFIX      = '\xff'
 def CheckHash160(scrAddr):
    if not len(scrAddr)==21:
       raise BadAddressError("Supplied scrAddr is not a Hash160 value!")
-   if not scrAddr[0] in [ADDRBYTE, P2SHBYTE]:
+   if scrAddr[0] != int.from_bytes(ADDRBYTE, "little") and scrAddr[0] != int.from_bytes(P2SHBYTE, "little"):
       raise BadAddressError("Supplied scrAddr is not a Hash160 value!")
    return scrAddr[1:]
 
@@ -2060,7 +2046,7 @@ def binary_to_base58(binstr):
    n = 0
    for ch in binstr:
       n *= 256
-      n += ord(ch)
+      n += ch
 
    b58 = ''
    while n > 0:
@@ -2144,7 +2130,7 @@ def hash160_to_addrStr(binStr, netbyte=ADDRBYTE):
 
    addr21 = netbyte + binStr
    addr25 = addr21 + hash256(addr21)[:4]
-   return binary_to_base58(addr25);
+   return binary_to_base58(addr25)
 
 ################################################################################
 def hash160_to_p2shAddrStr(binStr):
@@ -2153,7 +2139,7 @@ def hash160_to_p2shAddrStr(binStr):
 
    addr21 = P2SHBYTE + binStr
    addr25 = addr21 + hash256(addr21)[:4]
-   return binary_to_base58(addr25);
+   return binary_to_base58(addr25)
 
 ################################################################################
 def binScript_to_p2shAddrStr(binScript):
@@ -2183,7 +2169,11 @@ def addrStr_is_p2sh(b58Str):
 def addrStr_to_hash160(b58Str, p2shAllowed=True, \
                        addrByte = ADDRBYTE, p2shByte = P2SHBYTE):
    binStr = base58_to_binary(b58Str)
-   if not p2shAllowed and binStr[0]==p2shByte:
+   
+   addrByteInt = int.from_bytes(addrByte, "little")
+   p2shByteInt = int.from_bytes(p2shByte, "little")
+
+   if not p2shAllowed and binStr[0]==addrByteInt:
       raise P2SHNotSupportedError
    if not len(binStr) == 25:
       raise BadAddressError('Address string is %d bytes' % len(binStr))
@@ -2191,7 +2181,7 @@ def addrStr_to_hash160(b58Str, p2shAllowed=True, \
    if not hash256(binStr[:21])[:4] == binStr[-4:]:
       raise ChecksumError('Address string has invalid checksum')
 
-   if not binStr[0] in (addrByte, p2shByte):
+   if not binStr[0] in (addrByteInt, p2shByteInt):
       raise BadAddressError('Unknown addr prefix: %s' % binary_to_hex(binStr[0]))
 
    return (binStr[0], binStr[1:-4])
