@@ -20,9 +20,10 @@ from armoryengine.PyBtcAddress import \
    AddressEntryType_Multisig, AddressEntryType_Compressed, \
    AddressEntryType_P2SH, AddressEntryType_P2WSH
 
-
 from qtdefines import GETFONT
 from armorycolors import Colors
+
+from armoryengine.CppBridge import TheBridge
 
 COL_TREE = 0
 COL_COMMENT = 1
@@ -615,7 +616,7 @@ class TreeStructure_CoinControl():
       for utxo in utxoList:
          h160 = utxo.getRecipientHash160()
          binAddr = utxo.getRecipientScrAddr()
-         scrAddr = hash160_to_addrStr(h160, binAddr[0])
+         addrStr = TheBridge.getAddrStrForScrAddr(binAddr)
          
          addrObj = self.wallet.getAddrByHash160(binAddr[1:])
          if addrObj == None:
@@ -633,10 +634,10 @@ class TreeStructure_CoinControl():
          if addrDict == None:
             continue
          
-         if not scrAddr in addrDict:
-            addrDict[scrAddr] = []
+         if not binAddr in addrDict:
+            addrDict[addrStr] = []
             
-         addrDict[scrAddr].append(utxo)
+         addrDict[addrStr].append(utxo)
          
       #populate cpfp
       cpfpList = self.wallet.getZCUTXOList()
@@ -687,7 +688,7 @@ class TreeStructure_CoinControl():
          return nodeMain
       
       #create top 3 nodes
-      nodeUTXO   = createUtxoNode(QObject().tr("Unspent Outputs"))
+      nodeUTXO = createUtxoNode(QObject().tr("Unspent Outputs"))
       #nodeRBF = createChildNode(self.main.tr("RBF Eligible"), "RBF")
       nodeCPFP = createCPFPNode(QObject().tr("CPFP Eligible Outputs"))
       
