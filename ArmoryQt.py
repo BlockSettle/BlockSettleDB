@@ -138,22 +138,22 @@ class ArmoryMainWindow(QMainWindow):
       self.lblLogoIcon = QLabel()
       if USE_TESTNET:
          self.setWindowTitle('Armory - Bitcoin Wallet Management [TESTNET] dlgMain')
-         self.iconfile = ':/armory_icon_green_32x32.png'
-         self.lblLogoIcon.setPixmap(QPixmap(':/armory_logo_green_h56.png'))
+         self.iconfile = './img/armory_icon_green_32x32.png'
+         self.lblLogoIcon.setPixmap(QPixmap('./img/armory_logo_green_h56.png'))
          if Colors.isDarkBkgd:
-            self.lblLogoIcon.setPixmap(QPixmap(':/armory_logo_white_text_green_h56.png'))
+            self.lblLogoIcon.setPixmap(QPixmap('./img/armory_logo_white_text_green_h56.png'))
       elif USE_REGTEST:
          self.setWindowTitle('Armory - Bitcoin Wallet Management [REGTEST] dlgMain')
-         self.iconfile = ':/armory_icon_green_32x32.png'
-         self.lblLogoIcon.setPixmap(QPixmap(':/armory_logo_green_h56.png'))
+         self.iconfile = './img/armory_icon_green_32x32.png'
+         self.lblLogoIcon.setPixmap(QPixmap('./img/armory_logo_green_h56.png'))
          if Colors.isDarkBkgd:
-            self.lblLogoIcon.setPixmap(QPixmap(':/armory_logo_white_text_green_h56.png'))
+            self.lblLogoIcon.setPixmap(QPixmap('./img/armory_logo_white_text_green_h56.png'))
       else:
          self.setWindowTitle('Armory - Bitcoin Wallet Management')
-         self.iconfile = ':/armory_icon_32x32.png'
-         self.lblLogoIcon.setPixmap(QPixmap(':/armory_logo_h44.png'))
+         self.iconfile = './img/armory_icon_32x32.png'
+         self.lblLogoIcon.setPixmap(QPixmap('./img/armory_logo_h44.png'))
          if Colors.isDarkBkgd:
-            self.lblLogoIcon.setPixmap(QPixmap(':/armory_logo_white_text_h56.png'))
+            self.lblLogoIcon.setPixmap(QPixmap('./img/armory_logo_white_text_h56.png'))
 
       # OS X requires some Objective-C code if we're switching to the testnet
       # (green) icon. We should also use a larger icon. Otherwise, Info.plist
@@ -162,7 +162,7 @@ class ArmoryMainWindow(QMainWindow):
          self.setWindowIcon(QIcon(self.iconfile))
       else:
          if USE_TESTNET or USE_REGTEST:
-            self.iconfile = ':/armory_icon_green_fullres.png'
+            self.iconfile = './img/armory_icon_green_fullres.png'
          ArmoryMac.MacDockIconHandler.instance().setMainWindow(self)
          ArmoryMac.MacDockIconHandler.instance().setIcon(QIcon(self.iconfile))
       self.lblLogoIcon.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
@@ -2387,7 +2387,7 @@ class ArmoryMainWindow(QMainWindow):
          row.append(le.txTime)
 
          # Date
-         row.append(unixTimeToFormatStr(le.txTime, datefmt))
+         row.append(str(unixTimeToFormatStr(le.txTime, datefmt)))
 
          # TxDir (actually just the amt... use the sign of the amt to determine dir)
          row.append(coin2str(le.value, maxZeros=2))
@@ -3128,7 +3128,7 @@ class ArmoryMainWindow(QMainWindow):
    def getSelectedWallet(self):
       wltID = None
       if len(self.walletMap) > 0:
-         wltID = self.walletMap.keys()[0]
+         wltID = list(self.walletMap)[0]
       wltSelect = self.walletsView.selectedIndexes()
       if len(wltSelect) > 0:
          row = wltSelect[0].row()
@@ -4469,7 +4469,7 @@ class ArmoryMainWindow(QMainWindow):
 
       if self.lblBusy.isVisible():
          self.numHeartBeat += 1
-         self.lblBusy.setPixmap(QPixmap(':/loadicon_%d.png' % \
+         self.lblBusy.setPixmap(QPixmap('./img/loadicon_%d.png' % \
                                              (self.numHeartBeat%6)))
 
    #############################################################################
@@ -5588,13 +5588,13 @@ class ArmoryMainWindow(QMainWindow):
 
       self.btnLedgUp = QLabelButton('')
       self.btnLedgUp.setMaximumHeight(20)
-      self.btnLedgUp.setPixmap(QPixmap(':/scroll_up_18.png'))
+      self.btnLedgUp.setPixmap(QPixmap('./img/scroll_up_18.png'))
       self.btnLedgUp.setAlignment(Qt.AlignVCenter | Qt.AlignHCenter)
       self.btnLedgUp.setVisible(False)
 
       self.btnLedgDn = QLabelButton('')
       self.btnLedgDn.setMaximumHeight(20)
-      self.btnLedgDn.setPixmap(QPixmap(':/scroll_down_18.png'))
+      self.btnLedgDn.setPixmap(QPixmap('./img/scroll_down_18.png'))
       self.btnLedgDn.setAlignment(Qt.AlignVCenter | Qt.AlignHCenter)
 
 
@@ -5725,9 +5725,9 @@ if 1:
    from armoryengine import ArmoryUtils
    ArmoryUtils.startBridge()
 
-   pixLogo = QPixmap(':/splashlogo.png')
+   pixLogo = QPixmap('./img/splashlogo.png')
    if USE_TESTNET or USE_REGTEST:
-      pixLogo = QPixmap(':/splashlogo_testnet.png')
+      pixLogo = QPixmap('./img/splashlogo_testnet.png')
    SPLASH = ArmorySplashScreen(pixLogo)
    SPLASH.setMask(pixLogo.mask())
 
