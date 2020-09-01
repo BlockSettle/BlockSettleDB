@@ -971,6 +971,9 @@ class SendBitcoinsFrame(ArmoryFrame):
          
          for msg in opreturn_list:
             ustx.addOpReturnOutput(str(msg))
+         
+         #resolve signer before returning it
+         self.wlt.resolveSigner(ustx)
 
       txValues = [totalSend, fee, totalChange]
       if not peek:
