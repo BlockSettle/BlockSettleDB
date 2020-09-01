@@ -129,54 +129,10 @@ class BlockDataManager(object):
 
       self.witness = False
 
-   #############################################################################  
-   def instantiateBDV(self, port):
-      if self.bdmState == BDM_OFFLINE:
-         return
-
-      socketType = Cpp.SocketFcgi
-      if self.remoteDB and not FORCE_FCGI:
-         socketType = Cpp.SocketHttp 
-
-      self.bdv_ = Cpp.BlockDataViewer_getNewBDV(\
-                     str(ARMORYDB_IP), str(port), socketType)   
-
-   #############################################################################
-   def registerBDV(self):
-      if self.bdmState == BDM_OFFLINE:
-         return
-
-      try:
-         self.bdv_.registerWithDB(MAGIC_BYTES)
-      except Cpp.DbErrorMsg as e:
-         self.exception = e.what()
-         LOGERROR('DB error: ' + e.what())
-         raise e
-
-   #############################################################################
-   @ActLikeASingletonBDM
-   def hasRemoteDB(self):
-      return self.remoteDB
-
    #############################################################################
    @ActLikeASingletonBDM
    def getListenerList(self):
       return self.cppNotificationListenerList
-
-   #############################################################################
-   @ActLikeASingletonBDM
-   def bdv(self):
-      return self.bdv_
-
-   #############################################################################
-   @ActLikeASingletonBDM
-   def getTxByHash(self, txHash):
-      return self.bdv().getTxByHash(txHash)
-
-   #############################################################################
-   @ActLikeASingletonBDM
-   def getSentValue(self, txIn):
-      return self.bdv().getSentValue(txIn)
 
    #############################################################################
    @ActLikeASingletonBDM
@@ -198,22 +154,6 @@ class BlockDataManager(object):
    def unregisterCppNotification(self, cppNotificationListener):
       if cppNotificationListener in self.cppNotificationListenerList:
          self.cppNotificationListenerList.remove(cppNotificationListener)
-
-   #############################################################################
-   @ActLikeASingletonBDM
-   def registerWallet(self, prefixedKeys, uniqueIDB58, isNew=False):
-      #this returns a pointer to the BtcWallet C++ object. This object is
-      #instantiated at registration and is unique for the BDV object, so we
-      #should only ever set the cppWallet member here 
-      return self.bdv().registerWallet(uniqueIDB58, prefixedKeys, isNew)
-
-   #############################################################################
-   @ActLikeASingletonBDM
-   def registerLockbox(self, uniqueIDB58, addressList, isNew=False):
-      #this returns a pointer to the BtcWallet C++ object. This object is
-      #instantiated at registration and is unique for the BDV object, so we
-      #should only ever set the cppWallet member here 
-      return self.bdv().registerLockbox(uniqueIDB58, addressList, isNew)
 
    #############################################################################
    @ActLikeASingletonBDM
@@ -263,31 +203,12 @@ class BlockDataManager(object):
          pass
 
    #############################################################################
-   def getCookie(self):
-      if self.cookie == None:
-         self.cookie = Cpp.BlockDataManagerConfig_getCookie(str(self.datadir))
-      return self.cookie
-
-   #############################################################################
-   @ActLikeASingletonBDM
-   def runBDM(self, fn):
-      return self.inject.runCommand(fn)
-
-   #############################################################################
    @ActLikeASingletonBDM
    def RegisterEventForSignal(self, func, signal):
       def bdmCallback(bdmSignal, args):
          if bdmSignal == signal:
             func(args)
       self.registerCppNotification(bdmCallback)
-
-   #############################################################################
-   def setWitness(self, wit):
-      self.witness = wit   
-
-   #############################################################################
-   def isSegWitEnabled(self):
-      return self.witness or FORCE_SEGWIT
 
    #############################################################################
    def pushNotification(self, notifProto):
