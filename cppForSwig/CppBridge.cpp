@@ -394,7 +394,7 @@ bool CppBridge::processData(vector<uint8_t> socketData)
       offset += *lenPtr;
 
       auto id = msg.payloadid();
-      unique_ptr<Message> response;
+      BridgeReply response;
 
       switch (msg.method())
       {
@@ -585,6 +585,16 @@ bool CppBridge::processData(vector<uint8_t> socketData)
                            
                response = getTxOutScriptForScrAddr(scriptBd);
                break;
+            }
+
+            case Methods::getAddrStrForScrAddr:
+            {
+               if (msg.byteargs_size() != 1)
+                  throw runtime_error("invalid command: getAddrStrForScrAddr");
+               auto& byteargs = msg.byteargs(0);
+               BinaryData script((uint8_t*)byteargs.c_str(), byteargs.size());
+               response = getAddrStrForScrAddr(script);
+               break;               
             }
 
             case Methods::getHeaderByHeight:
@@ -899,6 +909,15 @@ bool CppBridge::processData(vector<uint8_t> socketData)
                break;
             }
 
+            case Methods::signer_resolve:
+            {
+               if (msg.stringargs_size() != 1 || msg.byteargs_size() != 1)
+                  throw runtime_error("invalid command: signer_resolve");
+
+               response = signer_resolve(msg.byteargs(0), msg.stringargs(0));
+               break;
+            }
+
             case Methods::signer_getSignedStateForInput:
             {
                if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
@@ -938,6 +957,14 @@ bool CppBridge::processData(vector<uint8_t> socketData)
                break;
             }
 
+            case Methods::getBlockTimeByHeight:
+            {
+               if (msg.intargs_size() != 1)
+                  throw runtime_error("invalid command: getBlockTimeByHeight");
+               getBlockTimeByHeight(msg.intargs(0), id);
+               break;                      
+            }
+
             default:
                stringstream ss;
                ss << "unknown client method: " << msg.method();
@@ -955,7 +982,7 @@ bool CppBridge::processData(vector<uint8_t> socketData)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::writeToClient(unique_ptr<Message> msgPtr, unsigned id)
+void CppBridge::writeToClient(BridgeReply msgPtr, unsigned id) const
 {
    auto payload = make_unique<WritePayload_Bridge>();
    payload->message_ = move(msgPtr);
@@ -1007,7 +1034,7 @@ void CppBridge::loadWallets(unsigned id)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::createWalletPacket()
+BridgeReply CppBridge::createWalletPacket()
 {
    auto response = make_unique<WalletPayload>();
 
@@ -1037,7 +1064,7 @@ void CppBridge::setupDB()
          throw runtime_error("wallet manager is not initialized");
 
       //lambda to push notifications over to the gui socket
-      auto pushNotif = [this](unique_ptr<Message> msg, unsigned id)->void
+      auto pushNotif = [this](BridgeReply msg, unsigned id)->void
       {
          this->writeToClient(move(msg), id);
       };
@@ -1155,7 +1182,7 @@ void CppBridge::getHistoryPageForDelegate(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getNodeStatus()
+BridgeReply CppBridge::getNodeStatus()
 {
    //grab node status
    auto promPtr = make_shared<
@@ -1194,7 +1221,7 @@ unique_ptr<Message> CppBridge::getNodeStatus()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getBalanceAndCount(const string& wltId)
+BridgeReply CppBridge::getBalanceAndCount(const string& wltId)
 {
    auto wltMap = wltManager_->getMap();
    auto iter = wltMap.find(wltId);
@@ -1211,7 +1238,7 @@ unique_ptr<Message> CppBridge::getBalanceAndCount(const string& wltId)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getAddrCombinedList(const string& wltId)
+BridgeReply CppBridge::getAddrCombinedList(const string& wltId)
 {
    auto wltMap = wltManager_->getMap();
    auto iter = wltMap.find(wltId);
@@ -1246,7 +1273,7 @@ unique_ptr<Message> CppBridge::getAddrCombinedList(const string& wltId)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getHighestUsedIndex(const string& wltId)
+BridgeReply CppBridge::getHighestUsedIndex(const string& wltId)
 {
    auto wltMap = wltManager_->getMap();
    auto iter = wltMap.find(wltId);
@@ -1338,7 +1365,7 @@ string CppBridge::createWallet(const ClientCommand& msg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getNewAddress(const string& wltId, unsigned type)
+BridgeReply CppBridge::getNewAddress(const string& wltId, unsigned type)
 {
    auto wltMap = wltManager_->getMap();
    auto iter = wltMap.find(wltId);
@@ -1354,7 +1381,7 @@ unique_ptr<Message> CppBridge::getNewAddress(const string& wltId, unsigned type)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getChangeAddress(
+BridgeReply CppBridge::getChangeAddress(
    const string& wltId, unsigned type)
 {
    auto wltMap = wltManager_->getMap();
@@ -1371,7 +1398,7 @@ unique_ptr<Message> CppBridge::getChangeAddress(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::peekChangeAddress(
+BridgeReply CppBridge::peekChangeAddress(
    const string& wltId, unsigned type)
 {
    auto wltMap = wltManager_->getMap();
@@ -1426,7 +1453,7 @@ void CppBridge::getTxByHash(const BinaryData& hash, unsigned msgid)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getTxInScriptType(
+BridgeReply CppBridge::getTxInScriptType(
    const BinaryData& script, const BinaryData& hash) const
 {
    auto msg = make_unique<ReplyNumbers>();
@@ -1435,7 +1462,7 @@ unique_ptr<Message> CppBridge::getTxInScriptType(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getTxOutScriptType(
+BridgeReply CppBridge::getTxOutScriptType(
    const BinaryData& script) const
 {
    auto msg = make_unique<ReplyNumbers>();
@@ -1444,7 +1471,7 @@ unique_ptr<Message> CppBridge::getTxOutScriptType(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getScrAddrForScript(
+BridgeReply CppBridge::getScrAddrForScript(
    const BinaryData& script) const
 {
    auto msg = make_unique<ReplyBinary>();
@@ -1454,7 +1481,7 @@ unique_ptr<Message> CppBridge::getScrAddrForScript(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getLastPushDataInScript(
+BridgeReply CppBridge::getLastPushDataInScript(
    const BinaryData& script) const
 {
    auto msg = make_unique<ReplyBinary>();
@@ -1465,7 +1492,7 @@ unique_ptr<Message> CppBridge::getLastPushDataInScript(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getHash160(const BinaryDataRef& dataRef) const
+BridgeReply CppBridge::getHash160(const BinaryDataRef& dataRef) const
 {
    auto&& hash = BtcUtils::getHash160(dataRef);
    auto msg = make_unique<ReplyBinary>();
@@ -1474,13 +1501,32 @@ unique_ptr<Message> CppBridge::getHash160(const BinaryDataRef& dataRef) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::getTxOutScriptForScrAddr(
+BridgeReply CppBridge::getTxOutScriptForScrAddr(
    const BinaryData& script) const
 {
    auto msg = make_unique<ReplyBinary>();
    auto&& resultBd = BtcUtils::getTxOutScriptForScrAddr(script);
    msg->add_reply(resultBd.toCharPtr(), resultBd.getSize());
    return msg;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BridgeReply CppBridge::getAddrStrForScrAddr(
+   const BinaryData& script) const
+{
+   try
+   {
+      auto msg = make_unique<ReplyStrings>();
+      auto&& resultStr = BtcUtils::getAddressStrFromScrAddr(script);
+      msg->add_reply(resultStr);
+      return msg;
+   }
+   catch (const exception& e)
+   {
+      auto msg = make_unique<ReplyError>();
+      msg->set_error(e.what());
+      return msg;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1585,7 +1631,7 @@ bool CppBridge::cs_SelectUTXOs(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::cs_getUtxoSelection(const string& csId)
+BridgeReply CppBridge::cs_getUtxoSelection(const string& csId)
 {
    auto iter = csMap_.find(csId);
    if (iter == csMap_.end())
@@ -1604,7 +1650,7 @@ unique_ptr<Message> CppBridge::cs_getUtxoSelection(const string& csId)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::cs_getFlatFee(const string& csId)
+BridgeReply CppBridge::cs_getFlatFee(const string& csId)
 {
    auto iter = csMap_.find(csId);
    if (iter == csMap_.end())
@@ -1618,7 +1664,7 @@ unique_ptr<Message> CppBridge::cs_getFlatFee(const string& csId)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::cs_getFeeByte(const string& csId)
+BridgeReply CppBridge::cs_getFeeByte(const string& csId)
 {
    auto iter = csMap_.find(csId);
    if (iter == csMap_.end())
@@ -1790,7 +1836,7 @@ void CppBridge::getRBFTxOutList(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::initNewSigner()
+BridgeReply CppBridge::initNewSigner()
 {
    auto id = fortuna_.generateRandom(6).toHexStr();
    signerMap_.emplace(make_pair(id, make_shared<CppBridgeSignerStruct>()));
@@ -1886,7 +1932,7 @@ bool CppBridge::signer_addRecipient(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::signer_getSerializedState(const string& id) const
+BridgeReply CppBridge::signer_getSerializedState(const string& id) const
 {
    auto iter = signerMap_.find(id);
    if (iter == signerMap_.end())
@@ -1939,6 +1985,8 @@ void CppBridge::signer_signTx(
    //grab wallet
    auto wltMap = wltManager_->getMap();
    auto wltIter = wltMap.find(wltId);
+   if (wltIter == wltMap.end())
+      throw runtime_error("invalid wallet id");
    auto wltPtr = wltIter->second->getWalletPtr();
 
    auto passLbd = createPassphrasePrompt(BridgePromptType::decrypt);
@@ -1984,7 +2032,7 @@ void CppBridge::signer_signTx(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::signer_getSignedTx(const string& id) const
+BridgeReply CppBridge::signer_getSignedTx(const string& id) const
 {
    auto iter = signerMap_.find(id);
    if (iter == signerMap_.end())
@@ -1995,7 +2043,7 @@ unique_ptr<Message> CppBridge::signer_getSignedTx(const string& id) const
    {
       data = iter->second->signer_.serializeSignedTx();
    }
-   catch (ScriptException&)
+   catch (const exception&)
    {}
    
    auto response = make_unique<ReplyBinary>();
@@ -2004,7 +2052,41 @@ unique_ptr<Message> CppBridge::signer_getSignedTx(const string& id) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Message> CppBridge::signer_getSignedStateForInput(
+BridgeReply CppBridge::signer_resolve(
+   const string& state, const string& wltId) const
+{
+   //grab wallet
+   auto wltMap = wltManager_->getMap();
+   auto wltIter = wltMap.find(wltId);
+   if (wltIter == wltMap.end())
+      throw runtime_error("invalid wallet id");
+   auto wltPtr = wltIter->second->getWalletPtr();
+
+   //deser signer state
+   Codec_SignerState::SignerState stateProto;
+   if (!stateProto.ParseFromString(state))
+      throw runtime_error("invalid signer state");
+   Signer signer(stateProto);
+
+   //get wallet feed
+   auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);      
+   auto feed = make_shared<ResolverFeed_AssetWalletSingle>(wltSingle);
+
+   //set feed & resolve
+   signer.setFeed(feed);
+   signer.resolvePublicData();
+   auto resolvedState = signer.serializeState();
+   
+   auto response = make_unique<ReplyBinary>();
+   string resolvedStateStr;
+   resolvedState.SerializeToString(&resolvedStateStr);
+
+   response->add_reply(resolvedStateStr);
+   return response;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BridgeReply CppBridge::signer_getSignedStateForInput(
    const string& id, unsigned inputId)
 {
    auto iter = signerMap_.find(id);
@@ -2030,6 +2112,21 @@ unique_ptr<Message> CppBridge::signer_getSignedStateForInput(
 void CppBridge::broadcastTx(const vector<BinaryData>& rawTxVec)
 {
    bdvPtr_->broadcastZC(rawTxVec);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CppBridge::getBlockTimeByHeight(uint32_t height, uint32_t msgId) const
+{
+   auto callback = [this, msgId](ReturnMessage<BinaryData> rawHeader)->void
+   {
+      ClientClasses::BlockHeader header(rawHeader.get(), UINT32_MAX);
+      auto result = make_unique<ReplyNumbers>();
+      result->add_ints(header.getTimestamp());
+
+      this->writeToClient(move(result), msgId);
+   };
+
+   bdvPtr_->getHeaderByHeight(height, callback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

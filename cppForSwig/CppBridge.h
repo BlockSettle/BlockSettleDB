@@ -108,6 +108,7 @@ struct CppBridgeSignerStruct
 };
 
 ////
+using BridgeReply = std::unique_ptr<::google::protobuf::Message>;
 class CppBridge
 {
 private:
@@ -135,30 +136,24 @@ private:
 private:
    //wallet setup
    void loadWallets(unsigned id);
-   std::unique_ptr<::google::protobuf::Message> createWalletPacket(void);
+   BridgeReply createWalletPacket(void);
    
    //AsyncClient::BlockDataViewer setup
    void setupDB(void);
    void registerWallets(void);
    void registerWallet(const std::string&, bool isNew);
 
-   std::unique_ptr<::google::protobuf::Message> getNodeStatus(void);
+   BridgeReply getNodeStatus(void);
 
    //balance and counts
-   std::unique_ptr<::google::protobuf::Message> getBalanceAndCount(
-      const std::string&);
-   std::unique_ptr<::google::protobuf::Message> getAddrCombinedList(
-      const std::string&);
-   std::unique_ptr<::google::protobuf::Message> getHighestUsedIndex(
-      const std::string&);
+   BridgeReply getBalanceAndCount(const std::string&);
+   BridgeReply getAddrCombinedList(const std::string&);
+   BridgeReply getHighestUsedIndex(const std::string&);
 
    //addresses
-   std::unique_ptr<::google::protobuf::Message> getNewAddress(
-      const std::string&, unsigned);
-   std::unique_ptr<::google::protobuf::Message> getChangeAddress(
-      const std::string&, unsigned);
-   std::unique_ptr<::google::protobuf::Message> peekChangeAddress(
-      const std::string&, unsigned);
+   BridgeReply getNewAddress(const std::string&, unsigned);
+   BridgeReply getChangeAddress(const std::string&, unsigned);
+   BridgeReply peekChangeAddress(const std::string&, unsigned);
    void extendAddressPool(const std::string&, unsigned, unsigned);
    std::string createWallet(const ::Codec_ClientProto::ClientCommand&);
 
@@ -184,16 +179,13 @@ private:
    bool setCoinSelectionRecipient(
       const std::string&, const std::string&, uint64_t, unsigned);
    bool cs_SelectUTXOs(const std::string&, uint64_t, float, unsigned);
-   std::unique_ptr<::google::protobuf::Message> cs_getUtxoSelection(
-      const std::string&);
-   std::unique_ptr<::google::protobuf::Message> cs_getFlatFee(
-      const std::string&);   
-   std::unique_ptr<::google::protobuf::Message> cs_getFeeByte(
-      const std::string&);   
+   BridgeReply cs_getUtxoSelection(const std::string&);
+   BridgeReply cs_getFlatFee(const std::string&);   
+   BridgeReply cs_getFeeByte(const std::string&);   
    bool cs_ProcessCustomUtxoList(const ::Codec_ClientProto::ClientCommand&);
 
    //signer
-   std::unique_ptr<::google::protobuf::Message> initNewSigner(void);
+   BridgeReply initNewSigner(void);
    void destroySigner(const std::string&);
    bool signer_SetVersion(const std::string&, unsigned);
    bool signer_SetLockTime(const std::string&, unsigned);
@@ -206,30 +198,24 @@ private:
 
    bool signer_addRecipient(
       const std::string&, const BinaryDataRef&, uint64_t);
-   std::unique_ptr<::google::protobuf::Message> 
-      signer_getSerializedState(const std::string&) const;
+   BridgeReply signer_getSerializedState(const std::string&) const;
    bool signer_unserializeState(const std::string&, const BinaryData&);
    void signer_signTx(const std::string&, const std::string&, unsigned);
-   std::unique_ptr<::google::protobuf::Message>
-      signer_getSignedTx(const std::string&) const;
-   std::unique_ptr<::google::protobuf::Message>
-      signer_getSignedStateForInput(const std::string&, unsigned);
+   BridgeReply signer_getSignedTx(const std::string&) const;
+   BridgeReply signer_getSignedStateForInput(const std::string&, unsigned);
+   BridgeReply signer_resolve(const std::string&, const std::string&) const;
 
    //utils
-   std::unique_ptr<::google::protobuf::Message> getTxInScriptType(
-      const BinaryData&, const BinaryData&) const;
-   std::unique_ptr<::google::protobuf::Message> getTxOutScriptType(
-      const BinaryData&) const;
-   std::unique_ptr<::google::protobuf::Message> getScrAddrForScript(
-      const BinaryData&) const;  
-   std::unique_ptr<::google::protobuf::Message> getLastPushDataInScript(
-      const BinaryData&) const;
-   std::unique_ptr<::google::protobuf::Message> getHash160(
-      const BinaryDataRef&) const;
+   BridgeReply getTxInScriptType(const BinaryData&, const BinaryData&) const;
+   BridgeReply getTxOutScriptType(const BinaryData&) const;
+   BridgeReply getScrAddrForScript(const BinaryData&) const;  
+   BridgeReply getLastPushDataInScript(const BinaryData&) const;
+   BridgeReply getHash160(const BinaryDataRef&) const;
    void broadcastTx(const std::vector<BinaryData>&);
-   std::unique_ptr<::google::protobuf::Message> getTxOutScriptForScrAddr(
-      const BinaryData&) const;  
-
+   BridgeReply getTxOutScriptForScrAddr(const BinaryData&) const;  
+   BridgeReply getAddrStrForScrAddr(const BinaryData&) const;  
+   void getBlockTimeByHeight(uint32_t, uint32_t) const;
+         
    //passphrase prompt
    PassphraseLambda createPassphrasePrompt(::Codec_ClientProto::BridgePromptType);
    bool returnPassphrase(const std::string&, const std::string&);
@@ -241,8 +227,7 @@ public:
    {}
 
    bool processData(std::vector<uint8_t> socketData);
-   void writeToClient(
-      std::unique_ptr<::google::protobuf::Message> msgPtr, unsigned id);
+   void writeToClient(BridgeReply msgPtr, unsigned id) const;
    
    void setWriteLambda(
       std::function<void(std::unique_ptr<WritePayload_Bridge>)> lbd)

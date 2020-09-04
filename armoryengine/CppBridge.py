@@ -53,6 +53,7 @@ class CppBridge(object):
 
    #############################################################################
    def __init__(self):
+      self.blockTimeByHeightCache = {}
       pass
 
    #############################################################################
@@ -497,6 +498,24 @@ class CppBridge(object):
       response.ParseFromString(socketResponse)
       
       return response.reply[0]
+   
+   #############################################################################
+   def getAddrStrForScrAddr(self, scrAddr):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.getAddrStrForScrAddr
+      packet.byteArgs.append(scrAddr)
+
+      fut = self.sendToBridge(packet)
+      socketResponse = fut.getVal()
+   
+      response = ClientProto_pb2.ReplyStrings()
+      if response.ParseFromString(socketResponse) == False:
+         errorResponse = ClientProto_pb2.ReplyError()
+         if errorResponse.ParseFromString(socketResponse) == False:
+            raise Exception("unkonwn error in getAddrStrForScrAddr")
+         raise Exception("error in getAddrStrForScrAddr: " + errorResponse.error())
+
+      return response.reply[0]
 
    #############################################################################
    def initCoinSelectionInstance(self, wltId, height):
@@ -903,6 +922,21 @@ class CppBridge(object):
          raise Exception("error in signer_unserializeState")
 
    #############################################################################
+   def signer_resolve(self, state, wltId):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_resolve
+      packet.stringArgs.append(wltId)
+      packet.byteArgs.append(state)
+
+      fut = self.sendToBridge(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyBinary()
+      response.ParseFromString(socketResponse)
+
+      return response.reply[0]
+
+   #############################################################################
    def signer_signTx(self, sId, wltId, callback, args):
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.signer_signTx
@@ -1015,6 +1049,24 @@ class CppBridge(object):
 
       self.sendToBridge(packet, False)
      
+   #############################################################################
+   def getBlockTimeByHeight(self, height):
+      if height in self.blockTimeByHeightCache:
+         return self.blockTimeByHeightCache[height]
+      
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.getBlockTimeByHeight
+      packet.intArgs.append(height)
+
+      fut = self.sendToBridge(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+      
+      blockTime = response.ints[0]
+      self.blockTimeByHeightCache[height] = blockTime
+      return blockTime
 
 ################################################################################
 TheBridge = CppBridge()

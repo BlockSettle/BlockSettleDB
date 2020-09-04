@@ -1814,6 +1814,12 @@ class PyBtcWallet(object):
       '''
       signer.signTx(self.uniqueIDB58, callback)
 
+   ###############################################################################
+   def resolveSigner(self, ustx):
+      resolvedSignerState = \
+         TheBridge.signer_resolve(ustx.pytxObj.signerState, self.uniqueIDB58)
+      ustx.pytxObj.signerState = resolvedSignerState
+
    #############################################################################
    def fillAddressPool(self, numPool, isActuallyNew=True, 
                        doRegister=True, Progress=emptyFunc):
