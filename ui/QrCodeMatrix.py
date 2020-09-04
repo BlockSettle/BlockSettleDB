@@ -20,6 +20,7 @@ def CreateQRMatrix(dataToEncode, errLevel=QRErrorCorrectLevel.L):
             7 # errLevel = QRErrorCorrectLevel.H
    sz = baseSz if dataLen < 70 else  5 +  (dataLen - 70) / 30
    qrmtrx = [[]]
+   success = False
    while sz<20:
       try:
          errCorrectEnum = getattr(QRErrorCorrectLevel, errLevel.upper())
