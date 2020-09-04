@@ -2386,7 +2386,7 @@ class UnsignedTransaction(AsciiSerializable):
       # We can prepare the outputs, first
       for script,value in scriptValuePairs:
          txout = PyTxOut()
-         txout.value = long(value)
+         txout.value = value
 
          # Assume recipObj is either a PBA or a string
          if isinstance(script, PyBtcAddress):
@@ -2412,7 +2412,7 @@ class UnsignedTransaction(AsciiSerializable):
          txin.intSeq = utxo.sequence
          txhash = utxo.getTxHash()
          txoIdx  = utxo.getTxOutIndex()
-         txin.outpoint.txHash = str(txhash)
+         txin.outpoint.txHash = txhash
          txin.outpoint.txOutIndex = txoIdx
          txin.outpointValue = utxo.val
          thePyTx.inputs.append(txin)
