@@ -152,7 +152,7 @@ class AllWalletsCheckboxDelegate(QStyledItemDelegate):
          image=None
          painter.fillRect(option.rect, bgcolor)
          if isVisible:
-            image = QImage(':/visible2.png').scaled(self.EYESIZE,self.EYESIZE)
+            image = QImage('./img/visible2.png').scaled(self.EYESIZE,self.EYESIZE)
             pixmap = QPixmap.fromImage(image)
             painter.drawPixmap(option.rect, pixmap)
       else:
@@ -603,7 +603,7 @@ class ArmoryBlockAndDateSelector():
       self.Block = block
       
       try:
-         self.Date = TheBDM.bdv().getBlockTimeByHeight(block)
+         self.Date = TheBridge.getBlockTimeByHeight(block)
          datefmt = self.main.getPreferredDateFormat()
          dateStr = unixTimeToFormatStr(self.Date, datefmt)
       except:
@@ -890,14 +890,14 @@ class LedgerDispDelegate(QStyledItemDelegate):
          if isCoinbase:
             if nConf<120:
                effectiveNConf = int(6*float(nConf)/120.)
-               image = QImage(':/conf%dt_nonum.png'%effectiveNConf)
+               image = QImage('./img/conf%dt_nonum.png'%effectiveNConf)
             else:
-               image = QImage(':/conf6t.png')
+               image = QImage('./img/conf6t.png')
          else: 
             if nConf<6:
-               image = QImage(':/conf%dt.png'%nConf)
+               image = QImage('./img/conf%dt.png'%nConf)
             else:
-               image = QImage(':/conf6t.png')
+               image = QImage('./img/conf6t.png')
          painter.fillRect(option.rect, bgcolor)
          pixmap = QPixmap.fromImage(image)
          #pixmap.scaled(70, 30, Qt.KeepAspectRatio)
@@ -911,15 +911,15 @@ class LedgerDispDelegate(QStyledItemDelegate):
 
          # isCoinbase still needs to be flagged in the C++ utils
          if isCoinbase:
-            image = QImage(':/moneyCoinbase.png')
+            image = QImage('./img/moneyCoinbase.png')
          elif toSelf:
-            image = QImage(':/moneySelf.png')
+            image = QImage('./img/moneySelf.png')
          else:
             txdir = str(index.model().data(index).toString()).strip()
             if txdir[0].startswith('-'):
-               image = QImage(':/moneyOut.png')
+               image = QImage('./img/moneyOut.png')
             else:
-               image = QImage(':/moneyIn.png')
+               image = QImage('./img/moneyIn.png')
 
          painter.fillRect(option.rect, bgcolor)
          pixmap = QPixmap.fromImage(image)
