@@ -6,6 +6,153 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
+/*******************
+client outSession -> server inSession
+client inSession  <- server OutSession
+
+session keys are ephemeral
+auth keys are static and preshared
+order of sequence is strict
+
+AEAD sequence:
+
++++
+server:  . present [auth public key] (for public servers only)
+         . enc init: 
+            send server's [outSession pubkey]
+
+---
+client:  . process enc init: 
+            create inSession symmetrical encryption key with 
+            [server outSession pubkey] and [own inSession privkey]
+         
+         . enc ack:
+            send [own inSession pubkey]
+
+         . enc init:
+            send [own outSession pubkey]
+
++++
+server:  . process enc ack:
+            create outSession sym key ([own outSession privkey] * [client inSession pubkey])
+         
+         . process enc init:
+            create inSession sym key ([own inSession privkey]  * [client outSession pubkey])
+
+         . enc ack:
+            send [own inSession pubkey]
+
+         . mark shared encryption key setup as completed
+
+---
+client:  . process enc ack:
+            create outSession sym key ([own outSession privkey] * [server inSession pubkey])
+
+         . auth challenge:
+            send hash(outSession.id | 'i' | [server auth pubkey]))
+
+         . mark shared encryption key setup as completed
+
+      ***********************************
+      ** ENCRYPT ALL TRAFFIC FROM HERE **
+      ***********************************
++++
+server:  . process auth challenge:
+            check hash(inSession.id | 'i' | [own auth pubkey]) matches challenge
+         
+         . auth reply:
+            send sign(outSession.id, [own auth privkey])
+
+---
+client:  . process auth reply:
+            verify sig(inSession.id, [server auth pubkey])
+         
+      ********************************   
+   ***** 2-WAY AUTH HANDSHAKE BEGIN *****
+      ********************************
+   
+---
+client:  . auth propose:
+            send hash(outSession.id | 'p' | [own auth pukbey])
+
++++
+server:  . process auth propose:
+            cycle through all known client pubkeys, generate hash(inSession.id | 'p' | [known client pubkey])
+            check result vs auth propose hash
+               -> select match as chosenPeerKey
+               -> fail if no match, drop connection
+
+         . auth challenge:
+            send hash(outSession.id | 'r' | [chosenPeerKey])
+
+---
+client:  . process auth challenge:
+            check hash(inSession.id | 'r' | [own auth pubkey]) matches challenge
+               -> on failure, send auth reply before killing connection
+         
+         . send auth reply:
+            send sign(outSession.id, [own auth privkey])
+         
+         . rekey
+         . mark auth handshake as completed
+
++++
+server:
+         . process auth reply:
+            verify sig(inSession.id, [chosenPeerKey])
+         
+         . rekey
+         . mark auth handshake as completed
+
+      !!!!!CHANNEL IS READY!!!!!
+
+      ******************************
+   ***** 2-WAY AUTH HANDSHAKE END *****
+      ******************************
+
+      ********************************
+   ***** 1-WAY AUTH HANDSHAKE BEGIN *****
+      ********************************
+---
+client:  . auth propose:
+            send hash(outSession.id | 'p' | [0xFF **33])
+
++++
+server:  . process auth propose
+            check hash(inSession.id | 'p' | [0xFF **33]) vs propose
+               -> fail on mismatch
+                     do not allow 2-way auth with 1-way server, drop connection
+               -> do not select a client pubkey
+            
+         . auth challenge:
+            hash(outSession.id | 'r' | [0xFF **33])
+
+---
+client:  . process auth challenge:
+            check hash(inSession.id | 'p' | [0xFF **33])
+               -> on failure, send auth reply before killing connection
+         
+         . send auth reply:
+            own auth pubkey
+         
+         . rekey
+         . mark auth handshake as completed
+
++++
+server:  . process auth reply:
+            set chosenPeerKey
+         
+         . rekey
+         . mark auth handshake as completed
+
+      !!!!!CHANNEL IS READY!!!!!
+
+      ******************************
+   ***** 1-WAY AUTH HANDSHAKE END *****
+      ******************************
+
+********************/
+
 #include "BIP15x_Handshake.h"
 #include "BIP150_151.h"
 
@@ -80,19 +227,18 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
       break;
    }
 
-      //this is weird: no reply, investigate. Can AEAD sequence be stalled indefinitely because of this?
-      case HandshakeSequence::EncAck:
+   case HandshakeSequence::EncAck:
+   {
+      //process client encack
+      if (connPtr->processEncack(
+         msg.getPtr(), msg.getSize(), true) != 0)
       {
-         //process client encack
-         if (connPtr->processEncack(
-            msg.getPtr(), msg.getSize(), true) != 0)
-         {
-            //failed to init handshake, kill connection
-            return HandshakeState::Error_ProcessEncAck;
-         }
-
-         break;
+         //failed to init handshake, kill connection
+         return HandshakeState::Error_ProcessEncAck;
       }
+
+      break;
+   }
 
    case HandshakeSequence::Challenge:
    {
