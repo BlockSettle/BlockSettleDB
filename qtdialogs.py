@@ -1262,7 +1262,7 @@ class DlgPasswd3(ArmoryDialog):
 
 
       lblWarnImgL = QLabel()
-      lblWarnImgL.setPixmap(QPixmap(':/MsgBox_warning48.png'))
+      lblWarnImgL.setPixmap(QPixmap('./img/MsgBox_warning48.png'))
       lblWarnImgL.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
 
       lblWarnTxt1 = QRichLabel(\
@@ -3300,7 +3300,7 @@ class DlgVerifySweep(ArmoryDialog):
       self.connect(bbox, SIGNAL('rejected()'), self.reject)
 
       lblWarnImg = QLabel()
-      lblWarnImg.setPixmap(QPixmap(':/MsgBox_warning48.png'))
+      lblWarnImg.setPixmap(QPixmap('./img/MsgBox_warning48.png'))
       lblWarnImg.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
 
       layout = QHBoxLayout()
@@ -3556,11 +3556,8 @@ class DlgAddressInfo(ArmoryDialog):
 
       # ## Set up the address ledger
       self.ledgerModel = LedgerDispModelSimple(self.ledgerTable, self, self.main)
-      try:
-         self.ledgerModel.setLedgerDelegate(\
-            TheBDM.bdv().getLedgerDelegateForScrAddr(self.wlt.uniqueIDB58, addr160))
-      except:
-         pass
+      self.ledgerModel.setLedgerDelegate(\
+            TheBridge.getLedgerDelegateForScrAddr(self.wlt.uniqueIDB58, addr160))
 
       def ledgerToTableScrAddr(ledger):
          return self.main.convertLedgerToTable(ledger, \
@@ -3876,7 +3873,7 @@ class DlgIntroMessage(ArmoryDialog):
 
 
       lblInfoImg = QLabel()
-      lblInfoImg.setPixmap(QPixmap(':/MsgBox_info48.png'))
+      lblInfoImg.setPixmap(QPixmap('./img/MsgBox_info48.png'))
       lblInfoImg.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
       lblInfoImg.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
       lblInfoImg.setMaximumWidth(50)
@@ -4248,10 +4245,10 @@ class DlgRemoveWallet(ArmoryDialog):
 
       # Add two WARNING images on either side of dialog
       lblWarnImg = QLabel()
-      lblWarnImg.setPixmap(QPixmap(':/MsgBox_warning48.png'))
+      lblWarnImg.setPixmap(QPixmap('./img/MsgBox_warning48.png'))
       lblWarnImg.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
       lblWarnImg2 = QLabel()
-      lblWarnImg2.setPixmap(QPixmap(':/MsgBox_warning48.png'))
+      lblWarnImg2.setPixmap(QPixmap('./img/MsgBox_warning48.png'))
       lblWarnImg2.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
 
       # Add the warning text and images to the top of the dialog
@@ -4526,10 +4523,10 @@ class DlgRemoveAddress(ArmoryDialog):
 
       # Add two WARNING images on either side of dialog
       lblWarnImg = QLabel()
-      lblWarnImg.setPixmap(QPixmap(':/MsgBox_warning48.png'))
+      lblWarnImg.setPixmap(QPixmap('./img/MsgBox_warning48.png'))
       lblWarnImg.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
       lblWarnImg2 = QLabel()
-      lblWarnImg2.setPixmap(QPixmap(':/MsgBox_warning48.png'))
+      lblWarnImg2.setPixmap(QPixmap('./img/MsgBox_warning48.png'))
       lblWarnImg2.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
 
       # Add the warning text and images to the top of the dialog
@@ -4682,7 +4679,7 @@ class DlgConfirmSend(ArmoryDialog):
       super(DlgConfirmSend, self).__init__(parent, main)
       layout = QGridLayout()
       lblInfoImg = QLabel()
-      lblInfoImg.setPixmap(QPixmap(':/MsgBox_info48.png'))
+      lblInfoImg.setPixmap(QPixmap('./img/MsgBox_info48.png'))
       lblInfoImg.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
 
       changeRemoved = False
@@ -5732,7 +5729,7 @@ class DlgDispTxInfo(ArmoryDialog):
                   self.tr('All transactions are eventually included in a "block."  The '
                   'time shown here is the time that the block entered the "blockchain."')))
          lbls[-1].append(QLabel('Transaction Time:'))
-         lbls[-1].append(QLabel(self.data[FIELDS.Time]))
+         lbls[-1].append(QLabel(str(self.data[FIELDS.Time])))
 
       if not self.data[FIELDS.Blk] == None:
          nConf = 0
@@ -5808,7 +5805,7 @@ class DlgDispTxInfo(ArmoryDialog):
 
 
       if not self.data[FIELDS.TxSize] == None:
-         txsize = unicode(self.data[FIELDS.TxSize])
+         txsize = str(self.data[FIELDS.TxSize])
          txsize_str = self.tr("%s bytes" % txsize)
          lbls.append([])
          lbls[-1].append(self.main.createToolTipWidget(
@@ -6325,11 +6322,7 @@ class DlgDisplayTxIn(ArmoryDialog):
 
       u_string = u""
       for dline in dispLines:
-         if isinstance(dline, QString):
-            line_to_str = unicode(dline.toUtf8())
-         else:
-            line_to_str = unicode(dline)
-         u_string = u_string + u"<br>" + line_to_str.replace(u' ', u'&nbsp;')
+         u_string = u_string + "<br>" + dline.replace(' ', '&nbsp;')
          
       edtBrowse.setHtml(u_string)
       btnDone = QPushButton(self.tr("Ok"))
@@ -6400,10 +6393,10 @@ class DlgDisplayTxOut(ArmoryDialog):
 
       u_string = u""
       for dline in dispLines:
-         if isinstance(dline, QString):
-            line_to_str = unicode(dline.toUtf8())
+         if not isinstance(dline, str):
+            line_to_str =  str(dline)
          else:
-            line_to_str = unicode(dline)
+            line_to_str = dline
          u_string = u_string + u"<br>" + line_to_str.replace(u' ', u'&nbsp;')
          
       edtBrowse.setHtml(u_string)
@@ -6897,7 +6890,7 @@ class DlgPrintBackup(ArmoryDialog):
 
       self.setLayout(layout)
 
-      self.setWindowIcon(QIcon(':/printer_icon.png'))
+      self.setWindowIcon(QIcon('./img/printer_icon.png'))
       self.setWindowTitle('Print Wallet Backup')
 
 
@@ -7070,9 +7063,9 @@ class DlgPrintBackup(ArmoryDialog):
       doMask = self.chkSecurePrint.isChecked()
 
       if USE_TESTNET or USE_REGTEST:
-         self.scene.drawPixmapFile(':/armory_logo_green_h56.png')
+         self.scene.drawPixmapFile('./img/armory_logo_green_h56.png')
       else:
-         self.scene.drawPixmapFile(':/armory_logo_h36.png')
+         self.scene.drawPixmapFile('./img/armory_logo_h36.png')
       self.scene.newLine()
 
       self.scene.drawText('Paper Backup for Armory Wallet', GETFONT('Var', 11))
@@ -7322,7 +7315,7 @@ class DlgPrintBackup(ArmoryDialog):
          pieSize = min(72., maxPieHeight, maxPieWidth)
          for i in range(N):
             startX, startY = self.scene.getCursorXY()
-            drawSize = self.scene.drawPixmapFile(':/frag%df.png' % M, sizePx=pieSize)
+            drawSize = self.scene.drawPixmapFile('./img/frag%df.png' % M, sizePx=pieSize)
             self.scene.moveCursor(10, 0)
             if i == printData:
                returnX, returnY = self.scene.getCursorXY()
@@ -7411,7 +7404,7 @@ class DlgBadConnection(ArmoryDialog):
 
       layout = QGridLayout()
       lblWarnImg = QLabel()
-      lblWarnImg.setPixmap(QPixmap(':/MsgBox_warning48.png'))
+      lblWarnImg.setPixmap(QPixmap('./img/MsgBox_warning48.png'))
       lblWarnImg.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
 
       lblDescr = QLabel()
@@ -8520,7 +8513,7 @@ def createAddrBookButton(parent, targWidget, defaultWltID=None, actionStr="Selec
                          showLockboxes=True):
    action = parent.tr("Select");
    btn = QPushButton('')
-   ico = QIcon(QPixmap(':/addr_book_icon.png'))
+   ico = QIcon(QPixmap('./img/addr_book_icon.png'))
    btn.setIcon(ico)
    def execAddrBook():
       if len(parent.main.walletMap) == 0:
@@ -8545,7 +8538,7 @@ class DlgHelpAbout(ArmoryDialog):
       super(DlgHelpAbout, self).__init__(parent, main)
 
       imgLogo = QLabel()
-      imgLogo.setPixmap(QPixmap(':/armory_logo_h56.png'))
+      imgLogo.setPixmap(QPixmap('./img/armory_logo_h56.png'))
       imgLogo.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
 
       if BTCARMORY_BUILD != None:
@@ -10068,7 +10061,7 @@ class DlgUriCopyAndPaste(ArmoryDialog):
                             'into the box below. '))
 
       lblShowExample = QLabel()
-      lblShowExample.setPixmap(QPixmap(':/armory_rightclickcopy.png'))
+      lblShowExample.setPixmap(QPixmap('./img/armory_rightclickcopy.png'))
 
       self.txtUriString = QLineEdit()
       self.txtUriString.setFont(GETFONT('Fixed', 8))
@@ -10554,7 +10547,7 @@ class DlgWODataPrintBackup(ArmoryDialog):
       layout.addWidget(frmButtons)
       setLayoutStretch(layout, 0, 1, 0)
       self.setLayout(layout)
-      self.setWindowIcon(QIcon(':/printer_icon.png'))
+      self.setWindowIcon(QIcon('./img/printer_icon.png'))
       self.setWindowTitle('Print Watch-Only Root')
 
       # Apparently I can't programmatically scroll until after it's painted
@@ -10604,9 +10597,9 @@ class DlgWODataPrintBackup(ArmoryDialog):
 
       # Start drawing the page.
       if USE_TESTNET or USE_REGTEST:
-         self.scene.drawPixmapFile(':/armory_logo_green_h56.png')
+         self.scene.drawPixmapFile('./img/armory_logo_green_h56.png')
       else:
-         self.scene.drawPixmapFile(':/armory_logo_h36.png')
+         self.scene.drawPixmapFile('./img/armory_logo_h36.png')
       self.scene.newLine()
 
       warnMsg = self.tr(
@@ -11112,7 +11105,7 @@ class DlgFragBackup(ArmoryDialog):
       self.M, self.N = M, N
       self.fragPrefixStr = ComputeFragIDBase58(self.M, \
                               base58_to_binary(self.uniqueFragSetID))
-      self.fragPixmapFn = ':/frag%df.png' % M
+      self.fragPixmapFn = './img/frag%df.png' % M
 
 
    #############################################################################
@@ -12106,7 +12099,7 @@ class DlgRestoreFragged(ArmoryDialog):
          showRightFrm = True
          M, fnum, setIDBin, doMask, idBase58 = ReadFragIDLineBin(data[0])
          self.lblRightFrm.setText(self.tr('<b><u>Wallet Being Restored:</u></b>'))
-         self.imgPie.setPixmap(QPixmap(':/frag%df.png' % M).scaled(96,96))
+         self.imgPie.setPixmap(QPixmap('./img/frag%df.png' % M).scaled(96,96))
          self.lblReqd.setText(self.tr('<b>Frags Needed:</b> %s' % M))
          self.lblFragID.setText(self.tr('<b>Fragments:</b> %s' % idBase58.split('-')[0]))
          self.btnRestore.setEnabled(len(self.fragDataMap) >= M)
@@ -12444,8 +12437,8 @@ class DlgShowTestResults(ArmoryDialog):
             'Fragments <b>%s</b> and <b>%s</b> produce a '
             'wallet with ID "<b>%s</b>"' % (subText, subStrs[-1], ID))
 
-         chk = lambda: QPixmap(':/checkmark32.png').scaled(20, 20)
-         _X_ = lambda: QPixmap(':/red_X.png').scaled(16, 16)
+         chk = lambda: QPixmap('./img/checkmark32.png').scaled(20, 20)
+         _X_ = lambda: QPixmap('./img/red_X.png').scaled(16, 16)
 
          lblTxt = QRichLabel(dispTxt)
          lblTxt.setWordWrap(False)
