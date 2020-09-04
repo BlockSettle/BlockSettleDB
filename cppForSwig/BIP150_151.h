@@ -288,6 +288,8 @@ public:
 
    // For unit tests
    btc_pubkey getChosenAuthPeerKey() const { return bip150SM_.getChosenAuthPeerKey(); }
+
+   bool isPublic(void) { return true; }
 };
 
 // Class to use on BIP 151 encrypted messages. Contains the plaintext contents

@@ -98,6 +98,7 @@ class WebSocketClient : public SocketPrototype
 {
 private:
    std::atomic<void*> wsiPtr_;
+   const std::string servName_;
 
    std::atomic<unsigned> requestID_;
    std::atomic<bool> connected_ = { false };

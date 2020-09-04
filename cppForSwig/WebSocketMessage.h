@@ -29,19 +29,6 @@
 #define WS_MSGTYPE_FRAGMENTEDPACKET_HEADER   2
 #define WS_MSGTYPE_FRAGMENTEDPACKET_FRAGMENT 3
 
-#define WS_MSGTYPE_AEAD_THESHOLD             10
-#define WS_MSGTYPE_AEAD_SETUP                11
-#define WS_MSGTYPE_AEAD_PRESENT_PUBKEY       12
-#define WS_MSGTYPE_AEAD_PRESENT_PUBKEY_CHILD 13
-#define WS_MSGTYPE_AEAD_ENCINIT              14
-#define WS_MSGTYPE_AEAD_ENCACK               15
-#define WS_MSGTYPE_AEAD_REKEY                16
-
-#define WS_MSGTYPE_AUTH_THESHOLD             20
-#define WS_MSGTYPE_AUTH_CHALLENGE            21
-#define WS_MSGTYPE_AUTH_REPLY                22
-#define WS_MSGTYPE_AUTH_PROPOSE              23
-
 class LWS_Error : public std::runtime_error
 {
 public:

@@ -10,6 +10,7 @@
 #include "Server.h"
 #include "BlockDataManagerConfig.h"
 #include "BDM_Server.h"
+#include "BIP15x_Handshake.h"
 
 using namespace std;
 using namespace ::google::protobuf;
@@ -229,7 +230,10 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
    auto instance = getInstance();
 
    //setup encinit and pubkey present packet
-   instance->encInitPacket_ = READHEX("010000000B");
+   BinaryWriter encInitPacket;
+   encInitPacket.put_uint32_t(1);
+   encInitPacket.put_uint8_t(ArmoryAEAD::HandshakeSequence::Start);
+   instance->encInitPacket_ = encInitPacket.getData();
 
    //init Clients object
    auto shutdownLbd = [](void)->void
@@ -572,7 +576,7 @@ void WebSocketServer::prepareWriteThread()
             ws_msg.construct(
                rekeyPacket.getDataVector(), 
                statePtr->bip151Connection_.get(),
-               WS_MSGTYPE_AEAD_REKEY);
+               ArmoryAEAD::HandshakeSequence::Rekey);
 
             //push to write map
             writeToSocket(statePtr->wsiPtr_, ws_msg);
@@ -816,7 +820,7 @@ void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
       uint8_t msgType =
          WebSocketMessagePartial::getPacketType(packetData.getRef());
 
-      if (msgType > WS_MSGTYPE_AEAD_THESHOLD)
+      if (msgType > ArmoryAEAD::HandshakeSequence::Threshold_Begin)
       {
          processAEADHandshake(move(packetData));
          continue;
@@ -883,8 +887,8 @@ void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
 ///////////////////////////////////////////////////////////////////////////////
 void ClientConnection::processAEADHandshake(BinaryData msg)
 {
-   auto writeToClient = [this](uint8_t type,
-      const BinaryDataRef& msg, bool encrypt)->void
+   auto writeToClient = [this](
+      const BinaryDataRef& msg, uint8_t type, bool encrypt)->void
    {
       BIP151Connection* connPtr = nullptr;
       if (encrypt)
@@ -909,187 +913,48 @@ void ClientConnection::processAEADHandshake(BinaryData msg)
       auto dataBdr = wsMsg.getSingleBinaryMessage();
       switch (wsMsg.getType())
       {
-      case WS_MSGTYPE_AEAD_SETUP:
+      case ArmoryAEAD::HandshakeSequence::Start:
       {
-         //send pubkey message
-         writeToClient(
-            WS_MSGTYPE_AEAD_PRESENT_PUBKEY, 
-            bip151Connection_->getOwnPubKey(), 
-            false);
-
-         //init bip151 handshake
-         BinaryData encinitData(ENCINITMSGSIZE);
-         if (bip151Connection_->getEncinitData(
-            encinitData.getPtr(), ENCINITMSGSIZE,
-            BIP151SymCiphers::CHACHA20POLY1305_OPENSSH) != 0)
+         /*
+         Announce server pubkey if it's public. This is done without encryption. 
+         Users should not accept unknown keys. It also reveals what server you 
+         are talking to, do not expect anonimity on the clearnet or over something 
+         like a Tor exit node.
+         */
+         if (bip151Connection_->isPublic())
          {
-            //failed to init handshake, kill connection
-            return false;
+            writeToClient(
+               bip151Connection_->getOwnPubKey(), 
+               ArmoryAEAD::HandshakeSequence::PresentPubKey,
+               false);
          }
-
-         writeToClient(WS_MSGTYPE_AEAD_ENCINIT, encinitData.getRef(), false);
-         break;
-      }
-
-      case WS_MSGTYPE_AEAD_ENCACK:
-      {
-         //process client encack
-         if (bip151Connection_->processEncack(
-            dataBdr.getPtr(), dataBdr.getSize(), true) != 0)
-         {
-            //failed to init handshake, kill connection
-            return false;
-         }
-
-         break;
-      }
-
-      case WS_MSGTYPE_AEAD_REKEY:
-      {
-         if (bip151Connection_->getBIP150State() !=
-            BIP150State::SUCCESS)
-         {
-            //can't rekey before auth, kill connection
-            return false;
-         }
-
-         //process rekey
-         if (bip151Connection_->processEncack(
-            dataBdr.getPtr(), dataBdr.getSize(), false) != 0)
-         {
-            //failed to init handshake, kill connection
-            LOGWARN << "failed to process rekey";
-            return false;
-         }
-
-         break;
-      }
-
-      case WS_MSGTYPE_AEAD_ENCINIT:
-      {
-         //process client encinit
-         if (bip151Connection_->processEncinit(
-            dataBdr.getPtr(), dataBdr.getSize(), false) != 0)
-         {
-            //failed to init handshake, kill connection
-            return false;
-         }
-
-         //return encack
-         BinaryData encackData(BIP151PUBKEYSIZE);
-         if (bip151Connection_->getEncackData(
-            encackData.getPtr(), BIP151PUBKEYSIZE) != 0)
-         {
-            //failed to init handshake, kill connection
-            return false;
-         }
-
-         writeToClient(WS_MSGTYPE_AEAD_ENCACK, encackData.getRef(), false);
-
-         break;
-      }
-
-      case WS_MSGTYPE_AUTH_CHALLENGE:
-      {
-         bool goodChallenge = true;
-         auto challengeResult =
-            bip151Connection_->processAuthchallenge(
-               dataBdr.getPtr(),
-               dataBdr.getSize(),
-               true); //true: step #1 of 6
-
-         if (challengeResult == -1)
-         {
-            //auth fail, kill connection
-            return false;
-         }
-         else if (challengeResult == 1)
-         {
-            goodChallenge = false;
-         }
-
-         BinaryData authreplyBuf(BIP151PRVKEYSIZE * 2);
-         if (bip151Connection_->getAuthreplyData(
-            authreplyBuf.getPtr(),
-            authreplyBuf.getSize(),
-            true, //true: step #2 of 6
-            goodChallenge) == -1)
-         {
-            //auth setup failure, kill connection
-            return false;
-         }
-
-         writeToClient(WS_MSGTYPE_AUTH_REPLY,
-            authreplyBuf.getRef(), true);
-
-         break;
-      }
-
-      case WS_MSGTYPE_AUTH_PROPOSE:
-      {
-         bool goodPropose = true;
-         auto proposeResult = bip151Connection_->processAuthpropose(
-            dataBdr.getPtr(),
-            dataBdr.getSize());
-
-         if (proposeResult == -1)
-         {
-            //auth setup failure, kill connection
-            return false;
-         }
-         else if (proposeResult == 1)
-         {
-            goodPropose = false;
-         }
-         else
-         {
-            //keep track of the propose check state
-            bip151Connection_->setGoodPropose();
-         }
-
-         BinaryData authchallengeBuf(BIP151PRVKEYSIZE);
-         if (bip151Connection_->getAuthchallengeData(
-            authchallengeBuf.getPtr(),
-            authchallengeBuf.getSize(),
-            "", //empty string, use chosen key from processing auth propose
-            false, //false: step #4 of 6
-            goodPropose) == -1)
-         {
-            //auth setup failure, kill connection
-            return false;
-         }
-
-         writeToClient(WS_MSGTYPE_AUTH_CHALLENGE,
-            authchallengeBuf.getRef(), true);
-
-         break;
-      }
-
-      case WS_MSGTYPE_AUTH_REPLY:
-      {
-         if (bip151Connection_->processAuthreply(
-            dataBdr.getPtr(),
-            dataBdr.getSize(),
-            false,
-            bip151Connection_->getProposeFlag()) != 0)
-         {
-            //invalid auth setup, kill connection
-            return false;
-         }
-
-         //rekey after succesful BIP150 handshake
-         bip151Connection_->bip150HandshakeRekey();
-         outKeyTimePoint_ = chrono::system_clock::now();
 
          break;
       }
 
       default:
-         //unexpected msg id, kill connection
-         return false;
+         break;
       }
 
-      return true;
+      auto status = ArmoryAEAD::BIP15x_Handshake::serverSideHandshake(
+         bip151Connection_.get(), 
+         wsMsg.getType(), dataBdr,
+         writeToClient);
+
+      switch (status)
+      {
+      case ArmoryAEAD::HandshakeState::StepSuccessful:
+         return true;
+
+      case ArmoryAEAD::HandshakeState::Completed:
+      {
+         outKeyTimePoint_ = chrono::system_clock::now();
+         return true;
+      }
+
+      default:
+         return false;
+      }
    };
 
    if (!processHandshake(msg))

@@ -28,6 +28,9 @@ SocketPrototype::SocketPrototype(const string& addr, const string& port,
    bool doInit) :
    addr_(addr), port_(port)
 {
+   if (addr.empty() || port.empty())
+      throw runtime_error("empty addr/port");
+
    if (doInit)
       init();
 }
