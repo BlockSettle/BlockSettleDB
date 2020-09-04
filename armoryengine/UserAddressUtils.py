@@ -47,7 +47,7 @@ def getScriptForUserString(userStr, wltMap, lboxList):
    """
 
    def getWltIDForScrAddr(scrAddr, walletMap):
-      for iterID,iterWlt in walletMap.iteritems():
+      for iterID,iterWlt in walletMap.items():
          if iterWlt.hasAddr160(scrAddr):
             return iterID
       return None
@@ -177,7 +177,7 @@ def getDisplayStringForScript(binScript, wltMap, lboxList, maxChars=256,
 
    if scriptType != CPP_TXOUT_OPRETURN:
       wlt = None
-      for iterID,iterWlt in wltMap.iteritems():
+      for iterID,iterWlt in wltMap.items():
          if iterWlt.hasAddr160(scrAddr[1:]):
             wlt = iterWlt
             break
