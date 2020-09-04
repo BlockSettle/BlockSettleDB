@@ -1652,7 +1652,6 @@ int BIP150StateMachine::processAuthreply(BinaryData& inData,
       curState_ = BIP150State::REPLY2;
 
    }
-   BinaryData hashKeyStr(hashKey->pubkey, 33);
 
    // Verify the incoming sig. Note that libbtc has a quirk. It only verifies
    // DER-encoded sigs. We must convert our compact sig to DER and then verify
