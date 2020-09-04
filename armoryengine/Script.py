@@ -22,11 +22,11 @@ from armoryengine.Transaction import *
 def convertScriptToOpStrings(binScript):
    opList = []
 
-   i = 0;
+   i = 0
    sz = len(binScript)
-   error = False;
+   error = False
    while i < sz:
-      nextOp = ord(binScript[i]);
+      nextOp = binScript[i]
       if nextOp == 0:
          opList.append("0")
          i+=1
@@ -38,16 +38,16 @@ def convertScriptToOpStrings(binScript):
       elif nextOp == 76:
          nb = binary_to_int(binScript[i+1:i+2])
          if i+1+1+nb > sz:
-            error = True;
+            error = True
             break
          binObj = binScript[i+2:i+2+nb]
          opList.append('OP_PUSHDATA1(%s)' % str(nb))
          opList.append('['+binary_to_hex(binObj)+']')
          i += nb+2
       elif nextOp == 77:
-         nb = binary_to_int(binScript[i+1:i+3]);
+         nb = binary_to_int(binScript[i+1:i+3])
          if i+1+2+nb > sz:
-            error = True;
+            error = True
             break
          nbprint = min(nb,256)
          binObj = binScript[i+3:i+3+nbprint]
@@ -55,9 +55,9 @@ def convertScriptToOpStrings(binScript):
          opList.append('['+binary_to_hex(binObj)[:512] + '...]')
          i += nb+3
       elif nextOp == 78:
-         nb = binScript[i+1:i+5];
+         nb = binScript[i+1:i+5]
          if i+1+4+nb > sz:
-            error = True;
+            error = True
             break
          nbprint = min(nb,256)
          binObj = binScript[i+5,i+5+nbprint]
@@ -65,13 +65,13 @@ def convertScriptToOpStrings(binScript):
          opList.append('['+binary_to_hex(binObj)[:512] + '...]')
          i += nb+5
       else:
-         opList.append(opnames[nextOp]);
+         opList.append(opnames[nextOp])
          i += 1
 
    if error:
-      opList.append("ERROR PROCESSING SCRIPT");
+      opList.append("ERROR PROCESSING SCRIPT")
 
-   return opList;
+   return opList
 
 
 def pprintScript(binScript, nIndent=0):
@@ -232,7 +232,7 @@ class PyScriptProcessor(object):
          binData = int_to_binary(binData)
 
       for i,byte in enumerate(binData):
-         if not ord(byte) == 0:
+         if not byte == 0:
             # This looks like it's assuming LE encoding (?)
             if (i == len(binData)-1) and (byte==0x80):
                return False
