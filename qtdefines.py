@@ -420,17 +420,17 @@ def MsgBoxCustom(wtype, title, msg, wCancel=False, yesStr=None, noStr=None,
          msgIcon = QLabel()
          fpix = ''
          if dtype==MSGBOX.Good:
-            fpix = ':/MsgBox_good48.png'
+            fpix = './img/MsgBox_good48.png'
          if dtype==MSGBOX.Info:
-            fpix = ':/MsgBox_info48.png'
+            fpix = './img/MsgBox_info48.png'
          if dtype==MSGBOX.Question:
-            fpix = ':/MsgBox_question64.png'
+            fpix = './img/MsgBox_question64.png'
          if dtype==MSGBOX.Warning:
-            fpix = ':/MsgBox_warning48.png'
+            fpix = './img/MsgBox_warning48.png'
          if dtype==MSGBOX.Critical:
-            fpix = ':/MsgBox_critical64.png'
+            fpix = './img/MsgBox_critical64.png'
          if dtype==MSGBOX.Error:
-            fpix = ':/MsgBox_error64.png'
+            fpix = './img/MsgBox_error64.png'
    
    
          if len(fpix)>0:
@@ -505,19 +505,19 @@ def MsgBoxWithDNAA(parent, main, wtype, title, msg, dnaaMsg, wCancel=False, \
          msgIcon = QLabel()
          fpix = ''
          if dtype==MSGBOX.Info:
-            fpix = ':/MsgBox_info48.png'
+            fpix = './img/MsgBox_info48.png'
             if not dmsg:  dmsg = self.tr('Do not show this message again')
          if dtype==MSGBOX.Question:
-            fpix = ':/MsgBox_question64.png'
+            fpix = './img/MsgBox_question64.png'
             if not dmsg:  dmsg = self.tr('Do not ask again')
          if dtype==MSGBOX.Warning:
-            fpix = ':/MsgBox_warning48.png'
+            fpix = './img/MsgBox_warning48.png'
             if not dmsg:  dmsg = self.tr('Do not show this warning again')
          if dtype==MSGBOX.Critical:
-            fpix = ':/MsgBox_critical64.png'
+            fpix = './img/MsgBox_critical64.png'
             if not dmsg:  dmsg = None  # should always show crits
          if dtype==MSGBOX.Error:
-            fpix = ':/MsgBox_error64.png'
+            fpix = './img/MsgBox_error64.png'
             if not dmsg:  dmsg = None  # should always show errors
    
    
@@ -729,13 +729,13 @@ class ArmoryDialog(QDialog):
 
       if USE_TESTNET:
          self.setWindowTitle(self.tr('Armory - Bitcoin Wallet Management [TESTNET] ' + self.__class__.__name__))
-         self.setWindowIcon(QIcon(':/armory_icon_green_32x32.png'))
+         self.setWindowIcon(QIcon('./img/armory_icon_green_32x32.png'))
       elif USE_REGTEST:
          self.setWindowTitle(self.tr('Armory - Bitcoin Wallet Management [REGTEST] ' + self.__class__.__name__))
-         self.setWindowIcon(QIcon(':/armory_icon_green_32x32.png'))
+         self.setWindowIcon(QIcon('./img/armory_icon_green_32x32.png'))
       else:
          self.setWindowTitle(self.tr('Armory - Bitcoin Wallet Management'))
-         self.setWindowIcon(QIcon(':/armory_icon_32x32.png'))
+         self.setWindowIcon(QIcon('./img/armory_icon_32x32.png'))
    
    @AddToRunningDialogsList
    def exec_(self):
@@ -1009,7 +1009,7 @@ def selectDirectoryForQLineEdit(par, qObj, title="Select Directory"):
 def createDirectorySelectButton(parent, targetWidget, title="Select Directory"):
 
    btn = QPushButton('')
-   ico = QIcon(QPixmap(':/folder24.png')) 
+   ico = QIcon(QPixmap('./img/folder24.png')) 
    btn.setIcon(ico)
 
 
