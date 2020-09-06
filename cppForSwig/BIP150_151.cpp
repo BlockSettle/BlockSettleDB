@@ -28,7 +28,6 @@
 // direct access to libsecp256k1 calls, just create one.
 secp256k1_context* secp256k1_ecdh_ctx = nullptr;
 uint32_t ipType_ = 0;
-bool publicRequester_ = false;
 
 // FIX/NOTE: Just use btc_ecc_start() from btc/ecc.h when starting up Armory.
 // Need to initialize things, and not just for BIP 151 once libbtc is used more.
@@ -657,8 +656,9 @@ std::string BIP151Session::getSessionIDHex() const
 // IN:  None
 // OUT: None
 // RET: N/A
-BIP151Connection::BIP151Connection(AuthPeersLambdas& authkeys) :
-   inSes_(false), outSes_(true), bip150SM_(&inSes_, &outSes_, authkeys)
+BIP151Connection::BIP151Connection(AuthPeersLambdas& authkeys, bool oneWayAuth) :
+   inSes_(false), outSes_(true), 
+   bip150SM_(&inSes_, &outSes_, authkeys, oneWayAuth)
 {
    // The context must be set up before we can establish BIP 151 connections.
    assert(secp256k1_ecdh_ctx != nullptr);
@@ -673,9 +673,9 @@ BIP151Connection::BIP151Connection(AuthPeersLambdas& authkeys) :
 // OUT: None
 // RET: N/A
 BIP151Connection::BIP151Connection(btc_key* inSymECDHPrivKeyIn,
-   btc_key* inSymECDHPrivKeyOut, AuthPeersLambdas& authkeys) :
+   btc_key* inSymECDHPrivKeyOut, AuthPeersLambdas& authkeys, bool oneWayAuth) :
    inSes_(inSymECDHPrivKeyIn, false), outSes_(inSymECDHPrivKeyOut, true),
-   bip150SM_(&inSes_, &outSes_, authkeys)
+   bip150SM_(&inSes_, &outSes_, authkeys, oneWayAuth)
 {
    // The context must be set up before we can establish BIP 151 connections.
    assert(secp256k1_ecdh_ctx != nullptr);
@@ -1275,10 +1275,9 @@ size_t BIP151Message::messageSizeHint()
 //                        true: auth responder (server), allow anonymous requester (client)
 // OUT: None
 // RET: N/A
-void startupBIP150CTX(const uint32_t& ipVer, bool publicRequester)
+void startupBIP150CTX(const uint32_t& ipVer)
 {
    ::ipType_ = ipVer;
-   ::publicRequester_ = publicRequester;
 }
 
 // Overridden constructor for a BIP 150 state machine session. Sets the internal
@@ -1288,10 +1287,12 @@ void startupBIP150CTX(const uint32_t& ipVer, bool publicRequester)
 //      outgoingSes - 151 connection's outgoing session.
 // OUT: None
 // RET: N/A
-BIP150StateMachine::BIP150StateMachine(BIP151Session* incomingSes,
-   BIP151Session* outgoingSes, AuthPeersLambdas& authkeys) :
-   curState_(BIP150State::INACTIVE), inSes_(incomingSes), outSes_(outgoingSes),
-   authKeys_(authkeys)
+BIP150StateMachine::BIP150StateMachine(
+   BIP151Session* incomingSes, BIP151Session* outgoingSes, 
+   AuthPeersLambdas& authkeys, bool oneWayAuth) :
+   curState_(BIP150State::INACTIVE), 
+   inSes_(incomingSes), outSes_(outgoingSes),
+   authKeys_(authkeys), oneWayAuth_(oneWayAuth)
 {}
 
 // Function that gets AUTHCHALLENGE data for the state machine. Works for
@@ -1380,7 +1381,7 @@ int BIP150StateMachine::getAuthchallengeData(uint8_t* buf,
    else if(goodPropose == false && requesterSent == false) // AC 2 BAD
    {
       //could not find an authorized public key from auth propose
-      if (::publicRequester_ == false)
+      if (oneWayAuth_ == false)
       {
          //we do not allow for unknown peers, return all 0 auth challenge
          std::memset(buf, 0, BIP151PRVKEYSIZE);
@@ -1490,7 +1491,7 @@ int BIP150StateMachine::getAuthreplyData(uint8_t* buf, const size_t& bufSize,
 
       retVal = 0;
    } // if
-   else if (!responderSent && ::publicRequester_)
+   else if (!responderSent && oneWayAuth_)
    {
       const btc_pubkey* hashKey = &authKeys_.getPubKey("own");
       std::memcpy(buf, hashKey->pubkey, BIP151PUBKEYSIZE);
@@ -1592,7 +1593,7 @@ int BIP150StateMachine::processAuthchallenge(const BinaryData& inData,
 
    if(std::memcmp(inData.getPtr(), challengeHash.data(), BIP151PRVKEYSIZE) != 0)
    {
-      if (!requesterSent && ::publicRequester_)
+      if (!requesterSent && oneWayAuth_)
       {
          char anonChallenge[BIP151PRVKEYSIZE];
          memset(anonChallenge, 0xFF, BIP151PRVKEYSIZE);
@@ -1679,7 +1680,7 @@ int BIP150StateMachine::processAuthreply(BinaryData& inData,
    }
    else
    {
-      if (::publicRequester_ && !responderSent && !goodChallenge)
+      if (oneWayAuth_ && !responderSent && !goodChallenge)
       {
          //Responder allows for anon peers and requester auth propose had no match,
          //this auth reply carries the requester's public key instead of the signed
@@ -1741,7 +1742,7 @@ int BIP150StateMachine::processAuthpropose(const BinaryData& inData)
    // If we found a valid key, save it for later processing purposes.
    if(validKey == nullptr)
    {
-      if (::publicRequester_)
+      if (oneWayAuth_)
       {
          //public responders tolerate anon peers
          return 1;

@@ -121,7 +121,7 @@ client:  . auth propose:
 server:  . process auth propose
             check hash(inSession.id | 'p' | [0xFF **33]) vs propose
                -> fail on mismatch
-                     do not allow 2-way auth with 1-way server, drop connection
+                  do not allow 2-way auth with 1-way server, drop connection
                -> do not select a client pubkey
             
          . auth challenge:

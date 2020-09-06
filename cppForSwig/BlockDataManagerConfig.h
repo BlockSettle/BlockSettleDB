@@ -42,6 +42,7 @@ private:
    static SOCKET_SERVICE service_;
    static ARMORY_OPERATION_MODE operationMode_;
 
+
 public:
    BDM_INIT_MODE initMode_ = INIT_RESUME;
 
@@ -56,6 +57,7 @@ public:
    static std::string dataDir_;
 
    static bool ephemeralPeers_;
+   bool oneWayAuth_ = false;
 
    std::string blkFileLocation_;
    std::string dbDir_;

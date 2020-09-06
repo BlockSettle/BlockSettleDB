@@ -427,7 +427,7 @@ namespace AsyncClient
       static std::shared_ptr<BlockDataViewer> getNewBDV(
          const std::string& addr, const std::string& port,
          const std::string& datadir, const PassphraseLambda&,
-         const bool& ephemeralPeers,
+         const bool& ephemeralPeers, bool oneWayAuth,
          std::shared_ptr<RemoteCallback> callbackPtr);
 
       void registerWithDB(BinaryData magic_word);

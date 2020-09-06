@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
 {
    btc_ecc_start();
    startupBIP151CTX();
-   startupBIP150CTX(4, false);
+   startupBIP150CTX(4);
 
    //init static configuration variables
    BlockDataManagerConfig bdmConfig;
@@ -47,7 +47,8 @@ int main(int argc, char* argv[])
    //setup the bridge
    auto bridge = make_shared<CppBridge>(
       bdmConfig.dataDir_,
-      "127.0.0.1", bdmConfig.listenPort_);
+      "127.0.0.1", bdmConfig.listenPort_,
+      bdmConfig.oneWayAuth_);
    
    //setup the socket
    auto sockPtr = make_shared<CppBridgeSocket>("127.0.0.1", "46122", bridge);
@@ -1074,7 +1075,7 @@ void CppBridge::setupDB()
       bdvPtr_ = AsyncClient::BlockDataViewer::getNewBDV(
          dbAddr_, dbPort_, path_, 
          TerminalPassphrasePrompt::getLambda("db identification key"), 
-         true, callbackPtr_);
+         true, oneWayAuth_, callbackPtr_);
 
       //TODO: set gui prompt to accept server pub keys
       bdvPtr_->setCheckServerKeyPromptLambda(

@@ -234,6 +234,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
    encInitPacket.put_uint32_t(1);
    encInitPacket.put_uint8_t(ArmoryAEAD::HandshakeSequence::Start);
    instance->encInitPacket_ = encInitPacket.getData();
+   instance->oneWayAuth_ = bdmT->bdm()->config().oneWayAuth_;
 
    //init Clients object
    auto shutdownLbd = [](void)->void
@@ -638,7 +639,8 @@ shared_ptr<const map<uint64_t, ClientConnection>>
 void WebSocketServer::addId(const uint64_t& id, struct lws* ptr)
 {
    auto&& lbds = getAuthPeerLambda();
-   auto&& write_pair = make_pair(id, ClientConnection(ptr, id, lbds));
+   auto&& write_pair = make_pair(
+      id, ClientConnection(ptr, id, lbds, oneWayAuth_));
    clientStateMap_.insert(move(write_pair));
    writeMap_.emplace(ptr, list<list<BinaryData>>());
 }
@@ -735,6 +737,25 @@ void WebSocketServer::updateWriteMap()
 //
 // ClientConnection
 //
+///////////////////////////////////////////////////////////////////////////////
+ClientConnection::ClientConnection(
+   struct lws *wsi, uint64_t id, AuthPeersLambdas& lbds, bool isOneWayAuth) :
+   wsiPtr_(wsi), id_(id)
+{
+   bip151Connection_ = std::make_shared<BIP151Connection>(lbds, isOneWayAuth);
+
+   writeLock_ = std::make_shared<std::atomic<unsigned>>();
+   writeLock_->store(0);
+
+   readLock_ = std::make_shared<std::atomic<unsigned>>();
+   readLock_->store(0);
+
+   readQueue_ = std::make_shared<ArmoryThreading::Queue<BinaryData>>();
+      
+   run_ = std::make_shared<std::atomic<int>>();
+   run_->store(0, std::memory_order_relaxed);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
 {

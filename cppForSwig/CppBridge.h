@@ -133,6 +133,8 @@ private:
 
    std::function<void(std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
 
+   const bool oneWayAuth_;
+
 private:
    //wallet setup
    void loadWallets(unsigned id);
@@ -222,8 +224,9 @@ private:
 
 public:
    CppBridge(const std::string& path,
-      const std::string& dbAddr, const std::string& dbPort) :
-      path_(path), dbAddr_(dbAddr), dbPort_(dbPort)
+      const std::string& dbAddr, const std::string& dbPort,
+      bool oneWayAuth) :
+      path_(path), dbAddr_(dbAddr), dbPort_(dbPort), oneWayAuth_(oneWayAuth)
    {}
 
    bool processData(std::vector<uint8_t> socketData);

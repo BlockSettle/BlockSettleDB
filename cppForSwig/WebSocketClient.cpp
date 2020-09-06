@@ -28,7 +28,8 @@ static struct lws_protocols protocols[] = {
 ////////////////////////////////////////////////////////////////////////////////
 WebSocketClient::WebSocketClient(const string& addr, const string& port,
    const string& datadir, const PassphraseLambda& passLbd, 
-   const bool& ephemeralPeers, shared_ptr<RemoteCallback> cbPtr) :
+   const bool& ephemeralPeers, bool oneWayAuth,
+   shared_ptr<RemoteCallback> cbPtr) :
    SocketPrototype(addr, port, false), 
    servName_(addr_ + ":" + port_), callbackPtr_(cbPtr)
 {
@@ -47,7 +48,7 @@ WebSocketClient::WebSocketClient(const string& addr, const string& port,
    }
 
    auto lbds = getAuthPeerLambda();
-   bip151Connection_ = make_shared<BIP151Connection>(lbds);
+   bip151Connection_ = make_shared<BIP151Connection>(lbds, oneWayAuth);
 }
 
 

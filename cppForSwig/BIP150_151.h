@@ -87,7 +87,7 @@ void startupBIP151CTX();
 void shutdownBIP151CTX();
 
 // Global function used to load up the key DBs. CALL AFTER BIP 151 IS INITIALIZED.
-void startupBIP150CTX(const uint32_t& ipVer, bool publicRequester);
+void startupBIP150CTX(const uint32_t& ipVer);
 
 struct AuthPeersLambdas
 {
@@ -199,10 +199,12 @@ private:
    btc_pubkey chosenChallengeKey;
 
    AuthPeersLambdas authKeys_;
+   const bool oneWayAuth_;
 
 public:
-   BIP150StateMachine(BIP151Session* incomingSes, BIP151Session* outgoingSes,
-      AuthPeersLambdas& authkeys);
+   BIP150StateMachine(
+      BIP151Session* incomingSes, BIP151Session* outgoingSes,
+      AuthPeersLambdas& authkeys, bool);
 
    int processAuthchallenge(const BinaryData& inData,
       const bool& requesterSent);
@@ -238,11 +240,11 @@ private:
 
 public:
    // Default constructor - Used when initiating contact with a peer.
-   BIP151Connection(AuthPeersLambdas&);
+   BIP151Connection(AuthPeersLambdas&, bool);
 
    // Constructor manually setting the ECDH setup prv keys. USE WITH CAUTION.
    BIP151Connection(btc_key* inSymECDHPrivKeyIn, btc_key* inSymECDHPrivKeyOut,
-      AuthPeersLambdas& authkeys);
+      AuthPeersLambdas& authkeys, bool);
 
    int assemblePacket(const uint8_t* plainData, const size_t& plainSize,
       uint8_t* cipherData, const size_t& cipherSize);

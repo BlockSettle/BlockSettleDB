@@ -238,7 +238,7 @@ TEST_F(BIP150_151Test, checkData_151_Only)
    // Run before the first test has been run. (SetUp/TearDown will be called
    // for each test. Multiple context startups/shutdowns leads to crashes.)
    startupBIP151CTX();
-   startupBIP150CTX(4, false);
+   startupBIP150CTX(4);
 
    // BIP 151 connection uses private keys we feed it. (Normally, we'd let it
    // generate its own private keys.)
@@ -268,8 +268,8 @@ TEST_F(BIP150_151Test, checkData_151_Only)
    prvKeyClientOut.copyTo(prvKeyCliOut.privkey);
    prvKeyServerIn.copyTo(prvKeySrvIn.privkey);
    prvKeyServerOut.copyTo(prvKeySrvOut.privkey);
-   BIP151Connection cliCon(&prvKeyCliIn, &prvKeyCliOut, akl1);
-   BIP151Connection srvCon(&prvKeySrvIn, &prvKeySrvOut, akl2);
+   BIP151Connection cliCon(&prvKeyCliIn, &prvKeyCliOut, akl1, false);
+   BIP151Connection srvCon(&prvKeySrvIn, &prvKeySrvOut, akl2, false);
 
    // Set up encinit/encack directly. (Initial encinit/encack will use regular
    // Bitcoin P2P messages, which we'll skip building.) Confirm all steps
@@ -609,7 +609,7 @@ TEST_F(BIP150_151Test, checkData_150_151)
    AuthPeersLambdas aklCli(cli_getPubKeyMap, cli_getPrivKey, cli_getauthset);
 
 
-   startupBIP150CTX(4, false);
+   startupBIP150CTX(4);
 
    btc_key prvKeyCliIn;
    btc_key prvKeyCliOut;
@@ -619,8 +619,8 @@ TEST_F(BIP150_151Test, checkData_150_151)
    prvKeyClientOut.copyTo(prvKeyCliOut.privkey);
    prvKeyServerIn.copyTo(prvKeySrvIn.privkey);
    prvKeyServerOut.copyTo(prvKeySrvOut.privkey);
-   BIP151Connection cliCon(&prvKeyCliIn, &prvKeyCliOut, aklCli);
-   BIP151Connection srvCon(&prvKeySrvIn, &prvKeySrvOut, aklServ);
+   BIP151Connection cliCon(&prvKeyCliIn, &prvKeyCliOut, aklCli, false);
+   BIP151Connection srvCon(&prvKeySrvIn, &prvKeySrvOut, aklServ, false);
 
    // Set up encinit/encack directly. (Initial encinit/encack will use regular
    // Bitcoin P2P messages, which we'll skip building.) Confirm all steps
@@ -794,8 +794,8 @@ TEST_F(BIP150_151Test, handshakeCases_151_Only)
    AuthPeersLambdas akl1(getpubkeymap, getprivkey, getauthset);
    AuthPeersLambdas akl2(getpubkeymap, getprivkey, getauthset);
 
-   BIP151Connection cliCon1(akl1);
-   BIP151Connection srvCon1(akl2);
+   BIP151Connection cliCon1(akl1, false);
+   BIP151Connection srvCon1(akl2, false);
    std::array<uint8_t, BIP151PUBKEYSIZE> dummy1{};
    std::array<uint8_t, BIP151PUBKEYSIZE> dummy2{};
    int s1 = cliCon1.getEncackData(dummy1.data(),
@@ -814,8 +814,8 @@ TEST_F(BIP150_151Test, handshakeCases_151_Only)
    AuthPeersLambdas akl3(getpubkeymap, getprivkey, getauthset);
    AuthPeersLambdas akl4(getpubkeymap, getprivkey, getauthset);
 
-   BIP151Connection cliCon2(akl3);
-   BIP151Connection srvCon2(akl4);
+   BIP151Connection cliCon2(akl3, false);
+   BIP151Connection srvCon2(akl4, false);
    std::array<uint8_t, ENCINITMSGSIZE> dummy3{};
    std::array<uint8_t, 64> dummy4{};
    int s3 = cliCon2.getEncinitData(dummy3.data(),
@@ -10062,6 +10062,7 @@ protected:
       config.dbDir_ = ldbdir_;
       config.threadCount_ = 3;
       config.dataDir_ = homedir_;
+      config.oneWayAuth_ = true;
 
       NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       auto nodePtr = make_shared<NodeUnitTest>(0, false);
@@ -10081,7 +10082,7 @@ protected:
       LB2ID = TestChain::lb2B58ID;
 
       startupBIP151CTX();
-      startupBIP150CTX(4, false);
+      startupBIP150CTX(4);
 
       //setup auth peers for server and client
       authPeersPassLbd_ = [](const set<BinaryData>&)->SecureBinaryData
@@ -10162,7 +10163,7 @@ TEST_F(WebSocketTests, WebSocketStack)
       AuthorizedPeers serverPeers(
          homedir_, SERVER_AUTH_PEER_FILENAME, authPeersPassLbd_);
       serverPeers.eraseName("127.0.0.1");
-      startupBIP150CTX(4, true);
+      startupBIP150CTX(4);
    }
    
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
@@ -10182,8 +10183,11 @@ TEST_F(WebSocketTests, WebSocketStack)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      pCallback);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
@@ -10411,8 +10415,6 @@ TEST_F(WebSocketTests, WebSocketStack)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_Reconnect)
 {
-   startupBIP150CTX(4, true);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
@@ -10462,8 +10464,11 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, true, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         true, true, //public server
+         pCallback);
       bdvObj->setCheckServerKeyPromptLambda(pubkeyPrompt);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -10588,8 +10593,11 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
 
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, true, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         true, true, //public server
+         pCallback);
       bdvObj->setCheckServerKeyPromptLambda(pubkeyPrompt);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -10675,7 +10683,7 @@ TEST_F(WebSocketTests, WebSocketStack_Reconnect)
 
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-     authPeersPassLbd_, true, nullptr);
+     authPeersPassLbd_, true, true, nullptr);
    bdvObj2->setCheckServerKeyPromptLambda(pubkeyPrompt);
    bdvObj2->connectToRemote();
 
@@ -10706,8 +10714,11 @@ TEST_F(WebSocketTests, GrabAddrLedger_PostReg)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, false, //private server
+      pCallback);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
 
@@ -10768,8 +10779,11 @@ TEST_F(WebSocketTests, WebSocketStack_ManyZC)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, false, //private server
+      pCallback);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
    auto& bdvID = bdvObj->getID();
