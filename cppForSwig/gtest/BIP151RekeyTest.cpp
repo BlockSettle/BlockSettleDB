@@ -101,8 +101,9 @@ TEST_F(BIP151RekeyTest, rekeyRequired)
                         true);
    EXPECT_TRUE(cliCon.connectionComplete());
 
-   // Our packet is 17 bytes. Over the course of 1200 bytes, we need
-   // 69 loops before we have to rekey.
+   // Our packet is 17 bytes. Over the course of 1200 bytes (unit test value 
+   // to trigger rekeys, default is 1GB), we need 69 loops before we have 
+   // to rekey.
    auto cmd = BinaryData::fromString("fake");
    std::array<uint8_t, 4> payload = {0xde, 0xad, 0xbe, 0xef};
    BinaryData testMsgData(17);

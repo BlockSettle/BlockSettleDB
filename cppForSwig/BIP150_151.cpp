@@ -28,6 +28,7 @@
 // direct access to libsecp256k1 calls, just create one.
 secp256k1_context* secp256k1_ecdh_ctx = nullptr;
 uint32_t ipType_ = 0;
+uint8_t oneWayAuthClientPubKey_[33];
 
 // FIX/NOTE: Just use btc_ecc_start() from btc/ecc.h when starting up Armory.
 // Need to initialize things, and not just for BIP 151 once libbtc is used more.
@@ -962,14 +963,12 @@ int BIP151Connection::processAuthchallenge(const uint8_t* inMsg,
 // IN:  inMsg - Buffer with the authreply msg contents.
 //      inMsgSize - Size of the incoming buffer. Must be 64 bytes.
 //      requesterSent - Indicates whether or not the requester sent the msg.
-//      goodChallenge - Indicates if the AUTHCHALLENGE msg was verified.
 // OUT: None
 // RET: -1 if unsuccessful, 0 if successful.
 // RET: -1 if unsuccessful (code setup), 0 if successful, 1 if unsuccessful
 //      (bad signature).
 int BIP151Connection::processAuthreply(const uint8_t* inMsg,
-   const size_t& inMsgSize, const bool& requesterSent,
-   const bool& goodChallenge)
+   const size_t& inMsgSize, const bool& requesterSent)
 {
    int retVal = -1;
    if(inMsgSize != BIP151PRVKEYSIZE*2)
@@ -979,8 +978,7 @@ int BIP151Connection::processAuthreply(const uint8_t* inMsg,
       return bip150SM_.errorSM(retVal);
    }
    BinaryData authreplyPayload(inMsg, inMsgSize);
-   return bip150SM_.processAuthreply(authreplyPayload, requesterSent,
-                                     goodChallenge);
+   return bip150SM_.processAuthreply(authreplyPayload, requesterSent);
 }
 
 // The function that handles incoming and outgoing "authpropose" payloads.
@@ -1015,19 +1013,16 @@ int BIP151Connection::processAuthpropose(const uint8_t* inMsg,
 //                      1) or the responder (false - step 4). In step 4, the 
 //                      challenge key is set to the key from selected by the
 //                      AuthPropose process.
-//      goodPropose - Indicates if AUTHPROPOSE was validated. Applicable only
-//                    if the responder is getting AUTHCHALLENGE data.
 // OUT: authchallengeBuffer - The buffer with the authchallenge data.
 // RET: -1 if failure, 0 if success, 1 if AUTHPROPOSE validation was a failure.
 int BIP151Connection::getAuthchallengeData(uint8_t* authchallengeBuf,
    const size_t& authchallengeBufSize, const std::string& targetIPPort,
-   const bool& requesterSent, const bool& goodPropose)
+   const bool& requesterSent)
 {
    return bip150SM_.getAuthchallengeData(authchallengeBuf,
                                          authchallengeBufSize,
                                          targetIPPort,
-                                         requesterSent,
-                                         goodPropose);
+                                         requesterSent);
 }
 
 // Function that gets the data sent alongside an authreply message.
@@ -1039,13 +1034,11 @@ int BIP151Connection::getAuthchallengeData(uint8_t* authchallengeBuf,
 // OUT: authreplyBuffer - The buffer with the authreply data.
 // RET: -1 if failure, 0 if success, 1 if AUTHREPLY validation was a failure.
 int BIP151Connection::getAuthreplyData(uint8_t* authreplyBuf,
-   const size_t& authreplyBufSize, const bool& responderSent,
-   const bool& goodChallenge)
+   const size_t& authreplyBufSize, const bool& responderSent)
 {
    return bip150SM_.getAuthreplyData(authreplyBuf,
                                      authreplyBufSize,
-                                     responderSent,
-                                     goodChallenge);
+                                     responderSent);
 }
 
 // Function that gets the data sent alongside an authpropose message.
@@ -1278,6 +1271,7 @@ size_t BIP151Message::messageSizeHint()
 void startupBIP150CTX(const uint32_t& ipVer)
 {
    ::ipType_ = ipVer;
+   memset(::oneWayAuthClientPubKey_, 0xFF, 33);
 }
 
 // Overridden constructor for a BIP 150 state machine session. Sets the internal
@@ -1307,14 +1301,12 @@ BIP150StateMachine::BIP150StateMachine(
 //                      1) or the responder (false - step 4). In step 4, the 
 //                      challenge key is set to the key from selected by the
 //                      AuthPropose process.
-//      goodPropose - Indicates if AUTHPROPOSE was validated. Applicable only
-//                    if the responder is getting AUTHCHALLENGE data.
 // OUT: buf - The data to go into an AUTHCHALLENGE messsage.
 // RET: -1 if not successful, 0 if successful, 1 if AUTHPROPOSE validation was
 //      a failure.
 int BIP150StateMachine::getAuthchallengeData(uint8_t* buf,
    const size_t& bufSize, const std::string& targetIPPort,
-   const bool& requesterSent, const bool& goodPropose)
+   const bool& requesterSent)
 {
    int retVal = -1;
    BIP151Session* checkSes;
@@ -1372,30 +1364,24 @@ int BIP150StateMachine::getAuthchallengeData(uint8_t* buf,
    // What's hashed depends on if AUTHPROPOSE was verified.
    if(requesterSent == true) // AUTHCHALLENGE 1
    {
+      //client side auth challenge, hash server's expected pubkey
       retVal = buildHashData(buf, hashKey->pubkey, true);
    }
-   else if(goodPropose == true && requesterSent == false) // AC 2 GOOD
+   else
    {
-      retVal = buildHashData(buf, hashKey->pubkey, true);
-   }
-   else if(goodPropose == false && requesterSent == false) // AC 2 BAD
-   {
-      //could not find an authorized public key from auth propose
-      if (oneWayAuth_ == false)
+      //server side challenge
+      if (oneWayAuth_) //AC 2 GOOD
       {
-         //we do not allow for unknown peers, return all 0 auth challenge
-         std::memset(buf, 0, BIP151PRVKEYSIZE);
+         //1-way: hash stand-in value (0xFF **33)
+         retVal = buildHashData(buf, oneWayAuthClientPubKey_, true);
       }
       else
       {
-         //we allow for anon peers, return all 1s auth challenge
-         std::memset(buf, 0xFF, BIP151PRVKEYSIZE);
-         return 1;
+         //2-way: hash client's expected pubkey
+         retVal = buildHashData(buf, hashKey->pubkey, true);
       }
-
-      retVal = 1;
    }
-
+   
    if(retVal != 0)
    {
       return errorSM(retVal);
@@ -1410,12 +1396,12 @@ int BIP150StateMachine::getAuthchallengeData(uint8_t* buf,
 // IN:  bufSize - AUTHREPLY data buffer size. Must be >=64 bytes.
 //      responderSent - Indicates if the responder wants the data (true - step
 //                      2) or the requester (false - step 5).
-//      goodChallenge - Indicates if AUTHCHALLENGE was validated.
 // OUT: buf - The data to go into an AUTHREPLY messsage.
 // RET: -1 if not successful, 0 if successful, 1 if AUTHCHALLENGE validation
 //      was a failure.
-int BIP150StateMachine::getAuthreplyData(uint8_t* buf, const size_t& bufSize,
-   const bool& responderSent, const bool& goodChallenge)
+int BIP150StateMachine::getAuthreplyData(
+   uint8_t* buf, const size_t& bufSize,
+   const bool& responderSent)
 {
    int retVal = -1;
    if(responderSent == true)
@@ -1458,7 +1444,17 @@ int BIP150StateMachine::getAuthreplyData(uint8_t* buf, const size_t& bufSize,
    // Sign the session ID. libbtc assumes data to sign will be 32 bytes.
    // Thankfully, the session ID is 32 bytes.
    // NB: Behind-the-scenes, libsecp256k1 assumes RFC 6979 nonces.
-   if(goodChallenge == true)
+   if (!responderSent && oneWayAuth_)
+   {
+      /*
+      Client side 1-way auth: return own pubkey
+      */
+      const btc_pubkey* hashKey = &authKeys_.getPubKey("own");
+      std::memcpy(buf, hashKey->pubkey, BIP151PUBKEYSIZE);
+      memset(buf + BIP151PUBKEYSIZE, 0, BIP151PRVKEYSIZE*2 - BIP151PUBKEYSIZE);
+      retVal = 0;
+   }
+   else
    {
       size_t resSize = 0;
       const btc_pubkey* ownPubKey;
@@ -1490,24 +1486,13 @@ int BIP150StateMachine::getAuthreplyData(uint8_t* buf, const size_t& bufSize,
       }
 
       retVal = 0;
-   } // if
-   else if (!responderSent && oneWayAuth_)
-   {
-      const btc_pubkey* hashKey = &authKeys_.getPubKey("own");
-      std::memcpy(buf, hashKey->pubkey, BIP151PUBKEYSIZE);
-      retVal = 0;
-   }
-   else
-   {
-      std::memset(buf, 0, BIP151PRVKEYSIZE*2);
-      return errorSM(1);
    }
 
    return retVal;
 }
 
 // Function that gets AUTHPROPOSE data for the state machine. Works for
-// step 3 of the 150 handshake.
+// step 3 of the 150 handshake (client side only).
 //
 // IN:  bufSize - AUTHPROPOSE data buffer size. Must be >=32 bytes.
 // OUT: buf - The data to go into an AUTHPROPOSE messsage.
@@ -1542,8 +1527,23 @@ int BIP150StateMachine::getAuthproposeData(uint8_t* buf, const size_t& bufSize)
    }
 
    // Build the data hash to be returned.
-   auto& ownPubKey = authKeys_.getPubKey("own");
-   retVal = buildHashData(buf, ownPubKey.pubkey, true);
+   const uint8_t* pubKeyPtr;
+   if (oneWayAuth_)
+   {
+      /*
+      Send expected pubkey for 1-way auth (server does not auth client).
+      This is to fail 2-way clients talking to 1-way server (so that a 
+      2-way client can only talk to a private server).
+      */
+      pubKeyPtr = oneWayAuthClientPubKey_;
+   }
+   else
+   {
+      //for 2-way auth, send own pubkey
+      pubKeyPtr = authKeys_.getPubKey("own").pubkey;
+   }
+
+   retVal = buildHashData(buf, pubKeyPtr, true);
    if(retVal != 0)
    {
       return errorSM(retVal);
@@ -1585,27 +1585,27 @@ int BIP150StateMachine::processAuthchallenge(const BinaryData& inData,
 
    // Build a hash and compare.
    std::array<uint8_t, BIP151PRVKEYSIZE> challengeHash;
-   if(buildHashData(challengeHash.data(), hashKey->pubkey, false) == -1)
+   const uint8_t* pubKeyPtr = hashKey->pubkey;
+
+   if (!requesterSent && oneWayAuth_)
+   {
+      /*
+      Client side processAuthChallenge, use stand-in value if
+      we're doing a 1-way auth.
+      */
+      pubKeyPtr = oneWayAuthClientPubKey_;
+   }
+
+   if (buildHashData(challengeHash.data(), pubKeyPtr, false) == -1)
    {
       LOGERR << "BIP 150 - Unable to process AUTHCHALLENGE message.";
       return errorSM(retVal);
    }
 
-   if(std::memcmp(inData.getPtr(), challengeHash.data(), BIP151PRVKEYSIZE) != 0)
+   if (std::memcmp(inData.getPtr(), challengeHash.data(), BIP151PRVKEYSIZE) != 0)
    {
-      if (!requesterSent && oneWayAuth_)
-      {
-         char anonChallenge[BIP151PRVKEYSIZE];
-         memset(anonChallenge, 0xFF, BIP151PRVKEYSIZE);
-         if (std::memcmp(inData.getPtr(), anonChallenge, BIP151PRVKEYSIZE) == 0)
-         {
-            //valid anon auth challenge from responder
-            return 1;
-         }
-      }
-      
       LOGERR << "BIP 150 - AUTHCHALLENGE message cannot be verified.";
-      return errorSM(1);
+      return errorSM(retVal);
    }
 
    retVal = 0;
@@ -1617,13 +1617,11 @@ int BIP150StateMachine::processAuthchallenge(const BinaryData& inData,
 // IN:  inData - The incoming signature.
 //      requesterSent - Indicates whether the requester (step 2) or responder
 //                      (step 5) is processing the data.
-//      goodChallenge - Indicates whether or not the previous AUTHCHALLENGE was
-//                      successfully verified.
 // OUT: None
 // RET: -1 if unsuccessful (bad code setup), 0 if successful, 1 if unsuccessful
 //      (unable to verify signature).
 int BIP150StateMachine::processAuthreply(BinaryData& inData,
-   const bool& responderSent, const bool& goodChallenge)
+   const bool& responderSent)
 {
    int retVal = -1;
    assert(inData.getSize() == BIP151PRVKEYSIZE*2);
@@ -1669,6 +1667,22 @@ int BIP150StateMachine::processAuthreply(BinaryData& inData,
       retVal = 1;
       return errorSM(retVal);
    }
+      
+   if (oneWayAuth_ && !responderSent)
+   {
+      /*
+      1-way auth server. Auth reply from client carries its pubkey. We don't
+      know that key since a 1-way server does not check for known peers. Set 
+      the peer auth key in order to rekey successfully.
+      */
+
+      btc_pubkey_init(&chosenAuthPeerKey);
+      std::memcpy(chosenAuthPeerKey.pubkey, inData.getPtr(), BIP151PUBKEYSIZE);
+      chosenAuthPeerKey.compressed = true;
+      return 0;
+   }
+
+   //2-way auth: check client signed session id
    BinaryData dersigstr(derSig.data(), derSigSize);
    if(btc_ecc_verify_sig(hashKey->pubkey,
                          true,
@@ -1680,17 +1694,6 @@ int BIP150StateMachine::processAuthreply(BinaryData& inData,
    }
    else
    {
-      if (oneWayAuth_ && !responderSent && !goodChallenge)
-      {
-         //Responder allows for anon peers and requester auth propose had no match,
-         //this auth reply carries the requester's public key instead of the signed
-         //session id. Set the peer auth key in order to rekey successfully.
-         btc_pubkey_init(&chosenAuthPeerKey);
-         std::memcpy(chosenAuthPeerKey.pubkey, inData.getPtr(), BIP151PUBKEYSIZE);
-         chosenAuthPeerKey.compressed = true;
-         return 0;
-      }
-
       LOGERR << "BIP 150 - AUTHREPLY signature cannot be verified.";
       retVal = 1;
       return errorSM(retVal);
@@ -1719,17 +1722,37 @@ int BIP150StateMachine::processAuthpropose(const BinaryData& inData)
    }
    curState_ = BIP150State::PROPOSE;
 
-   // Iterate through the authorized-users DB and attempt to replicate the
-   // incoming hash.
    std::array<uint8_t, BIP151PRVKEYSIZE> proposeHash;
+   if (oneWayAuth_)
+   {
+      if (buildHashData(proposeHash.data(), oneWayAuthClientPubKey_, false) == -1)
+      {
+         LOGERR << "BIP 150 - Unable to verify AUTHPROPOSE message.";
+         return errorSM(retVal);
+      }
+
+      // Compare hashes. If they match, we're happy!
+      if (memcmp(inData.getPtr(), proposeHash.data(), BIP151PRVKEYSIZE) != 0)
+      {
+         LOGERR << "BIP 150 - Unable to verify AUTHPROPOSE message.";
+         return errorSM(retVal);
+      }
+
+      //this is all we need for 1-way auth, return 1 to specify that
+      return 1;
+   }
+
+   /*
+   Iterate through the authorized-users DB and attempt to replicate the
+   incoming hash. This is an expensive search, only performed for 2-way 
+   auth (where the set of known peers is expected to be small).
+   */
    const SecureBinaryData* validKey = nullptr;
    auto& peersKeys = authKeys_.getAuthorizedKeySet();
    for(auto& checkKey : peersKeys)
    {
       if(buildHashData(proposeHash.data(), checkKey.getPtr(), false) == -1)
-      {
          continue;
-      }
 
       // Compare hashes. If they match, we're happy!
       if(memcmp(inData.getPtr(), proposeHash.data(), BIP151PRVKEYSIZE) == 0)
@@ -1742,14 +1765,8 @@ int BIP150StateMachine::processAuthpropose(const BinaryData& inData)
    // If we found a valid key, save it for later processing purposes.
    if(validKey == nullptr)
    {
-      if (oneWayAuth_)
-      {
-         //public responders tolerate anon peers
-         return 1;
-      }
-
       LOGERR << "BIP 150 - Unable to verify AUTHPROPOSE message.";
-      return errorSM(1);
+      return errorSM(retVal);
    }
    else
    {
