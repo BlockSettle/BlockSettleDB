@@ -103,22 +103,7 @@ private:
    void processAEADHandshake(BinaryData);
 
 public:
-   ClientConnection(struct lws *wsi, uint64_t id, AuthPeersLambdas& lbds) :
-      wsiPtr_(wsi), id_(id)
-   {
-      bip151Connection_ = std::make_shared<BIP151Connection>(lbds);
-
-      writeLock_ = std::make_shared<std::atomic<unsigned>>();
-      writeLock_->store(0);
-
-      readLock_ = std::make_shared<std::atomic<unsigned>>();
-      readLock_->store(0);
-
-      readQueue_ = std::make_shared<ArmoryThreading::Queue<BinaryData>>();
-      
-      run_ = std::make_shared<std::atomic<int>>();
-      run_->store(0, std::memory_order_relaxed);
-   }
+   ClientConnection(struct lws*, uint64_t, AuthPeersLambdas&, bool);
 
    void closeConnection(void);
    void processReadQueue(std::shared_ptr<Clients>);
@@ -152,6 +137,9 @@ private:
    
    std::set<struct lws*> pendingWrites_;
    std::set<struct lws*>::const_iterator pendingWritesIter_;
+   
+   //default to 2-way auth
+   bool oneWayAuth_ = false;
 
 public:
    void writeToSocket(struct lws*, SerializedMessage&);

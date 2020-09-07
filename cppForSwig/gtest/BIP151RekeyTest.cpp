@@ -60,8 +60,8 @@ TEST_F(BIP151RekeyTest, rekeyRequired)
    AuthPeersLambdas akl1(getpubkeymap, getprivkey, getauthset);
    AuthPeersLambdas akl2(getpubkeymap, getprivkey, getauthset);
 
-   BIP151Connection cliCon(akl1);
-   BIP151Connection srvCon(akl2);
+   BIP151Connection cliCon(akl1, false);
+   BIP151Connection srvCon(akl2, false);
 
    // Set up encinit/encack directly. (Initial encinit/encack will use regular
    // Bitcoin P2P messages, which we'll skip building.) Confirm all steps
@@ -101,8 +101,9 @@ TEST_F(BIP151RekeyTest, rekeyRequired)
                         true);
    EXPECT_TRUE(cliCon.connectionComplete());
 
-   // Our packet is 17 bytes. Over the course of 1Gb (not 1 Gib!), we need
-   // 58,823,530 loops before we have to rekey.
+   // Our packet is 17 bytes. Over the course of 1200 bytes (unit test value 
+   // to trigger rekeys, default is 1GB), we need 69 loops before we have 
+   // to rekey.
    auto cmd = BinaryData::fromString("fake");
    std::array<uint8_t, 4> payload = {0xde, 0xad, 0xbe, 0xef};
    BinaryData testMsgData(17);
@@ -113,7 +114,7 @@ TEST_F(BIP151RekeyTest, rekeyRequired)
                            finalMsgSize);
    BinaryData encMsgBuffer(testMsgData.getSize() + 16);
    BinaryData decMsgBuffer(testMsgData.getSize());
-   for(uint32_t x = 0; x < 58823529; ++x)
+   for(uint32_t x = 0; x < 69; ++x)
    {
       cliCon.assemblePacket(testMsgData.getPtr(),
                             testMsgData.getSize(),
@@ -158,7 +159,7 @@ TEST_F(BIP151RekeyTest, rekeyRequired)
    // Repeat the data Tx and confirm that a rekey can be re-triggered.
    encMsgBuffer.resize(testMsgData.getSize() + 16);
    decMsgBuffer.resize(testMsgData.getSize());
-   for(uint32_t x = 0; x < 58823529; ++x)
+   for(uint32_t x = 0; x < 69; ++x)
    {
       cliCon.assemblePacket(testMsgData.getPtr(),
                             testMsgData.getSize(),

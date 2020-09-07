@@ -3444,6 +3444,7 @@ protected:
       config.threadCount_ = 3;
       config.dataDir_ = homedir_;
       config.ephemeralPeers_ = false;
+      config.oneWayAuth_ = true;
 
       unsigned port_int = 51152;
       stringstream port_ss;
@@ -3451,7 +3452,7 @@ protected:
       config.listenPort_ = port_ss.str();
 
       startupBIP151CTX();
-      startupBIP150CTX(4, false);
+      startupBIP150CTX(4);
 
       //setup auth peers for server and client
       authPeersPassLbd_ = [](const set<BinaryData>&)->SecureBinaryData
@@ -3515,8 +3516,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -3555,8 +3555,11 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_,  BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_,pCallback);
+         "127.0.0.1", config.listenPort_,
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -3596,8 +3599,11 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_,  BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_,pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -3954,7 +3960,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -3974,8 +3980,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
    Create a lot of client connections in parallel and slam the db with requests,
    then shutdown some of the clients before the requests are met.
    ***/
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -4014,8 +4019,11 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_,  BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_,pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -4065,8 +4073,11 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
 
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_,  BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_,pCallback);
+         "127.0.0.1", config.listenPort_,
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -4423,7 +4434,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
 
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -4439,8 +4450,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
@@ -4463,8 +4473,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -4705,7 +4718,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -4721,8 +4734,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
@@ -4745,8 +4757,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, true, 
+      pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -4987,7 +5002,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -5003,8 +5018,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
@@ -5027,8 +5041,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -5272,7 +5289,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -5288,8 +5305,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
@@ -5312,8 +5328,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -5557,7 +5576,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -5573,8 +5592,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
@@ -5597,8 +5615,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -5849,7 +5870,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -5865,8 +5886,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
@@ -5889,8 +5909,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -6146,7 +6169,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -6180,8 +6203,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
       DBTestUtils::pushNewZc(theBDMt_, zcVec, 0);
    }
 
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -6197,8 +6219,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -6437,7 +6462,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -6461,8 +6486,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
    feed->addPrivKey(TestChain::privKeyAddrE);
    feed->addPrivKey(TestChain::privKeyAddrF);
 
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
@@ -6480,8 +6504,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -6724,7 +6751,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -6740,8 +6767,7 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -6792,8 +6818,11 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -6843,7 +6872,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -6862,8 +6891,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
    feed->addPrivKey(TestChain::privKeyAddrB);
 
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -6904,8 +6932,11 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -7120,7 +7151,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -7136,8 +7167,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -7173,8 +7203,11 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -7311,7 +7344,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -7327,8 +7360,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -7364,8 +7396,11 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -7667,7 +7702,7 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -7691,8 +7726,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    feed->addPrivKey(TestChain::privKeyAddrE);
    feed->addPrivKey(TestChain::privKeyAddrF);
 
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
@@ -7710,8 +7744,11 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -8053,7 +8090,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -8077,8 +8114,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    feed->addPrivKey(TestChain::privKeyAddrE);
    feed->addPrivKey(TestChain::privKeyAddrF);
 
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
@@ -8096,8 +8132,11 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+      "127.0.0.1", config.listenPort_, 
+      BlockDataManagerConfig::getDataDir(),
+      authPeersPassLbd_, 
+      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
    bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -8352,8 +8391,11 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
       //try to grab from another bdvobj
       auto pCallback2 = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback2);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback2);
       bdvObj2->addPublicKey(serverPubkey);
       bdvObj2->connectToRemote();
       bdvObj2->registerWithDB(NetworkConfig::getMagicBytes());
@@ -8530,7 +8572,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -8549,8 +8591,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
    feed->addPrivKey(TestChain::privKeyAddrB);
 
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -8602,8 +8643,11 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -9077,7 +9121,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -9093,8 +9137,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -9105,8 +9148,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true,  //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -9383,7 +9429,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -9399,8 +9445,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -9411,8 +9456,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -9705,7 +9753,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -9721,8 +9769,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -9733,8 +9780,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -10042,7 +10092,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -10058,8 +10108,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -10070,8 +10119,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -10381,7 +10433,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -10397,8 +10449,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -10409,8 +10460,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -10716,7 +10770,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -10732,8 +10786,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -10744,8 +10797,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -11040,7 +11096,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -11056,8 +11112,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyInChain1)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -11068,8 +11123,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -11377,7 +11435,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -11393,8 +11451,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyInChain2)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -11405,8 +11462,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -11714,7 +11774,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -11730,8 +11790,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyInChain3)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -11742,8 +11801,11 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -12053,7 +12115,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -12069,8 +12131,7 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BroadcastAlreadyMinedTx)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -12081,8 +12142,11 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastAlreadyMinedTx)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -12130,7 +12194,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastAlreadyMinedTx)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -12158,8 +12222,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
       {}
    };
 
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -12172,8 +12235,11 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -12786,7 +12852,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -12816,8 +12882,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       {}
    };
 
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -12830,8 +12895,11 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -13442,7 +13510,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -13472,8 +13540,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
       {}
    };
 
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -13486,8 +13553,11 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -13797,7 +13867,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
@@ -13813,8 +13883,7 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_RebroadcastInvalidBatch)
 {
-   //public server
-   startupBIP150CTX(4, true);
+   startupBIP150CTX(4);
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -13825,8 +13894,11 @@ TEST_F(WebSocketTests, WebSocketStack_RebroadcastInvalidBatch)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, pCallback);
+         "127.0.0.1", config.listenPort_, 
+         BlockDataManagerConfig::getDataDir(),
+         authPeersPassLbd_, 
+         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
       bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
@@ -14059,7 +14131,7 @@ TEST_F(WebSocketTests, WebSocketStack_RebroadcastInvalidBatch)
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, nullptr);
+      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 

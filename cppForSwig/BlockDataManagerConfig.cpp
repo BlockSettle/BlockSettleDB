@@ -726,7 +726,7 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
    iter = args.find("public");
    if (iter != args.end())
    {
-      startupBIP150CTX(4, true);
+      oneWayAuth_ = true;
    }
 
    iter = args.find("encrypt-wallet");

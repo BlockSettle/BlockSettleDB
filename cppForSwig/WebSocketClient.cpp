@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "WebSocketClient.h"
+#include "BIP15x_Handshake.h"
 
 using namespace std;
 
@@ -27,15 +28,17 @@ static struct lws_protocols protocols[] = {
 ////////////////////////////////////////////////////////////////////////////////
 WebSocketClient::WebSocketClient(const string& addr, const string& port,
    const string& datadir, const PassphraseLambda& passLbd, 
-   const bool& ephemeralPeers, shared_ptr<RemoteCallback> cbPtr) :
-   SocketPrototype(addr, port, false), callbackPtr_(cbPtr)
+   const bool& ephemeralPeers, bool oneWayAuth,
+   shared_ptr<RemoteCallback> cbPtr) :
+   SocketPrototype(addr, port, false), 
+   servName_(addr_ + ":" + port_), callbackPtr_(cbPtr)
 {
    count_.store(0, std::memory_order_relaxed);
    requestID_.store(0, std::memory_order_relaxed);
 
-   std::string filename(CLIENT_AUTH_PEER_FILENAME);
    if (!ephemeralPeers)
    {
+      std::string filename(CLIENT_AUTH_PEER_FILENAME);
       authPeers_ = make_shared<AuthorizedPeers>(
          datadir, filename, passLbd);
    }
@@ -45,7 +48,7 @@ WebSocketClient::WebSocketClient(const string& addr, const string& port,
    }
 
    auto lbds = getAuthPeerLambda();
-   bip151Connection_ = make_shared<BIP151Connection>(lbds);
+   bip151Connection_ = make_shared<BIP151Connection>(lbds, oneWayAuth);
 }
 
 
@@ -118,7 +121,8 @@ void WebSocketClient::writeService()
             SerializedMessage rekey_msg;
             rekey_msg.construct(
                rekeyPacket.getDataVector(),
-               bip151Connection_.get(), WS_MSGTYPE_AEAD_REKEY);
+               bip151Connection_.get(), 
+               ArmoryAEAD::HandshakeSequence::Rekey);
 
             writeQueue_.push_back(move(rekey_msg));
             bip151Connection_->rekeyOuterSession();
@@ -508,7 +512,8 @@ void WebSocketClient::readService()
       if (!currentReadMessage_.message_.isReady())
          continue;
 
-      if (currentReadMessage_.message_.getType() > WS_MSGTYPE_AEAD_THESHOLD)
+      if (currentReadMessage_.message_.getType() > 
+         ArmoryAEAD::HandshakeSequence::Threshold_Begin)
       {
          if (!processAEADHandshake(currentReadMessage_.message_))
          {
@@ -580,7 +585,7 @@ void WebSocketClient::readService()
 ////////////////////////////////////////////////////////////////////////////////
 bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj)
 {
-   auto writeData = [this](BinaryData& payload, uint8_t type, bool encrypt)
+   auto writeData = [this](const BinaryData& payload, uint8_t type, bool encrypt)
    {
       SerializedMessage msg;
       BIP151Connection* connPtr = nullptr;
@@ -598,186 +603,64 @@ bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj
          throw LWS_Error("invalid lws instance");
    };
 
+   if (serverPubkeyProm_ != nullptr)
+   {
+      //wait on server pubkey announce ACK/nACK
+      auto fut = serverPubkeyProm_->get_future();
+      fut.wait();
+      serverPubkeyProm_.reset();
+   }
+
    auto msgbdr = msgObj.getSingleBinaryMessage();
    switch (msgObj.getType())
    {
-   case WS_MSGTYPE_AEAD_PRESENT_PUBKEY:
+   case ArmoryAEAD::HandshakeSequence::PresentPubKey:
    {
       /*packet is server's pubkey, do we have it?*/
       
-      //init server promise
-      serverPubkeyProm_ = make_shared<promise<bool>>();
-
-      //compute server name
-      stringstream ss;
-      ss << addr_ << ":" << port_;
-
-      if (!bip151Connection_->havePublicKey(msgbdr, ss.str()))
+      if (!bip151Connection_->havePublicKey(msgbdr, servName_))
       {
-         //we don't have this key, call user prompt lambda
-         promptUser(msgbdr, ss.str());
-      }
-      else
-      {
-         //set server key promise
-         serverPubkeyProm_->set_value(true);
+         //we don't have this key, setup promise and prompt user
+         serverPubkeyProm_ = make_shared<promise<bool>>();
+         promptUser(msgbdr, servName_);
       }
 
+      return true;
+   }
+
+   default: 
       break;
    }
 
-   case WS_MSGTYPE_AEAD_ENCINIT:
+   //regular client side AEAD handshake processing
+   auto status = ArmoryAEAD::BIP15x_Handshake::clientSideHandshake(
+      bip151Connection_.get(), servName_,
+      msgObj.getType(), msgbdr, 
+      writeData);
+
+   switch (status)
    {
-      if (bip151Connection_->processEncinit(
-         msgbdr.getPtr(), msgbdr.getSize(), false) != 0)
-         return false;
+   case ArmoryAEAD::HandshakeState::StepSuccessful:
+      return true;
 
-      //valid encinit, send client side encack
-      BinaryData encackPayload(BIP151PUBKEYSIZE);
-      if (bip151Connection_->getEncackData(
-         encackPayload.getPtr(), BIP151PUBKEYSIZE) != 0)
-      {
-         return false;
-      }
-      
-      writeData(encackPayload, WS_MSGTYPE_AEAD_ENCACK, false);
-
-      //start client side encinit
-      BinaryData encinitPayload(ENCINITMSGSIZE);
-      if (bip151Connection_->getEncinitData(
-         encinitPayload.getPtr(), ENCINITMSGSIZE,
-         BIP151SymCiphers::CHACHA20POLY1305_OPENSSH) != 0)
-      {
-         return false;
-      }
-
-      writeData(encinitPayload, WS_MSGTYPE_AEAD_ENCINIT, false);
-
-      break;
-   }
-   case WS_MSGTYPE_AEAD_ENCACK:
+   case ArmoryAEAD::HandshakeState::RekeySuccessful:
    {
-      if (bip151Connection_->processEncack(
-         msgbdr.getPtr(), msgbdr.getSize(), true) == -1)
-         return false;
-
-      //have we seen the server's pubkey?
-      if (serverPubkeyProm_ != nullptr)
-      {
-         //if so, wait on the promise
-         auto serverProm = serverPubkeyProm_;
-         auto fut = serverProm->get_future();
-         fut.wait();
-         serverPubkeyProm_.reset();
-      }
-
-      //bip151 handshake completed, time for bip150
-      stringstream ss;
-      ss << addr_ << ":" << port_;
-
-      BinaryData authchallengeBuf(BIP151PRVKEYSIZE);
-      if (bip151Connection_->getAuthchallengeData(
-         authchallengeBuf.getPtr(),
-         authchallengeBuf.getSize(),
-         ss.str(),
-         true, //true: auth challenge step #1 of 6
-         false) != 0) //false: have not processed an auth propose yet
-      {
-         return false;
-      }
-
-      writeData(authchallengeBuf, WS_MSGTYPE_AUTH_CHALLENGE, true);
-
-      break;
-   }
-
-   case WS_MSGTYPE_AEAD_REKEY:
-   {
-      //rekey requests before auth are invalid
-      if (bip151Connection_->getBIP150State() != BIP150State::SUCCESS)
-         return false;
-
-      //if connection is already setup, we only accept rekey enack messages
-      if (bip151Connection_->processEncack(
-         msgbdr.getPtr(), msgbdr.getSize(), false) == -1)
-         return false;
-
       ++innerRekeyCount_;
-      break;
+      return true;
    }
 
-   case WS_MSGTYPE_AUTH_REPLY:
+   case ArmoryAEAD::HandshakeState::Completed:
    {
-      if (bip151Connection_->processAuthreply(
-         msgbdr.getPtr(),
-         msgbdr.getSize(),
-         true, //true: step #2 out of 6
-         false) != 0) //false: haven't seen an auth challenge yet
-      {
-         return false;
-      }
-
-      BinaryData authproposeBuf(BIP151PRVKEYSIZE);
-      if (bip151Connection_->getAuthproposeData(
-         authproposeBuf.getPtr(),
-         authproposeBuf.getSize()) != 0)
-      {
-         return false;
-      }
-
-      writeData(authproposeBuf, WS_MSGTYPE_AUTH_PROPOSE, true);
-
-      break;
-   }
-   case WS_MSGTYPE_AUTH_CHALLENGE:
-   {
-      bool goodChallenge = true;
-      auto challengeResult =
-         bip151Connection_->processAuthchallenge(
-            msgbdr.getPtr(),
-            msgbdr.getSize(),
-            false); //true: step #4 of 6
-
-      if (challengeResult == -1)
-      {
-         //auth fail, kill connection
-         return false;
-      }
-      else if (challengeResult == 1)
-      {
-         goodChallenge = false;
-      }
-
-      BinaryData authreplyBuf(BIP151PRVKEYSIZE * 2);
-      auto validReply = bip151Connection_->getAuthreplyData(
-         authreplyBuf.getPtr(),
-         authreplyBuf.getSize(),
-         false, //true: step #5 of 6
-         goodChallenge);
-
-      writeData(authreplyBuf, WS_MSGTYPE_AUTH_REPLY, true);
-
-      if (validReply != 0)
-      {
-         //auth setup failure, kill connection
-         return false;
-      }
-
-      //rekey
-      bip151Connection_->bip150HandshakeRekey();
       outKeyTimePoint_ = chrono::system_clock::now();
 
       //flag connection as ready
       connectionReadyProm_.set_value(true);
-
-      break;
+      return true;
    }
 
    default:
       return false;
    }
-
-   return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

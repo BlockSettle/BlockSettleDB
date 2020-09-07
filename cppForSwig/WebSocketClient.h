@@ -98,6 +98,7 @@ class WebSocketClient : public SocketPrototype
 {
 private:
    std::atomic<void*> wsiPtr_;
+   const std::string servName_;
 
    std::atomic<unsigned> requestID_;
    std::atomic<bool> connected_ = { false };
@@ -149,7 +150,8 @@ private:
 public:
    WebSocketClient(const std::string& addr, const std::string& port,
       const std::string& datadir, const PassphraseLambda&, 
-      const bool& ephemeralPeers, std::shared_ptr<RemoteCallback> cbPtr);
+      const bool& ephemeralPeers, bool oneWayAuth,
+      std::shared_ptr<RemoteCallback> cbPtr);
 
    ~WebSocketClient()
    {
