@@ -104,11 +104,11 @@ server:
          . rekey
          . mark auth handshake as completed
 
-      !!!!!CHANNEL IS READY!!!!!
-
       ******************************
    ***** 2-WAY AUTH HANDSHAKE END *****
       ******************************
+
+
 
       ********************************
    ***** 1-WAY AUTH HANDSHAKE BEGIN *****
@@ -129,11 +129,11 @@ server:  . process auth propose
 
 ---
 client:  . process auth challenge:
-            check hash(inSession.id | 'p' | [0xFF **33])
+            check hash(inSession.id | 'r' | [0xFF **33])
                -> on failure, send auth reply before killing connection
          
          . send auth reply:
-            own auth pubkey
+            [own auth pubkey]
          
          . rekey
          . mark auth handshake as completed
@@ -144,8 +144,6 @@ server:  . process auth reply:
          
          . rekey
          . mark auth handshake as completed
-
-      !!!!!CHANNEL IS READY!!!!!
 
       ******************************
    ***** 1-WAY AUTH HANDSHAKE END *****
@@ -242,7 +240,6 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
 
    case HandshakeSequence::Challenge:
    {
-      bool goodChallenge = true;
       auto challengeResult = connPtr->processAuthchallenge(
          msg.getPtr(),
          msg.getSize(),
@@ -253,17 +250,12 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
          //auth fail, kill connection
          return HandshakeState::Error_ProcessAuthChallenge;
       }
-      else if (challengeResult == 1)
-      {
-         goodChallenge = false;
-      }
 
       BinaryData authreplyBuf(BIP151PRVKEYSIZE * 2);
       if (connPtr->getAuthreplyData(
          authreplyBuf.getPtr(),
          authreplyBuf.getSize(),
-         true, //true: step #2 of 6
-         goodChallenge) == -1)
+         true) == -1) //true: step #2 of 6
       {
          //auth setup failure, kill connection
          return HandshakeState::Error_GetAuthReply;
@@ -276,7 +268,6 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
 
    case HandshakeSequence::Propose:
    {
-      bool goodPropose = true;
       auto proposeResult = connPtr->processAuthpropose(
          msg.getPtr(),
          msg.getSize());
@@ -286,23 +277,14 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
          //auth setup failure, kill connection
          return HandshakeState::Error_ProcessAuthPropose;
       }
-      else if (proposeResult == 1)
-      {
-         goodPropose = false;
-      }
-      else
-      {
-         //keep track of the propose check state
-         connPtr->setGoodPropose();
-      }
 
       BinaryData authchallengeBuf(BIP151PRVKEYSIZE);
       if (connPtr->getAuthchallengeData(
          authchallengeBuf.getPtr(),
          authchallengeBuf.getSize(),
          "", //empty string, use chosen key from processing auth propose
-         false, //false: step #4 of 6
-         goodPropose) == -1)
+         //false: step #4 of 6
+         false) == -1)
       {
          //auth setup failure, kill connection
          return HandshakeState::Error_GetAuthChallenge;
@@ -318,8 +300,7 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
       if (connPtr->processAuthreply(
          msg.getPtr(),
          msg.getSize(),
-         false,
-         connPtr->getProposeFlag()) != 0)
+         false) != 0)
       {
          //invalid auth setup, kill connection
          return HandshakeState::Error_ProcessAuthReply;
@@ -394,8 +375,7 @@ HandshakeState BIP15x_Handshake::clientSideHandshake(
          authchallengeBuf.getPtr(),
          authchallengeBuf.getSize(),
          servName,
-         true, //true: auth challenge step #1 of 6
-         false) != 0) //false: have not processed an auth propose yet
+         true) != 0) //true: auth challenge step #1 of 6
       {
          return HandshakeState::Error_GetAuthChallenge;
       }
@@ -423,8 +403,7 @@ HandshakeState BIP15x_Handshake::clientSideHandshake(
       if (connPtr->processAuthreply(
          msg.getPtr(),
          msg.getSize(),
-         true, //true: step #2 out of 6
-         false) != 0) //false: haven't seen an auth challenge yet
+         true) != 0) //true: step #2 out of 6
       {
          return HandshakeState::Error_ProcessAuthReply;
       }
@@ -445,24 +424,17 @@ HandshakeState BIP15x_Handshake::clientSideHandshake(
    {
       //should return a reply packet to the server even if this step fails
 
-      bool goodChallenge = true;
       auto challengeResult =
          connPtr->processAuthchallenge(
             msg.getPtr(),
             msg.getSize(),
-            false); //true: step #4 of 6
-
-      if (challengeResult == 1)
-      {
-         goodChallenge = false;
-      }
+            false); //false: step #4 of 6
 
       BinaryData authreplyBuf(BIP151PRVKEYSIZE * 2);
       auto validReply = connPtr->getAuthreplyData(
          authreplyBuf.getPtr(),
          authreplyBuf.getSize(),
-         false, //true: step #5 of 6
-         goodChallenge);
+         false); //false: step #5 of 6
 
       writeCb(authreplyBuf, HandshakeSequence::Reply, true);
 
