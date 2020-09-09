@@ -204,7 +204,7 @@ private:
 public:
    BIP150StateMachine(
       BIP151Session* incomingSes, BIP151Session* outgoingSes,
-      AuthPeersLambdas& authkeys, bool);
+      AuthPeersLambdas& authkeys, bool oneWayAuth);
 
    int processAuthchallenge(const BinaryData& inData,
       const bool& requesterSent);
@@ -224,6 +224,7 @@ public:
    bool havePublicKey(const BinaryDataRef&, const std::string&) const;
    // For unit tests
    btc_pubkey getChosenAuthPeerKey() const { return chosenAuthPeerKey; }
+   bool isOneWayAuth(void) const { return oneWayAuth_; }
 };
 
 class BIP151Connection
@@ -287,7 +288,7 @@ public:
    // For unit tests
    btc_pubkey getChosenAuthPeerKey() const { return bip150SM_.getChosenAuthPeerKey(); }
 
-   bool isPublic(void) { return true; }
+   bool isOneWayAuth(void) { bip150SM_.isOneWayAuth(); }
 };
 
 // Class to use on BIP 151 encrypted messages. Contains the plaintext contents
