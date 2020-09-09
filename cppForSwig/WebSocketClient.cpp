@@ -617,6 +617,12 @@ bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj
    case ArmoryAEAD::HandshakeSequence::PresentPubKey:
    {
       /*packet is server's pubkey, do we have it?*/
+      if (!bip151Connection_->isOneWayAuth())
+      {
+         LOGERR << "Trying to connect to 1-way server as a 2-way client" <<
+            " Aborting!";
+         return false;
+      }
       
       if (!bip151Connection_->havePublicKey(msgbdr, servName_))
       {

@@ -942,7 +942,7 @@ void ClientConnection::processAEADHandshake(BinaryData msg)
          are talking to, do not expect anonimity on the clearnet or over something 
          like a Tor exit node.
          */
-         if (bip151Connection_->isPublic())
+         if (bip151Connection_->isOneWayAuth())
          {
             writeToClient(
                bip151Connection_->getOwnPubKey(), 
