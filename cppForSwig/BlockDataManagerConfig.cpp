@@ -296,70 +296,65 @@ string BlockDataManagerConfig::stripQuotes(const string& input)
 ////////////////////////////////////////////////////////////////////////////////
 void BlockDataManagerConfig::printHelp(void)
 {
-   //TODO: spit out arg list with description
-   exit(0);
+  static std::string helpMsg = R"(
+--help                    print help message and exit
+--testnet                 run db against testnet bitcoin network
+--regtest                 run db against regression test network
+--rescan                  delete all processed history data and rescan
+                          blockchain from the first block
+--rebuild                 delete all DB data and build and scan from scratch
+--rescanSSH               delete balance and txcount data and rescan it.
+                          Much faster than rescan or rebuild.
+--checkchain              builds db (no scanning) with full txhints, then
+                          verifies all tx (consensus and sigs).
+--datadir                 path to the operation folder
+--dbdir                   path to folder containing the database files.
+                          If empty, a new db will be created there
+--satoshi-datadir         path to blockchain data folder (blkXXXXX.dat files)
+--ram-usage               defines the ram use during scan operations.
+                          1 level averages 128MB of ram (without accounting the
+                          base amount, ~400MB). Defaults at 50.
+                          Can't be lower than 1.
+                          Can be changed in between processes
+--thread-count            defines how many processing threads can be used during
+                          db builds and scans. Defaults to maximum available CPU
+                          threads. Can't be lower than 1. Can be changed in
+                          between processes
+--zcthread-count          defines the maximum number on threads the zc parser
+                          can create for processing incoming transcations from
+                          the network node
+--db-type                 sets the db type:
+                          DB_BARE:  tracks wallet history only. Smallest DB.
+                          DB_FULL:  tracks wallet history and resolves all
+                                    relevant tx hashes. ~2.4GB DB at the time
+                                    of 0.97 release. Default DB type.
+                          DB_SUPER: tracks all blockchain history.
+                                    XXL DB (100GB+).
+                          db type cannot be changed in between processes.
+                          Once a db has been built with a certain type, it will
+                          always function according to that type.
+                          Specifying another type will do nothing. Build a new
+                          db to change type.
+--cookie                  create a cookie file holding a random authentication
+                          key to allow local clients to make use of elevated
+                          commands, like shutdown. Client and server will make
+                          use of ephemeral peer keys, ignoring the on disk peer
+                          wallet
+--listen-port             sets the DB listening port.
+--clear-mempool           delete all zero confirmation transactions from the DB.
+--satoshirpc-port         set node rpc port
+--satoshi-port            set Bitcoin node port
+--public                  BIP150 auth will allow for anonymous requesters.
+                          While only clients can be anon (servers/responders are
+                          always auth'ed), both sides need to enable public
+                          channels for the handshake to succeed)";
+
+  cerr << helpMsg << endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
 {
-   /***
-   --testnet: run db against testnet bitcoin network
-
-   --regtest: run db against regression test network
-
-   --rescan: delete all processed history data and rescan blockchain from the
-   first block
-
-   --rebuild: delete all DB data and build and scan from scratch
-
-   --rescanSSH: delete balance and txcount data and rescan it. Much faster than
-   rescan or rebuild.
-
-   --datadir: path to the operation folder
-
-   --dbdir: path to folder containing the database files. If empty, a new db
-   will be created there
-
-   --satoshi-datadir: path to blockchain data folder (blkXXXXX.dat files)
-
-   --ram-usage: defines the ram use during scan operations. 1 level averages
-   128MB of ram (without accounting the base amount, ~400MB). Defaults at 50.
-   Can't be lower than 1. Can be changed in between processes
-
-   --thread-count: defines how many processing threads can be used during db
-   builds and scans. Defaults to maximum available CPU threads. Can't be
-   lower than 1. Can be changed in between processes
-
-   --zcthread-count: defines the maximum number on threads the zc parser can
-   create for processing incoming transcations from the network node
-
-   --db-type: sets the db type:
-   DB_BARE: tracks wallet history only. Smallest DB.
-   DB_FULL: tracks wallet history and resolves all relevant tx hashes.
-   ~750MB DB at the time of 0.95 release. Default DB type.
-   DB_SUPER: tracks all blockchain history. XXL DB (100GB+).
-   Not implemented yet
-
-   db type cannot be changed in between processes. Once a db has been built
-   with a certain type, it will always function according to that type.
-   Specifying another type will do nothing. Build a new db to change type.
-
-   --cookie: create a cookie file holding a random authentication key to allow
-   local clients to make use of elevated commands, like shutdown. Client and 
-   server will make use of ephemeral peer keys, ignoring the on disk peer wallet
-
-   --listen-port: sets the DB listening port.
-
-   --clear-mempool: delete all zero confirmation transactions from the DB.
-
-   --satoshirpc-port: set node rpc port
-
-   --satoshi-port: set Bitcoin node port
-
-   --public: BIP150 auth will allow for anonymous requesters. While only clients
-   can be anon (servers/responders are always auth'ed), both sides need to enable
-   public channels for the handshake to succeed
 /////////////////////////// Altered for ArmoryDB repo //////////////////////////
    This fork makes --public the default case. Users need not use it.
 
@@ -370,9 +365,6 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
    --encrypt-wallet invoke passphrase dialog to encrypt the wallet during the first
    run
 ////////////////////////////////////////////////////////////////////////////////
-
-   ***/
-
    try
    {
       //parse cli args
@@ -380,13 +372,17 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
       for (int i = 1; i < argc; i++)
       {
          string line(argv[i], strlen(argv[i]));
+         if (line == ("--help")) {
+            printHelp();
+            exit(0);
+         }
 
          //string prefix and tokenize
          auto strings = tokenizeLine(line, "--");
          for (auto& line : strings)
          {
             auto keyVal = getKeyValFromLine(line, '=');
-            
+
             args.insert(make_pair(
                keyVal.first, stripQuotes(keyVal.second)));
          }
@@ -535,11 +531,15 @@ void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
             }
          }
       }
-   }
-   catch (...)
-   {
-      exceptionPtr_ = current_exception();
-   }
+  }
+  catch (DbErrorMsg& e)
+  {
+     cerr << e.what() << endl;
+     throw;
+  }
+  catch (...) {
+    exceptionPtr_ = current_exception();
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -631,7 +631,7 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
    if (iter != args.end())
       checkChain_ = true;
 
-   iter = args.find("clear_mempool");
+   iter = args.find("clear-mempool");
    if (iter != args.end())
       clearMempool_ = true;
 
@@ -649,6 +649,7 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
       {
          cout << "Error: unexpected DB type: " << iter->second << endl;
          printHelp();
+         exit(0);
       }
    }
 

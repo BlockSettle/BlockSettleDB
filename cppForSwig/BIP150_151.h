@@ -288,7 +288,7 @@ public:
    // For unit tests
    btc_pubkey getChosenAuthPeerKey() const { return bip150SM_.getChosenAuthPeerKey(); }
 
-   bool isOneWayAuth(void) { bip150SM_.isOneWayAuth(); }
+   bool isOneWayAuth(void) { return bip150SM_.isOneWayAuth(); }
 };
 
 // Class to use on BIP 151 encrypted messages. Contains the plaintext contents
