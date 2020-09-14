@@ -35,19 +35,22 @@
 
 using namespace std;
 
+const size_t MByte = 1024ULL * 1024;
+const size_t GByte = 1024ULL * 1024 * 1024;
+
 const set<DB_SELECT> LMDBBlockDatabase::supernodeDBs_({});
 const map<string, size_t> LMDBBlockDatabase::mapSizes_ = {
-   {"headers", 4 * 1024 * 1024 * 1024ULL},
-   {"blkdata", 1024 * 1024ULL},
-   {"history", 1024 * 1024ULL},
-   {"txhints", 20 * 1024 * 1024 * 1024ULL},
-   {"ssh",   100 * 1024 * 1024 * 1024ULL},
-   {"subssh", 100 * 1024 * 1024 * 1024ULL},
-   {"subssh_meta", 100 * 1024 * 1024ULL},
-   {"stxo", 100 * 1024 * 1024 * 1024ULL},
-   {"zeroconf", 10 * 1024 * 1024 * 1024ULL},
-   {"txfilters", 10 * 1024 * 1024 * 1024ULL},
-   {"spentness", 100 * 1024 * 1024 * 1024ULL},
+   {"headers",      4 * GByte},
+   {"blkdata",      1 * MByte},
+   {"history",      1 * MByte},
+   {"txhints",      100 * GByte},
+   {"ssh",          2000 * GByte},
+   {"subssh",       2000 * GByte},
+   {"subssh_meta",  1 * GByte},
+   {"stxo",         2000 * GByte},
+   {"zeroconf",     10 * GByte},
+   {"txfilters",    10 * GByte},
+   {"spentness",    2000 * GByte},
 };
 
 ////////////////////////////////////////////////////////////////////////////////
