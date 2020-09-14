@@ -741,7 +741,7 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
    iter = args.find("fullbip150");
    if (iter != args.end())
    {
-      startupBIP150CTX(4, false);
+      oneWayAuth_ = false;
    }
 ////////////////////////////////////////////////////////////////////////////////
 }

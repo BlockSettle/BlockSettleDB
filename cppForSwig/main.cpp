@@ -23,9 +23,6 @@ int main(int argc, char* argv[])
    btc_ecc_start();
    startupBIP151CTX();
    startupBIP150CTX(4);
-//   startupBIP150CTX(4, false);
-   startupBIP150CTX(4, true);
-////////////////////////////////////////////////////////////////////////////////
 
    GOOGLE_PROTOBUF_VERIFY_VERSION;
 

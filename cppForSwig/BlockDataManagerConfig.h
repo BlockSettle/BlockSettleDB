@@ -59,7 +59,7 @@ public:
    static std::string dataDir_;
 
    static bool ephemeralPeers_;
-   bool oneWayAuth_ = false;
+   bool oneWayAuth_ = true; //BlockSettleDB modification: default to public db
 
    std::string blkFileLocation_;
    std::string dbDir_;
