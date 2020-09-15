@@ -348,6 +348,18 @@ void BlockDataManagerConfig::printHelp(void)
                           While only clients can be anon (servers/responders are
                           always auth'ed), both sides need to enable public
                           channels for the handshake to succeed)";
+                          
+/////////////////////////// Altered for ArmoryDB repo //////////////////////////
+   //This fork makes --public the default case. Users need not use it.
+
+   helpMsg += R"(
+--fullbip150:             BIP150 auth will not allow any anonymous participants. Both
+                          sides must authenticate each other. (This is the default behavior in the
+                          upstream ArmoryDB. fullbip150 is set only in this fork.)
+
+--encrypt-wallet:         invoke passphrase dialog to encrypt the wallet during the first
+                          run)";
+////////////////////////////////////////////////////////////////////////////////
 
   cerr << helpMsg << endl;
 }
@@ -355,16 +367,6 @@ void BlockDataManagerConfig::printHelp(void)
 ////////////////////////////////////////////////////////////////////////////////
 void BlockDataManagerConfig::parseArgs(int argc, char* argv[])
 {
-/////////////////////////// Altered for ArmoryDB repo //////////////////////////
-   This fork makes --public the default case. Users need not use it.
-
-   --fullbip150: BIP150 auth will not allow any anonymous participants. Both
-   sides must authenticate each other. (This is the default behavior in the
-   upstream ArmoryDB. fullbip150 is set only in this fork.)
-
-   --encrypt-wallet invoke passphrase dialog to encrypt the wallet during the first
-   run
-////////////////////////////////////////////////////////////////////////////////
    try
    {
       //parse cli args
