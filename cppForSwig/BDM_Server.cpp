@@ -1084,29 +1084,56 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
          }
 
          if (wltPtr == nullptr)
-            throw runtime_error("unknown wallet/lockbox ID");
+         {
+            LOGERR << "getCombinedBalances: " << 
+               "unknown wallet ID (" << id << ")";
+            throw runtime_error("unknown wallet ID");
+         }
 
          auto combinedData = response->add_packedbalance();
          
-         //wallet balances and count
-         combinedData->set_id(id);
-         combinedData->add_idbalances(wltPtr->getFullBalance());
-         combinedData->add_idbalances(wltPtr->getSpendableBalance(height));
-         combinedData->add_idbalances(wltPtr->getUnconfirmedBalance(height));
-         combinedData->add_idbalances(wltPtr->getWltTotalTxnCount());
-
+         try 
+         {
+            //wallet balances and count
+            combinedData->set_id(id);
+            combinedData->add_idbalances(wltPtr->getFullBalance());
+            combinedData->add_idbalances(wltPtr->getSpendableBalance(height));
+            combinedData->add_idbalances(wltPtr->getUnconfirmedBalance(height));
+            combinedData->add_idbalances(wltPtr->getWltTotalTxnCount());
+         }
+         catch (const exception& e)
+         {
+            LOGERR << "getCombinedBalances: " << 
+               "failed to get balance for wallet" << id << 
+               "with error: " << e.what();
+            throw e;
+         }
 
          //address balances and counts
-         auto&& balanceMap = wltPtr->getAddrBalances(
-            updateID_, this->getTopBlockHeight());
-
-         for (auto balances : balanceMap)
+         try
          {
-            auto addrData = combinedData->add_addrdata();
-            addrData->set_scraddr(balances.first.getPtr(), balances.first.getSize());
-            addrData->add_value(get<0>(balances.second));
-            addrData->add_value(get<1>(balances.second));
-            addrData->add_value(get<2>(balances.second));
+            auto&& balanceMap = wltPtr->getAddrBalances(
+               updateID_, this->getTopBlockHeight());
+
+            for (auto balances : balanceMap)
+            {
+               auto addrData = combinedData->add_addrdata();
+               addrData->set_scraddr(
+                  balances.first.getPtr(), balances.first.getSize());
+               addrData->add_value(get<0>(balances.second));
+               addrData->add_value(get<1>(balances.second));
+               addrData->add_value(get<2>(balances.second));
+            }
+         }
+         catch (const exception& e)
+         {
+            LOGERR << "getCombinedBalances: " << 
+         #ifdef NDEBUG
+               "failed to get balance for address";
+         #else
+               "failed to get balance for address with error: " << e.what();
+         #endif
+            throw e;
          }
       }
 
@@ -1143,7 +1170,11 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
          }
 
          if (wltPtr == nullptr)
-            throw runtime_error("unknown wallet or lockbox ID");
+         {
+            LOGERR << "getCombinedAddrTxnCounts: " << 
+               "unknown wallet ID (" << id << ")";
+            throw runtime_error("unknown wallet ID");
+         }
 
          auto&& countMap = wltPtr->getAddrTxnCounts(updateID_);
          if (countMap.size() == 0)
@@ -2345,9 +2376,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processPayload(
       auto errMsg = make_shared<::Codec_BDVCommand::BDV_Error>();
       stringstream ss;
       ss << "Error processing command: " << (int)message->method() << endl;
-      string errStr(e.what());
-      if (errStr.size() > 0)
-         ss << e.what();
+      ss << "   errMsg: \"" << e.what() << "\"";
 
       errMsg->set_code(-1);
       errMsg->set_errstr(ss.str());

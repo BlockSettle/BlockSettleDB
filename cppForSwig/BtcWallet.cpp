@@ -125,9 +125,27 @@ map<BinaryData, tuple<uint64_t, uint64_t, uint64_t>>
       if (sa.second->updateID_ <= lastPulledBalancesID_)
          continue;
 
-      auto full = sa.second->getFullBalance(UINT32_MAX);
-      auto spendable = sa.second->getSpendableBalance(blockHeight);
-      auto unconf = sa.second->getUnconfirmedBalance(blockHeight, confTarget_);
+      uint64_t full, spendable, unconf;
+
+      #ifdef DEBUG
+      try
+      {
+      #endif
+
+         full = sa.second->getFullBalance(UINT32_MAX);
+         spendable = sa.second->getSpendableBalance(blockHeight);
+         unconf = sa.second->getUnconfirmedBalance(blockHeight, confTarget_);
+
+      #ifdef DEBUG
+      }
+      catch (...)
+      {
+         LOGERR << "BtcWallet::getAddrBalances: " <<
+            " failed to get balance for address: " <<
+            sa.first.toHexStr();
+         throw runtime_error(sa.first.toHexStr());
+      }
+      #endif
 
       if (lastPulledBalancesID_ <= 0)
       {
