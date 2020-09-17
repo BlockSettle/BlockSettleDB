@@ -8195,7 +8195,8 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    }
    catch (ClientMessageError& e)
    {
-      EXPECT_EQ(string(e.what()), string("Error processing command: 80\nfailed to grab tx by hash"));
+      EXPECT_EQ(string(e.what()), 
+         string("Error processing command: 80\n   errMsg: \"failed to grab tx by hash\""));
    }
    catch (...)
    {
@@ -8912,7 +8913,9 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
       }
       catch (ClientMessageError& e)
       {
-         EXPECT_EQ(e.what(), string("Error processing command: 84\nmalformed output data"));
+         EXPECT_EQ(e.what(), 
+            string(R"(Error processing command: 84
+   errMsg: "malformed output data")"));
       }
 
       //get zc utxos
