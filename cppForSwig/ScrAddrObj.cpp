@@ -24,7 +24,7 @@ ScrAddrObj::ScrAddrObj(LMDBBlockDatabase *db, Blockchain *bc,
 ////////////////////////////////////////////////////////////////////////////////
 uint64_t ScrAddrObj::getSpendableBalance(uint32_t currBlk) const
 {
-   //ignoreing the currBlk for now, until the partial history loading is solid
+   //TODO: this call is way too expensive, improve it
    uint64_t balance = getFullBalance();
 
    auto&& txios = getTxios();
@@ -43,6 +43,7 @@ uint64_t ScrAddrObj::getSpendableBalance(uint32_t currBlk) const
 uint64_t ScrAddrObj::getUnconfirmedBalance(
    uint32_t currBlk, unsigned confTarget) const
 {
+   //TODO: this call is way too expensive, improve it
    uint64_t balance = 0;
    auto&& txios = getTxios();
    for (auto& txio : txios)
@@ -56,10 +57,12 @@ uint64_t ScrAddrObj::getUnconfirmedBalance(
 ////////////////////////////////////////////////////////////////////////////////
 uint64_t ScrAddrObj::getFullBalance(unsigned updateID) const
 {
+   //grab mined balance
    StoredScriptHistory ssh;
    db_->getStoredScriptHistorySummary(ssh, scrAddr_);
    uint64_t balance = ssh.getScriptBalance(false);
 
+   //grab zc balances
    auto&& txios = getHistoryForScrAddr(UINT32_MAX, UINT32_MAX, 0, false);
    for (auto& txio : txios)
    {
