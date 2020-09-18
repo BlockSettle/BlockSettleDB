@@ -3238,7 +3238,7 @@ BinaryData Signer::getTxId_const() const
    for (auto spender : spenders_)
    {
       if (!spender->isSegWit() && !spender->isSigned())
-         throw runtime_error("cannot get hash for unsigned legacy tx");
+         throw runtime_error("cannot get hash for unsigned legacy input");
 
       bw.put_BinaryData(spender->getSerializedInput(false));
    }
