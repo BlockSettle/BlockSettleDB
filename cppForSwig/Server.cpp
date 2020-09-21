@@ -215,6 +215,11 @@ void WebSocketServer::initAuthPeers(const PassphraseLambda& passLbd)
       string peerFilename(SERVER_AUTH_PEER_FILENAME);
       instance->authorizedPeers_ = make_shared<AuthorizedPeers>(
          BlockDataManagerConfig::getDataDir(), peerFilename, passLbd);
+
+      const auto &pubKey = instance->authorizedPeers_->getOwnPublicKey();
+      auto pubKeyCopy = BinaryData(pubKey.pubkey, pubKey.compressed
+         ? BTC_ECKEY_COMPRESSED_LENGTH : BTC_ECKEY_UNCOMPRESSED_LENGTH);
+      LOGERR << "own pub key: " << pubKeyCopy.toHexStr();
    }
    else
    {
