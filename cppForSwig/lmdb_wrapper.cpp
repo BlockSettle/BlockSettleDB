@@ -537,8 +537,9 @@ void LMDBBlockDatabase::destroyAndResetDatabases(void)
    // We want to make sure the database is restarted with the same parameters
    // it was called with originally
    {
+      auto dbMap{dbMap_}; //save dbMap because closeDatabases clears it
       closeDatabases();
-      for (auto& dbPair : dbMap_)
+      for (auto& dbPair : dbMap)
          dbPair.second->eraseOnDisk();
    }
    
