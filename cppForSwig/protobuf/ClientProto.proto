@@ -40,6 +40,7 @@ enum Methods
     getScrAddrForScript = 93;
     getLastPushDataInScript = 94;
     getTxOutScriptForScrAddr = 95;
+    getAddrStrForScrAddr = 96;
     
     getUtxosForValue = 100;
     getSpendableZCList = 101;
@@ -67,8 +68,10 @@ enum Methods
     signer_signTx = 139;
     signer_getSignedTx = 140;
     signer_getSignedStateForInput = 141;
+    signer_resolve = 142;
 
     getHash160 = 200;
+    getBlockTimeByHeight = 201;
 }
 
 message ClientCommand
@@ -299,4 +302,10 @@ message BridgeCreateWalletStruct
 
     optional string label = 30;
     optional string description = 31;
+}
+
+message ReplyError
+{
+    required string error = 1;
+    optional uint32 code = 2;
 }

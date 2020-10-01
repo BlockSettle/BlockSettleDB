@@ -87,7 +87,7 @@ void startupBIP151CTX();
 void shutdownBIP151CTX();
 
 // Global function used to load up the key DBs. CALL AFTER BIP 151 IS INITIALIZED.
-void startupBIP150CTX(const uint32_t& ipVer, bool publicRequester);
+void startupBIP150CTX(const uint32_t& ipVer);
 
 struct AuthPeersLambdas
 {
@@ -199,21 +199,21 @@ private:
    btc_pubkey chosenChallengeKey;
 
    AuthPeersLambdas authKeys_;
+   const bool oneWayAuth_;
 
 public:
-   BIP150StateMachine(BIP151Session* incomingSes, BIP151Session* outgoingSes,
-      AuthPeersLambdas& authkeys);
+   BIP150StateMachine(
+      BIP151Session* incomingSes, BIP151Session* outgoingSes,
+      AuthPeersLambdas& authkeys, bool oneWayAuth);
 
    int processAuthchallenge(const BinaryData& inData,
       const bool& requesterSent);
-   int processAuthreply(BinaryData& inData, const bool& responderSent,
-      const bool& goodChallenge);
+   int processAuthreply(BinaryData& inData, const bool& responderSent);
    int processAuthpropose(const BinaryData& inData);
    int getAuthchallengeData(uint8_t* buf, const size_t& bufSize,
-      const std::string& targetIPPort, const bool& requesterSent,
-      const bool& goodPropose);
+      const std::string& targetIPPort, const bool& requesterSent);
    int getAuthreplyData(uint8_t* buf, const size_t& bufSize,
-      const bool& responderSent, const bool& goodChallenge);
+      const bool& responderSent);
    int getAuthproposeData(uint8_t* buf, const size_t& bufSize);
    std::string getBIP150Fingerprint();
    BIP150State getBIP150State() const { return curState_; }
@@ -224,6 +224,7 @@ public:
    bool havePublicKey(const BinaryDataRef&, const std::string&) const;
    // For unit tests
    btc_pubkey getChosenAuthPeerKey() const { return chosenAuthPeerKey; }
+   bool isOneWayAuth(void) const { return oneWayAuth_; }
 };
 
 class BIP151Connection
@@ -238,11 +239,11 @@ private:
 
 public:
    // Default constructor - Used when initiating contact with a peer.
-   BIP151Connection(AuthPeersLambdas&);
+   BIP151Connection(AuthPeersLambdas&, bool);
 
    // Constructor manually setting the ECDH setup prv keys. USE WITH CAUTION.
    BIP151Connection(btc_key* inSymECDHPrivKeyIn, btc_key* inSymECDHPrivKeyOut,
-      AuthPeersLambdas& authkeys);
+      AuthPeersLambdas& authkeys, bool);
 
    int assemblePacket(const uint8_t* plainData, const size_t& plainSize,
       uint8_t* cipherData, const size_t& cipherSize);
@@ -268,26 +269,26 @@ public:
    int processAuthchallenge(const uint8_t* inMsg, const size_t& inMsgSize,
       const bool& requesterSent);
    int processAuthreply(const uint8_t* inMsg, const size_t& inMsgSize,
-      const bool& requesterSent, const bool& goodChallenge);
+      const bool& requesterSent);
    int processAuthpropose(const uint8_t* inMsg, const size_t& inMsgSize);
    int getAuthchallengeData(uint8_t* authchallengeBuf,
       const size_t& authchallengeBufSize, const std::string& targetIPPort,
-      const bool& requesterSent, const bool& goodPropose);
+      const bool& requesterSent);
    int getAuthreplyData(uint8_t* authreplyBuf, const size_t& authreplyBufSize,
-      const bool& responderSent, const bool& goodChallenge);
+      const bool& responderSent);
    int getAuthproposeData(uint8_t* authproposeBuf,
       const size_t& authproposeBufSize);
    BIP150State getBIP150State() const { return bip150SM_.getBIP150State(); }
    std::string getBIP150Fingerprint() { return bip150SM_.getBIP150Fingerprint(); }
 
    void bip150HandshakeRekey(void);
-   void setGoodPropose(void) { goodPropose_ = true; }
-   bool getProposeFlag(void) const { return goodPropose_; }
    BinaryDataRef getOwnPubKey(void) const { return bip150SM_.getOwnPubKey(); }
    bool havePublicKey(const BinaryDataRef&, const std::string&) const;
 
    // For unit tests
    btc_pubkey getChosenAuthPeerKey() const { return bip150SM_.getChosenAuthPeerKey(); }
+
+   bool isOneWayAuth(void) { return bip150SM_.isOneWayAuth(); }
 };
 
 // Class to use on BIP 151 encrypted messages. Contains the plaintext contents

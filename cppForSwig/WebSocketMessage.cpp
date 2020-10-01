@@ -10,6 +10,7 @@
 #include "WebSocketMessage.h"
 #include "libwebsockets.h"
 #include <google/protobuf/io/zero_copy_stream_impl.h>
+#include "BIP15x_Handshake.h"
 
 using namespace std;
 using namespace ::google::protobuf::io;
@@ -87,7 +88,7 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
    uint8_t type, uint32_t id)
 {   
    //is this payload carrying a msgid?
-   if (type > WS_MSGTYPE_AEAD_THESHOLD)
+   if (type > ArmoryAEAD::HandshakeSequence::Threshold_Begin)
       return serializePacketWithoutId(payload, connPtr, type);
 
    /***
@@ -373,16 +374,15 @@ bool WebSocketMessagePartial::parsePacket(const BinaryDataRef& dataRef)
       return parseMessageFragment(dataSlice);
    }
 
-   case WS_MSGTYPE_AEAD_SETUP:
-   case WS_MSGTYPE_AEAD_PRESENT_PUBKEY:
-   case WS_MSGTYPE_AEAD_PRESENT_PUBKEY_CHILD:
-   case WS_MSGTYPE_AEAD_ENCINIT:
-   case WS_MSGTYPE_AEAD_ENCACK:
-   case WS_MSGTYPE_AEAD_REKEY:
-   case WS_MSGTYPE_AUTH_CHALLENGE:
-   case WS_MSGTYPE_AUTH_REPLY:
-   case WS_MSGTYPE_AUTH_PROPOSE:
-
+   case ArmoryAEAD::HandshakeSequence::Start:
+   case ArmoryAEAD::HandshakeSequence::PresentPubKey:
+   case ArmoryAEAD::HandshakeSequence::PresentPubKeyChild:
+   case ArmoryAEAD::HandshakeSequence::EncInit:
+   case ArmoryAEAD::HandshakeSequence::EncAck:
+   case ArmoryAEAD::HandshakeSequence::Rekey:
+   case ArmoryAEAD::HandshakeSequence::Challenge:
+   case ArmoryAEAD::HandshakeSequence::Reply:
+   case ArmoryAEAD::HandshakeSequence::Propose:
    {
       return parseMessageWithoutId(dataSlice);
    }
@@ -487,7 +487,7 @@ bool WebSocketMessagePartial::parseMessageWithoutId(const BinaryDataRef& bdr)
    BinaryRefReader brr(bdr);
 
    type_ = brr.get_uint8_t();
-   if (type_ < WS_MSGTYPE_AEAD_THESHOLD)
+   if (type_ <= ArmoryAEAD::HandshakeSequence::Threshold_Begin)
       return false;
 
    packets_.emplace(make_pair(

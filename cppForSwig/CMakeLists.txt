@@ -253,6 +253,7 @@ set(LIBARMORYCLI_SOURCES
     BDM_mainthread.cpp
     BDM_Server.cpp
     BIP150_151.cpp
+    BIP15x_Handshake.cpp
     BitcoinP2P.cpp
     Blockchain.cpp
     BlockchainScanner.cpp
