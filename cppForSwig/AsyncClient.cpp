@@ -1490,6 +1490,12 @@ void CallbackReturn_RawHeader::callback(
       ReturnMessage<BinaryData> rm(e);
       userCallbackLambda_(move(rm));
    }
+   catch (const runtime_error& e)
+   {
+      ClientMessageError cme(string(e.what()), -1);
+      ReturnMessage<BinaryData> rm(cme);
+      userCallbackLambda_(move(rm));
+   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

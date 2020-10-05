@@ -569,7 +569,7 @@ class ArmoryBlockAndDateSelector():
       self.frmBlockAndDate.setLayout(self.frmBlockAndDateLayout)
       self.frmBlockAndDate.setBackgroundRole(QPalette.Window)
       self.frmBlockAndDate.setAutoFillBackground(True)
-      self.frmBlockAndDate.setFrameStyle(QFrame.Panel | QFrame.Raised);
+      self.frmBlockAndDate.setFrameStyle(QFrame.Panel | QFrame.Raised)
       self.frmBlockAndDate.setVisible(False)
       self.frmBlockAndDate.setMouseTracking(True)   
       self.frmBlockAndDate.leaveEvent = self.triggerHideBlockAndDate

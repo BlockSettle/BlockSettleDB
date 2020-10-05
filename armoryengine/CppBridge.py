@@ -1065,6 +1065,10 @@ class CppBridge(object):
       response.ParseFromString(socketResponse)
       
       blockTime = response.ints[0]
+
+      if blockTime == 2**32 - 1:
+         raise
+
       self.blockTimeByHeightCache[height] = blockTime
       return blockTime
 
