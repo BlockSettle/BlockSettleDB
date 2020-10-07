@@ -297,7 +297,7 @@ class CoinControlAddressItem(TreeNode):
       self.comment = self.parent.getCommentFromWallet(name)
       
    def rowCount(self):
-      return len(self.utxoList);
+      return len(self.utxoList)
    
    def populate(self):
       if self.populated == True:
@@ -896,7 +896,7 @@ class AddressTreeModel(ArmoryTreeModel):
    
    def refresh(self):
       #this method repopulates the underlying tree view map, only use
-      #when that data changes
+      #when that data changed
       self.treeStruct = TreeStructure_AddressDisplay(self.wlt, self)
       self.root = NodeItem(0, None, self.treeStruct.root)     
       

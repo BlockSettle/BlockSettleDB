@@ -93,9 +93,13 @@ class PyBtcAddress(object):
       self.useEncryption         = False
       self.hasPrivKey            = False
       self.addrType              = AddressEntryType_Default
-      self.txioCount             = 0
       self.parentWallet          = parentWallet
       self.addressString         = None
+      
+      self.fullBalance           = 0
+      self.spendableBalance      = 0
+      self.unconfirmedBalance    = 0
+      self.txioCount             = 0
 
    #############################################################################
    def hasPubKey(self):
@@ -134,61 +138,6 @@ class PyBtcAddress(object):
    def isCompressed(self):
       # Armory wallets (v1.35) do not support compressed keys
       return False 
-   
-   #############################################################################
-   def createFromPlainKeyData(self, plainPrivKey, addr160=None, willBeEncr=False, \
-                                    generateIVIfNecessary=False, IV16=None, \
-                                    chksum=None, publicKey65=None, \
-                                    skipCheck=False, skipPubCompute=False):
-
-      assert(plainPrivKey.getSize()==32)
-
-      if not addr160:
-         addr160 = convertKeyDataToAddress(privKey=plainPrivKey)
-
-      self.__init__()
-      self.addrStr20 = addr160
-      self.isInitialized = True
-      self.binPrivKey32_Plain = SecureBinaryData(plainPrivKey)
-      self.isLocked = False
-
-      if willBeEncr:
-         self.enableKeyEncryption(IV16, generateIVIfNecessary)
-      elif IV16:
-         self.binInitVect16 = IV16
-
-      if chksum and not verifyChecksum(self.binPrivKey32_Plain.toBinStr(), chksum):
-         raise ChecksumError("Checksum doesn't match plaintext priv key!")
-      if publicKey65:
-         self.binPublicKey65 = SecureBinaryData(publicKey65)
-         if not self.binPublicKey65.getHash160()==self.addrStr20:
-            raise KeyDataError("Public key does not match supplied address")
-         if not skipCheck:
-            if not CryptoECDSA().CheckPubPrivKeyMatch(self.binPrivKey32_Plain,\
-                                                      self.binPublicKey65):
-               raise KeyDataError('Supplied pub and priv key do not match!')
-      elif not skipPubCompute:
-         # No public key supplied, but we do want to calculate it
-         self.binPublicKey65 = CryptoECDSA().ComputePublicKey(plainPrivKey)
-
-      return self
-
-
-   #############################################################################
-   def createFromPublicKeyData(self, publicKey65, chksum=None):
-
-      assert(publicKey65.getSize()==65)
-      self.__init__()
-      self.addrStr20 = publicKey65.getHash160()
-      self.binPublicKey65 = publicKey65
-      self.isInitialized = True
-      self.isLocked = False
-      self.useEncryption = False
-
-      if chksum and not verifyChecksum(self.binPublicKey65.toBinStr(), chksum):
-         raise ChecksumError("Checksum doesn't match supplied public key!")
-
-      return self
 
    #############################################################################
    def markAsRootAddr(self):
@@ -216,11 +165,20 @@ class PyBtcAddress(object):
       return self.txioCount
 
    #############################################################################
+   def getFullBalance(self):
+      return self.fullBalance
+
+   #############################################################################
+   def getSpendableBalance(self):
+      return self.spendableBalance
+
+   #############################################################################
+   def getUnconfirmedBalance(self):
+      return self.unconfirmedBalance
+
+   #############################################################################
    def getComment(self):
       if self.parentWallet is None:
          return ''
 
       return self.parentWallet.getCommentForAddr(self.getAddr160())
-
-# Put the import at the end to avoid circular reference problem
-from armoryengine.BDM import *

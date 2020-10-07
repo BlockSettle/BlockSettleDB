@@ -278,10 +278,7 @@ class PyBtcWallet(object):
       self.balance_unconfirmed = 0
       self.balance_full = 0
       self.txnCount = 0
-      
-      self.addrTxnCountDict = {}
-      self.addrBalanceDict = {}
-            
+                  
    #############################################################################
    def isWltSigningAnyLockbox(self, lockboxList):
       for lockbox in lockboxList:
@@ -400,18 +397,14 @@ class PyBtcWallet(object):
       if not self.hasAddr160(addr160):
          return -1
       else:
-         try:
-            scraddr = Hash160ToScrAddr(addr160)
-            addrBalances = self.addrBalanceDict[scraddr]
-         except:
-            return 0
+         addrObj = self.addrMap[addr160]
          
          if balType.lower() in ('spendable','spend'):
-            return addrBalances[1]
+            return addrObj.getSpendableBalance()
          elif balType.lower() in ('unconfirmed','unconf'):
-            return addrBalances[2]
+            return addrObj.getUnconfirmedBalance()
          elif balType.lower() in ('ultimate','unspent','full'):
-            return addrBalances[0]
+            return addrObj.getFullBalance()
          else:
             raise TypeError('Unknown balance type!')
 
@@ -1219,7 +1212,6 @@ class PyBtcWallet(object):
       updList = []
       updList.append([WLT_UPDATE_MODIFY, self.offsetLabelName,  toWriteS])
       updList.append([WLT_UPDATE_MODIFY, self.offsetLabelDescr, toWriteL])
-      self.walletFileSafeUpdate(updList)
 
    #############################################################################
    def deleteImportedAddress(self, addr160):
@@ -1259,124 +1251,6 @@ class PyBtcWallet(object):
       self.readWalletFile(wltPath)
       self.cppWallet = passCppWallet
       self.registerWallet(False)
-
-   #############################################################################
-   def importExternalAddressData(self, privKey=None, privChk=None, \
-                                       pubKey=None,  pubChk=None, \
-                                       addr20=None,  addrChk=None, \
-                                       firstTime=UINT32_MAX, \
-                                       firstBlk=UINT32_MAX, lastTime=0, \
-                                       lastBlk=0):
-      """
-      This wallet fully supports importing external keys, even though it is
-      a deterministic wallet: determinism only adds keys to the pool based
-      on the address-chain, but there's nothing wrong with adding new keys
-      not on the chain.
-
-      We don't know when this address was created, so we have to set its
-      first/last-seen times to 0, to make sure we search the whole blockchain
-      for tx related to it.  This data will be updated later after we've done
-      the search and know for sure when it is "relevant".
-      (alternatively, if you know it's first-seen time for some reason, you
-      can supply it as an input, but this seems rare: we don't want to get it
-      wrong or we could end up missing wallet-relevant transactions)
-
-      DO NOT CALL FROM A BDM THREAD FUNCTION.  IT MAY DEADLOCK.
-      """
-
-      if not privKey and not self.watchingOnly:
-         LOGERROR('')
-         LOGERROR('This wallet is strictly for addresses that you')
-         LOGERROR('own.  You cannot import addresses without the')
-         LOGERROR('the associated private key.  Instead, use a')
-         LOGERROR('watching-only wallet to import this address.')
-         LOGERROR('(actually, this is currently, completely disabled)')
-         raise WalletAddressError('Cannot import non-private-key addresses')
-
-      # First do all the necessary type conversions and error corrections
-      computedPubKey = None
-      computedAddr20 = None
-      if privKey:
-         if isinstance(privKey, str):
-            privKey = SecureBinaryData(privKey)
-
-         if privChk:
-            privKey = SecureBinaryData(verifyChecksum(privKey.toBinStr(), privChk))
-
-         computedPubkey = CryptoECDSA().ComputePublicKey(privKey)
-         computedAddr20 = convertKeyDataToAddress(pubKey=computedPubkey)
-
-      # If public key is provided, we prep it so we can verify Pub/Priv match
-      if pubKey:
-         if isinstance(pubKey, str):
-            pubKey = SecureBinaryData(pubKey)
-         if pubChk:
-            pubKey = SecureBinaryData(verifyChecksum(pubKey.toBinStr(), pubChk))
-
-         if not computedAddr20:
-            computedAddr20 = convertKeyDataToAddress(pubKey=pubKey)
-
-      # The 20-byte address (pubkey hash160) should always be a python string
-      if addr20:
-         if not isinstance(pubKey, str):
-            addr20 = addr20.toBinStr()
-         if addrChk:
-            addr20 = verifyChecksum(addr20, addrChk)
-
-      # Now a few sanity checks
-      if addr20 in self.addrMap:
-         LOGWARN('The private key address is already in your wallet!')
-         return None
-
-      addr20 = computedAddr20
-
-      if addr20 in self.addrMap:
-         LOGERROR('The computed private key address is already in your wallet!')
-         return None
-
-      # If a private key is supplied and this wallet is encrypted&locked, then 
-      # we have no way to secure the private key without unlocking the wallet.
-      if self.useEncryption and privKey and not self.kdfKey:
-         raise WalletLockError('Cannot import private key when wallet is locked!')
-
-      if privKey:
-         # For priv key, lots of extra encryption and verification options
-         newAddr = PyBtcAddress().createFromPlainKeyData(privKey, addr20, \
-                                                         self.useEncryption, \
-                                                         self.useEncryption, \
-                                                         publicKey65=computedPubkey, \
-                                                         skipCheck=True,
-                                                         skipPubCompute=True)
-         if self.useEncryption:
-            newAddr.lock(self.kdfKey)
-            newAddr.unlock(self.kdfKey)
-      elif pubKey:
-         securePubKey = SecureBinaryData(pubKey)
-         newAddr = PyBtcAddress().createFromPublicKeyData(securePubKey)
-      else:
-         newAddr = PyBtcAddress().createFromPublicKeyHash160(addr20)
-
-      newAddr.chaincode  = SecureBinaryData('\xff'*32)
-      newAddr.chainIndex = -2
-      newAddr.timeRange = [firstTime, lastTime]
-      newAddr.blkRange  = [firstBlk,  lastBlk ]
-      #newAddr.binInitVect16  = SecureBinaryData().GenerateRandom(16)
-      newAddr160 = newAddr.getAddr160()
-
-      newDataLoc = self.walletFileSafeUpdate( \
-         [[WLT_UPDATE_ADD, WLT_DATATYPE_KEYDATA, newAddr160, newAddr]])
-      self.addrMap[newAddr160] = newAddr.copy()
-      self.addrMap[newAddr160].walletByteLoc = newDataLoc[0] + 21
-      
-      self.linearAddr160List.append(newAddr160)
-      self.importList.append(len(self.linearAddr160List) - 1)
-      
-      if self.useEncryption and self.kdfKey:
-         self.addrMap[newAddr160].lock(self.kdfKey)
-         if not self.isLocked:
-            self.addrMap[newAddr160].unlock(self.kdfKey)
-            
-      return computedPubkey
 
    #############################################################################  
    def importExternalAddressBatch(self, privKeyList):
@@ -1565,15 +1439,14 @@ class PyBtcWallet(object):
          LOGWARN('   Armory Version: %d' % UNSIGNED_TX_VERSION)
 
    ###############################################################################
-   @CheckWalletRegistration
    def getAddrTotalTxnCount(self, a160):
       try:
-         return self.addrTxnCountDict[a160]
+         addrObj = addrMap[a160]
+         return addrObj.getTxioCount()
       except:
          return 0
       
    ###############################################################################
-   @CheckWalletRegistration
    def getAddrDataFromDB(self):
       result = TheBridge.getAddrCombinedList(self.uniqueIDB58)
 
@@ -1590,17 +1463,17 @@ class PyBtcWallet(object):
       for i in range(0, len(result.ids)):
          addrCombinedData = result.data[i]
          addr = result.ids[i]
-         self.addrTxnCountDict[addr] = addrCombinedData.count
-         self.addrBalanceDict[addr] = [\
-            addrCombinedData.full, \
-            addrCombinedData.spendable, \
-            addrCombinedData.unconfirmed]
          if addr in self.addrMap:
             addrObj = self.addrMap[addr]
-            addrObj.txioCount = addrCombinedData.count
+
+            addrObj.fullBalance        = addrCombinedData.full
+            addrObj.spendableBalance   = addrCombinedData.spendable
+            addrObj.unconfirmedBalance = addrCombinedData.unconfirmed
+            addrObj.txioCount          = addrCombinedData.count
+         else:
+            print ("[getAddrDataFromDB] missing address " + addr.hex())
    
    ###############################################################################
-   @CheckWalletRegistration
    def getHistoryAsCSV(self, currentTop):
       file = open('%s.csv' % self.walletPath, 'wb')
       

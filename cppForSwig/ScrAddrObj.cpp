@@ -63,8 +63,8 @@ uint64_t ScrAddrObj::getFullBalance(unsigned updateID) const
    uint64_t balance = ssh.getScriptBalance(false);
 
    //grab zc balances
-   auto&& txios = getHistoryForScrAddr(UINT32_MAX, UINT32_MAX, 0, false);
-   for (auto& txio : txios)
+   auto&& zcTxios = getHistoryForScrAddr(UINT32_MAX, UINT32_MAX, 0, false);
+   for (auto& txio : zcTxios)
    {
       if (txio.second.hasTxOutZC())
          balance += txio.second.getValue();
@@ -299,48 +299,6 @@ bool ScrAddrObj::purgeZC(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-/*void ScrAddrObj::updateAfterReorg(uint32_t lastValidBlockHeight)
-{
-   auto txioIter = relevantTxIO_.begin();
-
-   uint32_t height;
-   while (txioIter != relevantTxIO_.end())
-   {
-      //txio pairs are saved by TxOut DBkey, if the key points to a block 
-      //higher than the reorg point, delete the txio
-      height = DBUtils::hgtxToHeight(txioIter->first.getSliceCopy(0, 4));
-
-      if (height >= 0xFF000000)
-      {
-         //ZC chain, already dealt with by the call to purgeZC from 
-         //readBlkFileUpdate
-         continue;
-      }
-      else if (height <= lastValidBlockHeight)
-      {
-         TxIOPair& txio = txioIter->second;
-         if (txio.hasTxIn())
-         {
-            //if the txio is spent, check the block of the txin
-            height = DBUtils::hgtxToHeight(
-               txio.getDBKeyOfInput().getSliceCopy(0, 4));
-
-            if (height > lastValidBlockHeight && height < 0xFF000000)
-            {
-               //clear the TxIn by setting it to an empty BinaryData
-               txio.setTxIn(BinaryData(0));
-               txio.setTxHashOfInput(BinaryData(0));
-            }
-         }
-
-         ++txioIter;
-      }
-      else
-         relevantTxIO_.erase(txioIter++);
-   }
-}*/
-
-////////////////////////////////////////////////////////////////////////////////
 map<BinaryData, LedgerEntry> ScrAddrObj::updateLedgers(
                                const map<BinaryData, TxIOPair>& txioMap,
                                uint32_t startBlock, uint32_t endBlock) const
@@ -350,12 +308,24 @@ map<BinaryData, LedgerEntry> ScrAddrObj::updateLedgers(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint64_t ScrAddrObj::getTxioCountFromSSH(void) const
+uint64_t ScrAddrObj::getTxioCountFromSSH(bool withZc) const
 {
    StoredScriptHistory ssh;
    db_->getStoredScriptHistorySummary(ssh, scrAddr_);
 
-   return ssh.totalTxioCount_;
+   uint32_t count = ssh.totalTxioCount_;
+
+   if (withZc)
+   {
+      auto&& zcTxios = getHistoryForScrAddr(UINT32_MAX, UINT32_MAX, 0, false);
+      for (auto& txio : zcTxios)
+      {
+         if (txio.second.hasTxOutZC() || txio.second.hasTxInZC())
+            ++count;
+      }
+   }
+
+   return count;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

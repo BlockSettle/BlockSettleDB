@@ -225,8 +225,8 @@ public:
                       uint32_t startBlock, uint32_t endBlock) const;
 
    void setTxioCount(uint64_t count) { totalTxioCount_ = count; }
-   uint64_t getTxioCount(void) const { return getTxioCountFromSSH(); }
-   uint64_t getTxioCountFromSSH(void) const;
+   uint64_t getTxioCount(void) const { return getTxioCountFromSSH(true); }
+   uint64_t getTxioCountFromSSH(bool withZc) const;
 
    void mapHistory(void);
 
@@ -269,7 +269,7 @@ public:
    {
       //return UINT32_MAX unless count has changed since last call
       //(or it's the first call)
-      auto count = getTxioCountFromSSH();
+      auto count = getTxioCountFromSSH(false);
       if (count == txioCountForLedgers_)
          return UINT32_MAX;
 
