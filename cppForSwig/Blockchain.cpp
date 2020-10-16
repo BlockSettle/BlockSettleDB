@@ -20,6 +20,8 @@
 
 using namespace std;
 
+const BinaryData Blockchain::topIdKey_ = READHEX("544f504944"); //TOPID in hex
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -126,6 +128,10 @@ void Blockchain::updateBranchingMaps(
 
    db->setValidDupIDForHeight(dupIDs);
    db->setBlockIDBranch(blockIDs);
+
+   auto topId = getTopIdFromDb(db);
+   if (topId > topID_.load(memory_order_relaxed))
+      topID_.store(topId, memory_order_relaxed);
 }
 
 Blockchain::ReorganizationState 
@@ -539,10 +545,48 @@ void Blockchain::putNewBareHeaders(LMDBBlockDatabase *db)
 
    //once commited to the DB, they aren't considered new anymore, 
    //so clean up the container
-   newlyParsedBlocks_ = unputHeaders;
+   newlyParsedBlocks_ = move(unputHeaders);
+
+   if (newlyParsedBlocks_.size() != 0)
+   {
+      /*
+      Some new headers did not make it into the chain, therefor they were 
+      not commited the disk. We need to keep track of the highest assigned
+      topID across runs so we manually update it instead of relying on 
+      headers in the db.
+      */
+      updateTopIdInDb(db);
+   }
 
    db->setValidDupIDForHeight(dupIdMap);
    db->setBlockIDBranch(blockIdMap);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+unsigned int Blockchain::getTopIdFromDb(LMDBBlockDatabase *db) const
+{
+   auto&& tx = db->beginTransaction(HEADERS, LMDB::ReadOnly);
+
+   auto value = db->getValueNoCopy(HEADERS, topIdKey_);
+   if (value.getSize() != 4)
+      return 0;
+
+   return *(uint32_t*)value.getPtr();
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void Blockchain::updateTopIdInDb(LMDBBlockDatabase *db)
+{
+   auto inDbTopId = getTopIdFromDb(db);
+   auto currentTopId = topID_.load(memory_order_relaxed);
+
+   if (inDbTopId >= currentTopId)
+      return;
+
+   BinaryDataRef valRef((const uint8_t*)&currentTopId, 4);
+
+   auto&& tx = db->beginTransaction(HEADERS, LMDB::ReadWrite);
+   db->putValue(HEADERS, topIdKey_.getRef(), valRef);
 }
 
 /////////////////////////////////////////////////////////////////////////////
