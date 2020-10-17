@@ -2118,11 +2118,22 @@ void CppBridge::broadcastTx(const vector<BinaryData>& rawTxVec)
 ////////////////////////////////////////////////////////////////////////////////
 void CppBridge::getBlockTimeByHeight(uint32_t height, uint32_t msgId) const
 {
-   auto callback = [this, msgId](ReturnMessage<BinaryData> rawHeader)->void
+   auto callback = [this, msgId, height](ReturnMessage<BinaryData> rawHeader)->void
    {
-      ClientClasses::BlockHeader header(rawHeader.get(), UINT32_MAX);
+      uint32_t timestamp = UINT32_MAX;
+      try
+      {
+         ClientClasses::BlockHeader header(rawHeader.get(), UINT32_MAX);
+         timestamp = header.getTimestamp();
+      }
+      catch (const ClientMessageError& e)
+      {
+         LOGERR << "getBlockTimeByHeight failed for height: " << height <<
+            " with error: \"" << e.what() << "\"";
+      }
+
       auto result = make_unique<ReplyNumbers>();
-      result->add_ints(header.getTimestamp());
+      result->add_ints(timestamp);
 
       this->writeToClient(move(result), msgId);
    };

@@ -88,6 +88,8 @@ public:
    void putNewBareHeaders(LMDBBlockDatabase *db);
 
    unsigned int getNewUniqueID(void) { return topID_.fetch_add(1, std::memory_order_relaxed); }
+   unsigned int getTopIdFromDb(LMDBBlockDatabase*) const;
+   void updateTopIdInDb(LMDBBlockDatabase*);
 
    std::map<unsigned, std::set<unsigned>> mapIDsPerBlockFile(void) const;
    std::map<unsigned, HeightAndDup> getHeightAndDupMap(void) const;
@@ -118,6 +120,7 @@ private:
    Blockchain(const Blockchain&); // not defined
 
    std::atomic<unsigned int> topID_;
+   static const BinaryData topIdKey_;
 
    mutable std::mutex mu_;
 };

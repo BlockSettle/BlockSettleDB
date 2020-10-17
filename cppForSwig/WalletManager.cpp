@@ -254,6 +254,7 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
    shared_ptr<DBIfaceTransaction> dbtx;
    map<BinaryData, shared_ptr<AddressEntry>> updatedAddressMap;
    map<BinaryData, AddressEntryType> orderedUpdatedAddresses;
+
    for (auto& addrPair : cnt.addressTxnCounts_)
    {
       auto iter = countMap_.find(addrPair.first);
@@ -273,6 +274,9 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
       
       //mark newly seen addresses for further processing
       orderedUpdatedAddresses.insert(ID);
+
+      //add count to map
+      countMap_.emplace(addrPair);
    }
 
    map<BinaryData, AddressEntryType> unpulledAddresses;
@@ -372,14 +376,16 @@ map<BinaryData, vector<uint64_t>> WalletContainer::getAddrBalanceMap() const
 {
    map<BinaryData, vector<uint64_t>> result;
 
-   for (auto& dataPair : balanceMap_)
+   for (auto& dataPair : countMap_)
    {
-      auto balVec = dataPair.second;
-      auto iter = countMap_.find(dataPair.first);
-      if (iter == countMap_.end())
-         balVec.push_back(UINT64_MAX);
+      vector<uint64_t> balVec;
+      auto iter = balanceMap_.find(dataPair.first);
+      if (iter == balanceMap_.end())
+         balVec = {0, 0, 0};
       else 
-         balVec.push_back(iter->second);
+         balVec = iter->second;
+
+      balVec.push_back(dataPair.second);
 
       auto addrNoPrefix = 
          dataPair.first.getSliceRef(1, dataPair.first.getSize() - 1);

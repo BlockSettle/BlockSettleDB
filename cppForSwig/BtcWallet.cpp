@@ -101,7 +101,7 @@ map<BinaryData, uint32_t> BtcWallet::getAddrTxnCounts(int32_t updateID) const
       if (sa.second->updateID_ <= lastPulledCountsID_)
          continue;
 
-      auto count = sa.second->getTxioCountForLedgers();
+      auto count = sa.second->getTxioCount();
       if (count == 0 || count == UINT32_MAX)
          continue;
 
@@ -131,7 +131,7 @@ map<BinaryData, tuple<uint64_t, uint64_t, uint64_t>>
       try
       {
       #endif
-
+            
          full = sa.second->getFullBalance(UINT32_MAX);
          spendable = sa.second->getSpendableBalance(blockHeight);
          unconf = sa.second->getUnconfirmedBalance(blockHeight, confTarget_);
@@ -797,7 +797,7 @@ uint64_t BtcWallet::getWltTotalTxnCount(void) const
    auto addrMap = scrAddrMap_.get();
 
    for (const auto& scrAddrPair : *addrMap)
-      ntxn += scrAddrPair.second->getTxioCountFromSSH();
+      ntxn += scrAddrPair.second->getTxioCountFromSSH(true);
 
    return ntxn;
 }
