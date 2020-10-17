@@ -1013,7 +1013,12 @@ void DatabaseBuilder::commitAllStxos(
       {
          auto key = db_->getValueNoCopy(STXO, bwPair.first.getRef());
          if (!key.empty())
-            throw runtime_error("attempting to override existing stxo key, aborting");
+         {
+            string errMsg = "trying to commit stxo key " + bwPair.first.toHexStr() + 
+               " which already exists, aborting!";
+            LOGERR << errMsg;
+            throw runtime_error(errMsg);
+         }
       }
 
       db_->putValue(

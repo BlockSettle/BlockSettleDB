@@ -616,10 +616,12 @@ bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj
    {
    case ArmoryAEAD::HandshakeSequence::PresentPubKey:
    {
+      serverPubkeyAnnounce_ = true;
+
       /*packet is server's pubkey, do we have it?*/
       if (!bip151Connection_->isOneWayAuth())
       {
-         LOGERR << "Trying to connect to 1-way server as a 2-way client" <<
+         LOGERR << "Trying to connect to 1-way server as a 2-way client." <<
             " Aborting!";
          return false;
       }
@@ -632,6 +634,18 @@ bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj
       }
 
       return true;
+   }
+
+   case ArmoryAEAD::HandshakeSequence::EncInit:
+   {
+      if (bip151Connection_->isOneWayAuth() && !serverPubkeyAnnounce_)
+      {
+         LOGERR << "trying to connect to 2-way server as 1-way client." <<
+            " Aborting!";
+         return false;
+      }
+
+      break;
    }
 
    default: 
