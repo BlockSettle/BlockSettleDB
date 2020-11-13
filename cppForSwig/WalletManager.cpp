@@ -1,12 +1,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //
+//  Copyright (C) 2016-20, goatpig                                            //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "WalletManager.h"
+#include "ArmoryBackups.h"
 
 #ifdef _WIN32
 #include "leveldb_windows_port\win32_posix\dirent_win32.h"
@@ -28,6 +29,8 @@ using namespace ArmorySigner;
 shared_ptr<WalletContainer> WalletManager::addWallet(
    shared_ptr<AssetWallet> wltPtr)
 {
+   ReentrantLock lock(this);
+
    //check we dont have this wallet
    auto iter = wallets_.find(wltPtr->getID());
    if (iter != wallets_.end())
@@ -62,6 +65,37 @@ shared_ptr<WalletContainer> WalletManager::createNewWallet(
    auto wallet = AssetWallet_Single::createFromPrivateRoot_Armory135(
       path_, root, {}, pass, controlPass, lookup);
    return addWallet(wallet);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletManager::deleteWallet(const string& wltId)
+{
+   ReentrantLock lock(this);
+
+   shared_ptr<WalletContainer> wltPtr;
+   {
+      auto iter = wallets_.find(wltId);
+      if (iter == wallets_.end())
+         return;
+
+      wltPtr = move(iter->second);
+      wallets_.erase(iter);
+   }
+
+   //delete from disk
+   wltPtr->eraseFromDisk();
+
+   try
+   {
+      //unregister from db
+      wltPtr->unregisterFromBDV();
+   }
+   catch (const exception&)
+   {
+      //we do not care if the unregister operation fails
+   }
+
+   wltPtr.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +140,7 @@ void WalletManager::loadWallets(
 
    closedir(dir);
 
-   unique_lock<mutex> lock(mu_);
+   ReentrantLock lock(this);
 
    //read the files
    for (auto& wltPath : walletPaths)
@@ -138,7 +172,7 @@ void WalletManager::loadWallets(
       if (iter != wallets_.end())
          continue;
 
-      //missing v3.x version, let's migrate it
+      //no equivalent v3.x wallet loaded, let's migrate it
       auto wltPtr = a135.migrate(passLbd);
       addWallet(wltPtr);
    }
@@ -149,7 +183,7 @@ void WalletManager::updateStateFromDB(const function<void(void)>& callback)
 {
    auto lbd = [this, callback](void)->void
    {
-      unique_lock<mutex> lock(mu_);
+      ReentrantLock lock(this);
 
       //get wallet ids
       vector<string> walletIds;
@@ -212,9 +246,24 @@ void WalletManager::updateStateFromDB(const function<void(void)>& callback)
 //// WalletContainer
 ////
 ////////////////////////////////////////////////////////////////////////////////
+void WalletContainer::resetCache(void)
+{
+   unique_lock<mutex> lock(stateMutex_);
+
+   totalBalance_ = 0;
+   spendableBalance_ = 0;
+   unconfirmedBalance_ = 0;
+   balanceMap_.clear();
+   countMap_.clear();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 string WalletContainer::registerWithBDV(bool isNew)
 {
-   reset();
+   if (bdvPtr_ == nullptr)
+      throw runtime_error("bdvPtr is not set");
+
+   resetCache();
 
    auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wallet_);
    if (wltSingle == nullptr)
@@ -229,6 +278,15 @@ string WalletContainer::registerWithBDV(bool isNew)
    asyncWlt_ = make_shared<AsyncClient::BtcWallet>(
       bdvPtr_->instantiateWallet(wltSingle->getID()));
    return asyncWlt_->registerAddresses(addrVec, isNew);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletContainer::unregisterFromBDV()
+{
+   if (bdvPtr_ == nullptr)
+      throw runtime_error("bdvPtr is not set");
+      
+   asyncWlt_->unregister();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -399,6 +457,9 @@ map<BinaryData, vector<uint64_t>> WalletContainer::getAddrBalanceMap() const
 void WalletContainer::createAddressBook(
    const function<void(ReturnMessage<vector<AddressBookEntry>>)>& lbd)
 {
+   if (asyncWlt_ == nullptr)
+      throw runtime_error("empty asyncWlt");
+
    asyncWlt_->createAddressBook(lbd);
 }
 
@@ -409,6 +470,33 @@ map<BinaryData, shared_ptr<AddressEntry>> WalletContainer::getUpdatedAddressMap(
    updatedAddressMap_.clear();
 
    return mapMove;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+ArmoryBackups::WalletBackup WalletContainer::getBackupStrings(
+   const PassphraseLambda& passLbd) const
+{
+   auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wallet_);
+   if (wltSingle == nullptr)
+   {
+      LOGERR << "WalletContainer::getBackupStrings: unexpected wallet type";
+      throw runtime_error(
+         "WalletContainer::getBackupStrings: unexpected wallet type");
+   }
+
+   wltSingle->setPassphrasePromptLambda(passLbd);
+   auto backupStrings = ArmoryBackups::Helpers::getWalletBackup(wltSingle);
+   wltSingle->resetPassphrasePromptLambda();
+
+   return backupStrings;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletContainer::eraseFromDisk()
+{
+   auto wltPtr = move(wallet_);
+   AssetWallet::eraseFromDisk(wltPtr.get());
+   wltPtr.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
