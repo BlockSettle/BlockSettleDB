@@ -246,7 +246,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
          if (!insertIter.second)
             throw WalletInterfaceException("duplicated db entry");
 
-         dataMapPtr->dataMap_.emplace(dataPair);
+         dataMapPtr->dataMap_.emplace(dataPair);         
          iter.advance();
       }
 
@@ -1256,15 +1256,28 @@ void WalletDBInterface::compactFile()
    openEnv();
 
    //wipe old file
-   auto oldFileMap = DBUtils::getMmapOfFile(swapPath, true);
-   memset(oldFileMap.filePtr_, 0, oldFileMap.size_);
-   oldFileMap.unmap();
+   wipeAndDeleteFile(swapPath);
+
+   //TODO: lock sharing rights on wallet files
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::wipeAndDeleteFile(const string& path)
+{
+   if (path.empty())
+      return;
+
+   {
+      auto fileMap = DBUtils::getMmapOfFile(path, true);
+      memset(fileMap.filePtr_, 0, fileMap.size_);
+      fileMap.unmap();
+   }
 
    int unlinkResult;
 #ifdef _WIN32
-   unlinkResult = _unlink(swapPath.c_str());
+   unlinkResult = _unlink(path.c_str());
 #else
-   unlinkResult = unlink(swapPath.c_str());
+   unlinkResult = unlink(path.c_str());
 #endif
 
    if (unlinkResult != 0)
@@ -1272,8 +1285,15 @@ void WalletDBInterface::compactFile()
       throw WalletInterfaceException(
          "failed to delete file during wipe operation");
    }
+}
 
-   //TODO: lock sharing rights on wallet files
+////////////////////////////////////////////////////////////////////////////////
+void WalletDBInterface::eraseFromDisk()
+{
+   auto pathCopy = path_;
+   shutdown();
+
+   wipeAndDeleteFile(pathCopy);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1512,7 +1532,7 @@ void WalletIfaceTransaction::closeTx()
    //close the write tx, we still hold the write mutex
    tx.reset();
 
-   //wipe delete entries from file
+   //wipe deleted entries from file
    ifacePtr_->compactFile();
 }
 
