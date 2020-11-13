@@ -238,7 +238,9 @@ void BlockDataManagerConfig::printHelp(void)
 --public                  BIP150 auth will allow for anonymous requesters.
                           While only clients can be anon (servers/responders are
                           always auth'ed), both sides need to enable public
-                          channels for the handshake to succeed)";
+                          channels for the handshake to succeed)   
+--offline                 Do not seek to connect with the ArmoryDB blockchain
+                          service)";
 
   cerr << helpMsg << endl;
 }
@@ -612,6 +614,13 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
    if (iter != args.end())
    {
       oneWayAuth_ = true;
+   }
+
+   //offline
+   iter = args.find("offline");
+   if (iter != args.end())
+   {
+      offline_ = true;
    }
 }
 
