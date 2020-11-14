@@ -50,8 +50,7 @@ from armoryengine.ArmoryUtils import HMAC256
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
 from armoryengine.CppBridge import TheBridge
-from armoryengine.ClientProto_pb2 import \
-   BridgePromptState, BridgePromptType
+import armoryengine.ClientProto_pb2
 
 from ui.QtExecuteSignal import QtExecuteSignal
 
@@ -2946,11 +2945,8 @@ class ArmoryMainWindow(QMainWindow):
 
    #############################################################################
    def execImportWallet(self):
-      sdm = TheSDM.getSDMState()
       bdm = TheBDM.getState()
-      if sdm in ['BitcoindInitializing', \
-                 'BitcoindSynchronizing'] or \
-         bdm in [BDM_SCANNING]:
+      if bdm in [BDM_SCANNING]:
          QMessageBox.warning(self, self.tr('Scanning'), self.tr(
             'Armory is currently in the middle of scanning the blockchain for '
             'your existing wallets.  New wallets cannot be imported until this '
@@ -5671,7 +5667,7 @@ class ArmoryMainWindow(QMainWindow):
    #############################################################################
    def promptUser(self, promptID, promptType, verbose, wltID, state):
       self.signalExecution.executeMethod(\
-            self.promptDialogSetup, promptID, promptType, verbose, wltID, state)
+         self.promptDialogSetup, promptID, promptType, verbose, wltID, state)
 
    #############################################################################
    def promptDialogSetup(self, promptID, promptType, verbose, wltID, state):
@@ -5681,28 +5677,28 @@ class ArmoryMainWindow(QMainWindow):
       on a Qt dialog), so we use it to manage the promptID map as well
       '''
 
-      if state == BridgePromptState.Value('start'):
+      if state == ClientProto_pb2.UnlockPromptState.Value('start'):
          if promptID in self.promptMap:
             raise Exception("already have this prompt ID")
          
-         if promptType == BridgePromptType.Value('decrypt'):
+         if promptType == ClientProto_pb2.UnlockPromptType.Value('decrypt'):
             ppDlg = DlgUnlockWallet(\
                promptID, wltID, self, self, verbose, False)
 
-         elif promptType == BridgePromptType.Value('migrate'):
+         elif promptType == ClientProto_pb2.UnlockPromptType.Value('migrate'):
             ppDlg = DlgMigrateWallet(\
                promptID, wltID, verbose, self, self)
 
          self.promptMap[promptID] = ppDlg
          ppDlg.exec_()
 
-      elif state == BridgePromptState.Value('cycle'):
+      elif state == ClientProto_pb2.UnlockPromptState.Value('cycle'):
          if promptID in self.promptMap:
             ppDlg = self.promptMap[promptID]
             ppDlg.show()
             ppDlg.recycle()
 
-      elif state == BridgePromptState.Value('stop'):
+      elif state == ClientProto_pb2.UnlockPromptState.Value('stop'):
          if promptID in self.promptMap:
             ppDlg = self.promptMap[promptID]
             ppDlg.accept()
