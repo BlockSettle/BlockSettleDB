@@ -72,7 +72,7 @@ class ArmoryWizardPage(QWizardPage):
 #     2. Set Passphrase
 #     3. Verify Passphrase
 #     4. Create Paper Backup
-#     5. Create Watcing Only Wallet
+#     5. Create Watching Only Wallet
 class WalletWizard(ArmoryWizard):
    def __init__(self, parent, main):
       super(WalletWizard,self).__init__(parent, main)
@@ -235,7 +235,7 @@ class WalletCreationPage(ArmoryWizardPage):
          result = False
       elif self.pageFrame.getKdfBytes() == -1:
          QMessageBox.critical(self, self.tr('Invalid Max Memory Usage'), \
-            self.tr('You entered Max Memory Usag incorrectly.\n\nnter: <Number> (kb, mb)'), QMessageBox.Ok)
+            self.tr('You entered Max Memory Usage incorrectly.\n\nEnter: <Number> (kb, mb)'), QMessageBox.Ok)
          result = False
       return result
 
