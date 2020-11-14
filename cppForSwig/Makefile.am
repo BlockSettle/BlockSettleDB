@@ -135,6 +135,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	ResolverFeed.cpp \
 	Script.cpp \
 	SecureBinaryData.cpp \
+	ArmoryBackups.cpp \
 	ScriptRecipient.cpp \
 	Signer.cpp \
 	SocketObject.cpp \
