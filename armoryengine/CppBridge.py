@@ -226,12 +226,11 @@ class CppBridge(object):
 
    #############################################################################
    def promptUser(self, data):
-      payload = ClientProto_pb2.CppUserPromptCallback()
+      payload = ClientProto_pb2.OpaquePayload()
       payload.ParseFromString(data)
 
-      TheBDM.promptUser(\
-         payload.promptID, payload.promptType, \
-         payload.verbose, payload.walletID, payload.state)
+      TheBDM.pushFromBridge(\
+         payload.payloadType, payload.payload, payload.uniqueId, payload.intId)
 
    #############################################################################
    def returnPassphrase(self, id, passphrase):
@@ -1036,9 +1035,41 @@ class CppBridge(object):
       fut = self.sendToBridge(packet)
       socketResponse = fut.getVal()
 
+      response = ClientProto_pb2.ReplyStrings()
+      response.ParseFromString(socketResponse)
+      
+      if len(response.reply) != 1:
+         raise Exception("string reply count mismatch")
+
+      return response.reply[0]
+
+   #############################################################################
+   def deleteWallet(self, wltId):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.deleteWallet
+      packet.stringArgs.append(wltId)
+
+      fut = self.sendToBridge(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      return response.ints[0]     
+
+   #############################################################################
+   def getWalletData(self, wltId):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.getWalletData
+      packet.stringArgs.append(wltId)
+
+      fut = self.sendToBridge(packet)
+      socketResponse = fut.getVal()
+
       response = ClientProto_pb2.WalletData()
       response.ParseFromString(socketResponse)
-      return response
+
+      return response    
 
    #############################################################################
    def registerWallet(self, walletId, isNew):
@@ -1071,6 +1102,56 @@ class CppBridge(object):
 
       self.blockTimeByHeightCache[height] = blockTime
       return blockTime
+
+   #############################################################################
+   def createBackupStringForWalletCallback(self, socketResponse, args):
+      rootData = ClientProto_pb2.BridgeBackupString()
+      rootData.ParseFromString(socketResponse)
+
+      callbackArgs = [rootData]
+      callbackThread = threading.Thread(\
+         group=None, target=args[0], \
+         name=None, args=callbackArgs, kwargs={})
+      callbackThread.start()
+
+   #############################################################################
+   def createBackupStringForWallet(self, wltId, callback):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.createBackupStringForWallet
+      packet.stringArgs.append(wltId)
+
+      callbackArgs = [callback]
+      self.sendToBridge(\
+         packet, False, self.createBackupStringForWalletCallback, callbackArgs)
+
+   #############################################################################
+   def restoreWallet(self, root, chaincode, sppass, callbackId):
+      opaquePayload = ClientProto_pb2.RestoreWalletPayload()
+      opaquePayload.root.extend(root)
+      opaquePayload.secondary.extend(chaincode)
+      opaquePayload.spPass = sppass
+
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.methodWithCallback
+      packet.methodWithCallback = ClientProto_pb2.restoreWallet
+      
+      packet.byteArgs.append(callbackId)
+      packet.byteArgs.append(opaquePayload.SerializeToString())
+
+      self.sendToBridge(packet, False)
+
+   #############################################################################
+   def callbackFollowUp(self, payload, callbackId, callerId):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.methodWithCallback
+      packet.methodWithCallback = ClientProto_pb2.followUp
+
+      packet.byteArgs.append(callbackId)
+      packet.byteArgs.append(payload.SerializeToString())
+
+      packet.intArgs.append(callerId)
+
+      self.sendToBridge(packet, False)
 
 ################################################################################
 TheBridge = CppBridge()
