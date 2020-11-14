@@ -1837,7 +1837,7 @@ def RightNowStr(fmt=DEFAULT_DATE_FORMAT):
 def sha1(bits):
    return hashlib.new('sha1', bits).digest()
 def sha256(bits):
-   return hashlib.new('sha256', bits).digest()
+   return hashlib.new('sha256', str(bits).encode('utf-8')).digest()
 def sha512(bits):
    return hashlib.new('sha512', bits).digest()
 def ripemd160(bits):
@@ -3420,12 +3420,6 @@ def send_email(send_from, server, password, send_to, subject, text):
 
 
 #############################################################################
-def DeriveChaincodeFromRootKey(sbdPrivKey):
-   return SecureBinaryData( HMAC256( sbdPrivKey.getHash256(), \
-                                     'Derive Chaincode from Root Key'))
-
-
-#############################################################################
 def getLastBytesOfFile(filename, nBytes=500*1024):
    if not os.path.exists(filename):
       LOGERROR('File does not exist!')
@@ -3436,71 +3430,6 @@ def getLastBytesOfFile(filename, nBytes=500*1024):
       if sz > nBytes:
          fin.seek(sz - nBytes)
       return fin.read()
-
-
-################################################################################
-def HardcodedKeyMaskParams():
-   paramMap = {}
-
-   # Nothing up my sleeve!  Need some hardcoded random numbers to use for
-   # encryption IV and salt.  Using the first 256 digits of Pi for the
-   # the IV, and first 256 digits of e for the salt (hashed)
-   digits_pi = ( \
-      'ARMORY_ENCRYPTION_INITIALIZATION_VECTOR_'
-      '1415926535897932384626433832795028841971693993751058209749445923'
-      '0781640628620899862803482534211706798214808651328230664709384460'
-      '9550582231725359408128481117450284102701938521105559644622948954'
-      '9303819644288109756659334461284756482337867831652712019091456485')
-   digits_e = ( \
-      'ARMORY_KEY_DERIVATION_FUNCTION_SALT_'
-      '7182818284590452353602874713526624977572470936999595749669676277'
-      '2407663035354759457138217852516642742746639193200305992181741359'
-      '6629043572900334295260595630738132328627943490763233829880753195'
-      '2510190115738341879307021540891499348841675092447614606680822648')
-
-   paramMap['IV']    = SecureBinaryData( hash256(digits_pi)[:16] )
-   paramMap['SALT']  = SecureBinaryData( hash256(digits_e) )
-   paramMap['KDFBYTES'] = int(16*MEGABYTE)
-
-   def hardcodeCreateSecurePrintPassphrase(secret):
-      if isinstance(secret, basestring):
-         secret = SecureBinaryData(secret)
-      bin7 = HMAC512(secret.getHash256(), paramMap['SALT'].toBinStr())[:7]
-      out,bin7 = SecureBinaryData(binary_to_base58(bin7 + hash256(bin7)[0])), None
-      return out
-
-   def hardcodeCheckSecurePrintCode(securePrintCode):
-      if isinstance(securePrintCode, basestring):
-         pwd = base58_to_binary(securePrintCode)
-      else:
-         pwd = base58_to_binary(securePrintCode.toBinStr())
-
-      isgood,pwd = (hash256(pwd[:7])[0] == pwd[-1]), None
-      return isgood
-
-   def hardcodeApplyKdf(secret):
-      if isinstance(secret, basestring):
-         secret = SecureBinaryData(secret)
-      kdf = KdfRomix()
-      kdf.usePrecomputedKdfParams(paramMap['KDFBYTES'], 1, paramMap['SALT'])
-      return kdf.DeriveKey(secret)
-
-   def hardcodeMask(secret, passphrase=None, ekey=None):
-      if not ekey:
-         ekey = hardcodeApplyKdf(passphrase)
-      return CryptoAES().EncryptCBC(secret, ekey, paramMap['IV'])
-
-   def hardcodeUnmask(secret, passphrase=None, ekey=None):
-      if not ekey:
-         ekey = hardcodeApplyKdf(passphrase)
-      return CryptoAES().DecryptCBC(secret, ekey, paramMap['IV'])
-
-   paramMap['FUNC_PWD']    = hardcodeCreateSecurePrintPassphrase
-   paramMap['FUNC_KDF']    = hardcodeApplyKdf
-   paramMap['FUNC_MASK']   = hardcodeMask
-   paramMap['FUNC_UNMASK'] = hardcodeUnmask
-   paramMap['FUNC_CHKPWD'] = hardcodeCheckSecurePrintCode
-   return paramMap
 
 ################################################################################
 ################################################################################
