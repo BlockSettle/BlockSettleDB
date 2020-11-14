@@ -33,6 +33,7 @@ from armoryengine.ArmoryUtils import BTC_HOME_DIR
 from ui.TreeViewGUI import AddressTreeModel
 from ui.QrCodeMatrix import CreateQRMatrix
 from armoryengine.Block import PyBlockHeader
+from armoryengine import ClientProto_pb2
 
 NO_CHANGE = 'NoChange'
 MIN_PASSWD_WIDTH = lambda obj: tightSizeStr(obj, '*' * 16)[0]
@@ -319,7 +320,7 @@ class DlgUnlockWallet(ArmoryDialog):
          self.edtPasswd.setText('')
          self.accept()
          return
-
+      
       TheBridge.returnPassphrase(self.promptId, passphraseStr)
       passphraseStr = ''
 
@@ -1225,8 +1226,8 @@ class DlgChangePassphrase(ArmoryDialog):
       p2 = self.edtPasswd2.text()
       goodColor = htmlColor('TextGreen')
       badColor = htmlColor('TextRed')
-      if not isASCII(unicode(p1)) or \
-         not isASCII(unicode(p2)):
+      if not isASCII(p1) or \
+         not isASCII(p2):
          self.lblMatches.setText(self.tr('<font color=%s><b>Passphrase is non-ASCII!</b></font>' % badColor))
          return False
       if not p1 == p2:
@@ -4448,10 +4449,13 @@ class DlgRemoveWallet(ArmoryDialog):
             os.remove(thepathBackup)
             self.main.statusBar().showMessage( \
                self.tr('Wallet %s was replaced with a watching-only wallet.' % wltID), 10000)
+
          elif self.radioDelete.isChecked():
             LOGINFO('***Completely deleting wallet')
-            os.remove(thepath)
-            os.remove(thepathBackup)
+            if TheBridge.deleteWallet(wltID) != 1:
+               LOGERROR("failed to delete wallet")
+               raise Exception("failed to delete wallet")
+
             self.main.removeWalletFromApplication(wltID)
             self.main.statusBar().showMessage( \
                self.tr('Wallet %s was deleted!' % wltID), 10000)
@@ -6697,30 +6701,6 @@ class DlgPrintBackup(ArmoryDialog):
 
 
       self.wlt = wlt
-      self.binMask = SecureBinaryData(0)
-      self.binPriv = wlt.addrMap['ROOT'].binPrivKey32_Plain.copy()
-      self.binChain = wlt.addrMap['ROOT'].chaincode.copy()
-
-      # This badBackup stuff was implemented to avoid making backups if there is
-      # an inconsistency in the data.  Yes, this is like a goto!
-      try:
-         if privKey:
-            if not chaincode:
-               raise KeyDataError
-            self.binPriv = privKey.copy()
-            self.binChain = chaincode.copy()
-
-         if self.binPriv.getSize() < 32:
-            raise KeyDataError
-
-      except:
-         LOGEXCEPT("Problem with private key and/or chaincode.  Aborting.")
-         QMessageBox.critical(self, self.tr("Error Creating Backup"), self.tr(
-            'There was an error with the backup creator.  The operation is being '
-            'canceled to avoid making bad backups!'), QMessageBox.Ok)
-         return
-
-
       self.binImport = []
       self.fragMtrx = fragMtrx
 
@@ -6731,14 +6711,32 @@ class DlgPrintBackup(ArmoryDialog):
       if self.doPrintFrag:
          self.doMultiFrag = len(fragData['Range']) > 1
 
+      self.backupData = None
+      def resumeSetup(rootData):
+         self.backupData = rootData
+         self.emit(SIGNAL('backupSetupSignal'))
+
+      self.connect(self, SIGNAL('backupSetupSignal'), self.setup)
+      rootData = self.wlt.createBackupString(resumeSetup)
+
+   ###
+   def setup(self):
+      # This badBackup stuff was implemented to avoid making backups if there is
+      # an inconsistency in the data.  Yes, this is like a goto!
+      if self.backupData == None:
+         LOGEXCEPT("Problem with private key and/or chaincode.  Aborting.")
+         QMessageBox.critical(self, self.tr("Error Creating Backup"), self.tr(
+            'There was an error with the backup creator.  The operation is being '
+            'canceled to avoid making bad backups!'), QMessageBox.Ok)
+         return
+
       # A self-evident check of whether we need to print the chaincode.
       # If we derive the chaincode from the private key, and it matches
       # what's already in the wallet, we obviously don't need to print it!
-      testChain = DeriveChaincodeFromRootKey(self.binPriv)
-      self.noNeedChaincode = (testChain == self.binChain)
+      self.noNeedChaincode = (len(self.backupData.chainclear) == 0)
 
       # Save off imported addresses in case they need to be printed, too
-      for a160, addr in self.wlt.addrMap.iteritems():
+      for a160, addr in self.wlt.addrMap.items():
          if addr.chainIndex == -2:
             if addr.binPrivKey32_Plain.getSize() == 33 or addr.isCompressed():
                prv = addr.binPrivKey32_Plain.toBinStr()[:32]
@@ -6748,41 +6746,6 @@ class DlgPrintBackup(ArmoryDialog):
                self.binImport.append([a160, addr.binPrivKey32_Plain.copy(), 0])
 
 
-      # USE PRINTER MASK TO PREVENT NETWORK DEVICES FROM SEEING PRIVATE KEYS
-      # Hardcode salt & IV because they should *never* change.
-      # Rainbow tables aren't all that useful here because the user
-      # is not creating the password -- it's *essentially* randomized
-      # with 64-bits of real entropy. (though, it is deterministic
-      # based on the private key, so that printing the backup multiple
-      # times will produce the same password).
-      SECPRINT = HardcodedKeyMaskParams()
-
-      start = RightNow()
-      self.randpass = SECPRINT['FUNC_PWD'](self.binPriv + self.binChain)
-      self.binCrypt32 = SECPRINT['FUNC_KDF'](self.randpass)
-      LOGINFO('Deriving SecurePrint code took %0.2f seconds' % (RightNow() - start))
-
-      MASK = lambda x: SECPRINT['FUNC_MASK'](x, ekey=self.binCrypt32)
-
-      self.binPrivCrypt = MASK(self.binPriv)
-      self.binChainCrypt = MASK(self.binChain)
-
-      self.binImportCrypt = []
-      for i in range(len(self.binImport)):
-         self.binImportCrypt.append([      self.binImport[i][0], \
-                                      MASK(self.binImport[i][1]), \
-                                           self.binImport[i][2]   ])
-
-      # If there is data in the fragments matrix, also convert it
-      if len(self.fragMtrx) > 0:
-         self.fragMtrxCrypt = []
-         for sbdX, sbdY in self.fragMtrx:
-            self.fragMtrxCrypt.append([sbdX.copy(), MASK(sbdY)])
-
-      self.binCrypt32.destroy()
-
-
-      # We need to figure out how many imported keys fit on one page
       tempTxtItem = QGraphicsTextItem('')
       tempTxtItem.setPlainText(toUnicode('0123QAZjqlmYy'))
       tempTxtItem.setFont(GETFONT('Fix', 7))
@@ -6830,8 +6793,8 @@ class DlgPrintBackup(ArmoryDialog):
          u'<b><font color="%s"><u>IMPORTANT:</u></b>  You must write the SecurePrint\u200b\u2122 '
          u'encryption code on each printed backup page!  Your SecurePrint\u200b\u2122 code is </font> '
          '<font color="%s">%s</font>.  <font color="%s">Your backup will not work '
-         'if this code is lost!</font>' % (htmlColor('TextWarn'), htmlColor('TextBlue'), self.randpass.toBinStr(), \
-         htmlColor('TextWarn'))))
+         'if this code is lost!</font>' % (htmlColor('TextWarn'), htmlColor('TextBlue'), \
+         self.backupData.sppass, htmlColor('TextWarn'))))
 
       self.connect(self.chkSecurePrint, SIGNAL("clicked()"), self.redrawBackup)
 
@@ -6957,7 +6920,7 @@ class DlgPrintBackup(ArmoryDialog):
       bottomOfPage = self.scene.pageRect().height() + MARGIN
       totalHgt = bottomOfPage - self.bottomOfSceneHeader
       self.maxKeysPerPage = int(totalHgt / (self.importHgt))
-      self.numImportPages = (len(self.binImport) - 1) / self.maxKeysPerPage + 1
+      self.numImportPages = int((len(self.binImport) - 1) / self.maxKeysPerPage) + 1
       if self.comboPageNum.count() == 0:
          if self.doPrintFrag:
             numFrag = len(self.fragData['Range'])
@@ -7025,13 +6988,7 @@ class DlgPrintBackup(ArmoryDialog):
 
 
    def cleanup(self):
-      self.binPriv.destroy()
-      self.binChain.destroy()
-      self.binPrivCrypt.destroy()
-      self.binChainCrypt.destroy()
-      self.randpass.destroy()
-      for a160, priv, compr in self.binImport:
-         priv.destroy()
+      self.backupData = None
 
       for x, y in self.fragMtrxCrypt:
          x.destroy()
@@ -7078,7 +7035,7 @@ class DlgPrintBackup(ArmoryDialog):
 
       ssType = self.trUtf8(u' (SecurePrint\u200b\u2122)') if doMask else self.tr(' (Unencrypted)')
       if printType == 'SingleSheetFirstPage':
-         bType = self.tr('Single-Sheet %s' % ssType)
+         bType = self.tr('Single-Sheet') # %s' % ssType)
       elif printType == 'SingleSheetImported':
          bType = self.tr('Imported Keys %s' % ssType)
       elif printType.lower().startswith('frag'):
@@ -7234,7 +7191,7 @@ class DlgPrintBackup(ArmoryDialog):
          fmtrx = self.fragMtrxCrypt if doMask else self.fragMtrx
 
          try:
-            yBin = fmtrx[printData][1].toBinStr()
+            yBin = fmtrx[printData][1]
             binID = base58_to_binary(self.fragData['fragSetID'])
             IDLine = ComputeFragIDLineHex(M, printData, binID, doMask, addSpaces=True)
             if len(yBin) == 32:
@@ -7255,23 +7212,20 @@ class DlgPrintBackup(ArmoryDialog):
       else:
          # Single-sheet backup
          if doMask:
-            code12 = self.binPrivCrypt.toBinStr()
-            code34 = self.binChainCrypt.toBinStr()
+            code12 = self.backupData.rootencr
+            code34 = self.backupData.chainencr
          else:
-            code12 = self.binPriv.toBinStr()
-            code34 = self.binChain.toBinStr()
+            code12 = self.backupData.rootclear
+            code34 = self.backupData.chainclear
 
 
          Lines = []
          Prefix = []
-         Prefix.append('Root Key:');  Lines.append(makeSixteenBytesEasy(code12[:16]))
-         Prefix.append('');           Lines.append(makeSixteenBytesEasy(code12[16:]))
-         Prefix.append('Chaincode:'); Lines.append(makeSixteenBytesEasy(code34[:16]))
-         Prefix.append('');           Lines.append(makeSixteenBytesEasy(code34[16:]))
-
-         if self.noNeedChaincode:
-            Prefix = Prefix[:2]
-            Lines = Lines[:2]
+         Prefix.append('Root Key:');  Lines.append(code12[0])
+         Prefix.append('');           Lines.append(code12[1])
+         if not self.noNeedChaincode:
+            Prefix.append('Chaincode:'); Lines.append(code34[0])
+            Prefix.append('');           Lines.append(code34[1])
 
       # Draw the prefix
       origX, origY = self.scene.getCursorXY()
@@ -7369,7 +7323,7 @@ def OpenPaperBackupWindow(backupType, parent, main, wlt, unlockTitle=None):
          'fragment (or stored with each file fragment). The code is the '
          'same for all fragments.')
 
-   doTest = MsgBoxCustom(MSGBOX.Warning, parent.tr('Verify Your Backup!'), parent.tr(
+   doTest = MsgBoxCustom(MSGBOX.Warning, parent.tr('Verify Your Backup!'), parent.trUtf8(
       '<b><u>Verify your backup!</u></b> '
       '<br><br>'
       'If you just made a backup, make sure that it is correct! '
@@ -10700,8 +10654,6 @@ class DlgFragBackup(ArmoryDialog):
       super(DlgFragBackup, self).__init__(parent, main)
 
       self.wlt = wlt
-      self.randpass = None
-      self.binCrypt32 = None
 
       lblDescrTitle = QRichLabel(self.tr(
          '<b><u>Create M-of-N Fragmented Backup</u> of "%s" (%s)</b>' % (wlt.labelName, wlt.uniqueIDB58)), doWrap=False)
@@ -10780,7 +10732,7 @@ class DlgFragBackup(ArmoryDialog):
          u'Your SecurePrint\u200b\u2122 code is </font> '
          '<font color="%s">%s</font><font color="%s">. '
          'All fragments for a given wallet use the '
-         'same code.</font>' % (htmlColor('TextWarn'), htmlColor('TextBlue'), self.randpass.toBinStr(), \
+         'same code.</font>' % (htmlColor('TextWarn'), htmlColor('TextBlue'), self.backupData.sppass, \
           htmlColor('TextWarn'))))
       self.connect(self.chkSecurePrint, SIGNAL(CLICKED), self.clickChkSP)
       self.chkSecurePrint.setChecked(False)
@@ -10962,7 +10914,7 @@ class DlgFragBackup(ArmoryDialog):
 
    #############################################################################
    def clickSaveFrag(self, zindex):
-      saveMtrx = self.secureMtrx;
+      saveMtrx = self.secureMtrx
       doMask = False
       if self.chkSecurePrint.isChecked():
          response = QMessageBox.question(self, self.tr('Secure Backup?'), self.trUtf8(
@@ -10975,7 +10927,7 @@ class DlgFragBackup(ArmoryDialog):
             QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
 
          if response == QMessageBox.Yes:
-            saveMtrx = self.secureMtrxCrypt;
+            saveMtrx = self.secureMtrxCrypt
             doMask = True
          elif response == QMessageBox.No:
             pass
@@ -11038,7 +10990,9 @@ class DlgFragBackup(ArmoryDialog):
             'case-sensitive! '
             '<br><br> <font color="%s" size=5><b>%s</b></font>'
             '<br><br>'
-            'The above code <u><b>is</b></u> case-sensitive!' % (htmlColor('TextWarn'), htmlColor('TextBlue'), self.randpass.toBinStr()))
+            'The above code <u><b>is</b></u> case-sensitive!' \
+            % (htmlColor('TextWarn'), htmlColor('TextBlue'), \
+            self.backupData.sppass))
 
       QMessageBox.information(self, self.tr('Success'), qmsg, QMessageBox.Ok)
 
@@ -11260,6 +11214,8 @@ class DlgRestoreSingle(ArmoryDialog):
    def __init__(self, parent, main, thisIsATest=False, expectWltID=None):
       super(DlgRestoreSingle, self).__init__(parent, main)
 
+      self.newWltID = None
+      self.callbackId = None
       self.thisIsATest = thisIsATest
       self.testWltID = expectWltID
       headerStr = ''
@@ -11375,6 +11331,16 @@ class DlgRestoreSingle(ArmoryDialog):
       self.advancedOptionsTab.setEnabled(self.chkEncrypt.isChecked())
 
    #############################################################################
+   def accept(self):
+      TheBDM.unregisterCustomPrompt(self.callbackId)
+      super(ArmoryDialog, self).accept()
+
+   #############################################################################
+   def reject(self):
+      TheBDM.unregisterCustomPrompt(self.callbackId)
+      super(ArmoryDialog, self).reject()
+
+   #############################################################################
    def changeType(self, sel):
       if   sel == self.backupTypeButtonGroup.id(self.version135Button):
          visList = [0, 1, 1, 1, 1]
@@ -11398,38 +11364,205 @@ class DlgRestoreSingle(ArmoryDialog):
 
       self.isLongForm = (visList[-1] == 1)
 
+   #############################################################################
+   def processCallback(self, payload, callerId):
+      
+      if callerId == UINT32_MAX:
+         errorMsg = "N/A"
+         try:
+            errorVerbose = ClientProto_pb2.ReplyStrings()
+            errorVerbose.ParseFromString(payload)
+            errorMsg = errorVerbose.reply[0]
+         except:
+            pass
+
+         LOGERROR("C++ side unhandled error in RestoreWallet: " + errorMsg)
+         QMessageBox.critical(self, self.tr('Unhandled Error'), \
+            self.tr(\
+               'The import operation failed with the following error: '
+               '<br><br><b>%s</b>' % errorMsg \
+               ), QMessageBox.Ok)
+             
+         self.reject()
+         return
+      
+      result, extra = self.processCallbackPayload(payload)
+      if result == False:
+         TheBDM.unregisterCustomPrompt(self.callbackId)
+         
+      reply = ClientProto_pb2.RestoreReply()
+      reply.result = result
+
+      if extra != None:
+         reply.extra = bytes(extra, 'utf-8')
+
+      TheBridge.callbackFollowUp(reply, self.callbackId, callerId)
+
+   #############################################################################
+   def processCallbackPayload(self, payload):
+      msg = ClientProto_pb2.RestorePrompt()
+      msg.ParseFromString(payload)
+
+      if msg.promptType == ClientProto_pb2.RestorePromptType.Value("Id") or \
+         msg.promptType == ClientProto_pb2.RestorePromptType.Value("ChecksumError"):
+         #check the id generated by this backup
+
+         newWltID = msg.extra
+         if len(newWltID) > 0:
+            if self.thisIsATest:   
+               # Stop here if this was just a test
+               verifyRecoveryTestID(self, newWltID, self.testWltID)
+               
+               #return false to caller to end the restore process
+               return False, None
+
+            # return result of id comparison
+            dlgOwnWlt = None
+            if newWltID in self.main.walletMap:
+               dlgOwnWlt = DlgReplaceWallet(newWltID, self.parent, self.main)
+
+               if (dlgOwnWlt.exec_()):
+                  #TODO: deal with replacement code
+                  if dlgOwnWlt.output == 0:
+                     return False, None
+               else:
+                  return False, None
+            else:
+               reply = QMessageBox.question(self, self.tr('Verify Wallet ID'), \
+                        self.tr('The data you entered corresponds to a wallet with a wallet ID: \n\n'
+                        '%s\n\nDoes this ID match the "Wallet Unique ID" '
+                        'printed on your paper backup?  If not, click "No" and reenter '
+                        'key and chain-code data again.' % newWltID), \
+                        QMessageBox.Yes | QMessageBox.No)
+               if reply == QMessageBox.Yes:
+                  #return true to caller to proceed with restore operation
+                  self.newWltID = newWltID
+                  return True, None
+
+         #reconstructed wallet id is invalid if we get this far
+         lineNumber = -1
+         canBeSalvaged = True
+         if len(msg.checksums) != self.lineCount:
+            canBeSalvaged = False
+
+         for i in range(0, len(msg.checksums)):
+            if msg.checksums[i] < 0 or msg.checksums[i] == UINT8_MAX:
+               lineNumber = i + 1
+               break
+
+         if lineNumber == -1 or canBeSalvaged == False:
+            QMessageBox.critical(self, self.tr('Unknown Error'), self.tr(
+               'Encountered an unkonwn error when restoring this backup. Aborting.', \
+               QMessageBox.Ok))
+
+            self.reject()
+            return False, None
+                       
+         reply = QMessageBox.critical(self, self.tr('Invalid Data'), self.tr(
+            'There is an error in the data you entered that could not be '
+            'fixed automatically.  Please double-check that you entered the '
+            'text exactly as it appears on the wallet-backup page.  <br><br> '
+            'The error occured on <font color="red">line #%d</font>.' % lineNumber), \
+            QMessageBox.Ok)
+         LOGERROR('Error in wallet restore field')
+         self.prfxList[i].setText(\
+            '<font color="red">' + str(self.prfxList[i].text()) + '</font>')
+         
+         return False, None
+
+      if msg.promptType == ClientProto_pb2.RestorePromptType.Value("Passphrase"):
+         #return new wallet's private keys password
+         passwd = []
+         if self.chkEncrypt.isChecked():
+            dlgPasswd = DlgChangePassphrase(self, self.main)
+            if dlgPasswd.exec_():
+               passwd = str(dlgPasswd.edtPasswd1.text())
+               return True, passwd
+            else:
+               QMessageBox.critical(self, self.tr('Cannot Encrypt'), \
+                  self.tr('You requested your restored wallet be encrypted, but no '
+                  'valid passphrase was supplied.  Aborting wallet recovery.'), \
+                  QMessageBox.Ok)
+               self.reject()
+               return False, None
+
+      if msg.promptType == ClientProto_pb2.RestorePromptType.Value("Control"):
+         #TODO: need UI to input control passphrase
+         return True, None
+
+      if msg.promptType == ClientProto_pb2.RestorePromptType.Value("Success"):
+         if self.newWltID == None or len(self.newWltID) == 0:
+            LOGERROR("wallet import did not yield an id")
+            raise Exception("wallet import did not yield an id")
+
+         self.newWallet = PyBtcWallet()
+         self.newWallet.loadFromBridge(self.newWltID)
+         self.accept()
+
+         return True, None
+
+      if msg.promptType == ClientProto_pb2.RestorePromptType.Value("FormatError") or \
+         msg.promptType == ClientProto_pb2.RestorePromptType.Value("Failure"):
+
+         QMessageBox.critical(self, self.tr('Unknown Error'), self.tr(
+            'Encountered an unkonwn error when restoring this backup. Aborting.', \
+            QMessageBox.Ok))
+         
+         self.reject()
+         return False, None
+
+      if msg.promptType == ClientProto_pb2.RestorePromptType.Value("DecryptError"):
+         #TODO: notify of invalid SP pass
+         pass
+      
+      if msg.promptType == ClientProto_pb2.RestorePromptType.Value("TypeError"):
+         #TODO: wallet type conveyed by backup is unknown
+         pass
+
+      else:
+         #TODO: unknown error
+         return False, None
+
 
    #############################################################################
    def verifyUserInput(self):
-      inputLines = []
-      nError = 0
-      rawBin = None
-      nLine = 4 if self.isLongForm else 2
-      for i in range(nLine):
-         hasError = False
-         try:
-            rawEntry = str(self.edtList[i].text())
-            rawBin, err = readSixteenEasyBytes(rawEntry.replace(' ', ''))
-            if err == 'Error_2+':
-               hasError = True
-            elif err == 'Fixed_1':
-               nError += 1
-         except:
-            hasError = True
 
-         if hasError:
-            lineNumber = i+1
-            reply = QMessageBox.critical(self, self.tr('Invalid Data'), self.tr(
-               'There is an error in the data you entered that could not be '
-               'fixed automatically.  Please double-check that you entered the '
-               'text exactly as it appears on the wallet-backup page.  <br><br> '
-               'The error occured on <font color="red">line #%d</font>.' % lineNumber), \
-               QMessageBox.Ok)
-            LOGERROR('Error in wallet restore field')
-            self.prfxList[i].setText('<font color="red">' + str(self.prfxList[i].text()) + '</font>')
-            return
+      root = []
+      for i in range(2):
+         root.append(str(self.edtList[i].text()))
 
-         inputLines.append(rawBin)
+      chaincode = []
+      if self.isLongForm:
+         for i in range(2):
+            chaincode.append(str(self.edtList[i+2].text()))
+
+      self.lineCount = len(root) + len(chaincode)
+
+      spPass = ""
+      if self.doMask:
+         #add secureprint passphrase if this backup is encrypted
+         spPass = str(self.editSecurePrint.text()).strip()
+
+      '''
+      verifyBackupString is a method that will trigger multiple callbacks
+      during the course of its execution. Unlike a password request callback
+      which only requires to generate a dedicated dialog to retrieve passwords
+      from users, verifyBackupString set of notifications is complex and comes
+      with branches.
+
+      A dedicated callbackId is generated for this interaction and passed to 
+      TheBDM callback map along with a py side method to handle the protobuf 
+      packet from the C++ side.
+
+      The C++ method is called with that id.
+      '''
+      def callback(payload, callerId):
+         self.main.signalExecution.executeMethod(\
+            self.processCallback, payload, callerId)
+
+      self.callbackId = TheBDM.registerCustomPrompt(callback)
+      TheBridge.restoreWallet(root, chaincode, spPass, self.callbackId)
+      return
 
       if self.chkEncrypt.isChecked() and self.advancedOptionsTab.getKdfSec() == -1:
             QMessageBox.critical(self, self.tr('Invalid Target Compute Time'), \
@@ -11450,127 +11583,6 @@ class DlgRestoreSingle(ArmoryDialog):
 
          QMessageBox.question(self, self.tr('Errors Corrected'), msg, \
             QMessageBox.Ok)
-
-      privKey = SecureBinaryData(''.join(inputLines[:2]))
-      if self.isLongForm:
-         chain = SecureBinaryData(''.join(inputLines[2:]))
-
-
-
-      if self.doMask:
-         # Prepare the key mask parameters
-         SECPRINT = HardcodedKeyMaskParams()
-         securePrintCode = str(self.editSecurePrint.text()).strip()
-         if not checkSecurePrintCode(self, SECPRINT, securePrintCode):
-            return
-
-
-         maskKey = SECPRINT['FUNC_KDF'](securePrintCode)
-         privKey = SECPRINT['FUNC_UNMASK'](privKey, ekey=maskKey)
-         if self.isLongForm:
-            chain = SECPRINT['FUNC_UNMASK'](chain, ekey=maskKey)
-
-      if not self.isLongForm:
-         chain = DeriveChaincodeFromRootKey(privKey)
-
-      # If we got here, the data is valid, let's create the wallet and accept the dlg
-      # Now we should have a fully-plaintext rootkey and chaincode
-      root = PyBtcAddress().createFromPlainKeyData(privKey)
-      root.chaincode = chain
-
-      first = root.extendAddressChain()
-      newWltID = binary_to_base58((ADDRBYTE + first.getAddr160()[:5])[::-1])
-
-      # Stop here if this was just a test
-      if self.thisIsATest:
-         verifyRecoveryTestID(self, newWltID, self.testWltID)
-         return
-
-      dlgOwnWlt = None
-      if newWltID in self.main.walletMap:
-         dlgOwnWlt = DlgReplaceWallet(newWltID, self.parent, self.main)
-
-         if (dlgOwnWlt.exec_()):
-            if dlgOwnWlt.output == 0:
-               return
-         else:
-            self.reject()
-            return
-      else:
-         reply = QMessageBox.question(self, self.tr('Verify Wallet ID'), \
-                  self.tr('The data you entered corresponds to a wallet with a wallet ID: \n\n'
-                  '%s\n\nDoes this ID match the "Wallet Unique ID" '
-                  'printed on your paper backup?  If not, click "No" and reenter '
-                  'key and chain-code data again.' % newWltID), \
-                  QMessageBox.Yes | QMessageBox.No)
-         if reply == QMessageBox.No:
-            return
-
-      passwd = []
-      if self.chkEncrypt.isChecked():
-         dlgPasswd = DlgChangePassphrase(self, self.main)
-         if dlgPasswd.exec_():
-            passwd = SecureBinaryData(str(dlgPasswd.edtPasswd1.text()))
-         else:
-            QMessageBox.critical(self, self.tr('Cannot Encrypt'), \
-               self.tr('You requested your restored wallet be encrypted, but no '
-               'valid passphrase was supplied.  Aborting wallet recovery.'), \
-               QMessageBox.Ok)
-            return
-
-      shortl = ''
-      longl  = ''
-      nPool  = 1000
-
-      if dlgOwnWlt is not None:
-         if dlgOwnWlt.Meta is not None:
-            shortl = ' - %s' % (dlgOwnWlt.Meta['shortLabel'])
-            longl  = dlgOwnWlt.Meta['longLabel']
-            nPool = max(nPool, dlgOwnWlt.Meta['naddress'])
-
-      self.newWallet = PyBtcWallet()
-
-      if passwd:
-         self.newWallet.createNewWallet( \
-                                 plainRootKey=privKey, \
-                                 chaincode=chain, \
-                                 shortLabel='Restored - ' + newWltID +shortl, \
-                                 longLabel=longl, \
-                                 withEncrypt=True, \
-                                 securePassphrase=passwd, \
-                                 kdfTargSec = \
-                                 self.advancedOptionsTab.getKdfSec(), \
-                                 kdfMaxMem = \
-                                 self.advancedOptionsTab.getKdfBytes(),
-                                 isActuallyNew=False, \
-                                 doRegisterWithBDM=False)
-      else:
-         self.newWallet.createNewWallet( \
-                                 plainRootKey=privKey, \
-                                 chaincode=chain, \
-                                 shortLabel='Restored - ' + newWltID +shortl, \
-                                 longLabel=longl, \
-                                 withEncrypt=False, \
-                                 isActuallyNew=False, \
-                                 doRegisterWithBDM=False)
-
-      fillAddrPoolProgress = DlgProgress(self, self.main, HBar=1,
-                                         Title=self.tr("Computing New Addresses"))
-      fillAddrPoolProgress.exec_(self.newWallet.fillAddressPool, nPool)
-
-      if dlgOwnWlt is not None:
-         if dlgOwnWlt.Meta is not None:
-            from armoryengine.PyBtcWallet import WLT_UPDATE_ADD
-            for n_cmt in range(0, dlgOwnWlt.Meta['ncomments']):
-               entrylist = []
-               entrylist = list(dlgOwnWlt.Meta[n_cmt])
-               self.newWallet.walletFileSafeUpdate([[WLT_UPDATE_ADD,
-                                                     entrylist[2],
-                                                     entrylist[1],
-                                                     entrylist[0]]])
-
-         self.newWallet = PyBtcWallet().readWalletFile(self.newWallet.walletPath)
-      self.accept()
 
 
 # Class that will create the watch-only wallet data (root public key & chain
