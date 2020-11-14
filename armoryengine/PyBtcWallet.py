@@ -547,16 +547,21 @@ class PyBtcWallet(object):
       LOGINFO('***Creating new deterministic wallet')
 
       #create cpp wallet
-      walletProto = TheBridge.createWallet(\
+      walletId = TheBridge.createWallet(\
          self.addrPoolSize, \
          passphrase, "", \
          #kdfTargSec, kdfMaxMem, \
          shortLabel, longLabel,
          extraEntropy)
 
-      self.loadFromProtobufPayload(walletProto)
+      self.loadFromBridge(walletId)
       return self
-   
+
+   #############################################################################
+   def loadFromBridge(self, walletId):
+      walletProto = TheBridge.getWalletData(walletId)
+      self.loadFromProtobufPayload(walletProto)
+  
    #############################################################################
    def peekChangeAddr(self, addrType=AddressEntryType_Default):
       newAddrProto = TheBridge.getNewAddress(self.uniqueIDB58, addrType)
@@ -1710,6 +1715,10 @@ class PyBtcWallet(object):
    #############################################################################
    def registerWallet(self, isNew):
       TheBridge.registerWallet(self.uniqueIDB58, isNew)
+
+   #############################################################################
+   def createBackupString(self, callback):
+      return TheBridge.createBackupStringForWallet(self.uniqueIDB58, callback)
 
 ###############################################################################
 def getSuffixedPath(walletPath, nameSuffix):
