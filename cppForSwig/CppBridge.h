@@ -50,7 +50,7 @@ public:
       id_(id), writeLambda_(lbd)
    {}
 
-   PassphraseLambda getLambda(::Codec_ClientProto::BridgePromptType);
+   PassphraseLambda getLambda(::Codec_ClientProto::UnlockPromptType);
    void setReply(const std::string&);
 };
 
@@ -107,7 +107,47 @@ struct CppBridgeSignerStruct
    std::unique_ptr<TxEvalState> signState_;
 };
 
+///////////////////////////////////////////////////////////////////////////////
+using CommandQueue = std::shared_ptr<ArmoryThreading::BlockingQueue<
+   ::Codec_ClientProto::ClientCommand>>;
+
 ////
+class CppBridge;
+
+////
+class MethodCallbacksHandler
+{
+   friend class CppBridge;
+
+private:
+   unsigned counter_ = 0;
+   const BinaryData id_;
+   std::thread methodThr_;
+   std::map<unsigned, std::function<void(BinaryData)>> callbacks_;
+
+   CommandQueue parentCommandQueue_;
+
+public: 
+   MethodCallbacksHandler(const BinaryData& id, CommandQueue queue) :
+      id_(id), parentCommandQueue_(queue)
+   {}
+
+   ~MethodCallbacksHandler(void) 
+   {
+      flagForCleanup();
+      if (methodThr_.joinable())
+         methodThr_.join();
+   }
+
+   const BinaryData& id(void) const { return id_; }
+   unsigned addCallback(const std::function<void(BinaryData)>&);
+
+   //startThread
+   void flagForCleanup(void);
+   void processCallbackReply(unsigned, BinaryDataRef&);
+};
+
+///////////////////////////////////////////////////////////////////////////////
 using BridgeReply = std::unique_ptr<::google::protobuf::Message>;
 class CppBridge
 {
@@ -134,11 +174,24 @@ private:
    std::function<void(std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
 
    const bool oneWayAuth_;
+   const bool offline_;
+
+   std::map<BinaryData, std::shared_ptr<MethodCallbacksHandler>> 
+      callbackHandlerMap_;
+   CommandQueue commandWithCallbackQueue_;
+
+   std::thread commandWithCallbackProcessThread_;
 
 private:
+   //commands with callback
+   void queueCommandWithCallback(::Codec_ClientProto::ClientCommand);
+   void processCommandWithCallbackThread(void);
+
    //wallet setup
    void loadWallets(unsigned id);
-   BridgeReply createWalletPacket(void);
+   BridgeReply createWalletsPacket(void);
+   bool deleteWallet(const std::string&);
+   BridgeReply getWalletPacket(const std::string&) const;
    
    //AsyncClient::BlockDataViewer setup
    void setupDB(void);
@@ -152,13 +205,15 @@ private:
    BridgeReply getAddrCombinedList(const std::string&);
    BridgeReply getHighestUsedIndex(const std::string&);
 
-   //addresses
+   //wallet & addresses
    BridgeReply getNewAddress(const std::string&, unsigned);
    BridgeReply getChangeAddress(const std::string&, unsigned);
    BridgeReply peekChangeAddress(const std::string&, unsigned);
    void extendAddressPool(const std::string&, unsigned, unsigned);
    std::string createWallet(const ::Codec_ClientProto::ClientCommand&);
-
+   void createBackupStringForWallet(const std::string&, unsigned);
+   void restoreWallet(const BinaryDataRef&, 
+      std::shared_ptr<MethodCallbacksHandler>);
 
    //ledgers
    const std::string& getLedgerDelegateIdForWallets(void);
@@ -219,15 +274,12 @@ private:
    void getBlockTimeByHeight(uint32_t, uint32_t) const;
          
    //passphrase prompt
-   PassphraseLambda createPassphrasePrompt(::Codec_ClientProto::BridgePromptType);
+   PassphraseLambda createPassphrasePrompt(::Codec_ClientProto::UnlockPromptType);
    bool returnPassphrase(const std::string&, const std::string&);
 
 public:
-   CppBridge(const std::string& path,
-      const std::string& dbAddr, const std::string& dbPort,
-      bool oneWayAuth) :
-      path_(path), dbAddr_(dbAddr), dbPort_(dbPort), oneWayAuth_(oneWayAuth)
-   {}
+   CppBridge(const std::string&, const std::string&, 
+      const std::string&, bool, bool);
 
    bool processData(std::vector<uint8_t> socketData);
    void writeToClient(BridgeReply msgPtr, unsigned id) const;
@@ -237,6 +289,9 @@ public:
    {
       writeLambda_ = lbd;
    }
+
+   void startThreads(void);
+   void stopThreads(void);
 };
 
 ////
