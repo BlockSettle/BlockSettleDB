@@ -39,7 +39,7 @@ struct BDVAlreadyRegistered : public std::runtime_error
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-namespace ClientClasses
+namespace DBClientClasses
 {
    void initLibrary(void);
 
@@ -153,16 +153,16 @@ namespace ClientClasses
    };
 
    ////////////////////////////////////////////////////////////////////////////
-   class NodeChainState
+   class NodeChainStatus
    {
    private:
       std::shared_ptr<::google::protobuf::Message> msgPtr_;
-      const ::Codec_NodeStatus::NodeChainState* ptr_;
+      const Codec_NodeStatus::NodeChainStatus* ptr_;
 
    public:
-      NodeChainState(const ::Codec_NodeStatus::NodeStatus*);
+      NodeChainStatus(const Codec_NodeStatus::NodeStatus*);
 
-      ChainStatus state(void) const;
+      CoreRPC::ChainState state(void) const;
       float getBlockSpeed(void) const;
 
       float getProgressPct(void) const;
@@ -171,26 +171,26 @@ namespace ClientClasses
    };
 
    ////////////////////////////////////////////////////////////////////////////
-   class NodeStatusStruct
+   class NodeStatus
    {
    private:
       std::shared_ptr<::google::protobuf::Message> msgPtr_;
-      const ::Codec_NodeStatus::NodeStatus* ptr_;
+      const Codec_NodeStatus::NodeStatus* ptr_;
 
    private:
-      NodeStatusStruct(std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned);
+      NodeStatus(std::shared_ptr<Codec_BDVCommand::BDVCallback>, unsigned);
       
    public:
-      NodeStatusStruct(BinaryDataRef);
-      NodeStatusStruct(std::shared_ptr<::Codec_NodeStatus::NodeStatus>);
+      NodeStatus(BinaryDataRef);
+      NodeStatus(std::shared_ptr<Codec_NodeStatus::NodeStatus>);
 
-      NodeStatus status(void) const;
+      CoreRPC::NodeState state(void) const;
       bool isSegWitEnabled(void) const;
-      RpcStatus rpcStatus(void) const;
-      NodeChainState chainState(void) const;
+      CoreRPC::RpcState rpcState(void) const;
+      NodeChainStatus chainStatus(void) const;
 
-      static std::shared_ptr<NodeStatusStruct> make_new(
-         std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned);
+      static std::shared_ptr<NodeStatus> make_new(
+         std::shared_ptr<Codec_BDVCommand::BDVCallback>, unsigned);
    };
 
    ////////////////////////////////////////////////////////////////////////////
@@ -215,7 +215,7 @@ namespace ClientClasses
       static std::shared_ptr<ProgressData> make_new(
          std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned);
    };
-};
+}; //namespace DBClientClasses
 
 ///////////////////////////////////////////////////////////////////////////////
 struct BdmNotification
@@ -226,11 +226,11 @@ struct BdmNotification
    unsigned branchHeight_ = UINT32_MAX;
 
    std::set<BinaryData> invalidatedZc_;
-   std::vector<std::shared_ptr<ClientClasses::LedgerEntry>> ledgers_;
+   std::vector<std::shared_ptr<DBClientClasses::LedgerEntry>> ledgers_;
 
    std::vector<BinaryData> ids_;
 
-   std::shared_ptr<::ClientClasses::NodeStatusStruct> nodeStatus_;
+   std::shared_ptr<DBClientClasses::NodeStatus> nodeStatus_;
    BDV_Error_Struct error_;
 
    std::string requestID_;

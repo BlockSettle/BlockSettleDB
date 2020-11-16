@@ -6,18 +6,18 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "ClientClasses.h"
+#include "DBClientClasses.h"
 #include "WebSocketClient.h"
 #include "protobuf/BDVCommand.pb.h"
 #include "btc/ecc.h"
 
 using namespace std;
-using namespace ClientClasses;
-using namespace ::Codec_BDVCommand;
+using namespace DBClientClasses;
+using namespace Codec_BDVCommand;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-void ClientClasses::initLibrary()
+void initLibrary()
 {
    startupBIP150CTX(4);
    startupBIP151CTX();
@@ -29,7 +29,7 @@ void ClientClasses::initLibrary()
 // BlockHeader
 //
 ///////////////////////////////////////////////////////////////////////////////
-ClientClasses::BlockHeader::BlockHeader(
+DBClientClasses::BlockHeader::BlockHeader(
    const BinaryData& rawheader, unsigned height)
 {
    unserialize(rawheader.getRef());
@@ -37,7 +37,7 @@ ClientClasses::BlockHeader::BlockHeader(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ClientClasses::BlockHeader::unserialize(uint8_t const * ptr, uint32_t size)
+void DBClientClasses::BlockHeader::unserialize(uint8_t const * ptr, uint32_t size)
 {
    if (size < HEADER_SIZE)
       throw BlockDeserializingException();
@@ -365,7 +365,7 @@ bool RemoteCallback::processNotifications(
 
          BdmNotification bdmNotif(BDMAction_NodeStatus);
          bdmNotif.nodeStatus_ = 
-            ClientClasses::NodeStatusStruct::make_new(callback, i);
+            DBClientClasses::NodeStatus::make_new(callback, i);
 
          run(move(bdmNotif));
          break;
@@ -401,12 +401,12 @@ bool RemoteCallback::processNotifications(
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-// NodeStatusStruct
+// NodeStatus
 //
 ///////////////////////////////////////////////////////////////////////////////
-::ClientClasses::NodeStatusStruct::NodeStatusStruct(BinaryDataRef bdr)
+NodeStatus::NodeStatus(BinaryDataRef bdr)
 {
-   auto msg = make_shared<::Codec_NodeStatus::NodeStatus>();
+   auto msg = make_shared<Codec_NodeStatus::NodeStatus>();
    if (!msg->ParseFromArray(bdr.getPtr(), bdr.getSize()))
       throw runtime_error("invalid node status protobuf msg");
    ptr_ = msg.get();
@@ -414,16 +414,16 @@ bool RemoteCallback::processNotifications(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-::ClientClasses::NodeStatusStruct::NodeStatusStruct(
-   shared_ptr<::Codec_NodeStatus::NodeStatus> msg)
+NodeStatus::NodeStatus(
+   shared_ptr<Codec_NodeStatus::NodeStatus> msg)
 {
    msgPtr_ = msg;
    ptr_ = msg.get();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-::ClientClasses::NodeStatusStruct::NodeStatusStruct(
-   shared_ptr<::Codec_BDVCommand::BDVCallback> msg, unsigned i) :
+NodeStatus::NodeStatus(
+   shared_ptr<Codec_BDVCommand::BDVCallback> msg, unsigned i) :
    msgPtr_(msg)
 {
    auto& notif = msg->notification(i);
@@ -431,13 +431,13 @@ bool RemoteCallback::processNotifications(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-NodeStatus ClientClasses::NodeStatusStruct::status() const
+CoreRPC::NodeState NodeStatus::state() const
 {
-   return (NodeStatus)ptr_->status();
+   return (CoreRPC::NodeState)ptr_->state();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool ::ClientClasses::NodeStatusStruct::isSegWitEnabled() const
+bool NodeStatus::isSegWitEnabled() const
 {
    if (ptr_->has_segwitenabled())
       return ptr_->segwitenabled();
@@ -445,27 +445,24 @@ bool ::ClientClasses::NodeStatusStruct::isSegWitEnabled() const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-RpcStatus ClientClasses::NodeStatusStruct::rpcStatus() const
+CoreRPC::RpcState NodeStatus::rpcState() const
 {
-   if (ptr_->has_rpcstatus())
-      return (RpcStatus)ptr_->rpcstatus();
-   return RpcStatus::RpcStatus_Disabled;
+   if (ptr_->has_rpcstate())
+      return (CoreRPC::RpcState)ptr_->rpcstate();
+   return CoreRPC::RpcState::RpcState_Disabled;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-::ClientClasses::NodeChainState 
-   ClientClasses::NodeStatusStruct::chainState() const
+NodeChainStatus NodeStatus::chainStatus() const
 {
-   return NodeChainState(ptr_);
+   return NodeChainStatus(ptr_);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<ClientClasses::NodeStatusStruct> 
-ClientClasses::NodeStatusStruct::make_new(
-   std::shared_ptr<::Codec_BDVCommand::BDVCallback> msg, unsigned i)
+shared_ptr<NodeStatus> NodeStatus::make_new(
+   shared_ptr<Codec_BDVCommand::BDVCallback> msg, unsigned i)
 {
-   auto nss = make_shared<ClientClasses::NodeStatusStruct>(
-      NodeStatusStruct(msg, i));
+   auto nss = make_shared<NodeStatus>(NodeStatus(msg, i));
    return nss;
 }
 
@@ -474,37 +471,37 @@ ClientClasses::NodeStatusStruct::make_new(
 // NodeChainState
 //
 ///////////////////////////////////////////////////////////////////////////////
-::ClientClasses::NodeChainState::NodeChainState(
-   const ::Codec_NodeStatus::NodeStatus* ptr) :
-   ptr_(&ptr->chainstate())
+NodeChainStatus::NodeChainStatus(
+   const Codec_NodeStatus::NodeStatus* ptr) :
+   ptr_(&ptr->chainstatus())
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
-ChainStatus ClientClasses::NodeChainState::state() const
+CoreRPC::ChainState NodeChainStatus::state() const
 {
-   return (ChainStatus)ptr_->state();
+   return (CoreRPC::ChainState)ptr_->state();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-float ClientClasses::NodeChainState::getBlockSpeed() const
+float NodeChainStatus::getBlockSpeed() const
 {
    return ptr_->blockspeed();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-float ClientClasses::NodeChainState::getProgressPct() const
+float NodeChainStatus::getProgressPct() const
 {
    return ptr_->pct();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-uint64_t ClientClasses::NodeChainState::getETA() const
+uint64_t NodeChainStatus::getETA() const
 {
    return ptr_->eta();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-unsigned ClientClasses::NodeChainState::getBlocksLeft() const
+unsigned NodeChainStatus::getBlocksLeft() const
 {
    return ptr_->blocksleft();
 }
@@ -514,7 +511,7 @@ unsigned ClientClasses::NodeChainState::getBlocksLeft() const
 // ProgressData
 //
 ///////////////////////////////////////////////////////////////////////////////
-::ClientClasses::ProgressData::ProgressData(BinaryDataRef)
+ProgressData::ProgressData(BinaryDataRef)
 {
    auto msg = make_shared<::Codec_NodeStatus::ProgressData>();
    ptr_ = msg.get();
@@ -522,7 +519,7 @@ unsigned ClientClasses::NodeChainState::getBlocksLeft() const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-::ClientClasses::ProgressData::ProgressData(
+ProgressData::ProgressData(
    shared_ptr<::Codec_BDVCommand::BDVCallback> msg, unsigned i) :
    msgPtr_(msg)
 {
@@ -531,31 +528,31 @@ unsigned ClientClasses::NodeChainState::getBlocksLeft() const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-BDMPhase ClientClasses::ProgressData::phase() const
+BDMPhase ProgressData::phase() const
 {
    return (BDMPhase)ptr_->phase();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-double ClientClasses::ProgressData::progress() const
+double ProgressData::progress() const
 {
    return ptr_->progress();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-unsigned ClientClasses::ProgressData::time() const
+unsigned ProgressData::time() const
 {
    return ptr_->time();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-unsigned ClientClasses::ProgressData::numericProgress() const
+unsigned ProgressData::numericProgress() const
 {
    return ptr_->numericprogress();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-vector<string> ClientClasses::ProgressData::wltIDs() const
+vector<string> ProgressData::wltIDs() const
 {
    vector<string> vec;
    for (int i = 0; i < ptr_->id_size(); i++)
@@ -565,7 +562,7 @@ vector<string> ClientClasses::ProgressData::wltIDs() const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-std::shared_ptr<ProgressData> ClientClasses::ProgressData::make_new(
+std::shared_ptr<ProgressData> ProgressData::make_new(
    std::shared_ptr<::Codec_BDVCommand::BDVCallback> msg, unsigned i)
 {
    auto pd = make_shared<ProgressData>(ProgressData(msg, i));
