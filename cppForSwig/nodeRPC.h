@@ -23,29 +23,36 @@
 #include "ReentrantLock.h"
 #include "BlockDataManagerConfig.h"
 
-////
-enum NodeStatus
+namespace CoreRPC
 {
-   NodeStatus_Offline,
-   NodeStatus_Online,
-   NodeStatus_OffSync
+   /***
+   Node: "state" suffix is for enums
+         "status" suffix is for classes/structs
+   ***/
+
+////
+enum NodeState
+{
+   NodeState_Offline,
+   NodeState_Online,
+   NodeState_OffSync
 };
 
 ////
-enum RpcStatus
+enum RpcState
 {
-   RpcStatus_Disabled,
-   RpcStatus_BadAuth,
-   RpcStatus_Online,
-   RpcStatus_Error_28
+   RpcState_Disabled,
+   RpcState_BadAuth,
+   RpcState_Online,
+   RpcState_Error_28
 };
 
 ////
-enum ChainStatus
+enum ChainState
 {
-   ChainStatus_Unknown,
-   ChainStatus_Syncing,
-   ChainStatus_Ready
+   ChainState_Unknown,
+   ChainState_Syncing,
+   ChainState_Ready
 };
 
 ////
@@ -87,14 +94,13 @@ struct FeeEstimateResult
 typedef std::map<std::string, std::map<unsigned, FeeEstimateResult>> EstimateCache;
 
 ////////////////////////////////////////////////////////////////////////////////
-class NodeChainState
+class NodeChainStatus
 {
-   //friend class CallbackReturn_NodeStatusStruct;
    friend class NodeRPC;
 
 private:
    std::list<std::tuple<unsigned, uint64_t, uint64_t> > heightTimeVec_;
-   ChainStatus state_ = ChainStatus_Unknown;
+   ChainState state_ = ChainState_Unknown;
    float blockSpeed_ = 0.0f;
    uint64_t eta_ = 0;
    float pct_ = 0.0f;
@@ -108,7 +114,7 @@ private:
 public:
    void appendHeightAndTime(unsigned, uint64_t);
    unsigned getTopBlock(void) const;
-   ChainStatus state(void) const { return state_; }
+   ChainState state(void) const { return state_; }
    float getBlockSpeed(void) const { return blockSpeed_; }
 
    void reset();
@@ -119,12 +125,12 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct NodeStatusStruct
+struct NodeStatus
 {
-   NodeStatus status_ = NodeStatus_Offline;
+   NodeState state_ = NodeState_Offline;
    bool SegWitEnabled_ = false;
-   RpcStatus rpcStatus_ = RpcStatus_Disabled;
-   ::NodeChainState chainState_;
+   RpcState rpcState_ = RpcState_Disabled;
+   NodeChainStatus chainStatus_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +138,7 @@ class NodeRPCInterface : public Lockable
 {
 protected:
    std::function<void(void)> nodeStatusLambda_;
-   ::NodeChainState nodeChainState_;
+   NodeChainStatus nodeChainStatus_;
    std::shared_ptr<EstimateCache> currentEstimateCache_ = nullptr;
 
 private:
@@ -152,14 +158,14 @@ public:
 
    virtual int broadcastTx(const BinaryDataRef&, std::string&) = 0;
    virtual bool canPoll(void) const = 0;
-   virtual RpcStatus testConnection() = 0;
+   virtual RpcState testConnection() = 0;
    virtual void waitOnChainSync(std::function<void(void)>) = 0;
 
    virtual FeeEstimateResult getFeeByte(
       unsigned confTarget, const std::string& strategy) = 0;
 
    //locals
-   const ::NodeChainState& getChainStatus(void) const;
+   const NodeChainStatus& getChainStatus(void) const;
    void registerNodeStatusLambda(std::function<void(void)> lbd) 
    { nodeStatusLambda_ = lbd; }
 
@@ -174,7 +180,7 @@ private:
    const BlockDataManagerConfig& bdmConfig_;
    std::string basicAuthString64_;
 
-   RpcStatus previousState_ = RpcStatus_Disabled;
+   RpcState previousState_ = RpcState_Disabled;
    std::condition_variable pollCondVar_;
 
 
@@ -204,7 +210,7 @@ public:
 
    //virtuals
    void shutdown(void) override;
-   RpcStatus testConnection() override;
+   RpcState testConnection() override;
    bool canPoll(void) const override { return true; }
 
    FeeEstimateResult getFeeByte(
@@ -213,5 +219,5 @@ public:
    int broadcastTx(const BinaryDataRef&, std::string&) override;
    void waitOnChainSync(std::function<void(void)>) override;
 };
-
+}; //namespace CoreRPC
 #endif

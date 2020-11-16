@@ -19,6 +19,7 @@
 #endif
 
 using namespace std;
+using namespace CoreRPC;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -29,11 +30,11 @@ NodeRPCInterface::~NodeRPCInterface()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-const NodeChainState& NodeRPCInterface::getChainStatus(void) const
+const NodeChainStatus& NodeRPCInterface::getChainStatus(void) const
 {
    ReentrantLock lock(this);
    
-   return nodeChainState_;
+   return nodeChainStatus_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,11 +108,11 @@ void NodeRPC::resetAuthString()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-RpcStatus NodeRPC::testConnection()
+RpcState NodeRPC::testConnection()
 {
    ReentrantLock lock(this);
 
-   RpcStatus state = RpcStatus_Disabled;
+   RpcState state = RpcState_Disabled;
    JSON_object json_obj;
    json_obj.add_pair("method", "getblockcount");
 
@@ -122,7 +123,7 @@ RpcStatus NodeRPC::testConnection()
 
       if (response_obj.isResponseValid(json_obj.id_))
       {
-         state = RpcStatus_Online;
+         state = RpcState_Online;
       }
       else
       {
@@ -138,12 +139,12 @@ RpcStatus NodeRPC::testConnection()
 
             if ((int)error_code->val_ == -28)
             {
-               state = RpcStatus_Error_28;
+               state = RpcState_Error_28;
             }
          }
          else
          {
-            state = RpcStatus_Disabled;
+            state = RpcState_Disabled;
 
             auto error_val = dynamic_pointer_cast<JSON_string>(error_ptr);
             if (error_val != nullptr)
@@ -156,16 +157,16 @@ RpcStatus NodeRPC::testConnection()
    }
    catch (RpcError&)
    {
-      state = RpcStatus_Disabled;
+      state = RpcState_Disabled;
    }
    catch (SocketError&)
    {
-      state = RpcStatus_Disabled;
+      state = RpcState_Disabled;
    }
    catch (JSON_Exception& e)
    {
       LOGERR << "RPC connection test error: " << e.what();
-      state = RpcStatus_BadAuth;
+      state = RpcState_BadAuth;
    }
 
    return state;
@@ -459,25 +460,25 @@ bool NodeRPC::updateChainStatus(void)
    if (time_val == nullptr)
       throw JSON_Exception("invalid response");
 
-   nodeChainState_.appendHeightAndTime(height_val->val_, time_val->val_);
+   nodeChainStatus_.appendHeightAndTime(height_val->val_, time_val->val_);
 
    //figure out state
-   return nodeChainState_.processState(getblockchaininfo_object);
+   return nodeChainStatus_.processState(getblockchaininfo_object);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void NodeRPC::waitOnChainSync(function<void(void)> callbck)
 {
-   nodeChainState_.reset();
+   nodeChainStatus_.reset();
    callbck();
 
    while (1)
    {
       //keep trying as long as the node is initializing
-      auto status = testConnection();
-      if (status != RpcStatus_Error_28)
+      auto state = testConnection();
+      if (state != RpcState_Error_28)
       {
-         if (status != RpcStatus_Online)
+         if (state != RpcState_Online)
             return;
 
          break;
@@ -500,15 +501,15 @@ void NodeRPC::waitOnChainSync(function<void(void)> callbck)
             callbck();
 
          auto& chainStatus = getChainStatus();
-         if (chainStatus.state() == ChainStatus_Ready)
+         if (chainStatus.state() == ChainState_Ready)
             break;
       
          blkSpeed = chainStatus.getBlockSpeed();
       }
       catch (...)
       {
-         auto status = testConnection();
-         if (status == RpcStatus_Online)
+         auto state = testConnection();
+         if (state == RpcState_Online)
             throw runtime_error("unsupported RPC method");
       }
 
@@ -667,7 +668,7 @@ void NodeRPC::pollThread()
             if (doCallback)
                callback();
 
-            if (rpcState == RpcStatus_Online)
+            if (rpcState == RpcState_Online)
             {
                LOGINFO << "RPC connection established";
                status = true;
@@ -717,13 +718,13 @@ NodeRPC::~NodeRPC()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-// NodeChainState
+// NodeChainStatus
 //
 ////////////////////////////////////////////////////////////////////////////////
-bool ::NodeChainState::processState(
+bool NodeChainStatus::processState(
    shared_ptr<JSON_object> const getblockchaininfo_obj)
 {
-   if (state_ == ChainStatus_Ready)
+   if (state_ == ChainState_Ready)
       return false;
 
    //progress status
@@ -743,7 +744,7 @@ bool ::NodeChainState::processState(
 
    if (pct_ >= 0.9995)
    {
-      state_ = ChainStatus_Ready;
+      state_ = ChainState_Ready;
       return true;
    }
 
@@ -759,7 +760,7 @@ bool ::NodeChainState::processState(
       diff = now - blocktime;
 
    //we got this far, node is still syncing, let's compute progress and eta
-   state_ = ChainStatus_Syncing;
+   state_ = ChainState_Syncing;
 
    //average amount of blocks left to sync based on timestamp diff
    auto blocksLeft = diff / 600;
@@ -788,7 +789,7 @@ bool ::NodeChainState::processState(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unsigned ::NodeChainState::getTopBlock() const
+unsigned NodeChainStatus::getTopBlock() const
 {
    if (heightTimeVec_.size() == 0)
       throw runtime_error("");
@@ -797,7 +798,7 @@ unsigned ::NodeChainState::getTopBlock() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ::NodeChainState::appendHeightAndTime(unsigned height, uint64_t timestamp)
+void NodeChainStatus::appendHeightAndTime(unsigned height, uint64_t timestamp)
 {
    try
    {
@@ -816,10 +817,10 @@ void ::NodeChainState::appendHeightAndTime(unsigned height, uint64_t timestamp)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ::NodeChainState::reset()
+void NodeChainStatus::reset()
 {
    heightTimeVec_.clear();
-   state_ = ChainStatus_Unknown;
+   state_ = ChainState_Unknown;
    blockSpeed_ = 0.0f;
    eta_ = 0;
 }

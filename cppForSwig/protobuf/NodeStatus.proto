@@ -2,7 +2,7 @@ syntax = "proto2";
 
 package Codec_NodeStatus;
 
-message NodeChainState
+message NodeChainStatus
 {
 	required uint32 state = 1;
 	optional float blockSpeed = 2;
@@ -13,10 +13,10 @@ message NodeChainState
 
 message NodeStatus
 {
-	required uint32 status = 1;
+	required uint32 state = 1;
 	required bool SegWitEnabled = 2;
-	required uint32 rpcStatus = 3;
-	optional NodeChainState chainState = 4;
+	required uint32 rpcState = 3;
+	optional NodeChainStatus chainStatus = 4;
 }
 
 message ProgressData
