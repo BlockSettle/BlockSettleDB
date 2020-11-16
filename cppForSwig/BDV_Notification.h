@@ -130,9 +130,9 @@ struct BDV_Notification_Progress : public BDV_Notification
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_Notification_NodeStatus : public BDV_Notification
 {
-   const NodeStatusStruct status_;
+   const CoreRPC::NodeStatus status_;
 
-   BDV_Notification_NodeStatus(NodeStatusStruct nss) :
+   BDV_Notification_NodeStatus(CoreRPC::NodeStatus nss) :
       BDV_Notification(""), status_(nss)
    {}
 

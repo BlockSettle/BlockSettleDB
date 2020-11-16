@@ -203,7 +203,7 @@ BlockDataManager::BlockDataManager(
       watchNode_ = config_.bitcoinNodes_.second;
 
       if (config_.rpcNode_ == nullptr)
-         config_.rpcNode_ = make_shared<NodeRPC>(config_);
+         config_.rpcNode_ = make_shared<CoreRPC::NodeRPC>(config_);
       nodeRPC_ = config_.rpcNode_;
 
       if(processNode_ == nullptr)
@@ -432,14 +432,14 @@ void BlockDataManager::disableZeroConf(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-NodeStatusStruct BlockDataManager::getNodeStatus() const
+CoreRPC::NodeStatus BlockDataManager::getNodeStatus() const
 {
-   NodeStatusStruct nss;
+   CoreRPC::NodeStatus nss;
    if (processNode_ == nullptr)
       return nss;
    
    if(processNode_->connected())
-      nss.status_ = NodeStatus_Online;
+      nss.state_ = CoreRPC::NodeState_Online;
 
    if (processNode_->isSegWit())
       nss.SegWitEnabled_ = true;
@@ -447,11 +447,11 @@ NodeStatusStruct BlockDataManager::getNodeStatus() const
    if (nodeRPC_ == nullptr)
       return nss;
 
-   nss.rpcStatus_ = nodeRPC_->testConnection();
-   if (nss.rpcStatus_ != RpcStatus_Online)
+   nss.rpcState_ = nodeRPC_->testConnection();
+   if (nss.rpcState_ != CoreRPC::RpcState_Online)
       pollNodeStatus();
 
-   nss.chainState_ = nodeRPC_->getChainStatus();
+   nss.chainStatus_ = nodeRPC_->getChainStatus();
    return nss;
 }
 
@@ -474,7 +474,7 @@ void BlockDataManager::pollNodeStatus() const
       unique_lock<mutex> lock(*mutexPtr);
 
       unsigned count = 0;
-      while (nodeRPC->testConnection() != RpcStatus_Online)
+      while (nodeRPC->testConnection() != CoreRPC::RpcState_Online)
       {
          ++count;
          if (count > 10)

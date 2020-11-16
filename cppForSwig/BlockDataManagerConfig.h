@@ -32,7 +32,11 @@
 #define REGISTER_ID_LENGH 5
 
 class BitcoinNodeInterface;
-class NodeRPCInterface;
+
+namespace CoreRPC
+{
+   class NodeRPCInterface;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 struct BlockDataManagerConfig
@@ -66,7 +70,7 @@ public:
    std::pair<
       std::shared_ptr<BitcoinNodeInterface>, 
       std::shared_ptr<BitcoinNodeInterface>> bitcoinNodes_;
-   std::shared_ptr<NodeRPCInterface> rpcNode_;
+   std::shared_ptr<CoreRPC::NodeRPCInterface> rpcNode_;
 
    std::string btcPort_;
    std::string listenPort_;

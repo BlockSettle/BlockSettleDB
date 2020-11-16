@@ -20,7 +20,7 @@
 #include "SocketObject.h"
 #include "WebSocketMessage.h"
 #include "BlockDataManagerConfig.h"
-#include "ClientClasses.h"
+#include "DBClientClasses.h"
 #include "AsyncClient.h" //TODO <-- nuke this
 
 #include "BIP150_151.h"

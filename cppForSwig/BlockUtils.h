@@ -149,7 +149,7 @@ public:
    typedef std::function<void(BDMPhase, double,unsigned, unsigned)> ProgressCallback;
    std::shared_ptr<BitcoinNodeInterface> processNode_, watchNode_;
    std::shared_future<bool> isReadyFuture_;
-   mutable std::shared_ptr<NodeRPCInterface> nodeRPC_;
+   mutable std::shared_ptr<CoreRPC::NodeRPCInterface> nodeRPC_;
 
    ArmoryThreading::TimedQueue<std::unique_ptr<BDV_Notification>> notificationStack_;
    std::shared_ptr<ZeroConfContainer> zeroConfCont_;
@@ -228,7 +228,7 @@ public:
    void resetDatabases(ResetDBMode mode);
    
    unsigned getCheckedTxCount(void) const { return checkTransactionCount_; }
-   NodeStatusStruct getNodeStatus(void) const;
+   CoreRPC::NodeStatus getNodeStatus(void) const;
    void registerZcCallbacks(std::unique_ptr<ZeroConfCallbacks> ptr)
    {
       zeroConfCont_->setZeroConfCallbacks(move(ptr));

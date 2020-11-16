@@ -881,17 +881,17 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
       auto&& nodeStatus = this->bdmPtr_->getNodeStatus();
 
       auto response = make_shared<::Codec_NodeStatus::NodeStatus>();
-      response->set_status((unsigned)nodeStatus.status_);
+      response->set_state((unsigned)nodeStatus.state_);
       response->set_segwitenabled(nodeStatus.SegWitEnabled_);
-      response->set_rpcstatus((unsigned)nodeStatus.rpcStatus_);
+      response->set_rpcstate((unsigned)nodeStatus.rpcState_);
 
-      auto chainState_proto = new ::Codec_NodeStatus::NodeChainState();
-      chainState_proto->set_state((unsigned)nodeStatus.chainState_.state());
-      chainState_proto->set_blockspeed(nodeStatus.chainState_.getBlockSpeed());
-      chainState_proto->set_eta(nodeStatus.chainState_.getETA());
-      chainState_proto->set_pct(nodeStatus.chainState_.getProgressPct());
-      chainState_proto->set_blocksleft(nodeStatus.chainState_.getBlocksLeft());
-      response->set_allocated_chainstate(chainState_proto);
+      auto chainStatus_proto = new ::Codec_NodeStatus::NodeChainStatus();
+      chainStatus_proto->set_state((unsigned)nodeStatus.chainStatus_.state());
+      chainStatus_proto->set_blockspeed(nodeStatus.chainStatus_.getBlockSpeed());
+      chainStatus_proto->set_eta(nodeStatus.chainStatus_.getETA());
+      chainStatus_proto->set_pct(nodeStatus.chainStatus_.getProgressPct());
+      chainStatus_proto->set_blocksleft(nodeStatus.chainStatus_.getBlocksLeft());
+      response->set_allocated_chainstatus(chainStatus_proto);
 
       resultingPayload = response;
       break;
@@ -2091,17 +2091,17 @@ void BDV_Server_Object::processNotification(
 
       auto& nodeStatus = payload->status_;
 
-      status->set_status((unsigned)nodeStatus.status_);
+      status->set_state((unsigned)nodeStatus.state_);
       status->set_segwitenabled(nodeStatus.SegWitEnabled_);
-      status->set_rpcstatus((unsigned)nodeStatus.rpcStatus_);
+      status->set_rpcstate((unsigned)nodeStatus.rpcState_);
 
-      auto chainState_proto = new ::Codec_NodeStatus::NodeChainState();
-      chainState_proto->set_state((unsigned)nodeStatus.chainState_.state());
-      chainState_proto->set_blockspeed(nodeStatus.chainState_.getBlockSpeed());
-      chainState_proto->set_eta(nodeStatus.chainState_.getETA());
-      chainState_proto->set_pct(nodeStatus.chainState_.getProgressPct());
-      chainState_proto->set_blocksleft(nodeStatus.chainState_.getBlocksLeft());
-      status->set_allocated_chainstate(chainState_proto);
+      auto chainStatus_proto = new Codec_NodeStatus::NodeChainStatus();
+      chainStatus_proto->set_state((unsigned)nodeStatus.chainStatus_.state());
+      chainStatus_proto->set_blockspeed(nodeStatus.chainStatus_.getBlockSpeed());
+      chainStatus_proto->set_eta(nodeStatus.chainStatus_.getETA());
+      chainStatus_proto->set_pct(nodeStatus.chainStatus_.getProgressPct());
+      chainStatus_proto->set_blocksleft(nodeStatus.chainStatus_.getBlocksLeft());
+      status->set_allocated_chainstatus(chainStatus_proto);
 
       break;
    }
