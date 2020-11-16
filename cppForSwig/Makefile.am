@@ -76,7 +76,9 @@ INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
 # files but are "common" for the sake of unit testing. In an ideal world, the
 # unit tests would be split into multiple files as needed. One day....
 KEYMANAGER_SOURCE_FILES = KeyManager.cpp
-CPPBRIDGE_SOURCE_FILES = CppBridge.cpp
+CPPBRIDGE_SOURCE_FILES = BridgeAPI/CppBridge.cpp \
+	BridgeAPI/BridgeMain.cpp \
+	BridgeAPI/ProtobufConversions.cpp
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = TransactionBatch.cpp
 ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
@@ -123,7 +125,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	BIP32_Node.cpp \
 	BlockDataManagerConfig.cpp \
 	BtcUtils.cpp \
-	ClientClasses.cpp \
+	DBClientClasses.cpp \
 	CoinSelection.cpp \
 	DecryptedDataContainer.cpp \
 	DerivationScheme.cpp \
@@ -316,9 +318,7 @@ MOSTLYCLEANFILES = $(PROTOBUF_CC) $(PROTOBUF_H)
 BUILT_SOURCES += $(PROTOBUF_CC)
 
 clean-local:
-	rm -f CppBlockUtils.py
-	rm -f CppBlockUtils_wrap.cxx
-	rm -f CppBlockUtils_wrap.h
+	rm -f CppBridge
 	rm -f BIP150KeyManager
 
 protobuf_clean:
