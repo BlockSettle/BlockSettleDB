@@ -3695,26 +3695,26 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 
       //get ledgers
       auto ledger_prom = 
-         make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+         make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
       auto ledger_fut = ledger_prom->get_future();
       auto ledger_get = 
-         [ledger_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+         [ledger_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
       {
          ledger_prom->set_value(move(ledgerV.get()));
       };
       delegate.getHistoryPage(0, ledger_get);
 
       //get addr ledgers
-      deque<vector<::ClientClasses::LedgerEntry>> addrLedgerV(21);
+      deque<vector<DBClientClasses::LedgerEntry>> addrLedgerV(21);
       auto getAddrLedger = [bdvObj](
          AsyncClient::LedgerDelegate delegate, 
-         vector<::ClientClasses::LedgerEntry>* addrLedger)->void
+         vector<DBClientClasses::LedgerEntry>* addrLedger)->void
       {
          auto ledger_prom = 
-            make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+            make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
          auto ledger_fut = ledger_prom->get_future();
          auto ledger_get = 
-            [ledger_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+            [ledger_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
          {
             ledger_prom->set_value(move(ledgerV.get()));
          };
@@ -4507,11 +4507,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    auto&& main_delegate = del1_fut.get();
 
    auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger_fut = ledger_prom->get_future();
    auto ledger_get =
       [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+         ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger_prom->set_value(move(ledgerV.get()));
    };
@@ -4556,10 +4556,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 
    //get the new ledgers
    auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger2_fut = ledger2_prom->get_future();
    auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger2_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger2_prom->set_value(move(ledgerV.get()));
    };
@@ -4636,10 +4636,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 
    //get the new ledgers
    auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger3_fut = ledger3_prom->get_future();
    auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger3_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger3_prom->set_value(move(ledgerV.get()));
    };
@@ -4791,11 +4791,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
    auto&& main_delegate = del1_fut.get();
 
    auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger_fut = ledger_prom->get_future();
    auto ledger_get =
       [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+         ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger_prom->set_value(move(ledgerV.get()));
    };
@@ -4841,10 +4841,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
 
    //get the new ledgers
    auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger2_fut = ledger2_prom->get_future();
    auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger2_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger2_prom->set_value(move(ledgerV.get()));
    };
@@ -4921,10 +4921,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
 
    //get the new ledgers
    auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger3_fut = ledger3_prom->get_future();
    auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger3_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger3_prom->set_value(move(ledgerV.get()));
    };
@@ -5075,11 +5075,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
    auto&& main_delegate = del1_fut.get();
 
    auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger_fut = ledger_prom->get_future();
    auto ledger_get =
       [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+         ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger_prom->set_value(move(ledgerV.get()));
    };
@@ -5127,10 +5127,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
 
    //get the new ledgers
    auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger2_fut = ledger2_prom->get_future();
    auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger2_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger2_prom->set_value(move(ledgerV.get()));
    };
@@ -5207,10 +5207,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
 
    //get the new ledgers
    auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger3_fut = ledger3_prom->get_future();
    auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger3_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger3_prom->set_value(move(ledgerV.get()));
    };
@@ -5362,11 +5362,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
    auto&& main_delegate = del1_fut.get();
 
    auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger_fut = ledger_prom->get_future();
    auto ledger_get =
       [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+         ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger_prom->set_value(move(ledgerV.get()));
    };
@@ -5414,10 +5414,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
 
    //get the new ledgers
    auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger2_fut = ledger2_prom->get_future();
    auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger2_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger2_prom->set_value(move(ledgerV.get()));
    };
@@ -5494,10 +5494,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
 
    //get the new ledgers
    auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger3_fut = ledger3_prom->get_future();
    auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger3_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger3_prom->set_value(move(ledgerV.get()));
    };
@@ -5649,11 +5649,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
    auto&& main_delegate = del1_fut.get();
 
    auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger_fut = ledger_prom->get_future();
    auto ledger_get =
       [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+         ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger_prom->set_value(move(ledgerV.get()));
    };
@@ -5708,10 +5708,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
 
    //get the new ledgers
    auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger2_fut = ledger2_prom->get_future();
    auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger2_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger2_prom->set_value(move(ledgerV.get()));
    };
@@ -5788,10 +5788,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
 
    //get the new ledgers
    auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger3_fut = ledger3_prom->get_future();
    auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger3_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger3_prom->set_value(move(ledgerV.get()));
    };
@@ -5943,11 +5943,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
    auto&& main_delegate = del1_fut.get();
 
    auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger_fut = ledger_prom->get_future();
    auto ledger_get =
       [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+         ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger_prom->set_value(move(ledgerV.get()));
    };
@@ -6004,10 +6004,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
 
    //get the new ledgers
    auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger2_fut = ledger2_prom->get_future();
    auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger2_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger2_prom->set_value(move(ledgerV.get()));
    };
@@ -6087,10 +6087,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
 
    //get the new ledgers
    auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger3_fut = ledger3_prom->get_future();
    auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger3_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger3_prom->set_value(move(ledgerV.get()));
    };
@@ -6253,11 +6253,11 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
    auto&& main_delegate = del1_fut.get();
 
    auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger_fut = ledger_prom->get_future();
    auto ledger_get =
       [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+         ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger_prom->set_value(move(ledgerV.get()));
    };
@@ -6300,10 +6300,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
 
    //get the new ledgers
    auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger2_fut = ledger2_prom->get_future();
    auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger2_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger2_prom->set_value(move(ledgerV.get()));
    };
@@ -6380,10 +6380,10 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
 
    //get the new ledgers
    auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+      make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
    auto ledger3_fut = ledger3_prom->get_future();
    auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+      [ledger3_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
    {
       ledger3_prom->set_value(move(ledgerV.get()));
    };

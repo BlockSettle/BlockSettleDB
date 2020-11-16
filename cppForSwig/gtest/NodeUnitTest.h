@@ -135,7 +135,7 @@ public:
 
 
 ////////////////////////////////////////////////////////////////////////////////
-class NodeRPC_UnitTest : public NodeRPCInterface
+class NodeRPC_UnitTest : public CoreRPC::NodeRPCInterface
 {
 private:
    std::shared_ptr<NodeUnitTest> primaryNode_;
@@ -149,21 +149,23 @@ public:
    NodeRPC_UnitTest(
       std::shared_ptr<NodeUnitTest> primaryNode,
       std::shared_ptr<NodeUnitTest> watcherNode) :
-      NodeRPCInterface(), 
+      CoreRPC::NodeRPCInterface(), 
       primaryNode_(primaryNode), watcherNode_(watcherNode)
    {}
 
    //virtuals
    void shutdown(void) override {}
-   RpcStatus testConnection(void) override { return RpcStatus_Online; }
+   CoreRPC::RpcState testConnection(void) override 
+   { return CoreRPC::RpcState_Online; }
+   
    bool canPoll(void) const override { return false; }
 
    void waitOnChainSync(std::function<void(void)>) {}
    int broadcastTx(const BinaryDataRef&, std::string&) override;
 
-   FeeEstimateResult getFeeByte(
+   CoreRPC::FeeEstimateResult getFeeByte(
       unsigned, const std::string&) override
-   { return FeeEstimateResult(); }
+   { return CoreRPC::FeeEstimateResult(); }
 
    //locals
    void stallNextZc(unsigned);

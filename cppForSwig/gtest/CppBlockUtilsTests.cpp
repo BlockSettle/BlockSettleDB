@@ -2450,7 +2450,7 @@ TEST_F(BinaryDataRefTest, PostConstruct)
    EXPECT_FALSE(e.empty());
    EXPECT_TRUE( f.empty());
    EXPECT_FALSE(g.empty());
-   EXPECT_FALSE(h.empty());
+   EXPECT_TRUE(h.empty());
    EXPECT_FALSE(i.empty());
 }
 

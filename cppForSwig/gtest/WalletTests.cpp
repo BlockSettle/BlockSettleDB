@@ -6962,7 +6962,6 @@ TEST_F(BackupTests, Easy16_Repair)
    }
 
    EXPECT_GE(succesfulRepairs, 20);
-   cout << "1 err repair count: " << succesfulRepairs << endl;
 
    //2 errors, fail
    for (unsigned i=0; i<64; i++)
@@ -7069,7 +7068,6 @@ TEST_F(BackupTests, Easy16_Repair)
    }
 
    EXPECT_GE(succesfulRepairs, 5);
-   cout << "2 err repair count: " << succesfulRepairs << endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
