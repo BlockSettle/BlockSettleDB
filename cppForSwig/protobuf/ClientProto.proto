@@ -205,7 +205,7 @@ message BridgeLedgers
     repeated BridgeLedger le = 1;
 }
 
-message BridgeNodeChainState
+message BridgeNodeChainStatus
 {
     required uint32 chainState = 2;
     required float blockSpeed = 3;
@@ -218,10 +218,10 @@ message BridgeNodeStatus
 {
     required bool isValid = 1;
     
-    optional uint32 nodeStatus = 10;
+    optional uint32 nodeState = 10;
     optional bool isSegWitEnabled = 11;
-    optional uint32 rpcStatus = 12;
-    optional BridgeNodeChainState chainState = 13;
+    optional uint32 rpcState = 12;
+    optional BridgeNodeChainStatus chainStatus = 13;
 }
 
 message BridgeBalanceAndCount

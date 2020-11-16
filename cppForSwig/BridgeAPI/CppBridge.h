@@ -9,12 +9,14 @@
 #ifndef _CPPBRIDGE_H
 #define _CPPBRIDGE_H
 
-#include "BlockDataManagerConfig.h"
+#include "../BlockDataManagerConfig.h"
 #include "WalletManager.h"
 #include "btc/ecc.h"
-#include "protobuf/ClientProto.pb.h"
-#include "AsyncClient.h"
+#include "../protobuf/ClientProto.pb.h"
+#include "../AsyncClient.h"
 
+namespace ArmoryBridge
+{
 ///////////////////////////////////////////////////////////////////////////////
 struct WritePayload_Bridge : public Socket_WritePayload
 {
@@ -313,5 +315,6 @@ public:
       std::unique_ptr<Socket_WritePayload>,
       std::shared_ptr<Socket_ReadPayload>) override;
 };
+}; //namespace ArmoryBridge
 
 #endif

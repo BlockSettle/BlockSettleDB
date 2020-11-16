@@ -8,7 +8,8 @@
 
 #include "CppBridge.h"
 #include "TerminalPassphrasePrompt.h"
-#include "ArmoryBackups.h"
+#include "../ArmoryBackups.h"
+#include "ProtobufConversions.h"
 
 using namespace std;
 
@@ -16,6 +17,7 @@ using namespace ::google::protobuf;
 using namespace ::Codec_ClientProto;
 using namespace ArmoryThreading;
 using namespace ArmorySigner;
+using namespace ArmoryBridge;
 
 enum CppBridgeState
 {
@@ -29,222 +31,6 @@ enum CppBridgeState
 
 #define SHUTDOWN_PASSPROMPT_GUI     "concludePrompt"
 #define DISCONNECTED_CALLBACK_ID    0xff543ad8
-
-////////////////////////////////////////////////////////////////////////////////
-int main(int argc, char* argv[])
-{
-   btc_ecc_start();
-   startupBIP151CTX();
-   startupBIP150CTX(4);
-
-   //init static configuration variables
-   BlockDataManagerConfig bdmConfig;
-   bdmConfig.parseArgs(argc, argv);
-
-   //enable logs
-   STARTLOGGING(bdmConfig.logFilePath_, LogLvlDebug);
-   LOGENABLESTDOUT();
-
-   //setup the bridge
-   auto bridge = make_shared<CppBridge>(
-      bdmConfig.dataDir_,
-      "127.0.0.1", bdmConfig.listenPort_,
-      bdmConfig.oneWayAuth_, bdmConfig.offline_);
-
-   bridge->startThreads();
-   
-   //setup the socket
-   auto sockPtr = make_shared<CppBridgeSocket>("127.0.0.1", "46122", bridge);
-
-   //set bridge write lambda
-   auto pushPayloadLbd = [sockPtr](
-      std::unique_ptr<WritePayload_Bridge> payload)->void
-   {
-      sockPtr->pushPayload(move(payload), nullptr);
-   };
-   bridge->setWriteLambda(pushPayloadLbd);
-
-   //connect
-   if (!sockPtr->connectToRemote())
-   {
-      LOGERR << "cannot find ArmoryQt client, shutting down";
-      return -1;
-   }
-
-   //block main thread till socket dies
-   sockPtr->blockUntilClosed();
-
-   bridge->stopThreads();
-
-   //done
-   LOGINFO << "exiting";
-
-   shutdownBIP151CTX();
-   btc_ecc_stop();
-
-   return 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////
-////  help functions
-////
-////////////////////////////////////////////////////////////////////////////////
-void cppLedgerToProtoLedger(
-   BridgeLedger* ledgerProto, const ClientClasses::LedgerEntry& ledgerCpp)
-{
-   ledgerProto->set_value(ledgerCpp.getValue());
-
-   auto hash = ledgerCpp.getTxHash();
-   ledgerProto->set_hash(hash.toCharPtr(), hash.getSize());
-   ledgerProto->set_id(ledgerCpp.getID());
-   
-   ledgerProto->set_height(ledgerCpp.getBlockNum());
-   ledgerProto->set_txindex(ledgerCpp.getIndex());
-   ledgerProto->set_txtime(ledgerCpp.getTxTime());
-   ledgerProto->set_iscoinbase(ledgerCpp.isCoinbase());
-   ledgerProto->set_issenttoself(ledgerCpp.isSentToSelf());
-   ledgerProto->set_ischangeback(ledgerCpp.isChangeBack());
-   ledgerProto->set_ischainedzc(ledgerCpp.isChainedZC());
-   ledgerProto->set_iswitness(ledgerCpp.isWitness());
-   ledgerProto->set_isrbf(ledgerCpp.isOptInRBF());
-
-   for (auto& scrAddr : ledgerCpp.getScrAddrList())
-      ledgerProto->add_scraddrlist(scrAddr.getCharPtr(), scrAddr.getSize());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void cppAddrToProtoAddr(WalletAsset* assetPtr, 
-   shared_ptr<AddressEntry> addrPtr, shared_ptr<AssetWallet> wltPtr)
-{
-   auto addrID = addrPtr->getID();
-   auto wltAsset = wltPtr->getAssetForID(addrID);
-
-   //address
-   auto& addr = addrPtr->getPrefixedHash();
-   assetPtr->set_prefixedhash(addr.toCharPtr(), addr.getSize());
-
-   //address type & pubkey
-   BinaryDataRef pubKeyRef;
-   uint32_t addrType = (uint32_t)addrPtr->getType();
-   auto addrNested = dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
-   if (addrNested != nullptr)
-   {
-      addrType |= (uint32_t)addrNested->getPredecessor()->getType();
-      pubKeyRef = addrNested->getPredecessor()->getPreimage().getRef();
-   }
-   else
-   {
-      pubKeyRef = addrPtr->getPreimage().getRef();
-   }
-   
-   assetPtr->set_addrtype(addrType);
-   assetPtr->set_publickey(pubKeyRef.toCharPtr(), pubKeyRef.getSize());
-
-   //index
-   assetPtr->set_id(wltAsset->getIndex());
-
-   //address string
-   auto& addrStr = addrPtr->getAddress();
-   assetPtr->set_addressstring(addrStr);
-
-   //precursor, if any
-   if (addrNested == nullptr)
-      return;
-
-   auto& precursor = addrNested->getPredecessor()->getScript();
-   assetPtr->set_precursorscript(precursor.getCharPtr(), precursor.getSize());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void cppWalletToProtoWallet(
-   WalletData* wltProto, shared_ptr<AssetWallet> wltPtr)
-{
-   wltProto->set_id(wltPtr->getID());
-
-   //wo status
-   bool isWO = true;
-   auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);
-   if (wltSingle != nullptr)
-      isWO = wltSingle->isWatchingOnly();
-   wltProto->set_watchingonly(isWO);
-
-   //use index
-   auto accPtr = wltPtr->getAccountForID(wltPtr->getMainAccountID());
-   auto assetAccountPtr = accPtr->getOuterAccount();
-   wltProto->set_lookupcount(assetAccountPtr->getAssetCount());
-   wltProto->set_usecount(assetAccountPtr->getHighestUsedIndex());
-
-   //address map
-   auto addrMap = accPtr->getUsedAddressMap();
-   unsigned i=0;
-   for (auto& addrPair : addrMap)
-   {
-      auto assetPtr = wltProto->add_assets();
-      cppAddrToProtoAddr(assetPtr, addrPair.second, wltPtr);
-   }
-
-   //comments
-   wltProto->set_label(wltPtr->getLabel());
-   wltProto->set_desc(wltPtr->getDescription());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void cppUtxoToProtoUtxo(BridgeUtxo* utxoProto, const UTXO& utxo)
-{
-   auto& hash = utxo.getTxHash();
-   utxoProto->set_txhash(hash.getCharPtr(), hash.getSize());
-   utxoProto->set_txoutindex(utxo.getTxOutIndex());
-
-   utxoProto->set_value(utxo.getValue());
-   utxoProto->set_txheight(utxo.getHeight());
-   utxoProto->set_txindex(utxo.getTxIndex());
-
-   auto& script = utxo.getScript();
-   utxoProto->set_script(script.getCharPtr(), script.getSize());
-
-   auto scrAddr = utxo.getRecipientScrAddr();
-   utxoProto->set_scraddr(scrAddr.getCharPtr(), scrAddr.getSize());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void cppNodeStatusToProtoNodeStatus(
-   BridgeNodeStatus* nsProto, const ClientClasses::NodeStatusStruct& nsCpp)
-{
-   auto chainState = nsCpp.chainState();
-
-   nsProto->set_isvalid(true);
-   nsProto->set_nodestatus(nsCpp.status());
-   nsProto->set_issegwitenabled(nsCpp.isSegWitEnabled());
-   nsProto->set_rpcstatus(nsCpp.rpcStatus());
-   
-   auto chainStateProto = nsProto->mutable_chainstate();
-
-   chainStateProto->set_chainstate(chainState.state());
-   chainStateProto->set_blockspeed(chainState.getBlockSpeed());
-   chainStateProto->set_progresspct(chainState.getProgressPct());
-   chainStateProto->set_eta(chainState.getETA());
-   chainStateProto->set_blocksleft(chainState.getBlocksLeft());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void cppSignStateToPythonSignState(
-   BridgeInputSignedState* ssProto, const TxInEvalState& ssCpp)
-{
-   ssProto->set_isvalid(ssCpp.isValid());
-   ssProto->set_m(ssCpp.getM());
-   ssProto->set_n(ssCpp.getN());
-   ssProto->set_sigcount(ssCpp.getSigCount());
-   
-   const auto& pubKeyMap = ssCpp.getPubKeyMap();
-   for (auto& pubKeyPair : pubKeyMap)
-   {
-      auto keyData = ssProto->add_signstatelist();
-      keyData->set_pubkey(
-         pubKeyPair.first.getCharPtr(), pubKeyPair.first.getSize());
-      keyData->set_hassig(pubKeyPair.second);
-   }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 ////
@@ -1249,7 +1035,7 @@ BridgeReply CppBridge::createWalletsPacket()
       auto wltPtr = wltPair.second->getWalletPtr();
       auto payload = response->add_wallets();
 
-      cppWalletToProtoWallet(payload, wltPtr);
+      CppToProto::wallet(payload, wltPtr);
    }
 
    return response;
@@ -1625,14 +1411,14 @@ void CppBridge::getHistoryPageForDelegate(
       throw runtime_error("unknow delegate");
 
    auto lbd = [this, msgId](
-      ReturnMessage<vector<ClientClasses::LedgerEntry>> result)->void
+      ReturnMessage<vector<DBClientClasses::LedgerEntry>> result)->void
    {
       auto&& leVec = result.get();
       auto msgProto = make_unique<BridgeLedgers>();
       for (auto& le : leVec)
       {
          auto leProto = msgProto->add_le();
-         cppLedgerToProtoLedger(leProto, le);
+         CppToProto::ledger(leProto, le);
       }
 
       this->writeToClient(move(msgProto), msgId);
@@ -1646,10 +1432,10 @@ BridgeReply CppBridge::getNodeStatus()
 {
    //grab node status
    auto promPtr = make_shared<
-      promise<shared_ptr<ClientClasses::NodeStatusStruct>>>();
+      promise<shared_ptr<DBClientClasses::NodeStatus>>>();
    auto fut = promPtr->get_future();
    auto lbd = [promPtr](
-      ReturnMessage<shared_ptr<ClientClasses::NodeStatusStruct>> result)->void
+      ReturnMessage<shared_ptr<DBClientClasses::NodeStatus>> result)->void
    {
       try
       {
@@ -1669,7 +1455,7 @@ BridgeReply CppBridge::getNodeStatus()
       auto nodeStatus = fut.get();
       
       //create protobuf message
-      cppNodeStatusToProtoNodeStatus(msg.get(), *nodeStatus);
+      CppToProto::nodeStatus(msg.get(), *nodeStatus);
    }
    catch(exception&)
    {
@@ -1724,7 +1510,7 @@ BridgeReply CppBridge::getAddrCombinedList(const string& wltId)
    for (auto& addrPair : updatedMap)
    {
       auto newAsset = msg->add_updatedassets();
-      cppAddrToProtoAddr(
+      CppToProto::addr(
          newAsset, addrPair.second, iter->second->getWalletPtr());
    }
 
@@ -1759,7 +1545,7 @@ void CppBridge::extendAddressPool(
       wltPtr->extendPublicChain(count);
       
       auto msg = make_unique<WalletData>();
-      cppWalletToProtoWallet(msg.get(), wltPtr);
+      CppToProto::wallet(msg.get(), wltPtr);
       this->writeToClient(move(msg), msgId);
    };
 
@@ -1839,7 +1625,7 @@ BridgeReply CppBridge::getWalletPacket(const string& wltId) const
 
    auto wltPtr = iter->second->getWalletPtr();
    auto walletData = make_unique<WalletData>();
-   cppWalletToProtoWallet(walletData.get(), wltPtr);
+   CppToProto::wallet(walletData.get(), wltPtr);
    
    return move(walletData);
 }
@@ -1856,7 +1642,7 @@ BridgeReply CppBridge::getNewAddress(const string& wltId, unsigned type)
    auto addrPtr = wltPtr->getNewAddress((AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   cppAddrToProtoAddr(msg.get(), addrPtr, wltPtr);
+   CppToProto::addr(msg.get(), addrPtr, wltPtr);
    return msg;
 }
 
@@ -1873,7 +1659,7 @@ BridgeReply CppBridge::getChangeAddress(
    auto addrPtr = wltPtr->getNewChangeAddress((AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   cppAddrToProtoAddr(msg.get(), addrPtr, wltPtr);
+   CppToProto::addr(msg.get(), addrPtr, wltPtr);
    return msg;
 }
 
@@ -1890,7 +1676,7 @@ BridgeReply CppBridge::peekChangeAddress(
    auto addrPtr = wltPtr->peekNextChangeAddress((AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   cppAddrToProtoAddr(msg.get(), addrPtr, wltPtr);
+   CppToProto::addr(msg.get(), addrPtr, wltPtr);
    return msg;
 }
 
@@ -2123,7 +1909,7 @@ BridgeReply CppBridge::cs_getUtxoSelection(const string& csId)
    for (auto& utxo : utxoVec)
    {
       auto utxoProto = msg->add_data();
-      cppUtxoToProtoUtxo(utxoProto, utxo);
+      CppToProto::utxo(utxoProto, utxo);
    }
 
    return msg;
@@ -2254,7 +2040,7 @@ void CppBridge::getUtxosForValue(
       for(auto& utxo : utxoVec)
       {
          auto utxoProto = msg->add_data();
-         cppUtxoToProtoUtxo(utxoProto, utxo);
+         CppToProto::utxo(utxoProto, utxo);
       }
 
       this->writeToClient(move(msg), msgId);
@@ -2280,7 +2066,7 @@ void CppBridge::getSpendableZCList(
       for(auto& utxo : utxoVec)
       {
          auto utxoProto = msg->add_data();
-         cppUtxoToProtoUtxo(utxoProto, utxo);
+         CppToProto::utxo(utxoProto, utxo);
       }
 
       this->writeToClient(move(msg), msgId);
@@ -2306,7 +2092,7 @@ void CppBridge::getRBFTxOutList(
       for(auto& utxo : utxoVec)
       {
          auto utxoProto = msg->add_data();
-         cppUtxoToProtoUtxo(utxoProto, utxo);
+         CppToProto::utxo(utxoProto, utxo);
       }
 
       this->writeToClient(move(msg), msgId);
@@ -2584,7 +2370,7 @@ BridgeReply CppBridge::signer_getSignedStateForInput(
    auto result = make_unique<BridgeInputSignedState>();
 
    auto signStateInput = signState->getSignedStateForInput(inputId);
-   cppSignStateToPythonSignState(result.get(), signStateInput);
+   CppToProto::signatureState(result.get(), signStateInput);
    return result;
 }
 
@@ -2602,7 +2388,7 @@ void CppBridge::getBlockTimeByHeight(uint32_t height, uint32_t msgId) const
       uint32_t timestamp = UINT32_MAX;
       try
       {
-         ClientClasses::BlockHeader header(rawHeader.get(), UINT32_MAX);
+         DBClientClasses::BlockHeader header(rawHeader.get(), UINT32_MAX);
          timestamp = header.getTimestamp();
       }
       catch (const ClientMessageError& e)
@@ -2697,7 +2483,7 @@ void BridgeCallback::run(BdmNotification notif)
          for (auto& le : notif.ledgers_)
          {
             auto protoLe = payload.add_le();
-            cppLedgerToProtoLedger(protoLe, *le);
+            CppToProto::ledger(protoLe, *le);
          }
 
          vector<uint8_t> payloadVec(payload.ByteSize());
@@ -2749,7 +2535,7 @@ void BridgeCallback::run(BdmNotification notif)
       {
          //notify node status
          BridgeNodeStatus nodeStatusMsg;
-         cppNodeStatusToProtoNodeStatus(&nodeStatusMsg, *notif.nodeStatus_);
+         CppToProto::nodeStatus(&nodeStatusMsg, *notif.nodeStatus_);
          vector<uint8_t> serializedNodeStatus(nodeStatusMsg.ByteSize());
          nodeStatusMsg.SerializeToArray(
             &serializedNodeStatus[0], serializedNodeStatus.size());
