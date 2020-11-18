@@ -356,3 +356,68 @@ struct SelectionScoring
 
    static unsigned getTrailingZeroCount(uint64_t);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+class AssetWallet;
+
+////
+class CoinSelectionInstance
+{
+private:
+   CoinSelection cs_;
+
+   using RecipientMap = std::map<unsigned, 
+      std::vector<std::shared_ptr<ArmorySigner::ScriptRecipient>>>;
+   
+   RecipientMap recipients_;
+   UtxoSelection selection_;
+   std::shared_ptr<AssetWallet> const walletPtr_;
+
+   std::vector<UTXO> state_utxoVec_;
+   uint64_t spendableBalance_;
+
+private:
+   static void decorateUTXOs(std::shared_ptr<AssetWallet> const, std::vector<UTXO>&);
+   static std::function<std::vector<UTXO>(uint64_t)> getFetchLambdaFromWallet(
+      std::shared_ptr<AssetWallet> const, std::function<std::vector<UTXO>(uint64_t)>);
+
+   uint64_t getSpendVal(void) const;
+   void checkSpendVal(uint64_t) const;
+   void addRecipient(unsigned, const BinaryData&, uint64_t);
+   void selectUTXOs(std::vector<UTXO>&, uint64_t fee, float fee_byte, unsigned flags);
+
+public:
+   CoinSelectionInstance(std::shared_ptr<AssetWallet>, 
+      std::function<std::vector<UTXO>(uint64_t)>,
+      const std::vector<AddressBookEntry>& addrBook, 
+      uint64_t spendableBalance, unsigned topHeight);
+
+   unsigned addRecipient(const BinaryData&, uint64_t);
+   void updateRecipient(unsigned, const BinaryData&, uint64_t);
+   void updateOpReturnRecipient(unsigned, const BinaryData&);
+   void removeRecipient(unsigned);
+   void resetRecipients(void);
+   const RecipientMap& getRecipients(void) const { return recipients_; }
+
+   bool selectUTXOs(uint64_t fee, float fee_byte, unsigned flags);
+   void processCustomUtxoList(
+      std::vector<UTXO>& utxos,
+      uint64_t fee, float fee_byte,
+      unsigned flags);
+
+   void updateState(uint64_t fee, float fee_byte, unsigned flags);
+
+   uint64_t getFeeForMaxValUtxoVector(const std::vector<BinaryData>& serializedUtxos, float fee_byte);
+   uint64_t getFeeForMaxVal(float fee_byte);
+
+   size_t getSizeEstimate(void) const { return selection_.size_; }
+   std::vector<UTXO> getUtxoSelection(void) const { return selection_.utxoVec_; }
+   uint64_t getFlatFee(void) const { return selection_.fee_; }
+   float getFeeByte(void) const { return selection_.fee_byte_; }
+
+   bool isSW(void) const { return selection_.witnessSize_ != 0; }
+   void rethrow(void) { cs_.rethrow(); }
+
+   static std::shared_ptr<ArmorySigner::ScriptRecipient> createRecipient(
+      const BinaryData&, uint64_t);
+};
