@@ -138,37 +138,6 @@ void BridgePassphrasePrompt::setReply(const string& passphrase)
 
 ////////////////////////////////////////////////////////////////////////////////
 ////
-////  CppBridgeSocket
-////
-////////////////////////////////////////////////////////////////////////////////
-void CppBridgeSocket::respond(std::vector<uint8_t>& data)
-{
-   if (data.empty())
-   {
-      //shutdown condition
-      shutdown();
-      return;
-   }
-
-   if (!bridgePtr_->processData(move(data)))
-      shutdown();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void CppBridgeSocket::pushPayload(
-   unique_ptr<Socket_WritePayload> write_payload,
-   shared_ptr<Socket_ReadPayload>)
-{
-   if (write_payload == nullptr)
-      return;
-
-   vector<uint8_t> data;
-   write_payload->serialize(data);
-   queuePayloadForWrite(data);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////
 ////  CppBridge
 ////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1828,8 +1797,23 @@ void CppBridge::setupNewCoinSelectionInstance(
    auto lbd = [this, wltPtr, csPtr, csId, height, msgid](
       ReturnMessage<vector<AddressBookEntry>> result)->void
    {
+      auto fetchLbd = [wltPtr](uint64_t val)->vector<UTXO>
+      {
+         auto promPtr = make_shared<promise<vector<UTXO>>>();
+         auto fut = promPtr->get_future();
+         auto lbd = [promPtr](ReturnMessage<std::vector<UTXO>> result)->void
+         {
+            promPtr->set_value(result.get());
+         };
+         wltPtr->getSpendableTxOutListForValue(val, lbd);
+
+         return fut.get();
+      };
+
       auto&& aeVec = result.get();
-      *csPtr = make_shared<CoinSelectionInstance>(wltPtr, aeVec, height);
+      *csPtr = make_shared<CoinSelectionInstance>(
+         wltPtr->getWalletPtr(), fetchLbd, aeVec, 
+         wltPtr->getSpendableBalance(), height);
 
       auto msg = make_unique<ReplyStrings>();
       msg->add_reply(csId);

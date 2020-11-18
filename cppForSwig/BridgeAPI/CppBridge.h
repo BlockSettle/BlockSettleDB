@@ -295,26 +295,6 @@ public:
    void startThreads(void);
    void stopThreads(void);
 };
-
-////
-class CppBridgeSocket : public PersistentSocket
-{
-private:
-   std::shared_ptr<CppBridge> bridgePtr_;
-
-public:
-   CppBridgeSocket(
-      const std::string& addr, const std::string& port,
-      std::shared_ptr<CppBridge> bridgePtr) :
-      PersistentSocket(addr, port), bridgePtr_(bridgePtr)
-   {}
-
-   SocketType type(void) const override { return SocketBitcoinP2P; }
-   void respond(std::vector<uint8_t>& data) override;
-   void pushPayload(
-      std::unique_ptr<Socket_WritePayload>,
-      std::shared_ptr<Socket_ReadPayload>) override;
-};
 }; //namespace ArmoryBridge
 
 #endif

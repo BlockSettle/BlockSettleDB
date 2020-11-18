@@ -76,9 +76,13 @@ INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
 # files but are "common" for the sake of unit testing. In an ideal world, the
 # unit tests would be split into multiple files as needed. One day....
 KEYMANAGER_SOURCE_FILES = KeyManager.cpp
+
 CPPBRIDGE_SOURCE_FILES = BridgeAPI/CppBridge.cpp \
 	BridgeAPI/BridgeMain.cpp \
-	BridgeAPI/ProtobufConversions.cpp
+	BridgeAPI/ProtobufConversions.cpp \
+	BridgeAPI/BridgeSocket.cpp \
+	BridgeAPI/WalletManager.cpp
+
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = TransactionBatch.cpp
 ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
@@ -147,7 +151,6 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	TxEvalState.cpp \
 	txio.cpp \
 	UniversalTimer.cpp \
-	WalletManager.cpp \
 	Wallets.cpp \
 	WebSocketClient.cpp \
 	WebSocketMessage.cpp
