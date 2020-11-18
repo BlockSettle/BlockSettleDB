@@ -8,6 +8,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "TestUtils.h"
+#include "CoinSelection.h"
 
 using namespace std;
 using namespace ArmorySigner;

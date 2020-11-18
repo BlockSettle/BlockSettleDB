@@ -2692,14 +2692,13 @@ protected:
 
       return data.size() - dataSet.size();
    };
-
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, CreateCloseOpen_Test)
 {
    map<string, vector<BinaryData>> addrMap;
+   map<string, string> filenames;
 
    //create 3 wallets
    for (unsigned i = 0; i < 3; i++)
@@ -2710,7 +2709,7 @@ TEST_F(WalletsTest, CreateCloseOpen_Test)
          move(wltRoot), //root as a r value
          {},
          SecureBinaryData::fromString("passphrase"), 
-         SecureBinaryData::fromString("control"),
+         controlPass_,
          4); //set lookup computation to 4 entries
 
       //get AddrVec
@@ -2721,35 +2720,23 @@ TEST_F(WalletsTest, CreateCloseOpen_Test)
 
       vec.insert(vec.end(), hashSet.begin(), hashSet.end());
 
+      //get filename
+      filenames.emplace(id, assetWlt->getDbFilename());
+
       //close wallet 
       assetWlt.reset();
    }
 
-   //load all wallets in homedir
-   auto controlLbd = [](const set<BinaryData>&)->SecureBinaryData
-   {
-      return SecureBinaryData::fromString("control");
-   };
-   WalletManager wltMgr(homedir_, controlLbd);
-
-   class WalletContainerEx : public WalletContainer
-   {
-   public:
-      shared_ptr<AssetWallet> getWalletPtr(void) const
-      {
-         return WalletContainer::getWalletPtr();
-      }
-   };
-
    for (auto& addrVecPair : addrMap)
    {
-      auto wltMgrMap = wltMgr.getMap();
-      auto wltCtrIter = wltMgrMap.find(addrVecPair.first);
-      ASSERT_NE(wltCtrIter, wltMgrMap.end());
+      auto fnameIter = filenames.find(addrVecPair.first);
+      ASSERT_NE(fnameIter, filenames.end());
 
-      auto wltCtr = wltCtrIter->second;
+      auto newWallet = 
+         AssetWallet::loadMainWalletFromFile(fnameIter->second, controlLbd_);
+
       auto wltSingle =
-         dynamic_pointer_cast<AssetWallet_Single>(wltCtr->getWalletPtr());
+         dynamic_pointer_cast<AssetWallet_Single>(newWallet);
       ASSERT_NE(wltSingle, nullptr);
 
       auto&& hashSet = wltSingle->getAddrHashSet();
@@ -3206,26 +3193,12 @@ TEST_F(WalletsTest, LockAndExtend_Test)
 
    //delete wallet, reload and check private keys are on disk and valid
    auto wltID = assetWlt->getID();
+   auto filename = assetWlt->getDbFilename();
    assetWlt.reset();
 
-   WalletManager wltMgr(homedir_, controlLbd_);
+   auto newWallet = AssetWallet::loadMainWalletFromFile(filename, controlLbd_);
+   auto wltSingle =dynamic_pointer_cast<AssetWallet_Single>(newWallet);
 
-   class WalletContainerEx : public WalletContainer
-   {
-   public:
-      shared_ptr<AssetWallet> getWalletPtr(void) const
-      {
-         return WalletContainer::getWalletPtr();
-      }
-   };
-
-   auto& wltMgrMap = wltMgr.getMap();
-   auto wltCtrIter = wltMgrMap.find(wltID);
-   ASSERT_NE(wltCtrIter, wltMgrMap.end());
-
-   auto wltCtr = wltCtrIter->second;
-   auto wltSingle =
-      dynamic_pointer_cast<AssetWallet_Single>(wltCtr->getWalletPtr());
    ASSERT_NE(wltSingle, nullptr);
    ASSERT_FALSE(wltSingle->isDecryptedContainerLocked());
    wltSingle->setPassphrasePromptLambda(passLbd);
@@ -3851,7 +3824,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       wltRoot, //root as a r value
       {},
       SecureBinaryData::fromString("test"), //set passphrase to "test"
-      SecureBinaryData::fromString("control"),
+      controlPass_,
       4); //set lookup computation to 4 entries
 
    auto&& chaincode = BtcUtils::computeChainCode_Armory135(wltRoot);
@@ -4024,24 +3997,10 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    auto walletID = assetWlt->getID();
    assetWlt.reset();
 
-   WalletManager wltMgr(homedir_, controlLbd_);
+   auto newWallet = AssetWallet::loadMainWalletFromFile(filename, controlLbd_);
 
-   class WalletContainerEx : public WalletContainer
-   {
-   public:
-      shared_ptr<AssetWallet> getWalletPtr(void) const
-      {
-         return WalletContainer::getWalletPtr();
-      }
-   };
-
-   auto wltMgrMap = wltMgr.getMap();
-   auto wltCtrIter = wltMgrMap.find(walletID);
-   ASSERT_NE(wltCtrIter, wltMgrMap.end());
-
-   auto wltCtr = wltCtrIter->second;
    auto wltSingle =
-      dynamic_pointer_cast<AssetWallet_Single>(wltCtr->getWalletPtr());
+      dynamic_pointer_cast<AssetWallet_Single>(newWallet);
    ASSERT_NE(wltSingle, nullptr);
    ASSERT_FALSE(wltSingle->isDecryptedContainerLocked());
 

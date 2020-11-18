@@ -46,7 +46,7 @@
 #include "../Script.h"
 #include "../Signer.h"
 #include "../Wallets.h"
-#include "../WalletManager.h"
+#include "../AsyncClient.h"
 #include "../BIP32_Node.h"
 #include "../BitcoinP2p.h"
 #include "btc/ecc.h"
