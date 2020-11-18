@@ -15,7 +15,6 @@
 using namespace std;
 using namespace ArmoryBridge;
 
-//using namespace ::google::protobuf;
 using namespace Codec_ClientProto;
 
 /***
