@@ -144,7 +144,6 @@ private:
    void writeService(void);
    void service(lws_context*);
    bool processAEADHandshake(const WebSocketMessagePartial&);
-   AuthPeersLambdas getAuthPeerLambda(void) const;
    void promptUser(const BinaryDataRef&, const std::string&);
 
 public:

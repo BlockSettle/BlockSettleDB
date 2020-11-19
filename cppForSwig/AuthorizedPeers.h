@@ -38,6 +38,8 @@ public:
    {}
 };
 
+class AuthPeersLambdas;
+
 ////////////////////////////////////////////////////////////////////////////////
 class AuthorizedPeers
 {
@@ -121,6 +123,7 @@ public:
 
    //takes path to peers db, passphrase lambdas are handled internally
    static void changeControlPassphrase(const std::string&);
+   static AuthPeersLambdas getAuthPeersLambdas(std::shared_ptr<AuthorizedPeers>);
 };
 
 #endif

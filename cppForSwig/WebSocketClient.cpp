@@ -12,7 +12,8 @@
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
-static struct lws_protocols protocols[] = {
+static struct lws_protocols protocols[] = 
+{
    /* first protocol must always be HTTP handler */
 
    {
@@ -22,7 +23,7 @@ static struct lws_protocols protocols[] = {
       per_session_data__client::rcv_size,
    },
 
-{ NULL, NULL, 0, 0 } /* terminator */
+   { NULL, NULL, 0, 0 } /* terminator */
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +48,7 @@ WebSocketClient::WebSocketClient(const string& addr, const string& port,
       authPeers_ = make_shared<AuthorizedPeers>();
    }
 
-   auto lbds = getAuthPeerLambda();
+   auto lbds = AuthorizedPeers::getAuthPeersLambdas(authPeers_);
    bip151Connection_ = make_shared<BIP151Connection>(lbds, oneWayAuth);
 }
 
@@ -485,7 +486,7 @@ void WebSocketClient::readService()
 
          if (result != 0)
          {
-            //see WebSocketServer::commandThread for the explaination
+            //see WebSocketServer::processReadQueue for the explaination
             if (result <= WEBSOCKET_MESSAGE_PACKET_SIZE && result > -1)
             {
                leftOverData_ = move(payload);
@@ -611,6 +612,7 @@ bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj
       serverPubkeyProm_.reset();
    }
 
+   //auth type sanity checks & setup
    auto msgbdr = msgObj.getSingleBinaryMessage();
    switch (msgObj.getType())
    {
@@ -681,30 +683,6 @@ bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj
    default:
       return false;
    }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-AuthPeersLambdas WebSocketClient::getAuthPeerLambda(void) const
-{
-   auto authPeerPtr = authPeers_;
-
-   auto getMap = [authPeerPtr](void)->const map<string, btc_pubkey>&
-   {
-      return authPeerPtr->getPeerNameMap();
-   };
-
-   auto getPrivKey = [authPeerPtr](
-      const BinaryDataRef& pubkey)->const SecureBinaryData&
-   {
-      return authPeerPtr->getPrivateKey(pubkey);
-   };
-
-   auto getAuthSet = [authPeerPtr](void)->const set<SecureBinaryData>&
-   {
-      return authPeerPtr->getPublicKeySet();
-   };
-
-   return AuthPeersLambdas(getMap, getPrivKey, getAuthSet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
