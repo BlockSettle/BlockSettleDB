@@ -21,7 +21,7 @@
 #include "JSON_codec.h"
 
 #include "ReentrantLock.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 
 namespace CoreRPC
 {
@@ -177,7 +177,6 @@ public:
 class NodeRPC : public NodeRPCInterface
 {
 private:
-   const BlockDataManagerConfig& bdmConfig_;
    std::string basicAuthString64_;
 
    RpcState previousState_ = RpcState_Disabled;
@@ -203,7 +202,7 @@ private:
    bool updateChainStatus(void);
 
 public:
-   NodeRPC(BlockDataManagerConfig&);
+   NodeRPC(void);
    ~NodeRPC(void);
    
    bool setupConnection(HttpSocket&);

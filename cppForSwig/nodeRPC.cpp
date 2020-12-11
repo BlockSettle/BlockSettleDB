@@ -9,7 +9,7 @@
 #include "ArmoryErrors.h"
 #include "nodeRPC.h"
 #include "DBUtils.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "SocketWritePayload.h"
 
 #ifdef _WIN32
@@ -20,6 +20,7 @@
 
 using namespace std;
 using namespace CoreRPC;
+using namespace ArmoryConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -58,9 +59,7 @@ map<unsigned, FeeEstimateResult> NodeRPCInterface::getFeeSchedule(
 // NodeRPC
 //
 ////////////////////////////////////////////////////////////////////////////////
-NodeRPC::NodeRPC(
-   BlockDataManagerConfig& config) :
-   bdmConfig_(config)
+NodeRPC::NodeRPC() 
 {
    //start fee estimate polling thread
    auto pollLbd = [this](void)->void
@@ -175,14 +174,14 @@ RpcState NodeRPC::testConnection()
 ////////////////////////////////////////////////////////////////////////////////
 string NodeRPC::getDatadir()
 {
-   string datadir = bdmConfig_.blkFileLocation_;
-   auto len = bdmConfig_.blkFileLocation_.size();
+   string datadir = Pathing::blkFilePath();
+   auto len = datadir.size();
 
    if (len >= 6)
    {
-      auto&& term = bdmConfig_.blkFileLocation_.substr(len - 6, 6);
+      auto&& term = datadir.substr(len - 6, 6);
       if (term == "blocks")
-         datadir = bdmConfig_.blkFileLocation_.substr(0, len - 6);
+         datadir = datadir.substr(0, len - 6);
    }
 
    return datadir;
@@ -199,13 +198,13 @@ string NodeRPC::getAuthString()
    auto getAuthStringFromCookieFile = [&datadir](void)->string
    {
       DBUtils::appendPath(datadir, ".cookie");
-      auto&& lines = BlockDataManagerConfig::getLines(datadir);
+      auto&& lines = SettingsUtils::getLines(datadir);
       if (lines.size() != 1)
       {
          throw runtime_error("unexpected cookie file content");
       }
 
-      auto&& keyVals = BlockDataManagerConfig::getKeyValsFromLines(lines, ':');
+      auto&& keyVals = SettingsUtils::getKeyValsFromLines(lines, ':');
       auto keyIter = keyVals.find("__cookie__");
       if (keyIter == keyVals.end())
       {
@@ -218,8 +217,8 @@ string NodeRPC::getAuthString()
    //open and parse .conf file
    try
    {
-      auto&& lines = BlockDataManagerConfig::getLines(confPath);
-      auto&& keyVals = BlockDataManagerConfig::getKeyValsFromLines(lines, '=');
+      auto&& lines = SettingsUtils::getLines(confPath);
+      auto&& keyVals = SettingsUtils::getKeyValsFromLines(lines, '=');
       
       //get rpcuser
       auto userIter = keyVals.find("rpcuser");
@@ -382,7 +381,7 @@ void NodeRPC::aggregateFeeEstimates()
    static vector<string> strategies = { 
       FEE_STRAT_CONSERVATIVE, FEE_STRAT_ECONOMICAL };
 
-   HttpSocket sock("127.0.0.1", bdmConfig_.rpcPort_);
+   HttpSocket sock("127.0.0.1", NetworkSettings::rpcPort());
    if (!setupConnection(sock))
       throw RpcError("aggregateFeeEstimates: failed to setup RPC socket");
 
@@ -611,7 +610,7 @@ void NodeRPC::shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 string NodeRPC::queryRPC(JSON_object& request)
 {
-   HttpSocket sock("127.0.0.1", bdmConfig_.rpcPort_);
+   HttpSocket sock("127.0.0.1", NetworkSettings::rpcPort());
    if (!setupConnection(sock))
       throw RpcError("node_down");
 
