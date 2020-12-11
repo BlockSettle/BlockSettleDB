@@ -17,6 +17,7 @@
 
 using namespace std;
 using namespace ArmoryThreading;
+using namespace ArmoryConfig;
 
 #define ZC_GETDATA_TIMEOUT_MS 60000
 
@@ -302,7 +303,7 @@ bool ZeroConfContainer::purge(
          purgeZcMap(spentOutpoints, minedHashes,
             currentHeader->getBlockDataKey());
 
-         if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
+         if (DBSettings::getDbType() != ARMORY_DB_SUPER)
          {
             //purge mined hashes
             for (auto& minedHash : minedHashes)
@@ -637,7 +638,7 @@ void ZeroConfContainer::parseNewZC(
 
    for (auto& newZCPair : zcMap)
    {
-      if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
+      if (DBSettings::getDbType() != ARMORY_DB_SUPER)
       {
          auto& txHash = newZCPair.second->getTxHash();
          auto insertIter = allZcTxHashes_.insert(txHash);
@@ -1112,7 +1113,7 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
       auto addrIter = mainAddressSet->find(addr.getRef());
       if (addrIter == mainAddressSet->end())
       {
-         if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
+         if (DBSettings::getDbType() == ARMORY_DB_SUPER)
          {
             /*
             We got this far because no BDV is watching this address and the DB
@@ -1193,7 +1194,7 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
       auto& opZcKey = input.opRef_.getDbKey();
       if (!getzckeyfortxhash(input.opRef_.getTxHashRef(), opZcKey))
       {
-         if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER ||
+         if (DBSettings::getDbType() == ARMORY_DB_SUPER ||
             allZcTxHashes_.find(input.opRef_.getTxHashRef()) == allZcTxHashes_.end())
             continue;
       }
@@ -1682,7 +1683,7 @@ void ZeroConfContainer::handleInvTx()
       {
          //skip this entirely if there are no addresses to scan the ZCs against
          if (scrAddrMap_->size() == 0 &&
-            BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
+            DBSettings::getDbType() != ARMORY_DB_SUPER)
             continue;
 
          auto invPayload = dynamic_pointer_cast<ZcInvPayload>(packet);
