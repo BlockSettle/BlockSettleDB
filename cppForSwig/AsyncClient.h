@@ -19,7 +19,7 @@ Handle codec and socketing for armory client
 #include "bdmenums.h"
 #include "log.h"
 #include "TxClasses.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "WebSocketClient.h"
 #include "DBClientClasses.h"
 #include "SocketWritePayload.h"

@@ -31,7 +31,7 @@
 #include "BinaryData.h"
 #include "UniversalTimer.h"
 #include "log.h"
-#include "NetworkConfig.h"
+#include "BitcoinSettings.h"
 #include "EncryptionUtils.h"
 
 #include "btc/base58.h"

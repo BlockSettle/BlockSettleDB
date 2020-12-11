@@ -21,7 +21,7 @@
 
 #include "ThreadSafeClasses.h"
 #include "BinaryData.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "BtcUtils.h"
 #include "StoredBlockObj.h"
 #include "lmdb_wrapper.h"

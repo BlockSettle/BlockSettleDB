@@ -16,7 +16,7 @@
 #include "EncryptionUtils.h"
 #include "Wallets.h"
 #include "DBUtils.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 
 #define PEERS_WALLET_PASSWORD "password"
 #define PEERS_WALLET_BIP32_ACCOUNT 0xFF005618

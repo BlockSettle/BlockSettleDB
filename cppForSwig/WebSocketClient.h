@@ -19,7 +19,7 @@
 #include "BinaryData.h"
 #include "SocketObject.h"
 #include "WebSocketMessage.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "DBClientClasses.h"
 #include "AsyncClient.h" //TODO <-- nuke this
 
