@@ -33,6 +33,9 @@ enum Methods
     getHighestUsedIndex = 83;
     extendAddressPool = 84;
     createWallet = 85;
+    createBackupStringForWallet = 86;
+    deleteWallet = 87;
+    getWalletData = 88;
 
     generateRandomHex = 90;
     getTxInScriptType = 91;
@@ -72,6 +75,16 @@ enum Methods
 
     getHash160 = 200;
     getBlockTimeByHeight = 201;
+
+    methodWithCallback = 220;
+}
+
+enum MethodsWithCallback
+{
+    followUp = 1;
+    cleanup = 2;
+    
+    restoreWallet = 10;
 }
 
 message ClientCommand
@@ -84,8 +97,12 @@ message ClientCommand
     repeated bytes byteArgs = 5;
     repeated uint64 longArgs = 6;
     repeated float floatArgs = 7;
+
+    optional MethodsWithCallback methodWithCallback = 10;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// wallet public data
 message WalletAsset
 {
     required int32 id = 1;
@@ -119,6 +136,8 @@ message WalletPayload
     repeated WalletData wallets = 1;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// BDV callback
 message CppBridgeCallback
 {
     required uint32 type = 1;
@@ -139,28 +158,31 @@ message CppProgressCallback
     repeated string ids = 10;
 }
 
-enum BridgePromptState
+////////////////////////////////////////////////////////////////////////////////
+// Unlock prompt
+enum UnlockPromptState
 {
     start = 1;
     stop = 2;
     cycle = 3;
 }
 
-enum BridgePromptType
+enum UnlockPromptType
 {
     decrypt = 1;
     migrate = 2;
 }
 
-message CppUserPromptCallback
+message UnlockPromptCallback
 {
     required bytes promptID = 1;
-    required BridgePromptType promptType = 2;
+    required UnlockPromptType promptType = 2;
     required string verbose = 3;
-    required BridgePromptState state = 4; 
+    required UnlockPromptState state = 4; 
     optional string walletID = 5;
 }
 
+////////////////////////////////////////////////////////////////////////////////
 message BridgeLedger
 {
     required int64 value = 1;
@@ -291,6 +313,14 @@ message BridgeInputSignedState
     }
 }
 
+message ReplyError
+{
+    required string error = 1;
+    optional uint32 code = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Wallet creation messages
 message BridgeCreateWalletStruct
 {
     required uint32 lookup = 1;
@@ -304,8 +334,70 @@ message BridgeCreateWalletStruct
     optional string description = 31;
 }
 
-message ReplyError
+message BridgeBackupString
 {
-    required string error = 1;
-    optional uint32 code = 2;
+    required bool isvalid = 1;
+    
+    repeated string rootclear = 10;
+    repeated string chainclear = 11;
+
+    repeated string rootencr = 20;
+    repeated string chainencr = 21;
+
+    optional string sppass = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Opaque payloads
+
+enum OpaquePayloadType
+{
+    prompt = 1;
+    commandWithCallback = 2;
+}
+
+message OpaquePayload
+{
+    required OpaquePayloadType payloadType = 1;
+    optional bytes uniqueId = 2;
+    optional uint32 intId = 3;
+
+    optional bytes payload = 10;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// RestoreWallet messages
+message RestoreWalletPayload
+{
+    repeated string root = 1;
+    repeated string secondary = 2;
+    optional string spPass = 3;
+}
+
+enum RestorePromptType
+{
+    FormatError = 1;
+    Failure = 2;
+    ChecksumError = 3;
+    DecryptError = 4;
+    Passphrase = 5;
+    Control = 6;
+    Id = 7;
+    TypeError = 8;
+    Success = 9;
+    UnknownError = 10;
+}
+
+message RestorePrompt
+{
+
+    required RestorePromptType promptType = 1;
+    repeated int32 checksums = 2;
+    optional string extra = 3;
+}
+
+message RestoreReply
+{
+    required bool result = 1;
+    optional bytes extra = 2;
 }

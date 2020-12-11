@@ -215,6 +215,8 @@ public:
       const std::string&, const PassphraseLambda& = nullptr);
    static std::shared_ptr<AssetWallet> loadMainWalletFromFile(
       const std::string& path, const PassphraseLambda&);
+
+   static void eraseFromDisk(AssetWallet*);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -246,10 +248,6 @@ protected:
       const SecureBinaryData& controlPassphrase,
       const std::string& masterID, const std::string& walletID,
       SecureBinaryData& pubRoot);
-
-   static std::string computeWalletID(
-      std::shared_ptr<DerivationScheme>,
-      std::shared_ptr<AssetEntry>);
 
 private:
    static void copyPublicData(
@@ -326,7 +324,6 @@ public:
    static std::shared_ptr<AssetWallet_Single> createFromSeed_BIP32(
       const std::string& folder,
       const SecureBinaryData& seed,
-      const std::vector<unsigned>& derivationPath,
       const SecureBinaryData& passphrase,
       const SecureBinaryData& controlPassphrase,
       unsigned lookup);
@@ -341,6 +338,10 @@ public:
       const std::string& folder,
       const std::string& walletID,
       const SecureBinaryData& controlPassphrase);
+
+   static std::string computeWalletID(
+      std::shared_ptr<DerivationScheme>,
+      std::shared_ptr<AssetEntry>);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -537,6 +537,9 @@ public:
    BinaryData serialize(void) const override;
    const AssetEntryType getType(void) const override 
    { return AssetEntryType_ArmoryLegacyRoot; }
+
+   const SecureBinaryData& getChaincode(void) const
+   { return chaincode_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

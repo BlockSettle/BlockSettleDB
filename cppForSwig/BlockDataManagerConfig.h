@@ -92,6 +92,8 @@ public:
    bool useCookie_ = false;
    bool encryptWallet_ = false;
 
+   bool offline_ = false;
+
 private:
    static bool fileExists(const std::string&, int);
 

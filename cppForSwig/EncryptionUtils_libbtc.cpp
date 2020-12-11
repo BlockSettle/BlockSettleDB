@@ -243,7 +243,7 @@ SecureBinaryData CryptoAES::EncryptCBC(const SecureBinaryData & data,
    auto result = aes256_cbc_encrypt(
       key.getPtr(), iv.getPtr(),
       data.getPtr(), data.getSize(),
-      1, //pad with 0s if the data is not aligned with 16 bytes blocks
+      1, //PKCS #5 padding
       encrData.getPtr());
       
    if (result == 0)
@@ -274,7 +274,7 @@ SecureBinaryData CryptoAES::DecryptCBC(const SecureBinaryData & data,
    auto size = aes256_cbc_decrypt(
       key.getPtr(), iv.getPtr(),
       data.getPtr(), data.getSize(),
-      1, //data is padded to 16 bytes blocks
+      1, //PKCS #5 padding
       unencrData.getPtr());
 
    if (size == 0)

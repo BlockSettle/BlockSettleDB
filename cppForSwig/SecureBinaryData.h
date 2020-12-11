@@ -101,13 +101,13 @@ public:
 
 
    BinaryData    getRawCopy(void) const { return BinaryData(getPtr(), getSize()); }
-   BinaryDataRef getRawRef(void) { return BinaryDataRef(getPtr(), getSize()); }
+   BinaryDataRef getRawRef(void) const { return BinaryDataRef(getPtr(), getSize()); }
 
    SecureBinaryData copySwapEndian(size_t pos1 = 0, size_t pos2 = 0) const;
 
-   SecureBinaryData & append(SecureBinaryData & sbd2);
+   SecureBinaryData & append(const SecureBinaryData & sbd2);
    SecureBinaryData & operator=(SecureBinaryData const & sbd2);
-   SecureBinaryData   operator+(SecureBinaryData & sbd2) const;
+   SecureBinaryData   operator+(const SecureBinaryData & sbd2) const;
    //uint8_t const & operator[](size_t i) const {return BinaryData::operator[](i);}
    bool operator==(SecureBinaryData const & sbd2) const;
 

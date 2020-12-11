@@ -985,6 +985,17 @@ const string& AssetWallet::getDescription() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void AssetWallet::eraseFromDisk(AssetWallet* wltPtr)
+{
+   if (wltPtr == nullptr)
+      throw runtime_error("null wltPtr");
+
+   auto ifaceCopy = move(wltPtr->iface_);
+   ifaceCopy->eraseFromDisk();
+   ifaceCopy.reset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// AssetWallet_Single
 ////////////////////////////////////////////////////////////////////////////////
@@ -1112,14 +1123,19 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    */
 
    if (privateRoot.getSize() != 32)
-      throw WalletException("empty root");
+      throw WalletException("invalid root size");
+   auto&& pubkey = CryptoECDSA().ComputePublicKey(privateRoot);
 
    //compute wallet ID
-   auto&& pubkey = CryptoECDSA().ComputePublicKey(privateRoot);
+   BinaryWriter masterIdPreimage;
+   masterIdPreimage.put_BinaryData(pubkey);
+   if (!chaincode.empty())
+      masterIdPreimage.put_BinaryData(chaincode);
    
-   //compute master ID as hmac256(root pubkey, "MetaEntry")
+   //compute master ID as hmac256(root pubkey + chaincode, "MetaEntry")
    auto hmacMasterMsg = SecureBinaryData::fromString("MetaEntry");
-   auto&& masterID_long = BtcUtils::getHMAC256(pubkey, hmacMasterMsg);
+   auto&& masterID_long = BtcUtils::getHMAC256(
+      masterIdPreimage.getData(), hmacMasterMsg);
    auto&& masterID = BtcUtils::computeID(masterID_long);
 
    /*
@@ -1138,7 +1154,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    string walletID;
    {
       //generate chaincode if it's not provided
-      if (chaincode.getSize() == 0)
+      if (chaincode.empty())
          chaincode = BtcUtils::computeChainCode_Armory135(privateRoot);
       
       auto chaincodeCopy = chaincode;
@@ -1157,14 +1173,13 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    auto&& privateRootCopy = privateRoot.copy();
 
    //create empty wallet
-   SecureBinaryData dummy;
    auto walletPtr = initWalletDb(
       iface,
       masterID, walletID,
       passphrase, 
       controlPassphrase,
       privateRoot, 
-      dummy, 
+      chaincode, 
       0); //pass 0 for the fingerprint to signal legacy wallet
 
    //set as main
@@ -1266,7 +1281,6 @@ createFromPublicRoot_Armory135(
 shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    const string& folder,
    const SecureBinaryData& seed,
-   const vector<unsigned>& derivationPath,
    const SecureBinaryData& passphrase,
    const SecureBinaryData& controlPassphrase,
    unsigned lookup)
@@ -1277,34 +1291,24 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    BIP32_Node rootNode;
    rootNode.initFromSeed(seed);
 
+   auto coinType = NetworkConfig::getCoinType();
+   
    //address accounts
    set<shared_ptr<AccountType_BIP32>> accountTypes;
 
-   /*
-   Derive 2 hardcoded paths on top of the main derivatrionPath for
-   this wallet, to support the default address chains for Armory operations
-   */
-
-   SecureBinaryData dummy1, dummy2;
-   auto privateRootCopy_1 = rootNode.getPrivateKey();
-   auto privateRootCopy_2 = rootNode.getPrivateKey();
-   auto chaincode1 = rootNode.getChaincode();
-   auto chaincode2 = rootNode.getChaincode();
-
-   //TODO: make this bip44 compliant
    {
-      //legacy account
-      auto legacyAcc = 
-         make_shared<AccountType_BIP32>(derivationPath);
+      //legacy account: 44
+      vector<unsigned> path = { 0x8000002C, coinType, 0x80000000 };
+      auto legacyAcc = make_shared<AccountType_BIP32>(path);
 
       //nodes
       legacyAcc->setNodes({
-         BIP32_LEGACY_OUTER_ACCOUNT_DERIVATIONID, 
-         BIP32_LEGACY_INNER_ACCOUNT_DERIVATIONID});
+         BIP32_OUTER_ACCOUNT_DERIVATIONID, 
+         BIP32_INNER_ACCOUNT_DERIVATIONID});
       legacyAcc->setOuterAccountID(
-         WRITE_UINT32_BE(BIP32_LEGACY_OUTER_ACCOUNT_DERIVATIONID));
+         WRITE_UINT32_BE(BIP32_OUTER_ACCOUNT_DERIVATIONID));
       legacyAcc->setInnerAccountID(
-         WRITE_UINT32_BE(BIP32_LEGACY_INNER_ACCOUNT_DERIVATIONID));
+         WRITE_UINT32_BE(BIP32_INNER_ACCOUNT_DERIVATIONID));
 
       //lookup
       legacyAcc->setAddressLookup(lookup);
@@ -1318,29 +1322,52 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
       legacyAcc->setMain(true);
       accountTypes.insert(legacyAcc);
    }
-
-   //TODO: make this bip84 compliant
+   
    {
-      //sw account
-      auto segwitAcc = 
-         make_shared<AccountType_BIP32>(derivationPath);
+      //nested sw account: 49
+      vector<unsigned> path = { 0x80000031, coinType, 0x80000000 };
+      auto nestedAcc = make_shared<AccountType_BIP32>(path);
+         
+      //nodes
+      nestedAcc->setNodes({
+         BIP32_OUTER_ACCOUNT_DERIVATIONID, 
+         BIP32_INNER_ACCOUNT_DERIVATIONID});
+      nestedAcc->setOuterAccountID(
+         WRITE_UINT32_BE(BIP32_OUTER_ACCOUNT_DERIVATIONID));
+      nestedAcc->setInnerAccountID(
+         WRITE_UINT32_BE(BIP32_INNER_ACCOUNT_DERIVATIONID));
+
+      //lookup
+      nestedAcc->setAddressLookup(lookup);
+
+      //address types
+      nestedAcc->addAddressType(
+         AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
+      nestedAcc->setDefaultAddressType(
+         AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
+
+      accountTypes.insert(nestedAcc);
+   }
+
+   {
+      //sw account: 84
+      vector<unsigned> path = { 0x80000054, coinType, 0x80000000 };
+      auto segwitAcc = make_shared<AccountType_BIP32>(path);
          
       //nodes
       segwitAcc->setNodes({
-         BIP32_SEGWIT_OUTER_ACCOUNT_DERIVATIONID, 
-         BIP32_SEGWIT_INNER_ACCOUNT_DERIVATIONID});
+         BIP32_OUTER_ACCOUNT_DERIVATIONID, 
+         BIP32_INNER_ACCOUNT_DERIVATIONID});
       segwitAcc->setOuterAccountID(
-         WRITE_UINT32_BE(BIP32_SEGWIT_OUTER_ACCOUNT_DERIVATIONID));
+         WRITE_UINT32_BE(BIP32_OUTER_ACCOUNT_DERIVATIONID));
       segwitAcc->setInnerAccountID(
-         WRITE_UINT32_BE(BIP32_SEGWIT_INNER_ACCOUNT_DERIVATIONID));
+         WRITE_UINT32_BE(BIP32_INNER_ACCOUNT_DERIVATIONID));
 
       //lookup
       segwitAcc->setAddressLookup(lookup);
 
       //address types
       segwitAcc->addAddressType(AddressEntryType_P2WPKH);
-      segwitAcc->addAddressType(
-         AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
       segwitAcc->setDefaultAddressType(AddressEntryType_P2WPKH);
 
       accountTypes.insert(segwitAcc);

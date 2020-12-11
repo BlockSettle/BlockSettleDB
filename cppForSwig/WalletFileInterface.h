@@ -433,6 +433,7 @@ private:
    void closeEnv(void);
 
    void compactFile();
+   static void wipeAndDeleteFile(const std::string&);
 
 public:
    //tors
@@ -442,6 +443,7 @@ public:
    //setup
    void setupEnv(const std::string& path, const PassphraseLambda&);
    void shutdown(void);
+   void eraseFromDisk(void);
 
    const std::string& getFilename(void) const;
 

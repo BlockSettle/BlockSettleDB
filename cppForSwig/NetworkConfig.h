@@ -66,6 +66,7 @@ private:
    static NETWORK_MODE mode_;
    static const btc_chainparams* chain_params_;
    static std::string bech32Prefix_;
+   static uint32_t BIP32_CoinType_;
 
 public:
    static void selectNetwork(NETWORK_MODE);
@@ -81,6 +82,7 @@ public:
    static NETWORK_MODE getMode(void) { return mode_; }
    static bool isInitialized(void);
    static const btc_chainparams* get_chain_params(void) { return chain_params_; }
+   static uint32_t getCoinType(void);
 };
 
 #endif

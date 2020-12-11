@@ -347,19 +347,9 @@ void BlockDataManagerConfig::printHelp(void)
 --public                  BIP150 auth will allow for anonymous requesters.
                           While only clients can be anon (servers/responders are
                           always auth'ed), both sides need to enable public
-                          channels for the handshake to succeed)";
-                          
-/////////////////////////// Altered for ArmoryDB repo //////////////////////////
-   //This fork makes --public the default case. Users need not use it.
-
-   helpMsg += R"(
---fullbip150:             BIP150 auth will not allow any anonymous participants. Both
-                          sides must authenticate each other. (This is the default behavior in the
-                          upstream ArmoryDB. fullbip150 is set only in this fork.)
-
---encrypt-wallet:         invoke passphrase dialog to encrypt the wallet during the first
-                          run)";
-////////////////////////////////////////////////////////////////////////////////
+                          channels for the handshake to succeed)   
+--offline                 Do not seek to connect with the ArmoryDB blockchain
+                          service)";
 
   cerr << helpMsg << endl;
 }
@@ -732,20 +722,12 @@ void BlockDataManagerConfig::processArgs(const map<string, string>& args,
       oneWayAuth_ = true;
    }
 
-   iter = args.find("encrypt-wallet");
+   //offline
+   iter = args.find("offline");
    if (iter != args.end())
    {
-      encryptWallet_ = true;
+      offline_ = true;
    }
-
-/////////////////////////// Altered for ArmoryDB repo //////////////////////////
-   // fullbip150
-   iter = args.find("fullbip150");
-   if (iter != args.end())
-   {
-      oneWayAuth_ = false;
-   }
-////////////////////////////////////////////////////////////////////////////////
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -159,6 +159,7 @@ list(APPEND LIBARMORYCOMMON_LINK_LIBRARIES
 list(APPEND LIBARMORYCOMMON_SOURCES
     Accounts.cpp
     Addresses.cpp
+    ArmoryBackups.cpp
     AssetEncryption.cpp
     Assets.cpp
     AsyncClient.cpp

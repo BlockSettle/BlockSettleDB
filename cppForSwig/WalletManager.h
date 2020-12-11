@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-19, goatpig                                            //
+//  Copyright (C) 2016-20, goatpig                                            //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -22,8 +22,14 @@
 #include "CoinSelection.h"
 #include "Script.h"
 #include "AsyncClient.h"
+#include "ReentrantLock.h"
 
 class WalletContainer;
+
+namespace ArmoryBackups
+{
+   class WalletBackup;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 struct CoinSelectionInstance
@@ -122,15 +128,7 @@ private:
       id_(id)
    {}
 
-   void reset(void)
-   {
-      totalBalance_ = 0;
-      spendableBalance_ = 0;
-      unconfirmedBalance_ = 0;
-      balanceMap_.clear();
-      countMap_.clear();
-   }
-
+   void resetCache(void);
    void setBdvPtr( std::shared_ptr<AsyncClient::BlockDataViewer> bdv)
    {
       std::unique_lock<std::mutex> lock(stateMutex_);
@@ -157,8 +155,11 @@ private:
       highestUsedIndex_ = count;
    }
 
+   void eraseFromDisk(void);
+
 public:
    std::string registerWithBDV(bool isNew);
+   void unregisterFromBDV(void);
 
    virtual std::shared_ptr<AssetWallet> getWalletPtr(void) const
    {
@@ -265,6 +266,8 @@ public:
    std::map<BinaryData, std::vector<uint64_t>> getAddrBalanceMap(void) const;
    uint32_t getHighestUsedIndex(void) const { return highestUsedIndex_; }
    std::map<BinaryData, std::shared_ptr<AddressEntry>> getUpdatedAddressMap();
+
+   ArmoryBackups::WalletBackup getBackupStrings(const PassphraseLambda&) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,11 +376,9 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class WalletManager
+class WalletManager : Lockable
 {
 private:
-   mutable std::mutex mu_;
-
    const std::string path_;
    std::map<std::string, std::shared_ptr<WalletContainer>> wallets_;
 
@@ -386,9 +387,12 @@ private:
    std::shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_; 
 
 private:
-   std::shared_ptr<WalletContainer> addWallet(std::shared_ptr<AssetWallet>);
    void loadWallets(
       const std::function<SecureBinaryData(const std::set<BinaryData>&)>&);
+
+public:
+   void initAfterLock(void) override {}
+   void cleanUpBeforeUnlock(void) override {}
 
 public:
    WalletManager(const std::string& path,
@@ -435,10 +439,15 @@ public:
       return iter->second->registerWithBDV(isNew);
    }
 
+   std::shared_ptr<WalletContainer> addWallet(std::shared_ptr<AssetWallet>);
+
    void updateStateFromDB(const std::function<void(void)>&);
    std::shared_ptr<WalletContainer> createNewWallet(
       const SecureBinaryData&, const SecureBinaryData&, //pass, control pass
       const SecureBinaryData&, unsigned); //extra entropy, address lookup
+   void deleteWallet(const std::string&);
+
+   const std::string& getWalletDir(void) const { return path_; }
 };
 
 #endif

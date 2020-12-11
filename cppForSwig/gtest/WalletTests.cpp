@@ -8,9 +8,22 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "TestUtils.h"
+#include "ArmoryBackups.h"
 
 using namespace std;
 using namespace ArmorySigner;
+
+#define METHOD_ASSERT_EQ(a, b) \
+   if (a != b) { EXPECT_EQ(a, b); return false; }
+
+#define METHOD_ASSERT_NE(a, b) \
+   if (a == b) { EXPECT_NE(a, b); return false; }
+
+#define METHOD_ASSERT_TRUE(a) \
+   if (!(a)) { EXPECT_TRUE(false); return false; }
+
+#define METHOD_ASSERT_FALSE(a) \
+   if (a) { EXPECT_FALSE(true); return false; }
 
 ////////////////////////////////////////////////////////////////////////////////
 class AddressTests : public ::testing::Test
@@ -2800,6 +2813,77 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, WalletID)
+{
+   auto computeId = [](
+      const SecureBinaryData& root, const SecureBinaryData& chaincode)->string
+   {
+      auto ccCopy = chaincode;
+      if (chaincode.empty())
+         ccCopy = BtcUtils::computeChainCode_Armory135(root);
+
+      auto derScheme = 
+         make_shared<DerivationScheme_ArmoryLegacy>(ccCopy);
+
+      auto pubkey = CryptoECDSA().ComputePublicKey(root);
+      auto asset_single = make_shared<AssetEntry_Single>(
+         ROOT_ASSETENTRY_ID, BinaryData(), pubkey, nullptr);
+
+      return AssetWallet_Single::computeWalletID(derScheme, asset_single);      
+   };
+
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
+   auto id = computeId(wltRoot, {});
+   ASSERT_FALSE(id.empty());
+
+   //legacy wallet
+   {
+      auto wlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+         homedir_,
+         wltRoot,
+         {},
+         SecureBinaryData::fromString("passphrase"),
+         SecureBinaryData::fromString("control"),
+         4); //set lookup computation to 4 entries
+
+      EXPECT_EQ(wlt->getID(), id);
+   }
+
+   //bip32 wallet
+   {
+      auto wlt = AssetWallet_Single::createFromSeed_BIP32(
+         homedir_,
+         wltRoot,
+         SecureBinaryData::fromString("passphrase"),
+         SecureBinaryData::fromString("control"),
+         4); //set lookup computation to 4 entries
+
+      BIP32_Node node;
+      node.initFromSeed(wltRoot);
+
+      auto idBip32 = computeId(node.getPrivateKey(), node.getChaincode());
+      EXPECT_EQ(wlt->getID(), idBip32);
+   }
+
+   //legacy with chaincode
+   auto chaincode = CryptoPRNG::generateRandom(32);
+   auto idcc = computeId(wltRoot, chaincode);
+   ASSERT_NE(id, idcc);
+
+   {
+      auto wlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+         homedir_,
+         wltRoot,
+         chaincode,
+         SecureBinaryData::fromString("passphrase"),
+         SecureBinaryData::fromString("control"),
+         4); //set lookup computation to 4 entries
+
+      EXPECT_EQ(wlt->getID(), idcc);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, Encryption_Test)
 {
    //#1: check deriving from an encrypted root yield correct chain
@@ -2807,7 +2891,7 @@ TEST_F(WalletsTest, Encryption_Test)
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
-      wltRoot, //root as a r value
+      wltRoot,
       {},
       SecureBinaryData::fromString("passphrase"),
       SecureBinaryData::fromString("control"),
@@ -2902,19 +2986,12 @@ TEST_F(WalletsTest, Encryption_Test)
 TEST_F(WalletsTest, SeedEncryption)
 {
    //create wallet
-   vector<unsigned> derPath = {
-      0x80000050,
-      0x80005421,
-      0x80000024,
-      785
-   };
-
    auto&& passphrase = SecureBinaryData::fromString("password");
 
    //create regular wallet
    auto&& seed = CryptoPRNG::generateRandom(32);
    auto wlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, derPath, passphrase, 
+      homedir_, seed, passphrase, 
       SecureBinaryData::fromString("control"), 10);
 
    //check clear text seed does not exist on disk
@@ -3377,7 +3454,6 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
          homedir_,
          wltRoot, //root as a r value
-         { 0x80000044, 0x865f0000, 4884 },
          SecureBinaryData::fromString("test"), //set passphrase to "test"
          SecureBinaryData(), //empty control passphrase
          4); //set lookup computation to 4 entries
@@ -3618,16 +3694,9 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
    //create wallet from priv key
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
 
-   vector<unsigned> derPath = 
-   {
-      0x80000012,
-      0x8000a48c,
-   };
-
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       wltRoot, //root as a r value
-      derPath,
       SecureBinaryData::fromString("test"), //set passphrase to "test"
       SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
@@ -3688,8 +3757,9 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       BIP32_Node node;
       node.initFromSeed(wltRoot);
 
-      for (auto& der : derPath)
-         node.derivePrivate(der);
+      node.derivePrivate(0x8000002C);
+      node.derivePrivate(0x80000000);
+      node.derivePrivate(0x80000000);
       node.derivePrivate(0);
       node.derivePrivate(0);
 
@@ -4296,7 +4366,6 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
       auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
          homedir_,
          wltRoot, //root as a r value
-         { 0x80000064, 0x80000080, 0 },
          SecureBinaryData::fromString("test"), //set passphrase to "test"
          SecureBinaryData::fromString("control"),
          40); //set lookup computation to 4 entries
@@ -4645,18 +4714,19 @@ TEST_F(WalletsTest, BIP32_Public_Chain)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, BIP32_ArmoryDefault)
 {
-   vector<unsigned> derivationPath = {
-   0x80000050,
-   0x800005de,
-   0x8000465a,
-   501};
+   vector<unsigned> derivationPath = 
+   {
+      0x8000002C,
+      0x80000000,
+      0x80000000
+   };
 
    auto&& seed = CryptoPRNG::generateRandom(32);
 
    //create empty wallet
    auto&& passphrase = SecureBinaryData::fromString("password");
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, derivationPath, passphrase, controlPass_, 5);
+      homedir_, seed, passphrase, controlPass_, 5);
 
    auto rootAccId = assetWlt->getMainAccountID();
    auto accRoot = assetWlt->getAccountRoot(rootAccId);
@@ -4671,23 +4741,20 @@ TEST_F(WalletsTest, BIP32_ArmoryDefault)
    EXPECT_EQ(accRootPtr->getPubKey()->getCompressedKey(), node.getPublicKey());
 
    auto accIDs = assetWlt->getAccountIDs();
-   BinaryData accID;
    for (auto& id : accIDs)
    {
       if (id != rootAccId)
       {
-         accID = id;
-         break;
+         auto accID = id;
+
+         auto accPtr = assetWlt->getAccountForID(accID);
+         auto addrPtr = accPtr->getNewAddress();
+         auto assetID = assetWlt->getAssetIDForScrAddr(addrPtr->getPrefixedHash());
+         accID.append(WRITE_UINT32_BE(0));
+         accID.append(WRITE_UINT32_BE(0));
+         EXPECT_EQ(assetID.first, accID);
       }
    }
-
-   auto accPtr = assetWlt->getAccountForID(accID);
-   auto addrPtr = accPtr->getNewAddress(
-      AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
-   auto assetID = assetWlt->getAssetIDForScrAddr(addrPtr->getPrefixedHash());
-   accID.append(WRITE_UINT32_BE(0x10000000));
-   accID.append(WRITE_UINT32_BE(0));
-   EXPECT_EQ(assetID.first, accID);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4876,19 +4943,12 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
 {
-   vector<unsigned> derPath = {
-      0x80000050,
-      0x80005421,
-      0x80000024,
-      785
-   };
-
    auto&& passphrase = SecureBinaryData::fromString("password");
 
    //create regular wallet
    auto&& seed = CryptoPRNG::generateRandom(32);
    auto wlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, derPath, passphrase, controlPass_, 10);
+      homedir_, seed, passphrase, controlPass_, 10);
 
    //create WO copy
    auto woCopyPath = AssetWallet::forkWatchingOnly(
@@ -4963,10 +5023,9 @@ TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
 TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
 {
    vector<unsigned> derPath = {
-      0x80000050,
-      0x80005421,
-      0x80000024,
-      785
+      0x80000054,
+      0x80000000,
+      0x80000000
    };
 
    auto&& passphrase = SecureBinaryData::fromString("password");
@@ -4974,7 +5033,7 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
    //create regular wallet
    auto&& seed = CryptoPRNG::generateRandom(32);
    auto wlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, derPath, passphrase, controlPass_, 10);
+      homedir_, seed, passphrase, controlPass_, 10);
 
    //get xpub for main account
    BIP32_Node seedNode;
@@ -4988,8 +5047,7 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
 
    /* WO wallet creation */
 
-   //1: create wallet, this is a temporary hack as you can't create wallets
-   //without a seed atm (we're creating it from a random seed we have no use for)
+   //1: create wallet
    auto wltWO = AssetWallet_Single::createSeedless_WatchingOnly(
       homedir_, "walletWO1", controlPass_);
    
@@ -5028,8 +5086,8 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
    
    //set nodes
    set<unsigned> nodes = {
-      BIP32_SEGWIT_OUTER_ACCOUNT_DERIVATIONID, 
-      BIP32_SEGWIT_INNER_ACCOUNT_DERIVATIONID};
+      BIP32_OUTER_ACCOUNT_DERIVATIONID, 
+      BIP32_INNER_ACCOUNT_DERIVATIONID};
    accountTypePtr->setNodes(nodes);
 
    //populate address types, here native SegWit only
@@ -5066,19 +5124,12 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
 TEST_F(WalletsTest, AddressEntryTypes)
 {
    //create wallet
-   vector<unsigned> derPath = {
-      0x80000050,
-      0x80005421,
-      0x80000024,
-      785
-   };
-
    auto&& passphrase = SecureBinaryData::fromString("password");
 
    //create regular wallet
    auto&& seed = CryptoPRNG::generateRandom(32);
    auto wlt = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, derPath, passphrase, controlPass_, 10);
+      homedir_, seed, passphrase, controlPass_, 10);
 
    //grab a bunch of addresses of various types
    set<BinaryData> addrHashes;
@@ -5808,11 +5859,21 @@ TEST_F(WalletsTest, AssetPathResolution)
    };
 
    {
-      //create from seed
-      auto wlt = AssetWallet_Single::createFromSeed_BIP32(
-         homedir_, seed, derPath, 
-         SecureBinaryData(), SecureBinaryData(),
-         10);
+      //empty wallet + custom account
+      auto wlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
+         homedir_, seed, 
+         SecureBinaryData(), SecureBinaryData());
+
+      auto account = make_shared<AccountType_BIP32>(derPath);
+      account->setMain(true);
+      account->setNodes({0});
+      account->setDefaultAddressType(
+         AddressEntryType(AddressEntryType_P2WPKH));
+      account->setAddressTypes(
+         { AddressEntryType(AddressEntryType_P2WPKH) });
+      account->setAddressLookup(10);
+
+      wlt->createBIP32Account(account);
       EXPECT_TRUE(checkWlt(wlt));
 
       //create a WO copy
@@ -5832,29 +5893,6 @@ TEST_F(WalletsTest, AssetPathResolution)
       //cleanup WO
       wltWO.reset();
       unlink(woFilename.c_str());
-   }
-
-   {
-      //empty wallet + custom account
-      auto wlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-         homedir_, seed, 
-         SecureBinaryData(), SecureBinaryData());
-
-      auto account = make_shared<AccountType_BIP32>(derPath);
-      account->setMain(true);
-      account->setNodes({0});
-      account->setDefaultAddressType(
-         AddressEntryType(AddressEntryType_P2WPKH));
-      account->setAddressTypes(
-         { AddressEntryType(AddressEntryType_P2WPKH) });
-      account->setAddressLookup(10);
-
-      wlt->createBIP32Account(account);
-      EXPECT_TRUE(checkWlt(wlt));
-
-      auto filename = wlt->getDbFilename();
-      wlt.reset();
-      unlink(filename.c_str());
    }
 
    {
@@ -6641,13 +6679,6 @@ TEST_F(WalletMetaDataTest, AuthPeers_Ephemeral)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletMetaDataTest, Comments)
 {
-   vector<unsigned> derPath = {
-      0x80000050,
-      0x80005421,
-      0x80000024,
-      785
-   };
-
    auto&& passphrase = SecureBinaryData::fromString("password");
    auto&& controlPass = SecureBinaryData::fromString("control");
 
@@ -6667,7 +6698,7 @@ TEST_F(WalletMetaDataTest, Comments)
    {
       auto&& seed = CryptoPRNG::generateRandom(32);
       auto wlt = AssetWallet_Single::createFromSeed_BIP32(
-         homedir_, seed, derPath, passphrase, controlPass, 10);
+         homedir_, seed, passphrase, controlPass, 10);
       filename = wlt->getDbFilename();
 
       //set comments
@@ -6719,6 +6750,958 @@ TEST_F(WalletMetaDataTest, Comments)
       EXPECT_EQ(grabMap, commentMap);
    }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+class BackupTests : public ::testing::Test
+{
+public:
+   string homedir_;
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void SetUp()
+   {
+      LOGDISABLESTDOUT();
+      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void TearDown(void)
+   {
+      DBUtils::removeDirectory(homedir_);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   bool compareWalletWithBackup(
+      std::shared_ptr<AssetWallet_Single> assetWlt,
+      const string& path, 
+      const SecureBinaryData& pass, const SecureBinaryData& control)
+   {
+      unsigned controlPassCount = 0;
+      auto controlPassLbd = [&controlPassCount, &control](
+         const set<BinaryData>&)->SecureBinaryData
+      {
+         ++controlPassCount;
+         return control;
+      };
+
+      //load it, newCtrl should work for the control passphrase
+      auto loadedWlt = AssetWallet::loadMainWalletFromFile(path, controlPassLbd);
+      METHOD_ASSERT_NE(loadedWlt, nullptr);
+      METHOD_ASSERT_EQ(controlPassCount, 1);
+
+      //check wallet id
+      EXPECT_EQ(assetWlt->getID(), loadedWlt->getID());
+
+      //compare account types between original and restored
+      auto accountIDs = assetWlt->getAccountIDs();
+      auto loadedIDs = loadedWlt->getAccountIDs();
+      EXPECT_EQ(accountIDs, loadedIDs);
+
+      //
+      auto oldPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+      {
+         return SecureBinaryData::fromString("passphrase");
+      };
+
+      unsigned keyPassCount = 0;
+      auto newPassLbd = [&pass, &keyPassCount](
+         const set<BinaryData>&)->SecureBinaryData
+      {
+         ++keyPassCount;
+         return pass;
+      };
+
+      assetWlt->setPassphrasePromptLambda(oldPassLbd);
+      loadedWlt->setPassphrasePromptLambda(newPassLbd);
+
+      //compare some priv keys to test passphrase
+      for (unsigned i=0; i<10; i++)
+      {
+         auto address = assetWlt->getNewAddress();
+         auto assetID = assetWlt->getAssetIDForScrAddr(
+            address->getPrefixedHash());
+         auto asset = assetWlt->getAssetForID(assetID.first);
+         auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(asset);
+
+         auto lock = assetWlt->lockDecryptedContainer();
+         auto privKey = assetWlt->getDecryptedPrivateKeyForAsset(assetSingle);
+
+         //
+         auto newAddr = loadedWlt->getNewAddress();
+         auto newID = loadedWlt->getAssetIDForScrAddr(
+            newAddr->getPrefixedHash());
+         auto newAsset = loadedWlt->getAssetForID(newID.first);
+         auto newAssetSingle = dynamic_pointer_cast<AssetEntry_Single>(newAsset);
+
+         auto newLock = loadedWlt->lockDecryptedContainer();
+         auto singleWlt = dynamic_pointer_cast<AssetWallet_Single>(loadedWlt);
+         auto newKey = singleWlt->getDecryptedPrivateKeyForAsset(newAssetSingle);
+
+         //
+         EXPECT_EQ(address->getPrefixedHash(), newAddr->getPrefixedHash());
+         EXPECT_EQ(privKey, newKey);
+      }
+
+      METHOD_ASSERT_EQ(keyPassCount, 10);
+      return true;
+   }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BackupTests, Easy16)
+{
+   for (const auto& index : ArmoryBackups::BackupEasy16::eligibleIndexes_)
+   {
+      auto root = CryptoPRNG::generateRandom(32);
+      
+      //encode the root
+      auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), index);
+      ASSERT_EQ(encoded.size(), 2);
+
+
+      auto decoded = ArmoryBackups::BackupEasy16::decode(encoded);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      EXPECT_EQ(decoded.checksumIndexes_[0], index);
+      EXPECT_EQ(decoded.checksumIndexes_[1], index);
+
+      EXPECT_EQ(decoded.data_, root);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BackupTests, Easy16_Repair)
+{
+   /*NOTE: this test will lead to a lot of hashing*/
+   auto corruptLine = [](vector<string>& lines, 
+      uint8_t lineSelect, uint8_t wordSelect, uint8_t charSelect, uint8_t newVal)
+   {
+      auto& line = lines[lineSelect];
+      
+      auto wordPos = wordSelect * 5;
+      if (wordSelect >= 4)
+         ++wordPos;
+
+      auto charPos = wordPos + charSelect;
+      auto& val = line[charPos];
+      char newChar;
+      while (true)
+      {
+         newChar = ArmoryBackups::BackupEasy16::e16chars_[newVal % 16];
+         if (newChar != val)
+            break;
+
+         ++newVal;
+      }
+      
+      val = newChar;
+   };
+
+   PRNG_Fortuna prng;
+
+   //1 error, auto repair
+   unsigned succesfulRepairs = 0;
+   for (unsigned i=0; i<64; i++)
+   {
+      auto root = prng.generateRandom(32);
+      
+      //encode the root
+      auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
+      ASSERT_EQ(encoded.size(), 2);
+
+      //corrupt one character in one line
+      auto randomSelection = prng.generateRandom(4);
+
+      auto lineSelect = (uint8_t)(randomSelection.getPtr()[0]) % encoded.size();
+      auto wordSelect = (uint8_t)(randomSelection.getPtr()[1]) % 8;
+      auto charSelect = (uint8_t)(randomSelection.getPtr()[2]) % 4;
+      auto newVal = (uint8_t)(randomSelection.getPtr()[3]) % 15 + 1;
+
+      auto corrupted = encoded;
+      corruptLine(corrupted, lineSelect, wordSelect, charSelect, newVal);
+      ASSERT_NE(encoded[lineSelect], corrupted[lineSelect]);
+
+      //decode the corrupted data, should yield an incorrect value
+      auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      if (lineSelect == 0)
+      {
+         EXPECT_NE(decoded.checksumIndexes_[0], 0);
+         EXPECT_EQ(decoded.checksumIndexes_[1], 0);
+      }
+      else
+      {
+         EXPECT_EQ(decoded.checksumIndexes_[0], 0);
+         EXPECT_NE(decoded.checksumIndexes_[1], 0);
+      }
+
+      EXPECT_NE(root, decoded.data_);
+
+      //attempt to repair, may fail because of collisions (no unique solution)
+      try
+      {
+         auto result = ArmoryBackups::BackupEasy16::repair(decoded);
+         if (result)
+         {
+            ASSERT_EQ(decoded.repairedIndexes_.size(), 2);
+            EXPECT_EQ(decoded.repairedIndexes_[0], 0);
+            EXPECT_EQ(decoded.repairedIndexes_[1], 0);
+            EXPECT_EQ(root, decoded.data_);
+            
+            ++succesfulRepairs;
+         }
+      }
+      catch (const ArmoryBackups::Easy16RepairError&)
+      {}
+   }
+
+   EXPECT_GE(succesfulRepairs, 20);
+   cout << "1 err repair count: " << succesfulRepairs << endl;
+
+   //2 errors, fail
+   for (unsigned i=0; i<64; i++)
+   {
+      auto root = prng.generateRandom(32);
+      
+      //encode the root
+      auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
+      ASSERT_EQ(encoded.size(), 2);
+
+      //corrupt 2 characters in one line
+      auto randomSelection = prng.generateRandom(8);
+
+      auto lineSelect = (uint8_t)(randomSelection.getPtr()[0]) % encoded.size();
+      auto wordSelect1 = (uint8_t)(randomSelection.getPtr()[1]) % 8;
+      auto charSelect1 = (uint8_t)(randomSelection.getPtr()[2]) % 4;
+      auto newVal1 = (uint8_t)(randomSelection.getPtr()[3]) % 15 + 1;
+
+      auto wordSelect2 = (uint8_t)(randomSelection.getPtr()[4]) % 8;
+      if (wordSelect2 == wordSelect1)
+         wordSelect2 = (wordSelect2 + 1) % 8;
+      auto charSelect2 = (uint8_t)(randomSelection.getPtr()[5]) % 4;
+      auto newVal2 = (uint8_t)(randomSelection.getPtr()[6]) % 15 + 1;
+
+      auto corrupted = encoded;
+      corruptLine(corrupted, lineSelect, wordSelect1, charSelect1, newVal1);
+      corruptLine(corrupted, lineSelect, wordSelect2, charSelect2, newVal2);
+      ASSERT_NE(encoded[lineSelect], corrupted[lineSelect]);
+
+      //decode, should yield an incorrect value
+      auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      if (lineSelect == 0)
+      {
+         EXPECT_EQ(decoded.checksumIndexes_[0], EASY16_INVALID_CHECKSUM_INDEX);
+         EXPECT_EQ(decoded.checksumIndexes_[1], 0);
+      }
+      else
+      {
+         EXPECT_EQ(decoded.checksumIndexes_[0], 0);
+         EXPECT_EQ(decoded.checksumIndexes_[1], EASY16_INVALID_CHECKSUM_INDEX);
+      }
+
+      EXPECT_NE(root, decoded.data_);
+
+      //attempt to repair, should fail
+      auto result = ArmoryBackups::BackupEasy16::repair(decoded);
+      if (result)
+      {
+         EXPECT_NE(decoded.data_, root);
+      }
+   }
+
+   //1 error per line, broad spectrum fix attempt
+   succesfulRepairs = 0;
+   for (unsigned i=0; i<64; i++)
+   {
+      auto root = prng.generateRandom(32);
+      
+      //encode the root
+      auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
+      ASSERT_EQ(encoded.size(), 2);
+
+      //corrupt 1 character per line
+      auto randomSelection = prng.generateRandom(8);
+
+      auto wordSelect1 = (uint8_t)(randomSelection.getPtr()[1]) % 8;
+      auto charSelect1 = (uint8_t)(randomSelection.getPtr()[2]) % 4;
+      auto newVal1 = (uint8_t)(randomSelection.getPtr()[3]) % 15 + 1;
+
+      auto wordSelect2 = (uint8_t)(randomSelection.getPtr()[4]) % 8;
+      auto charSelect2 = (uint8_t)(randomSelection.getPtr()[5]) % 4;
+      auto newVal2 = (uint8_t)(randomSelection.getPtr()[6]) % 15 + 1;
+
+      auto corrupted = encoded;
+      corruptLine(corrupted, 0, wordSelect1, charSelect1, newVal1);
+      corruptLine(corrupted, 1, wordSelect2, charSelect2, newVal2);
+
+      //decode, should yield an incorrect value
+      auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      EXPECT_NE(decoded.checksumIndexes_[0], 0);
+      EXPECT_NE(decoded.checksumIndexes_[1], 0);
+
+      //attempt to repair, may fail because of collisions (no evident solution)
+      try
+      {
+         auto result = ArmoryBackups::BackupEasy16::repair(decoded);
+         if (result)
+         {
+            ASSERT_EQ(decoded.repairedIndexes_.size(), 2);
+            if (decoded.repairedIndexes_[0] != decoded.repairedIndexes_[1] ||
+               decoded.repairedIndexes_[0] != 0)
+            {
+               continue;
+            }
+
+            EXPECT_EQ(root, decoded.data_);
+            ++succesfulRepairs;
+         }
+      }
+      catch (const ArmoryBackups::Easy16RepairError&)
+      {}
+   }
+
+   EXPECT_GE(succesfulRepairs, 5);
+   cout << "2 err repair count: " << succesfulRepairs << endl;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BackupTests, SecurePrint)
+{
+   auto root = CryptoPRNG::generateRandom(32);
+   
+   //encrypt the root
+   ArmoryBackups::SecurePrint spEncr;
+   auto encryptedData = spEncr.encrypt(root, {});
+   ASSERT_FALSE(spEncr.getPassphrase().empty());
+   ASSERT_EQ(encryptedData.first.getSize(), 32);
+   ASSERT_EQ(encryptedData.second.getSize(), 0);
+   EXPECT_NE(encryptedData.first, root);
+
+   ArmoryBackups::SecurePrint spDecr;
+   auto decryptedData = 
+      spDecr.decrypt(encryptedData.first, spEncr.getPassphrase());
+
+   ASSERT_EQ(decryptedData.getSize(), 32);
+   EXPECT_EQ(decryptedData, root);
+
+   //with chaincode
+   auto chaincode = CryptoPRNG::generateRandom(32);
+
+   ArmoryBackups::SecurePrint spWithCC;
+   auto dataWithCC = spWithCC.encrypt(root, chaincode);
+
+   ASSERT_FALSE(spWithCC.getPassphrase().empty());
+   ASSERT_EQ(dataWithCC.first.getSize(), 32);
+   ASSERT_EQ(dataWithCC.second.getSize(), 32);
+   EXPECT_NE(dataWithCC.first, root);
+
+   EXPECT_NE(spEncr.getPassphrase(), spWithCC.getPassphrase());
+   EXPECT_NE(encryptedData.first, dataWithCC.first);
+
+   ArmoryBackups::SecurePrint spDecrWithCC;
+   auto decrRoot = spDecrWithCC.decrypt(
+      dataWithCC.first, spWithCC.getPassphrase());
+   
+   ASSERT_EQ(decrRoot.getSize(), 32);
+   EXPECT_EQ(decrRoot, root);
+
+   auto decrCC = spDecrWithCC.decrypt(
+      dataWithCC.second, spWithCC.getPassphrase());
+
+   ASSERT_EQ(decrCC.getSize(), 32);
+   EXPECT_EQ(decrCC, chaincode);
+
+   //mangled passphrase
+   try 
+   {
+      auto mangledPass = spWithCC.getPassphrase();
+      ASSERT_GE(mangledPass.getSize(), 4);
+      mangledPass.getPtr()[3] ^= 0xFF;
+
+      ArmoryBackups::SecurePrint spDecrWithCC;
+      auto decrypted = spDecrWithCC.decrypt(
+         dataWithCC.first, mangledPass);
+
+      ASSERT_FALSE(true);
+   }
+   catch (const runtime_error& e)
+   {
+      EXPECT_EQ(e.what(), string("invalid SecurePrint passphrase"));
+   }
+
+   //jibberish passphrase
+   try 
+   {
+      auto passphrase = CryptoPRNG::generateRandom(7);
+      auto passhash = BtcUtils::getHash256(passphrase);
+      passphrase.append(passhash.getPtr()[0] ^ 0xFF);
+
+      auto passB58 = BinaryData::fromString(
+         BtcUtils::base58_encode(passphrase));
+      
+      ArmoryBackups::SecurePrint spDecrWithCC;
+      auto decrypted = spDecrWithCC.decrypt(
+         dataWithCC.first, passB58);
+
+      ASSERT_FALSE(true);      
+   }
+   catch (const runtime_error& e)
+   {
+      EXPECT_EQ(e.what(), string("invalid SecurePrint passphrase"));
+   }
+
+   //mismatched pass
+   {
+      ArmoryBackups::SecurePrint spDecrWithCC;
+      auto decrypted = spDecrWithCC.decrypt(
+         dataWithCC.first, spEncr.getPassphrase());
+      EXPECT_NE(decrypted, dataWithCC.first);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BackupTests, BackupStrings_Legacy)
+{
+   //create a legacy wallet
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
+   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+      homedir_,
+      move(wltRoot), //root as a r value
+      {},
+      SecureBinaryData::fromString("passphrase"), 
+      SecureBinaryData::fromString("control"),
+      4); //set lookup computation to 4 entries
+
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData::fromString("passphrase");
+   };
+   assetWlt->setPassphrasePromptLambda(passLbd);
+
+   auto backupData = ArmoryBackups::Helpers::getWalletBackup(assetWlt);
+
+   auto newPass = CryptoPRNG::generateRandom(10);
+   auto newCtrl = CryptoPRNG::generateRandom(10);
+   auto callback = [&backupData, &newPass, &newCtrl](
+      const ArmoryBackups::RestorePromptType promptType, 
+      const vector<int> checksums, SecureBinaryData& extra)->bool
+   {
+      switch (promptType)
+      {
+      case ArmoryBackups::RestorePromptType::Passphrase:
+      {
+         extra = newPass;
+         return true;
+      }
+
+      case ArmoryBackups::RestorePromptType::Control:
+      {
+         extra = newCtrl;
+         return true;
+      }
+
+      case ArmoryBackups::RestorePromptType::Id:
+      {
+         EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
+         
+         EXPECT_EQ(checksums.size(), 2);
+         for (const auto& chksum : checksums)
+            EXPECT_EQ(chksum, 0);
+
+         return true;
+      }
+
+      default:
+         return false;
+      }
+   };
+
+   string newHomeDir("./newhomedir");
+   DBUtils::removeDirectory(newHomeDir);
+   mkdir(newHomeDir);
+
+   string filename;
+   {
+      //restore wallet
+      auto newWltPtr = ArmoryBackups::Helpers::restoreFromBackup(
+         backupData.rootClear_, {}, newHomeDir, callback);
+      EXPECT_NE(newWltPtr, nullptr);
+      
+      filename = newWltPtr->getDbFilename();
+   }
+
+   EXPECT_TRUE(compareWalletWithBackup(assetWlt, filename, newPass, newCtrl));
+   DBUtils::removeDirectory(newHomeDir);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BackupTests, BackupStrings_Legacy_SecurePrint)
+{
+   //create a legacy wallet
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
+   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+      homedir_,
+      move(wltRoot), //root as a r value
+      {},
+      SecureBinaryData::fromString("passphrase"), 
+      SecureBinaryData::fromString("control"),
+      4); //set lookup computation to 4 entries
+
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData::fromString("passphrase");
+   };
+   assetWlt->setPassphrasePromptLambda(passLbd);
+
+   auto backupData = ArmoryBackups::Helpers::getWalletBackup(assetWlt);
+
+   auto newPass = CryptoPRNG::generateRandom(10);
+   auto newCtrl = CryptoPRNG::generateRandom(10);
+   auto callback = [&backupData, &newPass, &newCtrl](
+      const ArmoryBackups::RestorePromptType promptType, 
+      const vector<int> checksums, SecureBinaryData& extra)->bool
+   {
+      switch (promptType)
+      {
+      case ArmoryBackups::RestorePromptType::Passphrase:
+      {
+         extra = newPass;
+         return true;
+      }
+
+      case ArmoryBackups::RestorePromptType::Control:
+      {
+         extra = newCtrl;
+         return true;
+      }
+
+      case ArmoryBackups::RestorePromptType::Id:
+      {
+         if (extra != SecureBinaryData::fromString(backupData.wltId_))
+            return false;
+                  
+         EXPECT_EQ(checksums.size(), 2);
+         for (const auto& chksum : checksums)
+            EXPECT_EQ(chksum, 0);
+
+         return true;
+      }
+
+      default:
+         return false;
+      }
+   };
+
+   string newHomeDir("./newhomedir");
+   DBUtils::removeDirectory(newHomeDir);
+   mkdir(newHomeDir);
+
+   string filename;
+   {
+      //try without sp pass
+      try
+      {
+         ArmoryBackups::Helpers::restoreFromBackup(
+            backupData.rootEncr_, {}, newHomeDir, callback);
+         ASSERT_TRUE(false);
+      }
+      catch (const ArmoryBackups::RestoreUserException& e)
+      {
+         EXPECT_EQ(e.what(), string("user rejected id"));
+      }
+
+      //try with secure print now
+      auto newWltPtr = ArmoryBackups::Helpers::restoreFromBackup(
+         backupData.rootEncr_, backupData.spPass_, newHomeDir, callback);
+      EXPECT_NE(newWltPtr, nullptr);
+     
+      filename = newWltPtr->getDbFilename();
+   }
+
+   EXPECT_TRUE(compareWalletWithBackup(assetWlt, filename, newPass, newCtrl));
+   DBUtils::removeDirectory(newHomeDir);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BackupTests, Easy16_AutoRepair)
+{
+   /*NOTE: this test will lead to a lot of hashing*/
+   auto corruptLine = [](vector<string>& lines, 
+      uint8_t lineSelect, uint8_t wordSelect, uint8_t charSelect, uint8_t newVal)
+   {
+      auto& line = lines[lineSelect];
+      
+      auto wordPos = wordSelect * 5;
+      if (wordSelect >= 4)
+         ++wordPos;
+
+      auto charPos = wordPos + charSelect;
+      auto& val = line[charPos];
+      char newChar;
+      while (true)
+      {
+         newChar = ArmoryBackups::BackupEasy16::e16chars_[newVal % 16];
+         if (newChar != val)
+            break;
+
+         ++newVal;
+      }
+      
+      val = newChar;
+   };
+
+   auto computeWalletID = [](const SecureBinaryData& root)->string
+   {
+      auto chaincode = BtcUtils::computeChainCode_Armory135(root);
+      auto derScheme = make_shared<DerivationScheme_ArmoryLegacy>(chaincode);
+
+      auto pubkey = CryptoECDSA().ComputePublicKey(root);
+      auto asset_single = make_shared<AssetEntry_Single>(
+         ROOT_ASSETENTRY_ID, BinaryData(), pubkey, nullptr);
+
+      return AssetWallet_Single::computeWalletID(derScheme, asset_single);
+   };
+
+   PRNG_Fortuna prng;
+
+   //1 error, auto repair
+   unsigned succesfulRepairs = 0;
+   for (unsigned i=0; i<64; i++)
+   {
+      auto root = prng.generateRandom(32);
+      auto wltID = computeWalletID(root);
+      
+      //encode the root
+      auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
+      ASSERT_EQ(encoded.size(), 2);
+
+      //corrupt one character in one line
+      auto randomSelection = prng.generateRandom(4);
+
+      auto lineSelect = (uint8_t)(randomSelection.getPtr()[0]) % encoded.size();
+      auto wordSelect = (uint8_t)(randomSelection.getPtr()[1]) % 8;
+      auto charSelect = (uint8_t)(randomSelection.getPtr()[2]) % 4;
+      auto newVal = (uint8_t)(randomSelection.getPtr()[3]) % 15 + 1;
+
+      auto corrupted = encoded;
+      corruptLine(corrupted, lineSelect, wordSelect, charSelect, newVal);
+      ASSERT_NE(encoded[lineSelect], corrupted[lineSelect]);
+
+      //decode the corrupted data, should yield an incorrect value
+      auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      if (lineSelect == 0)
+      {
+         EXPECT_NE(decoded.checksumIndexes_[0], 0);
+         EXPECT_EQ(decoded.checksumIndexes_[1], 0);
+      }
+      else
+      {
+         EXPECT_EQ(decoded.checksumIndexes_[0], 0);
+         EXPECT_NE(decoded.checksumIndexes_[1], 0);
+      }
+
+      EXPECT_NE(root, decoded.data_);
+
+      //attempt to restore wallet from corrupted backup
+      try
+      {
+         auto userPrompt = [&wltID, &decoded, &succesfulRepairs](
+            ArmoryBackups::RestorePromptType promptType, 
+            const vector<int>& chksumIndexes, 
+            SecureBinaryData& extra)->bool
+         {
+            switch (promptType)
+            {
+            case ArmoryBackups::RestorePromptType::ChecksumError:
+            {
+               EXPECT_EQ(chksumIndexes, decoded.checksumIndexes_);
+               return false;
+            }
+
+            case ArmoryBackups::RestorePromptType::Id:
+            {
+               EXPECT_EQ(chksumIndexes, decoded.checksumIndexes_);
+               string extraStr(extra.toCharPtr(), extra.getSize());
+               if (extraStr == wltID)
+                  ++succesfulRepairs;
+
+               return false;
+            }
+
+            default:
+               return true;
+            }
+         };
+
+         ArmoryBackups::Helpers::restoreFromBackup(
+            corrupted, BinaryDataRef(), string(), userPrompt);
+      }
+      catch (const exception&)
+      {}
+   }
+
+   EXPECT_GE(succesfulRepairs, 20);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BackupTests, BackupStrings_LegacyWithChaincode_SecurePrint)
+{
+   //create a legacy wallet
+   auto wltRoot = CryptoPRNG::generateRandom(32);
+   auto chaincode = CryptoPRNG::generateRandom(32);
+   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+      homedir_,
+      wltRoot, //root as a r value
+      chaincode,
+      SecureBinaryData::fromString("passphrase"), 
+      SecureBinaryData::fromString("control"),
+      4); //set lookup computation to 4 entries
+
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData::fromString("passphrase");
+   };
+   assetWlt->setPassphrasePromptLambda(passLbd);
+
+   auto backupData = ArmoryBackups::Helpers::getWalletBackup(assetWlt);
+
+   auto newPass = CryptoPRNG::generateRandom(10);
+   auto newCtrl = CryptoPRNG::generateRandom(10);
+   auto callback = [&backupData, &newPass, &newCtrl](
+      const ArmoryBackups::RestorePromptType promptType, 
+      const vector<int> checksums, SecureBinaryData& extra)->bool
+   {
+      switch (promptType)
+      {
+      case ArmoryBackups::RestorePromptType::Passphrase:
+      {
+         extra = newPass;
+         return true;
+      }
+
+      case ArmoryBackups::RestorePromptType::Control:
+      {
+         extra = newCtrl;
+         return true;
+      }
+
+      case ArmoryBackups::RestorePromptType::Id:
+      {
+         if (extra != SecureBinaryData::fromString(backupData.wltId_))
+            return false;
+                  
+         EXPECT_EQ(checksums.size(), 4);
+         for (const auto& chksum : checksums)
+            EXPECT_EQ(chksum, 0);
+
+         return true;
+      }
+
+      default:
+         return false;
+      }
+   };
+
+   string newHomeDir("./newhomedir");
+   DBUtils::removeDirectory(newHomeDir);
+   mkdir(newHomeDir);
+
+   string filename;
+   {
+      vector<BinaryDataRef> rootData;
+      auto insertVector = [&rootData](const vector<string>& vec)
+      {
+         for (const auto& str : vec)
+            rootData.emplace_back((const uint8_t*)str.c_str(), str.size());
+      };
+      
+      insertVector(backupData.rootEncr_);
+      insertVector(backupData.chaincodeEncr_);
+
+      //try without sp pass
+      try
+      {
+         ArmoryBackups::Helpers::restoreFromBackup(
+            backupData.rootEncr_, {}, newHomeDir, callback);
+         ASSERT_TRUE(false);
+      }
+      catch (const ArmoryBackups::RestoreUserException& e)
+      {
+         EXPECT_EQ(e.what(), string("user rejected id"));
+      }
+
+      //try with secure print now
+      auto newWltPtr = ArmoryBackups::Helpers::restoreFromBackup(
+         rootData, backupData.spPass_, newHomeDir, callback);
+      EXPECT_NE(newWltPtr, nullptr);
+     
+      filename = newWltPtr->getDbFilename();
+   }
+
+   EXPECT_TRUE(compareWalletWithBackup(assetWlt, filename, newPass, newCtrl));
+   DBUtils::removeDirectory(newHomeDir);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BackupTests, BackupStrings_BIP32)
+{
+   //create a legacy wallet
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_,
+      move(wltRoot), //root as a r value
+      SecureBinaryData::fromString("passphrase"), 
+      SecureBinaryData::fromString("control"),
+      4); //set lookup computation to 4 entries
+
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData::fromString("passphrase");
+   };
+   assetWlt->setPassphrasePromptLambda(passLbd);
+
+   auto backupData = ArmoryBackups::Helpers::getWalletBackup(assetWlt);
+
+   auto newPass = CryptoPRNG::generateRandom(10);
+   auto newCtrl = CryptoPRNG::generateRandom(10);
+   auto callback = [&backupData, &newPass, &newCtrl](
+      const ArmoryBackups::RestorePromptType promptType, 
+      const vector<int> checksums, SecureBinaryData& extra)->bool
+   {
+      switch (promptType)
+      {
+      case ArmoryBackups::RestorePromptType::Passphrase:
+      {
+         extra = newPass;
+         return true;
+      }
+
+      case ArmoryBackups::RestorePromptType::Control:
+      {
+         extra = newCtrl;
+         return true;
+      }
+
+      case ArmoryBackups::RestorePromptType::Id:
+      {
+         EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
+         
+         EXPECT_EQ(checksums.size(), 2);
+         for (const auto& chksum : checksums)
+            EXPECT_EQ(chksum, 1);
+
+         return true;
+      }
+
+      default:
+         return false;
+      }
+   };
+
+   string newHomeDir("./newhomedir");
+   DBUtils::removeDirectory(newHomeDir);
+   mkdir(newHomeDir);
+
+   string filename;
+   {
+      //restore wallet
+      auto newWltPtr = ArmoryBackups::Helpers::restoreFromBackup(
+         backupData.rootClear_, {}, newHomeDir, callback);
+      EXPECT_NE(newWltPtr, nullptr);
+      
+      filename = newWltPtr->getDbFilename();
+   }
+
+   EXPECT_TRUE(compareWalletWithBackup(assetWlt, filename, newPass, newCtrl));
+   DBUtils::removeDirectory(newHomeDir);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(BackupTests, BackupStrings_BIP32_Custom)
+{
+   //create a legacy wallet
+   auto&& wltRoot = CryptoPRNG::generateRandom(32);
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_,
+      move(wltRoot), //root as a r value
+      SecureBinaryData::fromString("passphrase"), 
+      SecureBinaryData::fromString("control"),
+      4); //set lookup computation to 4 entries
+
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData::fromString("passphrase");
+   };
+   assetWlt->setPassphrasePromptLambda(passLbd);
+
+   auto backupData = ArmoryBackups::Helpers::getWalletBackup(
+      assetWlt, ArmoryBackups::BackupType::BIP32_Seed_Virgin);
+
+   auto newPass = CryptoPRNG::generateRandom(10);
+   auto newCtrl = CryptoPRNG::generateRandom(10);
+   auto callback = [&backupData, &newPass, &newCtrl](
+      const ArmoryBackups::RestorePromptType promptType, 
+      const vector<int> checksums, SecureBinaryData& extra)->bool
+   {
+      switch (promptType)
+      {
+      case ArmoryBackups::RestorePromptType::Passphrase:
+      {
+         extra = newPass;
+         return true;
+      }
+
+      case ArmoryBackups::RestorePromptType::Control:
+      {
+         extra = newCtrl;
+         return true;
+      }
+
+      case ArmoryBackups::RestorePromptType::Id:
+      {
+         EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
+         
+         EXPECT_EQ(checksums.size(), 2);
+         for (const auto& chksum : checksums)
+            EXPECT_EQ(chksum, 15);
+
+         return true;
+      }
+
+      default:
+         return false;
+      }
+   };
+
+   string newHomeDir("./newhomedir");
+   DBUtils::removeDirectory(newHomeDir);
+   mkdir(newHomeDir);
+
+   //restore wallet
+   auto newWltPtr = ArmoryBackups::Helpers::restoreFromBackup(
+      backupData.rootClear_, {}, newHomeDir, callback);
+   EXPECT_NE(newWltPtr, nullptr);
+      
+   //check wallet id
+   EXPECT_EQ(assetWlt->getID(), newWltPtr->getID());
+
+   //compare account types between original and restored
+   auto loadedIDs = newWltPtr->getAccountIDs();
+   EXPECT_EQ(loadedIDs.size(), 0);
+
+   DBUtils::removeDirectory(newHomeDir);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

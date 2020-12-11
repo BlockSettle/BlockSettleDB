@@ -622,7 +622,7 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    uint8_t const * getPtr(void) const       { return ptr_;    }
    size_t getSize(void) const               { return nBytes_; }
-   bool empty(void) const { return (ptr_==NULL);}
+   bool empty(void) const { return nBytes_ == 0; }
 
    /////////////////////////////////////////////////////////////////////////////
    void setRef(uint8_t const * inData, size_t sz)          
