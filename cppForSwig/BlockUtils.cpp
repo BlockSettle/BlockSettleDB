@@ -23,6 +23,7 @@
 #include "gtest/NodeUnitTest.h"
 
 using namespace std;
+using namespace ArmoryConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 class ProgressMeasurer
@@ -101,10 +102,10 @@ protected:
       catch (runtime_error&)
       {
          StoredDBInfo sdbi;
-         sdbi.magic_ = NetworkConfig::getMagicBytes();
+         sdbi.magic_ = BitcoinSettings::getMagicBytes();
          sdbi.metaHash_ = BtcUtils::EmptyHash_;
          sdbi.topBlkHgt_ = 0;
-         sdbi.armoryType_ = BlockDataManagerConfig::getDbType();
+         sdbi.armoryType_ = DBSettings::getDbType();
 
          //write sdbi
          putSshSDBI(sdbi);
@@ -117,10 +118,10 @@ protected:
       catch (runtime_error&)
       {
          StoredDBInfo sdbi;
-         sdbi.magic_ = NetworkConfig::getMagicBytes();
+         sdbi.magic_ = BitcoinSettings::getMagicBytes();
          sdbi.metaHash_ = BtcUtils::EmptyHash_;
          sdbi.topBlkHgt_ = 0;
-         sdbi.armoryType_ = BlockDataManagerConfig::getDbType();
+         sdbi.armoryType_ = DBSettings::getDbType();
 
          //write sdbi
          putSubSshSDBI(sdbi);
@@ -159,52 +160,24 @@ protected:
 //
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-BlockDataManager::BlockDataManager(
-   const BlockDataManagerConfig &bdmConfig) 
-   : config_(bdmConfig)
-{
+BlockDataManager::BlockDataManager()
+{   
+   blockchain_ = make_shared<Blockchain>(BitcoinSettings::getGenesisBlockHash());
 
-   if (config_.exceptionPtr_ != nullptr)
-   {
-      exceptPtr_ = config_.exceptionPtr_;
-      LOGERR << "exception thrown in bdmConfig, aborting!";
-      exit(-1);
-   }
-   
-   blockchain_ = make_shared<Blockchain>(NetworkConfig::getGenesisBlockHash());
-
-   blockFiles_ = make_shared<BlockFiles>(config_.blkFileLocation_);
+   blockFiles_ = make_shared<BlockFiles>(Pathing::blkFilePath());
    iface_ = new LMDBBlockDatabase(
       blockchain_, 
-      config_.blkFileLocation_);
+      Pathing::blkFilePath());
 
    nodeStatusPollMutex_ = make_shared<mutex>();
 
    try
    {
       openDatabase();
-      auto& magicBytes = NetworkConfig::getMagicBytes();
-      
-      if (config_.bitcoinNodes_.first == nullptr)
-      {
-         config_.bitcoinNodes_.first = 
-            make_shared<BitcoinP2P>("127.0.0.1", config_.btcPort_,
-            *(uint32_t*)magicBytes.getPtr(), false);
-      }
 
-      if (config_.bitcoinNodes_.second == nullptr)
-      {
-         config_.bitcoinNodes_.second = 
-            make_shared<BitcoinP2P>("127.0.0.1", config_.btcPort_,
-            *(uint32_t*)magicBytes.getPtr(), true);
-      }
-         
-      processNode_ = config_.bitcoinNodes_.first;
-      watchNode_ = config_.bitcoinNodes_.second;
-
-      if (config_.rpcNode_ == nullptr)
-         config_.rpcNode_ = make_shared<CoreRPC::NodeRPC>(config_);
-      nodeRPC_ = config_.rpcNode_;
+      processNode_ = NetworkSettings::bitcoinNodes().first;
+      watchNode_ = NetworkSettings::bitcoinNodes().second;
+      nodeRPC_ = NetworkSettings::rpcNode();
 
       if(processNode_ == nullptr)
       {
@@ -212,7 +185,7 @@ BlockDataManager::BlockDataManager(
       }
 
       zeroConfCont_ = make_shared<ZeroConfContainer>(
-         iface_, processNode_, config_.zcThreadCount_);
+         iface_, processNode_, DBSettings::zcThreadCount());
       zeroConfCont_->setWatcherNode(watchNode_);
 
       scrAddrData_ = make_shared<BDM_ScrAddrFilter>(this);
@@ -227,9 +200,9 @@ BlockDataManager::BlockDataManager(
 /////////////////////////////////////////////////////////////////////////////
 void BlockDataManager::openDatabase()
 {
-   LOGINFO << "blkfile dir: " << config_.blkFileLocation_;
-   LOGINFO << "lmdb dir: " << config_.dbDir_;
-   if (!NetworkConfig::isInitialized())
+   LOGINFO << "blkfile dir: " << Pathing::blkFilePath();
+   LOGINFO << "lmdb dir: " << Pathing::dbDir();
+   if (!BitcoinSettings::isInitialized())
    {
       LOGERR << "ERROR: Genesis Block Hash not set!";
       throw runtime_error("ERROR: Genesis Block Hash not set!");
@@ -237,7 +210,7 @@ void BlockDataManager::openDatabase()
 
    try
    {
-      iface_->openDatabases(config_.dbDir_);
+      iface_->openDatabases(Pathing::dbDir());
    }
    catch (runtime_error &e)
    {
@@ -270,8 +243,9 @@ BinaryData BlockDataManager::applyBlockRangeToDB(
 {
    // Start scanning and timer
    BlockchainScanner bcs(blockchain_, iface_, &scrAddrData, 
-      *blockFiles_.get(), config_.threadCount_, config_.ramUsage_,
-      prog, config_.reportProgress_);
+      *blockFiles_.get(), 
+      DBSettings::threadCount(), DBSettings::ramUsage(),
+      prog, DBSettings::reportProgress());
    bcs.scan_nocheck(blk0);
    bcs.updateSSH(false, blk0);
    bcs.resolveTxHashes();
@@ -288,7 +262,7 @@ void BlockDataManager::resetDatabases(ResetDBMode mode)
       return;
    }
 
-   if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
+   if (DBSettings::getDbType() != ARMORY_DB_SUPER)
    {
       //we keep all scrAddr data in between db reset/clear
       scrAddrData_->getAllScrAddrInDB();
@@ -309,7 +283,7 @@ void BlockDataManager::resetDatabases(ResetDBMode mode)
       break;
    }
 
-   if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
+   if (DBSettings::getDbType() != ARMORY_DB_SUPER)
    {
       //reapply ssh map to the db
       scrAddrData_->resetSshDB();
@@ -365,7 +339,7 @@ void BlockDataManager::loadDiskState(const ProgressCallback &progress,
       *blockFiles_, *this, progress, forceRescanSSH);
    dbBuilder_->init();
 
-   if (config_.checkChain_)
+   if (DBSettings::checkChain())
       checkTransactionCount_ = dbBuilder_->getCheckedTxCount();
 
    BDMstate_ = BDM_ready;

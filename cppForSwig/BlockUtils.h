@@ -26,7 +26,7 @@
 #include "BtcUtils.h"
 #include "BlockObj.h"
 #include "StoredBlockObj.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "lmdb_wrapper.h"
 #include "ScrAddrObj.h"
 #include "bdmenums.h"
@@ -118,10 +118,7 @@ struct ProgressData
 ////////////////////////////////////////////////////////////////////////////////
 class BlockDataManager
 {
-private:
-   BlockDataManagerConfig config_;
-      
-   // This is our permanent link to the two databases used
+private:      
    LMDBBlockDatabase* iface_ = nullptr;
    
    BlockFilePosition blkDataPosition_ = {0, 0};
@@ -155,11 +152,10 @@ public:
    std::shared_ptr<ZeroConfContainer> zeroConfCont_;
 
 public:
-   BlockDataManager(const BlockDataManagerConfig &config);
-   ~BlockDataManager();
+   BlockDataManager(void);
+   ~BlockDataManager(void);
 
    std::shared_ptr<Blockchain> blockchain(void) const { return blockchain_; }
-   const BlockDataManagerConfig &config(void) const { return config_; }
    LMDBBlockDatabase *getIFace(void) const { return iface_; }
    std::shared_ptr<BlockFiles> blockFiles(void) const { return blockFiles_; }
    
@@ -258,8 +254,8 @@ class BlockDataManagerThread
    BlockDataManagerThreadImpl *pimpl = nullptr;
 
 public:
-   BlockDataManagerThread(const BlockDataManagerConfig &config);
-   ~BlockDataManagerThread();
+   BlockDataManagerThread(void);
+   ~BlockDataManagerThread(void);
 
    // start the BDM thread
    void start(BDM_INIT_MODE mode);
