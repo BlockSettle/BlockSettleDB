@@ -10,6 +10,7 @@
 
 using namespace std;
 using namespace ArmorySigner;
+using namespace ArmoryConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 AddressEntry::~AddressEntry()
@@ -62,7 +63,7 @@ const BinaryData& AddressEntry_P2PKH::getPrefixedHash() const
       auto& hash = getHash();
 
       //get and prepend network byte
-      auto networkByte = NetworkConfig::getPubkeyHashPrefix();
+      auto networkByte = BitcoinSettings::getPubkeyHashPrefix();
 
       prefixedHash_.append(networkByte);
       prefixedHash_.append(hash);
@@ -437,7 +438,7 @@ const BinaryData& AddressEntry_P2SH::getPrefixedHash() const
       auto& hash = getHash();
 
       BinaryWriter bw;
-      bw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bw.put_uint8_t(BitcoinSettings::getScriptHashPrefix());
       bw.put_BinaryData(hash);
 
       prefixedHash_ = bw.getData();
@@ -671,7 +672,7 @@ uint8_t AddressEntry::getPrefixByte(AddressEntryType aeType)
       switch (nested)
       {
       case AddressEntryType_P2SH:
-         return NetworkConfig::getScriptHashPrefix();
+         return BitcoinSettings::getScriptHashPrefix();
 
       case AddressEntryType_P2WSH:
          return SCRIPT_PREFIX_P2WSH;
@@ -688,7 +689,7 @@ uint8_t AddressEntry::getPrefixByte(AddressEntryType aeType)
       break;
 
    case AddressEntryType_P2PKH:
-      return NetworkConfig::getPubkeyHashPrefix();
+      return BitcoinSettings::getPubkeyHashPrefix();
 
    case AddressEntryType_P2PK:
       throw AddressException("native P2PK doesnt come hashed");
