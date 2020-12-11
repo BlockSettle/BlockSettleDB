@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2018, goatpig                                               //            
+//  Copyright (C) 2018-2020, goatpig                                          //            
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
 //                                                                            //
@@ -8,8 +8,8 @@
 
 /*defines Bitcoin network mode config, has nothing to do with socketing*/
 
-#ifndef NETWORKCONFIG_H_
-#define NETWORKCONFIG_H_
+#ifndef BITCOINSETTINGS_H_
+#define BITCOINSETTINGS_H_
 
 #include "BinaryData.h"
 #include "btc/chainparams.h"
@@ -44,15 +44,17 @@ typedef enum
    SCRIPT_PREFIX_OPRETURN = 0x6a
 } SCRIPT_PREFIX;
 
+namespace ArmoryConfig
+{
 typedef enum
 {
    NETWORK_MODE_NA = 0,
    NETWORK_MODE_MAINNET,
    NETWORK_MODE_TESTNET,
-   NETWORK_MODE_REGTEST
-}NETWORK_MODE;
+   NETWORK_MODE_REGTEST,
+} NETWORK_MODE;
 
-struct NetworkConfig
+struct BitcoinSettings
 {
 private:
    static BinaryData genesisBlockHash_;
@@ -68,8 +70,11 @@ private:
    static std::string bech32Prefix_;
    static uint32_t BIP32_CoinType_;
 
-public:
+private:
    static void selectNetwork(NETWORK_MODE);
+
+public:
+   static void processArgs(const std::map<std::string, std::string>&);
 
    static uint8_t getPubkeyHashPrefix(void);
    static uint8_t getScriptHashPrefix(void);
@@ -84,5 +89,5 @@ public:
    static const btc_chainparams* get_chain_params(void) { return chain_params_; }
    static uint32_t getCoinType(void);
 };
-
+}; //namespace ArmoryConfig
 #endif

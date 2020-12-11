@@ -6,27 +6,28 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "NetworkConfig.h"
+#include "BitcoinSettings.h"
 
 using namespace std;
+using namespace ArmoryConfig;
 
-uint8_t NetworkConfig::pubkeyHashPrefix_;
-uint8_t NetworkConfig::scriptHashPrefix_;
-uint8_t NetworkConfig::privKeyPrefix_;
+uint8_t BitcoinSettings::pubkeyHashPrefix_;
+uint8_t BitcoinSettings::scriptHashPrefix_;
+uint8_t BitcoinSettings::privKeyPrefix_;
 
-BinaryData NetworkConfig::genesisBlockHash_;
-BinaryData NetworkConfig::genesisTxHash_;
-BinaryData NetworkConfig::magicBytes_;
+BinaryData BitcoinSettings::genesisBlockHash_;
+BinaryData BitcoinSettings::genesisTxHash_;
+BinaryData BitcoinSettings::magicBytes_;
 
-NETWORK_MODE NetworkConfig::mode_;
-const btc_chainparams* NetworkConfig::chain_params_ = nullptr;
-string NetworkConfig::bech32Prefix_;
+NETWORK_MODE BitcoinSettings::mode_;
+const btc_chainparams* BitcoinSettings::chain_params_ = nullptr;
+string BitcoinSettings::bech32Prefix_;
 
-uint32_t NetworkConfig::BIP32_CoinType_ = UINT32_MAX;
+uint32_t BitcoinSettings::BIP32_CoinType_ = UINT32_MAX;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-void NetworkConfig::selectNetwork(NETWORK_MODE mode)
+void BitcoinSettings::selectNetwork(NETWORK_MODE mode)
 {
    switch (mode)
    {
@@ -85,85 +86,85 @@ void NetworkConfig::selectNetwork(NETWORK_MODE mode)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool NetworkConfig::isInitialized()
+bool BitcoinSettings::isInitialized()
 {
    return mode_ != NETWORK_MODE_NA;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint8_t NetworkConfig::getPubkeyHashPrefix(void)
+uint8_t BitcoinSettings::getPubkeyHashPrefix(void)
 { 
    if (!isInitialized())
    {
-      LOGERR << "NetworkConfig is uninitialized!";
-      throw runtime_error("NetworkConfig is uninitialized!");
+      LOGERR << "BitcoinSettings is uninitialized!";
+      throw runtime_error("BitcoinSettings is uninitialized!");
    }
 
    return pubkeyHashPrefix_; 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint8_t NetworkConfig::getScriptHashPrefix(void) 
+uint8_t BitcoinSettings::getScriptHashPrefix(void) 
 { 
    if (!isInitialized())
    {
-      LOGERR << "NetworkConfig is uninitialized!";
-      throw runtime_error("NetworkConfig is uninitialized!");
+      LOGERR << "BitcoinSettings is uninitialized!";
+      throw runtime_error("BitcoinSettings is uninitialized!");
    }
 
    return scriptHashPrefix_; 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint8_t NetworkConfig::getPrivKeyPrefix(void)
+uint8_t BitcoinSettings::getPrivKeyPrefix(void)
 {
    if (!isInitialized())
    {
-      LOGERR << "NetworkConfig is uninitialized!";
-      throw runtime_error("NetworkConfig is uninitialized!");
+      LOGERR << "BitcoinSettings is uninitialized!";
+      throw runtime_error("BitcoinSettings is uninitialized!");
    }
 
    return privKeyPrefix_; 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& NetworkConfig::getGenesisBlockHash(void) 
+const BinaryData& BitcoinSettings::getGenesisBlockHash(void) 
 {
    if (!isInitialized())
    {
-      LOGERR << "NetworkConfig is uninitialized!";
-      throw runtime_error("NetworkConfig is uninitialized!");
+      LOGERR << "BitcoinSettings is uninitialized!";
+      throw runtime_error("BitcoinSettings is uninitialized!");
    }
 
    return genesisBlockHash_; 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& NetworkConfig::getGenesisTxHash(void) 
+const BinaryData& BitcoinSettings::getGenesisTxHash(void) 
 {
    if (!isInitialized())
    {
-      LOGERR << "NetworkConfig is uninitialized!";
-      throw runtime_error("NetworkConfig is uninitialized!");
+      LOGERR << "BitcoinSettings is uninitialized!";
+      throw runtime_error("BitcoinSettings is uninitialized!");
    }
 
    return genesisTxHash_; 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& NetworkConfig::getMagicBytes(void) 
+const BinaryData& BitcoinSettings::getMagicBytes(void) 
 {
    if (!isInitialized())
    {
-      LOGERR << "NetworkConfig is uninitialized!";
-      throw runtime_error("NetworkConfig is uninitialized!");
+      LOGERR << "BitcoinSettings is uninitialized!";
+      throw runtime_error("BitcoinSettings is uninitialized!");
    }
 
    return magicBytes_; 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint32_t NetworkConfig::getCoinType()
+uint32_t BitcoinSettings::getCoinType()
 {
    if (BIP32_CoinType_ == UINT32_MAX)
    {
@@ -172,4 +173,24 @@ uint32_t NetworkConfig::getCoinType()
    }
    
    return BIP32_CoinType_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void BitcoinSettings::processArgs(const map<string, string>& argMap)
+{
+   auto findMode = [&argMap](void)->NETWORK_MODE
+   {
+      auto iter = argMap.find("testnet");
+      if (iter != argMap.end())
+         return NETWORK_MODE_TESTNET;
+
+      iter = argMap.find("regtest");
+      if (iter != argMap.end())
+         return NETWORK_MODE_REGTEST;
+
+      return NETWORK_MODE_MAINNET;
+   };
+
+   auto mode = findMode();
+   selectNetwork(mode);
 }

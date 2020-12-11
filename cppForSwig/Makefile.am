@@ -116,7 +116,8 @@ ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	txio.cpp \
 	ZeroConf.cpp \
 	ZeroConfNotifications.cpp \
-	TerminalPassphrasePrompt.cpp
+	TerminalPassphrasePrompt.cpp \
+	gtest/NodeUnitTest.cpp
 ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	WalletHeader.cpp \
 	WalletFileInterface.cpp \
@@ -127,7 +128,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	AuthorizedPeers.cpp \
 	BinaryData.cpp \
 	BIP32_Node.cpp \
-	BlockDataManagerConfig.cpp \
+	ArmoryConfig.cpp \
 	BtcUtils.cpp \
 	DBClientClasses.cpp \
 	CoinSelection.cpp \
@@ -136,7 +137,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	hkdf.cpp \
 	KDF.cpp \
 	log.cpp \
-	NetworkConfig.cpp \
+	BitcoinSettings.cpp \
 	ReentrantLock.cpp \
 	ResolverFeed.cpp \
 	Script.cpp \
