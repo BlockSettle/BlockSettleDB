@@ -28,7 +28,6 @@ private:
 
    const ProgressCallback progress_;
    BlockOffset topBlockOffset_;
-   const BlockDataManagerConfig bdmConfig_;
 
    unsigned checkedTransactions_ = 0;
    const bool forceRescanSSH_;

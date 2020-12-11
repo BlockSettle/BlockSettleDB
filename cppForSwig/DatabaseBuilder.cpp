@@ -14,6 +14,7 @@
 #include "Transactions.h"
 
 using namespace std;
+using namespace ArmoryConfig;
 
 /////////////////////////////////////////////////////////////////////////////
 void dumpBlock(
@@ -64,14 +65,13 @@ DatabaseBuilder::DatabaseBuilder(BlockFiles& blockFiles,
    : blockFiles_(blockFiles), blockchain_(bdm.blockchain()),
    db_(bdm.getIFace()), scrAddrFilter_(bdm.getScrAddrFilter()),
    progress_(progress), topBlockOffset_(0, 0),
-   bdmConfig_(bdm.config()), 
    forceRescanSSH_(forceRescanSSH)
 {}
 
 /////////////////////////////////////////////////////////////////////////////
 void DatabaseBuilder::init()
 {
-   if (bdmConfig_.checkChain_)
+   if (DBSettings::checkChain())
    {
       verifyChain();
       return;
@@ -85,7 +85,7 @@ void DatabaseBuilder::init()
    //read all blocks already in DB and populate blockchain
    topBlockOffset_ = loadBlockHeadersFromDB(progress_);
    
-   if (bdmConfig_.reportProgress_)
+   if (DBSettings::reportProgress())
       progress_(BDMPhase_OrganizingChain, 0, UINT32_MAX, 0);
 
    LOGINFO << "organizing chain";
@@ -118,8 +118,8 @@ void DatabaseBuilder::init()
    TIMER_START("updateblocksindb");
    LOGINFO << "updating HEADERS db";
    auto reorgState = updateBlocksInDB(
-      progress_, bdmConfig_.reportProgress_, 
-      BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER);
+      progress_, DBSettings::reportProgress(), 
+      DBSettings::getDbType() == ARMORY_DB_SUPER);
    TIMER_STOP("updateblocksindb");
    double updatetime = TIMER_READ_SEC("updateblocksindb");
    LOGINFO << "updated HEADERS db in " << updatetime << "s";
@@ -129,7 +129,7 @@ void DatabaseBuilder::init()
    int scanFrom = -1;
    bool reset = false;
 
-   if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
+   if (DBSettings::getDbType() != ARMORY_DB_SUPER)
    {
       verifyTxFilters();
 
@@ -274,7 +274,7 @@ BlockOffset DatabaseBuilder::loadBlockHeadersFromDB(
       if ((counter++ % 50000) != 0)
          return;
 
-      if (!bdmConfig_.reportProgress_)
+      if (!DBSettings::reportProgress())
          return;
 
       calc.advance(counter);
@@ -298,7 +298,7 @@ Blockchain::ReorganizationState DatabaseBuilder::updateBlocksInDB(
    //preload and prefetch
    BlockDataLoader bdl(blockFiles_.folderPath());
 
-   unsigned threadcount = min(bdmConfig_.threadCount_,
+   unsigned threadcount = min(DBSettings::threadCount(),
       blockFiles_.fileCount() - topBlockOffset_.fileID_);
 
    mutex progressMutex;
@@ -459,7 +459,7 @@ bool DatabaseBuilder::addBlocksToDB(BlockDataLoader& bdl,
    if (!fullHints)
    {
       //process filters
-      if (BlockDataManagerConfig::getDbType() == ARMORY_DB_FULL)
+      if (DBSettings::getDbType() == ARMORY_DB_FULL)
       {
         //pull existing file filter bucket from db (if any)
          auto&& pool = db_->getFilterPoolForFileNum<TxFilterType>(fileID);
@@ -496,7 +496,7 @@ bool DatabaseBuilder::addBlocksToDB(BlockDataLoader& bdl,
    else
    {
       commitAllTxHints(bdMap, insertedBlocks);
-      if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
+      if (DBSettings::getDbType() == ARMORY_DB_SUPER)
          commitAllStxos(bdMap, insertedBlocks);
    }
 
@@ -509,7 +509,7 @@ void DatabaseBuilder::parseBlockFile(
    function<bool(const uint8_t* data, size_t size, size_t offset)> callback)
 {
    //check magic bytes at start of file
-   auto& magicBytes = NetworkConfig::getMagicBytes();
+   auto& magicBytes = BitcoinSettings::getMagicBytes();
    auto magicBytesSize = magicBytes.getSize();
    if (fileSize < magicBytesSize)
    {
@@ -580,7 +580,7 @@ BinaryData DatabaseBuilder::initTransactionHistory(int32_t startHeight)
 {
    //Scan history
    auto topScannedBlockHash = 
-      scanHistory(startHeight, bdmConfig_.reportProgress_, true);
+      scanHistory(startHeight, DBSettings::reportProgress(), true);
 
    //return the hash of the last scanned block
    return topScannedBlockHash;
@@ -590,13 +590,14 @@ BinaryData DatabaseBuilder::initTransactionHistory(int32_t startHeight)
 BinaryData DatabaseBuilder::scanHistory(int32_t startHeight,
    bool reportprogress, bool init)
 {
-   if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
+   if (DBSettings::getDbType() != ARMORY_DB_SUPER)
    {
       LOGINFO << "scanning new blocks from #" << startHeight << " to #" <<
          blockchain_->top()->getBlockHeight();
 
       BlockchainScanner bcs(blockchain_, db_, scrAddrFilter_.get(),
-         blockFiles_, bdmConfig_.threadCount_, bdmConfig_.ramUsage_,
+         blockFiles_, 
+         DBSettings::threadCount(), DBSettings::ramUsage(),
          progress_, reportprogress);
 
       bcs.scan(startHeight);
@@ -622,7 +623,7 @@ BinaryData DatabaseBuilder::scanHistory(int32_t startHeight,
       BlockchainScanner_Super bcs(
          blockchain_, db_,
          blockFiles_, init,
-         bdmConfig_.threadCount_, bdmConfig_.ramUsage_,
+         DBSettings::threadCount(), DBSettings::ramUsage(),
          progress_, reportprogress);
 
       bcs.scan();
@@ -643,7 +644,7 @@ Blockchain::ReorganizationState DatabaseBuilder::update(void)
 
    //update db
    auto&& reorgState = updateBlocksInDB(progress_, false, 
-      BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER);
+      DBSettings::getDbType() == ARMORY_DB_SUPER);
 
    if (!reorgState.hasNewTop_)
       return reorgState;
@@ -674,10 +675,11 @@ Blockchain::ReorganizationState DatabaseBuilder::update(void)
 void DatabaseBuilder::undoHistory(
    Blockchain::ReorganizationState& reorgState)
 {   
-   if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
+   if (DBSettings::getDbType() != ARMORY_DB_SUPER)
    {
       BlockchainScanner bcs(blockchain_, db_, scrAddrFilter_.get(),
-         blockFiles_, bdmConfig_.threadCount_, bdmConfig_.ramUsage_,
+         blockFiles_, 
+         DBSettings::threadCount(), DBSettings::ramUsage(),
          progress_, false);
       bcs.undo(reorgState);
    }
@@ -685,7 +687,7 @@ void DatabaseBuilder::undoHistory(
    {
       BlockchainScanner_Super bcs(blockchain_, db_, 
          blockFiles_, false,
-         bdmConfig_.threadCount_, bdmConfig_.ramUsage_,
+         DBSettings::threadCount(), DBSettings::ramUsage(),
          progress_, false);
       bcs.undo(reorgState);
    }
@@ -715,7 +717,7 @@ bool DatabaseBuilder::reparseBlkFiles(unsigned fromID)
       {
          auto&& hmap = assessBlkFile(bdl, fileID);
 
-         fileID += bdmConfig_.threadCount_;
+         fileID += DBSettings::threadCount();
 
          if (hmap.size() == 0)
             continue;
@@ -725,7 +727,7 @@ bool DatabaseBuilder::reparseBlkFiles(unsigned fromID)
       }
    };
 
-   unsigned threadcount = min(bdmConfig_.threadCount_,
+   unsigned threadcount = min(DBSettings::threadCount(),
       blockFiles_.fileCount() - topBlockOffset_.fileID_);
 
    vector<thread> tIDs;
@@ -850,7 +852,7 @@ void DatabaseBuilder::verifyChain()
    //read all blocks already in DB and populate blockchain
    topBlockOffset_ = loadBlockHeadersFromDB(progress_);
 
-   if (bdmConfig_.reportProgress_)
+   if (DBSettings::reportProgress())
       progress_(BDMPhase_OrganizingChain, 0, UINT32_MAX, 0);
 
    auto initialReorgState = blockchain_->forceOrganize();
@@ -859,7 +861,7 @@ void DatabaseBuilder::verifyChain()
    //update db
    LOGINFO << "updating HEADERS db";
    auto reorgState = updateBlocksInDB(
-      progress_, bdmConfig_.reportProgress_, true);
+      progress_, DBSettings::reportProgress(), true);
    LOGINFO << "updated HEADERS db";
 
    //verify transactions
@@ -956,7 +958,7 @@ void DatabaseBuilder::commitAllStxos(
    const map<uint32_t, BlockData>& bdMap,
    const set<unsigned>& insertedBlocks)
 {
-   if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
+   if (DBSettings::getDbType() != ARMORY_DB_SUPER)
       throw runtime_error("invalid db mode");
 
    vector<pair<BinaryData, BinaryWriter>> serializedStxos;
@@ -1263,7 +1265,7 @@ void DatabaseBuilder::verifyTransactions()
    };
 
    vector<thread> parserThrVec;
-   for (unsigned i = 1; i < bdmConfig_.threadCount_; i++)
+   for (unsigned i = 1; i < DBSettings::threadCount(); i++)
       parserThrVec.push_back(thread(verifyBlockTx));
 
    verifyBlockTx();
@@ -1289,7 +1291,7 @@ void DatabaseBuilder::verifyTransactions()
 /////////////////////////////////////////////////////////////////////////////
 void DatabaseBuilder::verifyTxFilters()
 {
-   if (BlockDataManagerConfig::getDbType() != ARMORY_DB_FULL)
+   if (DBSettings::getDbType() != ARMORY_DB_FULL)
       return;
 
    LOGINFO << "verifying txfilters integrity";
@@ -1364,7 +1366,7 @@ void DatabaseBuilder::verifyTxFilters()
    };
 
    vector<thread> thrs;
-   for (unsigned i = 1; i < bdmConfig_.threadCount_; i++)
+   for (unsigned i = 1; i < DBSettings::threadCount(); i++)
       thrs.push_back(thread(checkThr));
    checkThr();
 
@@ -1420,7 +1422,7 @@ void DatabaseBuilder::repairTxFilters(const set<unsigned>& badFilters)
    };
 
    vector<thread> thrs;
-   for (unsigned i = 1; i < bdmConfig_.threadCount_; i++)
+   for (unsigned i = 1; i < DBSettings::threadCount(); i++)
       thrs.push_back(thread(fixFilterThr));
    fixFilterThr();
 
@@ -1521,5 +1523,5 @@ void DatabaseBuilder::reprocessTxFilter(
 void DatabaseBuilder::cycleDatabases()
 {
    db_->closeDatabases();
-   db_->openDatabases(bdmConfig_.dbDir_);
+   db_->openDatabases(Pathing::dbDir());
 }
