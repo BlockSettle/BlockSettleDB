@@ -391,8 +391,7 @@ HandshakeState BIP15x_Handshake::clientSideHandshake(
          return HandshakeState::Error;
 
       //if connection is already setup, we only accept enack rekey messages
-      if (connPtr->processEncack(
-         msg.getPtr(), msg.getSize(), false) == -1)
+      if (connPtr->processEncack(msg.getPtr(), msg.getSize(), false) == -1)
          return HandshakeState::Error_ProcessEncAck;
 
       return HandshakeState::RekeySuccessful;

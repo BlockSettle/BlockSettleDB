@@ -174,7 +174,6 @@ struct lws_context* WebSocketClient::init()
    struct lws_client_connect_info i;
    memset(&i, 0, sizeof(i));
    
-   //i.address = ip.c_str();
    int port = stoi(port_);
    if (port == 0)
       port = WEBSOCKET_PORT;
