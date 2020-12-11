@@ -21,14 +21,15 @@
 #include <ctime>
 
 using namespace std;
+using namespace ArmoryConfig;
 
 BDM_CallBack::~BDM_CallBack()
 {}
 
-BlockDataManagerThread::BlockDataManagerThread(const BlockDataManagerConfig &config)
+BlockDataManagerThread::BlockDataManagerThread()
 {
    pimpl = new BlockDataManagerThreadImpl;
-   pimpl->bdm = new BlockDataManager(config);
+   pimpl->bdm = new BlockDataManager();
 }
 
 BlockDataManagerThread::~BlockDataManagerThread()
@@ -143,7 +144,7 @@ try
    };
 
    unsigned mode = pimpl->mode & 0x00000003;
-   bool clearZc = bdm->config().clearMempool_;
+   bool clearZc = DBSettings::clearMempool();
 
    switch (mode)
    {
@@ -167,12 +168,12 @@ try
       throw runtime_error("invalid bdm init mode");
    }
 
-   if (!bdm->config().checkChain_)
+   if (!DBSettings::checkChain())
       bdm->enableZeroConf(clearZc);
 
    isReadyPromise.set_value(true);
 
-   if (bdm->config().checkChain_)
+   if (DBSettings::checkChain())
       return;
 
    auto updateChainLambda = [bdm, this]()->void
