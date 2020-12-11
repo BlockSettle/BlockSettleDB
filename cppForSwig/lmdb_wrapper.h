@@ -654,7 +654,10 @@ public:
       return dbObj->beginTransaction(mode);
    }
 
-   ARMORY_DB_TYPE getDbType(void) const { return BlockDataManagerConfig::getDbType(); }
+   ARMORY_DB_TYPE getDbType(void) const 
+   { 
+      return ArmoryConfig::DBSettings::getDbType(); 
+   }
 
    /////////////////////////////////////////////////////////////////////////////
    // Sometimes, we just need to nuke everything and start over
@@ -889,7 +892,7 @@ public:
    void   printAllDatabaseEntries(DB_SELECT db);
 
    ARMORY_DB_TYPE armoryDbType(void) const
-   { return BlockDataManagerConfig::getDbType(); }
+   { return ArmoryConfig::DBSettings::getDbType(); }
 
    const std::string& baseDir(void) const { return DatabaseContainer::baseDir_; }
    void setBlkFolder(const std::string& path) { blkFolder_ = path; }
