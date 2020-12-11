@@ -1287,8 +1287,8 @@ shared_ptr<ScriptRecipient> CoinSelectionInstance::createRecipient(
    shared_ptr<ScriptRecipient> rec;
    auto scrType = *hash.getPtr();
 
-   const auto p2pkh_byte = NetworkConfig::getPubkeyHashPrefix();
-   const auto p2sh_byte = NetworkConfig::getScriptHashPrefix();
+   const auto p2pkh_byte = ArmoryConfig::BitcoinSettings::getPubkeyHashPrefix();
+   const auto p2sh_byte = ArmoryConfig::BitcoinSettings::getScriptHashPrefix();
 
    if (scrType == p2pkh_byte)
    {

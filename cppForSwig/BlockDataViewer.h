@@ -162,7 +162,6 @@ public:
    }
 
    ScrAddrFilter* getSAF(void) { return saf_; }
-   const BlockDataManagerConfig& config() const { return bdmPtr_->config(); }
 
    WalletGroup getStandAloneWalletGroup(
       const std::vector<std::string>& wltIDs, HistoryOrdering order);

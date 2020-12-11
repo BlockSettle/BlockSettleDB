@@ -1152,7 +1152,7 @@ BinaryData StoredTxOut::getDBKey(bool withPrefix) const
 /////////////////////////////////////////////////////////////////////////////
 BinaryData StoredTxOut::getSpentnessKey() const
 {
-   if (BlockDataManagerConfig::getDbType() != ARMORY_DB_SUPER)
+   if (ArmoryConfig::DBSettings::getDbType() != ARMORY_DB_SUPER)
       return getDBKey(false);
 
    if (blockHeight_ == UINT32_MAX ||
