@@ -1,6 +1,13 @@
+################################################################################
+#                                                                              #
+# Copyright (C) 2019-2020, Armory Technologies, Inc.                           #
+# Distributed under the GNU Affero General Public License (AGPL v3)            #
+# See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
+#                                                                              #
+################################################################################
+ 
 from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
-#interface with cpp code over os pipe
 import errno
 import socket
 from armoryengine import ClientProto_pb2
