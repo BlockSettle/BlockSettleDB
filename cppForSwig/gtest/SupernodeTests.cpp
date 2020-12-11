@@ -14,6 +14,7 @@
 #include "TestUtils.h"
 using namespace std;
 using namespace ArmorySigner;
+using namespace ArmoryConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -227,19 +228,22 @@ protected:
    {
       DBTestUtils::init();
 
-      auto& magicBytes = NetworkConfig::getMagicBytes();
+      ArmoryConfig::reset();
+      DBSettings::setServiceType(SERVICE_UNITTEST);
+      ArmoryConfig::parseArgs({
+         "--datadir=./fakehomedir",
+         "--dbdir=./ldbtestdir",
+         "--satoshi-datadir=./blkfiletest",
+         "--db-type=DB_SUPER",
+         "--thread-count=3",
+      });
 
-      auto nodePtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), false);
-      auto watcherPtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), true);
-      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
-      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(
-         nodePtr, watcherPtr);
-
-      theBDMt_ = new BlockDataManagerThread(config);
+      theBDMt_ = new BlockDataManagerThread();
       iface_ = theBDMt_->bdm()->getIFace();
 
+      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(
+         NetworkSettings::bitcoinNodes().first);
+      
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 
@@ -261,26 +265,13 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory(ldbdir_);
 
-      mkdir(blkdir_);
+      mkdir(blkdir_ + "/blocks");
       mkdir(homedir_);
       mkdir(ldbdir_);
 
       // Put the first 5 blocks into the blkdir
-      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
-      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
-
-      blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
+      blk0dat_ = BtcUtils::getBlkFilename(blkdir_ + "/blocks", 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-
-      BlockDataManagerConfig::setDbType(ARMORY_DB_SUPER);
-      config.blkFileLocation_ = blkdir_;
-      config.dbDir_ = ldbdir_;
-      config.threadCount_ = 3;
-
-      unsigned port_int = 50000 + rand() % 10000;
-      stringstream port_ss;
-      port_ss << port_int;
-      config.listenPort_ = port_ss.str();
 
       initBDM();
    }
@@ -306,11 +297,11 @@ protected:
 
       mkdir("./ldbtestdir");
 
+      ArmoryConfig::reset();
+
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
    }
-
-   BlockDataManagerConfig config;
 
    LMDBBlockDatabase* iface_;
    BinaryData zeros_;
@@ -324,8 +315,8 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsSuper, Load5Blocks)
 {
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -387,8 +378,8 @@ TEST_F(BlockUtilsSuper, Load5Blocks)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
 {
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -459,8 +450,8 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
    auto&& ssh_sdbi = iface_->getStoredDBInfo(SSH, 0);
    EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5);
 
-   theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -518,8 +509,8 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsSuper, Load5Blocks_Reload_Rescan)
 {
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -591,7 +582,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_Reload_Rescan)
    EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5);
 
    theBDMt_->start(INIT_RESCAN);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -651,8 +642,8 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
 {
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -725,7 +716,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    EXPECT_EQ(ssh_sdbi.topBlkHgt_, 3);
 
    theBDMt_->start(INIT_SSH);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -799,7 +790,7 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    TestUtils::appendBlocks({ "4" }, blk0dat_);
 
    theBDMt_->start(INIT_SSH);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -922,8 +913,8 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
    // readBlkFileUpdate method on non-reorg blocks.
    TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -947,8 +938,8 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1026,8 +1017,8 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsSuper, Load5Blocks_FullReorg)
 {
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1091,8 +1082,8 @@ TEST_F(BlockUtilsSuper, Load5Blocks_FullReorg)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM_Reorg)
 {
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1107,8 +1098,8 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM_Reorg)
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5", "4A", "5A" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1174,8 +1165,8 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DoubleReorg)
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4A" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1296,8 +1287,8 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
    StoredScriptHistory ssh;
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1555,18 +1546,21 @@ protected:
    {
       DBTestUtils::init();
 
-      auto& magicBytes = NetworkConfig::getMagicBytes();
+      ArmoryConfig::reset();
+      DBSettings::setServiceType(SERVICE_UNITTEST);
+      ArmoryConfig::parseArgs({
+         "--datadir=./fakehomedir",
+         "--dbdir=./ldbtestdir",
+         "--satoshi-datadir=./blkfiletest",
+         "--db-type=DB_SUPER",
+         "--thread-count=3",
+      });
 
-      auto nodePtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), false);
-      auto watcherPtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), true);
-      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
-      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(
-         nodePtr, watcherPtr);
-
-      theBDMt_ = new BlockDataManagerThread(config);
+      theBDMt_ = new BlockDataManagerThread();
       iface_ = theBDMt_->bdm()->getIFace();
+
+      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(
+         NetworkSettings::bitcoinNodes().first);
 
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
@@ -1590,26 +1584,13 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory(ldbdir_);
 
-      mkdir(blkdir_);
+      mkdir(blkdir_ + "/blocks");
       mkdir(homedir_);
       mkdir(ldbdir_);
 
       // Put the first 5 blocks into the blkdir
-      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
-      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
-
-      blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
+      blk0dat_ = BtcUtils::getBlkFilename(blkdir_ + "/blocks", 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-
-      BlockDataManagerConfig::setDbType(ARMORY_DB_SUPER);
-      config.blkFileLocation_ = blkdir_;
-      config.dbDir_ = ldbdir_;
-      config.threadCount_ = 3;
-
-      unsigned port_int = 50000 + rand() % 10000;
-      stringstream port_ss;
-      port_ss << port_int;
-      config.listenPort_ = port_ss.str();
 
       initBDM();
 
@@ -1637,11 +1618,11 @@ protected:
 
       mkdir("./ldbtestdir");
 
+      ArmoryConfig::reset();
+
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
-      }
-
-   BlockDataManagerConfig config;
+   }
 
    LMDBBlockDatabase* iface_;
    BinaryData zeros_;
@@ -1662,8 +1643,8 @@ TEST_F(BlockUtilsWithWalletTest, Test_WithWallet)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
@@ -1708,8 +1689,8 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAddrAfterWallet)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
@@ -1778,8 +1759,8 @@ TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
    scrAddrVec.push_back(TestChain::scrAddrC);
    scrAddrVec.push_back(TestChain::scrAddrE);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
@@ -1888,8 +1869,8 @@ TEST_F(BlockUtilsWithWalletTest, UnrelatedZC_CheckLedgers)
 {
    TestUtils::setBlocks({ "0", "1", "2", "3", "4" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2048,8 +2029,8 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAfterZC)
 {
    TestUtils::setBlocks({ "0", "1", "2", "3", "4" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2172,8 +2153,8 @@ TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
@@ -2340,8 +2321,8 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2740,8 +2721,8 @@ TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
    //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -3144,8 +3125,8 @@ TEST_F(BlockUtilsWithWalletTest, ZC_InOut_SameBlock)
    //
    TestUtils::setBlocks({ "0", "1" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -3221,8 +3202,8 @@ TEST_F(BlockUtilsWithWalletTest, ZC_MineAfter1Block)
    scrAddrVec.push_back(TestChain::scrAddrC);
    scrAddrVec.push_back(TestChain::scrAddrD);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
@@ -3389,26 +3370,16 @@ protected:
 
    void initBDM(void)
    {
-      auto& magicBytes = NetworkConfig::getMagicBytes();
-        
-      nodePtr_ = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), false);
-      auto watcherPtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), true);
-
-      rpcNode_ =  make_shared<NodeRPC_UnitTest>(
-         nodePtr_, watcherPtr);
-
-      config.bitcoinNodes_ = make_pair(nodePtr_, watcherPtr);
-      config.rpcNode_ = rpcNode_;
-
-      //randomized peer keys, in ram only
-      config.ephemeralPeers_ = true;
-
-      theBDMt_ = new BlockDataManagerThread(config);
+      theBDMt_ = new BlockDataManagerThread();
       iface_ = theBDMt_->bdm()->getIFace();
-      nodePtr_->setIface(iface_);
 
+      nodePtr_ = dynamic_pointer_cast<NodeUnitTest>(
+         NetworkSettings::bitcoinNodes().first);
+
+      rpcNode_ = dynamic_pointer_cast<NodeRPC_UnitTest>(
+         NetworkSettings::rpcNode());
+
+      nodePtr_->setIface(iface_);
       nodePtr_->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr_->setBlockFiles(theBDMt_->bdm()->blockFiles());
    }
@@ -3427,32 +3398,27 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory(ldbdir_);
 
-      mkdir(blkdir_);
+      mkdir(blkdir_ + "/blocks");
       mkdir(homedir_);
       mkdir(ldbdir_);
 
       // Put the first 5 blocks into the blkdir
-      BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
-      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
-
-      blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
+      blk0dat_ = BtcUtils::getBlkFilename(blkdir_ + "/blocks", 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-
-      BlockDataManagerConfig::setDbType(ARMORY_DB_SUPER);
-      config.blkFileLocation_ = blkdir_;
-      config.dbDir_ = ldbdir_;
-      config.threadCount_ = 3;
-      config.dataDir_ = homedir_;
-      config.ephemeralPeers_ = false;
-      config.oneWayAuth_ = true;
-
-      unsigned port_int = 51152;
-      stringstream port_ss;
-      port_ss << port_int;
-      config.listenPort_ = port_ss.str();
 
       startupBIP151CTX();
       startupBIP150CTX(4);
+
+      DBSettings::setServiceType(SERVICE_UNITTEST_WITHWS);
+      ArmoryConfig::parseArgs({
+         "--datadir=./fakehomedir",
+         "--dbdir=./ldbtestdir",
+         "--satoshi-datadir=./blkfiletest",
+         "--db-type=DB_SUPER",
+         "--thread-count=3",
+         "--public",
+         "--cookie"
+      });
 
       //setup auth peers for server and client
       authPeersPassLbd_ = [](const set<BinaryData>&)->SecureBinaryData
@@ -3470,7 +3436,7 @@ protected:
       auto& clientPubkey = clientPeers.getOwnPublicKey();
 
       stringstream serverAddr;
-      serverAddr << "127.0.0.1:" << config.listenPort_;
+      serverAddr << "127.0.0.1:" << NetworkSettings::listenPort();
       clientPeers.addPeer(serverPubkey, serverAddr.str());
       serverPeers.addPeer(clientPubkey, "127.0.0.1");
 
@@ -3491,13 +3457,11 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory("./ldbtestdir");
 
-      mkdir("./ldbtestdir");
+      ArmoryConfig::reset();
 
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
    }
-
-   BlockDataManagerConfig config;
 
    LMDBBlockDatabase* iface_;
    BinaryData zeros_;
@@ -3516,8 +3480,6 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 {
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    auto&& firstHash = READHEX("b6b6f145742a9072fd85f96772e63a00eb4101709aa34ec5dd59e8fc904191a7");
@@ -3550,19 +3512,19 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
    _scrAddrVec.push_back(TestChain::scrAddrC);
    _scrAddrVec.push_back(TestChain::scrAddrE);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_,
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(),
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
       
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -3599,14 +3561,14 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       //go online
       bdvObj->goOnline();
@@ -3959,12 +3921,12 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
    }
 
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -3980,7 +3942,6 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
    Create a lot of client connections in parallel and slam the db with requests,
    then shutdown some of the clients before the requests are met.
    ***/
-   startupBIP150CTX(4);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -4014,19 +3975,19 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
    _scrAddrVec.push_back(TestChain::scrAddrC);
    _scrAddrVec.push_back(TestChain::scrAddrE);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
       
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -4073,14 +4034,14 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
 
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_,
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(),
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       //go online
       bdvObj->goOnline();
@@ -4433,12 +4394,12 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
    }
 
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -4450,8 +4411,6 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 {
-   startupBIP150CTX(4);
-
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
    test plucks transactions from the static chain to push as ZC. Skip sig checks
@@ -4469,18 +4428,18 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      ArmoryConfig::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    //go online
    bdvObj->goOnline();
@@ -4717,12 +4676,12 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -4734,8 +4693,6 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
 {
-   startupBIP150CTX(4);
-
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
    test plucks transactions from the static chain to push as ZC. Skip sig checks
@@ -4753,18 +4710,18 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      ArmoryConfig::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, 
+      NetworkSettings::ephemeralPeers(), true, 
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    //go online
    bdvObj->goOnline();
@@ -5001,12 +4958,12 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -5018,8 +4975,6 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
 {
-   startupBIP150CTX(4);
-
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
    test plucks transactions from the static chain to push as ZC. Skip sig checks
@@ -5037,18 +4992,18 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      ArmoryConfig::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    //go online
    bdvObj->goOnline();
@@ -5288,12 +5243,12 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -5305,8 +5260,6 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
 {
-   startupBIP150CTX(4);
-
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
    test plucks transactions from the static chain to push as ZC. Skip sig checks
@@ -5324,18 +5277,18 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      ArmoryConfig::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    //go online
    bdvObj->goOnline();
@@ -5575,12 +5528,12 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -5592,8 +5545,6 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
 {
-   startupBIP150CTX(4);
-
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
    test plucks transactions from the static chain to push as ZC. Skip sig checks
@@ -5611,18 +5562,18 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      ArmoryConfig::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    //go online
    bdvObj->goOnline();
@@ -5869,12 +5820,12 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -5886,8 +5837,6 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
 {
-   startupBIP150CTX(4);
-
    /*
    Some sigs in static test chain are borked. P2SH scripts are borked too. This
    test plucks transactions from the static chain to push as ZC. Skip sig checks
@@ -5905,18 +5854,18 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      ArmoryConfig::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    //go online
    bdvObj->goOnline();
@@ -6168,12 +6117,12 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -6215,18 +6164,18 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      ArmoryConfig::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    //go online
    bdvObj->goOnline();
@@ -6461,12 +6410,12 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -6500,18 +6449,18 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
    scrAddrVec.push_back(TestChain::scrAddrE);
    scrAddrVec.push_back(TestChain::scrAddrF);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      ArmoryConfig::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
    vector<string> walletRegIDs;
@@ -6750,12 +6699,12 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -6767,8 +6716,6 @@ TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
 {
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -6813,19 +6760,19 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
 
    auto&& _scrAddrVec8 = createNAddresses(2);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -6871,12 +6818,12 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -6891,14 +6838,12 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
    feed->addPrivKey(TestChain::privKeyAddrB);
 
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
    {
@@ -6932,14 +6877,14 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -7150,12 +7095,12 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -7167,14 +7112,12 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 {
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
    {
@@ -7203,14 +7146,14 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -7343,12 +7286,12 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -7360,14 +7303,12 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 {
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
    {
@@ -7396,14 +7337,14 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -7701,12 +7642,12 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -7726,8 +7667,6 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    feed->addPrivKey(TestChain::privKeyAddrE);
    feed->addPrivKey(TestChain::privKeyAddrF);
 
-   startupBIP150CTX(4);
-
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
@@ -7740,18 +7679,18 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    scrAddrVec.push_back(TestChain::scrAddrE);
    scrAddrVec.push_back(TestChain::scrAddrF);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      ArmoryConfig::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
    vector<string> walletRegIDs;
@@ -8089,12 +8028,12 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -8114,8 +8053,6 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    feed->addPrivKey(TestChain::privKeyAddrE);
    feed->addPrivKey(TestChain::privKeyAddrF);
 
-   startupBIP150CTX(4);
-
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
@@ -8128,18 +8065,18 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    scrAddrVec.push_back(TestChain::scrAddrE);
    scrAddrVec.push_back(TestChain::scrAddrF);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      ArmoryConfig::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
    vector<string> walletRegIDs;
@@ -8392,14 +8329,14 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
       //try to grab from another bdvobj
       auto pCallback2 = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback2);
       bdvObj2->addPublicKey(serverPubkey);
       bdvObj2->connectToRemote();
-      bdvObj2->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj2->registerWithDB(BitcoinSettings::getMagicBytes());
 
       bdvObj2->goOnline();
       pCallback2->waitOnSignal(BDMAction_Ready);
@@ -8572,12 +8509,12 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -8592,14 +8529,12 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
    feed->addPrivKey(TestChain::privKeyAddrB);
 
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    struct KeyPair
    {
@@ -8644,14 +8579,14 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -9123,12 +9058,12 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -9140,25 +9075,23 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 {
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true,  //public server
+         NetworkSettings::ephemeralPeers(), true,  //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -9431,12 +9364,12 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -9448,25 +9381,23 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 {
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -9755,12 +9686,12 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -9772,25 +9703,23 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 {
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -10094,12 +10023,12 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -10111,25 +10040,23 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 {
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -10435,12 +10362,12 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -10452,25 +10379,23 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 {
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -10772,12 +10697,12 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -10789,25 +10714,23 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 {
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -11098,12 +11021,12 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -11115,25 +11038,23 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyInChain1)
 {
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -11437,12 +11358,12 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -11454,25 +11375,23 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyInChain2)
 {
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -11776,12 +11695,12 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -11793,25 +11712,23 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyInChain3)
 {
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -12117,12 +12034,12 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -12134,25 +12051,23 @@ TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyIn
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_BroadcastAlreadyMinedTx)
 {
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -12196,12 +12111,12 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastAlreadyMinedTx)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    delete theBDMt_;
@@ -12225,27 +12140,25 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
       {}
    };
 
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    //create BDV lambda
    auto setupBDV = [this, &serverPubkey](void)->shared_ptr<WSClient>
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -12854,12 +12767,12 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -12885,27 +12798,25 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
       {}
    };
 
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    //create BDV lambda
    auto setupBDV = [this, &serverPubkey](void)->shared_ptr<WSClient>
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -13512,12 +13423,12 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -13543,27 +13454,25 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
       {}
    };
 
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    //create BDV lambda
    auto setupBDV = [this, &serverPubkey](void)->shared_ptr<WSClient>
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -13869,12 +13778,12 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -13886,25 +13795,23 @@ TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_RebroadcastInvalidBatch)
 {
-   startupBIP150CTX(4);
-
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         ArmoryConfig::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
 
@@ -14133,12 +14040,12 @@ TEST_F(WebSocketTests, WebSocketStack_RebroadcastInvalidBatch)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
@@ -14174,10 +14081,6 @@ GTEST_API_ int main(int argc, char **argv)
    GOOGLE_PROTOBUF_VERIFY_VERSION;
    srand(time(0));
    std::cout << "Running main() from gtest_main.cc\n";
-
-   // Setup the log file 
-   STARTLOGGING("cppTestsLog.txt", LogLvlDebug2);
-   //LOGDISABLESTDOUT();
 
    testing::InitGoogleTest(&argc, argv);
    int exitCode = RUN_ALL_TESTS();

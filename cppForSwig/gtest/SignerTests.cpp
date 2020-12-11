@@ -12,6 +12,7 @@
 
 using namespace std;
 using namespace ArmorySigner;
+using namespace ArmoryConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 class PRNGTest : public ::testing::Test
@@ -169,19 +170,12 @@ protected:
    void initBDM(void)
    {
       DBTestUtils::init();
-      auto& magicBytes = NetworkConfig::getMagicBytes();
 
-      auto nodePtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), false);
-      auto watcherPtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), true);
-      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
-      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(
-         nodePtr, watcherPtr);
-      
-      theBDMt_ = new BlockDataManagerThread(config);
+      theBDMt_ = new BlockDataManagerThread();
       iface_ = theBDMt_->bdm()->getIFace();
 
+      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(
+         NetworkSettings::bitcoinNodes().first);
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
       nodePtr->setIface(iface_);
@@ -193,7 +187,6 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
-      LOGDISABLESTDOUT();
       ghash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
       gentx_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
       zeros_ = READHEX("00000000");
@@ -206,23 +199,25 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory(ldbdir_);
 
-      mkdir(blkdir_);
+      mkdir(blkdir_ + "/blocks");
       mkdir(homedir_);
       mkdir(ldbdir_);
 
-      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
-      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
+      DBSettings::setServiceType(SERVICE_UNITTEST);
 
       // Put the first 5 blocks into the blkdir
-      blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
+      blk0dat_ = BtcUtils::getBlkFilename(blkdir_ + "/blocks", 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
 
-      BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
-      config.blkFileLocation_ = blkdir_;
-      config.dbDir_ = ldbdir_;
-      config.threadCount_ = 3;
-
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      ArmoryConfig::parseArgs({
+         "--datadir=./fakehomedir",
+         "--dbdir=./ldbtestdir",
+         "--satoshi-datadir=./blkfiletest",
+         "--public",
+         "--db-type=DB_BARE",
+         "--thread-count=3",
+         "--public"
+      });
 
       wallet1id = "wallet1";
       wallet2id = "wallet2";
@@ -249,13 +244,9 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory("./ldbtestdir");
 
-      mkdir("./ldbtestdir");
-
-      LOGENABLESTDOUT();
+      ArmoryConfig::reset();
       CLEANUP_ALL_TIMERS();
    }
-
-   BlockDataManagerConfig config;
 
    LMDBBlockDatabase* iface_;
    BinaryData ghash_;
@@ -279,10 +270,7 @@ TEST_F(SignerTest, DISABLED_CheckChain_Test)
    //this test fails because the p2sh tx in our unit test chain are botched
    //(the input script has opcode when it should only be push data)
 
-   config.threadCount_ = 1;
-   config.checkChain_ = true;
-
-   BlockDataManager bdm(config);
+   BlockDataManager bdm;
 
    try
    {
@@ -305,9 +293,9 @@ TEST_F(SignerTest, Signer_Test)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -391,9 +379,9 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -803,9 +791,9 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -1063,9 +1051,9 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -1323,9 +1311,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -1619,9 +1607,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2015,9 +2003,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2322,9 +2310,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2665,9 +2653,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -3041,9 +3029,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -3429,9 +3417,9 @@ TEST_F(SignerTest, GetUnsignedTxId)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -3782,9 +3770,9 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -4050,9 +4038,9 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -4349,9 +4337,9 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -4646,9 +4634,9 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -4892,9 +4880,9 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -5279,9 +5267,9 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -5567,9 +5555,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -5822,9 +5810,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6076,9 +6064,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6356,9 +6344,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6635,9 +6623,9 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -7032,9 +7020,9 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -7497,7 +7485,47 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(SignerTest, Serialization)
+class ExtrasTest : public ::testing::Test
+{
+protected:
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void SetUp()
+   {
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      DBSettings::setServiceType(SERVICE_UNITTEST);
+      ArmoryConfig::parseArgs({
+         "--offline",
+         "--testnet",
+         "--datadir=./fakehomedir",
+         "--satoshi-datadir=./blkfiletest",
+      });
+
+      wallet1id = "wallet1";
+      wallet2id = "wallet2";
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void TearDown(void)
+   {
+      DBUtils::removeDirectory(homedir_);
+
+      ArmoryConfig::reset();
+      CLEANUP_ALL_TIMERS();
+   }
+
+   string blkdir_;
+   string homedir_;
+
+   string wallet1id;
+   string wallet2id;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ExtrasTest, Serialization)
 {
    //resolver
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
@@ -8682,94 +8710,7 @@ TEST_F(SignerTest, Serialization)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(SignerTest, Bip32PathDiscovery)
-{
-   auto seed = CryptoPRNG::generateRandom(32);
-
-   BIP32_Node node;
-   node.initFromSeed(seed);
-   auto masterFingerprint = node.getThisFingerprint();
-
-   vector<uint32_t> derPath = { 0x8000002C, 0x80000000, 0x80000000 };
-
-   for (auto& step : derPath)
-      node.derivePrivate(step);
-   node.derivePublic(0);
-
-   map<BinaryData, vector<uint32_t>> keyAndPath;
-   for (unsigned i=0; i<10; i++)
-   {
-      auto nodeSoft = node;
-      nodeSoft.derivePublic(i);
-
-      vector<uint32_t> path = { masterFingerprint };
-      path.insert(path.end(), derPath.begin(), derPath.end());
-      path.push_back(0);
-      path.push_back(i);
-
-      keyAndPath.emplace(nodeSoft.getPublicKey(), path);
-   }
-
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
-   {
-      return SecureBinaryData();
-   };
-
-   string wltPath;
-   {
-      auto wallet = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, 
-      SecureBinaryData(), SecureBinaryData(), 
-      10);
-
-      wltPath = wallet->getDbFilename();
-      auto woWalletPath = wallet->forkWatchingOnly(wltPath, passLbd);
-      auto woWallet = AssetWallet::loadMainWalletFromFile(woWalletPath, passLbd);
-      auto woWalletSingle = dynamic_pointer_cast<AssetWallet_Single>(woWallet);
-
-      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(wallet);
-      for (auto& keyPathPair : keyAndPath)
-      {
-         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
-         vector<unsigned> pathVec;
-         pathVec.push_back(resolvedPath.getThisFingerprint());
-         pathVec.insert(pathVec.end(),
-            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
-         EXPECT_EQ(pathVec, keyPathPair.second);
-      }
-
-      auto resolverPublic = make_shared<ResolverFeed_AssetWalletSingle>(woWalletSingle);
-      for (auto& keyPathPair : keyAndPath)
-      {
-         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
-         vector<unsigned> pathVec;
-         pathVec.push_back(resolvedPath.getThisFingerprint());
-         pathVec.insert(pathVec.end(),
-            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
-         EXPECT_EQ(pathVec, keyPathPair.second);
-      }
-   }
-
-   //reopen the wallet, check again
-   {
-      auto loadedWlt = AssetWallet::loadMainWalletFromFile(wltPath, passLbd);
-      auto loadedWltSingle = dynamic_pointer_cast<AssetWallet_Single>(loadedWlt);
-      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(loadedWltSingle);
-
-      for (auto& keyPathPair : keyAndPath)
-      {
-         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
-         vector<unsigned> pathVec;
-         pathVec.push_back(resolvedPath.getThisFingerprint());
-         pathVec.insert(pathVec.end(),
-            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
-         EXPECT_EQ(pathVec, keyPathPair.second);
-      }
-   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(SignerTest, PSBT)
+TEST_F(ExtrasTest, PSBT)
 {
    //
    auto getUtxoFromRawTx = [](const BinaryDataRef rawTx, unsigned index)->UTXO
@@ -8837,7 +8778,7 @@ TEST_F(SignerTest, PSBT)
    };
 
    //
-   NetworkConfig::selectNetwork(NETWORK_MODE_TESTNET);
+   //BitcoinSettings::selectNetwork(NETWORK_MODE_TESTNET);
    auto b58seed = SecureBinaryData::fromString(
       "tprv8ZgxMBicQKsPd9TeAdPADNnSyH9SSUUbTVeFszDE23Ki6TBB5nCefAdHkK8Fm3qMQR6sHwA56zqRmKmxnHk37JkiFzvncDqoKmPWubu7hDF");
 
@@ -9161,9 +9102,9 @@ TEST_F(SignerTest, PSBT)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(SignerTest, BitcoinMessage)
+TEST_F(ExtrasTest, BitcoinMessage)
 {
-   NetworkConfig::selectNetwork(NETWORK_MODE_TESTNET);
+   //BitcoinSettings::selectNetwork(NETWORK_MODE_TESTNET);
    struct ResolverFeed_SignMessage : public ResolverFeed
    {
       std::map<BinaryData, BinaryData> addrToPubKey;
@@ -9245,6 +9186,132 @@ TEST_F(SignerTest, BitcoinMessage)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+class ExtrasTest_Mainnet : public ::testing::Test
+{
+protected:
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void SetUp()
+   {
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      DBSettings::setServiceType(SERVICE_UNITTEST);
+      ArmoryConfig::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir",
+         "--satoshi-datadir=./blkfiletest",
+      });
+
+      wallet1id = "wallet1";
+      wallet2id = "wallet2";
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void TearDown(void)
+   {
+      DBUtils::removeDirectory(homedir_);
+
+      ArmoryConfig::reset();
+      CLEANUP_ALL_TIMERS();
+   }
+
+   string blkdir_;
+   string homedir_;
+
+   string wallet1id;
+   string wallet2id;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ExtrasTest_Mainnet, Bip32PathDiscovery)
+{
+   auto seed = CryptoPRNG::generateRandom(32);
+
+   BIP32_Node node;
+   node.initFromSeed(seed);
+   auto masterFingerprint = node.getThisFingerprint();
+
+   vector<uint32_t> derPath = { 0x8000002C, 0x80000000, 0x80000000 };
+
+   for (auto& step : derPath)
+      node.derivePrivate(step);
+   node.derivePublic(0);
+
+   map<BinaryData, vector<uint32_t>> keyAndPath;
+   for (unsigned i=0; i<10; i++)
+   {
+      auto nodeSoft = node;
+      nodeSoft.derivePublic(i);
+
+      vector<uint32_t> path = { masterFingerprint };
+      path.insert(path.end(), derPath.begin(), derPath.end());
+      path.push_back(0);
+      path.push_back(i);
+
+      keyAndPath.emplace(nodeSoft.getPublicKey(), path);
+   }
+
+   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   {
+      return SecureBinaryData();
+   };
+
+   string wltPath;
+   {
+      auto wallet = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_, seed, 
+      SecureBinaryData(), SecureBinaryData(), 
+      10);
+
+      wltPath = wallet->getDbFilename();
+      auto woWalletPath = wallet->forkWatchingOnly(wltPath, passLbd);
+      auto woWallet = AssetWallet::loadMainWalletFromFile(woWalletPath, passLbd);
+      auto woWalletSingle = dynamic_pointer_cast<AssetWallet_Single>(woWallet);
+
+      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(wallet);
+      for (auto& keyPathPair : keyAndPath)
+      {
+         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
+         vector<unsigned> pathVec;
+         pathVec.push_back(resolvedPath.getThisFingerprint());
+         pathVec.insert(pathVec.end(),
+            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
+         EXPECT_EQ(pathVec, keyPathPair.second);
+      }
+
+      auto resolverPublic = make_shared<ResolverFeed_AssetWalletSingle>(woWalletSingle);
+      for (auto& keyPathPair : keyAndPath)
+      {
+         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
+         vector<unsigned> pathVec;
+         pathVec.push_back(resolvedPath.getThisFingerprint());
+         pathVec.insert(pathVec.end(),
+            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
+         EXPECT_EQ(pathVec, keyPathPair.second);
+      }
+   }
+
+   //reopen the wallet, check again
+   {
+      auto loadedWlt = AssetWallet::loadMainWalletFromFile(wltPath, passLbd);
+      auto loadedWltSingle = dynamic_pointer_cast<AssetWallet_Single>(loadedWlt);
+      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(loadedWltSingle);
+
+      for (auto& keyPathPair : keyAndPath)
+      {
+         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
+         vector<unsigned> pathVec;
+         pathVec.push_back(resolvedPath.getThisFingerprint());
+         pathVec.insert(pathVec.end(),
+            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
+         EXPECT_EQ(pathVec, keyPathPair.second);
+      }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 // Now actually execute all the tests
 ////////////////////////////////////////////////////////////////////////////////
@@ -9262,9 +9329,6 @@ GTEST_API_ int main(int argc, char **argv)
    srand(time(0));
    std::cout << "Running main() from gtest_main.cc\n";
 
-   // Setup the log file 
-   STARTLOGGING("cppTestsLog.txt", LogLvlDebug2);
-   //LOGDISABLESTDOUT();
    btc_ecc_start();
 
    testing::InitGoogleTest(&argc, argv);

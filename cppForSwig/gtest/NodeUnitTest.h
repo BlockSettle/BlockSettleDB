@@ -93,6 +93,7 @@ private:
 
 public:
    NodeUnitTest(uint32_t magic_word, bool watcher);
+   ~NodeUnitTest(void);
 
    //locals
    void updateNodeStatus(bool connected);

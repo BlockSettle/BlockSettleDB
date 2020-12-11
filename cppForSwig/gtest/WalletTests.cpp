@@ -12,7 +12,9 @@
 
 using namespace std;
 using namespace ArmorySigner;
+using namespace ArmoryConfig;
 
+////////////////////////////////////////////////////////////////////////////////
 #define METHOD_ASSERT_EQ(a, b) \
    if (a != b) { EXPECT_EQ(a, b); return false; }
 
@@ -31,8 +33,23 @@ class AddressTests : public ::testing::Test
 protected:
    virtual void SetUp(void)
    {
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      ArmoryConfig::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir",
+      });
    }
+
+   virtual void TearDown(void)
+   {
+      ArmoryConfig::reset();
+      DBUtils::removeDirectory(homedir_);
+   }
+
+   string homedir_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,8 +118,23 @@ protected:
 protected:
    virtual void SetUp(void)
    {
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      ArmoryConfig::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir",
+      });
    }
+
+   virtual void TearDown(void)
+   {
+      ArmoryConfig::reset();
+      DBUtils::removeDirectory(homedir_);
+   }
+
+   string homedir_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,11 +277,25 @@ TEST_F(DerivationTests, ArmoryChain_Tests)
 class AddressEntryTest : public ::testing::Test
 {
 protected:
-   virtual void SetUp()
+   virtual void SetUp(void)
    {
-      LOGDISABLESTDOUT();
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      ArmoryConfig::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir",
+      });
    }
+
+   virtual void TearDown(void)
+   {
+      ArmoryConfig::reset();
+      DBUtils::removeDirectory(homedir_);
+   }
+
+   string homedir_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -268,7 +314,7 @@ TEST_F(AddressEntryTest, P2PKH)
 
    auto scrAddrUnc = BtcUtils::getHash160(pubKey);
    BinaryWriter bw;
-   bw.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+   bw.put_uint8_t(BitcoinSettings::getPubkeyHashPrefix());
    bw.put_BinaryData(scrAddrUnc);
    auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
 
@@ -281,7 +327,7 @@ TEST_F(AddressEntryTest, P2PKH)
 
    auto scrAddrCmp = BtcUtils::getHash160(pubKeyCmp);
    BinaryWriter bwCmp;
-   bwCmp.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+   bwCmp.put_uint8_t(BitcoinSettings::getPubkeyHashPrefix());
    bwCmp.put_BinaryData(scrAddrCmp);
    auto addrB58Cmp = BtcUtils::scrAddrToBase58(bwCmp.getData());
 
@@ -332,7 +378,7 @@ TEST_F(AddressEntryTest, P2SH)
       auto scriptHash = BtcUtils::getHash160(bwScript.getData());
       
       BinaryWriter bw;
-      bw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bw.put_uint8_t(BitcoinSettings::getScriptHashPrefix());
       bw.put_BinaryData(scriptHash);
       auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
 
@@ -355,7 +401,7 @@ TEST_F(AddressEntryTest, P2SH)
       auto scriptHash = BtcUtils::getHash160(bwScript.getData());
 
       BinaryWriter bw;
-      bw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bw.put_uint8_t(BitcoinSettings::getScriptHashPrefix());
       bw.put_BinaryData(scriptHash);
       auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
 
@@ -408,7 +454,7 @@ TEST_F(AddressEntryTest, P2SH)
 
       auto scriptHash = BtcUtils::getHash160(bw.getData());
       BinaryWriter bwScrAddr;
-      bwScrAddr.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bwScrAddr.put_uint8_t(BitcoinSettings::getScriptHashPrefix());
       bwScrAddr.put_BinaryData(scriptHash);
       auto addrB58 = BtcUtils::scrAddrToBase58(bwScrAddr.getData());
 
@@ -480,14 +526,17 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
-      LOGDISABLESTDOUT();
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       homedir_ = string("./fakehomedir");
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
       dbPath_ = homedir_;
       DBUtils::appendPath(dbPath_, "wallet_test.wallet");
+
+      ArmoryConfig::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir",
+      });
 
       allZeroes16_ = READHEX("00000000000000000000000000000000");
       if(allZeroes16_.getSize() != 16)
@@ -497,6 +546,7 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
+      ArmoryConfig::reset();
       DBUtils::removeDirectory(homedir_);
    }
 
@@ -2609,11 +2659,14 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
-      LOGDISABLESTDOUT();
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       homedir_ = string("./fakehomedir");
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
+
+      ArmoryConfig::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir",
+      });
 
       controlPass_ = SecureBinaryData::fromString("control");
       controlLbd_ = [this](const set<BinaryData>&)->SecureBinaryData
@@ -2625,6 +2678,7 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
+      ArmoryConfig::reset();
       DBUtils::removeDirectory(homedir_);
    }
 
@@ -5218,7 +5272,7 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
       auto pubkey = nodeCopy.getPublicKey();
       auto hash160 = BtcUtils::getHash160(pubkey);
       BinaryWriter bw;
-      bw.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+      bw.put_uint8_t(BitcoinSettings::getPubkeyHashPrefix());
       bw.put_BinaryData(hash160);
 
       EXPECT_EQ(addr1->getPrefixedHash(), bw.getData());
@@ -5233,7 +5287,7 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
       auto pubkey2 = CryptoECDSA().UncompressPoint(pubkey);
       auto hash160 = BtcUtils::getHash160(pubkey2);
       BinaryWriter bw;
-      bw.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+      bw.put_uint8_t(BitcoinSettings::getPubkeyHashPrefix());
       bw.put_BinaryData(hash160);
 
       EXPECT_EQ(addr2->getPrefixedHash(), bw.getData());
@@ -5251,7 +5305,7 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
       bw.put_uint8_t(OP_CHECKSIG);
 
       BinaryWriter p2shBw;
-      p2shBw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      p2shBw.put_uint8_t(BitcoinSettings::getScriptHashPrefix());
       p2shBw.put_BinaryData(BtcUtils::getHash160(bw.getData()));
 
       EXPECT_EQ(addr3->getPrefixedHash(), p2shBw.getData());
@@ -5900,20 +5954,25 @@ class WalletMetaDataTest : public ::testing::Test
 {
 protected:
    string homedir_;
-   BlockDataManagerConfig config_;
-
+   
    /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
-      LOGDISABLESTDOUT();
       homedir_ = string("./fakehomedir");
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
+
+      ArmoryConfig::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir",
+      });
    }
 
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
+      ArmoryConfig::reset();
+
       DBUtils::removeDirectory(homedir_);
    }
 };
@@ -6721,18 +6780,20 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
-      LOGDISABLESTDOUT();
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-
       homedir_ = string("./fakehomedir");
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
-   }
+      ArmoryConfig::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir",
+      });   }
 
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
+      ArmoryConfig::reset();
+
       DBUtils::removeDirectory(homedir_);
    }
 
