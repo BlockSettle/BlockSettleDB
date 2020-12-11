@@ -1848,9 +1848,10 @@ void BDV_Server_Object::setup()
       return UINT32_MAX;
    };
 
-   switch (BlockDataManagerConfig::getServiceType())
+   switch (ArmoryConfig::DBSettings::getServiceType())
    {
    case SERVICE_WEBSOCKET:
+   case SERVICE_UNITTEST_WITHWS:
    {
       auto&& bdid = READHEX(getID());
       if (bdid.getSize() != 8)
@@ -2436,8 +2437,8 @@ void Clients::init(BlockDataManagerThread* bdmT,
    unregThread_ = thread(unregistrationThread);
 
    unsigned innerThreadCount = 2;
-   if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER &&
-      BlockDataManagerConfig::getOperationMode() != OPERATION_UNITTEST)
+   if (ArmoryConfig::DBSettings::getDbType() == ARMORY_DB_SUPER &&
+      ArmoryConfig::DBSettings::getServiceType() != SERVICE_UNITTEST)
       innerThreadCount = thread::hardware_concurrency();
    for (unsigned i = 0; i < innerThreadCount; i++)
    {
@@ -2537,8 +2538,8 @@ void Clients::bdvMaintenanceThread()
 ///////////////////////////////////////////////////////////////////////////////
 void Clients::processShutdownCommand(shared_ptr<StaticCommand> command)
 {
-   auto& thisCookie = bdmT_->bdm()->config().cookie_;
-   if (thisCookie.size() == 0)
+   const auto& thisCookie = ArmoryConfig::NetworkSettings::cookie();
+   if (thisCookie.empty())
       return;
 
    try
@@ -2665,7 +2666,7 @@ shared_ptr<Message> Clients::registerBDV(
          throw runtime_error("invalid command for registerBDV");
       auto& magic_word = command->magicword();
       BinaryDataRef magic_word_ref; magic_word_ref.setRef(magic_word);
-      auto& thisMagicWord = NetworkConfig::getMagicBytes();
+      auto& thisMagicWord = ArmoryConfig::BitcoinSettings::getMagicBytes();
 
       if (thisMagicWord != magic_word_ref)
          throw runtime_error("magic word mismatch");
