@@ -42,7 +42,7 @@
     <ClCompile Include="..\EncryptionUtils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\NetworkConfig.cpp">
+    <ClCompile Include="..\BitcoinSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\SecureBinaryData.cpp">
@@ -54,7 +54,7 @@
     <ClCompile Include="..\TxClasses.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\BlockDataManagerConfig.cpp">
+    <ClCompile Include="..\ArmoryConfig.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\DBUtils.cpp">

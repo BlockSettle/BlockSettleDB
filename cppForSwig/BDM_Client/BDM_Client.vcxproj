@@ -202,7 +202,7 @@
     <ClCompile Include="..\bech32\ref\c++\bech32.cpp" />
     <ClCompile Include="..\bech32\ref\c++\segwit_addr.cpp" />
     <ClCompile Include="..\BinaryData.cpp" />
-    <ClCompile Include="..\BlockDataManagerConfig.cpp" />
+    <ClCompile Include="..\ArmoryConfig.cpp" />
     <ClCompile Include="..\BtcUtils.cpp" />
     <ClCompile Include="..\ClientClasses.cpp" />
     <ClCompile Include="..\CoinSelection.cpp" />
@@ -219,7 +219,7 @@
     <ClCompile Include="..\leveldb_windows_port\win32_posix\dirent_win32.cpp" />
     <ClCompile Include="..\leveldb_windows_port\win32_posix\mman.cpp" />
     <ClCompile Include="..\log.cpp" />
-    <ClCompile Include="..\NetworkConfig.cpp" />
+    <ClCompile Include="..\BitcoinSettings.cpp" />
     <ClCompile Include="..\ReentrantLock.cpp" />
     <ClCompile Include="..\Script.cpp" />
     <ClCompile Include="..\Signer.cpp" />

@@ -141,7 +141,7 @@
     <ClInclude Include="..\BDVCodec.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\NetworkConfig.h">
+    <ClInclude Include="..\BitcoinSettings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\SecureBinaryData.h">
@@ -275,7 +275,7 @@
     <ClCompile Include="..\WalletManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\BlockDataManagerConfig.cpp">
+    <ClCompile Include="..\ArmoryConfig.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\JSON_codec.cpp">
@@ -347,7 +347,7 @@
     <ClCompile Include="..\SocketService_win32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\NetworkConfig.cpp">
+    <ClCompile Include="..\BitcoinSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\StringSockets.cpp">

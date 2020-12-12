@@ -111,7 +111,7 @@
     <ClCompile Include="..\Script.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\BlockDataManagerConfig.cpp">
+    <ClCompile Include="..\ArmoryConfig.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\nodeRPC.cpp">
@@ -153,7 +153,7 @@
     <ClCompile Include="..\WebSocketMessage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\NetworkConfig.cpp">
+    <ClCompile Include="..\BitcoinSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\HttpMessage.cpp">
@@ -299,7 +299,7 @@
     <ClInclude Include="..\JSON_codec.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\BlockDataManagerConfig.h">
+    <ClInclude Include="..\ArmoryConfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\BinaryData.h">

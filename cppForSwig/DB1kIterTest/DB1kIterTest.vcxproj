@@ -136,7 +136,7 @@
     <ClCompile Include="..\Blockchain.cpp" />
     <ClCompile Include="..\BlockchainScanner.cpp" />
     <ClCompile Include="..\BlockchainScanner_Super.cpp" />
-    <ClCompile Include="..\BlockDataManagerConfig.cpp" />
+    <ClCompile Include="..\ArmoryConfig.cpp" />
     <ClCompile Include="..\BlockDataMap.cpp" />
     <ClCompile Include="..\BlockDataViewer.cpp" />
     <ClCompile Include="..\BlockObj.cpp" />

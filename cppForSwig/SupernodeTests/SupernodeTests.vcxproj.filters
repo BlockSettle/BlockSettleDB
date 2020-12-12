@@ -36,7 +36,7 @@
     <ClCompile Include="..\BlockchainScanner_Super.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\BlockDataManagerConfig.cpp">
+    <ClCompile Include="..\ArmoryConfig.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\BlockDataMap.cpp">
@@ -207,7 +207,7 @@
     <ClCompile Include="..\SocketService_win32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\NetworkConfig.cpp">
+    <ClCompile Include="..\BitcoinSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\HttpMessage.cpp">

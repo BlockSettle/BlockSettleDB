@@ -142,7 +142,7 @@
     <ClCompile Include="..\leveldb_windows_port\win32_posix\dirent_win32.cpp" />
     <ClCompile Include="..\leveldb_windows_port\win32_posix\mman.cpp" />
     <ClCompile Include="..\log.cpp" />
-    <ClCompile Include="..\NetworkConfig.cpp" />
+    <ClCompile Include="..\BitcoinSettings.cpp" />
     <ClCompile Include="..\ReentrantLock.cpp" />
     <ClCompile Include="..\ScriptRecipient.cpp" />
     <ClCompile Include="..\SecureBinaryData.cpp" />

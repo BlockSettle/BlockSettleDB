@@ -138,7 +138,7 @@
     <ClCompile Include="..\Blockchain.cpp" />
     <ClCompile Include="..\BlockchainScanner.cpp" />
     <ClCompile Include="..\BlockchainScanner_Super.cpp" />
-    <ClCompile Include="..\BlockDataManagerConfig.cpp" />
+    <ClCompile Include="..\ArmoryConfig.cpp" />
     <ClCompile Include="..\BlockDataMap.cpp" />
     <ClCompile Include="..\BlockDataViewer.cpp" />
     <ClCompile Include="..\BlockObj.cpp" />
@@ -171,7 +171,7 @@
     <ClCompile Include="..\leveldb_windows_port\win32_posix\win32_posix.cc" />
     <ClCompile Include="..\lmdb_wrapper.cpp" />
     <ClCompile Include="..\log.cpp" />
-    <ClCompile Include="..\NetworkConfig.cpp" />
+    <ClCompile Include="..\BitcoinSettings.cpp" />
     <ClCompile Include="..\nodeRPC.cpp" />
     <ClCompile Include="..\Progress.cpp" />
     <ClCompile Include="..\ReentrantLock.cpp" />
