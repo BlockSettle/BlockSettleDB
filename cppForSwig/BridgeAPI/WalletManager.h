@@ -18,7 +18,7 @@
 #include "log.h"
 #include "Wallets.h"
 #include "Signer.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "CoinSelection.h"
 #include "Script.h"
 #include "AsyncClient.h"

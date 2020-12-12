@@ -9,7 +9,7 @@
 #ifndef _CPPBRIDGE_H
 #define _CPPBRIDGE_H
 
-#include "../BlockDataManagerConfig.h"
+#include "../ArmoryConfig.h"
 #include "WalletManager.h"
 #include "btc/ecc.h"
 #include "../protobuf/ClientProto.pb.h"
@@ -17,22 +17,7 @@
 
 namespace ArmoryBridge
 {
-///////////////////////////////////////////////////////////////////////////////
-struct WritePayload_Bridge : public Socket_WritePayload
-{
-   std::unique_ptr<::google::protobuf::Message> message_;
-
-   void serialize(std::vector<uint8_t>&);
-   std::string serializeToText(void) 
-   {
-      throw std::runtime_error("not implemented"); 
-   }
-
-   size_t getSerializedSize(void) const 
-   {
-      return message_->ByteSize() + 8;
-   }
-};
+struct WritePayload_Bridge;
 
 ///////////////////////////////////////////////////////////////////////////////
 struct BridgePassphrasePrompt

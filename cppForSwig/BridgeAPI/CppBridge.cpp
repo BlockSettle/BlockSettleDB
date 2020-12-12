@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "CppBridge.h"
+#include "BridgeSocket.h"
 #include "TerminalPassphrasePrompt.h"
 #include "../ArmoryBackups.h"
 #include "ProtobufConversions.h"
@@ -174,11 +175,11 @@ void CppBridge::stopThreads()
 bool CppBridge::processData(vector<uint8_t> socketData)
 {
    size_t offset = 0;
-   while (offset + 4 < socketData.size())
+   while (offset + 5 < socketData.size())
    {
       
-      auto lenPtr = (uint32_t*)(&socketData[0] + offset);
-      offset += 4;
+      auto lenPtr = (uint32_t*)(&socketData[1] + offset);
+      offset += 5;
       if (*lenPtr > socketData.size() - offset)
          break;
 
@@ -1068,7 +1069,8 @@ void CppBridge::setupDB()
       try
       {
          bdvPtr_->connectToRemote();
-         bdvPtr_->registerWithDB(NetworkConfig::getMagicBytes());
+         bdvPtr_->registerWithDB(
+            ArmoryConfig::BitcoinSettings::getMagicBytes());
 
          //notify setup is done
          callbackPtr_->notify_SetupDone();
@@ -2388,30 +2390,6 @@ void CppBridge::getBlockTimeByHeight(uint32_t height, uint32_t msgId) const
    };
 
    bdvPtr_->getHeaderByHeight(height, callback);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////
-////  WritePayload_Bridge
-////
-////////////////////////////////////////////////////////////////////////////////
-void WritePayload_Bridge::serialize(std::vector<uint8_t>& data)
-{
-   if (message_ == nullptr)
-      return;
-
-   data.resize(message_->ByteSize() + 8);
-
-   //set packet size
-   auto sizePtr = (uint32_t*)&data[0];
-   *sizePtr = data.size() - 4;
-
-   //set id
-   auto idPtr = (uint32_t*)&data[4];
-   *idPtr = id_;
-
-   //serialize protobuf message
-   message_->SerializeToArray(&data[8], data.size() - 8);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
