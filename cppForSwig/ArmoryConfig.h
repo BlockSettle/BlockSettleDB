@@ -206,7 +206,6 @@ class Pathing
 private:
    static std::string blkFilePath_;
    static std::string dbDir_;
-   static std::string logFilePath_;
 
 private:
    static void processArgs(const std::map<std::string, std::string>&);
@@ -214,7 +213,7 @@ private:
 
 public:
 
-   static const std::string& logFilePath(void) { return logFilePath_; }
+   static std::string logFilePath(const std::string&);
    static const std::string& blkFilePath(void) { return blkFilePath_; }
    static const std::string& dbDir(void) { return dbDir_; }
 };

@@ -17,18 +17,18 @@ int main(int argc, char* argv[])
    startupBIP150CTX(4);
 
    //init static configuration variables
-   BlockDataManagerConfig bdmConfig;
-   bdmConfig.parseArgs(argc, argv);
+   ArmoryConfig::parseArgs(argc, argv);
 
    //enable logs
-   STARTLOGGING(bdmConfig.logFilePath_, LogLvlDebug);
-   LOGENABLESTDOUT();
+   STARTLOGGING(ArmoryConfig::Pathing::logFilePath("bridgeLog"), LogLvlDebug);
+   LOGDISABLESTDOUT();
 
    //setup the bridge
    auto bridge = std::make_shared<ArmoryBridge::CppBridge>(
-      bdmConfig.dataDir_,
-      "127.0.0.1", bdmConfig.listenPort_,
-      bdmConfig.oneWayAuth_, bdmConfig.offline_);
+      ArmoryConfig::getDataDir(),
+      "127.0.0.1", ArmoryConfig::NetworkSettings::listenPort(),
+      ArmoryConfig::NetworkSettings::oneWayAuth(), 
+      ArmoryConfig::NetworkSettings::offline());
 
    bridge->startThreads();
    

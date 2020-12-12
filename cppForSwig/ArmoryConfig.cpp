@@ -958,7 +958,6 @@ void NetworkSettings::reset()
 ////////////////////////////////////////////////////////////////////////////////
 string Pathing::blkFilePath_;
 string Pathing::dbDir_;
-string Pathing::logFilePath_;
 
 ////////////////////////////////////////////////////////////////////////////////
 void Pathing::processArgs(const map<string, string>& args)
@@ -1004,9 +1003,6 @@ void Pathing::processArgs(const map<string, string>& args)
    {
       DBUtils::appendPath(blkFilePath_, "blocks");
    }
-
-   logFilePath_ = ArmoryConfig::getDataDir();
-   DBUtils::appendPath(logFilePath_, "dbLog.txt");
 
    //test all paths
    auto testPath = [](const string& path, int mode)
@@ -1055,7 +1051,12 @@ void Pathing::reset()
 {
    blkFilePath_.clear();
    dbDir_.clear();
-   logFilePath_.clear();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string Pathing::logFilePath(const string& logName)
+{
+   return getDataDir() + "/" + logName + ".txt";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
