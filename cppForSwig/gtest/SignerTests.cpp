@@ -2676,16 +2676,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 2 assetWlt ////
-   vector<unsigned> derPath = {
-      0x8000546e,
-      0x80000001,
-      0x80000000
-   };
-
    auto assetWlt_1 = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       CryptoPRNG::generateRandom(32), //root as rvalue
-      derPath,
       SecureBinaryData(), //empty passphrase
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
@@ -3059,16 +3052,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 2 assetWlt ////
-   vector<unsigned> derPath = {
-      0x8000546e,
-      0x80000001,
-      0x80000000
-   };
-
    auto assetWlt_1 = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       CryptoPRNG::generateRandom(32), //root as rvalue
-      derPath,
       SecureBinaryData(), //empty passphrase
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
@@ -3454,16 +3440,9 @@ TEST_F(SignerTest, GetUnsignedTxId)
    scrAddrVec.push_back(TestChain::scrAddrE);
 
    //// create 2 assetWlt ////
-   vector<unsigned> derPath = {
-      0x8000546e,
-      0x80000001,
-      0x80000000
-   };
-
    auto assetWlt_1 = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       CryptoPRNG::generateRandom(32), //root as rvalue
-      derPath,
       SecureBinaryData(), //empty passphrase
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
@@ -5860,7 +5839,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       move(wltRoot), //root as a rvalue
-      { 0x80000065, 0x80000020 },
       passphrase,
       SecureBinaryData::fromString("control"),
       5); //set lookup computation to 5 entries
@@ -8711,7 +8689,7 @@ TEST_F(SignerTest, Bip32PathDiscovery)
    node.initFromSeed(seed);
    auto masterFingerprint = node.getThisFingerprint();
 
-   vector<uint32_t> derPath = { 0x80000001, 0x80000056, 0x88ef9a00 };
+   vector<uint32_t> derPath = { 0x8000002C, 0x80000000, 0x80000000 };
 
    for (auto& step : derPath)
       node.derivePrivate(step);
@@ -8739,7 +8717,7 @@ TEST_F(SignerTest, Bip32PathDiscovery)
    string wltPath;
    {
       auto wallet = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, derPath, 
+      homedir_, seed, 
       SecureBinaryData(), SecureBinaryData(), 
       10);
 

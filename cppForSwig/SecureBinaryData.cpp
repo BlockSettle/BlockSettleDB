@@ -12,7 +12,7 @@ using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////
 // We have to explicitly re-define some of these methods...
-SecureBinaryData & SecureBinaryData::append(SecureBinaryData & sbd2)
+SecureBinaryData & SecureBinaryData::append(const SecureBinaryData & sbd2)
 {
    if (sbd2.getSize() == 0)
       return (*this);
@@ -27,7 +27,7 @@ SecureBinaryData & SecureBinaryData::append(SecureBinaryData & sbd2)
 }
 
 /////////////////////////////////////////////////////////////////////////////
-SecureBinaryData SecureBinaryData::operator+(SecureBinaryData & sbd2) const
+SecureBinaryData SecureBinaryData::operator+(const SecureBinaryData & sbd2) const
 {
    SecureBinaryData out(getSize() + sbd2.getSize());
    memcpy(out.getPtr(), getPtr(), getSize());

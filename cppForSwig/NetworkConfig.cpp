@@ -22,6 +22,8 @@ NETWORK_MODE NetworkConfig::mode_;
 const btc_chainparams* NetworkConfig::chain_params_ = nullptr;
 string NetworkConfig::bech32Prefix_;
 
+uint32_t NetworkConfig::BIP32_CoinType_ = UINT32_MAX;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 void NetworkConfig::selectNetwork(NETWORK_MODE mode)
@@ -39,6 +41,7 @@ void NetworkConfig::selectNetwork(NETWORK_MODE mode)
       bech32Prefix_ = "bc";
 
       chain_params_ = &btc_chainparams_main;
+      BIP32_CoinType_ = 0x80000000;
       break;
    }
 
@@ -53,6 +56,7 @@ void NetworkConfig::selectNetwork(NETWORK_MODE mode)
       bech32Prefix_ = "tb";
 
       chain_params_ = &btc_chainparams_test;
+      BIP32_CoinType_ = 0x80000001;
       break;
    }
 
@@ -67,6 +71,7 @@ void NetworkConfig::selectNetwork(NETWORK_MODE mode)
       bech32Prefix_ = "tb";
 
       chain_params_ = &btc_chainparams_regtest;
+      BIP32_CoinType_ = 0x80000001;
       break;
    }
 
@@ -155,4 +160,16 @@ const BinaryData& NetworkConfig::getMagicBytes(void)
    }
 
    return magicBytes_; 
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint32_t NetworkConfig::getCoinType()
+{
+   if (BIP32_CoinType_ == UINT32_MAX)
+   {
+      LOGERR << "coin type is not set";
+      throw runtime_error("coin type is not set");
+   }
+   
+   return BIP32_CoinType_;
 }
