@@ -373,14 +373,14 @@ void WebSocketServer::webSocketService(int port)
    info.iface = iface;
    info.protocols = protocols;
    info.log_filepath = nullptr;
-   info.ws_ping_pong_interval = pp_secs;
+   //info.ws_ping_pong_interval = pp_secs;
    info.gid = gid;
    info.uid = uid;
    info.max_http_header_pool = 256;
    info.options = opts | LWS_SERVER_OPTION_VALIDATE_UTF8 | LWS_SERVER_OPTION_EXPLICIT_VHOSTS | LWS_SERVER_OPTION_DISABLE_IPV6;
    info.timeout_secs = 0;
-   info.ip_limit_ah = 24; /* for testing */
-   info.ip_limit_wsi = 105; /* for testing */
+   //info.ip_limit_ah = 24; /* for testing */
+   //info.ip_limit_wsi = 105; /* for testing */
    
    contextPtr_ = lws_create_context(&info);
    if (contextPtr_ == nullptr) 
