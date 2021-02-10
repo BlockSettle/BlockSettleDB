@@ -17,8 +17,13 @@ import sys
 import time
 from zipfile import ZipFile, ZIP_DEFLATED
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from PySide2.QtCore import QObject, QSize, QByteArray
+from PySide2.QtGui import QColor, QIcon, QPixmap
+from PySide2.QtWidgets import QPushButton, QRadioButton, QLineEdit, \
+   QGraphicsItem, QGraphicsView, QGraphicsTextItem, \
+   QSplashScreen, QProgressBar, QTextEdit, QCheckBox, \
+   QSizePolicy, QSpacerItem, QDialogButtonBox, QGridLayout, \
+   QTreeView, QScrollArea, QTextBrowser
 
 from armoryengine.ALL import *
 from armorycolors import Colors, htmlColor
@@ -320,7 +325,7 @@ class DlgUnlockWallet(ArmoryDialog):
          self.edtPasswd.setText('')
          self.accept()
          return
-      
+
       TheBridge.returnPassphrase(self.promptId, passphraseStr)
       passphraseStr = ''
 
@@ -992,7 +997,7 @@ class DlgNewWallet(ArmoryDialog):
       self.chkUseCrypto.setChecked(True)
       usecryptoTooltip = self.main.createToolTipWidget(self.tr(
                   'Encryption prevents anyone who accesses your computer '
-                  'or wallet file from being able to spend your money, as ' 
+                  'or wallet file from being able to spend your money, as '
                   'long as they do not have the passphrase. '
                   'You can choose to encrypt your wallet at a later time '
                   'through the wallet properties dialog by double clicking '
@@ -1004,7 +1009,7 @@ class DlgNewWallet(ArmoryDialog):
       paperBackupTooltip = self.main.createToolTipWidget(self.tr(
                   'A paper-backup allows you to recover your wallet/funds even '
                   'if you lose your original wallet file, any time in the future. '
-                  'Because Armory uses "deterministic wallets," ' 
+                  'Because Armory uses "deterministic wallets," '
                   'a single backup when the wallet is first made is sufficient '
                   'for all future transactions (except ones to imported '
                   'addresses).\n\n'
@@ -1379,19 +1384,18 @@ class DlgWalletDetails(ArmoryDialog):
       viewWidth, viewHeight = w, 10 * h
 
 
-      # Address view    
+      # Address view
       self.wltAddrTreeModel = AddressTreeModel(self, wlt)
       self.wltAddrView = QTreeView()
       self.wltAddrView.setModel(self.wltAddrTreeModel)
       self.wltAddrView.setMinimumWidth(550)
       self.wltAddrView.setMinimumHeight(150)
-      self.connect(self.wltAddrView, SIGNAL('doubleClicked(QModelIndex)'), \
-                   self.dblClickAddressView)
-      
+      self.wltAddrView.doubleClicked.connect(self.dblClickAddressView)
+
       # Now add all the options buttons, dependent on the type of wallet.
 
       lbtnChangeLabels = QLabelButton(self.tr('Change Wallet Labels'));
-      self.connect(lbtnChangeLabels, SIGNAL(CLICKED), self.changeLabels)
+      lbtnChangeLabels.linkActivated.connect(self.changeLabels)
 
       if not self.wlt.watchingOnly:
          s = ''
@@ -1400,32 +1404,24 @@ class DlgWalletDetails(ArmoryDialog):
          else:
             s = self.tr('Encrypt Wallet')
          lbtnChangeCrypto = QLabelButton(s)
-         self.connect(lbtnChangeCrypto, SIGNAL(CLICKED), self.changeEncryption)
+         lbtnChangeCrypto.linkActivated.connect(self.changeEncryption)
 
       exportStr = 'Data' if self.wlt.watchingOnly else 'Copy'
       lbtnSendBtc = QLabelButton(self.tr('Send Bitcoins'))
       lbtnGenAddr = QLabelButton(self.tr('Receive Bitcoins'))
       lbtnImportA = QLabelButton(self.tr('Import/Sweep Private Keys'))
       lbtnDeleteA = QLabelButton(self.tr('Remove Imported Address'))
-      # lbtnSweepA  = QLabelButton('Sweep Wallet/Address')
       lbtnExpWOWlt = QLabelButton(self.tr('Export Watching-Only %s' % exportStr))
       lbtnBackups = QLabelButton(self.tr('<b>Backup This Wallet</b>'))
       lbtnRemove = QLabelButton(self.tr('Delete/Remove Wallet'))
-      #lbtnRecover = QLabelButton('Recover Password Wallet')
 
-      # LOGERROR('remove me!')
-      # fnfrag = lambda: DlgFragBackup(self, self.main, self.wlt).exec_()
-      # LOGERROR('remove me!')
-
-      self.connect(lbtnSendBtc, SIGNAL(CLICKED), self.execSendBtc)
-      self.connect(lbtnGenAddr, SIGNAL(CLICKED), self.getNewAddress)
-      self.connect(lbtnBackups, SIGNAL(CLICKED), self.execBackupDlg)
-      # self.connect(lbtnBackups, SIGNAL(CLICKED), fnfrag)
-      self.connect(lbtnRemove, SIGNAL(CLICKED), self.execRemoveDlg)
-      self.connect(lbtnImportA, SIGNAL(CLICKED), self.execImportAddress)
-      self.connect(lbtnDeleteA, SIGNAL(CLICKED), self.execDeleteAddress)
-      self.connect(lbtnExpWOWlt, SIGNAL(CLICKED), self.execExpWOCopy)
-      #self.connect(lbtnRecover, SIGNAL(CLICKED), self.recoverPwd)
+      lbtnSendBtc.linkActivated.connect(self.execSendBtc)
+      lbtnGenAddr.linkActivated.connect(self.getNewAddress)
+      lbtnBackups.linkActivated.connect(self.execBackupDlg)
+      lbtnRemove.linkActivated.connect(self.execRemoveDlg)
+      lbtnImportA.linkActivated.connect(self.execImportAddress)
+      lbtnDeleteA.linkActivated.connect(self.execDeleteAddress)
+      lbtnExpWOWlt.linkActivated.connect(self.execExpWOCopy)
 
       lbtnSendBtc.setToolTip(self.tr('Send bitcoins to other users, or transfer between wallets'))
       if self.wlt.watchingOnly:
@@ -1557,7 +1553,7 @@ class DlgWalletDetails(ArmoryDialog):
       lblWltAddr = QRichLabel(self.tr('<b>Addresses in Wallet:</b>'), doWrap=False)
 
       btnGoBack = QPushButton(self.tr('<<< Go Back'))
-      self.connect(btnGoBack, SIGNAL(CLICKED), self.accept)
+      btnGoBack.clicked.connect(self.accept)
       bottomFrm = makeHorizFrame([btnGoBack, STRETCH, frmTotals])
 
       layout = QGridLayout()
@@ -1581,9 +1577,14 @@ class DlgWalletDetails(ArmoryDialog):
 
       hexgeom = self.main.settings.get('WltPropGeometry')
       tblgeom = self.main.settings.get('WltPropAddrCols')
+
       if len(hexgeom) > 0:
-         geom = QByteArray.fromHex(hexgeom)
+         if type(hexgeom) == bytes:
+            geom = hexgeom
+         else:
+            geom = QByteArray(bytes.fromhex(hexgeom))
          self.restoreGeometry(geom)
+
       if len(tblgeom) > 0:
          restoreTableView(self.wltAddrView, tblgeom)
 
@@ -1661,7 +1662,8 @@ class DlgWalletDetails(ArmoryDialog):
 
    #############################################################################
    def saveGeometrySettings(self):
-      self.main.writeSetting('WltPropGeometry', self.saveGeometry().toHex())
+      geom = self.saveGeometry().data().hex()
+      self.main.writeSetting('WltPropGeometry', geom)
       self.main.writeSetting('WltPropAddrCols', saveTableView(self.wltAddrView))
 
    #############################################################################
@@ -1751,22 +1753,22 @@ class DlgWalletDetails(ArmoryDialog):
    #############################################################################
    def dblClickAddressView(self, index):
       from ui.TreeViewGUI import COL_TREE, COL_COMMENT
-      
+
       nodeItem = self.wltAddrTreeModel.getNodeItem(index)
       try:
          if not nodeItem.treeNode.canDoubleClick():
             return
       except:
          return
-            
+
       cppAddrObj = nodeItem.treeNode.getAddrObj()
-      
+
       if index.column() == COL_COMMENT:
          # Update the address's comment. We apparently need to reset the model
          # to get an immediate comment update on OS X, unlike Linux or Windows.
          currComment = cppAddrObj.getComment()
-         
-         
+
+
          if not currComment:
             dialog = DlgSetComment(self, self.main, currComment, self.tr('Add Address Comment'))
          else:
@@ -1776,7 +1778,7 @@ class DlgWalletDetails(ArmoryDialog):
             addr160 = cppAddrObj.getAddrHash()
             self.wlt.setComment(addr160[1:], newComment)
             cppAddrObj.setComment(newComment)
-            
+
             if OS_MACOSX:
                self.wltAddrView.reset()
 
@@ -1823,7 +1825,7 @@ class DlgWalletDetails(ArmoryDialog):
 
 
          if self.disableEncryption:
-            unlockProgress = DlgProgress(self, self.main, HBar=1, 
+            unlockProgress = DlgProgress(self, self.main, HBar=1,
                                          Title=self.tr("Changing Encryption"))
             unlockProgress.exec_(self.wlt.changeWalletEncryption)
             # self.accept()
@@ -1834,7 +1836,7 @@ class DlgWalletDetails(ArmoryDialog):
             if not self.wlt.useEncryption:
                kdfParams = self.wlt.computeSystemSpecificKdfParams(0.2)
                self.wlt.changeKdfParams(*kdfParams)
-            unlockProgress = DlgProgress(self, self.main, HBar=2, 
+            unlockProgress = DlgProgress(self, self.main, HBar=2,
                                          Title=self.tr("Changing Encryption"))
             unlockProgress.exec_(self.wlt.changeWalletEncryption,
                                  securePassphrase=newPassphrase)
@@ -1946,7 +1948,7 @@ class DlgWalletDetails(ArmoryDialog):
       if atype==P2SHBYTE:
          LOGWARN('Deleting P2SH address: %s' % addrStr)
 
-      
+
       if self.wlt.cppWallet.getAssetIndexForAddr(addr160) < 0:
          dlg = DlgRemoveAddress(self.wlt, addr160, self, self.main)
          dlg.exec_()
@@ -2118,7 +2120,7 @@ class DlgWalletDetails(ArmoryDialog):
       self.labelValues[WLTFIELDS.NumAddr] = QLabelButton('%d' % topUsed)
       self.labelValues[WLTFIELDS.NumAddr].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
       opendlgkeypool = lambda: DlgKeypoolSettings(self.wlt, self, self.main).exec_()
-      self.connect(self.labelValues[WLTFIELDS.NumAddr], SIGNAL(CLICKED), opendlgkeypool)
+      self.labelValues[WLTFIELDS.NumAddr].linkActivated.connect(opendlgkeypool)
 
       # Set the owner appropriately
       if self.wlt.watchingOnly:
@@ -2269,6 +2271,7 @@ class DlgWalletDetails(ArmoryDialog):
          self.main.changeWltFilter()
 
 
+   #############################################################################
    class dlgChangeOwner(ArmoryDialog):
       def __init__(self, wltID, parent=None, main=None):
          super(parent.dlgChangeOwner, self).__init__(parent, main)
@@ -2492,7 +2495,7 @@ class DlgKeypoolSettings(ArmoryDialog):
       def doit():
          currPool = self.wlt.lastComputedChainIndex - \
                     self.wlt.highestUsedChainIndex
-         fillAddressPoolProgress = DlgProgress(self, self.main, HBar=1, 
+         fillAddressPoolProgress = DlgProgress(self, self.main, HBar=1,
                                                Title=self.tr('Computing New Addresses'))
          fillAddressPoolProgress.exec_( \
                self.wlt.fillAddressPool, currPool + naddr,
@@ -2552,7 +2555,7 @@ class DlgNewAddressDisp(ArmoryDialog):
       self.lblIsCopied = QLabel(self.tr(' or '))
       self.lblIsCopied.setTextFormat(Qt.RichText)
       self.connect(btnClipboard, SIGNAL(CLICKED), self.setClipboard)
-      
+
       def openPaymentRequest():
          msgTxt = str(self.edtComm.toPlainText())
          msgTxt = msgTxt.split('\n')[0][:128]
@@ -2600,7 +2603,7 @@ class DlgNewAddressDisp(ArmoryDialog):
 
       frmNewAddrLayout.addWidget(frmCopy, 2, 0, 1, 2)
       frmNewAddr.setLayout(frmNewAddrLayout)
-            
+
       lblCommDescr = QLabel(self.tr(
             '(Optional) Add a label to this address, which will '
             'be shown with any relevant transactions in the '
@@ -2663,12 +2666,12 @@ class DlgNewAddressDisp(ArmoryDialog):
             self.addrStr = self.wlt.getNestedSWAddrForIndex(self.addr.chainIndex)
          elif typeStr == 'P2SH-P2PK':
             self.addrStr = self.wlt.getNestedP2PKAddrForIndex(self.addr.chainIndex)
-            
-         self.edtNewAddr.setText(self.addrStr) 
-         self.smLabel.setText('<font size=2>%s</font>' % self.addrStr)  
+
+         self.edtNewAddr.setText(self.addrStr)
+         self.smLabel.setText('<font size=2>%s</font>' % self.addrStr)
          self.qrcode.setAsciiData(self.addrStr)
-         self.qrcode.repaint()       
-  
+         self.qrcode.repaint()
+
       #addr type selection frame
       from ui.AddressTypeSelectDialog import AddressLabelFrame
       self.addrTypeFrame = AddressLabelFrame(main, setAddressType)
@@ -2701,7 +2704,7 @@ class DlgNewAddressDisp(ArmoryDialog):
       comm = str(self.edtComm.toPlainText())
       if len(comm) > 0:
          self.wlt.setComment(self.addr.getAddr160(), comm)
-      
+
    def accept(self):
       self.acceptNewAddr()
       super(DlgNewAddressDisp, self).accept()
@@ -3268,7 +3271,7 @@ class DlgImportAddress(ArmoryDialog):
 
       self.accept()
       self.main.loadCppWallets()
-      
+
 
 #############################################################################
 class DlgVerifySweep(ArmoryDialog):
@@ -3421,7 +3424,7 @@ class DlgAddressInfo(ArmoryDialog):
 
       self.wlt = wlt
       self.addrObj = addrObj
-      addr160 = addrObj.getAddr160()
+      addr160 = addrObj.getPrefixedAddr()
 
       self.ledgerTable = []
 
@@ -3557,17 +3560,18 @@ class DlgAddressInfo(ArmoryDialog):
 
       # ## Set up the address ledger
       self.ledgerModel = LedgerDispModelSimple(self.ledgerTable, self, self.main)
-      self.ledgerModel.setLedgerDelegate(\
-            TheBridge.getLedgerDelegateForScrAddr(self.wlt.uniqueIDB58, addr160))
+      delegateId = TheBridge.getLedgerDelegateIdForScrAddr(\
+         self.wlt.uniqueIDB58, addr160)
+      self.ledgerModel.setLedgerDelegateId(delegateId)
 
       def ledgerToTableScrAddr(ledger):
          return self.main.convertLedgerToTable(ledger, \
                                                wltIDIn=self.wlt.uniqueIDB58)
-
       self.ledgerModel.setConvertLedgerMethod(ledgerToTableScrAddr)
 
       self.frmLedgUpDown = QFrame()
-      self.ledgerView = ArmoryTableView(self, self.main, self.frmLedgUpDown)
+      #self.ledgerView = ArmoryTableView(self, self.main, self.frmLedgUpDown)
+      self.ledgerView = QTableView(self.main)
       self.ledgerView.setModel(self.ledgerModel)
       self.ledgerView.setItemDelegate(LedgerDispDelegate(self))
 
@@ -3610,9 +3614,9 @@ class DlgAddressInfo(ArmoryDialog):
       # lbtnSweepA   = QLabelButton('Sweep Address')
       lbtnDelete = QLabelButton(self.tr('Delete Address'))
 
-      self.connect(lbtnCopyAddr, SIGNAL(CLICKED), self.copyAddr)
-      self.connect(lbtnViewKeys, SIGNAL(CLICKED), self.viewKeys)
-      self.connect(lbtnDelete, SIGNAL(CLICKED), self.deleteAddr)
+      lbtnCopyAddr.linkActivated.connect(self.copyAddr)
+      lbtnViewKeys.linkActivated.connect(self.viewKeys)
+      lbtnDelete.linkActivated.connect(self.deleteAddr)
 
       optFrame = QFrame()
       optFrame.setFrameStyle(STYLE_SUNKEN)
@@ -3649,7 +3653,7 @@ class DlgAddressInfo(ArmoryDialog):
       dlgLayout.addWidget(rightFrm, 0, 1, 2, 1)
 
       btnGoBack = QPushButton(self.tr('<<< Go Back'))
-      self.connect(btnGoBack, SIGNAL(CLICKED), self.reject)
+      btnGoBack.clicked.connect(self.reject)
 
       self.setLayout(dlgLayout)
       self.setWindowTitle(self.tr('Address Information'))
@@ -3689,9 +3693,9 @@ class DlgShowKeys(ArmoryDialog):
 
       self.addr = addr
       self.wlt = wlt
-      
+
       self.scrAddr = \
-         self.wlt.cppWallet.getAddrObjByIndex(self.addr.chainIndex).getScrAddr() 
+         self.wlt.cppWallet.getAddrObjByIndex(self.addr.chainIndex).getScrAddr()
 
 
       lblWarn = QRichLabel('')
@@ -3911,9 +3915,9 @@ class DlgIntroMessage(ArmoryDialog):
          self.btnCreate = QPushButton(self.tr("Create Your First Wallet!"))
          self.btnImport = QPushButton(self.tr("Import Existing Wallet"))
          self.btnCancel = QPushButton(self.tr("Skip"))
-         self.connect(self.btnCreate, SIGNAL(CLICKED), self.createClicked)
-         self.connect(self.btnImport, SIGNAL(CLICKED), self.importClicked)
-         self.connect(self.btnCancel, SIGNAL(CLICKED), self.reject)
+         self.btnCreate.clicked.connect(self.createClicked)
+         self.btnImport.clicked.connect(self.importClicked)
+         self.btnCancel.clicked.connect(self.reject)
          buttonBox.addButton(self.btnCreate, QDialogButtonBox.AcceptRole)
          buttonBox.addButton(self.btnImport, QDialogButtonBox.AcceptRole)
          buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
@@ -4168,8 +4172,8 @@ class DlgSetComment(ArmoryDialog):
 
       buttonbox = QDialogButtonBox(QDialogButtonBox.Ok | \
                                    QDialogButtonBox.Cancel)
-      self.connect(buttonbox, SIGNAL('accepted()'), self.accept)
-      self.connect(buttonbox, SIGNAL('rejected()'), self.reject)
+      buttonbox.accepted.connect(self.accept)
+      buttonbox.rejected.connect(self.reject)
 
       layout = QGridLayout()
       lbl = QLabel('%s' % clbl)
@@ -4477,12 +4481,12 @@ class DlgRemoveAddress(ArmoryDialog):
 
       addrIndex = wlt.cppWallet.getAssetIndexForAddr(addr160)
       self.cppAddrObj = wlt.cppWallet.getAddrObjByIndex(addrIndex)
-      
+
       if addrIndex >= 0:
          raise WalletAddressError('Cannot delete regular chained addresses! '
                                    'Can only delete imported addresses.')
 
-         
+
       importIndex = wlt.cppWallet.convertToImportIndex(addrIndex)
 
       self.wlt = wlt
@@ -4835,7 +4839,7 @@ class DlgConfirmSend(ArmoryDialog):
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
-            
+
       isSigned = pytxOrUstx.verifySigsAllInputs()
       frmBtnSelect = buttonBox
 
@@ -4856,10 +4860,10 @@ class DlgConfirmSend(ArmoryDialog):
       self.setLayout(layout)
       self.setMinimumWidth(350)
       self.setWindowTitle(self.tr('Confirm Transaction'))
-   
+
 ################################################################################
 class DlgSendBitcoins(ArmoryDialog):
-   def __init__(self, wlt, parent=None, main=None, 
+   def __init__(self, wlt, parent=None, main=None,
                               wltIDList=None, onlyOfflineWallets=False,
                               spendFromLockboxID=None):
       super(DlgSendBitcoins, self).__init__(parent, main)
@@ -4898,7 +4902,8 @@ class DlgSendBitcoins(ArmoryDialog):
 
    #############################################################################
    def saveGeometrySettings(self):
-      self.main.writeSetting('SendBtcGeometry', self.saveGeometry().toHex())
+      geom = self.saveGeometry().data().hex()
+      self.main.writeSetting('SendBtcGeometry', geom)
 
    #############################################################################
    def closeEvent(self, event):
@@ -5314,7 +5319,7 @@ class DlgShowKeyList(ArmoryDialog):
          except:
             addrIndex = self.wlt.cppWallet.getAssetIndexForAddr(addr.getAddr160())
             cppAddrObj = self.wlt.cppWallet.getAddrObjByIndex(addrIndex)
-            
+
          # Address pool
          if self.chkWithAddrPool.isChecked():
             if addr.chainIndex > topChain:
@@ -5589,13 +5594,13 @@ class DlgDispTxInfo(ArmoryDialog):
       txdir = None
       changeIndex = None
       svPairDisp = None
-      
+
       if haveBDM and haveWallet and self.data[FIELDS.SumOut] and self.data[FIELDS.SumIn]:
          fee = self.data[FIELDS.SumOut] - self.data[FIELDS.SumIn]
          try:
             le = wlt.getLedgerEntryForTxHash(txHash)
             txAmt = le.getValue()
-   
+
             if le.isSentToSelf():
                txdir = self.tr('Sent-to-Self')
                svPairDisp = []
@@ -5623,7 +5628,7 @@ class DlgDispTxInfo(ArmoryDialog):
                   indicesMakeGray.extend(indicesSelf)
          except:
             pass
-      
+
 
       # If this is a USTX, the above calculation probably didn't do its job
       # It is possible, but it's also possible that this Tx has nothing to
@@ -5824,12 +5829,12 @@ class DlgDispTxInfo(ArmoryDialog):
             self.tr('Transaction fees go to users supplying the Bitcoin network with '
             'computing power for processing transactions and maintaining security.')))
          lbls[-1].append(QLabel('Tx Fee Paid:'))
-         
+
          fee_str = coin2str(fee, maxZeros=0).strip() + '  BTC'
          if not self.data[FIELDS.TxWeight] == None:
             fee_byte = float(fee) / float(self.data[FIELDS.TxWeight])
-            fee_str += ' (%d sat/B)' % fee_byte 
-         
+            fee_str += ' (%d sat/B)' % fee_byte
+
          lbls[-1].append(QLabel(fee_str))
 
 
@@ -5969,13 +5974,10 @@ class DlgDispTxInfo(ArmoryDialog):
 
       self.lblTxioInfo = QRichLabel('')
       self.lblTxioInfo.setMinimumWidth(tightSizeNChar(self.lblTxioInfo, 30)[0])
-      self.connect(self.txInView, SIGNAL('clicked(QModelIndex)'), \
-                   lambda: self.dispTxioInfo('In'))
-      self.connect(self.txOutView, SIGNAL('clicked(QModelIndex)'), \
-                   lambda: self.dispTxioInfo('Out'))
-
-      self.connect(self.txInView, SIGNAL('doubleClicked(QModelIndex)'), self.showTxInDialog)
-      self.connect(self.txOutView, SIGNAL('doubleClicked(QModelIndex)'), self.showTxOutDialog)
+      #self.txInView.clicked.connect(lambda: self.dispTxioInfo('In'))
+      #self.txOutView.clicked.connect(lambda: self.dispTxioInfo('Out'))
+      self.txInView.doubleClicked.connect(self.showTxInDialog)
+      self.txOutView.doubleClicked.connect(self.showTxOutDialog)
 
       # scrFrm = QFrame()
       # scrFrm.setFrameStyle(STYLE_SUNKEN)
@@ -6032,9 +6034,9 @@ class DlgDispTxInfo(ArmoryDialog):
       self.lblCopied = QRichLabel('')
       self.btnOk = QPushButton(self.tr('OK'))
       self.btnIOList.setCheckable(True)
-      self.connect(self.btnIOList, SIGNAL(CLICKED), self.extraInfoClicked)
-      self.connect(self.btnOk, SIGNAL(CLICKED), self.accept)
-      self.connect(self.btnCopy, SIGNAL(CLICKED), self.copyRawTx)
+      self.btnIOList.clicked.connect(self.extraInfoClicked)
+      self.btnOk.clicked.connect(self.accept)
+      self.btnCopy.clicked.connect(self.copyRawTx)
 
       btnStrip = makeHorizFrame([self.btnIOList,
                                  self.btnCopy,
@@ -6327,10 +6329,10 @@ class DlgDisplayTxIn(ArmoryDialog):
       u_string = u""
       for dline in dispLines:
          u_string = u_string + "<br>" + dline.replace(' ', '&nbsp;')
-         
+
       edtBrowse.setHtml(u_string)
       btnDone = QPushButton(self.tr("Ok"))
-      self.connect(btnDone, SIGNAL('clicked()'), self.accept)
+      btnDone.clicked.connect(self.accept)
 
       layout = QVBoxLayout()
       layout.addWidget(lblDescr)
@@ -6402,10 +6404,10 @@ class DlgDisplayTxOut(ArmoryDialog):
          else:
             line_to_str = dline
          u_string = u_string + u"<br>" + line_to_str.replace(u' ', u'&nbsp;')
-         
+
       edtBrowse.setHtml(u_string)
       btnDone = QPushButton(self.tr("Ok"))
-      self.connect(btnDone, SIGNAL('clicked()'), self.accept)
+      btnDone.clicked.connect(self.accept)
 
       layout = QVBoxLayout()
       layout.addWidget(lblDescr)
@@ -7927,14 +7929,13 @@ class DlgAddressBook(ArmoryDialog):
       self.wltDispView.setMaximumHeight(rowHeight * 7.7)
       self.wltDispView.hideColumn(WLTVIEWCOLS.Visible)
       initialColResize(self.wltDispView, [0.15, 0.30, 0.2, 0.20])
-      self.connect(self.wltDispView.selectionModel(), \
-                   SIGNAL('currentChanged(const QModelIndex &, const QModelIndex &)'), \
-                   self.wltTableClicked)
-      
+      self.wltDispView.selectionModel().currentChanged.connect(\
+         self.wltTableClicked)
+
       def toggleAddrType(addrtype):
          self.addrType = addrtype
          self.wltTableClicked(self.wltDispView.selectionModel().currentIndex())
-         
+
       from ui.AddressTypeSelectDialog import AddressLabelFrame
       self.addrTypeSelectFrame = AddressLabelFrame(self, toggleAddrType)
       self.addrType = self.main.getSettingOrSetDefault(\
@@ -7994,7 +7995,7 @@ class DlgAddressBook(ArmoryDialog):
              self.clickedLockbox)
       else:
          self.lboxView = None
-      self.connect(self.tabWidget, SIGNAL('currentChanged(int)'), self.tabChanged)
+      self.tabWidget.currentChanged.connect(self.tabChanged)
       self.tabWidget.setCurrentIndex(0)
 
 
@@ -8036,10 +8037,10 @@ class DlgAddressBook(ArmoryDialog):
          self.btnSelectWlt.setVisible(False)
          ttipSendWlt.setVisible(False)
 
-      self.connect(self.btnSelectWlt, SIGNAL(CLICKED), self.acceptWltSelection)
-      self.connect(self.btnSelectAddr, SIGNAL(CLICKED), self.acceptAddrSelection)
-      self.connect(self.useBareMultiSigCheckBox, SIGNAL(CLICKED), self.useP2SHClicked)
-      self.connect(btnCancel, SIGNAL(CLICKED), self.reject)
+      self.btnSelectWlt.clicked.connect(self.acceptWltSelection)
+      self.btnSelectAddr.clicked.connect(self.acceptAddrSelection)
+      self.useBareMultiSigCheckBox.clicked.connect(self.useP2SHClicked)
+      btnCancel.clicked.connect(self.reject)
 
 
       dlgLayout = QGridLayout()
@@ -8196,16 +8197,16 @@ class DlgAddressBook(ArmoryDialog):
    #############################################################################
    def getAddrStr(self, wlt, addrObj):
       addrStr = ""
-               
+
       if self.addrType == 'P2PKH':
          addrStr = cppwlt.getP2PKHAddrForIndex(addrObj.chainIndex)
       elif self.addrType == 'P2SH-P2PK':
          addrStr = cppwlt.getNestedP2PKAddrForIndex(addrObj.chainIndex)
       elif self.addrType == 'P2SH-P2WPKH':
          addrStr = cppwlt.getNestedSWAddrForIndex(addrObj.chainIndex)
-            
-      return addrStr      
-      
+
+      return addrStr
+
    #############################################################################
    def wltTableClicked(self, currIndex, prevIndex=None):
       if prevIndex == currIndex:
@@ -8481,7 +8482,7 @@ def createAddrBookButton(parent, targWidget, defaultWltID=None, actionStr="Selec
 
    btn.setMaximumWidth(24)
    btn.setMaximumHeight(24)
-   parent.connect(btn, SIGNAL(CLICKED), execAddrBook)
+   btn.clicked.connect(execAddrBook)
    btn.setToolTip(parent.tr('Select from Address Book'))
    return btn
 
@@ -8826,7 +8827,7 @@ class DlgSettings(ArmoryDialog):
       frmLayout.addWidget(frmBtnDefaultURI, i, 0, 1, 3)
       i += 1
       frmLayout.addWidget(self.chkAskURIAtStartup, i, 0, 1, 3)
-      
+
       i += 1
       frmLayout.addWidget(HLINE(), i, 0, 1, 3)
 
@@ -8891,17 +8892,17 @@ class DlgSettings(ArmoryDialog):
 
       frmOptions = QFrame()
       frmOptions.setLayout(frmLayout)
-      
+
       self.settingsTab = QTabWidget()
       self.settingsTab.addTab(frmOptions, self.tr("General"))
-      
+
       #FeeChange tab
-      self.setupExtraTabs()      
+      self.setupExtraTabs()
       frmFeeChange = makeVertFrame([\
          self.frmFee, self.frmChange, self.frmAddrType, 'Stretch'])
-      
+
       self.settingsTab.addTab(frmFeeChange, self.tr("Fee and Address Types"))
-      
+
       self.scrollOptions = QScrollArea()
       self.scrollOptions.setWidget(self.settingsTab)
 
@@ -8920,23 +8921,23 @@ class DlgSettings(ArmoryDialog):
    def setupExtraTabs(self):
       ##########
       #fee
-      
+
       feeByte = self.main.getSettingOrSetDefault('Default_FeeByte', MIN_FEE_BYTE)
       txFee = self.main.getSettingOrSetDefault('Default_Fee', MIN_TX_FEE)
       adjustFee = self.main.getSettingOrSetDefault('AdjustFee', True)
       feeOpt = self.main.getSettingOrSetDefault('FeeOption', DEFAULT_FEE_TYPE)
       blocksToConfirm = self.main.getSettingOrSetDefault(\
          "Default_FeeByte_BlocksToConfirm", NBLOCKS_TO_CONFIRM)
-      
+
       def feeRadio(strArg):
          self.radioAutoFee.setChecked(False)
-         
+
          self.radioFeeByte.setChecked(False)
          self.leFeeByte.setEnabled(False)
-         
+
          self.radioFlatFee.setChecked(False)
          self.leFlatFee.setEnabled(False)
-         
+
          if strArg == 'Auto':
             self.radioAutoFee.setChecked(True)
          elif strArg == 'FeeByte':
@@ -8945,16 +8946,16 @@ class DlgSettings(ArmoryDialog):
          elif strArg == 'FlatFee':
             self.radioFlatFee.setChecked(True)
             self.leFlatFee.setEnabled(True)
-            
+
          self.feeOpt = strArg
-            
+
       def getCallbck(strArg):
          def callbck():
             return feeRadio(strArg)
          return callbck
-      
+
       labelFee = QRichLabel(self.tr("<b>Fee<br></b>"))
-      
+
       self.radioAutoFee = QRadioButton(self.tr("Auto fee/byte"))
       self.connect(self.radioAutoFee, SIGNAL('clicked()'), getCallbck('Auto'))
       self.sliderAutoFee = QSlider(Qt.Horizontal, self)
@@ -8962,31 +8963,31 @@ class DlgSettings(ArmoryDialog):
       self.sliderAutoFee.setMaximum(6)
       self.sliderAutoFee.setValue(blocksToConfirm)
       self.lblSlider = QLabel()
-      
+
       def getLblSliderText():
          blocksToConfirm = str(self.sliderAutoFee.value())
          return self.tr("Blocks to confirm: %s" % blocksToConfirm)
-      
+
       def setLblSliderText():
          self.lblSlider.setText(getLblSliderText())
-      
+
       setLblSliderText()
       self.sliderAutoFee.valueChanged.connect(setLblSliderText)
-      
+
       toolTipAutoFee = self.main.createToolTipWidget(self.tr(
       'Fetch fee/byte from local Bitcoin node. '
       'Defaults to manual fee/byte on failure.'))
-      
+
       self.radioFeeByte = QRadioButton(self.tr("Manual fee/byte"))
       self.connect(self.radioFeeByte, SIGNAL('clicked()'), getCallbck('FeeByte'))
       self.leFeeByte = QLineEdit(str(feeByte))
       toolTipFeeByte = self.main.createToolTipWidget(self.tr('Values in satoshis/byte'))
-      
+
       self.radioFlatFee = QRadioButton(self.tr("Flat fee"))
       self.connect(self.radioFlatFee, SIGNAL('clicked()'), getCallbck('FlatFee'))
       self.leFlatFee = QLineEdit(coin2str(txFee, maxZeros=0))
       toolTipFlatFee = self.main.createToolTipWidget(self.tr('Values in BTC'))
-      
+
       self.checkAdjust = QCheckBox(self.tr("Auto-adjust fee/byte for better privacy"))
       self.checkAdjust.setChecked(adjustFee)
       feeToolTip = self.main.createToolTipWidget(self.tr(
@@ -8999,46 +9000,46 @@ class DlgSettings(ArmoryDialog):
       '<br><br>'
       'The auto-adjust fee feature only applies to fee/byte options '
       'and does not inflate your fee by more that 10% of its original value.'))
-      
+
       frmFeeLayout = QGridLayout()
       frmFeeLayout.addWidget(labelFee, 0, 0, 1, 1)
-      
+
       frmAutoFee = makeHorizFrame([self.radioAutoFee, self.lblSlider, toolTipAutoFee])
       frmFeeLayout.addWidget(frmAutoFee, 1, 0, 1, 1)
       frmFeeLayout.addWidget(self.sliderAutoFee, 2, 0, 1, 2)
-      
+
       frmFeeByte = makeHorizFrame([self.radioFeeByte, self.leFeeByte, \
                                    toolTipFeeByte, STRETCH, STRETCH])
       frmFeeLayout.addWidget(frmFeeByte, 3, 0, 1, 1)
-      
+
       frmFlatFee = makeHorizFrame([self.radioFlatFee, self.leFlatFee, \
                                    toolTipFlatFee, STRETCH, STRETCH])
-      frmFeeLayout.addWidget(frmFlatFee, 4, 0, 1, 1)     
-      
+      frmFeeLayout.addWidget(frmFlatFee, 4, 0, 1, 1)
+
       frmCheckAdjust = makeHorizFrame([self.checkAdjust, feeToolTip, STRETCH])
       frmFeeLayout.addWidget(frmCheckAdjust, 5, 0, 1, 2)
-      
+
       feeRadio(feeOpt)
 
       self.frmFee = QFrame()
       self.frmFee.setFrameStyle(STYLE_RAISED)
       self.frmFee.setLayout(frmFeeLayout)
-      
+
       #########
       #change
 
       def setChangeType(changeType):
          self.changeType = changeType
-               
+
       from ui.AddressTypeSelectDialog import AddressLabelFrame
       changeType = self.main.getSettingOrSetDefault('Default_ChangeType', DEFAULT_CHANGE_TYPE)
       self.changeTypeFrame = AddressLabelFrame(self.main, setChangeType)
-      
+
       def changeRadio(strArg):
          self.radioAutoChange.setChecked(False)
          self.radioForce.setChecked(False)
          self.changeTypeFrame.getFrame().setEnabled(False)
-         
+
          if strArg == 'Auto':
             self.radioAutoChange.setChecked(True)
             self.changeType = 'Auto'
@@ -9051,13 +9052,13 @@ class DlgSettings(ArmoryDialog):
             self.radioForce.setChecked(True)
             self.changeTypeFrame.getFrame().setEnabled(True)
             self.changeType = self.changeTypeFrame.getType()
-         
+
       def changeCallbck(strArg):
          def callbck():
             return changeRadio(strArg)
          return callbck
-      
-      
+
+
       labelChange = QRichLabel(self.tr("<b>Change Address Type<br></b>"))
 
       self.radioAutoChange = QRadioButton(self.tr("Auto change"))
@@ -9065,53 +9066,53 @@ class DlgSettings(ArmoryDialog):
       toolTipAutoChange = self.main.createToolTipWidget(self.tr(
       "Change address type will match the address type of recipient "
       "addresses. <br>"
-      
+
       "Favors P2SH when recipients are heterogenous. <br>"
-      
-      "Will create nested SegWit change if inputs are SegWit and " 
+
+      "Will create nested SegWit change if inputs are SegWit and "
       "recipient are P2SH. <br><br>"
-      
+
       "<b>Pre 0.96 Armory cannot spend from P2SH address types</b>"
       ))
-      
+
       self.radioForce = QRadioButton(self.tr("Force a script type:"))
       self.connect(self.radioForce, SIGNAL('clicked()'), changeCallbck('Force'))
 
       changeRadio(changeType)
-      
+
       frmChangeLayout = QGridLayout()
       frmChangeLayout.addWidget(labelChange, 0, 0, 1, 1)
-      
+
       frmAutoChange = makeHorizFrame([self.radioAutoChange, \
                                       toolTipAutoChange, STRETCH])
       frmChangeLayout.addWidget(frmAutoChange, 1, 0, 1, 1)
-      
+
       frmForce = makeHorizFrame([self.radioForce, self.changeTypeFrame.getFrame()])
       frmChangeLayout.addWidget(frmForce, 2, 0, 1, 1)
-            
-      self.frmChange = QFrame()    
+
+      self.frmChange = QFrame()
       self.frmChange.setFrameStyle(STYLE_RAISED)
       self.frmChange.setLayout(frmChangeLayout)
-      
+
       #########
       #receive addr type
-      
+
       labelAddrType = QRichLabel(self.tr("<b>Preferred Receive Address Type</b>"))
-      
+
       def setAddrType(addrType):
          self.addrType = addrType
 
       self.addrType = self.main.getSettingOrSetDefault('Default_ReceiveType', DEFAULT_RECEIVE_TYPE)
       self.addrTypeFrame = AddressLabelFrame(self.main, setAddrType)
       self.addrTypeFrame.setType(self.addrType)
-      
+
       frmAddrLayout = QGridLayout()
       frmAddrLayout.addWidget(labelAddrType, 0, 0, 1, 1)
-      
+
       frmAddrTypeSelect = makeHorizFrame([self.addrTypeFrame.getFrame()])
-      
+
       frmAddrLayout.addWidget(frmAddrTypeSelect, 2, 0, 1, 1)
-      
+
       self.frmAddrType = QFrame()
       self.frmAddrType.setFrameStyle(STYLE_RAISED)
       self.frmAddrType.setLayout(frmAddrLayout)
@@ -9195,18 +9196,18 @@ class DlgSettings(ArmoryDialog):
       self.main.writeSetting('NotifyBtcOut', self.chkBtcOut.isChecked())
       self.main.writeSetting('NotifyDiscon', self.chkDiscon.isChecked())
       self.main.writeSetting('NotifyReconn', self.chkReconn.isChecked())
-      
-      
+
+
       #fee
       self.main.writeSetting('FeeOption', self.feeOpt)
       self.main.writeSetting('Default_FeeByte', str(self.leFeeByte.text()))
       self.main.writeSetting('Default_Fee', str2coin(str(self.leFlatFee.text())))
       self.main.writeSetting('AdjustFee', self.checkAdjust.isChecked())
-      self.main.writeSetting('Default_FeeByte_BlocksToConfirm', 
+      self.main.writeSetting('Default_FeeByte_BlocksToConfirm',
                              self.sliderAutoFee.value())
-      
+
       #change
-      self.main.writeSetting('Default_ChangeType', self.changeType)      
+      self.main.writeSetting('Default_ChangeType', self.changeType)
 
       #addr type
       self.main.writeSetting('Default_ReceiveType', self.addrType)
@@ -9525,7 +9526,7 @@ class DlgExportTxHistory(ArmoryDialog):
             else:
                #if SentToSelf, balance and total rolling balance should only take fee in account
                rawAmt, fee_byte = getFeeForTx(hex_to_binary(row[COL.TxHash]))
-               rawAmt = -1 * rawAmt 
+               rawAmt = -1 * rawAmt
 
             if order == "ascending":
                wltBalances[row[COL.WltID]] += rawAmt
@@ -11366,7 +11367,7 @@ class DlgRestoreSingle(ArmoryDialog):
 
    #############################################################################
    def processCallback(self, payload, callerId):
-      
+
       if callerId == UINT32_MAX:
          errorMsg = "N/A"
          try:
@@ -11382,14 +11383,14 @@ class DlgRestoreSingle(ArmoryDialog):
                'The import operation failed with the following error: '
                '<br><br><b>%s</b>' % errorMsg \
                ), QMessageBox.Ok)
-             
+
          self.reject()
          return
-      
+
       result, extra = self.processCallbackPayload(payload)
       if result == False:
          TheBDM.unregisterCustomPrompt(self.callbackId)
-         
+
       reply = ClientProto_pb2.RestoreReply()
       reply.result = result
 
@@ -11409,10 +11410,10 @@ class DlgRestoreSingle(ArmoryDialog):
 
          newWltID = msg.extra
          if len(newWltID) > 0:
-            if self.thisIsATest:   
+            if self.thisIsATest:
                # Stop here if this was just a test
                verifyRecoveryTestID(self, newWltID, self.testWltID)
-               
+
                #return false to caller to end the restore process
                return False, None
 
@@ -11457,7 +11458,7 @@ class DlgRestoreSingle(ArmoryDialog):
 
             self.reject()
             return False, None
-                       
+
          reply = QMessageBox.critical(self, self.tr('Invalid Data'), self.tr(
             'There is an error in the data you entered that could not be '
             'fixed automatically.  Please double-check that you entered the '
@@ -11467,7 +11468,7 @@ class DlgRestoreSingle(ArmoryDialog):
          LOGERROR('Error in wallet restore field')
          self.prfxList[i].setText(\
             '<font color="red">' + str(self.prfxList[i].text()) + '</font>')
-         
+
          return False, None
 
       if msg.promptType == ClientProto_pb2.RestorePromptType.Value("Passphrase"):
@@ -11507,14 +11508,14 @@ class DlgRestoreSingle(ArmoryDialog):
          QMessageBox.critical(self, self.tr('Unknown Error'), self.tr(
             'Encountered an unkonwn error when restoring this backup. Aborting.', \
             QMessageBox.Ok))
-         
+
          self.reject()
          return False, None
 
       if msg.promptType == ClientProto_pb2.RestorePromptType.Value("DecryptError"):
          #TODO: notify of invalid SP pass
          pass
-      
+
       if msg.promptType == ClientProto_pb2.RestorePromptType.Value("TypeError"):
          #TODO: wallet type conveyed by backup is unknown
          pass
@@ -11550,8 +11551,8 @@ class DlgRestoreSingle(ArmoryDialog):
       from users, verifyBackupString set of notifications is complex and comes
       with branches.
 
-      A dedicated callbackId is generated for this interaction and passed to 
-      TheBDM callback map along with a py side method to handle the protobuf 
+      A dedicated callbackId is generated for this interaction and passed to
+      TheBDM callback map along with a py side method to handle the protobuf
       packet from the C++ side.
 
       The C++ method is called with that id.
@@ -13505,7 +13506,7 @@ class DlgCorruptWallet(DlgProgress):
    def ProcessWallet(self, mode=RECOVERMODE.Full):
       #Serves as the entry point for non processing wallets that arent loaded
       #or fully processed. Only takes 1 wallet at a time
-      
+
       if len(self.walletList) > 0:
          wlt = None
          wltPath = ''
@@ -13987,7 +13988,7 @@ class DlgBroadcastBlindTx(ArmoryDialog):
    def addTx(self):
       if self.pytx is not None:
          self.txList.append(self.pytx)
-      
+
       self.txtRawTx.clear()
 
    #############################################################################
@@ -14093,7 +14094,7 @@ class DlgRegAndTest(ArmoryDialog):
 
 #############################################################################
 class URLHandler(QObject):
-   @pyqtSignature("QUrl")
+   #@pyqtSignature("QUrl")
    def handleURL(self, link):
       DlgBrowserWarn(link.toString()).exec_()
 
@@ -14123,7 +14124,7 @@ class DlgBrowserWarn(ArmoryDialog):
    def accept(self):
      import webbrowser
      webbrowser.open(self.link)
-     super(DlgBrowserWarn, self).accept() 
+     super(DlgBrowserWarn, self).accept()
 
 # Put circular imports at the end
 from ui.WalletFrames import SelectWalletFrame, WalletBackupFrame,\
