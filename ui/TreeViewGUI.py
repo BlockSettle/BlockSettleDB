@@ -8,8 +8,7 @@ from __future__ import (absolute_import, division,
 #                                                                            #
 ##############################################################################
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from PySide2.QtCore import Qt, QAbstractItemModel, QModelIndex, QObject
 
 from armoryengine.ArmoryUtils import coin2str, hash160_to_addrStr,\
    addrStr_to_hash160
@@ -860,40 +859,38 @@ class AddressTreeModel(ArmoryTreeModel):
          node = self.getNodeItem(index)  
                 
          if col == COL_TREE:
-            return QVariant(node.treeNode.getName())
+            return node.treeNode.getName()
          
          if col == COL_BALANCE:
             try:
-               return QVariant(coin2str(node.treeNode.getBalance(), maxZeros=2))
+               return coin2str(node.treeNode.getBalance(), maxZeros=2)
             except:
-               return QVariant()          
+               return None
          
          if node.hasChildren():
-            return QVariant()
+            return None
          
          if not node.treeNode.canDoubleClick():
-            return QVariant()
+            return None
          
          if col == COL_COMMENT:
-            return QVariant(node.treeNode.getComment())
+            return node.treeNode.getComment()
          
          if col == COL_COUNT:
-            return QVariant(node.treeNode.getCount())
-         
+            return node.treeNode.getCount()
 
-      
-      return QVariant()
-   
+      return None
+
    def headerData(self, section, orientation, role=Qt.DisplayRole):
       if role==Qt.DisplayRole:
          if orientation==Qt.Horizontal:
-            if section==COL_TREE: return QVariant(self.tr('Address'))
-            if section==COL_COMMENT: return QVariant(self.tr('Comment'))
-            if section==COL_COUNT:  return QVariant(self.tr('Tx Count'))
-            if section==COL_BALANCE:  return QVariant(self.tr('Balance'))
+            if section==COL_TREE: return self.tr('Address')
+            if section==COL_COMMENT: return self.tr('Comment')
+            if section==COL_COUNT:  return self.tr('Tx Count')
+            if section==COL_BALANCE:  return self.tr('Balance')
 
-      return QVariant() 
-   
+      return None 
+
    def refresh(self):
       #this method repopulates the underlying tree view map, only use
       #when that data changed
@@ -921,23 +918,23 @@ class CoinControlTreeModel(ArmoryTreeModel):
         
       if role==Qt.DisplayRole:            
          if col == COL_NAME:
-            return QVariant(node.treeNode.getName())
+            return node.treeNode.getName()
                   
          if col == COL_DESCR:
             try:
-               return QVariant(node.treeNode.getComment())
+               return node.treeNode.getComment()
             except:
                pass
                   
          if col == COL_VALUE:
             try:
-               return QVariant(coin2str(node.treeNode.getBalance(), maxZeros=2))
+               return coin2str(node.treeNode.getBalance(), maxZeros=2)
             except:
                pass
             
          if col == COL_TXOUTCOUNT:
             try:
-               return QVariant(node.treeNode.getCount())
+               return node.treeNode.getCount()
             except:
                pass
       
@@ -947,14 +944,14 @@ class CoinControlTreeModel(ArmoryTreeModel):
                st = node.treeNode.checked()
                return st
             else: 
-               return QVariant()
+               return None
          except:
             pass
 
       elif role==Qt.BackgroundRole:
          try:
             if node.treeNode.checked() != Qt.Unchecked:
-               return QVariant(Colors.SlightBlue)
+               return Colors.SlightBlue
          except:
             pass
            
@@ -965,18 +962,18 @@ class CoinControlTreeModel(ArmoryTreeModel):
          except:
             pass
 
-      return QVariant()
-   
+      return None
+
    def headerData(self, section, orientation, role=Qt.DisplayRole):
       if role==Qt.DisplayRole:
          if orientation==Qt.Horizontal:
-            if section==COL_NAME: return QVariant(self.tr('Address/ID'))
-            if section==COL_DESCR:  return QVariant(self.tr('Comment'))
-            if section==COL_VALUE:  return QVariant(self.tr('Selected Balance/Value'))
-            if section==COL_TXOUTCOUNT: return QVariant(self.tr('Count'))
+            if section==COL_NAME: return self.tr('Address/ID')
+            if section==COL_DESCR:  return self.tr('Comment')
+            if section==COL_VALUE:  return self.tr('Selected Balance/Value')
+            if section==COL_TXOUTCOUNT: return self.tr('Count')
 
-      return QVariant() 
-   
+      return None 
+
    def flags(self, index):
       f = Qt.ItemIsEnabled
       if index.column() == 0:
@@ -984,13 +981,13 @@ class CoinControlTreeModel(ArmoryTreeModel):
          if node.treeNode.getName() != 'None':
             f |= Qt.ItemIsUserCheckable
       return f
-            
+
    def setData(self, index, value, role):
       if role == Qt.CheckStateRole:
          node = self.getNodeItem(index)
          node.treeNode.setCheckState(value)
             
-         self.emit(SIGNAL('layoutChanged()'))
+         self.layoutChanged.emit()
          return True
       
       return False
@@ -1012,12 +1009,12 @@ class RBFTreeModel(ArmoryTreeModel):
    def headerData(self, section, orientation, role=Qt.DisplayRole):
       if role==Qt.DisplayRole:
          if orientation==Qt.Horizontal:
-            if section==COL_OUTPUT: return QVariant(self.tr('Output ID'))
-            if section==COL_ADDR:  return QVariant(self.tr('Address'))
-            if section==COL_VALUE:  return QVariant(self.tr('Value'))
+            if section==COL_OUTPUT: return self.tr('Output ID')
+            if section==COL_ADDR:  return self.tr('Address')
+            if section==COL_VALUE:  return self.tr('Value')
 
-      return QVariant()  
-   
+      return None
+
    def setData(self, index, value, role):
       if role == Qt.CheckStateRole:
          node = self.getNodeItem(index)
@@ -1025,9 +1022,9 @@ class RBFTreeModel(ArmoryTreeModel):
             
          self.emit(SIGNAL('layoutChanged()'))
          return True
-      
+
       return False
-   
+
    def flags(self, index):
       f = Qt.ItemIsEnabled
       if index.column() == 0:
@@ -1045,20 +1042,20 @@ class RBFTreeModel(ArmoryTreeModel):
         
       if role==Qt.DisplayRole:            
          if col == COL_OUTPUT:
-            return QVariant(node.treeNode.getName())
-                  
+            return node.treeNode.getName()
+
          if col == COL_ADDR:
             try:
-               return QVariant(node.treeNode.getAddress())
+               return node.treeNode.getAddress()
             except:
                pass
-                  
+
          if col == COL_VALUE:
             try:
-               return QVariant(node.treeNode.getValue())
+               return node.treeNode.getValue()
             except:
                pass
-                 
+
       elif role==Qt.CheckStateRole:
          try:
             if col == COL_OUTPUT:   
@@ -1066,17 +1063,17 @@ class RBFTreeModel(ArmoryTreeModel):
                   st = node.treeNode.checked()
                   return st
             else: 
-               return QVariant()
+               return None
          except:
             pass
 
       elif role==Qt.BackgroundRole:
          try:
             if node.treeNode.checked() != Qt.Unchecked:
-               return QVariant(Colors.SlightBlue)
+               return Colors.SlightBlue
          except:
             pass
-           
+
       elif role==Qt.FontRole:
          try:
             if node.treeNode.checked() != Qt.Unchecked:
@@ -1084,4 +1081,4 @@ class RBFTreeModel(ArmoryTreeModel):
          except:
             pass
 
-      return QVariant()
+      return None
