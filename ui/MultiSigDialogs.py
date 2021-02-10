@@ -7,16 +7,10 @@ from __future__ import (absolute_import, division,
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
 ################################################################################
-from PyQt4.Qt import *
-from PyQt4.QtGui import *
-from PyQt4.QtNetwork import *
 from qtdefines import *
 from qtdialogs import createAddrBookButton, DlgSetComment, DlgSendBitcoins, \
                       DlgUnlockWallet, DlgQRCodeDisplay, DlgRequestPayment,\
                       DlgDispTxInfo, DlgBrowserWarn, STRETCH
-from armoryengine.ALL import *
-from armorymodels import *
-from armorycolors import *
 from armoryengine.MultiSigUtils import MultiSigLockbox, calcLockboxID,\
    createLockboxEntryStr, readLockboxEntryStr, isMofNNonStandardToSpend
 from ui.MultiSigModels import \

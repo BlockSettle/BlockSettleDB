@@ -10,11 +10,6 @@ from __future__ import (absolute_import, division,
 from os import path
 import platform
 import sys
-from armoryengine.ALL import *
-from qtdefines import *
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-
 
 LOCKBOXCOLS = enum('ID', 'MSType', 'CreateDate', 'LBName', \
                    'Key0', 'Key1', 'Key2', 'Key3', 'Key4', \

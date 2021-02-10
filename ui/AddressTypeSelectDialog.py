@@ -8,9 +8,6 @@ from __future__ import (absolute_import, division,
 #                                                                            #
 ##############################################################################
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-
 from qtdefines import ArmoryDialog, STYLE_RAISED, QLabelButton
 from armoryengine.BDM import TheBDM
 
