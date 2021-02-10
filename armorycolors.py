@@ -8,7 +8,8 @@ from __future__ import (absolute_import, division,
 #                                                                              #
 ################################################################################
 import sys
-from PyQt4.QtGui  import QColor, QPalette, QApplication
+from PySide2.QtGui  import QColor, QPalette
+from PySide2.QtWidgets import QApplication
 
 
 """
@@ -44,12 +45,12 @@ class InvalidColor(Exception): pass
 def tweakColor(qcolor, op, tweaks):
    """
    We want to be able to take existing colors (from the palette)
-   and tweak them.  This may involved "inverting" them, or 
+   and tweak them.  This may involved "inverting" them, or
    multiplying or adding scalars to the various channels.
    """
    if len(tweaks) != 3:
       raise InvalidColor('Must supply list or tuple of RGB tweaks')
-   
+
    # Determine what the "tweaks" list/tuple means
    tweakChannel = lambda x,mod: x  # identity
    if op.lower() in ('times', '*'):
@@ -82,7 +83,7 @@ def luminance(qcolor):
    """ Gives the pseudo-equivalent greyscale value of this color """
    r,g,b = qcolor.red(), qcolor.green(), qcolor.blue()
    return int(0.2*r + 0.6*g + 0.2*b)
-   
+
 
 QAPP = QApplication(sys.argv)
 qpal = QAPP.palette()
@@ -150,7 +151,7 @@ Colors.TextPurple.setRgb(102, 0, 204, 255)
 
 ################################################################################
 def htmlColor(name):
-   """ 
+   """
    These are not official HTML colors:  this is simply a method
    for taking one of the above colors and converting to a hex string
    """
@@ -182,6 +183,3 @@ if __name__== "__main__":
       print(str(qc.green()).rjust(3), end=' ')
       print(str(qc.blue()).rjust(3), end=' ')
       print('\t(%s)' % htmlColor(name))
-
-
-
