@@ -8,11 +8,12 @@ from __future__ import (absolute_import, division,
 #                                                                              #
 ################################################################################
 
-from PyQt4.Qt import * #@UnusedWildImport
-from PyQt4.QtGui import * #@UnusedWildImport
+from qtdefines import ArmoryFrame, ArmoryDialog, tightSizeNChar, \
+   GETFONT, QRichLabel, VLINE, HLINE, QLabelButton, USERMODE, \
+   VERTICAL, HORIZONTAL, makeHorizFrame, STYLE_RAISED, makeVertFrame, \
+   relaxedSizeNChar, STYLE_SUNKEN
 
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
-from qtdefines import * #@UnusedWildImport
 from armoryengine.Transaction import UnsignedTransaction, getTxOutScriptType
 from armoryengine.Script import convertScriptToOpStrings
 from armoryengine.CoinSelection import PySelectCoins, calcMinSuggestedFees,\
@@ -23,6 +24,13 @@ from armoryengine.MultiSigUtils import \
    isP2SHLockbox
 from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH, getAddrByte
 from ui.FeeSelectUI import FeeSelectionDialog
+
+from PySide2.QtCore import Qt, QByteArray
+from PySide2.QtWidgets import QPushButton, QRadioButton, QCheckBox, \
+   QGridLayout, QScrollArea, QFrame, QButtonGroup, QHBoxLayout, \
+   QVBoxLayout, QLabel, QLineEdit
+
+from armoryengine.CppBridge import TheBridge
 
 CS_USE_FULL_CUSTOM_LIST = 1
 CS_ADJUST_FEE           = 2
@@ -182,7 +190,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       
       def feeDlg():
          self.feeDialog.exec_()
-      self.connect(self.feeLblButton, SIGNAL('clicked()'), feeDlg)
+      self.feeLblButton.linkActivated.connect(feeDlg)
 
 
       # This used to be in the later, expert-only section, but some of these
@@ -193,7 +201,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       self.radioSpecify = QRadioButton(self.tr('Specify a change address'))
       self.lblChangeAddr = QRichLabel(self.tr('Change:'))
 
-      addrWidgets = self.main.createAddressEntryWidgets(self, maxDetectLen=36, 
+      addrWidgets = self.main.createAddressEntryWidgets(self, maxDetectLen=36,
                                                       defaultWltID=self.wltID)
       self.edtChangeAddr  = addrWidgets['QLE_ADDR']
       self.btnChangeAddr  = addrWidgets['BTN_BOOK']
@@ -234,10 +242,10 @@ class SendBitcoinsFrame(ArmoryFrame):
       
       self.btnSend = QPushButton(self.tr('Send!'))
       self.btnCancel = QPushButton(self.tr('Cancel'))
-      self.connect(self.btnCancel, SIGNAL(CLICKED), parent.reject)
-      
+      self.btnCancel.clicked.connect(parent.reject)
+
       self.btnPreviewTx = QLabelButton("Preview Transaction")
-      self.connect(self.btnPreviewTx, SIGNAL('clicked()'), self.previewTx)
+      self.btnPreviewTx.linkActivated.connect(self.previewTx)
 
       # Created a standard wallet chooser frame. Pass the call back method
       # for when the user selects a wallet.
@@ -261,22 +269,22 @@ class SendBitcoinsFrame(ArmoryFrame):
       # Only the Create  Unsigned Transaction button if there is a callback for it.
       # Otherwise the containing dialog or wizard will provide the offlien tx button
       metaButtonList = [self.btnPreviewTx, STRETCH, self.RBFcheckbox, self.ttipRBF]
-      
+
       buttonList = []
       if self.createUnsignedTxCallback:
-         self.connect(self.unsignedCheckbox, SIGNAL(CLICKED), self.unsignedCheckBoxUpdate)
+         self.unsignedCheckbox.clicked.connect(self.unsignedCheckBoxUpdate)
          buttonList.append(self.unsignedCheckbox)
          buttonList.append(self.ttipUnsigned)
-      
+
       buttonList.append(STRETCH)
       buttonList.append(self.btnCancel)
-      
+
       # Only add the Send Button if there's a callback for it
       # Otherwise the containing dialog or wizard will provide the send button
       if self.sendCallback:
-         self.connect(self.btnSend, SIGNAL(CLICKED), self.createTxAndBroadcast)
+         self.btnSend.clicked.connect(self.createTxAndBroadcast)
          buttonList.append(self.btnSend)
-         
+
       txFrm = makeHorizFrame([self.feeLblButton, feetip], STYLE_RAISED, condenseMargins=True)
       metaFrm = makeHorizFrame(metaButtonList, STYLE_RAISED, condenseMargins=True)
       buttonFrame = makeHorizFrame(buttonList, condenseMargins=True)
@@ -285,7 +293,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          'Armory does not always succeed at registering itself to handle '
          'URL links from webpages and email. '
          'Click this button to copy a "bitcoin:" link directly into Armory.'))
-      self.connect(btnEnterURI, SIGNAL("clicked()"), self.clickEnterURI)
+      btnEnterURI.clicked.connect(self.clickEnterURI)
       fromFrameList = [self.frmSelectedWlt]
 
       if not self.main.usermode == USERMODE.Standard:
@@ -306,14 +314,14 @@ class SendBitcoinsFrame(ArmoryFrame):
          sendChangeToLayout.setColumnStretch(1,1)
          sendChangeToLayout.setColumnStretch(2,0)
          sendChangeToFrame.setLayout(sendChangeToLayout)
-         
+
 
          btngrp = QButtonGroup(self)
          btngrp.addButton(self.radioFeedback)
          btngrp.addButton(self.radioSpecify)
          btngrp.setExclusive(True)
-         self.connect(self.chkDefaultChangeAddr, SIGNAL('toggled(bool)'), self.toggleChngAddr)
-         self.connect(self.radioSpecify, SIGNAL('toggled(bool)'), self.toggleSpecify)
+         self.chkDefaultChangeAddr.toggled.connect(self.toggleChngAddr)
+         self.radioSpecify.toggled.connect(self.toggleSpecify)
          frmChngLayout = QGridLayout()
          i = 0
          frmChngLayout.addWidget(self.chkDefaultChangeAddr, i, 0, 1, 6)
@@ -363,7 +371,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       self.makeRecipFrame(1)
       self.setWindowTitle(self.tr('Send Bitcoins'))
       self.setMinimumHeight(self.maxHeight * 20)
-      
+
       if self.lbox:
          self.toggleSpecify(False)
          self.toggleChngAddr(False)
@@ -371,9 +379,9 @@ class SendBitcoinsFrame(ArmoryFrame):
 
       hexgeom = self.main.settings.get('SendBtcGeometry')
       if len(hexgeom) > 0:
-         geom = QByteArray.fromHex(hexgeom)
+         geom = QByteArray(bytes.fromhex(hexgeom))
          self.restoreGeometry(geom)
-         
+
    # Use this to fire wallet change after the constructor is complete.
    # if it's called during construction then self's container may not exist yet.
    def fireWalletChange(self):
@@ -716,9 +724,9 @@ class SendBitcoinsFrame(ArmoryFrame):
          
          if not result:
             return False
-         
+
       return True
-        
+
    #############################################################################
    def validateInputsGetUSTX(self, peek=False):
 
@@ -1134,10 +1142,10 @@ class SendBitcoinsFrame(ArmoryFrame):
                scripttype = 'P2SH'
             else:
                scripttype = 'P2PKH'
-            
+
             if scripttype[0:4] != str(changeType[0:4]):
                changeTypeMismatch(changeType, scripttype)
-         
+
          return getAddr(changeType)
       
       if not haveP2SH and not haveBech32:
@@ -1291,7 +1299,7 @@ class SendBitcoinsFrame(ArmoryFrame):
                          'the amounts specified for other recipients '
                          'and the transaction fee '))
       funcSetMax = lambda:  self.setMaximum(targWidgetID)
-      self.connect(newBtn, SIGNAL(CLICKED), funcSetMax)
+      newBtn.clicked.connect(funcSetMax)
       return newBtn
 
 
@@ -1323,10 +1331,10 @@ class SendBitcoinsFrame(ArmoryFrame):
          widget_obj['QLE_ADDR'].setMinimumWidth(relaxedSizeNChar(GETFONT('var'), 20)[0])
          widget_obj['QLE_ADDR'].setMaximumHeight(self.maxHeight)
          widget_obj['QLE_ADDR'].setFont(GETFONT('var', 9))
-   
-         self.connect(widget_obj['QLE_ADDR'], SIGNAL('textChanged(QString)'), 
-                                                           recipientAddrChanged(widget_obj))
-   
+
+         widget_obj['QLE_ADDR'].textChanged.connect(\
+            recipientAddrChanged(widget_obj))
+
          widget_obj['BTN_BOOK'] = addrEntryWidgets['BTN_BOOK']
          widget_obj['LBL_DETECT'] = addrEntryWidgets['LBL_DETECT']
    
@@ -1336,16 +1344,16 @@ class SendBitcoinsFrame(ArmoryFrame):
          widget_obj['QLE_AMT'].setMinimumWidth(tightSizeNChar(GETFONT('Fixed'), 14)[0])
          widget_obj['QLE_AMT'].setMaximumHeight(self.maxHeight)
          widget_obj['QLE_AMT'].setAlignment(Qt.AlignLeft)
-   
-         self.connect(widget_obj['QLE_AMT'], SIGNAL('textChanged(QString)'),
-                                       recipientValueChanged(widget_obj['UID']))
-   
+
+         widget_obj['QLE_AMT'].textChanged.connect(\
+            recipientValueChanged(widget_obj['UID']))
+
          widget_obj['LBL_BTC'] = QLabel('BTC')
          widget_obj['LBL_BTC'].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-   
+
          widget_obj['BTN_MAX'] = \
                            self.createSetMaxButton(widget_obj['UID'])
-   
+
          widget_obj['LBL_COMM'] = QLabel('Comment:')
          widget_obj['QLE_COMM'] = QLineEdit()
          widget_obj['QLE_COMM'].setFont(GETFONT('var', 9))
@@ -1362,23 +1370,23 @@ class SendBitcoinsFrame(ArmoryFrame):
          widget_obj['LBL_ADDR'] = QLabel('OP_RETURN Message:')
          widget_obj['QLE_ADDR'] = QLineEdit()
          widget_obj['OP_RETURN'] = ""
-         
-         self.connect(widget_obj['QLE_ADDR'], SIGNAL('textChanged(QString)'),
-                        recipientAddrChanged(widget_obj))
-      
+
+         widget_obj['QLE_ADDR'].textChanged.connect(\
+            recipientAddrChanged(widget_obj))
+
       recip_diff = nRecip - len(self.widgetTable)
       if recip_diff > 0:
          for i in range(recip_diff):
-            r = len(self.widgetTable) 
+            r = len(self.widgetTable)
             self.widgetTable.append({})
-            
+
             self.widgetTable[r]['UID'] = TheBridge.generateRandomHex(8)
-            
+
             if not is_opreturn:
                createAddrWidget(self.widgetTable[r], r)
             else:
                createOpReturnWidget(self.widgetTable[r])
-               
+
       else:
          self.widgetTable = self.widgetTable[0:len(self.widgetTable) + recip_diff]
 
@@ -1419,14 +1427,15 @@ class SendBitcoinsFrame(ArmoryFrame):
       lbtnAddRecip.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)  
       lbtnRmRecip = QLabelButton(self.tr('- Recipient'))
       lbtnRmRecip.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
-      self.connect(lbtnAddRecip, SIGNAL(CLICKED), lambda: self.makeRecipFrame(nRecip + 1))
-      self.connect(lbtnRmRecip, SIGNAL(CLICKED), lambda: self.makeRecipFrame(nRecip - 1))
-      
+      lbtnAddRecip.linkActivated.connect(lambda: self.makeRecipFrame(nRecip + 1))
+      lbtnRmRecip.linkActivated.connect(lambda: self.makeRecipFrame(nRecip - 1))
+
       if self.main.usermode == USERMODE.Expert:
          lbtnAddOpReturn = QLabelButton('+ OP_RETURN')
-         lbtnAddOpReturn.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)   
-         self.connect(lbtnAddOpReturn, SIGNAL(CLICKED), lambda: self.makeRecipFrame(nRecip + 1, True))
-                      
+         lbtnAddOpReturn.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+         lbtnAddOpReturn.linkActivated.connect(\
+            lambda: self.makeRecipFrame(nRecip + 1, True))
+
       btnLayout.addStretch()
       btnLayout.addWidget(lbtnAddRecip)
       if self.main.usermode == USERMODE.Expert:
@@ -1437,7 +1446,6 @@ class SendBitcoinsFrame(ArmoryFrame):
       frmRecipLayout.addWidget(btnFrm)
       frmRecipLayout.addStretch()
       frmRecip.setLayout(frmRecipLayout)
-      # return frmRecip
       self.scrollRecipArea.setWidget(frmRecip)
       self.scrollRecipArea.setWidgetResizable(True)
       
