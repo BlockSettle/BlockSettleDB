@@ -8,14 +8,21 @@ from __future__ import (absolute_import, division,
 #                                                                            #
 # Copyright (C) 2016-17, goatpig                                             #
 #  Distributed under the MIT license                                         #
-#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #                                   
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
 #                                                                            #
 ##############################################################################
 import struct
 from tempfile import mkstemp
 
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
+from PySide2.QtCore import Qt, QAbstractTableModel, QModelIndex, \
+   QSortFilterProxyModel, QEvent, Signal, QSize
+from PySide2.QtGui import QFont, QIcon, QFontMetricsF, QPixmap, \
+   QPainter, QColor
+from PySide2.QtWidgets import QWidget, QDialog, QFrame, QLabel, \
+   QStyledItemDelegate, QTableView, QHBoxLayout, QLayoutItem, \
+   QVBoxLayout, QCheckBox, QDialogButtonBox, QPushButton, \
+   QSpacerItem, QSizePolicy, QGridLayout, QApplication
+
 import urllib
 
 from armorycolors import Colors, htmlColor
@@ -78,7 +85,7 @@ def GETFONT(ftype, sz=10, bold=False, italic=False):
          fnt = QFont("Courier", sz)
       elif OS_MACOSX:
          fnt = QFont("Menlo", sz)
-      else: 
+      else:
          fnt = QFont("DejaVu Sans Mono", sz)
    elif ftype.lower().startswith('var'):
       if OS_MACOSX:
@@ -87,14 +94,14 @@ def GETFONT(ftype, sz=10, bold=False, italic=False):
          fnt = QFont("Verdana", sz)
       #if OS_WINDOWS:
          #fnt = QFont("Tahoma", sz)
-      #else: 
+      #else:
          #fnt = QFont("Sans", sz)
    elif ftype.lower().startswith('money'):
       if OS_WINDOWS:
          fnt = QFont("Courier", sz)
       elif OS_MACOSX:
          fnt = QFont("Menlo", sz)
-      else: 
+      else:
          fnt = QFont("DejaVu Sans Mono", sz)
    else:
       fnt = QFont(ftype, sz)
@@ -104,9 +111,9 @@ def GETFONT(ftype, sz=10, bold=False, italic=False):
 
    if italic:
       fnt.setItalic(True)
-   
+
    return fnt
-      
+
 
 def UnicodeErrorBox(parent):
    QMessageBox.warning(parent, 'ASCII Error', \
@@ -131,7 +138,7 @@ def UserModeStr(parent, mode):
 
 #######
 def tightSizeNChar(obj, nChar):
-   """ 
+   """
    Approximates the size of a row text of mixed characters
 
    This is only aproximate, since variable-width fonts will vary
@@ -155,7 +162,7 @@ def tightSizeStr(obj, theStr):
       fm = QFontMetricsF(QFont())
    szWidth,szHeight = fm.boundingRect(theStr).width(), fm.height()
    return szWidth, szHeight
-   
+
 #######
 def relaxedSizeStr(obj, theStr):
    """
@@ -200,18 +207,18 @@ def determineWalletType(wlt, wndw):
 #############################################################################
 def initialColResize(tblViewObj, sizeList):
    """
-   We assume that all percentages are below 1, all fixed >1.  
+   We assume that all percentages are below 1, all fixed >1.
    TODO:  This seems to almost work.  providing exactly 100% input will
-          actually result in somewhere between 75% and 125% (approx).  
+          actually result in somewhere between 75% and 125% (approx).
           For now, I have to experiment with initial values a few times
           before getting it to a satisfactory initial size.
-   """   
+   """
    totalWidth = tblViewObj.width()
    fixedCols, pctCols = [],[]
 
    if tblViewObj.model() is None:
       return
-   
+
    for col,colVal in enumerate(sizeList):
       if colVal > 1:
          fixedCols.append( (col, colVal) )
@@ -264,7 +271,7 @@ class QRichLabel(QLabel):
 
    def setBold(self):
       self.setText('<b>' + self.text() + '</b>')
-      
+
    def setItalic(self):
       self.setText('<i>' + self.text() + '</i>')
 
@@ -275,13 +282,13 @@ class QRichLabel_AutoToolTip(QRichLabel):
                            **kwargs):
       super(QRichLabel_AutoToolTip, self).__init__(txt, \
             doWrap, hAlign, vAlign, **kwargs)
-      
+
       self.toolTipMethod = None
-   
+
    def setToolTipLambda(self, toolTipMethod):
       self.toolTipMethod = toolTipMethod
       self.setToolTip(self.toolTipMethod())
-     
+
    def event(self, event):
       if event.type() == QEvent.ToolTip:
          if self.toolTipMethod != None:
@@ -290,9 +297,9 @@ class QRichLabel_AutoToolTip(QRichLabel):
 
       return QLabel.event(self,event)
 
-      
+
 class QMoneyLabel(QRichLabel):
-   def __init__(self, nSatoshi, ndec=8, maxZeros=2, wColor=True, 
+   def __init__(self, nSatoshi, ndec=8, maxZeros=2, wColor=True,
                               wBold=False, txtSize=10):
       QLabel.__init__(self, coin2str(nSatoshi))
 
@@ -300,7 +307,7 @@ class QMoneyLabel(QRichLabel):
       self.setValueText(nSatoshi, ndec, maxZeros, wColor, wBold, txtSize)
 
 
-   def setValueText(self, nSatoshi, ndec=None, maxZeros=None, wColor=None, 
+   def setValueText(self, nSatoshi, ndec=None, maxZeros=None, wColor=None,
                                              wBold=None, txtSize=10):
       """
       When we set the text of the QMoneyLabel, remember previous values unless
@@ -317,7 +324,7 @@ class QMoneyLabel(QRichLabel):
 
       if not wBold is None:
          self.bold = wBold
-         
+
 
       theFont = GETFONT("Fixed", txtSize)
       if self.bold:
@@ -368,7 +375,7 @@ def QOkButton():
    return QPixmapButton('img/btnok.png')
 def QDoneButton():
    return QPixmapButton('img/btndone.png')
-   
+
 
 ################################################################################
 class QLabelButton(QLabel):
@@ -380,23 +387,22 @@ class QLabelButton(QLabel):
       self.plainText = txt
       self.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
 
-  
    def sizeHint(self):
       w,h = relaxedSizeStr(self, self.plainText)
       return QSize(w,1.2*h)
 
-   def mousePressEvent(self, ev):  
+   def mousePressEvent(self, ev):
       # Prevent click-bleed-through to dialogs being opened
       txt = toBytes(self.text())
       self.mousePressOn.add(txt)
 
-   def mouseReleaseEvent(self, ev):  
+   def mouseReleaseEvent(self, ev):
       txt = toBytes(self.text())
       if txt in self.mousePressOn:
          self.mousePressOn.remove(txt)
-         self.emit(SIGNAL('clicked()'))  
+         self.emit(SIGNAL('clicked()'))
 
-   def enterEvent(self, ev):  
+   def enterEvent(self, ev):
       ssStr = "QLabel { background-color : %s }" % htmlColor('LBtnHoverBG')
       self.setStyleSheet(ssStr)
 
@@ -407,8 +413,8 @@ class QLabelButton(QLabel):
 ################################################################################
 # The optionalMsg argument is not word wrapped so the caller is responsible for limiting
 # the length of the longest line in the optionalMsg
-def MsgBoxCustom(wtype, title, msg, wCancel=False, yesStr=None, noStr=None, 
-                                                      optionalMsg=None): 
+def MsgBoxCustom(wtype, title, msg, wCancel=False, yesStr=None, noStr=None,
+                                                      optionalMsg=None):
    """
    Creates a message box with custom button text and icon
    """
@@ -416,7 +422,7 @@ def MsgBoxCustom(wtype, title, msg, wCancel=False, yesStr=None, noStr=None,
    class dlgWarn(ArmoryDialog):
       def __init__(self, dtype, dtitle, wmsg, withCancel=False, yesStr=None, noStr=None):
          super(dlgWarn, self).__init__(None)
-         
+
          msgIcon = QLabel()
          fpix = ''
          if dtype==MSGBOX.Good:
@@ -431,12 +437,12 @@ def MsgBoxCustom(wtype, title, msg, wCancel=False, yesStr=None, noStr=None,
             fpix = './img/MsgBox_critical64.png'
          if dtype==MSGBOX.Error:
             fpix = './img/MsgBox_error64.png'
-   
-   
+
+
          if len(fpix)>0:
             msgIcon.setPixmap(QPixmap(fpix))
             msgIcon.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
-   
+
          lblMsg = QLabel(msg)
          lblMsg.setTextFormat(Qt.RichText)
          lblMsg.setWordWrap(True)
@@ -484,9 +490,9 @@ def MsgBoxCustom(wtype, title, msg, wCancel=False, yesStr=None, noStr=None,
          self.setLayout(layout)
          self.setWindowTitle(dtitle)
 
-   dlg = dlgWarn(wtype, title, msg, wCancel, yesStr, noStr) 
+   dlg = dlgWarn(wtype, title, msg, wCancel, yesStr, noStr)
    result = dlg.exec_()
-   
+
    return result
 
 
@@ -499,9 +505,9 @@ def MsgBoxWithDNAA(parent, main, wtype, title, msg, dnaaMsg, wCancel=False, \
    """
 
    class dlgWarn(ArmoryDialog):
-      def __init__(self, parent, main, dtype, dtitle, wmsg, dmsg=None, withCancel=False): 
+      def __init__(self, parent, main, dtype, dtitle, wmsg, dmsg=None, withCancel=False):
          super(dlgWarn, self).__init__(parent, main)
-         
+
          msgIcon = QLabel()
          fpix = ''
          if dtype==MSGBOX.Info:
@@ -519,12 +525,12 @@ def MsgBoxWithDNAA(parent, main, wtype, title, msg, dnaaMsg, wCancel=False, \
          if dtype==MSGBOX.Error:
             fpix = './img/MsgBox_error64.png'
             if not dmsg:  dmsg = None  # should always show errors
-   
-   
+
+
          if len(fpix)>0:
             msgIcon.setPixmap(QPixmap(fpix))
             msgIcon.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
-   
+
          self.chkDnaa = QCheckBox(dmsg)
          self.chkDnaa.setChecked(dnaaStartChk)
          lblMsg = QLabel(msg)
@@ -540,19 +546,19 @@ def MsgBoxWithDNAA(parent, main, wtype, title, msg, dnaaMsg, wCancel=False, \
          if dtype==MSGBOX.Question:
             btnYes = QPushButton(yesStr)
             btnNo  = QPushButton(noStr)
-            self.connect(btnYes, SIGNAL('clicked()'), self.accept)
-            self.connect(btnNo,  SIGNAL('clicked()'), self.reject)
+            btnYes.clicked.connect(self.accept)
+            btnNo.clicked.connect(self.reject)
             buttonbox.addButton(btnYes,QDialogButtonBox.AcceptRole)
             buttonbox.addButton(btnNo, QDialogButtonBox.RejectRole)
          else:
             btnOk = QPushButton('Ok')
-            self.connect(btnOk, SIGNAL('clicked()'), self.accept)
+            btnOk.clicked.connect(self.accept)
             buttonbox.addButton(btnOk, QDialogButtonBox.AcceptRole)
             if withCancel:
-               btnOk = QPushButton('Cancel')
-               self.connect(btnOk, SIGNAL('clicked()'), self.reject)
-               buttonbox.addButton(btnOk, QDialogButtonBox.RejectRole)
-            
+               btnCancel = QPushButton('Cancel')
+               btnCancel.clicked.connect(self.reject)
+               buttonbox.addButton(btnCancel, QDialogButtonBox.RejectRole)
+
 
          spacer = QSpacerItem(20, 10, QSizePolicy.Fixed, QSizePolicy.Expanding)
 
@@ -568,12 +574,12 @@ def MsgBoxWithDNAA(parent, main, wtype, title, msg, dnaaMsg, wCancel=False, \
          self.setWindowTitle(dtitle)
 
 
-   dlg = dlgWarn(parent, main, wtype, title, msg, dnaaMsg, wCancel) 
+   dlg = dlgWarn(parent, main, wtype, title, msg, dnaaMsg, wCancel)
    result = dlg.exec_()
-   
+
    return (result, dlg.chkDnaa.isChecked())
 
- 
+
 def makeLayoutFrame(dirStr, widgetList, style=QFrame.NoFrame, condenseMargins=False):
    frm = QFrame()
    frm.setFrameStyle(style)
@@ -581,7 +587,7 @@ def makeLayoutFrame(dirStr, widgetList, style=QFrame.NoFrame, condenseMargins=Fa
    frmLayout = QHBoxLayout()
    if dirStr.lower().startswith(VERTICAL):
       frmLayout = QVBoxLayout()
-      
+
    for w in widgetList:
       if w is None:
          frmLayout.addWidget(w)
@@ -620,11 +626,11 @@ def makeLayoutFrame(dirStr, widgetList, style=QFrame.NoFrame, condenseMargins=Fa
       frmLayout.setContentsMargins(5,5,5,5)
    frm.setLayout(frmLayout)
    return frm
-   
+
 
 def addFrame(widget, style=STYLE_SUNKEN, condenseMargins=False):
    return makeLayoutFrame(HORIZONTAL, [widget], style, condenseMargins)
-   
+
 def makeVertFrame(widgetList, style=QFrame.NoFrame, condenseMargins=False):
    return makeLayoutFrame(VERTICAL, widgetList, style, condenseMargins)
 
@@ -643,7 +649,7 @@ def QImageLabel(imgfn, size=None, stretch='NoStretch'):
 
    lbl.setPixmap(px)
    return lbl
-   
+
 
 
 
@@ -657,7 +663,7 @@ def restoreTableView(qtbl, hexBytes):
          sz = binunpack.get(UINT16)
          if sz>0:
             toRestore.append([i,sz])
-         
+
       for i,c in toRestore[:-1]:
          qtbl.setColumnWidth(i, c)
    except Exception as e:
@@ -669,16 +675,16 @@ def restoreTableView(qtbl, hexBytes):
 def saveTableView(qtbl):
    if qtbl.model() is None:
       return
-   
+
    nCol = qtbl.model().columnCount()
    sz = [None]*nCol
    for i in range(nCol):
-      sz[i] = qtbl.columnWidth(i)      
+      sz[i] = qtbl.columnWidth(i)
 
    # Use 'ff' as a kind of magic byte for this data.  Most importantly
    # we want to guarantee that the settings file will interpret this
-   # as hex data -- I once had an unlucky hex string written out with 
-   # all digits and then intepretted as an integer on the next load :( 
+   # as hex data -- I once had an unlucky hex string written out with
+   # all digits and then intepretted as an integer on the next load :(
    first = int_to_hex(nCol)
    rest  = [int_to_hex(s, widthBytes=2) for s in sz]
    return 'ff' + first + ''.join(rest)
@@ -689,8 +695,8 @@ def saveTableView(qtbl):
 
 ################################################################################
 # This class is intended to be an abstract frame class that
-# will hold all of the functionality that is common to all 
-# Frames used in Armory. 
+# will hold all of the functionality that is common to all
+# Frames used in Armory.
 # The Frames that extend this class should contain all of the
 # display and control components for some screen used in Armory
 # Putting this content in a frame allows it to be used on it's own
@@ -707,23 +713,23 @@ class ArmoryFrame(QFrame):
 
 ################################################################################
 class ArmoryDialog(QDialog):
-   #create a signal with a random name that children to this dialog will 
-   #connect to close themselves if the parent is closed first   
+   #create a signal with a random name that children to this dialog will
+   #connect to close themselves if the parent is closed first
 
-      
+   closeSignal = Signal()
+
    def __init__(self, parent=None, main=None):
       super(ArmoryDialog, self).__init__(parent)
 
-      self.closeSignal = str(random.random())       
       self.parent = parent
       self.main   = main
       if self.main != None:
          self.signalExecution = self.main.signalExecution
-      
+
       #connect this dialog to the parent's close signal
       if self.parent is not None and hasattr(self.parent, 'closeSignal'):
-         self.connect(self.parent, SIGNAL(self.parent.closeSignal), self.reject)
-         
+         self.parent.closeSignal.connect(self.reject)
+
       self.setFont(GETFONT('var'))
       self.setWindowFlags(Qt.Window)
 
@@ -736,21 +742,21 @@ class ArmoryDialog(QDialog):
       else:
          self.setWindowTitle(self.tr('Armory - Bitcoin Wallet Management'))
          self.setWindowIcon(QIcon('./img/armory_icon_32x32.png'))
-   
+
    @AddToRunningDialogsList
    def exec_(self):
       return super(ArmoryDialog, self).exec_()
-   
+
    def reject(self):
-      self.emit(SIGNAL(self.closeSignal))
+      self.closeSignal.emit()
       super(ArmoryDialog, self).reject()
-      
+
    def executeMethod(self, _callable, *args):
       self.signalExecution.executeMethod(_callable, *args)
-      
+
    def callLater(self, delay, _callable, *args):
       self.signalExecution.callLater(delay, _callable, *args)
-      
+
 
 ################################################################################
 class QRCodeWidget(QWidget):
@@ -761,7 +767,7 @@ class QRCodeWidget(QWidget):
       self.parent = parent
       self.qrmtrx = None
       self.setAsciiData(asciiToEncode, prefSize, errLevel, repaint=False)
-      
+
 
    def setAsciiData(self, newAscii, prefSize=160, errLevel='L', repaint=True):
       if len(newAscii)==0:
@@ -775,8 +781,8 @@ class QRCodeWidget(QWidget):
       self.setPreferredSize(prefSize)
 
 
-      
-            
+
+
    def getModuleCount1D(self):
       return self.modCt
 
@@ -797,12 +803,12 @@ class QRCodeWidget(QWidget):
          return self.pxScale*self.modCt
 
       return
-      
+
 
    def getSize(self):
       return self.pxScale*self.modCt
 
-       
+
    def sizeHint(self):
       sz1d = self.pxScale*self.modCt
       return QSize(sz1d, sz1d)
@@ -836,8 +842,8 @@ class QRCodeWidget(QWidget):
 
    def mouseDoubleClickEvent(self, *args):
       DlgInflatedQR(self.parent, self.theData).exec_()
-            
-            
+
+
 # Create a very simple dialog and execute it
 class DlgInflatedQR(ArmoryDialog):
    def __init__(self, parent, dataToQR):
@@ -848,7 +854,7 @@ class DlgInflatedQR(ArmoryDialog):
       qrSize = int(min(w,h)*0.8)
       qrDisp = QRCodeWidget(dataToQR, prefSize=qrSize)
 
-      def closeDlg(*args): 
+      def closeDlg(*args):
          self.accept()
       qrDisp.mouseDoubleClickEvent = closeDlg
       self.mouseDoubleClickEvent = closeDlg
@@ -864,7 +870,7 @@ class DlgInflatedQR(ArmoryDialog):
 
       self.setLayout(layout)
       self.showFullScreen()
-      
+
 
 
 
@@ -879,7 +885,7 @@ class DlgInflatedQR(ArmoryDialog):
 # file can be used for display and copy-and-paste into email.
 
 def bmp_binary(header, pixels):
-   '''It takes a header (based on default_bmp_header), 
+   '''It takes a header (based on default_bmp_header),
    the pixel data (from structs, as produced by get_color and row_padding),
    and writes it to filename'''
    header_str = ""
@@ -911,7 +917,7 @@ def bmp_row_padding(width, colordepth):
    '''returns any necessary row padding'''
    byte_length = width*colordepth/8
    # how many bytes are needed to make byte_length evenly divisible by 4?
-   padding = (4-byte_length)%4 
+   padding = (4-byte_length)%4
    padbytes = ''
    for i in range(padding):
       x = struct.pack('<B',0)
@@ -923,7 +929,7 @@ def bmp_pack_color(red, green, blue):
    return struct.pack('<BBB',blue,green,red)
 
 
-###################################   
+###################################
 BMP_TEMPFILE = -1
 def createBitmap(imgMtrx2D, writeToFile=-1, returnBinary=True):
    try:
@@ -957,7 +963,7 @@ def createBitmap(imgMtrx2D, writeToFile=-1, returnBinary=True):
       for col in range(header['width']):
          pixels += black if imgMtrx2D[row][col] else white
       pixels += bmp_row_padding(header['width'], header['colordepth'])
-      
+
    if returnBinary:
       return bmp_binary(header,pixels)
    elif writeToFile==BMP_TEMPFILE:
@@ -970,7 +976,7 @@ def createBitmap(imgMtrx2D, writeToFile=-1, returnBinary=True):
          return True
       except:
          return False
-      
+
 
 
 def selectFileForQLineEdit(parent, qObj, title="Select File", existing=False, \
@@ -988,7 +994,7 @@ def selectFileForQLineEdit(parent, qObj, title="Select File", existing=False, \
 
    if fullPath:
       qObj.setText( fullPath)
-   
+
 
 def selectDirectoryForQLineEdit(par, qObj, title="Select Directory"):
    initPath = ARMORY_HOME_DIR
@@ -996,7 +1002,7 @@ def selectDirectoryForQLineEdit(par, qObj, title="Select Directory"):
    if len(currText)>0:
       if os.path.exists(currText):
          initPath = currText
-    
+
    if not OS_MACOSX:
       fullPath = unicode(QFileDialog.getExistingDirectory(par, title, initPath))
    else:
@@ -1004,18 +1010,15 @@ def selectDirectoryForQLineEdit(par, qObj, title="Select Directory"):
                                        options=QFileDialog.DontUseNativeDialog))
    if fullPath:
       qObj.setText( fullPath)
-    
+
 
 def createDirectorySelectButton(parent, targetWidget, title="Select Directory"):
 
    btn = QPushButton('')
-   ico = QIcon(QPixmap('./img/folder24.png')) 
+   ico = QIcon(QPixmap('./img/folder24.png'))
    btn.setIcon(ico)
 
 
    fn = lambda: selectDirectoryForQLineEdit(parent, targetWidget, title)
    parent.connect(btn, SIGNAL('clicked()'), fn)
    return btn
-
-
-
