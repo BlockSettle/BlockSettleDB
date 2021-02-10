@@ -41,9 +41,8 @@ class MessageSigningVerificationDialog(ArmoryDialog):
       layout.addWidget(actionButtonBox)
 
       self.setLayout(layout)
-      self.connect(self.goBackButton, SIGNAL('clicked()'), \
-                   self,           SLOT('reject()'))
-      
+      self.goBackButton.clicked.connect(self.reject)
+
    def clearFields(self):
       self.addressLineEdit.setText('')
       self.messageTextEdit.setPlainText('')
