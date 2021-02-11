@@ -272,7 +272,8 @@ def getDisplayStringForScript(binScript, wltMap, lboxList, maxChars=256,
       return {'String':  displayStr,
               'WltID':   wltID,
               'LboxID':  lboxID,
-              'AddrStr': addrStr}
+              'AddrStr': addrStr,
+              'ScrType': scriptType}
 
 
 
@@ -313,5 +314,5 @@ def getDisplayStringForScript(binScript, wltMap, lboxList, maxChars=256,
    return {'String':  dispStr,
            'WltID':   None,
            'LboxID':  None,
-           'AddrStr': addrStr}
-
+           'AddrStr': addrStr,
+           'ScrType': scriptType}
