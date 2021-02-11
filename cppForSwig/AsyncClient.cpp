@@ -494,7 +494,7 @@ void BlockDataViewer::getHeaderByHeight(unsigned height,
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getLedgerDelegateForScrAddr(
-   const string& walletID, const BinaryData& scrAddr,
+   const string& walletID, BinaryDataRef scrAddr,
    function<void(ReturnMessage<LedgerDelegate>)> callback)
 {
    auto payload = make_payload(Methods::getLedgerDelegateForScrAddr);

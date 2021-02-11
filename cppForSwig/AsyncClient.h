@@ -441,7 +441,7 @@ namespace AsyncClient
       void getLedgerDelegateForLockboxes(
          std::function<void(ReturnMessage<LedgerDelegate>)>);
       void getLedgerDelegateForScrAddr(
-         const std::string&, const BinaryData&,
+         const std::string&, BinaryDataRef,
          std::function<void(ReturnMessage<LedgerDelegate>)>);
 
       void getHistoryForWalletSelection(
