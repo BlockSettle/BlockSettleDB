@@ -48,29 +48,30 @@ server:  . process enc ack:
 client:  . process enc ack:
             create outSession sym key ([own outSession privkey] * [server inSession pubkey])
 
-         . auth challenge:
-            send hash(outSession.id | 'i' | [server auth pubkey]))
-
          . mark shared encryption key setup as completed
 
       ***********************************
       ** ENCRYPT ALL TRAFFIC FROM HERE **
       ***********************************
+
+         . auth challenge:
+            send hash(outSession.id | 'i' | [server auth pubkey]))
+
 +++
 server:  . process auth challenge:
             check hash(inSession.id | 'i' | [own auth pubkey]) matches challenge
-         
+
          . auth reply:
             send sign(outSession.id, [own auth privkey])
 
 ---
 client:  . process auth reply:
             verify sig(inSession.id, [server auth pubkey])
-         
-      ********************************   
+
+      ********************************
    ***** 2-WAY AUTH HANDSHAKE BEGIN *****
       ********************************
-   
+
 ---
 client:  . auth propose:
             send hash(outSession.id | 'p' | [own auth pukbey])
