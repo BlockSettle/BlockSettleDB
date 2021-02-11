@@ -2,7 +2,7 @@
 //                                                                            //
 //  Copyright (C) 2018, goatpig.                                              //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,23 +157,23 @@ struct lws_context* WebSocketClient::init()
    //setup context
    struct lws_context_creation_info info;
    memset(&info, 0, sizeof info);
-   
+
    info.port = CONTEXT_PORT_NO_LISTEN;
    info.protocols = protocols;
    info.gid = -1;
    info.uid = -1;
 
    //1 min ping/pong
-   info.ws_ping_pong_interval = 60;
+   //info.ws_ping_pong_interval = 60;
 
    auto contextptr = lws_create_context(&info);
-   if (contextptr == NULL) 
+   if (contextptr == NULL)
       throw LWS_Error("failed to create LWS context");
 
    //connect to server
    struct lws_client_connect_info i;
    memset(&i, 0, sizeof(i));
-   
+
    int port = stoi(port_);
    if (port == 0)
       port = WEBSOCKET_PORT;
@@ -196,12 +196,12 @@ struct lws_context* WebSocketClient::init()
 
    i.context = contextptr;
    i.method = nullptr;
-   i.protocol = protocols[PROTOCOL_ARMORY_CLIENT].name;  
+   i.protocol = protocols[PROTOCOL_ARMORY_CLIENT].name;
    i.userdata = this;
 
    struct lws* wsiptr;
    //i.pwsi = &wsiptr;
-   wsiptr = lws_client_connect_via_info(&i); 
+   wsiptr = lws_client_connect_via_info(&i);
    wsiPtr_.store(wsiptr, memory_order_release);
 
    return contextptr;
