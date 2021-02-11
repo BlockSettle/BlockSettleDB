@@ -5,12 +5,12 @@ package Codec_ClientProto;
 enum Methods
 {
     shutdown = 1;
-    
+
     setupDB = 10;
     goOnline = 11;
     registerWallets = 12;
     registerWallet = 13;
-    
+
     loadWallets = 20;
     getNodeStatus = 21;
     returnPassphrase = 22;
@@ -18,11 +18,12 @@ enum Methods
 
     getLedgerDelegateIdForWallets = 30;
     updateWalletsLedgerFilter = 31;
-    
+    getLedgerDelegateIdForScrAddr = 32;
+
     getHistoryPageForDelegate = 40;
     getBalanceAndCount = 41;
     getAddrCombinedList = 42;
-    
+
     getTxByHash = 70;
     getHeaderByHeight = 71;
     createAddressBook = 72;
@@ -44,7 +45,7 @@ enum Methods
     getLastPushDataInScript = 94;
     getTxOutScriptForScrAddr = 95;
     getAddrStrForScrAddr = 96;
-    
+
     getUtxosForValue = 100;
     getSpendableZCList = 101;
     getRBFTxOutList = 102;
