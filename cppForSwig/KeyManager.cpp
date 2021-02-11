@@ -248,7 +248,7 @@ int processArgs(map<string, string> args)
 int main(int argc, char* argv[])
 {
    btc_ecc_start();
-   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+   ArmoryConfig::parseArgs({});
 
    map<string, string> args;
    try
