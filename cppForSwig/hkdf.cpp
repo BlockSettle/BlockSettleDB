@@ -74,15 +74,15 @@ void hkdf_sha256(uint8_t *result, const size_t &resultSize,
                 &t[i*SHA256_DIGEST_LENGTH],
                 &tmpHashInput[0]);
       std::copy(info, info + isize, &tmpHashInput[SHA256_DIGEST_LENGTH]);
-      tmpHashInput[-1] = static_cast<uint8_t>(i + 1);
+      tmpHashInput[-1] = static_cast<uint8_t>(i);
       hmac_sha256(prk.getPtr(),
                   prk.getSize(),
                   tmpHashInput.getPtr(),
                   tmpHashInput.getSize(),
                   tmpHashRes.getPtr());
       std::copy(
-         tmpHashRes.getPtr(), 
-         tmpHashRes.getPtr() + SHA256_DIGEST_LENGTH, 
+         tmpHashRes.getPtr(),
+         tmpHashRes.getPtr() + SHA256_DIGEST_LENGTH,
          &t[resBytes]);
    }
 
