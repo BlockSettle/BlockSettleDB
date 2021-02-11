@@ -358,7 +358,8 @@ bool SettingsUtils::fileExists(const string& path, int mode)
       nixmode |= R_OK;
    if (mode & 4)
       nixmode |= W_OK;
-   return access(path.c_str(), nixmode) == 0;
+   auto result = access(path.c_str(), nixmode);
+   return result == 0;
 #endif
 }
 
@@ -669,7 +670,8 @@ bool NetworkSettings::ephemeralPeers_;
 bool NetworkSettings::oneWayAuth_ = false;
 bool NetworkSettings::offline_ = false;
 
-string NetworkSettings::cookie_; 
+string NetworkSettings::cookie_;
+BinaryData NetworkSettings::serverPublicKey_;
 
 ////////////////////////////////////////////////////////////////////////////////
 void NetworkSettings::processArgs(const map<string, string>& args)
@@ -930,6 +932,12 @@ void NetworkSettings::createCookie()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void NetworkSettings::injectServerPubkey(BinaryData& pubkey)
+{
+   serverPublicKey_ = move(pubkey);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void NetworkSettings::reset()
 {
    customListenPort_ = false;
@@ -985,12 +993,12 @@ void Pathing::processArgs(const map<string, string>& args)
       {
       case NETWORK_MODE_MAINNET:
       {
-         blkFilePath_ = MAINNET_DEFAULT_DATADIR;
+         blkFilePath_ = MAINNET_DEFAULT_BLOCKPATH;
          break;
       }
-         
+
       default:
-         blkFilePath_ = TESTNET_DEFAULT_DATADIR;
+         blkFilePath_ = TESTNET_DEFAULT_BLOCKPATH;
       }
    }
 
@@ -1009,9 +1017,8 @@ void Pathing::processArgs(const map<string, string>& args)
    {
       if (!SettingsUtils::fileExists(path, mode))
       {
-         stringstream ss;
-         ss << path << " is not a valid path";
-         throw DbErrorMsg(ss.str());
+         string errMsg = path + " is not a valid path";
+         throw DbErrorMsg(errMsg);
       }
    };
 

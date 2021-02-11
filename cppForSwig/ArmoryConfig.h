@@ -170,6 +170,8 @@ private:
    static bool offline_;
    static std::string cookie_;
 
+   static BinaryData serverPublicKey_;
+
 private:
    static void createNodes(void);
    static void createCookie(void);
@@ -195,6 +197,9 @@ public:
    static bool ephemeralPeers(void) { return ephemeralPeers_; }
    static bool oneWayAuth(void) { return oneWayAuth_; }
    static bool offline(void) { return offline_; }
+
+   static BinaryData serverPublicKey(void) { return serverPublicKey_; }
+   static void injectServerPubkey(BinaryData&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,7 +217,6 @@ private:
    static void reset(void);
 
 public:
-
    static std::string logFilePath(const std::string&);
    static const std::string& blkFilePath(void) { return blkFilePath_; }
    static const std::string& dbDir(void) { return dbDir_; }
