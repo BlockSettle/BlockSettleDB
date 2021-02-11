@@ -30,7 +30,6 @@ import multiprocessing
 import optparse
 import os
 import platform
-from PyQt4.QtCore import QByteArray
 import random
 import signal
 import smtplib
@@ -1122,43 +1121,6 @@ if CLI_OPTIONS.useTorSettings:
    CLI_OPTIONS.skipStatsReport = True
    CLI_OPTIONS.forceOnline = True
 
-
-
-################################################################################
-def addWalletToList(inWltPath, inWltList):
-   '''Helper function that checks to see if a path contains a valid wallet. If
-      so, the wallet will be added to the incoming list.'''
-   if os.path.isfile(inWltPath):
-      if not inWltPath.endswith('backup.wallet'):
-         openfile = open(inWltPath, 'rb')
-         first8 = openfile.read(8)
-         openfile.close()
-         if first8=='\xbaWALLET\x00':
-            inWltList.append(inWltPath)
-   else:
-      if not os.path.isdir(inWltPath):
-         LOGWARN('Path %s does not exist.' % inWltPath)
-      else:
-         LOGDEBUG('%s is a directory.' % inWltPath)
-
-
-################################################################################
-def readWalletFiles(inWltList=None):
-   '''Function that finds the paths of all non-backup wallets in the Armory
-      data directory (nothing passed in) or in a list of wallet paths (paths
-      passed in.'''
-   wltPaths = []
-
-   if not inWltList:
-      for f in os.listdir(ARMORY_HOME_DIR):
-         fullPath = os.path.join(ARMORY_HOME_DIR, f)
-         addWalletToList(fullPath, wltPaths)
-   else:
-      for w in inWltList:
-         addWalletToList(w, wltPaths)
-
-   return wltPaths
-
 ################################################################################
 # Get system details for logging purposes
 class DumbStruct(object): pass
@@ -1182,7 +1144,7 @@ def GetSystemDetails():
       cpuinfo = subprocess_check_output(['cat','/proc/cpuinfo'])
       for line in cpuinfo.split(b'\n'):
          if line.strip().lower().startswith(b'model name'):
-            out.CpuStr = line.split(b':')[1].strip()
+            out.CpuStr = str(line.split(b':')[1].strip())
             break
 
 
@@ -1278,7 +1240,7 @@ LOGINFO('   Satoshi BTC directory : ' + BTC_HOME_DIR)
 LOGINFO('   Armory home dir       : ' + ARMORY_HOME_DIR)
 LOGINFO('Detected System Specs    : ')
 LOGINFO('   Total Available RAM   : %0.2f GB', SystemSpecs.Memory)
-LOGINFO('   CPU ID string         : ' + SystemSpecs.CpuStr.decode(encoding='UTF-8'))
+LOGINFO('   CPU ID string         : ' + SystemSpecs.CpuStr)
 LOGINFO('   Number of CPU cores   : %d cores', SystemSpecs.NumCores)
 LOGINFO('   System is 64-bit      : ' + str(SystemSpecs.IsX64))
 LOGINFO('   Preferred Encoding    : ' + prefEnc)
@@ -1837,7 +1799,7 @@ def RightNowStr(fmt=DEFAULT_DATE_FORMAT):
 def sha1(bits):
    return hashlib.new('sha1', bits).digest()
 def sha256(bits):
-   return hashlib.new('sha256', str(bits).encode('utf-8')).digest()
+   return hashlib.new('sha256', bits).digest()
 def sha512(bits):
    return hashlib.new('sha512', bits).digest()
 def ripemd160(bits):
@@ -3544,6 +3506,8 @@ class SettingsFile(object):
       for key,val in self.settingsMap.items():
          try:
             # Skip anything that throws an exception
+            from PySide2.QtCore import QByteArray
+
             valStr = ''
             if   isinstance(val, str):
                valStr = val
@@ -3638,7 +3602,7 @@ def touchFile(fname):
 # bridge setup
 #################
 
-def startBridge():
+def startBridge(notifyReadyCB):
    from armoryengine.CppBridge import TheBridge
 
    #gather cli args for bridge
@@ -3661,9 +3625,9 @@ def startBridge():
    #enforce --public for now
    bridgeArgs.append(["public", ""])
 
-   #offline 
+   #offline
    if CLI_OPTIONS.offline:
-      bridgeArgs.append(["offline", ""])      
+      bridgeArgs.append(["offline", ""])
 
    stringArgs = ""
    for argPair in bridgeArgs:
@@ -3674,4 +3638,4 @@ def startBridge():
          stringArgs += argPair[1]
 
    #set bridge
-   TheBridge.start(stringArgs)
+   TheBridge.start(stringArgs, notifyReadyCB)
