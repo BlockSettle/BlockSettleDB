@@ -160,10 +160,10 @@ private:
 
    std::function<void(std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
 
-   const bool oneWayAuth_;
-   const bool offline_;
+   const bool dbOneWayAuth_;
+   const bool dbOffline_;
 
-   std::map<BinaryData, std::shared_ptr<MethodCallbacksHandler>> 
+   std::map<BinaryData, std::shared_ptr<MethodCallbacksHandler>>
       callbackHandlerMap_;
    CommandQueue commandWithCallbackQueue_;
 
@@ -204,6 +204,8 @@ private:
 
    //ledgers
    const std::string& getLedgerDelegateIdForWallets(void);
+   const std::string& getLedgerDelegateIdForScrAddr(
+      const std::string&, const BinaryDataRef&);
    void getHistoryPageForDelegate(const std::string&, unsigned, unsigned);
    void createAddressBook(const std::string&, unsigned);
 
@@ -268,7 +270,7 @@ public:
    CppBridge(const std::string&, const std::string&, 
       const std::string&, bool, bool);
 
-   bool processData(std::vector<uint8_t> socketData);
+   bool processData(BinaryDataRef socketData);
    void writeToClient(BridgeReply msgPtr, unsigned id) const;
    
    void setWriteLambda(
