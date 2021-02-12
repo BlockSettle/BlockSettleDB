@@ -57,7 +57,7 @@ namespace ArmoryBridge
       std::chrono::time_point<std::chrono::system_clock> outKeyTimePoint_;
 
    private:
-      bool processAEADHandshake(std::vector<uint8_t>&);
+      bool processAEADHandshake(BinaryDataRef);
 
    public:
       CppBridgeSocket(
