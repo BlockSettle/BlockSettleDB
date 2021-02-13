@@ -8,8 +8,12 @@
 
 #include "ProtobufCommandParser.h"
 #include "CppBridge.h"
+#include "../protobuf/ClientProto.pb.h"
 
 using namespace std;
+using namespace ArmoryBridge;
+using namespace ::google::protobuf;
+using namespace ::Codec_ClientProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 bool ProtobufCommandParser::processData(
@@ -31,7 +35,7 @@ bool ProtobufCommandParser::processData(
    {
       try
       {
-         queueCommandWithCallback(move(msg));
+         bridge->queueCommandWithCallback(move(msg));
       }
       catch (const exception& e)
       {
@@ -81,7 +85,7 @@ bool ProtobufCommandParser::processData(
 
    case Methods::goOnline:
    {
-      if (bdvPtr_ == nullptr)
+      if (bridge->bdvPtr_ == nullptr)
          throw runtime_error("null bdv ptr");
       bridge->bdvPtr_->goOnline();
       break;
@@ -89,7 +93,7 @@ bool ProtobufCommandParser::processData(
 
    case Methods::shutdown:
    {
-      if (bdvPtr_ != nullptr)
+      if (bridge->bdvPtr_ != nullptr)
       {
          bridge->bdvPtr_->unregisterFromDB();
          bridge->bdvPtr_.reset();

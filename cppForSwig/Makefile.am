@@ -81,7 +81,8 @@ CPPBRIDGE_SOURCE_FILES = BridgeAPI/CppBridge.cpp \
 	BridgeAPI/BridgeMain.cpp \
 	BridgeAPI/ProtobufConversions.cpp \
 	BridgeAPI/BridgeSocket.cpp \
-	BridgeAPI/WalletManager.cpp
+	BridgeAPI/WalletManager.cpp \
+	BridgeAPI/ProtobufCommandParser.cpp
 
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = TransactionBatch.cpp

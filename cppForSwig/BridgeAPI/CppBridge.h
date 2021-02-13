@@ -135,9 +135,13 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+struct ProtobufCommandParser;
 using BridgeReply = std::unique_ptr<::google::protobuf::Message>;
+
 class CppBridge
 {
+   friend struct ProtobufCommandParser;
+
 private:
    const std::string path_;
 
