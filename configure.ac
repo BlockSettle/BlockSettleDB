@@ -93,19 +93,6 @@ AX_CXX_COMPILE_STDCXX([11], [noext], [mandatory], [nodefault])
 # Make the compilation flags quiet unless V=1 is used.
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
-if test "x$build_gui" = "xyes"; then
-#check for  gui
-
-AC_CHECK_PROG([HAVE_PYRCC4], [pyrcc4], [yes], [no])
-AS_IF([test $HAVE_PYRCC4 == yes], [],
-  [AC_MSG_ERROR([missing pyrcc4 in path, make sure pyqt4-dev-tools is installed])])
-
-AC_CHECK_PROG([HAVE_LRELEASE], [lrelease], [yes], [no])
-AS_IF([test $HAVE_LRELEASE == yes], [],
-  [AC_MSG_ERROR([missing lrelease in path, make sure qt4-linguist-tools is installed])])
-
-fi
-
 AC_SUBST([CXX_STANDARD], $CXX_STANDARD)
 
 # Tinkering with LDFLAGS hopefully won't be needed, but just in case....
@@ -179,29 +166,29 @@ case $host in
     # There really ought to be some sort of Qt check here. M4 files don't work
     # well with Armory. Revisit this later. Not required, just nice to have.
     ;;
-  *linux*)
-    BUILD_OS=linux
+  #*linux*)
+  #  BUILD_OS=linux
 
-    use_pkgconfig=yes
+  #  use_pkgconfig=yes
 
-    if test "x$build_gui" = "xyes"; then
-       # Check existence of Qt packages.
-       if ! pkg-config --exists 'QtCore >= 4.8 QtCore <= 5 QtGui >= 4.8 QtGui <= 5'; then
-           AC_MSG_ERROR([missing QtCore library, make sure libqtcore4 and libqt4-dev are installed])
-       fi
-    fi
-    ;;
+  #  if test "x$build_gui" = "xyes"; then
+  #     # Check existence of Qt packages.
+  #     if ! pkg-config --exists 'QtCore >= 4.8 QtCore <= 5 QtGui >= 4.8 QtGui <= 5'; then
+  #         AC_MSG_ERROR([missing QtCore library, make sure libqtcore4 and libqt4-dev are installed])
+  #     fi
+  #  fi
+  #  ;;
 esac
 
-if test x$use_pkgconfig = xyes; then
-    m4_ifndef([PKG_PROG_PKG_CONFIG], [AC_MSG_ERROR(PKG_PROG_PKG_CONFIG macro not found. Please install pkg-config and re-run autogen.sh.)])
-    m4_ifdef([PKG_PROG_PKG_CONFIG], [
-    PKG_PROG_PKG_CONFIG
-    if test x"$PKG_CONFIG" = "x"; then
-        AC_MSG_ERROR(pkg-config not found.)
-    fi
-    ])
-fi
+#if test x$use_pkgconfig = xyes; then
+#    m4_ifndef([PKG_PROG_PKG_CONFIG], [AC_MSG_ERROR(PKG_PROG_PKG_CONFIG macro not found. Please install pkg-config and re-run autogen.sh.)])
+#    m4_ifdef([PKG_PROG_PKG_CONFIG], [
+#    PKG_PROG_PKG_CONFIG
+#    if test x"$PKG_CONFIG" = "x"; then
+#        AC_MSG_ERROR(pkg-config not found.)
+#    fi
+#    ])
+#fi
 
 # Check for protobuf (protoc in particular is required)
 PKG_CHECK_MODULES_STATIC(PROTOBUF, protobuf >= 2.0.0)
@@ -392,7 +379,8 @@ AM_CONDITIONAL([BUILD_DARWIN], [test x$BUILD_OS = xdarwin])
 
 AC_CONFIG_FILES(Makefile
     cppForSwig/Makefile
-    cppForSwig/chacha20poly1305/Makefile)
+    cppForSwig/chacha20poly1305/Makefile
+    cppForSwig/hkdf/Makefile)
 
 AM_CONDITIONAL([BUILD_BENCH], [test x$want_benchmark = xyes])
 AM_CONDITIONAL([BUILD_TESTS], [test "x$want_tests" = "xyes"])

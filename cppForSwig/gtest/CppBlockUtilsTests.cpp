@@ -11,7 +11,7 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #include "TestUtils.h"
-#include "../hkdf.h"
+#include "hkdf.h"
 
 using namespace std;
 using namespace ArmorySigner;

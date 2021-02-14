@@ -43,7 +43,6 @@ TESTS += gtest/ContainerTests
 #gtest_DB1kIterTest_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 #gtest_DB1kIterTest_LDADD = gtest/libgtest.la $(LIBARMORYCOMMON) \
 #		 $(LIBARMORYCLI) \
-#		 $(LIBCRYPTOPP) \
 #		 $(LIBBTC) \
 #		 $(LIBCHACHA20POLY1305) \
 #		 $(LIBLMDB) \
@@ -70,7 +69,7 @@ bin_PROGRAMS += gtest/BIP151RekeyTest
 gtest_BIP151RekeyTest_SOURCES = gtest/BIP151RekeyTest.cpp
 gtest_BIP151RekeyTest_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
 gtest_BIP151RekeyTest_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
-gtest_BIP151RekeyTest_LDADD = gtest/libgtest.la $(LIBBTC) $(LIBCRYPTOPP) \
+gtest_BIP151RekeyTest_LDADD = gtest/libgtest.la $(LIBHKDF) $(LIBBTC) \
 			$(LIBCHACHA20POLY1305)
 gtest_BIP151RekeyTest_LDFLAGS = $(AM_LDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/BIP151RekeyTest
@@ -83,8 +82,8 @@ gtest_SupernodeTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_SupernodeTests_LDADD = gtest/libgtest.la \
 			$(LIBARMORYCOMMON) \
 			$(LIBARMORYCLI) \
-			$(LIBCRYPTOPP) \
 			$(LIBLMDB) \
+			$(LIBHKDF) \
 			$(LIBBTC) \
 			$(LIBCHACHA20POLY1305) \
 			$(LIBPROTOBUF_STATIC) \
@@ -114,7 +113,7 @@ gtest_CppBlockUtilsTests_LDADD = gtest/libgtest.la \
 			$(LIBARMORYCOMMON) \
 			$(LIBCHACHA20POLY1305) \
 			$(LIBARMORYCLI) \
-			$(LIBCRYPTOPP) \
+			$(LIBHKDF) \
 			$(LIBBTC) \
 			$(LIBLMDB) \
 			$(LIBPROTOBUF_STATIC) \
@@ -144,7 +143,7 @@ gtest_WalletTests_LDADD = gtest/libgtest.la \
 			$(LIBARMORYCOMMON) \
 			$(LIBCHACHA20POLY1305) \
 			$(LIBARMORYCLI) \
-			$(LIBCRYPTOPP) \
+			$(LIBHKDF) \
 			$(LIBBTC) \
 			$(LIBLMDB) \
 			$(LIBPROTOBUF_STATIC) \
@@ -173,7 +172,7 @@ gtest_SignerTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_SignerTests_LDADD = gtest/libgtest.la \
 			$(LIBARMORYCOMMON) \
 			$(LIBARMORYCLI) \
-			$(LIBCRYPTOPP) \
+			$(LIBHKDF) \
 			$(LIBBTC) \
 			$(LIBCHACHA20POLY1305) \
 			$(LIBLMDB) \

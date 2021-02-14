@@ -14,6 +14,7 @@ LIBARMORYGUI = libArmoryGUI.la
 LIBARMORYCLI = libArmoryCLI.la
 LIBCRYPTOPP =
 LIBLMDB = liblmdb.la
+LIBHKDF = hkdf/libhkdf.la
 LIBSECP256K1 = libbtc/src/secp256k1/libsecp256k1.la
 LIBWEBSOCKETS_STATIC = $(WEBSOCKETS_LIBDIR)/libwebsockets.a
 LIBPROTOBUF_STATIC = $(PROTOBUF_LIBDIR)/libprotobuf.a
@@ -28,8 +29,8 @@ if BUILD_LIBEVENT_SUPPORT
 LIBEVENT_STATIC = $(LIBEVENT_LIBDIR)/libevent.a
 endif
 
-DIST_SUBDIRS = libbtc chacha20poly1305
-SUBDIRS = libbtc chacha20poly1305 $(MAYBE_BUILD)
+DIST_SUBDIRS = libbtc chacha20poly1305 hkdf
+SUBDIRS = libbtc chacha20poly1305 hkdf $(MAYBE_BUILD)
 
 # Unit test flags.
 UNIT_TEST_CXXFLAGS=
@@ -69,7 +70,7 @@ protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
 
 INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
 	-Ichacha20poly1305 -Ilibbtc/src/secp256k1/include \
-	-Ilibbtc/include $(LWS_CFLAGS)
+	-Ilibbtc/include $(LWS_CFLAGS) -Ihkdf
 
 # Files should *not* be marked as "common" if at all possible. Also, a refactor
 # might not hurt one of these days. Some of the "common" files could be GUI/CLI
@@ -135,7 +136,6 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	CoinSelection.cpp \
 	DecryptedDataContainer.cpp \
 	DerivationScheme.cpp \
-	hkdf.cpp \
 	KDF.cpp \
 	log.cpp \
 	BitcoinSettings.cpp \
@@ -221,6 +221,7 @@ libArmoryCommon_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 libArmoryCommon_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 			      $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryCommon_la_LIBADD = $(LIBCRYPTOPP) \
+				$(LIBHKDF) \
 				$(LIBBTC) \
 				$(LIBSECP256K1) \
 				-lpthread
@@ -235,8 +236,9 @@ libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 			   $(UNIT_TEST_CXXFLAGS) -Ilmdb/libraries/liblmdb -D__STDC_LIMIT_MACROS
 libArmoryCLI_la_LIBADD = $(LIBCHACHA20POLY1305) \
 			 $(LIBARMORYCOMMON) \
-			 $(LIBCRYPTOPP) \
 			 $(LIBLMDB) \
+			 $(LIBHKDF) \
+			 $(LIBBTC) \
 			 -lpthread
 libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS)
 
@@ -248,7 +250,7 @@ ArmoryDB_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS) \
 ArmoryDB_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 ArmoryDB_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
-		 $(LIBCRYPTOPP) \
+		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
 		 $(LIBLMDB) \
@@ -280,7 +282,7 @@ BIP150KeyManager_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS)
 BIP150KeyManager_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 BIP150KeyManager_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
-		 $(LIBCRYPTOPP) \
+		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
 		 $(LIBLMDB) \
@@ -288,6 +290,7 @@ BIP150KeyManager_LDADD = $(LIBARMORYCOMMON) \
 		 -lpthread
 BIP150KeyManager_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
 
+if BUILD_CLIENT
 bin_PROGRAMS += CppBridge
 CppBridge_SOURCES = $(CPPBRIDGE_SOURCE_FILES)
 CppBridge_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS) \
@@ -295,7 +298,7 @@ CppBridge_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS) \
 CppBridge_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 CppBridge_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
-		 $(LIBCRYPTOPP) \
+		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
 		 $(LIBLMDB) \
@@ -318,6 +321,7 @@ if BUILD_LDL_REQUIRED
 CppBridge_LDADD += -ldl
 endif
 CppBridge_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
+endif
 
 MOSTLYCLEANFILES = $(PROTOBUF_CC) $(PROTOBUF_H)
 BUILT_SOURCES += $(PROTOBUF_CC)
