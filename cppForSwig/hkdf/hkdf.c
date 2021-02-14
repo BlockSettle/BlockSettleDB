@@ -6,14 +6,10 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include <vector>
-#include <algorithm>
-#include <cmath>
-#include <cassert>
+#include <assert.h>
 
 #include "hkdf.h"
 #include "btc/sha2.h"
-#include "BinaryData.h"
 
 
 // HKDF (RFC 5869) code for SHA-256. Based on libbtc's HMAC SHA-256 code.
@@ -27,36 +23,36 @@
 //      isize - HKDF context-specific info size. Optional. Pass 0 if not used.
 // OUT: result - The final HKDF keying material.
 // RET: None
-void hkdf_sha256(uint8_t *result, const size_t &resultSize,
-                 const uint8_t *salt, const size_t &ssize,
-                 const uint8_t *key, const size_t &ksize,
-                 const uint8_t *info, const size_t &isize)
+void hkdf_sha256(uint8_t *result, size_t resultSize,
+                 const uint8_t *salt, size_t ssize,
+                 const uint8_t *key, size_t ksize,
+                 const uint8_t *info, size_t isize)
 {
+   unsigned int numSteps, totalHashBytes, hashInputSize;
+   unsigned int hashInputBytes = isize + 1;
+
+   uint8_t prk[SHA256_DIGEST_LENGTH];
+   uint8_t *t, *hashInput;
+
    // RFC 5869 only allows for up to 8160 bytes of output data.
    assert(resultSize <= (255 * SHA256_DIGEST_LENGTH));
    assert(resultSize > 0);
    assert(ksize > 0);
 
-   // Write an explicit float value in order to force the ceil() call to round
-   // up if necessary.
-   float numStepsF = static_cast<float>(resultSize) / \
-                     static_cast<float>(SHA256_DIGEST_LENGTH);
-   unsigned int numSteps = ceil(numStepsF);
-   unsigned int hashInputBytes = isize + 1;
-   unsigned int totalHashBytes = numSteps * SHA256_DIGEST_LENGTH;
-   unsigned int hashInputSize = SHA256_DIGEST_LENGTH + hashInputBytes;
+   numSteps = (resultSize + SHA256_DIGEST_LENGTH - 1) / SHA256_DIGEST_LENGTH;
+   totalHashBytes = numSteps * SHA256_DIGEST_LENGTH;
+   hashInputSize = SHA256_DIGEST_LENGTH + hashInputBytes;
 
-   BinaryData prk(SHA256_DIGEST_LENGTH);
-   BinaryData t(totalHashBytes);
-   BinaryData hashInput(hashInputSize);
+   t = (uint8_t*)malloc(totalHashBytes);
+   hashInput = (uint8_t*)malloc(hashInputSize);
 
    // Step 1 (Sect. 2.2) - Extract a pseudorandom key from the salt & key.
-   hmac_sha256(salt, ssize, key, ksize, prk.getPtr());
+   hmac_sha256(salt, ssize, key, ksize, prk);
 
    // Step 2 (Sec. 2.3) - Expand
-   std::copy(info, info + isize, hashInput.getPtr());
+   memcpy(hashInput, info, isize);
    hashInput[isize] = 0x01;
-   hmac_sha256(prk.getPtr(), prk.getSize(), hashInput.getPtr(), hashInputBytes, t.getPtr());
+   hmac_sha256(prk, SHA256_DIGEST_LENGTH, hashInput, hashInputBytes, t);
    hashInputBytes += SHA256_DIGEST_LENGTH;
 
    // Loop as needed until you have enough output keying material.
@@ -66,27 +62,21 @@ void hkdf_sha256(uint8_t *result, const size_t &resultSize,
    // with dedicated buffers.
    for(unsigned int i = 1; i < numSteps; ++i)
    {
-      BinaryData tmpHashRes(SHA256_DIGEST_LENGTH);
-      BinaryData tmpHashInput(hashInputBytes);
-      unsigned int resBytes = (i * SHA256_DIGEST_LENGTH);
+      uint8_t tmpHashInput[hashInputBytes];
 
-      std::copy(&t[(i-1)*SHA256_DIGEST_LENGTH],
-                &t[i*SHA256_DIGEST_LENGTH],
-                &tmpHashInput[0]);
-      std::copy(info, info + isize, &tmpHashInput[SHA256_DIGEST_LENGTH]);
-      tmpHashInput[-1] = static_cast<uint8_t>(i);
-      hmac_sha256(prk.getPtr(),
-                  prk.getSize(),
-                  tmpHashInput.getPtr(),
-                  tmpHashInput.getSize(),
-                  tmpHashRes.getPtr());
-      std::copy(
-         tmpHashRes.getPtr(),
-         tmpHashRes.getPtr() + SHA256_DIGEST_LENGTH,
-         &t[resBytes]);
+      // T[i] = HMAC(PRK, T[i-1] | info | i)
+      memcpy(tmpHashInput, t + (i-1)*SHA256_DIGEST_LENGTH, SHA256_DIGEST_LENGTH);
+      memcpy(tmpHashInput + SHA256_DIGEST_LENGTH, info, isize);
+      tmpHashInput[hashInputBytes-1] = (uint8_t)i;
+
+      hmac_sha256(prk, SHA256_DIGEST_LENGTH,
+                  tmpHashInput, hashInputBytes,
+                  t + i*SHA256_DIGEST_LENGTH);
    }
 
    // Write the final results and exit.
-   std::copy(t.getPtr(), t.getPtr() + resultSize, result);
-   return;
+   memcpy(result, t, resultSize);
+
+   free(t);
+   free(hashInput);
 }
