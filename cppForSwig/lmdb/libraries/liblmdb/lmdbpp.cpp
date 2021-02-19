@@ -240,7 +240,6 @@ void LMDB::Iterator::retreat()
    }
 }
 
-
 void LMDB::Iterator::toFirst()
 {
    checkHasDb();
@@ -254,6 +253,27 @@ void LMDB::Iterator::toFirst()
       has_ = false;
    else if (rc != MDB_SUCCESS)
       throw LMDBException("Failed to seek (" + errorString(rc) +")");
+   else
+   {
+      has_ = true;
+      key_ = mkey;
+      val_ = mval;
+   }
+}
+
+void LMDB::Iterator::toLast()
+{
+   checkHasDb();
+
+   MDB_val mkey;
+   MDB_val mval;
+
+   int rc = mdb_cursor_get(csr_, &mkey, &mval, MDB_LAST);
+
+   if (rc == MDB_NOTFOUND)
+      has_ = false;
+   else if (rc != MDB_SUCCESS)
+      throw LMDBException("Failed to seek (" + errorString(rc) + ")");
    else
    {
       has_ = true;

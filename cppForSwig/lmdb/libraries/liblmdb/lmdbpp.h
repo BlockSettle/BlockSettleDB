@@ -159,6 +159,7 @@ public:
       
       // seek this iterator to the first sequence
       void toFirst();
+      void toLast();
       
       // returns the key currently pointed to, if no key is being pointed to
       // std::logic_error is returned (not LSMException). LSMException may

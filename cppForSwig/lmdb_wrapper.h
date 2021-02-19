@@ -173,6 +173,7 @@ public:
    bool seekToBefore(DB_PREFIX prefix);
    bool seekToBefore(DB_PREFIX pref, BinaryDataRef key);
    virtual bool seekToFirst(void) = 0;
+   virtual bool seekToLast(void) = 0;
 
    // Return true if the iterator is currently on valid data, with key match
    bool checkKeyExact(BinaryDataRef key);
@@ -205,50 +206,20 @@ public:
    {}
 
    //virutals
-   bool isNull(void) const { return !iter_.isValid(); }
-   bool isValid(void) const { return iter_.isValid(); }
+   bool isNull(void) const override { return !iter_.isValid(); }
+   bool isValid(void) const override { return iter_.isValid(); }
 
-   bool seekTo(BinaryDataRef key);
-   bool seekToExact(BinaryDataRef key);
-   bool seekToBefore(BinaryDataRef key);
-   bool seekToFirst(void);
+   bool seekTo(BinaryDataRef key) override;
+   bool seekToExact(BinaryDataRef key) override;
+   bool seekToBefore(BinaryDataRef key) override;
+   bool seekToFirst(void) override;
+   bool seekToLast(void) override;
 
-   bool advance(void);
-   bool retreat(void);
-   bool readIterData(void);
+   bool advance(void) override;
+   bool retreat(void) override;
+   bool readIterData(void) override;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-class DBPair;
-class DatabaseContainer_Sharded;
-class LDBIter_Sharded : public LDBIter
-{
-private:
-   std::unique_ptr<LDBIter> iter_;
-   DatabaseContainer_Sharded* dbPtr_;
-   unsigned currentShard_;
-
-public:
-   LDBIter_Sharded(
-      DatabaseContainer_Sharded* dbPtr) :
-      dbPtr_(dbPtr)
-   {}
-
-   //virutals
-   bool isNull(void) const;
-   bool isValid(void) const;
-
-   bool seekTo(BinaryDataRef key);
-   bool seekToExact(BinaryDataRef key);
-   bool seekToBefore(BinaryDataRef key);
-   bool seekToFirst(void);
-
-   bool advance(void);
-   bool retreat(void);
-   bool readIterData(void);
-};
-
-////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class DBPair
 {
