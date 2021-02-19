@@ -94,7 +94,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>../libs/x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>LMDB_Win_d.lib;ws2_32.lib;websockets_static.lib;protobuf_win.lib;libprotobuf.lib;libbtc_win.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>LMDB_Win.lib;ws2_32.lib;websockets_static.lib;protobuf_win.lib;libprotobuf.lib;libbtc_win.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy ..\x64\Debug\BlockDataManager.exe ..\..\ArmoryDB_debug.exe</Command>
