@@ -129,9 +129,7 @@ void Blockchain::updateBranchingMaps(
    db->setValidDupIDForHeight(dupIDs);
    db->setBlockIDBranch(blockIDs);
 
-   auto topId = getTopIdFromDb(db);
-   if (topId > topID_.load(memory_order_relaxed))
-      topID_.store(topId, memory_order_relaxed);
+   initTopBlockId(db);
 }
 
 Blockchain::ReorganizationState 
@@ -514,7 +512,7 @@ void Blockchain::putNewBareHeaders(LMDBBlockDatabase *db)
          uint8_t dup = db->putBareHeader(sbh, true, false);
          block->setDuplicateID(dup);  // make sure headerMap_ and DB agree
          
-         if(block->isMainBranch())
+         if (block->isMainBranch())
             dupIdMap.insert(make_pair(block->blockHeight_, dup));
 
          blockIdMap.insert(
@@ -547,11 +545,9 @@ void Blockchain::putNewBareHeaders(LMDBBlockDatabase *db)
    //so clean up the container
    newlyParsedBlocks_ = move(unputHeaders);
 
-   if (newlyParsedBlocks_.size() != 0)
    {
       /*
-      Some new headers did not make it into the chain, therefor they were 
-      not commited the disk. We need to keep track of the highest assigned
+      We need to keep track of the highest assigned
       topID across runs so we manually update it instead of relying on 
       headers in the db.
       */
@@ -575,6 +571,50 @@ unsigned int Blockchain::getTopIdFromDb(LMDBBlockDatabase *db) const
 }
 
 /////////////////////////////////////////////////////////////////////////////
+void Blockchain::initTopBlockId(LMDBBlockDatabase* db)
+{
+   auto grabLastStxoKey = [db](void)->uint32_t
+   {
+      //only works for supernode
+      if (db->armoryDbType() != ARMORY_DB_SUPER)
+         return 0;
+
+      auto&& tx = db->beginTransaction(STXO, LMDB::ReadOnly);
+      auto stxoIter = db->getIterator(STXO);
+
+      if (!stxoIter->seekToLast())
+         return 0;
+      
+      auto lastKey = stxoIter->getKey();
+      if (lastKey.getSize() < 4)
+         return 0;
+
+      BinaryRefReader keyReader(lastKey.getRef());
+      auto intKey = keyReader.get_uint32_t(BE);
+
+      if ((intKey & 0x000000FF) != 0xFF)
+         return 0;
+
+      return intKey >> 8;
+   };
+
+   //grab top id from block headers sdbi
+   auto topId = getTopIdFromDb(db);
+   
+   //also check the top block id used to record stxos
+   auto stxoTopId = grabLastStxoKey();
+
+   if (stxoTopId != 0 && stxoTopId >= topId)
+   {
+      LOGWARN << "top ID in stxo DB isn't less than top ID in headers DB";
+      topId = stxoTopId + 1;
+   }
+
+   if (topId > topID_.load(memory_order_relaxed))
+      topID_.store(topId, memory_order_relaxed);
+}
+
+/////////////////////////////////////////////////////////////////////////////
 void Blockchain::updateTopIdInDb(LMDBBlockDatabase *db)
 {
    auto inDbTopId = getTopIdFromDb(db);
@@ -594,7 +634,7 @@ set<uint32_t> Blockchain::addBlocksInBulk(
    const map<BinaryData, shared_ptr<BlockHeader>>& bhMap, bool areNew)
 {
    if (bhMap.size() == 0)
-      return set<uint32_t>();
+      return {};
 
    set<uint32_t> returnSet;
    unique_lock<mutex> lock(mu_);

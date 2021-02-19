@@ -13,6 +13,8 @@
 #include "ScrAddrFilter.h"
 #include "Transactions.h"
 
+#define REWIND_COUNT 100
+
 using namespace std;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -95,13 +97,11 @@ void DatabaseBuilder::init()
 
    try
    {
-      unsigned rewindCount = 100;
-
       //rewind the top block offset to catch on missed blocks for db init
       auto topBlock = blockchain_->top();
       auto rewindHeight = topBlock->getBlockHeight();
-      if (rewindHeight > rewindCount)
-         rewindHeight -= rewindCount;
+      if (rewindHeight > REWIND_COUNT)
+         rewindHeight -= REWIND_COUNT;
       else
          rewindHeight = 1;
 
@@ -109,7 +109,7 @@ void DatabaseBuilder::init()
       topBlockOffset_.fileID_ = rewindBlock->getBlockFileNum();
       topBlockOffset_.offset_ = rewindBlock->getOffset();
 
-      LOGINFO << "Rewinding " << rewindCount << " blocks";
+      LOGINFO << "Rewinding " << REWIND_COUNT << " blocks";
    }
    catch (exception&)
    {}
@@ -413,7 +413,7 @@ bool DatabaseBuilder::addBlocksToDB(BlockDataLoader& bdl,
       }
       catch (BlockDeserializingException &e)
       {
-         LOGERR << "block deser except: " <<  e.what();
+         LOGERR << "block deser except: " << e.what();
          LOGERR << "block fileID: " << fileID;
          return false;
       }
@@ -483,7 +483,7 @@ bool DatabaseBuilder::addBlocksToDB(BlockDataLoader& bdl,
 
          for (auto& bdId : insertedBlocks)
          {
-            allFilters.insert(move(bdMap[bdId].getTxFilter()));
+            allFilters.emplace(bdMap[bdId].getTxFilter());
          }
 
          //update bucket
