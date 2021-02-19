@@ -88,7 +88,9 @@ public:
    void putNewBareHeaders(LMDBBlockDatabase *db);
 
    unsigned int getNewUniqueID(void) { return topID_.fetch_add(1, std::memory_order_relaxed); }
+   unsigned int getTopId(void) { return topID_.load(std::memory_order_relaxed); }
    unsigned int getTopIdFromDb(LMDBBlockDatabase*) const;
+   void initTopBlockId(LMDBBlockDatabase* db);
    void updateTopIdInDb(LMDBBlockDatabase*);
 
    std::map<unsigned, std::set<unsigned>> mapIDsPerBlockFile(void) const;
