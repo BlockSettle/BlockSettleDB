@@ -268,6 +268,9 @@ set<BinaryDataRef> ScrAddrFilter::updateAddrMap(
       return {};
    }
    }
+
+   //this is to mute the msvc eroneous warning about return values
+   return {};
 }
 
 ///////////////////////////////////////////////////////////////////////////////
