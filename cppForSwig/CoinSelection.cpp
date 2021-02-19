@@ -1238,7 +1238,7 @@ bool CoinSelectionInstance::selectUTXOs(uint64_t fee, float fee_byte,
       
       return true;
    }
-   catch (CoinSelectionException& e)
+   catch (CoinSelectionException&)
    {}
 
    return false;
