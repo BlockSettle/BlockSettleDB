@@ -752,7 +752,7 @@ namespace DBTestUtils
    shared_ptr<::google::protobuf::Message> processCommand(
       Clients* clients, shared_ptr<::google::protobuf::Message> msg)
    {
-      auto len = msg->ByteSize();
+      auto len = msg->ByteSizeLong();
       vector<uint8_t> buffer(len);
       msg->SerializeToArray(&buffer[0], len);
       auto&& bdVec = WebSocketMessageCodec::serialize(

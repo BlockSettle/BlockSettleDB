@@ -285,7 +285,7 @@ void WebSocketClient::cleanUp()
    errMsg.set_code(-1);
    errMsg.set_errstr("LWS client disconnected");
 
-   BinaryData errPacket(errMsg.ByteSize());
+   BinaryData errPacket(errMsg.ByteSizeLong());
    if (!errMsg.SerializeToArray(
       errPacket.getPtr(), errPacket.getSize()))
    {
