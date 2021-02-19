@@ -62,16 +62,18 @@ void hkdf_sha256(uint8_t *result, size_t resultSize,
    // with dedicated buffers.
    for(unsigned int i = 1; i < numSteps; ++i)
    {
-      uint8_t tmpHashInput[hashInputBytes];
+      uint8_t* tmpHashInput = (uint8_t*)malloc(hashInputBytes);
 
       // T[i] = HMAC(PRK, T[i-1] | info | i)
       memcpy(tmpHashInput, t + (i-1)*SHA256_DIGEST_LENGTH, SHA256_DIGEST_LENGTH);
       memcpy(tmpHashInput + SHA256_DIGEST_LENGTH, info, isize);
-      tmpHashInput[hashInputBytes-1] = (uint8_t)i;
+      tmpHashInput[hashInputBytes-1] = (uint8_t)(i+1);
 
       hmac_sha256(prk, SHA256_DIGEST_LENGTH,
                   tmpHashInput, hashInputBytes,
                   t + i*SHA256_DIGEST_LENGTH);
+
+      free(tmpHashInput);
    }
 
    // Write the final results and exit.
