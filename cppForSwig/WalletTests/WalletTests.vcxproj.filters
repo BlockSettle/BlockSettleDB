@@ -84,9 +84,6 @@
     <ClCompile Include="..\DerivationScheme.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\EncryptionUtils.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\HistoryPager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -141,9 +138,6 @@
     <ClCompile Include="..\StringSockets.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\SwigClient.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\TransactionBatch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -160,9 +154,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\UniversalTimer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\WalletManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\Wallets.cpp">
@@ -210,9 +201,6 @@
     <ClCompile Include="..\BitcoinSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\ClientClasses.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\AsyncClient.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -237,9 +225,6 @@
     <ClCompile Include="..\chacha20poly1305\poly1305.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\hkdf.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\ScriptRecipient.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -253,6 +238,24 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\TerminalPassphrasePrompt.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ResolverFeed.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DBClientClasses.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ZeroConfNotifications.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hkdf\hkdf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ArmoryBackups.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\BIP15x_Handshake.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -39,9 +39,6 @@
     <ClCompile Include="..\EncryptionUtils_libbtc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\EncryptionUtils.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\BitcoinSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -67,9 +64,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\BIP150_151.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\hkdf.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\chacha20poly1305\chacha.c">
@@ -204,9 +198,6 @@
     <ClCompile Include="..\Server.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\ClientClasses.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\Wallets.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -225,16 +216,10 @@
     <ClCompile Include="..\CoinSelection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\WalletManager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\AsyncClient.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\WebSocketClient.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\SwigClient.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\gtest\NodeUnitTest.cpp">
@@ -249,5 +234,25 @@
     <ClCompile Include="..\TerminalPassphrasePrompt.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\ResolverFeed.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DBClientClasses.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ZeroConfNotifications.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hkdf\hkdf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\BIP15x_Handshake.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\log.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

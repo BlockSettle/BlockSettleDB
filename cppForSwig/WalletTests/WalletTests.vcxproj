@@ -22,32 +22,32 @@
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{6470579C-96C1-40A1-B9E9-5A8DD642D341}</ProjectGuid>
     <RootNamespace>WalletTests</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -97,17 +97,17 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <ConformanceMode>true</ConformanceMode>
+      <ConformanceMode>false</ConformanceMode>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <AdditionalIncludeDirectories>..\leveldb_windows_port\win32_posix;..\cryptopp;..\lmdb\libraries\liblmdb;C:\Python27amd64\include;..\libwebsockets\include;..\libbtc\include;..\protobuf\src;../libbtc/src/secp256k1/include;../chacha20poly1305;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../;../leveldb_windows_port/win32_posix;../lmdb/libraries/liblmdb;../../../../libwebsockets/build;../../../../protobuf/src;../libbtc/include;../libbtc/src/secp256k1/include;../chacha20poly1305;../../../../libwebsockets/include;../hkdf;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRTDBG_MAP_ALLOC;_WINSOCK_DEPRECATED_NO_WARNINGS;_WINSOCKAPI_;_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING;NOMINMAX;LIBBTC_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalUsingDirectories>
       </AdditionalUsingDirectories>
       <DisableSpecificWarnings>4146;</DisableSpecificWarnings>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>C:\Python27amd64\libs;$(SolutionDir)libs\$(Platform)\;../../../lws/lib/Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>cryptopp_d.lib;LMDB_Win_d.lib;python27_d.lib;ws2_32.lib;websockets_static.lib;protobuf_win_d.lib;libbtc_win_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>../libs/x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>LMDB_Win_d.lib;ws2_32.lib;websockets_static.lib;protobuf_win_d.lib;libprotobufd.lib;libbtc_win_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -127,6 +127,7 @@
   <ItemGroup>
     <ClCompile Include="..\Accounts.cpp" />
     <ClCompile Include="..\Addresses.cpp" />
+    <ClCompile Include="..\ArmoryBackups.cpp" />
     <ClCompile Include="..\AssetEncryption.cpp" />
     <ClCompile Include="..\Assets.cpp" />
     <ClCompile Include="..\AsyncClient.cpp" />
@@ -135,6 +136,7 @@
     <ClCompile Include="..\BDM_Server.cpp" />
     <ClCompile Include="..\BinaryData.cpp" />
     <ClCompile Include="..\BIP150_151.cpp" />
+    <ClCompile Include="..\BIP15x_Handshake.cpp" />
     <ClCompile Include="..\BIP32_Node.cpp" />
     <ClCompile Include="..\BitcoinP2P.cpp" />
     <ClCompile Include="..\Blockchain.cpp" />
@@ -150,20 +152,19 @@
     <ClCompile Include="..\chacha20poly1305\chacha.c" />
     <ClCompile Include="..\chacha20poly1305\chachapoly_aead.c" />
     <ClCompile Include="..\chacha20poly1305\poly1305.c" />
-    <ClCompile Include="..\ClientClasses.cpp" />
     <ClCompile Include="..\CoinSelection.cpp" />
     <ClCompile Include="..\DatabaseBuilder.cpp" />
+    <ClCompile Include="..\DBClientClasses.cpp" />
     <ClCompile Include="..\DBUtils.cpp" />
     <ClCompile Include="..\DecryptedDataContainer.cpp" />
     <ClCompile Include="..\DerivationScheme.cpp" />
-    <ClCompile Include="..\EncryptionUtils.cpp" />
     <ClCompile Include="..\EncryptionUtils_libbtc.cpp" />
     <ClCompile Include="..\gtest\gtest-all.cc" />
     <ClCompile Include="..\gtest\NodeUnitTest.cpp" />
     <ClCompile Include="..\gtest\TestUtils.cpp" />
     <ClCompile Include="..\gtest\WalletTests.cpp" />
     <ClCompile Include="..\HistoryPager.cpp" />
-    <ClCompile Include="..\hkdf.cpp" />
+    <ClCompile Include="..\hkdf\hkdf.c" />
     <ClCompile Include="..\HttpMessage.cpp" />
     <ClCompile Include="..\JSON_codec.cpp" />
     <ClCompile Include="..\KDF.cpp" />
@@ -177,6 +178,7 @@
     <ClCompile Include="..\nodeRPC.cpp" />
     <ClCompile Include="..\Progress.cpp" />
     <ClCompile Include="..\ReentrantLock.cpp" />
+    <ClCompile Include="..\ResolverFeed.cpp" />
     <ClCompile Include="..\ScrAddrFilter.cpp" />
     <ClCompile Include="..\ScrAddrObj.cpp" />
     <ClCompile Include="..\Script.cpp" />
@@ -189,7 +191,6 @@
     <ClCompile Include="..\SshParser.cpp" />
     <ClCompile Include="..\StoredBlockObj.cpp" />
     <ClCompile Include="..\StringSockets.cpp" />
-    <ClCompile Include="..\SwigClient.cpp" />
     <ClCompile Include="..\TerminalPassphrasePrompt.cpp" />
     <ClCompile Include="..\TransactionBatch.cpp" />
     <ClCompile Include="..\Transactions.cpp" />
@@ -199,12 +200,12 @@
     <ClCompile Include="..\UniversalTimer.cpp" />
     <ClCompile Include="..\WalletFileInterface.cpp" />
     <ClCompile Include="..\WalletHeader.cpp" />
-    <ClCompile Include="..\WalletManager.cpp" />
     <ClCompile Include="..\Wallets.cpp" />
     <ClCompile Include="..\WebSocketClient.cpp" />
     <ClCompile Include="..\WebSocketMessage.cpp" />
     <ClCompile Include="..\Win_TranslatePath.cpp" />
     <ClCompile Include="..\ZeroConf.cpp" />
+    <ClCompile Include="..\ZeroConfNotifications.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Accounts.h" />
