@@ -94,16 +94,34 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+class WSClientWriteQueue
+{
+private:
+   struct lws_context* contextPtr_;
+   ArmoryThreading::Queue<SerializedMessage> writeQueue_;
+
+public:
+   WSClientWriteQueue(struct lws_context* contextPtr) :
+      contextPtr_(contextPtr)
+   {}
+
+   void push_back(SerializedMessage&);
+   SerializedMessage pop_front(void);
+   bool empty(void) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 class WebSocketClient : public SocketPrototype
 {
 private:
    std::atomic<void*> wsiPtr_;
+   std::atomic<void*> contextPtr_;
    const std::string servName_;
 
    std::atomic<unsigned> requestID_;
    std::atomic<bool> connected_ = { false };
 
-   ArmoryThreading::Queue<SerializedMessage> writeQueue_;
+   std::unique_ptr<WSClientWriteQueue> writeQueue_;
    SerializedMessage currentWriteMessage_;
 
    //AEAD requires messages to be sent in order of encryption, since the 

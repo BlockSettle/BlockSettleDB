@@ -36,6 +36,7 @@ WebSocketClient::WebSocketClient(const string& addr, const string& port,
 {
    count_.store(0, std::memory_order_relaxed);
    requestID_.store(0, std::memory_order_relaxed);
+   contextPtr_.store(0, memory_order_release);
 
    if (!ephemeralPeers)
    {
@@ -125,7 +126,7 @@ void WebSocketClient::writeService()
                bip151Connection_.get(), 
                ArmoryAEAD::HandshakeSequence::Rekey);
 
-            writeQueue_.push_back(move(rekey_msg));
+            writeQueue_->push_back(rekey_msg);
             bip151Connection_->rekeyOuterSession();
             outKeyTimePoint_ = rightnow;
             ++outerRekeyCount_;
@@ -137,14 +138,7 @@ void WebSocketClient::writeService()
          data, bip151Connection_.get(), 
          WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, message->id_);
 
-      writeQueue_.push_back(move(ws_msg));
-
-      //trigger write callback
-      auto wsiptr = (struct lws*)wsiPtr_.load(memory_order_relaxed);
-      if (wsiptr == nullptr)
-         throw LWS_Error("invalid lws instance");
-      if (lws_callback_on_writable(wsiptr) < 1)
-         throw LWS_Error("invalid lws instance");
+      writeQueue_->push_back(ws_msg);
    }
 }
 
@@ -229,6 +223,8 @@ bool WebSocketClient::connectToRemote()
       writeThr_ = thread(writeLBD);
 
       auto contextPtr = init();
+      contextPtr_.store(contextPtr, memory_order_release);
+      writeQueue_ = make_unique<WSClientWriteQueue>(contextPtr);
       this->service(contextPtr);
    };
 
@@ -241,19 +237,32 @@ bool WebSocketClient::connectToRemote()
 void WebSocketClient::service(lws_context* contextPtr)
 {
    int n = 0;
-   while(run_.load(memory_order_relaxed) != 0 && n >= 0)
+   auto wsiPtr = (struct lws*)wsiPtr_.load(memory_order_acquire);
+
+   while (run_.load(memory_order_relaxed) != 0 && n >= 0)
    {
       n = lws_service(contextPtr, 500);
+      if (!currentWriteMessage_.isDone() || !writeQueue_->empty())
+         lws_callback_on_writable(wsiPtr);
    }
 
    lws_context_destroy(contextPtr);
+   contextPtr_.store(0, memory_order_release);
    cleanUp();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::shutdown()
 {
+   if (run_.load(memory_order_relaxed) == 0)
+      return;
+
+   auto context = (struct lws_context*)contextPtr_.load(memory_order_acquire);
+   if (context == nullptr)
+      return;
+
    run_.store(0, memory_order_relaxed);
+   lws_cancel_service(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -261,6 +270,7 @@ void WebSocketClient::cleanUp()
 {
    writeSerializationQueue_.terminate();
    readQueue_.terminate();
+   writeQueue_.reset();
 
    try
    {
@@ -409,7 +419,7 @@ int WebSocketClient::callback(struct lws *wsi,
          try
          {
             instance->currentWriteMessage_ =
-               move(instance->writeQueue_.pop_front());
+               move(instance->writeQueue_->pop_front());
          }
          catch (ArmoryThreading::IsEmpty&)
          {
@@ -430,18 +440,11 @@ int WebSocketClient::callback(struct lws *wsi,
             " bytes, sent " << m << " bytes";
       }
 
-      if (instance->currentWriteMessage_.isDone())      
+      if (instance->currentWriteMessage_.isDone())
+      {
+         instance->currentWriteMessage_.clear();
          instance->count_.fetch_add(1, memory_order_relaxed);
-
-      /***
-      In case several threads are trying to write to the same socket, it's
-      possible their calls to callback_on_writeable may overlap, resulting 
-      in a single write entry being consumed.
-
-      To avoid this, we trigger the callback from within itself, which will 
-      break out if there are no more items in the writeable stack.
-      ***/
-      lws_callback_on_writable(wsi);
+      }
 
       break;
    }
@@ -593,14 +596,7 @@ bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj
          connPtr = bip151Connection_.get();
 
       msg.construct(payload.getDataVector(), connPtr, type);
-      writeQueue_.push_back(move(msg));
-
-      //trigger write callback
-      auto wsiptr = (struct lws*)wsiPtr_.load(memory_order_relaxed);
-      if (wsiptr == nullptr)
-         throw LWS_Error("invalid lws instance");
-      if (lws_callback_on_writable(wsiptr) < 1)
-         throw LWS_Error("invalid lws instance");
+      writeQueue_->push_back(msg);
    };
 
    if (serverPubkeyProm_ != nullptr)
@@ -736,4 +732,27 @@ void WebSocketClient::promptUser(
    thread thr(promptLbd);
    if (thr.joinable())
       thr.detach();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// WSClientWriteQueue
+//
+///////////////////////////////////////////////////////////////////////////////
+void WSClientWriteQueue::push_back(SerializedMessage& msg)
+{
+   writeQueue_.push_back(move(msg));
+   lws_cancel_service(contextPtr_);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+SerializedMessage WSClientWriteQueue::pop_front()
+{
+   return move(writeQueue_.pop_front());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool WSClientWriteQueue::empty() const
+{
+   return writeQueue_.count() == 0;
 }

@@ -113,8 +113,11 @@ int WebSocketServer::callback(
 
       //pending write queue iterator is always set entering the 
       //lws callback unless the pending write set is empty
-      if (*instance->pendingWritesIter_ == wsi)
+      if (instance->pendingWritesIter_ != instance->pendingWrites_.end() &&
+         *instance->pendingWritesIter_ == wsi)
+      {
          instance->pendingWritesIter_++;
+      }
       
       instance->pendingWrites_.erase(wsi);
       break;
