@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2020, goatpig                                               //            
+//  Copyright (C) 2020-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,24 +163,14 @@
 struct ZeroConfSharedStateSnapshot;
 class LedgerEntry;
 class TxIOPair;
+struct ParsedZCData;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct ZcPurgePacket
 {
    std::map<BinaryData, BinaryData> invalidatedZcKeys_;
-   std::map<BinaryData, BinaryData> minedTxioKeys_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-struct ParsedZCData
-{
-   std::set<BinaryData> scrAddrs_;
-   std::map<BinaryData, BinaryData> invalidatedKeys_;
-
-   void mergeTxios(const ParsedZCData& pzd)
-   {
-      scrAddrs_.insert(pzd.scrAddrs_.begin(), pzd.scrAddrs_.end());
-   }
+   std::map<BinaryData, std::set<BinaryData>> scrAddrToTxioKeys_;
+   std::shared_ptr<ZeroConfSharedStateSnapshot> ssPtr_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,8 +194,7 @@ typedef std::map<BinaryData, std::shared_ptr<std::set<BinaryDataRef>>> KeyAddrMa
 struct ZcNotificationPacket
 {
    std::string bdvID_;
-   std::map<BinaryDataRef, std::map<
-      BinaryDataRef, std::shared_ptr<TxIOPair>>> txioMap_;
+   std::map<BinaryData, std::set<BinaryData>> scrAddrToTxioKeys_;
 
    std::shared_ptr<ZcPurgePacket> purgePacket_;
    std::shared_ptr<KeyAddrMap> newKeysAndScrAddr_;

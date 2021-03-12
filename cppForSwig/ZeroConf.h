@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016-2020, goatpig                                          //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +25,7 @@
 #include "Blockchain.h"
 #include "ScrAddrFilter.h"
 #include "ArmoryErrors.h"
+#include "ZeroConfUtils.h"
 #include "ZeroConfNotifications.h"
 
 #define GETZC_THREADCOUNT 5
@@ -44,17 +45,6 @@ enum ZcAction
    Zc_Shutdown
 };
 
-enum ParsedTxStatus
-{
-   Tx_Uninitialized,
-   Tx_Resolved,
-   Tx_ResolveAgain,
-   Tx_Unresolved,
-   Tx_Mined,
-   Tx_Invalid,
-   Tx_Skip
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 struct ZeroConfData
 {
@@ -65,105 +55,6 @@ struct ZeroConfData
    {
       return (this->txobj_ == rhs.txobj_) && (this->txtime_ == rhs.txtime_);
    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-class OutPointRef
-{
-private:
-   BinaryData txHash_;
-   unsigned txOutIndex_ = UINT16_MAX;
-   BinaryData dbKey_;
-   uint64_t time_ = UINT64_MAX;
-
-public:
-   void unserialize(uint8_t const * ptr, uint32_t remaining);
-   void unserialize(BinaryDataRef bdr);
-
-   void resolveDbKey(LMDBBlockDatabase* db);
-   const BinaryData& getDbKey(void) const { return dbKey_; }
-
-   bool isResolved(void) const { return dbKey_.getSize() == 8; }
-   bool isInitialized(void) const;
-
-   BinaryDataRef getTxHashRef(void) const { return txHash_.getRef(); }
-   unsigned getIndex(void) const { return txOutIndex_; }
-
-   BinaryData& getDbKey(void) { return dbKey_; }
-   BinaryDataRef getDbTxKeyRef(void) const;
-
-   void reset(void)
-   {
-      dbKey_.clear();
-      time_ = UINT64_MAX;
-   }
-
-   bool isZc(void) const;
-
-   void setTime(uint64_t t) { time_ = t; }
-   uint64_t getTime(void) const { return time_; }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-struct ParsedTxIn
-{
-   OutPointRef opRef_;
-   BinaryData scrAddr_;
-   uint64_t value_ = UINT64_MAX;
-
-public:
-   bool isResolved(void) const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-struct ParsedTxOut
-{
-   BinaryData scrAddr_;
-   uint64_t value_ = UINT64_MAX;
-
-   size_t offset_;
-   size_t len_;
-
-   bool isInitialized(void) const
-   {
-      return scrAddr_.getSize() != 0 && value_ != UINT64_MAX; \
-   }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-struct ParsedTx
-{
-private:
-   mutable BinaryData txHash_;
-   const BinaryData zcKey_;
-
-public:
-   Tx tx_;
-   std::vector<ParsedTxIn> inputs_;
-   std::vector<ParsedTxOut> outputs_;
-   ParsedTxStatus state_ = Tx_Uninitialized;
-   bool isRBF_ = false;
-   bool isChainedZc_ = false;
-   bool needsReparsed_ = false;
-
-public:
-   ParsedTx(BinaryData& key) :
-      zcKey_(std::move(key))
-   {
-      //set zc index in Tx object
-      BinaryRefReader brr(zcKey_.getRef());
-      brr.advance(2);
-      tx_.setTxIndex(brr.get_uint32_t(BE));
-   }
-
-   ParsedTxStatus status(void) const { return state_; }
-   bool isResolved(void) const;
-   void reset(void);
-
-   const BinaryData& getTxHash(void) const;
-   void setTxHash(const BinaryData& hash) { txHash_ = hash; }
-   BinaryDataRef getKeyRef(void) const { return zcKey_.getRef(); }
-   const BinaryData& getKey(void) const { return zcKey_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -389,34 +280,6 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct ZeroConfSharedStateSnapshot
-{
-   std::map<BinaryDataRef, BinaryDataRef> txHashToDBKey_; //<txHash, zcKey>
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> txMap_; //<zcKey, zcTx>
-   std::set<BinaryData> txOutsSpentByZC_; //<txOutDbKeys>
-
-   //TODO: rethink this map, slow to purge
-   //<scrAddr,  <dbKeyOfOutput, TxIOPair>> 
-   std::map<BinaryData, 
-      std::map<BinaryData, std::shared_ptr<TxIOPair>>> txioMap_;
-
-   static std::shared_ptr<ZeroConfSharedStateSnapshot> copy(
-      std::shared_ptr<ZeroConfSharedStateSnapshot> obj)
-   {
-      auto ss = std::make_shared<ZeroConfSharedStateSnapshot>();
-      if (obj != nullptr)
-      {
-         ss->txHashToDBKey_ = obj->txHashToDBKey_;
-         ss->txMap_ = obj->txMap_;
-         ss->txOutsSpentByZC_ = obj->txOutsSpentByZC_;
-         ss->txioMap_ = obj->txioMap_;
-      }
-
-      return ss;
-   }
-};
-
-////////////////////////////////////////////////////////////////////////////////
 struct BatchTxMap
 {
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> txMap_;
@@ -515,24 +378,10 @@ public:
 class ZeroConfContainer
 {
 private:
-   struct BulkFilterData
-   {
-      std::map<BinaryData, std::map<BinaryData, std::shared_ptr<TxIOPair>>> scrAddrTxioMap_;
-      std::map<BinaryDataRef, std::map<unsigned, BinaryDataRef>> outPointsSpentByKey_;
-      std::set<BinaryData> txOutsSpentByZC_;
-      std::map<BinaryDataRef, std::shared_ptr<std::set<BinaryDataRef>>> keyToSpentScrAddr_;
-      std::map<BinaryDataRef, std::set<BinaryDataRef>> keyToFundedScrAddr_;
-
-      std::map<std::string, ParsedZCData> flaggedBDVs_;
-
-      bool isEmpty(void) { return scrAddrTxioMap_.size() == 0; }
-   };
-
-private:
    std::shared_ptr<ZeroConfSharedStateSnapshot> snapshot_;
    
    //<txHash, map<opId, ZcKeys>>
-   std::map<BinaryDataRef, 
+   std::map<BinaryData, 
       std::map<unsigned, BinaryDataRef>> outPointsSpentByKey_;
    std::set<BinaryData> minedTxHashes_;
 
@@ -569,32 +418,47 @@ private:
    ArmoryMutex watcherMapMutex_;
 
 private:
-   BulkFilterData ZCisMineBulkFilter(ParsedTx & tx, const BinaryDataRef& ZCkey,
-      std::function<bool(const BinaryData&, BinaryData&)> getzckeyfortxhash,
-      std::function<const ParsedTx&(const BinaryData&)> getzctxbykey);
+   FilteredZeroConfData filterTransaction(
+      //tx, zckey
+      std::shared_ptr<ParsedTx>, BinaryDataRef,
+      //get zckey for txhash func
+      std::function<bool(const BinaryData&, BinaryData&)>,
+      //get zc for zckey func
+      std::function<const ParsedTx&(const BinaryData&)>) const;
 
-   void preprocessTx(ParsedTx&) const;
+   void finalizeParsedTxResolution(
+      std::shared_ptr<ParsedTx>, 
+      std::function<bool(const BinaryData&, BinaryData&)>,
+      std::function<const ParsedTx&(const BinaryData&)>) const;
 
-   unsigned loadZeroConfMempool(bool clearMempool);
-   bool purge(
-      const Blockchain::ReorganizationState&, 
-      std::shared_ptr<ZeroConfSharedStateSnapshot>,
-      std::map<BinaryData, BinaryData>&);
+   FilteredZeroConfData filterParsedTx(
+      std::shared_ptr<ParsedTx>, BinaryDataRef) const;
+
+
+   void increaseParserThreadPool(unsigned);
+   unsigned loadZeroConfMempool(bool);
    void reset(void);
 
-   void processTxGetDataReply(std::unique_ptr<Payload> payload);
+   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> purge(
+      const Blockchain::ReorganizationState&,
+      std::shared_ptr<ZeroConfSharedStateSnapshot>);
+   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> purgeToBranchpoint(
+      const Blockchain::ReorganizationState&, 
+      std::shared_ptr<ZeroConfSharedStateSnapshot>);
+
+   void processTxGetDataReply(std::unique_ptr<Payload>);
    void handleZcProcessingStructThread(void);
    void requestTxFromNode(RequestZcPacket&);
    void processPayloadTx(std::shared_ptr<ProcessPayloadTxPacket>);
 
-   void increaseParserThreadPool(unsigned);
-   void preprocessZcMap(std::map<BinaryDataRef, std::shared_ptr<ParsedTx>>&);
 
    void pushZcPacketThroughP2P(ZcBroadcastPacket&);
    void pushZcPreprocessVec(std::shared_ptr<RequestZcPacket>);
 
-   void dropZC(std::shared_ptr<ZeroConfSharedStateSnapshot>, const BinaryDataRef&);
-   void dropZC(std::shared_ptr<ZeroConfSharedStateSnapshot>, const std::set<BinaryData>&);
+   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> dropZC(
+      std::shared_ptr<ZeroConfSharedStateSnapshot>, const BinaryDataRef&);
+   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> dropZC(
+      std::shared_ptr<ZeroConfSharedStateSnapshot>, const std::set<BinaryData>&);
 
    void parseNewZC(ZcActionStruct);
    void parseNewZC(
@@ -603,6 +467,9 @@ private:
       bool updateDB, bool notify,
       const std::pair<std::string, std::string>&,
       std::map<BinaryData, std::shared_ptr<WatcherTxBody>>&);
+   void finalizePurgePacket(
+      ZcActionStruct,
+      std::shared_ptr<ZeroConfSharedStateSnapshot>) const;
 
    void updateZCinDB(void);
    void handleInvTx();
@@ -654,23 +521,15 @@ public:
    Tx getTxByHash(const BinaryData& txHash) const;
    bool isTxOutSpentByZC(const BinaryData& dbKey) const;
 
-   std::map<BinaryData, std::shared_ptr<TxIOPair>>
+   std::map<BinaryData, std::shared_ptr<const TxIOPair>>
       getUnspentZCforScrAddr(BinaryData scrAddr) const;
-   std::map<BinaryData, std::shared_ptr<TxIOPair>>
+   std::map<BinaryData, std::shared_ptr<const TxIOPair>>
       getRBFTxIOsforScrAddr(BinaryData scrAddr) const;
 
    std::vector<TxOut> getZcTxOutsForKey(const std::set<BinaryData>&) const;
    std::vector<UnspentTxOut> getZcUTXOsForKey(const std::set<BinaryData>&) const;
 
-   const std::map<BinaryData, std::shared_ptr<TxIOPair>>&
-      getTxioMapForScrAddr(const BinaryData&) const;
-
    std::shared_ptr<ZeroConfSharedStateSnapshot> getSnapshot(void) const;
-
-   std::shared_ptr<ParsedTx> getTxByKey(const BinaryData&) const;
-   TxOut getTxOutCopy(const BinaryDataRef, unsigned) const;
-   BinaryDataRef getKeyForHash(const BinaryDataRef&) const;
-   BinaryDataRef getHashForKey(const BinaryDataRef&) const;
 };
 
 #endif

@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016-2018, goatpig                                          //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,9 @@ ZcGetPacket::~ZcGetPacket()
 {}
 
 ///////////////////////////////////////////////////////////////////////////////
+//
 //ZeroConfContainer Methods
+//
 ///////////////////////////////////////////////////////////////////////////////
 ZeroConfContainer::ZeroConfContainer(LMDBBlockDatabase* db,
    std::shared_ptr<BitcoinNodeInterface> node, unsigned maxZcThread) :
@@ -95,19 +97,12 @@ Tx ZeroConfContainer::getTxByHash(const BinaryData& txHash) const
    if (ss == nullptr)
       return Tx();
 
-   auto& txhashmap = ss->txHashToDBKey_;
-   const auto keyIter = txhashmap.find(txHash);
-
-   if (keyIter == txhashmap.end())
+   auto parsedTxPtr = ss->getTxByHash(txHash);
+   if (parsedTxPtr == nullptr)
       return Tx();
 
-   auto& txmap = ss->txMap_;
-   auto txiter = txmap.find(keyIter->second);
-
-   if (txiter == txmap.end())
-      return Tx();
-
-   auto txCopy = txiter->second->tx_;
+   //copy base tx, add txhash map
+   auto txCopy = parsedTxPtr->tx_;
    
    //get zc outpoints id
    for (unsigned i=0; i<txCopy.getNumTxIn(); i++)
@@ -115,14 +110,14 @@ Tx ZeroConfContainer::getTxByHash(const BinaryData& txHash) const
       auto&& txin = txCopy.getTxInCopy(i);
       auto&& op = txin.getOutPoint();
 
-      auto opIter = txhashmap.find(op.getTxHashRef());
-      if (opIter == txhashmap.end())
+      auto opKey = ss->getKeyForHash(op.getTxHashRef());
+      if (opKey.empty())
       {
          txCopy.pushBackOpId(0);
          continue;
       }
 
-      BinaryRefReader brr(opIter->second);
+      BinaryRefReader brr(opKey);
       brr.advance(2);
       txCopy.pushBackOpId(brr.get_uint32_t(BE));
    }
@@ -134,254 +129,193 @@ Tx ZeroConfContainer::getTxByHash(const BinaryData& txHash) const
 bool ZeroConfContainer::hasTxByHash(const BinaryData& txHash) const
 {
    auto ss = getSnapshot();
-   auto& txhashmap = ss->txHashToDBKey_;
-   return (txhashmap.find(txHash) != txhashmap.end());
+   return ss->hasHash(txHash);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool ZeroConfContainer::purge(
-   const Blockchain::ReorganizationState& reorgState,
-   shared_ptr<ZeroConfSharedStateSnapshot> ss,
-   map<BinaryData, BinaryData>& minedKeys)
+map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purgeToBranchpoint(
+   const Blockchain::ReorganizationState& reorgState, 
+   shared_ptr<ZeroConfSharedStateSnapshot> ss)
 {
-   if (db_ == nullptr || ss->txMap_.size() == 0)
-      return true;
+   /*
+   Rewinds mempool to branchpoint
+    * on reorgs:
+      - evict all ZCs that spend from reorged blocks
+      - evict their descendants too
+      - reset input resolution for mined dbKeys on all evicted ZC
+      - return all reorged ZC for reparsing
+   */
+
+   if (reorgState.prevTopStillValid_)
+      return {};
 
    set<BinaryData> keysToDelete;
-   auto& zcMap = ss->txMap_;
-   auto& txoutspentbyzc = ss->txOutsSpentByZC_;
+   auto bcPtr = db_->blockchain();
+   auto currentHeader = reorgState.prevTop_;
 
-   auto updateChildren = [&zcMap, &minedKeys, &txoutspentbyzc, this](
-      BinaryDataRef& txHash, const BinaryData& blockKey,
-      map<BinaryData, unsigned> minedHashes)->void
+   //loop over headers
+   while (currentHeader != reorgState.reorgBranchPoint_)
    {
-      auto spentIter = outPointsSpentByKey_.find(txHash);
-      if (spentIter == outPointsSpentByKey_.end())
-         return;
+      //grab block
+      auto&& rawBlock = db_->getRawBlock(currentHeader);
 
-      //is this zc mined or just invalidated?
-      auto minedIter = minedHashes.find(txHash);
-      if (minedIter == minedHashes.end())
-         return;
-      auto txid = minedIter->second;
+      BlockData block;
+      block.deserialize(
+         rawBlock.getPtr(), rawBlock.getSize(),
+         currentHeader, nullptr,
+         false, false);
+      const auto& txns = block.getTxns();
 
-      //list children by key
-      set<BinaryDataRef> keysToClear;
-      for (auto& op_pair : spentIter->second)
-         keysToClear.insert(op_pair.second);
-
-      //run through children, replace key
-      for (auto& zckey : keysToClear)
+      for (unsigned txid = 0; txid < txns.size(); txid++)
       {
-         auto zcIter = zcMap.find(zckey);
-         if (zcIter == zcMap.end())
+         const auto& txn = txns[txid];
+         const auto& txHash = txn->getHash();
+
+         //look for ZC spending from this tx hash
+         auto hashIter = outPointsSpentByKey_.find(txHash);
+         if (hashIter == outPointsSpentByKey_.end())
             continue;
 
-         for (auto& input : zcIter->second->inputs_)
-         {
-            if (input.opRef_.getTxHashRef() != txHash)
-               continue;
-
-            auto prevKey = input.opRef_.getDbKey();
-            txoutspentbyzc.erase(prevKey);
-            input.opRef_.reset();
-
-            BinaryWriter bw_key(8);
-            bw_key.put_BinaryData(blockKey);
-            bw_key.put_uint16_t(txid, BE);
-            bw_key.put_uint16_t(input.opRef_.getIndex(), BE);
-
-            minedKeys.insert(make_pair(prevKey, bw_key.getData()));
-            input.opRef_.getDbKey() = bw_key.getData();
-
-            zcIter->second->isChainedZc_ = false;
-            zcIter->second->needsReparsed_ = true;
-         }
+         for (auto& opid : hashIter->second)
+            keysToDelete.emplace(opid.second.getSliceCopy(0, 6));
       }
-   };
 
-   //lambda to purge zc map per block
-   auto purgeZcMap =
-      [&zcMap, &keysToDelete, &reorgState, &minedKeys, this, updateChildren](
-         map<BinaryDataRef, set<unsigned>>& spentOutpoints,
-         map<BinaryData, unsigned> minedHashes,
-         const BinaryData& blockKey)->void
-   {
-      auto zcMapIter = zcMap.begin();
-      while (zcMapIter != zcMap.end())
-      {
-         auto& zc = zcMapIter->second;
-         bool invalidated = false;
-         for (auto& input : zc->inputs_)
-         {
-            auto opIter = spentOutpoints.find(input.opRef_.getTxHashRef());
-            if (opIter == spentOutpoints.end())
-               continue;
-
-            auto indexIter = opIter->second.find(input.opRef_.getIndex());
-            if (indexIter == opIter->second.end())
-               continue;
-
-            //the outpoint for this zc is spent, invalidate the zc
-            invalidated = true;
-            break;
-         }
-
-         if (invalidated)
-         {
-            //mark for deletion
-            keysToDelete.insert(zcMapIter->first);
-
-            //this zc is now invalid, process its children
-            auto&& zchash = zcMapIter->second->getTxHash().getRef();
-            updateChildren(zchash, blockKey, minedHashes);
-         }
-
-         ++zcMapIter;
-      }
-   };
-
-   if (!reorgState.prevTopStillValid_)
-   {
-      //reset resolved outpoints cause of reorg
-      for (auto& zc_pair : zcMap)
-         zc_pair.second->reset();
+      const auto& bhash = currentHeader->getPrevHash();
+      currentHeader = bcPtr->getHeaderByHash(bhash);
    }
 
-   auto getIdSpoofLbd = [](const BinaryData&)->unsigned
+   //drop the ZC from the mempool
+   auto droppedZC = dropZC(ss, keysToDelete);
+
+   //reset all mined input resolution in dropped zc and return
+   for (auto& zcPtr : droppedZC)
+      zcPtr.second->resetInputResolution(InputResolution::Mined);
+
+   return droppedZC;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purge(
+   const Blockchain::ReorganizationState& reorgState,
+   shared_ptr<ZeroConfSharedStateSnapshot> ss)
+{
+   /*
+   Purges the mempool on new blocks:
+
+    * on new blocks:
+      - evict mined transactions from the mempool
+      - evict invalidated transactions (ZCs in the mempool that
+        are in conflict with the new blocks)
+
+      - evict all the descendants of mined and invalidated ZCs
+      - in descendants, resets all resolved spenders.
+      - return any descendant that wasn't invalidated (for reparsing and 
+        potential reentry in the mempool)
+
+    * reorgs are first handled with purgeToBranchpoint
+   */
+
+   map<BinaryDataRef, shared_ptr<ParsedTx>> txsToReparse;
+
+   if (db_ == nullptr || ss->empty())
+      return {};
+
+   set<BinaryData> keysToDelete;
+
+   //purge zc map per block
+   auto resolveInvalidatedZCs =
+      [ss, &keysToDelete, &reorgState, this](
+         map<BinaryDataRef, set<unsigned>>& spentOutpoints)->void
    {
-      return 0;
+      //find zc spender for these spent outpoints
+      for (auto& opIdMap : spentOutpoints)
+      {
+         auto hashIter = outPointsSpentByKey_.find(opIdMap.first);
+         if (hashIter == outPointsSpentByKey_.end())
+            continue;
+
+         for (auto& opid : opIdMap.second)
+         {
+            auto idIter = hashIter->second.find(opid);
+            if (idIter == hashIter->second.end())
+               continue;
+
+            keysToDelete.emplace(idIter->second);
+         }
+      }
    };
+
+   //handle reorgs
+   if (!reorgState.prevTopStillValid_)
+   {
+      txsToReparse = move(purgeToBranchpoint(reorgState, ss));
+   }
 
    //get all txhashes for the new blocks
    ZcUpdateBatch batch;
    auto bcPtr = db_->blockchain();
-   try
+
+   auto currentHeader = reorgState.prevTop_;
+   if (!reorgState.prevTopStillValid_)
+      currentHeader = reorgState.reorgBranchPoint_;
+
+   //get the next header
+   currentHeader = bcPtr->getHeaderByHash(currentHeader->getNextHash());
+
+   //loop over headers
+   while (currentHeader != nullptr)
    {
-      auto currentHeader = reorgState.prevTop_;
-      if (!reorgState.prevTopStillValid_)
-         currentHeader = reorgState.reorgBranchPoint_;
+      //grab block
+      auto&& rawBlock = db_->getRawBlock(currentHeader);
 
-      //get the next header
-      currentHeader = bcPtr->getHeaderByHash(currentHeader->getNextHash());
+      BlockData block;
+      block.deserialize(
+         rawBlock.getPtr(), rawBlock.getSize(),
+         currentHeader, nullptr,
+         false, false);
+      const auto& txns = block.getTxns();
 
-      //loop over headers
-      while (currentHeader != nullptr)
+      //gather all outpoints spent by this block
+      map<BinaryDataRef, set<unsigned>> spentOutpoints;
+      for (unsigned txid = 1; txid < txns.size(); txid++)
       {
-         //grab block
-         auto&& rawBlock = db_->getRawBlock(
-            currentHeader->getBlockHeight(),
-            currentHeader->getDuplicateID());
-
-         BlockData block;
-         block.deserialize(
-            rawBlock.getPtr(), rawBlock.getSize(),
-            currentHeader, getIdSpoofLbd,
-            false, false);
-
-         //build up hash set
-         map<BinaryDataRef, set<unsigned>> spentOutpoints;
-         map<BinaryData, unsigned> minedHashes;
-         auto txns = block.getTxns();
-         for (unsigned txid = 0; txid < txns.size(); txid++)
+         auto& txn = txns[txid];
+         for (unsigned iin = 0; iin < txn->txins_.size(); iin++)
          {
-            auto& txn = txns[txid];
-            for (unsigned iin = 0; iin < txn->txins_.size(); iin++)
-            {
-               auto txInRef = txn->getTxInRef(iin);
-               BinaryRefReader brr(txInRef);
-               auto hash = brr.get_BinaryDataRef(32);
-               auto index = brr.get_uint32_t();
+            auto txInRef = txn->getTxInRef(iin);
+            BinaryRefReader brr(txInRef);
+            auto hash = brr.get_BinaryDataRef(32);
+            auto index = brr.get_uint32_t();
 
-               auto& indexSet = spentOutpoints[hash];
-               indexSet.insert(index);
-            }
-
-            minedHashes.insert(make_pair(txn->getHash(), txid));
+            auto& indexSet = spentOutpoints[hash];
+            indexSet.insert(index);
          }
-
-         purgeZcMap(spentOutpoints, minedHashes,
-            currentHeader->getBlockDataKey());
-
-         if (DBSettings::getDbType() != ARMORY_DB_SUPER)
-         {
-            //purge mined hashes
-            for (auto& minedHash : minedHashes)
-            {
-               allZcTxHashes_.erase(minedHash.first);
-               batch.txHashesToDelete_.insert(minedHash.first);
-            }
-         }
-
-         //next block
-         if (currentHeader->getThisHash() == reorgState.newTop_->getThisHash())
-            break;
-
-         auto& bhash = currentHeader->getNextHash();
-         currentHeader = bcPtr->getHeaderByHash(bhash);
       }
+
+      //result for resolveInvalidatedZCs are set in keysToDelete
+      resolveInvalidatedZCs(spentOutpoints);
+
+      //next block
+      if (currentHeader->getThisHash() == reorgState.newTop_->getThisHash())
+         break;
+
+      const auto& bhash = currentHeader->getNextHash();
+      currentHeader = bcPtr->getHeaderByHash(bhash);
    }
-   catch (...)
-   {
-   }
 
-   if (reorgState.prevTopStillValid_)
-   {
-      dropZC(ss, keysToDelete);
-      return true;
-   }
-   else
-   {
-      //reset containers and resolve outpoints anew after a reorg
-      reset();
-      preprocessZcMap(zcMap);
+   //drop the invalidated ZCs
+   auto invalidatedZCs = dropZC(ss, keysToDelete);
 
-      //delete keys from DB
-      batch.keysToDelete_ = move(keysToDelete);
-      auto fut = batch.getCompletedFuture();
-      updateBatch_.push_back(move(batch));
-      fut.wait();
+   //reset direct descendants' unconfirmed input resolution
+   for (auto& zcPtr : invalidatedZCs)
+      zcPtr.second->resetInputResolution(InputResolution::Unconfirmed);
 
-      return false;
-   }
-}
+   //add to set of transactions to reparse (might have reorged ZCs)
+   txsToReparse.insert(invalidatedZCs.begin(), invalidatedZCs.end());
 
-///////////////////////////////////////////////////////////////////////////////
-void ZeroConfContainer::preprocessZcMap(
-   map<BinaryDataRef, shared_ptr<ParsedTx>>& zcMap)
-{
-   //run threads to preprocess the zcMap
-   auto counter = make_shared<atomic<unsigned>>();
-   counter->store(0, memory_order_relaxed);
-
-   vector<shared_ptr<ParsedTx>> txVec;
-   txVec.reserve(zcMap.size());
-   for (auto& txPair : zcMap)
-      txVec.push_back(txPair.second);
-
-   auto parserLdb = [this, &txVec, counter](void)->void
-   {
-      while (1)
-      {
-         auto id = counter->fetch_add(1, memory_order_relaxed);
-         if (id >= txVec.size())
-            return;
-
-         auto txIter = txVec.begin() + id;
-         this->preprocessTx(*(*txIter));
-      }
-   };
-
-   vector<thread> parserThreads;
-   for (unsigned i = 1; i < thread::hardware_concurrency(); i++)
-      parserThreads.push_back(thread(parserLdb));
-   parserLdb();
-
-   for (auto& thr : parserThreads)
-   {
-      if (thr.joinable())
-         thr.join();
-   }
+   //preprocess the dropped ZCs
+   preprocessZcMap(txsToReparse, db_);
+   return txsToReparse;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -393,140 +327,142 @@ void ZeroConfContainer::reset()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void ZeroConfContainer::dropZC(
+map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZC(
    shared_ptr<ZeroConfSharedStateSnapshot> ss, const BinaryDataRef& key)
 {
-   auto& txMap = ss->txMap_;
-   auto& txioMap = ss->txioMap_;
-   auto& txOuts = ss->txOutsSpentByZC_;
+   /*
+   ZeroConfSharedSnapshot will drop the tx and its children and return them.
+   We need to clear our containers all dropped ZCs so we first drop from the
+   snapshot and use the returned map to clear the requested ZC as well as all
+   of its children.
+   */
+   auto droppedZCs = ss->dropZc(key);
 
-   auto iter = txMap.find(key);
-   if (iter == txMap.end())
-      return;
-
-   /*** lambas ***/
-   auto dropTxios = [&txioMap](
-      const BinaryDataRef zcKey,
-      const BinaryDataRef scrAddr)->void
+   for (auto& zcPair : droppedZCs)
    {
-      auto mapIter = txioMap.find(scrAddr);
-      if (mapIter == txioMap.end())
-         return;
+      auto txPtr = zcPair.second;
+      if (txPtr == nullptr)
+         return {};
 
-      map<BinaryData, shared_ptr<TxIOPair>> revisedTxioMap;
-      auto& txios = mapIter->second;
-      for (auto& txio_pair : txios)
+      //drop from outPointsSpentByKey_
+      outPointsSpentByKey_.erase(txPtr->getTxHash());
+      for (auto& input : txPtr->inputs_)
       {
-         //if the txio is keyed by our zc, do not keep it
-         if (txio_pair.first.startsWith(zcKey))
+         auto opIter = 
+            outPointsSpentByKey_.find(input.opRef_.getTxHashRef());
+         if (opIter == outPointsSpentByKey_.end())
             continue;
 
-         //otherwise, it should have a txin
-         if (!txio_pair.second->hasTxIn())
-            continue;
+         //erase the index
+         opIter->second.erase(input.opRef_.getIndex());
 
-         //at this point the txin is ours. if the txout is not zc, drop the txio
-         if (!txio_pair.second->hasTxOutZC())
-            continue;
-
-         //wipe our txin from the txio, keep the txout as it belongs to another zc
-         auto txio = make_shared<TxIOPair>(*txio_pair.second);
-         txio->setTxIn(BinaryData());
-         revisedTxioMap.insert(move(make_pair(txio_pair.first, move(txio))));
+         //erase the txhash if the index map is empty
+         if (opIter->second.size() == 0)
+         {
+            minedTxHashes_.erase(opIter->first);
+            outPointsSpentByKey_.erase(opIter);
+         }
       }
 
-      if (revisedTxioMap.size() == 0)
-      {
-         txioMap.erase(mapIter);
-         return;
-      }
-
-      mapIter->second = move(revisedTxioMap);
-   };
-
-   /*** drop tx from snapshot ***/
-   auto&& hashToDelete = iter->second->getTxHash().getRef();
-   ss->txHashToDBKey_.erase(hashToDelete);
-
-   //drop from outPointsSpentByKey_
-   outPointsSpentByKey_.erase(hashToDelete);
-   for (auto& input : iter->second->inputs_)
-   {
-      auto opIter = 
-         outPointsSpentByKey_.find(input.opRef_.getTxHashRef());
-      if (opIter == outPointsSpentByKey_.end())
-         continue;
-
-      //erase the index
-      opIter->second.erase(input.opRef_.getIndex());
-
-      //erase the txhash if the index map is empty
-      if (opIter->second.size() == 0)
-      {
-         minedTxHashes_.erase(opIter->first);
-         outPointsSpentByKey_.erase(opIter);
-      }
+      keyToSpentScrAddr_.erase(key);
+      keyToFundedScrAddr_.erase(key);
+      allZcTxHashes_.erase(txPtr->getTxHash());
    }
 
-   //drop from keyToSpendScrAddr_
-   auto saSetIter = keyToSpentScrAddr_.find(key);
-   if (saSetIter != keyToSpentScrAddr_.end())
-   {
-      for (auto& sa : *saSetIter->second)
-      {
-         BinaryData sabd(sa);
-         dropTxios(key, sa);
-      }
-      keyToSpentScrAddr_.erase(saSetIter);
-   }
-
-   //drop from keyToFundedScrAddr_
-   auto fundedIter = keyToFundedScrAddr_.find(key);
-   if (fundedIter != keyToFundedScrAddr_.end())
-   {
-      for (auto& sa : fundedIter->second)
-      {
-         BinaryData sabd(sa);
-         dropTxios(key, sa);
-      }
-
-      keyToFundedScrAddr_.erase(fundedIter);
-   }
-
-   //drop from txOutsSpentByZC_
-   for (auto& input : iter->second->inputs_)
-   {
-      if (!input.isResolved())
-         continue;
-      txOuts.erase(input.opRef_.getDbKey());
-   }
-
-   //delete tx
-   txMap.erase(iter);
+   return droppedZCs;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void ZeroConfContainer::dropZC(
+map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZC(
    shared_ptr<ZeroConfSharedStateSnapshot> ss, const set<BinaryData>& zcKeys)
 {
    if (zcKeys.size() == 0)
-      return;
+      return {};
+
+   map<BinaryDataRef, shared_ptr<ParsedTx>> droppedZCs;
 
    auto rIter = zcKeys.rbegin();
    while (rIter != zcKeys.rend())
-      dropZC(ss, *rIter++);
+   {
+      auto dropped = dropZC(ss, *rIter++);
+      droppedZCs.insert(dropped.begin(), dropped.end());
+   }
+
+   //TODO: drop invalidated zc and children from DB *after* reparsing
 
    ZcUpdateBatch batch;
    batch.keysToDelete_ = zcKeys;
    updateBatch_.push_back(move(batch));
+
+   return droppedZCs;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void ZeroConfContainer::finalizePurgePacket(
+   ZcActionStruct zcAction,
+   shared_ptr<ZeroConfSharedStateSnapshot> ss) const
+{
+   auto purgePacket = make_shared<ZcPurgePacket>();
+   purgePacket->ssPtr_ = ss;
+
+   if (zcAction.batch_ == nullptr)
+      zcAction.resultPromise_->set_value(purgePacket);
+
+   for (const auto& zcPair : zcAction.batch_->zcMap_)
+   {
+      if (snapshot_->getTxByKey(zcPair.first) == nullptr)
+      {
+         //can't find zc for this key, flag as invalidated
+         purgePacket->invalidatedZcKeys_.emplace(
+            zcPair.first, zcPair.second->getTxHash());
+      }
+      else if (zcPair.second->status() == ParsedTxStatus::Resolved)
+      {
+         /*
+         This zc persisted through the new blocks, we need to
+         keep track of the txios it creates
+         */
+
+         auto& zcPtr = zcPair.second;
+
+         //check txins
+         for (const auto& parsedTxIn : zcPtr->inputs_)
+         {
+            const auto& txioKey = parsedTxIn.opRef_.getDbKey();
+            auto& txioMap = 
+               purgePacket->scrAddrToTxioKeys_[parsedTxIn.scrAddr_];
+            txioMap.emplace(txioKey);
+         }
+
+         //txouts
+         try
+         {
+            const auto& txios = ss->getTxioMapForKey(zcPair.first);
+            for (unsigned i=0; i < zcPtr->outputs_.size(); i++)
+            {
+               const auto& parsedTxOut = zcPtr->outputs_[i];
+               auto& txioMap = 
+                  purgePacket->scrAddrToTxioKeys_[parsedTxOut.scrAddr_];
+
+               BinaryWriter bw;
+               bw.put_BinaryData(zcPair.first);
+               bw.put_uint16_t(i);
+               txioMap.emplace(bw.getData());
+            }
+         }
+         catch (range_error&)
+         {}
+      }
+   }
+
+   zcAction.resultPromise_->set_value(purgePacket);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
 {
    bool notify = true;
-   map<BinaryData, BinaryData> previouslyValidKeys;
-   map<BinaryData, BinaryData> minedKeys;
+
    auto ss = ZeroConfSharedStateSnapshot::copy(snapshot_);
    map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap;
    map<BinaryData, shared_ptr<WatcherTxBody>> watcherMap;
@@ -536,34 +472,21 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
    {
    case Zc_Purge:
    {
-      //build set of currently valid keys
-      for (auto& txpair : ss->txMap_)
-      {
-         previouslyValidKeys.emplace(
-            make_pair(txpair.first, txpair.second->getTxHash()));
-      }
-
       //purge mined zc
-      auto result = purge(zcAction.reorgState_, ss, minedKeys);
+      auto result = purge(zcAction.reorgState_, ss);
       notify = false;
 
       //setup batch with all tracked zc
       if (zcAction.batch_ == nullptr)
          zcAction.batch_ = make_shared<ZeroConfBatch>(false);
-      zcAction.batch_->zcMap_ = ss->txMap_;
+      zcAction.batch_->zcMap_ = result;
       zcAction.batch_->isReadyPromise_->set_value(ArmoryErrorCodes::Success);
-
-      if (!result)
-      {
-         reset();
-         ss = nullptr;
-      }
    }
 
    case Zc_NewTx:
    {
       try
-      {      
+      {
          auto batchTxMap = move(getBatchTxMap(zcAction.batch_, ss));
          zcMap = move(batchTxMap.txMap_);
          watcherMap = move(batchTxMap.watcherMap_);
@@ -589,21 +512,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
 
    parseNewZC(move(zcMap), ss, true, notify, requestor, watcherMap);
    if (zcAction.resultPromise_ != nullptr)
-   {
-      auto purgePacket = make_shared<ZcPurgePacket>();
-      purgePacket->minedTxioKeys_ = move(minedKeys);
-
-      for (auto& wasValid : previouslyValidKeys)
-      {
-         auto keyIter = snapshot_->txMap_.find(wasValid.first);
-         if (keyIter != snapshot_->txMap_.end())
-            continue;
-
-         purgePacket->invalidatedZcKeys_.insert(wasValid);
-      }
-
-      zcAction.resultPromise_->set_value(purgePacket);
-   }
+      finalizePurgePacket(move(zcAction), ss);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -620,9 +529,9 @@ void ZeroConfContainer::parseNewZC(
    auto iter = zcMap.begin();
    while (iter != zcMap.end())
    {
-      if (iter->second->status() == Tx_Mined ||
-         iter->second->status() == Tx_Invalid || 
-         iter->second->status() == Tx_Skip)
+      if (iter->second->status() == ParsedTxStatus::Mined ||
+         iter->second->status() == ParsedTxStatus::Invalid || 
+         iter->second->status() == ParsedTxStatus::Skip)
          zcMap.erase(iter++);
       else
          ++iter;
@@ -630,11 +539,6 @@ void ZeroConfContainer::parseNewZC(
 
    if (ss == nullptr)
       ss = make_shared<ZeroConfSharedStateSnapshot>();
-
-   auto& txmap = ss->txMap_;
-   auto& txhashmap = ss->txHashToDBKey_;
-   auto& txoutsspentbyzc = ss->txOutsSpentByZC_;
-   auto& txiomap = ss->txioMap_;
 
    for (auto& newZCPair : zcMap)
    {
@@ -647,73 +551,39 @@ void ZeroConfContainer::parseNewZC(
       }
       else
       {
-         if (txmap.find(newZCPair.first) != txmap.end())
+         if (ss->getTxByKey(newZCPair.first) != nullptr)
             continue;
       }
 
       batch.zcToWrite_.insert(newZCPair);
    }
 
-   map<BinaryDataRef, shared_ptr<ParsedTx>> invalidatedTx;
-
    bool hasChanges = false;
-
    map<string, ParsedZCData> flaggedBDVs;
+   map<BinaryData, shared_ptr<ParsedTx>> invalidatedTx;
+
 
    //zckey fetch lambda
-   auto getzckeyfortxhash = [&txhashmap]
+   auto getzckeyfortxhash = [ss]
    (const BinaryData& txhash, BinaryData& zckey_output)->bool
    {
-      auto global_iter = txhashmap.find(txhash);
-      if (global_iter == txhashmap.end())
+      auto keyFromSS = ss->getKeyForHash(txhash);
+      if (keyFromSS.empty())
          return false;
 
-      zckey_output = global_iter->second;
+      zckey_output = keyFromSS;
       return true;
    };
 
    //zc tx fetch lambda
-   auto getzctxforkey = [&txmap]
+   auto getzctxforkey = [ss]
    (const BinaryData& zc_key)->const ParsedTx&
    {
-      auto global_iter = txmap.find(zc_key);
-      if (global_iter == txmap.end())
+      auto txPtr = ss->getTxByKey(zc_key);
+      if (txPtr == nullptr)
          throw runtime_error("no zc tx for this key");
 
-      return *global_iter->second;
-   };
-
-   function<set<BinaryData>(const BinaryData&)> getTxChildren =
-      [&](const BinaryData& zcKey)->set<BinaryData>
-   {
-      set<BinaryData> childKeys;
-      BinaryDataRef txhash;
-
-      try
-      {
-         auto& parsedTx = getzctxforkey(zcKey);
-         txhash = parsedTx.getTxHash().getRef();
-      }
-      catch (exception&)
-      {
-         return childKeys;
-      }
-
-      auto spentOP_iter = outPointsSpentByKey_.find(txhash);
-      if (spentOP_iter != outPointsSpentByKey_.end())
-      {
-         auto& keymap = spentOP_iter->second;
-
-         for (auto& keypair : keymap)
-         {
-            auto&& childrenKeys = getTxChildren(keypair.second);
-            childKeys.insert(move(keypair.second));
-            for (auto& c_key : childrenKeys)
-               childKeys.insert(move(c_key));
-         }
-      }
-
-      return childKeys;
+      return *txPtr;
    };
 
    //zc logic
@@ -721,182 +591,79 @@ void ZeroConfContainer::parseNewZC(
    for (auto& newZCPair : zcMap)
    {
       auto&& txHash = newZCPair.second->getTxHash().getRef();
-      if (txhashmap.find(txHash) != txhashmap.end())
+      if (!ss->getKeyForHash(txHash).empty())
+         continue;
+
+      auto&& filterResult = filterTransaction(
+         newZCPair.second, newZCPair.first,
+         getzckeyfortxhash, getzctxforkey);
+
+      //check for replacement
       {
-         /*
-         Already have this ZC, why is it passed for parsing again?
-         Most common reason for reparsing is a child zc which parent's
-         was mined (outpoint now resolves to a dbkey instead of 
-         the previous zckey)
-         */
-
-         if (!newZCPair.second->needsReparsed_)
+         //loop through all outpoints consumed by this ZC
+         for (auto& idSet : filterResult.outPointsSpentByKey_)
          {
-            //tx wasn't flagged as needing processed again, skip it
-            continue;
-         }
+            //compare them to the list of currently spent outpoints
+            auto hashIter = outPointsSpentByKey_.find(idSet.first);
+            if (hashIter == outPointsSpentByKey_.end())
+               continue;
 
-         //turn off reparse flag
-         newZCPair.second->needsReparsed_ = false;
-      }
-
-      {
-         auto&& bulkData = ZCisMineBulkFilter(
-            *newZCPair.second, newZCPair.first,
-            getzckeyfortxhash, getzctxforkey);
-
-         //check for replacement
-         {
-            //loop through all outpoints consumed by this ZC
-            for (auto& idSet : bulkData.outPointsSpentByKey_)
+            set<BinaryData> keysToDrop;
+            for (auto opId : idSet.second)
             {
-               set<BinaryData> childKeysToDrop;
+               auto idIter = hashIter->second.find(opId.first);
+               if (idIter != hashIter->second.end())
+                  keysToDrop.emplace(idIter->second);
+            }
 
-               //compare them to the list of currently spent outpoints
-               auto hashIter = outPointsSpentByKey_.find(idSet.first);
-               if (hashIter == outPointsSpentByKey_.end())
+            for (auto& zcKey : keysToDrop)
+            {
+               //drop the zc, get the map of invalidated zc in return
+               auto droppedTxs = dropZC(ss, zcKey);
+               if (droppedTxs.empty())
                   continue;
 
-               for (auto opId : idSet.second)
-               {
-                  auto idIter = hashIter->second.find(opId.first);
-                  if (idIter != hashIter->second.end())
-                  {
-                     try
-                     {
-                        //gather replaced tx children
-                        auto&& keySet = getTxChildren(idIter->second);
-                        keySet.insert(idIter->second);
-                        hasChanges = true;
-
-                        //drop the replaced transactions
-                        for (auto& key : keySet)
-                        {
-                           auto txiter = txmap.find(key);
-                           if (txiter != txmap.end())
-                              invalidatedTx.insert(*txiter);
-                           childKeysToDrop.insert(key);
-                        }
-                     }
-                     catch (exception&)
-                     {
-                        continue;
-                     }
-                  }
-               }
-
-               auto rIter = childKeysToDrop.rbegin();
-               while (rIter != childKeysToDrop.rend())
-                  dropZC(ss, *rIter++);
+               //we need to track those to figure out which bdv to notify
+               invalidatedTx.insert(
+                  droppedTxs.begin(), droppedTxs.end());
             }
          }
+      }
 
-         //add ZC if its relevant
-         if (newZCPair.second->status() != Tx_Invalid &&
-            newZCPair.second->status() != Tx_Uninitialized &&
-            !bulkData.isEmpty())
-         {       
-            addedZcKeys.insert(newZCPair.first);
-            hasChanges = true;
+      //add ZC if its relevant
+      if (filterResult.isValid())
+      {
+         addedZcKeys.insert(newZCPair.first);
+         hasChanges = true;
 
-            //merge spent outpoints
-            txoutsspentbyzc.insert(
-               bulkData.txOutsSpentByZC_.begin(),
-               bulkData.txOutsSpentByZC_.end());
+         for (auto& idmap : filterResult.outPointsSpentByKey_)
+         {
+            //is this owner hash already in the map?
+            auto& opMap = outPointsSpentByKey_[idmap.first];
+            opMap.insert(idmap.second.begin(), idmap.second.end());
+         }
 
-            /***
-            The outpoint spender map structure is as follow:
-            map<txhash-of-output-owner, map<output-id, txhash-of-spender>>
+         //merge scrAddr spent by key
+         for (auto& sa_pair : filterResult.keyToSpentScrAddr_)
+         {
+            auto insertResult = keyToSpentScrAddr_.insert(sa_pair);
+            if (insertResult.second == false)
+               insertResult.first->second = move(sa_pair.second);
+         }
 
-            The hash of the owner and the hash of the spender are BinaryDataRef.
-            When ZCisMineBulkFilter parses new zc, it references the owner hash
-            from its own outpoints.
+         //merge scrAddr funded by key
+         typedef map<BinaryDataRef, set<BinaryDataRef>>::iterator mapbd_setbd_iter;
+         keyToFundedScrAddr_.insert(
+            move_iterator<mapbd_setbd_iter>(filterResult.keyToFundedScrAddr_.begin()),
+            move_iterator<mapbd_setbd_iter>(filterResult.keyToFundedScrAddr_.end()));
 
-            When we merge the spender data with the snapshot's spender map, we
-            want to reference the owner hash directly from the relevant ParsedTx 
-            object instead. 
-            
-            This prevents the need to rekey the owner hash if the spender expires
-            before the owner.
-            ***/
+         ss->stageNewZc(newZCPair.second, filterResult);
 
-            for (auto& idmap : bulkData.outPointsSpentByKey_)
-            {
-               pair<BinaryDataRef, map<unsigned, BinaryDataRef>> outpoints;
-
-               //is this owner hash already in the map?
-               auto ownerIter = outPointsSpentByKey_.find(idmap.first);
-               if (ownerIter == outPointsSpentByKey_.end())
-               {
-                  BinaryDataRef ownerHash;
-
-                  //missing this owner, look for it in the zc map
-                  auto zcKeyIter = ss->txHashToDBKey_.find(idmap.first);
-                  if (zcKeyIter != ss->txHashToDBKey_.end())
-                  {
-                     //txHashToDBKey_ references the owner hash, we can use it as is
-                     ownerHash = zcKeyIter->first;
-                  }
-
-                  if (ownerHash.getSize() == 0)
-                  {
-                     //could not find a zc owner for this hash, most likely belongs
-                     //to a mined tx
-                     auto minedHashIter = minedTxHashes_.insert(idmap.first);
-                     ownerHash = minedHashIter.first->getRef();
-                  }
-
-                  //insert the key in the spender map
-                  ownerIter = outPointsSpentByKey_.emplace(
-                     ownerHash, map<unsigned, BinaryDataRef>()).first;
-               }
-
-               //update spender map
-               ownerIter->second.insert(idmap.second.begin(), idmap.second.end());
-            }
-
-            //merge scrAddr spent by key
-            for (auto& sa_pair : bulkData.keyToSpentScrAddr_)
-            {
-               auto insertResult = keyToSpentScrAddr_.insert(sa_pair);
-               if (insertResult.second == false)
-                  insertResult.first->second = move(sa_pair.second);
-            }
-
-            //merge scrAddr funded by key
-            typedef map<BinaryDataRef, set<BinaryDataRef>>::iterator mapbd_setbd_iter;
-            keyToFundedScrAddr_.insert(
-               move_iterator<mapbd_setbd_iter>(bulkData.keyToFundedScrAddr_.begin()),
-               move_iterator<mapbd_setbd_iter>(bulkData.keyToFundedScrAddr_.end()));
-
-            //merge new txios
-            txhashmap[txHash] = newZCPair.first;
-            txmap[newZCPair.first] = newZCPair.second;
-
-            for (auto& saTxio : bulkData.scrAddrTxioMap_)
-            {
-               auto saIter = txiomap.find(saTxio.first);
-               if (saIter != txiomap.end())
-               {
-                  for (auto& newTxio : saTxio.second)
-                  {
-                     auto insertIter = saIter->second.insert(newTxio);
-                     if (insertIter.second == false)
-                        insertIter.first->second = newTxio.second;
-                  }
-               }
-               else
-               {
-                  txiomap.insert(move(saTxio));
-               }
-            }
-
-            //flag affected BDVs
-            for (auto& bdvMap : bulkData.flaggedBDVs_)
-            {
-               auto& parserResult = flaggedBDVs[bdvMap.first];
-               parserResult.mergeTxios(bdvMap.second);
-            }
+         //flag affected BDVs
+         for (auto& bdvMap : filterResult.flaggedBDVs_)
+         {
+            auto& parserResult = flaggedBDVs[bdvMap.first];
+            parserResult.mergeTxios(bdvMap.second);
          }
       }
    }
@@ -976,181 +743,38 @@ void ZeroConfContainer::parseNewZC(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void ZeroConfContainer::preprocessTx(ParsedTx& tx) const
+FilteredZeroConfData ZeroConfContainer::filterTransaction(
+   shared_ptr<ParsedTx> parsedTx, BinaryDataRef ZCkey,
+   function<bool(const BinaryData&, BinaryData&)> getzckeyfortxhash,
+   function<const ParsedTx&(const BinaryData&)> getzctxforkey) const
 {
-   auto& txHash = tx.getTxHash();
-   auto&& txref = db_->getTxRef(txHash);
-
-   if (txref.isInitialized())
+   if (parsedTx->status() == ParsedTxStatus::Mined || 
+      parsedTx->status() == ParsedTxStatus::Invalid ||
+      parsedTx->status() == ParsedTxStatus::Skip)
    {
-      tx.state_ = Tx_Mined;
-      return;
+      return {};
    }
 
-   uint8_t const * txStartPtr = tx.tx_.getPtr();
-   unsigned len = tx.tx_.getSize();
-
-   auto nTxIn = tx.tx_.getNumTxIn();
-   auto nTxOut = tx.tx_.getNumTxOut();
-
-   //try to resolve as many outpoints as we can. unresolved outpoints are 
-   //either invalid or (most likely) children of unconfirmed transactions
-   if (nTxIn != tx.inputs_.size())
+   if (parsedTx->status() == ParsedTxStatus::Uninitialized ||
+      parsedTx->status() == ParsedTxStatus::ResolveAgain)
    {
-      tx.inputs_.clear();
-      tx.inputs_.resize(nTxIn);
+      preprocessTx(*parsedTx, db_);
    }
 
-   if (nTxOut != tx.outputs_.size())
-   {
-      tx.outputs_.clear();
-      tx.outputs_.resize(nTxOut);
-   }
+   //check tx resolution
+   finalizeParsedTxResolution(parsedTx, getzckeyfortxhash, getzctxforkey);
 
-   for (uint32_t iin = 0; iin < nTxIn; iin++)
-   {
-      auto& txIn = tx.inputs_[iin];
-      if (txIn.isResolved())
-         continue;
-
-      auto& opRef = txIn.opRef_;
-
-      if (!opRef.isInitialized())
-      {
-         auto offset = tx.tx_.getTxInOffset(iin);
-         if (offset > len)
-            throw runtime_error("invalid txin offset");
-         BinaryDataRef inputDataRef(txStartPtr + offset, len - offset);
-         opRef.unserialize(inputDataRef);
-      }
-
-      if (!opRef.isResolved())
-      {
-         //resolve outpoint to dbkey
-         txIn.opRef_.resolveDbKey(db_);
-         if (!opRef.isResolved())
-            continue;
-      }
-
-      //grab txout
-      StoredTxOut stxOut;
-      if (!db_->getStoredTxOut(stxOut, opRef.getDbKey()))
-         continue;
-
-      if (db_->armoryDbType() == ARMORY_DB_SUPER)
-         opRef.getDbKey() = stxOut.getDBKey(false);
-
-      if (stxOut.isSpent())
-      {
-         tx.state_ = Tx_Invalid;
-         return;
-      }
-
-      //set txin address and value
-      txIn.scrAddr_ = stxOut.getScrAddress();
-      txIn.value_ = stxOut.getValue();
-   }
-
-   for (uint32_t iout = 0; iout < nTxOut; iout++)
-   {
-      auto& txOut = tx.outputs_[iout];
-      if (txOut.isInitialized())
-         continue;
-
-      auto offset = tx.tx_.getTxOutOffset(iout);
-      auto len = tx.tx_.getTxOutOffset(iout + 1) - offset;
-
-      BinaryRefReader brr(txStartPtr + offset, len);
-      txOut.value_ = brr.get_uint64_t();
-
-      auto scriptLen = brr.get_var_int();
-      auto scriptRef = brr.get_BinaryDataRef(scriptLen);
-      txOut.scrAddr_ = move(BtcUtils::getTxOutScrAddr(scriptRef));
-
-      txOut.offset_ = offset;
-      txOut.len_ = len;
-   }
-
-   tx.isRBF_ = tx.tx_.isRBF();
-
-
-   bool txInResolved = true;
-   for (auto& txin : tx.inputs_)
-   {
-      if (txin.isResolved())
-         continue;
-
-      txInResolved = false;
-      break;
-   }
-
-   if (!txInResolved)
-      tx.state_ = Tx_Unresolved;
-   else
-      tx.state_ = Tx_Resolved;
+   //parse it
+   return filterParsedTx(parsedTx, ZCkey);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
-   ParsedTx& parsedTx, const BinaryDataRef& ZCkey,
+void ZeroConfContainer::finalizeParsedTxResolution(
+   shared_ptr<ParsedTx> parsedTxPtr,
    function<bool(const BinaryData&, BinaryData&)> getzckeyfortxhash,
-   function<const ParsedTx&(const BinaryData&)> getzctxforkey)
+   function<const ParsedTx&(const BinaryData&)> getzctxforkey) const
 {
-   BulkFilterData bulkData;
-   if (parsedTx.status() == Tx_Mined || parsedTx.status() == Tx_Invalid)
-      return bulkData;
-
-   auto mainAddressSet = scrAddrMap_->get();
-
-   auto filter = [mainAddressSet, this]
-      (const BinaryData& addr)->pair<bool, set<string>>
-   {
-      pair<bool, set<string>> flaggedBDVs;
-      flaggedBDVs.first = false;
-
-      
-      //Check if this address is being watched before looking for specific BDVs
-      auto addrIter = mainAddressSet->find(addr.getRef());
-      if (addrIter == mainAddressSet->end())
-      {
-         if (DBSettings::getDbType() == ARMORY_DB_SUPER)
-         {
-            /*
-            We got this far because no BDV is watching this address and the DB
-            is running as a supernode. In supernode we track all ZC regardless 
-            of watch status. Flag as true to process the ZC, but do not attach
-            a bdv ID as no clients will be notified of this zc.
-            */
-            flaggedBDVs.first = true;
-         }
-
-         return flaggedBDVs;
-      }
-
-      flaggedBDVs.first = true;
-      flaggedBDVs.second = move(bdvCallbacks_->hasScrAddr(addr.getRef()));
-      return flaggedBDVs;
-   };
-
-   auto insertNewZc = [&bulkData](const BinaryData& sa,
-      BinaryData txiokey, shared_ptr<TxIOPair> txio,
-      set<string> flaggedBDVs, bool consumesTxOut)->void
-   {
-      if (consumesTxOut)
-         bulkData.txOutsSpentByZC_.insert(txiokey);
-
-      auto& key_txioPair = bulkData.scrAddrTxioMap_[sa];
-      key_txioPair[txiokey] = move(txio);
-
-      for (auto& bdvId : flaggedBDVs)
-         bulkData.flaggedBDVs_[bdvId].scrAddrs_.insert(sa);
-   };
-
-   if (parsedTx.status() == Tx_Uninitialized ||
-      parsedTx.status() == Tx_ResolveAgain)
-      preprocessTx(parsedTx);
-
-   auto& txHash = parsedTx.getTxHash();
+   auto& parsedTx = *parsedTxPtr;
    bool isRBF = parsedTx.isRBF_;
    bool isChained = parsedTx.isChainedZc_;
 
@@ -1166,13 +790,13 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
             {
                isChained = true;
                auto& chainedZC = getzctxforkey(input.opRef_.getDbTxKeyRef());
-               if (chainedZC.status() == Tx_Invalid)
+               if (chainedZC.status() == ParsedTxStatus::Invalid)
                   throw runtime_error("invalid parent zc");
             }
             catch (exception&)
             {
-               parsedTx.state_ = Tx_Invalid;
-               return bulkData;
+               parsedTx.state_ = ParsedTxStatus::Invalid;
+               return;
             }
          }
          else
@@ -1183,8 +807,8 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
 
             if (db_->getValidDupIDForHeight(height) != dupId)
             {
-               parsedTx.state_ = Tx_Invalid;
-               return bulkData;
+               parsedTx.state_ = ParsedTxStatus::Invalid;
+               return;
             }
          }
 
@@ -1219,35 +843,112 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
       }
    }
 
+   //check & update resolution state
+   if (parsedTx.state_ != ParsedTxStatus::Resolved)
+   {
+      bool isResolved = true;
+      for (auto& input : parsedTx.inputs_)
+      {
+         if (!input.isResolved())
+         {
+            isResolved = false;
+            break;
+         }
+      }
+
+      if (isResolved)
+         parsedTx.state_ = ParsedTxStatus::Resolved;
+   }
+
    parsedTx.isRBF_ = isRBF;
    parsedTx.isChainedZc_ = isChained;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+FilteredZeroConfData ZeroConfContainer::filterParsedTx(
+   shared_ptr<ParsedTx> parsedTxPtr, BinaryDataRef ZCkey) const
+{
+   auto& parsedTx = *parsedTxPtr;
+   FilteredZeroConfData result; 
+   result.txPtr_ = parsedTxPtr;
+
+   auto mainAddressSet = scrAddrMap_->get();
+   auto& txHash = parsedTx.getTxHash();
+
+   auto filter = [mainAddressSet, this]
+      (const BinaryData& addr)->pair<bool, set<string>>
+   {
+      pair<bool, set<string>> flaggedBDVs;
+      flaggedBDVs.first = false;
+
+      
+      //Check if this address is being watched before looking for specific BDVs
+      auto addrIter = mainAddressSet->find(addr.getRef());
+      if (addrIter == mainAddressSet->end())
+      {
+         if (DBSettings::getDbType() == ARMORY_DB_SUPER)
+         {
+            /*
+            We got this far because no BDV is watching this address and the DB
+            is running as a supernode. In supernode we track all ZC regardless 
+            of watch status. Flag as true to process the ZC, but do not attach
+            a bdv ID as no clients will be notified of this zc.
+            */
+            flaggedBDVs.first = true;
+         }
+
+         return flaggedBDVs;
+      }
+
+      flaggedBDVs.first = true;
+      flaggedBDVs.second = bdvCallbacks_->hasScrAddr(addr.getRef());
+      return flaggedBDVs;
+   };
+
+   auto insertNewZc = [&result](const BinaryData& sa,
+      BinaryData txiokey, shared_ptr<TxIOPair> txio,
+      set<string> flaggedBDVs, bool consumesTxOut)->void
+   {
+      if (consumesTxOut)
+         result.txOutsSpentByZC_.insert(txiokey);
+
+      auto& key_txioPair = result.scrAddrTxioMap_[sa];
+      key_txioPair[txiokey] = move(txio);
+
+      for (auto& bdvId : flaggedBDVs)
+         result.flaggedBDVs_[bdvId].scrAddrs_.insert(sa);
+   };
 
    //spent txios
    unsigned iin = 0;
    for (auto& input : parsedTx.inputs_)
    {
+      bool skipTxIn = false;
       auto inputId = iin++;
       if (!input.isResolved())
       {
          if (db_->armoryDbType() == ARMORY_DB_SUPER)
          {
-            parsedTx.state_ = Tx_Invalid;
-            return bulkData;
+            parsedTx.state_ = ParsedTxStatus::Invalid;
+            return result;
          }
          else
          {
-            parsedTx.state_ = Tx_ResolveAgain;
+            parsedTx.state_ = ParsedTxStatus::ResolveAgain;
          }
 
-         continue;
+         skipTxIn = true;
       }
 
       //keep track of all outputs this ZC consumes
-      auto& id_map = bulkData.outPointsSpentByKey_[input.opRef_.getTxHashRef()];
+      auto& id_map = result.outPointsSpentByKey_[input.opRef_.getTxHashRef()];
       id_map.insert(make_pair(input.opRef_.getIndex(), ZCkey));
 
+      if (skipTxIn)
+         continue;
+
       auto&& flaggedBDVs = filter(input.scrAddr_);
-      if (!isChained && !flaggedBDVs.first)
+      if (!parsedTx.isChainedZc_ && !flaggedBDVs.first)
          continue;
 
       auto txio = make_shared<TxIOPair>(
@@ -1261,14 +962,14 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
       if (tx_time == UINT64_MAX)
          tx_time = parsedTx.tx_.getTxTime();
       txio->setTxTime(tx_time);
-      txio->setRBF(isRBF);
-      txio->setChained(isChained);
+      txio->setRBF(parsedTx.isRBF_);
+      txio->setChained(parsedTx.isChainedZc_);
 
       auto&& txioKey = txio->getDBKeyOfOutput();
       insertNewZc(input.scrAddr_, move(txioKey), move(txio),
          move(flaggedBDVs.second), true);
 
-      auto& updateSet = bulkData.keyToSpentScrAddr_[ZCkey];
+      auto& updateSet = result.keyToSpentScrAddr_[ZCkey];
       if (updateSet == nullptr)
          updateSet = make_shared<set<BinaryDataRef>>();
       updateSet->insert(input.scrAddr_.getRef());
@@ -1289,10 +990,10 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
          txio->setTxHashOfOutput(txHash);
          txio->setTxTime(parsedTx.tx_.getTxTime());
          txio->setUTXO(true);
-         txio->setRBF(isRBF);
-         txio->setChained(isChained);
+         txio->setRBF(parsedTx.isRBF_);
+         txio->setChained(parsedTx.isChainedZc_);
 
-         auto& fundedScrAddr = bulkData.keyToFundedScrAddr_[ZCkey];
+         auto& fundedScrAddr = result.keyToFundedScrAddr_[ZCkey];
          fundedScrAddr.insert(output.scrAddr_.getRef());
 
          auto&& txioKey = txio->getDBKeyOfOutput();
@@ -1301,7 +1002,7 @@ ZeroConfContainer::BulkFilterData ZeroConfContainer::ZCisMineBulkFilter(
       }
    }
 
-   return bulkData;
+   return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1311,101 +1012,82 @@ void ZeroConfContainer::clear()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool ZeroConfContainer::isTxOutSpentByZC(const BinaryData& dbkey) const
+bool ZeroConfContainer::isTxOutSpentByZC(const BinaryData& dbKey) const
 {
    auto ss = getSnapshot();
    if (ss == nullptr)
       return false;
 
-   auto& txoutset = ss->txOutsSpentByZC_;
-   if (txoutset.find(dbkey) != txoutset.end())
-      return true;
-
-   return false;
+   return ss->isTxOutSpentByZC(dbKey);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-map<BinaryData, shared_ptr<TxIOPair>> ZeroConfContainer::getUnspentZCforScrAddr(
-   BinaryData scrAddr) const
+map<BinaryData, shared_ptr<const TxIOPair>> 
+ZeroConfContainer::getUnspentZCforScrAddr(BinaryData scrAddr) const
 {
    auto ss = getSnapshot();
    if (ss == nullptr)
-      return map<BinaryData, shared_ptr<TxIOPair>>();
+      return {};
 
-   auto& txiomapptr = ss->txioMap_;
-   auto saIter = txiomapptr.find(scrAddr);
+   auto txioMap = ss->getTxioMapForScrAddr(scrAddr);
+   map<BinaryData, shared_ptr<const TxIOPair>> returnMap;
 
-   if (saIter != txiomapptr.end())
+   for (auto& zcPair : txioMap)
    {
-      auto& zcMap = saIter->second;
-      map<BinaryData, shared_ptr<TxIOPair>> returnMap;
+      if (zcPair.second->hasTxIn())
+         continue;
 
-      for (auto& zcPair : zcMap)
-      {
-         if (zcPair.second->hasTxIn())
-            continue;
-
-         returnMap.insert(zcPair);
-      }
-
-      return returnMap;
+      returnMap.insert(zcPair);
    }
 
-   return {};
+   return returnMap;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-map<BinaryData, shared_ptr<TxIOPair>> ZeroConfContainer::getRBFTxIOsforScrAddr(
-   BinaryData scrAddr) const
+map<BinaryData, shared_ptr<const TxIOPair>> 
+ZeroConfContainer::getRBFTxIOsforScrAddr(BinaryData scrAddr) const
 {
    auto ss = getSnapshot();
-   auto& txiomapptr = ss->txioMap_;
-   auto saIter = txiomapptr.find(scrAddr);
+   if (ss == nullptr)
+      return {};
 
-   if (saIter != txiomapptr.end())
+   auto txioMap = ss->getTxioMapForScrAddr(scrAddr);
+   map<BinaryData, shared_ptr<const TxIOPair>> returnMap;
+
+   for (auto& zcPair : txioMap)
    {
-      auto& zcMap = saIter->second;
-      map<BinaryData, shared_ptr<TxIOPair>> returnMap;
+      if (!zcPair.second->hasTxIn())
+         continue;
 
-      for (auto& zcPair : zcMap)
-      {
-         if (!zcPair.second->hasTxIn())
-            continue;
+      if (!zcPair.second->isRBF())
+         continue;
 
-         if (!zcPair.second->isRBF())
-            continue;
-
-         returnMap.insert(zcPair);
-      }
-
-      return returnMap;
+      returnMap.insert(zcPair);
    }
 
-   return map<BinaryData, shared_ptr<TxIOPair>>();
+   return returnMap;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 vector<TxOut> ZeroConfContainer::getZcTxOutsForKey(
    const set<BinaryData>& keys) const
 {
-   vector<TxOut> result;
    auto ss = getSnapshot();
-   auto& txmap = ss->txMap_;
+   if (ss == nullptr)
+      return {};
 
+   vector<TxOut> result;
    for (auto& key : keys)
    {
       auto zcKey = key.getSliceRef(0, 6);
-
-      auto txIter = txmap.find(zcKey);
-      if (txIter == txmap.end())
+      auto theTx = ss->getTxByKey(zcKey);
+      if (theTx == nullptr)
          continue;
-
-      auto& theTx = *txIter->second;
 
       auto outIdRef = key.getSliceRef(6, 2);
       auto outId = READ_UINT16_BE(outIdRef);
 
-      auto&& txout = theTx.tx_.getTxOutCopy(outId);
+      auto&& txout = theTx->tx_.getTxOutCopy(outId);
       result.push_back(move(txout));
    }
 
@@ -1416,26 +1098,24 @@ vector<TxOut> ZeroConfContainer::getZcTxOutsForKey(
 vector<UnspentTxOut> ZeroConfContainer::getZcUTXOsForKey(
    const set<BinaryData>& keys) const
 {
-   vector<UnspentTxOut> result;
    auto ss = getSnapshot();
-   auto& txmap = ss->txMap_;
+   if (ss == nullptr)
+      return {};
 
+   vector<UnspentTxOut> result;
    for (auto& key : keys)
    {
       auto zcKey = key.getSliceRef(0, 6);
-
-      auto txIter = txmap.find(zcKey);
-      if (txIter == txmap.end())
+      auto theTx = ss->getTxByKey(zcKey);
+      if (theTx == nullptr)
          continue;
-
-      auto& theTx = *txIter->second;
 
       auto outIdRef = key.getSliceRef(6, 2);
       auto outId = READ_UINT16_BE(outIdRef);
 
-      auto&& txout = theTx.tx_.getTxOutCopy(outId);
+      auto&& txout = theTx->tx_.getTxOutCopy(outId);
       UnspentTxOut utxo(
-         theTx.getTxHash(), outId, UINT32_MAX,
+         theTx->getTxHash(), outId, UINT32_MAX,
          txout.getValue(), txout.getScript());
 
       result.push_back(move(utxo));
@@ -1465,10 +1145,10 @@ void ZeroConfContainer::updateZCinDB()
       auto&& tx = db_->beginTransaction(ZERO_CONF, LMDB::ReadWrite);
       for (auto& zc_pair : batch.zcToWrite_)
       {
-            /*TODO: speed this up*/
-            StoredTx zcTx;
-            zcTx.createFromTx(zc_pair.second->tx_, true, true);
-            db_->putStoredZC(zcTx, zc_pair.first);
+         /*TODO: speed this up*/
+         StoredTx zcTx;
+         zcTx.createFromTx(zc_pair.second->tx_, true, true);
+         db_->putStoredZC(zcTx, zc_pair.first);
       }
 
       for (auto& txhash : batch.txHashes_)
@@ -1587,7 +1267,7 @@ unsigned ZeroConfContainer::loadZeroConfMempool(bool clearMempool)
    }
    else if (zcMap.size())
    {
-      preprocessZcMap(zcMap);
+      preprocessZcMap(zcMap, db_);
 
       //set highest used index
       auto lastEntry = zcMap.rbegin();
@@ -1903,7 +1583,7 @@ void ZeroConfContainer::processPayloadTx(
 {
    if (payloadPtr->rawTx_->getSize() == 0)
    {
-      payloadPtr->pTx_->state_ = ParsedTxStatus::Tx_Invalid;
+      payloadPtr->pTx_->state_ = ParsedTxStatus::Invalid;
       payloadPtr->incrementCounter();
       return;
    }
@@ -1912,7 +1592,7 @@ void ZeroConfContainer::processPayloadTx(
    payloadPtr->pTx_->tx_.unserialize(*payloadPtr->rawTx_);
    payloadPtr->pTx_->tx_.setTxTime(time(0));
 
-   preprocessTx(*payloadPtr->pTx_);
+   preprocessTx(*payloadPtr->pTx_, db_);
    payloadPtr->incrementCounter();
 }
 
@@ -2141,64 +1821,6 @@ void ZeroConfContainer::increaseParserThreadPool(unsigned count)
    LOGINFO << "now running " << parserThreadCount_ << " zc parser threads";
 }
 
-///////////////////////////////////////////////////////////////////////////////
-const map<BinaryData, shared_ptr<TxIOPair>>&
-   ZeroConfContainer::getTxioMapForScrAddr(const BinaryData& scrAddr) const
-{
-   auto ss = getSnapshot();
-   auto& txiomap = ss->txioMap_;
-
-   auto iter = txiomap.find(scrAddr);
-   if (iter == txiomap.end())
-      throw runtime_error("no txio for this scraddr");
-
-   return iter->second;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-shared_ptr<ParsedTx> ZeroConfContainer::getTxByKey(const BinaryData& key) const
-{
-   auto ss = getSnapshot();
-   auto iter = ss->txMap_.find(key.getRef());
-   if (iter == ss->txMap_.end())
-      return nullptr;
-
-   return iter->second;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-BinaryDataRef ZeroConfContainer::getKeyForHash(const BinaryDataRef& hash) const
-{
-   auto ss = getSnapshot();
-   auto iter = ss->txHashToDBKey_.find(hash);
-   if (iter == ss->txHashToDBKey_.end())
-      return BinaryDataRef();
-
-   return iter->second;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-BinaryDataRef ZeroConfContainer::getHashForKey(const BinaryDataRef& key) const
-{
-   auto ss = getSnapshot();
-   auto iter = ss->txMap_.find(key);
-   if (iter == ss->txMap_.end())
-      return BinaryDataRef();
-
-   return iter->second->getTxHash().getRef();
-}
-
-///////////////////////////////////////////////////////////////////////////////
-TxOut ZeroConfContainer::getTxOutCopy(
-   const BinaryDataRef key, unsigned index) const
-{
-   auto&& tx = getTxByKey(key);
-   if (tx == nullptr)
-      return TxOut();
-
-   return tx->tx_.getTxOutCopy(index);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::setWatcherNode(
    shared_ptr<BitcoinNodeInterface> watcherNode)
@@ -2344,8 +1966,7 @@ BatchTxMap ZeroConfContainer::getBatchTxMap(shared_ptr<ZeroConfBatch> batch,
          fallbackStruct.extraRequestors_ = move(iter->second->extraRequestors_);
 
          //check snapshot for collisions
-         auto collisionIter = ss->txHashToDBKey_.find(iter->first.getRef());
-         if (collisionIter != ss->txHashToDBKey_.end())
+         if (ss->hasHash(iter->first.getRef()))
          {
             //already have this tx in our mempool, report to callback
             //but don't flag hash as purged (children need to be processed if any)
@@ -2358,7 +1979,7 @@ BatchTxMap ZeroConfContainer::getBatchTxMap(shared_ptr<ZeroConfBatch> batch,
          }
 
          //flag tx to be skipped by parser
-         txPair.second->state_ = ParsedTxStatus::Tx_Skip;
+         txPair.second->state_ = ParsedTxStatus::Skip;
 
          //add to vector for error callback
          txVec.emplace_back(move(fallbackStruct));
@@ -2661,132 +2282,6 @@ void ZcActionQueue::getDataToBatchMatcherThread()
 
       matcherMapSize_.store(hashToBatchMap.size(), memory_order_relaxed);
    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-//// OutPointRef
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-void OutPointRef::unserialize(uint8_t const * ptr, uint32_t remaining)
-{
-   if (remaining < 36)
-      throw runtime_error("ptr is too short to be an outpoint");
-
-   BinaryDataRef bdr(ptr, remaining);
-   BinaryRefReader brr(bdr);
-
-   txHash_ = brr.get_BinaryDataRef(32);
-   txOutIndex_ = brr.get_uint32_t();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void OutPointRef::unserialize(BinaryDataRef bdr)
-{
-   unserialize(bdr.getPtr(), bdr.getSize());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void OutPointRef::resolveDbKey(LMDBBlockDatabase *dbPtr)
-{
-   if (txHash_.getSize() == 0 || txOutIndex_ == UINT16_MAX)
-      throw runtime_error("empty outpoint hash");
-
-   auto&& key = dbPtr->getDBKeyForHash(txHash_);
-   if (key.getSize() != 6)
-      return;
-
-   BinaryWriter bw;
-   bw.put_BinaryData(key);
-   bw.put_uint16_t(txOutIndex_, BE);
-
-   dbKey_ = bw.getData();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef OutPointRef::getDbTxKeyRef() const
-{
-   if (!isResolved())
-      throw runtime_error("unresolved outpoint key");
-
-   return dbKey_.getSliceRef(0, 6);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool OutPointRef::isInitialized() const
-{
-   return txHash_.getSize() == 32 && txOutIndex_ != UINT16_MAX;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool OutPointRef::isZc() const
-{
-   if (!isResolved())
-      return false;
-
-   auto ptr = dbKey_.getPtr();
-   auto val = (uint16_t*)ptr;
-   return *val == 0xFFFF;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-//// ParsedTxIn
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-bool ParsedTxIn::isResolved() const
-{
-   if (!opRef_.isResolved())
-      return false;
-
-   if (scrAddr_.getSize() == 0 || value_ == UINT64_MAX)
-      return false;
-
-   return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-//// ParsedTx
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-bool ParsedTx::isResolved() const
-{
-   if (state_ == Tx_Uninitialized)
-      return false;
-
-   if (!tx_.isInitialized())
-      return false;
-
-   if (inputs_.size() != tx_.getNumTxIn() ||
-      outputs_.size() != tx_.getNumTxOut())
-      return false;
-
-   for (auto& input : inputs_)
-   {
-      if (!input.isResolved())
-         return false;
-   }
-
-   return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void ParsedTx::reset()
-{
-   for (auto& input : inputs_)
-      input.opRef_.reset();
-   tx_.setChainedZC(false);
-
-   state_ = Tx_Uninitialized;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const BinaryData& ParsedTx::getTxHash(void) const
-{
-   if (txHash_.getSize() == 0)
-      txHash_ = move(tx_.getThisHash());
-   return txHash_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
