@@ -408,6 +408,10 @@ shared_ptr<BlockHeader> Blockchain::organizeChain(bool forceRebuild, bool verbos
 // this block.
 double Blockchain::traceChainDown(shared_ptr<BlockHeader> bhpStart)
 {
+   /*
+   TODO: check difficulty target matches for each block
+   */
+
    if(bhpStart->difficultySum_ > 0)
       return bhpStart->difficultySum_;
 
@@ -457,7 +461,7 @@ double Blockchain::traceChainDown(shared_ptr<BlockHeader> bhpStart)
       thisPtr->blockHeight_   = blkHeight;
       thisPtr->isOrphan_ = false;
    }
-   
+
    // Finally, we have all the difficulty sums calculated, return this one
    return bhpStart->difficultySum_;
   
