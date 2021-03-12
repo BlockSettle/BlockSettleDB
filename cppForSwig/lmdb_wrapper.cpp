@@ -1987,6 +1987,12 @@ BinaryData LMDBBlockDatabase::getRawBlock(uint32_t height, uint8_t dupId) const
    if (bh->getDuplicateID() != dupId)
       throw LmdbWrapperException("invalid dupId");
 
+   return getRawBlock(bh);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData LMDBBlockDatabase::getRawBlock(shared_ptr<BlockHeader> bh) const
+{
    //open block file
    BlockDataLoader bdl(blkFolder_);
 
