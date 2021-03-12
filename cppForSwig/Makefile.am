@@ -116,6 +116,7 @@ ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	SshParser.cpp \
 	StringSockets.cpp \
 	txio.cpp \
+	ZeroConfUtils.cpp \
 	ZeroConf.cpp \
 	ZeroConfNotifications.cpp \
 	TerminalPassphrasePrompt.cpp \

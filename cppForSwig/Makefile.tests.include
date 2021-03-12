@@ -36,6 +36,36 @@ gtest_ContainerTests_LDADD = gtest/libgtest.la $(LIBARMORYCOMMON) \
 gtest_ContainerTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/ContainerTests
 
+# UtilsTests - covers DB utils and crypto tests
+bin_PROGRAMS += gtest/UtilsTests
+gtest_UtilsTests_SOURCES = gtest/UtilsTests.cpp
+gtest_UtilsTests_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
+gtest_UtilsTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+gtest_UtilsTests_LDADD = gtest/libgtest.la \
+			$(LIBARMORYCOMMON) \
+			$(LIBCHACHA20POLY1305) \
+			$(LIBARMORYCLI) \
+			$(LIBHKDF) \
+			$(LIBBTC) \
+			$(LIBLMDB) \
+			$(LIBPROTOBUF_STATIC) \
+			$(LIBWEBSOCKETS_STATIC)
+if BUILD_OPENSSL_SUPPORT
+gtest_UtilsTests_LDADD += $(LIBSSL_STATIC) \
+		 $(LIBCRYPTO_STATIC)
+endif
+if BUILD_LIBUV_SUPPORT
+gtest_UtilsTests_LDADD += $(LIBUV_STATIC)
+endif
+if BUILD_LIBEVENT_SUPPORT
+gtest_UtilsTests_LDADD += $(LIBEVENT_STATIC)
+endif
+if BUILD_LIBCAP_SUPPORT
+gtest_UtilsTests_LDADD += $(LIBCAP_LIBS)
+endif
+gtest_UtilsTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
+TESTS += gtest/UtilsTests
+
 # DB1kIterTest - useless test
 #bin_PROGRAMS += gtest/DB1kIterTest
 #gtest_DB1kIterTest_SOURCES = gtest/DB1kIterTest.cpp
@@ -104,7 +134,7 @@ endif
 gtest_SupernodeTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/SupernodeTests
 
-# CppBlockUtilsTests - Contains the bulk of the tests
+# CppBlockUtilsTests - Full node tests
 bin_PROGRAMS += gtest/CppBlockUtilsTests
 gtest_CppBlockUtilsTests_SOURCES = gtest/CppBlockUtilsTests.cpp
 gtest_CppBlockUtilsTests_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
@@ -133,6 +163,36 @@ gtest_CppBlockUtilsTests_LDADD += $(LIBCAP_LIBS)
 endif
 gtest_CppBlockUtilsTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
 TESTS += gtest/CppBlockUtilsTests
+
+# ZeroConfTests - tests mempool handling
+bin_PROGRAMS += gtest/ZeroConfTests
+gtest_ZeroConfTests_SOURCES = gtest/ZeroConfTests.cpp
+gtest_ZeroConfTests_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
+gtest_ZeroConfTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+gtest_ZeroConfTests_LDADD = gtest/libgtest.la \
+			$(LIBARMORYCOMMON) \
+			$(LIBARMORYCLI) \
+			$(LIBLMDB) \
+			$(LIBHKDF) \
+			$(LIBBTC) \
+			$(LIBCHACHA20POLY1305) \
+			$(LIBPROTOBUF_STATIC) \
+			$(LIBWEBSOCKETS_STATIC)
+if BUILD_OPENSSL_SUPPORT
+gtest_ZeroConfTests_LDADD += $(LIBSSL_STATIC) \
+		 $(LIBCRYPTO_STATIC)
+endif
+if BUILD_LIBUV_SUPPORT
+gtest_ZeroConfTests_LDADD += $(LIBUV_STATIC)
+endif
+if BUILD_LIBEVENT_SUPPORT
+gtest_ZeroConfTests_LDADD += $(LIBEVENT_STATIC)
+endif
+if BUILD_LIBCAP_SUPPORT
+gtest_ZeroConfTests_LDADD += $(LIBCAP_LIBS)
+endif
+gtest_ZeroConfTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
+TESTS += gtest/ZeroConfTests
 
 # WalletTests
 bin_PROGRAMS += gtest/WalletTests
