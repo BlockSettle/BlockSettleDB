@@ -560,7 +560,7 @@ void ZeroConfContainer::parseNewZC(
 
    bool hasChanges = false;
    map<string, ParsedZCData> flaggedBDVs;
-   map<BinaryData, shared_ptr<ParsedTx>> invalidatedTx;
+   map<BinaryDataRef, shared_ptr<ParsedTx>> invalidatedTx;
 
    //zc logic
    set<BinaryDataRef> addedZcKeys;
@@ -570,39 +570,11 @@ void ZeroConfContainer::parseNewZC(
       if (!ss->getKeyForHash(txHash).empty())
          continue;
 
+      //parse the zc
       auto&& filterResult = filterTransaction(newZCPair.second, ss);
 
       //check for replacement
-      {
-         //loop through all outpoints consumed by this ZC
-         for (auto& idSet : filterResult.outPointsSpentByKey_)
-         {
-            //compare them to the list of currently spent outpoints
-            auto hashIter = outPointsSpentByKey_.find(idSet.first);
-            if (hashIter == outPointsSpentByKey_.end())
-               continue;
-
-            set<BinaryData> keysToDrop;
-            for (auto opId : idSet.second)
-            {
-               auto idIter = hashIter->second.find(opId.first);
-               if (idIter != hashIter->second.end())
-                  keysToDrop.emplace(idIter->second);
-            }
-
-            for (auto& zcKey : keysToDrop)
-            {
-               //drop the zc, get the map of invalidated zc in return
-               auto droppedTxs = dropZC(ss, zcKey);
-               if (droppedTxs.empty())
-                  continue;
-
-               //we need to track those to figure out which bdv to notify
-               invalidatedTx.insert(
-                  droppedTxs.begin(), droppedTxs.end());
-            }
-         }
-      }
+      invalidatedTx = checkForCollisions(filterResult.outPointsSpentByKey_, ss);
 
       //add ZC if its relevant
       if (filterResult.isValid())
@@ -743,6 +715,45 @@ FilteredZeroConfData ZeroConfContainer::filterTransaction(
    //parse it
    auto addrMap = scrAddrMap_->get();
    return filterParsedTx(parsedTx, addrMap, bdvCallbacks_.get());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::checkForCollisions(
+   const map<BinaryDataRef, map<unsigned, BinaryDataRef>>& spentOutpoints,
+   shared_ptr<ZeroConfSharedStateSnapshot> ss)
+{
+   map<BinaryDataRef, shared_ptr<ParsedTx>> invalidatedZCs;
+
+   //loop through outpoints
+   for (auto& idSet : spentOutpoints)
+   {
+      //compare them to the list of currently spent outpoints
+      auto hashIter = outPointsSpentByKey_.find(idSet.first);
+      if (hashIter == outPointsSpentByKey_.end())
+         continue;
+
+      set<BinaryData> keysToDrop;
+      for (auto opId : idSet.second)
+      {
+         auto idIter = hashIter->second.find(opId.first);
+         if (idIter != hashIter->second.end())
+            keysToDrop.emplace(idIter->second);
+      }
+
+      for (auto& zcKey : keysToDrop)
+      {
+         //drop the zc, get the map of invalidated zc in return
+         auto droppedTxs = dropZC(ss, zcKey);
+         if (droppedTxs.empty())
+            continue;
+
+         //we need to track those to figure out which bdv to notify
+         invalidatedZCs.insert(
+            droppedTxs.begin(), droppedTxs.end());
+      }
+   }
+
+   return invalidatedZCs;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

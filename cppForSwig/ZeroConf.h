@@ -457,6 +457,9 @@ private:
    void finalizePurgePacket(
       ZcActionStruct,
       std::shared_ptr<ZeroConfSharedStateSnapshot>) const;
+   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> checkForCollisions(
+      const std::map<BinaryDataRef, std::map<unsigned, BinaryDataRef>>&,
+      std::shared_ptr<ZeroConfSharedStateSnapshot>);
 
    void updateZCinDB(void);
    void handleInvTx();
