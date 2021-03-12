@@ -4,6 +4,11 @@
 //  Distributed under the GNU Affero General Public License (AGPL v3)         //
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
+//                                                                            //
+//  Copyright (C) 2016-2021, goatpig                                          //
+//  Distributed under the MIT license                                         //
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
+//                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #ifndef SCRADDROBJ_H
 #define SCRADDROBJ_H
@@ -33,7 +38,7 @@
 // "address" is a term that will always exist in the Bitcoin ecosystem, and 
 // frequently used even when not preferred.
 //
-// Similarly, we refer to the member variable scraddr_ as a "scradder".  It
+// Similarly, we refer to the member variable scraddr_ as a "scradder". It
 // is actually a reduction of the TxOut script to a form that is identical
 // regardless of whether pay-to-pubkey or pay-to-pubkey-hash is used. 
 //
@@ -42,11 +47,9 @@
 struct ScanAddressStruct
 {
    std::map<BinaryData, BinaryData>* invalidatedZcKeys_ = nullptr;
-   std::map<BinaryData, BinaryData>* minedTxioKeys_ = nullptr;
    std::shared_ptr<ZeroConfSharedStateSnapshot> zcState_;
 
-   std::map<BinaryDataRef, 
-      std::map<BinaryDataRef, std::shared_ptr<TxIOPair>>> zcMap_;
+   std::map<BinaryData, std::set<BinaryData>> scrAddrToTxioKeys_;
    std::map<std::string, std::map<BinaryData, LedgerEntry>> zcLedgers_;
    std::shared_ptr<std::map<BinaryData, 
       std::shared_ptr<std::set<BinaryDataRef>>>> newKeysAndScrAddr_;
@@ -190,7 +193,7 @@ public:
    {
       *this = rhs;
    }
-   
+
    const BinaryDataRef& getScrAddr(void) const { return scrAddr_; }
 //   void setScrAddr(LMDBBlockDatabase *db, BinaryData bd) { db_ = db; scrAddr_.copyFrom(bd);}
 
@@ -216,9 +219,7 @@ public:
 
    std::map<BinaryData, TxIOPair> scanZC(
       const ScanAddressStruct&, std::function<bool(const BinaryDataRef)>, int32_t);
-   bool purgeZC(
-      const std::map<BinaryData, BinaryDataRef>& invalidatedTxOutKeys,
-      const std::map<BinaryData, BinaryData>& minedKeys);
+   bool purgeZC(const std::set<BinaryData>&, const std::set<BinaryData>&);
 
    std::map<BinaryData, LedgerEntry> updateLedgers(
                       const std::map<BinaryData, TxIOPair>& txioMap,
@@ -246,7 +247,7 @@ public:
 
    const std::map<BinaryData, TxIOPair>& getPreparedTxOutList(void) const
    { return utxos_.getUTXOs(); }
-   
+
    bool getMoreUTXOs(pagedUTXOs&, 
       std::function<bool(const BinaryData&)> hasTxOutInZC) const;
    bool getMoreUTXOs(std::function<bool(const BinaryData&)> hasTxOutInZC);
@@ -296,7 +297,7 @@ private:
    //fetches and maintains utxos
    pagedUTXOs   utxos_;
 
-   std::map<BinaryData, std::set<BinaryData> > validZCKeys_;
+   std::map<BinaryData, BinaryData> zcInputKeys_;
    std::map<BinaryData, TxIOPair> zcTxios_;
 
    mutable int32_t updateID_ = 0;

@@ -141,11 +141,11 @@ public:
    bool isTxOutSpentByZC(const BinaryData& dbKey) const
    { return zeroConfCont_->isTxOutSpentByZC(dbKey); }
 
-   std::map<BinaryData, std::shared_ptr<TxIOPair>> getUnspentZCForScrAddr(
+   std::map<BinaryData, std::shared_ptr<const TxIOPair>> getUnspentZCForScrAddr(
       const BinaryData& scrAddr) const
    { return zeroConfCont_->getUnspentZCforScrAddr(scrAddr); }
 
-   std::map<BinaryData, std::shared_ptr<TxIOPair>> getRBFTxIOsforScrAddr(
+   std::map<BinaryData, std::shared_ptr<const TxIOPair>> getRBFTxIOsforScrAddr(
       const BinaryData& scrAddr) const
    {
       return zeroConfCont_->getRBFTxIOsforScrAddr(scrAddr);
@@ -193,13 +193,14 @@ public:
 
    bool isRBF(const BinaryData& txHash) const;
    bool hasScrAddress(const BinaryDataRef&) const;
+   std::set<BinaryDataRef> getAddrSet(void) const;
 
    std::shared_ptr<BtcWallet> getWalletOrLockbox(const std::string& id) const;
 
    std::tuple<uint64_t, uint64_t> getAddrFullBalance(const BinaryData&);
 
    std::unique_ptr<BDV_Notification_ZC> createZcNotification(
-      std::function<bool(BinaryDataRef&)>);
+      const std::set<BinaryDataRef>&);
 
    virtual const std::string& getID(void) const = 0;
 
@@ -213,7 +214,8 @@ public:
       const std::map<BinaryDataRef, std::set<unsigned>>&, bool) const;
 
 protected:
-   static void unregisterAddresses(std::set<BinaryData>, const std::function<void(void)>&);
+   static void unregisterAddresses(
+      std::set<BinaryData>, const std::function<void(void)>&);
 
 protected:
    std::atomic<bool> rescanZC_;
@@ -275,11 +277,6 @@ public:
    std::vector<LedgerEntry> getHistoryPage(uint32_t pageId, unsigned updateID,
       bool rebuildLedger, bool remapWallets);
 
-   const std::set<BinaryData>& getValidZcSet(void) const
-   {
-      return validZcSet_;
-   }
-
 private:   
    std::map<uint32_t, uint32_t> computeWalletsSSHSummary(
       bool forcePaging, bool pageAnyway);
@@ -312,7 +309,6 @@ private:
    //and user actions, so it needs a synchronization primitive.
    std::mutex globalLedgerLock_;
 
-   std::set<BinaryData> validZcSet_;
    std::set<std::string> wltFilterSet_;
 };
 

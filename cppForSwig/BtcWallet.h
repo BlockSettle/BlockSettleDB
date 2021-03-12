@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #ifndef _BTCWALLET_H
@@ -49,7 +49,6 @@ class BtcWallet
    static const uint32_t MIN_UTXO_PER_TXN = 100;
 
 public:
-
    BtcWallet(BlockDataViewer* bdv, const std::string ID)
       : bdvPtr_(bdv), walletID_(ID)
    {}
@@ -63,6 +62,7 @@ public:
    // addScrAddr when blockchain rescan req'd, addNewScrAddr for just-created
    void removeAddressBulk(const std::vector<BinaryDataRef>&);
    bool hasScrAddress(const BinaryDataRef&) const;
+   std::set<BinaryDataRef> getAddrSet(void) const;
 
    // BlkNum is necessary for "unconfirmed" list, since it is dependent
    // on number of confirmations.  But for "spendable" TxOut list, it is
@@ -116,8 +116,7 @@ public:
       getAddrMap(void) const { return scrAddrMap_.get(); }
    void unregisterAddresses(const std::set<BinaryDataRef>&);
 
-private:   
-   
+private:
    //returns true on bootstrap and new block, false on ZC
    bool scanWallet(ScanWalletStruct&, int32_t);
 
@@ -172,8 +171,6 @@ private:
    //call this lambda once a wallet is done registering and scanning 
    //for the first time
    std::function<void(void)> doneRegisteringCallback_ = [](void)->void{};
-
-   std::set<BinaryData> validZcKeys_;
 
    mutable int lastPulledCountsID_ = -1;
    mutable int lastPulledBalancesID_ = -1;

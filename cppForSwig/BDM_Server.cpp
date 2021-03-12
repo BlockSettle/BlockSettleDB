@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig.                                              //
+//  Copyright (C) 2016-2021, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1653,21 +1653,15 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
             auto& opMap = spenderMap[txHashRef];
 
             //get zctx
-            shared_ptr<ParsedTx> txPtr;
-            {
-               auto zcIter = snapshot->txHashToDBKey_.find(txHashRef);
-               if (zcIter != snapshot->txHashToDBKey_.end())
-               {
-                  auto txIter = snapshot->txMap_.find(zcIter->second);
-                  if (txIter != snapshot->txMap_.end())
-                     txPtr = txIter->second;
-               }
-            }
+            auto txPtr = snapshot->getTxByHash(txHashRef);
 
             //TODO: harden loops running on count from client msg
 
             //run through txout indices
             auto outputCount = brr.get_var_int();
+            if (outputCount >= 10000)
+               throw runtime_error("outpout count overflow");
+
             for (size_t y = 0; y < outputCount; y++)
             {
                auto txOutIdx = brr.get_var_int();
@@ -1682,9 +1676,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
                auto& scrAddr = txPtr->outputs_[txOutIdx].scrAddr_;
 
                //get txiopair for this scrAddr
-               auto txioMapIter = snapshot->txioMap_.find(scrAddr);
-               if (txioMapIter == snapshot->txioMap_.end())
-                  continue;
+               auto txioMap = snapshot->getTxioMapForScrAddr(scrAddr);
 
                //create dbkey for output
                BinaryWriter bwKey;
@@ -1692,22 +1684,22 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
                bwKey.put_uint16_t((uint16_t)y, BE);
 
                //grab txio
-               auto txioIter = txioMapIter->second.find(bwKey.getData());
-               if (txioIter == txioMapIter->second.end())
+               auto txioIter = txioMap.find(bwKey.getData());
+               if (txioIter == txioMap.end())
                   continue;
 
                auto txRef = txioIter->second->getTxRefOfInput();
                auto spenderKey = txRef.getDBKeyRef();
-               if (spenderKey.getSize() == 0)
+               if (spenderKey.empty())
                   continue;
 
-               //we have a spender in this txio, resolve the hash               
-               auto spenderIter = snapshot->txMap_.find(spenderKey);
-               if (spenderIter == snapshot->txMap_.end())
+               //we have a spender in this txio, resolve the hash
+               auto txFromSS = snapshot->getTxByKey(spenderKey);
+               if (txFromSS == nullptr)
                   continue;
 
-               spentnessData.spender_ = spenderIter->second->getTxHash();
-               auto&& inputRef = txioIter->second->getTxRefOfInput();
+               spentnessData.spender_ = txFromSS->getTxHash();
+               const auto& inputRef = txioIter->second->getTxRefOfInput();
                BinaryRefReader brr(inputRef.getDBKeyRef());
                brr.advance(2);
                spentnessData.height_ = brr.get_uint32_t(BE);
@@ -1964,15 +1956,10 @@ void BDV_Server_Object::init()
    scanWallets(move(notifPtr));
 
    //create zc packet and pass to wallets
-   auto filterLbd = [this](const BinaryData& scrAddr)->bool
-   {
-      return hasScrAddress(scrAddr);
-   };
-
-   auto zcstruct = createZcNotification(filterLbd);
-   auto zcAction =
-      dynamic_cast<BDV_Notification_ZC*>(zcstruct.get());
-   if(zcAction != nullptr && zcAction->packet_.txioMap_.size() > 0)
+   auto addrSet = getAddrSet();
+   auto zcstruct = createZcNotification(addrSet);
+   auto zcAction = dynamic_cast<BDV_Notification_ZC*>(zcstruct.get());
+   if (zcAction != nullptr && zcAction->packet_.scrAddrToTxioKeys_.size() > 0)
       scanWallets(move(zcstruct));
    
    //mark bdv object as ready
@@ -2021,7 +2008,7 @@ void BDV_Server_Object::processNotification(
       }
 
       if (payload->zcPurgePacket_ != nullptr && 
-          payload->zcPurgePacket_->invalidatedZcKeys_.size() != 0)
+         payload->zcPurgePacket_->invalidatedZcKeys_.size() != 0)
       {
          auto notif = callbackPtr->add_notification();
          notif->set_type(NotificationType::invalidated_zc);

@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #include "BtcWallet.h"
@@ -36,6 +36,17 @@ bool BtcWallet::hasScrAddress(const BinaryDataRef& scrAddr) const
    return (addrMap->find(scrAddr) != addrMap->end());
 }
 
+/////////////////////////////////////////////////////////////////////////////
+set<BinaryDataRef> BtcWallet::getAddrSet() const
+{
+   auto addrMap = scrAddrMap_.get();
+   set<BinaryDataRef> addrSet;
+
+   for (auto& addrPair : *addrMap)
+      addrSet.emplace(addrPair.first);
+   return addrSet;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 void BtcWallet::clearBlkData(void)
 {
@@ -55,7 +66,7 @@ uint64_t BtcWallet::getSpendableBalance(uint32_t currBlk) const
    uint64_t balance = 0;
    for(const auto scrAddr : *addrMap)
       balance += scrAddr.second->getSpendableBalance(currBlk);
-   
+
    return balance;
 }
 
@@ -460,18 +471,11 @@ map<BinaryData, TxIOPair> BtcWallet::scanWalletZeroConf(
 
    map<BinaryData, TxIOPair> result;
    auto addrMap = scrAddrMap_.get();
-   validZcKeys_.clear();
 
    for (auto& saPair : *addrMap)
    {
       auto&& saResult = saPair.second->scanZC(
          scanInfo.saStruct_, isZcFromWallet, updateID);
-      for (auto& zckeypair : saPair.second->validZCKeys_)
-      {
-         validZcKeys_.insert(
-            move(zckeypair.first.getSliceCopy(0, 6)));
-      }
-
       result.insert(saResult.begin(), saResult.end());
    }
 
@@ -488,7 +492,7 @@ bool BtcWallet::scanWallet(ScanWalletStruct& scanInfo, int32_t updateID)
       balance_ = getFullBalanceFromDB(updateID);
    }
   
-   if (scanInfo.saStruct_.zcMap_.size() != 0 ||
+   if (scanInfo.saStruct_.scrAddrToTxioKeys_.size() != 0 ||
       (scanInfo.saStruct_.invalidatedZcKeys_ != nullptr && 
        scanInfo.saStruct_.invalidatedZcKeys_->size() != 0))
    {
