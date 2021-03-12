@@ -540,11 +540,18 @@ void DBSettings::processArgs(const map<string, string>& args)
    if (iter != args.end())
    {
       if (iter->second == "DB_BARE")
+      {
+         throw runtime_error("deprecated");
          armoryDbType_ = ARMORY_DB_BARE;
+      }
       else if (iter->second == "DB_FULL")
+      {
          armoryDbType_ = ARMORY_DB_FULL;
+      }
       else if (iter->second == "DB_SUPER")
+      {
          armoryDbType_ = ARMORY_DB_SUPER;
+      }
       else
       {
          cout << "Error: unexpected DB type: " << iter->second << endl;
