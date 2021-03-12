@@ -1,9 +1,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016-17, goatpig                                            //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,7 +164,8 @@ namespace DBTestUtils
    std::vector<UTXO> getUtxoForAddress(Clients* clients, const std::string bdvId, 
       const BinaryData& addr, bool withZc);
 
-   void addTxioToSsh(StoredScriptHistory&, const std::map<BinaryData, std::shared_ptr<TxIOPair>>&);
+   void addTxioToSsh(StoredScriptHistory&, 
+      const std::map<BinaryDataRef, std::shared_ptr<const TxIOPair>>&);
    void prettyPrintSsh(StoredScriptHistory& ssh);
    LedgerEntry getLedgerEntryFromWallet(std::shared_ptr<BtcWallet>, const BinaryData&);
    LedgerEntry getLedgerEntryFromAddr(ScrAddrObj*, const BinaryData&);

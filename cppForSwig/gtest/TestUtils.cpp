@@ -1,9 +1,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016-17, goatpig                                            //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #include "TestUtils.h"
@@ -625,9 +625,8 @@ namespace DBTestUtils
 
 
    /////////////////////////////////////////////////////////////////////////////
-   void addTxioToSsh(
-      StoredScriptHistory& ssh, 
-      const map<BinaryData, shared_ptr<TxIOPair>>& txioMap)
+   void addTxioToSsh(StoredScriptHistory& ssh, 
+      const map<BinaryDataRef, shared_ptr<const TxIOPair>>& txioMap)
    {
       for (auto& txio_pair : txioMap)
       {
