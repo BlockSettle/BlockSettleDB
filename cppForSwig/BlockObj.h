@@ -367,7 +367,7 @@ public:
 
    /////////////////////////////////////////////////////////////////////////////
    const BinaryData& getDBKey(void) const { return dbKey6B_; }
-   BinaryDataRef  getDBKeyRef(void) { return dbKey6B_.getRef(); }
+   BinaryDataRef  getDBKeyRef(void) const { return dbKey6B_.getRef(); }
    void           setDBKey(BinaryData    const & bd) { dbKey6B_.copyFrom(bd); }
    void           setDBKey(BinaryDataRef const & bd) { dbKey6B_.copyFrom(bd); }
 
