@@ -230,16 +230,13 @@ set<BinaryDataRef> ScrAddrFilter::updateAddrMap(
       set<BinaryDataRef> addrRefSet;
       auto scraddrmap = scanFilterAddrMap_->get();
       map<BinaryDataRef, shared_ptr<AddrAndHash>> updateMap;
-      map<BinaryDataRef, shared_ptr<AddrAndHash>> zcUpdateMap;
 
       for (auto& sa : addrSet)
       {
          auto iter = scraddrmap->find(sa);
          if (iter != scraddrmap->end())
          {
-            //zc filter map may not have this address while the scan map does
             addrRefSet.insert(iter->first);
-            zcUpdateMap.insert(*iter);
             continue;
          }
 
@@ -248,25 +245,16 @@ set<BinaryDataRef> ScrAddrFilter::updateAddrMap(
          pair<BinaryDataRef, shared_ptr<AddrAndHash>> addrPair = { 
             aah->scrAddr_.getRef(), aah };
          
-         zcUpdateMap.insert(addrPair);
          updateMap.insert(move(addrPair));
          addrRefSet.insert(aah->scrAddr_.getRef());
       }
 
       scanFilterAddrMap_->update(updateMap);
-      zcFilterAddrMap_->update(zcUpdateMap);
       return addrRefSet;
    }
 
    case true:
-   {
-      //remove addresses from the zc filter map only
-      vector<BinaryDataRef> removeVec;
-      removeVec.insert(removeVec.end(), addrSet.begin(), addrSet.end());
-      zcFilterAddrMap_->erase(removeVec);
-
       return {};
-   }
    }
 
    //this is to mute the msvc eroneous warning about return values
