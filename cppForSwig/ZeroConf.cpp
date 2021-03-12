@@ -185,7 +185,7 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purgeToBranchpoint(
    }
 
    //drop the ZC from the mempool
-   auto droppedZC = dropZC(ss, keysToDelete);
+   auto droppedZC = dropZCs(ss, keysToDelete);
 
    //reset all mined input resolution in dropped zc and return
    for (auto& zcPtr : droppedZC)
@@ -304,7 +304,7 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purge(
    }
 
    //drop the invalidated ZCs
-   auto invalidatedZCs = dropZC(ss, keysToDelete);
+   auto invalidatedZCs = dropZCs(ss, keysToDelete);
 
    //reset direct descendants' unconfirmed input resolution
    for (auto& zcPtr : invalidatedZCs)
@@ -373,7 +373,7 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZC(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZC(
+map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZCs(
    shared_ptr<ZeroConfSharedStateSnapshot> ss, const set<BinaryData>& zcKeys)
 {
    if (zcKeys.size() == 0)
@@ -562,30 +562,6 @@ void ZeroConfContainer::parseNewZC(
    map<string, ParsedZCData> flaggedBDVs;
    map<BinaryData, shared_ptr<ParsedTx>> invalidatedTx;
 
-
-   //zckey fetch lambda
-   auto getzckeyfortxhash = [ss]
-   (const BinaryData& txhash, BinaryData& zckey_output)->bool
-   {
-      auto keyFromSS = ss->getKeyForHash(txhash);
-      if (keyFromSS.empty())
-         return false;
-
-      zckey_output = keyFromSS;
-      return true;
-   };
-
-   //zc tx fetch lambda
-   auto getzctxforkey = [ss]
-   (const BinaryData& zc_key)->const ParsedTx&
-   {
-      auto txPtr = ss->getTxByKey(zc_key);
-      if (txPtr == nullptr)
-         throw runtime_error("no zc tx for this key");
-
-      return *txPtr;
-   };
-
    //zc logic
    set<BinaryDataRef> addedZcKeys;
    for (auto& newZCPair : zcMap)
@@ -594,9 +570,7 @@ void ZeroConfContainer::parseNewZC(
       if (!ss->getKeyForHash(txHash).empty())
          continue;
 
-      auto&& filterResult = filterTransaction(
-         newZCPair.second, newZCPair.first,
-         getzckeyfortxhash, getzctxforkey);
+      auto&& filterResult = filterTransaction(newZCPair.second, ss);
 
       //check for replacement
       {
@@ -744,9 +718,8 @@ void ZeroConfContainer::parseNewZC(
 
 ///////////////////////////////////////////////////////////////////////////////
 FilteredZeroConfData ZeroConfContainer::filterTransaction(
-   shared_ptr<ParsedTx> parsedTx, BinaryDataRef ZCkey,
-   function<bool(const BinaryData&, BinaryData&)> getzckeyfortxhash,
-   function<const ParsedTx&(const BinaryData&)> getzctxforkey) const
+   shared_ptr<ParsedTx> parsedTx,
+   shared_ptr<ZeroConfSharedStateSnapshot> ss) const
 {
    if (parsedTx->status() == ParsedTxStatus::Mined || 
       parsedTx->status() == ParsedTxStatus::Invalid ||
@@ -762,247 +735,14 @@ FilteredZeroConfData ZeroConfContainer::filterTransaction(
    }
 
    //check tx resolution
-   finalizeParsedTxResolution(parsedTx, getzckeyfortxhash, getzctxforkey);
+   finalizeParsedTxResolution(
+      parsedTx,
+      db_, allZcTxHashes_,
+      ss);
 
    //parse it
-   return filterParsedTx(parsedTx, ZCkey);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void ZeroConfContainer::finalizeParsedTxResolution(
-   shared_ptr<ParsedTx> parsedTxPtr,
-   function<bool(const BinaryData&, BinaryData&)> getzckeyfortxhash,
-   function<const ParsedTx&(const BinaryData&)> getzctxforkey) const
-{
-   auto& parsedTx = *parsedTxPtr;
-   bool isRBF = parsedTx.isRBF_;
-   bool isChained = parsedTx.isChainedZc_;
-
-   //if parsedTx has unresolved outpoint, they are most likely ZC
-   for (auto& input : parsedTx.inputs_)
-   {
-      if (input.isResolved())
-      {
-         //check resolved key is valid
-         if (input.opRef_.isZc())
-         {
-            try
-            {
-               isChained = true;
-               auto& chainedZC = getzctxforkey(input.opRef_.getDbTxKeyRef());
-               if (chainedZC.status() == ParsedTxStatus::Invalid)
-                  throw runtime_error("invalid parent zc");
-            }
-            catch (exception&)
-            {
-               parsedTx.state_ = ParsedTxStatus::Invalid;
-               return;
-            }
-         }
-         else
-         {
-            auto&& keyRef = input.opRef_.getDbKey().getSliceRef(0, 4);
-            auto height = DBUtils::hgtxToHeight(keyRef);
-            auto dupId = DBUtils::hgtxToDupID(keyRef);
-
-            if (db_->getValidDupIDForHeight(height) != dupId)
-            {
-               parsedTx.state_ = ParsedTxStatus::Invalid;
-               return;
-            }
-         }
-
-         continue;
-      }
-
-      auto& opZcKey = input.opRef_.getDbKey();
-      if (!getzckeyfortxhash(input.opRef_.getTxHashRef(), opZcKey))
-      {
-         if (DBSettings::getDbType() == ARMORY_DB_SUPER ||
-            allZcTxHashes_.find(input.opRef_.getTxHashRef()) == allZcTxHashes_.end())
-            continue;
-      }
-
-      isChained = true;
-
-      try
-      {
-         auto& chainedZC = getzctxforkey(opZcKey);
-         auto&& chainedTxOut = chainedZC.tx_.getTxOutCopy(input.opRef_.getIndex());
-
-         input.value_ = chainedTxOut.getValue();
-         input.scrAddr_ = chainedTxOut.getScrAddressStr();
-         isRBF |= chainedZC.tx_.isRBF();
-         input.opRef_.setTime(chainedZC.tx_.getTxTime());
-
-         opZcKey.append(WRITE_UINT16_BE(input.opRef_.getIndex()));
-      }
-      catch (runtime_error&)
-      {
-         continue;
-      }
-   }
-
-   //check & update resolution state
-   if (parsedTx.state_ != ParsedTxStatus::Resolved)
-   {
-      bool isResolved = true;
-      for (auto& input : parsedTx.inputs_)
-      {
-         if (!input.isResolved())
-         {
-            isResolved = false;
-            break;
-         }
-      }
-
-      if (isResolved)
-         parsedTx.state_ = ParsedTxStatus::Resolved;
-   }
-
-   parsedTx.isRBF_ = isRBF;
-   parsedTx.isChainedZc_ = isChained;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-FilteredZeroConfData ZeroConfContainer::filterParsedTx(
-   shared_ptr<ParsedTx> parsedTxPtr, BinaryDataRef ZCkey) const
-{
-   auto& parsedTx = *parsedTxPtr;
-   FilteredZeroConfData result; 
-   result.txPtr_ = parsedTxPtr;
-
-   auto mainAddressSet = scrAddrMap_->get();
-   auto& txHash = parsedTx.getTxHash();
-
-   auto filter = [mainAddressSet, this]
-      (const BinaryData& addr)->pair<bool, set<string>>
-   {
-      pair<bool, set<string>> flaggedBDVs;
-      flaggedBDVs.first = false;
-
-      
-      //Check if this address is being watched before looking for specific BDVs
-      auto addrIter = mainAddressSet->find(addr.getRef());
-      if (addrIter == mainAddressSet->end())
-      {
-         if (DBSettings::getDbType() == ARMORY_DB_SUPER)
-         {
-            /*
-            We got this far because no BDV is watching this address and the DB
-            is running as a supernode. In supernode we track all ZC regardless 
-            of watch status. Flag as true to process the ZC, but do not attach
-            a bdv ID as no clients will be notified of this zc.
-            */
-            flaggedBDVs.first = true;
-         }
-
-         return flaggedBDVs;
-      }
-
-      flaggedBDVs.first = true;
-      flaggedBDVs.second = bdvCallbacks_->hasScrAddr(addr.getRef());
-      return flaggedBDVs;
-   };
-
-   auto insertNewZc = [&result](const BinaryData& sa,
-      BinaryData txiokey, shared_ptr<TxIOPair> txio,
-      set<string> flaggedBDVs, bool consumesTxOut)->void
-   {
-      if (consumesTxOut)
-         result.txOutsSpentByZC_.insert(txiokey);
-
-      auto& key_txioPair = result.scrAddrTxioMap_[sa];
-      key_txioPair[txiokey] = move(txio);
-
-      for (auto& bdvId : flaggedBDVs)
-         result.flaggedBDVs_[bdvId].scrAddrs_.insert(sa);
-   };
-
-   //spent txios
-   unsigned iin = 0;
-   for (auto& input : parsedTx.inputs_)
-   {
-      bool skipTxIn = false;
-      auto inputId = iin++;
-      if (!input.isResolved())
-      {
-         if (db_->armoryDbType() == ARMORY_DB_SUPER)
-         {
-            parsedTx.state_ = ParsedTxStatus::Invalid;
-            return result;
-         }
-         else
-         {
-            parsedTx.state_ = ParsedTxStatus::ResolveAgain;
-         }
-
-         skipTxIn = true;
-      }
-
-      //keep track of all outputs this ZC consumes
-      auto& id_map = result.outPointsSpentByKey_[input.opRef_.getTxHashRef()];
-      id_map.insert(make_pair(input.opRef_.getIndex(), ZCkey));
-
-      if (skipTxIn)
-         continue;
-
-      auto&& flaggedBDVs = filter(input.scrAddr_);
-      if (!parsedTx.isChainedZc_ && !flaggedBDVs.first)
-         continue;
-
-      auto txio = make_shared<TxIOPair>(
-         TxRef(input.opRef_.getDbTxKeyRef()), input.opRef_.getIndex(),
-         TxRef(ZCkey), inputId);
-
-      txio->setTxHashOfOutput(input.opRef_.getTxHashRef());
-      txio->setTxHashOfInput(txHash);
-      txio->setValue(input.value_);
-      auto tx_time = input.opRef_.getTime();
-      if (tx_time == UINT64_MAX)
-         tx_time = parsedTx.tx_.getTxTime();
-      txio->setTxTime(tx_time);
-      txio->setRBF(parsedTx.isRBF_);
-      txio->setChained(parsedTx.isChainedZc_);
-
-      auto&& txioKey = txio->getDBKeyOfOutput();
-      insertNewZc(input.scrAddr_, move(txioKey), move(txio),
-         move(flaggedBDVs.second), true);
-
-      auto& updateSet = result.keyToSpentScrAddr_[ZCkey];
-      if (updateSet == nullptr)
-         updateSet = make_shared<set<BinaryDataRef>>();
-      updateSet->insert(input.scrAddr_.getRef());
-   }
-
-   //funded txios
-   unsigned iout = 0;
-   for (auto& output : parsedTx.outputs_)
-   {
-      auto outputId = iout++;
-
-      auto&& flaggedBDVs = filter(output.scrAddr_);
-      if (flaggedBDVs.first)
-      {
-         auto txio = make_shared<TxIOPair>(TxRef(ZCkey), outputId);
-
-         txio->setValue(output.value_);
-         txio->setTxHashOfOutput(txHash);
-         txio->setTxTime(parsedTx.tx_.getTxTime());
-         txio->setUTXO(true);
-         txio->setRBF(parsedTx.isRBF_);
-         txio->setChained(parsedTx.isChainedZc_);
-
-         auto& fundedScrAddr = result.keyToFundedScrAddr_[ZCkey];
-         fundedScrAddr.insert(output.scrAddr_.getRef());
-
-         auto&& txioKey = txio->getDBKeyOfOutput();
-         insertNewZc(output.scrAddr_, move(txioKey),
-            move(txio), move(flaggedBDVs.second), false);
-      }
-   }
-
-   return result;
+   auto addrMap = scrAddrMap_->get();
+   return filterParsedTx(parsedTx, addrMap, bdvCallbacks_.get());
 }
 
 ///////////////////////////////////////////////////////////////////////////////

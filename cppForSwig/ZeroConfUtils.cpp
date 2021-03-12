@@ -7,9 +7,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "ZeroConfUtils.h"
+#include "ZeroConfNotifications.h"
+#include "ScrAddrFilter.h"
 #include "lmdb_wrapper.h"
 
 using namespace std;
+using namespace ArmoryConfig;
 
 ///////////////////////////////////////////////////////////////////////////////
 void preprocessTx(ParsedTx& tx, LMDBBlockDatabase* db)
@@ -81,7 +84,7 @@ void preprocessTx(ParsedTx& tx, LMDBBlockDatabase* db)
       if (!db->getStoredTxOut(stxOut, opRef.getDbKey()))
          continue;
 
-      if (db->armoryDbType() == ARMORY_DB_SUPER)
+      if (DBSettings::getDbType() == ARMORY_DB_SUPER)
          opRef.getDbKey() = stxOut.getDBKey(false);
 
       if (stxOut.isSpent())
@@ -173,6 +176,243 @@ void preprocessZcMap(
    }
 }
 
+///////////////////////////////////////////////////////////////////////////////
+void finalizeParsedTxResolution(
+   shared_ptr<ParsedTx> parsedTxPtr,
+   LMDBBlockDatabase* db, const set<BinaryData>& allZcHashes,
+   shared_ptr<ZeroConfSharedStateSnapshot> ss)
+{
+   auto& parsedTx = *parsedTxPtr;
+   bool isRBF = parsedTx.isRBF_;
+   bool isChained = parsedTx.isChainedZc_;
+
+   //if parsedTx has unresolved outpoint, they are most likely ZC
+   for (auto& input : parsedTx.inputs_)
+   {
+      if (input.isResolved())
+      {
+         //check resolved key is valid
+         if (input.opRef_.isZc())
+         {
+            isChained = true;
+            auto chainedZC = ss->getTxByKey(input.opRef_.getDbTxKeyRef());
+            if (chainedZC == nullptr)
+            {
+               parsedTx.state_ = ParsedTxStatus::Invalid;
+               return;
+            }
+            else if (chainedZC->status() == ParsedTxStatus::Invalid)
+            {
+               throw runtime_error("invalid parent zc");
+            }
+
+         }
+         else
+         {
+            auto&& keyRef = input.opRef_.getDbKey().getSliceRef(0, 4);
+            auto height = DBUtils::hgtxToHeight(keyRef);
+            auto dupId = DBUtils::hgtxToDupID(keyRef);
+
+            if (db->getValidDupIDForHeight(height) != dupId)
+            {
+               parsedTx.state_ = ParsedTxStatus::Invalid;
+               return;
+            }
+         }
+
+         continue;
+      }
+
+      auto& opZcKey = input.opRef_.getDbKey();
+      opZcKey = ss->getKeyForHash(input.opRef_.getTxHashRef());
+      if (opZcKey.empty())
+      {
+         if (DBSettings::getDbType() == ARMORY_DB_SUPER ||
+            allZcHashes.find(input.opRef_.getTxHashRef()) == allZcHashes.end())
+            continue;
+      }
+
+      isChained = true;
+
+      auto chainedZC = ss->getTxByKey(opZcKey);
+      if (chainedZC == nullptr)
+         continue;
+
+      //NOTE: avoid the copy
+      auto chainedTxOut = chainedZC->tx_.getTxOutCopy(input.opRef_.getIndex());
+
+      input.value_ = chainedTxOut.getValue();
+      input.scrAddr_ = chainedTxOut.getScrAddressStr();
+      isRBF |= chainedZC->tx_.isRBF();
+      input.opRef_.setTime(chainedZC->tx_.getTxTime());
+
+      opZcKey.append(WRITE_UINT16_BE(input.opRef_.getIndex()));
+   }
+
+   //check & update resolution state
+   if (parsedTx.state_ != ParsedTxStatus::Resolved)
+   {
+      bool isResolved = true;
+      for (auto& input : parsedTx.inputs_)
+      {
+         if (!input.isResolved())
+         {
+            isResolved = false;
+            break;
+         }
+      }
+
+      if (isResolved)
+         parsedTx.state_ = ParsedTxStatus::Resolved;
+   }
+
+   parsedTx.isRBF_ = isRBF;
+   parsedTx.isChainedZc_ = isChained;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+FilteredZeroConfData filterParsedTx(
+   shared_ptr<ParsedTx> parsedTxPtr,
+   shared_ptr<const map<BinaryDataRef, shared_ptr<AddrAndHash>>> mainAddressMap,
+   ZeroConfCallbacks* bdvCallbacks)
+{
+   auto& parsedTx = *parsedTxPtr;
+   auto zcKey = parsedTxPtr->getKeyRef();
+
+   FilteredZeroConfData result; 
+   result.txPtr_ = parsedTxPtr;
+   auto& txHash = parsedTx.getTxHash();
+
+   auto filter = [mainAddressMap, bdvCallbacks]
+      (const BinaryData& addr)->pair<bool, set<string>>
+   {
+      pair<bool, set<string>> flaggedBDVs;
+      flaggedBDVs.first = false;
+
+      
+      //Check if this address is being watched before looking for specific BDVs
+      auto addrIter = mainAddressMap->find(addr.getRef());
+      if (addrIter == mainAddressMap->end())
+      {
+         if (DBSettings::getDbType() == ARMORY_DB_SUPER)
+         {
+            /*
+            We got this far because no BDV is watching this address and the DB
+            is running as a supernode. In supernode we track all ZC regardless 
+            of watch status. Flag as true to process the ZC, but do not attach
+            a bdv ID as no clients will be notified of this zc.
+            */
+            flaggedBDVs.first = true;
+         }
+
+         return flaggedBDVs;
+      }
+
+      flaggedBDVs.first = true;
+      flaggedBDVs.second = bdvCallbacks->hasScrAddr(addr.getRef());
+      return flaggedBDVs;
+   };
+
+   auto insertNewZc = [&result](const BinaryData& sa,
+      BinaryData txiokey, shared_ptr<TxIOPair> txio,
+      set<string> flaggedBDVs, bool consumesTxOut)->void
+   {
+      if (consumesTxOut)
+         result.txOutsSpentByZC_.insert(txiokey);
+
+      auto& key_txioPair = result.scrAddrTxioMap_[sa];
+      key_txioPair[txiokey] = move(txio);
+
+      for (auto& bdvId : flaggedBDVs)
+         result.flaggedBDVs_[bdvId].scrAddrs_.insert(sa);
+   };
+
+   //spent txios
+   unsigned iin = 0;
+   for (auto& input : parsedTx.inputs_)
+   {
+      bool skipTxIn = false;
+      auto inputId = iin++;
+      if (!input.isResolved())
+      {
+         if (DBSettings::getDbType() == ARMORY_DB_SUPER)
+         {
+            parsedTx.state_ = ParsedTxStatus::Invalid;
+            return result;
+         }
+         else
+         {
+            parsedTx.state_ = ParsedTxStatus::ResolveAgain;
+         }
+
+         skipTxIn = true;
+      }
+
+      //keep track of all outputs this ZC consumes
+      auto& id_map = result.outPointsSpentByKey_[input.opRef_.getTxHashRef()];
+      id_map.insert(make_pair(input.opRef_.getIndex(), zcKey));
+
+      if (skipTxIn)
+         continue;
+
+      auto&& flaggedBDVs = filter(input.scrAddr_);
+      if (!parsedTx.isChainedZc_ && !flaggedBDVs.first)
+         continue;
+
+      auto txio = make_shared<TxIOPair>(
+         TxRef(input.opRef_.getDbTxKeyRef()), input.opRef_.getIndex(),
+         TxRef(zcKey), inputId);
+
+      txio->setTxHashOfOutput(input.opRef_.getTxHashRef());
+      txio->setTxHashOfInput(txHash);
+      txio->setValue(input.value_);
+      auto tx_time = input.opRef_.getTime();
+      if (tx_time == UINT64_MAX)
+         tx_time = parsedTx.tx_.getTxTime();
+      txio->setTxTime(tx_time);
+      txio->setRBF(parsedTx.isRBF_);
+      txio->setChained(parsedTx.isChainedZc_);
+
+      auto&& txioKey = txio->getDBKeyOfOutput();
+      insertNewZc(input.scrAddr_, move(txioKey), move(txio),
+         move(flaggedBDVs.second), true);
+
+      auto& updateSet = result.keyToSpentScrAddr_[zcKey];
+      if (updateSet == nullptr)
+         updateSet = make_shared<set<BinaryDataRef>>();
+      updateSet->insert(input.scrAddr_.getRef());
+   }
+
+   //funded txios
+   unsigned iout = 0;
+   for (auto& output : parsedTx.outputs_)
+   {
+      auto outputId = iout++;
+
+      auto&& flaggedBDVs = filter(output.scrAddr_);
+      if (flaggedBDVs.first)
+      {
+         auto txio = make_shared<TxIOPair>(TxRef(zcKey), outputId);
+
+         txio->setValue(output.value_);
+         txio->setTxHashOfOutput(txHash);
+         txio->setTxTime(parsedTx.tx_.getTxTime());
+         txio->setUTXO(true);
+         txio->setRBF(parsedTx.isRBF_);
+         txio->setChained(parsedTx.isChainedZc_);
+
+         auto& fundedScrAddr = result.keyToFundedScrAddr_[zcKey];
+         fundedScrAddr.insert(output.scrAddr_.getRef());
+
+         auto&& txioKey = txio->getDBKeyOfOutput();
+         insertNewZc(output.scrAddr_, move(txioKey),
+            move(txio), move(flaggedBDVs.second), false);
+      }
+   }
+
+   return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // FilteredZeroConfData
@@ -183,7 +423,7 @@ bool FilteredZeroConfData::isValid() const
    if (txPtr_ == nullptr)
       return false;
 
-   switch (ArmoryConfig::DBSettings::getDbType())
+   switch (DBSettings::getDbType())
    {
    case ARMORY_DB_SUPER:
       return txPtr_->status() == ParsedTxStatus::Resolved && !isEmpty();

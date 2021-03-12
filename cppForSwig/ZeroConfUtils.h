@@ -258,4 +258,20 @@ public:
    void stageNewZc(std::shared_ptr<ParsedTx>, const FilteredZeroConfData&);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+void finalizeParsedTxResolution(
+   std::shared_ptr<ParsedTx>, 
+   LMDBBlockDatabase*, const std::set<BinaryData>&,
+   std::shared_ptr<ZeroConfSharedStateSnapshot>);
+
+////
+class ZeroConfCallbacks;
+class AddrAndHash;
+
+FilteredZeroConfData filterParsedTx(
+   std::shared_ptr<ParsedTx>,
+   std::shared_ptr<const std::map<BinaryDataRef, std::shared_ptr<AddrAndHash>>>,
+   ZeroConfCallbacks*);
+
+
 #endif

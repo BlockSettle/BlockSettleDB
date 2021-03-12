@@ -419,21 +419,8 @@ private:
 
 private:
    FilteredZeroConfData filterTransaction(
-      //tx, zckey
-      std::shared_ptr<ParsedTx>, BinaryDataRef,
-      //get zckey for txhash func
-      std::function<bool(const BinaryData&, BinaryData&)>,
-      //get zc for zckey func
-      std::function<const ParsedTx&(const BinaryData&)>) const;
-
-   void finalizeParsedTxResolution(
-      std::shared_ptr<ParsedTx>, 
-      std::function<bool(const BinaryData&, BinaryData&)>,
-      std::function<const ParsedTx&(const BinaryData&)>) const;
-
-   FilteredZeroConfData filterParsedTx(
-      std::shared_ptr<ParsedTx>, BinaryDataRef) const;
-
+      std::shared_ptr<ParsedTx>,
+      std::shared_ptr<ZeroConfSharedStateSnapshot>) const;
 
    void increaseParserThreadPool(unsigned);
    unsigned loadZeroConfMempool(bool);
@@ -457,7 +444,7 @@ private:
 
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> dropZC(
       std::shared_ptr<ZeroConfSharedStateSnapshot>, const BinaryDataRef&);
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> dropZC(
+   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> dropZCs(
       std::shared_ptr<ZeroConfSharedStateSnapshot>, const std::set<BinaryData>&);
 
    void parseNewZC(ZcActionStruct);
