@@ -139,7 +139,7 @@ void preprocessTx(ParsedTx& tx, LMDBBlockDatabase* db)
 
 ///////////////////////////////////////////////////////////////////////////////
 void preprocessZcMap(
-   map<BinaryDataRef, shared_ptr<ParsedTx>>& zcMap, 
+   map<BinaryDataRef, shared_ptr<ParsedTx>>& zcMap,
    LMDBBlockDatabase* db)
 {
    //run threads to preprocess the zcMap
@@ -205,7 +205,6 @@ void finalizeParsedTxResolution(
             {
                throw runtime_error("invalid parent zc");
             }
-
          }
          else
          {
@@ -475,10 +474,16 @@ void OutPointRef::resolveDbKey(LMDBBlockDatabase *dbPtr)
    if (txHash_.getSize() == 0 || txOutIndex_ == UINT16_MAX)
       throw runtime_error("empty outpoint hash");
 
-   auto&& key = dbPtr->getDBKeyForHash(txHash_);
+   auto key = dbPtr->getDBKeyForHash(txHash_);
    if (key.getSize() != 6)
       return;
 
+   setDbKey(key);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void OutPointRef::setDbKey(const BinaryData& key)
+{
    BinaryWriter bw;
    bw.put_BinaryData(key);
    bw.put_uint16_t(txOutIndex_, BE);
@@ -787,7 +792,7 @@ void ZeroConfSharedStateSnapshot::dropFromScrAddrMap(
       if (!keyIter->startsWith(zcKey))
          break;
 
-      //remove all entries that being with our zcKey
+      //remove all entries that begin with our zcKey
       txioKeySet.erase(keyIter++);
    }
 
@@ -842,7 +847,10 @@ map<BinaryDataRef, std::shared_ptr<ParsedTx>>
          continue;
       txOutsSpentByZC_.erase(input.opRef_.getDbKey());
       spentFromTxoutKeys.emplace(input.opRef_.getDbKey());
-      
+
+      //do not purge input keys from scrAddr map unless they're mined
+      if (input.opRef_.getDbKey().startsWith(DBUtils::ZeroConfHeader_))
+         continue;
       dropFromScrAddrMap(input.scrAddr_, input.opRef_.getDbKey());
    }
 

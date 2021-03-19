@@ -17,6 +17,764 @@ using namespace ArmorySigner;
 using namespace ArmoryConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
+#define METHOD_ASSERT_EQ(a, b) \
+   if (a != b) { EXPECT_EQ(a, b); return false; }
+
+#define METHOD_ASSERT_NE(a, b) \
+   if (a == b) { EXPECT_NE(a, b); return false; }
+
+#define METHOD_ASSERT_TRUE(a) \
+   if (!(a)) { EXPECT_TRUE(false); return false; }
+
+#define METHOD_ASSERT_FALSE(a) \
+   if (a) { EXPECT_FALSE(true); return false; }
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+class ZeroConfTests_Mempool : public ::testing::Test
+{
+private:
+   BinaryData getOutpoint(const BinaryData& hash, uint32_t id) const
+   {
+      BinaryWriter bw;
+      bw.put_BinaryData(hash);
+      bw.put_uint32_t(id);
+
+      return bw.getData();
+   }
+
+   void addAddrToMap(const BinaryData& addr)
+   {
+      mainAddrMap_->emplace(addr.getRef(), nullptr);
+   }
+
+   void createTx(unsigned txid, vector<unsigned> txins, vector<unsigned> txouts)
+   {
+      txs_.emplace_back(TxData());
+      auto& txData = txs_.back();
+      txData.id_ = txid;
+      txData.txIns_ = txins;
+      txData.txOuts_ = txouts;
+
+      auto key = zcKeys_[txid];
+      txData.txPtr_ = make_shared<ParsedTx>(key);
+      auto tx = txData.txPtr_;
+
+      tx->setTxHash(zcHashes_[txid]);
+
+      for (auto& id : txins)
+      {
+         const auto& txindata = txIns_[id];
+         ParsedTxIn pTxIn;
+
+         pTxIn.value_ = txindata.value_;
+         pTxIn.scrAddr_ = txindata.scrAddr_;
+         pTxIn.opRef_.unserialize(txindata.outpoint_.serialized_);
+         pTxIn.opRef_.setDbKey(txindata.outpoint_.key_);
+
+         tx->inputs_.push_back(pTxIn);
+         addAddrToMap(pTxIn.scrAddr_);
+      }
+      
+      for (auto& id : txouts)
+      {
+         const auto& txoutdata = txOuts_[id];
+         ParsedTxOut pTxOut;
+
+         pTxOut.scrAddr_ = txoutdata.scrAddr_;
+         pTxOut.value_ = txoutdata.value_;
+         tx->outputs_.push_back(pTxOut);
+         addAddrToMap(pTxOut.scrAddr_);
+      }
+
+      tx->state_ = ParsedTxStatus::Resolved;
+   }
+
+   void createTx0(void)
+   {
+      zcKeys_.push_back(READHEX("FFFF00000000"));
+      zcHashes_.push_back(READHEX(
+         "000102030405060708090A0B0C0D0E0FF0F1F2F3F4F5F6F7F8F9FAFBFCFDFEFF"));
+
+      //txin0
+      txIns_.emplace_back(TxInData());
+      auto& txIn0 = txIns_.back();
+      txIn0.value_ = 10*COIN;
+      txIn0.scrAddr_ = READHEX("000102030405060708090A");
+
+      //outpoint0
+      OutpointData outpoint0;
+      outpoint0.hash_ = READHEX(
+         "0101010101010101010101010101010101010101010101010101010101010101");
+      outpoint0.index_ = 4;
+      outpoint0.key_ = READHEX("000054000003");
+      outpoint0.serialized_ = getOutpoint(outpoint0.hash_, outpoint0.index_);
+      txIn0.outpoint_ = outpoint0;
+
+      //txin1
+      txIns_.emplace_back(TxInData());
+      auto& txIn1 = txIns_.back();
+      txIn1.value_ = 5*COIN;
+      txIn1.scrAddr_ = READHEX("00A1A2A3A4A5A6A7A8A9AA");
+
+      //outpoint1
+      OutpointData outpoint1;
+      outpoint1.hash_ = READHEX(
+         "0202020202020202020202020202020202020202020202020202020202020202");
+      outpoint1.index_ = 2;
+      outpoint1.key_ = READHEX("00006200000A");
+      outpoint1.serialized_ = getOutpoint(outpoint1.hash_, outpoint1.index_);
+      txIn1.outpoint_ = outpoint1;
+
+      //txout0
+      txOuts_.emplace_back(TxOutData());
+      auto& txOut0 = txOuts_.back();
+      txOut0.scrAddr_ = READHEX("00B1B2B3B4B5B6B7B8B9BA");
+      txOut0.value_ = 7*COIN;
+
+      //txout1
+      txOuts_.emplace_back(TxOutData());
+      auto& txOut1 = txOuts_.back();
+      txOut1.scrAddr_ = READHEX("00C1C2C3C4C5C6C7C8C9CA");
+      txOut1.value_ = 8*COIN;
+
+      //create tx
+      createTx(0, {0, 1}, {0, 1});
+   }
+
+   void createTx1(void)
+   {
+      zcKeys_.push_back(READHEX("FFFF00000001"));
+      zcHashes_.push_back(READHEX(
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBB"));
+
+      //txin0
+      txIns_.emplace_back(TxInData());
+      auto& txIn0 = txIns_.back();
+      txIn0.value_ = 45*COIN;
+      txIn0.scrAddr_ = READHEX("C1C2C3C4C5C6C7C8C9CACB");
+
+      //txin1
+      txIns_.emplace_back(TxInData());
+      auto& txIn1 = txIns_.back();
+      txIn1.value_ = 35*COIN;
+      txIn1.scrAddr_ = READHEX("D1D2D3D4D5D6D7D8D9DADB");
+
+      //outpoint0
+      OutpointData outpoint0;
+      outpoint0.hash_ = READHEX(
+         "0303030303303030303030303030303030303030303030303030303030303030");
+      outpoint0.index_ = 34;
+      outpoint0.key_ = READHEX("000087000010");
+      outpoint0.serialized_ = getOutpoint(outpoint0.hash_, outpoint0.index_);
+      txIn0.outpoint_ = outpoint0;
+
+      //outpoint1
+      OutpointData outpoint1;
+      outpoint1.hash_ = READHEX(
+         "0404040404040404040404040404040404040404040404040404040404040404");
+      outpoint1.index_ = 0;
+      outpoint1.key_ = READHEX("000011000203");
+      outpoint1.serialized_ = getOutpoint(outpoint1.hash_, outpoint1.index_);
+      txIn1.outpoint_ = outpoint1;
+
+      //txout0
+      txOuts_.emplace_back(TxOutData());
+      auto& txOut0 = txOuts_.back();
+      txOut0.scrAddr_ = READHEX("001112131415161718191F");
+      txOut0.value_ = 70*COIN;
+
+      //txout1
+      txOuts_.emplace_back(TxOutData());
+      auto& txOut1 = txOuts_.back();
+      txOut1.scrAddr_ = READHEX("0022232425262728292A2B");
+      txOut1.value_ = 10*COIN;
+
+      //create tx
+      createTx(1, {2, 3}, {2, 3});
+   }
+
+   void createTx2(void)
+   {
+      //child of tx0 & tx1 (txouts 0 & 2)
+      zcKeys_.push_back(READHEX("FFFF00000002"));
+      zcHashes_.push_back(READHEX(
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCAAAAAAAAAAAAAAAAAABBBBB"));
+
+      //txin0
+      txIns_.emplace_back(TxInData());
+      auto& txIn0 = txIns_.back();
+      txIn0.value_ = txOuts_[0].value_;
+      txIn0.scrAddr_ = txOuts_[0].scrAddr_;
+
+      //txin1
+      txIns_.emplace_back(TxInData());
+      auto& txIn1 = txIns_.back();
+      txIn1.value_ = txOuts_[2].value_;
+      txIn1.scrAddr_ = txOuts_[2].scrAddr_;
+
+      //outpoint0
+      OutpointData outpoint0;
+      outpoint0.hash_ = zcHashes_[0];
+      outpoint0.index_ = 0;
+      outpoint0.key_ = zcKeys_[0];
+      outpoint0.serialized_ = getOutpoint(outpoint0.hash_, outpoint0.index_);
+      txIn0.outpoint_ = outpoint0;
+
+      //outpoint1
+      OutpointData outpoint1;
+      outpoint1.hash_ = zcHashes_[1];
+      outpoint1.index_ = 0;
+      outpoint1.key_ = zcKeys_[1];
+      outpoint1.serialized_ = getOutpoint(outpoint1.hash_, outpoint1.index_);
+      txIn1.outpoint_ = outpoint1;
+
+      //txout0
+      txOuts_.emplace_back(TxOutData());
+      auto& txOut0 = txOuts_.back();
+      txOut0.scrAddr_ = READHEX("AAAAAAAAAAA4359802FF34");
+      txOut0.value_ = 27*COIN;
+
+      //txout1
+      txOuts_.emplace_back(TxOutData());
+      auto& txOut1 = txOuts_.back();
+      txOut1.scrAddr_ = READHEX("BBBBBBB342564CCCF4536C");
+      txOut1.value_ = 50*COIN;
+
+      //create tx
+      createTx(2, {4, 5}, {4, 5});
+   }
+
+   void createTx3(void)
+   {
+      //child of tx1 (txout 3)
+      zcKeys_.push_back(READHEX("FFFF00000003"));
+      zcHashes_.push_back(READHEX(
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAFFFFFFFFFCCCCCCCAAAAAAAAAAAAAAAAABBBBB"));
+
+      //txin0
+      txIns_.emplace_back(TxInData());
+      auto& txIn0 = txIns_.back();
+      txIn0.value_ = txOuts_[3].value_;
+      txIn0.scrAddr_ = txOuts_[3].scrAddr_;
+
+      //outpoint0
+      OutpointData outpoint0;
+      outpoint0.hash_ = zcHashes_[1];
+      outpoint0.index_ = 1;
+      outpoint0.key_ = zcKeys_[1];
+      outpoint0.serialized_ = getOutpoint(outpoint0.hash_, outpoint0.index_);
+      txIn0.outpoint_ = outpoint0;
+
+      //txout0
+      txOuts_.emplace_back(TxOutData());
+      auto& txOut0 = txOuts_.back();
+      txOut0.scrAddr_ = READHEX("EEEEEEEEEEEEEEE4534622");
+      txOut0.value_ = 2*COIN;
+
+      //txout1
+      txOuts_.emplace_back(TxOutData());
+      auto& txOut1 = txOuts_.back();
+      txOut1.scrAddr_ = READHEX("EEEEEEEEEEEEEE98790234");
+      txOut1.value_ = 8*COIN;
+
+      //create tx
+      createTx(3, {6}, {6, 7});
+   }
+
+protected:
+   class ZeroConfCallbacks_Tests : public ZeroConfCallbacks
+   {
+      set<string> hasScrAddr(const BinaryDataRef&) const override
+      { return {}; }
+      
+      void pushZcNotification(
+         std::shared_ptr<ZeroConfSharedStateSnapshot>,
+         std::shared_ptr<KeyAddrMap>,
+         std::map<std::string, ParsedZCData>, //flaggedBDVs
+         const std::string&, const std::string&, //requestor & bdvid
+         std::map<BinaryData, std::shared_ptr<WatcherTxBody>>&) override
+      {}
+
+      void pushZcError(const std::string&, const BinaryData&, 
+         ArmoryErrorCodes, const std::string&, const std::string&) override
+      {}
+   };
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void SetUp()
+   {
+      blkdir_ = string("./blkfiletest");
+      homedir_ = string("./fakehomedir");
+      ldbdir_ = string("./ldbtestdir");
+
+      DBUtils::removeDirectory(blkdir_);
+      DBUtils::removeDirectory(homedir_);
+      DBUtils::removeDirectory(ldbdir_);
+
+      mkdir(blkdir_ + "/blocks");
+      mkdir(homedir_);
+      mkdir(ldbdir_);
+
+      ArmoryConfig::reset();
+      DBSettings::setServiceType(SERVICE_UNITTEST);
+      ArmoryConfig::parseArgs({
+         "--datadir=./fakehomedir",
+         "--dbdir=./ldbtestdir",
+         "--satoshi-datadir=./blkfiletest",
+         "--public",
+         "--db-type=DB_SUPER",
+         "--thread-count=3",
+         "--public"
+      });
+
+      LOGDISABLESTDOUT();
+
+      //addrMap
+      mainAddrMap_ = make_shared<map<BinaryDataRef, shared_ptr<AddrAndHash>>>();
+
+      //create the transactions
+      createTx0();
+      createTx1();
+      createTx2();
+      createTx3();
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void TearDown(void)
+   {
+      LOGENABLESTDOUT();
+      DBUtils::removeDirectory(blkdir_);
+      DBUtils::removeDirectory(homedir_);
+      DBUtils::removeDirectory(ldbdir_);
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   bool checkTxIsStaged(
+      const ZeroConfSharedStateSnapshot& snapshot, 
+      unsigned txid) const
+   {
+      if (txid >= txs_.size())
+         return false;
+      const auto& txData = txs_[txid];
+
+      //check it was added
+      METHOD_ASSERT_TRUE(snapshot.hasHash(zcHashes_[txid]));
+
+      auto zckey = snapshot.getKeyForHash(zcHashes_[txid]);
+      METHOD_ASSERT_EQ(zckey, zcKeys_[txid]);
+
+      //inputs
+      for (unsigned i=0; i<txData.txIns_.size(); i++)
+      try
+      {
+         auto txInId = txData.txIns_[i];
+
+         BinaryWriter keyWriter;
+         keyWriter.put_BinaryData(txIns_[txInId].outpoint_.key_);
+         keyWriter.put_uint16_t(txIns_[txInId].outpoint_.index_, BE);
+         auto txOutKey = keyWriter.getData();
+
+         auto txioKeys = snapshot.getTxioKeysForScrAddr(txIns_[txInId].scrAddr_);
+         METHOD_ASSERT_EQ(txioKeys.size(), 1);
+         EXPECT_EQ(*txioKeys.begin(), txOutKey);
+
+         auto txio = snapshot.getTxioByKey(*txioKeys.begin());
+         METHOD_ASSERT_NE(txio, nullptr);
+         EXPECT_EQ(txio->getDBKeyOfOutput(), txOutKey);
+         EXPECT_EQ(txio->getIndexOfOutput(), txIns_[txInId].outpoint_.index_);
+
+         EXPECT_TRUE(txio->getDBKeyOfInput().startsWith(zcKeys_[txid]));
+         EXPECT_EQ(txio->getIndexOfInput(), i);
+         EXPECT_EQ(txio->getValue(), txIns_[txInId].value_);
+
+         EXPECT_TRUE(snapshot.isTxOutSpentByZC(txOutKey));
+      }
+      catch (range_error&)
+      {
+         return false;
+      }
+
+      //outputs
+      for (unsigned i=0; i<txData.txOuts_.size(); i++)
+      try
+      {
+         auto txOutId = txData.txOuts_[i];
+
+         BinaryWriter keyWriter;
+         keyWriter.put_BinaryData(zcKeys_[txid]);
+         keyWriter.put_uint16_t(i, BE);
+         auto txOutKey = keyWriter.getData();
+
+         auto txioKeys = snapshot.getTxioKeysForScrAddr(txOuts_[txOutId].scrAddr_);
+         METHOD_ASSERT_EQ(txioKeys.size(), 1);
+         EXPECT_TRUE(txioKeys.begin()->startsWith(zcKeys_[txid]));
+
+         auto txio = snapshot.getTxioByKey(*txioKeys.begin());
+         METHOD_ASSERT_NE(txio, nullptr);
+         EXPECT_EQ(txio->getDBKeyOfOutput(), txOutKey);
+         EXPECT_EQ(txio->getIndexOfOutput(), i);
+      }
+      catch (range_error&)
+      {
+         return false;
+      }
+
+      return true;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   bool checkIsDropped(
+      const ZeroConfSharedStateSnapshot& snapshot, 
+      unsigned txid) const
+   {
+      if (txid >= txs_.size())
+         return false;
+      const auto& txData = txs_[txid];
+
+      EXPECT_FALSE(snapshot.hasHash(zcHashes_[txid]));
+
+      auto zckey = snapshot.getKeyForHash(zcHashes_[txid]);
+      EXPECT_TRUE(zckey.empty());
+
+      //inputs
+      for (unsigned i=0; i<txData.txIns_.size(); i++)
+      {
+         auto txInId = txData.txIns_[i];
+
+         BinaryWriter keyWriter;
+         keyWriter.put_BinaryData(txIns_[txInId].outpoint_.key_);
+         keyWriter.put_uint16_t(txIns_[txInId].outpoint_.index_, BE);
+         auto txOutKey = keyWriter.getData();
+
+         try
+         {
+            auto txioKeys = snapshot.getTxioKeysForScrAddr(
+               txIns_[txInId].scrAddr_);
+            
+            for (auto& key : txioKeys)
+            {
+               auto txio = snapshot.getTxioByKey(key);
+               METHOD_ASSERT_NE(txio, nullptr);
+
+               METHOD_ASSERT_FALSE(
+                  txio->getDBKeyOfOutput().startsWith(zcKeys_[txid]));
+
+               if (!txio->hasTxIn())
+                  continue;
+
+               METHOD_ASSERT_FALSE(
+                  txio->getDBKeyOfInput().startsWith(zcKeys_[txid]));
+            }
+         }
+         catch (range_error&)
+         {}
+
+         auto txio = snapshot.getTxioByKey(txOutKey);
+         if (txio != nullptr)
+         {
+            METHOD_ASSERT_TRUE(txio->hasTxOutZC());
+            if (txio->hasTxIn())
+            {
+               METHOD_ASSERT_FALSE(
+                  txio->getDBKeyOfInput().startsWith(zcKeys_[txid]));
+            }
+         }
+
+         EXPECT_FALSE(snapshot.isTxOutSpentByZC(txOutKey));
+      }
+
+      for (unsigned i=0; i<txData.txOuts_.size(); i++)
+      {
+         auto txOutId = txData.txOuts_[i];
+
+         BinaryWriter keyWriter;
+         keyWriter.put_BinaryData(zcKeys_[txid]);
+         keyWriter.put_uint16_t(i, BE);
+         auto txOutKey = keyWriter.getData();
+
+         try
+         {
+            auto txioKeys = snapshot.getTxioKeysForScrAddr(
+               txOuts_[txOutId].scrAddr_);
+            METHOD_ASSERT_TRUE(false);
+         }
+         catch (range_error&)
+         {}
+
+         auto txio = snapshot.getTxioByKey(txOutKey);
+         METHOD_ASSERT_EQ(txio, nullptr);
+      }
+
+      return true;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   BinaryData checkTxOutIsSpent(
+      const ZeroConfSharedStateSnapshot& snapshot, 
+      unsigned txid, unsigned txoutid) const
+   {
+      BinaryWriter keyWriter;
+      keyWriter.put_BinaryData(zcKeys_[txid]);
+      keyWriter.put_uint16_t(txoutid, BE);
+      auto txOutKey = keyWriter.getData();
+
+      auto txio = snapshot.getTxioByKey(txOutKey);
+      if (txio == nullptr)
+         return {};
+
+      if (!txio->hasTxIn())
+         return {};
+
+      return txio->getDBKeyOfInput();
+   }
+
+protected:
+   string blkdir_;
+   string homedir_;
+   string ldbdir_;
+
+   /*****/
+   vector<BinaryData> zcKeys_;
+   vector<BinaryData> zcHashes_;
+
+   struct OutpointData
+   {
+      BinaryData hash_;
+      uint32_t index_;
+      BinaryData key_;
+      BinaryData serialized_;
+   };
+
+   struct TxInData
+   {
+      uint64_t value_;
+      BinaryData scrAddr_;
+
+      OutpointData outpoint_;
+   };
+
+   struct TxOutData
+   {
+      uint64_t value_;
+      BinaryData scrAddr_;
+   };
+
+   struct TxData
+   {
+      vector<unsigned> txIns_;
+      vector<unsigned> txOuts_;
+      unsigned id_;
+      shared_ptr<ParsedTx> txPtr_;
+   };
+
+   vector<TxInData> txIns_;
+   vector<TxOutData> txOuts_;
+   vector<TxData> txs_;
+
+   /*****/
+
+   //mainAddressMap
+   shared_ptr<map<BinaryDataRef, shared_ptr<AddrAndHash>>> mainAddrMap_;
+
+   ZeroConfCallbacks_Tests zcCallbacks_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ZeroConfTests_Mempool, Stage)
+{
+   ZeroConfSharedStateSnapshot snapshot;
+
+   //filter the tx
+   auto filterResult = filterParsedTx(
+      txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
+
+   //stage it
+   snapshot.stageNewZc(txs_[0].txPtr_, filterResult);
+
+   //check it was added
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ZeroConfTests_Mempool, Drop)
+{
+   ZeroConfSharedStateSnapshot snapshot;
+
+   //filter the tx
+   auto filterResult = filterParsedTx(
+      txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
+
+   //stage it
+   snapshot.stageNewZc(txs_[0].txPtr_, filterResult);
+
+   //check it was added
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+
+   //drop the tx
+   auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
+   ASSERT_EQ(droppedZCs.size(), 1);
+   EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[0]);
+
+   //check it was dropped from the snapshot
+   EXPECT_TRUE(checkIsDropped(snapshot, 0));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ZeroConfTests_Mempool, Stage2_Drop1)
+{
+   ZeroConfSharedStateSnapshot snapshot;
+
+   {
+      //add tx0
+      auto filterResult = filterParsedTx(
+         txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZc(txs_[0].txPtr_, filterResult);
+
+      //add tx1
+      auto filterResult1 = filterParsedTx(
+         txs_[1].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZc(txs_[1].txPtr_, filterResult1);
+   }
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+
+   //drop tx0
+   auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
+   ASSERT_EQ(droppedZCs.size(), 1);
+   EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[0]);
+
+   //check it was dropped from the snapshot
+   EXPECT_TRUE(checkIsDropped(snapshot, 0));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ZeroConfTests_Mempool, StageChildren)
+{
+   ZeroConfSharedStateSnapshot snapshot;
+
+   {
+      //add tx0
+      auto filterResult = filterParsedTx(
+         txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZc(txs_[0].txPtr_, filterResult);
+
+      //add tx1
+      auto filterResult1 = filterParsedTx(
+         txs_[1].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZc(txs_[1].txPtr_, filterResult1);
+   }
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 0).empty());
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+   
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 0).empty());
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 1).empty());
+
+   {
+      //add tx2
+      auto filterResult2 = filterParsedTx(
+         txs_[2].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZc(txs_[2].txPtr_, filterResult2);
+
+      //add tx3
+      auto filterResult3 = filterParsedTx(
+         txs_[3].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZc(txs_[3].txPtr_, filterResult3);
+   }
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 2));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
+
+   auto spender0 = checkTxOutIsSpent(snapshot, 0, 0);
+   EXPECT_TRUE(spender0.startsWith(zcKeys_[2]));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+
+   auto spender1 = checkTxOutIsSpent(snapshot, 1, 0);
+   EXPECT_TRUE(spender1.startsWith(zcKeys_[2]));
+
+   auto spender2 = checkTxOutIsSpent(snapshot, 1, 1);
+   EXPECT_TRUE(spender2.startsWith(zcKeys_[3]));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ZeroConfTests_Mempool, DropParent)
+{
+   ZeroConfSharedStateSnapshot snapshot;
+
+   {
+      //add tx0
+      auto filterResult = filterParsedTx(
+         txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZc(txs_[0].txPtr_, filterResult);
+
+      //add tx1
+      auto filterResult1 = filterParsedTx(
+         txs_[1].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZc(txs_[1].txPtr_, filterResult1);
+   }
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 0).empty());
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+   
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 0).empty());
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 1).empty());
+
+   {
+      //add tx2
+      auto filterResult2 = filterParsedTx(
+         txs_[2].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZc(txs_[2].txPtr_, filterResult2);
+
+      //add tx3
+      auto filterResult3 = filterParsedTx(
+         txs_[3].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZc(txs_[3].txPtr_, filterResult3);
+   }
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 2));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
+
+   auto spender0 = checkTxOutIsSpent(snapshot, 0, 0);
+   EXPECT_TRUE(spender0.startsWith(zcKeys_[2]));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+
+   auto spender1 = checkTxOutIsSpent(snapshot, 1, 0);
+   EXPECT_TRUE(spender1.startsWith(zcKeys_[2]));
+
+   auto spender2 = checkTxOutIsSpent(snapshot, 1, 1);
+   EXPECT_TRUE(spender2.startsWith(zcKeys_[3]));
+
+
+   //drop tx0
+   auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
+   ASSERT_EQ(droppedZCs.size(), 2);
+
+   auto iter = droppedZCs.begin();
+   EXPECT_EQ(iter->first, zcKeys_[0]);
+
+   ++iter;
+   EXPECT_EQ(iter->first, zcKeys_[2]);
+
+   EXPECT_TRUE(checkIsDropped(snapshot, 0));
+   EXPECT_TRUE(checkIsDropped(snapshot, 2));
+
+   //check tx1 & 3 are still here
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
+
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 0).empty());
+
+   auto spender3 = checkTxOutIsSpent(snapshot, 1, 1);
+   EXPECT_TRUE(spender3.startsWith(zcKeys_[3]));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 class ZeroConfTests_FullNode : public ::testing::Test
 {

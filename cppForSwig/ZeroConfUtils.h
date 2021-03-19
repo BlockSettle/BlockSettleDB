@@ -62,7 +62,7 @@ public:
    void unserialize(BinaryDataRef bdr);
 
    void resolveDbKey(LMDBBlockDatabase*);
-   const BinaryData& getDbKey(void) const { return dbKey_; }
+   void setDbKey(const BinaryData&);
 
    bool isResolved(void) const { return dbKey_.getSize() == 8; }
    bool isInitialized(void) const;
@@ -70,6 +70,7 @@ public:
    BinaryDataRef getTxHashRef(void) const { return txHash_.getRef(); }
    unsigned getIndex(void) const { return txOutIndex_; }
 
+   const BinaryData& getDbKey(void) const { return dbKey_; }
    BinaryData& getDbKey(void) { return dbKey_; }
    BinaryDataRef getDbTxKeyRef(void) const;
 
