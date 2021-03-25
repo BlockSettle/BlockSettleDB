@@ -156,7 +156,7 @@ public:
       return zeroConfCont_->getZcTxOutsForKey(keys);
    }
 
-   std::vector<UnspentTxOut> getZcUTXOsForKeys(const std::set<BinaryData>& keys) const
+   std::vector<UTXO> getZcUTXOsForKeys(const std::set<BinaryData>& keys) const
    {
       return zeroConfCont_->getZcUTXOsForKey(keys);
    }

@@ -251,7 +251,7 @@ void BtcWallet::resetCounters()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<UnspentTxOut> BtcWallet::getSpendableTxOutListForValue(uint64_t val)
+vector<UTXO> BtcWallet::getSpendableTxOutListForValue(uint64_t val)
 {
    /***
    Only works with DB so it naturally ignores ZC 
@@ -274,16 +274,16 @@ vector<UnspentTxOut> BtcWallet::getSpendableTxOutListForValue(uint64_t val)
    //start a RO txn to grab the txouts from DB
    auto&& tx = db->beginTransaction(STXO, LMDB::ReadOnly);
 
-   vector<UnspentTxOut> utxoList;
+   vector<UTXO> utxoList;
    uint32_t blk = bdvPtr_->getTopBlockHeight();
 
    auto addrMap = scrAddrMap_.get();
 
    for (const auto& scrAddr : *addrMap)
    {
-      const auto& utxoMap = scrAddr.second->getPreparedTxOutList();
+      const auto& txioMap = scrAddr.second->getPreparedTxOutList();
 
-      for (const auto& txioPair : utxoMap)
+      for (const auto& txioPair : txioMap)
       {
          if (!txioPair.second.isSpendable(db, blk))
             continue;
@@ -291,13 +291,13 @@ vector<UnspentTxOut> BtcWallet::getSpendableTxOutListForValue(uint64_t val)
          auto&& txout_key = txioPair.second.getDBKeyOfOutput();
          StoredTxOut stxo;
          db->getStoredTxOut(stxo, txout_key);
-         auto&& hash = db->getTxHashForLdbKey(txout_key.getSliceRef(0, 6));
+         auto hash = db->getTxHashForLdbKey(txout_key.getSliceRef(0, 6));
 
-         BinaryData script(stxo.getScriptRef());
-         UnspentTxOut UTXO(hash, txioPair.second.getIndexOfOutput(), stxo.getHeight(),
-            stxo.getValue(), script);
-
-         utxoList.push_back(UTXO);
+         UTXO utxo(
+            stxo.getValue(), stxo.getHeight(), 
+            stxo.txIndex_, stxo.txOutIndex_, 
+            hash, stxo.getScriptRef());
+         utxoList.emplace_back(move(utxo));
       }
    }
 
@@ -305,11 +305,11 @@ vector<UnspentTxOut> BtcWallet::getSpendableTxOutListForValue(uint64_t val)
    //we dont know if any TxOut will be spent
 
    resetTxOutHistory();
-   return move(utxoList);
+   return utxoList;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<UnspentTxOut> BtcWallet::getSpendableTxOutListZC()
+vector<UTXO> BtcWallet::getSpendableTxOutListZC()
 {
    set<BinaryData> txioKeys;
 
@@ -329,7 +329,7 @@ vector<UnspentTxOut> BtcWallet::getSpendableTxOutListZC()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<UnspentTxOut> BtcWallet::getRBFTxOutList()
+vector<UTXO> BtcWallet::getRBFTxOutList()
 {
    set<BinaryData> zcKeys;
    set<BinaryData> txoutKeys;
@@ -358,12 +358,12 @@ vector<UnspentTxOut> BtcWallet::getRBFTxOutList()
    for (auto& txoutkey : txoutKeys)
    {
       auto&& stxo = bdvPtr_->getStoredTxOut(txoutkey);
+      UTXO utxo(
+         stxo.getValue(), stxo.getHeight(), 
+         stxo.txIndex_, stxo.txOutIndex_, 
+         stxo.parentHash_, stxo.getScriptRef());
 
-      BinaryData script(stxo.getScriptRef());
-      UnspentTxOut utxo(stxo.parentHash_, stxo.txOutIndex_, stxo.getHeight(),
-         stxo.getValue(), script);
-
-      utxoVec.push_back(move(utxo));
+      utxoVec.emplace_back(move(utxo));
    }
 
    return utxoVec;

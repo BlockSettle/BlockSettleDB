@@ -1082,7 +1082,7 @@ vector<pair<StoredTxOut, BinaryDataRef>> BlockDataViewer::getOutputsForOutpoints
    const map<BinaryDataRef, set<unsigned>>& outpoints, bool withZc) const
 {
    vector<pair<StoredTxOut, BinaryDataRef>> result;
-   shared_ptr<ZeroConfSharedStateSnapshot> zcSS = nullptr;
+   shared_ptr<MempoolSnapshot> zcSS = nullptr;
    BinaryData zckey;
    if (withZc)
    {

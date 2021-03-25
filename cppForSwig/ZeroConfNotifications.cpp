@@ -61,7 +61,7 @@ set<string> ZeroConfCallbacks_BDV::hasScrAddr(const BinaryDataRef& addr) const
 
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfCallbacks_BDV::pushZcNotification(
-   shared_ptr<ZeroConfSharedStateSnapshot> ss,
+   shared_ptr<MempoolSnapshot> ss,
    shared_ptr<KeyAddrMap> newZcKeys,
    map<string, ParsedZCData> flaggedBDVs,
    const string& requestorId, const string& bdvId,

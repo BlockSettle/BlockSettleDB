@@ -84,7 +84,7 @@ void ZeroConfContainer::setZeroConfCallbacks(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<ZeroConfSharedStateSnapshot> ZeroConfContainer::getSnapshot() const
+shared_ptr<MempoolSnapshot> ZeroConfContainer::getSnapshot() const
 {
    auto ss = atomic_load_explicit(&snapshot_, memory_order_acquire);
    return ss;
@@ -135,7 +135,7 @@ bool ZeroConfContainer::hasTxByHash(const BinaryData& txHash) const
 ///////////////////////////////////////////////////////////////////////////////
 map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purgeToBranchpoint(
    const Blockchain::ReorganizationState& reorgState, 
-   shared_ptr<ZeroConfSharedStateSnapshot> ss)
+   shared_ptr<MempoolSnapshot> ss)
 {
    /*
    Rewinds mempool to branchpoint
@@ -197,7 +197,7 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purgeToBranchpoint(
 ///////////////////////////////////////////////////////////////////////////////
 map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purge(
    const Blockchain::ReorganizationState& reorgState,
-   shared_ptr<ZeroConfSharedStateSnapshot> ss)
+   shared_ptr<MempoolSnapshot> ss)
 {
    /*
    Purges the mempool on new blocks:
@@ -328,7 +328,7 @@ void ZeroConfContainer::reset()
 
 ///////////////////////////////////////////////////////////////////////////////
 map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZC(
-   shared_ptr<ZeroConfSharedStateSnapshot> ss, const BinaryDataRef& key)
+   shared_ptr<MempoolSnapshot> ss, const BinaryDataRef& key)
 {
    /*
    ZeroConfSharedSnapshot will drop the tx and its children and return them.
@@ -374,7 +374,7 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZC(
 
 ///////////////////////////////////////////////////////////////////////////////
 map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZCs(
-   shared_ptr<ZeroConfSharedStateSnapshot> ss, const set<BinaryData>& zcKeys)
+   shared_ptr<MempoolSnapshot> ss, const set<BinaryData>& zcKeys)
 {
    if (zcKeys.size() == 0)
       return {};
@@ -400,7 +400,7 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZCs(
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::finalizePurgePacket(
    ZcActionStruct zcAction,
-   shared_ptr<ZeroConfSharedStateSnapshot> ss) const
+   shared_ptr<MempoolSnapshot> ss) const
 {
    auto purgePacket = make_shared<ZcPurgePacket>();
    purgePacket->ssPtr_ = ss;
@@ -437,7 +437,6 @@ void ZeroConfContainer::finalizePurgePacket(
          //txouts
          try
          {
-            const auto& txios = ss->getTxioMapForKey(zcPair.first);
             for (unsigned i=0; i < zcPtr->outputs_.size(); i++)
             {
                const auto& parsedTxOut = zcPtr->outputs_[i];
@@ -463,7 +462,9 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
 {
    bool notify = true;
 
-   auto ss = ZeroConfSharedStateSnapshot::copy(snapshot_);
+   auto ss = MempoolSnapshot::copy(
+      snapshot_, MEMPOOL_DEPTH, POOL_MERGE_THRESHOLD);
+
    map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap;
    map<BinaryData, shared_ptr<WatcherTxBody>> watcherMap;
    pair<string, string> requestor;
@@ -475,6 +476,8 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
       //purge mined zc
       auto result = purge(zcAction.reorgState_, ss);
       notify = false;
+
+      //ss->commitNewZCs();
 
       //setup batch with all tracked zc
       if (zcAction.batch_ == nullptr)
@@ -518,7 +521,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::parseNewZC(
    map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap,
-   shared_ptr<ZeroConfSharedStateSnapshot> ss,
+   shared_ptr<MempoolSnapshot> ss,
    bool updateDB, bool notify,
    const pair<string, string>& requestor,
    std::map<BinaryData, shared_ptr<WatcherTxBody>>& watcherMap)
@@ -538,7 +541,7 @@ void ZeroConfContainer::parseNewZC(
    }
 
    if (ss == nullptr)
-      ss = make_shared<ZeroConfSharedStateSnapshot>();
+      ss = make_shared<MempoolSnapshot>(MEMPOOL_DEPTH, POOL_MERGE_THRESHOLD);
 
    for (auto& newZCPair : zcMap)
    {
@@ -603,7 +606,7 @@ void ZeroConfContainer::parseNewZC(
             move_iterator<mapbd_setbd_iter>(filterResult.keyToFundedScrAddr_.begin()),
             move_iterator<mapbd_setbd_iter>(filterResult.keyToFundedScrAddr_.end()));
 
-         ss->stageNewZc(newZCPair.second, filterResult);
+         ss->stageNewZC(newZCPair.second, filterResult);
 
          //flag affected BDVs
          for (auto& bdvMap : filterResult.flaggedBDVs_)
@@ -691,7 +694,7 @@ void ZeroConfContainer::parseNewZC(
 ///////////////////////////////////////////////////////////////////////////////
 FilteredZeroConfData ZeroConfContainer::filterTransaction(
    shared_ptr<ParsedTx> parsedTx,
-   shared_ptr<ZeroConfSharedStateSnapshot> ss) const
+   shared_ptr<MempoolSnapshot> ss) const
 {
    if (parsedTx->status() == ParsedTxStatus::Mined || 
       parsedTx->status() == ParsedTxStatus::Invalid ||
@@ -720,7 +723,7 @@ FilteredZeroConfData ZeroConfContainer::filterTransaction(
 ///////////////////////////////////////////////////////////////////////////////
 map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::checkForCollisions(
    const map<BinaryDataRef, map<unsigned, BinaryDataRef>>& spentOutpoints,
-   shared_ptr<ZeroConfSharedStateSnapshot> ss)
+   shared_ptr<MempoolSnapshot> ss)
 {
    map<BinaryDataRef, shared_ptr<ParsedTx>> invalidatedZCs;
 
@@ -846,14 +849,14 @@ vector<TxOut> ZeroConfContainer::getZcTxOutsForKey(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-vector<UnspentTxOut> ZeroConfContainer::getZcUTXOsForKey(
+vector<UTXO> ZeroConfContainer::getZcUTXOsForKey(
    const set<BinaryData>& keys) const
 {
    auto ss = getSnapshot();
    if (ss == nullptr)
       return {};
 
-   vector<UnspentTxOut> result;
+   vector<UTXO> result;
    for (auto& key : keys)
    {
       auto zcKey = key.getSliceRef(0, 6);
@@ -861,13 +864,17 @@ vector<UnspentTxOut> ZeroConfContainer::getZcUTXOsForKey(
       if (theTx == nullptr)
          continue;
 
+      auto zcIdRef = key.getSliceRef(2, 4);
+      auto zcId = READ_UINT32_BE(zcIdRef);
+
       auto outIdRef = key.getSliceRef(6, 2);
       auto outId = READ_UINT16_BE(outIdRef);
 
       auto&& txout = theTx->tx_.getTxOutCopy(outId);
-      UnspentTxOut utxo(
-         theTx->getTxHash(), outId, UINT32_MAX,
-         txout.getValue(), txout.getScript());
+      UTXO utxo(
+         txout.getValue(), UINT32_MAX, 
+         zcId, outId,
+         theTx->getTxHash(), txout.getScript());
 
       result.push_back(move(utxo));
    }
@@ -1031,6 +1038,8 @@ unsigned ZeroConfContainer::loadZeroConfMempool(bool clearMempool)
          move(zcMap), nullptr, false, false, 
          make_pair(string(), string()), 
          emptyWatcherMap);
+
+      snapshot_->commitNewZCs();
    }
 
    return topId;
@@ -1592,7 +1601,7 @@ void ZeroConfContainer::setWatcherNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 BatchTxMap ZeroConfContainer::getBatchTxMap(shared_ptr<ZeroConfBatch> batch, 
-   shared_ptr<ZeroConfSharedStateSnapshot> ss)
+   shared_ptr<MempoolSnapshot> ss)
 {
    if (batch == nullptr)
       throw ZcBatchError();

@@ -15,6 +15,16 @@ using namespace ArmorySigner;
 using namespace ArmoryConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptSpender> getSpenderPtr(const UTXO& utxo, bool RBF = false)
+{
+   auto spender = make_shared<ScriptSpender>(utxo);
+   if (RBF)
+      spender->setSequence(UINT32_MAX - 2);
+
+   return spender;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 class PRNGTest : public ::testing::Test
 {
 protected:
@@ -328,14 +338,6 @@ TEST_F(SignerTest, Signer_Test)
    auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
    //create script spender objects
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
    uint64_t total = 0;
    for (auto& utxo : unspentVec)
    {
@@ -365,16 +367,6 @@ TEST_F(SignerTest, Signer_Test)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_SizeEstimates)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -457,7 +449,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -777,16 +769,6 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_P2WPKH)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -872,7 +854,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -1037,16 +1019,6 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MixedInputTypes)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -1137,7 +1109,7 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -1297,16 +1269,6 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -1421,7 +1383,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -1593,16 +1555,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -1726,7 +1678,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -1989,16 +1941,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -2100,7 +2042,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -2296,16 +2238,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -2407,7 +2339,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -2639,16 +2571,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -2748,7 +2670,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -3015,16 +2937,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Nested)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -3125,7 +3037,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -3403,16 +3315,6 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, GetUnsignedTxId)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -3514,7 +3416,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -3756,16 +3658,6 @@ TEST_F(SignerTest, GetUnsignedTxId)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -3861,7 +3753,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -4024,16 +3916,6 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -4152,7 +4034,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -4323,16 +4205,6 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -4457,7 +4329,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -4620,16 +4492,6 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -4712,7 +4574,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -4866,16 +4728,6 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_FromAccount_Reload)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -4965,7 +4817,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5253,16 +5105,6 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -5368,7 +5210,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5471,7 +5313,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5541,16 +5383,6 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -5627,7 +5459,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5728,7 +5560,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5796,16 +5628,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -5881,7 +5703,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5982,7 +5804,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -6050,16 +5872,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -6156,7 +5968,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -6257,7 +6069,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -6329,15 +6141,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    auto&& privKey = READHEX(
       "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F");
    auto&& pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
-
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
 
    //setup bdm
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
@@ -6441,7 +6244,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -6541,7 +6344,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -6609,16 +6412,6 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_InjectSignature)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -6705,7 +6498,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -7006,16 +6799,6 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -7139,7 +6922,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())

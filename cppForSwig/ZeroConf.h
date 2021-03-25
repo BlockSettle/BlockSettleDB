@@ -29,6 +29,8 @@
 #include "ZeroConfNotifications.h"
 
 #define GETZC_THREADCOUNT 5
+#define MEMPOOL_DEPTH         4
+#define POOL_MERGE_THRESHOLD  10000
 
 #define ZC_BUFFER_LIFETIME_SEC 1
 #ifndef UNIT_TESTS
@@ -378,7 +380,7 @@ public:
 class ZeroConfContainer
 {
 private:
-   std::shared_ptr<ZeroConfSharedStateSnapshot> snapshot_;
+   std::shared_ptr<MempoolSnapshot> snapshot_;
    
    //<txHash, map<opId, ZcKeys>>
    std::map<BinaryData, 
@@ -420,7 +422,7 @@ private:
 private:
    FilteredZeroConfData filterTransaction(
       std::shared_ptr<ParsedTx>,
-      std::shared_ptr<ZeroConfSharedStateSnapshot>) const;
+      std::shared_ptr<MempoolSnapshot>) const;
 
    void increaseParserThreadPool(unsigned);
    unsigned loadZeroConfMempool(bool);
@@ -428,10 +430,10 @@ private:
 
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> purge(
       const Blockchain::ReorganizationState&,
-      std::shared_ptr<ZeroConfSharedStateSnapshot>);
+      std::shared_ptr<MempoolSnapshot>);
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> purgeToBranchpoint(
       const Blockchain::ReorganizationState&, 
-      std::shared_ptr<ZeroConfSharedStateSnapshot>);
+      std::shared_ptr<MempoolSnapshot>);
 
    void processTxGetDataReply(std::unique_ptr<Payload>);
    void handleZcProcessingStructThread(void);
@@ -443,30 +445,30 @@ private:
    void pushZcPreprocessVec(std::shared_ptr<RequestZcPacket>);
 
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> dropZC(
-      std::shared_ptr<ZeroConfSharedStateSnapshot>, const BinaryDataRef&);
+      std::shared_ptr<MempoolSnapshot>, const BinaryDataRef&);
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> dropZCs(
-      std::shared_ptr<ZeroConfSharedStateSnapshot>, const std::set<BinaryData>&);
+      std::shared_ptr<MempoolSnapshot>, const std::set<BinaryData>&);
 
    void parseNewZC(ZcActionStruct);
    void parseNewZC(
       std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> zcMap,
-      std::shared_ptr<ZeroConfSharedStateSnapshot>,
+      std::shared_ptr<MempoolSnapshot>,
       bool updateDB, bool notify,
       const std::pair<std::string, std::string>&,
       std::map<BinaryData, std::shared_ptr<WatcherTxBody>>&);
    void finalizePurgePacket(
       ZcActionStruct,
-      std::shared_ptr<ZeroConfSharedStateSnapshot>) const;
+      std::shared_ptr<MempoolSnapshot>) const;
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> checkForCollisions(
       const std::map<BinaryDataRef, std::map<unsigned, BinaryDataRef>>&,
-      std::shared_ptr<ZeroConfSharedStateSnapshot>);
+      std::shared_ptr<MempoolSnapshot>);
 
    void updateZCinDB(void);
    void handleInvTx();
 
    BatchTxMap getBatchTxMap(
       std::shared_ptr<ZeroConfBatch>,
-      std::shared_ptr<ZeroConfSharedStateSnapshot>);
+      std::shared_ptr<MempoolSnapshot>);
 
 public:
    ZeroConfContainer(LMDBBlockDatabase* db,
@@ -517,9 +519,9 @@ public:
       getRBFTxIOsforScrAddr(BinaryData scrAddr) const;
 
    std::vector<TxOut> getZcTxOutsForKey(const std::set<BinaryData>&) const;
-   std::vector<UnspentTxOut> getZcUTXOsForKey(const std::set<BinaryData>&) const;
+   std::vector<UTXO> getZcUTXOsForKey(const std::set<BinaryData>&) const;
 
-   std::shared_ptr<ZeroConfSharedStateSnapshot> getSnapshot(void) const;
+   std::shared_ptr<MempoolSnapshot> getSnapshot(void) const;
 };
 
 #endif

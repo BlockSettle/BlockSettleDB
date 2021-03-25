@@ -82,9 +82,9 @@ public:
 
    void prepareTxOutHistory(uint64_t val);
    void prepareFullTxOutHistory(void);
-   std::vector<UnspentTxOut> getSpendableTxOutListForValue(uint64_t val = UINT64_MAX);
-   std::vector<UnspentTxOut> getSpendableTxOutListZC(void);
-   std::vector<UnspentTxOut> getRBFTxOutList(void);
+   std::vector<UTXO> getSpendableTxOutListForValue(uint64_t val = UINT64_MAX);
+   std::vector<UTXO> getSpendableTxOutListZC(void);
+   std::vector<UTXO> getRBFTxOutList(void);
 
    void clearBlkData(void);
    

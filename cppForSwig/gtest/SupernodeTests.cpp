@@ -1738,12 +1738,9 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAddrAfterWallet)
 TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 {
    //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UTXO& utxo)->shared_ptr<ScriptSpender>
    {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
+      return make_shared<ScriptSpender>(utxo);
    };
 
    //
@@ -1868,7 +1865,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())

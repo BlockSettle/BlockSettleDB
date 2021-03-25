@@ -17,6 +17,16 @@ using namespace ArmorySigner;
 using namespace ArmoryConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptSpender> getSpenderPtr(const UTXO& utxo, bool RBF = false)
+{
+   auto spender = make_shared<ScriptSpender>(utxo);
+   if (RBF)
+      spender->setSequence(UINT32_MAX -2);
+
+   return spender;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 #define METHOD_ASSERT_EQ(a, b) \
    if (a != b) { EXPECT_EQ(a, b); return false; }
 
@@ -148,47 +158,47 @@ private:
       zcHashes_.push_back(READHEX(
          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBB"));
 
-      //txin0
+      //txin2
       txIns_.emplace_back(TxInData());
-      auto& txIn0 = txIns_.back();
-      txIn0.value_ = 45*COIN;
-      txIn0.scrAddr_ = READHEX("C1C2C3C4C5C6C7C8C9CACB");
+      auto& txIn2 = txIns_.back();
+      txIn2.value_ = 45*COIN;
+      txIn2.scrAddr_ = READHEX("C1C2C3C4C5C6C7C8C9CACB");
 
-      //txin1
+      //txin3
       txIns_.emplace_back(TxInData());
-      auto& txIn1 = txIns_.back();
-      txIn1.value_ = 35*COIN;
-      txIn1.scrAddr_ = READHEX("D1D2D3D4D5D6D7D8D9DADB");
+      auto& txIn3 = txIns_.back();
+      txIn3.value_ = 35*COIN;
+      txIn3.scrAddr_ = READHEX("D1D2D3D4D5D6D7D8D9DADB");
 
-      //outpoint0
-      OutpointData outpoint0;
-      outpoint0.hash_ = READHEX(
+      //outpoint2
+      OutpointData outpoint2;
+      outpoint2.hash_ = READHEX(
          "0303030303303030303030303030303030303030303030303030303030303030");
-      outpoint0.index_ = 34;
-      outpoint0.key_ = READHEX("000087000010");
-      outpoint0.serialized_ = getOutpoint(outpoint0.hash_, outpoint0.index_);
-      txIn0.outpoint_ = outpoint0;
+      outpoint2.index_ = 34;
+      outpoint2.key_ = READHEX("000087000010");
+      outpoint2.serialized_ = getOutpoint(outpoint2.hash_, outpoint2.index_);
+      txIn2.outpoint_ = outpoint2;
 
-      //outpoint1
-      OutpointData outpoint1;
-      outpoint1.hash_ = READHEX(
+      //outpoint3
+      OutpointData outpoint3;
+      outpoint3.hash_ = READHEX(
          "0404040404040404040404040404040404040404040404040404040404040404");
-      outpoint1.index_ = 0;
-      outpoint1.key_ = READHEX("000011000203");
-      outpoint1.serialized_ = getOutpoint(outpoint1.hash_, outpoint1.index_);
-      txIn1.outpoint_ = outpoint1;
+      outpoint3.index_ = 0;
+      outpoint3.key_ = READHEX("000011000203");
+      outpoint3.serialized_ = getOutpoint(outpoint3.hash_, outpoint3.index_);
+      txIn3.outpoint_ = outpoint3;
 
-      //txout0
+      //txout2
       txOuts_.emplace_back(TxOutData());
-      auto& txOut0 = txOuts_.back();
-      txOut0.scrAddr_ = READHEX("001112131415161718191F");
-      txOut0.value_ = 70*COIN;
+      auto& txOut2 = txOuts_.back();
+      txOut2.scrAddr_ = READHEX("001112131415161718191F");
+      txOut2.value_ = 70*COIN;
 
-      //txout1
+      //txout3
       txOuts_.emplace_back(TxOutData());
-      auto& txOut1 = txOuts_.back();
-      txOut1.scrAddr_ = READHEX("0022232425262728292A2B");
-      txOut1.value_ = 10*COIN;
+      auto& txOut3 = txOuts_.back();
+      txOut3.scrAddr_ = READHEX("0022232425262728292A2B");
+      txOut3.value_ = 10*COIN;
 
       //create tx
       createTx(1, {2, 3}, {2, 3});
@@ -201,45 +211,45 @@ private:
       zcHashes_.push_back(READHEX(
          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCAAAAAAAAAAAAAAAAAABBBBB"));
 
-      //txin0
+      //txin4
       txIns_.emplace_back(TxInData());
-      auto& txIn0 = txIns_.back();
-      txIn0.value_ = txOuts_[0].value_;
-      txIn0.scrAddr_ = txOuts_[0].scrAddr_;
+      auto& txIn4 = txIns_.back();
+      txIn4.value_ = txOuts_[0].value_;
+      txIn4.scrAddr_ = txOuts_[0].scrAddr_;
 
-      //txin1
+      //txin5
       txIns_.emplace_back(TxInData());
-      auto& txIn1 = txIns_.back();
-      txIn1.value_ = txOuts_[2].value_;
-      txIn1.scrAddr_ = txOuts_[2].scrAddr_;
+      auto& txIn5 = txIns_.back();
+      txIn5.value_ = txOuts_[2].value_;
+      txIn5.scrAddr_ = txOuts_[2].scrAddr_;
 
-      //outpoint0
-      OutpointData outpoint0;
-      outpoint0.hash_ = zcHashes_[0];
-      outpoint0.index_ = 0;
-      outpoint0.key_ = zcKeys_[0];
-      outpoint0.serialized_ = getOutpoint(outpoint0.hash_, outpoint0.index_);
-      txIn0.outpoint_ = outpoint0;
+      //outpoint4
+      OutpointData outpoint4;
+      outpoint4.hash_ = zcHashes_[0];
+      outpoint4.index_ = 0;
+      outpoint4.key_ = zcKeys_[0];
+      outpoint4.serialized_ = getOutpoint(outpoint4.hash_, outpoint4.index_);
+      txIn4.outpoint_ = outpoint4;
 
-      //outpoint1
-      OutpointData outpoint1;
-      outpoint1.hash_ = zcHashes_[1];
-      outpoint1.index_ = 0;
-      outpoint1.key_ = zcKeys_[1];
-      outpoint1.serialized_ = getOutpoint(outpoint1.hash_, outpoint1.index_);
-      txIn1.outpoint_ = outpoint1;
+      //outpoint5
+      OutpointData outpoint5;
+      outpoint5.hash_ = zcHashes_[1];
+      outpoint5.index_ = 0;
+      outpoint5.key_ = zcKeys_[1];
+      outpoint5.serialized_ = getOutpoint(outpoint5.hash_, outpoint5.index_);
+      txIn5.outpoint_ = outpoint5;
 
-      //txout0
+      //txout4
       txOuts_.emplace_back(TxOutData());
-      auto& txOut0 = txOuts_.back();
-      txOut0.scrAddr_ = READHEX("AAAAAAAAAAA4359802FF34");
-      txOut0.value_ = 27*COIN;
+      auto& txOut4 = txOuts_.back();
+      txOut4.scrAddr_ = READHEX("AAAAAAAAAAA4359802FF34");
+      txOut4.value_ = 27*COIN;
 
-      //txout1
+      //txout5
       txOuts_.emplace_back(TxOutData());
-      auto& txOut1 = txOuts_.back();
-      txOut1.scrAddr_ = READHEX("BBBBBBB342564CCCF4536C");
-      txOut1.value_ = 50*COIN;
+      auto& txOut5 = txOuts_.back();
+      txOut5.scrAddr_ = READHEX("BBBBBBB342564CCCF4536C");
+      txOut5.value_ = 50*COIN;
 
       //create tx
       createTx(2, {4, 5}, {4, 5});
@@ -252,35 +262,73 @@ private:
       zcHashes_.push_back(READHEX(
          "AAAAAAAAAAAAAAAAAAAAAAAAAAFFFFFFFFFCCCCCCCAAAAAAAAAAAAAAAAABBBBB"));
 
-      //txin0
+      //txin6
       txIns_.emplace_back(TxInData());
-      auto& txIn0 = txIns_.back();
-      txIn0.value_ = txOuts_[3].value_;
-      txIn0.scrAddr_ = txOuts_[3].scrAddr_;
+      auto& txIn6 = txIns_.back();
+      txIn6.value_ = txOuts_[3].value_;
+      txIn6.scrAddr_ = txOuts_[3].scrAddr_;
 
-      //outpoint0
-      OutpointData outpoint0;
-      outpoint0.hash_ = zcHashes_[1];
-      outpoint0.index_ = 1;
-      outpoint0.key_ = zcKeys_[1];
-      outpoint0.serialized_ = getOutpoint(outpoint0.hash_, outpoint0.index_);
-      txIn0.outpoint_ = outpoint0;
+      //outpoint6
+      OutpointData outpoint6;
+      outpoint6.hash_ = zcHashes_[1];
+      outpoint6.index_ = 1;
+      outpoint6.key_ = zcKeys_[1];
+      outpoint6.serialized_ = getOutpoint(outpoint6.hash_, outpoint6.index_);
+      txIn6.outpoint_ = outpoint6;
 
-      //txout0
+      //txout6
       txOuts_.emplace_back(TxOutData());
-      auto& txOut0 = txOuts_.back();
-      txOut0.scrAddr_ = READHEX("EEEEEEEEEEEEEEE4534622");
-      txOut0.value_ = 2*COIN;
+      auto& txOut6 = txOuts_.back();
+      txOut6.scrAddr_ = READHEX("EEEEEEEEEEEEEEE4534622");
+      txOut6.value_ = 2*COIN;
 
-      //txout1
+      //txout7
       txOuts_.emplace_back(TxOutData());
-      auto& txOut1 = txOuts_.back();
-      txOut1.scrAddr_ = READHEX("EEEEEEEEEEEEEE98790234");
-      txOut1.value_ = 8*COIN;
+      auto& txOut7 = txOuts_.back();
+      txOut7.scrAddr_ = READHEX("EEEEEEEEEEEEEE98790234");
+      txOut7.value_ = 8*COIN;
 
       //create tx
       createTx(3, {6}, {6, 7});
    }
+
+   void createTx4(void)
+   {
+      //child of tx2 (txout 4)
+      zcKeys_.push_back(READHEX("FFFF00000004"));
+      zcHashes_.push_back(READHEX(
+         "AAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBB3CCCCCCCAAAAAAAAAAAAAAAAABBBBB"));
+
+      //txin7
+      txIns_.emplace_back(TxInData());
+      auto& txIn7 = txIns_.back();
+      txIn7.value_ = txOuts_[4].value_;
+      txIn7.scrAddr_ = txOuts_[4].scrAddr_;
+
+      //outpoint7
+      OutpointData outpoint7;
+      outpoint7.hash_ = zcHashes_[2];
+      outpoint7.index_ = 0;
+      outpoint7.key_ = zcKeys_[2];
+      outpoint7.serialized_ = getOutpoint(outpoint7.hash_, outpoint7.index_);
+      txIn7.outpoint_ = outpoint7;
+
+      //txout8
+      txOuts_.emplace_back(TxOutData());
+      auto& txOut8 = txOuts_.back();
+      txOut8.scrAddr_ = txOuts_[0].scrAddr_;
+      txOut8.value_ = 17*COIN;
+
+      //txout9
+      txOuts_.emplace_back(TxOutData());
+      auto& txOut9 = txOuts_.back();
+      txOut9.scrAddr_ = READHEX("DDDDDDDDDDDDDD98790234");
+      txOut9.value_ = 10*COIN;
+
+      //create tx
+      createTx(4, {7}, {8, 9});
+   }
+
 
 protected:
    class ZeroConfCallbacks_Tests : public ZeroConfCallbacks
@@ -289,7 +337,7 @@ protected:
       { return {}; }
       
       void pushZcNotification(
-         std::shared_ptr<ZeroConfSharedStateSnapshot>,
+         std::shared_ptr<MempoolSnapshot>,
          std::shared_ptr<KeyAddrMap>,
          std::map<std::string, ParsedZCData>, //flaggedBDVs
          const std::string&, const std::string&, //requestor & bdvid
@@ -338,6 +386,7 @@ protected:
       createTx1();
       createTx2();
       createTx3();
+      createTx4();
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -351,7 +400,7 @@ protected:
 
    /////////////////////////////////////////////////////////////////////////////
    bool checkTxIsStaged(
-      const ZeroConfSharedStateSnapshot& snapshot, 
+      const MempoolSnapshot& snapshot, 
       unsigned txid) const
    {
       if (txid >= txs_.size())
@@ -376,19 +425,28 @@ protected:
          auto txOutKey = keyWriter.getData();
 
          auto txioKeys = snapshot.getTxioKeysForScrAddr(txIns_[txInId].scrAddr_);
-         METHOD_ASSERT_EQ(txioKeys.size(), 1);
-         EXPECT_EQ(*txioKeys.begin(), txOutKey);
+         METHOD_ASSERT_FALSE(txioKeys.empty());
 
-         auto txio = snapshot.getTxioByKey(*txioKeys.begin());
-         METHOD_ASSERT_NE(txio, nullptr);
-         EXPECT_EQ(txio->getDBKeyOfOutput(), txOutKey);
-         EXPECT_EQ(txio->getIndexOfOutput(), txIns_[txInId].outpoint_.index_);
+         bool foundTxio = false;
+         for (const auto& key : txioKeys)
+         {
+            if (key != txOutKey)
+               continue;
 
-         EXPECT_TRUE(txio->getDBKeyOfInput().startsWith(zcKeys_[txid]));
-         EXPECT_EQ(txio->getIndexOfInput(), i);
-         EXPECT_EQ(txio->getValue(), txIns_[txInId].value_);
+            foundTxio = true;
+            auto txio = snapshot.getTxioByKey(key);
+            METHOD_ASSERT_NE(txio, nullptr);
+            EXPECT_EQ(txio->getDBKeyOfOutput(), txOutKey);
+            EXPECT_EQ(txio->getIndexOfOutput(), txIns_[txInId].outpoint_.index_);
 
-         EXPECT_TRUE(snapshot.isTxOutSpentByZC(txOutKey));
+            EXPECT_TRUE(txio->getDBKeyOfInput().startsWith(zcKeys_[txid]));
+            EXPECT_EQ(txio->getIndexOfInput(), i);
+            EXPECT_EQ(txio->getValue(), txIns_[txInId].value_);
+
+            EXPECT_TRUE(snapshot.isTxOutSpentByZC(txOutKey));
+         }
+
+         METHOD_ASSERT_TRUE(foundTxio);
       }
       catch (range_error&)
       {
@@ -407,13 +465,22 @@ protected:
          auto txOutKey = keyWriter.getData();
 
          auto txioKeys = snapshot.getTxioKeysForScrAddr(txOuts_[txOutId].scrAddr_);
-         METHOD_ASSERT_EQ(txioKeys.size(), 1);
-         EXPECT_TRUE(txioKeys.begin()->startsWith(zcKeys_[txid]));
+         METHOD_ASSERT_FALSE(txioKeys.empty());
 
-         auto txio = snapshot.getTxioByKey(*txioKeys.begin());
-         METHOD_ASSERT_NE(txio, nullptr);
-         EXPECT_EQ(txio->getDBKeyOfOutput(), txOutKey);
-         EXPECT_EQ(txio->getIndexOfOutput(), i);
+         bool foundTxio = false;
+         for (const auto& key : txioKeys)
+         {
+            if (!key.startsWith(zcKeys_[txid]))
+               continue;
+            
+            foundTxio = true;
+            auto txio = snapshot.getTxioByKey(key);
+            METHOD_ASSERT_NE(txio, nullptr);
+            EXPECT_EQ(txio->getDBKeyOfOutput(), txOutKey);
+            EXPECT_EQ(txio->getIndexOfOutput(), i);
+         }
+
+         METHOD_ASSERT_TRUE(foundTxio);
       }
       catch (range_error&)
       {
@@ -425,7 +492,7 @@ protected:
 
    /////////////////////////////////////////////////////////////////////////////
    bool checkIsDropped(
-      const ZeroConfSharedStateSnapshot& snapshot, 
+      const MempoolSnapshot& snapshot, 
       unsigned txid) const
    {
       if (txid >= txs_.size())
@@ -455,7 +522,8 @@ protected:
             for (auto& key : txioKeys)
             {
                auto txio = snapshot.getTxioByKey(key);
-               METHOD_ASSERT_NE(txio, nullptr);
+               if (txio == nullptr)
+                  continue;
 
                METHOD_ASSERT_FALSE(
                   txio->getDBKeyOfOutput().startsWith(zcKeys_[txid]));
@@ -511,7 +579,7 @@ protected:
 
    /////////////////////////////////////////////////////////////////////////////
    BinaryData checkTxOutIsSpent(
-      const ZeroConfSharedStateSnapshot& snapshot, 
+      const MempoolSnapshot& snapshot, 
       unsigned txid, unsigned txoutid) const
    {
       BinaryWriter keyWriter;
@@ -580,33 +648,57 @@ protected:
    ZeroConfCallbacks_Tests zcCallbacks_;
 };
 
+//TODO: check top zc id
+
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, Stage)
 {
-   ZeroConfSharedStateSnapshot snapshot;
+   MempoolSnapshot snapshot(1, 2);
 
    //filter the tx
    auto filterResult = filterParsedTx(
       txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
 
    //stage it
-   snapshot.stageNewZc(txs_[0].txPtr_, filterResult);
+   snapshot.stageNewZC(txs_[0].txPtr_, filterResult);
 
    //check it was added
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(ZeroConfTests_Mempool, Drop)
+TEST_F(ZeroConfTests_Mempool, Commit)
 {
-   ZeroConfSharedStateSnapshot snapshot;
+   MempoolSnapshot snapshot(2, 4);
 
    //filter the tx
    auto filterResult = filterParsedTx(
       txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
 
    //stage it
-   snapshot.stageNewZc(txs_[0].txPtr_, filterResult);
+   snapshot.stageNewZC(txs_[0].txPtr_, filterResult);
+
+   //check it was added
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+
+   //commit
+   snapshot.commitNewZCs();
+
+   //check the tx is still in there
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));   
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ZeroConfTests_Mempool, Drop)
+{
+   MempoolSnapshot snapshot(2, 4);
+
+   //filter the tx
+   auto filterResult = filterParsedTx(
+      txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
+
+   //stage it
+   snapshot.stageNewZC(txs_[0].txPtr_, filterResult);
 
    //check it was added
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
@@ -621,20 +713,52 @@ TEST_F(ZeroConfTests_Mempool, Drop)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(ZeroConfTests_Mempool, CommitAndDrop)
+{
+   MempoolSnapshot snapshot(2, 4);
+
+   //filter the tx
+   auto filterResult = filterParsedTx(
+      txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
+
+   //stage it
+   snapshot.stageNewZC(txs_[0].txPtr_, filterResult);
+
+   //check it was added
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+
+   //commit and check again
+   snapshot.commitNewZCs();
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+
+   //drop the tx
+   auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
+   ASSERT_EQ(droppedZCs.size(), 1);
+   EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[0]);
+
+   //check it was dropped from the snapshot
+   EXPECT_TRUE(checkIsDropped(snapshot, 0));
+
+   //commit and check
+   snapshot.commitNewZCs();
+   EXPECT_TRUE(checkIsDropped(snapshot, 0));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, Stage2_Drop1)
 {
-   ZeroConfSharedStateSnapshot snapshot;
+   MempoolSnapshot snapshot(2, 4);
 
    {
       //add tx0
       auto filterResult = filterParsedTx(
          txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
-      snapshot.stageNewZc(txs_[0].txPtr_, filterResult);
+      snapshot.stageNewZC(txs_[0].txPtr_, filterResult);
 
       //add tx1
       auto filterResult1 = filterParsedTx(
          txs_[1].txPtr_, mainAddrMap_, &zcCallbacks_);
-      snapshot.stageNewZc(txs_[1].txPtr_, filterResult1);
+      snapshot.stageNewZC(txs_[1].txPtr_, filterResult1);
    }
 
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
@@ -651,20 +775,62 @@ TEST_F(ZeroConfTests_Mempool, Stage2_Drop1)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(ZeroConfTests_Mempool, StageChildren)
+TEST_F(ZeroConfTests_Mempool, Stage2_Commit_Drop1)
 {
-   ZeroConfSharedStateSnapshot snapshot;
+   MempoolSnapshot snapshot(1, 2);
 
    {
       //add tx0
       auto filterResult = filterParsedTx(
          txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
-      snapshot.stageNewZc(txs_[0].txPtr_, filterResult);
+      snapshot.stageNewZC(txs_[0].txPtr_, filterResult);
+      EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+   }
+
+   snapshot.commitNewZCs();
+
+   {
+      //add tx1
+      auto filterResult1 = filterParsedTx(
+         txs_[1].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[1].txPtr_, filterResult1);
+      EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+      EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+   }
+
+   snapshot.commitNewZCs();
+
+   //drop tx0
+   auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
+   ASSERT_EQ(droppedZCs.size(), 1);
+   EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[0]);
+
+   //check it was dropped from the snapshot
+   EXPECT_TRUE(checkIsDropped(snapshot, 0));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+
+   snapshot.commitNewZCs();
+
+   //check it is still dropped from the snapshot
+   EXPECT_TRUE(checkIsDropped(snapshot, 0));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ZeroConfTests_Mempool, StageChildren)
+{
+   MempoolSnapshot snapshot(2, 4);
+
+   {
+      //add tx0
+      auto filterResult = filterParsedTx(
+         txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[0].txPtr_, filterResult);
 
       //add tx1
       auto filterResult1 = filterParsedTx(
          txs_[1].txPtr_, mainAddrMap_, &zcCallbacks_);
-      snapshot.stageNewZc(txs_[1].txPtr_, filterResult1);
+      snapshot.stageNewZC(txs_[1].txPtr_, filterResult1);
    }
 
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
@@ -679,43 +845,191 @@ TEST_F(ZeroConfTests_Mempool, StageChildren)
       //add tx2
       auto filterResult2 = filterParsedTx(
          txs_[2].txPtr_, mainAddrMap_, &zcCallbacks_);
-      snapshot.stageNewZc(txs_[2].txPtr_, filterResult2);
+      snapshot.stageNewZC(txs_[2].txPtr_, filterResult2);
 
       //add tx3
       auto filterResult3 = filterParsedTx(
          txs_[3].txPtr_, mainAddrMap_, &zcCallbacks_);
-      snapshot.stageNewZc(txs_[3].txPtr_, filterResult3);
+      snapshot.stageNewZC(txs_[3].txPtr_, filterResult3);
    }
 
    EXPECT_TRUE(checkTxIsStaged(snapshot, 2));
    EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
 
-   auto spender0 = checkTxOutIsSpent(snapshot, 0, 0);
-   EXPECT_TRUE(spender0.startsWith(zcKeys_[2]));
+   {
+      auto spender0 = checkTxOutIsSpent(snapshot, 0, 0);
+      EXPECT_TRUE(spender0.startsWith(zcKeys_[2]));
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+
+      auto spender1 = checkTxOutIsSpent(snapshot, 1, 0);
+      EXPECT_TRUE(spender1.startsWith(zcKeys_[2]));
+
+      auto spender2 = checkTxOutIsSpent(snapshot, 1, 1);
+      EXPECT_TRUE(spender2.startsWith(zcKeys_[3]));
+
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 2, 0).empty());
+   }
+
+   {
+      //add tx4
+      auto filterResult4 = filterParsedTx(
+         txs_[4].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[4].txPtr_, filterResult4);
+   }
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 2));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 4));
+
+   {
+      auto spender0 = checkTxOutIsSpent(snapshot, 0, 0);
+      EXPECT_TRUE(spender0.startsWith(zcKeys_[2]));
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+
+      auto spender1 = checkTxOutIsSpent(snapshot, 1, 0);
+      EXPECT_TRUE(spender1.startsWith(zcKeys_[2]));
+
+      auto spender2 = checkTxOutIsSpent(snapshot, 1, 1);
+      EXPECT_TRUE(spender2.startsWith(zcKeys_[3]));
+
+      auto spender3 = checkTxOutIsSpent(snapshot, 2, 0);
+      EXPECT_TRUE(spender3.startsWith(zcKeys_[4]));
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ZeroConfTests_Mempool, StageChildren_Commit)
+{
+   MempoolSnapshot snapshot(1, 2);
+
+   {
+      //add tx0
+      auto filterResult = filterParsedTx(
+         txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[0].txPtr_, filterResult);
+
+      //add tx1
+      auto filterResult1 = filterParsedTx(
+         txs_[1].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[1].txPtr_, filterResult1);
+   }
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 0).empty());
    EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+   
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 0).empty());
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 1).empty());
 
-   auto spender1 = checkTxOutIsSpent(snapshot, 1, 0);
-   EXPECT_TRUE(spender1.startsWith(zcKeys_[2]));
+   snapshot.commitNewZCs();
 
-   auto spender2 = checkTxOutIsSpent(snapshot, 1, 1);
-   EXPECT_TRUE(spender2.startsWith(zcKeys_[3]));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 0).empty());
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+   
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 0).empty());
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 1).empty());
+
+   {
+      //add tx2
+      auto filterResult2 = filterParsedTx(
+         txs_[2].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[2].txPtr_, filterResult2);
+
+      //add tx3
+      auto filterResult3 = filterParsedTx(
+         txs_[3].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[3].txPtr_, filterResult3);
+   }
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 2));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
+
+   {
+      auto spender0 = checkTxOutIsSpent(snapshot, 0, 0);
+      EXPECT_TRUE(spender0.startsWith(zcKeys_[2]));
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+
+      auto spender1 = checkTxOutIsSpent(snapshot, 1, 0);
+      EXPECT_TRUE(spender1.startsWith(zcKeys_[2]));
+
+      auto spender2 = checkTxOutIsSpent(snapshot, 1, 1);
+      EXPECT_TRUE(spender2.startsWith(zcKeys_[3]));
+
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 2, 0).empty());
+   }
+
+   snapshot.commitNewZCs();
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 2));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
+
+   {
+      auto spender0 = checkTxOutIsSpent(snapshot, 0, 0);
+      EXPECT_TRUE(spender0.startsWith(zcKeys_[2]));
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+
+      auto spender1 = checkTxOutIsSpent(snapshot, 1, 0);
+      EXPECT_TRUE(spender1.startsWith(zcKeys_[2]));
+
+      auto spender2 = checkTxOutIsSpent(snapshot, 1, 1);
+      EXPECT_TRUE(spender2.startsWith(zcKeys_[3]));  
+
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 2, 0).empty());
+   }
+
+   {
+      //add tx4
+      auto filterResult4 = filterParsedTx(
+         txs_[4].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[4].txPtr_, filterResult4);
+   }
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 4));
+
+   auto spender3 = checkTxOutIsSpent(snapshot, 2, 0);
+   EXPECT_TRUE(spender3.startsWith(zcKeys_[4]));
+
+   snapshot.commitNewZCs();
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 2));
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
+
+   {
+      auto spender0 = checkTxOutIsSpent(snapshot, 0, 0);
+      EXPECT_TRUE(spender0.startsWith(zcKeys_[2]));
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+
+      auto spender1 = checkTxOutIsSpent(snapshot, 1, 0);
+      EXPECT_TRUE(spender1.startsWith(zcKeys_[2]));
+
+      auto spender2 = checkTxOutIsSpent(snapshot, 1, 1);
+      EXPECT_TRUE(spender2.startsWith(zcKeys_[3]));  
+   }
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 4));
+
+   auto spender4 = checkTxOutIsSpent(snapshot, 2, 0);
+   EXPECT_TRUE(spender4.startsWith(zcKeys_[4]));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, DropParent)
 {
-   ZeroConfSharedStateSnapshot snapshot;
+   MempoolSnapshot snapshot(2, 4);
 
    {
       //add tx0
       auto filterResult = filterParsedTx(
          txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
-      snapshot.stageNewZc(txs_[0].txPtr_, filterResult);
+      snapshot.stageNewZC(txs_[0].txPtr_, filterResult);
 
       //add tx1
       auto filterResult1 = filterParsedTx(
          txs_[1].txPtr_, mainAddrMap_, &zcCallbacks_);
-      snapshot.stageNewZc(txs_[1].txPtr_, filterResult1);
+      snapshot.stageNewZC(txs_[1].txPtr_, filterResult1);
    }
 
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
@@ -730,12 +1044,12 @@ TEST_F(ZeroConfTests_Mempool, DropParent)
       //add tx2
       auto filterResult2 = filterParsedTx(
          txs_[2].txPtr_, mainAddrMap_, &zcCallbacks_);
-      snapshot.stageNewZc(txs_[2].txPtr_, filterResult2);
+      snapshot.stageNewZC(txs_[2].txPtr_, filterResult2);
 
       //add tx3
       auto filterResult3 = filterParsedTx(
          txs_[3].txPtr_, mainAddrMap_, &zcCallbacks_);
-      snapshot.stageNewZc(txs_[3].txPtr_, filterResult3);
+      snapshot.stageNewZC(txs_[3].txPtr_, filterResult3);
    }
 
    EXPECT_TRUE(checkTxIsStaged(snapshot, 2));
@@ -750,7 +1064,6 @@ TEST_F(ZeroConfTests_Mempool, DropParent)
 
    auto spender2 = checkTxOutIsSpent(snapshot, 1, 1);
    EXPECT_TRUE(spender2.startsWith(zcKeys_[3]));
-
 
    //drop tx0
    auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
@@ -773,6 +1086,116 @@ TEST_F(ZeroConfTests_Mempool, DropParent)
 
    auto spender3 = checkTxOutIsSpent(snapshot, 1, 1);
    EXPECT_TRUE(spender3.startsWith(zcKeys_[3]));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ZeroConfTests_Mempool, DropParent_Commit)
+{
+   MempoolSnapshot snapshot(1, 2);
+
+   {
+      //add tx0
+      auto filterResult = filterParsedTx(
+         txs_[0].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[0].txPtr_, filterResult);
+
+      //add tx1
+      auto filterResult1 = filterParsedTx(
+         txs_[1].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[1].txPtr_, filterResult1);
+   }
+
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 0).empty());
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+   
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 0).empty());
+   EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 1).empty());
+
+   {
+      //add tx2
+      auto filterResult2 = filterParsedTx(
+         txs_[2].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[2].txPtr_, filterResult2);
+
+      //add tx3
+      auto filterResult3 = filterParsedTx(
+         txs_[3].txPtr_, mainAddrMap_, &zcCallbacks_);
+      snapshot.stageNewZC(txs_[3].txPtr_, filterResult3);
+   }
+
+   {
+      EXPECT_TRUE(checkTxIsStaged(snapshot, 2));
+      EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
+
+      auto spender0 = checkTxOutIsSpent(snapshot, 0, 0);
+      EXPECT_TRUE(spender0.startsWith(zcKeys_[2]));
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+
+      auto spender1 = checkTxOutIsSpent(snapshot, 1, 0);
+      EXPECT_TRUE(spender1.startsWith(zcKeys_[2]));
+
+      auto spender2 = checkTxOutIsSpent(snapshot, 1, 1);
+      EXPECT_TRUE(spender2.startsWith(zcKeys_[3]));
+   }
+
+   snapshot.commitNewZCs();
+
+   {
+      EXPECT_TRUE(checkTxIsStaged(snapshot, 2));
+      EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
+
+      auto spender0 = checkTxOutIsSpent(snapshot, 0, 0);
+      EXPECT_TRUE(spender0.startsWith(zcKeys_[2]));
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 0, 1).empty());
+
+      auto spender1 = checkTxOutIsSpent(snapshot, 1, 0);
+      EXPECT_TRUE(spender1.startsWith(zcKeys_[2]));
+
+      auto spender2 = checkTxOutIsSpent(snapshot, 1, 1);
+      EXPECT_TRUE(spender2.startsWith(zcKeys_[3]));
+   }
+
+   //drop tx0
+   auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
+   ASSERT_EQ(droppedZCs.size(), 2);
+
+   auto iter = droppedZCs.begin();
+   EXPECT_EQ(iter->first, zcKeys_[0]);
+
+   ++iter;
+   EXPECT_EQ(iter->first, zcKeys_[2]);
+
+   {
+      EXPECT_TRUE(checkIsDropped(snapshot, 0));
+      EXPECT_TRUE(checkIsDropped(snapshot, 2));
+
+      //check tx1 & 3 are still here
+      EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+      EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
+
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 0).empty());
+
+      auto spender3 = checkTxOutIsSpent(snapshot, 1, 1);
+      EXPECT_TRUE(spender3.startsWith(zcKeys_[3]));
+   }
+
+   snapshot.commitNewZCs();
+
+   {
+      EXPECT_TRUE(checkIsDropped(snapshot, 0));
+      EXPECT_TRUE(checkIsDropped(snapshot, 2));
+
+      //check tx1 & 3 are still here
+      EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+      EXPECT_TRUE(checkTxIsStaged(snapshot, 3));
+
+      EXPECT_TRUE(checkTxOutIsSpent(snapshot, 1, 0).empty());
+
+      auto spender3 = checkTxOutIsSpent(snapshot, 1, 1);
+      EXPECT_TRUE(spender3.startsWith(zcKeys_[3]));
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1866,18 +2289,6 @@ TEST_F(ZeroConfTests_FullNode, Load4Blocks_ZC_GetUtxos)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
 {
-   //create spender lambda
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      auto spender = make_shared<ScriptSpender>(entry);
-      spender->setSequence(UINT32_MAX - 2);
-
-      return spender;
-   };
-
    BinaryData ZCHash1, ZCHash2, ZCHash3, ZCHash4;
 
    //
@@ -1960,7 +2371,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -1979,7 +2390,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo));
+         signer.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spend 12 to first address
@@ -2055,7 +2466,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getRBFTxOutList();
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -2074,7 +2485,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo));
+         signer2.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spend 12 to first address
@@ -2157,7 +2568,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -2176,7 +2587,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo));
+         signer3.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spend 4 to first address
@@ -2280,7 +2691,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getRBFTxOutList();
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -2299,7 +2710,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo));
+         signer2.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spend 12 to first address
@@ -2391,18 +2802,6 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_FullNode, RegisterAddress_AfterZC)
 {
-   //create spender lambda
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      auto spender = make_shared<ScriptSpender>(entry);
-      spender->setSequence(UINT32_MAX - 2);
-
-      return spender;
-   };
-
    BinaryData ZCHash1, ZCHash2, ZCHash3, ZCHash4;
 
    //
@@ -2486,7 +2885,7 @@ TEST_F(ZeroConfTests_FullNode, RegisterAddress_AfterZC)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -2505,7 +2904,7 @@ TEST_F(ZeroConfTests_FullNode, RegisterAddress_AfterZC)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo));
+         signer.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spend 12 to first address
@@ -2621,22 +3020,6 @@ TEST_F(ZeroConfTests_FullNode, RegisterAddress_AfterZC)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
 {
-   //create spender lambda
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo, bool flagRBF)
-      ->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      auto spender = make_shared<ScriptSpender>(entry);
-
-      if(flagRBF)
-         spender->setSequence(UINT32_MAX - 2);
-
-      return spender;
-   };
-
    BinaryData ZCHash1, ZCHash2, ZCHash3;
 
    //
@@ -2719,7 +3102,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -2929,7 +3312,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getRBFTxOutList();
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -3119,20 +3502,6 @@ TEST_F(ZeroConfTests_FullNode, ZC_InOut_SameBlock)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
 {
-   //create spender lambda
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo)
-      ->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      auto spender = make_shared<ScriptSpender>(entry);
-      spender->setSequence(UINT32_MAX - 2);
-
-      return spender;
-   };
-
    BinaryData ZCHash1, ZCHash2, ZCHash3, ZCHash4;
 
    //
@@ -3301,7 +3670,7 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue();
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -3320,7 +3689,7 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo));
+         signer2.addSpender(getSpenderPtr(utxo, true));
       }
 
       auto addr2 = assetWlt->getNewAddress(
@@ -3562,20 +3931,6 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Supernode, ZeroConfUpdate)
 {
-   //create script spender objects
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo)
-      ->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      auto spender = make_shared<ScriptSpender>(entry);
-      spender->setSequence(UINT32_MAX - 2);
-
-      return spender;
-   };
-
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    vector<BinaryData> scrAddrVec;
@@ -3616,7 +3971,7 @@ TEST_F(ZeroConfTests_Supernode, ZeroConfUpdate)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -3635,7 +3990,7 @@ TEST_F(ZeroConfTests_Supernode, ZeroConfUpdate)
       for (auto& utxo : utxoVec)
       {
          total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo));
+         signer.addSpender(getSpenderPtr(utxo, true));
       }
 
       //spendVal to addrE
@@ -3958,17 +4313,6 @@ TEST_F(ZeroConfTests_Supernode, RegisterAfterZC)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Supernode, ZC_Reorg)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo)
-      ->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    theBDMt_->start(DBSettings::initMode());
@@ -4127,22 +4471,6 @@ TEST_F(ZeroConfTests_Supernode, ZC_Reorg)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
 {
-   //create spender lambda
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo, bool flagRBF)
-      ->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      auto spender = make_shared<ScriptSpender>(entry);
-
-      if (flagRBF)
-         spender->setSequence(UINT32_MAX - 2);
-
-      return spender;
-   };
-
    BinaryData ZCHash1, ZCHash2, ZCHash3;
 
    //
@@ -4227,7 +4555,7 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -4405,7 +4733,7 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getRBFTxOutList();
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())

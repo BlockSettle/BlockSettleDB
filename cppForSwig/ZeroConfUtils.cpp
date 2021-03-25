@@ -180,7 +180,7 @@ void preprocessZcMap(
 void finalizeParsedTxResolution(
    shared_ptr<ParsedTx> parsedTxPtr,
    LMDBBlockDatabase* db, const set<BinaryData>& allZcHashes,
-   shared_ptr<ZeroConfSharedStateSnapshot> ss)
+   shared_ptr<MempoolSnapshot> ss)
 {
    auto& parsedTx = *parsedTxPtr;
    bool isRBF = parsedTx.isRBF_;
@@ -594,27 +594,425 @@ const BinaryData& ParsedTx::getTxHash(void) const
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-// ZeroConfSharedStateSnapshot
+// MempoolData
 //
 ///////////////////////////////////////////////////////////////////////////////
-void ZeroConfSharedStateSnapshot::preprocessZcMap(LMDBBlockDatabase* db)
+/***
+Mempool data is a chain of objects with a front object and cascading parents.
+Requested data is first fetched from the front object first then trough parents
+in a descending fashion, until the value closest to the front is returned, or
+no value is found.
+
+In maps, a key match with an empty value signifies a deletion.
+
+scrAddrMap_ is handled differently.
+***/
+
+///////////////////////////////////////////////////////////////////////////////
+bool MempoolData::empty() const
 {
-   ::preprocessZcMap(txMap_, db);
+   return txioMap_.empty() && scrAddrMap_.empty() && scrAddrMap_.empty();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<ParsedTx> ZeroConfSharedStateSnapshot::getTxByKey_NoConst(
-   BinaryDataRef key) const
+unsigned MempoolData::getParentCount() const
+{
+   auto parentPtr = parent_;
+   unsigned count = 0;
+
+   while (parentPtr != nullptr)
+   {
+      parentPtr = parentPtr->parent_;
+      ++count;
+   }
+
+   return count;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void MempoolData::copyFrom(const MempoolData& orig)
+{
+   txHashToDBKey_ = orig.txHashToDBKey_;
+   txMap_ = orig.txMap_;
+   txOutsSpentByZC_ = orig.txOutsSpentByZC_;
+   scrAddrMap_ = orig.scrAddrMap_;
+   txioMap_ = orig.txioMap_;
+
+   parent_ = orig.parent_;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<ParsedTx> MempoolData::getTx(BinaryDataRef key) const
 {
    auto iter = txMap_.find(key);
    if (iter == txMap_.end())
+   {
+      if (parent_ != nullptr)
+         return parent_->getTx(key);
+
       return nullptr;
+   }
 
    return iter->second;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<const ParsedTx> ZeroConfSharedStateSnapshot::getTxByKey(
+BinaryDataRef MempoolData::getKeyForHash(BinaryDataRef hash) const
+{
+   auto iter = txHashToDBKey_.find(hash);
+   if (iter == txHashToDBKey_.end())
+   {
+      if (parent_ != nullptr)
+         return parent_->getKeyForHash(hash);
+
+      return {};
+   }
+
+   return iter->second;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/***
+The scrAddrMap_ needs special handling:
+
+   * This map carries the txio keys affecting each scrAddr. A same scrAddr may
+     be affected by several parents so to get the true set of relevant txio
+     keys, history across all parents needs to be merged together first. This 
+     creates copies on each read. To avoid this, we "bring forward" the txio
+     keys from the nearest parent when the front MempoolData is missing the
+     requested for scrAddr.
+***/
+set<BinaryData>* MempoolData::getTxioKeysFromParent(
+   BinaryDataRef scrAddr) const
+{
+   if (parent_ == nullptr)
+      return nullptr;
+
+   auto iter = parent_->scrAddrMap_.find(scrAddr);
+   if (iter != parent_->scrAddrMap_.end())
+      return &(iter->second);
+
+   return parent_->getTxioKeysFromParent(scrAddr);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+set<BinaryData>& MempoolData::getTxioKeysForScrAddr_NoThrow(
+   BinaryDataRef scrAddr)
+{
+   auto iter = scrAddrMap_.find(scrAddr);
+   if (iter == scrAddrMap_.end())
+   {
+      //we don't have a key set for this scrAddr, look in parents
+      auto parentSet = getTxioKeysFromParent(scrAddr);
+
+      //copy the parent's set
+      set<BinaryData> localKeySet;
+      if (parentSet != nullptr)
+         localKeySet = *parentSet;
+
+      //insert into our own scrAddrMap whether we have a parent set or not
+      auto insertIter = scrAddrMap_.emplace(scrAddr, move(localKeySet));
+
+      //finally, set the iterator to the new entry
+      iter = insertIter.first;
+   }
+
+   return iter->second;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+const set<BinaryData>& MempoolData::getTxioKeysForScrAddr(
+   BinaryDataRef scrAddr) const
+{
+   auto iter = scrAddrMap_.find(scrAddr);
+   if (iter == scrAddrMap_.end())
+   {
+      if (parent_ != nullptr)
+         return parent_->getTxioKeysForScrAddr(scrAddr);
+
+      throw range_error("");
+   }
+
+   if (iter->second.empty())
+      throw range_error("");
+   
+   return iter->second;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<const TxIOPair> MempoolData::getTxio(BinaryDataRef key) const
+{
+   auto iter = txioMap_.find(key);
+   if (iter == txioMap_.end())
+   {
+      if (parent_ != nullptr)
+         return parent_->getTxio(key);
+
+      return nullptr;
+   }
+
+   return const_pointer_cast<TxIOPair>(iter->second);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+bool MempoolData::isTxOutSpentByZC(BinaryDataRef key) const
+{
+   auto iter = txOutsSpentByZC_.find(key);
+   if (iter == txOutsSpentByZC_.end())
+   {
+      if (parent_ != nullptr)
+         return parent_->isTxOutSpentByZC(key);
+
+      return false;
+   }
+
+   return iter->second;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void MempoolData::dropFromSpentTxOuts(BinaryDataRef key)
+{
+   bool inParents = false;
+   if (parent_ != nullptr)
+      inParents = parent_->isTxOutSpentByZC(key);
+
+   if (!inParents)
+   {
+      txOutsSpentByZC_.erase(key);
+      return;
+   }
+
+   auto iter = txOutsSpentByZC_.find(key);
+   if (iter == txOutsSpentByZC_.end())
+   {
+      auto insertIter = txOutsSpentByZC_.emplace(key, false);
+      iter = insertIter.first;
+   }
+
+   iter->second = false;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void MempoolData::dropFromScrAddrMap(
+   BinaryDataRef scrAddr, BinaryDataRef zcKey)
+{
+   //this scrAddr is funded by outputs from this zc, remove them
+   auto& txioKeys = getTxioKeysForScrAddr_NoThrow(scrAddr);
+
+   //look for txio keys belonging to our zc
+   auto keyIter = txioKeys.lower_bound(zcKey);
+   while (keyIter != txioKeys.end())
+   {
+      if (!keyIter->startsWith(zcKey))
+         break;
+
+      //remove all entries that begin with our zcKey
+      txioKeys.erase(keyIter++);
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void MempoolData::dropTxHashToDBKey(BinaryDataRef hash)
+{
+   bool hasHash = false;
+   if (parent_ != nullptr)
+   {
+      auto key = parent_->getKeyForHash(hash);
+      if (!key.empty())
+         hasHash = true;
+   }
+
+   if (!hasHash)
+   {
+      txHashToDBKey_.erase(hash);
+      return;
+   }
+
+   auto iter = txHashToDBKey_.find(hash);
+   if (iter == txHashToDBKey_.end())
+   {
+      auto insertIter = txHashToDBKey_.emplace(hash, BinaryDataRef());
+      iter = insertIter.first;
+   }
+
+   iter->second.reset();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void MempoolData::dropTxiosForZC(BinaryDataRef key)
+{
+   auto zcPtr = getTx(key);
+   if (zcPtr == nullptr)
+      throw range_error("");
+
+   for (unsigned i=0; i<zcPtr->outputs_.size(); i++)
+   {
+      BinaryWriter bw(8);
+      bw.put_BinaryData(key);
+      bw.put_uint16_t(i, BE);
+
+      txioMap_[bw.getData()] = nullptr;
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void MempoolData::dropTxioInputs(
+   BinaryDataRef zcKey,
+   const set<BinaryData>& spentFromTxoutKeys)
+{
+   for (auto& spentTxoutKey : spentFromTxoutKeys)
+   {
+      //look up the spendee by key
+      auto txioPtr = getTxio(spentTxoutKey);
+      if (txioPtr == nullptr)
+         throw range_error("");
+
+      //does this txio have a spender and is it our tx?
+      if (!txioPtr->hasTxIn() || 
+         txioPtr->getTxRefOfInput().getDBKeyRef() != zcKey)
+         continue;
+
+      if (!txioPtr->hasTxOutZC())
+      {
+         //if the txout is mined, remove it entirely
+         txioMap_[spentTxoutKey] = nullptr;
+      }
+      else
+      {
+         /*
+         copy the txio, remove the txin and replace it in the map
+         (so as to not disrupt the potential readers)
+         */
+         auto newTxio = make_shared<TxIOPair>(*(txioPtr));
+         newTxio->setTxIn(BinaryData());
+         txioMap_[spentTxoutKey] = newTxio;
+      }
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<MempoolData> MempoolData::mergeWithParent(
+   shared_ptr<MempoolData> ptr)
+{
+   if (ptr->parent_ == nullptr)
+      return ptr;
+
+   auto newObj = make_shared<MempoolData>();
+   
+   //tx hashes
+   newObj->txHashToDBKey_ = ptr->txHashToDBKey_;
+   for (const auto& hashPair : ptr->parent_->txHashToDBKey_)
+      newObj->txHashToDBKey_.emplace(hashPair);
+
+   //tx map
+   newObj->txMap_ = ptr->txMap_;
+   for (const auto& txPair : ptr->parent_->txMap_)
+      newObj->txMap_.emplace(txPair);
+
+   //txouts spentness
+   newObj->txOutsSpentByZC_ = ptr->txOutsSpentByZC_;
+   for (const auto& keyPair : ptr->parent_->txOutsSpentByZC_)
+      newObj->txOutsSpentByZC_.emplace(keyPair);
+
+   auto keyIter = newObj->txOutsSpentByZC_.begin();
+   while (keyIter != newObj->txOutsSpentByZC_.end())
+   {
+      if (!keyIter->second)
+      {
+         if (ptr->parent_->parent_ != nullptr)
+         {
+            if (ptr->parent_->parent_->isTxOutSpentByZC(keyIter->first))
+               continue;
+         }
+
+         newObj->txOutsSpentByZC_.erase(keyIter++);
+         continue;
+      }
+
+      ++keyIter;
+   }
+
+   //scrAddr map
+   newObj->scrAddrMap_ = ptr->scrAddrMap_;
+   for (const auto& addrPair : ptr->parent_->scrAddrMap_)
+      newObj->scrAddrMap_.emplace(addrPair);
+
+   auto addrIter = newObj->scrAddrMap_.begin();
+   while (addrIter != newObj->scrAddrMap_.end())
+   {
+      if (addrIter->second.empty())
+      {
+         if (ptr->parent_->parent_ != nullptr)
+         {
+            try
+            {
+               ptr->parent_->parent_->isTxOutSpentByZC(keyIter->first);
+               continue;
+            }
+            catch (range_error&)
+            {}
+         }
+
+         newObj->scrAddrMap_.erase(addrIter++);
+         continue;
+      }
+
+      ++addrIter;
+   }
+
+   //txio map
+   newObj->txioMap_ = ptr->txioMap_;
+   for (const auto& txioPair : ptr->parent_->txioMap_)
+      newObj->txioMap_.emplace(txioPair);
+   
+   auto txioIter = newObj->txioMap_.begin();
+   while (txioIter != newObj->txioMap_.end())
+   {
+      if (txioIter->second == nullptr)
+      {
+         if (ptr->parent_->parent_ != nullptr)
+         {
+            if (ptr->parent_->parent_->getTxio(txioIter->first) != nullptr)
+               continue;
+         }
+
+         newObj->txioMap_.erase(txioIter++);
+         continue;
+      }
+
+      ++txioIter;
+   }
+
+   newObj->parent_ = ptr->parent_->parent_;
+   return newObj;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// MempoolSnapshot
+//
+///////////////////////////////////////////////////////////////////////////////
+MempoolSnapshot::MempoolSnapshot(unsigned depth, unsigned threshold) :
+   depth_(depth), threshold_(threshold)
+{
+   data_ = make_shared<MempoolData>();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void MempoolSnapshot::preprocessZcMap(LMDBBlockDatabase* db)
+{
+   ::preprocessZcMap(data_->txMap_, db);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<ParsedTx> MempoolSnapshot::getTxByKey_NoConst(
+   BinaryDataRef key) const
+{
+   return data_->getTx(key);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<const ParsedTx> MempoolSnapshot::getTxByKey(
    BinaryDataRef key) const
 {
    auto txPtr = getTxByKey_NoConst(key);
@@ -622,7 +1020,7 @@ shared_ptr<const ParsedTx> ZeroConfSharedStateSnapshot::getTxByKey(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<const ParsedTx> ZeroConfSharedStateSnapshot::getTxByHash(
+shared_ptr<const ParsedTx> MempoolSnapshot::getTxByHash(
    BinaryDataRef hash) const
 {
    auto key = getKeyForHash(hash);
@@ -633,7 +1031,7 @@ shared_ptr<const ParsedTx> ZeroConfSharedStateSnapshot::getTxByHash(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-TxOut ZeroConfSharedStateSnapshot::getTxOutCopy(
+TxOut MempoolSnapshot::getTxOutCopy(
    BinaryDataRef key, uint16_t outputId) const
 {
    auto txPtr = getTxByKey(key);
@@ -647,59 +1045,36 @@ TxOut ZeroConfSharedStateSnapshot::getTxOutCopy(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<const TxIOPair> ZeroConfSharedStateSnapshot::getTxioByKey(
+shared_ptr<const TxIOPair> MempoolSnapshot::getTxioByKey(
    BinaryDataRef txioKey) const
 {
-   //extract zcKey
-   BinaryRefReader brr(txioKey);
-   auto zcKey = brr.get_BinaryDataRef(6);
-   auto zcIter = txioMap_.find(zcKey);
-   if (zcIter == txioMap_.end())
-   {
-      LOGERR << "missing zc for scraddr";
-      return nullptr;
-   }
-
-   //and output id
-   auto outputId = brr.get_uint16_t(BE);
-   auto txioIter = zcIter->second.find(outputId);
-   if (txioIter == zcIter->second.end())
-   {
-      LOGERR << "missing txio for scraddr";
-      return nullptr;
-   }
-
-   return const_pointer_cast<TxIOPair>(txioIter->second);
+   return data_->getTxio(txioKey);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-BinaryDataRef ZeroConfSharedStateSnapshot::getKeyForHash(
+BinaryDataRef MempoolSnapshot::getKeyForHash(
    BinaryDataRef hash) const
 {
-   auto iter = txHashToDBKey_.find(hash);
-   if (iter == txHashToDBKey_.end())
-      return {};
-
-   return iter->second;
+   return data_->getKeyForHash(hash);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-BinaryDataRef ZeroConfSharedStateSnapshot::getHashForKey(
+BinaryDataRef MempoolSnapshot::getHashForKey(
    BinaryDataRef key) const
 {
-   auto iter = txMap_.find(key);
-   if (iter == txMap_.end())
+   auto txPtr = getTxByKey(key);
+   if (txPtr == nullptr)
       return BinaryDataRef();
 
-   return iter->second->getTxHash().getRef();
+   return txPtr->getTxHash().getRef();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-uint32_t ZeroConfSharedStateSnapshot::getTopZcID(void) const
+uint32_t MempoolSnapshot::getTopZcID(void) const
 {
    uint32_t topID = 0;
-   auto rIter = txMap_.rbegin();
-   if (rIter != txMap_.rend())
+   auto rIter = data_->txMap_.rbegin();
+   if (rIter != data_->txMap_.rend())
    {
       BinaryRefReader brr(rIter->first);
       brr.advance(2);
@@ -710,117 +1085,83 @@ uint32_t ZeroConfSharedStateSnapshot::getTopZcID(void) const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool ZeroConfSharedStateSnapshot::hasHash(BinaryDataRef hash) const
+bool MempoolSnapshot::hasHash(BinaryDataRef hash) const
 {
-   auto iter = txHashToDBKey_.find(hash);
-   return iter != txHashToDBKey_.end();
+   return !(data_->getKeyForHash(hash).empty());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool ZeroConfSharedStateSnapshot::isTxOutSpentByZC(BinaryDataRef key) const
+bool MempoolSnapshot::isTxOutSpentByZC(BinaryDataRef key) const
 {
-   auto iter = txOutsSpentByZC_.find(key);
-   return iter != txOutsSpentByZC_.end();
+   return data_->isTxOutSpentByZC(key);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool ZeroConfSharedStateSnapshot::empty(void) const
+bool MempoolSnapshot::empty(void) const
 {
-   return txMap_.empty();
+   return data_->txMap_.empty();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-const set<BinaryData>& ZeroConfSharedStateSnapshot::getTxioKeysForScrAddr(
+const set<BinaryData>& MempoolSnapshot::getTxioKeysForScrAddr(
    BinaryDataRef scrAddr) const
 {
-   auto keyIter = scrAddrMap_.find(scrAddr);
-   if (keyIter == scrAddrMap_.end())
-      throw range_error("");
-
-   return keyIter->second;
+   return data_->getTxioKeysForScrAddr(scrAddr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 map<BinaryDataRef, shared_ptr<const TxIOPair>> 
-   ZeroConfSharedStateSnapshot::getTxioMapForScrAddr(
-      BinaryDataRef scrAddr) const
+   MempoolSnapshot::getTxioMapForScrAddr(BinaryDataRef scrAddr) const
 {
-   auto keyIter = scrAddrMap_.find(scrAddr);
-   if (keyIter == scrAddrMap_.end())
-      return {};
-
-   map<BinaryDataRef, shared_ptr<const TxIOPair>> result;
-
-   for (const auto& txioKey : keyIter->second)
+   try
    {
-      auto txioPtr = getTxioByKey(txioKey);
-      if (txioPtr == nullptr)
-         continue;
+      const auto& txioKeys = getTxioKeysForScrAddr(scrAddr);
+      map<BinaryDataRef, shared_ptr<const TxIOPair>> result;
 
-      result.emplace(txioKey.getRef(), txioPtr);
+      for (const auto& txioKey : txioKeys)
+      {
+         auto txioPtr = getTxioByKey(txioKey);
+         if (txioPtr == nullptr)
+            continue;
+
+         result.emplace(txioKey.getRef(), txioPtr);
+      }
+
+      return result;
    }
+   catch (range_error&)
+   {}
 
-   return result;
+   return {};
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-const map<uint16_t, shared_ptr<TxIOPair>>& 
-   ZeroConfSharedStateSnapshot::getTxioMapForKey(BinaryDataRef key) const
+set<BinaryData> MempoolSnapshot::findChildren(BinaryDataRef zcKey)
 {
-   auto iter = txioMap_.find(key);
-   if (iter == txioMap_.end())
+   auto zcPtr = data_->getTx(zcKey);
+   if (zcPtr == nullptr)
       throw range_error("");
-
-   return iter->second;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-void ZeroConfSharedStateSnapshot::dropFromScrAddrMap(
-   BinaryDataRef scrAddr, BinaryDataRef zcKey)
-{
-   //this scrAddr is funded by outputs from this zc, remove them
-   auto saIter = scrAddrMap_.find(scrAddr);
-   if (saIter == scrAddrMap_.end())
-      return;
-
-   //look for txio keys belonging to our zc
-   auto& txioKeySet = saIter->second;
-   auto keyIter = txioKeySet.lower_bound(zcKey);
-
-   while (keyIter != txioKeySet.end())
-   {
-      if (!keyIter->startsWith(zcKey))
-         break;
-
-      //remove all entries that begin with our zcKey
-      txioKeySet.erase(keyIter++);
-   }
-
-   //remove the scrAddr if not ZC affects it anymore
-   if (txioKeySet.empty())
-      scrAddrMap_.erase(saIter);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-set<BinaryData> ZeroConfSharedStateSnapshot::findChildren(BinaryDataRef zcKey)
-{
-   //find the set of outputs created by this zc
-   auto txioMapIter = txioMap_.find(zcKey);
-   if (txioMapIter == txioMap_.end())
-      return {};
 
    //set zcKeys of all ZC spending from our parent
    set<BinaryData> children;
 
-   //look for ZCs spending from these outputs
-   for (const auto& txioPair : txioMapIter->second)
+   for (unsigned i=0; i<zcPtr->outputs_.size(); i++)
    {
+      BinaryWriter bw(8);
+      bw.put_BinaryData(zcKey);
+      bw.put_uint16_t(i, BE);
+
+      auto txioPtr = data_->getTxio(bw.getDataRef());
+
+      if (txioPtr == nullptr)
+         continue;
+
       //skip if this txio doesn't carry a txin (txout isn't spent)
-      if (!txioPair.second->hasTxIn())
+      if (!txioPtr->hasTxIn())
          continue;
 
       //grab the txin's TxRef object
-      auto spenderRef = txioPair.second->getTxRefOfInput();
+      auto spenderRef = txioPtr->getTxRefOfInput();
 
       //save the Tx key (key of the txin's owner)
       children.emplace(spenderRef.getDBKey());
@@ -830,8 +1171,8 @@ set<BinaryData> ZeroConfSharedStateSnapshot::findChildren(BinaryDataRef zcKey)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-map<BinaryDataRef, std::shared_ptr<ParsedTx>> 
-   ZeroConfSharedStateSnapshot::dropZc(BinaryDataRef zcKey)
+map<BinaryDataRef, std::shared_ptr<ParsedTx>> MempoolSnapshot::dropZc(
+   BinaryDataRef zcKey)
 {
    auto txPtr = getTxByKey_NoConst(zcKey);
    if (txPtr == nullptr)
@@ -845,13 +1186,13 @@ map<BinaryDataRef, std::shared_ptr<ParsedTx>>
    {
       if (!input.isResolved())
          continue;
-      txOutsSpentByZC_.erase(input.opRef_.getDbKey());
+      data_->dropFromSpentTxOuts(input.opRef_.getDbKey());
       spentFromTxoutKeys.emplace(input.opRef_.getDbKey());
 
       //do not purge input keys from scrAddr map unless they're mined
       if (input.opRef_.getDbKey().startsWith(DBUtils::ZeroConfHeader_))
          continue;
-      dropFromScrAddrMap(input.scrAddr_, input.opRef_.getDbKey());
+      data_->dropFromScrAddrMap(input.scrAddr_, input.opRef_.getDbKey());
    }
 
    /*
@@ -883,62 +1224,20 @@ map<BinaryDataRef, std::shared_ptr<ParsedTx>>
 
    //drop outputs from scrAddrMap
    for (auto& output : txPtr->outputs_)
-      dropFromScrAddrMap(output.scrAddr_, zcKey);
+      data_->dropFromScrAddrMap(output.scrAddr_, zcKey);
 
-   /*
-   Drop all txios this ZC created (where our tx holds the txout)
-   */
-   txioMap_.erase(zcKey);
 
-   /*
-   Drop all spending from other txios (where our tx holds the txin)
-   */
-   for (auto& spentTxoutKey : spentFromTxoutKeys)
-   {
-      //look the spendee by key
-      BinaryRefReader brr(spentTxoutKey.getRef());
-      auto spentFromZcKey = brr.get_BinaryDataRef(6);
-      auto zcIter = txioMap_.find(spentFromZcKey);
-      if (zcIter == txioMap_.end())
-         continue;
+   //drop all txios this ZC created (where our tx holds the txout)
+   data_->dropTxiosForZC(zcKey);
 
-      //and output id
-      auto outputId = brr.get_uint16_t(BE);
-      auto txioIter = zcIter->second.find(outputId);
-      if (txioIter == zcIter->second.end())
-         continue;
-
-      //does this txio have a spender and is it our tx?
-      if (!txioIter->second->hasTxIn() ||
-         txioIter->second->getTxRefOfInput().getDBKeyRef() != zcKey)
-         continue;
-
-      if (!txioIter->second->hasTxOutZC())
-      {
-         //if the txout is mined, remove it entirely
-         zcIter->second.erase(txioIter);
-      }
-      else
-      {
-         /*
-         copy the txio, remove the txin and replace it in the map
-         (so as to not disrupt the potential readers)
-         */
-         auto newTxio = make_shared<TxIOPair>(*(txioIter->second));
-         newTxio->setTxIn(BinaryData());
-         txioIter->second = newTxio;
-      }
-
-      //if this tx is not affected by any zc anymore, remove it
-      if (zcIter->second.empty())
-         txioMap_.erase(zcIter);
-   }
+   //drop all spending from other txios (where our tx holds the txin)
+   data_->dropTxioInputs(zcKey, spentFromTxoutKeys);
 
    //drop hash
-   txHashToDBKey_.erase(txPtr->getTxHash().getRef());
+   data_->dropTxHashToDBKey(txPtr->getTxHash().getRef());
 
    //delete tx
-   txMap_.erase(zcKey);
+   data_->txMap_.erase(zcKey);
 
    //save this tx as dropped from the mempool and return
    droppedZc.emplace(txPtr->getKeyRef(), txPtr);
@@ -946,40 +1245,93 @@ map<BinaryDataRef, std::shared_ptr<ParsedTx>>
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void ZeroConfSharedStateSnapshot::stageNewZc(
+void MempoolSnapshot::stageNewZC(
    shared_ptr<ParsedTx> zcPtr, const FilteredZeroConfData& filteredData)
 {
    const auto& dbKey = zcPtr->getKey();
    const auto& txHash = zcPtr->getTxHash();
 
    //set tx and hash to key entry
-   txHashToDBKey_[txHash.getRef()] = dbKey.getRef();
-   txMap_[dbKey.getRef()] = zcPtr;
+   data_->txHashToDBKey_[txHash.getRef()] = dbKey.getRef();
+   data_->txMap_[dbKey.getRef()] = zcPtr;
 
    //merge spent outpoints
-   txOutsSpentByZC_.insert(
-      filteredData.txOutsSpentByZC_.begin(),
-      filteredData.txOutsSpentByZC_.end());
+   for (auto& txoutkey : filteredData.txOutsSpentByZC_)
+      data_->txOutsSpentByZC_.emplace(txoutkey, true);
 
    //updated txio and scraddr maps
    for (auto& saTxios : filteredData.scrAddrTxioMap_)
    {
-      auto& keySet = scrAddrMap_[saTxios.first];
+      auto& keySet = data_->getTxioKeysForScrAddr_NoThrow(saTxios.first);
       for (auto& txioPair : saTxios.second)
       {
-         //add the txioKey to the affect scrAddr
+         //add the txioKey to the affected scrAddr
          keySet.emplace(txioPair.first);
 
-         //break down txioKey into txKey and outputId
-         BinaryRefReader keyReader(txioPair.first);
-         auto txKeyRef = keyReader.get_BinaryDataRef(6);
-         auto outputId = keyReader.get_uint16_t(BE);
-
-         //get the txio map for this txKey
-         auto& txiomap = txioMap_[txKeyRef];
-
-         //set the txio for this outputId, override existing data
-         txiomap[outputId] = txioPair.second;
+         //add to txio map
+         data_->txioMap_[txioPair.first] = txioPair.second;
       }
    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+shared_ptr<MempoolSnapshot> MempoolSnapshot::copy(
+   shared_ptr<MempoolSnapshot> ss, unsigned pool, unsigned threshold)
+{
+   auto ssCopy = make_shared<MempoolSnapshot>(pool, threshold);
+   if (ss != nullptr)
+      ssCopy->data_->copyFrom(*ss->data_);
+
+   return ssCopy;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+void MempoolSnapshot::commitNewZCs()
+{
+   //figure out depth and size of each mempool obj, merge if necessary
+   if (data_->empty())
+      return;
+
+   auto newData = make_shared<MempoolData>();
+   newData->parent_ = data_;
+
+   if (newData->getParentCount() > depth_)
+   {
+      auto toMerge = newData->parent_;
+
+      //find the first parent above the size threshold, use
+      //first parent otherwise
+      auto objPtr = toMerge;
+      while (objPtr != nullptr)
+      {
+         if (objPtr->txioMap_.size() > threshold_ && objPtr->parent_ != nullptr)
+         {
+            toMerge = objPtr;
+            break;
+         }
+
+         objPtr = objPtr->parent_;
+      }
+
+      //merge this data with its parent
+      if (toMerge != nullptr)
+      {
+         auto mergedData = MempoolData::mergeWithParent(toMerge);
+
+         //replace parent with the newly merged data
+         auto objPtr = newData;
+         while (objPtr != nullptr)
+         {
+            if (objPtr->parent_ == toMerge)
+            {
+               objPtr->parent_ = mergedData;
+               break;
+            }
+
+            objPtr = objPtr->parent_;
+         }
+      }
+   }
+
+   data_ = move(newData);
 }

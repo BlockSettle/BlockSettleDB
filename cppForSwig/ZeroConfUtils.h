@@ -166,9 +166,8 @@ void preprocessZcMap(
    LMDBBlockDatabase*);
 
 ////////////////////////////////////////////////////////////////////////////////
-class ZeroConfSharedStateSnapshot
+struct MempoolData
 {
-private:
    /*
    blockHeight:
       uint32_t
@@ -201,69 +200,101 @@ private:
       [zcKey/txKey | outputId (BE)] (8 bytes)
    */
 
+public:
+
+   //TODO: shouldn't use references for txHashes anymore
    std::map<BinaryDataRef, BinaryDataRef> txHashToDBKey_; //<txHash, zcKey>
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> txMap_; //<zcKey, zcTx>
-   std::set<BinaryData> txOutsSpentByZC_; //<txOutKey>
+   
+   //<txOutKey, bool> (true for valid, false for dropped)
+   std::map<BinaryData, bool> txOutsSpentByZC_;
 
    //<scrAddr, <txOutKey>>
    std::map<BinaryData, std::set<BinaryData>> scrAddrMap_;
 
-   //<zcKey/txKey, <outputId, txio>>
-   std::map<BinaryData, std::map<uint16_t, std::shared_ptr<TxIOPair>>> txioMap_;
+   //<zcKey/txKey, txio>>
+   std::map<BinaryData, std::shared_ptr<TxIOPair>> txioMap_;
+
+   std::shared_ptr<MempoolData> parent_;
+
+public:
+   bool empty(void) const;
+   unsigned getParentCount(void) const;
+
+   ////
+   std::set<BinaryData>* getTxioKeysFromParent(BinaryDataRef) const;
+   std::set<BinaryData>& getTxioKeysForScrAddr_NoThrow(BinaryDataRef);
+   const std::set<BinaryData>& getTxioKeysForScrAddr(BinaryDataRef) const;
+   std::shared_ptr<const TxIOPair> getTxio(BinaryDataRef) const;
+
+
+   void copyFrom(const MempoolData&);
+
+   std::shared_ptr<ParsedTx> getTx(BinaryDataRef) const;
+   BinaryDataRef getKeyForHash(BinaryDataRef) const;
+   bool isTxOutSpentByZC(BinaryDataRef) const;
+
+   ////
+   void dropFromSpentTxOuts(BinaryDataRef);
+   void dropFromScrAddrMap(BinaryDataRef, BinaryDataRef);
+   void dropTxHashToDBKey(BinaryDataRef);
+
+   void dropTxiosForZC(BinaryDataRef);
+   void dropTxioInputs(
+      BinaryDataRef zcKey,
+      const std::set<BinaryData>& spentFromTxoutKeys);
+
+   static std::shared_ptr<MempoolData> mergeWithParent(
+      std::shared_ptr<MempoolData>);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class MempoolSnapshot
+{
+private:
+   unsigned depth_;
+   unsigned threshold_;
+   std::shared_ptr<MempoolData> data_;
 
 private:
    std::shared_ptr<ParsedTx> getTxByKey_NoConst(BinaryDataRef) const;
-
    std::set<BinaryData> findChildren(BinaryDataRef);
-   void dropFromScrAddrMap(BinaryDataRef, BinaryDataRef);
 
 public:
-   static std::shared_ptr<ZeroConfSharedStateSnapshot> copy(
-      std::shared_ptr<ZeroConfSharedStateSnapshot> obj)
-   {
-      auto ss = std::make_shared<ZeroConfSharedStateSnapshot>();
-      if (obj != nullptr)
-      {
-         ss->txHashToDBKey_ = obj->txHashToDBKey_;
-         ss->txMap_ = obj->txMap_;
-         ss->txOutsSpentByZC_ = obj->txOutsSpentByZC_;
-         ss->txioMap_ = obj->txioMap_;
-         ss->scrAddrMap_ = obj->scrAddrMap_;
-      }
-
-      return ss;
-   }
+   MempoolSnapshot(unsigned, unsigned);
+   static std::shared_ptr<MempoolSnapshot> copy(
+      std::shared_ptr<MempoolSnapshot>,
+      unsigned, unsigned);
 
    const std::set<BinaryData>& getTxioKeysForScrAddr(BinaryDataRef) const;
    std::map<BinaryDataRef, std::shared_ptr<const TxIOPair>>
       getTxioMapForScrAddr(BinaryDataRef) const;
-   const std::map<uint16_t, std::shared_ptr<TxIOPair>>&
-      getTxioMapForKey(BinaryDataRef) const;
+   std::shared_ptr<const TxIOPair> getTxioByKey(BinaryDataRef) const;
 
    std::shared_ptr<const ParsedTx> getTxByKey(BinaryDataRef) const;
    std::shared_ptr<const ParsedTx> getTxByHash(BinaryDataRef) const;
    TxOut getTxOutCopy(BinaryDataRef, uint16_t) const;
-   std::shared_ptr<const TxIOPair> getTxioByKey(BinaryDataRef) const;
 
    BinaryDataRef getKeyForHash(BinaryDataRef) const;
    BinaryDataRef getHashForKey(BinaryDataRef) const;
+   bool hasHash(BinaryDataRef) const;
 
    uint32_t getTopZcID(void) const;
-   bool hasHash(BinaryDataRef) const;
    bool isTxOutSpentByZC(BinaryDataRef) const;
    bool empty(void) const;
 
    void preprocessZcMap(LMDBBlockDatabase*);
    std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> dropZc(BinaryDataRef);
 
-   void stageNewZc(std::shared_ptr<ParsedTx>, const FilteredZeroConfData&);
+   void stageNewZC(std::shared_ptr<ParsedTx>, const FilteredZeroConfData&);
+   void commitNewZCs(void);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 void finalizeParsedTxResolution(
    std::shared_ptr<ParsedTx>, 
    LMDBBlockDatabase*, const std::set<BinaryData>&,
-   std::shared_ptr<ZeroConfSharedStateSnapshot>);
+   std::shared_ptr<MempoolSnapshot>);
 
 ////
 class ZeroConfCallbacks;

@@ -160,7 +160,7 @@
 #include "BDVCodec.h"
 #include "ArmoryErrors.h"
 
-struct ZeroConfSharedStateSnapshot;
+class MempoolSnapshot;
 class LedgerEntry;
 class TxIOPair;
 struct ParsedZCData;
@@ -170,7 +170,7 @@ struct ZcPurgePacket
 {
    std::map<BinaryData, BinaryData> invalidatedZcKeys_;
    std::map<BinaryData, std::set<BinaryData>> scrAddrToTxioKeys_;
-   std::shared_ptr<ZeroConfSharedStateSnapshot> ssPtr_;
+   std::shared_ptr<MempoolSnapshot> ssPtr_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,7 +206,7 @@ struct ZcNotificationPacket
 
    //keep a reference to the snapshot so that other references live as long 
    //as this object
-   std::shared_ptr<ZeroConfSharedStateSnapshot> ssPtr_;
+   std::shared_ptr<MempoolSnapshot> ssPtr_;
 
 public:
    ZcNotificationPacket(const std::string& bdvID) :
@@ -226,7 +226,7 @@ public:
 
    virtual std::set<std::string> hasScrAddr(const BinaryDataRef&) const = 0;
    virtual void pushZcNotification(
-      std::shared_ptr<ZeroConfSharedStateSnapshot>,
+      std::shared_ptr<MempoolSnapshot>,
       std::shared_ptr<KeyAddrMap>,
       std::map<std::string, ParsedZCData>, //flaggedBDVs
       const std::string&, const std::string&, //requestor & bdvid
@@ -267,7 +267,7 @@ private:
 
    struct ZcNotifRequest_Success : public ZcNotifRequest
    {
-      std::shared_ptr<ZeroConfSharedStateSnapshot> ssPtr_;
+      std::shared_ptr<MempoolSnapshot> ssPtr_;
       std::shared_ptr<KeyAddrMap> newZcKeys_;
       std::map<std::string, ParsedZCData> flaggedBDVs_;
       std::map<BinaryData, std::shared_ptr<WatcherTxBody>> watcherMap_;
@@ -275,7 +275,7 @@ private:
       ////
       ZcNotifRequest_Success(      
          const std::string& requestorId, const std::string& bdvId,
-         std::shared_ptr<ZeroConfSharedStateSnapshot> ssPtr,
+         std::shared_ptr<MempoolSnapshot> ssPtr,
          std::shared_ptr<KeyAddrMap> newZcKeys,
          std::map<std::string, ParsedZCData> flaggedBDVs,
          std::map<BinaryData, std::shared_ptr<WatcherTxBody>>& watcherMap) :
@@ -322,7 +322,7 @@ public:
 
    //flagged bdvs, snapshot, requestorID|bdvID, watcherMap
    void pushZcNotification(
-      std::shared_ptr<ZeroConfSharedStateSnapshot>,
+      std::shared_ptr<MempoolSnapshot>,
       std::shared_ptr<KeyAddrMap>,
       std::map<std::string, ParsedZCData>,
       const std::string&, const std::string&,
