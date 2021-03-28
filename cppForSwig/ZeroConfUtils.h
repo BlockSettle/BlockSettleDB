@@ -162,7 +162,7 @@ struct FilteredZeroConfData
 ////////////////////////////////////////////////////////////////////////////////
 void preprocessTx(ParsedTx&, LMDBBlockDatabase*);
 void preprocessZcMap(
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>>&,
+   const std::map<BinaryData, std::shared_ptr<ParsedTx>>&,
    LMDBBlockDatabase*);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,7 +204,7 @@ public:
 
    //TODO: shouldn't use references for txHashes anymore
    std::map<BinaryDataRef, BinaryDataRef> txHashToDBKey_; //<txHash, zcKey>
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> txMap_; //<zcKey, zcTx>
+   std::map<BinaryData, std::shared_ptr<ParsedTx>> txMap_; //<zcKey, zcTx>
    
    //<txOutKey, bool> (true for valid, false for dropped)
    std::map<BinaryData, bool> txOutsSpentByZC_;
@@ -218,7 +218,6 @@ public:
    std::shared_ptr<MempoolData> parent_;
 
 public:
-   bool empty(void) const;
    unsigned getParentCount(void) const;
 
    ////
@@ -240,10 +239,10 @@ public:
    void dropTxHashToDBKey(BinaryDataRef);
 
    void dropTxiosForZC(BinaryDataRef);
-   void dropTxioInputs(
-      BinaryDataRef zcKey,
-      const std::set<BinaryData>& spentFromTxoutKeys);
+   void dropTxioInputs(BinaryDataRef, const std::set<BinaryData>&);
+   void dropTx(BinaryDataRef);
 
+   ////
    static std::shared_ptr<MempoolData> mergeWithParent(
       std::shared_ptr<MempoolData>);
 };
@@ -255,6 +254,10 @@ private:
    unsigned depth_;
    unsigned threshold_;
    std::shared_ptr<MempoolData> data_;
+   unsigned topID_ = 0;
+
+   //for unit tests
+   unsigned mergeCount_ = 0;
 
 private:
    std::shared_ptr<ParsedTx> getTxByKey_NoConst(BinaryDataRef) const;
@@ -281,13 +284,14 @@ public:
 
    uint32_t getTopZcID(void) const;
    bool isTxOutSpentByZC(BinaryDataRef) const;
-   bool empty(void) const;
 
    void preprocessZcMap(LMDBBlockDatabase*);
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> dropZc(BinaryDataRef);
+   std::map<BinaryData, std::shared_ptr<ParsedTx>> dropZc(BinaryDataRef);
 
    void stageNewZC(std::shared_ptr<ParsedTx>, const FilteredZeroConfData&);
    void commitNewZCs(void);
+
+   unsigned getMergeCount(void) const { return mergeCount_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

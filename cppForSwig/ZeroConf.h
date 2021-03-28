@@ -29,8 +29,14 @@
 #include "ZeroConfNotifications.h"
 
 #define GETZC_THREADCOUNT 5
-#define MEMPOOL_DEPTH         4
-#define POOL_MERGE_THRESHOLD  10000
+
+#ifdef UNIT_TESTS
+   #define MEMPOOL_DEPTH         1
+   #define POOL_MERGE_THRESHOLD  10
+#else
+   #define MEMPOOL_DEPTH         4
+   #define POOL_MERGE_THRESHOLD  10000
+#endif
 
 #define ZC_BUFFER_LIFETIME_SEC 1
 #ifndef UNIT_TESTS
@@ -80,7 +86,7 @@ struct ZcBatchError
 struct ZeroConfBatch
 {
    //<zcKey ref, ParsedTx>, ParsedTx carries the key object
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> zcMap_;
+   std::map<BinaryData, std::shared_ptr<ParsedTx>> zcMap_;
    
    //<txHash ref, zcKey ref>, ParsedTx carries both hash and key objects
    std::map<BinaryDataRef, BinaryDataRef> hashToKeyMap_;
@@ -271,7 +277,7 @@ private:
    std::unique_ptr<std::promise<bool>> completed_;
 
 public:
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> zcToWrite_;
+   std::map<BinaryData, std::shared_ptr<ParsedTx>> zcToWrite_;
    std::set<BinaryData> txHashes_;
    std::set<BinaryData> keysToDelete_;
    std::set<BinaryData> txHashesToDelete_;
@@ -284,7 +290,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 struct BatchTxMap
 {
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> txMap_;
+   std::map<BinaryData, std::shared_ptr<ParsedTx>> txMap_;
    std::map<BinaryData, std::shared_ptr<WatcherTxBody>> watcherMap_;
    
    //<request id, bdv id>
@@ -419,6 +425,8 @@ private:
    std::map<BinaryData, std::shared_ptr<WatcherTxBody>> watcherMap_;
    ArmoryMutex watcherMapMutex_;
 
+   unsigned mergeCount_ = 0;
+
 private:
    FilteredZeroConfData filterTransaction(
       std::shared_ptr<ParsedTx>,
@@ -428,10 +436,10 @@ private:
    unsigned loadZeroConfMempool(bool);
    void reset(void);
 
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> purge(
+   std::map<BinaryData, std::shared_ptr<ParsedTx>> purge(
       const Blockchain::ReorganizationState&,
       std::shared_ptr<MempoolSnapshot>);
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> purgeToBranchpoint(
+   std::map<BinaryData, std::shared_ptr<ParsedTx>> purgeToBranchpoint(
       const Blockchain::ReorganizationState&, 
       std::shared_ptr<MempoolSnapshot>);
 
@@ -444,14 +452,14 @@ private:
    void pushZcPacketThroughP2P(ZcBroadcastPacket&);
    void pushZcPreprocessVec(std::shared_ptr<RequestZcPacket>);
 
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> dropZC(
+   std::map<BinaryData, std::shared_ptr<ParsedTx>> dropZC(
       std::shared_ptr<MempoolSnapshot>, const BinaryDataRef&);
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> dropZCs(
+   std::map<BinaryData, std::shared_ptr<ParsedTx>> dropZCs(
       std::shared_ptr<MempoolSnapshot>, const std::set<BinaryData>&);
 
    void parseNewZC(ZcActionStruct);
    void parseNewZC(
-      std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> zcMap,
+      std::map<BinaryData, std::shared_ptr<ParsedTx>> zcMap,
       std::shared_ptr<MempoolSnapshot>,
       bool updateDB, bool notify,
       const std::pair<std::string, std::string>&,
@@ -459,7 +467,7 @@ private:
    void finalizePurgePacket(
       ZcActionStruct,
       std::shared_ptr<MempoolSnapshot>) const;
-   std::map<BinaryDataRef, std::shared_ptr<ParsedTx>> checkForCollisions(
+   std::map<BinaryData, std::shared_ptr<ParsedTx>> checkForCollisions(
       const std::map<BinaryDataRef, std::map<unsigned, BinaryDataRef>>&,
       std::shared_ptr<MempoolSnapshot>);
 
@@ -522,6 +530,9 @@ public:
    std::vector<UTXO> getZcUTXOsForKey(const std::set<BinaryData>&) const;
 
    std::shared_ptr<MempoolSnapshot> getSnapshot(void) const;
+
+   //for unit tests
+   unsigned getMergeCount(void) const;
 };
 
 #endif

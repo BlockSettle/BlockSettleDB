@@ -102,7 +102,7 @@ private:
 
    void createTx0(void)
    {
-      zcKeys_.push_back(READHEX("FFFF00000000"));
+      zcKeys_.push_back(READHEX("FFFF00000001"));
       zcHashes_.push_back(READHEX(
          "000102030405060708090A0B0C0D0E0FF0F1F2F3F4F5F6F7F8F9FAFBFCFDFEFF"));
 
@@ -154,7 +154,7 @@ private:
 
    void createTx1(void)
    {
-      zcKeys_.push_back(READHEX("FFFF00000001"));
+      zcKeys_.push_back(READHEX("FFFF00000002"));
       zcHashes_.push_back(READHEX(
          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBB"));
 
@@ -207,7 +207,7 @@ private:
    void createTx2(void)
    {
       //child of tx0 & tx1 (txouts 0 & 2)
-      zcKeys_.push_back(READHEX("FFFF00000002"));
+      zcKeys_.push_back(READHEX("FFFF00000003"));
       zcHashes_.push_back(READHEX(
          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCCCCCCAAAAAAAAAAAAAAAAAABBBBB"));
 
@@ -258,7 +258,7 @@ private:
    void createTx3(void)
    {
       //child of tx1 (txout 3)
-      zcKeys_.push_back(READHEX("FFFF00000003"));
+      zcKeys_.push_back(READHEX("FFFF00000004"));
       zcHashes_.push_back(READHEX(
          "AAAAAAAAAAAAAAAAAAAAAAAAAAFFFFFFFFFCCCCCCCAAAAAAAAAAAAAAAAABBBBB"));
 
@@ -295,7 +295,7 @@ private:
    void createTx4(void)
    {
       //child of tx2 (txout 4)
-      zcKeys_.push_back(READHEX("FFFF00000004"));
+      zcKeys_.push_back(READHEX("FFFF00000005"));
       zcHashes_.push_back(READHEX(
          "AAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBB3CCCCCCCAAAAAAAAAAAAAAAAABBBBB"));
 
@@ -413,6 +413,9 @@ protected:
       auto zckey = snapshot.getKeyForHash(zcHashes_[txid]);
       METHOD_ASSERT_EQ(zckey, zcKeys_[txid]);
 
+      auto zcPtr = snapshot.getTxByKey(zckey);
+      EXPECT_NE(zcPtr, nullptr);
+
       //inputs
       for (unsigned i=0; i<txData.txIns_.size(); i++)
       try
@@ -503,6 +506,9 @@ protected:
 
       auto zckey = snapshot.getKeyForHash(zcHashes_[txid]);
       EXPECT_TRUE(zckey.empty());
+
+      auto zcPtr = snapshot.getTxByKey(zcKeys_[txid]);
+      METHOD_ASSERT_EQ(zcPtr, nullptr);
 
       //inputs
       for (unsigned i=0; i<txData.txIns_.size(); i++)
@@ -648,12 +654,13 @@ protected:
    ZeroConfCallbacks_Tests zcCallbacks_;
 };
 
-//TODO: check top zc id
+//TODO: copy snapshot, force merge, check it matches original
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, Stage)
 {
    MempoolSnapshot snapshot(1, 2);
+   EXPECT_EQ(snapshot.getTopZcID(), 0);
 
    //filter the tx
    auto filterResult = filterParsedTx(
@@ -664,12 +671,14 @@ TEST_F(ZeroConfTests_Mempool, Stage)
 
    //check it was added
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+   EXPECT_EQ(snapshot.getTopZcID(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, Commit)
 {
    MempoolSnapshot snapshot(2, 4);
+   EXPECT_EQ(snapshot.getTopZcID(), 0);
 
    //filter the tx
    auto filterResult = filterParsedTx(
@@ -686,12 +695,14 @@ TEST_F(ZeroConfTests_Mempool, Commit)
 
    //check the tx is still in there
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));   
+   EXPECT_EQ(snapshot.getTopZcID(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, Drop)
 {
    MempoolSnapshot snapshot(2, 4);
+   EXPECT_EQ(snapshot.getTopZcID(), 0);
 
    //filter the tx
    auto filterResult = filterParsedTx(
@@ -702,6 +713,7 @@ TEST_F(ZeroConfTests_Mempool, Drop)
 
    //check it was added
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+   EXPECT_EQ(snapshot.getTopZcID(), 1);
 
    //drop the tx
    auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
@@ -710,12 +722,14 @@ TEST_F(ZeroConfTests_Mempool, Drop)
 
    //check it was dropped from the snapshot
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
+   EXPECT_EQ(snapshot.getTopZcID(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, CommitAndDrop)
 {
    MempoolSnapshot snapshot(2, 4);
+   EXPECT_EQ(snapshot.getTopZcID(), 0);
 
    //filter the tx
    auto filterResult = filterParsedTx(
@@ -726,6 +740,7 @@ TEST_F(ZeroConfTests_Mempool, CommitAndDrop)
 
    //check it was added
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+   EXPECT_EQ(snapshot.getTopZcID(), 1);
 
    //commit and check again
    snapshot.commitNewZCs();
@@ -742,12 +757,14 @@ TEST_F(ZeroConfTests_Mempool, CommitAndDrop)
    //commit and check
    snapshot.commitNewZCs();
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
+   EXPECT_EQ(snapshot.getTopZcID(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, Stage2_Drop1)
 {
    MempoolSnapshot snapshot(2, 4);
+   EXPECT_EQ(snapshot.getTopZcID(), 0);
 
    {
       //add tx0
@@ -763,6 +780,7 @@ TEST_F(ZeroConfTests_Mempool, Stage2_Drop1)
 
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
    EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+   EXPECT_EQ(snapshot.getTopZcID(), 2);
 
    //drop tx0
    auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
@@ -772,12 +790,23 @@ TEST_F(ZeroConfTests_Mempool, Stage2_Drop1)
    //check it was dropped from the snapshot
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
    EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+   EXPECT_EQ(snapshot.getTopZcID(), 2);
+
+   //drop tx1
+   droppedZCs = snapshot.dropZc(zcKeys_[1]);
+   ASSERT_EQ(droppedZCs.size(), 1);
+   EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[1]);
+
+   EXPECT_TRUE(checkIsDropped(snapshot, 0));
+   EXPECT_TRUE(checkIsDropped(snapshot, 1));
+   EXPECT_EQ(snapshot.getTopZcID(), 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, Stage2_Commit_Drop1)
 {
    MempoolSnapshot snapshot(1, 2);
+   EXPECT_EQ(snapshot.getTopZcID(), 0);
 
    {
       //add tx0
@@ -788,6 +817,7 @@ TEST_F(ZeroConfTests_Mempool, Stage2_Commit_Drop1)
    }
 
    snapshot.commitNewZCs();
+   EXPECT_EQ(snapshot.getTopZcID(), 1);
 
    {
       //add tx1
@@ -799,6 +829,7 @@ TEST_F(ZeroConfTests_Mempool, Stage2_Commit_Drop1)
    }
 
    snapshot.commitNewZCs();
+   EXPECT_EQ(snapshot.getTopZcID(), 2);
 
    //drop tx0
    auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
@@ -808,12 +839,26 @@ TEST_F(ZeroConfTests_Mempool, Stage2_Commit_Drop1)
    //check it was dropped from the snapshot
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
    EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+   EXPECT_EQ(snapshot.getTopZcID(), 2);
 
    snapshot.commitNewZCs();
 
    //check it is still dropped from the snapshot
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
    EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
+   EXPECT_EQ(snapshot.getTopZcID(), 2);
+
+   //drop last tx
+   droppedZCs = snapshot.dropZc(zcKeys_[1]);
+   ASSERT_EQ(droppedZCs.size(), 1);
+   EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[1]);
+
+   EXPECT_TRUE(checkIsDropped(snapshot, 0));
+   EXPECT_TRUE(checkIsDropped(snapshot, 1));
+   EXPECT_EQ(snapshot.getTopZcID(), 2);
+
+   snapshot.commitNewZCs();
+   EXPECT_EQ(snapshot.getTopZcID(), 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1628,6 +1673,7 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZC_Plus3_TestLedgers)
    EXPECT_EQ(zcStx.numBytes_ , TestChain::zcTxSize);
    EXPECT_EQ(zcStx.fragBytes_, 190);
    EXPECT_EQ(zcStx.numTxOut_, 2);
+   ASSERT_FALSE(zcStx.stxoMap_.empty());
    EXPECT_EQ(zcStx.stxoMap_.begin()->second.getValue(), 10 * COIN);
 
    //check ZChash in DB
@@ -1743,6 +1789,8 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZC_Plus3_TestLedgers)
 
    EXPECT_EQ(iface_->getStoredZcTx(zcStx4, zcKey), false);
    dbtx.reset();
+
+   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1930,6 +1978,8 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZCchain)
    EXPECT_EQ(le.getValue(), 30 * COIN);
    EXPECT_EQ(le.getBlockNum(), 5);
    EXPECT_FALSE(le.isChainedZC());
+
+   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -5114,6 +5164,8 @@ TEST_F(ZeroConfTests_Supernode, ZC_MineAfter1Block)
 
    EXPECT_EQ(zc1.getTxHeight(), 6);
    EXPECT_EQ(zc2.getTxHeight(), 7);
+
+   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1);
 }
 
 
@@ -7534,9 +7586,10 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RBFLowFee)
    WebSocketServer::waitOnShutdown();
 
    EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1);
 
    delete theBDMt_;
-   theBDMt_ = nullptr;   
+   theBDMt_ = nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12533,6 +12586,11 @@ GTEST_API_ int main(int argc, char **argv)
    WORD wVersion = MAKEWORD(2, 0);
    WSAStartup(wVersion, &wsaData);
 #endif
+
+   cout << "Running with following parameters:" << endl;
+   cout << "   MEMPOOL_DEPTH: " << MEMPOOL_DEPTH << endl;
+   cout << "   POOL_MERGE_THRESHOLD: " << POOL_MERGE_THRESHOLD << endl;
+   cout << "   COINBASE_MATURITY: " << COINBASE_MATURITY << endl;
 
    btc_ecc_start();
 

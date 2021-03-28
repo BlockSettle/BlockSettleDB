@@ -133,7 +133,7 @@ bool ZeroConfContainer::hasTxByHash(const BinaryData& txHash) const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purgeToBranchpoint(
+map<BinaryData, shared_ptr<ParsedTx>> ZeroConfContainer::purgeToBranchpoint(
    const Blockchain::ReorganizationState& reorgState, 
    shared_ptr<MempoolSnapshot> ss)
 {
@@ -195,7 +195,7 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purgeToBranchpoint(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purge(
+map<BinaryData, shared_ptr<ParsedTx>> ZeroConfContainer::purge(
    const Blockchain::ReorganizationState& reorgState,
    shared_ptr<MempoolSnapshot> ss)
 {
@@ -208,23 +208,23 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purge(
         are in conflict with the new blocks)
 
       - evict all the descendants of mined and invalidated ZCs
-      - in descendants, resets all resolved spenders.
+      - for descendants, reset all resolved spenders.
       - return any descendant that wasn't invalidated (for reparsing and 
         potential reentry in the mempool)
 
-    * reorgs are first handled with purgeToBranchpoint
+    * reorgs are first handled in purgeToBranchpoint
    */
 
-   map<BinaryDataRef, shared_ptr<ParsedTx>> txsToReparse;
+   map<BinaryData, shared_ptr<ParsedTx>> txsToReparse;
 
-   if (db_ == nullptr || ss->empty())
+   if (db_ == nullptr || outPointsSpentByKey_.empty())
       return {};
 
    set<BinaryData> keysToDelete;
 
    //purge zc map per block
    auto resolveInvalidatedZCs =
-      [ss, &keysToDelete, &reorgState, this](
+      [&keysToDelete, &reorgState, this](
          map<BinaryDataRef, set<unsigned>>& spentOutpoints)->void
    {
       //find zc spender for these spent outpoints
@@ -247,9 +247,7 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::purge(
 
    //handle reorgs
    if (!reorgState.prevTopStillValid_)
-   {
       txsToReparse = move(purgeToBranchpoint(reorgState, ss));
-   }
 
    //get all txhashes for the new blocks
    ZcUpdateBatch batch;
@@ -327,7 +325,7 @@ void ZeroConfContainer::reset()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZC(
+map<BinaryData, shared_ptr<ParsedTx>> ZeroConfContainer::dropZC(
    shared_ptr<MempoolSnapshot> ss, const BinaryDataRef& key)
 {
    /*
@@ -373,13 +371,13 @@ map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZC(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::dropZCs(
+map<BinaryData, shared_ptr<ParsedTx>> ZeroConfContainer::dropZCs(
    shared_ptr<MempoolSnapshot> ss, const set<BinaryData>& zcKeys)
 {
    if (zcKeys.size() == 0)
       return {};
 
-   map<BinaryDataRef, shared_ptr<ParsedTx>> droppedZCs;
+   map<BinaryData, shared_ptr<ParsedTx>> droppedZCs;
 
    auto rIter = zcKeys.rbegin();
    while (rIter != zcKeys.rend())
@@ -465,7 +463,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
    auto ss = MempoolSnapshot::copy(
       snapshot_, MEMPOOL_DEPTH, POOL_MERGE_THRESHOLD);
 
-   map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap;
+   map<BinaryData, shared_ptr<ParsedTx>> zcMap;
    map<BinaryData, shared_ptr<WatcherTxBody>> watcherMap;
    pair<string, string> requestor;
 
@@ -477,7 +475,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
       auto result = purge(zcAction.reorgState_, ss);
       notify = false;
 
-      //ss->commitNewZCs();
+      ss->commitNewZCs();
 
       //setup batch with all tracked zc
       if (zcAction.batch_ == nullptr)
@@ -520,7 +518,7 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
 
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfContainer::parseNewZC(
-   map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap,
+   map<BinaryData, shared_ptr<ParsedTx>> zcMap,
    shared_ptr<MempoolSnapshot> ss,
    bool updateDB, bool notify,
    const pair<string, string>& requestor,
@@ -563,7 +561,7 @@ void ZeroConfContainer::parseNewZC(
 
    bool hasChanges = false;
    map<string, ParsedZCData> flaggedBDVs;
-   map<BinaryDataRef, shared_ptr<ParsedTx>> invalidatedTx;
+   map<BinaryData, shared_ptr<ParsedTx>> invalidatedTx;
 
    //zc logic
    set<BinaryDataRef> addedZcKeys;
@@ -721,11 +719,11 @@ FilteredZeroConfData ZeroConfContainer::filterTransaction(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-map<BinaryDataRef, shared_ptr<ParsedTx>> ZeroConfContainer::checkForCollisions(
+map<BinaryData, shared_ptr<ParsedTx>> ZeroConfContainer::checkForCollisions(
    const map<BinaryDataRef, map<unsigned, BinaryDataRef>>& spentOutpoints,
    shared_ptr<MempoolSnapshot> ss)
 {
-   map<BinaryDataRef, shared_ptr<ParsedTx>> invalidatedZCs;
+   map<BinaryData, shared_ptr<ParsedTx>> invalidatedZCs;
 
    //loop through outpoints
    for (auto& idSet : spentOutpoints)
@@ -962,7 +960,7 @@ void ZeroConfContainer::updateZCinDB()
 unsigned ZeroConfContainer::loadZeroConfMempool(bool clearMempool)
 {
    unsigned topId = 0;
-   map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap;
+   map<BinaryData, shared_ptr<ParsedTx>> zcMap;
 
    {
       auto&& tx = db_->beginTransaction(ZERO_CONF, LMDB::ReadOnly);
@@ -1773,6 +1771,16 @@ unsigned ZeroConfContainer::getMatcherMapSize(void) const
    return actionQueue_->getMatcherMapSize(); 
 }
 
+///////////////////////////////////////////////////////////////////////////////
+unsigned ZeroConfContainer::getMergeCount(void) const
+{
+   auto ss = getSnapshot();
+   if (ss == nullptr)
+      return 0;
+
+   return ss->getMergeCount();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// ZcActionQueue
@@ -1867,7 +1875,7 @@ void ZcActionQueue::processNewZcQueue()
    while (1)
    {
       ZcActionStruct zcAction;
-      map<BinaryDataRef, shared_ptr<ParsedTx>> zcMap;
+      map<BinaryData, shared_ptr<ParsedTx>> zcMap;
       try
       {
          zcAction = move(newZcQueue_.pop_front());

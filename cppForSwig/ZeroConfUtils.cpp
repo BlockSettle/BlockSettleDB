@@ -139,7 +139,7 @@ void preprocessTx(ParsedTx& tx, LMDBBlockDatabase* db)
 
 ///////////////////////////////////////////////////////////////////////////////
 void preprocessZcMap(
-   map<BinaryDataRef, shared_ptr<ParsedTx>>& zcMap,
+   const map<BinaryData, shared_ptr<ParsedTx>>& zcMap,
    LMDBBlockDatabase* db)
 {
    //run threads to preprocess the zcMap
@@ -148,7 +148,8 @@ void preprocessZcMap(
 
    vector<shared_ptr<ParsedTx>> txVec;
    txVec.reserve(zcMap.size());
-   for (auto& txPair : zcMap)
+
+   for (const auto& txPair : zcMap)
       txVec.push_back(txPair.second);
 
    auto parserLdb = [db, &txVec, counter](void)->void
@@ -609,12 +610,6 @@ scrAddrMap_ is handled differently.
 ***/
 
 ///////////////////////////////////////////////////////////////////////////////
-bool MempoolData::empty() const
-{
-   return txioMap_.empty() && scrAddrMap_.empty() && scrAddrMap_.empty();
-}
-
-///////////////////////////////////////////////////////////////////////////////
 unsigned MempoolData::getParentCount() const
 {
    auto parentPtr = parent_;
@@ -891,6 +886,33 @@ void MempoolData::dropTxioInputs(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+void MempoolData::dropTx(BinaryDataRef key)
+{
+   bool inParents = false;
+   if (parent_ != nullptr)
+   {
+      auto txPtr = parent_->getTx(key);
+      if (txPtr != nullptr)
+         inParents = true;
+   }
+
+   if (!inParents)
+   {
+      txMap_.erase(key);
+      return;
+   }
+
+   auto iter = txMap_.find(key);
+   if (iter == txMap_.end())
+   {
+      auto insertIter = txMap_.emplace(key, nullptr);
+      iter = insertIter.first;
+   }
+
+   iter->second = nullptr;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 shared_ptr<MempoolData> MempoolData::mergeWithParent(
    shared_ptr<MempoolData> ptr)
 {
@@ -1072,16 +1094,7 @@ BinaryDataRef MempoolSnapshot::getHashForKey(
 ///////////////////////////////////////////////////////////////////////////////
 uint32_t MempoolSnapshot::getTopZcID(void) const
 {
-   uint32_t topID = 0;
-   auto rIter = data_->txMap_.rbegin();
-   if (rIter != data_->txMap_.rend())
-   {
-      BinaryRefReader brr(rIter->first);
-      brr.advance(2);
-      topID = brr.get_uint32_t(BE);
-   }
-
-   return topID;
+   return topID_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1094,12 +1107,6 @@ bool MempoolSnapshot::hasHash(BinaryDataRef hash) const
 bool MempoolSnapshot::isTxOutSpentByZC(BinaryDataRef key) const
 {
    return data_->isTxOutSpentByZC(key);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-bool MempoolSnapshot::empty(void) const
-{
-   return data_->txMap_.empty();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1171,7 +1178,7 @@ set<BinaryData> MempoolSnapshot::findChildren(BinaryDataRef zcKey)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-map<BinaryDataRef, std::shared_ptr<ParsedTx>> MempoolSnapshot::dropZc(
+map<BinaryData, std::shared_ptr<ParsedTx>> MempoolSnapshot::dropZc(
    BinaryDataRef zcKey)
 {
    auto txPtr = getTxByKey_NoConst(zcKey);
@@ -1179,7 +1186,7 @@ map<BinaryDataRef, std::shared_ptr<ParsedTx>> MempoolSnapshot::dropZc(
       return {};
 
    std::set<BinaryData> spentFromTxoutKeys;
-   map<BinaryDataRef, shared_ptr<ParsedTx>> droppedZc;
+   map<BinaryData, shared_ptr<ParsedTx>> droppedZc;
 
    //drop from spent set
    for (auto& input : txPtr->inputs_)
@@ -1237,7 +1244,7 @@ map<BinaryDataRef, std::shared_ptr<ParsedTx>> MempoolSnapshot::dropZc(
    data_->dropTxHashToDBKey(txPtr->getTxHash().getRef());
 
    //delete tx
-   data_->txMap_.erase(zcKey);
+   data_->dropTx(zcKey);
 
    //save this tx as dropped from the mempool and return
    droppedZc.emplace(txPtr->getKeyRef(), txPtr);
@@ -1272,6 +1279,12 @@ void MempoolSnapshot::stageNewZC(
          data_->txioMap_[txioPair.first] = txioPair.second;
       }
    }
+
+   BinaryReader brrKey(dbKey);
+   brrKey.advance(2);
+   auto zcId = brrKey.get_uint32_t(BE);
+   if (zcId > topID_)
+      topID_ = zcId;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1280,7 +1293,11 @@ shared_ptr<MempoolSnapshot> MempoolSnapshot::copy(
 {
    auto ssCopy = make_shared<MempoolSnapshot>(pool, threshold);
    if (ss != nullptr)
+   {
+      ssCopy->topID_ = ss->topID_;
+      ssCopy->mergeCount_ = ss->mergeCount_;
       ssCopy->data_->copyFrom(*ss->data_);
+   }
 
    return ssCopy;
 }
@@ -1289,8 +1306,12 @@ shared_ptr<MempoolSnapshot> MempoolSnapshot::copy(
 void MempoolSnapshot::commitNewZCs()
 {
    //figure out depth and size of each mempool obj, merge if necessary
-   if (data_->empty())
+   if (data_->txioMap_.empty() &&
+      data_->scrAddrMap_.empty() &&
+      data_->txioMap_.empty())
+   {
       return;
+   }
 
    auto newData = make_shared<MempoolData>();
    newData->parent_ = data_;
@@ -1330,6 +1351,8 @@ void MempoolSnapshot::commitNewZCs()
 
             objPtr = objPtr->parent_;
          }
+
+         ++mergeCount_;
       }
    }
 
