@@ -224,7 +224,7 @@ protected:
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
          "--public",
-         "--db-type=DB_BARE",
+         "--db-type=DB_FULL",
          "--thread-count=3",
          "--public"
       });
