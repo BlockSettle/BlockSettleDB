@@ -54,7 +54,7 @@ protected:
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
          "--public",
-         "--db-type=DB_BARE",
+         "--db-type=DB_FULL",
          "--thread-count=3",
          "--public"
       });
@@ -395,7 +395,7 @@ TEST_F(BlockDir, BlockFileSplitUpdate)
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-class BlockUtilsBare : public ::testing::Test
+class BlockUtilsFull : public ::testing::Test
 {
 protected:
    BlockDataManagerThread *theBDMt_;
@@ -410,7 +410,7 @@ protected:
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
          "--public",
-         "--db-type=DB_BARE",
+         "--db-type=DB_FULL",
          "--thread-count=3",
          "--public"
       });
@@ -503,7 +503,7 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load5Blocks)
+TEST_F(BlockUtilsFull, Load5Blocks)
 {
    theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
@@ -578,7 +578,7 @@ TEST_F(BlockUtilsBare, Load5Blocks)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load5Blocks_DamagedBlkFile)
+TEST_F(BlockUtilsFull, Load5Blocks_DamagedBlkFile)
 {
    // this test should be reworked to be in terms of createTestChain.py
    BtcUtils::copyFile("../reorgTest/botched_block.dat", blk0dat_);
@@ -615,7 +615,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_DamagedBlkFile)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load4Blocks_Plus2)
+TEST_F(BlockUtilsFull, Load4Blocks_Plus2)
 {
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
@@ -724,7 +724,7 @@ TEST_F(BlockUtilsBare, Load4Blocks_Plus2)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load5Blocks_FullReorg)
+TEST_F(BlockUtilsFull, Load5Blocks_FullReorg)
 {
    theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
@@ -805,7 +805,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_FullReorg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load5Blocks_DoubleReorg)
+TEST_F(BlockUtilsFull, Load5Blocks_DoubleReorg)
 {
    TestUtils::setBlocks({ "0", "1", "2", "3", "4A" }, blk0dat_);
    
@@ -920,7 +920,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_DoubleReorg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load5Blocks_ReloadBDM_Reorg)
+TEST_F(BlockUtilsFull, Load5Blocks_ReloadBDM_Reorg)
 {
    theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
@@ -1026,7 +1026,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_ReloadBDM_Reorg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, CorruptedBlock)
+TEST_F(BlockUtilsFull, CorruptedBlock)
 {
    TestUtils::setBlocks({ "0", "1", "2", "3", "4" }, blk0dat_);
 
@@ -1093,7 +1093,7 @@ TEST_F(BlockUtilsBare, CorruptedBlock)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load5Blocks_RescanOps)
+TEST_F(BlockUtilsFull, Load5Blocks_RescanOps)
 {
    shared_ptr<BtcWallet> wlt;
    shared_ptr<BtcWallet> wltLB1;
@@ -1215,7 +1215,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_RescanOps)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load5Blocks_RescanEmptyDB)
+TEST_F(BlockUtilsFull, Load5Blocks_RescanEmptyDB)
 {
    shared_ptr<BtcWallet> wlt;
    shared_ptr<BtcWallet> wltLB1;
@@ -1292,7 +1292,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_RescanEmptyDB)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load5Blocks_RebuildEmptyDB)
+TEST_F(BlockUtilsFull, Load5Blocks_RebuildEmptyDB)
 {
    shared_ptr<BtcWallet> wlt;
    shared_ptr<BtcWallet> wltLB1;
@@ -1369,7 +1369,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_RebuildEmptyDB)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load5Blocks_SideScan)
+TEST_F(BlockUtilsFull, Load5Blocks_SideScan)
 {
    theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
@@ -1453,7 +1453,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_SideScan)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load5Blocks_GetUtxos)
+TEST_F(BlockUtilsFull, Load5Blocks_GetUtxos)
 {
    theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
@@ -1531,7 +1531,7 @@ TEST_F(BlockUtilsBare, Load5Blocks_GetUtxos)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsBare, Load5Blocks_CheckWalletFilters)
+TEST_F(BlockUtilsFull, Load5Blocks_CheckWalletFilters)
 {
    theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
@@ -1687,7 +1687,7 @@ protected:
          "--datadir=./fakehomedir",
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
-         "--db-type=DB_BARE",
+         "--db-type=DB_FULL",
          "--thread-count=3",
          "--public"
       });
@@ -2322,7 +2322,7 @@ protected:
          "--datadir=./fakehomedir",
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
-         "--db-type=DB_BARE",
+         "--db-type=DB_FULL",
          "--thread-count=3",
       });
 
