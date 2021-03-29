@@ -31,27 +31,27 @@ using namespace ArmoryConfig;
 #define DEFAULT_DBDIR_SUFFIX "/databases"
 
 #if defined(_WIN32)
-#define MAINNET_DEFAULT_DATADIR "~/Armory"
-#define TESTNET_DEFAULT_DATADIR "~/Armory/testnet3"
-#define REGTEST_DEFAULT_DATADIR "~/Armory/regtest"
+#define MAINNET_DEFAULT_DATADIR "~/blocksettledb"
+#define TESTNET_DEFAULT_DATADIR "~/blocksettledb/testnet3"
+#define REGTEST_DEFAULT_DATADIR "~/blocksettledb/regtest"
 
 #define MAINNET_DEFAULT_BLOCKPATH "~/Bitcoin/blocks"
 #define TESTNET_DEFAULT_BLOCKPATH "~/Bitcoin/testnet3/blocks"
 #define REGTEST_DEFAULT_BLOCKPATH "~/Bitcoin/regtest/blocks"
 
 #elif defined(__APPLE__)
-#define MAINNET_DEFAULT_DATADIR "~/Library/Application Support/Armory"
-#define TESTNET_DEFAULT_DATADIR "~/Library/Application Support/Armory/testnet3"
-#define REGTEST_DEFAULT_DATADIR "~/Library/Application Support/Armory/regtest"
+#define MAINNET_DEFAULT_DATADIR "~/Library/Application Support/blocksettledb"
+#define TESTNET_DEFAULT_DATADIR "~/Library/Application Support/blocksettledb/testnet3"
+#define REGTEST_DEFAULT_DATADIR "~/Library/Application Support/blocksettledb/regtest"
 
 #define MAINNET_DEFAULT_BLOCKPATH "~/Library/Application Support/Bitcoin/blocks"
 #define TESTNET_DEFAULT_BLOCKPATH "~/Library/Application Support/Bitcoin/testnet3/blocks"
 #define REGTEST_DEFAULT_BLOCKPATH "~/Library/Application Support/Bitcoin/regtest/blocks"
 
 #else
-#define MAINNET_DEFAULT_DATADIR "~/.armory"
-#define TESTNET_DEFAULT_DATADIR "~/.armory/testnet3"
-#define REGTEST_DEFAULT_DATADIR "~/.armory/regtest"
+#define MAINNET_DEFAULT_DATADIR "~/.blocksettledb"
+#define TESTNET_DEFAULT_DATADIR "~/.blocksettledb/testnet3"
+#define REGTEST_DEFAULT_DATADIR "~/.blocksettledb/regtest"
 
 #define MAINNET_DEFAULT_BLOCKPATH "~/.bitcoin/blocks"
 #define TESTNET_DEFAULT_BLOCKPATH "~/.bitcoin/testnet3/blocks"
