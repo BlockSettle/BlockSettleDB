@@ -16,6 +16,7 @@ namespace {
 
 string networkModeStr()
 {
+   return "fixme";
    throw std::logic_error("not implemented");
 #if 0
    switch (NetworkConfig::getMode()) {
