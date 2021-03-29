@@ -37,9 +37,7 @@ int main(int argc, char* argv[])
 
    ArmoryConfig::parseArgs(argc, argv);
    
-      LOGENABLESTDOUT();
-   else
-      LOGDISABLESTDOUT();
+   LOGENABLESTDOUT();
 
    LOGINFO << "Running on " << DBSettings::threadCount() << " threads";
    LOGINFO << "Ram usage level: " << DBSettings::ramUsage();
@@ -68,7 +66,7 @@ int main(int argc, char* argv[])
       //peers db is unlocked if --encrypt-wallet is passed
       PassphraseLambda passLbd;
 
-      if (bdmConfig.encryptWallet_)
+      if (false)
       {
          passLbd = TerminalPassphrasePrompt::getLambda("peers db");
       }

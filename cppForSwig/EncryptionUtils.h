@@ -53,6 +53,8 @@
 #ifndef _ENCRYPTION_UTILS_
 #define _ENCRYPTION_UTILS_
 
+#define LIBBTC_ONLY
+
 #include <iostream>
 #include <vector>
 #include <set>

@@ -16,6 +16,8 @@ namespace {
 
 string networkModeStr()
 {
+   throw std::logic_error("not implemented");
+#if 0
    switch (NetworkConfig::getMode()) {
       case NETWORK_MODE_MAINNET:
          return "mainnet";
@@ -26,6 +28,7 @@ string networkModeStr()
       default:
          throw std::runtime_error("NetworkConfig is not set");
    }
+#endif
 }
 
 string walletFileName(const string &folder, const string &walletId, const string &type)
