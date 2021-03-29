@@ -1108,6 +1108,6 @@ void WritePayload_Protobuf::serialize(vector<uint8_t>& data)
    if (message_ == nullptr)
       return;
 
-   data.resize(message_->ByteSize());
+   data.resize(message_->ByteSizeLong());
    message_->SerializeToArray(&data[0], data.size());
 }

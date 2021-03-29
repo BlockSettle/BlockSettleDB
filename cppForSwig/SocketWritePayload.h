@@ -20,7 +20,7 @@ struct WritePayload_Protobuf : public Socket_WritePayload
    void serialize(std::vector<uint8_t>&);
    std::string serializeToText(void);
    size_t getSerializedSize(void) const {
-      return message_->ByteSize();
+      return message_->ByteSizeLong();
    }
 };
 

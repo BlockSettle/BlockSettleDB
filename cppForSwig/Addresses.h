@@ -13,7 +13,7 @@
 
 #include "BinaryData.h"
 #include "Assets.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "ScriptRecipient.h"
 
 class AddressException : public std::runtime_error

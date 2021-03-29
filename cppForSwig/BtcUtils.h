@@ -31,7 +31,7 @@
 #include "BinaryData.h"
 #include "UniversalTimer.h"
 #include "log.h"
-#include "NetworkConfig.h"
+#include "BitcoinSettings.h"
 #include "EncryptionUtils.h"
 
 #include "btc/base58.h"
@@ -40,11 +40,8 @@
 #define COIN 100000000ULL
 #define NBLOCKS_REGARDED_AS_RESCAN 144
 #define MIN_CONFIRMATIONS   6
-#ifndef COINBASE_MATURITY_TESTS
+
 #define COINBASE_MATURITY 100
-#else
-#define COINBASE_MATURITY 1
-#endif
 
 #define TX_0_UNCONFIRMED    0 
 #define TX_NOT_EXIST       -1

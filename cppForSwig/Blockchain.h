@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,7 +88,9 @@ public:
    void putNewBareHeaders(LMDBBlockDatabase *db);
 
    unsigned int getNewUniqueID(void) { return topID_.fetch_add(1, std::memory_order_relaxed); }
+   unsigned int getTopId(void) { return topID_.load(std::memory_order_relaxed); }
    unsigned int getTopIdFromDb(LMDBBlockDatabase*) const;
+   void initTopBlockId(LMDBBlockDatabase* db);
    void updateTopIdInDb(LMDBBlockDatabase*);
 
    std::map<unsigned, std::set<unsigned>> mapIDsPerBlockFile(void) const;

@@ -307,9 +307,9 @@ public:
    bool endsWith(BinaryData const & matchStr) const;
 
    /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef getSliceRef(ssize_t start_pos, uint32_t nChar) const;
+   BinaryDataRef getSliceRef(ssize_t start_pos, size_t nChar) const;
    /////////////////////////////////////////////////////////////////////////////
-   BinaryData    getSliceCopy(ssize_t start_pos, uint32_t nChar) const;
+   BinaryData    getSliceCopy(ssize_t start_pos, size_t nChar) const;
 
    /////////////////////////////////////////////////////////////////////////////
    bool operator<(BinaryData const & bd2) const;
@@ -1231,14 +1231,14 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   int32_t get_int64_t(ENDIAN e = LE)
+   int64_t get_int64_t(ENDIAN e = LE)
    {
       if (getSizeRemaining() < 8)
       {
          LOGERR << "buffer overflow";
          throw std::runtime_error("buffer overflow");
       }
-      int32_t outVal = (e == LE ?
+      int64_t outVal = (e == LE ?
          BinaryData::StrToIntLE<int64_t>(bdRef_.getPtr() + pos_) :
          BinaryData::StrToIntBE<int64_t>(bdRef_.getPtr() + pos_));
       pos_.fetch_add(8, std::memory_order_relaxed);

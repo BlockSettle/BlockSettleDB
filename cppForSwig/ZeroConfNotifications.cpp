@@ -1,14 +1,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2020, goatpig                                               //            
+//  Copyright (C) 2020-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include <list>
 
 #include "ZeroConfNotifications.h"
+#include "ZeroConfUtils.h"
 #include "ZeroConf.h"
 #include "BDM_Server.h"
 #include "LedgerEntry.h"
@@ -60,7 +61,7 @@ set<string> ZeroConfCallbacks_BDV::hasScrAddr(const BinaryDataRef& addr) const
 
 ///////////////////////////////////////////////////////////////////////////////
 void ZeroConfCallbacks_BDV::pushZcNotification(
-   shared_ptr<ZeroConfSharedStateSnapshot> ss,
+   shared_ptr<MempoolSnapshot> ss,
    shared_ptr<KeyAddrMap> newZcKeys,
    map<string, ParsedZCData> flaggedBDVs,
    const string& requestorId, const string& bdvId,
@@ -114,8 +115,6 @@ void ZeroConfCallbacks_BDV::processNotifRequests()
             break;
          }
 
-         const auto& txiomap = reqPtr->ssPtr_->txioMap_;
-
          //map <bdvID, <txHash, requestID>>
          map<string, map<BinaryData, string>> idsToHash;
 
@@ -155,18 +154,12 @@ void ZeroConfCallbacks_BDV::processNotifRequests()
             //set txio map
             for (auto& sa : bdvObj.second.scrAddrs_)
             {
-               auto saIter = txiomap.find(sa);
-               if (saIter == txiomap.end())
+               auto txioKeys = reqPtr->ssPtr_->getTxioKeysForScrAddr(sa);
+               if (txioKeys.empty())
                   continue;
 
                //copy the txiomap for this scrAddr over to the notification object
-               auto notifPacketIter = notificationPacket.txioMap_.emplace(
-                  saIter->first.getRef(), 
-                  map<BinaryDataRef, shared_ptr<TxIOPair>>());
-               auto& notifTxioMap = notifPacketIter.first->second;
-               
-               for (auto& txio : saIter->second)
-                  notifTxioMap.emplace(txio.first.getRef(), txio.second);
+               notificationPacket.scrAddrToTxioKeys_.emplace(sa, txioKeys);
             }
 
             //set invalidated keys
@@ -203,8 +196,7 @@ void ZeroConfCallbacks_BDV::processNotifRequests()
             if (watcherObj.second->extraRequestors_.empty())
                continue;
 
-            auto keyIter = reqPtr->ssPtr_->txHashToDBKey_.find(watcherObj.first);
-            if (keyIter == reqPtr->ssPtr_->txHashToDBKey_.end())
+            if (!reqPtr->ssPtr_->hasHash(watcherObj.first))
             {
                //tx was not added to mempool, skip
                continue;

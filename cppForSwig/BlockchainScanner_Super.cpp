@@ -862,7 +862,7 @@ void BlockchainScanner_Super::scanSpentness()
       }
       catch(exception&)
       { 
-         sdbi.magic_ = NetworkConfig::getMagicBytes();
+         sdbi.magic_ = ArmoryConfig::BitcoinSettings::getMagicBytes();
       }
    }
 

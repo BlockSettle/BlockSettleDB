@@ -1017,7 +1017,7 @@ void BlockchainScanner::updateSSH(bool force, int32_t startHeight)
    {
       //check for db mode against HEADERS db since it the only one that 
       //doesn't change through rescans
-      if (BlockDataManagerConfig::getDbType() == ARMORY_DB_FULL)
+      if (ArmoryConfig::DBSettings::getDbType() == ARMORY_DB_FULL)
          resolveHashes = true;
    }
 

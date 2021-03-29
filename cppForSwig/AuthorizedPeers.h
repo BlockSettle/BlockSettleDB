@@ -16,7 +16,7 @@
 #include "EncryptionUtils.h"
 #include "Wallets.h"
 #include "DBUtils.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 
 #define PEERS_WALLET_PASSWORD "password"
 #define PEERS_WALLET_BIP32_ACCOUNT 0xFF005618
@@ -37,6 +37,8 @@ public:
       std::runtime_error(err)
    {}
 };
+
+struct AuthPeersLambdas;
 
 ////////////////////////////////////////////////////////////////////////////////
 class AuthorizedPeers
@@ -121,6 +123,7 @@ public:
 
    //takes path to peers db, passphrase lambdas are handled internally
    static void changeControlPassphrase(const std::string&);
+   static AuthPeersLambdas getAuthPeersLambdas(std::shared_ptr<AuthorizedPeers>);
 };
 
 #endif

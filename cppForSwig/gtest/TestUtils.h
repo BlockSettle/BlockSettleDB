@@ -1,9 +1,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016-17, goatpig                                            //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +46,7 @@
 #include "../Script.h"
 #include "../Signer.h"
 #include "../Wallets.h"
-#include "../WalletManager.h"
+#include "../AsyncClient.h"
 #include "../BIP32_Node.h"
 #include "../BitcoinP2p.h"
 #include "btc/ecc.h"
@@ -120,7 +120,7 @@ namespace DBTestUtils
    std::vector<uint64_t> getBalanceAndCount(Clients* clients,
       const std::string& bdvId, const std::string& walletId, unsigned blockheight);
    std::string getLedgerDelegate(Clients* clients, const std::string& bdvId);
-   std::vector<::ClientClasses::LedgerEntry> getHistoryPage(
+   std::vector<DBClientClasses::LedgerEntry> getHistoryPage(
       Clients* clients, const std::string& bdvId,
       const std::string& delegateId, uint32_t pageId);
 
@@ -131,7 +131,7 @@ namespace DBTestUtils
 
    std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> 
       waitOnNewBlockSignal(Clients* clients, const std::string& bdvId);
-   std::pair<std::vector<::ClientClasses::LedgerEntry>, std::set<BinaryData>>
+   std::pair<std::vector<DBClientClasses::LedgerEntry>, std::set<BinaryData>>
       waitOnNewZcSignal(Clients* clients, const std::string& bdvId);
    void waitOnWalletRefresh(Clients* clients, const std::string& bdvId,
       const BinaryData& wltId);
@@ -164,7 +164,8 @@ namespace DBTestUtils
    std::vector<UTXO> getUtxoForAddress(Clients* clients, const std::string bdvId, 
       const BinaryData& addr, bool withZc);
 
-   void addTxioToSsh(StoredScriptHistory&, const std::map<BinaryData, std::shared_ptr<TxIOPair>>&);
+   void addTxioToSsh(StoredScriptHistory&, 
+      const std::map<BinaryDataRef, std::shared_ptr<const TxIOPair>>&);
    void prettyPrintSsh(StoredScriptHistory& ssh);
    LedgerEntry getLedgerEntryFromWallet(std::shared_ptr<BtcWallet>, const BinaryData&);
    LedgerEntry getLedgerEntryFromAddr(ScrAddrObj*, const BinaryData&);
@@ -182,7 +183,7 @@ namespace DBTestUtils
       std::shared_ptr<AsyncClient::BlockDataViewer> bdv,
       const std::string& walletId, const BinaryData& scrAddr);
    
-   std::vector<ClientClasses::LedgerEntry> getHistoryPage(
+   std::vector<DBClientClasses::LedgerEntry> getHistoryPage(
       AsyncClient::LedgerDelegate& del, uint32_t id);
    uint64_t getPageCount(AsyncClient::LedgerDelegate& del);
 

@@ -624,3 +624,26 @@ void AuthorizedPeers::changeControlPassphrase(const string& path)
    //change the passphrase
    wlt->changeControlPassphrase(changeLbd, promptPtr);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+AuthPeersLambdas AuthorizedPeers::getAuthPeersLambdas(
+   shared_ptr<AuthorizedPeers> authPeers)
+{
+   auto getMap = [authPeers](void)->const map<string, btc_pubkey>&
+   {
+      return authPeers->getPeerNameMap();
+   };
+
+   auto getPrivKey = [authPeers](
+      const BinaryDataRef& pubkey)->const SecureBinaryData&
+   {
+      return authPeers->getPrivateKey(pubkey);
+   };
+
+   auto getAuthSet = [authPeers](void)->const set<SecureBinaryData>&
+   {
+      return authPeers->getPublicKeySet();
+   };
+
+   return AuthPeersLambdas(getMap, getPrivKey, getAuthSet);
+}

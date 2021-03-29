@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2018-19, goatpig.                                           //
+//  Copyright (C) 2018-2021, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,9 +19,9 @@ Handle codec and socketing for armory client
 #include "bdmenums.h"
 #include "log.h"
 #include "TxClasses.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "WebSocketClient.h"
-#include "ClientClasses.h"
+#include "DBClientClasses.h"
 #include "SocketWritePayload.h"
 
 class WalletManager;
@@ -222,7 +222,7 @@ namespace AsyncClient
          const std::string&, const std::string&);
 
       void getHistoryPage(uint32_t id, 
-         std::function<void(ReturnMessage<std::vector<::ClientClasses::LedgerEntry>>)>);
+         std::function<void(ReturnMessage<std::vector<DBClientClasses::LedgerEntry>>)>);
       void getPageCount(std::function<void(ReturnMessage<uint64_t>)>) const;
 
       const std::string& getID(void) const { return delegateID_; }
@@ -306,10 +306,10 @@ namespace AsyncClient
          ReturnMessage<std::map<BinaryData, std::vector<uint64_t>>>)>);
 
       void getHistoryPage(uint32_t id, 
-         std::function<void(ReturnMessage<std::vector<::ClientClasses::LedgerEntry>>)>);
+         std::function<void(ReturnMessage<std::vector<DBClientClasses::LedgerEntry>>)>);
       void getLedgerEntryForTxHash(
          const BinaryData& txhash, 
-         std::function<void(ReturnMessage<std::shared_ptr<::ClientClasses::LedgerEntry>>)>);
+         std::function<void(ReturnMessage<std::shared_ptr<DBClientClasses::LedgerEntry>>)>);
 
       ScrAddrObj getScrAddrObjByKey(const BinaryData&,
          uint64_t, uint64_t, uint64_t, uint32_t);
@@ -363,10 +363,10 @@ namespace AsyncClient
    public:
       Blockchain(const BlockDataViewer&);
       void getHeaderByHash(const BinaryData& hash, 
-         std::function<void(ReturnMessage<ClientClasses::BlockHeader>)>);
+         std::function<void(ReturnMessage<DBClientClasses::BlockHeader>)>);
       void getHeaderByHeight(
          unsigned height, 
-         std::function<void(ReturnMessage<ClientClasses::BlockHeader>)>);
+         std::function<void(ReturnMessage<DBClientClasses::BlockHeader>)>);
    };
 
    /////////////////////////////////////////////////////////////////////////////
@@ -441,12 +441,12 @@ namespace AsyncClient
       void getLedgerDelegateForLockboxes(
          std::function<void(ReturnMessage<LedgerDelegate>)>);
       void getLedgerDelegateForScrAddr(
-         const std::string&, const BinaryData&,
+         const std::string&, BinaryDataRef,
          std::function<void(ReturnMessage<LedgerDelegate>)>);
 
       void getHistoryForWalletSelection(
          const std::vector<std::string>&, const std::string& orderingStr,
-         std::function<void(ReturnMessage<std::vector<::ClientClasses::LedgerEntry>>)>);
+         std::function<void(ReturnMessage<std::vector<DBClientClasses::LedgerEntry>>)>);
 
       void updateWalletsLedgerFilter(const std::vector<BinaryData>& wltIdVec);
 
@@ -462,11 +462,11 @@ namespace AsyncClient
 
       //node & fee
       void getNodeStatus(
-         std::function<void(ReturnMessage<std::shared_ptr<::ClientClasses::NodeStatusStruct>>)>);
+         std::function<void(ReturnMessage<std::shared_ptr<DBClientClasses::NodeStatus>>)>);
       void estimateFee(unsigned, const std::string&,
-         std::function<void(ReturnMessage<ClientClasses::FeeEstimateStruct>)>);
+         std::function<void(ReturnMessage<DBClientClasses::FeeEstimateStruct>)>);
       void getFeeSchedule(const std::string&, std::function<void(ReturnMessage<
-            std::map<unsigned, ClientClasses::FeeEstimateStruct>>)>);
+            std::map<unsigned, DBClientClasses::FeeEstimateStruct>>)>);
 
       //combined methods
       void getCombinedBalances(
@@ -646,15 +646,15 @@ namespace AsyncClient
    };
 
    ///////////////////////////////////////////////////////////////////////////////
-   class CallbackReturn_NodeStatusStruct : public CallbackReturn_WebSocket
+   class CallbackReturn_NodeStatus : public CallbackReturn_WebSocket
    {
    private:
-      std::function<void(ReturnMessage<std::shared_ptr<::ClientClasses::NodeStatusStruct>>)>
+      std::function<void(ReturnMessage<std::shared_ptr<DBClientClasses::NodeStatus>>)>
          userCallbackLambda_;
 
    public:
-      CallbackReturn_NodeStatusStruct(std::function<void(
-         ReturnMessage<std::shared_ptr<::ClientClasses::NodeStatusStruct>>)> lbd) :
+      CallbackReturn_NodeStatus(std::function<void(
+         ReturnMessage<std::shared_ptr<DBClientClasses::NodeStatus>>)> lbd) :
          userCallbackLambda_(lbd)
       {}
 
@@ -666,12 +666,12 @@ namespace AsyncClient
    struct CallbackReturn_FeeEstimateStruct : public CallbackReturn_WebSocket
    {
    private:
-      std::function<void(ReturnMessage<ClientClasses::FeeEstimateStruct>)>
+      std::function<void(ReturnMessage<DBClientClasses::FeeEstimateStruct>)>
          userCallbackLambda_;
 
    public:
       CallbackReturn_FeeEstimateStruct(
-         std::function<void(ReturnMessage<ClientClasses::FeeEstimateStruct>)> lbd) :
+         std::function<void(ReturnMessage<DBClientClasses::FeeEstimateStruct>)> lbd) :
          userCallbackLambda_(lbd)
       {}
 
@@ -683,12 +683,12 @@ namespace AsyncClient
    struct CallbackReturn_FeeSchedule : public CallbackReturn_WebSocket
    {
    private:
-      std::function<void(ReturnMessage<std::map<unsigned, ClientClasses::FeeEstimateStruct>>)>
+      std::function<void(ReturnMessage<std::map<unsigned, DBClientClasses::FeeEstimateStruct>>)>
          userCallbackLambda_;
 
    public:
       CallbackReturn_FeeSchedule(std::function<void(ReturnMessage<
-         std::map<unsigned, ClientClasses::FeeEstimateStruct>>)> lbd) :
+         std::map<unsigned, DBClientClasses::FeeEstimateStruct>>)> lbd) :
          userCallbackLambda_(lbd)
       {}
 
@@ -700,12 +700,12 @@ namespace AsyncClient
    struct CallbackReturn_VectorLedgerEntry : public CallbackReturn_WebSocket
    {
    private:
-      std::function<void(ReturnMessage<std::vector<::ClientClasses::LedgerEntry>>)>
+      std::function<void(ReturnMessage<std::vector<DBClientClasses::LedgerEntry>>)>
          userCallbackLambda_;
 
    public:
       CallbackReturn_VectorLedgerEntry(
-         std::function<void(ReturnMessage<std::vector<::ClientClasses::LedgerEntry>>)> lbd) :
+         std::function<void(ReturnMessage<std::vector<DBClientClasses::LedgerEntry>>)> lbd) :
          userCallbackLambda_(lbd)
       {}
 
@@ -798,12 +798,12 @@ namespace AsyncClient
    struct CallbackReturn_LedgerEntry : public CallbackReturn_WebSocket
    {
    private:
-      std::function<void(ReturnMessage<std::shared_ptr<::ClientClasses::LedgerEntry>>)>
+      std::function<void(ReturnMessage<std::shared_ptr<DBClientClasses::LedgerEntry>>)>
          userCallbackLambda_;
 
    public:
       CallbackReturn_LedgerEntry(
-         std::function<void(ReturnMessage<std::shared_ptr<::ClientClasses::LedgerEntry>>)> lbd) :
+         std::function<void(ReturnMessage<std::shared_ptr<DBClientClasses::LedgerEntry>>)> lbd) :
          userCallbackLambda_(lbd)
       {}
 
@@ -846,12 +846,12 @@ namespace AsyncClient
    struct CallbackReturn_BlockHeader : public CallbackReturn_WebSocket
    {
    private:
-      std::function<void(ReturnMessage<ClientClasses::BlockHeader>)> userCallbackLambda_;
+      std::function<void(ReturnMessage<DBClientClasses::BlockHeader>)> userCallbackLambda_;
       const unsigned height_;
 
    public:
       CallbackReturn_BlockHeader(unsigned height, 
-         std::function<void(ReturnMessage<ClientClasses::BlockHeader>)> lbd) :
+         std::function<void(ReturnMessage<DBClientClasses::BlockHeader>)> lbd) :
          userCallbackLambda_(lbd), height_(height)
       {}
 

@@ -4,6 +4,11 @@
 //  Distributed under the GNU Affero General Public License (AGPL v3)         //
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
+//                                                                            //
+//  Copyright (C) 2016-2021, goatpig                                          //
+//  Distributed under the MIT license                                         //
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
+//                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #include "LedgerEntry.h"
 
@@ -200,7 +205,8 @@ map<BinaryData, LedgerEntry> LedgerEntry::computeLedgerMap(
          txIndex = READ_UINT32_BE(txioVec.first.getSliceRef(2, 4));
          txTime = (*txioIter)->getTxTime();
 
-         txHash = zc->getHashForKey(txioVec.first);
+         auto ss = zc->getSnapshot();
+         txHash = ss->getHashForKey(txioVec.first);
       }
 
       if (blockNum < startBlock || blockNum > endBlock)
@@ -262,7 +268,8 @@ map<BinaryData, LedgerEntry> LedgerEntry::computeLedgerMap(
          }
          else
          {
-            auto ptx = zc->getTxByKey(txioVec.first);
+            auto ss = zc->getSnapshot();
+            auto ptx = ss->getTxByKey(txioVec.first);
             if(ptx != nullptr)
                nTxOutInTx = ptx->outputs_.size();
          }
@@ -317,7 +324,8 @@ map<BinaryData, LedgerEntry> LedgerEntry::computeLedgerMap(
          }
          catch (exception&)
          {
-            auto ptx = zc->getTxByKey(txioVec.first);
+            auto ss = zc->getSnapshot();
+            auto ptx = ss->getTxByKey(txioVec.first);
             if (ptx == nullptr)
             {
                LOGWARN << "failed to get tx for ledger parsing";

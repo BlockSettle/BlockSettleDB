@@ -7,7 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "Wallets.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 
 using namespace std;
 using namespace ArmorySigner;
@@ -851,8 +851,8 @@ string AssetWallet::forkWatchingOnly(
       }
 
       default:
-         LOGWARN << "wallet contains header types that \
-            aren't covered by WO forking";
+         LOGWARN << "wallet contains header types that " <<
+            "aren't covered by WO forking";
       }
    }
 
@@ -1291,7 +1291,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    BIP32_Node rootNode;
    rootNode.initFromSeed(seed);
 
-   auto coinType = NetworkConfig::getCoinType();
+   auto coinType = ArmoryConfig::BitcoinSettings::getCoinType();
    
    //address accounts
    set<shared_ptr<AccountType_BIP32>> accountTypes;

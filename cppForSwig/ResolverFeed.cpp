@@ -190,7 +190,7 @@ BIP32_AssetPath BIP32_AssetPath::fromProtobuf(
 {
    auto pubkey = BinaryData::fromString(protoMsg.pubkey());
    vector<uint32_t> path;
-   for (unsigned i=0; i<protoMsg.path_size(); i++)
+   for (int i=0; i<protoMsg.path_size(); i++)
       path.push_back(protoMsg.path(i));
 
    return BIP32_AssetPath(pubkey, path, protoMsg.fingerprint(), nullptr);

@@ -1,9 +1,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016-17, goatpig                                            //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #include "TestUtils.h"
@@ -324,7 +324,7 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   vector<::ClientClasses::LedgerEntry> getHistoryPage(
+   vector<DBClientClasses::LedgerEntry> getHistoryPage(
       Clients* clients, const string& bdvId,
       const string& delegateId, uint32_t pageId)
    {
@@ -337,12 +337,12 @@ namespace DBTestUtils
 
       auto&& result = processCommand(clients, message);
       auto response =
-         dynamic_pointer_cast<::Codec_LedgerEntry::ManyLedgerEntry>(result);
+         dynamic_pointer_cast<Codec_LedgerEntry::ManyLedgerEntry>(result);
 
-      vector<::ClientClasses::LedgerEntry> levData;
+      vector<DBClientClasses::LedgerEntry> levData;
       for (unsigned i = 0; i < response->values_size(); i++)
       {
-         ::ClientClasses::LedgerEntry led(response, i);
+         DBClientClasses::LedgerEntry led(response, i);
          levData.push_back(led);
       }
 
@@ -402,7 +402,7 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   pair<vector<::ClientClasses::LedgerEntry>, set<BinaryData>> waitOnNewZcSignal(
+   pair<vector<DBClientClasses::LedgerEntry>, set<BinaryData>> waitOnNewZcSignal(
       Clients* clients, const string& bdvId)
    {
       auto&& result = waitOnSignal(
@@ -420,10 +420,10 @@ namespace DBTestUtils
 
       auto lev = notif.ledgers();
 
-      pair<vector<::ClientClasses::LedgerEntry>, set<BinaryData>> levData;
+      pair<vector<DBClientClasses::LedgerEntry>, set<BinaryData>> levData;
       for (unsigned i = 0; i < lev.values_size(); i++)
       {
-         ::ClientClasses::LedgerEntry led(callbackPtr, index, i);
+         DBClientClasses::LedgerEntry led(callbackPtr, index, i);
          levData.first.push_back(led);
       }
 
@@ -625,9 +625,8 @@ namespace DBTestUtils
 
 
    /////////////////////////////////////////////////////////////////////////////
-   void addTxioToSsh(
-      StoredScriptHistory& ssh, 
-      const map<BinaryData, shared_ptr<TxIOPair>>& txioMap)
+   void addTxioToSsh(StoredScriptHistory& ssh, 
+      const map<BinaryDataRef, shared_ptr<const TxIOPair>>& txioMap)
    {
       for (auto& txio_pair : txioMap)
       {
@@ -752,7 +751,7 @@ namespace DBTestUtils
    shared_ptr<::google::protobuf::Message> processCommand(
       Clients* clients, shared_ptr<::google::protobuf::Message> msg)
    {
-      auto len = msg->ByteSize();
+      auto len = msg->ByteSizeLong();
       vector<uint8_t> buffer(len);
       msg->SerializeToArray(&buffer[0], len);
       auto&& bdVec = WebSocketMessageCodec::serialize(
@@ -809,12 +808,12 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   vector<ClientClasses::LedgerEntry> getHistoryPage(
+   vector<DBClientClasses::LedgerEntry> getHistoryPage(
       AsyncClient::LedgerDelegate& del, uint32_t id)
    {
-      auto prom = make_shared<promise<vector<ClientClasses::LedgerEntry>>>();
+      auto prom = make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
       auto fut = prom->get_future();
-      auto lbd = [prom](ReturnMessage<vector<ClientClasses::LedgerEntry>> msg)
+      auto lbd = [prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> msg)
       {
          prom->set_value(msg.get());
       };

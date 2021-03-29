@@ -8,7 +8,7 @@
 
 
 #include "Server.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "BDM_Server.h"
 #include "BIP15x_Handshake.h"
 
@@ -113,8 +113,11 @@ int WebSocketServer::callback(
 
       //pending write queue iterator is always set entering the 
       //lws callback unless the pending write set is empty
-      if (*instance->pendingWritesIter_ == wsi)
+      if (instance->pendingWritesIter_ != instance->pendingWrites_.end() &&
+         *instance->pendingWritesIter_ == wsi)
+      {
          instance->pendingWritesIter_++;
+      }
       
       instance->pendingWrites_.erase(wsi);
       break;
@@ -210,11 +213,11 @@ void WebSocketServer::initAuthPeers(const PassphraseLambda& passLbd)
    //init auth peer object
    auto instance = getInstance();
 
-   if (!BlockDataManagerConfig::ephemeralPeers_)
+   if (!ArmoryConfig::NetworkSettings::ephemeralPeers())
    {
       string peerFilename(SERVER_AUTH_PEER_FILENAME);
       instance->authorizedPeers_ = make_shared<AuthorizedPeers>(
-         BlockDataManagerConfig::getDataDir(), peerFilename, passLbd);
+         ArmoryConfig::getDataDir(), peerFilename, passLbd);
    }
    else
    {
@@ -234,7 +237,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
    encInitPacket.put_uint32_t(1);
    encInitPacket.put_uint8_t(ArmoryAEAD::HandshakeSequence::Start);
    instance->encInitPacket_ = encInitPacket.getData();
-   instance->oneWayAuth_ = bdmT->bdm()->config().oneWayAuth_;
+   instance->oneWayAuth_ = ArmoryConfig::NetworkSettings::oneWayAuth();
 
    //init Clients object
    auto shutdownLbd = [](void)->void
@@ -272,7 +275,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
       instance->threads_.push_back(thread(readProcessThread));
    }
    
-   auto port = stoi(bdmT->bdm()->config().listenPort_);
+   auto port = stoi(ArmoryConfig::NetworkSettings::listenPort());
    if (port == 0)
       port = WEBSOCKET_PORT;
 
@@ -373,17 +376,17 @@ void WebSocketServer::webSocketService(int port)
    info.iface = iface;
    info.protocols = protocols;
    info.log_filepath = nullptr;
-   info.ws_ping_pong_interval = pp_secs;
+   //info.ws_ping_pong_interval = pp_secs;
    info.gid = gid;
    info.uid = uid;
    info.max_http_header_pool = 256;
    info.options = opts | LWS_SERVER_OPTION_VALIDATE_UTF8 | LWS_SERVER_OPTION_EXPLICIT_VHOSTS | LWS_SERVER_OPTION_DISABLE_IPV6;
    info.timeout_secs = 0;
-   info.ip_limit_ah = 24; /* for testing */
-   info.ip_limit_wsi = 105; /* for testing */
-   
+   //info.ip_limit_ah = 24; /* for testing */
+   //info.ip_limit_wsi = 105; /* for testing */
+
    contextPtr_ = lws_create_context(&info);
-   if (contextPtr_ == nullptr) 
+   if (contextPtr_ == nullptr)
       throw LWS_Error("failed to create LWS context");
 
    vhost = lws_create_vhost(contextPtr_, &info);
@@ -555,7 +558,7 @@ void WebSocketServer::prepareWriteThread()
          bool needs_rekey = false;
          auto rightnow = chrono::system_clock::now();
 
-         if (statePtr->bip151Connection_->rekeyNeeded(msg->message_->ByteSize()))
+         if (statePtr->bip151Connection_->rekeyNeeded(msg->message_->ByteSizeLong()))
          {
             needs_rekey = true;
          }
@@ -592,9 +595,9 @@ void WebSocketServer::prepareWriteThread()
 
       //serialize arg
       vector<uint8_t> serializedData;
-      if (msg->message_->ByteSize() > 0)
+      if (msg->message_->ByteSizeLong() > 0)
       {
-         serializedData.resize(msg->message_->ByteSize());
+         serializedData.resize(msg->message_->ByteSizeLong());
          auto result = msg->message_->SerializeToArray(
             &serializedData[0], serializedData.size());
          if (!result)

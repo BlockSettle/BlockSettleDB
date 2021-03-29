@@ -11,12 +11,15 @@
 #include <sstream>
 #include "btc/ecc.h"
 
-using namespace std;
-
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "BDM_mainthread.h"
 #include "BDM_Server.h"
 #include "TerminalPassphrasePrompt.h"
+
+using namespace std;
+using namespace ArmoryConfig;
+
+#define LOG_FILE_NAME "dbLog"
 
 int main(int argc, char* argv[])
 {
@@ -32,30 +35,26 @@ int main(int argc, char* argv[])
    WSAStartup(wVersion, &wsaData);
 #endif
 
-   BlockDataManagerConfig bdmConfig;
-   bdmConfig.parseArgs(argc, argv);
+   ArmoryConfig::parseArgs(argc, argv);
    
-   //cout << "logging in " << bdmConfig.logFilePath_ << endl;
-   STARTLOGGING("", LogLvlDebug);
-   if (!bdmConfig.useCookie_)
       LOGENABLESTDOUT();
    else
       LOGDISABLESTDOUT();
 
-   LOGINFO << "Running on " << bdmConfig.threadCount_ << " threads";
-   LOGINFO << "Ram usage level: " << bdmConfig.ramUsage_;
+   LOGINFO << "Running on " << DBSettings::threadCount() << " threads";
+   LOGINFO << "Ram usage level: " << DBSettings::ramUsage();
 
    //init state
-   BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
-   BlockDataManagerThread bdmThread(bdmConfig);
+   DBSettings::setServiceType(SERVICE_WEBSOCKET);
+   BlockDataManagerThread bdmThread;
 
-   if (!bdmConfig.checkChain_)
+   if (!DBSettings::checkChain())
    {
       //check we can listen on this ip:port
-      if (SimpleSocket::checkSocket("127.0.0.1", bdmConfig.listenPort_))
+      if (SimpleSocket::checkSocket("127.0.0.1", NetworkSettings::listenPort()))
       {
          LOGERR << "There is already a process listening on port " << 
-            bdmConfig.listenPort_;
+            NetworkSettings::listenPort();
          LOGERR << "ArmoryDB cannot start under these conditions. Shutting down!";
          LOGERR << "Make sure to shutdown the conflicting process" <<
             "before trying again (most likely another ArmoryDB instance)";
@@ -83,13 +82,10 @@ int main(int argc, char* argv[])
       WebSocketServer::initAuthPeers(passLbd);
    }
     
-   //create cookie file if applicable
-   bdmConfig.createCookie();
-
    //start up blockchain service
-   bdmThread.start(bdmConfig.initMode_);
+   bdmThread.start(DBSettings::initMode());
 
-   if (!bdmConfig.checkChain_)
+   if (!DBSettings::checkChain())
    {
       WebSocketServer::start(&bdmThread, false);
    }
