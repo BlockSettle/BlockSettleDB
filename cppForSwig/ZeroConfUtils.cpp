@@ -922,87 +922,132 @@ shared_ptr<MempoolData> MempoolData::mergeWithParent(
    auto newObj = make_shared<MempoolData>();
    
    //tx hashes
-   newObj->txHashToDBKey_ = ptr->txHashToDBKey_;
-   for (const auto& hashPair : ptr->parent_->txHashToDBKey_)
-      newObj->txHashToDBKey_.emplace(hashPair);
-
-   //tx map
-   newObj->txMap_ = ptr->txMap_;
-   for (const auto& txPair : ptr->parent_->txMap_)
-      newObj->txMap_.emplace(txPair);
-
-   //txouts spentness
-   newObj->txOutsSpentByZC_ = ptr->txOutsSpentByZC_;
-   for (const auto& keyPair : ptr->parent_->txOutsSpentByZC_)
-      newObj->txOutsSpentByZC_.emplace(keyPair);
-
-   auto keyIter = newObj->txOutsSpentByZC_.begin();
-   while (keyIter != newObj->txOutsSpentByZC_.end())
    {
-      if (!keyIter->second)
+      newObj->txHashToDBKey_ = ptr->txHashToDBKey_;
+      for (const auto& hashPair : ptr->parent_->txHashToDBKey_)
+         newObj->txHashToDBKey_.emplace(hashPair);
+
+      auto hashIter = newObj->txHashToDBKey_.begin();
+      while (hashIter != newObj->txHashToDBKey_.end())
       {
-         if (ptr->parent_->parent_ != nullptr)
+         if (hashIter->second.empty())
          {
-            if (ptr->parent_->parent_->isTxOutSpentByZC(keyIter->first))
-               continue;
+            if (ptr->parent_->parent_ != nullptr)
+            {
+               if (ptr->parent_->parent_->getKeyForHash(hashIter->first).empty())
+               {
+                  newObj->txHashToDBKey_.erase(hashIter++);
+                  continue;
+               }
+            }
          }
 
-         newObj->txOutsSpentByZC_.erase(keyIter++);
-         continue;
+         ++hashIter;
       }
+   }
 
-      ++keyIter;
+   //tx map
+   {
+      newObj->txMap_ = ptr->txMap_;
+      for (const auto& txPair : ptr->parent_->txMap_)
+         newObj->txMap_.emplace(txPair);
+
+      auto txIter = newObj->txMap_.begin();
+      while (txIter != newObj->txMap_.end())
+      {
+         if (txIter->second == nullptr)
+         {
+            if (ptr->parent_->parent_ != nullptr)
+            {
+               if (ptr->parent_->parent_->getTx(txIter->first) == nullptr)
+               {
+                  newObj->txMap_.erase(txIter++);
+                  continue;
+               }
+            }
+         }
+
+         ++txIter;
+      }
+   }
+
+   //txouts spentness
+   {
+      newObj->txOutsSpentByZC_ = ptr->txOutsSpentByZC_;
+      for (const auto& keyPair : ptr->parent_->txOutsSpentByZC_)
+         newObj->txOutsSpentByZC_.emplace(keyPair);
+
+      auto keyIter = newObj->txOutsSpentByZC_.begin();
+      while (keyIter != newObj->txOutsSpentByZC_.end())
+      {
+         if (!keyIter->second)
+         {
+            if (ptr->parent_->parent_ != nullptr)
+            {
+               if (!ptr->parent_->parent_->isTxOutSpentByZC(keyIter->first))
+               {
+                  newObj->txOutsSpentByZC_.erase(keyIter++);
+                  continue;
+               }
+            }
+         }
+
+         ++keyIter;
+      }
    }
 
    //scrAddr map
-   newObj->scrAddrMap_ = ptr->scrAddrMap_;
-   for (const auto& addrPair : ptr->parent_->scrAddrMap_)
-      newObj->scrAddrMap_.emplace(addrPair);
-
-   auto addrIter = newObj->scrAddrMap_.begin();
-   while (addrIter != newObj->scrAddrMap_.end())
    {
-      if (addrIter->second.empty())
+      newObj->scrAddrMap_ = ptr->scrAddrMap_;
+      for (const auto& addrPair : ptr->parent_->scrAddrMap_)
+         newObj->scrAddrMap_.emplace(addrPair);
+
+      auto addrIter = newObj->scrAddrMap_.begin();
+      while (addrIter != newObj->scrAddrMap_.end())
       {
-         if (ptr->parent_->parent_ != nullptr)
+         if (addrIter->second.empty())
          {
-            try
+            if (ptr->parent_->parent_ != nullptr)
             {
-               ptr->parent_->parent_->isTxOutSpentByZC(keyIter->first);
-               continue;
+               try
+               {
+                  ptr->parent_->parent_->getTxioKeysForScrAddr(addrIter->first);
+               }
+               catch (range_error&)
+               {
+                  newObj->scrAddrMap_.erase(addrIter++);
+                  continue;
+               }
             }
-            catch (range_error&)
-            {}
          }
 
-         newObj->scrAddrMap_.erase(addrIter++);
-         continue;
+         ++addrIter;
       }
-
-      ++addrIter;
    }
 
    //txio map
-   newObj->txioMap_ = ptr->txioMap_;
-   for (const auto& txioPair : ptr->parent_->txioMap_)
-      newObj->txioMap_.emplace(txioPair);
-   
-   auto txioIter = newObj->txioMap_.begin();
-   while (txioIter != newObj->txioMap_.end())
    {
-      if (txioIter->second == nullptr)
+      newObj->txioMap_ = ptr->txioMap_;
+      for (const auto& txioPair : ptr->parent_->txioMap_)
+         newObj->txioMap_.emplace(txioPair);
+      
+      auto txioIter = newObj->txioMap_.begin();
+      while (txioIter != newObj->txioMap_.end())
       {
-         if (ptr->parent_->parent_ != nullptr)
+         if (txioIter->second == nullptr)
          {
-            if (ptr->parent_->parent_->getTxio(txioIter->first) != nullptr)
-               continue;
+            if (ptr->parent_->parent_ != nullptr)
+            {
+               if (ptr->parent_->parent_->getTxio(txioIter->first) == nullptr)
+               {
+                  newObj->txioMap_.erase(txioIter++);
+                  continue;
+               }
+            }
          }
 
-         newObj->txioMap_.erase(txioIter++);
-         continue;
+         ++txioIter;
       }
-
-      ++txioIter;
    }
 
    newObj->parent_ = ptr->parent_->parent_;
