@@ -37,6 +37,7 @@ int main(int argc, char* argv[])
 
    ArmoryConfig::parseArgs(argc, argv);
    
+   STARTLOGGING("", LogLvlDebug);
    LOGENABLESTDOUT();
 
    LOGINFO << "Running on " << DBSettings::threadCount() << " threads";
