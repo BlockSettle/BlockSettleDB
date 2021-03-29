@@ -697,6 +697,7 @@ shared_ptr<DBIfaceTransaction> AssetWallet::beginSubDBTransaction(
 shared_ptr<AssetWallet> AssetWallet::loadMainWalletFromFile(
    const string& path, const PassphraseLambda& passLbd)
 {
+   LOGINFO << "open file" << path;
    auto iface = getIfaceFromFile(path.c_str(), passLbd);
    auto mainWalletID = getMainWalletID(iface);
    auto headerPtr = iface->getWalletHeader(mainWalletID);
