@@ -896,15 +896,18 @@ void NetworkSettings::createNodes()
    }
    else
    {
-      auto primary = 
+#if 0
+      auto primary =
          make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr(), false);
 
-      auto watcher = 
+      auto watcher =
          make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr(), true);
 
       bitcoinNodes_.first = primary;
       bitcoinNodes_.second = watcher;
       rpcNode_ = make_shared<NodeRPC_UnitTest>(primary, watcher);
+#endif
+      std::abort();
    }
 }
 

@@ -266,7 +266,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
       instance->clientInterruptThread();
    };
 
-   unsigned parserThreads = MAX_THREADS() / 4;
+   unsigned parserThreads = std::thread::hardware_concurrency() / 4;
    if (parserThreads == 0)
       parserThreads = 1;
    for (unsigned i = 0; i < parserThreads; i++)

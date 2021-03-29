@@ -14,7 +14,7 @@
 #include <arpa/inet.h>
 #endif
 
-#include "hkdf.h"
+#include "hkdf/hkdf.h"
 #include "btc/ecc.h"
 #include "btc/hash.h"
 #include "btc/sha2.h"

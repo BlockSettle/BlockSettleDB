@@ -166,16 +166,12 @@ list(APPEND LIBARMORYCOMMON_SOURCES
     AuthorizedPeers.cpp
     BinaryData.cpp
     BIP32_Node.cpp
-    BlockDataManagerConfig.cpp
     BtcUtils.cpp
-    ClientClasses.cpp
     CoinSelection.cpp
     DecryptedDataContainer.cpp
     DerivationScheme.cpp
-    hkdf.cpp
     KDF.cpp
     log.cpp
-    NetworkConfig.cpp
     ReentrantLock.cpp
     Script.cpp
     SecureBinaryData.cpp
@@ -190,7 +186,6 @@ list(APPEND LIBARMORYCOMMON_SOURCES
     txio.cpp
     UniversalTimer.cpp
     WalletHeader.cpp
-    WalletManager.cpp
     WalletFileInterface.cpp
     Wallets.cpp
     WebSocketClient.cpp
@@ -279,6 +274,10 @@ set(LIBARMORYCLI_SOURCES
     StringSockets.cpp
     txio.cpp
     ZeroConf.cpp
+    ArmoryConfig.cpp
+    BitcoinSettings.cpp
+    ZeroConfUtils.cpp
+    hkdf/hkdf.c
 )
 
 if(MSVC)

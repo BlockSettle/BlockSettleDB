@@ -12,6 +12,8 @@
 using namespace std;
 using namespace ArmorySigner;
 
+#include <random>
+
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 // CoinSelection                                                              //

@@ -2428,7 +2428,7 @@ void Clients::init(BlockDataManagerThread* bdmT,
    unsigned innerThreadCount = 2;
    if (ArmoryConfig::DBSettings::getDbType() == ARMORY_DB_SUPER &&
       ArmoryConfig::DBSettings::getServiceType() != SERVICE_UNITTEST)
-      innerThreadCount = MAX_THREADS();
+      innerThreadCount = std::max(unsigned(64), std::thread::hardware_concurrency());
    for (unsigned i = 0; i < innerThreadCount; i++)
    {
       controlThreads_.push_back(thread(innerthread));
