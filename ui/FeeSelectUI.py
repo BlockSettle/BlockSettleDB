@@ -12,8 +12,8 @@ from PySide2.QtCore import Qt, SIGNAL
 from PySide2.QtWidgets import QFrame, QRadioButton, QLineEdit, QGridLayout, \
    QLabel, QPushButton, QCheckBox, QSlider, QComboBox
 
-from qtdefines import ArmoryDialog, STYLE_RAISED, GETFONT, tightSizeNChar, \
-   QLabelButton, makeHorizFrame, STYLE_NONE
+from qtdialogs.qtdefines import ArmoryDialog, STYLE_RAISED, GETFONT, \
+   tightSizeNChar, QLabelButton, makeHorizFrame, STYLE_NONE
 from armoryengine.ArmoryUtils import str2coin, coin2str
 from armoryengine.CoinSelection import estimateFee, NBLOCKS_TO_CONFIRM, \
    FEEBYTE_CONSERVATIVE, FEEBYTE_ECONOMICAL

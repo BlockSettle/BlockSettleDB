@@ -10,12 +10,13 @@ from __future__ import (absolute_import, division,
 
 from PySide2.QtWidgets import QWidget
 
-from armorycolors import htmlColor
-from qtdialogs import MIN_PASSWD_WIDTH, DlgPasswd3, createAddrBookButton,\
-   DlgUnlockWallet
 from armoryengine.ArmoryUtils import isASCII
+from armorycolors import htmlColor
+from qtdialogs.qtdialogs import MIN_PASSWD_WIDTH, DlgPasswd3, \
+   createAddrBookButton
+from qtdialogs.DlgUnlockWallet import DlgUnlockWallet
 
-from qtdefines import ArmoryDialog
+from qtdialogs.qtdefines import ArmoryDialog
 
 class MessageSigningVerificationDialog(ArmoryDialog):
 

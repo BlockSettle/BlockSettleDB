@@ -11,6 +11,11 @@ from os import path
 import platform
 import sys
 
+from armoryengine.ArmoryUtils import enum, DEFAULT_DATE_FORMAT
+
+from PySide2.QtCore import Qt, QAbstractTableModel, QModelIndex, \
+   QSortFilterProxyModel
+
 LOCKBOXCOLS = enum('ID', 'MSType', 'CreateDate', 'LBName', \
                    'Key0', 'Key1', 'Key2', 'Key3', 'Key4', \
                    'NumTx', 'Balance', 'UnixTime')

@@ -8,10 +8,13 @@ from __future__ import (absolute_import, division,
 #                                                                              #
 ################################################################################
 
-from qtdefines import ArmoryFrame, ArmoryDialog, tightSizeNChar, \
+from qtdialogs.qtdefines import ArmoryFrame, ArmoryDialog, tightSizeNChar, \
    GETFONT, QRichLabel, VLINE, HLINE, QLabelButton, USERMODE, \
    VERTICAL, HORIZONTAL, makeHorizFrame, STYLE_RAISED, makeVertFrame, \
    relaxedSizeNChar, STYLE_SUNKEN
+
+from qtdialogs.qtdialogs import extractTxInfo, NO_CHANGE, STRETCH, \
+   createAddrBookButton
 
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.Transaction import UnsignedTransaction, getTxOutScriptType
@@ -2410,8 +2413,3 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       clipb.setText(binary_to_hex(\
          self.ustxObj.getSignedPyTx().serialize()))
       self.lblCopied.setText(self.tr('<i>Copied!</i>'))
-
-
-# Need to put circular imports at the end of the script to avoid an import deadlock
-from qtdialogs import CLICKED, DlgConfirmSend, DlgUriCopyAndPaste, \
-         DlgUnlockWallet, extractTxInfo, DlgDispTxInfo, NO_CHANGE, STRETCH

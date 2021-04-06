@@ -17,10 +17,10 @@ from PySide2.QtGui import QPixmap
 import sys
 import math
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
-from qtdefines import ArmoryFrame, VERTICAL, HORIZONTAL, tightSizeNChar, \
-   makeHorizFrame, makeVertFrame, QRichLabel, QGridLayout, QPixmapButton, \
-   GETFONT, STYLE_SUNKEN, HLINE, determineWalletType, QMoneyLabel, \
-   makeLayoutFrame
+from qtdialogs.qtdefines import ArmoryFrame, VERTICAL, HORIZONTAL, \
+   tightSizeNChar, makeHorizFrame, makeVertFrame, QRichLabel, QGridLayout, \
+   QPixmapButton, GETFONT, STYLE_SUNKEN, HLINE, determineWalletType, \
+   QMoneyLabel, makeLayoutFrame
 
 from armorycolors import htmlColor
 from armoryengine.ArmoryUtils import enum, isASCII, coin2str
@@ -30,6 +30,14 @@ if sys.version_info < (3,0):
 
 WALLET_DATA_ENTRY_FIELD_WIDTH = 60
 
+from qtdialogs.DlgUnlockWallet   import DlgUnlockWallet
+from qtdialogs.DlgShowKeyList    import DlgShowKeyList
+
+# Need to put circular imports at the end of the script to avoid an import deadlock
+from qtdialogs.qtdialogs import STRETCH, MIN_PASSWD_WIDTH, \
+   QRadioButtonBackupCtr, OpenPaperBackupWindow
+
+from ui.CoinControlUI import CoinControlDlg, RBFDlg
 
 class LockboxSelectFrame(ArmoryFrame):
    def __init__(self, parent, main, layoutDir=VERTICAL, spendFromLBID=None):
@@ -1200,11 +1208,3 @@ class WizardCreateWatchingOnlyWalletFrame(ArmoryFrame):
    
    def setWallet(self, wlt):
       self.wlt = wlt
-
-
-      
-# Need to put circular imports at the end of the script to avoid an import deadlock
-from qtdialogs import CLICKED, STRETCH, MIN_PASSWD_WIDTH, \
-   QRadioButtonBackupCtr, OpenPaperBackupWindow, DlgUnlockWallet, DlgShowKeyList
-
-from ui.CoinControlUI import CoinControlDlg, RBFDlg

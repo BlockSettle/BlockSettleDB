@@ -17,10 +17,10 @@ from ui.WalletFrames import NewWalletFrame, SetPassphraseFrame, VerifyPassphrase
    WalletBackupFrame, WizardCreateWatchingOnlyWalletFrame, CardDeckFrame
 from ui.TxFrames import SendBitcoinsFrame, SignBroadcastOfflineTxFrame,\
    ReviewOfflineTxFrame
-from qtdefines import USERMODE, GETFONT, AddToRunningDialogsList
+from qtdialogs.qtdefines import USERMODE, GETFONT, AddToRunningDialogsList
 from armoryengine.PyBtcWallet import PyBtcWallet
 from armoryengine.BDM import TheBDM, BDM_OFFLINE, BDM_UNINITIALIZED
-from qtdialogs import DlgProgress
+from qtdialogs.qtdialogs import DlgProgress
 
 # This class is intended to be an abstract Wizard class that
 # will hold all of the functionality that is common to all

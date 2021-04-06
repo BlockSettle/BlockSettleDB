@@ -40,23 +40,59 @@ import traceback
 import glob
 
 from PySide2.QtGui import QDesktopServices, QPixmap, QPalette, \
-   QCursor
-from PySide2.QtCore import QTranslator, Signal, QByteArray
+   QCursor, QIcon
+from PySide2.QtCore import Qt, QTranslator, Signal, QByteArray, \
+   QSize
 from PySide2.QtWidgets import QMainWindow, QSystemTrayIcon, \
    QMenu, QAction, QGridLayout, QTabWidget, QScrollArea, \
-   QComboBox, QSizePolicy, QActionGroup, QMessageBox
+   QComboBox, QSizePolicy, QActionGroup, QMessageBox, QLabel, \
+   QTableView, QPushButton, QFrame, QWidget, QProgressBar, QVBoxLayout, \
+   QLineEdit
 
 import psutil
 
 from armorycolors import Colors, htmlColor, QAPP
-from armoryengine.ALL import *
-from armoryengine.ArmoryUtils import HMAC256
+from armoryengine.ArmoryUtils import HMAC256, GUI_LANGUAGE, \
+   OS_MACOSX, OS_WINDOWS, AllowAsync, USE_TESTNET, USE_REGTEST, \
+   CLI_OPTIONS, SettingsFile, getVersionString, BTCARMORY_VERSION, \
+   LOGINFO, LOGWARN, LOGDEBUG, LOGEXCEPT, LOGERROR, INTERNET_STATUS
+
+from armoryengine.ArmoryUtils import enum, GetExecDir, RightNow, \
+   CLI_ARGS, ARMORY_HOME_DIR, DEFAULT, ARMORY_DB_DIR, \
+   LEVELDB_BLKDATA, DEFAULT_ADDR_TYPE, coin2str, DEFAULT_DATE_FORMAT, \
+   unixTimeToFormatStr, binary_to_hex, BTC_HOME_DIR, secondsToHumanTime
+
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
 from armoryengine.CppBridge import TheBridge
-import armoryengine.ClientProto_pb2
+from armoryengine.BDM import TheBDM, \
+   BDM_BLOCKCHAIN_READY, BDM_SCANNING, BDM_UNINITIALIZED, BDM_OFFLINE, \
+   FINISH_LOAD_BLOCKCHAIN_ACTION, NEW_ZC_ACTION, NEW_BLOCK_ACTION, \
+   REFRESH_ACTION, WARNING_ACTION, WARNING_ACTION, SCAN_ACTION, \
+   NODESTATUS_UPDATE, BDM_SCAN_PROGRESS, BDV_ERROR, BDV_DISCONNECTED, \
+   SETUP_STEP2, SETUP_STEP3
+
+from armoryengine.PyBtcWallet import PyBtcWallet
+from armoryengine import ClientProto_pb2
+
+from qtdialogs.qtdefines import GETFONT, NETWORKMODE, \
+   QRichLabel_AutoToolTip, tightSizeNChar, USERMODE, initialColResize, \
+   makeLayoutFrame, HORIZONTAL, QRichLabel, relaxedSizeStr, STYLE_SUNKEN, \
+   makeHorizFrame, DASHBTNS, STYLE_NONE, UserModeStr, makeVertFrame, \
+   restoreTableView, determineWalletType, WLTTYPES, tightSizeStr, \
+   QLabelButton
+
+from qtdialogs.qtdialogs import URLHandler, ArmorySplashScreen, \
+   createAddrBookButton
+from qtdialogs.DlgMigrateWallet import DlgMigrateWallet
+from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
 
 from ui.QtExecuteSignal import QtExecuteSignal
+
+from armorymodels import AllWalletsDispModel, AllWalletsCheckboxDelegate, \
+   WLTVIEWCOLS, LedgerDispModelSimple, LedgerDispDelegate, LEDGERCOLS
+
+
 
 ####
 NodeStatus_Offline = 0
@@ -87,11 +123,10 @@ except:
 translator.load(GUI_LANGUAGE, os.path.join(app_dir, "lang/"))
 QAPP.installTranslator(translator)
 
-from armorymodels import *
+
+
 if sys.version_info < (3,0):
    import qrc_img_resources
-from qtdefines import *
-from qtdialogs import *
 from ui.MultiSigDialogs import DlgSelectMultiSigOption, DlgLockboxManager, \
                     DlgMergePromNotes, DlgCreatePromNote, DlgImportAsciiBlock
 from ui.Wizards import WalletWizard, TxWizard
@@ -277,7 +312,7 @@ class ArmoryMainWindow(QMainWindow):
       if not eulaAgreed:
          DlgEULA(self,self).exec_()
 
-      armoryengine.ArmoryUtils.DEFAULT_ADDR_TYPE = \
+      DEFAULT_ADDR_TYPE = \
          self.getSettingOrSetDefault('Default_ReceiveType', 'P2PKH')
 
 
@@ -1898,42 +1933,42 @@ class ArmoryMainWindow(QMainWindow):
       wltExclude = self.settings.get('Excluded_Wallets', expectList=True)
 
       for wltProto in walletsPayload.wallets:
-            wltLoad = PyBtcWallet()
-            wltLoad.loadFromProtobufPayload(wltProto)
-            wltID = wltLoad.uniqueIDB58
+         wltLoad = PyBtcWallet()
+         wltLoad.loadFromProtobufPayload(wltProto)
+         wltID = wltLoad.uniqueIDB58
 
-            wltLoaded = True
-            if wltID in self.walletIDSet:
-               LOGWARN('***WARNING: Duplicate wallet detected, %s', wltID)
-               wo1 = self.walletMap[wltID].watchingOnly
-               wo2 = wltLoad.watchingOnly
-               if wo1 and not wo2:
-                  prevWltPath = self.walletMap[wltID].walletPath
-                  self.walletMap[wltID] = wltLoad
-                  LOGWARN('First wallet is more useful than the second one...')
-                  LOGWARN('     Wallet 1 (loaded):  %s', fpath)
-                  LOGWARN('     Wallet 2 (skipped): %s', prevWltPath)
-               else:
-                  wltLoaded = False
-                  LOGWARN('Second wallet is more useful than the first one...')
-                  LOGWARN('     Wallet 1 (skipped): %s', fpath)
-                  LOGWARN('     Wallet 2 (loaded):  %s', self.walletMap[wltID].walletPath)
-            else:
-               # Update the maps/dictionaries
+         wltLoaded = True
+         if wltID in self.walletIDSet:
+            LOGWARN('***WARNING: Duplicate wallet detected, %s', wltID)
+            wo1 = self.walletMap[wltID].watchingOnly
+            wo2 = wltLoad.watchingOnly
+            if wo1 and not wo2:
+               prevWltPath = self.walletMap[wltID].walletPath
                self.walletMap[wltID] = wltLoad
-               self.walletIndices[wltID] = len(self.walletMap)-1
+               LOGWARN('First wallet is more useful than the second one...')
+               LOGWARN('     Wallet 1 (loaded):  %s', fpath)
+               LOGWARN('     Wallet 2 (skipped): %s', prevWltPath)
+            else:
+               wltLoaded = False
+               LOGWARN('Second wallet is more useful than the first one...')
+               LOGWARN('     Wallet 1 (skipped): %s', fpath)
+               LOGWARN('     Wallet 2 (loaded):  %s', self.walletMap[wltID].walletPath)
+         else:
+            # Update the maps/dictionaries
+            self.walletMap[wltID] = wltLoad
+            self.walletIndices[wltID] = len(self.walletMap)-1
 
-               # Maintain some linear lists of wallet info
-               self.walletIDSet.add(wltID)
-               self.walletIDList.append(wltID)
-               wtype = determineWalletType(wltLoad, self)[0]
-               notWatch = (not wtype == WLTTYPES.WatchOnly)
-               defaultVisible = self.getWltSetting(wltID, 'LedgerShow', notWatch)
-               self.walletVisibleList.append(defaultVisible)
-               wltLoad.mainWnd = self
+            # Maintain some linear lists of wallet info
+            self.walletIDSet.add(wltID)
+            self.walletIDList.append(wltID)
+            wtype = determineWalletType(wltLoad, self)[0]
+            notWatch = (not wtype == WLTTYPES.WatchOnly)
+            defaultVisible = self.getWltSetting(wltID, 'LedgerShow', notWatch)
+            self.walletVisibleList.append(defaultVisible)
+            wltLoad.mainWnd = self
 
-            if wltLoaded is False:
-               continue
+         if wltLoaded is False:
+            continue
 
       LOGINFO('Number of wallets read in: %d', len(self.walletMap))
       for wltID, wlt in self.walletMap.items():
@@ -5680,7 +5715,7 @@ class ArmoryMainWindow(QMainWindow):
    #############################################################################
    def promptUser(self, promptID, promptType, verbose, wltID, state):
       self.signalExecution.executeMethod(\
-         self.promptDialogSetup, promptID, promptType, verbose, wltID, state)
+         [self.promptDialogSetup, [promptID, promptType, verbose, wltID, state]])
 
    #############################################################################
    def promptDialogSetup(self, promptID, promptType, verbose, wltID, state):

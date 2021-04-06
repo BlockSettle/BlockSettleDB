@@ -7,12 +7,23 @@ from __future__ import (absolute_import, division,
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
 ################################################################################
-from qtdefines import *
-from qtdialogs import createAddrBookButton, DlgSetComment, DlgSendBitcoins, \
-                      DlgUnlockWallet, DlgQRCodeDisplay, DlgRequestPayment,\
-                      DlgDispTxInfo, DlgBrowserWarn, STRETCH
 from armoryengine.MultiSigUtils import MultiSigLockbox, calcLockboxID,\
    createLockboxEntryStr, readLockboxEntryStr, isMofNNonStandardToSpend
+
+from armoryengine.ArmoryUtils import LB_MAXM, LB_MAXN
+
+from qtdialogs.qtdefines import ArmoryDialog
+from qtdialogs.qtdialogs import createAddrBookButton, STRETCH
+
+from qtdialogs.DlgSetComment    import DlgSetComment
+from qtdialogs.DlgUnlockWallet   import DlgUnlockWallet
+from qtdialogs.DlgSendBitcoins   import DlgSendBitcoins
+from qtdialogs.DlgDispTxInfo     import DlgDispTxInfo
+from qtdialogs.DlgRequestPayment import DlgRequestPayment
+from qtdialogs.DlgQRCodeDisplay  import DlgQRCodeDisplay
+from qtdialogs.DlgBrowserWarn    import DlgBrowserWarn
+
+
 from ui.MultiSigModels import \
             LockboxDisplayModel,  LockboxDisplayProxy, LOCKBOXCOLS
 from armoryengine.CoinSelection import PySelectCoins, PyUnspentTxOut, \
@@ -4052,7 +4063,3 @@ class DlgSelectMultiSigOption(ArmoryDialog):
    #############################################################################
    def openSpend(self):
       DlgSpendFromLockbox(self, self.main).exec_()
-
-
-# Get around circular dependencies
-from ui.WalletFrames import SelectWalletFrame

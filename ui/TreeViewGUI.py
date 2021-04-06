@@ -19,7 +19,7 @@ from armoryengine.PyBtcAddress import \
    AddressEntryType_Multisig, AddressEntryType_Compressed, \
    AddressEntryType_P2SH, AddressEntryType_P2WSH
 
-from qtdefines import GETFONT
+from qtdialogs.qtdefines import GETFONT
 from armorycolors import Colors
 
 from armoryengine.CppBridge import TheBridge
