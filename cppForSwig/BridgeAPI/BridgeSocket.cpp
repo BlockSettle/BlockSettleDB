@@ -32,10 +32,18 @@ CppBridgeSocket::CppBridgeSocket(
    //setup auth peers db
    authPeers_ = make_shared<AuthorizedPeers>();
 
-   //inject GUI key (GUI is the server, bridge connects to it)
+   auto uiPubKey = ArmoryConfig::NetworkSettings::uiPublicKey();
+   if (uiPubKey.getSize() != 33)
+   {
+      LOGERR << "Invalid UI pubkey!";
+      LOGERR << "The UI pubkey must be 33 bytes long (66 hexits), " <<
+         "passed through --uiPubKey";
+      throw runtime_error("invalid UI pubkey");
+   }
+
+   //inject UI key (UI is the server, bridge connects to it)
    vector<string> peerNames = { serverName_ };
-   authPeers_->addPeer(
-      ArmoryConfig::NetworkSettings::serverPublicKey(), peerNames);
+   authPeers_->addPeer(uiPubKey, peerNames);
    auto lbds = AuthorizedPeers::getAuthPeersLambdas(authPeers_);
 
    //write own public key to cookie file
@@ -169,20 +177,23 @@ void CppBridgeSocket::pushPayload(
          needs_rekey = true;
       }
 
-         if (needs_rekey)
-         {
-            vector<uint8_t> rekeyPacket(BIP151PUBKEYSIZE + 1 + POLY1305MACLEN);
-            memset(&rekeyPacket[1], 0, BIP151PUBKEYSIZE);
-            rekeyPacket[0] = ArmoryAEAD::HandshakeSequence::Rekey;
+      if (needs_rekey)
+      {
+         vector<uint8_t> rekeyPacket(BIP151PUBKEYSIZE + 5 + POLY1305MACLEN);
+         memset(&rekeyPacket[5], 0, BIP151PUBKEYSIZE);
+         
+         auto rekeyPacketLen = (uint32_t*)&rekeyPacket[0];
+         *rekeyPacketLen = BIP151PUBKEYSIZE + 1;
+         rekeyPacket[4] = ArmoryAEAD::HandshakeSequence::Rekey;
 
-            bip151Connection_->assemblePacket(
-               &rekeyPacket[0], rekeyPacket.size() - POLY1305MACLEN,
-               &rekeyPacket[0], rekeyPacket.size());
+         bip151Connection_->assemblePacket(
+            &rekeyPacket[0], rekeyPacket.size() - POLY1305MACLEN,
+            &rekeyPacket[0], rekeyPacket.size());
 
-            queuePayloadForWrite(rekeyPacket);
-            bip151Connection_->rekeyOuterSession();
-            outKeyTimePoint_ = rightnow;
-         }
+         queuePayloadForWrite(rekeyPacket);
+         bip151Connection_->rekeyOuterSession();
+         outKeyTimePoint_ = rightnow;
+      }
    }
 
    //serialize payload
