@@ -85,6 +85,9 @@ class CppBridge(object):
 
       self.executor = ThreadPoolExecutor(max_workers=2)
       listenFut = self.executor.submit(self.listenOnBridge)
+
+      #append gui pubkey to arg list and spawn bridge
+      stringArgs += " --uiPubKey=" + self.bip15xConnection.getPubkeyHex()
       self.processFut = self.executor.submit(self.spawnBridge, stringArgs)
 
       #block until listen socket receives bridge connection
@@ -251,6 +254,7 @@ class CppBridge(object):
             #decrypt it
             response = self.bip15xConnection.decrypt(\
                payload, payloadSize)
+
 
          #check header
          header = unpack('<B', response[:1])[0]
