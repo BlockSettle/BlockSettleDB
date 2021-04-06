@@ -346,8 +346,9 @@ if OS_WINDOWS:
    BLKFILE_DIR     = os.path.join(BTC_HOME_DIR, 'blocks')
    BLKFILE_1stFILE = os.path.join(BLKFILE_DIR, 'blk00000.dat')
 elif OS_LINUX:
+   import distro
    OS_NAME         = 'Linux'
-   OS_VARIANT      = platform.linux_distribution()
+   OS_VARIANT      = distro.linux_distribution()
    USER_HOME_DIR   = os.getenv('HOME')
    
    if BTC_HOME_DIR == '':
@@ -1771,16 +1772,6 @@ def HexHash160ToScrAddr(a160):
    if not len(a160)==40:
       LOGERROR('Invalid hash160 value!')
    return HASH160PREFIX + hex_to_binary(a160)
-
-# Some more constants that are needed to play nice with the C++ utilities
-ARMORY_DB_BARE = 0
-ARMORY_DB_LITE = 1
-ARMORY_DB_PARTIAL = 2
-ARMORY_DB_FULL = 3
-ARMORY_DB_SUPER = 4
-DB_PRUNE_ALL = 0
-DB_PRUNE_NONE = 1
-
 
 # Some time methods (RightNow() return local unix timestamp)
 RightNow = time.time
@@ -3597,6 +3588,30 @@ def touchFile(fname):
       f.flush()
       os.fsync(f.fileno())
       f.close()
+
+################################################################################
+def calcLockboxID(script=None, scraddr=None):
+   # ScrAddr is "Script/Address" and for multisig it is 0xfe followed by
+   # M and N, then the SORTED hash160 values of the public keys
+   # Part of the reason for using "ScrAddrs" is to bundle together
+   # different scripts that have the same effective signing authority.
+   # Different sortings of the same public key list have same signing
+   # authority and therefore should have the same ScrAddr
+
+   if script is not None:
+      scrType = getTxOutScriptType(script)
+      if not scrType==CPP_TXOUT_MULTISIG:
+         LOGERROR('Not a multisig script!')
+         return None
+      scraddr = script_to_scrAddr(script)
+
+   if not scraddr.startswith(SCRADDR_MULTISIG_BYTE):
+      LOGERROR('ScrAddr is not a multisig script!')
+      return None
+
+   hashedData = hash160(MAGIC_BYTES + scraddr)
+   return binary_to_base58(hashedData)[1:9]
+
 
 #################
 # bridge setup
