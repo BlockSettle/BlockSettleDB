@@ -16,7 +16,7 @@ CHACHA20POLY1305MAXBYTESSENT = 1200
 CHACHA20POLY1305MAXPACKETSIZE = 1000000
 
 import sys
-sys.path.insert(1, '../Armory3/bip15x_cffi')
+sys.path.insert(1, './c20p1305_cffi')
 from c20p1305 import lib, ffi
 
 AEAD_THRESHOLD_BEGIN      = 100,
@@ -105,10 +105,10 @@ class BIP15xConnection(object):
       self.privkey = lib.generate_random(32)
       self.pubkey = lib.compute_pubkey(self.privkey)
 
+   #############################################################################
+   def getPubkeyHex(self):
       pubkeyPy = ffi.buffer(self.pubkey, 33)
-      with open("./server_cookie", "wb") as cookieFile:
-         cookieFile.write(bytes(pubkeyPy))
-         cookieFile.close()
+      return bytes(pubkeyPy).hex()
 
    #############################################################################
    def __del__(self):
@@ -128,7 +128,7 @@ class BIP15xConnection(object):
 
    #############################################################################
    def getRandomBytes(self, count):
-      val = lib.generate_random(count);
+      val = lib.generate_random(count)
       valPy = bytes(ffi.buffer(val, count))
       return valPy
 
@@ -175,7 +175,10 @@ class BIP15xConnection(object):
       elif header == AEAD_REPLY[0]:
          return 64
 
-      raise AEAD_Error("unkonwn AEAD header byte")
+      elif header == AEAD_REKEY[0]:
+         return 33
+
+      raise AEAD_Error("unknown AEAD header byte")
 
    #############################################################################
    def serverHandshake(self, header, payload):
@@ -214,7 +217,8 @@ class BIP15xConnection(object):
 
          #check challenge
          if not lib.bip150_check_authchallenge(\
-            payload, self.inSession.channel, self.pubkey):
+            payload, len(payload), \
+            self.inSession.channel, self.pubkey):
             raise AEAD_Error("invalid challenge")
 
          #get auth reply
@@ -223,10 +227,10 @@ class BIP15xConnection(object):
 
          #sanity check
          if lib.isNull(authReply):
-             raise AEAD_Error("auth reply failure");
+             raise AEAD_Error("auth reply failure")
 
          #append header
-         authReplyPy = ffi.buffer(authReply, 64);
+         authReplyPy = ffi.buffer(authReply, 64)
          authReplyPy = bytes(AEAD_REPLY) + bytes(authReplyPy)
 
          #cleanup C buffer
@@ -243,7 +247,8 @@ class BIP15xConnection(object):
 
          #check propose
          if not lib.bip150_check_authpropose(\
-            payload, self.inSession.channel, self.clientPubkey):
+            payload, len(payload), \
+            self.inSession.channel, self.clientPubkey):
             raise AEAD_Error("invalid propose")
 
          #return auth challenge
@@ -252,10 +257,10 @@ class BIP15xConnection(object):
 
          #sanity check
          if lib.isNull(authChallenge):
-             raise AEAD_Error("auth reply failure");
+             raise AEAD_Error("auth reply failure")
 
          #append header
-         authChallengePy = ffi.buffer(authChallenge, 32);
+         authChallengePy = ffi.buffer(authChallenge, 32)
          authChallengePy = bytes(AEAD_CHALLENGE) + bytes(authChallengePy)
 
          #cleanup C buffer
@@ -272,7 +277,8 @@ class BIP15xConnection(object):
 
          #check reply
          if not lib.bip150_check_authreply(\
-            payload, self.inSession.channel, self.clientPubkey):
+            payload, len(payload), \
+            self.inSession.channel, self.clientPubkey):
             raise AEAD_Error("invalid auth reply")
 
          #rekey
@@ -284,6 +290,15 @@ class BIP15xConnection(object):
          #mark connection as ready
          self.state = BIP15X_READY
          self.notifyReadyLbd()
+
+      elif header == AEAD_REKEY[0]:
+         if self.state != BIP15X_READY:
+            raise AEAD_Error("invalid rekey request")
+
+         if not lib.bip151_isrekeymsg(payload, len(payload)):
+            raise AEAD_Error("invalid rekey message")
+
+         lib.bip151_channel_rekey(self.inSession.channel)
 
       else:
          raise AEAD_Error("invalid handshake header")
