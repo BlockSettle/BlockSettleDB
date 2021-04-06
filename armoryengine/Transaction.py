@@ -3136,9 +3136,3 @@ def pprintLedgerEntry(le, indent=''):
    blkStr = str(le.getBlockNum())
    print(indent + 'LE %s %s %s %s' % \
             (addrStr.ljust(15), leVal, txType.ljust(8), blkStr.ljust(8)))
-
-# Putting this at the end because of the circular dependency
-from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
-from armoryengine.PyBtcAddress import PyBtcAddress
-from armoryengine.CoinSelection import pprintUnspentTxOutList, sumTxOutList
-from armoryengine.Script import *

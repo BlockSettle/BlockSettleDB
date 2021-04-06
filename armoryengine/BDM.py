@@ -384,7 +384,3 @@ else:
    cpplf = cppLogFile
    if OS_WINDOWS and isinstance(cppLogFile, unicode):
       cpplf = cppLogFile.encode('utf8')
-
-# Put the import at the end to avoid circular reference problem
-from armoryengine.MultiSigUtils import MultiSigLockbox
-from armoryengine.Transaction import PyTx

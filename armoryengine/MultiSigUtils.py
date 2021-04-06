@@ -7,9 +7,8 @@ from __future__ import (absolute_import, division,
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
 ################################################################################
-from armoryengine.ArmoryUtils import *
-from armoryengine.Transaction import *
-from armoryengine.Script import *
+from armoryengine.ArmoryUtils import enum
+from armoryengine.AsciiSerialize import AsciiSerializable
 
 MULTISIG_VERSION = 1
 
@@ -1315,7 +1314,3 @@ class MultiSigPromissoryNote(AsciiSerializable):
          print('   ChangeAddr  :', self.dtxoChange.getRecipStr())
       print('   LB Key      :', self.lockboxKey)
       print('   LB Key Info :', self.promLabel)
-
-
-# Resolve circular dependencies here.
-from armoryengine.UserAddressUtils import getDisplayStringForScript
