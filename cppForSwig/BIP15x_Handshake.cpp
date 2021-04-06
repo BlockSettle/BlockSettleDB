@@ -195,7 +195,7 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
       if (connPtr->processEncack(
          msg.getPtr(), msg.getSize(), false) != 0)
       {
-         //failed to init handshake, kill connection
+         //failed to rekey, kill connection
          LOGWARN << "failed to process rekey";
          return HandshakeState::Error_ProcessEncAck;
       }
