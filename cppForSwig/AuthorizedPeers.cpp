@@ -117,6 +117,7 @@ AuthorizedPeers::AuthorizedPeers(
 ////////////////////////////////////////////////////////////////////////////////
 AuthorizedPeers::AuthorizedPeers()
 {
+   //No filename was passed, create an ephemral peer db instead
    auto&& privateKey = CryptoPRNG::generateRandom(32);
 
    //compute the public key
