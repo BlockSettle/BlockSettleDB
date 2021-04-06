@@ -387,6 +387,22 @@ void bip151_channel_initial_rekey(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+bool bip151_isrekeymsg(const uint8_t* rekey_message, size_t len)
+{
+   if (len != 33)
+      return false;
+
+   for (unsigned i=0; i<len; i++)
+   {
+      if (rekey_message[i] != 0)
+         return false;
+   }
+
+   return true;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
 //
 // bip150 auth
 //
@@ -417,16 +433,22 @@ bool check_authstring(const uint8_t* payload, const uint8_t* sessionID,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool bip150_check_authchallenge(const uint8_t* payload,
+bool bip150_check_authchallenge(const uint8_t* payload, size_t len,
    const bip151_channel* channel, const uint8_t* pubkey)
 {
+   if (len != 32)
+      return false;
+
    return check_authstring(payload, channel->sessionID_, pubkey, 'i');
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool bip150_check_authpropose(const uint8_t* payload,
+bool bip150_check_authpropose(const uint8_t* payload, size_t len,
    const bip151_channel* channel, const uint8_t* pubkey)
 {
+   if (len != 32)
+      return false;
+
    return check_authstring(payload, channel->sessionID_, pubkey, 'p');
 }
 
@@ -454,11 +476,15 @@ uint8_t* bip150_get_authchallenge(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool bip150_check_authreply(uint8_t* payload,
+bool bip150_check_authreply(uint8_t* payload, size_t len,
    const bip151_channel* channel, const uint8_t* pubkey)
 {
    uint8_t derSig[DERSIG_SIZE];
    size_t derSigSize = DERSIG_SIZE;
+
+   if (len != 64)
+      return false;
+
    if(btc_ecc_compact_to_der_normalized(payload, derSig, &derSigSize) == false)
    {
       return false;
@@ -475,6 +501,8 @@ bool bip150_check_authreply(uint8_t* payload,
 ////////////////////////////////////////////////////////////////////////////////
 uint32_t bip15x_get_length(bip151_channel* channel, const uint8_t* payload)
 {
+   //payload has to be AAD_LEN long
+
    unsigned decryptedLen;
    if (chacha20poly1305_get_length(
       channel->ctx_, &decryptedLen,

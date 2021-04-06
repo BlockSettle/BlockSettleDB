@@ -48,14 +48,15 @@ bool bip151_channel_processencack(bip151_channel*, const uint8_t*, size_t);
 void bip151_channel_rekey(bip151_channel*);
 void bip151_channel_initial_rekey(
    bip151_channel*, bip151_channel*, const uint8_t*, const uint8_t*);
+bool bip151_isrekeymsg(const uint8_t*, size_t);
 
 //auth setup
 bool bip150_check_authchallenge(
-   const uint8_t*, const bip151_channel*, const uint8_t*);
+   const uint8_t*, size_t, const bip151_channel*, const uint8_t*);
 bool bip150_check_authpropose(
-   const uint8_t*, const bip151_channel*, const uint8_t*);
+   const uint8_t*, size_t, const bip151_channel*, const uint8_t*);
 bool bip150_check_authreply(
-   uint8_t*, const bip151_channel*, const uint8_t*);
+   uint8_t*, size_t, const bip151_channel*, const uint8_t*);
 
 uint8_t* bip150_get_authreply(const bip151_channel*, const uint8_t*);
 uint8_t* bip150_get_authchallenge(const bip151_channel*, const uint8_t*);
