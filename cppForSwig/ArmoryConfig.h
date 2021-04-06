@@ -170,7 +170,7 @@ private:
    static bool offline_;
    static std::string cookie_;
 
-   static BinaryData serverPublicKey_;
+   static BinaryData uiPublicKey_;
 
 private:
    static void createNodes(void);
@@ -198,8 +198,8 @@ public:
    static bool oneWayAuth(void) { return oneWayAuth_; }
    static bool offline(void) { return offline_; }
 
-   static BinaryData serverPublicKey(void) { return serverPublicKey_; }
-   static void injectServerPubkey(BinaryData&);
+   static BinaryData uiPublicKey(void) { return uiPublicKey_; }
+   static void injectUiPubkey(BinaryData&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

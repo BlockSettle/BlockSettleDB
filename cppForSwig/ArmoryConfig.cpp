@@ -678,7 +678,7 @@ bool NetworkSettings::oneWayAuth_ = false;
 bool NetworkSettings::offline_ = false;
 
 string NetworkSettings::cookie_;
-BinaryData NetworkSettings::serverPublicKey_;
+BinaryData NetworkSettings::uiPublicKey_;
 
 ////////////////////////////////////////////////////////////////////////////////
 void NetworkSettings::processArgs(const map<string, string>& args)
@@ -764,6 +764,11 @@ void NetworkSettings::processArgs(const map<string, string>& args)
    iter = args.find("offline");
    if (iter != args.end())
       offline_ = true;
+
+   //ui pubkey
+   iter = args.find("uiPubKey");
+   if (iter != args.end())
+      uiPublicKey_ = READHEX(iter->second);
 
 
    //create cookie
@@ -939,9 +944,9 @@ void NetworkSettings::createCookie()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void NetworkSettings::injectServerPubkey(BinaryData& pubkey)
+void NetworkSettings::injectUiPubkey(BinaryData& pubkey)
 {
-   serverPublicKey_ = move(pubkey);
+   uiPublicKey_ = move(pubkey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
