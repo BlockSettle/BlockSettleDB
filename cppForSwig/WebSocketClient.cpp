@@ -162,9 +162,6 @@ struct lws_context* WebSocketClient::init()
    info.gid = -1;
    info.uid = -1;
 
-   //1 min ping/pong
-   info.ws_ping_pong_interval = 60;
-
    auto contextptr = lws_create_context(&info);
    if (contextptr == NULL) 
       throw LWS_Error("failed to create LWS context");
