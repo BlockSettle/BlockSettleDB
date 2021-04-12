@@ -65,6 +65,8 @@ from armoryengine.ArmoryUtils import enum, GetExecDir, RightNow, \
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
 from armoryengine.CppBridge import TheBridge
+from armoryengine.UserAddressUtils import getScriptForUserStringImpl, \
+   getDisplayStringForScriptImpl
 from armoryengine.BDM import TheBDM, \
    BDM_BLOCKCHAIN_READY, BDM_SCANNING, BDM_UNINITIALIZED, BDM_OFFLINE, \
    FINISH_LOAD_BLOCKCHAIN_ACTION, NEW_ZC_ACTION, NEW_BLOCK_ACTION, \
@@ -82,10 +84,10 @@ from qtdialogs.qtdefines import GETFONT, NETWORKMODE, \
    restoreTableView, determineWalletType, WLTTYPES, tightSizeStr, \
    QLabelButton
 
-from qtdialogs.qtdialogs import URLHandler, ArmorySplashScreen, \
-   createAddrBookButton
+from qtdialogs.qtdialogs import URLHandler, ArmorySplashScreen
 from qtdialogs.DlgMigrateWallet import DlgMigrateWallet
 from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
+from qtdialogs.DlgAddressBook import DlgAddressBook, createAddrBookButton
 
 from ui.QtExecuteSignal import QtExecuteSignal
 
@@ -4624,7 +4626,7 @@ class ArmoryMainWindow(QMainWindow):
 
    #############################################################################
    def getScriptForUserString(self, userStr):
-      return getScriptForUserString(userStr, self.walletMap, self.allLockboxes)
+      return getScriptForUserStringImpl(userStr, self.walletMap, self.allLockboxes)
 
 
    #############################################################################
@@ -4633,7 +4635,7 @@ class ArmoryMainWindow(QMainWindow):
                                  lblTrunc=12, lastTrunc=12):
 
       if binScript not in self.scriptDispStrings:
-         dispString = getDisplayStringForScript(
+         dispString = getDisplayStringForScriptImpl(
             binScript, self.walletMap,
             self.allLockboxes, maxChars, doBold,
             prefIDOverAddr, lblTrunc, lastTrunc)
@@ -4873,8 +4875,6 @@ class ArmoryMainWindow(QMainWindow):
          self.nodeStatus = args[0]
 
          if prevStatus != self.nodeStatus.nodeStatus:
-            TheBDM.setWitness(self.nodeStatus.isSegWitEnabled)
-
             if self.nodeStatus.nodeStatus == NodeStatus_Offline:
                self.showTrayMsg(self.tr('Disconnected'), self.tr('Connection to Bitcoin Core '
                                 'client lost!  Armory cannot send nor '

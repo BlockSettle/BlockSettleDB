@@ -13,15 +13,16 @@ from armoryengine.MultiSigUtils import MultiSigLockbox, calcLockboxID,\
 from armoryengine.ArmoryUtils import LB_MAXM, LB_MAXN
 
 from qtdialogs.qtdefines import ArmoryDialog
-from qtdialogs.qtdialogs import createAddrBookButton, STRETCH
+from qtdialogs.qtdialogs import STRETCH
 
-from qtdialogs.DlgSetComment    import DlgSetComment
+from qtdialogs.DlgSetComment     import DlgSetComment
 from qtdialogs.DlgUnlockWallet   import DlgUnlockWallet
 from qtdialogs.DlgSendBitcoins   import DlgSendBitcoins
 from qtdialogs.DlgDispTxInfo     import DlgDispTxInfo
 from qtdialogs.DlgRequestPayment import DlgRequestPayment
 from qtdialogs.DlgQRCodeDisplay  import DlgQRCodeDisplay
 from qtdialogs.DlgBrowserWarn    import DlgBrowserWarn
+from qtdialogs.DlgAddressBook    import DlgAddressBook, createAddrBookButton
 
 
 from ui.MultiSigModels import \

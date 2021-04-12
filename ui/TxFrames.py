@@ -8,13 +8,17 @@ from __future__ import (absolute_import, division,
 #                                                                              #
 ################################################################################
 
+import random
+
 from qtdialogs.qtdefines import ArmoryFrame, ArmoryDialog, tightSizeNChar, \
    GETFONT, QRichLabel, VLINE, HLINE, QLabelButton, USERMODE, \
    VERTICAL, HORIZONTAL, makeHorizFrame, STYLE_RAISED, makeVertFrame, \
-   relaxedSizeNChar, STYLE_SUNKEN
+   relaxedSizeNChar, STYLE_SUNKEN, CHANGE_ADDR_DESCR_STRING
 
-from qtdialogs.qtdialogs import extractTxInfo, NO_CHANGE, STRETCH, \
-   createAddrBookButton
+from qtdialogs.qtdialogs import NO_CHANGE, STRETCH
+from qtdialogs.DlgAddressBook import createAddrBookButton
+from qtdialogs.DlgDispTxInfo import DlgDispTxInfo, extractTxInfo
+from qtdialogs.DlgConfirmSend import DlgConfirmSend
 
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.Transaction import UnsignedTransaction, getTxOutScriptType
@@ -25,13 +29,20 @@ from ui.WalletFrames import SelectWalletFrame, LockboxSelectFrame
 from armoryengine.MultiSigUtils import \
       calcLockboxID, readLockboxEntryStr, createLockboxEntryStr, isBareLockbox,\
    isP2SHLockbox
-from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH, getAddrByte
+from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH, getAddrByte, \
+   LOGEXCEPT, LOGERROR, LOGINFO, NegativeValueError, TooMuchPrecisionError, \
+   str2coin, DEFAULT_CHANGE_TYPE, CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, \
+   coin2str, MIN_FEE_BYTE
+
 from ui.FeeSelectUI import FeeSelectionDialog
 
 from PySide2.QtCore import Qt, QByteArray
+from PySide2.QtGui import QPalette
 from PySide2.QtWidgets import QPushButton, QRadioButton, QCheckBox, \
    QGridLayout, QScrollArea, QFrame, QButtonGroup, QHBoxLayout, \
-   QVBoxLayout, QLabel, QLineEdit
+   QVBoxLayout, QLabel, QLineEdit, QMessageBox
+
+from armorycolors import Colors
 
 from armoryengine.CppBridge import TheBridge
 
@@ -974,15 +985,15 @@ class SendBitcoinsFrame(ArmoryFrame):
          and outputs to the new signer for processing instead of creating the
          unsigned tx in Python.
          '''
-                     
+
          # Now create the unsigned USTX
          ustx = UnsignedTransaction().createFromTxOutSelection(\
             utxoSelect, scriptValPairs, pubKeyMap, p2shMap=p2shMap, \
             lockTime=TheBDM.getTopBlockHeight())
-         
+
          for msg in opreturn_list:
             ustx.addOpReturnOutput(str(msg))
-         
+
          #resolve signer before returning it
          self.wlt.resolveSigner(ustx)
 
@@ -991,20 +1002,20 @@ class SendBitcoinsFrame(ArmoryFrame):
          if not self.unsignedCheckbox.isChecked():
             dlg = DlgConfirmSend(self.wlt, origSVPairs, txValues[1], self, \
                                                      self.main, True, ustx)
-      
+
             if not dlg.exec_():
                return False
-            
+
          else:
             self.main.warnNewUSTXFormat()
-      
+
       return ustx
-   
-  
-   def createTxAndBroadcast(self):      
+
+
+   def createTxAndBroadcast(self):
       # The Send! button is clicked validate and broadcast tx
       ustx = self.validateInputsGetUSTX()
-            
+
       if ustx:
          self.updateUserComments()
 
@@ -1014,7 +1025,7 @@ class SendBitcoinsFrame(ArmoryFrame):
             try:              
                self.wlt.mainWnd = self.main
                self.wlt.parent = self
-      
+
                commentStr = ''
                if len(self.comments) == 1:
                   commentStr = self.comments[0][0]
@@ -1076,7 +1087,7 @@ class SendBitcoinsFrame(ArmoryFrame):
    def getDefaultChangeAddress(self, scriptValPairs, peek):
       if len(scriptValPairs) == 0:
          raise Exception("cannot calculate change without at least one recipient")
-      
+
       def getAddr(typeStr):
          typeInt = AddressEntryType_Default
          if typeStr == 'P2PKH':
@@ -1087,14 +1098,15 @@ class SendBitcoinsFrame(ArmoryFrame):
             typeInt = AddressEntryType_P2SH + AddressEntryType_P2PK
 
          if peek:
-            addrObj = self.wlt.peekChangeAddress(typeInt)
+            addrObj = self.wlt.peekChangeAddr(typeInt)
          else:
             addrObj = self.wlt.getNewChangeAddr(typeInt)
          return addrObj
-      
-      changeType = self.main.getSettingOrSetDefault('Default_ChangeType', DEFAULT_CHANGE_TYPE)
-      
-      #check if there are any P2SH recipients      
+
+      changeType = self.main.getSettingOrSetDefault(\
+         'Default_ChangeType', DEFAULT_CHANGE_TYPE)
+
+      #check if there are any P2SH recipients
       haveP2SH = False
       haveP2PKH = False
       haveBech32 = False
@@ -1513,26 +1525,26 @@ class SendBitcoinsFrame(ArmoryFrame):
    def updateWidgetAddrColor(self, widget, color):
       palette = QPalette()
       palette.setColor(QPalette.Base, color)
-      widget['QLE_ADDR'].setPalette(palette);
-      widget['QLE_ADDR'].setAutoFillBackground(True);
+      widget['QLE_ADDR'].setPalette(palette)
+      widget['QLE_ADDR'].setAutoFillBackground(True)
 
    #############################################################################
    def updateAddrColor(self, idx, color):
       self.updateWidgetAddrColor(self.widgetTable[idx], color)
-    
+
    #############################################################################   
    def previewTx(self):
       ustx = self.validateInputsGetUSTX(peek=True)
       if not isinstance(ustx, UnsignedTransaction):
          return
-      
+
       txDlg = DlgDispTxInfo(ustx, self.wlt, self.parent(), self.main)
       txDlg.exec_()
-      
+
    #############################################################################      
    def resetRecipients(self):
       self.widgetTable = []
-     
+
    #############################################################################  
    def prefillFromURI(self, prefill):
       amount = prefill.get('amount','')

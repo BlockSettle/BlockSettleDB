@@ -12,9 +12,9 @@ from PySide2.QtWidgets import QWidget
 
 from armoryengine.ArmoryUtils import isASCII
 from armorycolors import htmlColor
-from qtdialogs.qtdialogs import MIN_PASSWD_WIDTH, DlgPasswd3, \
-   createAddrBookButton
+from qtdialogs.qtdialogs import MIN_PASSWD_WIDTH, DlgPasswd3
 from qtdialogs.DlgUnlockWallet import DlgUnlockWallet
+from qtdialogs.DlgAddressBook import createAddrBookButton
 
 from qtdialogs.qtdefines import ArmoryDialog
 

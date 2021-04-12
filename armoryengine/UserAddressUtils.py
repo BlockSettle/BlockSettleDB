@@ -14,7 +14,7 @@ from armoryengine.Transaction import getTxOutScriptType, getMultisigScriptInfo
 from armoryengine.CppBridge import TheBridge
 
 #############################################################################
-def getScriptForUserString(userStr, wltMap, lboxList):
+def getScriptForUserStringImpl(userStr, wltMap, lboxList):
    """
    NOTE: Just like getDisplayStringForScript(), this used to be in ArmoryQt
    but I can envision that it would be useful for reading user input in a
@@ -122,7 +122,7 @@ def getScriptForUserString(userStr, wltMap, lboxList):
 
 
 ################################################################################
-def getDisplayStringForScript(binScript, wltMap, lboxList, maxChars=256, 
+def getDisplayStringForScriptImpl(binScript, wltMap, lboxList, maxChars=256, 
                               doBold=0, prefIDOverAddr=False, 
                               lblTrunc=12, lastTrunc=12):
    """

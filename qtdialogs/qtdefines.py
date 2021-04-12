@@ -27,7 +27,7 @@ from PySide2.QtWidgets import QWidget, QDialog, QFrame, QLabel, \
 import urllib
 
 from armoryengine.ArmoryUtils import enum, ARMORY_HOME_DIR, OS_MACOSX, \
-   USE_TESTNET, USE_REGTEST, OS_WINDOWS, coin2str
+   USE_TESTNET, USE_REGTEST, OS_WINDOWS, coin2str, int_to_hex, toBytes
 
 from armorycolors import Colors, htmlColor
 from ui.QrCodeMatrix import CreateQRMatrix
@@ -401,7 +401,7 @@ class QLabelButton(QLabel):
       txt = toBytes(self.text())
       if txt in self.mousePressOn:
          self.mousePressOn.remove(txt)
-         self.emit(SIGNAL('clicked()'))
+         self.linkActivated.emit(ev)
 
    def enterEvent(self, ev):
       ssStr = "QLabel { background-color : %s }" % htmlColor('LBtnHoverBG')
