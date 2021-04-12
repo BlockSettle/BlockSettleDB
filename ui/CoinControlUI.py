@@ -13,6 +13,7 @@ from qtdialogs.qtdefines import ArmoryDialog, QRichLabel, makeHorizFrame, \
 
 from ui.TreeViewGUI import CoinControlTreeModel, RBFTreeModel
 
+from PySide2.QtCore import QByteArray
 from PySide2.QtWidgets import QCheckBox, QTreeView, QPushButton, \
    QDialogButtonBox, QGridLayout
 
@@ -62,7 +63,10 @@ class CoinControlDlg(ArmoryDialog):
       tblgeom  = self.main.settings.get('ccDlgAddrCols')
 
       if len(hexgeom) > 0:
-         geom = QByteArray.fromHex(hexgeom)
+         if type(hexgeom) == str:
+            geom = QByteArray(bytes.fromhex(hexgeom))
+         else:
+            geom = hexgeom
          self.restoreGeometry(geom)
       if len(tblgeom) > 0:
          restoreTableView(self.ccView, tblgeom)
@@ -148,8 +152,8 @@ class RBFDlg(ArmoryDialog):
 
       self.btnAccept = QPushButton(self.tr("Accept"))
       self.btnCancel = QPushButton(self.tr("Cancel"))
-      self.connect(self.btnAccept, SIGNAL('clicked()'), self.accept)
-      self.connect(self.btnCancel, SIGNAL('clicked()'), self.reject)
+      self.btnAccept.clicked.connect(self.accept)
+      self.btnCancel.clicked.connect(self.reject)
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
