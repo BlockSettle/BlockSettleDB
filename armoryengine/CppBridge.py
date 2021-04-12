@@ -129,7 +129,6 @@ class CppBridge(object):
       cipherText = []
       if self.bip15xConnection.needsRekey(len(clearText)):
          cipherText.append(self.bip15xConnection.getRekeyPayload())
-         print ("rekey")
       cipherText.append(\
          self.bip15xConnection.encrypt(clearText, len(clearText)))
 
@@ -770,9 +769,6 @@ class CppBridge(object):
 
       fut = self.sendToBridgeProto(packet)
       socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
 
       response = ClientProto_pb2.ReplyNumbers()
       response.ParseFromString(socketResponse)
