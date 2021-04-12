@@ -69,19 +69,26 @@ void CppBridgeSocket::respond(vector<uint8_t>& data)
    }
 
    //append data to leftovers from previous iteration if applicable
-   if (leftOverData_.size() != 0)
+   if (!leftOverData_.empty())
    {
       leftOverData_.insert(leftOverData_.end(), data.begin(), data.end());
       data = move(leftOverData_);
 
-      //clear the leftover data
-      leftOverData_.clear();
+      //leftoverData_ should be empty cause of the move operation
+      assert(leftOverData_.empty());
    }
 
-   BinaryDataRef dataRef;
-   if (bip151Connection_->connectionComplete())
+   while (!data.empty())
    {
-      while (true)
+      //for data that isn't encrypted, assume the payload is
+      //a single whole packet
+      bool encr = false;
+
+      //skip size header
+      BinaryDataRef dataRef(&data[0], data.size());
+      auto packetSize = dataRef.getSize();
+
+      if (bip151Connection_->connectionComplete())
       {
          //get decrypted length
          auto decrLen = bip151Connection_->decryptPacket(
@@ -107,45 +114,59 @@ void CppBridgeSocket::respond(vector<uint8_t>& data)
          auto result = bip151Connection_->decryptPacket(
             &data[0], data.size(), &data[0], data.size());
 
-         dataRef.setRef(
-            &data[0] + AUTHASSOCDATAFIELDLEN, decrLen);
+         //point to the head of the decrypted cleartext
+         dataRef.setRef(&data[0] + AUTHASSOCDATAFIELDLEN, decrLen);
 
-         //we have decrypted data, process it
-         if (data[4] < ArmoryAEAD::HandshakeSequence::Threshold_Begin)
+         //keep track of this packet's size
+         if (data.size() > decrLen + AUTHASSOCDATAFIELDLEN + POLY1305MACLEN)
+            packetSize = decrLen + AUTHASSOCDATAFIELDLEN + POLY1305MACLEN;
+
+         encr = true;
+      }
+
+      if (dataRef.empty())
+      {
+         //handshake failure
+         LOGERR << "invalid packet size, aborting";
+         shutdown();
+         return;
+      }
+
+      if (encr && dataRef[0] < ArmoryAEAD::HandshakeSequence::Threshold_Begin)
+      {
+         //we can only process user messages after the AEAD channel is auth'ed
+         //and the data is encrypted
+         if (bip151Connection_->getBIP150State() != BIP150State::SUCCESS)
          {
-            //we can only process user data after the AEAD channel is auth'ed
-            if (bip151Connection_->getBIP150State() != BIP150State::SUCCESS)
-               shutdown();
-
-            if (!bridgePtr_->processData(dataRef))
-               shutdown();
-
-            //if we have left over data, isolate it and process it
-            if (data.size() > decrLen + AUTHASSOCDATAFIELDLEN + POLY1305MACLEN)
-            {
-               data = vector<uint8_t>(
-                  data.begin() + decrLen + AUTHASSOCDATAFIELDLEN + POLY1305MACLEN,
-                  data.end());
-               continue;
-            }
-
+            shutdown();
             return;
          }
 
-         break;
+         if (!bridgePtr_->processData(dataRef))
+         {
+            shutdown();
+            return;
+         }
       }
-   }
-   else
-   {
-      dataRef.setRef(&data[0], data.size());
-   }
+      else
+      {
+         //we can only get here if the data is part of an ongoing AEAD
+         //handhsake or an incoming channel rekey
+         if (!processAEADHandshake(dataRef))
+         {
+            //handshake failure
+            LOGERR << "AEAD handshake failed, aborting";
+            shutdown();
+            return;
+         }
+      }
 
-   //we can only get this far if the data is part of an ongoing AEAD handhsake
-   if (!processAEADHandshake(dataRef))
-   {
-      //handshake failure
-      LOGERR << "AEAD handshake failed, aborting";
-      shutdown();
+      if (data.size() == packetSize)
+         return;
+
+      //payload is bigger than the packet we just processed, remove leading
+      //packet from data and iterate over what's left
+      data = vector<uint8_t>(data.begin() + packetSize, data.end());
    }
 }
 
