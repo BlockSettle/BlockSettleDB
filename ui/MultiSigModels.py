@@ -65,49 +65,49 @@ class LockboxDisplayModel(QAbstractTableModel):
 
       if role==Qt.DisplayRole:
          if col==LOCKBOXCOLS.ID: 
-            return QVariant(lbID)
+            return lbID
          elif col==LOCKBOXCOLS.CreateDate: 
-            return QVariant(unixTimeToFormatStr(lbox.createDate, self.dateFmt))
+            return unixTimeToFormatStr(lbox.createDate, self.dateFmt)
          elif col==LOCKBOXCOLS.MSType: 
-            return QVariant('%d-of-%d' % (lbox.M, lbox.N))
+            return '%d-of-%d' % (lbox.M, lbox.N)
          elif col==LOCKBOXCOLS.LBName: 
-            return QVariant(lbox.shortName)
+            return lbox.shortName
          elif col==LOCKBOXCOLS.Key0: 
-            return QVariant(self.getKeyDisp(lbox, 0))
+            return self.getKeyDisp(lbox, 0)
          elif col==LOCKBOXCOLS.Key1: 
-            return QVariant(self.getKeyDisp(lbox, 1))
+            return self.getKeyDisp(lbox, 1)
          elif col==LOCKBOXCOLS.Key2: 
-            return QVariant(self.getKeyDisp(lbox, 2))
+            return self.getKeyDisp(lbox, 2)
          elif col==LOCKBOXCOLS.Key3: 
-            return QVariant(self.getKeyDisp(lbox, 3))
+            return self.getKeyDisp(lbox, 3)
          elif col==LOCKBOXCOLS.Key4: 
-            return QVariant(self.getKeyDisp(lbox, 4))
+            return self.getKeyDisp(lbox, 4)
          elif col==LOCKBOXCOLS.NumTx: 
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
-               return QVariant('(...)') 
-            return QVariant(nTx)
+               return '(...)'
+            return nTx
          elif col==LOCKBOXCOLS.Balance: 
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
-               return QVariant('(...)') 
+               return '(...)'
             
             if lbox.isEnabled == True:
                if isinstance(bal, str):
-                  return QVariant(bal)
-               return QVariant(coin2str(bal, maxZeros=2))
+                  return bal
+               return coin2str(bal, maxZeros=2)
             
             scanStr = self.tr('Scanning: %d%%' % self.main.walletSideScanProgress[lbID])
-            return QVariant(scanStr)
+            return scanStr
             
          elif col==LOCKBOXCOLS.UnixTime: 
-            return QVariant(str(lbox.createDate))
+            return str(lbox.createDate)
 
       elif role==Qt.TextAlignmentRole:
          if col in (LOCKBOXCOLS.MSType, 
                     LOCKBOXCOLS.NumTx,
                     LOCKBOXCOLS.Balance):
-            return QVariant(int(Qt.AlignHCenter | Qt.AlignVCenter))
+            return int(Qt.AlignHCenter | Qt.AlignVCenter)
 
-         return QVariant(int(Qt.AlignLeft | Qt.AlignVCenter))
+         return int(Qt.AlignLeft | Qt.AlignVCenter)
 
       elif role==Qt.FontRole:
          f = GETFONT('Var')
@@ -115,13 +115,12 @@ class LockboxDisplayModel(QAbstractTableModel):
             f = GETFONT('Fixed')
          if nTx>0:
             f.setWeight(QFont.Bold)
-         return QVariant(f)
+         return f
       elif role==Qt.BackgroundColorRole:
          if bal>0:
-            return QVariant( Colors.SlightGreen )
+            return Colors.SlightGreen
 
-
-      return QVariant()
+      return None
 
 
    def headerData(self, section, orientation, role=Qt.DisplayRole):
@@ -130,9 +129,9 @@ class LockboxDisplayModel(QAbstractTableModel):
                    '#Tx', 'Funds', 'UnixTime']
       if role==Qt.DisplayRole:
          if orientation==Qt.Horizontal:
-            return QVariant( colLabels[section])
+            return colLabels[section]
       elif role==Qt.TextAlignmentRole:
-         return QVariant( int(Qt.AlignHCenter | Qt.AlignVCenter) )
+         return int(Qt.AlignHCenter | Qt.AlignVCenter)
 
 
    def flags(self, index, role=Qt.DisplayRole):

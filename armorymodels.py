@@ -12,6 +12,7 @@ from os import path
 import os
 import platform
 import sys
+from copy import deepcopy
 
 from PySide2.QtGui import QColor, QPalette, QImage, QFont, QPixmap
 from PySide2.QtCore import Qt, QObject, QAbstractTableModel, QModelIndex, \
@@ -21,16 +22,19 @@ from PySide2.QtWidgets import QStyle, QApplication, QCalendarWidget, \
    QStyledItemDelegate, QTableView
 
 
-from armoryengine.ArmoryUtils import enum, coin2str
+from armoryengine.ArmoryUtils import enum, coin2str, binary_to_hex, \
+   int_to_hex, CPP_TXOUT_SCRIPT_NAMES, CPP_TXOUT_MULTISIG
+from armoryengine.UserAddressUtils import getDisplayStringForScriptImpl
+from armoryengine.Transaction import UnsignedTransaction, \
+   getTxInScriptType
 from armoryengine.MultiSigUtils import calcLockboxID
 from armoryengine.Timer import TimeThisFunction
-from copy import deepcopy
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.CppBridge import TheBridge
 
 from armorycolors import Colors
 from qtdialogs.qtdefines import ArmoryDialog, determineWalletType, WLTTYPES, \
-   GETFONT
+   GETFONT, CHANGE_ADDR_DESCR_STRING
 
 WLTVIEWCOLS = enum('Visible', 'ID', 'Name', 'Secure', 'Bal')
 LEDGERCOLS  = enum('NumConf', 'UnixTime', 'DateStr', 'TxDir', 'WltName', 'Comment', \
@@ -315,7 +319,6 @@ class LedgerDispModelSimple(QAbstractTableModel):
             if toSelf:
                return self.tr('Bitcoins sent and received by the same wallet')
             else:
-               #txdir = str(index.model().data(index).toString()).strip()
                txdir = rowData[COL.TxDir]
                if rowData[COL.isCoinbase]:
                   return self.tr('You mined these Bitcoins!')
@@ -1010,7 +1013,7 @@ class WalletAddrDispModel(QAbstractTableModel):
       COL = ADDRESSCOLS
       row,col = index.row(), index.column()
       if row>=len(self.addr160List):
-         return QVariant('')
+         return None
       addr = self.wlt.addrMap[self.addr160List[row]]
       addr_index = addr.chainIndex
 
@@ -1019,47 +1022,47 @@ class WalletAddrDispModel(QAbstractTableModel):
       chainIdx = addr.chainIndex+1  # user must get 1-indexed
       if role==Qt.DisplayRole:
          if col==COL.Address:
-            return QVariant( addrB58 )
+            return addrB58
          if col==COL.Comment:
-            return QVariant(self.wlt.getComment(addr160[1:]))
+            return self.wlt.getComment(addr160[1:])
          if col==COL.NumTx:
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
-               return QVariant('n/a')
-            return QVariant(addr.getTxioCount())
+               return 'n/a'
+            return addr.getTxioCount()
          if col==COL.ChainIdx:
             if self.wlt.addrMap[addr.getAddr160()].chainIndex==-2:
-               return QVariant('Imported')
+               return 'Imported'
             else:
-               return QVariant(chainIdx)
+               return chainIdx
          if col==COL.Balance:
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
-               return QVariant('(...)')
+               return '(...)'
             addrFullBalance = self.wlt.getAddrBalance(addr160, balType="full")
-            return QVariant( coin2str(addrFullBalance, maxZeros=2) )
+            return coin2str(addrFullBalance, maxZeros=2)
       elif role==Qt.TextAlignmentRole:
          if col in (COL.Address, COL.Comment, COL.ChainIdx):
-            return QVariant(int(Qt.AlignLeft | Qt.AlignVCenter))
+            return int(Qt.AlignLeft | Qt.AlignVCenter)
          elif col in (COL.NumTx,):
-            return QVariant(int(Qt.AlignHCenter | Qt.AlignVCenter))
+            return int(Qt.AlignHCenter | Qt.AlignVCenter)
          elif col in (COL.Balance,):
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
-               return QVariant(int(Qt.AlignHCenter | Qt.AlignVCenter))
+               return int(Qt.AlignHCenter | Qt.AlignVCenter)
             else:
-               return QVariant(int(Qt.AlignRight | Qt.AlignVCenter))
+               return int(Qt.AlignRight | Qt.AlignVCenter)
       elif role==Qt.ForegroundRole:
          if col==COL.Balance:
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
-               return QVariant(Colors.Foreground)
+               return Colors.Foreground
             addrFullBalance = self.wlt.getAddrBalance(addr160, balType="full")
-            if   addrFullBalance>0: return QVariant(Colors.TextGreen)
-            else:       return QVariant(Colors.Foreground)
+            if addrFullBalance>0: return Colors.TextGreen
+            else: return Colors.Foreground
       elif role==Qt.FontRole:
          try:
             hasTx = addr.getTxioCount()>0
          except:
             hasTx = False
 
-         cmt = str(self.index(index.row(),COL.Comment).data().toString())
+         cmt = self.index(index.row(),COL.Comment).data()
          isChange = (cmt==CHANGE_ADDR_DESCR_STRING)
 
          if col==COL.Balance:
@@ -1072,50 +1075,50 @@ class WalletAddrDispModel(QAbstractTableModel):
             return GETFONT('Var',bold=doBold, italic=doItalic)
       elif role==Qt.ToolTipRole:
          if col==COL.ChainIdx:
-            cmt = str(self.index(index.row(),COL.ChainIdx).data().toString())
+            cmt = self.index(index.row(),COL.ChainIdx).data()
             if cmt.strip().lower().startswith('imp'):
-               return QVariant(self.tr('<u></u>This is an imported address. Imported '
+               return self.tr('<u></u>This is an imported address. Imported '
                                'addresses are not protected by regular paper '
                                'backups.  You must use the "Backup Individual '
-                               'Keys" option to protect it.'))
+                               'Keys" option to protect it.')
             else:
-               return QVariant(self.tr('<u></u>The order that this address was '
-                               'generated in this wallet'))
-         cmt = str(self.index(index.row(),COL.Comment).data().toString())
+               return self.tr('<u></u>The order that this address was '
+                               'generated in this wallet')
+         cmt = self.index(index.row(),COL.Comment).data()
          if cmt==CHANGE_ADDR_DESCR_STRING:
-            return QVariant(self.tr('This address was created by Armory to '
+            return self.tr('This address was created by Armory to '
                             'receive change-back-to-self from an oversized '
-                            'transaction.'))
+                            'transaction.')
       elif role==Qt.BackgroundColorRole:
          if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
-            return QVariant( Colors.TblWltOther )
+            return Colors.TblWltOther
 
          addrFullBalance = self.wlt.getAddrBalance(addr160, balType="full")
          if addrFullBalance>0:
-            return QVariant( Colors.SlightGreen )
+            return Colors.SlightGreen
          else:
-            return QVariant( Colors.TblWltOther )
+            return Colors.TblWltOther
 
-      return QVariant()
+      return None
 
    def headerData(self, section, orientation, role=Qt.DisplayRole):
       COL = ADDRESSCOLS
       if role==Qt.DisplayRole:
          if orientation==Qt.Horizontal:
-            if section==COL.ChainIdx: return QVariant( '#'        )
-            if section==COL.Address:  return QVariant( self.tr('Address') )
-            if section==COL.Comment:  return QVariant( self.tr('Comment') )
-            if section==COL.NumTx:    return QVariant( self.tr('#Tx')     )
-            if section==COL.Balance:  return QVariant( self.tr('Balance') )
+            if section==COL.ChainIdx: return '#'
+            if section==COL.Address:  return self.tr('Address')
+            if section==COL.Comment:  return self.tr('Comment')
+            if section==COL.NumTx:    return self.tr('#Tx')
+            if section==COL.Balance:  return self.tr('Balance')
          elif role==Qt.TextAlignmentRole:
             if section in (COL.Address, COL.Comment):
-               return QVariant(int(Qt.AlignLeft | Qt.AlignVCenter))
+               return int(Qt.AlignLeft | Qt.AlignVCenter)
             elif section in (COL.NumTx,):
-               return QVariant(int(Qt.AlignHCenter | Qt.AlignVCenter))
+               return int(Qt.AlignHCenter | Qt.AlignVCenter)
             elif section in (COL.Balance,):
-               return QVariant(int(Qt.AlignRight | Qt.AlignVCenter))
+               return int(Qt.AlignRight | Qt.AlignVCenter)
 
-      return QVariant()
+      return None
 
 
 ################################################################################
@@ -1127,8 +1130,8 @@ class WalletAddrSortProxy(QSortFilterProxyModel):
    def lessThan(self, idxLeft, idxRight):
       COL = ADDRESSCOLS
       thisCol  = self.sortColumn()
-      strLeft  = str(self.sourceModel().data(idxLeft).toString())
-      strRight = str(self.sourceModel().data(idxRight).toString())
+      strLeft  = self.sourceModel().data(idxLeft)
+      strRight = self.sourceModel().data(idxRight)
       if thisCol==COL.Address:
          return (strLeft.lower() < strRight.lower())
       elif thisCol==COL.Comment:
@@ -1422,39 +1425,43 @@ class SentToAddrBookModel(QAbstractTableModel):
       #ADDRBOOKCOLS = enum('Address', 'WltID', 'NumSent', 'Comment')
       if role==Qt.DisplayRole:
          if col==COL.Address:
-            return QVariant( addrB58 )
+            return addrB58
          if col==COL.NumSent:
-            return QVariant( numSent )
+            return numSent
          if col==COL.Comment:
-            return QVariant( comment )
+            return comment
          if col==COL.WltID:
-            return QVariant( wltID )
+            return wltID
       elif role==Qt.TextAlignmentRole:
          if col in (COL.Address, COL.Comment, COL.WltID):
-            return QVariant(int(Qt.AlignLeft | Qt.AlignVCenter))
+            return int(Qt.AlignLeft | Qt.AlignVCenter)
          elif col in (COL.NumSent,):
-            return QVariant(int(Qt.AlignHCenter | Qt.AlignVCenter))
+            return int(Qt.AlignHCenter | Qt.AlignVCenter)
       elif role==Qt.FontRole:
          isFreqAddr = (numSent>1)
          return GETFONT('Var', bold=isFreqAddr)
 
-      return QVariant()
+      return None
 
    def headerData(self, section, orientation, role=Qt.DisplayRole):
       COL = ADDRBOOKCOLS
       if role==Qt.DisplayRole:
          if orientation==Qt.Horizontal:
-            if section==COL.Address:  return QVariant( self.tr('Address'    ))
-            if section==COL.WltID:    return QVariant( self.tr('Ownership'  ))
-            if section==COL.NumSent:  return QVariant( self.tr('Times Used' ))
-            if section==COL.Comment:  return QVariant( self.tr('Comment'    ))
+            if section==COL.Address:  return self.tr('Address')
+            if section==COL.WltID:    return self.tr('Ownership')
+            if section==COL.NumSent:  return self.tr('Times Used')
+            if section==COL.Comment:  return self.tr('Comment')
       elif role==Qt.TextAlignmentRole:
          if section in (COL.Address, COL.Comment, COL.WltID):
-            return QVariant(int(Qt.AlignLeft | Qt.AlignVCenter))
+            return int(Qt.AlignLeft | Qt.AlignVCenter)
          elif section in (COL.NumSent,):
-            return QVariant(int(Qt.AlignHCenter | Qt.AlignVCenter))
+            return int(Qt.AlignHCenter | Qt.AlignVCenter)
 
-      return QVariant()
+      return None
+
+   def reset(self):
+      self.beginResetModel()
+      self.endResetModel()
 
 
 ################################################################################
@@ -1462,8 +1469,8 @@ class SentAddrSortProxy(QSortFilterProxyModel):
    def lessThan(self, idxLeft, idxRight):
       COL = ADDRBOOKCOLS
       thisCol  = self.sortColumn()
-      strLeft  = str(self.sourceModel().data(idxLeft).toString())
-      strRight = str(self.sourceModel().data(idxRight).toString())
+      strLeft  = self.sourceModel().data(idxLeft)
+      strRight = self.sourceModel().data(idxRight)
 
 
       #ADDRBOOKCOLS = enum('Address', 'WltID', 'NumSent', 'Comment')
@@ -1501,30 +1508,30 @@ class PromissoryCollectModel(QAbstractTableModel):
 
       if role==Qt.DisplayRole:
          if col==COL.PromID:
-            return QVariant(prom.promID)
+            return prom.promID
          elif col==COL.Label:
-            return QVariant(prom.promLabel)
+            return prom.promLabel
          elif col==COL.PayAmt:
-            return QVariant(coin2str(prom.dtxoTarget.value, maxZeros=2))
+            return coin2str(prom.dtxoTarget.value, maxZeros=2)
          elif col==COL.FeeAmt:
-            return QVariant(coin2str(prom.feeAmt, maxZeros=2))
+            return coin2str(prom.feeAmt, maxZeros=2)
       elif role==Qt.TextAlignmentRole:
          if col in [COL.PromID, COL.Label]:
-            return QVariant(int(Qt.AlignHCenter | Qt.AlignVCenter))
+            return int(Qt.AlignHCenter | Qt.AlignVCenter)
          else:
-            return QVariant(int(Qt.AlignLeft | Qt.AlignVCenter))
+            return int(Qt.AlignLeft | Qt.AlignVCenter)
       elif role==Qt.ForegroundRole:
          if col == COL.PayAmt:
             if prom.dtxoTarget.value>0:
-               return QVariant(Colors.TextGreen)
+               return Colors.TextGreen
          elif col == COL.FeeAmt:
             if prom.feeAmt>0:
-               return QVariant(Colors.TextGreen)
+               return Colors.TextGreen
       elif role==Qt.FontRole:
          if col in [COL.PayAmt, COL.FeeAmt]:
             return GETFONT('Fixed')
 
-      return QVariant()
+      return None
 
 
 
@@ -1532,6 +1539,6 @@ class PromissoryCollectModel(QAbstractTableModel):
       colLabels = [self.tr('Note ID'), self.tr('Label'), self.tr('Funding'), self.tr('Fee')]
       if role==Qt.DisplayRole:
          if orientation==Qt.Horizontal:
-            return QVariant(colLabels[section])
+            return colLabels[section]
       elif role==Qt.TextAlignmentRole:
-         return QVariant( int(Qt.AlignHCenter | Qt.AlignVCenter) )
+         return int(Qt.AlignHCenter | Qt.AlignVCenter)
