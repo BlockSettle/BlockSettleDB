@@ -6,7 +6,321 @@
 #                                                                              #
 ################################################################################
 
-from qtdialogs.qtdefines import ArmoryDialog
+from armoryengine.ArmoryUtils import enum, CPP_TXOUT_MULTISIG, \
+   CPP_TXOUT_P2SH, CPP_TXOUT_HAS_ADDRSTR, script_to_addrStr, \
+   addrStr_to_hash160, script_to_scrAddr, BIGENDIAN, binary_to_hex, \
+   hex_to_binary, coin2str, coin2strNZS, LOGEXCEPT, LOGERROR, \
+   CPP_TXIN_SCRIPT_NAMES, CPP_TXOUT_SCRIPT_NAMES, int_to_hex, \
+   script_to_scrAddr
+
+from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
+from armoryengine.Transaction import UnsignedTransaction, \
+   determineSentToSelfAmt, PyTx, getTxInScriptType, getTxOutScriptType, \
+   TxInExtractAddrStrIfAvail
+from armoryengine.Script import convertScriptToOpStrings
+from armoryengine.CppBridge import TheBridge
+
+from armorymodels import TxInDispModel, TxOutDispModel, TXINCOLS, TXOUTCOLS
+from qtdialogs.qtdefines import ArmoryDialog, STYLE_RAISED, USERMODE, \
+   QRichLabel, relaxedSizeStr, GETFONT, tightSizeNChar, STYLE_SUNKEN, \
+   HORIZONTAL, makeHorizFrame, initialColResize, makeLayoutFrame
+from qtdialogs.qtdialogs import STRETCH
+
+from PySide2.QtCore import Qt
+from PySide2.QtWidgets import QLabel, QGridLayout, QFrame, QTableView, \
+   QPushButton, QSpacerItem, QScrollArea, QTextBrowser, QTextEdit, \
+   QVBoxLayout
+
+################################################################################
+def extractTxInfo(pytx, rcvTime=None):
+   ustx = None
+   if isinstance(pytx, UnsignedTransaction):
+      ustx = pytx
+      pytx = ustx.pytxObj.copy()
+
+   txHash = pytx.getHash()
+   txSize, txWeight, sumTxIn, txTime, txBlk, txIdx = [None] * 6
+
+   txOutToList = pytx.makeRecipientsList()
+   sumTxOut = sum([t[1] for t in txOutToList])
+
+   if TheBDM.getState() == BDM_BLOCKCHAIN_READY:
+      txProto = TheBridge.getTxByHash(txHash)
+      if txProto.isValid:
+         hgt = txProto.height
+         txWeight = pytx.getTxWeight()
+         if hgt <= TheBDM.getTopBlockHeight():
+            header = PyBlockHeader()
+            header.unserialize(TheBridge.getHeaderByHeight(hgt))
+            txTime = unixTimeToFormatStr(header.timestamp)
+            txBlk = hgt
+            txIdx = txProto.txIndex
+            txSize = pytx.getSize()
+         else:
+            if rcvTime == None:
+               txTime = 'Unknown'
+            elif rcvTime == -1:
+               txTime = '[[Not broadcast yet]]'
+            elif isinstance(rcvTime, basestring):
+               txTime = rcvTime
+            else:
+               txTime = unixTimeToFormatStr(rcvTime)
+            txBlk = UINT32_MAX
+            txIdx = -1
+
+   txinFromList = []
+   if TheBDM.getState() == BDM_BLOCKCHAIN_READY and pytx.isInitialized():
+      haveAllInput = True
+      for i in range(pytx.getNumTxIn()):
+         txinFromList.append([])
+         txin = pytx.getTxIn(i)
+         prevTxHash = txin.getOutPoint().txHash
+         prevTxIndex = txin.getOutPoint().txOutIndex
+         prevTxRaw = TheBridge.getTxByHash(prevTxHash)
+         prevTx = PyTx().unserialize(prevTxRaw.raw)
+         if prevTx.isInitialized():
+            prevTxOut = prevTx.getTxOut(prevTxIndex)
+            txinFromList[-1].append(prevTxOut.getScrAddressStr())
+            txinFromList[-1].append(prevTxOut.getValue())
+            if prevTx.isInitialized():
+               txinFromList[-1].append(prevTxRaw.height)
+               txinFromList[-1].append(prevTxHash)
+               txinFromList[-1].append(prevTxRaw.txIndex)
+               txinFromList[-1].append(prevTxOut.getScript())
+            else:
+               LOGERROR('How did we get a bad parent pointer? (extractTxInfo)')
+               #prevTxOut.pprint()
+               txinFromList[-1].append('')
+               txinFromList[-1].append('')
+               txinFromList[-1].append('')
+               txinFromList[-1].append('')
+         else:
+            haveAllInput = False
+            try:
+               scraddr = addrStr_to_scrAddr(TxInExtractAddrStrIfAvail(txin))
+            except:
+               pass
+
+            txinFromList[-1].append(scraddr)
+            txinFromList[-1].append('')
+            txinFromList[-1].append('')
+            txinFromList[-1].append('')
+            txinFromList[-1].append('')
+            txinFromList[-1].append('')
+
+   elif ustx is not None:
+      haveAllInput = True
+      for ustxi in ustx.ustxInputs:
+         txinFromList.append([])
+         txinFromList[-1].append(script_to_scrAddr(ustxi.txoScript))
+         txinFromList[-1].append(ustxi.value)
+         txinFromList[-1].append('')
+         txinFromList[-1].append(hash256(ustxi.supportTx))
+         txinFromList[-1].append(ustxi.outpoint.txOutIndex)
+         txinFromList[-1].append(ustxi.txoScript)
+   else:  # BDM is not initialized
+      haveAllInput = False
+      for i, txin in enumerate(pytx.inputs):
+         scraddr = addrStr_to_scrAddr(TxInExtractAddrStrIfAvail(txin))
+         txinFromList.append([])
+         txinFromList[-1].append(scraddr)
+         txinFromList[-1].append('')
+         txinFromList[-1].append('')
+         txinFromList[-1].append('')
+         txinFromList[-1].append('')
+         txinFromList[-1].append('')
+
+   if haveAllInput:
+      sumTxIn = sum([x[1] for x in txinFromList])
+   else:
+      sumTxIn = None
+
+   return [txHash, txOutToList, sumTxOut, txinFromList, sumTxIn, \
+           txTime, txBlk, txIdx, txSize, txWeight]
+
+################################################################################
+class DlgDisplayTxIn(ArmoryDialog):
+   def __init__(self, parent, main, pytxOrUstx, txiIndex, txinListFromBDM=None):
+      super(DlgDisplayTxIn, self).__init__(parent, main)
+
+      lblDescr = QRichLabel(self.tr("<center><u><b>TxIn Information</b></u></center>"))
+
+      edtBrowse = QTextBrowser()
+      edtBrowse.setFont(GETFONT('Fixed', 9))
+      edtBrowse.setReadOnly(True)
+      edtBrowse.setLineWrapMode(QTextEdit.NoWrap)
+
+      ustx = None
+      pytx = pytxOrUstx
+      if isinstance(pytx, UnsignedTransaction):
+         ustx = pytx
+         pytx = ustx.getPyTxSignedIfPossible()
+
+      txin = pytx.inputs[txiIndex]
+      scrType  = getTxInScriptType(txin)
+      typeName = CPP_TXIN_SCRIPT_NAMES[scrType]
+      txHashBE = binary_to_hex(txin.outpoint.txHash, BIGENDIAN)
+      txIdxBE  = int_to_hex(txin.outpoint.txOutIndex, 4, BIGENDIAN)
+      seqHexBE = int_to_hex(txin.intSeq, 4, BIGENDIAN)
+      opStrings = convertScriptToOpStrings(txin.binScript)
+
+      senderAddr = TxInExtractAddrStrIfAvail(txin)
+      srcStr = ''
+      if not senderAddr:
+         senderAddr = self.tr('[[Cannot determine from TxIn Script]]')
+      else:
+         wltID  = self.main.getWalletForAddr160(addrStr_to_hash160(senderAddr)[1])
+         if wltID:
+            wlt = self.main.walletMap[wltID]
+            srcStr = self.tr('Wallet "%s" (%s)' % (wlt.labelName, wlt.uniqueIDB58))
+         else:
+            lbox = self.main.getLockboxByP2SHAddrStr(senderAddr)
+            if lbox:
+               srcStr = self.tr('Lockbox %d-of-%d "%s" (%s)' % (lbox.M, lbox.N, lbox.shortName, lbox.uniqueIDB58))
+
+
+
+      dispLines = []
+      dispLines.append(self.tr('<font size=4><u><b>Information on TxIn</b></u></font>:'))
+      dispLines.append(self.tr('   <b>TxIn Index:</b>         %s' % txiIndex))
+      dispLines.append(self.tr('   <b>TxIn Spending:</b>      %s:%s' % (txHashBE, txIdxBE)))
+      dispLines.append(self.tr('   <b>TxIn Sequence</b>:      0x%s' % seqHexBE))
+      if len(txin.binScript)>0:
+         dispLines.append(self.tr('   <b>TxIn Script Type</b>:   %s' % typeName))
+         dispLines.append(self.tr('   <b>TxIn Source</b>:        %s' % senderAddr))
+         if srcStr:
+            dispLines.append(self.tr('   <b>TxIn Wallet</b>:        %s' % srcStr))
+         dispLines.append(self.tr('   <b>TxIn Script</b>:'))
+         for op in opStrings:
+            dispLines.append('      %s' % op)
+
+      wltID = ''
+      scrType = getTxInScriptType(txin)
+      if txinListFromBDM and len(txinListFromBDM[txiIndex][0])>0:
+
+         # We had a BDM to help us get info on each input -- use it
+         scrAddr,val,blk,hsh,idx,script = txinListFromBDM[txiIndex]
+         scrType = getTxOutScriptType(script)
+
+         dispInfo = self.main.getDisplayStringForScript(script, 100, prefIDOverAddr=True)
+         #print dispInfo
+         addrStr = dispInfo['String']
+         wltID   = dispInfo['WltID']
+         if not wltID:
+            wltID  = dispInfo['LboxID']
+         if not wltID:
+            wltID = ''
+
+         wouldBeAddrStr = dispInfo['AddrStr']
+
+
+         dispLines.append('')
+         dispLines.append('')
+         dispLines.append(self.tr('<font size=4><u><b>Information on TxOut being spent by this TxIn</b></u></font>:'))
+         dispLines.append(self.tr('   <b>Tx Hash:</b>            %s' % txHashBE))
+         dispLines.append(self.tr('   <b>Tx Out Index:</b>       %s' % txin.outpoint.txOutIndex))
+         dispLines.append(self.tr('   <b>Tx in Block#:</b>       %s' % str(blk)))
+         dispLines.append(self.tr('   <b>TxOut Value:</b>        %s' % coin2strNZS(val)))
+         dispLines.append(self.tr('   <b>TxOut Script Type:</b>  %s' % CPP_TXOUT_SCRIPT_NAMES[scrType]))
+         dispLines.append(self.tr('   <b>TxOut Address:</b>      %s' % wouldBeAddrStr))
+         if wltID:
+            dispLines.append(self.tr('   <b>TxOut Wallet:</b>       %s' % dispInfo['String']))
+         dispLines.append(self.tr('   <b>TxOUt Script:</b>'))
+         opStrings = convertScriptToOpStrings(script)
+         for op in opStrings:
+            dispLines.append('      %s' % op)
+
+      u_string = u""
+      for dline in dispLines:
+         u_string = u_string + "<br>" + dline.replace(' ', '&nbsp;')
+
+      edtBrowse.setHtml(u_string)
+      btnDone = QPushButton(self.tr("Ok"))
+      btnDone.clicked.connect(self.accept)
+
+      layout = QVBoxLayout()
+      layout.addWidget(lblDescr)
+      layout.addWidget(edtBrowse)
+      layout.addWidget(makeHorizFrame(['Stretch', btnDone]))
+      self.setLayout(layout)
+      w,h = tightSizeNChar(edtBrowse, 100)
+      self.setMinimumWidth(max(w, 500))
+      self.setMinimumHeight(max(20*h, 400))
+
+
+################################################################################
+class DlgDisplayTxOut(ArmoryDialog):
+   def __init__(self, parent, main, pytxOrUstx, txoIndex):
+      super(DlgDisplayTxOut, self).__init__(parent, main)
+
+      lblDescr = QRichLabel(self.tr("<center><u><b>TxOut Information</b></u></center>"))
+
+      edtBrowse = QTextBrowser()
+      edtBrowse.setFont(GETFONT('Fixed', 9))
+      edtBrowse.setReadOnly(True)
+      edtBrowse.setLineWrapMode(QTextEdit.NoWrap)
+
+      ustx = None
+      pytx = pytxOrUstx
+      if isinstance(pytx, UnsignedTransaction):
+         ustx = pytx
+         pytx = ustx.getPyTxSignedIfPossible()
+
+      wltID = ''
+
+      dispLines = []
+
+      txout   = pytx.outputs[txoIndex]
+      val     = txout.value
+      script  = txout.binScript
+      scrAddr = script_to_scrAddr(script)
+      scrType = getTxOutScriptType(script)
+
+      dispInfo = self.main.getDisplayStringForScript(script, 100, prefIDOverAddr=True)
+      #print dispInfo
+      addrStr = dispInfo['String']
+      wltID   = dispInfo['WltID']
+      if not wltID:
+         wltID  = dispInfo['LboxID']
+      if not wltID:
+         wltID = ''
+
+      wouldBeAddrStr = dispInfo['AddrStr']
+
+      dispLines.append(self.tr('<font size=4><u><b>Information on TxOut</b></u></font>:'))
+      dispLines.append(self.tr('   <b>Tx Out Index:</b>       %s' % txoIndex))
+      dispLines.append(self.tr('   <b>TxOut Value:</b>        %s' % coin2strNZS(val)))
+      dispLines.append(self.tr('   <b>TxOut Script Type:</b>  %s' % CPP_TXOUT_SCRIPT_NAMES[scrType]))
+      dispLines.append(self.tr('   <b>TxOut Address:</b>      %s' % wouldBeAddrStr))
+      if wltID:
+         dispLines.append(self.tr('   <b>TxOut Wallet:</b>       %s' % dispInfo['String']))
+      else:
+         dispLines.append(self.tr('   <b>TxOut Wallet:</b>       [[Unrelated to any loaded wallets]]'))
+      dispLines.append(self.tr('   <b>TxOut Script:</b>'))
+      opStrings = convertScriptToOpStrings(script)
+      for op in opStrings:
+         dispLines.append('      %s' % op)
+
+      u_string = u""
+      for dline in dispLines:
+         if not isinstance(dline, str):
+            line_to_str =  str(dline)
+         else:
+            line_to_str = dline
+         u_string = u_string + u"<br>" + line_to_str.replace(u' ', u'&nbsp;')
+
+      edtBrowse.setHtml(u_string)
+      btnDone = QPushButton(self.tr("Ok"))
+      btnDone.clicked.connect(self.accept)
+
+      layout = QVBoxLayout()
+      layout.addWidget(lblDescr)
+      layout.addWidget(edtBrowse)
+      layout.addWidget(makeHorizFrame(['Stretch', btnDone]))
+      self.setLayout(layout)
+      w,h = tightSizeNChar(edtBrowse, 100)
+      self.setMinimumWidth(max(w, 500))
+      self.setMinimumHeight(max(20*h, 400))
 
 ################################################################################
 class DlgDispTxInfo(ArmoryDialog):
@@ -21,7 +335,6 @@ class DlgDispTxInfo(ArmoryDialog):
       """
       super(DlgDispTxInfo, self).__init__(parent, main)
       self.mode = mode
-
 
       FIELDS = enum('Hash', 'OutList', 'SumOut', 'InList', 'SumIn', \
                     'Time', 'Blk', 'Idx', 'TxSize', 'TxWeight')

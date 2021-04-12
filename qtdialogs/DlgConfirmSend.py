@@ -6,7 +6,51 @@
 #                                                                              #
 ################################################################################
 
-from qtdialogs.qtdefines import ArmoryDialog
+from armoryengine.ArmoryUtils import CPP_TXOUT_HAS_ADDRSTR, \
+   CPP_TXOUT_P2WPKH, CPP_TXOUT_P2WSH, script_to_scrAddr, \
+   scrAddr_to_hash160, coin2strNZS, coin2str
+from armoryengine.Transaction import getTxOutScriptType
+from armorycolors import htmlColor
+
+from PySide2.QtCore import Qt
+from PySide2.QtGui import QPixmap, QFont
+from PySide2.QtWidgets import QLabel, QGridLayout, QSpacerItem, QPushButton, \
+   QDialogButtonBox, QFrame
+
+from qtdialogs.qtdefines import ArmoryDialog, USERMODE, QRichLabel, \
+   GETFONT, HLINE, makeLayoutFrame, makeVertFrame, makeHorizFrame, \
+   VERTICAL, STYLE_RAISED
+from qtdialogs.DlgDispTxInfo import DlgDispTxInfo
+
+#############################################################################
+def excludeChange(outputPairs, wlt):
+   """
+   NOTE:  this method works ONLY because we always generate a new address
+          whenever creating a change-output, which means it must have a
+          higher chainIndex than all other addresses.  If you did something
+          creative with this tx, this may not actually work.
+   """
+   maxChainIndex = -5
+   nonChangeOutputPairs = []
+   currentMaxChainPair = None
+   for script,val in outputPairs:
+      scrType = getTxOutScriptType(script)
+      addr = ''
+      if scrType in CPP_TXOUT_HAS_ADDRSTR:
+         scrAddr = script_to_scrAddr(script)
+         addr = wlt.getAddrByHash160(scrAddr_to_hash160(scrAddr)[1])
+
+      # this logic excludes the pair with the maximum chainIndex from the
+      # returned list
+      if addr:
+         if addr.chainIndex > maxChainIndex:
+            maxChainIndex = addr.chainIndex
+            if currentMaxChainPair:
+               nonChangeOutputPairs.append(currentMaxChainPair)
+            currentMaxChainPair = [script,val]
+         else:
+            nonChangeOutputPairs.append([script,val])
+   return nonChangeOutputPairs
 
 ################################################################################
 class DlgConfirmSend(ArmoryDialog):
@@ -99,7 +143,7 @@ class DlgConfirmSend(ArmoryDialog):
          def openDlgTxInfo(*args):
             DlgDispTxInfo(pytxOrUstx, wlt, self.parent, self.main).exec_()
 
-         self.connect(lblAfterBox, SIGNAL('linkActivated(const QString &)'), openDlgTxInfo)
+         lblAfterBox.linkActivated.connect(openDlgTxInfo)
 
 
       lblMsg = QRichLabel(self.tr(
@@ -163,8 +207,8 @@ class DlgConfirmSend(ArmoryDialog):
          lblLastConfirm = QLabel(self.tr('Does the above look correct?'))
 
       self.btnCancel = QPushButton(self.tr("Cancel"))
-      self.connect(self.btnAccept, SIGNAL(CLICKED), self.accept)
-      self.connect(self.btnCancel, SIGNAL(CLICKED), self.reject)
+      self.btnAccept.clicked.connect(self.accept)
+      self.btnCancel.clicked.connect(self.reject)
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
