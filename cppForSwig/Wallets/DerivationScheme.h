@@ -13,8 +13,6 @@
 #include <set>
 #include <memory>
 
-#include "WalletFileInterface.h"
-
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
 #include "Assets.h"
@@ -37,13 +35,16 @@ enum DerivationSchemeType
    DerSchemeType_ECDH
 };
 
-
+////////////////////////////////////////////////////////////////////////////////
 class DerivationSchemeException : public std::runtime_error
 {
 public:
    DerivationSchemeException(const std::string& msg) : std::runtime_error(msg)
    {}
 };
+
+////
+class DBIfaceTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct DerivationScheme
@@ -76,7 +77,7 @@ public:
 
    //static
    static std::shared_ptr<DerivationScheme> deserialize(
-      BinaryDataRef, std::shared_ptr<WalletDBInterface>, const std::string&);
+      BinaryDataRef, std::shared_ptr<DBIfaceTransaction>);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -209,7 +210,7 @@ private:
       const BinaryData& full_id, unsigned index);
 
    void putSalt(unsigned, const SecureBinaryData&,
-      std::shared_ptr<WalletDBInterface>, const std::string&);
+      std::shared_ptr<DBIfaceTransaction>);
 
 public:
    DerivationScheme_ECDH(void) :
@@ -232,8 +233,8 @@ public:
 
    //locals
    unsigned addSalt(const SecureBinaryData&, 
-      std::shared_ptr<WalletDBInterface>, const std::string&);
-   void putAllSalts(std::shared_ptr<WalletDBInterface>, const std::string&);
+      std::shared_ptr<DBIfaceTransaction>);
+   void putAllSalts(std::shared_ptr<DBIfaceTransaction>);
    unsigned getSaltIndex(const SecureBinaryData&);
 };
 

@@ -22,6 +22,12 @@ ScriptRecipient::~ScriptRecipient()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
+const map<BinaryData, BIP32_AssetPath>& ScriptRecipient::getBip32Paths() const
+{
+   return bip32Paths_; 
+}
+
+////////////////////////////////////////////////////////////////////////////////
 shared_ptr<ScriptRecipient> ScriptRecipient::fromScript(BinaryDataRef dataRef)
 {
    shared_ptr<ScriptRecipient> result_ptr;

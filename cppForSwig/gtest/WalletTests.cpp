@@ -8,7 +8,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "TestUtils.h"
-#include "ArmoryBackups.h"
+#include "../ArmoryBackups.h"
+#include "../Wallets/WalletFileInterface.h"
 
 using namespace std;
 using namespace ArmorySigner;
@@ -2403,13 +2404,14 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
 
       //grab DecryptedDataContainer
       auto decryptedData = make_unique<DecryptedDataContainer>(
-            iface, controlHeader->getDbName(),
+            nullptr, controlHeader->getDbName(),
             controlHeader->getDefaultEncryptionKey(),
             controlHeader->getDefaultEncryptionKeyId(),
             controlHeader->defaultKdfId_, controlHeader->masterEncryptionKeyId_);
       {
-         RawIfaceTransaction txInner(dbEnv.get(), &dbCtrl, true);
-         decryptedData->readFromDisk(&txInner);
+         auto txInner = 
+            make_shared<RawIfaceTransaction>(dbEnv.get(), &dbCtrl, true);
+         decryptedData->readFromDisk(txInner);
       }
 
       //grab seed
@@ -5602,16 +5604,16 @@ TEST_F(WalletsTest, ECDH_Account)
 
       //add accounts
       auto accPtr1 = assetWlt->createAccount(ecdhAccType1);
-      auto accEcdh1 = dynamic_pointer_cast<AssetAccount_ECDH>(
-         accPtr1->getOuterAccount());
+      auto assAccPtr1 = accPtr1->getOuterAccount();
+      auto accEcdh1 = dynamic_cast<AssetAccount_ECDH*>(assAccPtr1.get());
       if (accEcdh1 == nullptr)
-         throw runtime_error("unexpected account type");
+         throw runtime_error("unexpected account type 1");
 
       auto accPtr2 = assetWlt->createAccount(ecdhAccType2);
-      auto accEcdh2 = dynamic_pointer_cast<AssetAccount_ECDH>(
-         accPtr2->getOuterAccount());
+      auto assAccPtr2 = accPtr2->getOuterAccount();
+      auto accEcdh2 = dynamic_cast<AssetAccount_ECDH*>(assAccPtr2.get());
       if (accEcdh2 == nullptr)
-         throw runtime_error("unexpected account type");
+         throw runtime_error("unexpected account type 2");
       accID2 = accPtr2->getID();
 
       //add salts
@@ -5684,10 +5686,10 @@ TEST_F(WalletsTest, ECDH_Account)
 
       auto accID = assetWlt->getMainAccountID();
       auto accPtr = assetWlt->getAccountForID(accID);
-      auto accEcdh = dynamic_pointer_cast<AssetAccount_ECDH>(
-         accPtr->getOuterAccount());
+      auto assAccPtr = accPtr->getOuterAccount();
+      auto accEcdh = dynamic_cast<AssetAccount_ECDH*>(assAccPtr.get());
       if (accEcdh == nullptr)
-         throw runtime_error("unexpected account type");
+         throw runtime_error("unexpected account type 3");
 
       {
          auto&& salt = CryptoPRNG::generateRandom(32);
@@ -5721,8 +5723,8 @@ TEST_F(WalletsTest, ECDH_Account)
 
       {
          //same with account 2
-         auto accEcdhPtr = dynamic_pointer_cast<AssetAccount_ECDH>(
-            accPtr2->getOuterAccount());
+         auto assAcc2 = accPtr2->getOuterAccount();
+         auto accEcdhPtr = dynamic_cast<AssetAccount_ECDH*>(assAcc2.get());
          ASSERT_NE(accEcdhPtr, nullptr);
 
          auto id = accEcdhPtr->addSalt(saltMap2[2]);
@@ -5736,7 +5738,7 @@ TEST_F(WalletsTest, ECDH_Account)
          EXPECT_EQ(addrMap2[2], hash);
       }
    }
-      
+
    woFilename = AssetWallet::forkWatchingOnly(
       filename, controlLbd_);
 
@@ -5769,10 +5771,10 @@ TEST_F(WalletsTest, ECDH_Account)
 
       auto accID = assetWlt->getMainAccountID();
       auto accPtr = assetWlt->getAccountForID(accID);
-      auto accEcdh = dynamic_pointer_cast<AssetAccount_ECDH>(
-         accPtr->getOuterAccount());
+      auto assAccPtr = accPtr->getOuterAccount();
+      auto accEcdh = dynamic_cast<AssetAccount_ECDH*>(assAccPtr.get());
       if (accEcdh == nullptr)
-         throw runtime_error("unexpected account type");
+         throw runtime_error("unexpected account type 4");
 
       auto rootAsset = accEcdh->getRoot();
       auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(rootAsset);

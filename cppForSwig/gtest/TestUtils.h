@@ -43,11 +43,12 @@
 #include "../TxClasses.h"
 #include "../txio.h"
 #include "../bdmenums.h"
-#include "../Script.h"
-#include "../Signer.h"
-#include "../Wallets.h"
+#include "../Signer/Script.h"
+#include "../Signer/Signer.h"
+#include "../Signer/ResolverFeed_Wallets.h"
+#include "../Wallets/Wallets.h"
 #include "../AsyncClient.h"
-#include "../BIP32_Node.h"
+#include "../Wallets/BIP32_Node.h"
 #include "../BitcoinP2p.h"
 #include "btc/ecc.h"
 
@@ -542,7 +543,7 @@ namespace ResolverUtils
    class HybridFeed : public ArmorySigner::ResolverFeed
    {
    private:
-      std::shared_ptr<ResolverFeed_AssetWalletSingle> feedPtr_;
+      std::shared_ptr<ArmorySigner::ResolverFeed_AssetWalletSingle> feedPtr_;
 
    public:
       TestResolverFeed testFeed_;
@@ -550,7 +551,7 @@ namespace ResolverUtils
    public:
       HybridFeed(std::shared_ptr<AssetWallet_Single> wltPtr)
       {
-         feedPtr_ = std::make_shared<ResolverFeed_AssetWalletSingle>(wltPtr);
+         feedPtr_ = std::make_shared<ArmorySigner::ResolverFeed_AssetWalletSingle>(wltPtr);
       }
 
       BinaryData getByVal(const BinaryData& val) override
@@ -615,7 +616,7 @@ namespace ResolverUtils
    public:
       CustomFeed(std::shared_ptr<AddressEntry> addrPtr,
          std::shared_ptr<AssetWallet_Single> wlt) :
-         wltFeed_(std::make_shared<ResolverFeed_AssetWalletSingle>(wlt))
+         wltFeed_(std::make_shared<ArmorySigner::ResolverFeed_AssetWalletSingle>(wlt))
       {
          addAddressEntry(addrPtr);
       }

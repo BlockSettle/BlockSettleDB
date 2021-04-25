@@ -8,7 +8,7 @@
 
 #include "NodeUnitTest.h"
 #include "../BlockUtils.h"
-#include "../Signer.h"
+#include "../Signer/Signer.h"
 
 using namespace std;
 using namespace ArmoryThreading;

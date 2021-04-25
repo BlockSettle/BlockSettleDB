@@ -73,17 +73,14 @@ public:
 
    //locals
    virtual uint64_t getValue(void) const 
-   { 
+   {
       if (value_ == 0)
          throw ScriptRecipientException("invalid recipient value");
       return value_; 
    }
 
    void addBip32Path(const BIP32_AssetPath&);
-   const std::map<BinaryData, BIP32_AssetPath>& getBip32Paths(void) const
-   {
-      return bip32Paths_; 
-   }
+   const std::map<BinaryData, BIP32_AssetPath>& getBip32Paths(void) const;
 
    void toProtobuf(Codec_SignerState::RecipientState&, unsigned) const;
    void toPSBT(BinaryWriter&) const;

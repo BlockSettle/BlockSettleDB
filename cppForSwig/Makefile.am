@@ -8,7 +8,9 @@ BUILT_SOURCES =
 
 LIBBTC = libbtc/libbtc.la
 LIBCHACHA20POLY1305 = chacha20poly1305/libchacha20poly1305.la
-LIBCPPBLOCKUTILS = libCppBlockUtils.la
+
+LIBARMORYWALLETS = libArmoryWallets.la
+LIBARMORYSIGNER = libArmorySigner.la
 LIBARMORYCOMMON = libArmoryCommon.la
 LIBARMORYGUI = libArmoryGUI.la
 LIBARMORYCLI = libArmoryCLI.la
@@ -60,7 +62,7 @@ protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
 
 INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdbpp \
 	-Ichacha20poly1305 -Ilibbtc/src/secp256k1/include \
-	-Ilibbtc/include $(LWS_CFLAGS) -Ihkdf
+	-Ilibbtc/include $(LWS_CFLAGS) -Ihkdf -IWallets -ISigner
 
 # Files should *not* be marked as "common" if at all possible. Also, a refactor
 # might not hurt one of these days. Some of the "common" files could be GUI/CLI
@@ -74,6 +76,28 @@ CPPBRIDGE_SOURCE_FILES = BridgeAPI/CppBridge.cpp \
 	BridgeAPI/BridgeSocket.cpp \
 	BridgeAPI/WalletManager.cpp \
 	BridgeAPI/ProtobufCommandParser.cpp
+
+ARMORYWALLETS_SOURCE_FILES = Wallets/BIP32_Node.cpp \
+	Wallets/Addresses.cpp \
+	Wallets/DecryptedDataContainer.cpp \
+	Wallets/DerivationScheme.cpp \
+	Wallets/Accounts/AccountTypes.cpp \
+	Wallets/Accounts/AssetAccounts.cpp \
+	Wallets/Accounts/AddressAccounts.cpp \
+	Wallets/Accounts/MetaAccounts.cpp \
+	Wallets/Assets.cpp \
+	Wallets/WalletHeader.cpp \
+	Wallets/EncryptedDB.cpp \
+	Wallets/WalletFileInterface.cpp \
+	Wallets/AssetEncryption.cpp \
+	Wallets/Wallets.cpp \
+	Wallets/AuthorizedPeers.cpp
+
+ARMORYSIGNER_SOURCE_FILES = Signer/Script.cpp \
+	Signer/ScriptRecipient.cpp \
+	Signer/Signer.cpp \
+	Signer/ResolverFeed.cpp \
+	Signer/ResolverFeed_Wallets.cpp
 
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = TransactionBatch.cpp
@@ -111,33 +135,20 @@ ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	ZeroConfNotifications.cpp \
 	TerminalPassphrasePrompt.cpp \
 	gtest/NodeUnitTest.cpp
-ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
-	WalletHeader.cpp \
-	WalletFileInterface.cpp \
-	Addresses.cpp \
-	AssetEncryption.cpp \
-	Assets.cpp \
-	AsyncClient.cpp \
-	AuthorizedPeers.cpp \
+
+ARMORYCOMMON_SOURCE_FILES = AsyncClient.cpp \
 	BinaryData.cpp \
-	BIP32_Node.cpp \
 	ArmoryConfig.cpp \
 	BtcUtils.cpp \
 	DBClientClasses.cpp \
 	CoinSelection.cpp \
-	DecryptedDataContainer.cpp \
-	DerivationScheme.cpp \
 	EncryptionUtils_libbtc.cpp \
 	KDF.cpp \
 	log.cpp \
 	BitcoinSettings.cpp \
 	ReentrantLock.cpp \
-	ResolverFeed.cpp \
-	Script.cpp \
 	SecureBinaryData.cpp \
 	ArmoryBackups.cpp \
-	ScriptRecipient.cpp \
-	Signer.cpp \
 	SocketObject.cpp \
 	StoredBlockObj.cpp \
 	Transactions.cpp \
@@ -145,7 +156,6 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	TxEvalState.cpp \
 	txio.cpp \
 	UniversalTimer.cpp \
-	Wallets.cpp \
 	WebSocketClient.cpp \
 	WebSocketMessage.cpp
 
@@ -194,6 +204,27 @@ liblmdbpp_la_CPPFLAGS = -Ilmdbpp -fPIC
 liblmdbpp_la_LIBADD = -llmdb
 liblmdbpp_la_LDFLAGS = -static
 
+# libArmoryWallets
+noinst_LTLIBRARIES += $(LIBARMORYWALLETS)
+libArmoryWallets_la_SOURCES = $(ARMORYWALLETS_SOURCE_FILES)
+libArmoryWallets_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+libArmoryWallets_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
+			      $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
+libArmoryWallets_la_LIBADD = $(LIBBTC) \
+				$(LIBSECP256K1)
+libArmoryWallets_la_LDFLAGS = $(LDFLAGS)
+
+# libArmorySigner
+noinst_LTLIBRARIES += $(LIBARMORYSIGNER)
+libArmorySigner_la_SOURCES = $(ARMORYSIGNER_SOURCE_FILES)
+libArmorySigner_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+libArmorySigner_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
+			      $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
+libArmorySigner_la_LIBADD = $(LIBBTC) \
+				$(LIBSECP256K1)
+libArmorySigner_la_LDFLAGS = $(LDFLAGS)
+
+
 # libArmoryCommon - Required by all Armory programs/libraries.
 # Common functionality across GUI and command line
 noinst_LTLIBRARIES += $(LIBARMORYCOMMON)
@@ -205,6 +236,8 @@ libArmoryCommon_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 libArmoryCommon_la_LIBADD = $(LIBHKDF) \
 				$(LIBBTC) \
 				$(LIBSECP256K1) \
+				$(LIBARMORYWALLETS) \
+				$(LIBARMORYSIGNER) \
 				-lpthread
 libArmoryCommon_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PROTOBUF_FLAGS)
 
@@ -216,6 +249,8 @@ libArmoryCLI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 			   $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryCLI_la_LIBADD = $(LIBCHACHA20POLY1305) \
+			 $(LIBARMORYWALLETS) \
+			 $(LIBARMORYSIGNER) \
 			 $(LIBARMORYCOMMON) \
 			 $(LIBLMDBPP) \
 			 $(LIBHKDF) \
@@ -230,7 +265,9 @@ ArmoryDB_SOURCES = $(ARMORYDB_SOURCE_FILES)
 ArmoryDB_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS) \
 			-D__STDC_LIMIT_MACROS
 ArmoryDB_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
-ArmoryDB_LDADD = $(LIBARMORYCOMMON) \
+ArmoryDB_LDADD = $(LIBARMORYWALLETS) \
+		 $(LIBARMORYSIGNER) \
+		 $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
 		 $(LIBHKDF) \
 		 $(LIBBTC) \

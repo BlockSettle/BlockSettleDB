@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2020, goatpig                                               //
+//  Copyright (C) 2020-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -11,11 +11,21 @@
 
 #include <vector>
 #include <string>
-#include "BinaryData.h"
-#include "SecureBinaryData.h"
-#include "BIP32_Node.h"
+#include <memory>
 
-#include "protobuf/Signer.pb.h"
+#include "../BinaryData.h"
+#include "../SecureBinaryData.h"
+#include "../Wallets/BIP32_Node.h"
+
+#include "../protobuf/Signer.pb.h"
+
+////
+class NoAssetException : public std::runtime_error
+{
+public:
+   NoAssetException(const std::string& msg) : std::runtime_error(msg)
+   {}
+};
 
 namespace ArmorySigner
 {
@@ -44,7 +54,6 @@ public:
    const std::vector<uint32_t>& getPath(void) const;
    const std::string& getXPub(void) const;
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 class BIP32_AssetPath

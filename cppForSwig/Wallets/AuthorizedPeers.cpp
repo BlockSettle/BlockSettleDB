@@ -13,6 +13,7 @@
 #include "BIP32_Node.h"
 #include "AuthorizedPeers.h"
 #include "btc/ecc.h"
+#include "WalletFileInterface.h"
 
 #include "TerminalPassphrasePrompt.h"
 
@@ -270,8 +271,11 @@ void AuthorizedPeers::addPeer(const SecureBinaryData& pubkey,
       return;
 
    auto peerAccount = wallet_->getMetaAccount(MetaAccount_AuthPeers);
+   auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
+      wallet_->getDbName());
+   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
    auto index = AuthPeerAssetConversion::addAsset(
-      peerAccount.get(), pubkey_cmp, names);
+      peerAccount.get(), pubkey_cmp, names, sharedTx);
 
    auto iter = keyToAssetIndexMap_.find(pubkey_cmp);
    if (iter == keyToAssetIndexMap_.end())
@@ -315,9 +319,12 @@ void AuthorizedPeers::addPeer(const btc_pubkey& pubkey,
    if (wallet_ == nullptr)
       return;
 
-   auto peerAccount = wallet_->getMetaAccount(MetaAccount_AuthPeers);
-   auto index =
-      AuthPeerAssetConversion::addAsset(peerAccount.get(), keySbd, names);
+   auto peerAccount = wallet_->getMetaAccount(MetaAccount_AuthPeers);   
+   auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
+      wallet_->getDbName());
+   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   auto index = AuthPeerAssetConversion::addAsset(
+      peerAccount.get(), keySbd, names, sharedTx);
 
    auto iter = keyToAssetIndexMap_.find(keySbd);
    if (iter == keyToAssetIndexMap_.end())
@@ -432,7 +439,10 @@ void AuthorizedPeers::eraseName(const string& name)
       keyToAssetIndexMap_.erase(indexIter);
    }
 
-   metaAccount->updateOnDisk();
+   auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
+      wallet_->getDbName());
+   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   metaAccount->updateOnDisk(sharedTx);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -521,7 +531,10 @@ void AuthorizedPeers::eraseKey(const SecureBinaryData& pubkey)
    }
 
    //update on disk
-   metaAccount->updateOnDisk();
+   auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
+      wallet_->getDbName());
+   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   metaAccount->updateOnDisk(sharedTx);
 
    //erase from index map
    keyToAssetIndexMap_.erase(iter);
@@ -560,8 +573,12 @@ void AuthorizedPeers::addRootSignature(
    if (wallet_ == nullptr)
       return;
 
+   auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
+      wallet_->getDbName());
+   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
    auto peerAccount = wallet_->getMetaAccount(MetaAccount_AuthPeers);
-   AuthPeerAssetConversion::addRootSignature(peerAccount.get(), key, sig);
+   AuthPeerAssetConversion::addRootSignature(
+      peerAccount.get(), key, sig, sharedTx);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -580,8 +597,11 @@ void AuthorizedPeers::addPeerRootKey(
    }
 
    auto peerAccount = wallet_->getMetaAccount(MetaAccount_AuthPeers);
+   auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
+      wallet_->getDbName());
+   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
    auto index = AuthPeerAssetConversion::addRootPeer(
-      peerAccount.get(), key, description);
+      peerAccount.get(), key, description, sharedTx);
 
    auto descPair = make_pair(description, index);
    auto insertIter = peerRootKeys_.insert(make_pair(key, descPair));
@@ -601,7 +621,10 @@ void AuthorizedPeers::erasePeerRootKey(const SecureBinaryData& key)
       metaAccount->eraseMetaDataByIndex(iter->second.second);
 
       //update on disk
-      metaAccount->updateOnDisk();
+      auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
+         wallet_->getDbName());
+      shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+      metaAccount->updateOnDisk(sharedTx);
    }
 
    peerRootKeys_.erase(iter);

@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "DecryptedDataContainer.h"
+#include "EncryptedDB.h"
 
 using namespace std;
 
@@ -14,6 +15,23 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 //// DecryptedDataContainer
 ////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+DecryptedDataContainer::DecryptedDataContainer(
+   const WriteTxFuncType& getWriteTx,
+   const std::string dbName,
+   const SecureBinaryData& defaultEncryptionKey,
+   const BinaryData& defaultEncryptionKeyId,
+   const SecureBinaryData& defaultKdfId,
+   const SecureBinaryData& masterKeyId) :
+   getWriteTx_(getWriteTx), dbName_(dbName),
+   defaultEncryptionKey_(defaultEncryptionKey),
+   defaultEncryptionKeyId_(defaultEncryptionKeyId),
+   defaultKdfId_(defaultKdfId),
+   masterEncryptionKeyId_(masterKeyId)
+{
+   resetPassphraseLambda();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::initAfterLock()
 {
@@ -442,21 +460,21 @@ unique_ptr<DecryptedEncryptionKey> DecryptedDataContainer::promptPassphrase(
 
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::updateKeyOnDisk(
+   shared_ptr<DBIfaceTransaction> tx,
    const BinaryData& key, shared_ptr<Asset_EncryptedData> dataPtr)
 {
    //serialize db key
    auto&& dbKey = WRITE_UINT8_BE(ENCRYPTIONKEY_PREFIX);
    dbKey.append(key);
 
-   updateKeyOnDiskNoPrefix(dbKey, dataPtr);
+   updateKeyOnDiskNoPrefix(tx, dbKey, dataPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::updateKeyOnDiskNoPrefix(
+   shared_ptr<DBIfaceTransaction> tx,
    const BinaryData& dbKey, shared_ptr<Asset_EncryptedData> dataPtr)
 {
-   auto&& tx = iface_->beginWriteTransaction(dbName_);
-
    //check if data is on disk already
    auto&& dataRef = tx->getDataRef(dbKey);
 
@@ -470,7 +488,7 @@ void DecryptedDataContainer::updateKeyOnDiskNoPrefix(
          return;
 
       //data has changed, wipe the existing data
-      deleteKeyFromDisk(dbKey);
+      deleteKeyFromDisk(tx, dbKey);
    }
 
    auto&& serializedData = dataPtr->serialize();
@@ -480,11 +498,20 @@ void DecryptedDataContainer::updateKeyOnDiskNoPrefix(
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::updateOnDisk()
 {
-   auto&& tx = iface_->beginWriteTransaction(dbName_);
+   if (getWriteTx_ == nullptr)
+      throw runtime_error("empty write tx lambda");
 
+   auto tx = getWriteTx_(dbName_);
+   updateOnDisk(move(tx));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void DecryptedDataContainer::updateOnDisk(unique_ptr<DBIfaceTransaction> tx)
+{
    //encryption keys
+   shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
    for (auto& key : encryptionKeyMap_)
-      updateKeyOnDisk(key.first, key.second);
+      updateKeyOnDisk(sharedTx, key.first, key.second);
 
    //kdf
    for (auto& key : kdfMap_)
@@ -494,7 +521,7 @@ void DecryptedDataContainer::updateOnDisk()
       dbKey.append(key.first);
 
       //fetch from db
-      auto&& dataRef = tx->getDataRef(dbKey);
+      auto&& dataRef = sharedTx->getDataRef(dbKey);
 
       if (dataRef.getSize() != 0)
       {
@@ -506,35 +533,28 @@ void DecryptedDataContainer::updateOnDisk()
             continue;
 
          //data has changed, wipe the existing data
-         deleteKeyFromDisk(dbKey);
+         deleteKeyFromDisk(sharedTx, dbKey);
       }
 
       auto&& serializedData = key.second->serialize();
-      tx->insert(dbKey, serializedData);
+      sharedTx->insert(dbKey, serializedData);
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DecryptedDataContainer::deleteKeyFromDisk(const BinaryData& key)
+void DecryptedDataContainer::deleteKeyFromDisk(
+   shared_ptr<DBIfaceTransaction> tx, const BinaryData& key)
 {
    //sanity checks
    if (!ownsLock())
       throw DecryptedDataContainerException("unlocked/does not own lock");
 
    //erase key, db interface will wipe it from file
-   auto&& tx = iface_->beginWriteTransaction(dbName_);
    tx->erase(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DecryptedDataContainer::readFromDisk()
-{
-   auto&& tx = iface_->beginReadTransaction(dbName_);
-   readFromDisk(tx.get());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void DecryptedDataContainer::readFromDisk(DBIfaceTransaction* tx)
+void DecryptedDataContainer::readFromDisk(shared_ptr<DBIfaceTransaction> tx)
 {
    //encryption key and kdf entries
    auto dbIter = tx->getIterator();
@@ -608,9 +628,12 @@ void DecryptedDataContainer::encryptEncryptionKey(
    held elsewhere, even within the same thread.
    ***/
 
+   if (getWriteTx_ == nullptr)
+      throw runtime_error("empty write tx lambda");
+
    SingleLock lock(this);
 
-   //sanity check
+   //we have to own the lock on this container before proceeding
    if (!ownsLock())
       throw DecryptedDataContainerException("unlocked/does not own lock");
 
@@ -703,24 +726,27 @@ void DecryptedDataContainer::encryptEncryptionKey(
 
    {
       //write new encrypted key as temp key within it's own transaction
-      auto&& tx = iface_->beginWriteTransaction(dbName_);
-      updateKeyOnDiskNoPrefix(temp_key, encryptedKey);
+      auto&& tx = getWriteTx_(dbName_);
+      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
+      updateKeyOnDiskNoPrefix(sharedTx, temp_key, encryptedKey);
    }
 
    {
-      auto&& tx = iface_->beginWriteTransaction(dbName_);
+      auto&& tx = getWriteTx_(dbName_);
+      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
 
       //wipe old key from disk
-      deleteKeyFromDisk(perm_key);
+      deleteKeyFromDisk(sharedTx, perm_key);
 
       //write new key to disk
-      updateKeyOnDiskNoPrefix(perm_key, encryptedKey);
+      updateKeyOnDiskNoPrefix(sharedTx, perm_key, encryptedKey);
    }
 
    {
       //wipe temp entry
-      auto&& tx = iface_->beginWriteTransaction(dbName_);
-      deleteKeyFromDisk(temp_key);
+      auto&& tx = getWriteTx_(dbName_);
+      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
+      deleteKeyFromDisk(sharedTx, temp_key);
    }
 }
 
@@ -738,9 +764,12 @@ void DecryptedDataContainer::eraseEncryptionKey(
    Has same locking requirements as encryptEncryptionKey.
    ***/
 
+   if (getWriteTx_ == nullptr)
+      throw runtime_error("empty write tx lambda");
+
    SingleLock lock(this);
 
-   //sanity check
+//we have to own the lock on this container before proceeding
    if (!ownsLock())
       throw DecryptedDataContainerException("unlocked/does not own lock");
 
@@ -813,23 +842,26 @@ void DecryptedDataContainer::eraseEncryptionKey(
 
    {
       //write new encrypted key as temp key within it's own transaction
-      auto&& tx = iface_->beginWriteTransaction(dbName_);
-      updateKeyOnDiskNoPrefix(temp_key, encryptedKey);
+      auto&& tx = getWriteTx_(dbName_);
+      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
+      updateKeyOnDiskNoPrefix(sharedTx, temp_key, encryptedKey);
    }
 
    {
-      auto&& tx = iface_->beginWriteTransaction(dbName_);
+      auto&& tx = getWriteTx_(dbName_);
+      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
 
       //wipe old key from disk
-      deleteKeyFromDisk(perm_key);
+      deleteKeyFromDisk(sharedTx, perm_key);
 
       //write new key to disk
-      updateKeyOnDiskNoPrefix(perm_key, encryptedKey);
+      updateKeyOnDiskNoPrefix(sharedTx, perm_key, encryptedKey);
    }
 
    {
       //wipe temp entry
-      auto&& tx = iface_->beginWriteTransaction(dbName_);
-      deleteKeyFromDisk(temp_key);
+      auto&& tx = getWriteTx_(dbName_);
+      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
+      deleteKeyFromDisk(sharedTx, temp_key);
    }
 }

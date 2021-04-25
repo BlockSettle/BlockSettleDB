@@ -23,6 +23,7 @@ Handle codec and socketing for armory client
 #include "WebSocketClient.h"
 #include "DBClientClasses.h"
 #include "SocketWritePayload.h"
+#include "Wallets/PassphraseLambda.h"
 
 class WalletManager;
 class WalletContainer;

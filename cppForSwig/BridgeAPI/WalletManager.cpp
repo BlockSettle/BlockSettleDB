@@ -390,13 +390,10 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
    for (auto& accData : accIDMap)
    {
       auto&& assetAccountID = accData.first.getSliceCopy(4, 4);
-      auto account = wallet_->getAccountForID(accData.first);
-      auto& accountMap = account->getAccountMap();
-      auto accIter = accountMap.find(assetAccountID);
-      if (accIter == accountMap.end())
-         throw runtime_error("missing account");
+      auto addrAccount = wallet_->getAccountForID(accData.first);
+      auto assAccount = addrAccount->getAccountForID(assetAccountID);
 
-      auto currentTop = accIter->second->getHighestUsedIndex();
+      auto currentTop = assAccount->getHighestUsedIndex();
       for (auto& idPair : accData.second)
       {
          auto idInt = READ_UINT32_BE(idPair.first.getSliceRef(8, 4));
@@ -404,7 +401,7 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
          while (idInt > currentTop + 1)
          {
             auto addrEntry = 
-               account->getNewAddress(assetAccountID, AddressEntryType_Default);
+               addrAccount->getNewAddress(assetAccountID, AddressEntryType_Default);
             updatedAddressMap.insert(
                make_pair(addrEntry->getPrefixedHash(), addrEntry));
             
@@ -412,7 +409,7 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
          }
 
          auto addrEntry = 
-            account->getNewAddress(assetAccountID, idPair.second);
+            addrAccount->getNewAddress(assetAccountID, idPair.second);
          updatedAddressMap.insert(
             make_pair(addrEntry->getPrefixedHash(), addrEntry));
          

@@ -16,8 +16,6 @@
 #include <map>
 #include <string>
 
-#include "WalletFileInterface.h"
-
 #include "ReentrantLock.h"
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
@@ -25,19 +23,16 @@
 #include "Signer.h"
 
 #include "DecryptedDataContainer.h"
-#include "Accounts.h"
 #include "BIP32_Node.h"
 #include "ResolverFeed.h"
 
 #include "WalletHeader.h"
- 
+#include "Accounts/AccountTypes.h"
+#include "Accounts/AddressAccounts.h"
+#include "Accounts/MetaAccounts.h"
+
 ////
-class NoAssetException : public std::runtime_error
-{
-public:
-   NoAssetException(const std::string& msg) : std::runtime_error(msg)
-   {}
-};
+class WalletDBInterface;
 
 ////////////////////////////////////////////////////////////////////////////////
 class AssetWallet : protected Lockable
@@ -71,34 +66,12 @@ protected:
    
 protected:
    //tors
-   AssetWallet(std::shared_ptr<WalletDBInterface> iface,
-      std::shared_ptr<WalletHeader> headerPtr, 
-      const std::string& masterID) :
-      iface_(iface), 
-      dbName_(headerPtr->getDbName()),
-      walletID_(headerPtr->walletID_)
-   {
-      decryptedData_ = std::make_shared<DecryptedDataContainer>(
-         iface_, dbName_,
-         headerPtr->getDefaultEncryptionKey(),
-         headerPtr->getDefaultEncryptionKeyId(),
-         headerPtr->defaultKdfId_, headerPtr->masterEncryptionKeyId_);
-      checkMasterID(masterID);
-   }
+   AssetWallet(std::shared_ptr<WalletDBInterface>,
+      std::shared_ptr<WalletHeader>, 
+      const std::string&);
 
    static std::shared_ptr<WalletDBInterface> getIfaceFromFile(
-      const std::string& path, const PassphraseLambda& passLbd)
-   {
-      /*
-      This passphrase lambda is used to prompt the user for the wallet file's
-      passphrase. Private keys use a different passphrase, with its own prompt.
-      */
-
-      auto iface = std::make_shared<WalletDBInterface>();
-      iface->setupEnv(path, passLbd);
-
-      return iface;
-   }
+      const std::string&, const PassphraseLambda&);
 
    //locals
 
@@ -171,6 +144,7 @@ public:
    std::shared_ptr<AddressAccount> getAccountForID(const BinaryData& ID) const;
    
    const std::string& getDbFilename(void) const;
+   const std::string& getDbName(void) const;
 
    std::set<BinaryData> getAccountIDs(void) const;
    std::map<BinaryData, std::shared_ptr<AddressEntry>> 
@@ -200,6 +174,8 @@ public:
 
    const std::string& getLabel(void) const;
    const std::string& getDescription(void) const;
+
+   std::shared_ptr<WalletDBInterface> getIface(void) const;
 
    //virtual
    virtual std::set<BinaryData> getAddrHashSet();
@@ -252,6 +228,9 @@ protected:
 private:
    static void copyPublicData(
       std::shared_ptr<AssetWallet_Single>, std::shared_ptr<WalletDBInterface>);
+   static void exportPublicData(
+      std::shared_ptr<AssetWallet_Single>);
+
    void setSeed(const SecureBinaryData&, const SecureBinaryData&);
 
 public:
@@ -375,151 +354,6 @@ public:
       unsigned lookup = UINT32_MAX);
 
    //local
-};
-
-////////////////////////////////////////////////////////////////////////////////
-class ResolverFeed_AssetWalletSingle : public ArmorySigner::ResolverFeed
-{
-private:
-   std::shared_ptr<AssetWallet_Single> wltPtr_;
-
-protected:
-   std::map<BinaryData, BinaryData> hash_to_preimage_;
-   std::map<BinaryData, std::shared_ptr<AssetEntry_Single>> pubkey_to_asset_;
-   std::map<BinaryData, std::pair<
-      ArmorySigner::BIP32_AssetPath, BinaryData>> bip32Paths_;
-
-private:
-
-   void addToMap(std::shared_ptr<AddressEntry>);
-
-public:
-   //tors
-   ResolverFeed_AssetWalletSingle(std::shared_ptr<AssetWallet_Single> wltPtr) :
-      wltPtr_(wltPtr)
-   {  
-      if (wltPtr_ == nullptr)
-         throw std::runtime_error("null wallet ptr");
-   }
-
-   //virtual
-   BinaryData getByVal(const BinaryData&) override;
-   virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData&) override;
-   ArmorySigner::BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override;
-   
-   //local
-   void seedFromAddressEntry(std::shared_ptr<AddressEntry>);
-   void setBip32PathForPubkey(const BinaryData& pubkey, 
-      const ArmorySigner::BIP32_AssetPath& path) override;
-      
-   std::pair<std::shared_ptr<AssetEntry>, AddressEntryType> 
-      getAssetPairForKey(const BinaryData&) const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-class ResolverFeed_AssetWalletSingle_Exotic : 
-   public ResolverFeed_AssetWalletSingle
-{
-   //tors
-   ResolverFeed_AssetWalletSingle_Exotic(
-      std::shared_ptr<AssetWallet_Single> wltPtr) :
-      ResolverFeed_AssetWalletSingle(wltPtr)
-   {}
-
-   //virtual
-   const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey)
-   {
-      try
-      {
-         return ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(pubkey);
-      }
-      catch (NoAssetException&)
-      {}
-      
-      /*
-      Failed to get the asset for the pukbey by hashing it, run through
-      all assets linearly instead.
-      */
-
-      //grab account
-
-      //grab asset account
-
-      //run through assets, check pubkeys
-   }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-class ResolverFeed_AssetWalletSingle_ForMultisig : public ArmorySigner::ResolverFeed
-{
-private:
-   std::shared_ptr<AssetWallet> wltPtr_;
-
-protected:
-   std::map<BinaryDataRef, std::shared_ptr<AssetEntry_Single>> pubkey_to_asset_;
-
-private:
-
-   void addToMap(std::shared_ptr<AssetEntry> asset)
-   {
-      auto asset_single = std::dynamic_pointer_cast<AssetEntry_Single>(asset);
-      if (asset_single == nullptr)
-         throw WalletException("multisig asset in asset_single resolver");
-
-      auto pubkey = asset_single->getPubKey();
-      BinaryDataRef pubkey_compressed(pubkey->getCompressedKey());
-      BinaryDataRef pubkey_uncompressed(pubkey->getUncompressedKey());
-
-      pubkey_to_asset_.insert(std::make_pair(pubkey_compressed, asset_single));
-      pubkey_to_asset_.insert(std::make_pair(pubkey_uncompressed, asset_single));
-   }
-
-public:
-   //tors
-   ResolverFeed_AssetWalletSingle_ForMultisig(std::shared_ptr<AssetWallet_Single> wltPtr) :
-      wltPtr_(wltPtr)
-   {
-      for (auto& addr_account : wltPtr->accounts_)
-      {
-         for (auto& asset_account : addr_account.second->getAccountMap())
-         {
-            for (unsigned i = 0; i < asset_account.second->getAssetCount(); i++)
-            {
-               auto asset = asset_account.second->getAssetForIndex(i);
-               addToMap(asset);
-            }
-         }
-      }
-   }
-
-   //virtual
-   BinaryData getByVal(const BinaryData&) override
-   {
-      //find id for the key
-      throw std::runtime_error("no preimages in multisig feed");
-      return BinaryData();
-   }
-
-   virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey) override
-   {
-      auto pubkeyref = BinaryDataRef(pubkey);
-      auto iter = pubkey_to_asset_.find(pubkeyref);
-      if (iter == pubkey_to_asset_.end())
-         throw std::runtime_error("invalid value");
-
-      const auto& privkeyAsset = iter->second->getPrivKey();
-      return wltPtr_->getDecryptedValue(privkeyAsset);
-   }
-
-   ArmorySigner::BIP32_AssetPath resolveBip32PathForPubkey(
-      const BinaryData&) override
-   {
-      throw std::runtime_error("invalid pubkey");
-   }
-
-   void setBip32PathForPubkey(
-      const BinaryData&, const ArmorySigner::BIP32_AssetPath&) override
-   {}
 };
 
 #endif

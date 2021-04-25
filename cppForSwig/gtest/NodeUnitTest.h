@@ -19,7 +19,7 @@
 #include "../BlockUtils.h"
 #include "../BitcoinP2p.h"
 #include "../Blockchain.h"
-#include "../ScriptRecipient.h"
+#include "../Signer/ScriptRecipient.h"
 #include "../BlockDataMap.h"
 #include "../nodeRPC.h"
 

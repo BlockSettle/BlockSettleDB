@@ -8,6 +8,7 @@
 
 #include "ReentrantLock.h"
 #include "DerivationScheme.h"
+#include "EncryptedDB.h"
 #include "DecryptedDataContainer.h"
 #include "BIP32_Node.h"
 
@@ -28,7 +29,7 @@ DerivationScheme::~DerivationScheme()
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data, 
-   shared_ptr<WalletDBInterface> iface, const string& dbName)
+   shared_ptr<DBIfaceTransaction> txPtr)
 {
    BinaryRefReader brr(data);
 
@@ -142,8 +143,7 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data,
          bwKey.put_BinaryData(id);
          BinaryDataRef keyBdr = bwKey.getDataRef();
 
-         auto&& tx = iface->beginReadTransaction(dbName);
-         auto dbIter = tx->getIterator();
+         auto dbIter = txPtr->getIterator();
          dbIter->seek(keyBdr);
          while (dbIter->isValid())
          {
@@ -622,8 +622,8 @@ BinaryData DerivationScheme_ECDH::serialize() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unsigned DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt, 
-   shared_ptr<WalletDBInterface> iface, const string& dbName)
+unsigned DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
+   shared_ptr<DBIfaceTransaction> txPtr)
 {
    if (salt.getSize() != 32)
       throw DerivationSchemeException("salt is too small");
@@ -641,7 +641,7 @@ unsigned DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
       throw DerivationSchemeException("failed to insert salt");
 
    //update on disk
-   putSalt(id, salt, iface, dbName);
+   putSalt(id, salt, txPtr);
 
    //return insert index
    return id;
@@ -649,7 +649,7 @@ unsigned DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
 
 ////////////////////////////////////////////////////////////////////////////////
 void DerivationScheme_ECDH::putSalt(unsigned id, const SecureBinaryData& salt, 
-   shared_ptr<WalletDBInterface> iface, const string& dbName)
+   shared_ptr<DBIfaceTransaction> txPtr)
 {
    //update on disk
    BinaryWriter bwKey;
@@ -657,21 +657,32 @@ void DerivationScheme_ECDH::putSalt(unsigned id, const SecureBinaryData& salt,
    bwKey.put_BinaryData(id_);
    bwKey.put_uint32_t(id, BE);
 
+   auto dataRef = txPtr->getDataRef(bwKey.getData());
+   if (!dataRef.empty())
+   {
+      if (dataRef != salt)
+      {
+         throw DerivationSchemeException(
+            "trying to write a salt different from the one on disk");
+      }
+
+      //no point rewriting a salt to disk
+      return;
+   }
+
    BinaryWriter bwData;
    bwData.put_var_int(salt.getSize());
    bwData.put_BinaryData(salt);
 
-   auto&& tx = iface->beginWriteTransaction(dbName);
-   tx->insert(bwKey.getData(), bwData.getData());
+   txPtr->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DerivationScheme_ECDH::putAllSalts(
-   shared_ptr<WalletDBInterface> iface, const string& dbName)
+void DerivationScheme_ECDH::putAllSalts(shared_ptr<DBIfaceTransaction> txPtr)
 {
    //expects live read-write db tx
    for (auto& saltPair : saltMap_)
-      putSalt(saltPair.second, saltPair.first, iface, dbName);
+      putSalt(saltPair.second, saltPair.first, txPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

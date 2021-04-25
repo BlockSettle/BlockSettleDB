@@ -1,13 +1,12 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2019, goatpig                                               //
+//  Copyright (C) 2019-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifndef _H_WALLETFILEINTERFACE_
-#define _H_WALLETFILEINTERFACE_
+#ifndef _H_ENCRYPTED_DB
+#define _H_ENCRYPTED_DB
 
 #include <memory>
 #include <vector>
@@ -22,11 +21,18 @@
 #include "BinaryData.h"
 #include "SecureBinaryData.h"
 #include "ReentrantLock.h"
-#include "EncryptionUtils.h"
 
-#define CONTROL_DB_NAME "control_db"
 #define ERASURE_PLACE_HOLDER "erased"
 #define KEY_CYCLE_FLAG "cycle"
+
+////
+class EncryptedDBException : public std::runtime_error
+{
+public:
+   EncryptedDBException(const std::string& err) :
+      std::runtime_error(err)
+   {}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 class NoDataInDB : std::runtime_error
@@ -40,15 +46,6 @@ public:
 ////
 class NoEntryInWalletException
 {};
-
-////
-class WalletInterfaceException : public std::runtime_error
-{
-public:
-   WalletInterfaceException(const std::string& err) :
-      std::runtime_error(err)
-   {}
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 struct BothBinaryDatas
@@ -85,7 +82,6 @@ public:
       }
 
       return BinaryDataRef();
-      //throw WalletInterfaceException("empty data object");
    }
 
    size_t getSize(void) const
@@ -104,6 +100,7 @@ struct InsertData
    BothBinaryDatas value_;
    bool write_ = true;
 };
+
 
 ////////////////////////////////////////////////////////////////////////////////
 class DBIfaceIterator;
@@ -143,7 +140,6 @@ private:
    static const BinaryData keyCycleFlag_;
 
    const unsigned encrVersion_;
-   PRNG_Fortuna fortuna_;
 
 private:
    //serialization methods
@@ -214,62 +210,9 @@ public:
    virtual void erase(const BinaryData&) = 0;
 
    virtual const BinaryDataRef getDataRef(const BinaryData&) const = 0;
-   virtual std::shared_ptr<DBIfaceIterator> getIterator() const = 0;
+   virtual std::shared_ptr<DBIfaceIterator> getIterator(void) const = 0;
 
    static bool hasTx(void);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-class WalletDBInterface;
-
-////
-class WalletIfaceTransaction : public DBIfaceTransaction
-{
-   friend class WalletIfaceIterator;
-
-private:
-   DBInterface* dbPtr_;
-   WalletDBInterface* ifacePtr_;
-   bool commit_ = false;
-
-   /*
-   insertVec tracks the order in which insertion and deletion take place
-   keyToMapData keeps tracks of the final effect for each key
-
-   using shared_ptr to reduce cost of copies when resizing the vector
-   */
-   std::vector<std::shared_ptr<InsertData>> insertVec_;
-   std::map<BinaryData, unsigned> keyToDataMap_;
-
-   std::function<void(const BinaryData&, BothBinaryDatas&)> insertLbd_;
-   std::function<void(const BinaryData&)> eraseLbd_;
-   std::function<const std::shared_ptr<InsertData>&(const BinaryData&)> 
-      getDataLbd_;
-
-   std::shared_ptr<IfaceDataMap> dataMapPtr_;
-
-private:
-   static bool insertTx(WalletIfaceTransaction*);
-   static std::unique_ptr<std::unique_lock<std::recursive_mutex>> eraseTx(
-      WalletIfaceTransaction*);
-   
-   void closeTx(void);
-   const std::shared_ptr<InsertData>& getInsertDataForKey(
-      const BinaryData&) const;
-
-public:
-   WalletIfaceTransaction(WalletDBInterface*, DBInterface* dbPtr, bool mode);
-   ~WalletIfaceTransaction(void) noexcept(false);
-
-   //write routines
-   void insert(const BinaryData&, BinaryData&) override;
-   void insert(const BinaryData&, const BinaryData&) override;
-   void insert(const BinaryData&, SecureBinaryData&) override;
-   void erase(const BinaryData&) override;
-
-   //get routines
-   const BinaryDataRef getDataRef(const BinaryData&) const override;
-   std::shared_ptr<DBIfaceIterator> getIterator() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -323,31 +266,6 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class WalletIfaceIterator : public DBIfaceIterator
-{
-private:
-   const WalletIfaceTransaction* txPtr_;
-   std::map<BinaryData, BothBinaryDatas>::const_iterator iterator_;
-
-public:
-   WalletIfaceIterator(const WalletIfaceTransaction* tx) :
-      txPtr_(tx)
-   {
-      if (tx == nullptr)
-         throw WalletInterfaceException("null tx");
-
-      iterator_ = tx->dataMapPtr_->dataMap_.begin();
-   }
-
-   bool isValid(void) const override;
-   void seek(const BinaryDataRef&) override;
-   void advance(void) override;
-
-   BinaryDataRef key(void) const override;
-   BinaryDataRef value(void) const override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
 class RawIfaceIterator : public DBIfaceIterator
 {
 private:
@@ -359,7 +277,7 @@ public:
       dbPtr_(dbPtr)
    {
       if (dbPtr_ == nullptr)
-         throw WalletInterfaceException("null db ptr");
+         throw std::runtime_error("null db ptr");
 
       iterator_ = dbPtr_->begin();
    }
@@ -370,109 +288,6 @@ public:
 
    BinaryDataRef key(void) const override;
    BinaryDataRef value(void) const override;
-};
-
-struct WalletHeader;
-struct WalletHeader_Control;
-class DecryptedDataContainer;
-class EncryptedSeed;
-
-////////////////////////////////////////////////////////////////////////////////
-struct MasterKeyStruct;
-
-////
-class WalletDBInterface
-{
-   friend class DBIfaceTransaction;
-   friend class WalletIfaceTransaction;
-
-private:
-   mutable std::mutex setupMutex_;
-
-   std::unique_ptr<LMDBEnv> dbEnv_ = nullptr;
-   std::map<std::string, std::unique_ptr<DBInterface>> dbMap_;
-
-   //encryption objects
-   std::unique_ptr<LMDB> controlDb_;
-
-   //wallet structure
-   std::map<std::string, std::shared_ptr<WalletHeader>> headerMap_;
-
-   std::string path_;
-   unsigned dbCount_ = 0;
-
-   std::unique_ptr<DecryptedDataContainer> decryptedData_;
-   std::unique_ptr<ReentrantLock> controlLock_;
-   std::unique_ptr<EncryptedSeed> controlSeed_;
-
-   unsigned encryptionVersion_ = UINT32_MAX;
-   PRNG_Fortuna fortuna_;
-
-private:
-   //control objects loading
-   std::shared_ptr<WalletHeader> loadControlHeader();
-   void loadDataContainer(std::shared_ptr<WalletHeader>);
-   void loadSeed(std::shared_ptr<WalletHeader>);
-   void loadHeaders(void);
-
-   //utils
-   BinaryDataRef getDataRefForKey(
-      DBIfaceTransaction* tx, const BinaryData& key);
-   void setDbCount(unsigned, bool);
-   void openDB(std::shared_ptr<WalletHeader>, 
-      const SecureBinaryData&, unsigned encrVersion);
-
-   //header methods
-   void openControlDb(void);
-   std::shared_ptr<WalletHeader_Control> setupControlDB(
-      const PassphraseLambda&);
-   void putHeader(std::shared_ptr<WalletHeader>);
-
-   void openDbEnv(void);
-   void openEnv(void);
-   void closeEnv(void);
-
-   void compactFile();
-   static void wipeAndDeleteFile(const std::string&);
-
-public:
-   //tors
-   WalletDBInterface(void) {}
-   ~WalletDBInterface(void) { shutdown(); }
-
-   //setup
-   void setupEnv(const std::string& path, const PassphraseLambda&);
-   void shutdown(void);
-   void eraseFromDisk(void);
-
-   const std::string& getFilename(void) const;
-
-   //headers
-   static MasterKeyStruct initWalletHeaderObject(
-      std::shared_ptr<WalletHeader>, const SecureBinaryData&);
-   void addHeader(std::shared_ptr<WalletHeader>);
-   std::shared_ptr<WalletHeader> getWalletHeader(
-      const std::string&) const;
-   const std::map<std::string, std::shared_ptr<WalletHeader>>& 
-      getHeaderMap(void) const;
-
-   //db count
-   unsigned getDbCount(void) const;
-   unsigned getFreeDbCount(void) const;
-   void setDbCount(unsigned);
-
-   //transactions
-   std::unique_ptr<DBIfaceTransaction> beginWriteTransaction(const std::string&);
-   std::unique_ptr<DBIfaceTransaction> beginReadTransaction(const std::string&);
-
-   //utils
-   void lockControlContainer(const PassphraseLambda&);
-   void unlockControlContainer(void);
-
-   void changeControlPassphrase(
-      const std::function<SecureBinaryData(void)>& newPassLbd, 
-      const PassphraseLambda& passLbd);
-   void eraseControlPassphrase(const PassphraseLambda& passLbd);
 };
 
 #endif

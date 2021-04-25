@@ -12,6 +12,7 @@
 #include "../ArmoryBackups.h"
 #include "ProtobufConversions.h"
 #include "ProtobufCommandParser.h"
+#include "../Signer/ResolverFeed_Wallets.h"
 
 using namespace std;
 

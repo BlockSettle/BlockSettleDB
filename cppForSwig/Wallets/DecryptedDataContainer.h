@@ -11,15 +11,15 @@
 
 #include <functional>
 
-#include "WalletFileInterface.h"
-
 #include "Assets.h"
 #include "ReentrantLock.h"
 #include "BinaryData.h"
+#include "PassphraseLambda.h"
 
 #define ENCRYPTIONKEY_PREFIX        0xC0
 #define ENCRYPTIONKEY_PREFIX_TEMP   0xCC
 
+////////////////////////////////////////////////////////////////////////////////
 class AssetUnavailableException
 {};
 
@@ -38,6 +38,11 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+class DBIfaceTransaction;
+using WriteTxFuncType = 
+   std::function<std::unique_ptr<DBIfaceTransaction>(const std::string&)>;
+
+////
 class DecryptedDataContainer : public Lockable
 {
    struct DecryptedDataMaps
@@ -65,8 +70,6 @@ private:
    };
 
    std::vector<OtherLockedContainer> otherLocks_;
-
-   std::shared_ptr<WalletDBInterface> iface_;
    const std::string dbName_;
 
    /*
@@ -84,6 +87,9 @@ private:
    
    const SecureBinaryData defaultKdfId_;
    const SecureBinaryData masterEncryptionKeyId_;
+
+public:
+   const WriteTxFuncType getWriteTx_;
 
 protected:
    std::map<BinaryData, std::shared_ptr<Asset_EncryptedData>> encryptionKeyMap_;
@@ -108,20 +114,12 @@ private:
 
 public:
    DecryptedDataContainer(
-      std::shared_ptr<WalletDBInterface> iface,
+      const WriteTxFuncType& getWriteTx,
       const std::string dbName,
       const SecureBinaryData& defaultEncryptionKey,
       const BinaryData& defaultEncryptionKeyId,
       const SecureBinaryData& defaultKdfId,
-      const SecureBinaryData& masterKeyId) :
-      iface_(iface), dbName_(dbName),
-      defaultEncryptionKey_(defaultEncryptionKey),
-      defaultEncryptionKeyId_(defaultEncryptionKeyId),
-      defaultKdfId_(defaultKdfId),
-      masterEncryptionKeyId_(masterKeyId)
-   {
-      resetPassphraseLambda();
-   }
+      const SecureBinaryData& masterKeyId);
 
    const SecureBinaryData& getDecryptedPrivateData(
       const std::shared_ptr<Asset_EncryptedData>& data);
@@ -146,15 +144,15 @@ public:
    }
 
    void updateOnDisk(void);
-   void readFromDisk(void);
-   void readFromDisk(DBIfaceTransaction* tx);
+   void updateOnDisk(std::unique_ptr<DBIfaceTransaction>);
+   void readFromDisk(std::shared_ptr<DBIfaceTransaction>);
 
-   void updateKeyOnDiskNoPrefix(
+   void updateKeyOnDiskNoPrefix(std::shared_ptr<DBIfaceTransaction>,
       const BinaryData&, std::shared_ptr<Asset_EncryptedData>);
-   void updateKeyOnDisk(
+   void updateKeyOnDisk(std::shared_ptr<DBIfaceTransaction>,
       const BinaryData&, std::shared_ptr<Asset_EncryptedData>);
-
-   void deleteKeyFromDisk(const BinaryData& key);
+   void deleteKeyFromDisk(std::shared_ptr<DBIfaceTransaction>, 
+      const BinaryData& key);
 
    void setPassphrasePromptLambda(const PassphraseLambda& lambda)
    {
@@ -176,7 +174,6 @@ public:
    {
       return masterEncryptionKeyId_;
    }
-
 };
 
 #endif

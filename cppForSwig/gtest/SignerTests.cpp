@@ -6211,8 +6211,8 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    //generate some ECDH addresses
    EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 0);
 
-   auto accPtr = dynamic_pointer_cast<AssetAccount_ECDH>(
-      addrAccountObj->getOuterAccount());
+   auto assAccPtr = addrAccountObj->getOuterAccount();
+   auto accPtr = dynamic_cast<AssetAccount_ECDH*>(assAccPtr.get());
    ASSERT_NE(accPtr, nullptr);
 
    for (unsigned i = 0; i < 5; i++)

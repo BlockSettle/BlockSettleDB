@@ -9,8 +9,8 @@
 #include <mutex>
 #include <map>
 
-#include "BinaryData.h"
-#include "EncryptionUtils.h"
+#include "SecureBinaryData.h"
+#include "Wallets/PassphraseLambda.h"
 
 #define CHANGE_PASS_FLAG BinaryData::fromString("change-pass")
 
