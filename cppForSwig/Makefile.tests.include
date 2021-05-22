@@ -19,7 +19,6 @@ gtest_libgtest_la_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS
 gtest_libgtest_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_libgtest_la_SOURCES = gtest/TestUtils.cpp gtest/NodeUnitTest.cpp gtest/gtest-all.cc
 gtest_libgtest_la_LIBADD = $(LIBARMORYCOMMON) $(LIBARMORYCLI) \
-				$(LIBCRYPTOPP) \
 				$(LIBBTC)
 gtest_libgtest_la_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS)
 
@@ -30,7 +29,6 @@ gtest_ContainerTests_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FL
 gtest_ContainerTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_ContainerTests_LDADD = gtest/libgtest.la $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
-		 $(LIBCRYPTOPP) \
 		 $(LIBBTC) \
 		 $(LIBPROTOBUF_STATIC)
 gtest_ContainerTests_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS) -static
@@ -47,7 +45,8 @@ gtest_UtilsTests_LDADD = gtest/libgtest.la \
 			$(LIBARMORYCLI) \
 			$(LIBHKDF) \
 			$(LIBBTC) \
-			$(LIBLMDB) \
+			$(LIBLMDBPP) \
+			-llmdb \
 			$(LIBPROTOBUF_STATIC) \
 			$(LIBWEBSOCKETS_STATIC)
 if BUILD_OPENSSL_SUPPORT
@@ -112,7 +111,8 @@ gtest_SupernodeTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_SupernodeTests_LDADD = gtest/libgtest.la \
 			$(LIBARMORYCOMMON) \
 			$(LIBARMORYCLI) \
-			$(LIBLMDB) \
+			$(LIBLMDBPP) \
+			-llmdb \
 			$(LIBHKDF) \
 			$(LIBBTC) \
 			$(LIBCHACHA20POLY1305) \
@@ -145,7 +145,8 @@ gtest_CppBlockUtilsTests_LDADD = gtest/libgtest.la \
 			$(LIBARMORYCLI) \
 			$(LIBHKDF) \
 			$(LIBBTC) \
-			$(LIBLMDB) \
+			$(LIBLMDBPP) \
+			-llmdb \
 			$(LIBPROTOBUF_STATIC) \
 			$(LIBWEBSOCKETS_STATIC)
 if BUILD_OPENSSL_SUPPORT
@@ -172,7 +173,8 @@ gtest_ZeroConfTests_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 gtest_ZeroConfTests_LDADD = gtest/libgtest.la \
 			$(LIBARMORYCOMMON) \
 			$(LIBARMORYCLI) \
-			$(LIBLMDB) \
+			$(LIBLMDBPP) \
+			-llmdb \
 			$(LIBHKDF) \
 			$(LIBBTC) \
 			$(LIBCHACHA20POLY1305) \
@@ -205,7 +207,8 @@ gtest_WalletTests_LDADD = gtest/libgtest.la \
 			$(LIBARMORYCLI) \
 			$(LIBHKDF) \
 			$(LIBBTC) \
-			$(LIBLMDB) \
+			$(LIBLMDBPP) \
+			-llmdb \
 			$(LIBPROTOBUF_STATIC) \
 			$(LIBWEBSOCKETS_STATIC)
 if BUILD_OPENSSL_SUPPORT
@@ -235,7 +238,8 @@ gtest_SignerTests_LDADD = gtest/libgtest.la \
 			$(LIBHKDF) \
 			$(LIBBTC) \
 			$(LIBCHACHA20POLY1305) \
-			$(LIBLMDB) \
+			$(LIBLMDBPP) \
+			-llmdb \
 			$(LIBPROTOBUF_STATIC) \
 			$(LIBWEBSOCKETS_STATIC)
 if BUILD_OPENSSL_SUPPORT

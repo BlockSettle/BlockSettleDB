@@ -3065,24 +3065,7 @@ void DBPair::open(const string& path, const string& dbName)
    unsigned flags = MDB_NOSYNC | MDB_NOTLS;
 
    env_.open(path, flags);
-   auto map_size = env_.getMapSize();
-   auto iter = LMDBBlockDatabase::mapSizes_.find(dbName);
-   if (iter != LMDBBlockDatabase::mapSizes_.end())
-   {
-      auto default_size = iter->second;
-      if (map_size < default_size)
-         map_size = default_size;
-      try
-      {
-         auto file_size = DBUtils::getFileSize(path);
-         auto ratio = float(file_size) / float(map_size);
-         if (ratio > 0.75f)
-            map_size *= 2;
-      }
-      catch (runtime_error&)
-      {
-      }
-   }
+   auto map_size = LMDBBlockDatabase::mapSizes_.at(dbName);
    env_.setMapSize(map_size);
 
    auto&& tx = beginTransaction(LMDB::ReadWrite);

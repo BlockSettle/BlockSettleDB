@@ -12,8 +12,7 @@ LIBCPPBLOCKUTILS = libCppBlockUtils.la
 LIBARMORYCOMMON = libArmoryCommon.la
 LIBARMORYGUI = libArmoryGUI.la
 LIBARMORYCLI = libArmoryCLI.la
-LIBCRYPTOPP =
-LIBLMDB = liblmdb.la
+LIBLMDBPP = liblmdbpp.la
 LIBHKDF = hkdf/libhkdf.la
 LIBSECP256K1 = libbtc/src/secp256k1/libsecp256k1.la
 LIBWEBSOCKETS_STATIC = $(WEBSOCKETS_LIBDIR)/libwebsockets.a
@@ -38,16 +37,7 @@ if BUILD_TESTS
 UNIT_TEST_CXXFLAGS += -DUNIT_TESTS -Wunused-parameter
 endif
 
-# Flag used to determine if the code will *only* use libbtc, and not Crypto++.
-LIBBTC_FLAGS =
-
-if USE_CRYPTOPP
-DIST_SUBDIRS += cryptopp
-SUBDIRS += cryptopp
-LIBCRYPTOPP += cryptopp/libcryptopp.la
-else
-LIBBTC_FLAGS += -DLIBBTC_ONLY
-endif
+LIBBTC_FLAGS = -DLIBBTC_ONLY
 
 AM_CXXFLAGS =
 
@@ -68,7 +58,7 @@ protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
 #	@test -f proto
 	protoc --cpp_out=protobuf --proto_path=protobuf $<
 
-INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
+INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdbpp \
 	-Ichacha20poly1305 -Ilibbtc/src/secp256k1/include \
 	-Ilibbtc/include $(LWS_CFLAGS) -Ihkdf
 
@@ -137,6 +127,7 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	CoinSelection.cpp \
 	DecryptedDataContainer.cpp \
 	DerivationScheme.cpp \
+	EncryptionUtils_libbtc.cpp \
 	KDF.cpp \
 	log.cpp \
 	BitcoinSettings.cpp \
@@ -157,12 +148,6 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	Wallets.cpp \
 	WebSocketClient.cpp \
 	WebSocketMessage.cpp
-
-if ! USE_CRYPTOPP
-ARMORYCOMMON_SOURCE_FILES += EncryptionUtils_libbtc.cpp
-else
-ARMORYCOMMON_SOURCE_FILES += EncryptionUtils.cpp
-endif
 
 PROTOBUF_PROTO = protobuf/AddressBook.proto \
 	protobuf/AddressData.proto \
@@ -203,15 +188,11 @@ dist_noinst_DATA = $(PROTOBUF_PROTO)
 # LMDB (DB used by Armory). On macOS, don't use SYSV semaphores (the default),
 # which cause crashes due to mutex lock/unlock issues. Use POSIX semaphores
 # (same as Linux).
-noinst_LTLIBRARIES += $(LIBLMDB)
-liblmdb_la_SOURCES = lmdb/libraries/liblmdb/lmdbpp.cpp \
-		lmdb/libraries/liblmdb/mdb.c \
-		lmdb/libraries/liblmdb/midl.c
-liblmdb_la_CPPFLAGS = -Ilmdb/libraries/liblmdb -fPIC
-if BUILD_DARWIN
-liblmdb_la_CPPFLAGS += -DMDB_USE_POSIX_SEM=1
-endif
-liblmdb_la_LDFLAGS = -static
+noinst_LTLIBRARIES += $(LIBLMDBPP)
+liblmdbpp_la_SOURCES = lmdbpp/lmdbpp.cpp
+liblmdbpp_la_CPPFLAGS = -Ilmdbpp -fPIC
+liblmdbpp_la_LIBADD = -llmdb
+liblmdbpp_la_LDFLAGS = -static
 
 # libArmoryCommon - Required by all Armory programs/libraries.
 # Common functionality across GUI and command line
@@ -221,8 +202,7 @@ nodist_libArmoryCommon_la_SOURCES = $(PROTOBUF_CC) $(PROTOBUF_H)
 libArmoryCommon_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 libArmoryCommon_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 			      $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
-libArmoryCommon_la_LIBADD = $(LIBCRYPTOPP) \
-				$(LIBHKDF) \
+libArmoryCommon_la_LIBADD = $(LIBHKDF) \
 				$(LIBBTC) \
 				$(LIBSECP256K1) \
 				-lpthread
@@ -234,12 +214,13 @@ libArmoryCLI_la_SOURCES = $(ARMORYCLI_SOURCE_FILES)
 libArmoryCLI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 			$(PYTHON_CFLAGS)
 libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
-			   $(UNIT_TEST_CXXFLAGS) -Ilmdb/libraries/liblmdb -D__STDC_LIMIT_MACROS
+			   $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryCLI_la_LIBADD = $(LIBCHACHA20POLY1305) \
 			 $(LIBARMORYCOMMON) \
-			 $(LIBLMDB) \
+			 $(LIBLMDBPP) \
 			 $(LIBHKDF) \
 			 $(LIBBTC) \
+			 -llmdb \
 			 -lpthread
 libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS)
 
@@ -254,7 +235,8 @@ ArmoryDB_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
-		 $(LIBLMDB) \
+		 $(LIBLMDBPP) \
+		 -llmdb \
 		 $(LIBPROTOBUF_STATIC) \
 		 $(LIBWEBSOCKETS_STATIC)
 if BUILD_OPENSSL_SUPPORT
@@ -286,7 +268,8 @@ BIP150KeyManager_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
-		 $(LIBLMDB) \
+		 $(LIBLMDBPP) \
+		 -llmdb \
 		 $(LIBPROTOBUF_STATIC) \
 		 -lpthread
 BIP150KeyManager_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
@@ -302,7 +285,8 @@ CppBridge_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
-		 $(LIBLMDB) \
+		 $(LIBLMDBPP) \
+		 -llmdb \
 		 $(LIBPROTOBUF_STATIC) \
 		 $(LIBWEBSOCKETS_STATIC)
 if BUILD_OPENSSL_SUPPORT

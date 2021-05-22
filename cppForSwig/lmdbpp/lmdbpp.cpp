@@ -393,11 +393,6 @@ void LMDBEnv::close()
    }
 }
 
-size_t LMDBEnv::getMapSize() const
-{
-   return mdb_env_getmapsize(dbenv);
-}
-
 void LMDBEnv::setMapSize(size_t sz)
 {
    auto rc = mdb_env_set_mapsize(dbenv, sz);

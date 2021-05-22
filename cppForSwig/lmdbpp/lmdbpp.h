@@ -322,7 +322,6 @@ public:
    void close();
 
    const std::string& getFilename(void) const { return filename_; }
-   size_t getMapSize(void) const;
    void setMapSize(size_t);
    void compactCopy(const std::string& fname);
    
