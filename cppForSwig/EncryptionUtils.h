@@ -155,18 +155,18 @@ class PRNG_Fortuna
 
    Use the crypto lib's PRNG directly to generate wallet seeds instead.
    */
-   private:
-      mutable std::shared_ptr<SecureBinaryData> key_;
-      mutable std::atomic<unsigned> counter_ = { 1 };
-      mutable std::atomic<unsigned> nBytes_;
+private:
+   mutable std::shared_ptr<SecureBinaryData> key_;
+   mutable std::atomic<unsigned> counter_ = { 1 };
+   mutable std::atomic<unsigned> nBytes_;
 
-   private:
-      PRNG_Fortuna(const PRNG_Fortuna&) = delete; // no copies
-      void reseed(void) const;
+private:
+   PRNG_Fortuna(const PRNG_Fortuna&) = delete; // no copies
+   PRNG_Fortuna(PRNG_Fortuna&&) = delete;
+   void reseed(void) const;
 
-   public:
+public:
    PRNG_Fortuna(void);
-   PRNG_Fortuna(PRNG_Fortuna&&) = default;
 
    SecureBinaryData generateRandom(uint32_t numBytes, 
       const SecureBinaryData& extraEntropy = SecureBinaryData()) const;
