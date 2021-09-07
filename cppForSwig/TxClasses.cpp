@@ -445,7 +445,12 @@ TxOut Tx::getTxOutCopy(int i) const
 {
    assert(isInitialized());  
    if (offsetsTxOut_.empty() || i >= offsetsTxOut_.size() - 1)
-      throw range_error("index out of bound");
+   {
+      string errStr(
+         "index out of bound: " + to_string(i) + " out of " +
+         std::to_string(offsetsTxOut_.size()));
+      throw range_error(errStr);
+   }
 
    uint32_t txoutSize = offsetsTxOut_[i + 1] - offsetsTxOut_[i];
    TxOut out;

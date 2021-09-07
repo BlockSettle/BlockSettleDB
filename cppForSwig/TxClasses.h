@@ -301,6 +301,7 @@ public:
    // These are not pointers to persistent object, these methods actually 
    // CREATES the TxIn/TxOut.  But the construction is fast, so it's
    // okay to do it on the fly
+   //TODO: convert to pointer/reference instaed of copy
    TxIn     getTxInCopy(int i) const;
    TxOut    getTxOutCopy(int i) const;
 
