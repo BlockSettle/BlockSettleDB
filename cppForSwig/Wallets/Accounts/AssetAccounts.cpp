@@ -17,6 +17,24 @@ using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+//// AssetAccountData
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AssetAccountData> AssetAccountData::copy(
+   const string& dbName) const
+{
+   auto accDataCopy = make_shared<AssetAccountData>(
+      id_, parentId_, root_, derScheme_, dbName);
+
+   //shared_ptr of asset entries are not copied
+   accDataCopy->assets_ = assets_;
+   accDataCopy->lastUsedIndex_ = lastUsedIndex_;
+
+   return accDataCopy;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //// AssetAccount
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,12 +50,16 @@ BinaryData AssetAccount::getFullID(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-size_t AssetAccount::writeAssetEntry(shared_ptr<AssetEntry> entryPtr)
+size_t AssetAccount::writeAssetEntry(shared_ptr<AssetEntry> entryPtr,
+   shared_ptr<WalletDBInterface> iface)
 {
    if (!entryPtr->needsCommit())
       return SIZE_MAX;
 
-   auto&& tx = getWriteTx_(data_->dbName_);
+   if (iface == nullptr)
+      throw AccountException("writeAssetEntry: null iface");
+
+   auto&& tx = iface->beginWriteTransaction(data_->dbName_);
 
    auto&& serializedEntry = entryPtr->serialize();
    auto&& dbKey = entryPtr->getDbKey();
@@ -49,18 +71,24 @@ size_t AssetAccount::writeAssetEntry(shared_ptr<AssetEntry> entryPtr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::updateOnDiskAssets()
+void AssetAccount::updateOnDiskAssets(shared_ptr<WalletDBInterface> iface)
 {
-   auto&& tx = getWriteTx_(data_->dbName_);
-   for (auto& entryPtr : data_->assets_)
-      writeAssetEntry(entryPtr.second);
+   if (iface == nullptr)
+      throw AccountException("updateOnDiskAssets: null iface");
 
-   updateAssetCount();
+   auto&& tx = iface->beginWriteTransaction(data_->dbName_);
+   for (auto& entryPtr : data_->assets_)
+      writeAssetEntry(entryPtr.second, iface);
+
+   updateAssetCount(iface);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::updateAssetCount()
+void AssetAccount::updateAssetCount(shared_ptr<WalletDBInterface> iface)
 {
+   if (iface == nullptr)
+      throw AccountException("updateAssetCount: null iface");
+
    //asset count key
    BinaryWriter bwKey;
    bwKey.put_uint8_t(ASSET_COUNT_PREFIX);
@@ -70,13 +98,16 @@ void AssetAccount::updateAssetCount()
    BinaryWriter bwData;
    bwData.put_var_int(data_->assets_.size());
 
-   auto&& tx = getWriteTx_(data_->dbName_);
+   auto&& tx = iface->beginWriteTransaction(data_->dbName_);
    tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::commit()
+void AssetAccount::commit(shared_ptr<WalletDBInterface> iface)
 {
+   if (iface == nullptr)
+      throw AccountException("commit: null iface");
+
    //id as key
    BinaryWriter bwKey;
    bwKey.put_uint8_t(ASSET_ACCOUNT_PREFIX);
@@ -95,25 +126,25 @@ void AssetAccount::commit()
    auto&& derSchemeSerData = data_->derScheme_->serialize();
    bwData.put_var_int(derSchemeSerData.getSize());
    bwData.put_BinaryData(derSchemeSerData);
-     
+
    //commit root asset if there is one
    if (data_->root_ != nullptr)
-      writeAssetEntry(data_->root_);
+      writeAssetEntry(data_->root_, iface);
 
    //commit assets
    for (auto asset : data_->assets_)
-      writeAssetEntry(asset.second);
+      writeAssetEntry(asset.second, iface);
 
    //commit serialized account data
-   auto&& tx = getWriteTx_(data_->dbName_);
+   auto&& tx = iface->beginWriteTransaction(data_->dbName_);
    tx->insert(bwKey.getData(), bwData.getData());
 
-   updateAssetCount();
-   updateHighestUsedIndex();
+   updateAssetCount(iface);
+   updateHighestUsedIndex(iface);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-AccountDataStruct AssetAccount::loadFromDisk(const BinaryData& key, 
+AccountDataStruct AssetAccount::loadFromDisk(const BinaryData& key,
    shared_ptr<WalletDBInterface> iface, const string& dbName)
 {
    //sanity checks
@@ -266,7 +297,8 @@ size_t AssetAccount::getAssetCount() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::extendPublicChain(unsigned count)
+void AssetAccount::extendPublicChain(shared_ptr<WalletDBInterface> iface,
+   unsigned count)
 {
    ReentrantLock lock(this);
 
@@ -280,25 +312,29 @@ void AssetAccount::extendPublicChain(unsigned count)
    if (count == 0)
       return;
 
-   extendPublicChain(assetPtr, count);
+   extendPublicChain(iface, assetPtr, count);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::extendPublicChainToIndex(unsigned count)
+void AssetAccount::extendPublicChainToIndex(
+   shared_ptr<WalletDBInterface> iface, unsigned index)
 {
    ReentrantLock lock(this);
 
    //make address chain at least *count* long
-   auto lastComputedIndex = max(getLastComputedIndex(), 0);
-   if (lastComputedIndex > count)
+   auto lastComputedIndex = getLastComputedIndex();
+   if (lastComputedIndex >= (int)index)
       return;
 
-   auto toCompute = count - lastComputedIndex;
-   extendPublicChain(toCompute);
+   int toCompute = int(index) - lastComputedIndex;
+   if (toCompute < 0)
+      throw AccountException("extendPublicChainToIndex: invalid index");
+
+   extendPublicChain(iface, (unsigned)toCompute);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::extendPublicChain(
+void AssetAccount::extendPublicChain(shared_ptr<WalletDBInterface> iface,
    shared_ptr<AssetEntry> assetPtr, unsigned count)
 {
    if (count == 0)
@@ -306,8 +342,8 @@ void AssetAccount::extendPublicChain(
 
    ReentrantLock lock(this);
 
-   auto&& assetVec = extendPublicChain(assetPtr,
-      assetPtr->getIndex() + 1, 
+   auto assetVec = extendPublicChain(assetPtr,
+      assetPtr->getIndex() + 1,
       assetPtr->getIndex() + count);
 
    {
@@ -323,7 +359,8 @@ void AssetAccount::extendPublicChain(
       }
    }
 
-   updateOnDiskAssets();
+   if (iface != nullptr)
+      updateOnDiskAssets(iface);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -361,6 +398,7 @@ vector<shared_ptr<AssetEntry>> AssetAccount::extendPublicChain(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::extendPrivateChain(
+   shared_ptr<WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    unsigned count)
 {
@@ -374,11 +412,12 @@ void AssetAccount::extendPrivateChain(
    catch(runtime_error&)
    {}
 
-   extendPrivateChain(ddc, topAsset, count);
+   extendPrivateChain(iface, ddc, topAsset, count);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::extendPrivateChainToIndex(
+   shared_ptr<WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    unsigned id)
 {
@@ -398,12 +437,12 @@ void AssetAccount::extendPrivateChainToIndex(
    if (id > topIndex)
    {
       auto count = id - topIndex;
-      extendPrivateChain(ddc, topAsset, count);
+      extendPrivateChain(iface, ddc, topAsset, count);
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::extendPrivateChain(
+void AssetAccount::extendPrivateChain(shared_ptr<WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    shared_ptr<AssetEntry> assetPtr, unsigned count)
 {
@@ -442,7 +481,8 @@ void AssetAccount::extendPrivateChain(
       }
    }
 
-   updateOnDiskAssets();
+   if (iface != nullptr)
+      updateOnDiskAssets(iface);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,8 +538,11 @@ shared_ptr<AssetEntry> AssetAccount::getLastAssetWithPrivateKey() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::updateHighestUsedIndex()
+void AssetAccount::updateHighestUsedIndex(shared_ptr<WalletDBInterface> iface)
 {
+   if (iface == nullptr)
+      throw AccountException("updateHighestUsedIndex: null iface");
+
    ReentrantLock lock(this);
 
    BinaryWriter bwKey;
@@ -509,30 +552,31 @@ void AssetAccount::updateHighestUsedIndex()
    BinaryWriter bwData;
    bwData.put_var_int(data_->lastUsedIndex_);
 
-   auto tx = getWriteTx_(data_->dbName_);
+   auto tx = iface->beginWriteTransaction(data_->dbName_);
    tx->insert(bwKey.getData(), bwData.getData());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unsigned AssetAccount::getAndBumpHighestUsedIndex()
+unsigned AssetAccount::getAndBumpHighestUsedIndex(
+   shared_ptr<WalletDBInterface> iface)
 {
    ReentrantLock lock(this);
 
    ++data_->lastUsedIndex_;
-   updateHighestUsedIndex();
+   updateHighestUsedIndex(iface);
    return data_->lastUsedIndex_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry> AssetAccount::getNewAsset()
+shared_ptr<AssetEntry> AssetAccount::getOrSetAssetAtIndex(
+   shared_ptr<WalletDBInterface> iface, unsigned index)
 {
    ReentrantLock lock(this);
 
-   auto index = getAndBumpHighestUsedIndex();
    auto entryIter = data_->assets_.find(index);
    if (entryIter == data_->assets_.end())
    {
-      extendPublicChain(getLookup());
+      extendPublicChain(iface, getLookup());
       entryIter = data_->assets_.find(index);
       if (entryIter == data_->assets_.end())
          throw AccountException("requested index overflows max lookup");
@@ -541,22 +585,21 @@ shared_ptr<AssetEntry> AssetAccount::getNewAsset()
    return entryIter->second;
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry> AssetAccount::peekNextAsset()
+shared_ptr<AssetEntry> AssetAccount::getNewAsset(
+   shared_ptr<WalletDBInterface> iface)
 {
-   ReentrantLock lock(this);
+   auto index = getAndBumpHighestUsedIndex(iface);
+   return getOrSetAssetAtIndex(iface, index);
+}
 
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AssetEntry> AssetAccount::peekNextAsset(
+   shared_ptr<WalletDBInterface> iface)
+{
    auto index = data_->lastUsedIndex_ + 1;
-   auto entryIter = data_->assets_.find(index);
-   if (entryIter == data_->assets_.end())
-   {
-      extendPublicChain(getLookup());
-      entryIter = data_->assets_.find(index);
-      if (entryIter == data_->assets_.end())
-         throw AccountException("requested index overflows max lookup");
-   }
-
-   return entryIter->second;
+   return getOrSetAssetAtIndex(iface, index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -643,6 +686,7 @@ const SecureBinaryData& AssetAccount::getChaincode() const
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<Asset_PrivateKey> AssetAccount::fillPrivateKey(
+   shared_ptr<WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    const BinaryData& id)
 {
@@ -657,7 +701,7 @@ shared_ptr<Asset_PrivateKey> AssetAccount::fillPrivateKey(
    if (iter == data_->assets_.end())
       throw AccountException("invalid asset id");
 
-   auto thisAsset = std::dynamic_pointer_cast<AssetEntry_Single>(iter->second);
+   auto thisAsset = dynamic_pointer_cast<AssetEntry_Single>(iter->second);
    if (thisAsset == nullptr)
       throw AccountException("unexpected asset type in map");
 
@@ -688,7 +732,7 @@ shared_ptr<Asset_PrivateKey> AssetAccount::fillPrivateKey(
    unsigned count = assetID - (unsigned)prevAssetWithKey->getIndex();
 
    //extend the private chain
-   extendPrivateChain(ddc, prevAssetWithKey, count);
+   extendPrivateChain(iface, ddc, prevAssetWithKey, count);
 
    //grab the fresh asset, return its private key
    auto privKeyIter = data_->assets_.find(assetID);
@@ -699,7 +743,7 @@ shared_ptr<Asset_PrivateKey> AssetAccount::fillPrivateKey(
       throw AccountException("fillPrivateKey failed");
 
    auto assetSingle = 
-      std::dynamic_pointer_cast<AssetEntry_Single>(privKeyIter->second);
+      dynamic_pointer_cast<AssetEntry_Single>(privKeyIter->second);
    if(assetSingle == nullptr)
       throw AccountException("fillPrivateKey failed");
 
@@ -723,7 +767,8 @@ shared_ptr<AssetEntry> AssetAccount::getRoot() const
 //// AssetAccount_ECDH
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-unsigned AssetAccount_ECDH::addSalt(const SecureBinaryData& salt)
+unsigned AssetAccount_ECDH::addSalt(shared_ptr<DBIfaceTransaction> tx,
+   const SecureBinaryData& salt)
 {
    auto derScheme = 
       dynamic_pointer_cast<DerivationScheme_ECDH>(data_->derScheme_);
@@ -731,9 +776,7 @@ unsigned AssetAccount_ECDH::addSalt(const SecureBinaryData& salt)
    if (derScheme == nullptr)
       throw AccountException("unexpected derivation scheme type");
 
-   auto uniqueTx = getWriteTx_(data_->dbName_);
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
-   return derScheme->addSalt(salt, sharedTx);
+   return derScheme->addSalt(salt, tx);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -749,15 +792,18 @@ unsigned AssetAccount_ECDH::getSaltIndex(const SecureBinaryData& salt) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount_ECDH::commit()
+void AssetAccount_ECDH::commit(shared_ptr<WalletDBInterface> iface)
 {
+   if (iface == nullptr)
+      throw AccountException("commit: null iface");
+
    auto schemeECDH =
       dynamic_pointer_cast<DerivationScheme_ECDH>(data_->derScheme_);
    if (schemeECDH == nullptr)
       throw AccountException("expected ECDH derScheme");
 
-   auto uniqueTx = getWriteTx_(data_->dbName_);
-   AssetAccount::commit();
+   auto uniqueTx = iface->beginWriteTransaction(data_->dbName_);
+   AssetAccount::commit(iface);
 
    shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
    schemeECDH->putAllSalts(sharedTx);

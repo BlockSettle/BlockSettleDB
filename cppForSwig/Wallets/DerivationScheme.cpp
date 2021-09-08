@@ -625,6 +625,9 @@ BinaryData DerivationScheme_ECDH::serialize() const
 unsigned DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
    shared_ptr<DBIfaceTransaction> txPtr)
 {
+   if (txPtr == nullptr)
+      throw DerivationSchemeException("addSalt: null tx");
+
    if (salt.getSize() != 32)
       throw DerivationSchemeException("salt is too small");
 

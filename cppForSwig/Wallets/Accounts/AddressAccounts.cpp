@@ -406,6 +406,9 @@ void AddressAccount::reset()
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::commit(shared_ptr<WalletDBInterface> iface)
 {
+   if (iface == nullptr)
+      throw AccountException("commit: null iface");
+
    //id as key
    BinaryWriter bwKey;
    bwKey.put_uint8_t(ADDRESS_ACCOUNT_PREFIX);
@@ -437,12 +440,6 @@ void AddressAccount::commit(shared_ptr<WalletDBInterface> iface)
    shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
 
    //asset accounts
-   auto getWriteTxLbd = [iface](const string& dbName)->
-      unique_ptr<DBIfaceTransaction>
-   {
-      return iface->beginWriteTransaction(dbName);
-   };
-
    for (auto& accDataPair : accountDataMap_)
    {
       shared_ptr<AssetAccount> aaPtr;
@@ -451,26 +448,26 @@ void AddressAccount::commit(shared_ptr<WalletDBInterface> iface)
       case AssetAccountTypeEnum_Plain:
       {
          aaPtr = make_shared<AssetAccount>(
-            accDataPair.second.accountData_, getWriteTxLbd);
+            accDataPair.second.accountData_);
          break;
       }
 
       case AssetAccountTypeEnum_ECDH:
       {
          aaPtr = make_shared<AssetAccount_ECDH>(
-            accDataPair.second.accountData_, getWriteTxLbd);
+            accDataPair.second.accountData_);
          break;
       }
 
       default:
-         throw runtime_error("invalid asset account type");
+         throw AccountException("invalid asset account type");
       }
 
       auto&& assetAccountID = aaPtr->getFullID();
       bwData.put_var_int(assetAccountID.getSize());
       bwData.put_BinaryData(assetAccountID);
 
-      aaPtr->commit();
+      aaPtr->commit(iface);
    }
 
    //commit address account data to disk
@@ -597,84 +594,70 @@ void AddressAccount::readFromDisk(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::extendPublicChain(unsigned count)
+void AddressAccount::extendPublicChain(
+   std::shared_ptr<WalletDBInterface> iface, unsigned count)
 {
    for (auto& accDataPair : accountDataMap_)
    {
       auto accountPtr = getAccountForID(accDataPair.first);
-      accountPtr->extendPublicChain(count);
+      accountPtr->extendPublicChain(iface, count);
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void AddressAccount::extendPublicChain(
+   std::shared_ptr<WalletDBInterface> iface,
+   const BinaryData& id, unsigned count)
+{
+   auto accountPtr = getAccountForID(id);
+   accountPtr->extendPublicChain(iface, count);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AddressAccount::extendPublicChainToIndex(
+   std::shared_ptr<WalletDBInterface> iface,
+   const BinaryData& accountID, unsigned index)
+{
+   auto accountPtr = getAccountForID(accountID);
+   accountPtr->extendPublicChainToIndex(iface, index);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPrivateChain(
+   std::shared_ptr<WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    unsigned count)
 {
    for (auto& accDataPair : accountDataMap_)
    {
       auto accountPtr = getAccountForID(accDataPair.first);
-      accountPtr->extendPrivateChain(ddc, count);
+      accountPtr->extendPrivateChain(iface, ddc, count);
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::extendPublicChainToIndex(
-   const BinaryData& accountID, unsigned count)
-{
-   auto accountPtr = getAccountForID(accountID);
-   accountPtr->extendPublicChainToIndex(count);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPrivateChainToIndex(
+   std::shared_ptr<WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    const BinaryData& accountID, unsigned count)
 {
    auto account = getAccountForID(accountID);
-   account->extendPrivateChainToIndex(ddc, count);
+   account->extendPrivateChainToIndex(iface, ddc, count);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressEntry> AddressAccount::getNewAddress(
-   AddressEntryType aeType)
+   std::shared_ptr<WalletDBInterface> iface, AddressEntryType aeType)
 {
    if (outerAccount_.empty())
       throw AccountException("no currently active asset account");
 
-   return getNewAddress(outerAccount_, aeType);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AddressEntry> AddressAccount::getNewChangeAddress(
-   AddressEntryType aeType)
-{
-   if (innerAccount_.empty())
-      throw AccountException("no currently active asset account");
-
-   return getNewAddress(innerAccount_, aeType);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AddressEntry> AddressAccount::peekNextChangeAddress(
-   AddressEntryType aeType)
-{
-   if (aeType == AddressEntryType_Default)
-      aeType = defaultAddressEntryType_;
-
-   auto aeIter = addressTypes_.find(aeType);
-   if (aeIter == addressTypes_.end())
-      throw AccountException("invalid address type for this account");
-
-   auto accountPtr = getAccountForID(innerAccount_);
-   auto assetPtr = accountPtr->getNewAsset();
-   auto addrPtr = AddressEntry::instantiate(assetPtr, aeType);
-   
-   return addrPtr;
+   return getNewAddress(iface, outerAccount_, aeType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressEntry> AddressAccount::getNewAddress(
+   std::shared_ptr<WalletDBInterface> iface,
    const BinaryData& account, AddressEntryType aeType)
 {
    if (aeType == AddressEntryType_Default)
@@ -686,7 +669,7 @@ shared_ptr<AddressEntry> AddressAccount::getNewAddress(
 
 
    auto accountPtr = getAccountForID(account);
-   auto assetPtr = accountPtr->getNewAsset();
+   auto assetPtr = accountPtr->getNewAsset(iface);
    auto addrPtr = AddressEntry::instantiate(assetPtr, aeType);
    
    //keep track of the address type for this asset if it doesnt use the 
@@ -694,9 +677,37 @@ shared_ptr<AddressEntry> AddressAccount::getNewAddress(
    if (aeType != defaultAddressEntryType_)
    {
       //update on disk
-      updateInstantiatedAddressType(addrPtr);
+      updateInstantiatedAddressType(iface, addrPtr);
    }
 
+   return addrPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AddressEntry> AddressAccount::getNewChangeAddress(
+   std::shared_ptr<WalletDBInterface> iface, AddressEntryType aeType)
+{
+   if (innerAccount_.empty())
+      throw AccountException("no currently active asset account");
+
+   return getNewAddress(iface, innerAccount_, aeType);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AddressEntry> AddressAccount::peekNextChangeAddress(
+   std::shared_ptr<WalletDBInterface> iface, AddressEntryType aeType)
+{
+   if (aeType == AddressEntryType_Default)
+      aeType = defaultAddressEntryType_;
+
+   auto aeIter = addressTypes_.find(aeType);
+   if (aeIter == addressTypes_.end())
+      throw AccountException("invalid address type for this account");
+
+   auto accountPtr = getAccountForID(innerAccount_);
+   auto assetPtr = accountPtr->getNewAsset(iface);
+   auto addrPtr = AddressEntry::instantiate(assetPtr, aeType);
+   
    return addrPtr;
 }
 
@@ -859,10 +870,10 @@ unique_ptr<AssetAccount> AddressAccount::getAccountForID(
    switch (accDataPair.type_)
    {
       case AssetAccountTypeEnum_Plain:
-         return make_unique<AssetAccount>(accDataPair.accountData_, getWriteTx_);
+         return make_unique<AssetAccount>(accDataPair.accountData_);
 
       case AssetAccountTypeEnum_ECDH:
-         return make_unique<AssetAccount_ECDH>(accDataPair.accountData_, getWriteTx_);
+         return make_unique<AssetAccount_ECDH>(accDataPair.accountData_);
 
       default:
          throw runtime_error("unknown asset account type");
@@ -890,22 +901,59 @@ shared_ptr<AssetEntry> AddressAccount::getOutterAssetRoot() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AddressAccount> AddressAccount::getWatchingOnlyCopy(
-   const string& dbName) const
+shared_ptr<AddressAccount> AddressAccount::createFromPublicData(
+   const AddressAccountPublicData& aapd, const string& dbName)
 {
-   auto woAcc = make_shared<AddressAccount>(dbName, nullptr);
+   auto woAcc = make_shared<AddressAccount>(dbName);
 
    //id
-   woAcc->ID_ = ID_;
+   woAcc->ID_ = aapd.ID_;
 
    //address
-   woAcc->defaultAddressEntryType_ = defaultAddressEntryType_;
-   woAcc->addressTypes_ = addressTypes_;
-   woAcc->addresses_ = addresses_;
+   woAcc->defaultAddressEntryType_ = aapd.defaultAddressEntryType_;
+   woAcc->addressTypes_ = aapd.addressTypes_;
+   woAcc->addresses_ = aapd.addresses_;
 
    //account ids
-   woAcc->outerAccount_ = outerAccount_;
-   woAcc->innerAccount_ = innerAccount_;
+   woAcc->outerAccount_ = aapd.outerAccount_;
+   woAcc->innerAccount_ = aapd.innerAccount_;
+
+   //asset accounts
+   for (auto& assetAccPair : aapd.accountDataMap_) {
+      auto accDataCopy = assetAccPair.second.second.accountData_->copy(dbName);
+      if (accDataCopy->root_ == nullptr)
+      {
+         throw runtime_error("rootless account, need to implement bootstrapping for derScheme");
+      }
+
+      AccountDataStruct ads;
+      ads.type_ = assetAccPair.second.second.type_;
+      ads.accountData_ = accDataCopy;
+      woAcc->addAccount(ads);
+
+      woAcc->extendPublicChainToIndex(
+         nullptr, accDataCopy->id_, assetAccPair.second.first);
+   }
+
+   return woAcc;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+AddressAccountPublicData AddressAccount::exportPublicData() const
+{
+   AddressAccountPublicData aapd;
+
+   //id
+   aapd.ID_ = ID_;
+
+   //address
+   aapd.defaultAddressEntryType_ = defaultAddressEntryType_;
+   aapd.addressTypes_ = addressTypes_;
+   aapd.addresses_ = addresses_;
+
+   //account ids
+   aapd.outerAccount_ = outerAccount_;
+   aapd.innerAccount_ = innerAccount_;
 
    //asset accounts
    for (auto& assetAccPair : accountDataMap_)
@@ -930,32 +978,28 @@ shared_ptr<AddressAccount> AddressAccount::getWatchingOnlyCopy(
       auto woAccPtr = make_shared<AssetAccountData>(
          assetData->id_, assetData->parentId_,
          woRoot,
-         assetData->derScheme_, dbName);
+         assetData->derScheme_, "");
       woAccPtr->lastUsedIndex_ = assetData->lastUsedIndex_;
 
-      for (auto& assetPair : assetData->assets_)
-      {
-         auto assetSingle =
-            dynamic_pointer_cast<AssetEntry_Single>(assetPair.second);
-         if (assetSingle == nullptr)
-            throw AccountException("unexpect asset type");
-
-         auto assetWo = assetSingle->getPublicCopy();
-         assetWo->flagForCommit();
-         woAccPtr->assets_.insert(make_pair(assetPair.first, assetWo));
-      }
+      size_t lastComputedAssetId = 0;
+      auto lastAssetIter = assetData->assets_.rbegin();
+      if (lastAssetIter != assetData->assets_.rend())
+         lastComputedAssetId = lastAssetIter->first;
 
       AccountDataStruct ads;
       ads.accountData_ = woAccPtr;
       ads.type_ = assetAccPair.second.type_;
-      woAcc->addAccount(ads);
+      aapd.accountDataMap_.emplace(
+         woAccPtr->id_,
+         make_pair(lastComputedAssetId, move(ads)));
    }
 
-   return woAcc;
+   return aapd;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::updateInstantiatedAddressType(
+   shared_ptr<WalletDBInterface> iface,
    shared_ptr<AddressEntry> addrPtr)
 {
    /***
@@ -973,11 +1017,12 @@ void AddressAccount::updateInstantiatedAddressType(
    if (addrPtr->getType() == AddressEntryType_Default)
       throw AccountException("invalid address entry type");
 
-   updateInstantiatedAddressType(addrPtr->getID(), addrPtr->getType());
+   updateInstantiatedAddressType(iface, addrPtr->getID(), addrPtr->getType());
 }
   
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::updateInstantiatedAddressType(
+   shared_ptr<WalletDBInterface> iface,
    const BinaryData& id, AddressEntryType aeType)
 {
    //TODO: sanity check
@@ -999,28 +1044,28 @@ void AddressAccount::updateInstantiatedAddressType(
       if (aeType == defaultAddressEntryType_)
       {
          addresses_.erase(iter);
-         eraseInstantiatedAddressType(id);
+         eraseInstantiatedAddressType(iface, id);
          return;
       }
    }
 
    //otherwise write address type to disk
    addresses_[id] = aeType;
-   writeAddressType(id, aeType);
+   writeAddressType(iface, id, aeType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::writeAddressType(
+void AddressAccount::writeAddressType(shared_ptr<WalletDBInterface> iface,
    const BinaryData& id, AddressEntryType aeType)
 {
-   auto uniqueTx = getWriteTx_(dbName_);
+   auto uniqueTx = iface->beginWriteTransaction(dbName_);
    shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
 
    writeAddressType(sharedTx, id, aeType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::writeAddressType(std::shared_ptr<DBIfaceTransaction> tx,
+void AddressAccount::writeAddressType(shared_ptr<DBIfaceTransaction> tx,
    const BinaryData& id, AddressEntryType aeType)
 {
    ReentrantLock lock(this);
@@ -1036,15 +1081,19 @@ void AddressAccount::writeAddressType(std::shared_ptr<DBIfaceTransaction> tx,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::eraseInstantiatedAddressType(const BinaryData& id)
+void AddressAccount::eraseInstantiatedAddressType(
+   std::shared_ptr<WalletDBInterface> iface, const BinaryData& id)
 {
+   if (iface == nullptr)
+      throw AccountException("eraseInstantiatedAddressType: null iface");
+
    ReentrantLock lock(this);
 
    BinaryWriter bwKey;
    bwKey.put_uint8_t(ADDRESS_TYPE_PREFIX);
    bwKey.put_BinaryData(id);
 
-   auto tx = getWriteTx_(dbName_);
+   auto tx = iface->beginWriteTransaction(dbName_);
    tx->erase(bwKey.getData());
 }
 
@@ -1054,12 +1103,12 @@ shared_ptr<AddressEntry> AddressAccount::getAddressEntryForID(
 {
    //sanity check
    if (ID.getSize() != 12)
-      throw AccountException("invalid asset id");
+      throw AccountException("getAddressEntryForID: invalid asset id");
 
    //get the asset account
    auto accIDRef = ID.getSliceRef(4, 4);
    const auto& acc = getAccountDataForID(accIDRef);
-   AssetAccount account(acc.accountData_, nullptr);
+   AssetAccount account(acc.accountData_);
 
    //does this ID exist?
    BinaryRefReader brr(ID);
@@ -1092,7 +1141,7 @@ map<BinaryData, shared_ptr<AddressEntry>> AddressAccount::getUsedAddressMap()
 
    for (auto& account : accountDataMap_)
    {
-      const AssetAccount aa(account.second.accountData_, nullptr);
+      const AssetAccount aa(account.second.accountData_);
 
       auto usedIndex = aa.getHighestUsedIndex();
       if (usedIndex == UINT32_MAX)
@@ -1120,6 +1169,7 @@ map<BinaryData, shared_ptr<AddressEntry>> AddressAccount::getUsedAddressMap()
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<Asset_PrivateKey> AddressAccount::fillPrivateKey(
+   shared_ptr<WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    const BinaryData& id)
 {
@@ -1129,7 +1179,7 @@ shared_ptr<Asset_PrivateKey> AddressAccount::fillPrivateKey(
    auto accID = id.getSliceRef(4, 4);
    auto accountPtr = getAccountForID(accID);
 
-   return accountPtr->fillPrivateKey(ddc, id);
+   return accountPtr->fillPrivateKey(iface, ddc, id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

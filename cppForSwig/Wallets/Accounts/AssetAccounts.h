@@ -22,9 +22,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 class DBIfaceTransaction;
 class WalletDBInterface;
-using WriteTxFuncType = 
-   std::function<std::unique_ptr<DBIfaceTransaction>(const std::string&)>;
-
 class DerivationScheme;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +54,8 @@ public:
       root_(root), derScheme_(scheme),
       dbName_(dbName)
    {}
+
+   std::shared_ptr<AssetAccountData> copy(const std::string&) const;
 };
 
 ////
@@ -74,30 +73,35 @@ class AssetAccount : protected Lockable
 
 private:
    std::shared_ptr<AssetAccountData> data_;
-   const WriteTxFuncType getWriteTx_;
 
 private:
-   size_t writeAssetEntry(std::shared_ptr<AssetEntry>);
-   void updateOnDiskAssets(void);
+   size_t writeAssetEntry(std::shared_ptr<AssetEntry>,
+      std::shared_ptr<WalletDBInterface>);
+   void updateOnDiskAssets(std::shared_ptr<WalletDBInterface>);
 
-   void updateHighestUsedIndex(void);
-   unsigned getAndBumpHighestUsedIndex(void);
+   void updateHighestUsedIndex(std::shared_ptr<WalletDBInterface>);
+   unsigned getAndBumpHighestUsedIndex(std::shared_ptr<WalletDBInterface>);
 
-   virtual void commit(void);
-   void updateAssetCount(void);
+   virtual void commit(std::shared_ptr<WalletDBInterface>);
+   void updateAssetCount(std::shared_ptr<WalletDBInterface>);
 
-   void extendPublicChainToIndex(unsigned);
-   void extendPublicChain(std::shared_ptr<AssetEntry>, unsigned);
+   void extendPublicChainToIndex(std::shared_ptr<WalletDBInterface>
+      , unsigned);
+   void extendPublicChain(std::shared_ptr<WalletDBInterface>
+      , std::shared_ptr<AssetEntry>, unsigned);
    std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
       std::shared_ptr<AssetEntry>, unsigned, unsigned);
 
    void extendPrivateChain(
+      std::shared_ptr<WalletDBInterface>,
       std::shared_ptr<DecryptedDataContainer>,
       unsigned);
    void extendPrivateChainToIndex(
+      std::shared_ptr<WalletDBInterface>,
       std::shared_ptr<DecryptedDataContainer>,
       unsigned);
    void extendPrivateChain(
+      std::shared_ptr<WalletDBInterface>,
       std::shared_ptr<DecryptedDataContainer>,
       std::shared_ptr<AssetEntry>, unsigned);
    std::vector<std::shared_ptr<AssetEntry>> extendPrivateChain(
@@ -105,20 +109,26 @@ private:
       std::shared_ptr<AssetEntry>,
       unsigned, unsigned);
 
-   std::shared_ptr<AssetEntry> getNewAsset(void);
-   std::shared_ptr<AssetEntry> peekNextAsset(void);
+   std::shared_ptr<AssetEntry> getOrSetAssetAtIndex(
+      std::shared_ptr<WalletDBInterface>, unsigned);
+   std::shared_ptr<AssetEntry> getNewAsset(
+      std::shared_ptr<WalletDBInterface>);
+   std::shared_ptr<AssetEntry> peekNextAsset(
+      std::shared_ptr<WalletDBInterface>);
+
    std::shared_ptr<Asset_PrivateKey> fillPrivateKey(
+      std::shared_ptr<WalletDBInterface>,
       std::shared_ptr<DecryptedDataContainer> ddc,
       const BinaryData& id);
 
    virtual unsigned getLookup(void) const;
-   virtual AssetAccountTypeEnum type(void) const { return AssetAccountTypeEnum_Plain; }
+   virtual AssetAccountTypeEnum type(void) const
+   { return AssetAccountTypeEnum_Plain; }
 
 public:
    AssetAccount(
-      std::shared_ptr<AssetAccountData> data,
-      const WriteTxFuncType& txFunc) :
-      data_(data), getWriteTx_(txFunc)
+      std::shared_ptr<AssetAccountData> data) :
+      data_(data)
    {
       if (data == nullptr)
          throw std::runtime_error("null account data ptr");
@@ -142,7 +152,7 @@ public:
    const SecureBinaryData& getChaincode(void) const;
    std::shared_ptr<AssetEntry> getRoot(void) const;
 
-   void extendPublicChain(unsigned);
+   void extendPublicChain(std::shared_ptr<WalletDBInterface>, unsigned);
 
    //static
    static AccountDataStruct loadFromDisk(const BinaryData& key,
@@ -161,16 +171,15 @@ private:
    AssetAccountTypeEnum type(void) const override
    { return AssetAccountTypeEnum_ECDH; }
 
-   void commit(void) override;
+   void commit(std::shared_ptr<WalletDBInterface>) override;
 
 public:
    AssetAccount_ECDH(
-      std::shared_ptr<AssetAccountData> data,
-      const WriteTxFuncType& txFunc) :
-      AssetAccount(data, txFunc)
+      std::shared_ptr<AssetAccountData> data) :
+      AssetAccount(data)
    {}
 
-   unsigned addSalt(const SecureBinaryData&);
+   unsigned addSalt(std::shared_ptr<DBIfaceTransaction>, const SecureBinaryData&);
    unsigned getSaltIndex(const SecureBinaryData&) const;
 };
 

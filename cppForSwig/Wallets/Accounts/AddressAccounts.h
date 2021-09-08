@@ -32,11 +32,26 @@
 struct UnrequestedAddressException
 {};
 
+////////////////////////////////////////////////////////////////////////////////
+struct AddressAccountPublicData
+{
+   BinaryData ID_;
+
+   BinaryData outerAccount_;
+   BinaryData innerAccount_;
+
+   AddressEntryType defaultAddressEntryType_ = AddressEntryType_P2PKH;
+   std::set<AddressEntryType> addressTypes_;
+
+   std::map<BinaryData, AddressEntryType> addresses_;
+
+   //<accountID, <last computed id, account data>>
+   std::map<BinaryData, std::pair<size_t, AccountDataStruct>> accountDataMap_;
+};
+
 ////
 class WalletDBInterface;
 class DBIfaceTransaction;
-using WriteTxFuncType = 
-   std::function<std::unique_ptr<DBIfaceTransaction>(const std::string&)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 class AddressAccount : public Lockable
@@ -62,8 +77,6 @@ private:
    std::map<BinaryData, BinaryData> topHashedAssetId_;
 
    BinaryData ID_;
-
-   const WriteTxFuncType getWriteTx_;
    const std::string dbName_;
 
 private:
@@ -75,18 +88,22 @@ private:
    void addAccount(AccountDataStruct&);
 
    void updateInstantiatedAddressType(
+      std::shared_ptr<WalletDBInterface>,
       std::shared_ptr<AddressEntry>);
    void updateInstantiatedAddressType(
+      std::shared_ptr<WalletDBInterface>,
       const BinaryData&, AddressEntryType);
    void eraseInstantiatedAddressType(
+      std::shared_ptr<WalletDBInterface>,
       const BinaryData&);
 
-   void writeAddressType(
+   void writeAddressType(std::shared_ptr<WalletDBInterface>,
       const BinaryData&, AddressEntryType);
    void writeAddressType(std::shared_ptr<DBIfaceTransaction>,
       const BinaryData&, AddressEntryType);
 
    std::shared_ptr<Asset_PrivateKey> fillPrivateKey(
+      std::shared_ptr<WalletDBInterface>,
       std::shared_ptr<DecryptedDataContainer> ddc,
       const BinaryData& id);
 
@@ -97,10 +114,8 @@ private:
       const BinaryData&) const;
 
 public:
-   AddressAccount(
-      const std::string& dbName,
-      const WriteTxFuncType& getWriteTx) :
-      dbName_(dbName), getWriteTx_(getWriteTx)
+   AddressAccount(const std::string& dbName) :
+      dbName_(dbName)
    {}
 
    const BinaryData& getID(void) const { return ID_; }
@@ -114,24 +129,34 @@ public:
       std::shared_ptr<WalletDBInterface>, 
       const BinaryData& key);
 
-   void extendPublicChain(unsigned);
-   void extendPublicChainToIndex(const BinaryData&, unsigned);
+   void extendPublicChain(std::shared_ptr<WalletDBInterface>, unsigned);
+   void extendPublicChain(std::shared_ptr<WalletDBInterface>,
+      const BinaryData&, unsigned);
+   void extendPublicChainToIndex(std::shared_ptr<WalletDBInterface>,
+      const BinaryData&, unsigned);
 
    void extendPrivateChain(
+      std::shared_ptr<WalletDBInterface>,
       std::shared_ptr<DecryptedDataContainer>,
       unsigned);
    void extendPrivateChainToIndex(
+      std::shared_ptr<WalletDBInterface>,
       std::shared_ptr<DecryptedDataContainer>,
       const BinaryData&, unsigned);
 
    std::shared_ptr<AddressEntry> getNewAddress(
-      AddressEntryType aeType = AddressEntryType_Default);
-   std::shared_ptr<AddressEntry> getNewChangeAddress(
-      AddressEntryType aeType = AddressEntryType_Default);
-   std::shared_ptr<AddressEntry> peekNextChangeAddress(
+      std::shared_ptr<WalletDBInterface>,
       AddressEntryType aeType = AddressEntryType_Default);
    std::shared_ptr<AddressEntry> getNewAddress(
+      std::shared_ptr<WalletDBInterface>,
       const BinaryData& account, AddressEntryType aeType);
+   std::shared_ptr<AddressEntry> getNewChangeAddress(
+      std::shared_ptr<WalletDBInterface> iface,
+      AddressEntryType aeType = AddressEntryType_Default);
+   std::shared_ptr<AddressEntry> peekNextChangeAddress(
+      std::shared_ptr<WalletDBInterface>,
+      AddressEntryType aeType = AddressEntryType_Default);
+
    std::shared_ptr<AssetEntry> getOutterAssetForIndex(unsigned) const;
    std::shared_ptr<AssetEntry> getOutterAssetRoot(void) const;
 
@@ -164,8 +189,9 @@ public:
    const BinaryData& getOuterAccountID(void) const { return outerAccount_; }
    const BinaryData& getInnerAccountID(void) const { return innerAccount_; }
 
-   std::shared_ptr<AddressAccount> getWatchingOnlyCopy(
-      const std::string&) const;
+   static std::shared_ptr<AddressAccount> createFromPublicData(
+      const AddressAccountPublicData&, const std::string&);
+   AddressAccountPublicData exportPublicData() const;
 
    std::shared_ptr<AddressEntry> getAddressEntryForID(
       const BinaryDataRef&) const;

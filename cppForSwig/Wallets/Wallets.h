@@ -31,6 +31,21 @@
 #include "Accounts/AddressAccounts.h"
 #include "Accounts/MetaAccounts.h"
 
+
+////////////////////////////////////////////////////////////////////////////////
+struct WalletPublicData
+{
+   std::shared_ptr<AssetEntry_Single> pubRoot_;
+   std::map<BinaryData, AddressAccountPublicData> accounts_;
+   std::map<MetaAccountType, std::shared_ptr<MetaDataAccount>> metaAccounts_;
+
+   std::string dbName_;
+   std::string walletID_;
+   std::string masterID_;
+
+   BinaryData mainAccountID_;
+};
+
 ////
 class WalletDBInterface;
 
@@ -96,7 +111,7 @@ public:
    std::shared_ptr<AddressEntry> getNewAddress(
       AddressEntryType aeType = AddressEntryType_Default);
    std::shared_ptr<AddressEntry> getNewAddress(const BinaryData& accountID,
-      AddressEntryType);
+      AddressEntryType aeType = AddressEntryType_Default);
    std::shared_ptr<AddressEntry> getNewChangeAddress(
       AddressEntryType aeType = AddressEntryType_Default);
    std::shared_ptr<AddressEntry> peekNextChangeAddress(
@@ -228,7 +243,7 @@ protected:
 private:
    static void copyPublicData(
       std::shared_ptr<AssetWallet_Single>, std::shared_ptr<WalletDBInterface>);
-   static void exportPublicData(
+   static WalletPublicData exportPublicData(
       std::shared_ptr<AssetWallet_Single>);
 
    void setSeed(const SecureBinaryData&, const SecureBinaryData&);

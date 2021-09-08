@@ -79,12 +79,7 @@ shared_ptr<AddressAccount> AssetWallet::createAccount(
 
    //instantiate AddressAccount object from AccountType
    auto ifaceCopy = iface_;
-   auto getWriteTx = [ifaceCopy](const string& name)->
-      unique_ptr<DBIfaceTransaction>
-   {
-      return ifaceCopy->beginWriteTransaction(name);
-   };
-   auto account_ptr = make_shared<AddressAccount>(dbName_, getWriteTx);
+   auto account_ptr = make_shared<AddressAccount>(dbName_);
 
    account_ptr->make_new(accountType, decryptedData_, move(cipher));
    auto accID = account_ptr->getID();
@@ -328,13 +323,7 @@ void AssetWallet_Single::readFromFile()
          {
             //instantiate account object and read data on disk
             auto ifaceCopy = iface_;
-            auto getWriteTx = [ifaceCopy](const string& name)->
-               unique_ptr<DBIfaceTransaction>
-            {
-               return ifaceCopy->beginWriteTransaction(name);
-            };
-
-            auto addressAccount = make_shared<AddressAccount>(dbName_, getWriteTx);
+            auto addressAccount = make_shared<AddressAccount>(dbName_);
             addressAccount->readFromDisk(iface_, key);
 
             //insert
@@ -372,12 +361,12 @@ shared_ptr<AddressEntry> AssetWallet::getNewAddress(
 
    auto mainAccount = getAccountForID(mainAccount_);
    if (mainAccount->hasAddressType(aeType))
-      return mainAccount->getNewAddress(aeType);
+      return mainAccount->getNewAddress(iface_, aeType);
 
    for (auto& account : accounts_)
    {
       if (account.second->hasAddressType(aeType))
-         return account.second->getNewAddress(aeType);
+         return account.second->getNewAddress(iface_, aeType);
    }
 
    throw WalletException("unexpected address entry type");
@@ -395,12 +384,12 @@ shared_ptr<AddressEntry> AssetWallet::getNewChangeAddress(
 
    auto mainAccount = getAccountForID(mainAccount_);
    if (mainAccount->hasAddressType(aeType))
-      return mainAccount->getNewChangeAddress(aeType);
+      return mainAccount->getNewChangeAddress(iface_, aeType);
 
    for (auto& account : accounts_)
    {
       if (account.second->hasAddressType(aeType))
-         return account.second->getNewChangeAddress(aeType);
+         return account.second->getNewChangeAddress(iface_, aeType);
    }
 
    throw WalletException("unexpected address entry type");
@@ -418,12 +407,12 @@ shared_ptr<AddressEntry> AssetWallet::peekNextChangeAddress(
 
    auto mainAccount = getAccountForID(mainAccount_);
    if (mainAccount->hasAddressType(aeType))
-      return mainAccount->peekNextChangeAddress(aeType);
+      return mainAccount->peekNextChangeAddress(iface_, aeType);
 
    for (auto& account : accounts_)
    {
       if (account.second->hasAddressType(aeType))
-         return account.second->peekNextChangeAddress(aeType);
+         return account.second->peekNextChangeAddress(iface_, aeType);
    }
 
    throw WalletException("unexpected address entry type");
@@ -437,7 +426,7 @@ void AssetWallet::updateAddressEntryType(
    ReentrantLock lock(this);
 
    auto accPtr = getAccountForID(assetID);
-   accPtr->updateInstantiatedAddressType(assetID, aeType);
+   accPtr->updateInstantiatedAddressType(iface_, assetID, aeType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -447,9 +436,15 @@ shared_ptr<AddressEntry> AssetWallet::getNewAddress(
    ReentrantLock lock(this);
 
    auto account = getAccountForID(accountID);
-   auto newAddress = account->getNewAddress(aeType);
-
-   return newAddress;
+   if (accountID.getSize() == 4)
+   {
+      return account->getNewAddress(iface_, aeType);
+   }
+   else
+   {
+      return account->getNewAddress(
+         iface_, accountID.getSliceRef(4, 4), aeType);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -666,7 +661,7 @@ void AssetWallet::extendPublicChain(unsigned count)
 {
    for (auto& account : accounts_)
    {
-      account.second->extendPublicChain(count);
+      account.second->extendPublicChain(iface_, count);
    }
 }
 
@@ -675,7 +670,7 @@ void AssetWallet::extendPrivateChain(unsigned count)
 {
    for (auto& account : accounts_)
    {
-      account.second->extendPrivateChain(decryptedData_, count);
+      account.second->extendPrivateChain(iface_, decryptedData_, count);
    }
 }
 
@@ -684,7 +679,7 @@ void AssetWallet::extendPublicChainToIndex(
    const BinaryData& account_id, unsigned count)
 {
    auto account = getAccountForID(account_id);
-   account->extendPublicChainToIndex(
+   account->extendPublicChainToIndex(iface_,
       account->getOuterAccount()->getID(), count);
 }
 
@@ -694,7 +689,7 @@ void AssetWallet::extendPrivateChainToIndex(
 {
    auto account = getAccountForID(account_id);
    account->extendPrivateChainToIndex(
-      decryptedData_,
+      iface_, decryptedData_,
       account->getOuterAccount()->getID(), count);
 }
 
@@ -1143,12 +1138,12 @@ const BinaryData& AssetWallet_Single::createBIP32Account_WithParent(
    auto accountPtr = createAccount(accTypePtr);
    if (!accTypePtr->isWatchingOnly())
    {
-      accountPtr->extendPrivateChain(
+      accountPtr->extendPrivateChain(iface_,
          decryptedData_, accTypePtr->getAddressLookup());
    }
    else
    {
-      accountPtr->extendPublicChain(accTypePtr->getAddressLookup());
+      accountPtr->extendPublicChain(iface_, accTypePtr->getAddressLookup());
    }
 
    return accountPtr->getID();
@@ -1252,7 +1247,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
 
    auto accountPtr = walletPtr->createAccount(account135);
    accountPtr->extendPrivateChain(
-      walletPtr->decryptedData_, lookup - 1);
+      iface, walletPtr->decryptedData_, lookup - 1);
 
    walletPtr->resetPassphrasePromptLambda();
    return walletPtr;
@@ -1321,7 +1316,7 @@ createFromPublicRoot_Armory135(
    account135->setMain(true);
 
    auto accountPtr = walletPtr->createAccount(account135);
-   accountPtr->extendPublicChain(lookup - 1);
+   accountPtr->extendPublicChain(iface, lookup - 1);
 
    return walletPtr;
 }
@@ -1459,7 +1454,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32_Blank(
       rootNode,
       accountTypes,
       passphrase,
-      controlPassphrase,      
+      controlPassphrase,
       folder);
 
    //save the seed
@@ -1784,7 +1779,7 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
    if (assetPrivKey == nullptr)
    {      
       auto account = getAccountForID(assetPtr->getAccountID());
-      assetPrivKey = account->fillPrivateKey(
+      assetPrivKey = account->fillPrivateKey(iface_,
          decryptedData_, assetPtr->getID());
    }
    
@@ -1932,39 +1927,38 @@ void AssetWallet_Single::copyPublicData(
    shared_ptr<AssetWallet_Single> wlt,
    std::shared_ptr<WalletDBInterface> iface)
 {
+   auto wpd = exportPublicData(wlt);
+
    {
       //open the relevant db name
-      auto&& tx = iface->beginWriteTransaction(wlt->dbName_);
+      auto&& tx = iface->beginWriteTransaction(wpd.dbName_);
 
-      if (wlt->root_ != nullptr)
+      if (wpd.pubRoot_ != nullptr)
       {
-         //copy root
-         auto rootCopy = wlt->root_->getPublicCopy();
-
          //commit root
          BinaryWriter bwKey;
          bwKey.put_uint32_t(ROOTASSET_KEY);
 
-         auto&& data = rootCopy->serialize();
-
+         auto&& data = wpd.pubRoot_->serialize();
          tx->insert(bwKey.getData(), data);
       }
 
       {
          //address accounts
-         for (auto& addrAccPtr : wlt->accounts_)
+         for (auto& accPair : wpd.accounts_)
          {
-            auto woAcc = addrAccPtr.second->getWatchingOnlyCopy(wlt->dbName_);
+            auto woAcc = AddressAccount::createFromPublicData(
+               accPair.second, wpd.dbName_);
             woAcc->commit(iface);
          }
       }
 
       {
          //meta accounts
-         for (auto& metaAccPtr : wlt->metaDataAccounts_)
+         for (auto& metaAccPtr : wpd.metaAccounts_)
          {
-            auto accCopy = metaAccPtr.second->copy(wlt->dbName_);
-            auto tx = iface->beginWriteTransaction(wlt->dbName_);
+            auto accCopy = metaAccPtr.second->copy(wpd.dbName_);
+            auto tx = iface->beginWriteTransaction(wpd.dbName_);
             accCopy->commit(move(tx));
          }
       }
@@ -1973,33 +1967,29 @@ void AssetWallet_Single::copyPublicData(
    //header data
    {
       auto headerPtr = make_shared<WalletHeader_Single>();
-      headerPtr->walletID_ = wlt->walletID_;
-      AssetWallet_Single wltWO(iface, headerPtr, wlt->masterID_);
+      headerPtr->walletID_ = wpd.walletID_;
+      AssetWallet_Single wltWO(iface, headerPtr, wpd.masterID_);
 
       auto tx = wltWO.iface_->beginWriteTransaction(wltWO.dbName_);
 
-      if (wlt->mainAccount_.getSize() > 0)
+      if (wpd.mainAccountID_.getSize() > 0)
       {
          //main account
          BinaryWriter bwKey;
          bwKey.put_uint32_t(MAIN_ACCOUNT_KEY);
 
          BinaryWriter bwData;
-         bwData.put_var_int(wlt->mainAccount_.getSize());
-         bwData.put_BinaryData(wlt->mainAccount_);
+         bwData.put_var_int(wpd.mainAccountID_.getSize());
+         bwData.put_BinaryData(wpd.mainAccountID_);
          tx->insert(bwKey.getData(), bwData.getData());
       }
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetWallet_Single::exportPublicData(shared_ptr<AssetWallet_Single> wlt)
+WalletPublicData AssetWallet_Single::exportPublicData(
+   shared_ptr<AssetWallet_Single> wlt)
 {
-/*   struct WalletPublicData
-   {
-      BIP32_Node pubRoot_;
-   };
-
    WalletPublicData wpd;
 
    //root
@@ -2009,37 +1999,24 @@ void AssetWallet_Single::exportPublicData(shared_ptr<AssetWallet_Single> wlt)
    //address accounts
    for (auto& addrAccPtr : wlt->accounts_)
    {
-      auto woAcc = addrAccPtr.second->getWatchingOnlyCopy(iface, wlt->dbName_);
-      woAcc->commit();
+      auto accData = addrAccPtr.second->exportPublicData();
+      wpd.accounts_.emplace(accData.ID_, accData);
    }
 
    //meta accounts
    for (auto& metaAccPtr : wlt->metaDataAccounts_)
    {
-      auto accCopy = metaAccPtr.second->copy(iface, wlt->dbName_);
-      accCopy->commit();
+      auto accCopy = metaAccPtr.second->copy(wlt->dbName_);
+      wpd.metaAccounts_.emplace(accCopy->getType(), accCopy);
    }
 
    //header data
-   {
-      auto headerPtr = make_shared<WalletHeader_Single>();
-      headerPtr->walletID_ = wlt->walletID_;
-      AssetWallet_Single wltWO(iface, headerPtr, wlt->masterID_);
+   wpd.dbName_ = wlt->dbName_;
+   wpd.walletID_ = wlt->walletID_;
+   wpd.masterID_ = wlt->masterID_;
+   wpd.mainAccountID_ = wlt->mainAccount_;
 
-      auto&& tx = wltWO.iface_->beginWriteTransaction(wltWO.dbName_);
-
-      if (wlt->mainAccount_.getSize() > 0)
-      {
-         //main account
-         BinaryWriter bwKey;
-         bwKey.put_uint32_t(MAIN_ACCOUNT_KEY);
-
-         BinaryWriter bwData;
-         bwData.put_var_int(wlt->mainAccount_.getSize());
-         bwData.put_BinaryData(wlt->mainAccount_);
-         tx->insert(bwKey.getData(), bwData.getData());
-      }
-   }*/
+   return wpd;
 }
 
 
