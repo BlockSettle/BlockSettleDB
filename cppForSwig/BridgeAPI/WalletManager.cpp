@@ -389,7 +389,7 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
    //run through each account, pulling addresses accordingly
    for (auto& accData : accIDMap)
    {
-      auto&& assetAccountID = accData.first.getSliceCopy(4, 4);
+      auto assetAccountID = accData.first.getSliceCopy(4, 4);
       auto addrAccount = wallet_->getAccountForID(accData.first);
       auto assAccount = addrAccount->getAccountForID(assetAccountID);
 
@@ -401,7 +401,7 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
          while (idInt > currentTop + 1)
          {
             auto addrEntry = 
-               addrAccount->getNewAddress(assetAccountID, AddressEntryType_Default);
+               wallet_->getNewAddress(accData.first, AddressEntryType_Default);
             updatedAddressMap.insert(
                make_pair(addrEntry->getPrefixedHash(), addrEntry));
             
@@ -409,7 +409,7 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
          }
 
          auto addrEntry = 
-            addrAccount->getNewAddress(assetAccountID, idPair.second);
+            wallet_->getNewAddress(accData.first, idPair.second);
          updatedAddressMap.insert(
             make_pair(addrEntry->getPrefixedHash(), addrEntry));
          
@@ -786,11 +786,11 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
 
          while (intId != lastIndex)
          {
-            mainAccPtr->getNewAddress();
+            wallet->getNewAddress();
             ++lastIndex;
          }
 
-         mainAccPtr->getNewAddress(typePair.second);
+         wallet->getNewAddress(typePair.second);
          ++lastIndex;
       }
    }
