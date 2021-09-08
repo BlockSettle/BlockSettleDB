@@ -4761,9 +4761,7 @@ TEST_F(WalletsTest, BIP32_ArmoryDefault)
       if (id != rootAccId)
       {
          auto accID = id;
-
-         auto accPtr = assetWlt->getAccountForID(accID);
-         auto addrPtr = accPtr->getNewAddress();
+         auto addrPtr = assetWlt->getNewAddress(accID);
          auto assetID = assetWlt->getAssetIDForScrAddr(addrPtr->getPrefixedHash());
          accID.append(WRITE_UINT32_BE(0));
          accID.append(WRITE_UINT32_BE(0));
@@ -5376,18 +5374,12 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       //add bip32 account for derivationPath2
       accountID2 = assetWlt->createBIP32Account(saltedAccType2);
 
-      //grab the accounts
-      auto accountSalted1 = assetWlt->getAccountForID(
-         accountID1);
-      auto accountSalted2 = assetWlt->getAccountForID(
-         accountID2);
-
       //grab 10 addresses
       vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
       for (unsigned i = 0; i < 10; i++)
       {
-         addrVec1.push_back(accountSalted1->getNewAddress());
-         addrVec2.push_back(accountSalted2->getNewAddress());
+         addrVec1.push_back(assetWlt->getNewAddress(accountID1));
+         addrVec2.push_back(assetWlt->getNewAddress(accountID2));
       }
 
       //derive from seed
@@ -5436,9 +5428,6 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       auto assetWlt = AssetWallet::loadMainWalletFromFile(
          filename, controlLbd_);
       auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(assetWlt);
-      
-      auto accountSalted1 = wltSingle->getAccountForID(accountID1);
-      auto accountSalted2 = wltSingle->getAccountForID(accountID2);
 
       //check current address map
       EXPECT_EQ(addrHashSet, assetWlt->getAddrHashSet());
@@ -5447,8 +5436,8 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
       for (unsigned i = 0; i < 10; i++)
       {
-         addrVec1.push_back(accountSalted1->getNewAddress());
-         addrVec2.push_back(accountSalted2->getNewAddress());
+         addrVec1.push_back(wltSingle->getNewAddress(accountID1));
+         addrVec2.push_back(wltSingle->getNewAddress(accountID2));
       }
 
       //derive from seed
@@ -5509,8 +5498,8 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
       for (unsigned i = 0; i < 10; i++)
       {
-         addrVec1.push_back(accountSalted1->getNewAddress());
-         addrVec2.push_back(accountSalted2->getNewAddress());
+         addrVec1.push_back(wltSingle->getNewAddress(accountID1));
+         addrVec2.push_back(wltSingle->getNewAddress(accountID2));
       }
 
       //derive from seed
@@ -5616,23 +5605,28 @@ TEST_F(WalletsTest, ECDH_Account)
          throw runtime_error("unexpected account type 2");
       accID2 = accPtr2->getID();
 
-      //add salts
-      for (unsigned i = 0; i < 5; i++)
       {
-         auto&& salt = CryptoPRNG::generateRandom(32);
-         auto index = accEcdh1->addSalt(salt);
-         saltMap1.insert(make_pair(index, salt));
+      //add salts
+         auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
+         for (unsigned i = 0; i < 5; i++)
+         {
+            auto&& salt = CryptoPRNG::generateRandom(32);
+            auto index = accEcdh1->addSalt(tx, salt);
+            saltMap1.insert(make_pair(index, salt));
 
-         salt = CryptoPRNG::generateRandom(32);
-         index = accEcdh2->addSalt(salt);
-         saltMap2.insert(make_pair(index, salt));
+            salt = CryptoPRNG::generateRandom(32);
+            index = accEcdh2->addSalt(tx, salt);
+            saltMap2.insert(make_pair(index, salt));
+         }
       }
 
       //grab addresses
       for (unsigned i = 0; i < 5; i++)
       {
-         addrMap1.insert(make_pair(i, accPtr1->getNewAddress()->getHash()));
-         addrMap2.insert(make_pair(i, accPtr2->getNewAddress()->getHash()));
+         addrMap1.insert(make_pair(i,
+            assetWlt->getNewAddress(accPtr1->getID())->getHash()));
+         addrMap2.insert(make_pair(i,
+            assetWlt->getNewAddress(accPtr2->getID())->getHash()));
       }
    
       //derive locally, check addresses match
@@ -5692,14 +5686,15 @@ TEST_F(WalletsTest, ECDH_Account)
          throw runtime_error("unexpected account type 3");
 
       {
+         auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
          auto&& salt = CryptoPRNG::generateRandom(32);
-         auto index = accEcdh->addSalt(salt);
+         auto index = accEcdh->addSalt(tx, salt);
          saltMap1.insert(make_pair(index, salt));
       }
 
       {
          //grab another address & check it
-         auto addr = accPtr->getNewAddress()->getHash();
+         auto addr = assetWlt->getNewAddress()->getHash();
          auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey1, saltMap1[5]);
          auto hash = BtcUtils::getHash160(saltedKey);
 
@@ -5708,7 +5703,8 @@ TEST_F(WalletsTest, ECDH_Account)
 
       {
          //grab an existing address from its settlement id
-         auto id = accEcdh->addSalt(saltMap1[3]);
+         auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
+         auto id = accEcdh->addSalt(tx, saltMap1[3]);
          EXPECT_EQ(id, 3);
 
          auto assetPtr = accEcdh->getAssetForIndex(id);
@@ -5727,7 +5723,8 @@ TEST_F(WalletsTest, ECDH_Account)
          auto accEcdhPtr = dynamic_cast<AssetAccount_ECDH*>(assAcc2.get());
          ASSERT_NE(accEcdhPtr, nullptr);
 
-         auto id = accEcdhPtr->addSalt(saltMap2[2]);
+         auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
+         auto id = accEcdhPtr->addSalt(tx, saltMap2[2]);
          EXPECT_EQ(id, 2);
 
          auto assetPtr = accEcdhPtr->getAssetForIndex(id);
@@ -5782,14 +5779,15 @@ TEST_F(WalletsTest, ECDH_Account)
       EXPECT_EQ(rootSingle->getPrivKey(), nullptr);
 
       {
+         auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
          auto&& salt = CryptoPRNG::generateRandom(32);
-         auto index = accEcdh->addSalt(salt);
+         auto index = accEcdh->addSalt(tx, salt);
          saltMap1.insert(make_pair(index, salt));
       }
 
       {
          //grab another address & check it
-         auto addr = accPtr->getNewAddress()->getHash();
+         auto addr = assetWlt->getNewAddress()->getHash();
          auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey1, saltMap1[6]);
          auto hash = BtcUtils::getHash160(saltedKey);
 

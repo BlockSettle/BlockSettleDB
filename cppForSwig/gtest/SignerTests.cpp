@@ -4758,10 +4758,9 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    vector<shared_ptr<AddressEntry>> addrVec;
    auto accID = assetWlt->getMainAccountID();
    {
-      auto accPtr = assetWlt->getAccountForID(accID);
-      addrVec.push_back(accPtr->getNewAddress(AddressEntryType_P2WPKH));
-      addrVec.push_back(accPtr->getNewAddress(AddressEntryType_P2WPKH));
-      addrVec.push_back(accPtr->getNewAddress(AddressEntryType_P2WPKH));
+      addrVec.push_back(assetWlt->getNewAddress(accID, AddressEntryType_P2WPKH));
+      addrVec.push_back(assetWlt->getNewAddress(accID, AddressEntryType_P2WPKH));
+      addrVec.push_back(assetWlt->getNewAddress(accID, AddressEntryType_P2WPKH));
    }
 
    vector<BinaryData> hashVec;
@@ -4930,10 +4929,8 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       if (total > spendVal)
       {
          //change to new address, use P2SH-P2WPKH
-         auto accPtr = assetWlt->getAccountForID(accID);
-
          auto changeVal = total - spendVal;
-         auto addr3 = accPtr->getNewAddress(
+         auto addr3 = assetWlt->getNewAddress(accID,
             AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
          signer2.addRecipient(addr3->getRecipient(changeVal));
 
@@ -5173,12 +5170,9 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
    EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
 
-   auto accPtr1 = assetWlt->getAccountForID(accountID1);
-   auto accPtr2 = assetWlt->getAccountForID(accountID2);
-
-   auto newAddr1 = accPtr1->getNewAddress();
-   auto newAddr2 = accPtr2->getNewAddress();
-   auto newAddr3 = accPtr2->getNewAddress();
+   auto newAddr1 = assetWlt->getNewAddress(accountID1);
+   auto newAddr2 = assetWlt->getNewAddress(accountID2);
+   auto newAddr3 = assetWlt->getNewAddress(accountID2);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -6217,8 +6211,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 
    for (unsigned i = 0; i < 5; i++)
    {
+      auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
       auto&& salt = CryptoPRNG::generateRandom(32);
-      accPtr->addSalt(salt);
+      accPtr->addSalt(tx, salt);
    }
 
    vector<shared_ptr<AddressEntry>> addrVec;
