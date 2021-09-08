@@ -1193,7 +1193,17 @@ public:
          if( nextSz != 0x41 && nextSz != 0x21 )
             return 0;
 
-         pkList[i] = brr.get_BinaryDataRef(nextSz);
+         try
+         {
+            pkList[i] = brr.get_BinaryDataRef(nextSz);
+         }
+         catch (const std::exception& e)
+         {
+            LOGERR << "Failed to decode pub keys for multisig script," <<
+               " with error: " << e.what();
+            LOGERR << script.toHexStr();
+            return 0;
+         }
       }
 
       return M;
