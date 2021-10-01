@@ -45,6 +45,7 @@ using WriteTxFuncType =
 ////
 class DecryptedDataContainer : public Lockable
 {
+private:
    struct DecryptedDataMaps
    {
       std::map<BinaryData, std::unique_ptr<DecryptedEncryptionKey>> encryptionKeys_;

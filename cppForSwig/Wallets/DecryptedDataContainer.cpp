@@ -112,7 +112,7 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
    /*
    Decrypt data from asset, insert it in decrypted data locked container.
    Return reference from that. Return straight from container if decrypted
-   data is already.
+   data is already there.
 
    Data is keyed by its asset id.
    */
@@ -154,7 +154,7 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
    if (!dataPtr->hasData())
    {
       //missing encrypted data in container (most likely uncomputed private key)
-      //throw back to caller, this object only deals with decryption
+      //throw back to caller, this object only deals with ciphers
       throw EncryptedDataMissing();
    }
 
@@ -169,10 +169,9 @@ const SecureBinaryData& DecryptedDataContainer::getDecryptedPrivateData(
    }
 
    //we have a valid cipher, grab the encryption key
-   auto cipherCopy = dataPtr->getCipherDataPtr()->cipher_->getCopy();
-   unique_ptr<DecryptedEncryptionKey> decrKey;
-   auto& encryptionKeyId = cipherCopy->getEncryptionKeyId();
-   auto& kdfId = cipherCopy->getKdfId();
+   const auto* cipherPtr = dataPtr->getCipherDataPtr()->cipher_.get();
+   const auto& encryptionKeyId = cipherPtr->getEncryptionKeyId();
+   const auto& kdfId = cipherPtr->getKdfId();
 
    map<BinaryData, BinaryData> encrKeyMap;
    encrKeyMap.insert(make_pair(encryptionKeyId, kdfId));
@@ -248,8 +247,8 @@ BinaryData DecryptedDataContainer::populateEncryptionKey(
    This method looks for existing encryption keys in the container. It will 
    return the decrypted encryption key if present, or populate the 
    container until it cannot find precursors (an encryption key may be 
-   encrypted by another encryption). At which point, it will prompt the user
-   for a passphrase.
+   encrypted by another encryption key). At which point, it will prompt the
+   user for a passphrase.
 
    keyMap: <keyId, kdfId> for all eligible key|kdf pairs. These are listed by 
    the encrypted data object that you're looking to decrypt.

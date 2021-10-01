@@ -158,15 +158,15 @@ public:
       {
       case 33:
       {
-         uncompressed_ = std::move(CryptoECDSA().UncompressPoint(pubkey));
+         uncompressed_ = CryptoECDSA().UncompressPoint(pubkey);
          compressed_ = std::move(pubkey);
          break;
       }
 
       case 65:
       {
-         compressed_ = std::move(CryptoECDSA().CompressPoint(pubkey));
          uncompressed_ = std::move(pubkey);
+         compressed_ = CryptoECDSA().CompressPoint(pubkey);
          break;
       }
 
@@ -540,6 +540,8 @@ public:
 
    const SecureBinaryData& getChaincode(void) const
    { return chaincode_; }
+
+   std::shared_ptr<AssetEntry_Single> getPublicCopy(void) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -607,7 +609,7 @@ public:
    const AssetEntryType getType(void) const override 
    { return AssetEntryType_BIP32Root; }
 
-   std::shared_ptr<AssetEntry_Single> getPublicCopy(void);
+   std::shared_ptr<AssetEntry_Single> getPublicCopy(void) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
