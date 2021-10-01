@@ -15,6 +15,7 @@
 #define IMPORTS_ACCOUNTID              0x00000000
 #define ARMORY_LEGACY_ASSET_ACCOUNTID  0x00000001
 #define ECDH_ASSET_ACCOUNTID           0x20000000
+#define SEED_DEPTH                     0xFFFF
 
 class AccountException : public std::runtime_error
 {
@@ -73,7 +74,7 @@ namespace ArmorySigner
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-struct AccountType
+class AccountType
 {
 protected:
    std::set<AddressEntryType> addressTypes_;
@@ -97,7 +98,7 @@ public:
    AddressEntryType getDefaultAddressEntryType(void) const 
    { return defaultAddressEntryType_; }
 
-   void setAddressTypes(const std::set<AddressEntryType>&);
+   void addAddressType(AddressEntryType);
    void setDefaultAddressType(AddressEntryType);
 
    //virtuals
@@ -109,179 +110,246 @@ public:
 };
 
 ////////////////////
-struct AccountType_WithRoot : public AccountType
-{
-protected:
-   SecureBinaryData privateRoot_;
-   SecureBinaryData publicRoot_;
-   mutable SecureBinaryData chainCode_;
-
-protected:
-   AccountType_WithRoot()
-   {}
-
-public:
-   AccountType_WithRoot(
-      SecureBinaryData& privateRoot,
-      SecureBinaryData& publicRoot,
-      SecureBinaryData& chainCode) : 
-      privateRoot_(std::move(privateRoot)),
-      publicRoot_(std::move(publicRoot)),
-      chainCode_(std::move(chainCode))
-   {
-      if (privateRoot_.getSize() == 0 && publicRoot_.getSize() == 0)
-         throw AccountException("need at least one valid root");
-
-      if (privateRoot_.getSize() > 0 && publicRoot_.getSize() > 0)
-         throw AccountException("root types are mutualy exclusive");
-
-      if (publicRoot_.getSize() > 0 && chainCode_.getSize() == 0)
-         throw AccountException("need chaincode for public account");
-   }
-
-   //virtuals
-   virtual ~AccountType_WithRoot(void) = 0;
-   virtual const SecureBinaryData& getChaincode(void) const = 0;
-   virtual const SecureBinaryData& getPrivateRoot(void) const = 0;
-   virtual const SecureBinaryData& getPublicRoot(void) const = 0;
-   
-   bool isWatchingOnly(void) const override
-   {
-      return privateRoot_.empty() &&
-         !publicRoot_.empty() && !chainCode_.empty();
-   }
-};
-
-////////////////////
-struct AccountType_ArmoryLegacy : public AccountType_WithRoot
+class AccountType_ArmoryLegacy : public AccountType
 {
 public:
-   AccountType_ArmoryLegacy(
-      SecureBinaryData& privateRoot,
-      SecureBinaryData& publicRoot,
-      SecureBinaryData& chainCode) :
-      AccountType_WithRoot(
-      privateRoot, publicRoot, chainCode)
-   {
-      //uncompressed p2pkh
-      addressTypes_.insert(AddressEntryType(
-         AddressEntryType_P2PKH | AddressEntryType_Uncompressed));
+   AccountType_ArmoryLegacy(void);
 
-      //nested compressed p2pk
-      addressTypes_.insert(AddressEntryType(
-         AddressEntryType_P2PK | AddressEntryType_P2SH));
-
-      //nested p2wpkh
-      addressTypes_.insert(AddressEntryType(
-         AddressEntryType_P2WPKH | AddressEntryType_P2SH));
-
-      //native p2wpkh
-      addressTypes_.insert(AddressEntryType_P2WPKH);
-
-      //default type
-      defaultAddressEntryType_ = AddressEntryType(
-         AddressEntryType_P2PKH | AddressEntryType_Uncompressed);
-   }
-
-   AccountTypeEnum type(void) const
+   AccountTypeEnum type(void) const override
    { return AccountTypeEnum_ArmoryLegacy; }
 
-   const SecureBinaryData& getChaincode(void) const;
-   const SecureBinaryData& getPrivateRoot(void) const { return privateRoot_; }
-   const SecureBinaryData& getPublicRoot(void) const { return publicRoot_; }
-   BinaryData getAccountID(void) const { return WRITE_UINT32_BE(ARMORY_LEGACY_ACCOUNTID); }
-   BinaryData getOuterAccountID(void) const;
-   BinaryData getInnerAccountID(void) const;
+   bool isWatchingOnly(void) const override {return false;}
+
+   BinaryData getAccountID(void) const override;
+   BinaryData getOuterAccountID(void) const override;
+   BinaryData getInnerAccountID(void) const override;
+};
+
+struct NodeData
+{
+   using Depth    = uint16_t;
+   using BranchId = uint16_t;
+   using NodeVal  = uint32_t;
+
+   //depth of the node relative to the seed, always unique within a
+   //branch or a path, can have duplicates within a tree
+   const Depth depth;
+
+   //id of the branch carrying the node, depths can duplicate
+   //so we have to differentiate by branch too
+   const BranchId branchId;
+
+   //value of the node, this value is used as is to derive with
+   const NodeVal value;
+
+   //false for depth + branch id indexing (default behavior), true
+   //for searching exclusively by depth (depth is unique within a
+   //given branch)
+   const bool depthOnly;
+
+   NodeData(Depth d, BranchId b, NodeVal nv, bool dOnly = false) :
+      depth(d), branchId(b), value(nv), depthOnly(dOnly)
+   {}
+
+   bool operator<(const NodeData& rhs) const
+   {
+      //for depth based searches
+      if (depthOnly || rhs.depthOnly)
+         return depth < rhs.depth;
+
+      //otherwise, order by depth if possible, differentiate by
+      //branch if necessary
+      if (depth == rhs.depth)
+         return branchId < rhs.branchId;
+
+      return depth < rhs.depth;
+   }
+
+   bool operator==(const NodeData& rhs) const
+   {
+      return
+         depth == rhs.depth &&
+         branchId == rhs.branchId &&
+         value == value;
+   }
+
+   bool isHardDerviation(void) const
+   {
+      return (value & 0x80000000);
+   }
 };
 
 ////////////////////
-struct AccountType_BIP32 : public AccountType_WithRoot
-{   
-   friend struct AccountType_BIP32_Custom;
-   friend class AssetWallet_Single;
+class DerivationBranch
+{
+   friend class DerivationTree;
+
+public:
+   using Path = std::set<NodeData>;
 
 private:
-   std::vector<uint32_t> derivationPath_;
-   unsigned depth_ = 0;
-   unsigned leafId_ = 0;
+   const NodeData parent_;
+   const NodeData::BranchId id_;
+   Path nodes_;
 
-   std::set<unsigned> nodes_;   
+private:
+   DerivationBranch(const NodeData&, uint16_t);
+
+public:
+   const NodeData& appendNode(uint32_t);
+   const NodeData& getNodeByRelativeDepth(uint16_t);
+   const Path& getNodes(void) const { return nodes_; }
+};
+
+////////////////////
+struct NodeRoot
+{
+   const DerivationBranch::Path path;
+   const SecureBinaryData b58Root;
+
+   bool isInitialized(void) const
+   {
+      return !b58Root.empty();
+   }
+};
+
+////////////////////
+class AssetEntry_BIP32Root;
+class DecryptedDataContainer;
+
+class DerivationTree
+{
+private:
+   std::map<NodeData::BranchId, DerivationBranch> branches_;
+   std::map<NodeData, SecureBinaryData> b58Roots_;
+   NodeData::BranchId branchCounter_{0};
+
+private:
+   struct PathIt
+   {
+      std::vector<uint32_t>::const_iterator it;
+      const std::vector<uint32_t>* theVector;
+
+      PathIt(const std::vector<uint32_t>* theV) :
+         theVector(theV)
+      {
+         it = theVector->begin();
+      }
+
+      bool isValid(void) const
+      {
+         return (it != theVector->end());
+      }
+
+   };
+   using HeadsMap = std::map<int, PathIt>;
+   void mergeDerPaths(DerivationBranch&, HeadsMap&);
+
+public:
+   DerivationTree(uint32_t);
+
+   DerivationBranch& getBranch(const NodeData&);
+   DerivationBranch& getBranch(NodeData::BranchId);
+   const DerivationBranch& getBranch(NodeData::BranchId) const;
+
+   DerivationBranch& forkFromBranch(const NodeData&);
+   DerivationBranch& forkFromBranch(const DerivationBranch&);
+   DerivationBranch& forkFromBranch(NodeData::BranchId);
+
+   const NodeData& getSeedNode(void) const;
+   void addB58Root(const NodeData&, const SecureBinaryData&);
+
+   static DerivationTree fromDerivationPaths(
+      uint32_t, const std::vector<std::vector<uint32_t>>&);
+
+   uint32_t getSeedFingerprint(void) const;
+
+   std::vector<DerivationBranch::Path> getPaths(void) const;
+   std::vector<NodeRoot> resolveNodeRoots(
+      std::shared_ptr<DecryptedDataContainer>,
+      std::shared_ptr<AssetEntry_BIP32Root>) const;
+
+   static std::vector<uint32_t> toPath32(const DerivationBranch::Path&);
+};
+
+////////////////////
+class PathAndRoot
+{
+private:
+   const std::vector<uint32_t> path_;
+   mutable std::string b58RootStr_;
+   mutable SecureBinaryData b58RootSbd_;
+
+public:
+   PathAndRoot(const std::vector<uint32_t> p, const std::string& root) :
+      path_(p), b58RootStr_(root), b58RootSbd_({})
+   {
+      if (root.empty())
+         throw std::runtime_error("[PathAndRoot] empty root");
+   }
+
+   PathAndRoot(const std::vector<uint32_t> p, const SecureBinaryData& root) :
+      path_(p), b58RootStr_({}), b58RootSbd_(root)
+   {
+      if (root.empty())
+         throw std::runtime_error("[PathAndRoot] empty root");
+   }
+
+   const std::vector<uint32_t>& getPath(void) const
+   {
+      return path_;
+   }
+
+   const SecureBinaryData& getRootSbd(void) const
+   {
+      if (b58RootSbd_.empty())
+         b58RootSbd_ = SecureBinaryData::fromString(b58RootStr_);
+
+      return b58RootSbd_;
+   }
+
+   const std::string& getRootStr(void) const
+   {
+      if (b58RootStr_.empty())
+      {
+         b58RootStr_ = std::string(
+            b58RootSbd_.toCharPtr(), b58RootSbd_.getSize());
+      }
+
+      return b58RootStr_;
+   }
+};
+
+////
+class AccountType_BIP32 : public AccountType
+{   
+   friend struct AccountType_BIP32_Custom;
+
+private:
+   DerivationTree derTree_;
+
    BinaryData outerAccount_;
    BinaryData innerAccount_;
 
 protected:
-   unsigned fingerPrint_ = 0;
-   unsigned seedFingerprint_ = UINT32_MAX;
    unsigned addressLookup_ = UINT32_MAX;
 
-protected:
-   void setPrivateKey(const SecureBinaryData&);
-   void setPublicKey(const SecureBinaryData&);
-   void setChaincode(const SecureBinaryData&);
-   void setDerivationPath(std::vector<unsigned> derPath)
-   {
-      derivationPath_ = derPath;
-   }
-
-   void setSeedFingerprint(unsigned fingerprint) 
-   { 
-      seedFingerprint_ = fingerprint; 
-   }
-
-   void setFingerprint(unsigned fingerprint)
-   {
-      fingerPrint_ = fingerprint;
-   }
-
-   void setDepth(unsigned depth)
-   {
-      depth_ = depth;
-   }
-
-   void setLeafId(unsigned leafid)
-   {
-      leafId_ = leafid;
-   }
+private:
 
 public:
-   AccountType_BIP32(const std::vector<unsigned>& derivationPath) :
-      AccountType_WithRoot(), derivationPath_(derivationPath)
-   {}
+   AccountType_BIP32(DerivationTree&);
 
-   //bip32 virtuals
-   AccountType_BIP32(void) {}
-   virtual std::set<unsigned> getNodes(void) const
-   {
-      return nodes_;
-   }
+   static std::shared_ptr<AccountType_BIP32> makeFromDerPaths(
+      uint32_t, const std::vector<std::vector<uint32_t>>&);
 
    //AccountType virtuals
-   const SecureBinaryData& getChaincode(void) const override
-   {
-      return chainCode_;
-   }
-
-   const SecureBinaryData& getPrivateRoot(void) const override
-   {
-      return privateRoot_;
-   }
-
-   const SecureBinaryData& getPublicRoot(void) const override
-   {
-      return publicRoot_;
-   }
-
    BinaryData getAccountID(void) const override;
+   BinaryData getOuterAccountID(void) const override;
+   BinaryData getInnerAccountID(void) const override;
+   bool isWatchingOnly(void) const override {return false;}
 
    //bip32 locals
-   unsigned getDepth(void) const { return depth_; }
-   unsigned getLeafID(void) const { return leafId_; }
-   unsigned getFingerPrint(void) const { return fingerPrint_; }
-   std::vector<uint32_t> getDerivationPath(void) const 
-   { return derivationPath_; }
-
-   unsigned getSeedFingerprint(void) const { return seedFingerprint_; }
-
+   unsigned getSeedFingerprint(void) const;
    unsigned getAddressLookup(void) const;
    void setAddressLookup(unsigned count) 
    { 
@@ -291,29 +359,30 @@ public:
    void setNodes(const std::set<unsigned>& nodes);
    void setOuterAccountID(const BinaryData&);
    void setInnerAccountID(const BinaryData&);
+   void setRoots(const std::vector<PathAndRoot>&);
+   void setSeedRoot(const SecureBinaryData&);
 
    virtual AccountTypeEnum type(void) const override
    { return AccountTypeEnum_BIP32; }
 
-   BinaryData getOuterAccountID(void) const override;
-   BinaryData getInnerAccountID(void) const override;
-
-   void addAddressType(AddressEntryType);
-   void setDefaultAddressType(AddressEntryType);
+   const DerivationTree& getDerivationTree(void) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct AccountType_BIP32_Salted : public AccountType_BIP32
+class AccountType_BIP32_Salted : public AccountType_BIP32
 {
 private:
    const SecureBinaryData salt_;
 
 public:
    AccountType_BIP32_Salted(
-      const std::vector<unsigned>& derivationPath,
+      DerivationTree& tree,
       const SecureBinaryData& salt) :
-      AccountType_BIP32(derivationPath), salt_(salt)
+      AccountType_BIP32(tree), salt_(salt)
    {}
+
+   static std::shared_ptr<AccountType_BIP32_Salted> makeFromDerPaths(uint32_t,
+      const std::vector<std::vector<unsigned>>&, const SecureBinaryData&);
 
    AccountTypeEnum type(void) const 
    { return AccountTypeEnum_BIP32_Salted; }
