@@ -273,6 +273,834 @@ TEST_F(DerivationTests, ArmoryChain_Tests)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree)
+{
+   //seed fingerprint is 1234
+   vector<uint32_t> path1 = {
+      0x80000020,
+      0x80005081,
+      0x80001111,
+   };
+   DerivationTree tree(1234);
+
+   //get root branch
+   auto& branch = tree.getBranch(0);
+   for (const auto& node : path1)
+      branch.appendNode(node);
+
+   //resolve paths 1: main branch
+   auto resolvedPaths1 = tree.getPaths();
+   ASSERT_EQ(resolvedPaths1.size(), 1);
+   auto resolvedPaths1_32 = DerivationTree::toPath32(resolvedPaths1[0]);
+   EXPECT_EQ(resolvedPaths1_32, path1);
+
+   //fork the tree
+   auto& fork1 = tree.forkFromBranch(0);
+
+   //add another node to the main branch
+   auto path2 = path1;
+   path1.push_back(0x00000781);
+   branch.appendNode(path1.back());
+
+   //resolve paths 2: main branch with uninitialized fork
+   const auto& resolvedPaths2 = tree.getPaths();
+   ASSERT_EQ(resolvedPaths2.size(), 1);
+   auto resolvedPaths2_32 = DerivationTree::toPath32(resolvedPaths2[0]);
+   EXPECT_EQ(resolvedPaths2_32, path1);
+
+   //add 2 nodes to the fork
+   path2.push_back(0x00000084);
+   fork1.appendNode(path2.back());
+   path2.push_back(0x00065c11);
+   fork1.appendNode(path2.back());
+
+   //resolve paths 3: main branch with a fork
+   const auto& resolvedPaths3 = tree.getPaths();
+   ASSERT_EQ(resolvedPaths3.size(), 2);
+   auto resolvedPaths3_32_1 = DerivationTree::toPath32(resolvedPaths3[0]);
+   EXPECT_EQ(resolvedPaths3_32_1, path1);
+   auto resolvedPaths3_32_2 = DerivationTree::toPath32(resolvedPaths3[1]);
+   EXPECT_EQ(resolvedPaths3_32_2, path2);
+
+   //fork twice at the end of the the main branch
+   auto& fork2 = tree.forkFromBranch(0);
+   auto path3 = path1;
+   path3.push_back(0);
+   fork2.appendNode(path3.back());
+
+   auto& fork3 = tree.forkFromBranch(0);
+   auto path4 = path1;
+   path4.push_back(1);
+   fork3.appendNode(path4.back());
+   path4.push_back(22);
+   fork3.appendNode(path4.back());
+
+   //resolve paths 4: 3 forks, 2 end the main branch, 2 fork from the same node
+   const auto& resolvedPaths4 = tree.getPaths();
+   ASSERT_EQ(resolvedPaths4.size(), 3);
+   auto resolvedPaths4_32_1 = DerivationTree::toPath32(resolvedPaths4[0]);
+   EXPECT_EQ(resolvedPaths4_32_1, path2);
+   auto resolvedPaths4_32_2 = DerivationTree::toPath32(resolvedPaths4[1]);
+   EXPECT_EQ(resolvedPaths4_32_2, path3);
+   auto resolvedPaths4_32_3 = DerivationTree::toPath32(resolvedPaths4[2]);
+   EXPECT_EQ(resolvedPaths4_32_3, path4);
+
+   //check branch id and depth
+   auto checkBranchAndDepth = [](const DerivationBranch::Path& path,
+      const vector<pair<uint16_t, uint16_t>>& pathBD)->bool
+   {
+      if (path.size() != pathBD.size())
+         return false;
+
+      auto pathIt = path.begin();
+      for (unsigned i=0; i<path.size(); i++)
+      {
+         if (pathIt->branchId != pathBD[i].first)
+            return false;
+
+         if (pathIt->depth != pathBD[i].second)
+            return false;
+
+         ++pathIt;
+      }
+      return true;
+   };
+
+   vector<pair<uint16_t, uint16_t>> path2_bd = {
+      { 0, 0 },
+      { 0, 1 },
+      { 0, 2 },
+      { 1, 3 },
+      { 1, 4 }
+   };
+   EXPECT_TRUE(checkBranchAndDepth(resolvedPaths4[0], path2_bd));
+
+   vector<pair<uint16_t, uint16_t>> path3_bd = {
+      { 0, 0 },
+      { 0, 1 },
+      { 0, 2 },
+      { 0, 3 },
+      { 2, 4 }
+   };
+   EXPECT_TRUE(checkBranchAndDepth(resolvedPaths4[1], path3_bd));
+
+   vector<pair<uint16_t, uint16_t>> path4_bd = {
+      { 0, 0 },
+      { 0, 1 },
+      { 0, 2 },
+      { 0, 3 },
+      { 3, 4 },
+      { 3, 5 }
+  };
+   EXPECT_TRUE(checkBranchAndDepth(resolvedPaths4[2], path4_bd));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree_FromSeed)
+{
+   vector<uint32_t> path = 
+   {
+      0x80001564,
+      0x80001111,
+      0x8AEE0003,
+      0x81116000,
+      5
+   };
+
+   vector<uint32_t> fork1 =
+   {
+      0x85550314,
+      0x00000000,
+      0x00000054
+   };
+
+   vector<uint32_t> fork2 =
+   {
+      0,
+      1,
+      1,
+   };
+
+   vector<uint32_t> fork3 =
+   {
+      0x80001000,
+      0x8ab01000,
+      5,
+      4
+   };
+
+   auto seed = CryptoPRNG::generateRandom(32);
+   BIP32_Node rootNode;
+   rootNode.initFromSeed(seed);
+
+   DerivationTree tree(rootNode.getThisFingerprint());
+   DerivationBranch *f1, *f2, *f3;
+
+   auto& origin = tree.getBranch(0);
+   for (unsigned i=0; i<path.size(); i++)
+   {
+      const auto& node = path[i];
+      origin.appendNode(node);
+
+      if (i == 2)
+         f1 = &tree.forkFromBranch(0);
+
+      if (i==3)
+      {
+         f2 = &tree.forkFromBranch(0);
+         f3 = &tree.forkFromBranch(0);
+      }
+   }
+
+   for (const auto& node : fork1)
+      f1->appendNode(node);
+
+   for (const auto& node : fork2)
+      f2->appendNode(node);
+
+   for (const auto& node : fork3)
+      f3->appendNode(node);
+
+   tree.addB58Root(tree.getSeedNode(), rootNode.getBase58());
+   auto roots = tree.resolveNodeRoots(nullptr, nullptr);
+   ASSERT_EQ(roots.size(), 4);
+
+   auto checkRoot = [&rootNode](
+      const vector<uint32_t>& path, const NodeRoot& rootData)->bool
+   {
+      auto rootNodeCopy = rootNode;
+      for (const auto& node : path)
+         rootNodeCopy.derivePrivate(node);
+      auto b58 = rootNodeCopy.getBase58();
+
+      string b58str(b58.toCharPtr(), b58.getSize());
+      string rootStr(rootData.b58Root.toCharPtr(), rootData.b58Root.getSize());
+      EXPECT_EQ(b58str, rootStr);
+
+      return b58 == rootData.b58Root;
+   };
+
+   /*derive roots locally and compare*/
+   auto rootsIt = roots.begin();
+
+   //fork1
+   vector<uint32_t> pathFork1;
+   pathFork1.insert(pathFork1.end(), path.begin(), path.begin() + 3);
+   pathFork1.insert(pathFork1.end(), fork1.begin(), fork1.end());
+
+   //fork 2
+   vector<uint32_t> pathFork2;
+   pathFork2.insert(pathFork2.end(), path.begin(), path.begin() + 4);
+   pathFork2.insert(pathFork2.end(), fork2.begin(), fork2.end());
+
+   //fork 3
+   vector<uint32_t> pathFork3;
+   pathFork3.insert(pathFork3.end(), path.begin(), path.begin() + 4);
+   pathFork3.insert(pathFork3.end(), fork3.begin(), fork3.end());
+
+   vector<vector<uint32_t>> paths = 
+   {
+      path, pathFork1, pathFork2, pathFork3
+   };
+
+   //compare
+   for (const auto& nodeRoot : roots)
+   {
+      auto p32 = DerivationTree::toPath32(nodeRoot.path);
+      auto pathIt = paths.begin();
+      while (pathIt != paths.end())
+      {
+         if (p32 == *pathIt)
+         {
+            EXPECT_TRUE(checkRoot(*pathIt, nodeRoot));
+            paths.erase(pathIt);
+            break;
+         }
+
+         ++pathIt;
+      }
+   }
+   ASSERT_TRUE(paths.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree_FromRoots)
+{
+   vector<uint32_t> path = 
+   {
+      0x80001564,
+      0x80001111,
+      0x8AEE0003,
+      0x81116000,
+      5
+   };
+
+   vector<uint32_t> fork1 =
+   {
+      0x85550314,
+      0x00000000,
+      0x00000054
+   };
+
+   vector<uint32_t> fork2 =
+   {
+      0,
+      1,
+      1,
+   };
+
+   vector<uint32_t> fork3 =
+   {
+      0x80001000,
+      0x8ab01000,
+      5,
+      4
+   };
+
+   auto seed = CryptoPRNG::generateRandom(32);
+   BIP32_Node rootNode;
+   rootNode.initFromSeed(seed);
+
+   DerivationTree tree(rootNode.getThisFingerprint());
+   DerivationBranch *f1, *f2, *f3;
+
+   auto& origin = tree.getBranch(0);
+   for (unsigned i=0; i<path.size(); i++)
+   {
+      const auto& node = path[i];
+      origin.appendNode(node);
+
+      if (i == 2)
+         f1 = &tree.forkFromBranch(0);
+
+      if (i==3)
+      {
+         f2 = &tree.forkFromBranch(0);
+         f3 = &tree.forkFromBranch(0);
+      }
+   }
+
+   for (const auto& node : fork1)
+      f1->appendNode(node);
+
+   for (const auto& node : fork2)
+      f2->appendNode(node);
+
+   for (const auto& node : fork3)
+      f3->appendNode(node);
+
+   auto checkRoot = [&rootNode](
+      const vector<uint32_t>& path,
+      const NodeRoot& rootData)->bool
+   {
+      auto rootNodeCopy = rootNode;
+      for (const auto& node : path)
+         rootNodeCopy.derivePrivate(node);
+      auto b58 = rootNodeCopy.getBase58();
+
+      string b58str(b58.toCharPtr(), b58.getSize());
+      string rootStr(rootData.b58Root.toCharPtr(), rootData.b58Root.getSize());
+      EXPECT_EQ(b58str, rootStr);
+
+      return b58 == rootData.b58Root;
+   };
+
+   /*derive roots locally and compare*/
+
+   //fork1
+   vector<uint32_t> pathFork1;
+   pathFork1.insert(pathFork1.end(), path.begin(), path.begin() + 3);
+   pathFork1.insert(pathFork1.end(), fork1.begin(), fork1.end());
+
+   //fork 2
+   vector<uint32_t> pathFork2;
+   pathFork2.insert(pathFork2.end(), path.begin(), path.begin() + 4);
+   pathFork2.insert(pathFork2.end(), fork2.begin(), fork2.end());
+
+   //fork 3
+   vector<uint32_t> pathFork3;
+   pathFork3.insert(pathFork3.end(), path.begin(), path.begin() + 4);
+   pathFork3.insert(pathFork3.end(), fork3.begin(), fork3.end());
+
+   vector<vector<uint32_t>> paths = 
+   {
+      path, pathFork1, pathFork2, pathFork3
+   };
+
+   auto rootNode3 = rootNode;
+   for (unsigned i=0; i<3; i++)
+      rootNode3.derivePrivate(path[i]);
+   tree.addB58Root(origin.getNodeByRelativeDepth(2), rootNode3.getBase58());
+
+   auto rootNode5 = rootNode;
+   for (unsigned i=0; i<5; i++)
+      rootNode5.derivePrivate(pathFork2[i]);
+   tree.addB58Root(f2->getNodeByRelativeDepth(0), rootNode5.getBase58());
+
+   auto roots = tree.resolveNodeRoots(nullptr, nullptr);
+   ASSERT_EQ(roots.size(), 4);
+
+   //compare
+   for (const auto& nodeRoot : roots)
+   {
+      auto p32 = DerivationTree::toPath32(nodeRoot.path);
+      auto pathIt = paths.begin();
+      while (pathIt != paths.end())
+      {
+         if (p32 == *pathIt)
+         {
+            EXPECT_TRUE(checkRoot(*pathIt, nodeRoot));
+            paths.erase(pathIt);
+            break;
+         }
+
+         ++pathIt;
+      }
+   }
+   ASSERT_TRUE(paths.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree_FromPublicRoots)
+{
+   vector<uint32_t> path = 
+   {
+      0x80001564,
+      0x80001111,
+      0x8AEE0003,
+      0x81116000,
+      5
+   };
+
+   vector<uint32_t> fork1 =
+   {
+      0x85550314,
+      0x00000000,
+      0x00000054
+   };
+
+   vector<uint32_t> fork2 =
+   {
+      0,
+      1,
+      1,
+   };
+
+   vector<uint32_t> fork3 =
+   {
+      0x80001000,
+      0x8ab01000,
+      5,
+      4
+   };
+
+   auto seed = CryptoPRNG::generateRandom(32);
+   BIP32_Node rootNode;
+   rootNode.initFromSeed(seed);
+
+   DerivationTree tree(rootNode.getThisFingerprint());
+   DerivationBranch *f1, *f2, *f3;
+
+   auto& origin = tree.getBranch(0);
+   for (unsigned i=0; i<path.size(); i++)
+   {
+      const auto& node = path[i];
+      origin.appendNode(node);
+
+      if (i == 2)
+         f1 = &tree.forkFromBranch(0);
+
+      if (i==3)
+      {
+         f2 = &tree.forkFromBranch(0);
+         f3 = &tree.forkFromBranch(0);
+      }
+   }
+
+   for (const auto& node : fork1)
+      f1->appendNode(node);
+
+   for (const auto& node : fork2)
+      f2->appendNode(node);
+
+   for (const auto& node : fork3)
+      f3->appendNode(node);
+
+   auto checkRoot = [&rootNode](
+      const vector<uint32_t>& path,
+      const NodeRoot& rootData)->bool
+   {
+      auto rootNodeCopy = rootNode;
+      for (const auto& node : path)
+         rootNodeCopy.derivePrivate(node);
+      auto rootNodePub = rootNodeCopy.getPublicCopy();
+      auto b58 = rootNodePub.getBase58();
+
+      string b58str(b58.toCharPtr(), b58.getSize());
+      string rootStr(rootData.b58Root.toCharPtr(), rootData.b58Root.getSize());
+      EXPECT_EQ(b58str, rootStr);
+
+      return b58 == rootData.b58Root;
+   };
+
+   /*derive roots locally and compare*/
+
+   //fork1
+   vector<uint32_t> pathFork1;
+   pathFork1.insert(pathFork1.end(), path.begin(), path.begin() + 3);
+   pathFork1.insert(pathFork1.end(), fork1.begin(), fork1.end());
+
+   //fork 2
+   vector<uint32_t> pathFork2;
+   pathFork2.insert(pathFork2.end(), path.begin(), path.begin() + 4);
+   pathFork2.insert(pathFork2.end(), fork2.begin(), fork2.end());
+
+   //fork 3
+   vector<uint32_t> pathFork3;
+   pathFork3.insert(pathFork3.end(), path.begin(), path.begin() + 4);
+   pathFork3.insert(pathFork3.end(), fork3.begin(), fork3.end());
+
+   vector<vector<uint32_t>> paths = 
+   {
+      path, pathFork1, pathFork2, pathFork3
+   };
+
+   //this one should work for main path and fork2: grab the
+   //root last hard derivation in main path (all derivations
+   //in main and f2 are soft past this point)
+   //will fail for f3&4
+   auto rootNodePath = rootNode;
+   for (unsigned i=0; i<4; i++)
+      rootNodePath.derivePrivate(path[i]);
+   auto rootNodePath_public = rootNodePath.getPublicCopy();
+   ASSERT_TRUE(rootNodePath_public.isPublic());
+   tree.addB58Root(origin.getNodeByRelativeDepth(3),
+      rootNodePath_public.getBase58());
+
+   //this one should work: grab root for first soft derivation
+   auto rootNodeF1 = rootNode;
+   for (unsigned i=0; i<5; i++)
+      rootNodeF1.derivePrivate(pathFork1[i]);
+   auto rootNodeF1_public = rootNodeF1.getPublicCopy();
+   ASSERT_TRUE(rootNodeF1_public.isPublic());
+   tree.addB58Root(f1->getNodeByRelativeDepth(1),
+      rootNodeF1_public.getBase58());
+
+   //this one should fail: grab root for next to last hard derivation
+   auto rootNodeF3 = rootNode;
+   for (unsigned i=0; i<5; i++)
+      rootNodeF3.derivePrivate(pathFork3[i]);
+   auto rootNodeF3_public = rootNodeF3.getPublicCopy();
+   ASSERT_TRUE(rootNodeF3_public.isPublic());
+   tree.addB58Root(f3->getNodeByRelativeDepth(0),
+      rootNodeF3_public.getBase58());
+
+
+   //resolve the roots
+   auto roots = tree.resolveNodeRoots(nullptr, nullptr);
+   ASSERT_EQ(roots.size(), 4);
+
+   //compare
+   auto pathsCopy = paths;
+   for (const auto& nodeRoot : roots)
+   {
+      auto p32 = DerivationTree::toPath32(nodeRoot.path);
+      auto pathIt = pathsCopy.begin();
+      while (pathIt != pathsCopy.end())
+      {
+         if (p32 == *pathIt)
+         {
+            if (pathIt == prev(pathsCopy.end()))
+               EXPECT_FALSE(nodeRoot.isInitialized());
+            else
+               EXPECT_TRUE(checkRoot(*pathIt, nodeRoot));
+
+            pathsCopy.erase(pathIt);
+            break;
+         }
+
+         ++pathIt;
+      }
+   }
+   ASSERT_TRUE(pathsCopy.empty());
+
+   //add tail public root for f3 and compare again, all should match
+   rootNodeF3 = rootNode;
+   for (auto& node : pathFork3)
+      rootNodeF3.derivePrivate(node);
+   rootNodeF3_public = rootNodeF3.getPublicCopy();
+   ASSERT_TRUE(rootNodeF3_public.isPublic());
+   tree.addB58Root(f3->getNodeByRelativeDepth(3),
+      rootNodeF3_public.getBase58());
+
+   roots = tree.resolveNodeRoots(nullptr, nullptr);
+   ASSERT_EQ(roots.size(), 4);
+
+   //compare
+   for (const auto& nodeRoot : roots)
+   {
+      auto p32 = DerivationTree::toPath32(nodeRoot.path);
+      auto pathIt = paths.begin();
+      while (pathIt != paths.end())
+      {
+         if (p32 == *pathIt)
+         {
+            EXPECT_TRUE(checkRoot(*pathIt, nodeRoot));
+            paths.erase(pathIt);
+            break;
+         }
+
+         ++pathIt;
+      }
+   }
+   ASSERT_TRUE(paths.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree_FromWalletRoot)
+{
+   vector<uint32_t> path = 
+   {
+      0x80001564,
+      0x80001111,
+      0x8AEE0003,
+      0x81116000,
+      5
+   };
+
+   vector<uint32_t> fork1 =
+   {
+      0x85550314,
+      0x00000000,
+      0x00000054
+   };
+
+   vector<uint32_t> fork2 =
+   {
+      0,
+      1,
+      1,
+   };
+
+   vector<uint32_t> fork3 =
+   {
+      0x80001000,
+      0x8ab01000,
+      5,
+      4
+   };
+
+   auto seed = CryptoPRNG::generateRandom(32);
+   BIP32_Node rootNode;
+   rootNode.initFromSeed(seed);
+
+   shared_ptr<AssetEntry_BIP32Root> rootPtr;
+   shared_ptr<DecryptedDataContainer> decrData;
+
+   {
+      //generate bip32 encrypted root
+      auto whs = make_shared<WalletHeader_Single>();
+      whs->walletID_ = "abc";
+      auto mks = WalletDBInterface::initWalletHeaderObject(whs, {});
+
+      auto rootCipher = mks.cipher_->getCopy(
+         whs->masterEncryptionKeyId_);
+      auto encryptedRoot = rootCipher->encrypt(
+         mks.decryptedMasterKey_.get(),
+         rootCipher->getKdfId(),
+         rootNode.getPrivateKey());
+
+      auto rootAsset = make_shared<Asset_PrivateKey>(
+         WRITE_UINT32_BE(UINT32_MAX), encryptedRoot, move(rootCipher));
+
+      auto pubkey = rootNode.getPublicKey();
+      auto chaincode = rootNode.getChaincode();
+      rootPtr = make_unique<AssetEntry_BIP32Root>(
+         -1, BinaryData(),
+         pubkey, rootAsset,
+         chaincode, 0, 0, 0, rootNode.getThisFingerprint(), vector<uint32_t>());
+
+      decrData = make_shared<DecryptedDataContainer>(
+         nullptr, "",
+         whs->defaultEncryptionKey_, whs->defaultEncryptionKeyId_,
+         whs->defaultKdfId_, whs->masterEncryptionKeyId_);
+      decrData->addKdf(mks.kdf_);
+      decrData->addEncryptionKey(mks.masterKey_);
+   }
+
+   DerivationTree tree(rootNode.getThisFingerprint());
+   DerivationBranch *f1, *f2, *f3;
+
+   auto& origin = tree.getBranch(0);
+   for (unsigned i=0; i<path.size(); i++)
+   {
+      const auto& node = path[i];
+      origin.appendNode(node);
+
+      if (i == 2)
+         f1 = &tree.forkFromBranch(0);
+
+      if (i==3)
+      {
+         f2 = &tree.forkFromBranch(0);
+         f3 = &tree.forkFromBranch(0);
+      }
+   }
+
+   for (const auto& node : fork1)
+      f1->appendNode(node);
+
+   for (const auto& node : fork2)
+      f2->appendNode(node);
+
+   for (const auto& node : fork3)
+      f3->appendNode(node);
+
+   vector<NodeRoot> roots;
+   {
+      ReentrantLock lock(decrData.get());
+      roots = move(tree.resolveNodeRoots(decrData, rootPtr));
+      ASSERT_EQ(roots.size(), 4);
+   }
+
+   auto checkRoot = [&rootNode](
+      const vector<uint32_t>& path,
+      const NodeRoot& rootData)->bool
+   {
+      auto rootNodeCopy = rootNode;
+      for (const auto& node : path)
+         rootNodeCopy.derivePrivate(node);
+      auto b58 = rootNodeCopy.getBase58();
+
+      string b58str(b58.toCharPtr(), b58.getSize());
+      string rootStr(rootData.b58Root.toCharPtr(), rootData.b58Root.getSize());
+      EXPECT_EQ(b58str, rootStr);
+
+      return b58 == rootData.b58Root;
+   };
+
+   /*derive roots locally and compare*/
+   auto rootsIt = roots.begin();
+
+   //fork1
+   vector<uint32_t> pathFork1;
+   pathFork1.insert(pathFork1.end(), path.begin(), path.begin() + 3);
+   pathFork1.insert(pathFork1.end(), fork1.begin(), fork1.end());
+
+   //fork 2
+   vector<uint32_t> pathFork2;
+   pathFork2.insert(pathFork2.end(), path.begin(), path.begin() + 4);
+   pathFork2.insert(pathFork2.end(), fork2.begin(), fork2.end());
+
+   //fork 3
+   vector<uint32_t> pathFork3;
+   pathFork3.insert(pathFork3.end(), path.begin(), path.begin() + 4);
+   pathFork3.insert(pathFork3.end(), fork3.begin(), fork3.end());
+
+   vector<vector<uint32_t>> paths = 
+   {
+      path, pathFork1, pathFork2, pathFork3
+   };
+
+   //compare
+   for (const auto& nodeRoot : roots)
+   {
+      auto p32 = DerivationTree::toPath32(nodeRoot.path);
+      auto pathIt = paths.begin();
+      while (pathIt != paths.end())
+      {
+         if (p32 == *pathIt)
+         {
+            EXPECT_TRUE(checkRoot(*pathIt, nodeRoot));
+            paths.erase(pathIt);
+            break;
+         }
+
+         ++pathIt;
+      }
+   }
+   ASSERT_TRUE(paths.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree_MergePaths)
+{
+   vector<uint32_t> path = 
+   {
+      0x80001564,
+      0x80001111,
+      0x8AEE0003,
+      0x81116000,
+      5
+   };
+
+   vector<uint32_t> fork1 =
+   {
+      0x85550314,
+      0x00000000,
+      0x00000054
+   };
+
+   vector<uint32_t> fork2 =
+   {
+      0,
+      1,
+      1,
+   };
+
+   vector<uint32_t> fork3 =
+   {
+      0x80001000,
+      0x8ab01000,
+      5,
+      4
+   };
+
+   vector<uint32_t> p0 = path;
+
+   vector<uint32_t> p1 = {
+      path[0], path[1], path[2],
+      fork1[0], fork1[1], fork1[2]
+   };
+
+   vector<uint32_t> p2 {
+      path[0], path[1], path[2], path[3],
+      fork2[0], fork2[1], fork2[2]
+   };
+
+   vector<uint32_t> p3 {
+      path[0], path[1], path[2], path[3],
+      fork3[0], fork3[1], fork3[2], fork3[3]
+   };
+
+   vector<vector<uint32_t>> pathVec = { p0, p1, p2, p3 };
+   auto derTree = DerivationTree::fromDerivationPaths(1234, pathVec);
+   auto treePaths = derTree.getPaths();
+
+   for (auto& pathIt : treePaths)
+   {
+      bool collision = false;
+      auto path32 = DerivationTree::toPath32(pathIt);
+
+      auto pathVecIt = pathVec.begin();
+      while (pathVecIt != pathVec.end())
+      {
+         if (path32 == *pathVecIt)
+         {
+            pathVec.erase(pathVecIt);
+            collision = true;
+            break;
+         }
+         ++pathVecIt;
+      }
+
+      ASSERT_TRUE(collision);
+   }
+
+   EXPECT_TRUE(pathVec.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class AddressEntryTest : public ::testing::Test
@@ -3808,7 +4636,7 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       0x8000c103,
    };
 
-   auto accTypePtr = make_shared<AccountType_BIP32>(derPath2);
+   auto accTypePtr = assetWlt->makeNewBip32AccTypeObject(derPath2);
    accTypePtr->setAddressLookup(10);
    accTypePtr->setNodes({0, 1});
    accTypePtr->setOuterAccountID(WRITE_UINT32_BE(0));
@@ -4621,8 +5449,9 @@ TEST_F(WalletsTest, BIP32_Chain)
    seedNode.initFromSeed(wltSeed);
 
    //0'/1/2'/2
-   vector<unsigned> derivationPath = { 0x80000000, 1, 0x80000002 };         
-   auto account = make_shared<AccountType_BIP32>(derivationPath);
+   vector<unsigned> derivationPath = { 0x80000000, 1, 0x80000002 };
+   auto account = AccountType_BIP32::makeFromDerPaths(
+      seedNode.getThisFingerprint(), {derivationPath});
    account->setMain(true);
    account->setAddressLookup(4);
 
@@ -4677,41 +5506,24 @@ TEST_F(WalletsTest, BIP32_Public_Chain)
       seedNode.derivePrivate(derId);
 
    auto pubSeedNode = seedNode.getPublicCopy();
-   auto pubkeyCopy = pubSeedNode.getPublicKey();
-   auto chaincodeCopy = pubSeedNode.getChaincode();
-
-   auto pubRootAsset = make_shared<AssetEntry_BIP32Root>(
-      -1, BinaryData(), //not relevant, this stuff is ignored in this context
-
-      pubkeyCopy, //pub key
-      nullptr, //no priv key, this is a public node
-      chaincodeCopy, //have to pass the chaincode too
-
-      //aesthetical stuff, not mandatory, not useful for the crypto side of things
-      pubSeedNode.getDepth(), pubSeedNode.getLeafID(), pubSeedNode.getParentFingerprint(), seedFingerprint,
-
-      //derivation path for this root, only relevant for path discovery & PSBT
-      derivationPath
-   );
 
    //2
    vector<unsigned> derivationPath_Soft = { 2 };
    auto mainAccType =
-      make_shared<AccountType_BIP32>(derivationPath_Soft);
+      AccountType_BIP32::makeFromDerPaths(seedFingerprint, {derivationPath_Soft});
+   mainAccType->setSeedRoot(pubSeedNode.getBase58());
    mainAccType->setMain(true);
    mainAccType->setAddressLookup(4);
    mainAccType->setDefaultAddressType(
       AddressEntryType(AddressEntryType_P2WPKH));
-   mainAccType->setAddressTypes(
-      { AddressEntryType(AddressEntryType_P2WPKH) });
+   mainAccType->addAddressType(AddressEntryType_P2WPKH);
 
-   auto assetWlt = AssetWallet_Single::createSeedless_WatchingOnly(
+   auto assetWlt = AssetWallet_Single::createBlank(
       homedir_,
       "a wallet",
       controlPass_); //set lookup computation to 4 entries
 
-   assetWlt->createBIP32Account_WithParent(
-      pubRootAsset, mainAccType);
+   assetWlt->createBIP32Account(mainAccType);
 
    auto accID = assetWlt->getMainAccountID();
    auto assetPtr = assetWlt->getAccountRoot(accID);
@@ -4796,7 +5608,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    };
    assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
-   auto accountPtr = make_shared<AccountType_BIP32>(derivationPath1);
+   auto accountPtr = assetWlt->makeNewBip32AccTypeObject(derivationPath1);
    accountPtr->setMain(true);
    accountPtr->setNodes({0, 1});
    accountPtr->setOuterAccountID(WRITE_UINT32_BE(0));
@@ -4863,9 +5675,9 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
       304
    };
 
-   auto accountTypePtr =
-      make_shared<AccountType_BIP32>(derivationPath2);
-   accountTypePtr->setAddressTypes({ AddressEntryType_P2WPKH, AddressEntryType_P2PK });
+   auto accountTypePtr = assetWlt->makeNewBip32AccTypeObject(derivationPath2);
+   accountTypePtr->addAddressType(AddressEntryType_P2WPKH);
+   accountTypePtr->addAddressType(AddressEntryType_P2PK);
    accountTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
    accountTypePtr->setNodes({ 50, 60 });
    accountTypePtr->setOuterAccountID(WRITE_UINT32_BE(50));
@@ -5061,50 +5873,27 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
    /* WO wallet creation */
 
    //1: create wallet
-   auto wltWO = AssetWallet_Single::createSeedless_WatchingOnly(
+   auto wltWO = AssetWallet_Single::createBlank(
       homedir_, "walletWO1", controlPass_);
-   
-   //2: create a public root asset from the xpub
 
-   //init bip32 node from xpub
-   BIP32_Node newPubNode;
-   newPubNode.initFromBase58(xpub);
-
-   //asset ctor moves root material in, gotta create copies from 
-   //the bip32 node object
-   auto pubkeyCopy = newPubNode.getPublicKey();
-   auto chaincodeCopy = newPubNode.getChaincode();
-
-   //init pub root from bip32 node data
-   auto pubRootAsset = make_shared<AssetEntry_BIP32Root>(
-      -1, BinaryData(), //not relevant, this stuff is ignored in this context
-
-      pubkeyCopy, //pub key
-      nullptr, //no priv key, this is a public node
-      chaincodeCopy, //have to pass the chaincode too
-
-      //aesthetical stuff, not mandatory, not useful for the crypto side of things
-      newPubNode.getDepth(), newPubNode.getLeafID(), 
-
-      //used for bip32 path detection when resolving/signing
-      newPubNode.getParentFingerprint(), seedFingerprint,
-
-      //derivation path for this root, only relevant for path discovery & PSBT
-      derPath
-   );
-
-   //3: create a custom bip32 account meta data object to setup the WO account
+   //2: create a custom bip32 account meta data object to setup the WO account
    //structure (nodes & address types)
-   auto accountTypePtr = make_shared<AccountType_BIP32>(vector<unsigned>()); //empty ctor
-   
+   auto accountTypePtr = AccountType_BIP32::makeFromDerPaths(
+      seedFingerprint, {derPath});
+
    //set nodes
    set<unsigned> nodes = {
       BIP32_OUTER_ACCOUNT_DERIVATIONID, 
       BIP32_INNER_ACCOUNT_DERIVATIONID};
    accountTypePtr->setNodes(nodes);
 
+   //set xpub
+   vector<PathAndRoot> pathsAndRoots;
+   pathsAndRoots.emplace_back(derPath, xpub);
+   accountTypePtr->setRoots(pathsAndRoots);
+
    //populate address types, here native SegWit only
-   accountTypePtr->setAddressTypes({ AddressEntryType_P2WPKH });
+   accountTypePtr->addAddressType(AddressEntryType_P2WPKH);
 
    //set the default address type as well
    accountTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
@@ -5120,13 +5909,10 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
    //the first one in this wallet
    accountTypePtr->setMain(true);
 
-   //4: feed it to the wallet
-   wltWO->createBIP32Account_WithParent(
-      pubRootAsset, //root asset
-      accountTypePtr //account meta data
-   );
+   //3: feed it to the wallet
+   wltWO->createBIP32Account(accountTypePtr);
 
-   //5: check address chain matches with original wallet
+   //4: check address chain matches with original wallet
    auto addressWO = wltWO->getNewAddress();
    auto addressOriginal = wlt->getNewAddress(AddressEntryType_P2WPKH);
 
@@ -5226,7 +6012,7 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
 
    //create account with all common uncompressed address types & their 
    //compressed counterparts
-   auto accountTypePtr = make_shared<AccountType_BIP32>(derPath);
+   auto accountTypePtr = wlt->makeNewBip32AccTypeObject(derPath);
    
    set<unsigned> nodes = {0, 1}; 
    accountTypePtr->setNodes(nodes);
@@ -5234,10 +6020,11 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
    accountTypePtr->setInnerAccountID(WRITE_UINT32_BE(*nodes.rbegin()));
 
    accountTypePtr->setDefaultAddressType(AddressEntryType_P2PKH);
-   accountTypePtr->setAddressTypes({ 
-      AddressEntryType_P2PKH, 
-      AddressEntryType(AddressEntryType_P2PKH | AddressEntryType_Uncompressed), 
-      AddressEntryType(AddressEntryType_P2PK | AddressEntryType_P2SH) });
+   accountTypePtr->addAddressType(AddressEntryType_P2PKH);
+   accountTypePtr->addAddressType(AddressEntryType(
+      AddressEntryType_P2PKH | AddressEntryType_Uncompressed));
+   accountTypePtr->addAddressType(AddressEntryType(
+      AddressEntryType_P2PK | AddressEntryType_P2SH));
 
    accountTypePtr->setAddressLookup(20);
    accountTypePtr->setMain(true);
@@ -5345,6 +6132,10 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
          homedir_, seed, passphrase, controlPass_);
 
+      auto rootbip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(
+         assetWlt->getRoot());
+      ASSERT_NE(rootbip32, nullptr);
+
       auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
       {
          return passphrase;
@@ -5353,20 +6144,20 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
 
       //create accounts
       auto saltedAccType1 = 
-         make_shared<AccountType_BIP32_Salted>(derivationPath1, salt1);   
+         AccountType_BIP32_Salted::makeFromDerPaths(
+            rootbip32->getSeedFingerprint(true), {derivationPath1}, salt1);
       saltedAccType1->setAddressLookup(40);
       saltedAccType1->setDefaultAddressType(
          AddressEntryType_P2WPKH);
-      saltedAccType1->setAddressTypes(
-         { AddressEntryType_P2WPKH });
+      saltedAccType1->addAddressType(AddressEntryType_P2WPKH);
 
       auto saltedAccType2 =
-         make_shared<AccountType_BIP32_Salted>(derivationPath2, salt2);
+         AccountType_BIP32_Salted::makeFromDerPaths(
+            rootbip32->getSeedFingerprint(true), {derivationPath2}, salt2);
       saltedAccType2->setAddressLookup(40);
       saltedAccType2->setDefaultAddressType(
          AddressEntryType_P2WPKH);
-      saltedAccType2->setAddressTypes(
-         { AddressEntryType_P2WPKH });
+      saltedAccType2->addAddressType(AddressEntryType_P2WPKH);
 
       //add bip32 account for derivationPath1
       accountID1 = assetWlt->createBIP32Account(saltedAccType1);
@@ -5580,16 +6371,14 @@ TEST_F(WalletsTest, ECDH_Account)
          make_shared<AccountType_ECDH>(privKey1, pubKey1);
       ecdhAccType1->setDefaultAddressType(
          AddressEntryType_P2WPKH);
-      ecdhAccType1->setAddressTypes(
-         { AddressEntryType_P2WPKH });
+      ecdhAccType1->addAddressType(AddressEntryType_P2WPKH);
       ecdhAccType1->setMain(true);
 
       auto ecdhAccType2 =
          make_shared<AccountType_ECDH>(privKey2, pubKey2);
       ecdhAccType2->setDefaultAddressType(
          AddressEntryType_P2WPKH);
-      ecdhAccType2->setAddressTypes(
-         { AddressEntryType_P2WPKH });
+      ecdhAccType2->addAddressType(AddressEntryType_P2WPKH);
 
       //add accounts
       auto accPtr1 = assetWlt->createAccount(ecdhAccType1);
@@ -5606,7 +6395,7 @@ TEST_F(WalletsTest, ECDH_Account)
       accID2 = accPtr2->getID();
 
       {
-      //add salts
+         //add salts
          auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
          for (unsigned i = 0; i < 5; i++)
          {
@@ -5874,16 +6663,15 @@ TEST_F(WalletsTest, AssetPathResolution)
    {
       //empty wallet + custom account
       auto wlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-         homedir_, seed, 
+         homedir_, seed,
          SecureBinaryData(), SecureBinaryData());
 
-      auto account = make_shared<AccountType_BIP32>(derPath);
+      auto account = wlt->makeNewBip32AccTypeObject(derPath);
       account->setMain(true);
       account->setNodes({0});
       account->setDefaultAddressType(
          AddressEntryType(AddressEntryType_P2WPKH));
-      account->setAddressTypes(
-         { AddressEntryType(AddressEntryType_P2WPKH) });
+      account->addAddressType(AddressEntryType_P2WPKH);
       account->setAddressLookup(10);
 
       wlt->createBIP32Account(account);
@@ -5910,8 +6698,7 @@ TEST_F(WalletsTest, AssetPathResolution)
 
    {
       //empty WO wallet
-      auto wltWO = AssetWallet_Single::createSeedless_WatchingOnly(
-         homedir_, "walletWO1", SecureBinaryData());
+      auto wltWO = AssetWallet_Single::createBlank(homedir_, "walletWO1", {});
 
       auto pubkey = pubNode.getPublicKey();
       auto chaincode = pubNode.getChaincode();
@@ -5932,17 +6719,19 @@ TEST_F(WalletsTest, AssetPathResolution)
 
       //add account
       auto mainAccType =
-         make_shared<AccountType_BIP32>(vector<unsigned>());
+         AccountType_BIP32::makeFromDerPaths(seedFingerprint, {derPath});
       mainAccType->setMain(true);
       mainAccType->setAddressLookup(10);
       mainAccType->setNodes({0});
       mainAccType->setDefaultAddressType(
          AddressEntryType(AddressEntryType_P2WPKH));
-      mainAccType->setAddressTypes(
-         { AddressEntryType(AddressEntryType_P2WPKH) });
+      mainAccType->addAddressType(AddressEntryType_P2WPKH);
 
-      auto accountID = wltWO->createBIP32Account_WithParent(
-         pubRootAsset, mainAccType);
+      auto b58sbd = pubNode.getBase58();
+      string xpub(b58sbd.toCharPtr(), b58sbd.getSize());
+      mainAccType->setRoots({{derPath, xpub}});
+
+      wltWO->createBIP32Account(mainAccType);
       EXPECT_TRUE(checkWlt(wltWO));
    }
 }

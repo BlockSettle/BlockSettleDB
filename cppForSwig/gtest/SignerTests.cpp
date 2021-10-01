@@ -3687,13 +3687,13 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
    vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
 
    auto mainAccType =
-      make_shared<AccountType_BIP32>(derPath);
+      assetWlt->makeNewBip32AccTypeObject(derPath);
    mainAccType->setMain(true);
    mainAccType->setAddressLookup(3);
    mainAccType->setDefaultAddressType(
       AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
-   mainAccType->setAddressTypes(
-      { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
+   mainAccType->addAddressType(
+      AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
 
    auto accountID = assetWlt->createBIP32Account(mainAccType);
 
@@ -3948,13 +3948,13 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
       //add p2sh-p2wpkh account
       vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
       auto mainAccType =
-         make_shared<AccountType_BIP32>(derPath);
+         assetWlt->makeNewBip32AccTypeObject(derPath);
       mainAccType->setMain(true);
       mainAccType->setAddressLookup(3);
       mainAccType->setDefaultAddressType(
          AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
-      mainAccType->setAddressTypes(
-         { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
+      mainAccType->addAddressType(
+         AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
 
       set<unsigned> nodes = { 0, 1 };
       mainAccType->setNodes(nodes);
@@ -4231,7 +4231,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
       SecureBinaryData());
 
    //create empty WO wallet
-   auto wltWO = AssetWallet_Single::createSeedless_WatchingOnly(
+   auto wltWO = AssetWallet_Single::createBlank(
       homedir_, "walletWO1", SecureBinaryData());
 
    //derive public root
@@ -4243,35 +4243,20 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
       seedNode.derivePrivate(derId);
 
    auto pubNode = seedNode.getPublicCopy();
-   auto pubkeyCopy = pubNode.getPublicKey();
-   auto chaincodeCopy = pubNode.getChaincode();
-
-   auto pubRootAsset = make_shared<AssetEntry_BIP32Root>(
-      -1, BinaryData(), //not relevant, this stuff is ignored in this context
-
-      pubkeyCopy, //pub key
-      nullptr, //no priv key, this is a public node
-      chaincodeCopy, //have to pass the chaincode too
-
-      //aesthetical stuff, not mandatory, not useful for the crypto side of things
-      pubNode.getDepth(), pubNode.getLeafID(), pubNode.getParentFingerprint(), seedFingerprint,
-
-      //derivation path for this root, only relevant for path discovery & PSBT
-      derPath
-   );
+   auto xpub = pubNode.getBase58();
 
    //add p2sh-p2wpkh account
    auto mainAccType =
-      make_shared<AccountType_BIP32>(vector<unsigned>());
+      AccountType_BIP32::makeFromDerPaths(seedFingerprint, {derPath});
+   mainAccType->setRoots({{derPath, xpub}});
    mainAccType->setMain(true);
    mainAccType->setAddressLookup(3);
    mainAccType->setDefaultAddressType(
       AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
-   mainAccType->setAddressTypes(
-      { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
+   mainAccType->addAddressType(
+      AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
 
-   auto accountID = wltWO->createBIP32Account_WithParent(
-      pubRootAsset, mainAccType);
+   auto accountID = wltWO->createBIP32Account(mainAccType);
 
    //// register with db ////
    vector<BinaryData> addrVec;
@@ -5127,16 +5112,20 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       SecureBinaryData(),
       passphrase);
 
+   auto rootBip32 = dynamic_pointer_cast<
+      AssetEntry_BIP32Root>(assetWlt->getRoot());
+   auto seedFingerprint = rootBip32->getSeedFingerprint(true);
+
    //salted account
    vector<unsigned> derPath = { 0x80000099, 0x80000001 };
    auto&& salt = CryptoPRNG::generateRandom(32);
    auto saltedAccType =
-      make_shared<AccountType_BIP32_Salted>(derPath, salt);
+      AccountType_BIP32_Salted::makeFromDerPaths(seedFingerprint, {derPath}, salt);
    saltedAccType->setAddressLookup(5);
    saltedAccType->setDefaultAddressType(
       AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
-   saltedAccType->setAddressTypes(
-      { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
+   saltedAccType->addAddressType(
+      AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
 
    auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
    {
@@ -5149,12 +5138,11 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    //regular account
    vector<unsigned> derPath2 = { 0x80000099, 0x80000001 };
    auto mainAccType =
-      make_shared<AccountType_BIP32>(derPath2);
+     assetWlt->makeNewBip32AccTypeObject(derPath2);
    mainAccType->setAddressLookup(5);
    mainAccType->setDefaultAddressType(
       AddressEntryType_P2WPKH);
-   mainAccType->setAddressTypes(
-      { AddressEntryType_P2WPKH });
+   mainAccType->addAddressType(AddressEntryType_P2WPKH);
 
    auto accountID2 = assetWlt->createBIP32Account(mainAccType);
 
@@ -5891,15 +5879,18 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       passphrase,
       SecureBinaryData::fromString("control"));
 
+   auto rootBip32 = dynamic_pointer_cast<
+      AssetEntry_BIP32Root>(assetWlt->getRoot());
+   auto seedFingerprint = rootBip32->getSeedFingerprint(true);
+
    vector<unsigned> derPath = {0x80000099, 0x80000001};
    auto&& salt = CryptoPRNG::generateRandom(32);
    auto saltedAccType =
-      make_shared<AccountType_BIP32_Salted>(derPath, salt);
+      AccountType_BIP32_Salted::makeFromDerPaths(seedFingerprint, {derPath}, salt);
    saltedAccType->setAddressLookup(5);
    saltedAccType->setDefaultAddressType(
       AddressEntryType_P2WPKH);
-   saltedAccType->setAddressTypes(
-      { AddressEntryType_P2WPKH });
+   saltedAccType->addAddressType(AddressEntryType_P2WPKH);
    saltedAccType->setMain(true);
 
    auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
@@ -6165,8 +6156,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    auto ecdhAccType = make_shared<AccountType_ECDH>(privKey, pubKey);
    ecdhAccType->setDefaultAddressType(
       AddressEntryType_P2WPKH);
-   ecdhAccType->setAddressTypes(
-      { AddressEntryType_P2WPKH });
+   ecdhAccType->addAddressType(AddressEntryType_P2WPKH);
    ecdhAccType->setMain(true);
 
    auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
