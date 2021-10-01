@@ -1823,7 +1823,7 @@ void BridgeCallback::run(BdmNotification notif)
             CppToProto::ledger(protoLe, *le);
          }
 
-         vector<uint8_t> payloadVec(payload.ByteSize());
+         vector<uint8_t> payloadVec(payload.ByteSizeLong());
          payload.SerializeToArray(&payloadVec[0], payloadVec.size());
 
          auto msg = make_unique<CppBridgeCallback>();
@@ -1873,7 +1873,7 @@ void BridgeCallback::run(BdmNotification notif)
          //notify node status
          BridgeNodeStatus nodeStatusMsg;
          CppToProto::nodeStatus(&nodeStatusMsg, *notif.nodeStatus_);
-         vector<uint8_t> serializedNodeStatus(nodeStatusMsg.ByteSize());
+         vector<uint8_t> serializedNodeStatus(nodeStatusMsg.ByteSizeLong());
          nodeStatusMsg.SerializeToArray(
             &serializedNodeStatus[0], serializedNodeStatus.size());
          

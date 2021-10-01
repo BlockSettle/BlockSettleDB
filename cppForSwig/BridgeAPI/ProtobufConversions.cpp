@@ -104,7 +104,7 @@ void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr)
    //use index
    auto accPtr = wltPtr->getAccountForID(wltPtr->getMainAccountID());
    auto assetAccountPtr = accPtr->getOuterAccount();
-   wltProto->set_lookupcount(assetAccountPtr->getAssetCount());
+   wltProto->set_lookupcount(assetAccountPtr->getLastComputedIndex());
    wltProto->set_usecount(assetAccountPtr->getHighestUsedIndex());
 
    //address map

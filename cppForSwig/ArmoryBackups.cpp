@@ -771,7 +771,8 @@ WalletRootData Helpers::getRootData(
 {
    WalletRootData rootData;
    rootData.wltId_ = wltSingle->getID();
-   const auto& root = wltSingle->getRoot();
+   auto root = dynamic_pointer_cast<AssetEntry_Single>(
+      wltSingle->getRoot());
 
    //lock wallet
    auto lock = wltSingle->lockDecryptedContainer();

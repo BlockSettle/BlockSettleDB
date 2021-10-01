@@ -321,7 +321,7 @@ void WritePayload_Bridge::serialize(std::vector<uint8_t>& data)
    if (message_ == nullptr)
       return;
 
-   auto msgSize = message_->ByteSize();
+   auto msgSize = message_->ByteSizeLong();
    data.resize(msgSize + 9 + POLY1305MACLEN);
 
    //set packet size
@@ -339,5 +339,5 @@ void WritePayload_Bridge::serialize(std::vector<uint8_t>& data)
 ////////////////////////////////////////////////////////////////////////////////
 size_t WritePayload_Bridge::getSerializedSize(void) const
 {
-   return message_->ByteSize() + 9 + POLY1305MACLEN;
+   return message_->ByteSizeLong() + 9 + POLY1305MACLEN;
 }
