@@ -28,8 +28,7 @@ DerivationScheme::~DerivationScheme()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data, 
-   shared_ptr<DBIfaceTransaction> txPtr)
+shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data)
 {
    BinaryRefReader brr(data);
 
@@ -134,37 +133,7 @@ shared_ptr<DerivationScheme> DerivationScheme::deserialize(BinaryDataRef data,
          //id
          auto len = brr.get_var_int();
          auto id = brr.get_BinaryData(len);
-
-         //saltMap
-         map<SecureBinaryData, unsigned> saltMap;
-
-         BinaryWriter bwKey;
-         bwKey.put_uint8_t(ECDH_SALT_PREFIX);
-         bwKey.put_BinaryData(id);
-         BinaryDataRef keyBdr = bwKey.getDataRef();
-
-         auto dbIter = txPtr->getIterator();
-         dbIter->seek(keyBdr);
-         while (dbIter->isValid())
-         {
-            auto&& key = dbIter->key();
-            if (!key.startsWith(keyBdr) || 
-               key.getSize() != keyBdr.getSize() + 4)
-               break;
-
-            auto saltIdBdr = key.getSliceCopy(keyBdr.getSize(), 4);
-            auto saltId = READ_UINT32_BE(saltIdBdr);
-
-            auto value = dbIter->value();
-            BinaryRefReader bdrData(value);
-            auto len = bdrData.get_var_int();
-            auto&& salt = bdrData.get_SecureBinaryData(len);
-
-            saltMap.emplace(make_pair(move(salt), saltId));
-            dbIter->advance();
-         }
-
-         derScheme = make_shared<DerivationScheme_ECDH>(id, saltMap);
+         derScheme = make_shared<DerivationScheme_ECDH>(id);
 
          break;
       }
@@ -568,7 +537,7 @@ BinaryData DerivationScheme_BIP32_Salted::serialize() const
    final.put_var_int(bw.getSize());
    final.put_BinaryData(bw.getData());
 
-   return final.getData();   
+   return final.getData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -576,25 +545,9 @@ BinaryData DerivationScheme_BIP32_Salted::serialize() const
 //// DerivationScheme_ECDH
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-DerivationScheme_ECDH::DerivationScheme_ECDH(const BinaryData& id,
-   std::map<SecureBinaryData, unsigned> saltMap) :
-   DerivationScheme(DerSchemeType_ECDH),
-   id_(id), saltMap_(move(saltMap))
-{
-   set<unsigned> idSet;
-   for (auto& saltPair : saltMap_)
-   {
-      auto insertIter = idSet.insert(saltPair.second);
-      if (insertIter.second == false)
-         throw DerivationSchemeException("ECDH id collision!");
-   }
-
-   if (idSet.size() == 0)
-      return;
-
-   auto idIter = idSet.rbegin();
-   topSaltIndex_ = *idIter + 1;
-}
+DerivationScheme_ECDH::DerivationScheme_ECDH(const BinaryData& id) :
+   DerivationScheme(DerivationSchemeType::ECDH), id_(id)
+{}
 
 ////////////////////////////////////////////////////////////////////////////////
 const SecureBinaryData& DerivationScheme_ECDH::getChaincode() const
@@ -686,6 +639,54 @@ void DerivationScheme_ECDH::putAllSalts(shared_ptr<DBIfaceTransaction> txPtr)
    //expects live read-write db tx
    for (auto& saltPair : saltMap_)
       putSalt(saltPair.second, saltPair.first, txPtr);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void DerivationScheme_ECDH::getAllSalts(shared_ptr<DBIfaceTransaction> txPtr)
+{
+   BinaryWriter bwKey;
+   bwKey.put_uint8_t(ECDH_SALT_PREFIX);
+   bwKey.put_BinaryData(id_);
+   BinaryDataRef keyBdr = bwKey.getDataRef();
+
+   auto dbIter = txPtr->getIterator();
+   dbIter->seek(keyBdr);
+   while (dbIter->isValid())
+   {
+      auto&& key = dbIter->key();
+      if (!key.startsWith(keyBdr) ||
+         key.getSize() != keyBdr.getSize() + 4)
+      {
+         break;
+      }
+
+      auto saltIdBdr = key.getSliceCopy(keyBdr.getSize(), 4);
+      auto saltId = READ_UINT32_BE(saltIdBdr);
+
+      auto value = dbIter->value();
+      BinaryRefReader bdrData(value);
+      auto len = bdrData.get_var_int();
+      auto&& salt = bdrData.get_SecureBinaryData(len);
+
+      saltMap_.emplace(make_pair(move(salt), saltId));
+      dbIter->advance();
+   }
+
+   //sanity check
+   set<unsigned> idSet;
+   for (auto& saltPair : saltMap_)
+   {
+      auto insertIter = idSet.insert(saltPair.second);
+      if (insertIter.second == false)
+         throw DerivationSchemeException("ECDH id collision!");
+   }
+
+   if (idSet.empty())
+      return;
+
+   //set top index
+   auto idIter = idSet.rbegin();
+   topSaltIndex_ = *idIter + 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

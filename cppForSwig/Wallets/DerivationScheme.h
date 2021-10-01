@@ -28,11 +28,13 @@ class DecryptedDataContainer;
 
 #define DERIVATION_LOOKUP        100
 
-enum DerivationSchemeType
+enum class DerivationSchemeType: int
 {
-   DerSchemeType_ArmoryLegacy,
-   DerSchemeType_BIP32,
-   DerSchemeType_ECDH
+   Unknown      = -1,
+   ArmoryLegacy = 0,
+   BIP32        = 1,
+   ECDH         = 2,
+   BIP32_Salted = 3,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +49,7 @@ public:
 class DBIfaceTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////
-struct DerivationScheme
+class DerivationScheme
 {
    /*in extend methods, the end argument is inclusive for all schemes*/
 
@@ -76,12 +78,11 @@ public:
    virtual const SecureBinaryData& getChaincode(void) const = 0;
 
    //static
-   static std::shared_ptr<DerivationScheme> deserialize(
-      BinaryDataRef, std::shared_ptr<DBIfaceTransaction>);
+   static std::shared_ptr<DerivationScheme> deserialize(BinaryDataRef);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct DerivationScheme_ArmoryLegacy : public DerivationScheme
+class DerivationScheme_ArmoryLegacy : public DerivationScheme
 {
    friend class AssetWallet_Single;
 
@@ -91,7 +92,7 @@ private:
 public:
    //tors
    DerivationScheme_ArmoryLegacy(SecureBinaryData& chainCode) :
-      DerivationScheme(DerSchemeType_ArmoryLegacy),
+      DerivationScheme(DerivationSchemeType::ArmoryLegacy),
       chainCode_(std::move(chainCode))
    {}
 
@@ -118,20 +119,30 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct DerivationScheme_BIP32 : public DerivationScheme
+class DerivationScheme_BIP32 : public DerivationScheme
 {
    friend class AssetWallet_Single;
+   friend class DerivationScheme_BIP32_Salted;
 
 private:
    SecureBinaryData chainCode_;
    const unsigned depth_;
    const unsigned leafId_;
 
+private:
+   DerivationScheme_BIP32(DerivationSchemeType type,
+      SecureBinaryData& chainCode,
+      unsigned depth, unsigned leafId) :
+      DerivationScheme(type),
+      chainCode_(std::move(chainCode)),
+      depth_(depth), leafId_(leafId)
+   {}
+
 public:
    //tors
    DerivationScheme_BIP32(SecureBinaryData& chainCode,
       unsigned depth, unsigned leafId) :
-      DerivationScheme(DerSchemeType_BIP32),
+      DerivationScheme(DerivationSchemeType::BIP32),
       chainCode_(std::move(chainCode)),
       depth_(depth), leafId_(leafId)
    {}
@@ -163,7 +174,7 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct DerivationScheme_BIP32_Salted : public DerivationScheme_BIP32
+class DerivationScheme_BIP32_Salted : public DerivationScheme_BIP32
 {
 private:
    const SecureBinaryData salt_;
@@ -173,8 +184,8 @@ public:
       SecureBinaryData& salt,
       SecureBinaryData& chainCode,
       unsigned depth, unsigned leafId) :
-   DerivationScheme_BIP32(chainCode, depth, leafId),
-      salt_(std::move(salt))
+      DerivationScheme_BIP32(DerivationSchemeType::BIP32_Salted,
+         chainCode, depth, leafId), salt_(std::move(salt))
    {}
 
    //virtuals
@@ -188,6 +199,7 @@ public:
       const BinaryData& full_id, unsigned index) override;
 
    BinaryData serialize(void) const override;
+   const SecureBinaryData& getSalt(void) const { return salt_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,12 +226,11 @@ private:
 
 public:
    DerivationScheme_ECDH(void) :
-      DerivationScheme(DerSchemeType_ECDH),
+      DerivationScheme(DerivationSchemeType::ECDH),
       id_(CryptoPRNG::generateRandom(8))
    {}
 
-   DerivationScheme_ECDH(const BinaryData& id,
-      std::map<SecureBinaryData, unsigned> saltMap);
+   DerivationScheme_ECDH(const BinaryData& id);
 
    //virtuals
    std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
@@ -235,6 +246,7 @@ public:
    unsigned addSalt(const SecureBinaryData&, 
       std::shared_ptr<DBIfaceTransaction>);
    void putAllSalts(std::shared_ptr<DBIfaceTransaction>);
+   void getAllSalts(std::shared_ptr<DBIfaceTransaction>);
    unsigned getSaltIndex(const SecureBinaryData&);
 };
 
