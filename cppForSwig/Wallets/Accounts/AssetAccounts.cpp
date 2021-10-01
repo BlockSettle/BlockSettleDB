@@ -23,12 +23,13 @@ using namespace std;
 shared_ptr<AssetAccountData> AssetAccountData::copy(
    const string& dbName) const
 {
-   auto accDataCopy = make_shared<AssetAccountData>(
+   auto accDataCopy = make_shared<AssetAccountData>(type_,
       id_, parentId_, root_, derScheme_, dbName);
 
    //shared_ptr of asset entries are not copied
    accDataCopy->assets_ = assets_;
    accDataCopy->lastUsedIndex_ = lastUsedIndex_;
+   accDataCopy->lastHashedAsset_ = lastHashedAsset_;
 
    return accDataCopy;
 }
@@ -144,21 +145,24 @@ void AssetAccount::commit(shared_ptr<WalletDBInterface> iface)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-AccountDataStruct AssetAccount::loadFromDisk(const BinaryData& key,
+shared_ptr<AssetAccountData> AssetAccount::loadFromDisk(const BinaryData& key,
    shared_ptr<WalletDBInterface> iface, const string& dbName)
 {
    //sanity checks
    if (iface == nullptr || dbName.size() == 0)
-      throw AccountException("invalid db pointers");
+      throw AccountException("[loadFromDisk] invalid db pointers");
 
    auto uniqueTx = iface->beginReadTransaction(dbName);
    shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
 
    if (key.getSize() == 0)
-      throw AccountException("invalid key size");
+      throw AccountException("[loadFromDisk] invalid key size");
 
    if (key.getPtr()[0] != ASSET_ACCOUNT_PREFIX)
-      throw AccountException("unexpected prefix for AssetAccount key");
+   {
+      throw AccountException("[loadFromDisk] "
+         "unexpected prefix for AssetAccount key");
+   }
 
    auto&& diskDataRef = sharedTx->getDataRef(key);
    BinaryRefReader brr(diskDataRef);
@@ -176,7 +180,14 @@ AccountDataStruct AssetAccount::loadFromDisk(const BinaryData& key,
    //der scheme
    auto len = brr.get_var_int();
    auto derSchemeBDR = DBUtils::getDataRefForPacket(brr.get_BinaryDataRef(len));
-   auto derScheme = DerivationScheme::deserialize(derSchemeBDR, sharedTx);
+   auto derScheme = DerivationScheme::deserialize(derSchemeBDR);
+   if (derScheme->getType() == DerivationSchemeType::ECDH)
+   {
+      auto derECDH = dynamic_pointer_cast<DerivationScheme_ECDH>(derScheme);
+      if (derECDH == nullptr)
+         throw AccountException("[loadFromDisk] ecdh der scheme snafu");
+      derECDH->getAllSalts(sharedTx);
+   }
 
    //asset count
    size_t assetCount = 0;
@@ -188,7 +199,7 @@ AccountDataStruct AssetAccount::loadFromDisk(const BinaryData& key,
 
       auto&& assetcount = sharedTx->getDataRef(bwKey_assetcount.getData());
       if (assetcount.getSize() == 0)
-         throw AccountException("missing asset count entry");
+         throw AccountException("[loadFromDisk] missing asset count entry");
 
       BinaryRefReader brr_assetcount(assetcount);
       assetCount = brr_assetcount.get_var_int();
@@ -205,7 +216,7 @@ AccountDataStruct AssetAccount::loadFromDisk(const BinaryData& key,
       auto&& lastusedindex = sharedTx->getDataRef(
          bwKey_lastusedindex.getData());
       if (lastusedindex.getSize() == 0)
-         throw AccountException("missing last used entry");
+         throw AccountException("[loadFromDisk] missing last used entry");
 
       BinaryRefReader brr_lastusedindex(lastusedindex);
       lastUsedIndex = brr_lastusedindex.get_var_int();
@@ -255,36 +266,33 @@ AccountDataStruct AssetAccount::loadFromDisk(const BinaryData& key,
 
    //sanity check
    if (assetCount != assetMap.size())
-      throw AccountException("unexpected account asset count");
+      throw AccountException("[loadFromDisk] unexpected account asset count");
 
    //instantiate object
-   auto accDataPtr = make_shared<AssetAccountData>(
+   auto accDataPtr = make_shared<AssetAccountData>(type,
       account_id, parent_id, rootEntry, derScheme, dbName);
 
    accDataPtr->lastUsedIndex_ = lastUsedIndex;
    accDataPtr->assets_ = move(assetMap);
 
-   AccountDataStruct ads;
-   ads.accountData_ = accDataPtr;
-   ads.type_ = type;
-
-   return ads;
+   return accDataPtr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-int AssetAccount::getLastComputedIndex(void) const
+int AssetAccount::getLastComputedIndex() const
 {
-   ReentrantLock lock(this);
+   if (data_ == nullptr)
+      throw AssetException("[getLastComputedIndex] empty asset account data");
 
+   ReentrantLock lock(this);
    if (data_->assets_.empty())
       return -1;
 
-   auto iter = data_->assets_.rbegin();
-   return iter->first;
+   return data_->assets_.rbegin()->first;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unsigned AssetAccount::getHighestUsedIndex() const
+int AssetAccount::getHighestUsedIndex() const
 {
    return data_->lastUsedIndex_;
 }
@@ -346,17 +354,14 @@ void AssetAccount::extendPublicChain(shared_ptr<WalletDBInterface> iface,
       assetPtr->getIndex() + 1,
       assetPtr->getIndex() + count);
 
+   for (auto& asset : assetVec)
    {
-      for (auto& asset : assetVec)
-      {
-         auto id = asset->getIndex();
-         auto iter = data_->assets_.find(id);
-         if (iter != data_->assets_.end())
-            continue;
+      auto id = asset->getIndex();
+      auto iter = data_->assets_.find(id);
+      if (iter != data_->assets_.end())
+         continue;
 
-         data_->assets_.insert(make_pair(
-            id, asset));
-      }
+      data_->assets_.insert(make_pair(id, asset));
    }
 
    if (iface != nullptr)
@@ -372,7 +377,7 @@ vector<shared_ptr<AssetEntry>> AssetAccount::extendPublicChain(
 
    switch (data_->derScheme_->getType())
    {
-   case DerSchemeType_ArmoryLegacy:
+   case DerivationSchemeType::ArmoryLegacy:
    {
       //Armory legacy derivation operates from the last valid asset
       result = move(data_->derScheme_->extendPublicChain(
@@ -380,8 +385,9 @@ vector<shared_ptr<AssetEntry>> AssetAccount::extendPublicChain(
       break;
    }
 
-   case DerSchemeType_BIP32:
-   case DerSchemeType_ECDH:
+   case DerivationSchemeType::BIP32:
+   case DerivationSchemeType::BIP32_Salted:
+   case DerivationSchemeType::ECDH:
    {
       //BIP32 operates from the node's root asset
       result = move(data_->derScheme_->extendPublicChain(
@@ -495,7 +501,7 @@ vector<shared_ptr<AssetEntry>> AssetAccount::extendPrivateChain(
 
    switch (data_->derScheme_->getType())
    {
-   case DerSchemeType_ArmoryLegacy:
+   case DerivationSchemeType::ArmoryLegacy:
    {
       //Armory legacy derivation operates from the last valid asset
       result = move(data_->derScheme_->extendPrivateChain(
@@ -503,8 +509,9 @@ vector<shared_ptr<AssetEntry>> AssetAccount::extendPrivateChain(
       break;
    }
 
-   case DerSchemeType_BIP32:
-   case DerSchemeType_ECDH:
+   case DerivationSchemeType::BIP32:
+   case DerivationSchemeType::BIP32_Salted:
+   case DerivationSchemeType::ECDH:
    {
       //BIP32 operates from the node's root asset
       result = move(data_->derScheme_->extendPrivateChain(

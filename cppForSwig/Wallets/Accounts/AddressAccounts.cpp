@@ -23,43 +23,41 @@ using namespace std;
 void AddressAccount::make_new(
    shared_ptr<AccountType> accType,
    shared_ptr<DecryptedDataContainer> decrData,
-   unique_ptr<Cipher> cipher)
+   unique_ptr<Cipher> cipher,
+   const std::function<std::shared_ptr<AssetEntry>(void)>& getRootLbd)
 {
    reset();
 
    //create root asset
-   auto createRootAsset = [&decrData, this](
+   auto createRootAsset = [&decrData, this, &getRootLbd](
       shared_ptr<AccountType_BIP32> accBip32,
-      unsigned node_id, unique_ptr<Cipher> cipher_copy)->
+      const NodeRoot& nodeRoot,
+      unique_ptr<Cipher> cipher_copy)->
       shared_ptr<AssetEntry_BIP32Root>
    {
+      //get last node
+      const auto& derPath = DerivationTree::toPath32(nodeRoot.path);
+      uint32_t node_id = 0;
+      auto nodeIt = prev(derPath.end());
+      if (nodeIt != derPath.end())
+         node_id = *nodeIt;
+
+      //create ids
       auto&& account_id = WRITE_UINT32_BE(node_id);
       auto&& full_account_id = ID_ + account_id;
 
       shared_ptr<AssetEntry_BIP32Root> rootAsset;
-      SecureBinaryData chaincode;
 
+      //setup bip32 root object from base58 string
       BIP32_Node node;
+      node.initFromBase58(nodeRoot.b58Root);
 
-      if (accBip32->isWatchingOnly())
+      auto chaincode = node.moveChaincode();
+      auto pubkey = node.movePublicKey();
+
+      if (node.isPublic())
       {
-         //WO
-         node.initFromPublicKey(
-            accBip32->getDepth(), accBip32->getLeafID(), accBip32->getFingerPrint(),
-            accBip32->getPublicRoot(), accBip32->getChaincode());
-         
-         auto derPath = accBip32->getDerivationPath();
-         
-         //check AccountType_BIP32_Custom comments for more info
-         if(node_id != UINT32_MAX)
-         {
-            node.derivePublic(node_id);
-            derPath.push_back(node_id);
-         }
-
-         chaincode = node.moveChaincode();
-         auto pubkey = node.movePublicKey();
-
+         //WO wallet
          rootAsset = make_shared<AssetEntry_BIP32Root>(
             -1, full_account_id,
             pubkey, nullptr,
@@ -71,29 +69,6 @@ void AddressAccount::make_new(
       else
       {
          //full wallet
-         node.initFromPrivateKey(
-            accBip32->getDepth(), accBip32->getLeafID(), accBip32->getFingerPrint(),
-            accBip32->getPrivateRoot(), accBip32->getChaincode());
-
-         auto derPath = accBip32->getDerivationPath();
-
-         //check AccountType_BIP32_Custom comments for more info
-         if (node_id != UINT32_MAX)
-         {  
-            node.derivePrivate(node_id);
-            derPath.push_back(node_id);
-         }
-
-         chaincode = node.moveChaincode();
-         
-         auto pubkey = node.movePublicKey();
-         if (pubkey.getSize() == 0)
-         {
-            auto&& pubkey_unc = 
-               CryptoECDSA().ComputePublicKey(accBip32->getPrivateRoot());
-            pubkey = move(CryptoECDSA().CompressPoint(pubkey_unc));
-         }
-
          ReentrantLock lock(decrData.get());
 
          //encrypt private root
@@ -105,6 +80,7 @@ void AddressAccount::make_new(
          privKeyID.append(WRITE_UINT32_LE(UINT32_MAX));
          auto priv_asset = make_shared<Asset_PrivateKey>(
             privKeyID, encrypted_root, move(cipher_copy));
+
          rootAsset = make_shared<AssetEntry_BIP32Root>(
             -1, full_account_id,
             pubkey, priv_asset,
@@ -120,7 +96,8 @@ void AddressAccount::make_new(
    //create account
    auto createNewAccount = [this](
       shared_ptr<AssetEntry_BIP32Root> rootAsset,
-      shared_ptr<DerivationScheme_BIP32> derScheme)->AccountDataStruct
+      shared_ptr<DerivationScheme_BIP32> derScheme)->
+      shared_ptr<AssetAccountData>
    {
       if(rootAsset == nullptr)
          throw AccountException("null root asset");
@@ -146,14 +123,9 @@ void AddressAccount::make_new(
          ID_.getSize(), len - ID_.getSize());
 
       //instantiate account
-      auto account_data = make_shared<AssetAccountData>(
-         account_id, ID_, rootAsset, derScheme, dbName_);
-
-      AccountDataStruct ads;
-      ads.accountData_ = account_data;
-      ads.type_ = AssetAccountTypeEnum_Plain;
-
-      return ads;
+      return make_shared<AssetAccountData>(
+         AssetAccountTypeEnum_Plain, account_id, ID_,
+         rootAsset, derScheme, dbName_);
    };
 
    //body
@@ -165,48 +137,52 @@ void AddressAccount::make_new(
       ID_ = accPtr->getAccountID();
       auto asset_account_id = accPtr->getOuterAccountID();
 
-      //chaincode has to be a copy cause the derscheme ctor moves it in
-      auto chaincode = accPtr->getChaincode();
-      auto derScheme = make_shared<DerivationScheme_ArmoryLegacy>(
-         chaincode);
-
       //first derived asset
       auto&& full_account_id = ID_ + asset_account_id;
       shared_ptr<AssetEntry_Single> firstAsset;
 
-      if (accPtr->isWatchingOnly())
+      if (!getRootLbd)
+         throw AccountException("[make_new] undefined root lbd");
+      auto rootPtr = getRootLbd();
+      auto root135 = dynamic_pointer_cast<AssetEntry_ArmoryLegacyRoot>(rootPtr);
+      if (root135 == nullptr)
+         throw AccountException("[make_new] expected legacy root");
+
+      //chaincode has to be a copy cause the derscheme ctor moves it in
+      SecureBinaryData chaincode = root135->getChaincode();
+      auto derScheme = make_shared<DerivationScheme_ArmoryLegacy>(
+         chaincode);
+
+      if (!root135->hasPrivateKey())
       {
          //WO
-         auto& root = accPtr->getPublicRoot();
          firstAsset = derScheme->computeNextPublicEntry(
-            root,
+            root135->getPubKey()->getUncompressedKey(),
             full_account_id, 0);
       }
       else
       {
          //full wallet
          ReentrantLock lock(decrData.get());
-         
-         auto& root = accPtr->getPrivateRoot();
+         const auto& privRootRef = decrData->getDecryptedPrivateData(
+            root135->getPrivKey());
+
          firstAsset = derScheme->computeNextPrivateEntry(
             decrData,
-            root, move(cipher),
+            privRootRef, move(cipher),
             full_account_id, 0);
       }
 
       //instantiate account and set first entry
       auto asset_account = make_shared<AssetAccountData>(
+         AssetAccountTypeEnum_Plain,
          asset_account_id, ID_,
          //no root asset for legacy derivation scheme, using first entry instead
          nullptr, derScheme, dbName_);
       asset_account->assets_.insert(make_pair(0, firstAsset));
 
-      AccountDataStruct ads;
-      ads.accountData_ = asset_account;
-      ads.type_ = AssetAccountTypeEnum_Plain;
-
       //add the asset account
-      addAccount(ads);
+      addAccount(asset_account);
 
       break;
    }
@@ -218,70 +194,30 @@ void AddressAccount::make_new(
       if (accBip32 == nullptr)
          throw AccountException("unexpected account type");
 
+      //set ID, used after the switch statement
       ID_ = accBip32->getAccountID();
 
-      auto nodes = accBip32->getNodes();
-      if (nodes.size() > 0)
+      //grab derivation tree, generate node roots
+      const auto& derTree = accBip32->getDerivationTree();
+      auto walletRootBip32 = 
+         dynamic_pointer_cast<AssetEntry_BIP32Root>(getRootLbd());
+      
+      ReentrantLock lock(decrData.get());
+      auto nodeRoots = derTree.resolveNodeRoots(decrData, walletRootBip32);
+
+      for (const auto& nodeRoot : nodeRoots)
       {
-         for (auto& node : nodes)
-         {
-            shared_ptr<AssetEntry_BIP32Root> root_obj;
-            if (cipher != nullptr)
-            {
-               root_obj = createRootAsset(
-                  accBip32, node,
-                  move(cipher->getCopy()));
-            }
-            else
-            {
-               root_obj = createRootAsset(
-                  accBip32, node,
-                  nullptr);
-            }
-            
-            shared_ptr<DerivationScheme_BIP32> derScheme = nullptr;
-            if (accType->type() == AccountTypeEnum_BIP32_Salted)
-            {
-               auto accSalted = 
-                  dynamic_pointer_cast<AccountType_BIP32_Salted>(accType);
-               if (accSalted == nullptr)
-                  throw AccountException("unexpected account type");
+         if (nodeRoot.b58Root.empty())
+            throw AccountException("[make_new] skipped path");
 
-               if (accSalted->getSalt().getSize() != 32)
-                  throw AccountException("invalid salt len");
-
-               auto chaincode = root_obj->getChaincode();
-               auto salt = accSalted->getSalt();
-               derScheme = 
-                  make_shared<DerivationScheme_BIP32_Salted>(
-                     salt, chaincode, 
-                     root_obj->getDepth(), root_obj->getLeafID());
-            }
-
-            auto account_obj = createNewAccount(root_obj, derScheme);
-            addAccount(account_obj);
-         }
-      }
-      else
-      {
-         shared_ptr<AssetEntry_BIP32Root> root_obj;
+         unique_ptr<Cipher> cipher_copy;
          if (cipher != nullptr)
-         {
-            root_obj = createRootAsset(
-               accBip32, 
-               //check AccountType_BIP32_Custom comments for more info
-               UINT32_MAX, 
-               move(cipher->getCopy()));
-         }
-         else
-         {
-            root_obj = createRootAsset(
-               accBip32, 
-               //check AccountType_BIP32_Custom comments for more info
-               UINT32_MAX, 
-               nullptr);
-         }
+            cipher_copy = cipher->getCopy();
 
+         auto root_obj = createRootAsset(accBip32,
+            nodeRoot, move(cipher_copy));
+
+         //derivation scheme object
          shared_ptr<DerivationScheme_BIP32> derScheme = nullptr;
          if (accType->type() == AccountTypeEnum_BIP32_Salted)
          {
@@ -292,7 +228,7 @@ void AddressAccount::make_new(
 
             if (accSalted->getSalt().getSize() != 32)
                throw AccountException("invalid salt len");
-               
+
             auto chaincode = root_obj->getChaincode();
             auto salt = accSalted->getSalt();
             derScheme = 
@@ -300,7 +236,8 @@ void AddressAccount::make_new(
                   salt, chaincode, 
                   root_obj->getDepth(), root_obj->getLeafID());
          }
-            
+
+         //create and add the asset account
          auto account_obj = createNewAccount(root_obj, derScheme);
          addAccount(account_obj);
       }
@@ -363,14 +300,11 @@ void AddressAccount::make_new(
 
       //account
       auto assetAccount = make_shared<AssetAccountData>(
+         AssetAccountTypeEnum_ECDH,
          accEcdh->getOuterAccountID(), ID_,
          rootAsset, derScheme, dbName_);
-      
-      AccountDataStruct ads;
-      ads.accountData_ = assetAccount;
-      ads.type_ = AssetAccountTypeEnum_ECDH;
 
-      addAccount(ads);
+      addAccount(assetAccount);
       break;
    }
 
@@ -387,6 +321,21 @@ void AddressAccount::make_new(
    //set inner and outer accounts
    outerAccount_ = accType->getOuterAccountID();
    innerAccount_ = accType->getInnerAccountID();
+
+   //sanity checks
+   if (accountDataMap_.empty())
+   {
+      throw AccountException("[make_new] address account has no"
+         " asset account!");
+   }
+
+   //check outer account, set default if empty
+   if (outerAccount_.empty())
+   {
+      outerAccount_ = accountDataMap_.begin()->first;
+      LOGWARN << "emtpy outer account id, defaulting to " <<
+         outerAccount_.toHexStr();
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -443,19 +392,19 @@ void AddressAccount::commit(shared_ptr<WalletDBInterface> iface)
    for (auto& accDataPair : accountDataMap_)
    {
       shared_ptr<AssetAccount> aaPtr;
-      switch (accDataPair.second.type_)
+      switch (accDataPair.second->type_)
       {
       case AssetAccountTypeEnum_Plain:
       {
          aaPtr = make_shared<AssetAccount>(
-            accDataPair.second.accountData_);
+            accDataPair.second);
          break;
       }
 
       case AssetAccountTypeEnum_ECDH:
       {
          aaPtr = make_shared<AssetAccount_ECDH>(
-            accDataPair.second.accountData_);
+            accDataPair.second);
          break;
       }
 
@@ -481,21 +430,17 @@ void AddressAccount::commit(shared_ptr<WalletDBInterface> iface)
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::addAccount(shared_ptr<AssetAccount> account)
 {
-   AccountDataStruct accData;
-   accData.accountData_ = account->data_;
-   accData.type_ = account->type();
-   addAccount(accData);
+   addAccount(account->data_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::addAccount(AccountDataStruct& acc)
+void AddressAccount::addAccount(std::shared_ptr<AssetAccountData> accPtr)
 {
-   auto& accID = acc.accountData_->id_;
+   auto& accID = accPtr->id_;
    if (accID.getSize() != 4)
       throw AccountException("invalid account id length");
 
-   auto insertPair = accountDataMap_.emplace(accID, move(acc));
-
+   auto insertPair = accountDataMap_.emplace(accID, accPtr);
    if (!insertPair.second)
       throw AccountException("already have this asset account");
 }
@@ -551,7 +496,7 @@ void AddressAccount::readFromDisk(
 
       auto accData = AssetAccount::loadFromDisk(
          bw_asset_key.getData(), iface, dbName_);
-      accountDataMap_.emplace(accData.accountData_->id_, move(accData));
+      accountDataMap_.emplace(accData->id_, move(accData));
    }
 
    ID_ = key.getSliceCopy(1, key.getSize() - 1);
@@ -842,7 +787,7 @@ const map<BinaryData, pair<BinaryData, AddressEntryType>>&
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const AccountDataStruct& AddressAccount::getAccountDataForID(
+const shared_ptr<AssetAccountData>& AddressAccount::getAccountDataForID(
    const BinaryData& id) const
 {
    auto iter = accountDataMap_.find(id);
@@ -866,14 +811,14 @@ set<BinaryData> AddressAccount::getAccountIdSet(void) const
 unique_ptr<AssetAccount> AddressAccount::getAccountForID(
    const BinaryData& id) const
 {
-   auto accDataPair = getAccountDataForID(id);
-   switch (accDataPair.type_)
+   auto accData = getAccountDataForID(id);
+   switch (accData->type_)
    {
       case AssetAccountTypeEnum_Plain:
-         return make_unique<AssetAccount>(accDataPair.accountData_);
+         return make_unique<AssetAccount>(accData);
 
       case AssetAccountTypeEnum_ECDH:
-         return make_unique<AssetAccount_ECDH>(accDataPair.accountData_);
+         return make_unique<AssetAccount_ECDH>(accData);
 
       default:
          throw runtime_error("unknown asset account type");
@@ -901,44 +846,6 @@ shared_ptr<AssetEntry> AddressAccount::getOutterAssetRoot() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AddressAccount> AddressAccount::createFromPublicData(
-   const AddressAccountPublicData& aapd, const string& dbName)
-{
-   auto woAcc = make_shared<AddressAccount>(dbName);
-
-   //id
-   woAcc->ID_ = aapd.ID_;
-
-   //address
-   woAcc->defaultAddressEntryType_ = aapd.defaultAddressEntryType_;
-   woAcc->addressTypes_ = aapd.addressTypes_;
-   woAcc->addresses_ = aapd.addresses_;
-
-   //account ids
-   woAcc->outerAccount_ = aapd.outerAccount_;
-   woAcc->innerAccount_ = aapd.innerAccount_;
-
-   //asset accounts
-   for (auto& assetAccPair : aapd.accountDataMap_) {
-      auto accDataCopy = assetAccPair.second.second.accountData_->copy(dbName);
-      if (accDataCopy->root_ == nullptr)
-      {
-         throw runtime_error("rootless account, need to implement bootstrapping for derScheme");
-      }
-
-      AccountDataStruct ads;
-      ads.type_ = assetAccPair.second.second.type_;
-      ads.accountData_ = accDataCopy;
-      woAcc->addAccount(ads);
-
-      woAcc->extendPublicChainToIndex(
-         nullptr, accDataCopy->id_, assetAccPair.second.first);
-   }
-
-   return woAcc;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 AddressAccountPublicData AddressAccount::exportPublicData() const
 {
    AddressAccountPublicData aapd;
@@ -958,43 +865,73 @@ AddressAccountPublicData AddressAccount::exportPublicData() const
    //asset accounts
    for (auto& assetAccPair : accountDataMap_)
    {
-      auto& assetData = assetAccPair.second.accountData_;
+      auto accPtr = getAccountForID(assetAccPair.first);
+      const auto& assetData = assetAccPair.second;
+      if (assetData == nullptr)
+         continue;
 
-      shared_ptr<AssetEntry> woRoot = nullptr;
-      if (assetData->root_ != nullptr)
+      /*
+      Only check account root type if it has a root to begin with. Some
+      accounts do not carry roots (e.g. Armory135 wallets)
+      */
+      shared_ptr<AssetEntry_Single> woRoot = nullptr;
       {
-         /*
-         Only check account root type if it has a root to begin with. Some
-         accounts do not carry roots (e.g. from Armory135 wallets)
-         */
          auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(
             assetData->root_);
 
-         if (rootSingle == nullptr)
-            throw AccountException("invalid account root");
-         woRoot = rootSingle->getPublicCopy();
+         if (rootSingle != nullptr)
+            woRoot = rootSingle->getPublicCopy();
       }
 
-      auto woAccPtr = make_shared<AssetAccountData>(
+      SecureBinaryData rootData;
+      if (woRoot != nullptr)
+         rootData = woRoot->serialize();
+
+      SecureBinaryData derData;
+      if (assetData->derScheme_ != nullptr)
+         derData = assetData->derScheme_->serialize();
+
+      AssetAccountPublicData assaPD {
          assetData->id_, assetData->parentId_,
-         woRoot,
-         assetData->derScheme_, "");
-      woAccPtr->lastUsedIndex_ = assetData->lastUsedIndex_;
+         rootData, derData,
+         accPtr->getHighestUsedIndex(), accPtr->getLastComputedIndex() };
 
-      size_t lastComputedAssetId = 0;
-      auto lastAssetIter = assetData->assets_.rbegin();
-      if (lastAssetIter != assetData->assets_.rend())
-         lastComputedAssetId = lastAssetIter->first;
-
-      AccountDataStruct ads;
-      ads.accountData_ = woAccPtr;
-      ads.type_ = assetAccPair.second.type_;
-      aapd.accountDataMap_.emplace(
-         woAccPtr->id_,
-         make_pair(lastComputedAssetId, move(ads)));
+      aapd.accountDataMap_.emplace(assetData->id_, move(assaPD));
    }
 
    return aapd;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void AddressAccount::importPublicData(const AddressAccountPublicData& aapd)
+{
+   //sanity check
+   if (aapd.ID_ != ID_)
+      throw AccountException("[importPublicData] ID mismatch");
+
+   //synchronize address chains
+   for (auto& assapd : aapd.accountDataMap_)
+   {
+      auto accPtr = getAccountForID(assapd.first);
+      if (accPtr == nullptr)
+         throw AccountException("[importPublicData] missing asset account");
+
+      //do not allow rollbacks
+      if (assapd.second.lastComputedIndex_ > accPtr->getLastComputedIndex())
+      {
+         accPtr->extendPublicChainToIndex(
+            nullptr, assapd.second.lastComputedIndex_);
+      }
+
+      if (assapd.second.lastUsedIndex_ > accPtr->getHighestUsedIndex())
+         accPtr->data_->lastUsedIndex_ = assapd.second.lastUsedIndex_;
+   }
+
+   //sync address set
+   addresses_ = aapd.addresses_;
+
+   //check the assets for addresses do exist
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1107,8 +1044,7 @@ shared_ptr<AddressEntry> AddressAccount::getAddressEntryForID(
 
    //get the asset account
    auto accIDRef = ID.getSliceRef(4, 4);
-   const auto& acc = getAccountDataForID(accIDRef);
-   AssetAccount account(acc.accountData_);
+   AssetAccount account(getAccountDataForID(accIDRef));
 
    //does this ID exist?
    BinaryRefReader brr(ID);
@@ -1141,7 +1077,7 @@ map<BinaryData, shared_ptr<AddressEntry>> AddressAccount::getUsedAddressMap()
 
    for (auto& account : accountDataMap_)
    {
-      const AssetAccount aa(account.second.accountData_);
+      const AssetAccount aa(account.second);
 
       auto usedIndex = aa.getHighestUsedIndex();
       if (usedIndex == UINT32_MAX)
@@ -1195,7 +1131,7 @@ shared_ptr<AssetEntry_BIP32Root> AddressAccount::getBip32RootForAssetId(
    const auto& acc = getAccountDataForID(accID);
 
    //grab the account's root
-   auto root = acc.accountData_->root_;
+   auto root = acc->root_;
 
    //is it bip32?
    auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(root);
@@ -1212,7 +1148,7 @@ bool AddressAccount::hasBip32Path(
    //look for an account which root's path matches that of our desired path
    for (const auto& accountPair : accountDataMap_)
    {
-      auto root = accountPair.second.accountData_->root_;
+      auto root = accountPair.second->root_;
       auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(root);
       if (rootBip32 == nullptr)
          continue;

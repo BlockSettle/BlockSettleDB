@@ -166,13 +166,19 @@ void AuthorizedPeers::createWallet(
       //generate bip32 node from random seed
       auto&& seed = CryptoPRNG::generateRandom(32);
 
-      auto account = make_shared<AccountType_BIP32>(derPath);
-      account->setMain(true);
-      account->setAddressLookup(2);
-
       wallet_ = AssetWallet_Single::createFromSeed_BIP32_Blank(
          baseDir, seed, password, controlPassphrase);
       auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wallet_);
+
+      auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(
+         wltSingle->getRoot());
+      if (rootBip32 == nullptr)
+         throw AuthorizedPeersException("[createWallet] invalid root");
+
+      auto account = AccountType_BIP32::makeFromDerPaths(
+         rootBip32->getSeedFingerprint(false), {derPath});
+      account->setMain(true);
+      account->setAddressLookup(2);
 
       auto privKeyPassLbd = [&password](const set<BinaryData>&)->SecureBinaryData
       {

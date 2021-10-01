@@ -96,7 +96,6 @@ protected:
    void loadMetaAccounts(void);
 
    //virtual
-   virtual void updateHashMap(void);
    virtual void readFromFile(void) = 0;
 
    //static
@@ -165,8 +164,8 @@ public:
    std::map<BinaryData, std::shared_ptr<AddressEntry>> 
       getUsedAddressMap(void) const;
 
-   std::shared_ptr<AddressAccount> 
-      createAccount(std::shared_ptr<AccountType>);
+   std::shared_ptr<AddressAccount> createAccount(
+      std::shared_ptr<AccountType>);
 
    void addSubDB(const std::string& dbName, const PassphraseLambda&);
    std::shared_ptr<DBIfaceTransaction> beginSubDBTransaction(
@@ -196,6 +195,7 @@ public:
    virtual std::set<BinaryData> getAddrHashSet();
    virtual const SecureBinaryData& getDecryptedValue(
       std::shared_ptr<Asset_EncryptedData>) = 0;
+   virtual std::shared_ptr<AssetEntry> getRoot(void) const = 0;
 
    //static
    static void setMainWallet(
@@ -234,17 +234,17 @@ protected:
       const SecureBinaryData& chaincode,
       uint32_t seedFingerprint);
 
-   static std::shared_ptr<AssetWallet_Single> initWalletDbFromPubRoot(
+   static std::shared_ptr<AssetWallet_Single> initWalletDbWithPubRoot(
       std::shared_ptr<WalletDBInterface> iface,
       const SecureBinaryData& controlPassphrase,
       const std::string& masterID, const std::string& walletID,
-      SecureBinaryData& pubRoot);
+      std::shared_ptr<AssetEntry_Single> pubRoot);
 
 private:
-   static void copyPublicData(
-      std::shared_ptr<AssetWallet_Single>, std::shared_ptr<WalletDBInterface>);
    static WalletPublicData exportPublicData(
       std::shared_ptr<AssetWallet_Single>);
+   static void importPublicData(const WalletPublicData&,
+      std::shared_ptr<WalletDBInterface>);
 
    void setSeed(const SecureBinaryData&, const SecureBinaryData&);
 
@@ -260,15 +260,12 @@ public:
    void changePrivateKeyPassphrase(const std::function<SecureBinaryData(void)>&);
    void erasePrivateKeyPassphrase(void);
 
-   std::shared_ptr<AssetEntry_Single> getRoot(void) const { return root_; }
+   std::shared_ptr<AssetEntry> getRoot(void) const override { return root_; }
    const SecureBinaryData& getPublicRoot(void) const;
    std::shared_ptr<AssetEntry> getAccountRoot(const BinaryData& accountID) const;
    const SecureBinaryData& getArmory135Chaincode(void) const;
    
    const BinaryData& createBIP32Account(
-      std::shared_ptr<AccountType_BIP32>);
-   const BinaryData& createBIP32Account_WithParent(
-      std::shared_ptr<AssetEntry_BIP32Root> parentNode,
       std::shared_ptr<AccountType_BIP32>);
 
    bool isWatchingOnly(void) const;
@@ -287,6 +284,8 @@ public:
    ArmorySigner::BIP32_AssetPath getBip32PathForAssetID(const BinaryData&) const;
 
    std::string getXpubForAssetID(const BinaryData&) const;
+   std::shared_ptr<AccountType_BIP32> makeNewBip32AccTypeObject(
+      const std::vector<uint32_t>&) const;
 
    //virtual
    const SecureBinaryData& getDecryptedValue(
@@ -328,7 +327,7 @@ public:
       const SecureBinaryData& passphrase,
       const SecureBinaryData& controlPassphrase);
 
-   static std::shared_ptr<AssetWallet_Single> createSeedless_WatchingOnly(
+   static std::shared_ptr<AssetWallet_Single> createBlank(
       const std::string& folder,
       const std::string& walletID,
       const SecureBinaryData& controlPassphrase);
@@ -362,6 +361,7 @@ public:
 
    //virtual
    bool setImport(int importID, const SecureBinaryData& pubkey);
+   std::shared_ptr<AssetEntry> getRoot(void) const override {return nullptr;}
 
    static std::shared_ptr<AssetWallet> createFromWallets(
       std::vector<std::shared_ptr<AssetWallet>> wallets,

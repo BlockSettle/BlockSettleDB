@@ -23,11 +23,13 @@
 class DBIfaceTransaction;
 class WalletDBInterface;
 class DerivationScheme;
+enum class DerivationSchemeType : int;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct AssetAccountData
 {
 public:
+   const AssetAccountTypeEnum type_;
    BinaryData id_;
    BinaryData parentId_;
 
@@ -37,20 +39,21 @@ public:
    const std::string dbName_;
 
    std::map<unsigned, std::shared_ptr<AssetEntry>> assets_;
-   unsigned lastUsedIndex_ = UINT32_MAX;
+   int lastUsedIndex_ = -1;
 
    //<assetID, <address type, prefixed address hash>>
    std::map<BinaryData, std::map<AddressEntryType, BinaryData>> addrHashMap_;
-   unsigned lastHashedAsset_ = UINT32_MAX;
+   int lastHashedAsset_ = -1;
 
 public:
    AssetAccountData(
+      const AssetAccountTypeEnum type,
       const BinaryData& id,
       const BinaryData& parentId,
       std::shared_ptr<AssetEntry> root,
       std::shared_ptr<DerivationScheme> scheme,
       const std::string& dbName) :
-      id_(id), parentId_(parentId), 
+      type_(type), id_(id), parentId_(parentId), 
       root_(root), derScheme_(scheme),
       dbName_(dbName)
    {}
@@ -58,11 +61,17 @@ public:
    std::shared_ptr<AssetAccountData> copy(const std::string&) const;
 };
 
-////
-struct AccountDataStruct
+////////////////////////////////////////////////////////////////////////////////
+struct AssetAccountPublicData
 {
-   AssetAccountTypeEnum type_;
-   std::shared_ptr<AssetAccountData> accountData_;
+   const BinaryData id_;
+   const BinaryData parentId_;
+
+   const SecureBinaryData rootData_;
+   const SecureBinaryData derivationData_;
+
+   const int lastUsedIndex_;
+   const int lastComputedIndex_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,7 +145,7 @@ public:
 
    size_t getAssetCount(void) const;
    int getLastComputedIndex(void) const;
-   unsigned getHighestUsedIndex(void) const;
+   int getHighestUsedIndex(void) const;
    std::shared_ptr<AssetEntry> getLastAssetWithPrivateKey(void) const;
 
    std::shared_ptr<AssetEntry> getAssetForID(const BinaryData&) const;
@@ -155,8 +164,9 @@ public:
    void extendPublicChain(std::shared_ptr<WalletDBInterface>, unsigned);
 
    //static
-   static AccountDataStruct loadFromDisk(const BinaryData& key,
-      std::shared_ptr<WalletDBInterface>, const std::string&);
+   static std::shared_ptr<AssetAccountData> loadFromDisk(
+      const BinaryData& key, std::shared_ptr<WalletDBInterface>,
+      const std::string&);
 
    //Lockable virtuals
    void initAfterLock(void) {}

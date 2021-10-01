@@ -45,8 +45,8 @@ struct AddressAccountPublicData
 
    std::map<BinaryData, AddressEntryType> addresses_;
 
-   //<accountID, <last computed id, account data>>
-   std::map<BinaryData, std::pair<size_t, AccountDataStruct>> accountDataMap_;
+   //<accountID, <account data>
+   std::map<BinaryData, AssetAccountPublicData> accountDataMap_;
 };
 
 ////
@@ -60,7 +60,7 @@ class AddressAccount : public Lockable
    friend class AssetWallet_Single;
 
 private:
-   std::map<BinaryData, AccountDataStruct> accountDataMap_;
+   std::map<BinaryData, std::shared_ptr<AssetAccountData>> accountDataMap_;
    std::map<BinaryData, AddressEntryType> addresses_;
 
 private:
@@ -85,7 +85,7 @@ private:
    void reset(void);
 
    void addAccount(std::shared_ptr<AssetAccount>);
-   void addAccount(AccountDataStruct&);
+   void addAccount(std::shared_ptr<AssetAccountData>);
 
    void updateInstantiatedAddressType(
       std::shared_ptr<WalletDBInterface>,
@@ -110,7 +110,7 @@ private:
    std::shared_ptr<AssetEntry_BIP32Root> getBip32RootForAssetId(
       const BinaryData&) const;
 
-   const AccountDataStruct& getAccountDataForID(
+   const std::shared_ptr<AssetAccountData>& getAccountDataForID(
       const BinaryData&) const;
 
 public:
@@ -123,7 +123,8 @@ public:
    void make_new(
       std::shared_ptr<AccountType>,
       std::shared_ptr<DecryptedDataContainer>,
-      std::unique_ptr<Cipher>);
+      std::unique_ptr<Cipher>,
+      const std::function<std::shared_ptr<AssetEntry>(void)>&);
 
    void readFromDisk(
       std::shared_ptr<WalletDBInterface>, 
@@ -189,9 +190,8 @@ public:
    const BinaryData& getOuterAccountID(void) const { return outerAccount_; }
    const BinaryData& getInnerAccountID(void) const { return innerAccount_; }
 
-   static std::shared_ptr<AddressAccount> createFromPublicData(
-      const AddressAccountPublicData&, const std::string&);
    AddressAccountPublicData exportPublicData() const;
+   void importPublicData(const AddressAccountPublicData&);
 
    std::shared_ptr<AddressEntry> getAddressEntryForID(
       const BinaryDataRef&) const;
