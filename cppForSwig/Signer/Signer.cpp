@@ -347,16 +347,16 @@ bool ScriptSpender::isResolved() const
 
    if (!isSegWit())
    {
-      if (legacyStatus_ >= SpenderStatus_Resolved)
+      if (legacyStatus_ >= SpenderStatus::Resolved)
          return true;
    }
    else
    {
       //If this spender is SW, only emtpy (native sw) and resolved (nested sw) 
       //states are valid. The SW stack should not be empty for a SW input
-      if ((legacyStatus_ == SpenderStatus_Empty ||
-         legacyStatus_ == SpenderStatus_Resolved) &&
-         segwitStatus_ >= SpenderStatus_Resolved)
+      if ((legacyStatus_ == SpenderStatus::Empty ||
+         legacyStatus_ == SpenderStatus::Resolved) &&
+         segwitStatus_ >= SpenderStatus::Resolved)
       {
          return true;
       }
@@ -379,18 +379,18 @@ bool ScriptSpender::isSigned() const
 
    if (!isSegWit())
    {
-      if (legacyStatus_ == SpenderStatus_Signed &&
-         segwitStatus_ == SpenderStatus_Empty)
+      if (legacyStatus_ == SpenderStatus::Signed &&
+         segwitStatus_ == SpenderStatus::Empty)
       {
          return true;
       }
    }
    else
    {
-      if (segwitStatus_ == SpenderStatus_Signed)
+      if (segwitStatus_ == SpenderStatus::Signed)
       {
-         if (legacyStatus_ == SpenderStatus_Empty ||
-            legacyStatus_ == SpenderStatus_Resolved)
+         if (legacyStatus_ == SpenderStatus::Empty ||
+            legacyStatus_ == SpenderStatus::Resolved)
          {
             return true;
          }
@@ -436,7 +436,7 @@ BinaryData ScriptSpender::getAvailableInputScript() const
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData ScriptSpender::getSerializedInput(bool withSig) const
 {
-   if (legacyStatus_ == SpenderStatus_Unknown)
+   if (legacyStatus_ == SpenderStatus::Unknown)
    {
       throw SpenderException("unresolved spender");
    }
@@ -445,15 +445,15 @@ BinaryData ScriptSpender::getSerializedInput(bool withSig) const
    {
       if (!isSegWit())
       {
-         if (legacyStatus_ != SpenderStatus_Signed)
-            throw SpenderException("spender is missing sigs");        
+         if (legacyStatus_ != SpenderStatus::Signed)
+            throw SpenderException("spender is missing sigs");
       }
       else
       {
-         if (legacyStatus_ != SpenderStatus_Empty && 
-            legacyStatus_ != SpenderStatus_Resolved)
+         if (legacyStatus_ != SpenderStatus::Empty && 
+            legacyStatus_ != SpenderStatus::Resolved)
          {
-            throw SpenderException("invalid legacy state for sw spender");                   
+            throw SpenderException("invalid legacy state for sw spender");
          }
       }
    }
@@ -486,10 +486,10 @@ BinaryDataRef ScriptSpender::getFinalizedWitnessData(void) const
 {
    if (isSegWit())
    {
-      if(segwitStatus_ != SpenderStatus_Signed)
+      if(segwitStatus_ != SpenderStatus::Signed)
          throw runtime_error("witness data missing signature");
    }
-   else if (segwitStatus_ != SpenderStatus_Empty)
+   else if (segwitStatus_ != SpenderStatus::Empty)
    {
       throw runtime_error("unresolved witness");
    }
@@ -567,7 +567,7 @@ void ScriptSpender::updateStack(map<unsigned, shared_ptr<StackItem>>& stackMap,
          if (!iter_pair.first->second->isValid())
             iter_pair.first->second = stack_item;
          else if (stack_item->isValid())
-            throw ScriptException("invalid push_data");            
+            throw ScriptException("invalid push_data");
 
          break;
       }
@@ -609,7 +609,7 @@ void ScriptSpender::processStacks()
       const map<unsigned, shared_ptr<StackItem>>& stack)
       ->SpenderStatus
    {
-      SpenderStatus stackState = SpenderStatus_Resolved;
+      SpenderStatus stackState = SpenderStatus::Resolved;
       for (auto& item_pair : stack)
       {
          auto& stack_item = item_pair.second;
@@ -619,7 +619,7 @@ void ScriptSpender::processStacks()
             {
                if (stack_item->isValid())
                {
-                  stackState = SpenderStatus_Signed;
+                  stackState = SpenderStatus::Signed;
                   break;
                }
 
@@ -630,7 +630,7 @@ void ScriptSpender::processStacks()
                   throw runtime_error("unexpected stack item type");
 
                if (stack_item_ms->sigs_.size() > 0)
-                  stackState = SpenderStatus_PartiallySigned;
+                  stackState = SpenderStatus::PartiallySigned;
                   
                break;
             }
@@ -638,14 +638,14 @@ void ScriptSpender::processStacks()
             case StackItemType_Sig:
             {
                if (stack_item->isValid())
-                  stackState = SpenderStatus_Signed;
+                  stackState = SpenderStatus::Signed;
                break;
             }
 
             default:
             {
                if (!stack_item->isValid())
-                  return SpenderStatus_Unknown;
+                  return SpenderStatus::Unknown;
             }
          }
       }
@@ -665,14 +665,14 @@ void ScriptSpender::processStacks()
       {
          switch (stackState)
          {
-            case SpenderStatus_Resolved:
-            case SpenderStatus_PartiallySigned:
+            case SpenderStatus::Resolved:
+            case SpenderStatus::PartiallySigned:
             {
                //do not set the script, keep the stack
                break;
             }
 
-            case SpenderStatus_Signed:
+            case SpenderStatus::Signed:
             {
                //set the script, clear the stack
 
@@ -697,7 +697,7 @@ void ScriptSpender::processStacks()
    if (legacyStack_.size() > 0)
    {
       updateState(legacyStack_, legacyStatus_, [this](
-         const vector<shared_ptr<StackItem>>& stackVec) 
+         const vector<shared_ptr<StackItem>>& stackVec)
          { finalInputScript_ = move(serializeScript(stackVec)); }
       );
    }
@@ -705,7 +705,7 @@ void ScriptSpender::processStacks()
    if (witnessStack_.size() > 0)
    {
       updateState(witnessStack_, segwitStatus_, [this](
-         const vector<shared_ptr<StackItem>>& stackVec) 
+         const vector<shared_ptr<StackItem>>& stackVec)
          { this->setWitnessData(stackVec); }
       );
    }
@@ -754,13 +754,13 @@ void ScriptSpender::serializeStateUtxo(
 void ScriptSpender::serializeLegacyState(
    Codec_SignerState::ScriptSpenderState& protoMsg) const
 {
-   if (legacyStatus_ == SpenderStatus_Signed)
+   if (legacyStatus_ == SpenderStatus::Signed)
    {
       //put resolved script
       protoMsg.set_sig_script(
          finalInputScript_.getPtr(), finalInputScript_.getSize());
    }
-   else if (legacyStatus_ >= SpenderStatus_Resolved)
+   else if (legacyStatus_ >= SpenderStatus::Resolved)
    {
       //put legacy stack
       for (auto stackItem : legacyStack_)
@@ -775,13 +775,13 @@ void ScriptSpender::serializeLegacyState(
 void ScriptSpender::serializeSegwitState(
    Codec_SignerState::ScriptSpenderState& protoMsg) const
 {
-   if (segwitStatus_ == SpenderStatus_Signed)
+   if (segwitStatus_ == SpenderStatus::Signed)
    {
       //put resolved witness data
       protoMsg.set_witness_data(
          finalWitnessData_.getPtr(), finalWitnessData_.getSize());
    }
-   else if (segwitStatus_ >= SpenderStatus_Resolved)
+   else if (segwitStatus_ >= SpenderStatus::Resolved)
    {
       //put witness stack
       for (auto stackItem : witnessStack_)
@@ -949,12 +949,12 @@ void ScriptSpender::merge(const ScriptSpender& obj)
    isCSV_  |= obj.isCSV_;
 
    //legacy stack
-   if (legacyStatus_ != SpenderStatus_Signed)
+   if (legacyStatus_ != SpenderStatus::Signed)
    {
       switch (obj.legacyStatus_)
       {
-      case SpenderStatus_Resolved:
-      case SpenderStatus_PartiallySigned:
+      case SpenderStatus::Resolved:
+      case SpenderStatus::PartiallySigned:
       {
          //merge the stacks
          vector<shared_ptr<StackItem>> objStackVec;
@@ -972,7 +972,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
          break;
       }
 
-      case SpenderStatus_Signed:
+      case SpenderStatus::Signed:
       {
          finalInputScript_ = obj.finalInputScript_;
          //fallthrough
@@ -986,12 +986,12 @@ void ScriptSpender::merge(const ScriptSpender& obj)
    }
 
    //segwit stack
-   if (segwitStatus_ != SpenderStatus_Signed)
+   if (segwitStatus_ != SpenderStatus::Signed)
    {
       switch (obj.segwitStatus_)
       {
-      case SpenderStatus_Resolved:
-      case SpenderStatus_PartiallySigned:
+      case SpenderStatus::Resolved:
+      case SpenderStatus::PartiallySigned:
       {
          //merge the stacks
          vector<shared_ptr<StackItem>> objStackVec;
@@ -1003,7 +1003,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
          break;
       }      
 
-      case SpenderStatus_Signed:
+      case SpenderStatus::Signed:
       {
          finalWitnessData_ = obj.finalWitnessData_;
          //fallthrough
@@ -1167,8 +1167,8 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
    //legacy status
    if (legacyStatus_ != rhs.legacyStatus_)
    {
-      if (legacyStatus_ >= SpenderStatus_Resolved && 
-         rhs.legacyStatus_ != SpenderStatus_Resolved)
+      if (legacyStatus_ >= SpenderStatus::Resolved && 
+         rhs.legacyStatus_ != SpenderStatus::Resolved)
       {
          /*
          This checks resolved state. Signed spenders are resolved.
@@ -1197,8 +1197,8 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
    //segwit status
    if (segwitStatus_ != rhs.segwitStatus_)
    {
-      if (segwitStatus_ >= SpenderStatus_Resolved &&
-         rhs.segwitStatus_ != SpenderStatus_Resolved)
+      if (segwitStatus_ >= SpenderStatus::Resolved &&
+         rhs.segwitStatus_ != SpenderStatus::Resolved)
       {
          /*
          This checks resolved state. Signed spenders are resolved.
@@ -1235,8 +1235,8 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
 ////////////////////////////////////////////////////////////////////////////////
 bool ScriptSpender::isInitialized() const 
 {
-   if (legacyStatus_ == SpenderStatus_Unknown &&
-      segwitStatus_ == SpenderStatus_Unknown &&
+   if (legacyStatus_ == SpenderStatus::Unknown &&
+      segwitStatus_ == SpenderStatus::Unknown &&
       isP2SH_ == false && 
       legacyStack_.empty() && witnessStack_.empty() &&
       finalInputScript_.empty() && finalWitnessData_.empty())
@@ -1377,7 +1377,7 @@ bool ScriptSpender::verifyEvalState(unsigned flags)
 void ScriptSpender::updateLegacyStack(
    const vector<shared_ptr<StackItem>>& stack)
 {
-   if (legacyStatus_ >= SpenderStatus_Resolved)
+   if (legacyStatus_ >= SpenderStatus::Resolved)
       return;
 
    if (stack.size() != 0)
@@ -1386,7 +1386,7 @@ void ScriptSpender::updateLegacyStack(
    }
    else
    {
-      legacyStatus_ = SpenderStatus_Empty;
+      legacyStatus_ = SpenderStatus::Empty;
    }
 }
 
@@ -1394,7 +1394,7 @@ void ScriptSpender::updateLegacyStack(
 void ScriptSpender::updateWitnessStack(
    const vector<shared_ptr<StackItem>>& stack)
 {
-   if (segwitStatus_ >= SpenderStatus_Resolved)
+   if (segwitStatus_ >= SpenderStatus::Resolved)
       return;
 
    updateStack(witnessStack_, stack);
@@ -1413,7 +1413,7 @@ void ScriptSpender::parseScripts(StackResolver& resolver)
 
    //push the legacy resolved data into the local legacy stack
    updateLegacyStack(resolvedStack->getStack());
-   
+
    //parse the legacy stack, will set the legacy status
    processStacks();
 
@@ -1421,11 +1421,11 @@ void ScriptSpender::parseScripts(StackResolver& resolver)
    auto resolvedStackWitness = resolvedStack->getWitnessStack();
    if (resolvedStackWitness == nullptr)
    {
-      if (legacyStatus_ >= SpenderStatus_Resolved &&
-         segwitStatus_ < SpenderStatus_Resolved)
+      if (legacyStatus_ >= SpenderStatus::Resolved &&
+         segwitStatus_ < SpenderStatus::Resolved)
       {
          //this is a pure legacy redeem script
-         segwitStatus_ = SpenderStatus_Empty; 
+         segwitStatus_ = SpenderStatus::Empty;
       }
    }
    else
@@ -1534,13 +1534,13 @@ bool ScriptSpender::isSegWit() const
 {
    switch (legacyStatus_)
    {
-   case SpenderStatus_Empty:
+   case SpenderStatus::Empty:
       return true; //empty legacy input means sw
 
-   case SpenderStatus_Resolved:
+   case SpenderStatus::Resolved:
    {
       //resolved legacy status could mean nested sw
-      if (segwitStatus_ >= SpenderStatus_Resolved)
+      if (segwitStatus_ >= SpenderStatus::Resolved)
          return true;
    }
 
@@ -1990,7 +1990,7 @@ shared_ptr<ScriptSpender> ScriptSpender::fromPSBT(
          if (val.getSize() != 4)
             throw PSBTDeserializationError("invalid sighash val length");
 
-         sigHash = *(uint32_t*)val.getPtr();
+         memcpy(&sigHash, val.getPtr(), sizeof(uint32_t));
          break;
       }
 
@@ -2079,19 +2079,19 @@ shared_ptr<ScriptSpender> ScriptSpender::fromPSBT(
    if (!finalRedeemScript.empty())
    {
       spender->finalInputScript_ = finalRedeemScript;
-      spender->legacyStatus_ = SpenderStatus_Signed;
-      spender->segwitStatus_ = SpenderStatus_Empty;
+      spender->legacyStatus_ = SpenderStatus::Signed;
+      spender->segwitStatus_ = SpenderStatus::Empty;
       isSigned = true;
    }
    
    if (!finalWitnessScript.empty())
    {
       spender->finalWitnessData_ = finalWitnessScript;
-      spender->segwitStatus_ = SpenderStatus_Signed;
+      spender->segwitStatus_ = SpenderStatus::Signed;
       if (isSigned)
-         spender->legacyStatus_ = SpenderStatus_Resolved;
+         spender->legacyStatus_ = SpenderStatus::Resolved;
       else
-         spender->legacyStatus_ = SpenderStatus_Empty;
+         spender->legacyStatus_ = SpenderStatus::Empty;
       isSigned = true;
    }
 
@@ -2290,19 +2290,19 @@ void ScriptSpender::prettyPrint(ostream& os) const
    {
       switch (status)
       {
-      case SpenderStatus_Unknown: 
+      case SpenderStatus::Unknown:
          return string("Unknown");
 
-      case SpenderStatus_Empty:
+      case SpenderStatus::Empty:
          return string("Empty");
 
-      case SpenderStatus_Resolved:
+      case SpenderStatus::Resolved:
          return string("Resolved");
 
-      case SpenderStatus_PartiallySigned:
+      case SpenderStatus::PartiallySigned:
          return string("Partially signed");
 
-      case SpenderStatus_Signed:
+      case SpenderStatus::Signed:
          return string("Signed");
 
       default:
@@ -2518,13 +2518,13 @@ void Signer::resolvePublicData()
    //run through each spenders
    for (auto& spender : spenders_)
    {
-      if (isResolved())
+      if (spender->isResolved())
          continue;
 
       if (!spender->canBeResolved())
          continue;
 
-      //resolve spender script    
+      //resolve spender script
       StackResolver resolver(
          spender->getOutputScript(),
          resolverPtr_);
@@ -2564,7 +2564,7 @@ void Signer::resolvePublicData()
       {
          try
          {
-            auto bip32path = 
+            auto bip32path =
                resolverPtr_->resolveBip32PathForPubkey(pubKeyPair.second);
             if (!bip32path.isValid())
                continue;

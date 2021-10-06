@@ -54,24 +54,24 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-enum SpenderStatus
+enum class SpenderStatus
 {
    //Not parsed yet/failed to parse entirely. This is 
    //an invalid state
-   SpenderStatus_Unknown,
+   Unknown = 0,
 
    //As the name suggests. This is a valid state
-   SpenderStatus_Empty,
+   Empty,
 
    //All public data has been resolved. This is a valid state
-   SpenderStatus_Resolved,
+   Resolved,
 
    //Resolved & partially signed (only applies to multisig scripts)
    //This is an invalid state
-   SpenderStatus_PartiallySigned,
+   PartiallySigned,
 
    //Resolved & signed. This is a valid state
-   SpenderStatus_Signed
+   Signed
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,13 +80,13 @@ class ScriptSpender
    friend class Signer;
 
 private:
-   SpenderStatus segwitStatus_ = SpenderStatus_Unknown;
+   SpenderStatus segwitStatus_ = SpenderStatus::Unknown;
    BinaryData finalWitnessData_;
    BinaryData finalInputScript_;
 
    mutable BinaryData serializedInput_;
 
-   SpenderStatus legacyStatus_ = SpenderStatus_Unknown;
+   SpenderStatus legacyStatus_ = SpenderStatus::Unknown;
    bool isP2SH_ = false;
    bool isCSV_ = false;
    bool isCLTV_ = false;

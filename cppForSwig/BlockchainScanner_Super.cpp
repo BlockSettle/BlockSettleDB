@@ -601,7 +601,7 @@ void BlockchainScanner_Super::processInputsThread(
             if (iter == sshMap.end())
             {
                auto&& ssh_pair = make_pair(
-                  move(scrAddrCopy), 
+                  move(scrAddrCopy),
                   map<BinaryData, StoredSubHistory>());
                iter = sshMap.insert(move(ssh_pair)).first;
             }
@@ -615,7 +615,7 @@ void BlockchainScanner_Super::processInputsThread(
             auto&& txoutkey = stxo.getDBKey();
             txio.setTxOut(txoutkey);
             txio.setTxIn(txinkey);
-            txio.setValue(*stxo.valuePtr_);
+            txio.setValue(stxo.getValue());
             subssh.txioMap_[txoutkey] = move(txio);
 
             spent_offset = min(spent_offset, stxo.height_);
@@ -1339,12 +1339,21 @@ void BlockchainScanner_Super::undo(Blockchain::ReorganizationState& reorgState)
 ////////////////////////////////////////////////////////////////////////////////
 void StxoRef::unserializeDBValue(const BinaryDataRef& bdr)
 {
-   auto ptr = bdr.getPtr() + 2;
-   valuePtr_ = (uint64_t*)ptr;
-   
-   BinaryRefReader brr(ptr + 8, bdr.getSize() - 8);
+   theData_ = bdr;
+
+   BinaryRefReader brr(bdr.getPtr() + 10, bdr.getSize() - 8);
    auto len = brr.get_var_int();
    scriptRef_ = brr.get_BinaryDataRef(len);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint64_t StxoRef::getValue() const
+{
+   //Compiler will optimize this away via TBAA & inlining. This change
+   //removes the potential issues from undefined behavior.
+   uint64_t value;
+   memcpy(&value, theData_.getPtr() + 2, sizeof(uint64_t));
+   return value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

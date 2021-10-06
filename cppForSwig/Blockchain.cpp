@@ -563,7 +563,7 @@ void Blockchain::putNewBareHeaders(LMDBBlockDatabase *db)
 }
 
 /////////////////////////////////////////////////////////////////////////////
-unsigned int Blockchain::getTopIdFromDb(LMDBBlockDatabase *db) const
+uint32_t Blockchain::getTopIdFromDb(LMDBBlockDatabase *db) const
 {
    auto&& tx = db->beginTransaction(HEADERS, LMDB::ReadOnly);
 
@@ -571,7 +571,9 @@ unsigned int Blockchain::getTopIdFromDb(LMDBBlockDatabase *db) const
    if (value.getSize() != 4)
       return 0;
 
-   return *(uint32_t*)value.getPtr();
+   uint32_t topId;
+   memcpy(&topId, value.getPtr(), sizeof(uint32_t));
+   return topId;
 }
 
 /////////////////////////////////////////////////////////////////////////////

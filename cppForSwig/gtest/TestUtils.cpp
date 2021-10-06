@@ -37,14 +37,14 @@ namespace TestUtils
          throw runtime_error("only for buffers 8 bytes and larger");
 
       //search it
-      uint64_t* sample;
+      uint64_t sample;
       uint64_t* data_head = (uint64_t*)data.getPtr();
 
       bool result = false;
       for (unsigned i = 0; i < filemap.size_ - data.getSize(); i++)
       {
-         sample = (uint64_t*)(filemap.filePtr_ + i);
-         if (*sample == *data_head)
+         memcpy(&sample, filemap.filePtr_ + i, 8);
+         if (sample == *data_head)
          {
             BinaryDataRef bdr(filemap.filePtr_ + i, data.getSize());
             if (bdr == data.getRef())

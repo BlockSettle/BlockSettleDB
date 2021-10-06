@@ -155,7 +155,9 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
       memcpy(plainText.getPtr() + LWS_PRE, &size, 4);
       plainText.getPtr()[LWS_PRE + 4] = WS_MSGTYPE_SINGLEPACKET;
       memcpy(plainText.getPtr() + LWS_PRE + 5, &id, 4);
-      memcpy(plainText.getPtr() + LWS_PRE + 9, payload.getPtr(), data_len);
+
+      if (!payload.empty())
+         memcpy(plainText.getPtr() + LWS_PRE + 9, payload.getPtr(), data_len);
 
       encryptAndAdd(plainText);
    }

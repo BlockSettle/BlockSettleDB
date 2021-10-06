@@ -725,13 +725,19 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
+   static bool checkSwMarker(uint8_t const * ptr)
+   {
+      return ptr[0] == 0x00 && ptr[1] == 0x01;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
    static size_t TxCalcLength(uint8_t const * ptr,
                               size_t size,
                               std::vector<size_t> * offsetsIn,
                               std::vector<size_t> * offsetsOut,
                               std::vector<size_t> * offsetsWitness)
    {
-      BinaryRefReader brr(ptr, size);  
+      BinaryRefReader brr(ptr, size);
       
       if (brr.getSizeRemaining() < 4)
          throw BlockDeserializingException();
@@ -739,13 +745,9 @@ public:
       brr.advance(4);
 
       // Get marker and flag if transaction uses segwit
-      bool usesWitness = false;
-      auto marker = (const uint16_t*)brr.getCurrPtr();
-      if (*marker == 0x0100)
-      {
-         usesWitness = true;
+      auto usesWitness = checkSwMarker(brr.getCurrPtr());
+      if (usesWitness)
          brr.advance(2);
-      }
 
       // TxIn List
       uint32_t nIn = (uint32_t)brr.get_var_int();
@@ -834,13 +836,9 @@ public:
       brr.advance(4);
 
       // Get marker and flag if transaction uses segwit
-      bool usesWitness = false;
-      auto marker = (const uint16_t*)brr.getCurrPtr();
-      if (*marker == 0x0100)
-      {
-         usesWitness = true;
+      auto usesWitness = checkSwMarker(brr.getCurrPtr());
+      if (usesWitness)
          brr.advance(2);
-      }
 
       // TxIn List
       uint32_t nIn = (uint32_t)brr.get_var_int();
@@ -900,11 +898,12 @@ public:
          if (offsetsWitness != nullptr)
          {
             offsetsWitness->resize(nIn + 1);
-            for (uint32_t i = 0; i < nIn; i++) {
+            for (uint32_t i = 0; i < nIn; i++)
+            {
                (*offsetsWitness)[i] = brr.getPosition();
                brr.advance(TxWitnessCalcLength(brr.getCurrPtr(), brr.getSizeRemaining()));
-			}
-			(*offsetsWitness)[nIn] = brr.getPosition();
+            }
+            (*offsetsWitness)[nIn] = brr.getPosition();
          }
          else
          {

@@ -7469,8 +7469,8 @@ TEST_F(ExtrasTest, Serialization)
             else
                protoMsg.set_version_min(SCRIPT_SPENDER_VERSION_MIN);
 
-            protoMsg.set_legacy_status((uint8_t)SpenderStatus_Empty);
-            protoMsg.set_segwit_status((uint8_t)SpenderStatus_Resolved);
+            protoMsg.set_legacy_status((uint8_t)SpenderStatus::Empty);
+            protoMsg.set_segwit_status((uint8_t)SpenderStatus::Resolved);
 
             protoMsg.set_sighash_type((uint8_t)SIGHASH_ALL);
             protoMsg.set_sequence(UINT32_MAX);
@@ -7564,12 +7564,12 @@ TEST_F(ExtrasTest, Serialization)
             if (counter_ == 0)
                protoMsg.set_legacy_status((uint8_t)30);
             else 
-               protoMsg.set_legacy_status((uint8_t)SpenderStatus_Empty);
+               protoMsg.set_legacy_status((uint8_t)SpenderStatus::Empty);
 
             if (counter_ == 1)
-               protoMsg.set_segwit_status((uint8_t)SpenderStatus_Signed);
+               protoMsg.set_segwit_status((uint8_t)SpenderStatus::Signed);
             else
-               protoMsg.set_segwit_status((uint8_t)SpenderStatus_Resolved);
+               protoMsg.set_segwit_status((uint8_t)SpenderStatus::Resolved);
 
             protoMsg.set_sighash_type((uint8_t)SIGHASH_ALL);
             protoMsg.set_sequence(UINT32_MAX);

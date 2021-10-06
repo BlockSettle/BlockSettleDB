@@ -219,37 +219,38 @@ map<BinaryData, LedgerEntry> LedgerEntry::computeLedgerMap(
      
       while (txioIter != txioVec.second.cend())
       {
-
+         const auto& txio = *(*txioIter);
          if (blockNum == UINT32_MAX)
          {
-            if ((*txioIter)->isRBF())
+            if (txio.isRBF())
                isRBF = true;
             
-            if ((*txioIter)->getTxTime() > txTime)
-               txTime = (*txioIter)->getTxTime();
+            if (txio.getTxTime() > txTime)
+               txTime = txio.getTxTime();
          }
 
-         if ((*txioIter)->getDBKeyOfOutput().startsWith(txioVec.first))
+         if (txio.getDBKeyOfOutput().startsWith(txioVec.first))
          {
-            isCoinbase |= (*txioIter)->isFromCoinbase();
-            valIn += (*txioIter)->getValue();
-            value += (*txioIter)->getValue();
+            isCoinbase |= txio.isFromCoinbase();
+            valIn += txio.getValue();
+            value += txio.getValue();
 
             nTxOutAreOurs++;
          }
 
-         if ((*txioIter)->getDBKeyOfInput().startsWith(txioVec.first))
+         if (txio.hasTxIn() &&
+            txio.getDBKeyOfInput().startsWith(txioVec.first))
          {
-            valOut -= (*txioIter)->getValue();
-            value -= (*txioIter)->getValue();
+            valOut -= txio.getValue();
+            value -= txio.getValue();
 
             nTxInAreOurs++;
 
-            if ((*txioIter)->isChainedZC())
+            if (txio.isChainedZC())
                isChained = true;
          }
 
-         scrAddrSet.insert((*txioIter)->getScrAddr());
+         scrAddrSet.insert(txio.getScrAddr());
          ++txioIter;
       }
 

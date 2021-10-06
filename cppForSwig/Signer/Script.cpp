@@ -28,7 +28,7 @@ bool StackItem_PushData::isSame(const StackItem* obj) const
    auto obj_cast = dynamic_cast<const StackItem_PushData*>(obj);
    if (obj_cast == nullptr)
       return false;
- 
+
    return data_ == obj_cast->data_;
 }
 

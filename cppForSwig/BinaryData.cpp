@@ -278,10 +278,15 @@ uint64_t BinaryRefReader::get_var_int(uint8_t* nRead)
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryData::operator==(BinaryDataRef const & bd2) const
 {
-   if(getSize() != bd2.getSize())
-      return false;
+   if (!empty())
+   {
+      if(getSize() != bd2.getSize())
+         return false;
 
-   return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
+      return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
+   }
+
+   return bd2.empty();
 }
 
 /////////////////////////////////////////////////////////////////////////////

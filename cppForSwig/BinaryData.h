@@ -141,7 +141,7 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   uint8_t const * getPtr(void) const       
+   uint8_t const * getPtr(void) const
    { 
       if(getSize()==0)
          return NULL;
@@ -150,7 +150,7 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   uint8_t* getPtr(void)                   
+   uint8_t* getPtr(void)
    { 
       if(getSize()==0)
          return NULL;
@@ -201,16 +201,16 @@ public:
       copyFrom(str.c_str(), str.size());
    }
 
-   void copyFrom(BinaryData const & bd)                      
+   void copyFrom(BinaryData const & bd)
                   { copyFrom( bd.getPtr(), bd.getSize() ); }
    void copyFrom(BinaryDataRef const & bdr);
-   
+
    void copyFrom(char const * inData, size_t sz)
    {
       copyFrom((uint8_t*)inData, sz);
    }
 
-   void copyFrom(uint8_t const * inData, size_t sz)          
+   void copyFrom(uint8_t const * inData, size_t sz)
    { 
       if(inData==NULL || sz == 0)
          alloc(0);
@@ -228,11 +228,11 @@ public:
    void copyTo(uint8_t* outData, size_t offset, size_t sz) const { memcpy( outData, &(data_[offset]), (size_t)sz); }
    void copyTo(BinaryData & bd) const 
    {
-      bd.resize(data_.size());
-#ifdef _MSC_VER 
-	  if(data_.size())
-#endif
-	  memcpy( bd.getPtr(), &data_[0], data_.size());
+      if (empty())
+         return;
+
+      bd.resize(getSize());
+      memcpy(bd.getPtr(), getPtr(), getSize());
    }
 
    void fill(uint8_t ch) { if(getSize()>0) memset(getPtr(), ch, getSize()); }
@@ -246,13 +246,18 @@ public:
       os << bd.toHexStr();
       return os;
    }
-  
-   
+
    /////////////////////////////////////////////////////////////////////////////
    BinaryData operator+(BinaryData const & bd2) const
    {
+      if (bd2.empty())
+         return *this;
+
       BinaryData out(getSize() + bd2.getSize());
-      memcpy(out.getPtr(), getPtr(), getSize());
+
+      if (!empty())
+         memcpy(out.getPtr(), getPtr(), getSize());
+
       memcpy(out.getPtr()+getSize(), bd2.getPtr(), bd2.getSize());
       return out;
    }
@@ -320,10 +325,15 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    bool operator==(BinaryData const & bd2) const
    {
-      if(getSize() != bd2.getSize())
-         return false;
+      if (!empty())
+      {
+         if (getSize() != bd2.getSize())
+            return false;
 
-      return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
+         return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
+      }
+
+      return bd2.empty();
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -347,11 +357,12 @@ public:
 
    /////////////////////////////////////////////////////////////////////////////
    // These are always memory-safe
-   void copyTo(std::string & str) {
-#ifdef _MSC_VER
-	if(getSize())
-#endif
-	   str.assign( (char const *)(&(data_[0])), getSize()); 
+   void copyTo(std::string & str)
+   {
+      if (empty())
+         return;
+
+      str.assign( (char const *)(&(data_[0])), getSize());
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -505,7 +516,13 @@ public:
    template<typename INTTYPE>
    static INTTYPE StrToIntLE(uint8_t const * ptr)
    {
-      return  *((INTTYPE*)ptr);
+      //return  *((INTTYPE*)ptr);
+      //the kind of typecasts are undefined behavior, use memcpy 
+      //instead, TBAA will optimize it away
+
+      INTTYPE result;
+      memcpy(&result, ptr, sizeof(INTTYPE));
+      return result;
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -653,8 +670,11 @@ public:
    void copyTo(uint8_t* outData, size_t sz) const { memcpy( outData, ptr_, (size_t)sz); }
    void copyTo(uint8_t* outData, size_t offset, size_t sz) const 
                                     { memcpy( outData, ptr_+offset, (size_t)sz); }
-   void copyTo(BinaryData & bd) const 
+   void copyTo(BinaryData & bd) const
    {
+      if (empty())
+         return;
+
       bd.resize(nBytes_);
       memcpy( bd.getPtr(), ptr_, (size_t)nBytes_);
    }

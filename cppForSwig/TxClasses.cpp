@@ -333,11 +333,7 @@ void Tx::unserialize(uint8_t const * ptr, size_t size)
    if(8 > size)
       throw BlockDeserializingException();
 
-   usesWitness_ = false;
-   auto marker = (const uint16_t*)(ptr + 4);
-   if (*marker == 0x0100)
-      usesWitness_ = true;
-
+   usesWitness_ = BtcUtils::checkSwMarker(ptr + 4);
    uint32_t numWitness = offsetsWitness_.size() - 1;
    version_ = READ_UINT32_LE(ptr);
    if(4 > size - offsetsWitness_[numWitness])
@@ -471,9 +467,12 @@ bool Tx::isRBF() const
    for (unsigned i = 0; i < offsetsTxIn_.size() - 1; i++)
    {
       uint32_t sequenceOffset = offsetsTxIn_[i + 1] - 4;
-      uint32_t* sequencePtr = (uint32_t*)(dataCopy_.getPtr() + sequenceOffset);
+      uint32_t sequence;
+      memcpy(&sequence,
+         dataCopy_.getPtr() + sequenceOffset,
+         sizeof(uint32_t));
 
-      if (*sequencePtr < 0xFFFFFFFF - 1)
+      if (sequence < 0xFFFFFFFF - 1)
          return true;
    }
 
