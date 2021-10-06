@@ -3272,7 +3272,9 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
    }
    
    iface->shutdown();
-   
+   dbEnv->close();
+   dbEnv->open(dbPath_, 0);
+
    //grab db salt
    SecureBinaryData dbSalt;
    {
@@ -5813,6 +5815,11 @@ TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
 
    //extend chains, check new stuff derives properly
    {
+      auto filename = wlt->getDbFilename();
+      wlt.reset();
+      wlt = dynamic_pointer_cast<AssetWallet_Single>(
+         AssetWallet::loadMainWalletFromFile(filename, controlLbd_));
+
       auto passphraseLBD = [&passphrase](const set<BinaryData>&)->SecureBinaryData
       {
          return passphrase;
