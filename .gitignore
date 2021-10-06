@@ -175,3 +175,7 @@ test-driver
 /cppForSwig/LMDB_Win/x64*
 /cppForSwig/protobuf/*.pb.*
 /cppForSwig/x64/*.*
+CppBridge
+armoryengine/ClientProto_pb2.py
+cppForSwig/gtest/UtilsTests
+cppForSwig/gtest/ZeroConfTests
