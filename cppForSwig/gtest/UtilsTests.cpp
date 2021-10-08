@@ -361,7 +361,7 @@ TEST_F(BIP150_151Test, checkData_151_Only)
    testMsg.getEncStructMsg(testMsgData.getPtr(), testMsgData.getSize(),
                            finalMsgSize);
    testMsgData.resize(finalMsgSize);
-   EXPECT_EQ(finalMsgSize, 17);
+   EXPECT_EQ(finalMsgSize, 17ULL);
    EXPECT_EQ(msg, testMsgData);
 
    // Encrypt and decrypt the first CLI -> SRV packet. Buffer is intentionally
@@ -1482,7 +1482,6 @@ TEST_F(BIP150_151Test, handshakeCases_151_Only)
    BIP151Connection cliCon1(akl1, false);
    BIP151Connection srvCon1(akl2, false);
    std::array<uint8_t, BIP151PUBKEYSIZE> dummy1{};
-   std::array<uint8_t, BIP151PUBKEYSIZE> dummy2{};
    int s1 = cliCon1.getEncackData(dummy1.data(),
                                   dummy1.size());
    EXPECT_EQ(-1, s1);
@@ -1861,12 +1860,12 @@ TEST_F(BinaryDataTest, Constructor)
    BinaryData e(b);
    auto&& f = BinaryData::fromString("xyza");
 
-   EXPECT_EQ(a.getSize(), 0);
-   EXPECT_EQ(b.getSize(), 4);
-   EXPECT_EQ(c.getSize(), 2);
-   EXPECT_EQ(d.getSize(), 4);
-   EXPECT_EQ(e.getSize(), 4);
-   EXPECT_EQ(f.getSize(), 4);
+   EXPECT_EQ(a.getSize(), 0ULL);
+   EXPECT_EQ(b.getSize(), 4ULL);
+   EXPECT_EQ(c.getSize(), 2ULL);
+   EXPECT_EQ(d.getSize(), 4ULL);
+   EXPECT_EQ(e.getSize(), 4ULL);
+   EXPECT_EQ(f.getSize(), 4ULL);
 
    EXPECT_TRUE( a.empty());
    EXPECT_FALSE(b.empty());
@@ -1878,8 +1877,8 @@ TEST_F(BinaryDataTest, Constructor)
    BinaryDataRef h(d);
    BinaryData    i(g);
 
-   EXPECT_EQ(   g.getSize(), 4);
-   EXPECT_EQ(   i.getSize(), 4);
+   EXPECT_EQ(   g.getSize(), 4ULL);
+   EXPECT_EQ(   i.getSize(), 4ULL);
    EXPECT_TRUE( g==f);
    EXPECT_FALSE(g==h);
    EXPECT_TRUE( i==g);
@@ -1901,9 +1900,9 @@ TEST_F(BinaryDataTest, CopyFrom)
    BinaryDataRef i(b);
    f.copyFrom(i);
 
-   EXPECT_EQ(a.getSize(), 0);
-   EXPECT_EQ(b.getSize(), 4);
-   EXPECT_EQ(c.getSize(), 4);
+   EXPECT_EQ(a.getSize(), 0ULL);
+   EXPECT_EQ(b.getSize(), 4ULL);
+   EXPECT_EQ(c.getSize(), 4ULL);
    EXPECT_EQ(a,e);
    EXPECT_EQ(b,c);
 }
@@ -1934,10 +1933,10 @@ TEST_F(BinaryDataTest, CopyTo)
    EXPECT_TRUE(bd5_.endsWith(e));
    EXPECT_TRUE(d==f);
 
-   EXPECT_EQ(a.getSize(), 0);
-   EXPECT_EQ(b.getSize(), 4);
-   EXPECT_EQ(c.getSize(), 5);
-   EXPECT_EQ(d.getSize(), 2);
+   EXPECT_EQ(a.getSize(), 0ULL);
+   EXPECT_EQ(b.getSize(), 4ULL);
+   EXPECT_EQ(c.getSize(), 5ULL);
+   EXPECT_EQ(d.getSize(), 2ULL);
    EXPECT_NE(b,c);
 }
 
@@ -2183,13 +2182,13 @@ TEST_F(BinaryDataTest, BinDataToInt)
 
    a32 = BinaryData::StrToIntBE<uint32_t>(READHEX("fec38a11"));
    b32 = BinaryData::StrToIntLE<uint32_t>(READHEX("fec38a11"));
-   EXPECT_EQ(a32, 0xfec38a11);
-   EXPECT_EQ(b32, 0x118ac3fe);
+   EXPECT_EQ(a32, 0xfec38a11ULL);
+   EXPECT_EQ(b32, 0x118ac3feULL);
 
    a64 = BinaryData::StrToIntBE<uint64_t>(READHEX("00000000fec38a11"));
    b64 = BinaryData::StrToIntLE<uint64_t>(READHEX("00000000fec38a11"));
-   EXPECT_EQ(a64, 0x00000000fec38a11);
-   EXPECT_EQ(b64, 0x118ac3fe00000000);
+   EXPECT_EQ(a64, 0x00000000fec38a11ULL);
+   EXPECT_EQ(b64, 0x118ac3fe00000000ULL);
     
    // These are really just identical tests, I have no idea whether it
    // was worth spending the time to write these, and even this comment
@@ -2207,12 +2206,12 @@ TEST_F(BinaryDataTest, BinDataToInt)
    a32 = READ_UINT32_BE(READHEX("fec38a11"));
    b32 = READ_UINT32_LE(READHEX("fec38a11"));
    EXPECT_EQ(a32, 0xfec38a11);
-   EXPECT_EQ(b32, 0x118ac3fe);
+   EXPECT_EQ(b32, 0x118ac3feULL);
 
    a64 = READ_UINT64_BE(READHEX("00000000fec38a11"));
    b64 = READ_UINT64_LE(READHEX("00000000fec38a11"));
    EXPECT_EQ(a64, 0x00000000fec38a11);
-   EXPECT_EQ(b64, 0x118ac3fe00000000);
+   EXPECT_EQ(b64, 0x118ac3fe00000000ULL);
 
    // Test the all-on-one read-int macros
    a8 = READ_UINT8_HEX_BE("ab");
@@ -2228,12 +2227,12 @@ TEST_F(BinaryDataTest, BinDataToInt)
    a32 = READ_UINT32_HEX_BE("fec38a11");
    b32 = READ_UINT32_HEX_LE("fec38a11");
    EXPECT_EQ(a32, 0xfec38a11);
-   EXPECT_EQ(b32, 0x118ac3fe);
+   EXPECT_EQ(b32, 0x118ac3feULL);
 
    a64 = READ_UINT64_HEX_BE("00000000fec38a11");
    b64 = READ_UINT64_HEX_LE("00000000fec38a11");
    EXPECT_EQ(a64, 0x00000000fec38a11);
-   EXPECT_EQ(b64, 0x118ac3fe00000000);
+   EXPECT_EQ(b64, 0x118ac3fe00000000ULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2364,31 +2363,31 @@ TEST_F(BinaryDataRefTest, Constructor)
    auto&& i = BinaryData::fromString(str4_);
 
    EXPECT_TRUE(a.getPtr()==NULL);
-   EXPECT_EQ(a.getSize(), 0);
+   EXPECT_EQ(a.getSize(), 0ULL);
 
    EXPECT_TRUE(b.getPtr()==NULL);
-   EXPECT_EQ(b.getSize(), 0);
+   EXPECT_EQ(b.getSize(), 0ULL);
 
    EXPECT_TRUE(c.getPtr()==NULL);
-   EXPECT_EQ(c.getSize(), 0);
+   EXPECT_EQ(c.getSize(), 0ULL);
 
    EXPECT_FALSE(d.getPtr()==NULL);
-   EXPECT_EQ(d.getSize(), 4);
+   EXPECT_EQ(d.getSize(), 4ULL);
 
    EXPECT_FALSE(e.getPtr()==NULL);
-   EXPECT_EQ(e.getSize(), 4);
+   EXPECT_EQ(e.getSize(), 4ULL);
 
    EXPECT_TRUE(f.getPtr()==NULL);
-   EXPECT_EQ(f.getSize(), 0);
+   EXPECT_EQ(f.getSize(), 0ULL);
 
    EXPECT_FALSE(g.getPtr()==NULL);
-   EXPECT_EQ(g.getSize(), 4);
+   EXPECT_EQ(g.getSize(), 4ULL);
 
    EXPECT_TRUE(h.getPtr()==NULL);
-   EXPECT_EQ(h.getSize(), 0);
+   EXPECT_EQ(h.getSize(), 0ULL);
 
    EXPECT_FALSE(i.getPtr()==NULL);
-   EXPECT_EQ(i.getSize(), 8);
+   EXPECT_EQ(i.getSize(), 8ULL);
 
    EXPECT_TRUE( a.empty());
    EXPECT_TRUE( b.empty());
@@ -2418,31 +2417,31 @@ TEST_F(BinaryDataRefTest, PostConstruct)
    i.setRef(str4_);
 
    EXPECT_TRUE(a.getPtr()==NULL);
-   EXPECT_EQ(a.getSize(), 0);
+   EXPECT_EQ(a.getSize(), 0ULL);
 
    EXPECT_TRUE(b.getPtr()==NULL);
-   EXPECT_EQ(b.getSize(), 0);
+   EXPECT_EQ(b.getSize(), 0ULL);
 
    EXPECT_TRUE(c.getPtr()==NULL);
-   EXPECT_EQ(c.getSize(), 0);
+   EXPECT_EQ(c.getSize(), 0ULL);
 
    EXPECT_FALSE(d.getPtr()==NULL);
-   EXPECT_EQ(d.getSize(), 4);
+   EXPECT_EQ(d.getSize(), 4ULL);
 
    EXPECT_FALSE(e.getPtr()==NULL);
-   EXPECT_EQ(e.getSize(), 4);
+   EXPECT_EQ(e.getSize(), 4ULL);
 
    EXPECT_TRUE(f.getPtr()==NULL);
-   EXPECT_EQ(f.getSize(), 0);
+   EXPECT_EQ(f.getSize(), 0ULL);
 
    EXPECT_FALSE(g.getPtr()==NULL);
-   EXPECT_EQ(g.getSize(), 4);
+   EXPECT_EQ(g.getSize(), 4ULL);
 
    EXPECT_FALSE(h.getPtr()==NULL);
-   EXPECT_EQ(h.getSize(), 0);
+   EXPECT_EQ(h.getSize(), 0ULL);
 
    EXPECT_FALSE(i.getPtr()==NULL);
-   EXPECT_EQ(i.getSize(), 8);
+   EXPECT_EQ(i.getSize(), 8ULL);
 
    EXPECT_TRUE( a.empty());
    EXPECT_TRUE( b.empty());
@@ -2482,10 +2481,10 @@ TEST_F(BinaryDataRefTest, CopyTo)
    EXPECT_TRUE(bdr5_.endsWith(e));
    EXPECT_TRUE(d==f);
 
-   EXPECT_EQ(a.getSize(), 0);
-   EXPECT_EQ(b.getSize(), 4);
-   EXPECT_EQ(c.getSize(), 5);
-   EXPECT_EQ(d.getSize(), 2);
+   EXPECT_EQ(a.getSize(), 0ULL);
+   EXPECT_EQ(b.getSize(), 4ULL);
+   EXPECT_EQ(c.getSize(), 5ULL);
+   EXPECT_EQ(d.getSize(), 2ULL);
    EXPECT_NE(b,c);
 
    g = bdr0_.copy();
@@ -2708,32 +2707,32 @@ TEST(BitReadWriteTest, Writer8)
    BitPacker<uint8_t> bitp;
    
    //EXPECT_EQ( bitp.getValue(), 0);
-   EXPECT_EQ( bitp.getBitsUsed(), 0);
+   EXPECT_EQ( bitp.getBitsUsed(), 0ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("00"));
 
    bitp.putBit(true);
    //EXPECT_EQ( bitp.getValue(), 128);
-   EXPECT_EQ( bitp.getBitsUsed(), 1);
+   EXPECT_EQ( bitp.getBitsUsed(), 1ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("80"));
 
    bitp.putBit(false);
    //EXPECT_EQ( bitp.getValue(), 128);
-   EXPECT_EQ( bitp.getBitsUsed(), 2);
+   EXPECT_EQ( bitp.getBitsUsed(), 2ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("80"));
 
    bitp.putBit(true);
    //EXPECT_EQ( bitp.getValue(), 160);
-   EXPECT_EQ( bitp.getBitsUsed(), 3);
+   EXPECT_EQ( bitp.getBitsUsed(), 3ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("a0"));
 
    bitp.putBits(0, 2);
    //EXPECT_EQ( bitp.getValue(),  160);
-   EXPECT_EQ( bitp.getBitsUsed(), 5);
+   EXPECT_EQ( bitp.getBitsUsed(), 5ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("a0"));
 
    bitp.putBits(3, 3);
    //EXPECT_EQ( bitp.getValue(),  163);
-   EXPECT_EQ( bitp.getBitsUsed(), 8);
+   EXPECT_EQ( bitp.getBitsUsed(), 8ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("a3"));
 }
 
@@ -2743,37 +2742,37 @@ TEST(BitReadWriteTest, Writer16)
    BitPacker<uint16_t> bitp;
    
    //EXPECT_EQ( bitp.getValue(), 0);
-   EXPECT_EQ( bitp.getBitsUsed(), 0);
+   EXPECT_EQ( bitp.getBitsUsed(), 0ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("0000"));
 
    bitp.putBit(true);
    //EXPECT_EQ( bitp.getValue(), 0x8000);
-   EXPECT_EQ( bitp.getBitsUsed(), 1);
+   EXPECT_EQ( bitp.getBitsUsed(), 1ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("8000"));
 
    bitp.putBit(false);
    //EXPECT_EQ( bitp.getValue(), 0x8000);
-   EXPECT_EQ( bitp.getBitsUsed(), 2);
+   EXPECT_EQ( bitp.getBitsUsed(), 2ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("8000"));
 
    bitp.putBit(true);
    //EXPECT_EQ( bitp.getValue(), 0xa000);
-   EXPECT_EQ( bitp.getBitsUsed(), 3);
+   EXPECT_EQ( bitp.getBitsUsed(), 3ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("a000"));
 
    bitp.putBits(0, 2);
    //EXPECT_EQ( bitp.getValue(),  0xa000);
-   EXPECT_EQ( bitp.getBitsUsed(), 5);
+   EXPECT_EQ( bitp.getBitsUsed(), 5ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("a000"));
 
    bitp.putBits(3, 3);
    //EXPECT_EQ( bitp.getValue(),  0xa300);
-   EXPECT_EQ( bitp.getBitsUsed(), 8);
+   EXPECT_EQ( bitp.getBitsUsed(), 8ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("a300"));
 
    bitp.putBits(3, 8);
    //EXPECT_EQ( bitp.getValue(),  0xa303);
-   EXPECT_EQ( bitp.getBitsUsed(), 16);
+   EXPECT_EQ( bitp.getBitsUsed(), 16ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("a303"));
 }
 
@@ -2785,7 +2784,7 @@ TEST(BitReadWriteTest, Writer32)
    
    bitp.putBits(0xffffff00, 32);
    //EXPECT_EQ( bitp.getValue(),  0xffffff00);
-   EXPECT_EQ( bitp.getBitsUsed(), 32);
+   EXPECT_EQ( bitp.getBitsUsed(), 32ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("ffffff00"));
 }
 
@@ -2796,14 +2795,14 @@ TEST(BitReadWriteTest, Writer64)
    
    bitp.putBits(0xffffff00ffffffaaULL, 64);
    //EXPECT_EQ( bitp.getValue(),  0xffffff00ffffffaaULL);
-   EXPECT_EQ( bitp.getBitsUsed(), 64);
+   EXPECT_EQ( bitp.getBitsUsed(), 64ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("ffffff00ffffffaa"));
 
    BitPacker<uint64_t> bitp2;
    bitp2.putBits(0xff, 32);
    bitp2.putBits(0xff, 32);
    //EXPECT_EQ( bitp2.getValue(),  0x000000ff000000ffULL);
-   EXPECT_EQ( bitp2.getBitsUsed(), 64);
+   EXPECT_EQ( bitp2.getBitsUsed(), 64ULL);
    EXPECT_EQ( bitp2.getBinaryData(), READHEX("000000ff000000ff"));
 }
 
@@ -2857,14 +2856,14 @@ TEST(BinaryReadWriteTest, Writer)
                             "ab""fdffff""fe013200aa""ffff00ff00ff00ff00");
 
    BinaryWriter bw;
-   bw.put_uint8_t(1);                       EXPECT_EQ(bw.getSize(), 1);
-   bw.put_uint16_t(1);                      EXPECT_EQ(bw.getSize(), 3);
-   bw.put_uint32_t(0xaa003201);             EXPECT_EQ(bw.getSize(), 7);
-   bw.put_uint64_t(0x00ff00ff00ff00ffULL);  EXPECT_EQ(bw.getSize(), 15);
-   bw.put_var_int(0xab);                    EXPECT_EQ(bw.getSize(), 16);
-   bw.put_var_int(0xffff);                  EXPECT_EQ(bw.getSize(), 19);
-   bw.put_var_int(0xaa003201);              EXPECT_EQ(bw.getSize(), 24);
-   bw.put_var_int(0x00ff00ff00ff00ffULL);   EXPECT_EQ(bw.getSize(), 33);
+   bw.put_uint8_t(1);                       EXPECT_EQ(bw.getSize(), 1ULL);
+   bw.put_uint16_t(1);                      EXPECT_EQ(bw.getSize(), 3ULL);
+   bw.put_uint32_t(0xaa003201);             EXPECT_EQ(bw.getSize(), 7ULL);
+   bw.put_uint64_t(0x00ff00ff00ff00ffULL);  EXPECT_EQ(bw.getSize(), 15ULL);
+   bw.put_var_int(0xab);                    EXPECT_EQ(bw.getSize(), 16ULL);
+   bw.put_var_int(0xffff);                  EXPECT_EQ(bw.getSize(), 19ULL);
+   bw.put_var_int(0xaa003201);              EXPECT_EQ(bw.getSize(), 24ULL);
+   bw.put_var_int(0x00ff00ff00ff00ffULL);   EXPECT_EQ(bw.getSize(), 33ULL);
 
    EXPECT_EQ(bw.getData(), out);
    EXPECT_EQ(bw.getDataRef(), out.getRef());
@@ -2877,26 +2876,26 @@ TEST(BinaryReadWriteTest, WriterEndian)
                             "ab""fdffff""fe013200aa""ffff00ff00ff00ff00");
 
    BinaryWriter bw;
-   bw.put_uint8_t(1);                          EXPECT_EQ(bw.getSize(), 1);
-   bw.put_uint16_t(0x0100, BE);                EXPECT_EQ(bw.getSize(), 3);
-   bw.put_uint32_t(0x013200aa, BE);            EXPECT_EQ(bw.getSize(), 7);
-   bw.put_uint64_t(0xff00ff00ff00ff00ULL, BE); EXPECT_EQ(bw.getSize(), 15);
-   bw.put_var_int(0xab);                       EXPECT_EQ(bw.getSize(), 16);
-   bw.put_var_int(0xffff);                     EXPECT_EQ(bw.getSize(), 19);
-   bw.put_var_int(0xaa003201);                 EXPECT_EQ(bw.getSize(), 24);
-   bw.put_var_int(0x00ff00ff00ff00ffULL);      EXPECT_EQ(bw.getSize(), 33);
+   bw.put_uint8_t(1);                          EXPECT_EQ(bw.getSize(), 1ULL);
+   bw.put_uint16_t(0x0100, BE);                EXPECT_EQ(bw.getSize(), 3ULL);
+   bw.put_uint32_t(0x013200aa, BE);            EXPECT_EQ(bw.getSize(), 7ULL);
+   bw.put_uint64_t(0xff00ff00ff00ff00ULL, BE); EXPECT_EQ(bw.getSize(), 15ULL);
+   bw.put_var_int(0xab);                       EXPECT_EQ(bw.getSize(), 16ULL);
+   bw.put_var_int(0xffff);                     EXPECT_EQ(bw.getSize(), 19ULL);
+   bw.put_var_int(0xaa003201);                 EXPECT_EQ(bw.getSize(), 24ULL);
+   bw.put_var_int(0x00ff00ff00ff00ffULL);      EXPECT_EQ(bw.getSize(), 33ULL);
    EXPECT_EQ(bw.getData(), out);
    EXPECT_EQ(bw.getDataRef(), out.getRef());
 
    BinaryWriter bw2;
-   bw2.put_uint8_t(1);                          EXPECT_EQ(bw2.getSize(), 1);
-   bw2.put_uint16_t(0x0001, LE);                EXPECT_EQ(bw2.getSize(), 3);
-   bw2.put_uint32_t(0xaa003201, LE);            EXPECT_EQ(bw2.getSize(), 7);
-   bw2.put_uint64_t(0x00ff00ff00ff00ffULL, LE); EXPECT_EQ(bw2.getSize(), 15);
-   bw2.put_var_int(0xab);                       EXPECT_EQ(bw2.getSize(), 16);
-   bw2.put_var_int(0xffff);                     EXPECT_EQ(bw2.getSize(), 19);
-   bw2.put_var_int(0xaa003201);                 EXPECT_EQ(bw2.getSize(), 24);
-   bw2.put_var_int(0x00ff00ff00ff00ffULL);      EXPECT_EQ(bw2.getSize(), 33);
+   bw2.put_uint8_t(1);                          EXPECT_EQ(bw2.getSize(), 1ULL);
+   bw2.put_uint16_t(0x0001, LE);                EXPECT_EQ(bw2.getSize(), 3ULL);
+   bw2.put_uint32_t(0xaa003201, LE);            EXPECT_EQ(bw2.getSize(), 7ULL);
+   bw2.put_uint64_t(0x00ff00ff00ff00ffULL, LE); EXPECT_EQ(bw2.getSize(), 15ULL);
+   bw2.put_var_int(0xab);                       EXPECT_EQ(bw2.getSize(), 16ULL);
+   bw2.put_var_int(0xffff);                     EXPECT_EQ(bw2.getSize(), 19ULL);
+   bw2.put_var_int(0xaa003201);                 EXPECT_EQ(bw2.getSize(), 24ULL);
+   bw2.put_var_int(0x00ff00ff00ff00ffULL);      EXPECT_EQ(bw2.getSize(), 33ULL);
    EXPECT_EQ(bw2.getData(), out);
    EXPECT_EQ(bw2.getDataRef(), out.getRef());
 }
@@ -2908,23 +2907,23 @@ TEST(BinaryReadWriteTest, Reader)
                            "ab""fdffff""fe013200aa""ffff00ff00ff00ff00");
 
    BinaryReader br(in);
-   EXPECT_EQ(br.get_uint8_t(), 1);                       
-   EXPECT_EQ(br.get_uint16_t(), 1);                      
-   EXPECT_EQ(br.get_uint32_t(), 0xaa003201);             
-   EXPECT_EQ(br.get_uint64_t(), 0x00ff00ff00ff00ffULL);  
-   EXPECT_EQ(br.get_var_int(), 0xab);                   
-   EXPECT_EQ(br.get_var_int(), 0xffff);                
-   EXPECT_EQ(br.get_var_int(), 0xaa003201);           
+   EXPECT_EQ(br.get_uint8_t(), 1ULL);
+   EXPECT_EQ(br.get_uint16_t(), 1ULL);
+   EXPECT_EQ(br.get_uint32_t(), 0xaa003201);
+   EXPECT_EQ(br.get_uint64_t(), 0x00ff00ff00ff00ffULL);
+   EXPECT_EQ(br.get_var_int(), 0xabULL);
+   EXPECT_EQ(br.get_var_int(), 0xffffULL);
+   EXPECT_EQ(br.get_var_int(), 0xaa003201ULL);
    EXPECT_EQ(br.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryRefReader brr(in);
-   EXPECT_EQ(brr.get_uint8_t(), 1);                       
-   EXPECT_EQ(brr.get_uint16_t(), 1);                      
-   EXPECT_EQ(brr.get_uint32_t(), 0xaa003201);             
-   EXPECT_EQ(brr.get_uint64_t(), 0x00ff00ff00ff00ffULL);  
-   EXPECT_EQ(brr.get_var_int(), 0xab);                   
-   EXPECT_EQ(brr.get_var_int(), 0xffff);                
-   EXPECT_EQ(brr.get_var_int(), 0xaa003201);           
+   EXPECT_EQ(brr.get_uint8_t(), 1ULL);
+   EXPECT_EQ(brr.get_uint16_t(), 1ULL);
+   EXPECT_EQ(brr.get_uint32_t(), 0xaa003201ULL);
+   EXPECT_EQ(brr.get_uint64_t(), 0x00ff00ff00ff00ffULL);
+   EXPECT_EQ(brr.get_var_int(), 0xabULL);
+   EXPECT_EQ(brr.get_var_int(), 0xffffULL);
+   EXPECT_EQ(brr.get_var_int(), 0xaa003201ULL);
    EXPECT_EQ(brr.get_var_int(), 0x00ff00ff00ff00ffULL);
 }
 
@@ -2947,9 +2946,9 @@ TEST(BinaryReadWriteTest, ReaderEndian)
    auto val64 = br.get_uint64_t(LE);
    EXPECT_EQ(val64, 0x00ff00ff00ff00ffULL);
 
-   EXPECT_EQ(br.get_var_int(), 0xab);                   
-   EXPECT_EQ(br.get_var_int(), 0xffff);                
-   EXPECT_EQ(br.get_var_int(), 0xaa003201);           
+   EXPECT_EQ(br.get_var_int(), 0xabULL);
+   EXPECT_EQ(br.get_var_int(), 0xffffULL);
+   EXPECT_EQ(br.get_var_int(), 0xaa003201ULL);
    EXPECT_EQ(br.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryRefReader brr(in);
@@ -2957,16 +2956,16 @@ TEST(BinaryReadWriteTest, ReaderEndian)
    EXPECT_EQ(val8, 1);
 
    val16 = brr.get_uint16_t(LE);
-   EXPECT_EQ(val16, 1);                      
+   EXPECT_EQ(val16, 1ULL);
 
    val32 = brr.get_uint32_t(LE);
-   EXPECT_EQ(val32, 0xaa003201);
+   EXPECT_EQ(val32, 0xaa003201ULL);
 
    val64 = brr.get_uint64_t(LE);
-   EXPECT_EQ(val64, 0x00ff00ff00ff00ffULL);  
-   EXPECT_EQ(brr.get_var_int(), 0xab);                   
-   EXPECT_EQ(brr.get_var_int(), 0xffff);                
-   EXPECT_EQ(brr.get_var_int(), 0xaa003201);           
+   EXPECT_EQ(val64, 0x00ff00ff00ff00ffULL);
+   EXPECT_EQ(brr.get_var_int(), 0xabULL);
+   EXPECT_EQ(brr.get_var_int(), 0xffffULL);
+   EXPECT_EQ(brr.get_var_int(), 0xaa003201ULL);
    EXPECT_EQ(brr.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryReader br2(in);
@@ -2974,9 +2973,9 @@ TEST(BinaryReadWriteTest, ReaderEndian)
    EXPECT_EQ(br2.get_uint16_t(ENDIAN_LITTLE), 1);
    EXPECT_EQ(br2.get_uint32_t(ENDIAN_LITTLE), 0xaa003201);
    EXPECT_EQ(br2.get_uint64_t(ENDIAN_LITTLE), 0x00ff00ff00ff00ffULL);
-   EXPECT_EQ(br2.get_var_int(), 0xab);                   
-   EXPECT_EQ(br2.get_var_int(), 0xffff);                
-   EXPECT_EQ(br2.get_var_int(), 0xaa003201);           
+   EXPECT_EQ(br2.get_var_int(), 0xabULL);
+   EXPECT_EQ(br2.get_var_int(), 0xffffULL);
+   EXPECT_EQ(br2.get_var_int(), 0xaa003201ULL);
    EXPECT_EQ(br2.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryRefReader brr2(in);
@@ -2984,49 +2983,49 @@ TEST(BinaryReadWriteTest, ReaderEndian)
    EXPECT_EQ(brr2.get_uint16_t(ENDIAN_LITTLE), 1);
    EXPECT_EQ(brr2.get_uint32_t(ENDIAN_LITTLE), 0xaa003201);
    EXPECT_EQ(brr2.get_uint64_t(ENDIAN_LITTLE), 0x00ff00ff00ff00ffULL);
-   EXPECT_EQ(brr2.get_var_int(), 0xab);                   
-   EXPECT_EQ(brr2.get_var_int(), 0xffff);                
-   EXPECT_EQ(brr2.get_var_int(), 0xaa003201);           
+   EXPECT_EQ(brr2.get_var_int(), 0xabULL);
+   EXPECT_EQ(brr2.get_var_int(), 0xffffULL);
+   EXPECT_EQ(brr2.get_var_int(), 0xaa003201ULL);
    EXPECT_EQ(brr2.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryReader brBE(in);
-   EXPECT_EQ(brBE.get_uint8_t(), 1);                       
-   EXPECT_EQ(brBE.get_uint16_t(BE), 0x0100);                      
-   EXPECT_EQ(brBE.get_uint32_t(BE), 0x013200aa);
-   EXPECT_EQ(brBE.get_uint64_t(BE), 0xff00ff00ff00ff00ULL);  
-   EXPECT_EQ(brBE.get_var_int(), 0xab);                   
-   EXPECT_EQ(brBE.get_var_int(), 0xffff);                
-   EXPECT_EQ(brBE.get_var_int(), 0xaa003201);           
+   EXPECT_EQ(brBE.get_uint8_t(), 1);
+   EXPECT_EQ(brBE.get_uint16_t(BE), 0x0100);
+   EXPECT_EQ(brBE.get_uint32_t(BE), 0x013200aaULL);
+   EXPECT_EQ(brBE.get_uint64_t(BE), 0xff00ff00ff00ff00ULL);
+   EXPECT_EQ(brBE.get_var_int(), 0xabULL);
+   EXPECT_EQ(brBE.get_var_int(), 0xffffULL);
+   EXPECT_EQ(brBE.get_var_int(), 0xaa003201ULL);
    EXPECT_EQ(brBE.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryRefReader brrBE(in);
-   EXPECT_EQ(brrBE.get_uint8_t(), 1);                       
-   EXPECT_EQ(brrBE.get_uint16_t(BE), 0x0100);                      
-   EXPECT_EQ(brrBE.get_uint32_t(BE), 0x013200aa);
-   EXPECT_EQ(brrBE.get_uint64_t(BE), 0xff00ff00ff00ff00ULL);  
-   EXPECT_EQ(brrBE.get_var_int(), 0xab);                   
-   EXPECT_EQ(brrBE.get_var_int(), 0xffff);                
-   EXPECT_EQ(brrBE.get_var_int(), 0xaa003201);           
+   EXPECT_EQ(brrBE.get_uint8_t(), 1);
+   EXPECT_EQ(brrBE.get_uint16_t(BE), 0x0100);
+   EXPECT_EQ(brrBE.get_uint32_t(BE), 0x013200aaULL);
+   EXPECT_EQ(brrBE.get_uint64_t(BE), 0xff00ff00ff00ff00ULL);
+   EXPECT_EQ(brrBE.get_var_int(), 0xabULL);
+   EXPECT_EQ(brrBE.get_var_int(), 0xffffULL);
+   EXPECT_EQ(brrBE.get_var_int(), 0xaa003201ULL);
    EXPECT_EQ(brrBE.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryReader brBE2(in);
-   EXPECT_EQ(brBE2.get_uint8_t(), 1);                       
+   EXPECT_EQ(brBE2.get_uint8_t(), 1);
    EXPECT_EQ(brBE2.get_uint16_t(ENDIAN_BIG), 0x0100);
-   EXPECT_EQ(brBE2.get_uint32_t(ENDIAN_BIG), 0x013200aa);
+   EXPECT_EQ(brBE2.get_uint32_t(ENDIAN_BIG), 0x013200aaULL);
    EXPECT_EQ(brBE2.get_uint64_t(ENDIAN_BIG), 0xff00ff00ff00ff00ULL);
-   EXPECT_EQ(brBE2.get_var_int(), 0xab);                   
-   EXPECT_EQ(brBE2.get_var_int(), 0xffff);                
-   EXPECT_EQ(brBE2.get_var_int(), 0xaa003201);           
+   EXPECT_EQ(brBE2.get_var_int(), 0xabULL);
+   EXPECT_EQ(brBE2.get_var_int(), 0xffffULL);
+   EXPECT_EQ(brBE2.get_var_int(), 0xaa003201ULL);
    EXPECT_EQ(brBE2.get_var_int(), 0x00ff00ff00ff00ffULL);
 
    BinaryRefReader brrBE2(in);
    EXPECT_EQ(brrBE2.get_uint8_t(), 1);
    EXPECT_EQ(brrBE2.get_uint16_t(ENDIAN_BIG), 0x0100);
-   EXPECT_EQ(brrBE2.get_uint32_t(ENDIAN_BIG), 0x013200aa);
+   EXPECT_EQ(brrBE2.get_uint32_t(ENDIAN_BIG), 0x013200aaULL);
    EXPECT_EQ(brrBE2.get_uint64_t(ENDIAN_BIG), 0xff00ff00ff00ff00ULL);
-   EXPECT_EQ(brrBE2.get_var_int(), 0xab);                   
-   EXPECT_EQ(brrBE2.get_var_int(), 0xffff);                
-   EXPECT_EQ(brrBE2.get_var_int(), 0xaa003201);           
+   EXPECT_EQ(brrBE2.get_var_int(), 0xabULL);
+   EXPECT_EQ(brrBE2.get_var_int(), 0xffffULL);
+   EXPECT_EQ(brrBE2.get_var_int(), 0xaa003201ULL);
    EXPECT_EQ(brrBE2.get_var_int(), 0x00ff00ff00ff00ffULL);
 }
 
@@ -3131,17 +3130,17 @@ TEST_F(BtcUtilsTest, ReadVarInt)
    EXPECT_EQ(a.second,  9);
 
    // Just the length
-   EXPECT_EQ(BtcUtils::readVarIntLength(vi0.getPtr()), 1);
-   EXPECT_EQ(BtcUtils::readVarIntLength(vi1.getPtr()), 1);
-   EXPECT_EQ(BtcUtils::readVarIntLength(vi3.getPtr()), 3);
-   EXPECT_EQ(BtcUtils::readVarIntLength(vi5.getPtr()), 5);
-   EXPECT_EQ(BtcUtils::readVarIntLength(vi9.getPtr()), 9);
+   EXPECT_EQ(BtcUtils::readVarIntLength(vi0.getPtr()), 1ULL);
+   EXPECT_EQ(BtcUtils::readVarIntLength(vi1.getPtr()), 1ULL);
+   EXPECT_EQ(BtcUtils::readVarIntLength(vi3.getPtr()), 3ULL);
+   EXPECT_EQ(BtcUtils::readVarIntLength(vi5.getPtr()), 5ULL);
+   EXPECT_EQ(BtcUtils::readVarIntLength(vi9.getPtr()), 9ULL);
 
-   EXPECT_EQ(BtcUtils::calcVarIntSize(v), 1);
-   EXPECT_EQ(BtcUtils::calcVarIntSize(w), 1);
-   EXPECT_EQ(BtcUtils::calcVarIntSize(x), 3);
-   EXPECT_EQ(BtcUtils::calcVarIntSize(y), 5);
-   EXPECT_EQ(BtcUtils::calcVarIntSize(z), 9);
+   EXPECT_EQ(BtcUtils::calcVarIntSize(v), 1ULL);
+   EXPECT_EQ(BtcUtils::calcVarIntSize(w), 1ULL);
+   EXPECT_EQ(BtcUtils::calcVarIntSize(x), 3ULL);
+   EXPECT_EQ(BtcUtils::calcVarIntSize(y), 5ULL);
+   EXPECT_EQ(BtcUtils::calcVarIntSize(z), 9ULL);
 }
 
 
@@ -3165,10 +3164,10 @@ TEST_F(BtcUtilsTest, PackBits)
    list<bool> bitList;
 
    bitList = BtcUtils::UnpackBits( READHEX("00"), 0);
-   EXPECT_EQ(bitList.size(), 0);
+   EXPECT_EQ(bitList.size(), 0ULL);
 
    bitList = BtcUtils::UnpackBits( READHEX("00"), 3);
-   EXPECT_EQ(bitList.size(), 3);
+   EXPECT_EQ(bitList.size(), 3ULL);
    iter = bitList.begin(); 
    EXPECT_FALSE(*iter);  iter++;
    EXPECT_FALSE(*iter);  iter++;
@@ -3176,7 +3175,7 @@ TEST_F(BtcUtilsTest, PackBits)
    
    
    bitList = BtcUtils::UnpackBits( READHEX("00"), 8);
-   EXPECT_EQ(bitList.size(), 8);
+   EXPECT_EQ(bitList.size(), 8ULL);
    iter = bitList.begin(); 
    EXPECT_FALSE(*iter);  iter++;
    EXPECT_FALSE(*iter);  iter++;
@@ -3188,7 +3187,7 @@ TEST_F(BtcUtilsTest, PackBits)
    EXPECT_FALSE(*iter);  iter++;
 
    bitList = BtcUtils::UnpackBits( READHEX("017f"), 8);
-   EXPECT_EQ(bitList.size(), 8);
+   EXPECT_EQ(bitList.size(), 8ULL);
    iter = bitList.begin(); 
    EXPECT_FALSE(*iter);  iter++;
    EXPECT_FALSE(*iter);  iter++;
@@ -3201,7 +3200,7 @@ TEST_F(BtcUtilsTest, PackBits)
 
 
    bitList = BtcUtils::UnpackBits( READHEX("017f"), 12);
-   EXPECT_EQ(bitList.size(), 12);
+   EXPECT_EQ(bitList.size(), 12ULL);
    iter = bitList.begin(); 
    EXPECT_FALSE(*iter);  iter++;
    EXPECT_FALSE(*iter);  iter++;
@@ -3217,7 +3216,7 @@ TEST_F(BtcUtilsTest, PackBits)
    EXPECT_TRUE( *iter);  iter++;
 
    bitList = BtcUtils::UnpackBits( READHEX("017f"), 16);
-   EXPECT_EQ(bitList.size(), 16);
+   EXPECT_EQ(bitList.size(), 16ULL);
    iter = bitList.begin(); 
    EXPECT_FALSE(*iter);  iter++;
    EXPECT_FALSE(*iter);  iter++;
@@ -3433,16 +3432,16 @@ TEST_F(BtcUtilsTest, TxOutScriptID_MultiList)
    uint32_t M;
 
    M = BtcUtils::getMultisigAddrList(script, a160List);
-   EXPECT_EQ(M, 2);              
-   EXPECT_EQ(a160List.size(), 2); // N
+   EXPECT_EQ(M, 2ULL);
+   EXPECT_EQ(a160List.size(), 2ULL); // N
    
    EXPECT_EQ(a160List[0], addr0);
    EXPECT_EQ(a160List[1], addr1);
 
    vector<BinaryData> pkList;
    M = BtcUtils::getMultisigPubKeyList(script, pkList);
-   EXPECT_EQ(M, 2);              
-   EXPECT_EQ(pkList.size(), 2); // N
+   EXPECT_EQ(M, 2ULL);
+   EXPECT_EQ(pkList.size(), 2ULL); // N
    
    EXPECT_EQ(pkList[0], pub0);
    EXPECT_EQ(pkList[1], pub1);
@@ -3563,7 +3562,7 @@ TEST_F(BtcUtilsTest, TxInScriptID_SpendMultisig)
       "f6dba2520221009d29229cdfedda1dd02a1a90bb71b30b77e9c3fc28d1353f05"
       "4c86371f6c2a8101");
 
-   EXPECT_EQ(scrParts.size(), 3);
+   EXPECT_EQ(scrParts.size(), 3ULL);
    EXPECT_EQ(scrParts[0], zero);
    EXPECT_EQ(scrParts[1], sig1);
    EXPECT_EQ(scrParts[2], sig2);
@@ -3571,8 +3570,6 @@ TEST_F(BtcUtilsTest, TxInScriptID_SpendMultisig)
    //BinaryData p2sh = READHEX("5221034758cefcb75e16e4dfafb32383b709fa632086ea5ca982712de6add93060b17a2103fe96237629128a0ae8c3825af8a4be8fe3109b16f62af19cec0b1eb93b8717e252ae");
    //BinaryData pub1 = READHEX("034758cefcb75e16e4dfafb32383b709fa632086ea5ca982712de6add93060b17a");
    //BinaryData pub1 = READHEX("03fe96237629128a0ae8c3825af8a4be8fe3109b16f62af19cec0b1eb93b8717e2");
-
-   
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3825,7 +3822,7 @@ TEST_F(BlockObjTest, HeaderUnserialize)
    EXPECT_NE(bh_.isInitialized(), boolFalse);
    EXPECT_EQ(bh_.getNumTx(), UINT32_MAX);
    EXPECT_EQ(bh_.getBlockSize(), UINT32_MAX);
-   EXPECT_EQ(bh_.getVersion(), 1);
+   EXPECT_EQ(bh_.getVersion(), 1ULL);
    EXPECT_EQ(bh_.getThisHash(), headHashLE_);
 }
 
@@ -3871,18 +3868,18 @@ TEST_F(BlockObjTest, OutPointProperties)
       "01000000");
 
    OutPoint op;
-   EXPECT_EQ(op.getTxHash().getSize(), 32);
+   EXPECT_EQ(op.getTxHash().getSize(), 32ULL);
    EXPECT_EQ(op.getTxOutIndex(), UINT32_MAX);
 
    op.setTxHash(prevHash);
-   EXPECT_EQ(op.getTxHash().getSize(), 32);
+   EXPECT_EQ(op.getTxHash().getSize(), 32ULL);
    EXPECT_EQ(op.getTxOutIndex(), UINT32_MAX);
    EXPECT_EQ(op.getTxHash(), prevHash);
    EXPECT_EQ(op.getTxHashRef(), prevHash.getRef());
 
    op.setTxOutIndex(12);
-   EXPECT_EQ(op.getTxHash().getSize(), 32);
-   EXPECT_EQ(op.getTxOutIndex(), 12);
+   EXPECT_EQ(op.getTxHash().getSize(), 32ULL);
+   EXPECT_EQ(op.getTxOutIndex(), 12ULL);
    EXPECT_EQ(op.getTxHash(), prevHash);
    EXPECT_EQ(op.getTxHashRef(), prevHash.getRef());
 }
@@ -3900,8 +3897,8 @@ TEST_F(BlockObjTest, OutPointSerialize)
       "01000000");
 
    OutPoint op(rawOP.getPtr(), rawOP.getSize());
-   EXPECT_EQ(op.getTxHash().getSize(), 32);
-   EXPECT_EQ(op.getTxOutIndex(), 1);
+   EXPECT_EQ(op.getTxHash().getSize(), 32ULL);
+   EXPECT_EQ(op.getTxOutIndex(), 1ULL);
    EXPECT_EQ(op.getTxHash(), prevHash);
    EXPECT_EQ(op.getTxHashRef(), prevHash.getRef());
 
@@ -3943,18 +3940,18 @@ TEST_F(BlockObjTest, TxUnserialize)
       EXPECT_TRUE( txs[i].isInitialized());
       EXPECT_EQ(   txs[i].getSize(), len);
 
-      EXPECT_EQ(   txs[i].getVersion(), 1);
-      EXPECT_EQ(   txs[i].getNumTxIn(), 1);
-      EXPECT_EQ(   txs[i].getNumTxOut(), 2);
+      EXPECT_EQ(   txs[i].getVersion(), 1ULL);
+      EXPECT_EQ(   txs[i].getNumTxIn(), 1ULL);
+      EXPECT_EQ(   txs[i].getNumTxOut(), 2ULL);
       EXPECT_EQ(   txs[i].getThisHash(), tx0hash.copySwapEndian());
 
-      EXPECT_EQ(   txs[i].getTxInOffset(0),    5);
-      EXPECT_EQ(   txs[i].getTxInOffset(1),  185);
-      EXPECT_EQ(   txs[i].getTxOutOffset(0), 186);
-      EXPECT_EQ(   txs[i].getTxOutOffset(1), 220);
-      EXPECT_EQ(   txs[i].getTxOutOffset(2), 254);
+      EXPECT_EQ(   txs[i].getTxInOffset(0),    5ULL);
+      EXPECT_EQ(   txs[i].getTxInOffset(1),  185ULL);
+      EXPECT_EQ(   txs[i].getTxOutOffset(0), 186ULL);
+      EXPECT_EQ(   txs[i].getTxOutOffset(1), 220ULL);
+      EXPECT_EQ(   txs[i].getTxOutOffset(2), 254ULL);
 
-      EXPECT_EQ(   txs[i].getLockTime(), 0);
+      EXPECT_EQ(   txs[i].getLockTime(), 0ULL);
 
       EXPECT_EQ(   txs[i].serialize(), rawTx0_);
       EXPECT_EQ(   txs[0].getTxInCopy(0).getSenderScrAddrIfAvail(), tx0_In0);
@@ -4282,17 +4279,17 @@ TEST_F(StoredBlockObjTest, LengthUnfrag)
    uint32_t lenUnfrag  = BtcUtils::StoredTxCalcLength( rawTxUnfrag_.getPtr(), 
       rawTxUnfrag_.getSize(), false,  &offin, &offout, nullptr);
 
-   ASSERT_EQ(lenUnfrag,  438);
+   ASSERT_EQ(lenUnfrag,  438ULL);
 
-   ASSERT_EQ(offin.size(),    3);
-   EXPECT_EQ(offin[0],        5);
-   EXPECT_EQ(offin[1],      184);
-   EXPECT_EQ(offin[2],      365);
+   ASSERT_EQ(offin.size(),    3ULL);
+   EXPECT_EQ(offin[0],        5ULL);
+   EXPECT_EQ(offin[1],      184ULL);
+   EXPECT_EQ(offin[2],      365ULL);
 
-   ASSERT_EQ(offout.size(),   3);
-   EXPECT_EQ(offout[0],     366);
-   EXPECT_EQ(offout[1],     400);
-   EXPECT_EQ(offout[2],     434);
+   ASSERT_EQ(offout.size(),   3ULL);
+   EXPECT_EQ(offout[0],     366ULL);
+   EXPECT_EQ(offout[1],     400ULL);
+   EXPECT_EQ(offout[2],     434ULL);
 }
 
 
@@ -4305,17 +4302,17 @@ TEST_F(StoredBlockObjTest, LengthFragged)
    uint32_t lenFragged = BtcUtils::StoredTxCalcLength(rawTxFragged_.getPtr(),
       rawTxFragged_.getSize(), true, &offin, &offout, nullptr);
 
-   ASSERT_EQ(lenFragged, 370);
+   ASSERT_EQ(lenFragged, 370ULL);
 
-   ASSERT_EQ(offin.size(),    3);
-   EXPECT_EQ(offin[0],        5);
-   EXPECT_EQ(offin[1],      184);
-   EXPECT_EQ(offin[2],      365);
+   ASSERT_EQ(offin.size(),    3ULL);
+   EXPECT_EQ(offin[0],        5ULL);
+   EXPECT_EQ(offin[1],      184ULL);
+   EXPECT_EQ(offin[2],      365ULL);
    
-   ASSERT_EQ(offout.size(),   3);
-   EXPECT_EQ(offout[0],     366);
-   EXPECT_EQ(offout[1],     366);
-   EXPECT_EQ(offout[2],     366);
+   ASSERT_EQ(offout.size(),   3ULL);
+   EXPECT_EQ(offout[0],     366ULL);
+   EXPECT_EQ(offout[1],     366ULL);
+   EXPECT_EQ(offout[2],     366ULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4364,26 +4361,26 @@ TEST_F(StoredBlockObjTest, ReadBlkKeyData)
    // 5 bytes, with prefix
    brr.setNewData(key5p);
    bdtype = DBUtils::readBlkDataKey(brr, hgt, dup);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_HEADER);
 
    brr.setNewData(key5p);
    bdtype = DBUtils::readBlkDataKey(brr, hgt, dup, txi);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi, UINT16_MAX);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_HEADER);
    
    brr.setNewData(key5p);
    bdtype = DBUtils::readBlkDataKey(brr, hgt, dup, txi, txo);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi, UINT16_MAX);
    EXPECT_EQ( txo, UINT16_MAX);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_HEADER);
 
 
@@ -4391,26 +4388,26 @@ TEST_F(StoredBlockObjTest, ReadBlkKeyData)
    // 7 bytes, with prefix
    brr.setNewData(key7p);
    bdtype = DBUtils::readBlkDataKey(brr, hgt, dup);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TX);
 
    brr.setNewData(key7p);
    bdtype = DBUtils::readBlkDataKey(brr, hgt, dup, txi);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi,          7);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TX);
    
    brr.setNewData(key7p);
    bdtype = DBUtils::readBlkDataKey(brr, hgt, dup, txi, txo);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi,          7);
    EXPECT_EQ( txo, UINT16_MAX);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TX);
 
 
@@ -4418,26 +4415,26 @@ TEST_F(StoredBlockObjTest, ReadBlkKeyData)
    // 9 bytes, with prefix
    brr.setNewData(key9p);
    bdtype = DBUtils::readBlkDataKey(brr, hgt, dup);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TXOUT);
 
    brr.setNewData(key9p);
    bdtype = DBUtils::readBlkDataKey(brr, hgt, dup, txi);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi,          7);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TXOUT);
    
    brr.setNewData(key9p);
    bdtype = DBUtils::readBlkDataKey(brr, hgt, dup, txi, txo);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi,          7);
    EXPECT_EQ( txo,          1);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TXOUT);
 
 
@@ -4445,26 +4442,26 @@ TEST_F(StoredBlockObjTest, ReadBlkKeyData)
    // 5 bytes, no prefix
    brr.setNewData(key5);
    bdtype = DBUtils::readBlkDataKeyNoPrefix(brr, hgt, dup);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_HEADER);
 
    brr.setNewData(key5);
    bdtype = DBUtils::readBlkDataKeyNoPrefix(brr, hgt, dup, txi);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi, UINT16_MAX);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_HEADER);
    
    brr.setNewData(key5);
    bdtype = DBUtils::readBlkDataKeyNoPrefix(brr, hgt, dup, txi, txo);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi, UINT16_MAX);
    EXPECT_EQ( txo, UINT16_MAX);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_HEADER);
 
 
@@ -4472,26 +4469,26 @@ TEST_F(StoredBlockObjTest, ReadBlkKeyData)
    // 7 bytes, no prefix
    brr.setNewData(key7);
    bdtype = DBUtils::readBlkDataKeyNoPrefix(brr, hgt, dup);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TX);
 
    brr.setNewData(key7);
    bdtype = DBUtils::readBlkDataKeyNoPrefix(brr, hgt, dup, txi);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi,          7);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TX);
    
    brr.setNewData(key7);
    bdtype = DBUtils::readBlkDataKeyNoPrefix(brr, hgt, dup, txi, txo);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi,          7);
    EXPECT_EQ( txo, UINT16_MAX);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TX);
 
 
@@ -4499,26 +4496,26 @@ TEST_F(StoredBlockObjTest, ReadBlkKeyData)
    // 9 bytes, no prefix
    brr.setNewData(key9);
    bdtype = DBUtils::readBlkDataKeyNoPrefix(brr, hgt, dup);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TXOUT);
 
    brr.setNewData(key9);
    bdtype = DBUtils::readBlkDataKeyNoPrefix(brr, hgt, dup, txi);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi,          7);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TXOUT);
    
    brr.setNewData(key9);
    bdtype = DBUtils::readBlkDataKeyNoPrefix(brr, hgt, dup, txi, txo);
-   EXPECT_EQ( hgt,     123000);
+   EXPECT_EQ( hgt,     123000ULL);
    EXPECT_EQ( dup,         15);
    EXPECT_EQ( txi,          7);
    EXPECT_EQ( txo,          1);
-   EXPECT_EQ( brr.getSizeRemaining(), 0);
+   EXPECT_EQ( brr.getSizeRemaining(), 0ULL);
    EXPECT_EQ( bdtype, BLKDATA_TXOUT);
 }
 
@@ -4534,8 +4531,8 @@ TEST_F(StoredBlockObjTest, SHeaderUnserialize)
    EXPECT_EQ(   sbh_.numBytes_,    UINT32_MAX);
    EXPECT_EQ(   sbh_.blockHeight_, UINT32_MAX);
    EXPECT_EQ(   sbh_.duplicateID_, UINT8_MAX);
-   EXPECT_EQ(   sbh_.merkle_.getSize(), 0);
-   EXPECT_EQ(   sbh_.stxMap_.size(), 0);
+   EXPECT_EQ(   sbh_.merkle_.getSize(), 0ULL);
+   EXPECT_EQ(   sbh_.stxMap_.size(), 0ULL);
 }
 
 
@@ -4595,8 +4592,8 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_H)
    BinaryRefReader brr(dbval);
    sbh_.unserializeDBValue(HEADERS, brr);
 
-   EXPECT_EQ(sbh_.blockHeight_, 65535);
-   EXPECT_EQ(sbh_.numBytes_, 0x11ee);
+   EXPECT_EQ(sbh_.blockHeight_, 65535ULL);
+   EXPECT_EQ(sbh_.numBytes_, 0x11eeULL);
    EXPECT_EQ(sbh_.duplicateID_, 1);
 }
 
@@ -4613,13 +4610,13 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B1)
    sbh_.unserializeDBValue(BLKDATA, brr);
    sbh_.setHeightAndDup(65535, 1);
 
-   EXPECT_EQ(sbh_.blockHeight_,  65535);
+   EXPECT_EQ(sbh_.blockHeight_,  65535ULL);
    EXPECT_EQ(sbh_.duplicateID_,  1);
    EXPECT_EQ(sbh_.merkle_     ,  READHEX(""));
-   EXPECT_EQ(sbh_.numTx_      ,  15);
-   EXPECT_EQ(sbh_.numBytes_   ,  65535);
-   EXPECT_EQ(sbh_.unserArmVer_,  0x9701);
-   EXPECT_EQ(sbh_.unserBlkVer_,  1);
+   EXPECT_EQ(sbh_.numTx_      ,  15ULL);
+   EXPECT_EQ(sbh_.numBytes_   ,  65535ULL);
+   EXPECT_EQ(sbh_.unserArmVer_,  0x9701ULL);
+   EXPECT_EQ(sbh_.unserBlkVer_,  1ULL);
    EXPECT_EQ(sbh_.unserDbType_,  ARMORY_DB_FULL);
    EXPECT_EQ(sbh_.unserMkType_,  MERKLE_SER_NONE);
 }
@@ -4637,13 +4634,13 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B2)
    sbh_.unserializeDBValue(BLKDATA, brr);
    sbh_.setHeightAndDup(65535, 1);
 
-   EXPECT_EQ(sbh_.blockHeight_ , 65535);
+   EXPECT_EQ(sbh_.blockHeight_ , 65535ULL);
    EXPECT_EQ(sbh_.duplicateID_ , 1);
    EXPECT_EQ(sbh_.merkle_      , READHEX("deadbeef"));
-   EXPECT_EQ(sbh_.numTx_       , 15);
-   EXPECT_EQ(sbh_.numBytes_    , 65535);
-   EXPECT_EQ(sbh_.unserArmVer_,  0x9701);
-   EXPECT_EQ(sbh_.unserBlkVer_,  1);
+   EXPECT_EQ(sbh_.numTx_       , 15ULL);
+   EXPECT_EQ(sbh_.numBytes_    , 65535ULL);
+   EXPECT_EQ(sbh_.unserArmVer_,  0x9701ULL);
+   EXPECT_EQ(sbh_.unserBlkVer_,  1ULL);
    EXPECT_EQ(sbh_.unserDbType_,  ARMORY_DB_FULL);
    EXPECT_EQ(sbh_.unserMkType_,  MERKLE_SER_FULL);
 }
@@ -4660,13 +4657,13 @@ TEST_F(StoredBlockObjTest, SHeaderDBUnserFull_B3)
    sbh_.unserializeDBValue(BLKDATA, brr);
    sbh_.setHeightAndDup(65535, 1);
 
-   EXPECT_EQ(sbh_.blockHeight_,  65535);
+   EXPECT_EQ(sbh_.blockHeight_,  65535ULL);
    EXPECT_EQ(sbh_.duplicateID_,  1);
    EXPECT_EQ(sbh_.merkle_     ,  READHEX(""));
-   EXPECT_EQ(sbh_.numTx_      ,  15);
-   EXPECT_EQ(sbh_.numBytes_   ,  65535);
-   EXPECT_EQ(sbh_.unserArmVer_,  0x9701);
-   EXPECT_EQ(sbh_.unserBlkVer_,  1);
+   EXPECT_EQ(sbh_.numTx_      ,  15ULL);
+   EXPECT_EQ(sbh_.numBytes_   ,  65535ULL);
+   EXPECT_EQ(sbh_.unserArmVer_,  0x9701ULL);
+   EXPECT_EQ(sbh_.unserBlkVer_,  1ULL);
    EXPECT_EQ(sbh_.unserMkType_,  MERKLE_SER_NONE);
 }
 
@@ -4681,15 +4678,15 @@ TEST_F(StoredBlockObjTest, STxUnserUnfrag)
    EXPECT_TRUE( stx.isInitialized());
    EXPECT_TRUE( stx.haveAllTxOut());
    EXPECT_FALSE(stx.isFragged_);
-   EXPECT_EQ(   stx.version_, 1);
+   EXPECT_EQ(   stx.version_, 1ULL);
    EXPECT_EQ(   stx.blockHeight_, UINT32_MAX);
    EXPECT_EQ(   stx.duplicateID_,  UINT8_MAX);
    EXPECT_EQ(   stx.txIndex_,     UINT16_MAX);
-   EXPECT_EQ(   stx.dataCopy_.getSize(), 258);
-   EXPECT_EQ(   stx.numBytes_,    258);
-   EXPECT_EQ(   stx.fragBytes_,   190);
+   EXPECT_EQ(   stx.dataCopy_.getSize(), 258ULL);
+   EXPECT_EQ(   stx.numBytes_,    258ULL);
+   EXPECT_EQ(   stx.fragBytes_,   190ULL);
 
-   ASSERT_EQ(   stx.stxoMap_.size(), 2);
+   ASSERT_EQ(   stx.stxoMap_.size(), 2ULL);
    EXPECT_TRUE( stx.stxoMap_[0].isInitialized());
    EXPECT_TRUE( stx.stxoMap_[1].isInitialized());
    EXPECT_EQ(   stx.stxoMap_[0].txIndex_, UINT16_MAX);
@@ -4710,13 +4707,13 @@ TEST_F(StoredBlockObjTest, STxUnserFragged)
    EXPECT_TRUE( stx.isInitialized());
    EXPECT_TRUE( stx.haveAllTxOut());
    EXPECT_TRUE( stx.isFragged_);
-   EXPECT_EQ(   stx.version_, 1);
+   EXPECT_EQ(   stx.version_, 1ULL);
    EXPECT_EQ(   stx.blockHeight_, UINT32_MAX);
    EXPECT_EQ(   stx.duplicateID_,  UINT8_MAX);
    EXPECT_EQ(   stx.txIndex_,     UINT16_MAX);
-   EXPECT_EQ(   stx.dataCopy_.getSize(), 190);
+   EXPECT_EQ(   stx.dataCopy_.getSize(), 190ULL);
 
-   ASSERT_EQ(   stx.stxoMap_.size(), 2);
+   ASSERT_EQ(   stx.stxoMap_.size(), 2ULL);
    EXPECT_TRUE( stx.stxoMap_[0].isInitialized());
    EXPECT_TRUE( stx.stxoMap_[1].isInitialized());
    EXPECT_EQ(   stx.stxoMap_[0].txIndex_, UINT16_MAX);
@@ -4805,13 +4802,13 @@ TEST_F(StoredBlockObjTest, STxUnserDBValue_1)
    EXPECT_EQ(   stx.lockTime_,    origTx.getLockTime());
    EXPECT_EQ(   stx.dataCopy_,    rawTxFragged_);
    EXPECT_TRUE( stx.isFragged_);
-   EXPECT_EQ(   stx.version_,     1);
+   EXPECT_EQ(   stx.version_,     1ULL);
    EXPECT_EQ(   stx.blockHeight_, UINT32_MAX);
    EXPECT_EQ(   stx.duplicateID_, UINT8_MAX);
    EXPECT_EQ(   stx.txIndex_,     UINT16_MAX);
    EXPECT_EQ(   stx.numTxOut_,    origTx.getNumTxOut());
    EXPECT_EQ(   stx.numBytes_,    UINT32_MAX);
-   EXPECT_EQ(   stx.fragBytes_,   370);
+   EXPECT_EQ(   stx.fragBytes_,   370ULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4846,13 +4843,13 @@ TEST_F(StoredBlockObjTest, STxUnserDBValue_2)
    EXPECT_EQ(   stx.lockTime_,    origTx.getLockTime());
    EXPECT_EQ(   stx.dataCopy_,    rawTxUnfrag_);
    EXPECT_FALSE(stx.isFragged_);
-   EXPECT_EQ(   stx.version_,     1);
+   EXPECT_EQ(   stx.version_,     1ULL);
    EXPECT_EQ(   stx.blockHeight_, UINT32_MAX);
    EXPECT_EQ(   stx.duplicateID_,  UINT8_MAX);
    EXPECT_EQ(   stx.txIndex_,     UINT16_MAX);
    EXPECT_EQ(   stx.numTxOut_,    origTx.getNumTxOut());
    EXPECT_EQ(   stx.numBytes_,    origTx.getSize());
-   EXPECT_EQ(   stx.fragBytes_,   370);
+   EXPECT_EQ(   stx.fragBytes_,   370ULL);
 }
 
 
@@ -4963,16 +4960,16 @@ TEST_F(StoredBlockObjTest, STxOutUnserDBValue_1)
    stxo.unserializeDBValue(input);
 
    EXPECT_TRUE( stxo.isInitialized());
-   EXPECT_EQ(   stxo.txVersion_,    1);
+   EXPECT_EQ(   stxo.txVersion_,    1ULL);
    EXPECT_EQ(   stxo.dataCopy_,     rawTxOut0_);
    EXPECT_EQ(   stxo.blockHeight_,  UINT32_MAX);
    EXPECT_EQ(   stxo.duplicateID_,   UINT8_MAX);
    EXPECT_EQ(   stxo.txIndex_,      UINT16_MAX);
    EXPECT_EQ(   stxo.txOutIndex_,   UINT16_MAX);
    EXPECT_EQ(   stxo.spentness_,    TXOUT_UNSPENT);
-   EXPECT_EQ(   stxo.spentByTxInKey_.getSize(), 0);
+   EXPECT_EQ(   stxo.spentByTxInKey_.getSize(), 0ULL);
    EXPECT_FALSE(stxo.isCoinbase_);
-   EXPECT_EQ(   stxo.unserArmVer_,  0);
+   EXPECT_EQ(   stxo.unserArmVer_,  0ULL);
 }
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(StoredBlockObjTest, STxOutUnserDBValue_2)
@@ -4983,7 +4980,7 @@ TEST_F(StoredBlockObjTest, STxOutUnserDBValue_2)
    stxo.unserializeDBValue(input);
 
    EXPECT_TRUE( stxo.isInitialized());
-   EXPECT_EQ(   stxo.txVersion_,    1);
+   EXPECT_EQ(   stxo.txVersion_,    1ULL);
    EXPECT_EQ(   stxo.dataCopy_,     rawTxOut0_);
    EXPECT_EQ(   stxo.blockHeight_,  UINT32_MAX);
    EXPECT_EQ(   stxo.duplicateID_,   UINT8_MAX);
@@ -4992,7 +4989,7 @@ TEST_F(StoredBlockObjTest, STxOutUnserDBValue_2)
    EXPECT_EQ(   stxo.spentness_,    TXOUT_SPENT);
    EXPECT_FALSE(stxo.isCoinbase_);
    EXPECT_EQ(   stxo.spentByTxInKey_, READHEX("01a086017f000f00"));
-   EXPECT_EQ(   stxo.unserArmVer_,  0);
+   EXPECT_EQ(   stxo.unserArmVer_,  0ULL);
 }
 
 
@@ -5005,7 +5002,7 @@ TEST_F(StoredBlockObjTest, STxOutUnserDBValue_3)
    stxo.unserializeDBValue(input);
 
    EXPECT_TRUE( stxo.isInitialized());
-   EXPECT_EQ(   stxo.txVersion_,    1);
+   EXPECT_EQ(   stxo.txVersion_,    1ULL);
    EXPECT_EQ(   stxo.dataCopy_,     rawTxOut0_);
    EXPECT_EQ(   stxo.blockHeight_,  UINT32_MAX);
    EXPECT_EQ(   stxo.duplicateID_,   UINT8_MAX);
@@ -5013,8 +5010,8 @@ TEST_F(StoredBlockObjTest, STxOutUnserDBValue_3)
    EXPECT_EQ(   stxo.txOutIndex_,   UINT16_MAX);
    EXPECT_EQ(   stxo.spentness_,    TXOUT_SPENTUNK);
    EXPECT_TRUE( stxo.isCoinbase_);
-   EXPECT_EQ(   stxo.spentByTxInKey_.getSize(), 0);
-   EXPECT_EQ(   stxo.unserArmVer_,  0);
+   EXPECT_EQ(   stxo.spentByTxInKey_.getSize(), 0ULL);
+   EXPECT_EQ(   stxo.unserArmVer_,  0ULL);
 }
 
 
@@ -5134,8 +5131,8 @@ TEST_F(StoredBlockObjTest, SUndoDataUnser)
    StoredUndoData sud;
    sud.unserializeDBValue(sudToUnser);
 
-   ASSERT_EQ(sud.outPointsAddedByBlock_.size(), 2);
-   ASSERT_EQ(sud.stxOutsRemovedByBlock_.size(), 2);
+   ASSERT_EQ(sud.outPointsAddedByBlock_.size(), 2ULL);
+   ASSERT_EQ(sud.stxOutsRemovedByBlock_.size(), 2ULL);
 
    EXPECT_EQ(sud.outPointsAddedByBlock_[0].serialize(), op0.serialize());
    EXPECT_EQ(sud.outPointsAddedByBlock_[1].serialize(), op1.serialize());
@@ -5145,12 +5142,12 @@ TEST_F(StoredBlockObjTest, SUndoDataUnser)
    EXPECT_EQ(sud.stxOutsRemovedByBlock_[0].parentHash_, arbHash);
    EXPECT_EQ(sud.stxOutsRemovedByBlock_[1].parentHash_, arbHash);
 
-   EXPECT_EQ(sud.stxOutsRemovedByBlock_[0].blockHeight_, 100000);
-   EXPECT_EQ(sud.stxOutsRemovedByBlock_[1].blockHeight_, 100000);
-   EXPECT_EQ(sud.stxOutsRemovedByBlock_[0].duplicateID_, 2);
-   EXPECT_EQ(sud.stxOutsRemovedByBlock_[1].duplicateID_, 2);
-   EXPECT_EQ(sud.stxOutsRemovedByBlock_[0].txIndex_, 17);
-   EXPECT_EQ(sud.stxOutsRemovedByBlock_[1].txIndex_, 17);
+   EXPECT_EQ(sud.stxOutsRemovedByBlock_[0].blockHeight_, 100000ULL);
+   EXPECT_EQ(sud.stxOutsRemovedByBlock_[1].blockHeight_, 100000ULL);
+   EXPECT_EQ(sud.stxOutsRemovedByBlock_[0].duplicateID_, 2ULL);
+   EXPECT_EQ(sud.stxOutsRemovedByBlock_[1].duplicateID_, 2ULL);
+   EXPECT_EQ(sud.stxOutsRemovedByBlock_[0].txIndex_, 17ULL);
+   EXPECT_EQ(sud.stxOutsRemovedByBlock_[1].txIndex_, 17ULL);
 }
 
 
@@ -5176,7 +5173,7 @@ TEST_F(StoredBlockObjTest, STxHintsSer)
    BinaryWriter ans1;
    ans1.put_var_int(1);
    ans1.put_BinaryData(hint0);
-   EXPECT_EQ(sths.dbKeyList_.size(), 1);
+   EXPECT_EQ(sths.dbKeyList_.size(), 1ULL);
    EXPECT_EQ(sths.preferredDBKey_, hint0);
    EXPECT_EQ(sths.serializeDBValue(), ans1.getData());
 
@@ -5188,7 +5185,7 @@ TEST_F(StoredBlockObjTest, STxHintsSer)
    ans3.put_BinaryData(hint0);
    ans3.put_BinaryData(hint1);
    ans3.put_BinaryData(hint2);
-   EXPECT_EQ(sths.dbKeyList_.size(), 3);
+   EXPECT_EQ(sths.dbKeyList_.size(), 3ULL);
    EXPECT_EQ(sths.preferredDBKey_, hint0);
    EXPECT_EQ(sths.serializeDBValue(), ans3.getData());
 }
@@ -5232,17 +5229,17 @@ TEST_F(StoredBlockObjTest, STxHintsUnser)
 
    sths0.unserializeDBValue(in0);
 
-   EXPECT_EQ(sths0.dbKeyList_.size(), 0);
-   EXPECT_EQ(sths0.preferredDBKey_.getSize(), 0);
+   EXPECT_EQ(sths0.dbKeyList_.size(), 0ULL);
+   EXPECT_EQ(sths0.preferredDBKey_.getSize(), 0ULL);
 
    sths1.unserializeDBValue(in1);
 
-   EXPECT_EQ(sths1.dbKeyList_.size(),  1);
+   EXPECT_EQ(sths1.dbKeyList_.size(),  1ULL);
    EXPECT_EQ(sths1.dbKeyList_[0],      hint0);
    EXPECT_EQ(sths1.preferredDBKey_,    hint0);
 
    sths3.unserializeDBValue(in3);
-   EXPECT_EQ(sths3.dbKeyList_.size(),  3);
+   EXPECT_EQ(sths3.dbKeyList_.size(),  3ULL);
    EXPECT_EQ(sths3.dbKeyList_[0],      hint0);
    EXPECT_EQ(sths3.dbKeyList_[1],      hint1);
    EXPECT_EQ(sths3.dbKeyList_[2],      hint2);
@@ -5369,21 +5366,21 @@ TEST_F(StoredBlockObjTest, SHeadHgtListUnser)
 
       if(i==0)
       {
-         ASSERT_EQ(hhl.dupAndHashList_.size(), 1);
+         ASSERT_EQ(hhl.dupAndHashList_.size(), 1ULL);
          EXPECT_EQ(hhl.dupAndHashList_[0].first,  dup0);
          EXPECT_EQ(hhl.dupAndHashList_[0].second, hash0);
          EXPECT_EQ(hhl.preferredDup_,  UINT8_MAX);
       }
       else if(i==1)
       {
-         ASSERT_EQ(hhl.dupAndHashList_.size(), 1);
+         ASSERT_EQ(hhl.dupAndHashList_.size(), 1ULL);
          EXPECT_EQ(hhl.dupAndHashList_[0].first,  dup0);
          EXPECT_EQ(hhl.dupAndHashList_[0].second, hash0);
          EXPECT_EQ(hhl.preferredDup_,  0);
       }
       else if(i==2)
       {
-         ASSERT_EQ(hhl.dupAndHashList_.size(), 3);
+         ASSERT_EQ(hhl.dupAndHashList_.size(), 3ULL);
          EXPECT_EQ(hhl.dupAndHashList_[0].first,  dup0);
          EXPECT_EQ(hhl.dupAndHashList_[0].second, hash0);
          EXPECT_EQ(hhl.dupAndHashList_[1].first,  dup1);
@@ -5394,7 +5391,7 @@ TEST_F(StoredBlockObjTest, SHeadHgtListUnser)
       }
       else if(i==3)
       {
-         ASSERT_EQ(hhl.dupAndHashList_.size(), 3);
+         ASSERT_EQ(hhl.dupAndHashList_.size(), 3ULL);
          EXPECT_EQ(hhl.dupAndHashList_[0].first,  dup1);
          EXPECT_EQ(hhl.dupAndHashList_[0].second, hash1);
          EXPECT_EQ(hhl.dupAndHashList_[1].first,  dup0);
@@ -5535,11 +5532,11 @@ TEST_F(StoredBlockObjTest, SScriptHistoryUnser)
    ssh.unserializeDBKey(DBPREF + uniq);
    ssh.unserializeDBValue(toUnser);
 
-   EXPECT_EQ(   ssh.subHistMap_.size(), 0);
+   EXPECT_EQ(   ssh.subHistMap_.size(), 0ULL);
    EXPECT_EQ(   ssh.scanHeight_, 65535);
    EXPECT_EQ(   ssh.tallyHeight_, -1);
-   EXPECT_EQ(   ssh.totalTxioCount_, 0);
-   EXPECT_EQ(   ssh.totalUnspent_, 0);
+   EXPECT_EQ(   ssh.totalTxioCount_, 0ULL);
+   EXPECT_EQ(   ssh.totalUnspent_, 0ULL);
 
    /////////////////////////////////////////////////////////////////////////////
    ssh = sshorig;
@@ -5550,7 +5547,7 @@ TEST_F(StoredBlockObjTest, SScriptHistoryUnser)
 
    EXPECT_EQ(   ssh.scanHeight_, 65535);
    EXPECT_EQ(   ssh.tallyHeight_, -1);
-   EXPECT_EQ(   ssh.totalTxioCount_, 1);
+   EXPECT_EQ(   ssh.totalTxioCount_, 1ULL);
    EXPECT_EQ(   ssh.totalUnspent_, READ_UINT64_HEX_LE("0100000000000000"));
 
 
@@ -5574,14 +5571,14 @@ TEST_F(StoredBlockObjTest, SScriptHistoryUnser)
    uint64_t val1 = READ_UINT64_HEX_LE("0000000400000000");
 
    // Unmerged, so ssh doesn't have the subSSH as part of it yet.
-   EXPECT_EQ(   ssh.subHistMap_.size(), 0);
+   EXPECT_EQ(   ssh.subHistMap_.size(), 0ULL);
    EXPECT_EQ(   ssh.scanHeight_, 65535);
-   EXPECT_EQ(   ssh.totalTxioCount_, 2);
+   EXPECT_EQ(   ssh.totalTxioCount_, 2ULL);
    EXPECT_EQ(   ssh.totalUnspent_, READ_UINT64_HEX_LE("0000030400000000"));
 
    EXPECT_EQ(   subssh1.uniqueKey_,  uniq);
    EXPECT_EQ(   subssh1.hgtX_,       hgtX0);
-   EXPECT_EQ(   subssh1.txioMap_.size(), 2);
+   EXPECT_EQ(   subssh1.txioMap_.size(), 2ULL);
    ASSERT_NE(   subssh1.txioMap_.find(txio0key), subssh1.txioMap_.end());
    ASSERT_NE(   subssh1.txioMap_.find(txio1key), subssh1.txioMap_.end());
    EXPECT_EQ(   subssh1.txioMap_[txio0key].getValue(), val0);
@@ -5590,13 +5587,13 @@ TEST_F(StoredBlockObjTest, SScriptHistoryUnser)
    EXPECT_EQ(   subssh1.txioMap_[txio1key].getDBKeyOfOutput(), txio1key);
 
    ssh.mergeSubHistory(subssh1);
-   EXPECT_EQ(   ssh.subHistMap_.size(), 1);
+   EXPECT_EQ(   ssh.subHistMap_.size(), 1ULL);
    ASSERT_NE(   ssh.subHistMap_.find(hgtX0), ssh.subHistMap_.end());
 
    StoredSubHistory & subref = ssh.subHistMap_[hgtX0];
    EXPECT_EQ(   subref.uniqueKey_, uniq);
    EXPECT_EQ(   subref.hgtX_,      hgtX0);
-   EXPECT_EQ(   subref.txioMap_.size(), 2);
+   EXPECT_EQ(   subref.txioMap_.size(), 2ULL);
    ASSERT_NE(   subref.txioMap_.find(txio0key), subref.txioMap_.end());
    ASSERT_NE(   subref.txioMap_.find(txio1key), subref.txioMap_.end());
    EXPECT_EQ(   subref.txioMap_[txio0key].getValue(), val0);
@@ -5989,7 +5986,7 @@ TEST_F(LMDBTest, OpenClose)
    iface_->openDatabases(Pathing::dbDir());
    ASSERT_TRUE(iface_->databasesAreOpen());
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 0);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 0ULL);
                           
    KVLIST HList = iface_->getAllDatabaseEntries(HEADERS);
    KVLIST BList = iface_->getAllDatabaseEntries(HISTORY);
@@ -6276,7 +6273,7 @@ TEST_F(LMDBTest, PutGetStoredTxHints)
    // Now test the get methods
    EXPECT_TRUE( iface_->getStoredTxHints(sths, prefix));
    EXPECT_EQ(   sths.txHashPrefix_,  prefix);
-   EXPECT_EQ(   sths.dbKeyList_.size(),  2);
+   EXPECT_EQ(   sths.dbKeyList_.size(),  2ULL);
    EXPECT_EQ(   sths.preferredDBKey_, READHEX("00002222aaaa"));
 
    //
@@ -6285,8 +6282,8 @@ TEST_F(LMDBTest, PutGetStoredTxHints)
    EXPECT_TRUE( iface_->putStoredTxHints(sths));
    EXPECT_TRUE( iface_->getStoredTxHints(sths, prefix));
    EXPECT_EQ(   sths.txHashPrefix_,  prefix);
-   EXPECT_EQ(   sths.dbKeyList_.size(),  0);
-   EXPECT_EQ(   sths.preferredDBKey_.getSize(), 0);
+   EXPECT_EQ(   sths.dbKeyList_.size(),  0ULL);
+   EXPECT_EQ(   sths.preferredDBKey_.getSize(), 0ULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -6323,9 +6320,9 @@ TEST_F(TxRefTest, TxRefKeyParts)
    EXPECT_EQ(txr.getDBKey(),    newKey);
    EXPECT_EQ(txr.getDBKeyRef(), newRef);
 
-   EXPECT_EQ(txr.getBlockHeight(),  0xe3c402);
-   EXPECT_EQ(txr.getDuplicateID(),  127);
-   EXPECT_EQ(txr.getBlockTxIndex(), 15);
+   EXPECT_EQ(txr.getBlockHeight(),  0xe3c402ULL);
+   EXPECT_EQ(txr.getDuplicateID(),  127ULL);
+   EXPECT_EQ(txr.getBlockTxIndex(), 15ULL);
 }
 
 class TestCryptoECDSA : public ::testing::Test
