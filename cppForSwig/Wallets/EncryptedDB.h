@@ -112,7 +112,7 @@ struct IfaceDataMap
 {
    std::map<BinaryData, BothBinaryDatas> dataMap_;
    std::map<BinaryData, BinaryData> dataKeyToDbKey_;
-   unsigned dbKeyCounter_ = 0;
+   uint32_t dbKeyCounter_ = 0;
 
    void update(const std::vector<std::shared_ptr<InsertData>>&);
    bool resolveDataKey(const BinaryData&, BinaryData&);
@@ -126,20 +126,20 @@ class DBInterface
    friend class WalletIfaceTransaction;
 
 private:
+   LMDBEnv* dbEnv_;
    const std::string dbName_;
-   LMDBEnv* dbEnv_ = nullptr;
-   LMDB db_;
+   const SecureBinaryData controlSalt_;
+   const unsigned encrVersion_;
 
+   LMDB db_;
    std::shared_ptr<IfaceDataMap> dataMapPtr_;
 
-   const SecureBinaryData controlSalt_;
    SecureBinaryData encrPubKey_;
    SecureBinaryData macKey_;
 
    static const BinaryData erasurePlaceHolder_;
    static const BinaryData keyCycleFlag_;
 
-   const unsigned encrVersion_;
 
 private:
    //serialization methods
@@ -153,8 +153,8 @@ private:
       unsigned encrVersion);
 
 public:
-   DBInterface(LMDBEnv*, 
-      const std::string&, const SecureBinaryData&, unsigned encrVersion);
+   DBInterface(LMDBEnv*, const std::string&,
+      const SecureBinaryData&, unsigned);
    ~DBInterface(void);
 
    ////

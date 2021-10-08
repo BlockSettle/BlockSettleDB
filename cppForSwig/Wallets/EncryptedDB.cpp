@@ -57,8 +57,8 @@ bool IfaceDataMap::resolveDataKey(const BinaryData& dataKey,
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData IfaceDataMap::getNewDbKey()
 {
-   auto dbKeyInt = dbKeyCounter_++;
-   return WRITE_UINT32_BE(dbKeyInt);
+   auto dbKeyUint = dbKeyCounter_++;
+   return WRITE_UINT32_BE(dbKeyUint);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,7 +76,7 @@ const BinaryData DBInterface::keyCycleFlag_ =
 DBInterface::DBInterface(
    LMDBEnv* dbEnv, const std::string& dbName,
    const SecureBinaryData& controlSalt, unsigned encrVersion) :
-   dbEnv_(dbEnv), dbName_(dbName), controlSalt_(controlSalt), 
+   dbEnv_(dbEnv), dbName_(dbName), controlSalt_(controlSalt),
    encrVersion_(encrVersion)
 {
    auto tx = LMDBEnv::Transaction(dbEnv_, LMDB::ReadWrite);
@@ -196,14 +196,18 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
          BinaryDataRef val_bdr((const uint8_t*)val_mval.mv_data, val_mval.mv_size);
 
          //dbkeys should be consecutive integers, mark gaps
-         int dbKeyInt = READ_UINT32_BE(key_bdr);
-         if (dbKeyInt < 0) {     // dbKey can unlikely be >2^31, so this looks like
-            throw EncryptedDBException("invalid dbkey");   // data corruption
+         uint32_t dbKeyUint = READ_UINT32_BE(key_bdr);
+         if (dbKeyUint >= 0x10000000U)
+         {
+            // dbKey can unlikely be >2^31, so this looks like
+            // data corruption
+            throw EncryptedDBException("invalid dbkey");
          }
 
+         auto dbKeyInt = (int32_t)dbKeyUint;
          if (dbKeyInt - prevDbKey != 1)
          {
-            for (unsigned i = prevDbKey + 1; i < dbKeyInt; i++)
+            for (int i = prevDbKey + 1; i < dbKeyInt; i++)
                gaps.insert(i);
          }
 
