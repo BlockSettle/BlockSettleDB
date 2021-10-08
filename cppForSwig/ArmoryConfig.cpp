@@ -208,7 +208,7 @@ void ArmoryConfig::parseArgs(const vector<string>& lines)
       //db settings
       DBSettings::processArgs(args);
    }
-   catch (DbErrorMsg& e)
+   catch (const ConfigError& e)
    {
       cerr << e.what() << endl;
       throw e;

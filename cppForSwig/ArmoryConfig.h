@@ -40,7 +40,14 @@ namespace CoreRPC
 
 namespace ArmoryConfig
 {
-   
+
+class ConfigError : public std::runtime_error
+{
+   ConfigError(const std::string& err) :
+      std::runtime_error(err)
+   {}
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 namespace SettingsUtils
 {
