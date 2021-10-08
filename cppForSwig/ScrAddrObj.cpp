@@ -24,7 +24,7 @@ using namespace std;
 ScrAddrObj::ScrAddrObj(LMDBBlockDatabase *db, Blockchain *bc,
    ZeroConfContainer* zc, BinaryDataRef addr) :
       db_(db), bc_(bc), zc_(zc), scrAddr_(addr), utxos_(this)
-{} 
+{}
 
 ////////////////////////////////////////////////////////////////////////////////
 uint64_t ScrAddrObj::getSpendableBalance(uint32_t currBlk) const
@@ -442,7 +442,7 @@ vector<UnspentTxOut> ScrAddrObj::getAllUTXOs(
       utxoList.push_back(UTXO);
    }
 
-   return move(utxoList);
+   return utxoList;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

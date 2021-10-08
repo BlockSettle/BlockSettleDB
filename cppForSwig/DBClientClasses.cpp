@@ -206,7 +206,7 @@ vector<BinaryData> LedgerEntry::getScrAddrList() const
       throw runtime_error("uninitialized ledger entry");
 
    vector<BinaryData> addrList;
-   for (unsigned i = 0; i < ptr_->scraddr_size(); i++)
+   for (int i = 0; i < ptr_->scraddr_size(); i++)
    {
       const auto& addrPtr = ptr_->scraddr(i);
       BinaryDataRef addrRef; addrRef.setRef(addrPtr);

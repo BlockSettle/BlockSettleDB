@@ -235,7 +235,7 @@ unique_ptr<Cipher> Cipher::deserialize(BinaryRefReader& brr)
       throw CipherException("unknown cipher version");
    }
 
-   return move(cipher);
+   return cipher;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

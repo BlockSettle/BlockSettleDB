@@ -134,7 +134,7 @@ unique_ptr<StackInterpreter> TransactionVerifier::getStackInterpreter(
    auto flags = sstack->getFlags();
    flags |= flags_;
    sstack->setFlags(flags);
-   return move(sstack);
+   return sstack;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

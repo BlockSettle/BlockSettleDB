@@ -1821,7 +1821,7 @@ BinaryData ZcActionQueue::getNewZCkey()
    BinaryData newKey = READHEX("ffff");
    newKey.append(WRITE_UINT32_BE(newId));
 
-   return move(newKey);
+   return newKey;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

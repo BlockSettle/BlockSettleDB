@@ -598,7 +598,7 @@ void AuthorizedPeers::addPeerRootKey(
    if (wallet_ == nullptr)
    {
       auto descPair = make_pair(description, 0);
-      auto insertIter = peerRootKeys_.insert(make_pair(key, descPair));
+      peerRootKeys_.insert(make_pair(key, descPair));
       return;
    }
 
@@ -610,7 +610,7 @@ void AuthorizedPeers::addPeerRootKey(
       peerAccount.get(), key, description, sharedTx);
 
    auto descPair = make_pair(description, index);
-   auto insertIter = peerRootKeys_.insert(make_pair(key, descPair));
+   peerRootKeys_.insert(make_pair(key, descPair));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

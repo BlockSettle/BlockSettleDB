@@ -149,7 +149,6 @@ void SocketPrototype::setBlocking(SOCKET sock, bool setblocking)
    int rt = fcntl(sock, F_SETFL, flags);
    if (rt != 0)
    {
-      auto thiserrno = errno;
       cout << "fcntl returned " << rt << endl;
       cout << "error: " << strerror(errno);
       throw SocketError("failed to set blocking mode on socket");
@@ -903,7 +902,7 @@ vector<uint8_t> SimpleSocket::readFromSocket(void)
             }
 
             totalread += readAmt;
-            if (readAmt < readIncrement)
+            if (readAmt < (ssize_t)readIncrement)
                break;
 
             readdata.resize(totalread + readIncrement);

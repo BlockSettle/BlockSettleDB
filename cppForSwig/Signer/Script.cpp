@@ -215,7 +215,7 @@ shared_ptr<StackItem> StackItem::deserialize(
       auto itemMs = make_shared<StackItem_MultiSig>(id, script);
 
       //fill it with carried over sigs
-      for (unsigned i = 0; i < msData.sig_index_size(); i++)
+      for (int i = 0; i < msData.sig_index_size(); i++)
       {
          auto pos = msData.sig_index(i);
          auto&& data = SecureBinaryData::fromString(msData.sig_data(i));

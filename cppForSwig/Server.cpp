@@ -335,7 +335,7 @@ void WebSocketServer::shutdown()
    {
       shutdownPromise_.set_value(true);
    }
-   catch (future_error)
+   catch (const future_error&)
    {}
 }
 
@@ -366,7 +366,6 @@ void WebSocketServer::webSocketService(int port)
    struct lws_vhost *vhost;
    const char *iface = nullptr;
    int uid = -1, gid = -1;
-   int pp_secs = 0;
    int opts = 0;
    int n = 0;
 
@@ -719,9 +718,9 @@ void WebSocketServer::updateWriteMap()
             continue;
 
          iter->second.emplace_back(move(packetList.second));
-         auto insertIter = pendingWrites_.insert(packetList.first);
+         pendingWrites_.insert(packetList.first);
          break;
-      }      
+      }
    }
    catch (IsEmpty&)
    {}

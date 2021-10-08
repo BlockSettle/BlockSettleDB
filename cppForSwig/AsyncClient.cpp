@@ -31,7 +31,7 @@ unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(Methods method)
    message->set_method(method);
 
    payload->message_ = move(message);
-   return move(payload);
+   return payload;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -43,7 +43,7 @@ unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(
    message->set_method(method);
 
    payload->message_ = move(message);
-   return move(payload);
+   return payload;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1376,7 +1376,7 @@ void CallbackReturn_TxBatch::callback(
             (int)ArmoryErrorCodes::GetTxBatchError_Invalid);
       }
 
-      if (callMap_.size() != msg.tx_size())
+      if ((ssize_t)callMap_.size() != msg.tx_size())
       {
          throw ClientMessageError(
             "call map size mismatch", 
@@ -1988,23 +1988,23 @@ void CallbackReturn_CombinedBalances::callback(
 
       map<string, CombinedBalances> result;
 
-      for (unsigned i=0; i<msg.packedbalance_size(); i++)
+      for (int i=0; i<msg.packedbalance_size(); i++)
       {
          auto wltVals = msg.packedbalance(i);
 
          CombinedBalances cbal;
          cbal.walletId_.copyFrom(wltVals.id());
 
-         for (unsigned y=0; y<wltVals.idbalances_size(); y++)
+         for (int y=0; y<wltVals.idbalances_size(); y++)
             cbal.walletBalanceAndCount_.push_back(wltVals.idbalances(y));
 
-         for (unsigned y=0; y<wltVals.addrdata_size(); y++)
+         for (int y=0; y<wltVals.addrdata_size(); y++)
          {
             auto addrBals = wltVals.addrdata(y);
             auto&& scrAddr = BinaryData::fromString(addrBals.scraddr());
 
             vector<uint64_t> abl;
-            for (unsigned z=0; z<addrBals.value_size(); z++)
+            for (int z=0; z<addrBals.value_size(); z++)
                abl.push_back(addrBals.value(z));
 
             cbal.addressBalances_.insert(make_pair(scrAddr, abl));
@@ -2044,14 +2044,14 @@ void CallbackReturn_CombinedCounts::callback(
 
       map<string, CombinedCounts> result;
 
-      for (unsigned i=0; i<msg.packedbalance_size(); i++)
+      for (int i=0; i<msg.packedbalance_size(); i++)
       {
          auto wltVals = msg.packedbalance(i);
 
          CombinedCounts cbal;
          cbal.walletId_.copyFrom(wltVals.id());
 
-         for (unsigned y=0; y<wltVals.addrdata_size(); y++)
+         for (int y=0; y<wltVals.addrdata_size(); y++)
          {
             auto addrBals = wltVals.addrdata(y);
             auto&& scrAddr = BinaryData::fromString(addrBals.scraddr());
@@ -2096,13 +2096,13 @@ void CallbackReturn_AddrOutpoints::callback(
       result.heightCutoff_ = msg.heightcutoff();
       result.zcIndexCutoff_ = msg.zcindexcutoff();
 
-      for (unsigned i = 0; i < msg.addroutpoints_size(); i++)
+      for (int i = 0; i < msg.addroutpoints_size(); i++)
       {
          auto& addrOutpoints = msg.addroutpoints(i);
          auto&& scrAddr = BinaryData::fromString(addrOutpoints.scraddr());
 
          vector<OutpointData> outpointVec(addrOutpoints.outpoints_size());
-         for (unsigned y = 0; y < addrOutpoints.outpoints_size(); y++)
+         for (int y = 0; y < addrOutpoints.outpoints_size(); y++)
          {
             auto& outpoint = addrOutpoints.outpoints(y);
             auto& opData = outpointVec[y];
@@ -2149,7 +2149,7 @@ void CallbackReturn_SpentnessData::callback(
       ::Codec_Utxo::Spentness_BatchData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      if (msg.count() != msg.txdata_size())
+      if ((ssize_t)msg.count() != msg.txdata_size())
          throw ClientMessageError("malformed spentness payload", -1);
 
       map<BinaryData, map<unsigned, SpentnessResult>> result;
@@ -2159,7 +2159,7 @@ void CallbackReturn_SpentnessData::callback(
          BinaryDataRef txHashRef; txHashRef.setRef(txData.hash());
 
          auto& opMap = result[txHashRef];
-         for (unsigned y=0; y<txData.outputdata_size(); y++)
+         for (int y=0; y<txData.outputdata_size(); y++)
          {
             const auto& opData = txData.outputdata(y);
             auto& spentnessData = opMap[opData.txoutindex()];

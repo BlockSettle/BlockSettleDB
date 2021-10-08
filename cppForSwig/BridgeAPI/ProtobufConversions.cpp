@@ -109,7 +109,6 @@ void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr)
 
    //address map
    auto addrMap = accPtr->getUsedAddressMap();
-   unsigned i=0;
    for (auto& addrPair : addrMap)
    {
       auto assetPtr = wltProto->add_assets();

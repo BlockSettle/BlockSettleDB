@@ -15,9 +15,10 @@
 
 #include "../../ReentrantLock.h"
 
-#define ASSET_ACCOUNT_PREFIX     0xE1
-#define ASSET_COUNT_PREFIX       0xE2
-#define ASSET_TOP_INDEX_PREFIX   0xE3
+#define ASSET_ACCOUNT_PREFIX        0xE1
+#define ASSET_COUNT_PREFIX          0xE2
+#define ASSET_TOP_INDEX_PREFIX_V1   0xE3
+#define ASSET_TOP_INDEX_PREFIX_V2   0xE4
 
 ////////////////////////////////////////////////////////////////////////////////
 class DBIfaceTransaction;
@@ -25,9 +26,12 @@ class WalletDBInterface;
 class DerivationScheme;
 enum class DerivationSchemeType : int;
 
+using AssetKeyType = int32_t;
+
 ////////////////////////////////////////////////////////////////////////////////
 struct AssetAccountData
 {
+
 public:
    const AssetAccountTypeEnum type_;
    BinaryData id_;
@@ -38,12 +42,12 @@ public:
 
    const std::string dbName_;
 
-   std::map<unsigned, std::shared_ptr<AssetEntry>> assets_;
-   int lastUsedIndex_ = -1;
+   std::map<AssetKeyType, std::shared_ptr<AssetEntry>> assets_;
+   AssetKeyType lastUsedIndex_ = -1;
 
    //<assetID, <address type, prefixed address hash>>
    std::map<BinaryData, std::map<AddressEntryType, BinaryData>> addrHashMap_;
-   int lastHashedAsset_ = -1;
+   AssetKeyType lastHashedAsset_ = -1;
 
 public:
    AssetAccountData(
@@ -70,8 +74,8 @@ struct AssetAccountPublicData
    const SecureBinaryData rootData_;
    const SecureBinaryData derivationData_;
 
-   const int lastUsedIndex_;
-   const int lastComputedIndex_;
+   const AssetKeyType lastUsedIndex_;
+   const AssetKeyType lastComputedIndex_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,8 +148,8 @@ public:
    }
 
    size_t getAssetCount(void) const;
-   int getLastComputedIndex(void) const;
-   int getHighestUsedIndex(void) const;
+   int32_t getLastComputedIndex(void) const;
+   int32_t getHighestUsedIndex(void) const;
    std::shared_ptr<AssetEntry> getLastAssetWithPrivateKey(void) const;
 
    std::shared_ptr<AssetEntry> getAssetForID(const BinaryData&) const;

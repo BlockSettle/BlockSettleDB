@@ -103,7 +103,7 @@ void CppBridgeSocket::respond(vector<uint8_t>& data)
             return;
          }
 
-         if (decrLen > data.size() + POLY1305MACLEN)
+         if (decrLen > (ssize_t)data.size() + POLY1305MACLEN)
          {
             //not enough data to decrypt, save it and continue
             leftOverData_ = move(data);
@@ -111,15 +111,18 @@ void CppBridgeSocket::respond(vector<uint8_t>& data)
          }
 
          //decrypt the data
-         auto result = bip151Connection_->decryptPacket(
+         bip151Connection_->decryptPacket(
             &data[0], data.size(), &data[0], data.size());
 
          //point to the head of the decrypted cleartext
          dataRef.setRef(&data[0] + AUTHASSOCDATAFIELDLEN, decrLen);
 
          //keep track of this packet's size
-         if (data.size() > decrLen + AUTHASSOCDATAFIELDLEN + POLY1305MACLEN)
+         if ((ssize_t)data.size() >
+            decrLen + AUTHASSOCDATAFIELDLEN + POLY1305MACLEN)
+         {
             packetSize = decrLen + AUTHASSOCDATAFIELDLEN + POLY1305MACLEN;
+         }
 
          encr = true;
       }

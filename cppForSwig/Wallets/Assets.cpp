@@ -59,7 +59,7 @@ DecryptedEncryptionKey::copy() const
 
    copy_ptr->derivedKeys_ = derivedKeys_;
 
-   return move(copy_ptr);
+   return copy_ptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,7 +203,7 @@ shared_ptr<AssetEntry> AssetEntry::deserialize(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry> AssetEntry::deserDBValue(
-   int index, const BinaryData& account_id,
+   AssetKeyType index, const BinaryData& account_id,
    BinaryDataRef value)
 {
    BinaryRefReader brrVal(value);
@@ -588,11 +588,12 @@ shared_ptr<AssetEntry_Single> AssetEntry_Single::getPublicCopy()
 //// AssetEntry_BIP32Root
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-AssetEntry_BIP32Root::AssetEntry_BIP32Root(int id, const BinaryData& accountID,
+AssetEntry_BIP32Root::AssetEntry_BIP32Root(AssetKeyType id,
+   const BinaryData& accountID,
    SecureBinaryData& pubkey, shared_ptr<Asset_PrivateKey> privkey,
    const SecureBinaryData& chaincode,
-   uint8_t depth, unsigned leafID, 
-   unsigned fingerPrint, unsigned seedFingerprint,
+   uint8_t depth, uint32_t leafID,
+   uint32_t fingerPrint, uint32_t seedFingerprint,
    const vector<uint32_t>& derPath) :
    AssetEntry_Single(id, accountID, pubkey, privkey),
    chaincode_(chaincode),
@@ -604,11 +605,12 @@ AssetEntry_BIP32Root::AssetEntry_BIP32Root(int id, const BinaryData& accountID,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-AssetEntry_BIP32Root::AssetEntry_BIP32Root(int id, const BinaryData& accountID,
+AssetEntry_BIP32Root::AssetEntry_BIP32Root(AssetKeyType id,
+   const BinaryData& accountID,
    shared_ptr<Asset_PublicKey> pubkey, shared_ptr<Asset_PrivateKey> privkey,
    const SecureBinaryData& chaincode,
-   uint8_t depth, unsigned leafID, 
-   unsigned fingerPrint, unsigned seedFingerprint,
+   uint8_t depth, uint32_t leafID,
+   uint32_t fingerPrint, uint32_t seedFingerprint,
    const vector<uint32_t>& derPath) :
    AssetEntry_Single(id, accountID, pubkey, privkey),
    chaincode_(chaincode),
@@ -763,7 +765,7 @@ unique_ptr<DecryptedData> Asset_EncryptedData::decrypt(
    auto&& decryptedData = cipherDataPtr->cipher_->decrypt(
       key, cipherDataPtr->cipherText_);
    auto decrPtr = make_unique<DecryptedData>(getId(), decryptedData);
-   return move(decrPtr);
+   return decrPtr;
 }
 
 bool Asset_EncryptedData::isSame(Asset_EncryptedData* const asset) const
@@ -1020,7 +1022,7 @@ unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
    if (assetPtr == nullptr)
       throw AssetException("failed to deserialize encrypted asset");
 
-   return move(assetPtr);
+   return assetPtr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

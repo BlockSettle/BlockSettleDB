@@ -206,20 +206,49 @@ shared_ptr<AssetAccountData> AssetAccount::loadFromDisk(const BinaryData& key,
    }
 
    //last used index
-   size_t lastUsedIndex = 0;
+   int32_t lastUsedIndex = 0;
    {
       BinaryWriter bwKey_lastusedindex;
-      bwKey_lastusedindex.put_uint8_t(ASSET_TOP_INDEX_PREFIX);
+      bwKey_lastusedindex.put_uint8_t(ASSET_TOP_INDEX_PREFIX_V2);
       bwKey_lastusedindex.put_BinaryDataRef(key.getSliceRef(
          1, key.getSize() - 1));
 
       auto&& lastusedindex = sharedTx->getDataRef(
          bwKey_lastusedindex.getData());
-      if (lastusedindex.getSize() == 0)
-         throw AccountException("[loadFromDisk] missing last used entry");
 
-      BinaryRefReader brr_lastusedindex(lastusedindex);
-      lastUsedIndex = brr_lastusedindex.get_var_int();
+      if (lastusedindex.empty())
+      {
+         /*
+         Can't find the last used index entry keying by the V2 prefix.
+         Let's look for the V1 style just in case.
+         */
+         BinaryWriter bwKey_lastusedindex;
+         bwKey_lastusedindex.put_uint8_t(ASSET_TOP_INDEX_PREFIX_V1);
+         bwKey_lastusedindex.put_BinaryDataRef(key.getSliceRef(
+            1, key.getSize() - 1));
+
+         auto&& lastusedindex = sharedTx->getDataRef(
+            bwKey_lastusedindex.getData());
+         if (lastusedindex.empty())
+         {
+            throw AccountException("[loadFromDisk] missing last used entry");
+         }
+         else
+         {
+            LOGWARN << "[loadFromDisk] This wallet uses an older format" <<
+               ", you should refresh it";
+         }
+
+         BinaryRefReader brr_lastusedindex(lastusedindex);
+         uint64_t lui_varint = brr_lastusedindex.get_var_int();
+         lastUsedIndex = (int32_t)lui_varint;
+      }
+      else
+      {
+         //V2 key
+         BinaryRefReader brr_lastusedindex(lastusedindex);
+         lastUsedIndex = brr_lastusedindex.get_int32_t();
+      }
    }
 
    //asset entry prefix key
@@ -229,7 +258,7 @@ shared_ptr<AssetAccountData> AssetAccount::loadFromDisk(const BinaryData& key,
    
    //asset key
    shared_ptr<AssetEntry> rootEntry = nullptr;
-   map<unsigned, shared_ptr<AssetEntry>> assetMap;
+   map<AssetKeyType, shared_ptr<AssetEntry>> assetMap;
    
    //get all assets
    {
@@ -252,7 +281,7 @@ shared_ptr<AssetAccountData> AssetAccount::loadFromDisk(const BinaryData& key,
 
          //instantiate and insert asset
          auto assetPtr = AssetEntry::deserialize(
-            key_bdr, 
+            key_bdr,
             DBUtils::getDataRefForPacket(value_bdr));
 
          if (assetPtr->getIndex() != ROOT_ASSETENTRY_ID)
@@ -440,7 +469,7 @@ void AssetAccount::extendPrivateChainToIndex(
    catch(runtime_error&)
    {}
 
-   if (id > topIndex)
+   if ((int)id > topIndex)
    {
       auto count = id - topIndex;
       extendPrivateChain(iface, ddc, topAsset, count);
@@ -553,11 +582,11 @@ void AssetAccount::updateHighestUsedIndex(shared_ptr<WalletDBInterface> iface)
    ReentrantLock lock(this);
 
    BinaryWriter bwKey;
-   bwKey.put_uint8_t(ASSET_TOP_INDEX_PREFIX);
+   bwKey.put_uint8_t(ASSET_TOP_INDEX_PREFIX_V2);
    bwKey.put_BinaryData(getFullID());
 
    BinaryWriter bwData;
-   bwData.put_var_int(data_->lastUsedIndex_);
+   bwData.put_int32_t(data_->lastUsedIndex_);
 
    auto tx = iface->beginWriteTransaction(data_->dbName_);
    tx->insert(bwKey.getData(), bwData.getData());
@@ -719,7 +748,7 @@ shared_ptr<Asset_PrivateKey> AssetAccount::fillPrivateKey(
    //reverse iter through the map, find closest previous asset with priv key
    //this is only necessary for armory 1.35 derivation
    shared_ptr<AssetEntry> prevAssetWithKey = nullptr;
-   map<unsigned, shared_ptr<AssetEntry>>::reverse_iterator rIter(iter);
+   map<AssetKeyType, shared_ptr<AssetEntry>>::reverse_iterator rIter(iter);
    while (rIter != data_->assets_.rend())
    {
       if (rIter->second->hasPrivateKey())

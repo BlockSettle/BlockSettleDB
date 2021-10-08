@@ -53,7 +53,7 @@ private:
    };
 
 private:
-   std::map<BinaryData, std::shared_ptr<KeyDerivationFunction>> kdfMap_;
+   std::map<BinaryData, std::shared_ptr<KeyDerivationFunction>> kdfMap_ = {};
    std::unique_ptr<DecryptedDataMaps> lockedDecryptedData_ = nullptr;
 
    struct OtherLockedContainer
@@ -70,9 +70,13 @@ private:
       }
    };
 
-   std::vector<OtherLockedContainer> otherLocks_;
+   std::vector<OtherLockedContainer> otherLocks_ = {};
+
+public:
+   const WriteTxFuncType getWriteTx_;
    const std::string dbName_;
 
+private:
    /*
    The default encryption key is used to encrypt the master encryption in
    case no passphrase was provided at wallet creation. This is to prevent
@@ -89,8 +93,6 @@ private:
    const SecureBinaryData defaultKdfId_;
    const SecureBinaryData masterEncryptionKeyId_;
 
-public:
-   const WriteTxFuncType getWriteTx_;
 
 protected:
    std::map<BinaryData, std::shared_ptr<Asset_EncryptedData>> encryptionKeyMap_;

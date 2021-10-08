@@ -278,8 +278,7 @@ BinaryData DecryptedDataContainer::populateEncryptionKey(
       //make sure insertion succeeds
       lockedDecryptedData_->encryptionKeys_.erase(keyid);
       auto&& keypair = make_pair(keyid, move(decrKey));
-      auto&& insertionPair =
-         lockedDecryptedData_->encryptionKeys_.insert(move(keypair));
+      lockedDecryptedData_->encryptionKeys_.insert(move(keypair));
    };
 
    //look for already decrypted data
@@ -420,7 +419,7 @@ SecureBinaryData DecryptedDataContainer::encryptData(
 
    auto keyIter = lockedDecryptedData_->encryptionKeys_.find(
       cipher->getEncryptionKeyId());
-   auto& derivedKey = keyIter->second->getDerivedKey(cipher->getKdfId());
+   keyIter->second->getDerivedKey(cipher->getKdfId());
 
    return move(cipher->encrypt(
       keyIter->second.get(), cipher->getKdfId(), data));
@@ -450,7 +449,7 @@ unique_ptr<DecryptedEncryptionKey> DecryptedDataContainer::promptPassphrase(
          keyPtr = move(deriveEncryptionKey(move(keyPtr), keyPair.second));
 
          if (keyPair.first == keyPtr->getId(keyPair.second))
-            return move(keyPtr);
+            return keyPtr;
       }
    }
 

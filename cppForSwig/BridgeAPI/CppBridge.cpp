@@ -639,7 +639,7 @@ void CppBridge::restoreWallet(
          lines.emplace_back((const uint8_t*)line.c_str(), line.size());
       }
 
-      for (unsigned i=0; i<msg.secondary_size(); i++)
+      for (int i=0; i<msg.secondary_size(); i++)
       {
          const auto& line = msg.secondary(i);
          lines.emplace_back((const uint8_t*)line.c_str(), line.size());
@@ -1324,7 +1324,7 @@ bool CppBridge::cs_ProcessCustomUtxoList(const ClientCommand& msg)
    auto flags = msg.intargs(0);
 
    vector<UTXO> utxos;
-   for (unsigned i=0; i<msg.byteargs_size(); i++)
+   for (int i=0; i<msg.byteargs_size(); i++)
    {
       auto& utxoSer = msg.byteargs(i);
       BridgeUtxo utxoProto;

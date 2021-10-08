@@ -115,7 +115,7 @@ bool ProtobufCommandParser::processData(
    case Methods::updateWalletsLedgerFilter:
    {
       vector<BinaryData> idVec;
-      for (unsigned i=0; i<msg.stringargs_size(); i++)
+      for (int i=0; i<msg.stringargs_size(); i++)
          idVec.push_back(BinaryData::fromString(msg.stringargs(i)));
 
       bridge->bdvPtr_->updateWalletsLedgerFilter(idVec);
@@ -645,7 +645,7 @@ bool ProtobufCommandParser::processData(
          throw runtime_error("invalid command: broadcastTx");
 
       vector<BinaryData> bdVec;
-      for (unsigned i=0; i<msg.byteargs_size(); i++)
+      for (int i=0; i<msg.byteargs_size(); i++)
          bdVec.emplace_back(move(BinaryData::fromString(msg.byteargs(i))));
 
       bridge->broadcastTx(bdVec);

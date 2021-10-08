@@ -19,6 +19,7 @@
 #include "EncryptionUtils.h"
 #include "AssetEncryption.h"
 
+using AssetKeyType = int32_t;
 
 class AssetException : public std::runtime_error
 {
@@ -43,7 +44,7 @@ public:
 #define METADATA_PEERROOT_PREFIX 0x92
 #define METADATA_ROOTSIG_PREFIX  0x93
 
-#define ROOT_ASSETENTRY_ID       0xFFFFFFFF
+#define ROOT_ASSETENTRY_ID       -1
 #define SEED_ID                  READHEX("0x5EEDDEE55EEDDEE5");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -428,7 +429,7 @@ class AssetEntry
 {
 protected:
    AssetEntryType type_;
-   const int index_;
+   const AssetKeyType index_;
    const BinaryData accountID_;
    BinaryData ID_; //accountID | index
 
@@ -436,7 +437,8 @@ protected:
 
 public:
    //tors
-   AssetEntry(AssetEntryType type, int id, const BinaryData& accountID) :
+   AssetEntry(AssetEntryType type, AssetKeyType id,
+      const BinaryData& accountID) :
       type_(type), index_(id), accountID_(accountID)
    {
       ID_ = accountID_;
@@ -446,7 +448,7 @@ public:
    virtual ~AssetEntry(void) = 0;
 
    //local
-   int getIndex(void) const { return index_; }
+   AssetKeyType getIndex(void) const { return index_; }
    const BinaryData& getAccountID(void) const { return accountID_; }
    const BinaryData& getID(void) const { return ID_; }
 
@@ -465,7 +467,7 @@ public:
    static std::shared_ptr<AssetEntry> deserialize(
       BinaryDataRef key, BinaryDataRef value);
    static std::shared_ptr<AssetEntry> deserDBValue(
-      int index, const BinaryData& account_id,
+      AssetKeyType index, const BinaryData& account_id,
       BinaryDataRef value);
 };
 
@@ -478,7 +480,7 @@ private:
 
 public:
    //tors
-   AssetEntry_Single(int id, const BinaryData& accountID,
+   AssetEntry_Single(AssetKeyType id, const BinaryData& accountID,
       SecureBinaryData& pubkey,
       std::shared_ptr<Asset_PrivateKey> privkey) :
       AssetEntry(AssetEntryType_Single, id, accountID), 
@@ -487,7 +489,7 @@ public:
       pubkey_ = std::make_shared<Asset_PublicKey>(pubkey);
    }
 
-   AssetEntry_Single(int id, const BinaryData& accountID,
+   AssetEntry_Single(AssetKeyType id, const BinaryData& accountID,
       SecureBinaryData& pubkeyUncompressed,
       SecureBinaryData& pubkeyCompressed,
       std::shared_ptr<Asset_PrivateKey> privkey) :
@@ -498,7 +500,7 @@ public:
          pubkeyUncompressed, pubkeyCompressed);
    }
 
-   AssetEntry_Single(int id, const BinaryData& accountID,
+   AssetEntry_Single(AssetKeyType id, const BinaryData& accountID,
       std::shared_ptr<Asset_PublicKey> pubkey,
       std::shared_ptr<Asset_PrivateKey> privkey) :
       AssetEntry(AssetEntryType_Single, id, accountID),
@@ -526,7 +528,7 @@ private:
 
 public:
    //tors
-   AssetEntry_ArmoryLegacyRoot(int id, const BinaryData& accountID,
+   AssetEntry_ArmoryLegacyRoot(AssetKeyType id, const BinaryData& accountID,
       SecureBinaryData& pubkey,
       std::shared_ptr<Asset_PrivateKey> privkey,
       const SecureBinaryData& chaincode):
@@ -551,43 +553,44 @@ private:
    const SecureBinaryData chaincode_;
    const uint8_t depth_;
    const unsigned leafID_;
-   const std::vector<uint32_t> derivationPath_;
-   
+
    /*
    Fingerprint of the parent (see BIP32 specs), 0 for roots derived from
    a seed (there is no parent)
    */
    const uint32_t parentFingerprint_;
-   
-   /*
-   Own fingerprint, 4 first bytes of hash256 of the root's public key
-   */
-   mutable uint32_t thisFingerprint_ = UINT32_MAX;
 
    /*
    Fingerprint of the node generated from a seed (no derivation), equal 
    to thisFingerprint when parentFingerprint is 0
    */
-   unsigned seedFingerprint_ = UINT32_MAX;
+   uint32_t seedFingerprint_ = UINT32_MAX;
+
+   /*
+   Own fingerprint, 4 first bytes of hash256 of the root's public key
+   */
+   mutable uint32_t thisFingerprint_ = UINT32_MAX;
+
+   const std::vector<uint32_t> derivationPath_ = {};
 
 public:
    //tors
    AssetEntry_BIP32Root(
-      int, const BinaryData&, //id & account id
+      AssetKeyType, const BinaryData&, //id & account id
       SecureBinaryData&, //pubkey
       std::shared_ptr<Asset_PrivateKey>, //privkey
       const SecureBinaryData&, //chaincode
-      uint8_t, unsigned, //depth, leafID 
-      unsigned, unsigned, //fingerprint, seed fingerprint
+      uint8_t, uint32_t, //depth, leafID
+      uint32_t, uint32_t, //fingerprint, seed fingerprint
       const std::vector<uint32_t>&); //der path
 
    AssetEntry_BIP32Root(
-      int, const BinaryData&,
+      AssetKeyType, const BinaryData&,
       std::shared_ptr<Asset_PublicKey>,
       std::shared_ptr<Asset_PrivateKey>,
       const SecureBinaryData&,
-      uint8_t, unsigned, 
-      unsigned, unsigned,
+      uint8_t, uint32_t,
+      uint32_t, uint32_t,
       const std::vector<uint32_t>&);
 
    //local

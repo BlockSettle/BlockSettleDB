@@ -463,7 +463,7 @@ DerivationTree DerivationTree::fromDerivationPaths(
 
    //seed the heads map
    HeadsMap heads;
-   for (int i=0; i<derPaths.size(); i++)
+   for (size_t i=0; i<derPaths.size(); i++)
    {
       auto& path = derPaths[i];
       if (path.empty())

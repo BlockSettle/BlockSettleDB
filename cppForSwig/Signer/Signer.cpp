@@ -863,7 +863,7 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
       resultPtr->finalInputScript_ = BinaryData::fromString(protoMsg.sig_script());
    }
 
-   for (unsigned i=0; i<protoMsg.legacy_stack_size(); i++)
+   for (int i=0; i<protoMsg.legacy_stack_size(); i++)
    {
       const auto& stackItem = protoMsg.legacy_stack(i);
       auto stackObjPtr = StackItem::deserialize(stackItem);
@@ -875,14 +875,14 @@ shared_ptr<ScriptSpender> ScriptSpender::deserializeState(
       resultPtr->finalWitnessData_ = BinaryData::fromString(protoMsg.witness_data());
    }
 
-   for (unsigned i=0; i<protoMsg.witness_stack_size(); i++)
+   for (int i=0; i<protoMsg.witness_stack_size(); i++)
    {
       const auto& stackItem = protoMsg.witness_stack(i);
       auto stackObjPtr = StackItem::deserialize(stackItem);
       resultPtr->witnessStack_.emplace(stackObjPtr->getId(), stackObjPtr);
    }
 
-   for (unsigned i=0; i<protoMsg.bip32paths_size(); i++)
+   for (int i=0; i<protoMsg.bip32paths_size(); i++)
    {
       auto pathObj = BIP32_AssetPath::fromProtobuf(protoMsg.bip32paths(i));
       resultPtr->bip32Paths_.emplace(pathObj.getPublicKey(), move(pathObj));
@@ -1070,16 +1070,6 @@ bool ScriptSpender::compareEvalState(const ScriptSpender& rhs) const
       {}
 
       return resolvedScriptItems;
-   };
-
-   auto serializeStack = [](
-      const ScriptSpender& scriptSpender)->BinaryData
-   {
-      vector<shared_ptr<StackItem>> stack;
-      for (auto& stack_item : scriptSpender.legacyStack_)
-         stack.push_back(stack_item.second);
-
-      return ScriptSpender::serializeScript(stack, true);
    };
 
    auto isStackMultiSig = [](
@@ -2989,7 +2979,7 @@ Signer Signer::createFromState(const string& protoStr)
 void Signer::deserializeSupportingTxMap(
    const Codec_SignerState::SignerState& protoMsg)
 {
-   for (unsigned i = 0; i < protoMsg.supportingtx_size(); i++)
+   for (int i = 0; i < protoMsg.supportingtx_size(); i++)
    {
       BinaryDataRef rawTxRef;
       rawTxRef.setRef(protoMsg.supportingtx(i));
@@ -3009,13 +2999,13 @@ Signer Signer::createFromState(const Codec_SignerState::SignerState& protoMsg)
    signer.lockTime_ = protoMsg.locktime();
    signer.flags_ = protoMsg.flags();
 
-   for (unsigned i = 0; i < protoMsg.spenders_size(); i++)
+   for (int i = 0; i < protoMsg.spenders_size(); i++)
    {
       auto spenderPtr = ScriptSpender::deserializeState(protoMsg.spenders(i));
       signer.addSpender(spenderPtr);
    }
 
-   for (unsigned i = 0; i < protoMsg.recipients_size(); i++)
+   for (int i = 0; i < protoMsg.recipients_size(); i++)
    {
       const auto& recipientMsg = protoMsg.recipients(i);
       auto recipientPtr = ScriptRecipient::fromProtobuf(protoMsg.recipients(i));
@@ -3024,12 +3014,12 @@ Signer Signer::createFromState(const Codec_SignerState::SignerState& protoMsg)
 
    signer.deserializeSupportingTxMap(protoMsg);
    
-   for (unsigned i=0; i<protoMsg.bip32roots_size(); i++)
+   for (int i=0; i<protoMsg.bip32roots_size(); i++)
    {
       auto& root = protoMsg.bip32roots(i);
 
       vector<unsigned> path;
-      for (unsigned y=0; y<root.path_size(); y++)
+      for (int y=0; y<root.path_size(); y++)
          path.push_back(root.path(y));
 
       auto bip32root = make_shared<BIP32_PublicDerivedRoot>(
@@ -3491,7 +3481,6 @@ Signer Signer::fromPSBT(BinaryDataRef psbtRef)
    }
 
    /** global section **/
-   uint32_t psbtVersion = 0;
    BinaryDataRef unsignedTxRef;
 
    //getPSBTDataPairs guarantees keys aren't empty
@@ -3533,7 +3522,6 @@ Signer Signer::fromPSBT(BinaryDataRef psbtRef)
          if (val.getSize() != 4)
             throw PSBTDeserializationError("invalid version val length");
 
-         psbtVersion = *(uint32_t*)val.getPtr();
          break;
       }
 

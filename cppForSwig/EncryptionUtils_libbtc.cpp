@@ -251,7 +251,7 @@ SecureBinaryData CryptoAES::EncryptCBC(const SecureBinaryData & data,
       LOGERR << "AES CBC encryption failed!";
       throw std::runtime_error("AES CBC encryption failed!");
    }
-   else if (result != encrData.getSize())
+   else if (result != (ssize_t)encrData.getSize())
    {
       LOGERR << "Encrypted data size mismatch!";
       throw std::runtime_error("Encrypted data size mismatch!");
@@ -280,7 +280,7 @@ SecureBinaryData CryptoAES::DecryptCBC(const SecureBinaryData & data,
    if (size == 0)
       throw runtime_error("failed to decrypt packet");
 
-   if (size < unencrData.getSize())
+   if (size < (ssize_t)unencrData.getSize())
       unencrData.resize(size);
 
    return unencrData;

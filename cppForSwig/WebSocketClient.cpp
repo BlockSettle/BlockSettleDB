@@ -459,7 +459,6 @@ int WebSocketClient::callback(struct lws *wsi,
 ////////////////////////////////////////////////////////////////////////////////
 void WebSocketClient::readService()
 {
-   size_t packetid = 0;
    while (1)
    {
       BinaryData payload;

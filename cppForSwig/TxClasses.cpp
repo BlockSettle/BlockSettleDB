@@ -210,9 +210,13 @@ void TxIn::pprint(ostream & os, int nIndent, bool) const
    case TXIN_SCRIPT_COINBASE:    os << "Coinbase" << endl; break;
    case TXIN_SCRIPT_SPENDPUBKEY: os << "SpendPubKey" << endl; break;
    case TXIN_SCRIPT_SPENDP2SH:   os << "SpendP2sh" << endl; break;
-   case TXIN_SCRIPT_NONSTANDARD: os << "UNKNOWN " << endl; break;
+   case TXIN_SCRIPT_NONSTANDARD: os << "NonStandard " << endl; break;
    case TXIN_SCRIPT_SPENDMULTI:  os << "Multi" << endl; break;
-
+   case TXIN_SCRIPT_WITNESS:     os << "Witness Data" << endl; break;
+   case TXIN_SCRIPT_P2WPKH_P2SH: os << "Nested Segwit" << endl; break;
+   case TXIN_SCRIPT_P2WSH_P2SH:  os << "Nested P2WSH" << endl; break;
+   default:
+      os << "UNKNOWN" << endl;
    }
    os << indent << "   Bytes:   " << getSize() << endl;
    os << indent << "   Sender:  " << getSenderScrAddrIfAvail().copySwapEndian().toHexStr() << endl;
@@ -293,7 +297,11 @@ void TxOut::pprint(ostream & os, int nIndent, bool pBigendian)
    case TXOUT_SCRIPT_STDPUBKEY33: os << "StdPubKey65" << endl; break;
    case TXOUT_SCRIPT_P2SH:        os << "Pay2ScrHash" << endl; break;
    case TXOUT_SCRIPT_MULTISIG:    os << "Multi" << endl; break;
-   case TXOUT_SCRIPT_NONSTANDARD: os << "UNKNOWN " << endl; break;
+   case TXOUT_SCRIPT_NONSTANDARD: os << "NonStandard" << endl; break;
+   case TXOUT_SCRIPT_P2WSH:       os << "P2WSH" << endl; break;
+   case TXOUT_SCRIPT_OPRETURN:    os << "OP_return" << endl; break;
+   default:
+      os << "UNKONWN" << endl; break;
    }
    os << indent << "   Recip:  "
       << uniqueScrAddr_.toHexStr(pBigendian).c_str()
@@ -410,7 +418,7 @@ bool Tx::isSegWit() const
    if (!isInitialized())
       throw runtime_error("uninitialized tx");
       
-   return usesWitness_; 
+   return usesWitness_;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -420,7 +428,7 @@ bool Tx::isSegWit() const
 TxIn Tx::getTxInCopy(int i) const
 {
    assert(isInitialized());
-   if (offsetsTxIn_.empty() || i >= offsetsTxIn_.size() - 1)
+   if (offsetsTxIn_.empty() || i >= (ssize_t)offsetsTxIn_.size() - 1)
       throw range_error("index out of bound");
 
    uint32_t txinSize = offsetsTxIn_[i + 1] - offsetsTxIn_[i];
@@ -440,7 +448,7 @@ TxIn Tx::getTxInCopy(int i) const
 TxOut Tx::getTxOutCopy(int i) const
 {
    assert(isInitialized());  
-   if (offsetsTxOut_.empty() || i >= offsetsTxOut_.size() - 1)
+   if (offsetsTxOut_.empty() || i >= (ssize_t)offsetsTxOut_.size() - 1)
    {
       string errStr(
          "index out of bound: " + to_string(i) + " out of " +

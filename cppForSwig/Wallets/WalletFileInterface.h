@@ -46,8 +46,8 @@ class WalletIfaceTransaction : public DBIfaceTransaction
    friend class WalletIfaceIterator;
 
 private:
-   DBInterface* dbPtr_;
    WalletDBInterface* ifacePtr_;
+   DBInterface* dbPtr_;
    bool commit_ = false;
 
    /*

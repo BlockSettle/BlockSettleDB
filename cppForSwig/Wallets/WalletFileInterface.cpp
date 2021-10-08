@@ -446,7 +446,7 @@ MasterKeyStruct WalletDBInterface::initWalletHeaderObject(
    */
    headerPtr->controlSalt_ = CryptoPRNG::generateRandom(32);
 
-   return move(mks);
+   return mks;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1192,7 +1192,7 @@ unique_ptr<unique_lock<recursive_mutex>> WalletIfaceTransaction::eraseTx(
    //counter is 1, this is the parent tx, clean up the entry and return true
    auto lockPtr = move(iter->second->writeLock_);
    txMap.erase(iter);
-   return move(lockPtr);
+   return lockPtr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

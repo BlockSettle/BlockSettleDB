@@ -3091,7 +3091,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
 
       vector<BinaryDataRef> rawZcVec;
       rawZcVec.reserve(message->bindata_size());
-      for (unsigned i=0; i<message->bindata_size(); i++)
+      for (int i=0; i<message->bindata_size(); i++)
       {
          const auto& rawTx = message->bindata(i);
          if (rawTx.size() == 0)
@@ -3305,7 +3305,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       }
       else
       {
-         for (unsigned i=0; i<message->bindata_size(); i++)
+         for (int i=0; i<message->bindata_size(); i++)
          {
             const auto& scrAddrProto = message->bindata(i);
             if (scrAddrProto.size() == 0 || scrAddrProto.size() > 50)

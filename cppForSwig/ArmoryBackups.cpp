@@ -223,7 +223,7 @@ BackupEasy16DecodeResult BackupEasy16::decode(const vector<BinaryDataRef>& lines
       auto ptr = line.toCharPtr();
 
       unsigned i=0;
-      for (i; i<line.getSize() - (EASY16_CHECKSUM_LEN * 2); i++)
+      for (; i<line.getSize() - (EASY16_CHECKSUM_LEN * 2); i++)
       {
          //skip spaces
          if (!checkSpace(ptr + i))
@@ -245,7 +245,7 @@ BackupEasy16DecodeResult BackupEasy16::decode(const vector<BinaryDataRef>& lines
       checksum.resize(EASY16_CHECKSUM_LEN);
       uint8_t* checksumPtr = checksum.getPtr();
       size_t checksumLen = 0;
-      for (i; i<line.getSize(); i++)
+      for (; i<line.getSize(); i++)
       {
          //skip spaces
          if (!checkSpace(ptr + i))
@@ -282,7 +282,7 @@ BackupEasy16DecodeResult BackupEasy16::decode(const vector<BinaryDataRef>& lines
 
       pos += len;
 
-      switch (result)      
+      switch (result)
       {
       case -1: //could not match checksum
       case -2: //invalid checksum length

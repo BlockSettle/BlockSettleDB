@@ -64,7 +64,7 @@ uint64_t BtcWallet::getSpendableBalance(uint32_t currBlk) const
    auto addrMap = scrAddrMap_.get();
 
    uint64_t balance = 0;
-   for(const auto scrAddr : *addrMap)
+   for(const auto& scrAddr : *addrMap)
       balance += scrAddr.second->getSpendableBalance(currBlk);
 
    return balance;
@@ -76,7 +76,7 @@ uint64_t BtcWallet::getUnconfirmedBalance(uint32_t currBlk) const
    auto addrMap = scrAddrMap_.get();
 
    uint64_t balance = 0;
-   for (const auto scrAddr : *addrMap)
+   for (const auto& scrAddr : *addrMap)
       balance += scrAddr.second->getUnconfirmedBalance(currBlk, confTarget_);
    
    return balance;
@@ -107,7 +107,7 @@ map<BinaryData, uint32_t> BtcWallet::getAddrTxnCounts(int32_t updateID) const
    map<BinaryData, uint32_t> countMap;
 
    auto addrMap = scrAddrMap_.get();
-   for (auto& sa : *addrMap)
+   for (const auto& sa : *addrMap)
    {
       if (sa.second->updateID_ <= lastPulledCountsID_)
          continue;

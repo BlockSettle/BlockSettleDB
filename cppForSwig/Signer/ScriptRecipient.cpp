@@ -189,7 +189,7 @@ shared_ptr<ScriptRecipient> ScriptRecipient::fromProtobuf(
    scriptRef.setRef(protoMsg.data());
    auto recipient = fromScript(scriptRef);
 
-   for (unsigned i=0; i<protoMsg.bip32paths_size(); i++)
+   for (int i=0; i<protoMsg.bip32paths_size(); i++)
    {
       auto path = BIP32_AssetPath::fromProtobuf(protoMsg.bip32paths(i));
       recipient->addBip32Path(path);

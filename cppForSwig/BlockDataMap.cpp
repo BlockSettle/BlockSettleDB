@@ -103,7 +103,7 @@ BlockData::computeTxFilter(const vector<BinaryData>& allHashes) const
    TxFilter<TxFilterType> txFilter(uniqueID_, allHashes.size());
    txFilter.update(allHashes);
 
-   return move(txFilter);
+   return txFilter;
 }
 
 /////////////////////////////////////////////////////////////////////////////
