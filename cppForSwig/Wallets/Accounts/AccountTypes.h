@@ -170,7 +170,7 @@ struct NodeData
       return
          depth == rhs.depth &&
          branchId == rhs.branchId &&
-         value == value;
+         value == rhs.value;
    }
 
    bool isHardDerviation(void) const
