@@ -88,10 +88,10 @@ TEST_F(PRNGTest, FortunaTest)
       pool2.insert(prng2.generateRandom(32));
 
    auto check1 = checkPools(pool1, pool2, sampleSize, 32);
-   EXPECT_EQ(check1[0], 0);
-   EXPECT_EQ(check1[1], 0);
-   EXPECT_EQ(check1[2], 0);
-   EXPECT_EQ(check1[3], 0);
+   EXPECT_EQ(check1[0], 0ULL);
+   EXPECT_EQ(check1[1], 0ULL);
+   EXPECT_EQ(check1[2], 0ULL);
+   EXPECT_EQ(check1[3], 0ULL);
 
    //interlaced
    set<SecureBinaryData> pool3, pool4;
@@ -109,35 +109,35 @@ TEST_F(PRNGTest, FortunaTest)
    thr2.join();
 
    auto check2 = checkPools(pool3, pool4, sampleSize, 32);
-   EXPECT_EQ(check2[0], 0);
-   EXPECT_EQ(check2[1], 0);
-   EXPECT_EQ(check2[2], 0);
-   EXPECT_EQ(check2[3], 0);
+   EXPECT_EQ(check2[0], 0ULL);
+   EXPECT_EQ(check2[1], 0ULL);
+   EXPECT_EQ(check2[2], 0ULL);
+   EXPECT_EQ(check2[3], 0ULL);
 
    //cross checks
    auto check3 = checkPools(pool1, pool3, sampleSize, 32);
-   EXPECT_EQ(check3[0], 0);
-   EXPECT_EQ(check3[1], 0);
-   EXPECT_EQ(check3[2], 0);
-   EXPECT_EQ(check3[3], 0);
+   EXPECT_EQ(check3[0], 0ULL);
+   EXPECT_EQ(check3[1], 0ULL);
+   EXPECT_EQ(check3[2], 0ULL);
+   EXPECT_EQ(check3[3], 0ULL);
 
    auto check4 = checkPools(pool1, pool4, sampleSize, 32);
-   EXPECT_EQ(check4[0], 0);
-   EXPECT_EQ(check4[1], 0);
-   EXPECT_EQ(check4[2], 0);
-   EXPECT_EQ(check4[3], 0);
+   EXPECT_EQ(check4[0], 0ULL);
+   EXPECT_EQ(check4[1], 0ULL);
+   EXPECT_EQ(check4[2], 0ULL);
+   EXPECT_EQ(check4[3], 0ULL);
 
    auto check5 = checkPools(pool2, pool3, sampleSize, 32);
-   EXPECT_EQ(check5[0], 0);
-   EXPECT_EQ(check5[1], 0);
-   EXPECT_EQ(check5[2], 0);
-   EXPECT_EQ(check5[3], 0);
+   EXPECT_EQ(check5[0], 0ULL);
+   EXPECT_EQ(check5[1], 0ULL);
+   EXPECT_EQ(check5[2], 0ULL);
+   EXPECT_EQ(check5[3], 0ULL);
 
    auto check6 = checkPools(pool2, pool4, sampleSize, 32);
-   EXPECT_EQ(check6[0], 0);
-   EXPECT_EQ(check6[1], 0);
-   EXPECT_EQ(check6[2], 0);
-   EXPECT_EQ(check6[3], 0);
+   EXPECT_EQ(check6[0], 0ULL);
+   EXPECT_EQ(check6[1], 0ULL);
+   EXPECT_EQ(check6[2], 0ULL);
+   EXPECT_EQ(check6[3], 0ULL);
 
    //odd size pulls
    set<SecureBinaryData> pool5, pool6;
@@ -148,10 +148,10 @@ TEST_F(PRNGTest, FortunaTest)
       pool6.insert(prng2.generateRandom(15));
 
    auto check7 = checkPools(pool5, pool6, 100, 15);
-   EXPECT_EQ(check7[0], 0);
-   EXPECT_EQ(check7[1], 0);
-   EXPECT_EQ(check7[2], 0);
-   EXPECT_EQ(check7[3], 0);
+   EXPECT_EQ(check7[0], 0ULL);
+   EXPECT_EQ(check7[1], 0ULL);
+   EXPECT_EQ(check7[2], 0ULL);
+   EXPECT_EQ(check7[3], 0ULL);
 
    //
    set<SecureBinaryData> pool7, pool8;
@@ -162,10 +162,10 @@ TEST_F(PRNGTest, FortunaTest)
       pool8.insert(prng2.generateRandom(70));
 
    auto check8 = checkPools(pool7, pool8, 100, 70);
-   EXPECT_EQ(check8[0], 0);
-   EXPECT_EQ(check8[1], 0);
-   EXPECT_EQ(check8[2], 0);
-   EXPECT_EQ(check8[3], 0);
+   EXPECT_EQ(check8[0], 0ULL);
+   EXPECT_EQ(check8[1], 0ULL);
+   EXPECT_EQ(check8[2], 0ULL);
+   EXPECT_EQ(check8[3], 0ULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -292,7 +292,7 @@ TEST_F(SignerTest, DISABLED_CheckChain_Test)
       EXPECT_TRUE(false);
    }
 
-   EXPECT_EQ(bdm.getCheckedTxCount(), 20);
+   EXPECT_EQ(bdm.getCheckedTxCount(), 20U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1229,7 +1229,7 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
          signer2.sign();
       }
       EXPECT_TRUE(signer2.verify());
-      EXPECT_EQ(signer2.getTxInCount(), 4);
+      EXPECT_EQ(signer2.getTxInCount(), 4U);
 
       DBTestUtils::ZcVector zcVec2;
       auto signedTxRaw = signer2.serializeSignedTx();
@@ -1761,10 +1761,10 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    //get the zc utxo (ms script)
    auto&& unspentVec =
       ms_wlt->getSpendableTxOutListZC();
-   ASSERT_EQ(unspentVec.size(), 1);
+   ASSERT_EQ(unspentVec.size(), 1ULL);
 
    auto&& unspentVec_singleSig = wlt_singleSig->getSpendableTxOutListZC();
-   ASSERT_EQ(unspentVec_singleSig.size(), 1);
+   ASSERT_EQ(unspentVec_singleSig.size(), 1ULL);
 
    unspentVec.insert(unspentVec.end(),
       unspentVec_singleSig.begin(), unspentVec_singleSig.end());
@@ -1800,17 +1800,17 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    auto&& signerState = signer2.evaluateSignedState();
 
    {
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
 
       auto&& txinEval = signerState.getSignedStateForInput(0);
       auto& pubkeyMap = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap.size(), 3);
+      EXPECT_EQ(pubkeyMap.size(), 3ULL);
       for (auto& pubkeyState : pubkeyMap)
          EXPECT_FALSE(pubkeyState.second);
 
       txinEval = signerState.getSignedStateForInput(1);
       auto& pubkeyMap_2 = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap_2.size(), 0);
+      EXPECT_EQ(pubkeyMap_2.size(), 0ULL);
    }
 
    {
@@ -1825,10 +1825,10 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       EXPECT_FALSE(signer2.isSigned());
       signerState = signer2.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
 
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -1846,9 +1846,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       EXPECT_FALSE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -1862,9 +1862,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       signer3.sign();
 
       signerState = signer3.evaluateSignedState();
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 2);
+      EXPECT_EQ(txinEval.getSigCount(), 2U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset2);
       ASSERT_NE(asset_single, nullptr);
@@ -1887,9 +1887,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       EXPECT_TRUE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 2);
+      EXPECT_EQ(txinEval.getSigCount(), 2U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -2784,7 +2784,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
             (*addrVec_1.begin())->getPrefixedHash());
          auto accountPtr = assetWlt_1->getAccountForID(assetID.first);
 
-         EXPECT_NE(signer2.getTxInCount(), 0) ;
+         EXPECT_NE(signer2.getTxInCount(), 0ULL) ;
          for (unsigned i=0; i<signer2.getTxInCount(); i++)
          {
             auto spender = signer2.getSpender(i);
@@ -2814,7 +2814,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
          total += utxo.getValue();
          auto spender = getSpenderPtr(utxo);
          spender->setSequence(UINT32_MAX - 2);
-         signer3.addSpender(spender);         
+         signer3.addSpender(spender);
       }
 
       //set change
@@ -3144,7 +3144,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       }
 
       {
-         EXPECT_NE(signer2.getTxInCount(), 0) ;
+         EXPECT_NE(signer2.getTxInCount(), 0U);
          for (unsigned i=0; i<signer2.getTxInCount(); i++)
          {
             auto spender = signer2.getSpender(i);
@@ -3161,7 +3161,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
             (*addrVec_1.begin())->getPrefixedHash());
          auto accountPtr = assetWlt_1->getAccountForID(assetID.first);
 
-         EXPECT_NE(signer2.getTxInCount(), 0) ;
+         EXPECT_NE(signer2.getTxInCount(), 0U);
          for (unsigned i=0; i<signer2.getTxInCount(); i++)
          {
             auto spender = signer2.getSpender(i);
@@ -3577,7 +3577,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
       auto mainAccountID = assetWlt_1->getMainAccountID();
       auto mainAccount = assetWlt_1->getAccountForID(mainAccountID);
 
-      EXPECT_NE(signer4.getTxInCount(), 0) ;
+      EXPECT_NE(signer4.getTxInCount(), 0U);
       for (unsigned i=0; i<signer4.getTxInCount(); i++)
       {
          auto spender = signer4.getSpender(i);
@@ -4762,7 +4762,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
    auto dbAssetWlt = bdvPtr->getWalletOrLockbox(assetWlt->getID());
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -4986,7 +4986,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    //mine 2 blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -5015,7 +5015,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    {
       //check there are no zc utxos anymore
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
-      ASSERT_EQ(unspentVec.size(), 0);
+      ASSERT_EQ(unspentVec.size(), 0ULL);
    }
 
    {
@@ -5156,7 +5156,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    auto newAddr1 = assetWlt->getNewAddress(accountID1);
    auto newAddr2 = assetWlt->getNewAddress(accountID2);
@@ -5263,7 +5263,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    //mine some blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -5282,7 +5282,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 13 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[2]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    //spend from the new addresses
    {
@@ -5355,7 +5355,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[2]);
@@ -5400,7 +5400,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -5416,13 +5416,13 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //grab enough addresses to trigger a lookup extention
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5);
+   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5U);
 
    for (unsigned i = 0; i < 15; i++)
       assetWlt->getNewAddress();
    auto newAddr = assetWlt->getNewAddress();
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105);
+   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -5511,7 +5511,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    //mine some blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -5523,12 +5523,12 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
    EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    //spend from the new address
    {
@@ -5602,7 +5602,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
 }
@@ -5644,7 +5644,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -5660,13 +5660,13 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //grab enough addresses to trigger a lookup extention
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5);
+   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5U);
 
    for (unsigned i = 0; i < 10; i++)
       assetWlt->getNewAddress();
    auto newAddr = assetWlt->getNewAddress();
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105);
+   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -5755,7 +5755,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    //mine some blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -5772,7 +5772,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    //spend from the new address
    {
@@ -5846,7 +5846,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
 }
@@ -5912,7 +5912,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -5928,13 +5928,13 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //grab enough addresses to trigger a lookup extention
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5);
+   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5U);
 
    for (unsigned i = 0; i < 10; i++)
       assetWlt->getNewAddress();
    auto newAddr = assetWlt->getNewAddress();
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105);
+   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -6023,7 +6023,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    //mine some blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -6040,7 +6040,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    //spend from the new address
    {
@@ -6114,7 +6114,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
 }
@@ -6177,7 +6177,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -6193,7 +6193,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //generate some ECDH addresses
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 0);
+   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 0U);
 
    auto assAccPtr = addrAccountObj->getOuterAccount();
    auto accPtr = dynamic_cast<AssetAccount_ECDH*>(assAccPtr.get());
@@ -6210,7 +6210,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    for (unsigned i = 0; i < 5; i++)
       addrVec.push_back(assetWlt->getNewAddress());
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5);
+   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -6298,7 +6298,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    //mine some blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -6315,7 +6315,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    //spend from the new address
    {
@@ -6389,7 +6389,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
 }
@@ -6713,7 +6713,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
             }
          }
       }
-      ASSERT_EQ(sigs.size(), 2);
+      ASSERT_EQ(sigs.size(), 2ULL);
 
       //try to inject into unresolved signer, should fail
       for (unsigned i=0; i<sigs.size(); i++)
@@ -6990,10 +6990,10 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    //get the zc utxo (ms script)
    auto&& unspentVec =
       ms_wlt->getSpendableTxOutListZC();
-   ASSERT_EQ(unspentVec.size(), 1);
+   ASSERT_EQ(unspentVec.size(), 1ULL);
 
    auto&& unspentVec_singleSig = wlt_singleSig->getSpendableTxOutListZC();
-   ASSERT_EQ(unspentVec_singleSig.size(), 1);
+   ASSERT_EQ(unspentVec_singleSig.size(), 1ULL);
 
    unspentVec.insert(unspentVec.end(),
       unspentVec_singleSig.begin(), unspentVec_singleSig.end());
@@ -7031,17 +7031,17 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    auto&& signerState = signer2.evaluateSignedState();
 
    {
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2ULL);
 
       auto&& txinEval = signerState.getSignedStateForInput(0);
       auto& pubkeyMap = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap.size(), 3);
+      EXPECT_EQ(pubkeyMap.size(), 3ULL);
       for (auto& pubkeyState : pubkeyMap)
          EXPECT_FALSE(pubkeyState.second);
 
       txinEval = signerState.getSignedStateForInput(1);
       auto& pubkeyMap_2 = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap_2.size(), 0);
+      EXPECT_EQ(pubkeyMap_2.size(), 0ULL);
    }
 
    {
@@ -7056,10 +7056,10 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       EXPECT_FALSE(signer2.isSigned());
       signerState = signer2.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
 
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -7077,9 +7077,9 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       EXPECT_FALSE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -7093,9 +7093,9 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       signer3.sign();
 
       signerState = signer3.evaluateSignedState();
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 2);
+      EXPECT_EQ(txinEval.getSigCount(), 2U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset2);
       ASSERT_NE(asset_single, nullptr);
@@ -7118,9 +7118,9 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       EXPECT_TRUE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 2);
+      EXPECT_EQ(txinEval.getSigCount(), 2U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -7179,7 +7179,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
          }
       }
 
-      ASSERT_EQ(sigs.size(), 3);
+      ASSERT_EQ(sigs.size(), 3ULL);
    }
 
    //resolve spender
