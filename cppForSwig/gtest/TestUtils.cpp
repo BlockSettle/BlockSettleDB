@@ -340,7 +340,7 @@ namespace DBTestUtils
          dynamic_pointer_cast<Codec_LedgerEntry::ManyLedgerEntry>(result);
 
       vector<DBClientClasses::LedgerEntry> levData;
-      for (unsigned i = 0; i < response->values_size(); i++)
+      for (int i = 0; i < response->values_size(); i++)
       {
          DBClientClasses::LedgerEntry led(response, i);
          levData.push_back(led);
@@ -360,7 +360,7 @@ namespace DBTestUtils
       [&](shared_ptr<::google::protobuf::Message> cmd)->bool
       {
          auto notifPtr = dynamic_pointer_cast<BDVCallback>(cmd);
-         for (unsigned i = 0; i < notifPtr->notification_size(); i++)
+         for (int i = 0; i < notifPtr->notification_size(); i++)
          {
             auto& notif = notifPtr->notification(i);
             if (notif.type() == signal)
@@ -421,19 +421,19 @@ namespace DBTestUtils
       auto lev = notif.ledgers();
 
       pair<vector<DBClientClasses::LedgerEntry>, set<BinaryData>> levData;
-      for (unsigned i = 0; i < lev.values_size(); i++)
+      for (int i = 0; i < lev.values_size(); i++)
       {
          DBClientClasses::LedgerEntry led(callbackPtr, index, i);
          levData.first.push_back(led);
       }
 
-      if (callbackPtr->notification_size() >= index + 2)
+      if (callbackPtr->notification_size() >= (int)index + 2)
       {
          auto& invalidated_notif = callbackPtr->notification(index + 1);
          if (invalidated_notif.has_ids())
          {
             auto ids = invalidated_notif.ids();
-            for (unsigned i = 0; i < ids.value_size(); i++)
+            for (int i = 0; i < ids.value_size(); i++)
             {
                auto& id_str = ids.value(i).data();
                BinaryData id_bd((uint8_t*)id_str.c_str(), id_str.size());
@@ -468,7 +468,7 @@ namespace DBTestUtils
          }
 
          auto& refresh = notif.refresh();
-         for (unsigned i = 0; i < refresh.id_size(); i++)
+         for (int i = 0; i < refresh.id_size(); i++)
          {
             auto& id = notif.refresh().id(i);
             BinaryDataRef bdr;

@@ -660,7 +660,7 @@ protected:
 TEST_F(ZeroConfTests_Mempool, Stage)
 {
    MempoolSnapshot snapshot(1, 2);
-   EXPECT_EQ(snapshot.getTopZcID(), 0);
+   EXPECT_EQ(snapshot.getTopZcID(), 0U);
 
    //filter the tx
    auto filterResult = filterParsedTx(
@@ -671,14 +671,14 @@ TEST_F(ZeroConfTests_Mempool, Stage)
 
    //check it was added
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
-   EXPECT_EQ(snapshot.getTopZcID(), 1);
+   EXPECT_EQ(snapshot.getTopZcID(), 1U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, Commit)
 {
    MempoolSnapshot snapshot(2, 4);
-   EXPECT_EQ(snapshot.getTopZcID(), 0);
+   EXPECT_EQ(snapshot.getTopZcID(), 0U);
 
    //filter the tx
    auto filterResult = filterParsedTx(
@@ -694,15 +694,15 @@ TEST_F(ZeroConfTests_Mempool, Commit)
    snapshot.commitNewZCs();
 
    //check the tx is still in there
-   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));   
-   EXPECT_EQ(snapshot.getTopZcID(), 1);
+   EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
+   EXPECT_EQ(snapshot.getTopZcID(), 1U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, Drop)
 {
    MempoolSnapshot snapshot(2, 4);
-   EXPECT_EQ(snapshot.getTopZcID(), 0);
+   EXPECT_EQ(snapshot.getTopZcID(), 0U);
 
    //filter the tx
    auto filterResult = filterParsedTx(
@@ -713,23 +713,23 @@ TEST_F(ZeroConfTests_Mempool, Drop)
 
    //check it was added
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
-   EXPECT_EQ(snapshot.getTopZcID(), 1);
+   EXPECT_EQ(snapshot.getTopZcID(), 1U);
 
    //drop the tx
    auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
-   ASSERT_EQ(droppedZCs.size(), 1);
+   ASSERT_EQ(droppedZCs.size(), 1ULL);
    EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[0]);
 
    //check it was dropped from the snapshot
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
-   EXPECT_EQ(snapshot.getTopZcID(), 1);
+   EXPECT_EQ(snapshot.getTopZcID(), 1U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, CommitAndDrop)
 {
    MempoolSnapshot snapshot(2, 4);
-   EXPECT_EQ(snapshot.getTopZcID(), 0);
+   EXPECT_EQ(snapshot.getTopZcID(), 0U);
 
    //filter the tx
    auto filterResult = filterParsedTx(
@@ -740,7 +740,7 @@ TEST_F(ZeroConfTests_Mempool, CommitAndDrop)
 
    //check it was added
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
-   EXPECT_EQ(snapshot.getTopZcID(), 1);
+   EXPECT_EQ(snapshot.getTopZcID(), 1U);
 
    //commit and check again
    snapshot.commitNewZCs();
@@ -748,7 +748,7 @@ TEST_F(ZeroConfTests_Mempool, CommitAndDrop)
 
    //drop the tx
    auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
-   ASSERT_EQ(droppedZCs.size(), 1);
+   ASSERT_EQ(droppedZCs.size(), 1ULL);
    EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[0]);
 
    //check it was dropped from the snapshot
@@ -757,14 +757,14 @@ TEST_F(ZeroConfTests_Mempool, CommitAndDrop)
    //commit and check
    snapshot.commitNewZCs();
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
-   EXPECT_EQ(snapshot.getTopZcID(), 1);
+   EXPECT_EQ(snapshot.getTopZcID(), 1U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, Stage2_Drop1)
 {
    MempoolSnapshot snapshot(2, 4);
-   EXPECT_EQ(snapshot.getTopZcID(), 0);
+   EXPECT_EQ(snapshot.getTopZcID(), 0U);
 
    {
       //add tx0
@@ -780,33 +780,33 @@ TEST_F(ZeroConfTests_Mempool, Stage2_Drop1)
 
    EXPECT_TRUE(checkTxIsStaged(snapshot, 0));
    EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
-   EXPECT_EQ(snapshot.getTopZcID(), 2);
+   EXPECT_EQ(snapshot.getTopZcID(), 2U);
 
    //drop tx0
    auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
-   ASSERT_EQ(droppedZCs.size(), 1);
+   ASSERT_EQ(droppedZCs.size(), 1ULL);
    EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[0]);
 
    //check it was dropped from the snapshot
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
    EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
-   EXPECT_EQ(snapshot.getTopZcID(), 2);
+   EXPECT_EQ(snapshot.getTopZcID(), 2U);
 
    //drop tx1
    droppedZCs = snapshot.dropZc(zcKeys_[1]);
-   ASSERT_EQ(droppedZCs.size(), 1);
+   ASSERT_EQ(droppedZCs.size(), 1ULL);
    EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[1]);
 
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
    EXPECT_TRUE(checkIsDropped(snapshot, 1));
-   EXPECT_EQ(snapshot.getTopZcID(), 2);
+   EXPECT_EQ(snapshot.getTopZcID(), 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(ZeroConfTests_Mempool, Stage2_Commit_Drop1)
 {
    MempoolSnapshot snapshot(1, 2);
-   EXPECT_EQ(snapshot.getTopZcID(), 0);
+   EXPECT_EQ(snapshot.getTopZcID(), 0U);
 
    {
       //add tx0
@@ -817,7 +817,7 @@ TEST_F(ZeroConfTests_Mempool, Stage2_Commit_Drop1)
    }
 
    snapshot.commitNewZCs();
-   EXPECT_EQ(snapshot.getTopZcID(), 1);
+   EXPECT_EQ(snapshot.getTopZcID(), 1U);
 
    {
       //add tx1
@@ -829,36 +829,36 @@ TEST_F(ZeroConfTests_Mempool, Stage2_Commit_Drop1)
    }
 
    snapshot.commitNewZCs();
-   EXPECT_EQ(snapshot.getTopZcID(), 2);
+   EXPECT_EQ(snapshot.getTopZcID(), 2U);
 
    //drop tx0
    auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
-   ASSERT_EQ(droppedZCs.size(), 1);
+   ASSERT_EQ(droppedZCs.size(), 1ULL);
    EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[0]);
 
    //check it was dropped from the snapshot
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
    EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
-   EXPECT_EQ(snapshot.getTopZcID(), 2);
+   EXPECT_EQ(snapshot.getTopZcID(), 2U);
 
    snapshot.commitNewZCs();
 
    //check it is still dropped from the snapshot
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
    EXPECT_TRUE(checkTxIsStaged(snapshot, 1));
-   EXPECT_EQ(snapshot.getTopZcID(), 2);
+   EXPECT_EQ(snapshot.getTopZcID(), 2U);
 
    //drop last tx
    droppedZCs = snapshot.dropZc(zcKeys_[1]);
-   ASSERT_EQ(droppedZCs.size(), 1);
+   ASSERT_EQ(droppedZCs.size(), 1ULL);
    EXPECT_EQ(droppedZCs.begin()->first, zcKeys_[1]);
 
    EXPECT_TRUE(checkIsDropped(snapshot, 0));
    EXPECT_TRUE(checkIsDropped(snapshot, 1));
-   EXPECT_EQ(snapshot.getTopZcID(), 2);
+   EXPECT_EQ(snapshot.getTopZcID(), 2U);
 
    snapshot.commitNewZCs();
-   EXPECT_EQ(snapshot.getTopZcID(), 2);
+   EXPECT_EQ(snapshot.getTopZcID(), 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1112,7 +1112,7 @@ TEST_F(ZeroConfTests_Mempool, DropParent)
 
    //drop tx0
    auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
-   ASSERT_EQ(droppedZCs.size(), 2);
+   ASSERT_EQ(droppedZCs.size(), 2ULL);
 
    auto iter = droppedZCs.begin();
    EXPECT_EQ(iter->first, zcKeys_[0]);
@@ -1204,7 +1204,7 @@ TEST_F(ZeroConfTests_Mempool, DropParent_Commit)
 
    //drop tx0
    auto droppedZCs = snapshot.dropZc(zcKeys_[0]);
-   ASSERT_EQ(droppedZCs.size(), 2);
+   ASSERT_EQ(droppedZCs.size(), 2ULL);
 
    auto iter = droppedZCs.begin();
    EXPECT_EQ(iter->first, zcKeys_[0]);
@@ -1399,7 +1399,7 @@ TEST_F(ZeroConfTests_FullNode, Load4Blocks_ReloadBDM_ZC_Plus2)
    auto wltLB1 = bdvPtr->getWalletOrLockbox(LB1ID);
    auto wltLB2 = bdvPtr->getWalletOrLockbox(LB2ID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash3);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->getHeaderByHash(TestChain::blkHash3)->isMainBranch());
 
@@ -1540,7 +1540,7 @@ TEST_F(ZeroConfTests_FullNode, Load4Blocks_ReloadBDM_ZC_Plus2)
    DBTestUtils::triggerNewBlockNotification(theBDMt_);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash5);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->getHeaderByHash(TestChain::blkHash5)->isMainBranch());
 
@@ -1600,7 +1600,7 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZC_Plus3_TestLedgers)
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash3);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->getHeaderByHash(TestChain::blkHash3)->isMainBranch());
 
@@ -1671,8 +1671,8 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZC_Plus3_TestLedgers)
    EXPECT_EQ(iface_->getStoredZcTx(zcStx, zcKey), true);
    EXPECT_EQ(zcStx.thisHash_, ZChash1);
    EXPECT_EQ(zcStx.numBytes_ , TestChain::zcTxSize);
-   EXPECT_EQ(zcStx.fragBytes_, 190);
-   EXPECT_EQ(zcStx.numTxOut_, 2);
+   EXPECT_EQ(zcStx.fragBytes_, 190U);
+   EXPECT_EQ(zcStx.numTxOut_, 2U);
    ASSERT_FALSE(zcStx.stxoMap_.empty());
    EXPECT_EQ(zcStx.stxoMap_.begin()->second.getValue(), 10 * COIN);
 
@@ -1713,7 +1713,7 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZC_Plus3_TestLedgers)
    DBTestUtils::triggerNewBlockNotification(theBDMt_);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 4);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 4U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash4);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->getHeaderByHash(TestChain::blkHash4)->isMainBranch());
 
@@ -1738,8 +1738,8 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZC_Plus3_TestLedgers)
    EXPECT_EQ(iface_->getStoredZcTx(zcStx3, zcKey), true);
    EXPECT_EQ(zcStx3.thisHash_, ZChash1);
    EXPECT_EQ(zcStx3.numBytes_, TestChain::zcTxSize);
-   EXPECT_EQ(zcStx3.fragBytes_, 190); // Not sure how Python can get this value
-   EXPECT_EQ(zcStx3.numTxOut_, 2);
+   EXPECT_EQ(zcStx3.fragBytes_, 190U); // Not sure how Python can get this value
+   EXPECT_EQ(zcStx3.numTxOut_, 2U);
    EXPECT_EQ(zcStx3.stxoMap_.begin()->second.getValue(), 10 * COIN);
 
    dbtx.reset();
@@ -1749,7 +1749,7 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZC_Plus3_TestLedgers)
    DBTestUtils::triggerNewBlockNotification(theBDMt_);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash5);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->getHeaderByHash(TestChain::blkHash5)->isMainBranch());
 
@@ -1764,9 +1764,9 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZC_Plus3_TestLedgers)
       scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
       auto&& leSA = DBTestUtils::getLedgerEntryFromAddr(
          (ScrAddrObj*)scrObj, ZChash1);
-      EXPECT_EQ(leSA.getTxTime(), 1231009513);
+      EXPECT_EQ(leSA.getTxTime(), 1231009513U);
       EXPECT_EQ(leSA.getValue(), -1000000000);
-      EXPECT_EQ(leSA.getBlockNum(), 5);
+      EXPECT_EQ(leSA.getBlockNum(), 5U);
       EXPECT_EQ(scrObj->getFullBalance(), 70 * COIN);
    }
 
@@ -1778,9 +1778,9 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZC_Plus3_TestLedgers)
    EXPECT_EQ(unconfirmedBalance, 140 * COIN);
 
    le = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash1);
-   EXPECT_EQ(le.getTxTime(), 1231009513);
+   EXPECT_EQ(le.getTxTime(), 1231009513U);
    EXPECT_EQ(le.getValue(), 3000000000);
-   EXPECT_EQ(le.getBlockNum(), 5);
+   EXPECT_EQ(le.getBlockNum(), 5U);
 
    //Tx is now in a block, ZC should be gone from DB
    dbtx = move(
@@ -1790,7 +1790,7 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZC_Plus3_TestLedgers)
    EXPECT_EQ(iface_->getStoredZcTx(zcStx4, zcKey), false);
    dbtx.reset();
 
-   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1);
+   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1846,7 +1846,7 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZCchain)
    auto wltLB1 = bdvPtr->getWalletOrLockbox(LB1ID);
    auto wltLB2 = bdvPtr->getWalletOrLockbox(LB2ID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 2);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 2U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash2);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->getHeaderByHash(TestChain::blkHash2)->isMainBranch());
 
@@ -1885,7 +1885,7 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZCchain)
 
    auto&& le = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash1);
    //EXPECT_EQ(le.getTxTime(), 1400000000);
-   EXPECT_EQ(le.getValue(), -25 * COIN);
+   EXPECT_EQ(le.getValue(), -25 * (int64_t)COIN);
    EXPECT_EQ(le.getBlockNum(), UINT32_MAX);
    EXPECT_FALSE(le.isChainedZC());
 
@@ -1909,13 +1909,13 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZCchain)
 
    le = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash1);
    //EXPECT_EQ(le.getTxTime(), 1400000000);
-   EXPECT_EQ(le.getValue(), -25 * COIN);
+   EXPECT_EQ(le.getValue(), -25 * (int64_t)COIN);
    EXPECT_EQ(le.getBlockNum(), UINT32_MAX);
-   EXPECT_FALSE(le.isChainedZC());   
+   EXPECT_FALSE(le.isChainedZC());
 
    le = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash2);
    //EXPECT_EQ(le.getTxTime(), 1500000000);
-   EXPECT_EQ(le.getValue(), 30 * COIN);
+   EXPECT_EQ(le.getValue(), 30 * (int64_t)COIN);
    EXPECT_EQ(le.getBlockNum(), UINT32_MAX);
    EXPECT_TRUE(le.isChainedZC());
 
@@ -1939,14 +1939,14 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZCchain)
    EXPECT_EQ(unconfirmedBalance, 135 * COIN);
 
    le = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash1);
-   EXPECT_EQ(le.getTxTime(), 1231008309);
-   EXPECT_EQ(le.getValue(), -25 * COIN);
-   EXPECT_EQ(le.getBlockNum(), 3);
+   EXPECT_EQ(le.getTxTime(), 1231008309U);
+   EXPECT_EQ(le.getValue(), -25 * (int64_t)COIN);
+   EXPECT_EQ(le.getBlockNum(), 3U);
    EXPECT_FALSE(le.isChainedZC());
 
    le = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash2);
    //EXPECT_EQ(le.getTxTime(), 1500000000);
-   EXPECT_EQ(le.getValue(), 30 * COIN);
+   EXPECT_EQ(le.getValue(), 30 * (int64_t)COIN);
    EXPECT_EQ(le.getBlockNum(), UINT32_MAX);
    EXPECT_FALSE(le.isChainedZC());
 
@@ -1955,7 +1955,7 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZCchain)
    DBTestUtils::triggerNewBlockNotification(theBDMt_);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash5);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->getHeaderByHash(TestChain::blkHash5)->isMainBranch());
 
@@ -1974,12 +1974,12 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_ZCchain)
    EXPECT_EQ(unconfirmedBalance, 140 * COIN);
 
    le = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash2);
-   EXPECT_EQ(le.getTxTime(), 1231009513);
-   EXPECT_EQ(le.getValue(), 30 * COIN);
-   EXPECT_EQ(le.getBlockNum(), 5);
+   EXPECT_EQ(le.getTxTime(), 1231009513U);
+   EXPECT_EQ(le.getValue(), 30 * (int64_t)COIN);
+   EXPECT_EQ(le.getBlockNum(), 5U);
    EXPECT_FALSE(le.isChainedZC());
 
-   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1);
+   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2149,7 +2149,7 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_RBF)
    //check ledger
    auto&& le = DBTestUtils::getLedgerEntryFromWallet(wlt, RBFhash);
    //EXPECT_EQ(le.getTxTime(), 1400000000);
-   EXPECT_EQ(le.getValue(), -30 * COIN);
+   EXPECT_EQ(le.getValue(), -30 * (int64_t)COIN);
    EXPECT_EQ(le.getBlockNum(), UINT32_MAX);
    EXPECT_TRUE(le.isOptInRBF());
 
@@ -2177,7 +2177,7 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_RBF)
 
    le = DBTestUtils::getLedgerEntryFromWallet(wlt, spendRBFhash);
    //EXPECT_EQ(le.getTxTime(), 1500000000);
-   EXPECT_EQ(le.getValue(), 30 * COIN);
+   EXPECT_EQ(le.getValue(), 30 * (int64_t)COIN);
    EXPECT_EQ(le.getBlockNum(), UINT32_MAX);
    EXPECT_TRUE(le.isOptInRBF());
 
@@ -2186,7 +2186,7 @@ TEST_F(ZeroConfTests_FullNode, Load3Blocks_RBF)
    DBTestUtils::triggerNewBlockNotification(theBDMt_);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash5);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->getHeaderByHash(TestChain::blkHash5)->isMainBranch());
 
@@ -2249,7 +2249,7 @@ TEST_F(ZeroConfTests_FullNode, Load4Blocks_ZC_GetUtxos)
    auto wltLB1 = bdvPtr->getWalletOrLockbox(LB1ID);
    auto wltLB2 = bdvPtr->getWalletOrLockbox(LB2ID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash3);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->getHeaderByHash(TestChain::blkHash3)->isMainBranch());
 
@@ -2496,7 +2496,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
 
    //grab ledger
    auto&& zcledger = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger.getValue(), 27 * COIN);
+   EXPECT_EQ(zcledger.getValue(), 27 * (int64_t)COIN);
    //EXPECT_EQ(zcledger.getTxTime(), 14000000);
    EXPECT_TRUE(zcledger.isOptInRBF());
 
@@ -2602,7 +2602,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
    //second zc should be valid
    //grab ledger
    auto&& zcledger3 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash2);
-   EXPECT_EQ(zcledger3.getValue(), 26 * COIN);
+   EXPECT_EQ(zcledger3.getValue(), 26 * (int64_t)COIN);
    //EXPECT_EQ(zcledger3.getTxTime(), 15000000);
    EXPECT_TRUE(zcledger3.isOptInRBF());
 
@@ -2712,14 +2712,14 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
    //second zc should be valid
    //grab ledger
    auto&& zcledger5 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash2);
-   EXPECT_EQ(zcledger5.getValue(), 26 * COIN);
+   EXPECT_EQ(zcledger5.getValue(), 26 * (int64_t)COIN);
    //EXPECT_EQ(zcledger5.getTxTime(), 15000000);
    EXPECT_TRUE(zcledger5.isOptInRBF());
 
    //third zc should be valid
    //grab ledger
    auto&& zcledger6 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash3);
-   EXPECT_EQ(zcledger6.getValue(), -16 * COIN);
+   EXPECT_EQ(zcledger6.getValue(), -16 * (int64_t)COIN);
    //EXPECT_EQ(zcledger6.getTxTime(), 16000000);
    EXPECT_TRUE(zcledger6.isChainedZC());
    EXPECT_TRUE(zcledger6.isOptInRBF());
@@ -2843,7 +2843,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
 
    //fourth zc should be valid
    auto&& zcledger10 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash4);
-   EXPECT_EQ(zcledger10.getValue(), 22 * COIN);
+   EXPECT_EQ(zcledger10.getValue(), 22 * (int64_t)COIN);
    //EXPECT_EQ(zcledger10.getTxTime(), 17000000);
    EXPECT_FALSE(zcledger10.isChainedZC());
    EXPECT_TRUE(zcledger10.isOptInRBF());
@@ -3024,7 +3024,7 @@ TEST_F(ZeroConfTests_FullNode, RegisterAddress_AfterZC)
 
    //grab ledger
    auto&& zcledger = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger.getValue(), 27 * COIN);
+   EXPECT_EQ(zcledger.getValue(), 27 * (int64_t)COIN);
    //EXPECT_EQ(zcledger.getTxTime(), 14000000);
    EXPECT_TRUE(zcledger.isOptInRBF());
 
@@ -3205,8 +3205,8 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
       ZCHash1 = move(BtcUtils::getHash256(rawTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-      EXPECT_EQ(ledgerVec.first.size(), 2);
-      EXPECT_EQ(ledgerVec.second.size(), 0);
+      EXPECT_EQ(ledgerVec.first.size(), 2ULL);
+      EXPECT_EQ(ledgerVec.second.size(), 0ULL);
 
       for (auto& ledger : ledgerVec.first)
          EXPECT_EQ(ledger.getTxHash(), ZCHash1);
@@ -3226,7 +3226,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
       scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
       auto&& zcledger_sa = DBTestUtils::getLedgerEntryFromAddr(
          (ScrAddrObj*)scrObj, ZCHash1);
-      EXPECT_EQ(zcledger_sa.getValue(), -30 * COIN);
+      EXPECT_EQ(zcledger_sa.getValue(), -30 * (int64_t)COIN);
       //EXPECT_EQ(zcledger_sa.getTxTime(), 14000000);
       EXPECT_TRUE(zcledger_sa.isOptInRBF());
       EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
@@ -3240,7 +3240,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
 
    //grab ledger
    auto&& zcledger = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger.getValue(), 27 * COIN);
+   EXPECT_EQ(zcledger.getValue(), 27 * (int64_t)COIN);
    //EXPECT_EQ(zcledger.getTxTime(), 14000000);
    EXPECT_TRUE(zcledger.isOptInRBF());
 
@@ -3292,8 +3292,8 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
       ZCHash2 = move(BtcUtils::getHash256(rawTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec3);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-      EXPECT_EQ(ledgerVec.first.size(), 2);
-      EXPECT_EQ(ledgerVec.second.size(), 0);
+      EXPECT_EQ(ledgerVec.first.size(), 2ULL);
+      EXPECT_EQ(ledgerVec.second.size(), 0ULL);
 
       for (auto& ledger : ledgerVec.first)
          EXPECT_EQ(ledger.getTxHash(), ZCHash2);
@@ -3312,7 +3312,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
       scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
       auto&& zcledger_sa = DBTestUtils::getLedgerEntryFromAddr(
          (ScrAddrObj*)scrObj, ZCHash1);
-      EXPECT_EQ(zcledger_sa.getValue(), -30 * COIN);
+      EXPECT_EQ(zcledger_sa.getValue(), -30 * (int64_t)COIN);
       //EXPECT_EQ(zcledger_sa.getTxTime(), 14000000);
       EXPECT_TRUE(zcledger_sa.isOptInRBF());
       EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
@@ -3328,7 +3328,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
       scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[2]);
       auto&& zcledger_sa = DBTestUtils::getLedgerEntryFromAddr(
          (ScrAddrObj*)scrObj, ZCHash2);
-      EXPECT_EQ(zcledger_sa.getValue(), 4 * COIN);
+      EXPECT_EQ(zcledger_sa.getValue(), 4 * (int64_t)COIN);
       //EXPECT_EQ(zcledger_sa.getTxTime(), 15000000);
       EXPECT_TRUE(zcledger_sa.isOptInRBF());
       EXPECT_EQ(scrObj->getFullBalance(), 4 * COIN);
@@ -3340,13 +3340,13 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
 
    //first zc should still be valid
    auto&& zcledger1 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger1.getValue(), 27 * COIN);
+   EXPECT_EQ(zcledger1.getValue(), 27 * (int64_t)COIN);
    //EXPECT_EQ(zcledger1.getTxTime(), 14000000);
    EXPECT_TRUE(zcledger1.isOptInRBF());
 
    //second zc should be valid
    auto&& zcledger2 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash2);
-   EXPECT_EQ(zcledger2.getValue(), -17 * COIN);
+   EXPECT_EQ(zcledger2.getValue(), -17 * (int64_t)COIN);
    //EXPECT_EQ(zcledger2.getTxTime(), 15000000);
    EXPECT_TRUE(zcledger2.isOptInRBF());
 
@@ -3414,8 +3414,8 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
       ZCHash3 = move(BtcUtils::getHash256(rawTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec2);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-      EXPECT_EQ(ledgerVec.first.size(), 2);
-      EXPECT_EQ(ledgerVec.second.size(), 1);
+      EXPECT_EQ(ledgerVec.first.size(), 2ULL);
+      EXPECT_EQ(ledgerVec.second.size(), 1ULL);
 
 
       for (auto& ledger : ledgerVec.first)
@@ -3437,7 +3437,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
       scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
       auto&& zcledger_sa = DBTestUtils::getLedgerEntryFromAddr(
          (ScrAddrObj*)scrObj, ZCHash1);
-      EXPECT_EQ(zcledger_sa.getValue(), -30 * COIN);
+      EXPECT_EQ(zcledger_sa.getValue(), -30 * (int64_t)COIN);
       //EXPECT_EQ(zcledger_sa.getTxTime(), 14000000);
       EXPECT_TRUE(zcledger_sa.isOptInRBF());
       EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
@@ -3464,7 +3464,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
 
    //first zc should be valid
    auto&& zcledger3 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger3.getValue(), 27 * COIN);
+   EXPECT_EQ(zcledger3.getValue(), 27 * (int64_t)COIN);
    //EXPECT_EQ(zcledger3.getTxTime(), 14000000);
    EXPECT_TRUE(zcledger3.isOptInRBF());
 
@@ -3474,7 +3474,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
 
    //third zc should be valid
    auto&& zcledger9 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash3);
-   EXPECT_EQ(zcledger9.getValue(), -6 * COIN);
+   EXPECT_EQ(zcledger9.getValue(), -6 * (int64_t)COIN);
    //EXPECT_EQ(zcledger9.getTxTime(), 17000000);
    EXPECT_TRUE(zcledger9.isOptInRBF());
 }
@@ -3596,7 +3596,7 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
    //wait on signals
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
    auto dbAssetWlt = bdvPtr->getWalletOrLockbox(assetWlt->getID());
@@ -3654,8 +3654,8 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
       ZCHash1 = move(BtcUtils::getHash256(rawTx));
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       auto&& ledgerVec = DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-      EXPECT_EQ(ledgerVec.first.size(), 1);
-      EXPECT_EQ(ledgerVec.second.size(), 0);
+      EXPECT_EQ(ledgerVec.first.size(), 1ULL);
+      EXPECT_EQ(ledgerVec.second.size(), 0ULL);
 
       for (auto& ledger : ledgerVec.first)
          EXPECT_EQ(ledger.getTxHash(), ZCHash1);
@@ -3676,7 +3676,7 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
       scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
       auto&& zcledgerSA = DBTestUtils::getLedgerEntryFromAddr(
          (ScrAddrObj*)scrObj, ZCHash1);
-      EXPECT_EQ(zcledgerSA.getValue(), 5 * COIN);
+      EXPECT_EQ(zcledgerSA.getValue(), 5 * (int64_t)COIN);
       //EXPECT_EQ(zcledgerSA.getTxTime(), 14000000);
       EXPECT_FALSE(zcledgerSA.isOptInRBF());
       EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
@@ -3686,7 +3686,7 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
 
    //grab wallet ledger
    auto&& zcledger = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger.getValue(), 5 * COIN);
+   EXPECT_EQ(zcledger.getValue(), 5 * (int64_t)COIN);
    //EXPECT_EQ(zcledger.getTxTime(), 14000000);
    EXPECT_FALSE(zcledger.isOptInRBF());
    EXPECT_FALSE(zcledger.isSentToSelf());
@@ -3701,7 +3701,7 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
          zc1_count++;
    }
 
-   EXPECT_EQ(zc1_count, 1);
+   EXPECT_EQ(zc1_count, 1U);
 
    {
       ////assetWlt send-to-self
@@ -3778,7 +3778,7 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
       scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
       auto&& zcledgerSA = DBTestUtils::getLedgerEntryFromAddr(
          (ScrAddrObj*)scrObj, ZCHash1);
-      EXPECT_EQ(zcledgerSA.getValue(), 5 * COIN);
+      EXPECT_EQ(zcledgerSA.getValue(), 5 * (int64_t)COIN);
       //EXPECT_EQ(zcledgerSA.getTxTime(), 14000000);
       EXPECT_FALSE(zcledgerSA.isOptInRBF());
       EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
@@ -3789,12 +3789,12 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
 
    //grab wallet ledger
    auto&& zcledger2 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger2.getValue(), 5 * COIN);
+   EXPECT_EQ(zcledger2.getValue(), 5 * (int64_t)COIN);
    EXPECT_EQ(zcledger2.getBlockNum(), UINT32_MAX);
    EXPECT_FALSE(zcledger2.isSentToSelf());
 
    auto&& zcledger3 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash2);
-   EXPECT_EQ(zcledger3.getValue(), 5 * COIN);
+   EXPECT_EQ(zcledger3.getValue(), 5 * (int64_t)COIN);
    EXPECT_EQ(zcledger3.getBlockNum(), UINT32_MAX);
    EXPECT_TRUE(zcledger3.isSentToSelf());
 
@@ -3813,15 +3813,15 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
          zc3_count++;
    }
 
-   EXPECT_EQ(zc2_count, 1);
-   EXPECT_EQ(zc3_count, 1);
+   EXPECT_EQ(zc2_count, 1U);
+   EXPECT_EQ(zc3_count, 1U);
 
    //mine a new block
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB, 1);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
    //check chain is 1 block longer
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 4);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 4U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -3838,7 +3838,7 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
       scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
       auto&& zcledgerSA = DBTestUtils::getLedgerEntryFromAddr(
          (ScrAddrObj*)scrObj, ZCHash1);
-      EXPECT_EQ(zcledgerSA.getValue(), 5 * COIN);
+      EXPECT_EQ(zcledgerSA.getValue(), 5 * (int64_t)COIN);
       //EXPECT_EQ(zcledgerSA.getTxTime(), 14000000);
       EXPECT_FALSE(zcledgerSA.isOptInRBF());
       EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
@@ -3849,13 +3849,13 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
 
    //grab wallet ledger
    zcledger2 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger2.getValue(), 5 * COIN);
-   EXPECT_EQ(zcledger2.getBlockNum(), 4);
+   EXPECT_EQ(zcledger2.getValue(), 5 * (int64_t)COIN);
+   EXPECT_EQ(zcledger2.getBlockNum(), 4U);
    EXPECT_FALSE(zcledger2.isSentToSelf());
 
    zcledger3 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash2);
-   EXPECT_EQ(zcledger3.getValue(), 5 * COIN);
-   EXPECT_EQ(zcledger3.getBlockNum(), 4);
+   EXPECT_EQ(zcledger3.getValue(), 5 * (int64_t)COIN);
+   EXPECT_EQ(zcledger3.getBlockNum(), 4U);
    EXPECT_TRUE(zcledger3.isSentToSelf());
 
    //grab delegate ledger
@@ -3873,8 +3873,8 @@ TEST_F(ZeroConfTests_FullNode, TwoZC_CheckLedgers)
          zc3_count++;
    }
 
-   EXPECT_EQ(zc2_count, 1);
-   EXPECT_EQ(zc3_count, 1);
+   EXPECT_EQ(zc2_count, 1U);
+   EXPECT_EQ(zc3_count, 1U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4082,7 +4082,7 @@ TEST_F(ZeroConfTests_Supernode, ZeroConfUpdate)
 
    //EXPECT_EQ(le.getTxTime(), 1300000000);
    EXPECT_EQ(le.isSentToSelf(), false);
-   EXPECT_EQ(le.getValue(), -27 * COIN);
+   EXPECT_EQ(le.getValue(), -27 * (int64_t)COIN);
 
    //check ZChash in DB
    {
@@ -4165,7 +4165,7 @@ TEST_F(ZeroConfTests_Supernode, UnrelatedZC_CheckLedgers)
    {
       auto snapshot = theBDMt_->bdm()->zeroConfCont()->getSnapshot();
       auto zcTxios = snapshot->getTxioMapForScrAddr(TestChain::scrAddrD);
-      EXPECT_EQ(zcTxios.size(), 1);
+      EXPECT_EQ(zcTxios.size(), 1ULL);
       iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
       DBTestUtils::addTxioToSsh(ssh, zcTxios);
       EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
@@ -4190,7 +4190,7 @@ TEST_F(ZeroConfTests_Supernode, UnrelatedZC_CheckLedgers)
 
    //grab ledger for 2nd ZC
    zcledger = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash2);
-   EXPECT_EQ(zcledger.getValue(), 30 * COIN);
+   EXPECT_EQ(zcledger.getValue(), 30 * (int64_t)COIN);
    EXPECT_EQ(zcledger.getBlockNum(), UINT32_MAX);
    EXPECT_FALSE(zcledger.isOptInRBF());
 
@@ -4205,7 +4205,7 @@ TEST_F(ZeroConfTests_Supernode, UnrelatedZC_CheckLedgers)
          zc2_count++;
    }
 
-   EXPECT_EQ(zc2_count, 1);
+   EXPECT_EQ(zc2_count, 1U);
 
    //push last block
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -4243,8 +4243,8 @@ TEST_F(ZeroConfTests_Supernode, UnrelatedZC_CheckLedgers)
    EXPECT_EQ(zcledger.getTxHash(), BtcUtils::EmptyHash());
    
    zcledger = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash2);
-   EXPECT_EQ(zcledger.getTxTime(), 1231009513);
-   EXPECT_EQ(zcledger.getBlockNum(), 5);
+   EXPECT_EQ(zcledger.getTxTime(), 1231009513U);
+   EXPECT_EQ(zcledger.getBlockNum(), 5U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4482,7 +4482,7 @@ TEST_F(ZeroConfTests_Supernode, ZC_Reorg)
    auto notifPtr = get<0>(newBlockNotif);
    auto notifIndex = get<1>(newBlockNotif);
 
-   EXPECT_EQ(notifIndex, 0);
+   EXPECT_EQ(notifIndex, 0U);
    ASSERT_EQ(notifPtr->notification_size(), 2);
 
    //grab the invalidated zc notif, it should carry the hash for both our ZC
@@ -4563,7 +4563,7 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
    //wait on signals
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
    auto dbAssetWlt = bdvPtr->getWalletOrLockbox(assetWlt->getID());
@@ -4680,7 +4680,7 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
 
    //grab ledger
    auto zcledger = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger.getValue(), 27 * COIN);
+   EXPECT_EQ(zcledger.getValue(), 27 * (int64_t)COIN);
    //EXPECT_EQ(zcledger.getTxTime(), 14000000);
    EXPECT_TRUE(zcledger.isOptInRBF());
 
@@ -4761,13 +4761,13 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
 
    //first zc should be valid still
    auto zcledger1 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger1.getValue(), 27 * COIN);
+   EXPECT_EQ(zcledger1.getValue(), 27 * (int64_t)COIN);
    //EXPECT_EQ(zcledger1.getTxTime(), 14000000);
    EXPECT_TRUE(zcledger1.isOptInRBF());
 
    //second zc should be valid
    auto zcledger2 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash2);
-   EXPECT_EQ(zcledger2.getValue(), -17 * COIN);
+   EXPECT_EQ(zcledger2.getValue(), -17 * (int64_t)COIN);
    //EXPECT_EQ(zcledger2.getTxTime(), 15000000);
    EXPECT_TRUE(zcledger2.isOptInRBF());
 
@@ -4865,7 +4865,7 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
 
    //first zc should be replaced, hence the ledger should be empty
    auto zcledger3 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger3.getValue(), 27 * COIN);
+   EXPECT_EQ(zcledger3.getValue(), 27 * (int64_t)COIN);
    EXPECT_EQ(zcledger3.getBlockNum(), UINT32_MAX);
    EXPECT_TRUE(zcledger3.isOptInRBF());
 
@@ -4875,7 +4875,7 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
 
    //third zc should be valid
    auto zcledger9 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash3);
-   EXPECT_EQ(zcledger9.getValue(), -6 * COIN);
+   EXPECT_EQ(zcledger9.getValue(), -6 * (int64_t)COIN);
    EXPECT_EQ(zcledger9.getBlockNum(), UINT32_MAX);
    EXPECT_TRUE(zcledger9.isOptInRBF());
 
@@ -4884,7 +4884,7 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
    //check chain is 3 block longer
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 6);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 6U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -4912,13 +4912,13 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
 
    //check all zc are mined with 1 conf
    zcledger3 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger3.getValue(), 27 * COIN);
-   EXPECT_EQ(zcledger3.getBlockNum(), 4);
+   EXPECT_EQ(zcledger3.getValue(), 27 * (int64_t)COIN);
+   EXPECT_EQ(zcledger3.getBlockNum(), 4U);
    EXPECT_FALSE(zcledger3.isOptInRBF());
 
    zcledger9 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash3);
-   EXPECT_EQ(zcledger9.getValue(), -6 * COIN);
-   EXPECT_EQ(zcledger9.getBlockNum(), 4);
+   EXPECT_EQ(zcledger9.getValue(), -6 * (int64_t)COIN);
+   EXPECT_EQ(zcledger9.getBlockNum(), 4U);
    EXPECT_FALSE(zcledger9.isOptInRBF());
 }
 
@@ -5075,7 +5075,7 @@ TEST_F(ZeroConfTests_Supernode, ZC_MineAfter1Block)
 
       signer.setFeed(feed);
       signer.sign();
-      auto rawTx = signer.serializeSignedTx();
+      signer.serializeSignedTx();
       zcVec.push_back(signer.serializeSignedTx(), 130000000, 0);
    }
    
@@ -5139,7 +5139,7 @@ TEST_F(ZeroConfTests_Supernode, ZC_MineAfter1Block)
    zc1 = bdvPtr->getTxByHash(hash1);
    zc2 = bdvPtr->getTxByHash(hash2);
 
-   EXPECT_EQ(zc1.getTxHeight(), 6);
+   EXPECT_EQ(zc1.getTxHeight(), 6U);
    EXPECT_EQ(zc2.getTxHeight(), UINT32_MAX);
 
    //mine last block
@@ -5162,10 +5162,10 @@ TEST_F(ZeroConfTests_Supernode, ZC_MineAfter1Block)
    zc1 = bdvPtr->getTxByHash(hash1);
    zc2 = bdvPtr->getTxByHash(hash2);
 
-   EXPECT_EQ(zc1.getTxHeight(), 6);
-   EXPECT_EQ(zc2.getTxHeight(), 7);
+   EXPECT_EQ(zc1.getTxHeight(), 6U);
+   EXPECT_EQ(zc2.getTxHeight(), 7U);
 
-   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1);
+   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1U);
 }
 
 
@@ -5356,15 +5356,15 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate)
    auto&& main_ledger = ledger_fut.get();
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
+   EXPECT_EQ(main_ledger.size(), 2ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
+   EXPECT_EQ(main_ledger[0].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+   EXPECT_EQ(main_ledger[1].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0U);
 
    //add the 2 zc
    auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
@@ -5404,23 +5404,23 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate)
    main_ledger = move(ledger2_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
+   EXPECT_EQ(main_ledger.size(), 4ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 1);
+   EXPECT_EQ(main_ledger[0].getIndex(), 1U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
    //tx cache testing
    //grab ZC1 from async client
@@ -5452,7 +5452,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate)
    bdvObj->getTxBatchByHash(bothZC, zc_get2);
    auto zc_obj2 = zc_fut2.get();
 
-   ASSERT_EQ(zc_obj2.size(), 2);
+   ASSERT_EQ(zc_obj2.size(), 2ULL);
 
    auto iterZc1 = zc_obj2.find(ZChash1);
    ASSERT_NE(iterZc1, zc_obj2.end());
@@ -5484,27 +5484,27 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate)
    main_ledger = move(ledger3_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
+   EXPECT_EQ(main_ledger.size(), 5ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 2U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 1U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
+   EXPECT_EQ(main_ledger[4].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[4].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[4].getIndex(), 0U);
 
 
    //grab ZC1 from async client
@@ -5520,7 +5520,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate)
    bdvObj->getTxByHash(ZChash1, zc_get3);
    auto zc_obj3 = zc_fut3.get();
    EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
+   EXPECT_EQ(zc_obj3->getTxHeight(), 2U);
 
    //grab both zc from async client
    auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
@@ -5535,19 +5535,19 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate)
    bdvObj->getTxBatchByHash(bothZC, zc_get4);
    auto zc_obj4 = zc_fut4.get();
 
-   ASSERT_EQ(zc_obj4.size(), 2);
+   ASSERT_EQ(zc_obj4.size(), 2ULL);
 
    auto iterZc3 = zc_obj4.find(ZChash1);
    ASSERT_NE(iterZc3, zc_obj4.end());
    ASSERT_NE(iterZc3->second, nullptr);
    EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc3->second->getTxHeight(), 2U);
 
    auto iterZc4 = zc_obj4.find(ZChash2);
    ASSERT_NE(iterZc4, zc_obj4.end());
    ASSERT_NE(iterZc4->second, nullptr);
    EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc4->second->getTxHeight(), 2U);
 
    //disconnect
    bdvObj->unregisterFromDB();
@@ -5562,7 +5562,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -5638,15 +5638,15 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC)
    auto&& main_ledger = ledger_fut.get();
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
+   EXPECT_EQ(main_ledger.size(), 2ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
+   EXPECT_EQ(main_ledger[0].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+   EXPECT_EQ(main_ledger[1].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0U);
 
    //add the 2 zc
    auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
@@ -5687,23 +5687,23 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC)
    main_ledger = move(ledger2_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
+   EXPECT_EQ(main_ledger.size(), 4ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 1);
+   EXPECT_EQ(main_ledger[0].getIndex(), 1U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
    /*tx cache coverage*/
    //grab ZC1 from async client
@@ -5735,7 +5735,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC)
    bdvObj->getTxBatchByHash(bothZC, zc_get2);
    auto zc_obj2 = zc_fut2.get();
 
-   ASSERT_EQ(zc_obj2.size(), 2);
+   ASSERT_EQ(zc_obj2.size(), 2ULL);
    
    auto iterZc1 = zc_obj2.find(ZChash1);
    ASSERT_NE(iterZc1, zc_obj2.end());
@@ -5767,27 +5767,27 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC)
    main_ledger = move(ledger3_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
+   EXPECT_EQ(main_ledger.size(), 5ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 2U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 1U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
+   EXPECT_EQ(main_ledger[4].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[4].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[4].getIndex(), 0U);
 
 
    //grab ZC1 from async client
@@ -5803,7 +5803,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC)
    bdvObj->getTxByHash(ZChash1, zc_get3);
    auto zc_obj3 = zc_fut3.get();
    EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
+   EXPECT_EQ(zc_obj3->getTxHeight(), 2U);
 
    //grab both zc from async client
    auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
@@ -5818,18 +5818,18 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC)
    bdvObj->getTxBatchByHash(bothZC, zc_get4);
    auto zc_obj4 = zc_fut4.get();
 
-   ASSERT_EQ(zc_obj4.size(), 2);
+   ASSERT_EQ(zc_obj4.size(), 2ULL);
    auto iterZc3 = zc_obj4.find(ZChash1);
    ASSERT_NE(iterZc3, zc_obj4.end());
    ASSERT_NE(iterZc3->second, nullptr);
    EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc3->second->getTxHeight(), 2U);
 
    auto iterZc4 = zc_obj4.find(ZChash2);
    ASSERT_NE(iterZc4, zc_obj4.end());
    ASSERT_NE(iterZc4->second, nullptr);
    EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc4->second->getTxHeight(), 2U);
 
    //disconnect
    bdvObj->unregisterFromDB();
@@ -5844,7 +5844,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -5920,15 +5920,15 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback)
    auto&& main_ledger = ledger_fut.get();
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
+   EXPECT_EQ(main_ledger.size(), 2ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
+   EXPECT_EQ(main_ledger[0].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+   EXPECT_EQ(main_ledger[1].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0U);
 
    //add the 2 zc
    auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
@@ -5971,23 +5971,23 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback)
    main_ledger = move(ledger2_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
+   EXPECT_EQ(main_ledger.size(), 4ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 3);
+   EXPECT_EQ(main_ledger[0].getIndex(), 3U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 2);
+   EXPECT_EQ(main_ledger[1].getIndex(), 2U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
    //tx cache testing
    //grab ZC1 from async client
@@ -6019,7 +6019,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback)
    bdvObj->getTxBatchByHash(bothZC, zc_get2);
    auto zc_obj2 = zc_fut2.get();
 
-   ASSERT_EQ(zc_obj2.size(), 2);
+   ASSERT_EQ(zc_obj2.size(), 2ULL);
 
    auto iterZc1 = zc_obj2.find(ZChash1);
    ASSERT_NE(iterZc1, zc_obj2.end());
@@ -6051,27 +6051,27 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback)
    main_ledger = move(ledger3_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
+   EXPECT_EQ(main_ledger.size(), 5ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 2U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 1U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
+   EXPECT_EQ(main_ledger[4].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[4].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[4].getIndex(), 0U);
 
 
    //grab ZC1 from async client
@@ -6087,7 +6087,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback)
    bdvObj->getTxByHash(ZChash1, zc_get3);
    auto zc_obj3 = zc_fut3.get();
    EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
+   EXPECT_EQ(zc_obj3->getTxHeight(), 2U);
 
    //grab both zc from async client
    auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
@@ -6102,19 +6102,19 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback)
    bdvObj->getTxBatchByHash(bothZC, zc_get4);
    auto zc_obj4 = zc_fut4.get();
 
-   ASSERT_EQ(zc_obj4.size(), 2);
+   ASSERT_EQ(zc_obj4.size(), 2ULL);
 
    auto iterZc3 = zc_obj4.find(ZChash1);
    ASSERT_NE(iterZc3, zc_obj4.end());
    ASSERT_NE(iterZc3->second, nullptr);
    EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc3->second->getTxHeight(), 2U);
 
    auto iterZc4 = zc_obj4.find(ZChash2);
    ASSERT_NE(iterZc4, zc_obj4.end());
    ASSERT_NE(iterZc4->second, nullptr);
    EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc4->second->getTxHeight(), 2U);
 
    //disconnect
    bdvObj->unregisterFromDB();
@@ -6129,7 +6129,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -6205,15 +6205,15 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback_SingleBatch)
    auto&& main_ledger = ledger_fut.get();
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
+   EXPECT_EQ(main_ledger.size(), 2ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
+   EXPECT_EQ(main_ledger[0].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+   EXPECT_EQ(main_ledger[1].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0U);
 
    //add the 2 zc
    auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
@@ -6256,23 +6256,23 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback_SingleBatch)
    main_ledger = move(ledger2_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
+   EXPECT_EQ(main_ledger.size(), 4ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 3);
+   EXPECT_EQ(main_ledger[0].getIndex(), 3U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 2);
+   EXPECT_EQ(main_ledger[1].getIndex(), 2U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
    //tx cache testing
    //grab ZC1 from async client
@@ -6304,7 +6304,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback_SingleBatch)
    bdvObj->getTxBatchByHash(bothZC, zc_get2);
    auto zc_obj2 = zc_fut2.get();
 
-   ASSERT_EQ(zc_obj2.size(), 2);
+   ASSERT_EQ(zc_obj2.size(), 2ULL);
 
    auto iterZc1 = zc_obj2.find(ZChash1);
    ASSERT_NE(iterZc1, zc_obj2.end());
@@ -6336,27 +6336,27 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback_SingleBatch)
    main_ledger = move(ledger3_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
+   EXPECT_EQ(main_ledger.size(), 5ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 2U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 1U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
+   EXPECT_EQ(main_ledger[4].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[4].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[4].getIndex(), 0U);
 
 
    //grab ZC1 from async client
@@ -6372,7 +6372,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback_SingleBatch)
    bdvObj->getTxByHash(ZChash1, zc_get3);
    auto zc_obj3 = zc_fut3.get();
    EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
+   EXPECT_EQ(zc_obj3->getTxHeight(), 2U);
 
    //grab both zc from async client
    auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
@@ -6387,19 +6387,19 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback_SingleBatch)
    bdvObj->getTxBatchByHash(bothZC, zc_get4);
    auto zc_obj4 = zc_fut4.get();
 
-   ASSERT_EQ(zc_obj4.size(), 2);
+   ASSERT_EQ(zc_obj4.size(), 2ULL);
 
    auto iterZc3 = zc_obj4.find(ZChash1);
    ASSERT_NE(iterZc3, zc_obj4.end());
    ASSERT_NE(iterZc3->second, nullptr);
    EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc3->second->getTxHeight(), 2U);
 
    auto iterZc4 = zc_obj4.find(ZChash2);
    ASSERT_NE(iterZc4, zc_obj4.end());
    ASSERT_NE(iterZc4->second, nullptr);
    EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc4->second->getTxHeight(), 2U);
 
    //disconnect
    bdvObj->unregisterFromDB();
@@ -6414,7 +6414,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RPC_Fallback_SingleBatch)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -6490,15 +6490,15 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool)
    auto&& main_ledger = ledger_fut.get();
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
+   EXPECT_EQ(main_ledger.size(), 2ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
+   EXPECT_EQ(main_ledger[0].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+   EXPECT_EQ(main_ledger[1].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0U);
 
    //add the 2 zc
    auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
@@ -6548,23 +6548,23 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool)
    main_ledger = move(ledger2_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
+   EXPECT_EQ(main_ledger.size(), 4ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 1);
+   EXPECT_EQ(main_ledger[0].getIndex(), 1U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
    //tx cache testing
    //grab ZC1 from async client
@@ -6596,7 +6596,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool)
    bdvObj->getTxBatchByHash(bothZC, zc_get2);
    auto zc_obj2 = zc_fut2.get();
 
-   ASSERT_EQ(zc_obj2.size(), 2);
+   ASSERT_EQ(zc_obj2.size(), 2ULL);
 
    auto iterZc1 = zc_obj2.find(ZChash1);
    ASSERT_NE(iterZc1, zc_obj2.end());
@@ -6628,27 +6628,27 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool)
    main_ledger = move(ledger3_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
+   EXPECT_EQ(main_ledger.size(), 5ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 2U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 1U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
+   EXPECT_EQ(main_ledger[4].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[4].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[4].getIndex(), 0U);
 
 
    //grab ZC1 from async client
@@ -6664,7 +6664,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool)
    bdvObj->getTxByHash(ZChash1, zc_get3);
    auto zc_obj3 = zc_fut3.get();
    EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
+   EXPECT_EQ(zc_obj3->getTxHeight(), 2U);
 
    //grab both zc from async client
    auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
@@ -6679,19 +6679,19 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool)
    bdvObj->getTxBatchByHash(bothZC, zc_get4);
    auto zc_obj4 = zc_fut4.get();
 
-   ASSERT_EQ(zc_obj4.size(), 2);
+   ASSERT_EQ(zc_obj4.size(), 2ULL);
 
    auto iterZc3 = zc_obj4.find(ZChash1);
    ASSERT_NE(iterZc3, zc_obj4.end());
    ASSERT_NE(iterZc3->second, nullptr);
    EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc3->second->getTxHeight(), 2U);
 
    auto iterZc4 = zc_obj4.find(ZChash2);
    ASSERT_NE(iterZc4, zc_obj4.end());
    ASSERT_NE(iterZc4->second, nullptr);
    EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc4->second->getTxHeight(), 2U);
 
    //disconnect
    bdvObj->unregisterFromDB();
@@ -6706,7 +6706,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -6782,15 +6782,15 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool_Batched)
    auto&& main_ledger = ledger_fut.get();
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
+   EXPECT_EQ(main_ledger.size(), 2ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
+   EXPECT_EQ(main_ledger[0].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+   EXPECT_EQ(main_ledger[1].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0U);
 
    //add the 2 zc
    auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
@@ -6842,26 +6842,26 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool_Batched)
    main_ledger = move(ledger2_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
+   EXPECT_EQ(main_ledger.size(), 4ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
    //zc index is 2 since 0 and 1 were assigned to the first zc: 0 at
    //the solo broadcast, 1 at the batched broadcast, which had the first
    //zc fail as already-in-mempool
-   EXPECT_EQ(main_ledger[0].getIndex(), 2); 
+   EXPECT_EQ(main_ledger[0].getIndex(), 2U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
    //tx cache testing
    //grab ZC1 from async client
@@ -6893,7 +6893,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool_Batched)
    bdvObj->getTxBatchByHash(bothZC, zc_get2);
    auto zc_obj2 = zc_fut2.get();
 
-   ASSERT_EQ(zc_obj2.size(), 2);
+   ASSERT_EQ(zc_obj2.size(), 2ULL);
 
    auto iterZc1 = zc_obj2.find(ZChash1);
    ASSERT_NE(iterZc1, zc_obj2.end());
@@ -6925,27 +6925,27 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool_Batched)
    main_ledger = move(ledger3_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
+   EXPECT_EQ(main_ledger.size(), 5ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 2U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 1U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
+   EXPECT_EQ(main_ledger[4].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[4].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[4].getIndex(), 0U);
 
 
    //grab ZC1 from async client
@@ -6961,7 +6961,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool_Batched)
    bdvObj->getTxByHash(ZChash1, zc_get3);
    auto zc_obj3 = zc_fut3.get();
    EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
+   EXPECT_EQ(zc_obj3->getTxHeight(), 2U);
 
    //grab both zc from async client
    auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
@@ -6976,19 +6976,19 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool_Batched)
    bdvObj->getTxBatchByHash(bothZC, zc_get4);
    auto zc_obj4 = zc_fut4.get();
 
-   ASSERT_EQ(zc_obj4.size(), 2);
+   ASSERT_EQ(zc_obj4.size(), 2ULL);
 
    auto iterZc3 = zc_obj4.find(ZChash1);
    ASSERT_NE(iterZc3, zc_obj4.end());
    ASSERT_NE(iterZc3->second, nullptr);
    EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc3->second->getTxHeight(), 2U);
 
    auto iterZc4 = zc_obj4.find(ZChash2);
    ASSERT_NE(iterZc4, zc_obj4.end());
    ASSERT_NE(iterZc4->second, nullptr);
    EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc4->second->getTxHeight(), 2U);
 
    //disconnect
    bdvObj->unregisterFromDB();
@@ -7003,7 +7003,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInMempool_Batched)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -7092,15 +7092,15 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInNodeMempool)
    auto&& main_ledger = ledger_fut.get();
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
+   EXPECT_EQ(main_ledger.size(), 2ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
+   EXPECT_EQ(main_ledger[0].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
+   EXPECT_EQ(main_ledger[1].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 0U);
 
    //add the 2 zc
 
@@ -7138,23 +7138,23 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInNodeMempool)
    main_ledger = move(ledger2_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
+   EXPECT_EQ(main_ledger.size(), 4ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 3);
+   EXPECT_EQ(main_ledger[0].getIndex(), 3U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
    EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 2);
+   EXPECT_EQ(main_ledger[1].getIndex(), 2U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
    //tx cache testing
    //grab ZC1 from async client
@@ -7186,7 +7186,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInNodeMempool)
    bdvObj->getTxBatchByHash(bothZC, zc_get2);
    auto zc_obj2 = zc_fut2.get();
 
-   ASSERT_EQ(zc_obj2.size(), 2);
+   ASSERT_EQ(zc_obj2.size(), 2ULL);
 
    auto iterZc1 = zc_obj2.find(ZChash1);
    ASSERT_NE(iterZc1, zc_obj2.end());
@@ -7218,27 +7218,27 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInNodeMempool)
    main_ledger = move(ledger3_fut.get());
 
    //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
+   EXPECT_EQ(main_ledger.size(), 5ULL);
 
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
+   EXPECT_EQ(main_ledger[0].getValue(), -20 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[0].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[0].getIndex(), 2U);
 
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
+   EXPECT_EQ(main_ledger[1].getValue(), -25 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[1].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[1].getIndex(), 1U);
 
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
+   EXPECT_EQ(main_ledger[2].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[2].getBlockNum(), 2U);
+   EXPECT_EQ(main_ledger[2].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
+   EXPECT_EQ(main_ledger[3].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[3].getBlockNum(), 1U);
+   EXPECT_EQ(main_ledger[3].getIndex(), 0U);
 
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
+   EXPECT_EQ(main_ledger[4].getValue(), 50 * (int64_t)COIN);
+   EXPECT_EQ(main_ledger[4].getBlockNum(), 0U);
+   EXPECT_EQ(main_ledger[4].getIndex(), 0U);
 
 
    //grab ZC1 from async client
@@ -7254,7 +7254,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInNodeMempool)
    bdvObj->getTxByHash(ZChash1, zc_get3);
    auto zc_obj3 = zc_fut3.get();
    EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
+   EXPECT_EQ(zc_obj3->getTxHeight(), 2U);
 
    //grab both zc from async client
    auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
@@ -7269,19 +7269,19 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInNodeMempool)
    bdvObj->getTxBatchByHash(bothZC, zc_get4);
    auto zc_obj4 = zc_fut4.get();
 
-   ASSERT_EQ(zc_obj4.size(), 2);
+   ASSERT_EQ(zc_obj4.size(), 2ULL);
 
    auto iterZc3 = zc_obj4.find(ZChash1);
    ASSERT_NE(iterZc3, zc_obj4.end());
    ASSERT_NE(iterZc3->second, nullptr);
    EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc3->second->getTxHeight(), 2U);
 
    auto iterZc4 = zc_obj4.find(ZChash2);
    ASSERT_NE(iterZc4, zc_obj4.end());
    ASSERT_NE(iterZc4->second, nullptr);
    EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
+   EXPECT_EQ(iterZc4->second->getTxHeight(), 2U);
 
    //disconnect
    bdvObj->unregisterFromDB();
@@ -7296,7 +7296,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_AlreadyInNodeMempool)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -7439,36 +7439,36 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RBFLowFee)
    //check original balances
    {
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
+      ASSERT_EQ(iterA->second.size(), 3ULL);
       EXPECT_EQ(iterA->second[0], 50 * COIN);
 
       auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
+      ASSERT_EQ(iterB->second.size(), 3ULL);
       EXPECT_EQ(iterB->second[0], 70 * COIN);
 
       auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
+      ASSERT_EQ(iterC->second.size(), 3ULL);
       EXPECT_EQ(iterC->second[0], 20 * COIN);
 
       auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
       ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterD->second.size(), 3);
+      ASSERT_EQ(iterD->second.size(), 3ULL);
       EXPECT_EQ(iterD->second[0], 65 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
+      ASSERT_EQ(iterE->second.size(), 3ULL);
       EXPECT_EQ(iterE->second[0], 30 * COIN);
 
       auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
       ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterF->second.size(), 3);
+      ASSERT_EQ(iterF->second.size(), 3ULL);
       EXPECT_EQ(iterF->second[0], 5 * COIN);
    }
 
@@ -7486,7 +7486,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RBFLowFee)
 
       //tx from F to A
       auto&& utxoVec = getUtxo(TestChain::scrAddrF);
-      ASSERT_EQ(utxoVec.size(), 1);
+      ASSERT_EQ(utxoVec.size(), 1ULL);
       utxoF = utxoVec[0];
       auto bd_FtoD = makeTxFromUtxo(utxoF, TestChain::scrAddrA);
 
@@ -7544,31 +7544,31 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RBFLowFee)
       ZC out so the internal value change tracker counter was 
       incremented, resulting in an entry.
       */
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 5);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 5ULL);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
+      ASSERT_EQ(iterA->second.size(), 3ULL);
       EXPECT_EQ(iterA->second[0], 155 * COIN);
 
       auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
+      ASSERT_EQ(iterB->second.size(), 3ULL);
       EXPECT_EQ(iterB->second[0], 20 * COIN);
 
       auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
+      ASSERT_EQ(iterC->second.size(), 3ULL);
       EXPECT_EQ(iterC->second[0], 20 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
+      ASSERT_EQ(iterE->second.size(), 3ULL);
       EXPECT_EQ(iterE->second[0], 80 * COIN);
 
       auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
       ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterF->second.size(), 3);
+      ASSERT_EQ(iterF->second.size(), 3ULL);
       EXPECT_EQ(iterF->second[0], 0 * COIN);
    }
 
@@ -7585,8 +7585,8 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, ZcUpdate_RBFLowFee)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
+   EXPECT_GE(theBDMt_->bdm()->zeroConfCont()->getMergeCount(), 1U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -7657,37 +7657,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain)
 
       //check balances before pushing zc
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 50 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 70 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 30 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    
@@ -7847,37 +7847,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain)
 
       //check balances
       combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 58 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 50 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 25 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 70 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 32 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    }
@@ -7892,7 +7892,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -7963,37 +7963,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_AlreadyInMempool)
 
       //check balances before pushing zc
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 50 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 70 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 30 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    
@@ -8169,37 +8169,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_AlreadyInMempool)
 
       //check balances
       combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 58 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 50 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 25 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 70 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 32 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    }
@@ -8214,7 +8214,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_AlreadyInMempool)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -8285,37 +8285,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_AlreadyInNodeMempool)
 
       //check balances before pushing zc
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 50 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 70 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 30 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    
@@ -8506,37 +8506,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_AlreadyInNodeMempool)
 
       //check balances
       combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6U);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 58 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 50 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 70 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 37 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    }
@@ -8551,7 +8551,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_AlreadyInNodeMempool)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -8622,37 +8622,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_AlreadyInChain)
 
       //check balances before pushing zc
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 50 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 70 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 30 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    
@@ -8845,37 +8845,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_AlreadyInChain)
 
       //check balances
       combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 58 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 50 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 70 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 37 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    }
@@ -8890,7 +8890,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_AlreadyInChain)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -8961,37 +8961,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_MissInv)
 
       //check balances before pushing zc
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 50 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 70 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 30 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    
@@ -9180,37 +9180,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_MissInv)
 
       //check balances
       combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 58 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 50 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 70 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 37 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    }
@@ -9225,7 +9225,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_MissInv)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -9296,37 +9296,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren)
 
       //check balances before pushing zc
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 50 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 70 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 30 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    
@@ -9504,37 +9504,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren)
 
       //check balances
       combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 55 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 50 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 15 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 45 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 10 * COIN);
       }
    }
@@ -9549,7 +9549,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -9620,37 +9620,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren_Alrea
 
       //check balances before pushing zc
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 50 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 70 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 30 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    
@@ -9841,37 +9841,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren_Alrea
 
       //check balances
       combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 55 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 50 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 15 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 45 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 10 * COIN);
       }
    }
@@ -9886,7 +9886,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren_Alrea
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -9957,37 +9957,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren_Alrea
 
       //check balances before pushing zc
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 50 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 70 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 30 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    
@@ -10178,37 +10178,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren_Alrea
 
       //check balances
       combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 55 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 50 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 15 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 45 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 10 * COIN);
       }
    }
@@ -10223,7 +10223,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren_Alrea
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -10294,37 +10294,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren_Alrea
 
       //check balances before pushing zc
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 50 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 70 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 30 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    
@@ -10517,37 +10517,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren_Alrea
 
       //check balances
       combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 55 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 50 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 15 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 45 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 10 * COIN);
       }
    }
@@ -10562,7 +10562,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BatchZcChain_ConflictingChildren_Alrea
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -11295,7 +11295,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BroadcastSameZC_ManyThreads)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -11951,7 +11951,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BroadcastSameZC_ManyThreads_RPCFallbac
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -12306,7 +12306,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, BroadcastSameZC_RPCThenP2P)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -12377,37 +12377,37 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, RebroadcastInvalidBatch)
 
       //check balances before pushing zc
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       {
          auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
+         ASSERT_EQ(iterA->second.size(), 3ULL);
          EXPECT_EQ(iterA->second[0], 50 * COIN);
 
          auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
+         ASSERT_EQ(iterB->second.size(), 3ULL);
          EXPECT_EQ(iterB->second[0], 70 * COIN);
 
          auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
          ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
+         ASSERT_EQ(iterC->second.size(), 3ULL);
          EXPECT_EQ(iterC->second[0], 20 * COIN);
 
          auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
          ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
+         ASSERT_EQ(iterD->second.size(), 3ULL);
          EXPECT_EQ(iterD->second[0], 65 * COIN);
 
          auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
          ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
+         ASSERT_EQ(iterE->second.size(), 3ULL);
          EXPECT_EQ(iterE->second[0], 30 * COIN);
 
          auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
          ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
+         ASSERT_EQ(iterF->second.size(), 3ULL);
          EXPECT_EQ(iterF->second[0], 5 * COIN);
       }
    
@@ -12568,7 +12568,7 @@ TEST_F(ZeroConfTests_Supernode_WebSocket, RebroadcastInvalidBatch)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;

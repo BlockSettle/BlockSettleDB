@@ -169,7 +169,7 @@ TEST_F(ContainerTests, PileTest_Sequential)
       poptally += tally;
 
    EXPECT_EQ(pushtally, poptally);
-   EXPECT_EQ(thePile.count(), 0);
+   EXPECT_EQ(thePile.count(), 0ULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -249,7 +249,7 @@ TEST_F(ContainerTests, PileTest_Concurrent)
       poptally += tally;
 
    EXPECT_EQ(pushtally, poptally);
-   EXPECT_EQ(thePile.count(), 0);
+   EXPECT_EQ(thePile.count(), 0ULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -320,7 +320,7 @@ TEST_F(ContainerTests, StackTest_Sequential)
       poptally += tally;
 
    EXPECT_EQ(pushtally, poptally);
-   EXPECT_EQ(theStack.count(), 0);
+   EXPECT_EQ(theStack.count(), 0ULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -400,7 +400,7 @@ TEST_F(ContainerTests, StackTest_Concurrent)
       poptally += tally;
 
    EXPECT_EQ(pushtally, poptally);
-   EXPECT_EQ(theStack.count(), 0);
+   EXPECT_EQ(theStack.count(), 0ULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -471,7 +471,7 @@ TEST_F(ContainerTests, BlockingStackTest_Sequential)
       poptally += tally;
 
    EXPECT_EQ(pushtally, poptally);
-   EXPECT_EQ(theStack.count(), 0);
+   EXPECT_EQ(theStack.count(), 0ULL);
    EXPECT_EQ(theStack.waiting(), 0);
 }
 
@@ -545,7 +545,7 @@ TEST_F(ContainerTests, BlockingStackTest_Concurrent)
 
    EXPECT_EQ(theStack.waiting(), 0);
    EXPECT_EQ(pushtally, poptally);
-   EXPECT_EQ(theStack.count(), 0);
+   EXPECT_EQ(theStack.count(), 0ULL);
 
    theStack.clear();
 
@@ -575,9 +575,9 @@ TEST_F(ContainerTests, BlockingStackTest_Concurrent)
          popthr.join();
    }
 
-   EXPECT_NE(theStack.count(), 0);
+   EXPECT_NE(theStack.count(), 0ULL);
    theStack.clear();
-   EXPECT_EQ(theStack.count(), 0);
+   EXPECT_EQ(theStack.count(), 0ULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -668,7 +668,7 @@ TEST_F(ContainerTests, TimedStackTest_Concurrent)
 
    EXPECT_EQ(theStack.waiting(), 0);
    EXPECT_EQ(pushtally, poptally);
-   EXPECT_EQ(theStack.count(), 0);
+   EXPECT_EQ(theStack.count(), 0ULL);
 
    push_threads.clear();
    push_tallies.clear(); push_tallies.resize(threadCount_);
@@ -692,7 +692,7 @@ TEST_F(ContainerTests, TimedStackTest_Concurrent)
 
    EXPECT_EQ(theStack.waiting(), 0);
    EXPECT_EQ(pushtally, poptally);
-   EXPECT_EQ(theStack.count(), 0);
+   EXPECT_EQ(theStack.count(), 0ULL);
 }
 
 

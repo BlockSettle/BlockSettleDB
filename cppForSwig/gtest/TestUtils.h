@@ -603,7 +603,7 @@ namespace ResolverUtils
             BinaryDataRef preimage(addrPtr->getPreimage());
             hash_to_preimage_.insert(std::make_pair(hash, preimage));
          }
-         catch (std::exception)
+         catch (const std::exception&)
          {
             return;
          }

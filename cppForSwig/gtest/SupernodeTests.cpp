@@ -327,52 +327,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -388,52 +388,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    //restart bdm
    clients_->exitRequestLoop();
@@ -445,10 +445,10 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
    initBDM();
 
    auto&& subssh_sdbi = iface_->getStoredDBInfo(SUBSSH, 0);
-   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 5);
+   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 5ULL);
 
    auto&& ssh_sdbi = iface_->getStoredDBInfo(SSH, 0);
-   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5);
+   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5ULL);
 
    theBDMt_->start(DBSettings::initMode());
    bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
@@ -458,52 +458,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -519,52 +519,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_Reload_Rescan)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    //restart bdm
    clients_->exitRequestLoop();
@@ -576,10 +576,10 @@ TEST_F(BlockUtilsSuper, Load5Blocks_Reload_Rescan)
    initBDM();
 
    auto&& subssh_sdbi = iface_->getStoredDBInfo(SUBSSH, 0);
-   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 5);
+   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 5U);
 
    auto&& ssh_sdbi = iface_->getStoredDBInfo(SSH, 0);
-   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5);
+   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5U);
 
    theBDMt_->start(INIT_RESCAN);
    bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
@@ -589,52 +589,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_Reload_Rescan)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -653,52 +653,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 55 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 55 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 5);
+   EXPECT_EQ(ssh.totalTxioCount_, 5U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 10 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 20 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    //restart bdm
    clients_->exitRequestLoop();
@@ -710,10 +710,10 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    initBDM();
 
    auto&& subssh_sdbi = iface_->getStoredDBInfo(SUBSSH, 0);
-   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 3);
+   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 3U);
 
    auto&& ssh_sdbi = iface_->getStoredDBInfo(SSH, 0);
-   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 3);
+   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 3U);
 
    theBDMt_->start(INIT_SSH);
    bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
@@ -723,52 +723,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 55 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 55 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 5);
+   EXPECT_EQ(ssh.totalTxioCount_, 5U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 10 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 20 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    //restart bdm
    clients_->exitRequestLoop();
@@ -781,10 +781,10 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    initBDM();
 
    subssh_sdbi = iface_->getStoredDBInfo(SUBSSH, 0);
-   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 3);
+   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 3U);
 
    ssh_sdbi = iface_->getStoredDBInfo(SSH, 0);
-   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 3);
+   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 3U);
 
    //add next block
    TestUtils::appendBlocks({ "4" }, blk0dat_);
@@ -795,60 +795,60 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
    subssh_sdbi = iface_->getStoredDBInfo(SUBSSH, 0);
-   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 4);
+   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 4U);
 
    ssh_sdbi = iface_->getStoredDBInfo(SSH, 0);
-   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 4);
+   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 4U);
    
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 5);
+   EXPECT_EQ(ssh.totalTxioCount_, 5U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 60 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    //add last block
    TestUtils::appendBlocks({ "5" }, blk0dat_);
@@ -858,52 +858,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -918,7 +918,7 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 2);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 2U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash2);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->
       getHeaderByHash(TestChain::blkHash2)->isMainBranch());
@@ -948,7 +948,7 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
    DBTestUtils::triggerNewBlockNotification(theBDMt_);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash5);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->
       getHeaderByHash(TestChain::blkHash5)->isMainBranch());
@@ -958,52 +958,52 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    //grab a tx by hash for coverage
    auto& txioHeightMap = ssh.subHistMap_.rbegin()->second;
@@ -1031,52 +1031,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_FullReorg)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 55 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 55 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 60 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 95 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 20 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1103,59 +1103,59 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM_Reorg)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
-   EXPECT_EQ(theBDMt_->bdm()->blockchain()->top()->getBlockHeight(), 5);
+   EXPECT_EQ(theBDMt_->bdm()->blockchain()->top()->getBlockHeight(), 5U);
 
    StoredScriptHistory ssh;
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 55 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 55 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 60 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 95 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 20 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1178,52 +1178,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DoubleReorg)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    //second reorg: up to 5A
    TestUtils::setBlocks({ "0", "1", "2", "3", "4A", "4", "5", "5A" }, blk0dat_);
@@ -1233,52 +1233,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DoubleReorg)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 55 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 55 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 60 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 95 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 20 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1307,32 +1307,32 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    //reorg from block 3
    {
@@ -1474,32 +1474,32 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 211 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 211 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 10);
+   EXPECT_EQ(ssh.totalTxioCount_, 10U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 49 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 99 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 13 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 38 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 47 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 47 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 80 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    /*grab STXOs*/
 
@@ -1985,17 +1985,17 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    auto&& signerState = signer2.evaluateSignedState();
 
    {
-      ASSERT_EQ(signerState.getEvalMapSize(), 2);
+      ASSERT_EQ(signerState.getEvalMapSize(), 2U);
 
       auto&& txinEval = signerState.getSignedStateForInput(0);
       auto& pubkeyMap = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap.size(), 3);
+      EXPECT_EQ(pubkeyMap.size(), 3U);
       for (auto& pubkeyState : pubkeyMap)
          EXPECT_FALSE(pubkeyState.second);
 
       txinEval = signerState.getSignedStateForInput(1);
       auto& pubkeyMap_2 = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap_2.size(), 0);
+      EXPECT_EQ(pubkeyMap_2.size(), 0U);
    }
 
    {
@@ -2010,10 +2010,10 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       EXPECT_FALSE(signer2.isSigned());
       signerState = signer2.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
 
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -2031,9 +2031,9 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       EXPECT_FALSE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -2071,9 +2071,9 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       EXPECT_TRUE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 2);
+      EXPECT_EQ(txinEval.getSigCount(), 2U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -2566,7 +2566,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       balanceVec = lb2AddrBalances[TestChain::lb2ScrAddr];
       EXPECT_EQ(balanceVec[0], 30 * COIN);
       balanceVec = lb2AddrBalances[TestChain::lb2ScrAddrP2SH];
-      EXPECT_EQ(balanceVec.size(), 0);
+      EXPECT_EQ(balanceVec.size(), 0ULL);
 
       //lb1 balances
       EXPECT_EQ(lb1Balances[0], 30 * COIN);
@@ -2583,7 +2583,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       EXPECT_EQ(tx->getThisHash(), firstHash);
 
       //check utxos
-      EXPECT_EQ(utxos.size(), 5);
+      EXPECT_EQ(utxos.size(), 5ULL);
 
       //grab all tx for each utxo
       map<BinaryData, shared_future<AsyncClient::TxResult>> futMap;
@@ -2615,31 +2615,35 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       }
 
       for (unsigned i = 0; i < 6; i++)
-         EXPECT_EQ(addrLedgerV[i].size(), 0);
-      EXPECT_EQ(addrLedgerV[6].size(), 1);
-      EXPECT_EQ(addrLedgerV[7].size(), 7);
-      EXPECT_EQ(addrLedgerV[8].size(), 4);
-      EXPECT_EQ(addrLedgerV[9].size(), 2);
-      EXPECT_EQ(addrLedgerV[20].size(), 4);
+         EXPECT_EQ(addrLedgerV[i].size(), 0ULL);
+      EXPECT_EQ(addrLedgerV[6].size(), 1ULL);
+      EXPECT_EQ(addrLedgerV[7].size(), 7ULL);
+      EXPECT_EQ(addrLedgerV[8].size(), 4ULL);
+      EXPECT_EQ(addrLedgerV[9].size(), 2ULL);
+      EXPECT_EQ(addrLedgerV[20].size(), 4ULL);
 
       for (unsigned i = 0; i < 10; i++)
       {
-         auto& v1 = addrLedgerV[i];         
+         auto& v1 = addrLedgerV[i];
          auto& v2 = addrLedgerV[i + 10];
 
          if (v1.size() != v2.size())
+         {
             EXPECT_TRUE(false);
+         }
 
          for (unsigned y = 0; y < v1.size(); y++)
          {
             if(!(v1[y] == v2[y]))
+            {
                EXPECT_TRUE(false);
+            }
          }
       }
 
       auto rekeyCount = bdvObj->getRekeyCount();
-      EXPECT_EQ(rekeyCount.first, 2);
-      EXPECT_TRUE(rekeyCount.second > 7);
+      EXPECT_EQ(rekeyCount.first, 2U);
+      EXPECT_TRUE(rekeyCount.second > 7U);
       bdvObj->unregisterFromDB();
 
       auto time_ms = chrono::duration_cast<chrono::milliseconds>(
@@ -2690,7 +2694,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -3163,7 +3167,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -3282,7 +3286,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -3394,7 +3398,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
             signer.setFeed(feed);
             signer.sign();
-            auto rawTx = signer.serializeSignedTx();
+            signer.serializeSignedTx();
             zcVec.push_back(signer.serializeSignedTx(), 130000000, stagger++);
          }
 
@@ -3439,36 +3443,36 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
       unsigned heightOffset = 0;
       auto&& addrOp = getAddrOp(heightOffset, UINT32_MAX);
       heightOffset = addrOp.heightCutoff_ + 1;
-      ASSERT_EQ(addrOp.outpoints_.size(), 6);
+      ASSERT_EQ(addrOp.outpoints_.size(), 6ULL);
       
       auto iterAddrA = addrOp.outpoints_.find(TestChain::scrAddrA);
       EXPECT_NE(iterAddrA, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrA->second.size(), 1);
+      EXPECT_EQ(iterAddrA->second.size(), 1ULL);
       EXPECT_EQ(computeBalance(iterAddrA->second), 50 * COIN);
 
       auto iterAddrB = addrOp.outpoints_.find(TestChain::scrAddrB);
       EXPECT_NE(iterAddrB, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrB->second.size(), 1007);
+      EXPECT_EQ(iterAddrB->second.size(), 1007ULL);
       EXPECT_EQ(computeBalance(iterAddrB->second), 50070 * COIN);
 
       auto iterAddrC = addrOp.outpoints_.find(TestChain::scrAddrC);
       EXPECT_NE(iterAddrC, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrC->second.size(), 4);
+      EXPECT_EQ(iterAddrC->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrC->second), 20 * COIN);
 
       auto iterAddrD = addrOp.outpoints_.find(TestChain::scrAddrD);
       EXPECT_NE(iterAddrD, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrD->second.size(), 4);
+      EXPECT_EQ(iterAddrD->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrD->second), 65 * COIN);
 
       auto iterAddrE = addrOp.outpoints_.find(TestChain::scrAddrE);
       EXPECT_NE(iterAddrE, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrE->second.size(), 2);
+      EXPECT_EQ(iterAddrE->second.size(), 2ULL);
       EXPECT_EQ(computeBalance(iterAddrE->second), 30 * COIN);
 
       auto iterAddrF = addrOp.outpoints_.find(TestChain::scrAddrF);
       EXPECT_NE(iterAddrF, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrF->second.size(), 4);
+      EXPECT_EQ(iterAddrF->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrF->second), 5 * COIN);
 
       //check zc outputs
@@ -3477,12 +3481,12 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
       auto iterZcB = zcAddrOp.outpoints_.find(TestChain::scrAddrB);
       ASSERT_NE(iterZcB, zcAddrOp.outpoints_.end());
-      EXPECT_EQ(iterZcB->second.size(), 10);
+      EXPECT_EQ(iterZcB->second.size(), 10ULL);
 
       for (auto& opB : iterZcB->second)
       {
          EXPECT_EQ(opB.value_, 50 * COIN);
-         EXPECT_EQ(opB.txIndex_, 0);
+         EXPECT_EQ(opB.txIndex_, 0U);
          EXPECT_TRUE(opB.isSpent_);
       }
 
@@ -3493,7 +3497,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
          
          auto addrIter = zcAddrOp.outpoints_.find(addr);
          ASSERT_NE(addrIter, zcAddrOp.outpoints_.end());
-         EXPECT_EQ(addrIter->second.size(), 1);
+         EXPECT_EQ(addrIter->second.size(), 1ULL);
 
          auto& op = addrIter->second[0];
          EXPECT_EQ(op.value_, 50 * COIN);
@@ -3509,27 +3513,27 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
          //grab addrop
          auto&& addr_op = getAddrOp(heightOffset, UINT32_MAX);
-         EXPECT_EQ(addr_op.outpoints_.size(), 3);
+         EXPECT_EQ(addr_op.outpoints_.size(), 3ULL);
 
          //new coinbase to A
          auto iterA = addr_op.outpoints_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, addr_op.outpoints_.end());
-         EXPECT_EQ(iterA->second.size(), 1);
+         EXPECT_EQ(iterA->second.size(), 1ULL);
 
          auto& opA = *iterA->second.begin();
-         EXPECT_EQ(opA.txIndex_, 0);
-         EXPECT_EQ(opA.txOutIndex_, 0);
+         EXPECT_EQ(opA.txIndex_, 0U);
+         EXPECT_EQ(opA.txOutIndex_, 0U);
          EXPECT_EQ(opA.value_, 50 * COIN);
          EXPECT_FALSE(opA.isSpent_);
 
          //B coinbase input
          auto iterB = addr_op.outpoints_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, addr_op.outpoints_.end());
-         EXPECT_EQ(iterB->second.size(), 1);
+         EXPECT_EQ(iterB->second.size(), 1ULL);
 
          auto& opB = *iterB->second.begin();
-         EXPECT_EQ(opB.txIndex_, 0);
-         EXPECT_EQ(opB.txOutIndex_, 0);
+         EXPECT_EQ(opB.txIndex_, 0U);
+         EXPECT_EQ(opB.txOutIndex_, 0U);
          EXPECT_EQ(opB.value_, 50 * COIN);
          EXPECT_TRUE(opB.isSpent_);
          
@@ -3538,10 +3542,10 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
          auto& recAddr = _scrAddrVec1[id];
          auto iterR = addr_op.outpoints_.find(recAddr);
          ASSERT_NE(iterR, addr_op.outpoints_.end());
-         EXPECT_EQ(iterR->second.size(), 1);
+         EXPECT_EQ(iterR->second.size(), 1ULL);
 
          auto& opR = *iterR->second.begin();
-         EXPECT_EQ(opR.txIndex_, 1);
+         EXPECT_EQ(opR.txIndex_, 1U);
          EXPECT_EQ(opR.value_, 50 * COIN);
 
          //update cutoff
@@ -3559,7 +3563,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -3642,28 +3646,28 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 
       bdvObj->getCombinedBalances(walletIDs, balLbd);
       auto&& balMap = fut.get();
-      ASSERT_EQ(balMap.size(), 2);
+      ASSERT_EQ(balMap.size(), 2ULL);
 
       //wallet1
       auto iter1 = balMap.find(walletIDs[0]);
       ASSERT_NE(iter1, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter1->second.addressBalances_.size(), 1);
+      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter1->second.addressBalances_.size(), 1ULL);
 
       //wallet balance
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[0], 50 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0ULL);
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[2], 50 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 1);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 1ULL);
 
       //scrAddrA balance
       auto addrIter1 = iter1->second.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(addrIter1, iter1->second.addressBalances_.end());
-      ASSERT_EQ(addrIter1->second.size(), 3);
+      ASSERT_EQ(addrIter1->second.size(), 3ULL);
       EXPECT_EQ(addrIter1->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter1->second[1], 0);
+      EXPECT_EQ(addrIter1->second[1], 0U);
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //wallet2
@@ -3671,19 +3675,19 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
       ASSERT_NE(iter2, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter2->second.addressBalances_.size(), 1);
+      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter2->second.addressBalances_.size(), 1ULL);
 
       //wallet balance
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[0], 70 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[1], 20 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[2], 70 * COIN);
-      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 12);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 12ULL);
 
       //scrAddrB balance
       auto addrIter2 = iter2->second.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(addrIter2, iter2->second.addressBalances_.end());
-      ASSERT_EQ(addrIter2->second.size(), 3);
+      ASSERT_EQ(addrIter2->second.size(), 3ULL);
       EXPECT_EQ(addrIter2->second[0], 70 * COIN);
       EXPECT_EQ(addrIter2->second[1], 20 * COIN);
       EXPECT_EQ(addrIter2->second[2], 70 * COIN);
@@ -3699,25 +3703,25 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 
       bdvObj->getCombinedAddrTxnCounts(walletIDs, countLbd);
       auto&& countMap = fut2.get();
-      ASSERT_EQ(countMap.size(), 2);
+      ASSERT_EQ(countMap.size(), 2ULL);
 
       //wallet1
       auto iter3 = countMap.find(walletIDs[0]);
       ASSERT_NE(iter3, countMap.end());
-      ASSERT_EQ(iter3->second.addressTxnCounts_.size(), 1);
+      ASSERT_EQ(iter3->second.addressTxnCounts_.size(), 1ULL);
 
       auto addrIter3 = iter3->second.addressTxnCounts_.find(TestChain::scrAddrA);
       ASSERT_NE(addrIter3, iter3->second.addressTxnCounts_.end());
-      EXPECT_EQ(addrIter3->second, 1);
+      EXPECT_EQ(addrIter3->second, 1U);
 
       //wallet2
       auto iter4 = countMap.find(walletIDs[1]);
       ASSERT_NE(iter4, countMap.end());
-      ASSERT_EQ(iter4->second.addressTxnCounts_.size(), 1);
+      ASSERT_EQ(iter4->second.addressTxnCounts_.size(), 1ULL);
 
       auto addrIter4 = iter4->second.addressTxnCounts_.find(TestChain::scrAddrB);
       ASSERT_NE(addrIter4, iter4->second.addressTxnCounts_.end());
-      EXPECT_EQ(addrIter4->second, 12);
+      EXPECT_EQ(addrIter4->second, 12U);
 
       //utxos
       auto promPtr3 = make_shared<promise<vector<UTXO>>>();
@@ -3730,7 +3734,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
       bdvObj->getCombinedSpendableTxOutListForValue(
          walletIDs, UINT64_MAX, utxoLbd);
       auto&& utxoVec = fut3.get();
-      ASSERT_EQ(utxoVec.size(), 1);
+      ASSERT_EQ(utxoVec.size(), 1ULL);
 
       auto& utxo1 = utxoVec[0];
       EXPECT_EQ(utxo1.getValue(), 20 * COIN);
@@ -3750,7 +3754,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0ULL);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -3838,28 +3842,28 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
       };
 
       auto&& balMap = getCombinedBalances(walletIDs);
-      ASSERT_EQ(balMap.size(), 2);
+      ASSERT_EQ(balMap.size(), 2ULL);
 
       //wallet1
       auto iter1 = balMap.find(walletIDs[0]);
       ASSERT_NE(iter1, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter1->second.addressBalances_.size(), 1);
+      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter1->second.addressBalances_.size(), 1ULL);
 
       //wallet balance
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[0], 50 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0U);
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[2], 50 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 1);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 1ULL);
 
       //scrAddrA balance
       auto addrIter1 = iter1->second.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(addrIter1, iter1->second.addressBalances_.end());
-      ASSERT_EQ(addrIter1->second.size(), 3);
+      ASSERT_EQ(addrIter1->second.size(), 3ULL);
       EXPECT_EQ(addrIter1->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter1->second[1], 0);
+      EXPECT_EQ(addrIter1->second[1], 0U);
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //wallet2
@@ -3867,19 +3871,19 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
       ASSERT_NE(iter2, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter2->second.addressBalances_.size(), 1);
+      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter2->second.addressBalances_.size(), 1ULL);
 
       //wallet balance
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[0], 70 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[1], 20 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[2], 70 * COIN);
-      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 12);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 12ULL);
 
       //scrAddrB balance
       auto addrIter2 = iter2->second.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(addrIter2, iter2->second.addressBalances_.end());
-      ASSERT_EQ(addrIter2->second.size(), 3);
+      ASSERT_EQ(addrIter2->second.size(), 3ULL);
       EXPECT_EQ(addrIter2->second[0], 70 * COIN);
       EXPECT_EQ(addrIter2->second[1], 20 * COIN);
       EXPECT_EQ(addrIter2->second[2], 70 * COIN);
@@ -3895,25 +3899,25 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
       bdvObj->getCombinedAddrTxnCounts(walletIDs, countLbd);
       auto&& countMap = fut2.get();
-      ASSERT_EQ(countMap.size(), 2);
+      ASSERT_EQ(countMap.size(), 2ULL);
 
       //wallet1
       auto iter3 = countMap.find(walletIDs[0]);
       ASSERT_NE(iter3, countMap.end());
-      ASSERT_EQ(iter3->second.addressTxnCounts_.size(), 1);
+      ASSERT_EQ(iter3->second.addressTxnCounts_.size(), 1ULL);
 
       auto addrIter3 = iter3->second.addressTxnCounts_.find(TestChain::scrAddrA);
       ASSERT_NE(addrIter3, iter3->second.addressTxnCounts_.end());
-      EXPECT_EQ(addrIter3->second, 1);
+      EXPECT_EQ(addrIter3->second, 1U);
 
       //wallet2
       auto iter4 = countMap.find(walletIDs[1]);
       ASSERT_NE(iter4, countMap.end());
-      ASSERT_EQ(iter4->second.addressTxnCounts_.size(), 1);
+      ASSERT_EQ(iter4->second.addressTxnCounts_.size(), 1ULL);
 
       auto addrIter4 = iter4->second.addressTxnCounts_.find(TestChain::scrAddrB);
       ASSERT_NE(addrIter4, iter4->second.addressTxnCounts_.end());
-      EXPECT_EQ(addrIter4->second, 12);
+      EXPECT_EQ(addrIter4->second, 12U);
 
       //utxos
       auto promPtr3 = make_shared<promise<vector<UTXO>>>();
@@ -3926,7 +3930,7 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
       bdvObj->getCombinedSpendableTxOutListForValue(
          walletIDs, UINT64_MAX, utxoLbd);
       auto&& utxoVec = fut3.get();
-      ASSERT_EQ(utxoVec.size(), 1);
+      ASSERT_EQ(utxoVec.size(), 1ULL);
 
       auto& utxo1 = utxoVec[0];
       EXPECT_EQ(utxo1.getValue(), 20 * COIN);
@@ -3947,36 +3951,36 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
       //grab balances
       balMap = getCombinedBalances(walletIDs);
-      ASSERT_EQ(balMap.size(), 2);
+      ASSERT_EQ(balMap.size(), 2ULL);
 
       //wallet1
       iter1 = balMap.find(walletIDs[0]);
       ASSERT_NE(iter1, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter1->second.addressBalances_.size(), 2);
+      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter1->second.addressBalances_.size(), 2ULL);
 
       //wallet balance
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[0], 150 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0ULL);
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[2], 150 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 3);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 3ULL);
 
       //_scrAddrVec1[0] balance
       addrIter1 = iter1->second.addressBalances_.find(_scrAddrVec1[0]);
       ASSERT_NE(addrIter1, iter1->second.addressBalances_.end());
-      ASSERT_EQ(addrIter1->second.size(), 3);
+      ASSERT_EQ(addrIter1->second.size(), 3ULL);
       EXPECT_EQ(addrIter1->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter1->second[1], 0);
+      EXPECT_EQ(addrIter1->second[1], 0ULL);
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //_scrAddrVec1[1] balance
       addrIter1 = iter1->second.addressBalances_.find(_scrAddrVec1[1]);
       ASSERT_NE(addrIter1, iter1->second.addressBalances_.end());
-      ASSERT_EQ(addrIter1->second.size(), 3);
+      ASSERT_EQ(addrIter1->second.size(), 3ULL);
       EXPECT_EQ(addrIter1->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter1->second[1], 0);
+      EXPECT_EQ(addrIter1->second[1], 0ULL);
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //wallet2
@@ -3984,29 +3988,29 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
       ASSERT_NE(iter2, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter2->second.addressBalances_.size(), 2);
+      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter2->second.addressBalances_.size(), 2ULL);
 
       //wallet balance
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[0], 170 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[1], 20 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[2], 170 * COIN);
-      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 14);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 14ULL);
 
       //_scrAddrVec2[0] balance
       addrIter2 = iter2->second.addressBalances_.find(_scrAddrVec2[0]);
       ASSERT_NE(addrIter2, iter2->second.addressBalances_.end());
-      ASSERT_EQ(addrIter2->second.size(), 3);
+      ASSERT_EQ(addrIter2->second.size(), 3ULL);
       EXPECT_EQ(addrIter2->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter2->second[1], 0);
+      EXPECT_EQ(addrIter2->second[1], 0ULL);
       EXPECT_EQ(addrIter2->second[2], 50 * COIN);
 
       //_scrAddrVec2[1] balance
       addrIter2 = iter2->second.addressBalances_.find(_scrAddrVec2[1]);
       ASSERT_NE(addrIter2, iter2->second.addressBalances_.end());
-      ASSERT_EQ(addrIter2->second.size(), 3);
+      ASSERT_EQ(addrIter2->second.size(), 3ULL);
       EXPECT_EQ(addrIter2->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter2->second[1], 0);
+      EXPECT_EQ(addrIter2->second[1], 0ULL);
       EXPECT_EQ(addrIter2->second[2], 50 * COIN);
 
       //unregister some addresses
@@ -4020,35 +4024,35 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
       //grab balances again
       balMap = getCombinedBalances(walletIDs);
-      ASSERT_EQ(balMap.size(), 2);
+      ASSERT_EQ(balMap.size(), 2ULL);
 
       //wallet1
       iter1 = balMap.find(walletIDs[0]);
       ASSERT_NE(iter1, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter1->second.addressBalances_.size(), 0);
+      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter1->second.addressBalances_.size(), 0ULL);
 
       //wallet balance
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[0], 100 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0ULL);
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[2], 100 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 2);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 2ULL);
 
       //wallet2
       iter2 = balMap.find(walletIDs[1]);
       ASSERT_NE(iter2, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter2->second.addressBalances_.size(), 0);
+      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter2->second.addressBalances_.size(), 0ULL);
 
       //wallet balance
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[0], 120 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[1], 20 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[2], 120 * COIN);
-      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 13);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 13ULL);
 
       //unregister a wallet
       walletRegIDs.clear();
@@ -4057,11 +4061,11 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
       //grab balances again
       balMap = getCombinedBalances(walletIDs);
-      ASSERT_EQ(balMap.size(), 0); //should be 0, as one wallet in walletIDs is invalid
+      ASSERT_EQ(balMap.size(), 0ULL); //should be 0, as one wallet in walletIDs is invalid
 
       //grab balances again
       balMap = getCombinedBalances({wallet1id});
-      ASSERT_EQ(balMap.size(), 1);
+      ASSERT_EQ(balMap.size(), 1ULL);
 
       //mine a block
       DBTestUtils::mineNewBlock(theBDMt_, _scrAddrVec1[2].getSliceCopy(1, 20), 1);
@@ -4069,27 +4073,27 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
       //grab balances again
       balMap = getCombinedBalances({wallet1id});
-      ASSERT_EQ(balMap.size(), 1);
+      ASSERT_EQ(balMap.size(), 1ULL);
       
       //wallet1
       iter1 = balMap.find(walletIDs[0]);
       ASSERT_NE(iter1, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter1->second.addressBalances_.size(), 1);
+      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter1->second.addressBalances_.size(), 1ULL);
 
       //wallet balance
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[0], 150 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0ULL);
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[2], 150 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 3);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 3ULL);
 
       addrIter1 = iter1->second.addressBalances_.find(_scrAddrVec1[2]);
       ASSERT_NE(addrIter1, iter1->second.addressBalances_.end());
-      ASSERT_EQ(addrIter1->second.size(), 3);
+      ASSERT_EQ(addrIter1->second.size(), 3ULL);
       EXPECT_EQ(addrIter1->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter1->second[1], 0);
+      EXPECT_EQ(addrIter1->second[1], 0ULL);
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //done
@@ -4106,7 +4110,7 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0ULL);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -4244,36 +4248,36 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    //check original balances
    {
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
+      ASSERT_EQ(iterA->second.size(), 3ULL);
       EXPECT_EQ(iterA->second[0], 50 * COIN);
 
       auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
+      ASSERT_EQ(iterB->second.size(), 3ULL);
       EXPECT_EQ(iterB->second[0], 70 * COIN);
 
       auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
+      ASSERT_EQ(iterC->second.size(), 3ULL);
       EXPECT_EQ(iterC->second[0], 20 * COIN);
 
       auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
       ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterD->second.size(), 3);
+      ASSERT_EQ(iterD->second.size(), 3ULL);
       EXPECT_EQ(iterD->second[0], 65 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
+      ASSERT_EQ(iterE->second.size(), 3ULL);
       EXPECT_EQ(iterE->second[0], 30 * COIN);
 
       auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
       ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterF->second.size(), 3);
+      ASSERT_EQ(iterF->second.size(), 3ULL);
       EXPECT_EQ(iterF->second[0], 5 * COIN);
    }
 
@@ -4292,7 +4296,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
       //tx from F to A
       auto&& utxoVec = getUtxo(TestChain::scrAddrF);
-      ASSERT_EQ(utxoVec.size(), 1);
+      ASSERT_EQ(utxoVec.size(), 1ULL);
       utxoF = utxoVec[0];
       auto bd_FtoD = makeTxFromUtxo(utxoF, TestChain::scrAddrA);
 
@@ -4330,31 +4334,31 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       ZC out so the internal value change tracker counter was 
       incremented, resulting in an entry.
       */
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 5);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 5ULL);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
+      ASSERT_EQ(iterA->second.size(), 3ULL);
       EXPECT_EQ(iterA->second[0], 155 * COIN);
 
       auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
+      ASSERT_EQ(iterB->second.size(), 3ULL);
       EXPECT_EQ(iterB->second[0], 20 * COIN);
 
       auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
+      ASSERT_EQ(iterC->second.size(), 3ULL);
       EXPECT_EQ(iterC->second[0], 20 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
+      ASSERT_EQ(iterE->second.size(), 3ULL);
       EXPECT_EQ(iterE->second[0], 80 * COIN);
 
       auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
       ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterF->second.size(), 3);
+      ASSERT_EQ(iterF->second.size(), 3ULL);
       EXPECT_EQ(iterF->second[0], 0 * COIN);
 
       {
@@ -4391,7 +4395,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
       //mine 3 blocks to outpace original chain
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB, 3);
-      EXPECT_EQ(pCallback->waitOnReorg(), 5);
+      EXPECT_EQ(pCallback->waitOnReorg(), 5U);
 
       //wait on ZC now, as the staged transactions have been pushed
       pCallback->waitOnSignal(BDMAction_ZC);
@@ -4407,31 +4411,31 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       D value does not change but this is due to a ZC spending the coins
       out, so the internal id is updated.
       */
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 5);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 5ULL);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
+      ASSERT_EQ(iterA->second.size(), 3ULL);
       EXPECT_EQ(iterA->second[0], 50 * COIN);
 
       auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
+      ASSERT_EQ(iterB->second.size(), 3ULL);
       EXPECT_EQ(iterB->second[0], 170 * COIN);
 
       auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
+      ASSERT_EQ(iterC->second.size(), 3ULL);
       EXPECT_EQ(iterC->second[0], 70 * COIN);
 
       auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
       ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterD->second.size(), 3);
+      ASSERT_EQ(iterD->second.size(), 3ULL);
       EXPECT_EQ(iterD->second[0], 65 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
+      ASSERT_EQ(iterE->second.size(), 3ULL);
       EXPECT_EQ(iterE->second[0], 35 * COIN);
    }
 
@@ -4442,40 +4446,40 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
       //mine 2 blocks to outpace forked chain
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrF, 2);
-      EXPECT_EQ(pCallback->waitOnReorg(), 5);
+      EXPECT_EQ(pCallback->waitOnReorg(), 5U);
 
       //check balances
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
+      ASSERT_EQ(iterA->second.size(), 3ULL);
       EXPECT_EQ(iterA->second[0], 155 * COIN);
 
       auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
+      ASSERT_EQ(iterB->second.size(), 3ULL);
       EXPECT_EQ(iterB->second[0], 20 * COIN);
 
       auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
+      ASSERT_EQ(iterC->second.size(), 3ULL);
       EXPECT_EQ(iterC->second[0], 20 * COIN);
 
       auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
       ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterD->second.size(), 3);
+      ASSERT_EQ(iterD->second.size(), 3ULL);
       EXPECT_EQ(iterD->second[0], 65 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
+      ASSERT_EQ(iterE->second.size(), 3ULL);
       EXPECT_EQ(iterE->second[0], 80 * COIN);
 
       auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
       ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterF->second.size(), 3);
+      ASSERT_EQ(iterF->second.size(), 3ULL);
       EXPECT_EQ(iterF->second[0], 100 * COIN);
    }
 
@@ -4492,7 +4496,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -4693,11 +4697,11 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
    EXPECT_EQ(txObj4->getThisHash(), tx1.getThisHash());
    EXPECT_EQ(txObj4->getTxHeight(), UINT32_MAX);
-   EXPECT_EQ(txObj4->getTxIndex(), 0);
+   EXPECT_EQ(txObj4->getTxIndex(), 0U);
 
    EXPECT_EQ(txObj5->getThisHash(), tx2.getThisHash());
    EXPECT_EQ(txObj5->getTxHeight(), UINT32_MAX);
-   EXPECT_EQ(txObj5->getTxIndex(), 1);
+   EXPECT_EQ(txObj5->getTxIndex(), 1U);
 
    //create 2 more zc
    BinaryData rawTx3;
@@ -4775,11 +4779,11 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
    EXPECT_EQ(txObj6->getThisHash(), tx3.getThisHash());
    EXPECT_EQ(txObj6->getTxHeight(), UINT32_MAX);
-   EXPECT_EQ(txObj6->getTxIndex(), 2);
+   EXPECT_EQ(txObj6->getTxIndex(), 2U);
 
    EXPECT_EQ(txObj7->getThisHash(), tx4.getThisHash());
    EXPECT_EQ(txObj7->getTxHeight(), UINT32_MAX);
-   EXPECT_EQ(txObj7->getTxIndex(), 3);
+   EXPECT_EQ(txObj7->getTxIndex(), 3U);
 
    {
       //try to grab from another bdvobj
@@ -4820,11 +4824,11 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
       EXPECT_EQ(txObj8->getThisHash(), tx1.getThisHash());
       EXPECT_EQ(txObj8->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(txObj8->getTxIndex(), 0);
+      EXPECT_EQ(txObj8->getTxIndex(), 0U);
 
       EXPECT_EQ(txObj10->getThisHash(), tx3.getThisHash());
       EXPECT_EQ(txObj10->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(txObj10->getTxIndex(), 2);
+      EXPECT_EQ(txObj10->getTxIndex(), 2U);
 
       //batch fetch partial cache hit
       auto getTxLbd3 = [bdvObj2](const set<BinaryData>& hashes)->
@@ -4851,59 +4855,59 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
       };
 
       auto&& txMap = getTxLbd3(zcHashes).get();
-      ASSERT_EQ(txMap.size(), 4);
+      ASSERT_EQ(txMap.size(), 4ULL);
 
       auto iter = txMap.find(tx1.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx1.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 0);
+      EXPECT_EQ(iter->second->getTxIndex(), 0U);
 
       iter = txMap.find(tx2.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx2.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 1);
+      EXPECT_EQ(iter->second->getTxIndex(), 1U);
 
       iter = txMap.find(tx3.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx3.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 2);
+      EXPECT_EQ(iter->second->getTxIndex(), 2U);
 
       iter = txMap.find(tx4.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx4.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 3);
+      EXPECT_EQ(iter->second->getTxIndex(), 3U);
 
       //batch fetch full cache hit
       txMap = getTxLbd3(zcHashes).get();
-      ASSERT_EQ(txMap.size(), 4);
+      ASSERT_EQ(txMap.size(), 4ULL);
 
       iter = txMap.find(tx1.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx1.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 0);
+      EXPECT_EQ(iter->second->getTxIndex(), 0U);
 
       iter = txMap.find(tx2.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx2.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 1);
+      EXPECT_EQ(iter->second->getTxIndex(), 1U);
 
       iter = txMap.find(tx3.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx3.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 2);
+      EXPECT_EQ(iter->second->getTxIndex(), 2U);
 
       iter = txMap.find(tx4.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx4.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 3);
+      EXPECT_EQ(iter->second->getTxIndex(), 3U);
 
       //batch fetch an empty hash
       {
@@ -4973,7 +4977,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -5140,45 +5144,45 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
       unsigned heightOffset = 0;
       auto&& addrOp = getAddrOp(heightOffset, UINT32_MAX);
       heightOffset = addrOp.heightCutoff_ + 1;
-      ASSERT_EQ(addrOp.outpoints_.size(), 6);
+      ASSERT_EQ(addrOp.outpoints_.size(), 6ULL);
 
       auto iterAddrA = addrOp.outpoints_.find(TestChain::scrAddrA);
       EXPECT_NE(iterAddrA, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrA->second.size(), 1);
+      EXPECT_EQ(iterAddrA->second.size(), 1ULL);
       EXPECT_EQ(computeBalance(iterAddrA->second), 50 * COIN);
 
       auto iterAddrB = addrOp.outpoints_.find(TestChain::scrAddrB);
       EXPECT_NE(iterAddrB, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrB->second.size(), 1007);
+      EXPECT_EQ(iterAddrB->second.size(), 1007ULL);
       EXPECT_EQ(computeBalance(iterAddrB->second), 50070 * COIN);
 
       auto iterAddrC = addrOp.outpoints_.find(TestChain::scrAddrC);
       EXPECT_NE(iterAddrC, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrC->second.size(), 4);
+      EXPECT_EQ(iterAddrC->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrC->second), 20 * COIN);
 
       auto iterAddrD = addrOp.outpoints_.find(TestChain::scrAddrD);
       EXPECT_NE(iterAddrD, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrD->second.size(), 4);
+      EXPECT_EQ(iterAddrD->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrD->second), 65 * COIN);
 
       auto iterAddrE = addrOp.outpoints_.find(TestChain::scrAddrE);
       EXPECT_NE(iterAddrE, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrE->second.size(), 2);
+      EXPECT_EQ(iterAddrE->second.size(), 2ULL);
       EXPECT_EQ(computeBalance(iterAddrE->second), 30 * COIN);
 
       auto iterAddrF = addrOp.outpoints_.find(TestChain::scrAddrF);
       EXPECT_NE(iterAddrF, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrF->second.size(), 4);
+      EXPECT_EQ(iterAddrF->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrF->second), 5 * COIN);
 
       //check zc outputs
-      auto zcAddrOp = getAddrOp(UINT32_MAX, 0);
-      ASSERT_EQ(zcAddrOp.outpoints_.size(), loopCount + 1);
+      auto zcAddrOp = getAddrOp(UINT32_MAX, 0U);
+      ASSERT_EQ(zcAddrOp.outpoints_.size(), loopCount + 1ULL);
 
       auto iterZcB = zcAddrOp.outpoints_.find(TestChain::scrAddrB);
       ASSERT_NE(iterZcB, zcAddrOp.outpoints_.end());
-      EXPECT_EQ(iterZcB->second.size(), 10);
+      EXPECT_EQ(iterZcB->second.size(), 10ULL);
 
       map<BinaryData, set<unsigned>> zcSpentnessToGet;
       for (unsigned z = 0; z < loopCount; z++)
@@ -5188,7 +5192,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
          auto addrIter = zcAddrOp.outpoints_.find(addr);
          ASSERT_NE(addrIter, zcAddrOp.outpoints_.end());
-         EXPECT_EQ(addrIter->second.size(), 1);
+         EXPECT_EQ(addrIter->second.size(), 1ULL);
 
          auto& op = addrIter->second[0];
          EXPECT_EQ(op.value_, 50 * COIN);
@@ -5274,7 +5278,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
                auto idIter = iter->second.find(op.txOutIndex_);
                ASSERT_NE(idIter, iter->second.end());
 
-               EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+               EXPECT_EQ(idIter->second.spender_.getSize(), 0ULL);
                EXPECT_EQ(idIter->second.height_, UINT32_MAX);
                EXPECT_EQ(idIter->second.state_, OutputSpentnessState::Unspent);
             }
@@ -5289,7 +5293,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
          auto idIter = iter->second.find(0);
          ASSERT_NE(idIter, iter->second.end());
 
-         EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+         EXPECT_EQ(idIter->second.spender_.getSize(), 0ULL);
          EXPECT_EQ(idIter->second.height_, UINT32_MAX);
          EXPECT_EQ(idIter->second.state_, OutputSpentnessState::Invalid);
       }
@@ -5413,7 +5417,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
             if (iter == newZcHashes.end())
             {
                ASSERT_TRUE(op.isSpent_);
-               ASSERT_EQ(op.spenderHash_.getSize(), 32);
+               ASSERT_EQ(op.spenderHash_.getSize(), 32ULL);
 
                auto spenderIter = newZcHashes.find(op.spenderHash_);
                ASSERT_TRUE(spenderIter != newZcHashes.end());
@@ -5421,7 +5425,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
             else
             {
                ASSERT_FALSE(op.isSpent_);
-               ASSERT_EQ(op.spenderHash_.getSize(), 0);
+               ASSERT_EQ(op.spenderHash_.getSize(), 0ULL);
             }
          }
       }
@@ -5477,7 +5481,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
                case OutputSpentnessState::Unspent:
                {
-                  EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+                  EXPECT_EQ(idIter->second.spender_.getSize(), 0ULL);
 
                   ++unspentCount;
                   break;
@@ -5496,7 +5500,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
       EXPECT_EQ(spentCount, loopCount/2);
       EXPECT_EQ(unspentCount, loopCount/2);
-      EXPECT_EQ(invalidCount, 1);
+      EXPECT_EQ(invalidCount, 1U);
 
       //check the invalid hash
       {
@@ -5506,7 +5510,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
          auto idIter = iter->second.find(0);
          ASSERT_NE(idIter, iter->second.end());
 
-         EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+         EXPECT_EQ(idIter->second.spender_.getSize(), 0ULL);
          EXPECT_EQ(idIter->second.height_, UINT32_MAX);
          EXPECT_EQ(idIter->second.state_, OutputSpentnessState::Invalid);
       }
@@ -5522,7 +5526,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
    bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
