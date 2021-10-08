@@ -1299,6 +1299,7 @@ void DatabaseBuilder::verifyTxFilters()
    atomic<unsigned> fileCounter;
    fileCounter.store(0, memory_order_relaxed);
 
+   mutex resultMutex;
    set<unsigned> damagedFilters;
 
    auto&& file_id_map = blockchain_->mapIDsPerBlockFile();
@@ -1325,7 +1326,7 @@ void DatabaseBuilder::verifyTxFilters()
 
             if (mismatchedFilters.size() > 0)
             {
-               unique_lock<mutex>(resultMutex);
+               auto lock = unique_lock<mutex>(resultMutex);
                damagedFilters.insert(
                   mismatchedFilters.begin(), mismatchedFilters.end());
             }
