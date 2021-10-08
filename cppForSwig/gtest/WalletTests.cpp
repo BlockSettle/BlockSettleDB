@@ -157,7 +157,7 @@ TEST_F(DerivationTests, BIP32_Tests)
          BIP32_Node deserObj;
          deserObj.initFromBase58(ext_prv);
          EXPECT_EQ(deserObj.getDepth(), 0);
-         EXPECT_EQ(deserObj.getLeafID(), 0);
+         EXPECT_EQ(deserObj.getLeafID(), 0ULL);
 
          EXPECT_EQ(deserObj.getChaincode().toHexStr(), "873dff81c02f525623fd1fe5167eac3a55a049de3d314bb42ee227ffed37d508");
 
@@ -174,7 +174,7 @@ TEST_F(DerivationTests, BIP32_Tests)
          BIP32_Node deserObj;
          deserObj.initFromBase58(ext_pub);
          EXPECT_EQ(deserObj.getDepth(), 0);
-         EXPECT_EQ(deserObj.getLeafID(), 0);
+         EXPECT_EQ(deserObj.getLeafID(), 0ULL);
 
          EXPECT_EQ(deserObj.getChaincode().toHexStr(), "873dff81c02f525623fd1fe5167eac3a55a049de3d314bb42ee227ffed37d508");
          EXPECT_EQ(deserObj.getPublicKey().toHexStr(), "0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2");
@@ -290,7 +290,7 @@ TEST_F(DerivationTests, DerivationTree)
 
    //resolve paths 1: main branch
    auto resolvedPaths1 = tree.getPaths();
-   ASSERT_EQ(resolvedPaths1.size(), 1);
+   ASSERT_EQ(resolvedPaths1.size(), 1ULL);
    auto resolvedPaths1_32 = DerivationTree::toPath32(resolvedPaths1[0]);
    EXPECT_EQ(resolvedPaths1_32, path1);
 
@@ -304,7 +304,7 @@ TEST_F(DerivationTests, DerivationTree)
 
    //resolve paths 2: main branch with uninitialized fork
    const auto& resolvedPaths2 = tree.getPaths();
-   ASSERT_EQ(resolvedPaths2.size(), 1);
+   ASSERT_EQ(resolvedPaths2.size(), 1ULL);
    auto resolvedPaths2_32 = DerivationTree::toPath32(resolvedPaths2[0]);
    EXPECT_EQ(resolvedPaths2_32, path1);
 
@@ -316,7 +316,7 @@ TEST_F(DerivationTests, DerivationTree)
 
    //resolve paths 3: main branch with a fork
    const auto& resolvedPaths3 = tree.getPaths();
-   ASSERT_EQ(resolvedPaths3.size(), 2);
+   ASSERT_EQ(resolvedPaths3.size(), 2ULL);
    auto resolvedPaths3_32_1 = DerivationTree::toPath32(resolvedPaths3[0]);
    EXPECT_EQ(resolvedPaths3_32_1, path1);
    auto resolvedPaths3_32_2 = DerivationTree::toPath32(resolvedPaths3[1]);
@@ -337,7 +337,7 @@ TEST_F(DerivationTests, DerivationTree)
 
    //resolve paths 4: 3 forks, 2 end the main branch, 2 fork from the same node
    const auto& resolvedPaths4 = tree.getPaths();
-   ASSERT_EQ(resolvedPaths4.size(), 3);
+   ASSERT_EQ(resolvedPaths4.size(), 3ULL);
    auto resolvedPaths4_32_1 = DerivationTree::toPath32(resolvedPaths4[0]);
    EXPECT_EQ(resolvedPaths4_32_1, path2);
    auto resolvedPaths4_32_2 = DerivationTree::toPath32(resolvedPaths4[1]);
@@ -463,7 +463,7 @@ TEST_F(DerivationTests, DerivationTree_FromSeed)
 
    tree.addB58Root(tree.getSeedNode(), rootNode.getBase58());
    auto roots = tree.resolveNodeRoots(nullptr, nullptr);
-   ASSERT_EQ(roots.size(), 4);
+   ASSERT_EQ(roots.size(), 4ULL);
 
    auto checkRoot = [&rootNode](
       const vector<uint32_t>& path, const NodeRoot& rootData)->bool
@@ -481,7 +481,6 @@ TEST_F(DerivationTests, DerivationTree_FromSeed)
    };
 
    /*derive roots locally and compare*/
-   auto rootsIt = roots.begin();
 
    //fork1
    vector<uint32_t> pathFork1;
@@ -638,7 +637,7 @@ TEST_F(DerivationTests, DerivationTree_FromRoots)
    tree.addB58Root(f2->getNodeByRelativeDepth(0), rootNode5.getBase58());
 
    auto roots = tree.resolveNodeRoots(nullptr, nullptr);
-   ASSERT_EQ(roots.size(), 4);
+   ASSERT_EQ(roots.size(), 4ULL);
 
    //compare
    for (const auto& nodeRoot : roots)
@@ -798,7 +797,7 @@ TEST_F(DerivationTests, DerivationTree_FromPublicRoots)
 
    //resolve the roots
    auto roots = tree.resolveNodeRoots(nullptr, nullptr);
-   ASSERT_EQ(roots.size(), 4);
+   ASSERT_EQ(roots.size(), 4ULL);
 
    //compare
    auto pathsCopy = paths;
@@ -834,7 +833,7 @@ TEST_F(DerivationTests, DerivationTree_FromPublicRoots)
       rootNodeF3_public.getBase58());
 
    roots = tree.resolveNodeRoots(nullptr, nullptr);
-   ASSERT_EQ(roots.size(), 4);
+   ASSERT_EQ(roots.size(), 4ULL);
 
    //compare
    for (const auto& nodeRoot : roots)
@@ -960,7 +959,7 @@ TEST_F(DerivationTests, DerivationTree_FromWalletRoot)
    {
       ReentrantLock lock(decrData.get());
       roots = move(tree.resolveNodeRoots(decrData, rootPtr));
-      ASSERT_EQ(roots.size(), 4);
+      ASSERT_EQ(roots.size(), 4ULL);
    }
 
    auto checkRoot = [&rootNode](
@@ -980,7 +979,6 @@ TEST_F(DerivationTests, DerivationTree_FromWalletRoot)
    };
 
    /*derive roots locally and compare*/
-   auto rootsIt = roots.begin();
 
    //fork1
    vector<uint32_t> pathFork1;
@@ -1419,8 +1417,8 @@ protected:
          int keyInt = READ_UINT32_BE(keyVal.first);
          if(keyInt - prevKeyInt != 1)
          {
-            for(unsigned i=prevKeyInt + 1; i<keyInt; i++)
-               gaps.insert(i);
+            for(int i=prevKeyInt + 1; i<keyInt; i++)
+               gaps.insert((unsigned)i);
          }
 
          prevKeyInt = keyInt;
@@ -1720,9 +1718,9 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
    dbIface->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
 
    map<BinaryData, BinaryData> dataMap1;
    for (unsigned i=0; i<30; i++)
@@ -1790,12 +1788,12 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
       WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       
       //check dataMap1 is in
-      EXPECT_EQ(checkDbValues(&tx, dataMap1), 0);
+      EXPECT_EQ(checkDbValues(&tx, dataMap1), 0U);
 
       for (auto& dataPair : dataMap2)
          tx.insert(dataPair.first, dataPair.second);
 
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
    };
 
    thread* writeThr;
@@ -1816,7 +1814,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
          tx.insert(dataPair.first, dataPair.second);
 
       //check values
-      EXPECT_EQ(checkDbValues(&tx, dataMap1), 0);
+      EXPECT_EQ(checkDbValues(&tx, dataMap1), 0U);
    }
 
    //wait on 2nd thread
@@ -1826,7 +1824,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
    {
       //check db is consistent with main thread -> 2nd thread modification order
       WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
    }
    
    /***********/
@@ -1861,32 +1859,32 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
    auto writeThread4 = [&](void)->void
    {
       WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
 
       for (auto& dataPair : dataMap5)
          tx.insert(dataPair.first, dataPair.second);
 
-      EXPECT_EQ(checkDbValues(&tx, finalMap2), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap2), 0U);
    };
 
    //create read tx
    {
       WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
 
       //create write thread
       thread writeThr4(writeThread4);
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
 
       writeThr4.join();
 
       //data for this read tx should be unchanged
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
    }
 
    //final check
    WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
-   EXPECT_EQ(checkDbValues(&tx, finalMap2), 0);
+   EXPECT_EQ(checkDbValues(&tx, finalMap2), 0U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1905,9 +1903,9 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //setup new db
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
    dbIface->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
 
    //generate data
    auto&& key1 = CryptoPRNG::generateRandom(20);
@@ -1949,7 +1947,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
    }
 
    //check entry count
-   ASSERT_EQ(dbIface->getEntryCount(), 3);
+   ASSERT_EQ(dbIface->getEntryCount(), 3U);
 
    //check file content
    {
@@ -1977,10 +1975,10 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
 
    //grab all entries in db
    auto&& keyValMap = getAllEntries(dbEnv, dbObj);
-   EXPECT_EQ(keyValMap.size(), 4);
+   EXPECT_EQ(keyValMap.size(), 4ULL);
 
    //check gaps
-   ASSERT_EQ(tallyGaps(keyValMap).size(), 0);
+   ASSERT_EQ(tallyGaps(keyValMap).size(), 0ULL);
 
    //convert to IES packets
    vector<IESPacket> packets;
@@ -2023,11 +2021,11 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
       auto& packet = packets[0];
 
       //check cylce flag is first entry in db
-      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0U);
 
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
-      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.first.getSize(), 0ULL);
       ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
 
       //cycle key pair
@@ -2101,9 +2099,9 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
    dbIface->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
 
    //generate data
    auto&& key1 = CryptoPRNG::generateRandom(20);
@@ -2141,7 +2139,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
    }
 
    //check entry count
-   ASSERT_EQ(dbIface->getEntryCount(), 3);
+   ASSERT_EQ(dbIface->getEntryCount(), 3U);
 
    //check file content
    {
@@ -2166,7 +2164,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
       tx.insert(key3, valToWrite);
 
       auto key2Data = tx.getDataRef(key2);
-      EXPECT_EQ(key2Data.getSize(), 0);
+      EXPECT_EQ(key2Data.getSize(), 0ULL);
 
       auto key3Data = tx.getDataRef(key3);
       EXPECT_EQ(key3Data, val4);
@@ -2186,7 +2184,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
    }
 
    //check entry count
-   ASSERT_EQ(dbIface->getEntryCount(), 2);
+   ASSERT_EQ(dbIface->getEntryCount(), 2U);
 
    //close dbIface
    dbIface->close();
@@ -2201,18 +2199,18 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
 
    //grab all entries in db
    auto&& keyValMap = getAllEntries(dbEnv, dbObj);
-   EXPECT_EQ(keyValMap.size(), 5);
+   EXPECT_EQ(keyValMap.size(), 5ULL);
 
    //check gaps
    {
       auto&& gaps = tallyGaps(keyValMap);
-      ASSERT_EQ(gaps.size(), 2);
+      ASSERT_EQ(gaps.size(), 2ULL);
 
       auto gapsIter = gaps.begin();
-      EXPECT_EQ(*gapsIter, 2);
+      EXPECT_EQ(*gapsIter, 2U);
       
       ++gapsIter;
-      EXPECT_EQ(*gapsIter, 3);
+      EXPECT_EQ(*gapsIter, 3U);
 
       ++gapsIter;
       EXPECT_EQ(gapsIter, gaps.end());
@@ -2259,11 +2257,11 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
       auto& packet = packets[0];
 
       //check cylce flag is first entry in db
-      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0U);
 
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
-      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.first.getSize(), 0ULL);
       ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
 
       //cycle key pair
@@ -2312,11 +2310,11 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
    EXPECT_EQ(decryptedPairs[0].first, key1);
    EXPECT_EQ(decryptedPairs[0].second, val1);
 
-   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0ULL);
    EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(2));
 
-   EXPECT_EQ(decryptedPairs[2].first.getSize(), 0);
-   EXPECT_EQ(decryptedPairs[2].second, getErasurePacket(3));   
+   EXPECT_EQ(decryptedPairs[2].first.getSize(), 0ULL);
+   EXPECT_EQ(decryptedPairs[2].second, getErasurePacket(3));
 
    EXPECT_EQ(decryptedPairs[3].first, key3);
    EXPECT_EQ(decryptedPairs[3].second, val4);
@@ -2338,9 +2336,9 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
    dbIface->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
 
    //generate data
    auto&& key1 = CryptoPRNG::generateRandom(20);
@@ -2378,7 +2376,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    }
 
    //check entry count
-   ASSERT_EQ(dbIface->getEntryCount(), 3);
+   ASSERT_EQ(dbIface->getEntryCount(), 3U);
 
    //check file content
    {
@@ -2403,7 +2401,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       tx.erase(key2);
 
       auto key2Data = tx.getDataRef(key2);
-      EXPECT_EQ(key2Data.getSize(), 0);
+      EXPECT_EQ(key2Data.getSize(), 0ULL);
 
       auto key3Data = tx.getDataRef(key3);
       EXPECT_EQ(key3Data, val4);
@@ -2423,7 +2421,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    }
 
    //check entry count
-   ASSERT_EQ(dbIface->getEntryCount(), 2);
+   ASSERT_EQ(dbIface->getEntryCount(), 2U);
 
    //close dbIface
    dbIface->close();
@@ -2438,18 +2436,18 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    //grab all entries in db
    auto&& keyValMap = getAllEntries(dbEnv, dbObj);
-   EXPECT_EQ(keyValMap.size(), 5);
+   EXPECT_EQ(keyValMap.size(), 5ULL);
 
    //check gaps
    {
       auto&& gaps = tallyGaps(keyValMap);
-      ASSERT_EQ(gaps.size(), 2);
+      ASSERT_EQ(gaps.size(), 2ULL);
 
       auto gapsIter = gaps.begin();
-      EXPECT_EQ(*gapsIter, 2);
+      EXPECT_EQ(*gapsIter, 2U);
       
       ++gapsIter;
-      EXPECT_EQ(*gapsIter, 3);
+      EXPECT_EQ(*gapsIter, 3U);
 
       ++gapsIter;
       EXPECT_EQ(gapsIter, gaps.end());
@@ -2496,11 +2494,11 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       auto& packet = packets[0];
 
       //check cylce flag is first entry in db
-      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0U);
 
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
-      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.first.getSize(), 0ULL);
       ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
 
       //cycle key pair
@@ -2549,14 +2547,14 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    EXPECT_EQ(decryptedPairs[0].first, key1);
    EXPECT_EQ(decryptedPairs[0].second, val1);
 
-   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0ULL);
    EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(3));
 
    EXPECT_EQ(decryptedPairs[2].first, key3);
-   EXPECT_EQ(decryptedPairs[2].second, val4);   
+   EXPECT_EQ(decryptedPairs[2].second, val4);
    
-   EXPECT_EQ(decryptedPairs[3].first.getSize(), 0);
-   EXPECT_EQ(decryptedPairs[3].second, getErasurePacket(2));   
+   EXPECT_EQ(decryptedPairs[3].first.getSize(), 0ULL);
+   EXPECT_EQ(decryptedPairs[3].second, getErasurePacket(2));
 
    //cycle dbEnv
    dbObj.close();
@@ -2568,9 +2566,9 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
    dbIface->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface->getEntryCount(), 2);
+   ASSERT_EQ(dbIface->getEntryCount(), 2U);
 
    {
       //read db values
@@ -2580,10 +2578,10 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       EXPECT_EQ(key1Data, val1);
 
       auto key2Data = tx.getDataRef(key2);
-      EXPECT_EQ(key2Data.getSize(), 0);
+      EXPECT_EQ(key2Data.getSize(), 0ULL);
 
       auto key3Data = tx.getDataRef(key3);
-      EXPECT_EQ(key3Data, val4);     
+      EXPECT_EQ(key3Data, val4);
    }
 
    auto key4 = CryptoPRNG::generateRandom(30);
@@ -2602,7 +2600,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       tx.erase(key1);
 
       auto key1Data = tx.getDataRef(key1);
-      EXPECT_EQ(key1Data.getSize(), 0);
+      EXPECT_EQ(key1Data.getSize(), 0ULL);
 
       auto key2Data = tx.getDataRef(key2);
       EXPECT_EQ(key2Data, val5);
@@ -2627,24 +2625,24 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    //grab all entries in db
    keyValMap = getAllEntries(dbEnv, dbObj2);
-   EXPECT_EQ(keyValMap.size(), 9);
+   EXPECT_EQ(keyValMap.size(), 9ULL);
 
    //check gaps
    {
       auto&& gaps = tallyGaps(keyValMap);
-      ASSERT_EQ(gaps.size(), 4);
+      ASSERT_EQ(gaps.size(), 4ULL);
 
       auto gapsIter = gaps.begin();
-      EXPECT_EQ(*gapsIter, 1);
+      EXPECT_EQ(*gapsIter, 1U);
       
       ++gapsIter;
-      EXPECT_EQ(*gapsIter, 2);
+      EXPECT_EQ(*gapsIter, 2U);
 
       ++gapsIter;
-      EXPECT_EQ(*gapsIter, 3);
+      EXPECT_EQ(*gapsIter, 3U);
 
       ++gapsIter;
-      EXPECT_EQ(*gapsIter, 5);
+      EXPECT_EQ(*gapsIter, 5U);
 
       ++gapsIter;
       EXPECT_EQ(gapsIter, gaps.end());
@@ -2684,11 +2682,11 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       auto& packet = packets[0];
 
       //check cylce flag is first entry in db
-      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0U);
 
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
-      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.first.getSize(), 0ULL);
       ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
    }
    catch(...)
@@ -2715,7 +2713,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    {
       //check packets[2] is a cycle flag
-      ASSERT_EQ(decryptedPairs[2].first.getSize(), 0);
+      ASSERT_EQ(decryptedPairs[2].first.getSize(), 0ULL);
       ASSERT_EQ(decryptedPairs[2].second, BinaryData::fromString("cycle"));
 
       //cycle key
@@ -2739,25 +2737,25 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    }
 
    //check decrypted values
-   EXPECT_EQ(decryptedPairs[0].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[0].first.getSize(), 0ULL);
    EXPECT_EQ(decryptedPairs[0].second, getErasurePacket(3));
    
-   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
-   EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(2));   
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0ULL);
+   EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(2));
 
    EXPECT_EQ(decryptedPairs[3].first, key2);
-   EXPECT_EQ(decryptedPairs[3].second, val5);   
+   EXPECT_EQ(decryptedPairs[3].second, val5);
 
    EXPECT_EQ(decryptedPairs[4].first, key4);
-   EXPECT_EQ(decryptedPairs[4].second, val3);   
+   EXPECT_EQ(decryptedPairs[4].second, val3);
 
-   EXPECT_EQ(decryptedPairs[5].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[5].first.getSize(), 0ULL);
    EXPECT_EQ(decryptedPairs[5].second, getErasurePacket(5));
 
    EXPECT_EQ(decryptedPairs[6].first, key3);
-   EXPECT_EQ(decryptedPairs[6].second, val6);   
+   EXPECT_EQ(decryptedPairs[6].second, val6);
 
-   EXPECT_EQ(decryptedPairs[7].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[7].first.getSize(), 0ULL);
    EXPECT_EQ(decryptedPairs[7].second, getErasurePacket(1));
 
    dbObj2.close();
@@ -2884,7 +2882,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
 
    //add db
    {
-      EXPECT_EQ(dbIface.getDbCount(), 0);
+      EXPECT_EQ(dbIface.getDbCount(), 0U);
 
       auto headerPtr = make_shared<WalletHeader_Custom>();
       headerPtr->walletID_ = "db1";
@@ -2892,7 +2890,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
       dbIface.unlockControlContainer();
-      EXPECT_EQ(dbIface.getDbCount(), 1);
+      EXPECT_EQ(dbIface.getDbCount(), 1U);
    }
 
    {
@@ -2953,14 +2951,14 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
   
    //add new db
    {
-      EXPECT_EQ(dbIface.getDbCount(), 1);
+      EXPECT_EQ(dbIface.getDbCount(), 1U);
       auto headerPtr = make_shared<WalletHeader_Custom>();
       headerPtr->walletID_ = "db2";
 
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
       dbIface.unlockControlContainer();
-      EXPECT_EQ(dbIface.getDbCount(), 2);
+      EXPECT_EQ(dbIface.getDbCount(), 2U);
    }
 
    //check db1 modifcations held
@@ -2989,7 +2987,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    //try to add db, should fail
    try
    {
-      EXPECT_EQ(dbIface.getDbCount(), 2);
+      EXPECT_EQ(dbIface.getDbCount(), 2U);
       auto headerPtr = make_shared<WalletHeader_Custom>();
       headerPtr->walletID_ = "db3";
 
@@ -3001,7 +2999,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    {
       EXPECT_EQ(e.what(), string("dbCount is too low"));
       dbIface.unlockControlContainer();
-      EXPECT_EQ(dbIface.getDbCount(), 2);
+      EXPECT_EQ(dbIface.getDbCount(), 2U);
    }
 
    //shutdown db env
@@ -3054,7 +3052,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
 
    //increase db count
    dbIface.setDbCount(5);
-   EXPECT_EQ(dbIface.getDbCount(), 2);
+   EXPECT_EQ(dbIface.getDbCount(), 2U);
 
    //check db1 values
    EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
@@ -3070,7 +3068,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
       dbIface.unlockControlContainer();
-      EXPECT_EQ(dbIface.getDbCount(), 3);
+      EXPECT_EQ(dbIface.getDbCount(), 3U);
    }
 
    //modify db2
@@ -3119,7 +3117,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    //try to overwrite db3
    try
    {
-      EXPECT_EQ(dbIface.getDbCount(), 3);
+      EXPECT_EQ(dbIface.getDbCount(), 3U);
       auto headerPtr = make_shared<WalletHeader_Custom>();
       headerPtr->walletID_ = "db3";
 
@@ -3447,7 +3445,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
          iter->advance();
       }
 
-      EXPECT_EQ(finalMap.size(), 0);
+      EXPECT_EQ(finalMap.size(), 0ULL);
    }
 
    //shutdown db
@@ -3837,8 +3835,8 @@ TEST_F(WalletsTest, Encryption_Test)
 
    auto tx = dbIface.beginReadTransaction(dbName);
 
-   ASSERT_EQ(checkDb(tx.get(), privateKeys), 0);
-   ASSERT_EQ(checkDb(tx.get(), publicKeys), 4);
+   ASSERT_EQ(checkDb(tx.get(), privateKeys), 0U);
+   ASSERT_EQ(checkDb(tx.get(), publicKeys), 4U);
 
    /*
    Parse file for the presence of keys, neither should be visible as 
@@ -4018,7 +4016,7 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       assetWlt->extendPrivateChainToIndex(assetWlt->getMainAccountID(), 9);
 
       //there should still be 10 assets
-      ASSERT_EQ(assetWlt->getMainAccountAssetCount(), 10);
+      ASSERT_EQ(assetWlt->getMainAccountAssetCount(), 10U);
 
       //try to grab 10th private key
       auto asset9 = assetWlt->getMainAccountAssetForIndex(9);
@@ -4045,7 +4043,7 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       this_thread::sleep_for(chrono::seconds(1));
 
       //make sure there are only 4 entries
-      ASSERT_EQ(assetWlt->getMainAccountAssetCount(), 4);
+      ASSERT_EQ(assetWlt->getMainAccountAssetCount(), 4U);
 
       //grab 4th privkey 
       auto asset3 = assetWlt->getMainAccountAssetForIndex(3);
@@ -4061,7 +4059,7 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       assetWlt->extendPublicChainToIndex(
          assetWlt->getMainAccountID(), 9);
 
-      ASSERT_EQ(assetWlt->getMainAccountAssetCount(), 10);
+      ASSERT_EQ(assetWlt->getMainAccountAssetCount(), 10U);
 
       //none of the new assets should have private keys
       for (unsigned i = 4; i < 10; i++)
@@ -4162,7 +4160,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
          4); //set lookup computation to 4 entries
       filename = assetWlt->getDbFilename();
       addrSet = assetWlt->getAddrHashSet();
-      ASSERT_EQ(addrSet.size(), 16);
+      ASSERT_EQ(addrSet.size(), 16ULL);
 
       unsigned count = 0;
       auto badPassLbd = [&count](const set<BinaryData>&)->SecureBinaryData
@@ -4226,7 +4224,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       catch(DecryptedDataContainerException& e)
       {
          EXPECT_EQ(e.what(), string("empty passphrase"));
-         EXPECT_EQ(badPassCtr, 5);
+         EXPECT_EQ(badPassCtr, 5U);
       }
 
       auto assetWlt = AssetWallet::loadMainWalletFromFile(
@@ -4294,7 +4292,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       {
          return SecureBinaryData::fromString("newwopass");
       };
-      auto woWlt = AssetWallet::loadMainWalletFromFile(woFilename, passShift);
+      auto woWlt = AssetWallet::loadMainWalletFromFile(woFilename, newPassLbd);
       auto loadedAddrSet = woWlt->getAddrHashSet();
       EXPECT_EQ(addrSet, loadedAddrSet);
    }
@@ -4318,7 +4316,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
          4); //set lookup computation to 4 entries
       filename2 = assetWlt->getDbFilename();
       addrSet = assetWlt->getAddrHashSet();
-      ASSERT_EQ(addrSet.size(), 32);
+      ASSERT_EQ(addrSet.size(), 32ULL);
 
       //with good pass
       try
@@ -4412,7 +4410,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       catch (DecryptedDataContainerException& e)
       {
          EXPECT_EQ(e.what(), string("empty passphrase"));
-         EXPECT_EQ(count, 6);
+         EXPECT_EQ(count, 6U);
       }
 
       //check WO works with different pass
@@ -4446,7 +4444,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       catch (DecryptedDataContainerException& e)
       {
          EXPECT_EQ(e.what(), string("empty passphrase"));
-         EXPECT_EQ(count, 6);
+         EXPECT_EQ(count, 6U);
       }
 
       //with right pass
@@ -4507,7 +4505,7 @@ TEST_F(WalletsTest, SignPassphrase_Test)
    }
    catch (DecryptedDataContainerException&)
    {
-      EXPECT_EQ(passphraseCount, 3);
+      EXPECT_EQ(passphraseCount, 3U);
    }
 
    passphraseCount = 0;
@@ -4544,7 +4542,7 @@ TEST_F(WalletsTest, SignPassphrase_Test)
       ASSERT_TRUE(false);
    }
 
-   EXPECT_EQ(passphraseCount, 3);
+   EXPECT_EQ(passphraseCount, 3U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4587,7 +4585,7 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
    }
    catch (DecryptedDataContainerException&)
    {
-      EXPECT_EQ(passphraseCount, 3);
+      EXPECT_EQ(passphraseCount, 3U);
    }
 
    passphraseCount = 0;
@@ -4629,7 +4627,7 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       ASSERT_TRUE(false);
    }
 
-   EXPECT_EQ(passphraseCount, 4);
+   EXPECT_EQ(passphraseCount, 4U);
 
    //add another account
    vector<unsigned> derPath2 =
@@ -4665,7 +4663,7 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
    }
    catch (DecryptedDataContainerException&)
    {
-      EXPECT_EQ(passphraseCount, 3);
+      EXPECT_EQ(passphraseCount, 3U);
    }
 
    //try to decrypt with wrong passphrase then the right one
@@ -4697,7 +4695,7 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       ASSERT_TRUE(false);
    }
 
-   EXPECT_EQ(passphraseCount, 4);
+   EXPECT_EQ(passphraseCount, 4U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4943,8 +4941,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
 
       try
       {
-         auto& decryptedKey =
-            wltSingle->getDecryptedValue(asset0_single->getPrivKey());
+         wltSingle->getDecryptedValue(asset0_single->getPrivKey());
          ASSERT_FALSE(true);
       }
       catch (...)
@@ -4982,15 +4979,15 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
 
    auto tx = dbIface.beginReadTransaction(dbName);
 
-   ASSERT_EQ(checkDb(tx.get(), { privateKeys[0] }), 0);
-   ASSERT_EQ(checkDb(tx.get(), privateKeys), 4);
-   ASSERT_EQ(checkDb(tx.get(), { ivVec[0] }), 0);
-   ASSERT_EQ(checkDb(tx.get(), ivVec), 4);
+   ASSERT_EQ(checkDb(tx.get(), { privateKeys[0] }), 0U);
+   ASSERT_EQ(checkDb(tx.get(), privateKeys), 4U);
+   ASSERT_EQ(checkDb(tx.get(), { ivVec[0] }), 0U);
+   ASSERT_EQ(checkDb(tx.get(), ivVec), 4U);
 
-   ASSERT_EQ(checkDb(tx.get(), { newPrivKeys[0] }), 1);
-   ASSERT_EQ(checkDb(tx.get(), newPrivKeys), 5);
-   ASSERT_EQ(checkDb(tx.get(), { newIVs[0] }), 1);
-   ASSERT_EQ(checkDb(tx.get(), newIVs), 5);
+   ASSERT_EQ(checkDb(tx.get(), { newPrivKeys[0] }), 1U);
+   ASSERT_EQ(checkDb(tx.get(), newPrivKeys), 5U);
+   ASSERT_EQ(checkDb(tx.get(), { newIVs[0] }), 1U);
+   ASSERT_EQ(checkDb(tx.get(), newIVs), 5U);
 
    //check values aren't on file
    ASSERT_FALSE(TestUtils::searchFile(filename, ivVec[0]));
@@ -5062,8 +5059,7 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
    try
    {
       auto lock = assetWlt->lockDecryptedContainer();
-      auto& decryptedKey =
-         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+      assetWlt->getDecryptedValue(asset0_single->getPrivKey());
       ASSERT_TRUE(false);
    }
    catch (DecryptedDataContainerException& e)
@@ -5155,14 +5151,13 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
    try
    {
       auto lock = assetWlt->lockDecryptedContainer();
-      auto& decryptedKey =
-         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+      assetWlt->getDecryptedValue(asset0_single->getPrivKey());
       ASSERT_TRUE(false);
    }
    catch (DecryptedDataContainerException& e)
    {
       EXPECT_EQ(e.what(), string("empty passphrase"));
-      EXPECT_EQ(counter, 5);
+      EXPECT_EQ(counter, 5U);
    }
 
    //check new pass works
@@ -5194,7 +5189,7 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
          assetWlt->getDecryptedValue(asset0_single->getPrivKey());
 
       ASSERT_EQ(decryptedKey, privkey_ex);
-      EXPECT_EQ(counter, 0);
+      EXPECT_EQ(counter, 0U);
    }
 }
 
@@ -5249,7 +5244,7 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
    catch (DecryptedDataContainerException& e)
    {
       EXPECT_EQ(e.what(), string("empty passphrase"));
-      EXPECT_EQ(oldCounter, 11);
+      EXPECT_EQ(oldCounter, 11U);
    }
 
    //open with any/empty pass, should fail
@@ -5269,7 +5264,7 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
    catch (DecryptedDataContainerException& e)
    {
       EXPECT_EQ(e.what(), string("empty passphrase"));
-      EXPECT_EQ(counter, 11);
+      EXPECT_EQ(counter, 11U);
    }
 
    //open with new pass, should work
@@ -5312,7 +5307,7 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
    catch (DecryptedDataContainerException& e)
    {
       EXPECT_EQ(e.what(), string("empty passphrase"));
-      EXPECT_EQ(oldCounter, 11);
+      EXPECT_EQ(oldCounter, 11U);
    }
 
    //open with any/empty pass, should fail
@@ -5325,7 +5320,7 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
    catch (DecryptedDataContainerException& e)
    {
       EXPECT_EQ(e.what(), string("empty passphrase"));
-      EXPECT_EQ(counter, 11);
+      EXPECT_EQ(counter, 11U);
    }
 
    //open with new pass, should work
@@ -5642,8 +5637,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
          //try to fetch without locking wallet
          try
          {
-            auto& accountPrivKey =
-               assetWlt->getDecryptedValue(accountRoot_BIP32->getPrivKey());
+            assetWlt->getDecryptedValue(accountRoot_BIP32->getPrivKey());
 
             //should not get here
             ASSERT_TRUE(false);
@@ -6216,7 +6210,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       }
 
       addrHashSet = assetWlt->getAddrHashSet();
-      ASSERT_EQ(addrHashSet.size(), 80);
+      ASSERT_EQ(addrHashSet.size(), 80ULL);
 
       //shut down the wallet
       filename = assetWlt->getDbFilename();
@@ -6274,7 +6268,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       }
 
       addrHashSet = assetWlt->getAddrHashSet();
-      ASSERT_EQ(addrHashSet.size(), 80);
+      ASSERT_EQ(addrHashSet.size(), 80ULL);
 
       //create WO copy
       filename = AssetWallet_Single::forkWatchingOnly(
@@ -6450,7 +6444,7 @@ TEST_F(WalletsTest, ECDH_Account)
 
       //check existing address set
       auto&& addrHashSet = assetWlt->getAddrHashSet();
-      EXPECT_EQ(addrHashSet.size(), 10);
+      EXPECT_EQ(addrHashSet.size(), 10ULL);
 
       for (unsigned i = 0; i < 5; i++)
       {
@@ -6501,7 +6495,7 @@ TEST_F(WalletsTest, ECDH_Account)
          //grab an existing address from its settlement id
          auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
          auto id = accEcdh->addSalt(tx, saltMap1[3]);
-         EXPECT_EQ(id, 3);
+         EXPECT_EQ(id, 3U);
 
          auto assetPtr = accEcdh->getAssetForIndex(id);
          auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
@@ -6521,7 +6515,7 @@ TEST_F(WalletsTest, ECDH_Account)
 
          auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
          auto id = accEcdhPtr->addSalt(tx, saltMap2[2]);
-         EXPECT_EQ(id, 2);
+         EXPECT_EQ(id, 2U);
 
          auto assetPtr = accEcdhPtr->getAssetForIndex(id);
          auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
@@ -6548,7 +6542,7 @@ TEST_F(WalletsTest, ECDH_Account)
 
       //check existing address set
       auto&& addrHashSet = assetWlt->getAddrHashSet();
-      EXPECT_EQ(addrHashSet.size(), 11);
+      EXPECT_EQ(addrHashSet.size(), 11ULL);
 
       for (unsigned i = 0; i < 6; i++)
       {
@@ -7610,7 +7604,7 @@ public:
       //load it, newCtrl should work for the control passphrase
       auto loadedWlt = AssetWallet::loadMainWalletFromFile(path, controlPassLbd);
       METHOD_ASSERT_NE(loadedWlt, nullptr);
-      METHOD_ASSERT_EQ(controlPassCount, 1);
+      METHOD_ASSERT_EQ(controlPassCount, 1U);
 
       //check wallet id
       EXPECT_EQ(assetWlt->getID(), loadedWlt->getID());
@@ -7665,7 +7659,7 @@ public:
          EXPECT_EQ(privKey, newKey);
       }
 
-      METHOD_ASSERT_EQ(keyPassCount, 10);
+      METHOD_ASSERT_EQ(keyPassCount, 10U);
       return true;
    }
 };
@@ -7679,11 +7673,11 @@ TEST_F(BackupTests, Easy16)
       
       //encode the root
       auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), index);
-      ASSERT_EQ(encoded.size(), 2);
+      ASSERT_EQ(encoded.size(), 2ULL);
 
 
       auto decoded = ArmoryBackups::BackupEasy16::decode(encoded);
-      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       EXPECT_EQ(decoded.checksumIndexes_[0], index);
       EXPECT_EQ(decoded.checksumIndexes_[1], index);
 
@@ -7729,7 +7723,7 @@ TEST_F(BackupTests, Easy16_Repair)
       
       //encode the root
       auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
-      ASSERT_EQ(encoded.size(), 2);
+      ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt one character in one line
       auto randomSelection = prng.generateRandom(4);
@@ -7745,7 +7739,7 @@ TEST_F(BackupTests, Easy16_Repair)
 
       //decode the corrupted data, should yield an incorrect value
       auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
-      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       if (lineSelect == 0)
       {
          EXPECT_NE(decoded.checksumIndexes_[0], 0);
@@ -7765,7 +7759,7 @@ TEST_F(BackupTests, Easy16_Repair)
          auto result = ArmoryBackups::BackupEasy16::repair(decoded);
          if (result)
          {
-            ASSERT_EQ(decoded.repairedIndexes_.size(), 2);
+            ASSERT_EQ(decoded.repairedIndexes_.size(), 2ULL);
             EXPECT_EQ(decoded.repairedIndexes_[0], 0);
             EXPECT_EQ(decoded.repairedIndexes_[1], 0);
             EXPECT_EQ(root, decoded.data_);
@@ -7777,7 +7771,7 @@ TEST_F(BackupTests, Easy16_Repair)
       {}
    }
 
-   EXPECT_GE(succesfulRepairs, 20);
+   EXPECT_GE(succesfulRepairs, 20U);
 
    //2 errors, fail
    for (unsigned i=0; i<64; i++)
@@ -7786,7 +7780,7 @@ TEST_F(BackupTests, Easy16_Repair)
       
       //encode the root
       auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
-      ASSERT_EQ(encoded.size(), 2);
+      ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt 2 characters in one line
       auto randomSelection = prng.generateRandom(8);
@@ -7809,7 +7803,7 @@ TEST_F(BackupTests, Easy16_Repair)
 
       //decode, should yield an incorrect value
       auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
-      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       if (lineSelect == 0)
       {
          EXPECT_EQ(decoded.checksumIndexes_[0], EASY16_INVALID_CHECKSUM_INDEX);
@@ -7839,7 +7833,7 @@ TEST_F(BackupTests, Easy16_Repair)
       
       //encode the root
       auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
-      ASSERT_EQ(encoded.size(), 2);
+      ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt 1 character per line
       auto randomSelection = prng.generateRandom(8);
@@ -7858,7 +7852,7 @@ TEST_F(BackupTests, Easy16_Repair)
 
       //decode, should yield an incorrect value
       auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
-      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       EXPECT_NE(decoded.checksumIndexes_[0], 0);
       EXPECT_NE(decoded.checksumIndexes_[1], 0);
 
@@ -7868,7 +7862,7 @@ TEST_F(BackupTests, Easy16_Repair)
          auto result = ArmoryBackups::BackupEasy16::repair(decoded);
          if (result)
          {
-            ASSERT_EQ(decoded.repairedIndexes_.size(), 2);
+            ASSERT_EQ(decoded.repairedIndexes_.size(), 2ULL);
             if (decoded.repairedIndexes_[0] != decoded.repairedIndexes_[1] ||
                decoded.repairedIndexes_[0] != 0)
             {
@@ -7883,7 +7877,7 @@ TEST_F(BackupTests, Easy16_Repair)
       {}
    }
 
-   EXPECT_GE(succesfulRepairs, 5);
+   EXPECT_GE(succesfulRepairs, 5U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -7895,15 +7889,15 @@ TEST_F(BackupTests, SecurePrint)
    ArmoryBackups::SecurePrint spEncr;
    auto encryptedData = spEncr.encrypt(root, {});
    ASSERT_FALSE(spEncr.getPassphrase().empty());
-   ASSERT_EQ(encryptedData.first.getSize(), 32);
-   ASSERT_EQ(encryptedData.second.getSize(), 0);
+   ASSERT_EQ(encryptedData.first.getSize(), 32ULL);
+   ASSERT_EQ(encryptedData.second.getSize(), 0ULL);
    EXPECT_NE(encryptedData.first, root);
 
    ArmoryBackups::SecurePrint spDecr;
    auto decryptedData = 
       spDecr.decrypt(encryptedData.first, spEncr.getPassphrase());
 
-   ASSERT_EQ(decryptedData.getSize(), 32);
+   ASSERT_EQ(decryptedData.getSize(), 32ULL);
    EXPECT_EQ(decryptedData, root);
 
    //with chaincode
@@ -7913,8 +7907,8 @@ TEST_F(BackupTests, SecurePrint)
    auto dataWithCC = spWithCC.encrypt(root, chaincode);
 
    ASSERT_FALSE(spWithCC.getPassphrase().empty());
-   ASSERT_EQ(dataWithCC.first.getSize(), 32);
-   ASSERT_EQ(dataWithCC.second.getSize(), 32);
+   ASSERT_EQ(dataWithCC.first.getSize(), 32ULL);
+   ASSERT_EQ(dataWithCC.second.getSize(), 32ULL);
    EXPECT_NE(dataWithCC.first, root);
 
    EXPECT_NE(spEncr.getPassphrase(), spWithCC.getPassphrase());
@@ -7924,20 +7918,20 @@ TEST_F(BackupTests, SecurePrint)
    auto decrRoot = spDecrWithCC.decrypt(
       dataWithCC.first, spWithCC.getPassphrase());
    
-   ASSERT_EQ(decrRoot.getSize(), 32);
+   ASSERT_EQ(decrRoot.getSize(), 32ULL);
    EXPECT_EQ(decrRoot, root);
 
    auto decrCC = spDecrWithCC.decrypt(
       dataWithCC.second, spWithCC.getPassphrase());
 
-   ASSERT_EQ(decrCC.getSize(), 32);
+   ASSERT_EQ(decrCC.getSize(), 32ULL);
    EXPECT_EQ(decrCC, chaincode);
 
    //mangled passphrase
    try 
    {
       auto mangledPass = spWithCC.getPassphrase();
-      ASSERT_GE(mangledPass.getSize(), 4);
+      ASSERT_GE(mangledPass.getSize(), 4ULL);
       mangledPass.getPtr()[3] ^= 0xFF;
 
       ArmoryBackups::SecurePrint spDecrWithCC;
@@ -7965,7 +7959,7 @@ TEST_F(BackupTests, SecurePrint)
       auto decrypted = spDecrWithCC.decrypt(
          dataWithCC.first, passB58);
 
-      ASSERT_FALSE(true);      
+      ASSERT_FALSE(true);
    }
    catch (const runtime_error& e)
    {
@@ -8026,7 +8020,7 @@ TEST_F(BackupTests, BackupStrings_Legacy)
       {
          EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
          
-         EXPECT_EQ(checksums.size(), 2);
+         EXPECT_EQ(checksums.size(), 2ULL);
          for (const auto& chksum : checksums)
             EXPECT_EQ(chksum, 0);
 
@@ -8103,7 +8097,7 @@ TEST_F(BackupTests, BackupStrings_Legacy_SecurePrint)
          if (extra != SecureBinaryData::fromString(backupData.wltId_))
             return false;
                   
-         EXPECT_EQ(checksums.size(), 2);
+         EXPECT_EQ(checksums.size(), 2ULL);
          for (const auto& chksum : checksums)
             EXPECT_EQ(chksum, 0);
 
@@ -8196,7 +8190,7 @@ TEST_F(BackupTests, Easy16_AutoRepair)
       
       //encode the root
       auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
-      ASSERT_EQ(encoded.size(), 2);
+      ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt one character in one line
       auto randomSelection = prng.generateRandom(4);
@@ -8212,7 +8206,7 @@ TEST_F(BackupTests, Easy16_AutoRepair)
 
       //decode the corrupted data, should yield an incorrect value
       auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
-      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       if (lineSelect == 0)
       {
          EXPECT_NE(decoded.checksumIndexes_[0], 0);
@@ -8264,7 +8258,7 @@ TEST_F(BackupTests, Easy16_AutoRepair)
       {}
    }
 
-   EXPECT_GE(succesfulRepairs, 20);
+   EXPECT_GE(succesfulRepairs, 20U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -8314,7 +8308,7 @@ TEST_F(BackupTests, BackupStrings_LegacyWithChaincode_SecurePrint)
          if (extra != SecureBinaryData::fromString(backupData.wltId_))
             return false;
                   
-         EXPECT_EQ(checksums.size(), 4);
+         EXPECT_EQ(checksums.size(), 4ULL);
          for (const auto& chksum : checksums)
             EXPECT_EQ(chksum, 0);
 
@@ -8410,7 +8404,7 @@ TEST_F(BackupTests, BackupStrings_BIP32)
       {
          EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
          
-         EXPECT_EQ(checksums.size(), 2);
+         EXPECT_EQ(checksums.size(), 2U);
          for (const auto& chksum : checksums)
             EXPECT_EQ(chksum, 1);
 
@@ -8485,7 +8479,7 @@ TEST_F(BackupTests, BackupStrings_BIP32_Custom)
       {
          EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
          
-         EXPECT_EQ(checksums.size(), 2);
+         EXPECT_EQ(checksums.size(), 2U);
          for (const auto& chksum : checksums)
             EXPECT_EQ(chksum, 15);
 
@@ -8511,7 +8505,7 @@ TEST_F(BackupTests, BackupStrings_BIP32_Custom)
 
    //compare account types between original and restored
    auto loadedIDs = newWltPtr->getAccountIDs();
-   EXPECT_EQ(loadedIDs.size(), 0);
+   EXPECT_EQ(loadedIDs.size(), 0ULL);
 
    DBUtils::removeDirectory(newHomeDir);
 }
