@@ -29,7 +29,7 @@ private:
    const std::string id_;
    std::function<void(std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
 
-   std::set<BinaryData> ids_;
+   std::set<Armory::Wallets::EncryptionKeyId> ids_;
 
 public:
    BridgePassphrasePrompt(const std::string id,

@@ -11,6 +11,7 @@
 #include "../DecryptedDataContainer.h"
 
 using namespace std;
+using namespace Armory::Wallets;
 
 #define ARMORY135_PRIVKEY_PREFIX    1
 #define ARMORY135_PRIVKEY_SIZE      32
@@ -71,21 +72,24 @@ AccountType_ArmoryLegacy::AccountType_ArmoryLegacy() :
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_ArmoryLegacy::getOuterAccountID(void) const
+AssetAccountId AccountType_ArmoryLegacy::getOuterAccountID(void) const
 {
-   return WRITE_UINT32_BE(ARMORY_LEGACY_ASSET_ACCOUNTID);
+   return AssetAccountId(getAccountID(), ARMORY_LEGACY_ASSET_ACCOUNTID);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_ArmoryLegacy::getInnerAccountID(void) const
+AssetAccountId AccountType_ArmoryLegacy::getInnerAccountID(void) const
 {
-   return WRITE_UINT32_BE(ARMORY_LEGACY_ASSET_ACCOUNTID);
+   return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_ArmoryLegacy::getAccountID() const
-{ 
-   return WRITE_UINT32_BE(ARMORY_LEGACY_ACCOUNTID); 
+AddressAccountId AccountType_ArmoryLegacy::getAccountID() const
+{
+   auto legacyAddressAccountId = ARMORY_LEGACY_ACCOUNTID;
+   int32_t legacyAccountKey;
+   memcpy(&legacyAccountKey, &legacyAddressAccountId, 4);
+   return AddressAccountId(legacyAccountKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +102,7 @@ AccountType_BIP32::AccountType_BIP32(DerivationTree& tree) :
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_BIP32::getAccountID() const
+AddressAccountId AccountType_BIP32::getAccountID() const
 {
    //this ensures address accounts of different types based on the same
    //bip32 root do not end up with the same id
@@ -132,14 +136,21 @@ BinaryData AccountType_BIP32::getAccountID() const
    bw.put_uint8_t(isMain_);
 
    //hash, use first 4 bytes
-   auto&& pub_hash160 = BtcUtils::getHash160(bw.getData());
-   auto accountID = move(pub_hash160.getSliceCopy(0, 4));
+   auto pub_hash160 = BtcUtils::getHash160(bw.getData());
+   BinaryRefReader brr(pub_hash160.getRef());
+   AccountKeyType addressAccountKey = brr.get_int32_t(BE);
 
-   if (accountID == WRITE_UINT32_BE(ARMORY_LEGACY_ACCOUNTID) ||
-       accountID == WRITE_UINT32_BE(IMPORTS_ACCOUNTID))
+   auto legacyAddressAccountId = ARMORY_LEGACY_ACCOUNTID;
+   AccountKeyType legacyAccountKey;
+   memcpy(&legacyAccountKey, &legacyAddressAccountId, sizeof(AccountKeyType));
+
+   if (addressAccountKey == legacyAccountKey ||
+      addressAccountKey == IMPORTS_ACCOUNTID)
+   {
       throw AccountException("BIP32 account ID collision");
+   }
 
-   return accountID;
+   return AddressAccountId(addressAccountKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,15 +164,21 @@ void AccountType_BIP32::setNodes(const std::set<unsigned>& nodes)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_BIP32::getOuterAccountID(void) const
+AssetAccountId AccountType_BIP32::getOuterAccountID(void) const
 {
-   return outerAccount_;
+   if (!haveOuterAccId_)
+      return {};
+
+   return AssetAccountId(getAccountID(), outerAccountKey_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_BIP32::getInnerAccountID(void) const
+AssetAccountId AccountType_BIP32::getInnerAccountID(void) const
 {
-   return innerAccount_;
+   if (!haveInnerAccId_)
+      return {};
+
+   return AssetAccountId(getAccountID(), innerAccountKey_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,15 +190,17 @@ unsigned AccountType_BIP32::getAddressLookup() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32::setOuterAccountID(const BinaryData& outerAccount)
+void AccountType_BIP32::setOuterAccountID(const AccountKeyType& outerAccountKey)
 {
-   outerAccount_ = outerAccount;
+   outerAccountKey_ = outerAccountKey;
+   haveOuterAccId_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32::setInnerAccountID(const BinaryData& innerAccount)
+void AccountType_BIP32::setInnerAccountID(const AccountKeyType& innerAccountKey)
 {
-   innerAccount_ = innerAccount;
+   innerAccountKey_ = innerAccountKey;
+   haveInnerAccId_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,9 +305,9 @@ bool AccountType_ECDH::isWatchingOnly(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData AccountType_ECDH::getAccountID() const
+AddressAccountId AccountType_ECDH::getAccountID() const
 {
-   BinaryData accountID;
+   AccountKeyType accountKey;
    if (isWatchingOnly())
    {
       //this ensures address accounts of different types based on the same
@@ -296,8 +315,9 @@ BinaryData AccountType_ECDH::getAccountID() const
       auto rootCopy = publicKey_;
       rootCopy.getPtr()[0] ^= (uint8_t)type();
 
-      auto&& pub_hash160 = BtcUtils::getHash160(rootCopy);
-      accountID = move(pub_hash160.getSliceCopy(0, 4));
+      auto pub_hash160 = BtcUtils::getHash160(rootCopy);
+      BinaryRefReader brr(pub_hash160.getRef());
+      accountKey = brr.get_int32_t(BE);
    }
    else
    {
@@ -305,14 +325,30 @@ BinaryData AccountType_ECDH::getAccountID() const
       root_pub.getPtr()[0] ^= (uint8_t)type();
 
       auto&& pub_hash160 = BtcUtils::getHash160(root_pub);
-      accountID = move(pub_hash160.getSliceCopy(0, 4));
+      BinaryRefReader brr(pub_hash160.getRef());
+      accountKey = brr.get_int32_t(BE);
    }
 
-   if (accountID == WRITE_UINT32_BE(ARMORY_LEGACY_ACCOUNTID) ||
-      accountID == WRITE_UINT32_BE(IMPORTS_ACCOUNTID))
+   auto legacyAddressAccountId = ARMORY_LEGACY_ACCOUNTID;
+   AccountKeyType legacyAccountKey;
+   memcpy(&legacyAccountKey, &legacyAddressAccountId, sizeof(AccountKeyType));
+
+   if (accountKey == legacyAccountKey || accountKey == IMPORTS_ACCOUNTID)
       throw AccountException("BIP32 account ID collision");
 
-   return accountID;
+   return AddressAccountId(accountKey);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+AssetAccountId AccountType_ECDH::getOuterAccountID() const
+{
+   return AssetAccountId(getAccountID(), ECDH_ASSET_ACCOUNTID);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+AssetAccountId AccountType_ECDH::getInnerAccountID() const
+{
+   return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -689,7 +725,7 @@ vector<NodeRoot> DerivationTree::resolveNodeRoots(
             }
 
             //grab cleartext wallet root private key
-            const auto& privateRoot = decrData->getDecryptedPrivateData(
+            const auto& privateRoot = decrData->getClearTextAssetData(
                walletRoot->getPrivKey());
 
             //setup bip32node from private key

@@ -14,6 +14,7 @@
 #define KDF_ROMIX_VERSION  0x00000001
 
 using namespace std;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,6 +162,12 @@ Cipher::~Cipher()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
+const EncryptionKeyId& Cipher::getEncryptionKeyId() const
+{
+   return encryptionKeyId_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 unsigned Cipher::getBlockSize(CipherType type)
 {
    unsigned blockSize;
@@ -250,8 +257,7 @@ BinaryData Cipher_AES::serialize() const
    bw.put_var_int(kdfId_.getSize());
    bw.put_BinaryData(kdfId_);
 
-   bw.put_var_int(encryptionKeyId_.getSize());
-   bw.put_BinaryData(encryptionKeyId_);
+   encryptionKeyId_.serializeValue(bw);
 
    bw.put_var_int(iv_.getSize());
    bw.put_BinaryData(iv_);
@@ -266,13 +272,13 @@ unique_ptr<Cipher> Cipher_AES::getCopy() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Cipher> Cipher_AES::getCopy(const BinaryData& keyId) const
+unique_ptr<Cipher> Cipher_AES::getCopy(const EncryptionKeyId& keyId) const
 {
    return make_unique<Cipher_AES>(kdfId_, keyId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-SecureBinaryData Cipher_AES::encrypt(DecryptedEncryptionKey* const key,
+SecureBinaryData Cipher_AES::encrypt(ClearTextEncryptionKey* const key,
    const BinaryData& kdfId, const SecureBinaryData& data) const
 {
    if (key == nullptr)
@@ -285,8 +291,8 @@ SecureBinaryData Cipher_AES::encrypt(DecryptedEncryptionKey* const key,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-SecureBinaryData Cipher_AES::encrypt(DecryptedEncryptionKey* const key,
-   const BinaryData& kdfId, DecryptedEncryptionKey* const data) const
+SecureBinaryData Cipher_AES::encrypt(ClearTextEncryptionKey* const key,
+   const BinaryData& kdfId, ClearTextEncryptionKey* const data) const
 {
    if (data == nullptr)
       throw runtime_error("null data ptr");

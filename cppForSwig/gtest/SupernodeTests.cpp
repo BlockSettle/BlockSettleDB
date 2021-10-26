@@ -15,6 +15,7 @@
 using namespace std;
 using namespace ArmorySigner;
 using namespace ArmoryConfig;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1788,21 +1789,22 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
           //create 2-of-3 multisig asset entry from 3 different wallets
    map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
-   auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
+   auto asset1 = TestUtils::getMainAccountAssetForIndex(assetWlt_1, 0);
    auto wltid1_bd = assetWlt_1->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid1_bd), asset1));
 
-   auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
+   auto asset2 = TestUtils::getMainAccountAssetForIndex(assetWlt_2, 0);
    auto wltid2_bd = assetWlt_2->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid2_bd), asset2));
 
    auto asset4_singlesig = assetWlt_2->getNewAddress();
 
-   auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
+   auto asset3 = TestUtils::getMainAccountAssetForIndex(assetWlt_3, 0);
    auto wltid3_bd = assetWlt_3->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid3_bd), asset3));
 
-   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
+   auto ae_ms = make_shared<AssetEntry_Multisig>(
+      AssetId(0, 0, 0),
       asset_single_map, 2, 3);
    auto addr_ms_raw = make_shared<AddressEntry_Multisig>(ae_ms, true);
    auto addr_p2wsh = make_shared<AddressEntry_P2WSH>(addr_ms_raw);
@@ -2182,7 +2184,7 @@ protected:
       });
 
       //setup auth peers for server and client
-      authPeersPassLbd_ = [](const set<BinaryData>&)->SecureBinaryData
+      authPeersPassLbd_ = [](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return SecureBinaryData::fromString("authpeerpass");
       };

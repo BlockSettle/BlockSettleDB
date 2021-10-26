@@ -16,6 +16,7 @@
 using namespace std;
 using namespace ArmorySigner;
 using namespace ArmoryConfig;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -1701,7 +1702,7 @@ protected:
       startupBIP150CTX(4);
 
       //setup auth peers for server and client
-      authPeersPassLbd_ = [](const set<BinaryData>&)->SecureBinaryData
+      authPeersPassLbd_ = [](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return SecureBinaryData();
       };
@@ -2335,7 +2336,7 @@ protected:
       startupBIP150CTX(4);
 
       //setup auth peers for server and client
-      authPeersPassLbd_ = [](const set<BinaryData>&)->SecureBinaryData
+      authPeersPassLbd_ = [](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return SecureBinaryData();
       };

@@ -79,6 +79,8 @@ public:
    WalletIfaceTransaction(WalletDBInterface*, DBInterface* dbPtr, bool mode);
    ~WalletIfaceTransaction(void) noexcept(false);
 
+   const std::string& getDbName(void) const;
+
    //write routines
    void insert(const BinaryData&, BinaryData&) override;
    void insert(const BinaryData&, const BinaryData&) override;

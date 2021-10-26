@@ -69,10 +69,10 @@ public:
 
    //virtual
    virtual std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
-      std::shared_ptr<AssetEntry>, unsigned start, unsigned end) = 0;
+      std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) = 0;
    virtual std::vector<std::shared_ptr<AssetEntry>> extendPrivateChain(
       std::shared_ptr<DecryptedDataContainer>,
-      std::shared_ptr<AssetEntry>, unsigned start, unsigned end) = 0;
+      std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) = 0;
    virtual BinaryData serialize(void) const = 0;
 
    virtual const SecureBinaryData& getChaincode(void) const = 0;
@@ -100,18 +100,17 @@ public:
    std::shared_ptr<AssetEntry_Single> computeNextPrivateEntry(
       std::shared_ptr<DecryptedDataContainer>,
       const SecureBinaryData& privKey, std::unique_ptr<Cipher>,
-      const BinaryData& full_id, unsigned index);
-   
+      Armory::Wallets::AssetId);
+
    std::shared_ptr<AssetEntry_Single> computeNextPublicEntry(
-      const SecureBinaryData& pubKey,
-      const BinaryData& full_id, unsigned index);
+      const SecureBinaryData& pubKey, Armory::Wallets::AssetId);
 
    //virtuals
    std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
-      std::shared_ptr<AssetEntry>, unsigned start, unsigned end);
+      std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
    std::vector<std::shared_ptr<AssetEntry>> extendPrivateChain(
       std::shared_ptr<DecryptedDataContainer>,
-      std::shared_ptr<AssetEntry>, unsigned start, unsigned end);
+      std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
 
    BinaryData serialize(void) const;
 
@@ -151,18 +150,18 @@ public:
    virtual std::shared_ptr<AssetEntry_Single> computeNextPrivateEntry(
       std::shared_ptr<DecryptedDataContainer>,
       const SecureBinaryData& privKey, std::unique_ptr<Cipher>,
-      const BinaryData& full_id, unsigned index);
+      Armory::Wallets::AssetId);
 
    virtual std::shared_ptr<AssetEntry_Single> computeNextPublicEntry(
       const SecureBinaryData& pubKey,
-      const BinaryData& full_id, unsigned index);
+      Armory::Wallets::AssetId);
 
    //virtuals
    std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
-      std::shared_ptr<AssetEntry>, unsigned start, unsigned end);
+      std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
    std::vector<std::shared_ptr<AssetEntry>> extendPrivateChain(
       std::shared_ptr<DecryptedDataContainer>,
-      std::shared_ptr<AssetEntry>, unsigned start, unsigned end);
+      std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
 
    virtual BinaryData serialize(void) const;
 
@@ -192,11 +191,11 @@ public:
    std::shared_ptr<AssetEntry_Single> computeNextPrivateEntry(
       std::shared_ptr<DecryptedDataContainer>,
       const SecureBinaryData& privKey, std::unique_ptr<Cipher>,
-      const BinaryData& full_id, unsigned index) override;
+      Armory::Wallets::AssetId) override;
 
    std::shared_ptr<AssetEntry_Single> computeNextPublicEntry(
       const SecureBinaryData& pubKey,
-      const BinaryData& full_id, unsigned index) override;
+      Armory::Wallets::AssetId) override;
 
    BinaryData serialize(void) const override;
    const SecureBinaryData& getSalt(void) const { return salt_; }
@@ -207,21 +206,21 @@ class DerivationScheme_ECDH : public DerivationScheme
 {
 private:
    const BinaryData id_;
-   std::map<SecureBinaryData, unsigned> saltMap_;
-   unsigned topSaltIndex_ = 0;
+   std::map<SecureBinaryData, Armory::Wallets::AssetKeyType> saltMap_;
+   Armory::Wallets::AssetKeyType topSaltIndex_ = -1;
    std::mutex saltMutex_;
 
 private:
    std::shared_ptr<AssetEntry_Single> computeNextPublicEntry(
       const SecureBinaryData& pubKey,
-      const BinaryData& full_id, unsigned index);
+      Armory::Wallets::AssetId);
 
    std::shared_ptr<AssetEntry_Single> computeNextPrivateEntry(
       std::shared_ptr<DecryptedDataContainer>,
       const SecureBinaryData& privKey, std::unique_ptr<Cipher>,
-      const BinaryData& full_id, unsigned index);
+      Armory::Wallets::AssetId);
 
-   void putSalt(unsigned, const SecureBinaryData&,
+   void putSalt(Armory::Wallets::AssetKeyType, const SecureBinaryData&,
       std::shared_ptr<DBIfaceTransaction>);
 
 public:
@@ -234,20 +233,20 @@ public:
 
    //virtuals
    std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
-      std::shared_ptr<AssetEntry>, unsigned start, unsigned end) override;
+      std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
    std::vector<std::shared_ptr<AssetEntry>> extendPrivateChain(
       std::shared_ptr<DecryptedDataContainer>,
-      std::shared_ptr<AssetEntry>, unsigned start, unsigned end) override;
+      std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
    BinaryData serialize(void) const override;
 
    const SecureBinaryData& getChaincode(void) const override;
 
    //locals
-   unsigned addSalt(const SecureBinaryData&, 
+   Armory::Wallets::AssetKeyType addSalt(const SecureBinaryData&,
       std::shared_ptr<DBIfaceTransaction>);
    void putAllSalts(std::shared_ptr<DBIfaceTransaction>);
    void getAllSalts(std::shared_ptr<DBIfaceTransaction>);
-   unsigned getSaltIndex(const SecureBinaryData&);
+   Armory::Wallets::AssetKeyType getIdForSalt(const SecureBinaryData&);
 };
 
 #endif

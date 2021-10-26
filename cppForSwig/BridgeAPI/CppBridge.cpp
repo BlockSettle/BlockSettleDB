@@ -42,7 +42,9 @@ enum CppBridgeState
 ////////////////////////////////////////////////////////////////////////////////
 PassphraseLambda BridgePassphrasePrompt::getLambda(UnlockPromptType type)
 {
-   auto lbd = [this, type](const set<BinaryData>& ids)->SecureBinaryData
+   auto lbd = [this, type]
+      (const set<Armory::Wallets::EncryptionKeyId>& ids)
+      ->SecureBinaryData
    {
       UnlockPromptState promptState = UnlockPromptState::cycle;
       if (ids != ids_)
@@ -80,7 +82,7 @@ PassphraseLambda BridgePassphrasePrompt::getLambda(UnlockPromptType type)
       if (!ids.empty())
       {
          auto iter = ids.begin();
-         bool hasAscii = false;
+         /*bool hasAscii = false;
          auto ptr = iter->getCharPtr();
          for (unsigned i=0; i<iter->getSize(); i++)
          {
@@ -101,9 +103,9 @@ PassphraseLambda BridgePassphrasePrompt::getLambda(UnlockPromptType type)
          {
             promptState = UnlockPromptState::stop;
             exit = true;
-         }
+         }*/
 
-         opaque.set_walletid(wltId);
+         opaque.set_walletid(iter->toHexStr());
       }
 
       opaque.set_state(promptState);

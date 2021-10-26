@@ -13,6 +13,7 @@
 using namespace std;
 using namespace ArmorySigner;
 using namespace ArmoryConfig;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<ScriptSpender> getSpenderPtr(const UTXO& utxo, bool RBF = false)
@@ -1315,19 +1316,27 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 
    //create 1-of-3 multisig asset entry from 3 different wallets
    map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
-   auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
+
+   auto accountPtr1 = assetWlt_1->getAccountForID(assetWlt_1->getMainAccountID());
+   auto outerAcc1 = accountPtr1->getOuterAccount();
+   auto asset1 = outerAcc1->getAssetForKey(0);
    auto wltid1_bd = assetWlt_1->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid1_bd), asset1));
 
-   auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
+   auto accountPtr2 = assetWlt_2->getAccountForID(assetWlt_2->getMainAccountID());
+   auto outerAcc2 = accountPtr2->getOuterAccount();
+   auto asset2 = outerAcc2->getAssetForKey(0);
    auto wltid2_bd = assetWlt_2->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid2_bd), asset2));
 
-   auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
+   auto accountPtr3 = assetWlt_3->getAccountForID(assetWlt_3->getMainAccountID());
+   auto outerAcc3 = accountPtr3->getOuterAccount();
+   auto asset3 = outerAcc3->getAssetForKey(0);
    auto wltid3_bd = assetWlt_3->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid3_bd), asset3));
 
-   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
+   auto ae_ms = make_shared<AssetEntry_Multisig>(
+      AssetId(0, 0, 0),
       asset_single_map, 1, 3);
    auto addr_ms_raw = make_shared<AddressEntry_Multisig>(ae_ms, true);
    auto addr_p2wsh = make_shared<AddressEntry_P2WSH>(addr_ms_raw);
@@ -1601,21 +1610,29 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 
    //create 2-of-3 multisig asset entry from 3 different wallets
    map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
-   auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
+   
+   auto accountPtr1 = assetWlt_1->getAccountForID(assetWlt_1->getMainAccountID());
+   auto outerAcc1 = accountPtr1->getOuterAccount();
+   auto asset1 = outerAcc1->getAssetForKey(0);
    auto wltid1_bd = assetWlt_1->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid1_bd), asset1));
 
-   auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
+   auto accountPtr2 = assetWlt_2->getAccountForID(assetWlt_2->getMainAccountID());
+   auto outerAcc2 = accountPtr2->getOuterAccount();
+   auto asset2 = outerAcc2->getAssetForKey(0);
    auto wltid2_bd = assetWlt_2->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid2_bd), asset2));
 
    auto asset4_singlesig = assetWlt_2->getNewAddress();
 
-   auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
+   auto accountPtr3 = assetWlt_3->getAccountForID(assetWlt_3->getMainAccountID());
+   auto outerAcc3 = accountPtr3->getOuterAccount();
+   auto asset3 = outerAcc3->getAssetForKey(0);
    auto wltid3_bd = assetWlt_3->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid3_bd), asset3));
 
-   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
+   auto ae_ms = make_shared<AssetEntry_Multisig>(
+      AssetId::getRootAssetId(),
       asset_single_map, 2, 3);
    auto addr_ms_raw = make_shared<AddressEntry_Multisig>(ae_ms, true);
    auto addr_p2wsh = make_shared<AddressEntry_P2WSH>(addr_ms_raw);
@@ -2782,7 +2799,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       {
          auto assetID = assetWlt_1->getAssetIDForScrAddr(
             (*addrVec_1.begin())->getPrefixedHash());
-         auto accountPtr = assetWlt_1->getAccountForID(assetID.first);
+         auto accountPtr = assetWlt_1->getAccountForID(
+            assetID.first.getAddressAccountId());
 
          EXPECT_NE(signer2.getTxInCount(), 0ULL) ;
          for (unsigned i=0; i<signer2.getTxInCount(); i++)
@@ -3159,7 +3177,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       {
          auto assetID = assetWlt_1->getAssetIDForScrAddr(
             (*addrVec_1.begin())->getPrefixedHash());
-         auto accountPtr = assetWlt_1->getAccountForID(assetID.first);
+         auto accountPtr = assetWlt_1->getAccountForID(
+            assetID.first.getAddressAccountId());
 
          EXPECT_NE(signer2.getTxInCount(), 0U);
          for (unsigned i=0; i<signer2.getTxInCount(); i++)
@@ -3958,8 +3977,8 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
 
       set<unsigned> nodes = { 0, 1 };
       mainAccType->setNodes(nodes);
-      mainAccType->setOuterAccountID(WRITE_UINT32_BE(*nodes.begin()));
-      mainAccType->setInnerAccountID(WRITE_UINT32_BE(*nodes.rbegin()));
+      mainAccType->setOuterAccountID(*nodes.begin());
+      mainAccType->setInnerAccountID(*nodes.rbegin());
 
       auto accountID = assetWlt->createBIP32Account(mainAccType);
 
@@ -4856,7 +4875,9 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    assetWlt.reset();
 
    //reload it
-   auto controlPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto controlPassLbd = []
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return SecureBinaryData();
    };
@@ -5127,7 +5148,9 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    saltedAccType->addAddressType(
       AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
 
-   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+   auto passphraseLbd = [&passphrase]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return passphrase;
    };
@@ -5322,7 +5345,9 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
+         auto passlbd = [passphrase]
+            (const set<EncryptionKeyId>&)
+            ->SecureBinaryData
          {
             return passphrase;
          };
@@ -5416,13 +5441,15 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //grab enough addresses to trigger a lookup extention
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5U);
+   auto accountPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+   auto outerAcc = accountPtr->getOuterAccount();
+   EXPECT_EQ(outerAcc->getAssetCount(), 5U);
 
    for (unsigned i = 0; i < 15; i++)
       assetWlt->getNewAddress();
    auto newAddr = assetWlt->getNewAddress();
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105U);
+   EXPECT_EQ(outerAcc->getAssetCount(), 105U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -5569,7 +5596,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
+         auto passlbd = [passphrase]
+            (const set<EncryptionKeyId>&)
+            ->SecureBinaryData
          {
             return passphrase;
          };
@@ -5660,13 +5689,15 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //grab enough addresses to trigger a lookup extention
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5U);
+   auto accountPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+   auto outerAcc = accountPtr->getOuterAccount();
+   EXPECT_EQ(outerAcc->getAssetCount(), 5U);
 
    for (unsigned i = 0; i < 10; i++)
       assetWlt->getNewAddress();
    auto newAddr = assetWlt->getNewAddress();
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105U);
+   EXPECT_EQ(outerAcc->getAssetCount(), 105U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -5813,7 +5844,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
+         auto passlbd = [passphrase]
+            (const set<EncryptionKeyId>&)
+            ->SecureBinaryData
          {
             return passphrase;
          };
@@ -5893,7 +5926,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    saltedAccType->addAddressType(AddressEntryType_P2WPKH);
    saltedAccType->setMain(true);
 
-   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+   auto passphraseLbd = [&passphrase]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return passphrase;
    };
@@ -5928,13 +5963,15 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //grab enough addresses to trigger a lookup extention
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5U);
+   auto accountPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+   auto outerAcc = accountPtr->getOuterAccount();
+   EXPECT_EQ(outerAcc->getAssetCount(), 5U);
 
    for (unsigned i = 0; i < 10; i++)
       assetWlt->getNewAddress();
    auto newAddr = assetWlt->getNewAddress();
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105U);
+   EXPECT_EQ(outerAcc->getAssetCount(), 105U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -6081,7 +6118,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
+         auto passlbd = [passphrase]
+            (const set<EncryptionKeyId>&)
+            ->SecureBinaryData
          {
             return passphrase;
          };
@@ -6159,7 +6198,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    ecdhAccType->addAddressType(AddressEntryType_P2WPKH);
    ecdhAccType->setMain(true);
 
-   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+   auto passphraseLbd = [&passphrase]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return passphrase;
    };
@@ -6193,7 +6234,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //generate some ECDH addresses
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 0U);
+   EXPECT_EQ(TestUtils::getMainAccountAssetCount(assetWlt), 0U);
 
    auto assAccPtr = addrAccountObj->getOuterAccount();
    auto accPtr = dynamic_cast<AssetAccount_ECDH*>(assAccPtr.get());
@@ -6210,7 +6251,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    for (unsigned i = 0; i < 5; i++)
       addrVec.push_back(assetWlt->getNewAddress());
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5U);
+   EXPECT_EQ(TestUtils::getMainAccountAssetCount(assetWlt), 5U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -6356,7 +6397,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
+         auto passlbd = [passphrase]
+            (const set<EncryptionKeyId>&)
+            ->SecureBinaryData
          {
             return passphrase;
          };
@@ -6830,21 +6873,22 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 
    //create 2-of-3 multisig asset entry from 3 different wallets
    map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
-   auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
+   auto asset1 = TestUtils::getMainAccountAssetForIndex(assetWlt_1, 0);
    auto wltid1_bd = assetWlt_1->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid1_bd), asset1));
 
-   auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
+   auto asset2 = TestUtils::getMainAccountAssetForIndex(assetWlt_2, 0);
    auto wltid2_bd = assetWlt_2->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid2_bd), asset2));
 
    auto asset4_singlesig = assetWlt_2->getNewAddress();
 
-   auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
+   auto asset3 = TestUtils::getMainAccountAssetForIndex(assetWlt_3, 0);
    auto wltid3_bd = assetWlt_3->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid3_bd), asset3));
 
-   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
+   auto ae_ms = make_shared<AssetEntry_Multisig>(
+      AssetId::getRootAssetId(),
       asset_single_map, 2, 3);
    auto addr_ms_raw = make_shared<AddressEntry_Multisig>(ae_ms, true);
    auto addr_p2wsh = make_shared<AddressEntry_P2WSH>(addr_ms_raw);
@@ -8907,7 +8951,7 @@ TEST_F(ExtrasTest, BitcoinMessage)
 
       auto assetPubKey = make_shared<Asset_PublicKey>(pubkeyCopy);
       auto assetSingle = make_shared<AssetEntry_Single>(
-         -1, BinaryData(), assetPubKey, nullptr);
+         AssetId(0, 0, -1), assetPubKey, nullptr);
       auto addr = make_shared<AddressEntry_P2WPKH>(assetSingle);
 
       auto resolver = make_shared<ResolverFeed_SignMessage>();
@@ -8935,7 +8979,7 @@ TEST_F(ExtrasTest, BitcoinMessage)
 
       auto assetPubKey = make_shared<Asset_PublicKey>(pubkeyCopy);
       auto assetSingle = make_shared<AssetEntry_Single>(
-         -1, BinaryData(), assetPubKey, nullptr);
+         AssetId::getRootAssetId(), assetPubKey, nullptr);
       auto addr = make_shared<AddressEntry_P2WPKH>(assetSingle);
 
       auto resolver = make_shared<ResolverFeed_SignMessage>();
@@ -9021,7 +9065,7 @@ TEST_F(ExtrasTest_Mainnet, Bip32PathDiscovery)
       keyAndPath.emplace(nodeSoft.getPublicKey(), path);
    }
 
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData();
    };

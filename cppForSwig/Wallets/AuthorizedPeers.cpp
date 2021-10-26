@@ -18,6 +18,7 @@
 #include "TerminalPassphrasePrompt.h"
 
 using namespace std;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 AuthorizedPeers::AuthorizedPeers(
@@ -73,7 +74,7 @@ AuthorizedPeers::AuthorizedPeers(
    SecureBinaryData privateKey;
    {
       //create & set password lambda
-      auto passphrasePrompt = [](const set<BinaryData>&)->SecureBinaryData
+      auto passphrasePrompt = [](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return SecureBinaryData::fromString(PEERS_WALLET_PASSWORD);
       };
@@ -88,7 +89,10 @@ AuthorizedPeers::AuthorizedPeers(
          throw AuthorizedPeersException("unexpected wallet type");
       
       //grab asset #1 on main peers chain (m'/PEERS_WALLET_BIP32_ACCOUNT'/0')
-      auto assetPtr = walletSingle->getMainAccountAssetForIndex(1);
+      auto mainAcc = walletSingle->getAccountForID(
+         walletSingle->getMainAccountID());
+      auto outerAccount = mainAcc->getOuterAccount();
+      auto assetPtr = outerAccount->getAssetForKey(1);
       auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
 
       privateKey =
@@ -155,7 +159,7 @@ void AuthorizedPeers::createWallet(
    //Default peers wallet password. Asset wallets always encrypt private keys, 
    //have to provide a password at creation.
    auto&& password = SecureBinaryData::fromString(PEERS_WALLET_PASSWORD);
-   auto&& controlPassphrase = passLbd(set<BinaryData>());
+   auto&& controlPassphrase = passLbd({});
 
    {
       //Default peers wallet derivation path. Using m/'account/'0.
@@ -180,7 +184,7 @@ void AuthorizedPeers::createWallet(
       account->setMain(true);
       account->setAddressLookup(2);
 
-      auto privKeyPassLbd = [&password](const set<BinaryData>&)->SecureBinaryData
+      auto privKeyPassLbd = [&password](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return password;
       };
@@ -210,7 +214,7 @@ void AuthorizedPeers::createWallet(
 
    //load from new file path in order to have valid db object
    //capture the controlPass in local lambda to avoid prompting the user again
-   auto passLbdCycle = [&controlPassphrase](const set<BinaryData>&)
+   auto passLbdCycle = [&controlPassphrase](const set<EncryptionKeyId>&)
       ->SecureBinaryData
    {
       return controlPassphrase;

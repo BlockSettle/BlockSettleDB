@@ -18,6 +18,7 @@
 
 using namespace std;
 using namespace ArmorySigner;
+using namespace Armory::Wallets;
 
 StackItem::~StackItem()
 {}
@@ -2722,7 +2723,7 @@ BinaryDataRef Signer::serializeUnsignedTx(bool loose)
       bw.put_BinaryData(recipient->getSerializedScript());
 
    //no witness data for unsigned transactions
-   for (auto& spender : spenders_)
+   for (unsigned i=0; i < spenders_.size(); i++)
       bw.put_uint8_t(0);
 
    //lock time
@@ -3774,7 +3775,7 @@ bool Signer::verifyMessageSignature(
    SecureBinaryData sbdPubkey(pubkey);
    auto assetPubkey = make_shared<Asset_PublicKey>(sbdPubkey);
    auto assetPtr = make_shared<AssetEntry_Single>(
-      -1, BinaryData(), assetPubkey, nullptr);
+      AssetId(-1, -1, -1), assetPubkey, nullptr);
 
    //check scrAddr type, try to generate equivalent address hash
    auto scrType = BtcUtils::getScriptTypeForScrAddr(scrAddr.getRef());

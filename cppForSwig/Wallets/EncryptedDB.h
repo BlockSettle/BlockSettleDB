@@ -196,7 +196,7 @@ public:
    static std::recursive_mutex writeMutex_;
 
 protected:
-   //<dbName, <thread id, <counter, mode>>>
+   //<dbName, DbTxStruct>
    static std::map<std::string, std::shared_ptr<DbTxStruct>> dbMap_;
    static std::mutex txMutex_;
 

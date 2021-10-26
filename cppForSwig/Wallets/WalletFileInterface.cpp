@@ -92,7 +92,7 @@ void WalletDBInterface::setupEnv(const string& path,
    //decrypt control seed
    lockControlContainer(passLbd);
    auto& rootEncrKey = 
-      decryptedData_->getDecryptedPrivateData(controlSeed_.get());
+      decryptedData_->getClearTextAssetData(controlSeed_.get());
 
    //load wallet header db
    {
@@ -338,7 +338,7 @@ void WalletDBInterface::loadSeed(shared_ptr<WalletHeader> headerPtr)
    bwKey.put_uint32_t(WALLET_SEED_KEY);
    auto rootAssetRef = getDataRefForKey(tx.get(), bwKey.getData());
 
-   auto seedPtr = Asset_EncryptedData::deserialize(
+   auto seedPtr = EncryptedAssetData::deserialize(
       rootAssetRef.getSize(), rootAssetRef);
    auto ptrCast = dynamic_cast<EncryptedSeed*>(seedPtr.get());
    if (ptrCast == nullptr)
@@ -373,7 +373,7 @@ MasterKeyStruct WalletDBInterface::initWalletHeaderObject(
    */
    mks.kdf_ = make_shared<KeyDerivationFunction_Romix>();
    auto&& masterKeySBD = CryptoPRNG::generateRandom(32);
-   mks.decryptedMasterKey_ = make_shared<DecryptedEncryptionKey>(masterKeySBD);
+   mks.decryptedMasterKey_ = make_shared<ClearTextEncryptionKey>(masterKeySBD);
    mks.decryptedMasterKey_->deriveKey(mks.kdf_);
    auto&& masterEncryptionKeyId = mks.decryptedMasterKey_->getId(mks.kdf_->getId());
 
@@ -389,7 +389,7 @@ MasterKeyStruct WalletDBInterface::initWalletHeaderObject(
    */
    headerPtr->defaultEncryptionKey_ = move(CryptoPRNG::generateRandom(32));
    auto defaultKey = headerPtr->getDefaultEncryptionKey();
-   auto defaultEncryptionKeyPtr = make_unique<DecryptedEncryptionKey>(defaultKey);
+   auto defaultEncryptionKeyPtr = make_unique<ClearTextEncryptionKey>(defaultKey);
    defaultEncryptionKeyPtr->deriveKey(mks.kdf_);
    headerPtr->defaultEncryptionKeyId_ =
       defaultEncryptionKeyPtr->getId(mks.kdf_->getId());
@@ -398,12 +398,12 @@ MasterKeyStruct WalletDBInterface::initWalletHeaderObject(
    encrypt master encryption key with passphrase if present, otherwise use
    default key
    */
-   unique_ptr<DecryptedEncryptionKey> topEncryptionKey;
+   unique_ptr<ClearTextEncryptionKey> topEncryptionKey;
    if (!passphrase.empty())
    {
       //copy passphrase
       auto&& passphraseCopy = passphrase.copy();
-      topEncryptionKey = make_unique<DecryptedEncryptionKey>(passphraseCopy);
+      topEncryptionKey = make_unique<ClearTextEncryptionKey>(passphraseCopy);
    }
    else
    {
@@ -432,7 +432,7 @@ MasterKeyStruct WalletDBInterface::initWalletHeaderObject(
    /*
    create encryption key object
    */
-   mks.masterKey_ = make_shared<Asset_EncryptionKey>(masterEncryptionKeyId,
+   mks.masterKey_ = make_shared<EncryptionKey>(masterEncryptionKeyId,
       encrMasterKey, move(masterKeyCipher));
 
    /*
@@ -455,8 +455,8 @@ shared_ptr<WalletHeader_Control> WalletDBInterface::setupControlDB(
 {
    //prompt for passphrase
    SecureBinaryData passphrase;
-   if (passLbd) 
-      passphrase = passLbd(set<BinaryData>());
+   if (passLbd)
+      passphrase = passLbd({});
 
    //create control meta object
    auto headerPtr = make_shared<WalletHeader_Control>();
@@ -486,9 +486,9 @@ shared_ptr<WalletHeader_Control> WalletDBInterface::setupControlDB(
       auto&& lock = ReentrantLock(decryptedData.get());
 
       auto cipherCopy = keyStruct.cipher_->getCopy();
-      auto&& cipherText = decryptedData->encryptData(
-         cipherCopy.get(), seed);
-      auto encrSeed = make_shared<EncryptedSeed>(cipherText, move(cipherCopy));
+      auto cipherText = decryptedData->encryptData(cipherCopy.get(), seed);
+      auto cipherData = make_unique<CipherData>(cipherText, move(cipherCopy));
+      auto encrSeed = make_shared<EncryptedSeed>(move(cipherData));
 
       //write seed to disk
       auto&& tx = beginWriteTransaction(CONTROL_DB_NAME);
@@ -536,8 +536,8 @@ void WalletDBInterface::addHeader(std::shared_ptr<WalletHeader> headerPtr)
    if (dbName.size() == 0)
       throw WalletInterfaceException("empty dbname");
 
-   auto& rootEncrKey = 
-      decryptedData_->getDecryptedPrivateData(controlSeed_.get());
+   auto& rootEncrKey =
+      decryptedData_->getClearTextAssetData(controlSeed_.get());
    auto dbiPtr = make_unique<DBInterface>(
       dbEnv_.get(), dbName, headerPtr->controlSalt_, encryptionVersion_);
    dbiPtr->loadAllEntries(rootEncrKey);
@@ -924,6 +924,12 @@ WalletIfaceTransaction::WalletIfaceTransaction(
 WalletIfaceTransaction::~WalletIfaceTransaction() noexcept(false)
 {
    closeTx();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const std::string& WalletIfaceTransaction::getDbName() const
+{
+   return dbPtr_->getName();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

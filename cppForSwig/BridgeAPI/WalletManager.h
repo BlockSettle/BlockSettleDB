@@ -50,8 +50,8 @@ private:
    uint64_t spendableBalance_ = 0;
    uint64_t unconfirmedBalance_ = 0;
    uint64_t txioCount_ = 0;
-   
-   uint32_t highestUsedIndex_ = UINT32_MAX;
+
+   Armory::Wallets::AssetKeyType highestUsedIndex_ = -1;
    std::mutex stateMutex_;
 
    std::map<BinaryData, std::shared_ptr<AddressEntry>> updatedAddressMap_;
@@ -72,20 +72,8 @@ private:
    {
       wallet_ = wltPtr;
       auto mainAcc = wallet_->getAccountForID(wallet_->getMainAccountID());
-      auto&& addrMap = mainAcc->getUsedAddressMap();
-      
-      unsigned count = 0;
-      for (auto& addrPair : addrMap)
-      {
-         auto id = addrPair.second->getID();
-         auto idLast = id.getSliceRef(id.getSize() - 4, 4);
-         auto idInt = READ_UINT32_BE(idLast);
-
-         if (idInt > count)
-            count = idInt;
-      }
-
-      highestUsedIndex_ = count;
+      auto outerAccount = mainAcc->getOuterAccount();
+      highestUsedIndex_ = outerAccount->getHighestUsedIndex();
    }
 
    void eraseFromDisk(void);
@@ -155,7 +143,8 @@ public:
       wallet_->extendPublicChain(count);
    }
 
-   void extendAddressChainToIndex(const BinaryData& id, unsigned count)
+   void extendAddressChainToIndex(
+      const Armory::Wallets::AddressAccountId& id, unsigned count)
    {
       wallet_->extendPublicChainToIndex(id, count);
    }
@@ -320,16 +309,14 @@ private:
    std::shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_; 
 
 private:
-   void loadWallets(
-      const std::function<SecureBinaryData(const std::set<BinaryData>&)>&);
+   void loadWallets(const PassphraseLambda&);
 
 public:
    void initAfterLock(void) override {}
    void cleanUpBeforeUnlock(void) override {}
 
 public:
-   WalletManager(const std::string& path,
-      const std::function<SecureBinaryData(const std::set<BinaryData>&)>& passLbd) :
+   WalletManager(const std::string& path, const PassphraseLambda& passLbd) :
       path_(path)
    {
       loadWallets(passLbd);

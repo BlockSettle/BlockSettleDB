@@ -48,8 +48,11 @@ class DecryptedDataContainer : public Lockable
 private:
    struct DecryptedDataMaps
    {
-      std::map<BinaryData, std::unique_ptr<DecryptedEncryptionKey>> encryptionKeys_;
-      std::map<BinaryData, std::unique_ptr<DecryptedData>> privateData_;
+      std::map<Armory::Wallets::EncryptionKeyId,
+         std::unique_ptr<ClearTextEncryptionKey>> encryptionKeys_;
+
+      std::map<Armory::Wallets::AssetId,
+         std::unique_ptr<ClearTextAssetData>> assetData_;
    };
 
 private:
@@ -88,29 +91,30 @@ private:
    implementing large caveats to handle unencrypted use cases.
    */
    const SecureBinaryData defaultEncryptionKey_;
-   const SecureBinaryData defaultEncryptionKeyId_;
+   const Armory::Wallets::EncryptionKeyId defaultEncryptionKeyId_;
    
    const SecureBinaryData defaultKdfId_;
-   const SecureBinaryData masterEncryptionKeyId_;
+   const Armory::Wallets::EncryptionKeyId masterEncryptionKeyId_;
 
 
 protected:
-   std::map<BinaryData, std::shared_ptr<Asset_EncryptedData>> encryptionKeyMap_;
+   std::map<Armory::Wallets::EncryptionKeyId,
+      std::shared_ptr<EncryptionKey>> encryptedKeys_;
 
 private:
    PassphraseLambda getPassphraseLambda_;
 
 private:
-   std::unique_ptr<DecryptedEncryptionKey> deriveEncryptionKey(
-      std::unique_ptr<DecryptedEncryptionKey>, const BinaryData& kdfid) const;
+   std::unique_ptr<ClearTextEncryptionKey> deriveEncryptionKey(
+      std::unique_ptr<ClearTextEncryptionKey>, const BinaryData& kdfid) const;
 
-   std::unique_ptr<DecryptedEncryptionKey> promptPassphrase(
-      const std::map<BinaryData, BinaryData>&) const;
+   std::unique_ptr<ClearTextEncryptionKey> promptPassphrase(
+      const std::map<Armory::Wallets::EncryptionKeyId, BinaryData>&) const;
 
    void initAfterLock(void);
    void cleanUpBeforeUnlock(void);
 
-   const SecureBinaryData& getDefaultEncryptionKeyId(void) const
+   const Armory::Wallets::EncryptionKeyId& getDefaultEncryptionKeyId(void) const
    {
       return defaultEncryptionKeyId_;
    }
@@ -120,42 +124,44 @@ public:
       const WriteTxFuncType& getWriteTx,
       const std::string dbName,
       const SecureBinaryData& defaultEncryptionKey,
-      const BinaryData& defaultEncryptionKeyId,
+      const Armory::Wallets::EncryptionKeyId& defaultEncryptionKeyId,
       const SecureBinaryData& defaultKdfId,
-      const SecureBinaryData& masterKeyId);
+      const Armory::Wallets::EncryptionKeyId& masterKeyId);
 
-   const SecureBinaryData& getDecryptedPrivateData(
-      const std::shared_ptr<Asset_EncryptedData>& data);
-   const SecureBinaryData& getDecryptedPrivateData(
-      const Asset_EncryptedData* data);
-   const SecureBinaryData& getDecryptedPrivateData(const BinaryData&) const;
-   const BinaryData& insertDecryptedPrivateData(const uint8_t*, size_t);
+   const SecureBinaryData& getClearTextAssetData(
+      const std::shared_ptr<EncryptedAssetData>& data);
+   const SecureBinaryData& getClearTextAssetData(
+      const EncryptedAssetData* data);
+   const SecureBinaryData& getClearTextAssetData(
+      const Armory::Wallets::AssetId&) const;
+   const Armory::Wallets::AssetId& insertClearTextAssetData(
+      const uint8_t*, size_t);
 
    SecureBinaryData encryptData(
       Cipher* const cipher, const SecureBinaryData& data);
-   
-   BinaryData populateEncryptionKey(const std::map<BinaryData, BinaryData>&);
+
+   Armory::Wallets::EncryptionKeyId populateEncryptionKey(
+      const std::map<Armory::Wallets::EncryptionKeyId, BinaryData>&);
 
    void addKdf(std::shared_ptr<KeyDerivationFunction> kdfPtr)
    {
       kdfMap_.insert(std::make_pair(kdfPtr->getId(), kdfPtr));
    }
 
-   void addEncryptionKey(std::shared_ptr<Asset_EncryptionKey> keyPtr)
+   void addEncryptionKey(std::shared_ptr<EncryptionKey> keyPtr)
    {
-      encryptionKeyMap_.insert(std::make_pair(keyPtr->getId(), keyPtr));
+      encryptedKeys_.insert(std::make_pair(keyPtr->getId(), keyPtr));
    }
 
    void updateOnDisk(void);
    void updateOnDisk(std::unique_ptr<DBIfaceTransaction>);
    void readFromDisk(std::shared_ptr<DBIfaceTransaction>);
 
-   void updateKeyOnDiskNoPrefix(std::shared_ptr<DBIfaceTransaction>,
-      const BinaryData&, std::shared_ptr<Asset_EncryptedData>);
-   void updateKeyOnDisk(std::shared_ptr<DBIfaceTransaction>,
-      const BinaryData&, std::shared_ptr<Asset_EncryptedData>);
-   void deleteKeyFromDisk(std::shared_ptr<DBIfaceTransaction>, 
-      const BinaryData& key);
+   void updateOnDiskRaw(std::shared_ptr<DBIfaceTransaction>,
+      const BinaryData&, std::shared_ptr<EncryptionKey>);
+   void updateOnDisk(std::shared_ptr<DBIfaceTransaction>,
+      const Armory::Wallets::EncryptionKeyId&, std::shared_ptr<EncryptionKey>);
+   void deleteFromDisk(std::shared_ptr<DBIfaceTransaction>, const BinaryData&);
 
    void setPassphrasePromptLambda(const PassphraseLambda& lambda)
    {
@@ -165,15 +171,15 @@ public:
    void resetPassphraseLambda(void) { getPassphraseLambda_ = nullptr; }
 
    void encryptEncryptionKey(
-      const BinaryData& keyID, const BinaryData& kdfID, 
+      const Armory::Wallets::EncryptionKeyId& keyID, const BinaryData& kdfID,
       const std::function<SecureBinaryData(void)>&, bool replace = true);
    void eraseEncryptionKey(
-      const BinaryData& keyID, const BinaryData& kdfID);
+      const Armory::Wallets::EncryptionKeyId& keyID, const BinaryData& kdfID);
 
    void lockOther(std::shared_ptr<DecryptedDataContainer> other);
 
    const SecureBinaryData& getDefaultKdfId(void) const { return defaultKdfId_; }
-   const SecureBinaryData& getMasterEncryptionKeyId(void) const
+   const Armory::Wallets::EncryptionKeyId& getMasterEncryptionKeyId(void) const
    {
       return masterEncryptionKeyId_;
    }

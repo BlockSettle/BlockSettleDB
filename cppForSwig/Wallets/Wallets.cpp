@@ -12,6 +12,7 @@
 
 using namespace std;
 using namespace ArmorySigner;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +33,7 @@ AssetWallet::AssetWallet(
    {
       return ifaceCopy->beginWriteTransaction(name);
    };
-   
+
    decryptedData_ = make_shared<DecryptedDataContainer>(
       getWriteTx, dbName_,
       headerPtr->getDefaultEncryptionKey(),
@@ -79,13 +80,13 @@ shared_ptr<AddressAccount> AssetWallet::createAccount(
 
    //instantiate AddressAccount object from AccountType
    auto ifaceCopy = iface_;
-   auto account_ptr = make_shared<AddressAccount>(dbName_);
-
    auto getRootLbd = [this]()->shared_ptr<AssetEntry>
    {
       return this->getRoot();
    };
-   account_ptr->make_new(accountType, decryptedData_, move(cipher), getRootLbd);
+
+   auto account_ptr = AddressAccount::make_new(
+      dbName_, accountType, decryptedData_, move(cipher), getRootLbd);
 
    auto accID = account_ptr->getID();
    if (accounts_.find(accID) != accounts_.end())
@@ -102,15 +103,15 @@ shared_ptr<AddressAccount> AssetWallet::createAccount(
       bwKey.put_uint32_t(MAIN_ACCOUNT_KEY);
 
       BinaryWriter bwData;
-      bwData.put_var_int(mainAccount_.getSize());
-      bwData.put_BinaryData(mainAccount_);
+      mainAccount_.serializeValue(bwData);
 
       auto&& tx = iface_->beginWriteTransaction(dbName_);
       tx->insert(bwKey.getData(), bwData.getData());
    }
 
-   accounts_.insert(make_pair(accID, account_ptr));
-   return account_ptr;
+   shared_ptr<AddressAccount> sharedAcc(move(account_ptr));
+   accounts_.insert(make_pair(accID, sharedAcc));
+   return sharedAcc;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,9 +137,9 @@ string AssetWallet::getMainWalletID(shared_ptr<WalletDBInterface> iface)
 
    try
    {
-      auto&& tx = iface->beginWriteTransaction(WALLETHEADER_DBNAME);   
+      auto&& tx = iface->beginWriteTransaction(WALLETHEADER_DBNAME);
       auto dataRef = getDataRefForKey(tx.get(), bwKey.getData());
-      
+
       string idStr(dataRef.toCharPtr(), dataRef.getSize());
       return idStr;
    }
@@ -227,6 +228,7 @@ void AssetWallet_Single::readFromFile()
 
    auto uniqueTx = iface_->beginReadTransaction(dbName_);
    shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   auto walletTx = dynamic_pointer_cast<WalletIfaceTransaction>(sharedTx);
 
    {
       //main account
@@ -235,12 +237,11 @@ void AssetWallet_Single::readFromFile()
 
       try
       {
-         auto account_id = getDataRefForKey(sharedTx.get(), bwKey.getData());
-
-         mainAccount_ = account_id;
+         auto account_id = sharedTx->getDataRef(bwKey.getData());
+         mainAccount_ = AddressAccountId::deserializeValue(account_id);
       }
-      catch (NoEntryInWalletException&)
-      { }
+      catch (const IdException&)
+      {}
    }
 
    {
@@ -253,10 +254,11 @@ void AssetWallet_Single::readFromFile()
          bwKey.put_uint32_t(ROOTASSET_KEY);
          auto rootAssetRef = getDataRefForKey(sharedTx.get(), bwKey.getData());
 
-         auto asset_root = AssetEntry::deserDBValue(-1, BinaryData(), rootAssetRef);
+         auto asset_root = AssetEntry::deserDBValue(
+            AssetId::getRootAssetId(), rootAssetRef);
          root_ = dynamic_pointer_cast<AssetEntry_Single>(asset_root);
       }
-      catch(NoEntryInWalletException&)
+      catch(const NoEntryInWalletException&)
       {}
    }
 
@@ -270,9 +272,9 @@ void AssetWallet_Single::readFromFile()
          bwKey.put_uint32_t(WALLET_SEED_KEY);
          auto rootAssetRef = getDataRefForKey(sharedTx.get(), bwKey.getData());
 
-         auto seedUPtr = Asset_EncryptedData::deserialize(
+         auto seedUPtr = EncryptedAssetData::deserialize(
             rootAssetRef.getSize(), rootAssetRef);
-         shared_ptr<Asset_EncryptedData> seedSPtr(move(seedUPtr));
+         shared_ptr<EncryptedAssetData> seedSPtr(move(seedUPtr));
          auto seedObj = dynamic_pointer_cast<EncryptedSeed>(seedSPtr);
          if (seedObj == nullptr)
             throw WalletException("failed to deser wallet seed");
@@ -326,15 +328,18 @@ void AssetWallet_Single::readFromFile()
 
          try
          {
+            auto addrAccId = AddressAccountId::deserializeKey(
+               key, ADDRESS_ACCOUNT_PREFIX);
+
             //instantiate account object and read data on disk
-            auto ifaceCopy = iface_;
-            auto addressAccount = make_shared<AddressAccount>(dbName_);
-            addressAccount->readFromDisk(iface_, key);
+            auto addressAccount = AddressAccount::readFromDisk(
+               walletTx, addrAccId);
+            shared_ptr<AddressAccount> accPtr(move(addressAccount));
 
             //insert
-            accounts_.insert(make_pair(addressAccount->getID(), addressAccount));
+            accounts_.insert(make_pair(accPtr->getID(), accPtr));
          }
-         catch (exception&)
+         catch (const IdException&)
          {
             //in case of exception, the value for this key is not for an
             //account. Assume we ran out of accounts and break out.
@@ -353,7 +358,7 @@ shared_ptr<AddressEntry> AssetWallet::getNewAddress(
    AddressEntryType aeType)
 {
    /***
-   The wallet will always try to deliver an address with the requested type if 
+   The wallet will always try to deliver an address with the requested type if
    any of its accounts supports it. It will prioritize the main account, then
    try through all accounts in binary order.
    ***/
@@ -361,7 +366,7 @@ shared_ptr<AddressEntry> AssetWallet::getNewAddress(
    //lock
    ReentrantLock lock(this);
 
-   if (mainAccount_.getSize() == 0)
+   if (!mainAccount_.isValid())
       throw WalletException("no main account for wallet");
 
    auto mainAccount = getAccountForID(mainAccount_);
@@ -384,7 +389,7 @@ shared_ptr<AddressEntry> AssetWallet::getNewChangeAddress(
 {
    ReentrantLock lock(this);
 
-   if (mainAccount_.getSize() == 0)
+   if (!mainAccount_.isValid())
       throw WalletException("no main account for wallet");
 
    auto mainAccount = getAccountForID(mainAccount_);
@@ -407,7 +412,7 @@ shared_ptr<AddressEntry> AssetWallet::peekNextChangeAddress(
 {
    ReentrantLock lock(this);
 
-   if (mainAccount_.getSize() == 0)
+   if (!mainAccount_.isValid())
       throw WalletException("no main account for wallet");
 
    auto mainAccount = getAccountForID(mainAccount_);
@@ -426,30 +431,32 @@ shared_ptr<AddressEntry> AssetWallet::peekNextChangeAddress(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::updateAddressEntryType(
-   const BinaryData& assetID, AddressEntryType aeType)
+   const AssetId& assetID, AddressEntryType aeType)
 {
    ReentrantLock lock(this);
 
-   auto accPtr = getAccountForID(assetID);
+   auto accPtr = getAccountForID(assetID.getAddressAccountId());
    accPtr->updateInstantiatedAddressType(iface_, assetID, aeType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressEntry> AssetWallet::getNewAddress(
-   const BinaryData& accountID, AddressEntryType aeType)
+   const AddressAccountId& accountID, AddressEntryType aeType)
 {
    ReentrantLock lock(this);
 
    auto account = getAccountForID(accountID);
-   if (accountID.getSize() == 4)
-   {
-      return account->getNewAddress(iface_, aeType);
-   }
-   else
-   {
-      return account->getNewAddress(
-         iface_, accountID.getSliceRef(4, 4), aeType);
-   }
+   return account->getNewAddress(iface_, aeType);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<AddressEntry> AssetWallet::getNewAddress(
+   const AssetAccountId& accountID, AddressEntryType aeType)
+{
+   ReentrantLock lock(this);
+
+   auto account = getAccountForID(accountID.getAddressAccountId());
+   return account->getNewAddress(iface_, accountID, aeType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -483,7 +490,7 @@ bool AssetWallet::hasScrAddr(const BinaryData& scrAddr) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const pair<BinaryData, AddressEntryType>& 
+const pair<AssetId, AddressEntryType>& 
    AssetWallet::getAssetIDForAddrStr(const string& addrStr) const
 {
    //this takes b58 or bech32 addresses
@@ -505,7 +512,7 @@ const pair<BinaryData, AddressEntryType>&
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const pair<BinaryData, AddressEntryType>&
+const pair<AssetId, AddressEntryType>&
    AssetWallet::getAssetIDForScrAddr(const BinaryData& scrAddr) const
 {
    //this takes prefixed hashes
@@ -529,27 +536,26 @@ const pair<BinaryData, AddressEntryType>&
 
 
 ////////////////////////////////////////////////////////////////////////////////
-AddressEntryType AssetWallet::getAddrTypeForID(const BinaryData& ID)
+AddressEntryType AssetWallet::getAddrTypeForID(const AssetId& id) const
 {
    ReentrantLock lock(this);
    
-   auto addrPtr = getAddressEntryForID(ID);
+   auto addrPtr = getAddressEntryForID(id);
    return addrPtr->getType();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressAccount> AssetWallet::getAccountForID(
-   const BinaryData& ID) const
+   const AddressAccountId& id) const
 {
-   if (ID.getSize() < 4)
-      throw WalletException("invalid account id");
+   if (!id.isValid())
+      throw WalletException("[getAccountForID] invalid account id");
 
    ReentrantLock lock(this);
 
-   auto idRef = ID.getSliceRef(0, 4);
-   auto iter = accounts_.find(idRef);
+   auto iter = accounts_.find(id);
    if (iter == accounts_.end())
-      throw WalletException("unknown account ID");
+      throw WalletException("[getAccountForID] unknown account ID");
 
    return iter->second;
 }
@@ -578,23 +584,23 @@ void AssetWallet::shutdown()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-AddressEntryType AssetWallet::getAddrTypeForAccount(const BinaryData& ID)
+AddressEntryType AssetWallet::getAddrTypeForAccount(const AssetId& id) const
 {
-   auto acc = getAccountForID(ID);
+   auto acc = getAccountForID(id.getAddressAccountId());
    return acc->getAddressType();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressEntry> AssetWallet::getAddressEntryForID(
-   const BinaryData& ID) const
+   const AssetId& id) const
 {
    ReentrantLock lock(this);
 
-   if (ID.getSize() != 12)
+   if (!id.isValid())
       throw WalletException("invalid asset id");
 
-   auto accPtr = getAccountForID(ID);
-   return accPtr->getAddressEntryForID(ID.getRef());
+   auto accPtr = getAccountForID(id.getAddressAccountId());
+   return accPtr->getAddressEntryForID(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -615,15 +621,15 @@ set<BinaryData> AssetWallet::getAddrHashSet()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry> AssetWallet::getAssetForID(const BinaryData& ID) const
+shared_ptr<AssetEntry> AssetWallet::getAssetForID(const AssetId& id) const
 {
-   if (ID.getSize() < 8)
+   if (!id.isValid())
       throw WalletException("invalid asset ID");
 
    ReentrantLock lock(this);
 
-   auto acc = getAccountForID(ID);
-   return acc->getAssetForID(ID.getSliceRef(4, ID.getSize() - 4));
+   auto acc = getAccountForID(id.getAddressAccountId());
+   return acc->getAssetForID(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -672,7 +678,7 @@ void AssetWallet::extendPrivateChain(unsigned count)
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::extendPublicChainToIndex(
-   const BinaryData& account_id, unsigned count)
+   const AddressAccountId& account_id, unsigned count)
 {
    auto account = getAccountForID(account_id);
    account->extendPublicChainToIndex(iface_,
@@ -681,7 +687,7 @@ void AssetWallet::extendPublicChainToIndex(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::extendPrivateChainToIndex(
-   const BinaryData& account_id, unsigned count)
+   const AddressAccountId& account_id, unsigned count)
 {
    auto account = getAccountForID(account_id);
    account->extendPrivateChainToIndex(
@@ -713,13 +719,19 @@ void AssetWallet::addSubDB(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<DBIfaceTransaction> AssetWallet::beginSubDBTransaction(
+shared_ptr<WalletIfaceTransaction> AssetWallet::beginSubDBTransaction(
    const string& dbName, bool write)
 {
+   shared_ptr<DBIfaceTransaction> tx;
    if (!write)
-      return iface_->beginReadTransaction(dbName);
+      tx = iface_->beginReadTransaction(dbName);
    else
-      return iface_->beginWriteTransaction(dbName);
+      tx = iface_->beginWriteTransaction(dbName);
+
+   auto wltTx = dynamic_pointer_cast<WalletIfaceTransaction>(tx);
+   if (wltTx == nullptr)
+      throw WalletException("[beginSubDBTransaction] invalid dbtx type");
+   return wltTx;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -904,9 +916,9 @@ string AssetWallet::forkWatchingOnly(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-set<BinaryData> AssetWallet::getAccountIDs(void) const
+set<AddressAccountId> AssetWallet::getAccountIDs(void) const
 {
-   set<BinaryData> result;
+   set<AddressAccountId> result;
    for (auto& accPtr : accounts_)
       result.insert(accPtr.second->getID());
 
@@ -914,13 +926,13 @@ set<BinaryData> AssetWallet::getAccountIDs(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-map<BinaryData, shared_ptr<AddressEntry>> AssetWallet::getUsedAddressMap() const
+map<AssetId, shared_ptr<AddressEntry>> AssetWallet::getUsedAddressMap() const
 {
    /***
    This is an expensive call, do not spam it.
    ***/
 
-   map<BinaryData, shared_ptr<AddressEntry>> result;
+   map<AssetId, shared_ptr<AddressEntry>> result;
    for (auto& account : accounts_)
    {
       auto&& addrMap = account.second->getUsedAddressMap();
@@ -1039,7 +1051,7 @@ void AssetWallet::eraseFromDisk(AssetWallet* wltPtr)
 //// AssetWallet_Single
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AssetWallet_Single::createBIP32Account(
+const AddressAccountId& AssetWallet_Single::createBIP32Account(
    std::shared_ptr<AccountType_BIP32> accTypePtr)
 {
    auto accountPtr = createAccount(accTypePtr);
@@ -1090,8 +1102,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    /*
    Create control passphrase lambda. It gets wiped after the wallet is setup
    */
-   auto controlPassLbd = 
-      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
+   auto controlPassLbd =
+      [&controlPassphrase](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return controlPassphrase;
    };
@@ -1112,7 +1124,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
          chaincodeCopy);
 
       auto asset_single = make_shared<AssetEntry_Single>(
-         ROOT_ASSETENTRY_ID, BinaryData(), 
+         AssetId::getRootAssetId(),
          pubkey, nullptr);
 
       walletID = move(computeWalletID(derScheme, asset_single));
@@ -1122,10 +1134,10 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    auto walletPtr = initWalletDb(
       iface,
       masterID, walletID,
-      passphrase, 
+      passphrase,
       controlPassphrase,
-      privateRoot, 
-      chaincode, 
+      privateRoot,
+      chaincode,
       0); //pass 0 for the fingerprint to signal legacy wallet
 
    //set as main
@@ -1139,7 +1151,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    {
       //custom passphrase, set prompt lambda for the chain extention
       auto passphraseLambda =
-         [&passphrase](const set<BinaryData>&)->SecureBinaryData
+         [&passphrase](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return passphrase;
       };
@@ -1173,7 +1185,7 @@ createFromPublicRoot_Armory135(
    Create control passphrase lambda. It gets wiped after the wallet is setup
    */
    auto controlPassLbd = 
-      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
+      [&controlPassphrase](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return controlPassphrase;
    };
@@ -1192,7 +1204,7 @@ createFromPublicRoot_Armory135(
          chainCode_copy);
 
       rootPtr = make_shared<AssetEntry_ArmoryLegacyRoot>(
-         ROOT_ASSETENTRY_ID, BinaryData(),
+         AssetId::getRootAssetId(),
          pubRoot, nullptr, chainCode);
 
       walletID = move(computeWalletID(derScheme, rootPtr));
@@ -1245,12 +1257,12 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
 
       //nodes
       legacyAcc->setNodes({
-         BIP32_OUTER_ACCOUNT_DERIVATIONID, 
+         BIP32_OUTER_ACCOUNT_DERIVATIONID,
          BIP32_INNER_ACCOUNT_DERIVATIONID});
       legacyAcc->setOuterAccountID(
-         WRITE_UINT32_BE(BIP32_OUTER_ACCOUNT_DERIVATIONID));
+         BIP32_OUTER_ACCOUNT_DERIVATIONID);
       legacyAcc->setInnerAccountID(
-         WRITE_UINT32_BE(BIP32_INNER_ACCOUNT_DERIVATIONID));
+         BIP32_INNER_ACCOUNT_DERIVATIONID);
 
       //lookup
       legacyAcc->setAddressLookup(lookup);
@@ -1273,12 +1285,12 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
          
       //nodes
       nestedAcc->setNodes({
-         BIP32_OUTER_ACCOUNT_DERIVATIONID, 
+         BIP32_OUTER_ACCOUNT_DERIVATIONID,
          BIP32_INNER_ACCOUNT_DERIVATIONID});
       nestedAcc->setOuterAccountID(
-         WRITE_UINT32_BE(BIP32_OUTER_ACCOUNT_DERIVATIONID));
+         BIP32_OUTER_ACCOUNT_DERIVATIONID);
       nestedAcc->setInnerAccountID(
-         WRITE_UINT32_BE(BIP32_INNER_ACCOUNT_DERIVATIONID));
+         BIP32_INNER_ACCOUNT_DERIVATIONID);
 
       //lookup
       nestedAcc->setAddressLookup(lookup);
@@ -1300,12 +1312,12 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
 
       //nodes
       segwitAcc->setNodes({
-         BIP32_OUTER_ACCOUNT_DERIVATIONID, 
+         BIP32_OUTER_ACCOUNT_DERIVATIONID,
          BIP32_INNER_ACCOUNT_DERIVATIONID});
       segwitAcc->setOuterAccountID(
-         WRITE_UINT32_BE(BIP32_OUTER_ACCOUNT_DERIVATIONID));
+         BIP32_OUTER_ACCOUNT_DERIVATIONID);
       segwitAcc->setInnerAccountID(
-         WRITE_UINT32_BE(BIP32_INNER_ACCOUNT_DERIVATIONID));
+         BIP32_INNER_ACCOUNT_DERIVATIONID);
 
       //lookup
       segwitAcc->setAddressLookup(lookup);
@@ -1319,9 +1331,9 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
 
 
    auto walletPtr = createFromBIP32Node(
-      rootNode, 
-      accountTypes, 
-      passphrase, 
+      rootNode,
+      accountTypes,
+      passphrase,
       controlPassphrase,
       folder);
 
@@ -1387,7 +1399,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
    Create control passphrase lambda. It gets wiped after the wallet is setup
    */
    auto controlPassLbd = 
-      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
+      [&controlPassphrase](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return controlPassphrase;
    };
@@ -1409,7 +1421,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
          make_shared<DerivationScheme_ArmoryLegacy>(chaincode_copy);
 
       auto asset_single = make_shared<AssetEntry_Single>(
-         ROOT_ASSETENTRY_ID, BinaryData(),
+         AssetId::getRootAssetId(),
          pubkey, nullptr);
 
       walletID = move(computeWalletID(derScheme, asset_single));
@@ -1439,7 +1451,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
 
    //add accounts
    auto passLbd = 
-      [&passphrase](const set<BinaryData>&)->SecureBinaryData
+      [&passphrase](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return passphrase;
    };
@@ -1463,7 +1475,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createBlank(
    Create control passphrase lambda. It gets wiped after the wallet is setup
    */
    auto controlPassLbd = 
-      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
+      [&controlPassphrase](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return controlPassphrase;
    };
@@ -1532,15 +1544,18 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    auto&& pubkey = CryptoECDSA().ComputePublicKey(privateRoot);
 
    //create encrypted object
+   AssetId rootAssetId = AssetId::getRootAssetId();
+   auto cipherData = make_unique<CipherData>(
+      encryptedRoot, move(rootCipher));
    auto rootAsset = make_shared<Asset_PrivateKey>(
-      WRITE_UINT32_BE(UINT32_MAX), encryptedRoot, move(rootCipher));
+      rootAssetId, move(cipherData));
 
    unique_ptr<AssetEntry> rootAssetEntry;
    if (seedFingerprint != 0)
    {
       //bip32 root
       rootAssetEntry = make_unique<AssetEntry_BIP32Root>(
-         -1, BinaryData(),
+         rootAssetId,
          pubkey, rootAsset,
          chaincode, 0, 0, 0, seedFingerprint, vector<uint32_t>());
    }
@@ -1548,7 +1563,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    {
       //legacy armory root
       rootAssetEntry = make_unique<AssetEntry_ArmoryLegacyRoot>(
-         -1, BinaryData(),
+         rootAssetId,
          pubkey, rootAsset, chaincode);
    }
 
@@ -1560,7 +1575,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    walletPtr->decryptedData_->addEncryptionKey(masterKeyStruct.masterKey_);
 
    auto controlPassLbd = 
-      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
+      [&controlPassphrase](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return controlPassphrase;
    };
@@ -1620,7 +1635,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbWithPubRoot(
    auto walletPtr = make_shared<AssetWallet_Single>(iface, headerPtr, masterID);
 
    auto controlPassLbd = 
-      [&controlPassphrase](const set<BinaryData>&)->SecureBinaryData
+      [&controlPassphrase](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return controlPassphrase;
    };
@@ -1658,10 +1673,10 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbWithPubRoot(
 
 ////////////////////////////////////////////////////////////////////////////////
 const SecureBinaryData& AssetWallet_Single::getDecryptedValue(
-   shared_ptr<Asset_EncryptedData> assetPtr)
+   shared_ptr<EncryptedAssetData> assetPtr)
 {
    //have to lock the decryptedData object before calling this method
-   return decryptedData_->getDecryptedPrivateData(assetPtr);
+   return decryptedData_->getClearTextAssetData(assetPtr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1671,8 +1686,8 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
    auto assetPrivKey = assetPtr->getPrivKey();
 
    if (assetPrivKey == nullptr)
-   {      
-      auto account = getAccountForID(assetPtr->getAccountID());
+   {
+      auto account = getAccountForID(assetPtr->getID().getAddressAccountId());
       assetPrivKey = account->fillPrivateKey(iface_,
          decryptedData_, assetPtr->getID());
    }
@@ -1681,7 +1696,7 @@ const SecureBinaryData& AssetWallet_Single::getDecryptedPrivateKeyForAsset(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AssetWallet_Single::derivePrivKeyFromPath(
+const AssetId& AssetWallet_Single::derivePrivKeyFromPath(
    const BIP32_AssetPath& path)
 {
    auto derPath = path.getDerivationPathFromSeed();
@@ -1697,11 +1712,12 @@ const BinaryData& AssetWallet_Single::derivePrivKeyFromPath(
       throw runtime_error("root mismatch");
 
    //decrypt root
-   auto privKey = decryptedData_->getDecryptedPrivateData(rootBip32->getPrivKey());
+   auto privKey = decryptedData_->getClearTextAssetData(
+      rootBip32->getPrivKey());
    auto chaincode = rootBip32->getChaincode();
 
    //derive
-   auto hdNode = 
+   auto hdNode =
       BIP32_Node::getHDNodeFromPrivateKey(0, 0, 0, privKey, chaincode);
 
    for (unsigned i=0; i<derPath.size(); i++)
@@ -1711,15 +1727,15 @@ const BinaryData& AssetWallet_Single::derivePrivKeyFromPath(
    }
 
    //add to decrypted data container and return id
-   return decryptedData_->insertDecryptedPrivateData(
+   return decryptedData_->insertClearTextAssetData(
       hdNode.private_key, BTC_ECKEY_PKEY_LENGTH);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 const SecureBinaryData& AssetWallet_Single::getDecrypedPrivateKeyForId(
-   const BinaryData& id) const
+   const AssetId& id) const
 {
-   return decryptedData_->getDecryptedPrivateData(id);
+   return decryptedData_->getClearTextAssetData(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1786,43 +1802,11 @@ const SecureBinaryData& AssetWallet_Single::getArmory135Chaincode() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry> 
-   AssetWallet_Single::getMainAccountAssetForIndex(unsigned id) const
-{
-   auto account = getAccountForID(mainAccount_);
-   if (account == nullptr)
-      throw WalletException("failed to grab main account");
-
-   return account->getOutterAssetForIndex(id);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-unsigned AssetWallet_Single::getMainAccountAssetCount(void) const
-{
-   /* used in unit tests */
-   auto account = getAccountForID(mainAccount_);
-   if (account == nullptr)
-      throw WalletException("failed to grab main account");
-
-   auto asset_account = account->getOuterAccount();
-   return asset_account->getAssetCount();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry> AssetWallet_Single::getAccountRoot(
-   const BinaryData& id) const
-{
-   auto account = getAccountForID(id);
-   if (account == nullptr)
-      throw WalletException("failed to grab main account");
-
-   return account->getOutterAssetRoot();
-}
-
-////////////////////////////////////////////////////////////////////////////////
 void AssetWallet_Single::importPublicData(
    const WalletPublicData& wpd, std::shared_ptr<WalletDBInterface> iface)
 {
+   //TODO: merging from exported data
+
    //open the relevant db name
    auto&& tx = iface->beginWriteTransaction(wpd.dbName_);
 
@@ -1831,15 +1815,14 @@ void AssetWallet_Single::importPublicData(
    headerPtr->walletID_ = wpd.walletID_;
    auto wltWO = make_unique<AssetWallet_Single>(iface, headerPtr, wpd.masterID_);
 
-   if (!wpd.mainAccountID_.empty())
+   if (wpd.mainAccountID_.isValid())
    {
       //main account
       BinaryWriter bwKey;
       bwKey.put_uint32_t(MAIN_ACCOUNT_KEY);
 
       BinaryWriter bwData;
-      bwData.put_var_int(wpd.mainAccountID_.getSize());
-      bwData.put_BinaryData(wpd.mainAccountID_);
+      wpd.mainAccountID_.serializeValue(bwData);
       tx->insert(bwKey.getData(), bwData.getData());
    }
 
@@ -1862,7 +1845,7 @@ void AssetWallet_Single::importPublicData(
       const auto& accData = accPair.second;
 
       //guess address account type
-      auto outerAccIter = accData.accountDataMap_.find(accData.outerAccount_);
+      auto outerAccIter = accData.accountDataMap_.find(accData.outerAccountId_);
       if (outerAccIter == accData.accountDataMap_.end())
       {
          throw WalletException("[importPublicData] "
@@ -1905,7 +1888,8 @@ void AssetWallet_Single::importPublicData(
          {
             //deser the root
             auto accRootData = DBUtils::getDataRefForPacket(acc.second.rootData_);
-            auto accRoot = AssetEntry::deserDBValue(-1, {}, accRootData);
+            auto accRoot = AssetEntry::deserDBValue(
+               AssetId::getRootAssetId(), accRootData);
             auto accRootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(
                accRoot);
             if (accRootBip32 == nullptr)
@@ -1954,8 +1938,10 @@ void AssetWallet_Single::importPublicData(
          accTypeBip32->setDefaultAddressType(accData.defaultAddressEntryType_);
 
          //account ids
-         accTypeBip32->setOuterAccountID(accData.outerAccount_);
-         accTypeBip32->setInnerAccountID(accData.innerAccount_);
+         accTypeBip32->setOuterAccountID(
+            accData.outerAccountId_.getAssetAccountKey());
+         accTypeBip32->setInnerAccountID(
+            accData.innerAccountId_.getAssetAccountKey());
 
          accTypePtr = accTypeBip32;
          break;
@@ -1971,7 +1957,8 @@ void AssetWallet_Single::importPublicData(
 
          const auto& adm = accData.accountDataMap_.begin()->second;
          auto accRootData = DBUtils::getDataRefForPacket(adm.rootData_);
-         auto accRoot = AssetEntry::deserDBValue(-1, {}, accRootData);
+         auto accRoot = AssetEntry::deserDBValue(
+            AssetId::getRootAssetId(), accRootData);
          auto accRootEcdh = dynamic_pointer_cast<AssetEntry_Single>(accRoot);
          if (accRootEcdh == nullptr)
          {
@@ -2029,8 +2016,8 @@ void AssetWallet_Single::importPublicData(
          ++accDataIter;
       }
 
-      if (newAcc->outerAccount_ != accData.outerAccount_ ||
-         newAcc->innerAccount_ != accData.innerAccount_)
+      if (newAcc->outerAccountId_ != accData.outerAccountId_ ||
+         newAcc->innerAccountId_ != accData.innerAccountId_)
       {
          throw WalletException("[importPublicData] "
             "Mismtach in outer/inner accounts");
@@ -2056,7 +2043,12 @@ void AssetWallet_Single::importPublicData(
 WalletPublicData AssetWallet_Single::exportPublicData(
    shared_ptr<AssetWallet_Single> wlt)
 {
-   WalletPublicData wpd;
+   WalletPublicData wpd{
+      wlt->dbName_,
+      wlt->masterID_,
+      wlt->walletID_,
+      wlt->mainAccount_
+   };
 
    //root
    if (wlt->root_ != nullptr)
@@ -2075,12 +2067,6 @@ WalletPublicData AssetWallet_Single::exportPublicData(
       auto accCopy = metaAccPtr.second->copy(wlt->dbName_);
       wpd.metaAccounts_.emplace(accCopy->getType(), accCopy);
    }
-
-   //header data
-   wpd.dbName_ = wlt->dbName_;
-   wpd.walletID_ = wlt->walletID_;
-   wpd.masterID_ = wlt->masterID_;
-   wpd.mainAccountID_ = wlt->mainAccount_;
 
    return wpd;
 }
@@ -2102,7 +2088,7 @@ void AssetWallet_Single::setSeed(
    if (passphrase.getSize() > 0)
    {
       auto passphraseLambda =
-         [&passphrase](const set<BinaryData>&)->SecureBinaryData
+         [&passphrase](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return passphrase;
       };
@@ -2114,8 +2100,9 @@ void AssetWallet_Single::setSeed(
    {
       auto lock = lockDecryptedContainer();
 
-      auto&& cipherText = decryptedData_->encryptData(cipherCopy.get(), seed);
-      seed_ = make_shared<EncryptedSeed>(cipherText, move(cipherCopy));
+      auto cipherText = decryptedData_->encryptData(cipherCopy.get(), seed);
+      auto cipherData = make_unique<CipherData>(cipherText, move(cipherCopy));
+      seed_ = make_shared<EncryptedSeed>(move(cipherData));
    }
 
    //write to disk
@@ -2155,8 +2142,8 @@ BIP32_AssetPath AssetWallet_Single::getBip32PathForAsset(
    shared_ptr<AssetEntry> asset) const
 {
    const auto& id = asset->getID();
-   if (id.getSize() != 12)
-      throw WalletException("invalid asset id length");
+   if (!id.isValid())
+      throw WalletException("invalid asset id");
 
    auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(asset);
    if (assetSingle == nullptr)
@@ -2168,14 +2155,9 @@ BIP32_AssetPath AssetWallet_Single::getBip32PathForAsset(
 
    const auto& pubkey = pubKeyPtr->getCompressedKey();
    
-   auto account = getAccountForID(id);
+   auto account = getAccountForID(id.getAddressAccountId());
    auto accountRoot = account->getBip32RootForAssetId(id);
    auto accountPath = accountRoot->getDerivationPath();
-
-   //asset step
-   BinaryRefReader brr(id.getRef());
-   brr.advance(8);
-   auto assetStep = brr.get_uint32_t(BE);
 
    //get root
    auto rootBip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(root_);
@@ -2187,21 +2169,21 @@ BIP32_AssetPath AssetWallet_Single::getBip32PathForAsset(
       */
 
       auto rootObj = make_shared<BIP32_PublicDerivedRoot>(
-         accountRoot->getXPub(), 
-         accountPath, 
+         accountRoot->getXPub(),
+         accountPath,
          accountRoot->getSeedFingerprint(true));
 
       return BIP32_AssetPath(
          pubkey,
-         { assetStep }, 
-         accountRoot->getThisFingerprint(), 
+         { (uint32_t)id.getAssetKey() },
+         accountRoot->getThisFingerprint(),
          rootObj);
    }
    else
    {
       //wallet has a root, build path from that
       auto rootPath = accountRoot->getDerivationPath();
-      rootPath.push_back(assetStep);
+      rootPath.push_back(id.getAssetKey());
 
       return BIP32_AssetPath(
          pubkey,
@@ -2212,19 +2194,14 @@ BIP32_AssetPath AssetWallet_Single::getBip32PathForAsset(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-string AssetWallet_Single::getXpubForAssetID(const BinaryData& id) const
+string AssetWallet_Single::getXpubForAssetID(const AssetId& id) const
 {
-   if (id.getSize() != 12)
-      throw WalletException("unexpected asset id length");
-
-   BinaryRefReader brrId(id.getRef());
-   brrId.advance(4);
-   auto accountID = brrId.get_BinaryData(4);
-   auto assetID = brrId.get_uint32_t(BE);
+   if (!id.isValid())
+      throw WalletException("invalid asset id");
 
    //grab account
-   auto addrAccount = getAccountForID(id);
-   auto accountPtr = addrAccount->getAccountForID(accountID);
+   auto addrAccount = getAccountForID(id.getAddressAccountId());
+   auto accountPtr = addrAccount->getAccountForID(id);
 
    //setup bip32 node from root pubkey
    auto root = dynamic_pointer_cast<AssetEntry_BIP32Root>(
@@ -2238,7 +2215,7 @@ string AssetWallet_Single::getXpubForAssetID(const BinaryData& id) const
       root->getPubKey()->getCompressedKey(), root->getChaincode());
 
    //derive with asset's step
-   node.derivePublic(assetID);
+   node.derivePublic(id.getAssetKey());
 
    auto b58sbd = node.getBase58();
    return string(b58sbd.getCharPtr(), b58sbd.getSize());
@@ -2318,7 +2295,7 @@ void AssetWallet_Multisig::readFromFile()
 
 ////////////////////////////////////////////////////////////////////////////////
 const SecureBinaryData& AssetWallet_Multisig::getDecryptedValue(
-   shared_ptr<Asset_EncryptedData> assetPtr)
+   shared_ptr<EncryptedAssetData> assetPtr)
 {
-   return decryptedData_->getDecryptedPrivateData(assetPtr);
+   return decryptedData_->getClearTextAssetData(assetPtr);
 }

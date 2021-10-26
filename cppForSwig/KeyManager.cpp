@@ -19,6 +19,8 @@
 #define CLIENT_FILE "client.peers"
 
 using namespace std;
+using namespace Armory::Wallets;
+
 vector<string> names;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,7 +150,7 @@ int processArgs(map<string, string> args)
    }
    else
    {
-      passLbd = [](const set<BinaryData>&)->SecureBinaryData 
+      passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData 
       { return SecureBinaryData(); };
    }
 

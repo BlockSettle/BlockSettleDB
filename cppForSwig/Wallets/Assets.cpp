@@ -8,8 +8,8 @@
 
 #include "Assets.h"
 #include "BtcUtils.h"
+#include "DBUtils.h"
 #include "ScriptRecipient.h"
-#include "make_unique.h"
 #include "BIP32_Node.h"
 
 #define ASSET_VERSION                  0x00000001
@@ -33,14 +33,14 @@
 #define COMMENT_DATA_VERSION           0x00000001
 
 using namespace std;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 //// DecryptedData
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-void DecryptedEncryptionKey::deriveKey(
-   shared_ptr<KeyDerivationFunction> kdf)
+void ClearTextEncryptionKey::deriveKey(shared_ptr<KeyDerivationFunction> kdf)
 {
    if (derivedKeys_.find(kdf->getId()) != derivedKeys_.end())
       return;
@@ -51,11 +51,10 @@ void DecryptedEncryptionKey::deriveKey(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<DecryptedEncryptionKey>
-DecryptedEncryptionKey::copy() const
+unique_ptr<ClearTextEncryptionKey> ClearTextEncryptionKey::copy() const
 {
    auto key_copy = rawKey_;
-   auto copy_ptr = make_unique<DecryptedEncryptionKey>(key_copy);
+   auto copy_ptr = make_unique<ClearTextEncryptionKey>(key_copy);
 
    copy_ptr->derivedKeys_ = derivedKeys_;
 
@@ -63,18 +62,18 @@ DecryptedEncryptionKey::copy() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData DecryptedEncryptionKey::getId(
+EncryptionKeyId ClearTextEncryptionKey::getId(
    const BinaryData& kdfId) const
 {
    const auto keyIter = derivedKeys_.find(kdfId);
    if (keyIter == derivedKeys_.end())
       throw runtime_error("couldn't find derivation for kdfid");
 
-   return move(computeId(keyIter->second));
+   return computeId(keyIter->second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData DecryptedEncryptionKey::computeId(
+EncryptionKeyId ClearTextEncryptionKey::computeId(
    const SecureBinaryData& key) const
 {
    //treat value as scalar, get pubkey for it
@@ -82,11 +81,12 @@ BinaryData DecryptedEncryptionKey::computeId(
    auto&& pubkey = CryptoECDSA().ComputePublicKey(hashedKey);
 
    //HMAC the pubkey, get last 16 bytes as ID
-   return BtcUtils::computeDataId(pubkey, HMAC_KEY_ENCRYPTIONKEYS);
+   return EncryptionKeyId(
+      BtcUtils::computeDataId(pubkey, HMAC_KEY_ENCRYPTIONKEYS));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& DecryptedEncryptionKey::getDerivedKey(
+const SecureBinaryData& ClearTextEncryptionKey::getDerivedKey(
    const BinaryData& id) const
 {
    auto iter = derivedKeys_.find(id);
@@ -167,13 +167,21 @@ AssetEntry::~AssetEntry(void)
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
+AssetKeyType AssetEntry::getIndex(void) const
+{
+   return ID_.getAssetKey();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const AssetAccountId AssetEntry::getAccountID(void) const
+{
+   return ID_.getAssetAccountId();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 BinaryData AssetEntry::getDbKey() const
 {
-   BinaryWriter bw;
-   bw.put_uint8_t(ASSETENTRY_PREFIX);
-   bw.put_BinaryData(ID_);
-
-   return bw.getData();
+   return ID_.getSerializedKey(ASSETENTRY_PREFIX);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,21 +198,15 @@ shared_ptr<AssetEntry> AssetEntry::deserialize(
    if (prefix != ASSETENTRY_PREFIX)
       throw AssetException("unexpected asset entry prefix");
 
-   auto accountID = brrKey.get_BinaryData(brrKey.getSizeRemaining() - 4);
-   auto index = brrKey.get_int32_t(BE);
-
-   if (brrKey.getSizeRemaining() != 0)
-      throw AssetException("invalid AssetEntry db key");
-
-   auto assetPtr = deserDBValue(index, accountID, value);
+   AssetId assetId(brrKey.get_BinaryDataRef(brrKey.getSizeRemaining()));
+   auto assetPtr = deserDBValue(assetId, value);
    assetPtr->doNotCommit();
    return assetPtr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry> AssetEntry::deserDBValue(
-   AssetKeyType index, const BinaryData& account_id,
-   BinaryDataRef value)
+   const AssetId& assetId, BinaryDataRef value)
 {
    BinaryRefReader brrVal(value);
 
@@ -297,9 +299,9 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
                if (privKeyPtr != nullptr)
                   throw AssetException("multiple priv keys for entry");
 
-               auto keyUPtr = Asset_EncryptedData::deserialize(
+               auto keyUPtr = EncryptedAssetData::deserialize(
                   datapair.first, datapair.second);
-               shared_ptr<Asset_EncryptedData> keySPtr(move(keyUPtr));
+               shared_ptr<EncryptedAssetData> keySPtr(move(keyUPtr));
 
                privKeyPtr = dynamic_pointer_cast<Asset_PrivateKey>(keySPtr);
                if (privKeyPtr == nullptr)
@@ -335,7 +337,7 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
          getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
 
          auto addrEntry = make_shared<AssetEntry_Single>(
-            index, account_id,
+            assetId,
             pubKeyUncompressed, pubKeyCompressed, privKeyPtr);
 
          addrEntry->doNotCommit();
@@ -382,18 +384,18 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
          if (!pubKeyCompressed.empty())
          {
             rootEntry = make_shared<AssetEntry_BIP32Root>(
-            index, account_id,
-            pubKeyCompressed, privKeyPtr,
-            chaincode, depth, leafid, fingerprint, seedFingerprint,
-            derPath);
+               assetId,
+               pubKeyCompressed, privKeyPtr,
+               chaincode, depth, leafid, fingerprint, seedFingerprint,
+               derPath);
          }
          else
          {
             rootEntry = make_shared<AssetEntry_BIP32Root>(
-            index, account_id,
-            pubKeyUncompressed, privKeyPtr,
-            chaincode, depth, leafid, fingerprint, seedFingerprint,
-            derPath);
+               assetId,
+               pubKeyUncompressed, privKeyPtr,
+               chaincode, depth, leafid, fingerprint, seedFingerprint,
+               derPath);
          }
 
          rootEntry->doNotCommit();
@@ -423,7 +425,7 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
          getKeyData(brrVal, privKeyPtr, pubKeyCompressed, pubKeyUncompressed);
 
          auto rootEntry = make_shared<AssetEntry_ArmoryLegacyRoot>(
-            index, account_id,
+            assetId,
             pubKeyCompressed, privKeyPtr,
             chaincode);
 
@@ -513,7 +515,7 @@ bool AssetEntry_Single::hasPrivateKey() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AssetEntry_Single::getPrivateEncryptionKeyId() const
+const EncryptionKeyId& AssetEntry_Single::getPrivateEncryptionKeyId() const
 {
    if (!hasPrivateKey())
       throw runtime_error("no private key in this asset");
@@ -548,7 +550,7 @@ bool AssetEntry_Multisig::hasPrivateKey() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AssetEntry_Multisig::getPrivateEncryptionKeyId(void) const
+const EncryptionKeyId& AssetEntry_Multisig::getPrivateEncryptionKeyId() const
 {
    if (assetMap_.size() != n_)
       throw runtime_error("missing asset entries");
@@ -556,7 +558,7 @@ const BinaryData& AssetEntry_Multisig::getPrivateEncryptionKeyId(void) const
    if (!hasPrivateKey())
       throw runtime_error("no private key in this asset");
 
-   set<BinaryDataRef> idSet;
+   set<EncryptionKeyId> idSet;
 
    for (auto& asset_pair : assetMap_)
    {
@@ -565,22 +567,19 @@ const BinaryData& AssetEntry_Multisig::getPrivateEncryptionKeyId(void) const
       if (asset_single == nullptr)
          throw runtime_error("unexpected asset entry type");
 
-      idSet.insert(asset_pair.second->getPrivateEncryptionKeyId().getRef());
+      idSet.insert(asset_pair.second->getPrivateEncryptionKeyId());
    }
 
    if (idSet.size() != 1)
       throw runtime_error("wallets use different encryption keys");
 
-   return assetMap_.begin()->second->getPrivateEncryptionKeyId();
+   return *idSet.begin();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry_Single> AssetEntry_Single::getPublicCopy()
 {
-   auto woCopy = make_shared<AssetEntry_Single>(
-      index_, getAccountID(), pubkey_, nullptr);
-
-   return woCopy;
+   return make_shared<AssetEntry_Single>(getID(), pubkey_, nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -588,16 +587,15 @@ shared_ptr<AssetEntry_Single> AssetEntry_Single::getPublicCopy()
 //// AssetEntry_BIP32Root
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-AssetEntry_BIP32Root::AssetEntry_BIP32Root(AssetKeyType id,
-   const BinaryData& accountID,
+AssetEntry_BIP32Root::AssetEntry_BIP32Root(const AssetId& id,
    SecureBinaryData& pubkey, shared_ptr<Asset_PrivateKey> privkey,
    const SecureBinaryData& chaincode,
    uint8_t depth, uint32_t leafID,
    uint32_t fingerPrint, uint32_t seedFingerprint,
    const vector<uint32_t>& derPath) :
-   AssetEntry_Single(id, accountID, pubkey, privkey),
+   AssetEntry_Single(id, pubkey, privkey),
    chaincode_(chaincode),
-   depth_(depth), leafID_(leafID), 
+   depth_(depth), leafID_(leafID),
    parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
    derivationPath_(derPath)
 {
@@ -605,14 +603,13 @@ AssetEntry_BIP32Root::AssetEntry_BIP32Root(AssetKeyType id,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-AssetEntry_BIP32Root::AssetEntry_BIP32Root(AssetKeyType id,
-   const BinaryData& accountID,
+AssetEntry_BIP32Root::AssetEntry_BIP32Root(const AssetId& id,
    shared_ptr<Asset_PublicKey> pubkey, shared_ptr<Asset_PrivateKey> privkey,
    const SecureBinaryData& chaincode,
    uint8_t depth, uint32_t leafID,
    uint32_t fingerPrint, uint32_t seedFingerprint,
    const vector<uint32_t>& derPath) :
-   AssetEntry_Single(id, accountID, pubkey, privkey),
+   AssetEntry_Single(id, pubkey, privkey),
    chaincode_(chaincode),
    depth_(depth), leafID_(leafID),
    parentFingerprint_(fingerPrint), seedFingerprint_(seedFingerprint),
@@ -641,7 +638,7 @@ shared_ptr<AssetEntry_Single> AssetEntry_BIP32Root::getPublicCopy()
 {
    auto pubkey = getPubKey();
    auto woCopy = make_shared<AssetEntry_BIP32Root>(
-      index_, getAccountID(), pubkey, nullptr,
+      getID(), pubkey, nullptr,
       chaincode_, depth_, leafID_, parentFingerprint_, seedFingerprint_,
       derivationPath_);
 
@@ -741,51 +738,175 @@ shared_ptr<AssetEntry_Single> AssetEntry_ArmoryLegacyRoot::getPublicCopy()
       throw AssetException("Armory legacy root missing uncompressed pubkey");
 
    auto woCopy = make_shared<AssetEntry_ArmoryLegacyRoot>(
-      index_, getAccountID(), pubkey, nullptr, chaincode_);
+      getID(), pubkey, nullptr, chaincode_);
 
    return woCopy;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+//
+//// EncryptionKey
+//
 ////////////////////////////////////////////////////////////////////////////////
-//// Asset
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
-Asset::~Asset()
-{}
-
-Asset_EncryptedData::~Asset_EncryptedData()
-{}
-
-////////////////////////////////////////////////////////////////////////////////
-unique_ptr<DecryptedData> Asset_EncryptedData::decrypt(
-   const SecureBinaryData& key) const
+EncryptionKey::EncryptionKey(EncryptionKeyId& id,
+   SecureBinaryData& cipherText,
+   unique_ptr<Cipher> cipher) :
+   id_(move(id))
 {
-   auto cipherDataPtr = getCipherDataPtr();
-   auto&& decryptedData = cipherDataPtr->cipher_->decrypt(
-      key, cipherDataPtr->cipherText_);
-   auto decrPtr = make_unique<DecryptedData>(getId(), decryptedData);
-   return decrPtr;
+   auto cipherData = make_unique<CipherData>(cipherText, move(cipher));
+   cipherDataMap_.emplace(
+      cipherData->cipher_->getEncryptionKeyId(), move(cipherData));
 }
 
-bool Asset_EncryptedData::isSame(Asset_EncryptedData* const asset) const
+////////////////////////////////////////////////////////////////////////////////
+EncryptionKey::EncryptionKey(EncryptionKeyId& id,
+   map<EncryptionKeyId, unique_ptr<CipherData>> cipherDataMap) :
+   id_(move(id)),
+   cipherDataMap_(move(cipherDataMap))
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+bool EncryptionKey::isSame(EncryptionKey* const keyPtr) const
 {
-   if (asset == nullptr || 
-      cipherData_.size() != asset->cipherData_.size())
+   if (keyPtr == nullptr)
       return false;
 
-   for (auto& dataPair : cipherData_)
+   if (id_ != keyPtr->id_)
+      return false;
+
+   if (cipherDataMap_.size() != keyPtr->cipherDataMap_.size())
+      return false;
+
+   for (auto& cipherData : cipherDataMap_)
    {
-      auto iter = asset->cipherData_.find(dataPair.first);
-      if (iter == asset->cipherData_.end())
+      auto cdIter = keyPtr->cipherDataMap_.find(cipherData.first);
+      if (cdIter == keyPtr->cipherDataMap_.end())
          return false;
 
-      if (!dataPair.second->isSame(iter->second.get()))
+      if (!cipherData.second->isSame(cdIter->second.get()))
          return false;
    }
 
    return true;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+Cipher* EncryptionKey::getCipherPtrForId(const EncryptionKeyId& id) const
+{
+   auto iter = cipherDataMap_.find(id);
+   if (iter == cipherDataMap_.end())
+      return nullptr;
+
+   return iter->second->cipher_.get();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool EncryptionKey::removeCipherData(const EncryptionKeyId& id)
+{
+   return cipherDataMap_.erase(id) == 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool EncryptionKey::addCipherData(std::unique_ptr<CipherData> dataPtr)
+{
+   auto insertIter = cipherDataMap_.insert(make_pair(
+      dataPtr->cipher_->getEncryptionKeyId(), move(dataPtr)));
+
+   return insertIter.second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData EncryptionKey::serialize() const
+{
+   BinaryWriter bw;
+   bw.put_uint32_t(ENCRYPTION_KEY_VERSION);
+   bw.put_uint8_t(ENCRYPTIONKEY_BYTE);
+   id_.serializeValue(bw);
+
+   bw.put_var_int(cipherDataMap_.size());
+
+   for (auto& dataPair : cipherDataMap_)
+   {
+      auto&& cipherData = dataPair.second->serialize();
+      bw.put_var_int(cipherData.getSize());
+      bw.put_BinaryData(cipherData);
+   }
+
+   BinaryWriter finalBw;
+   finalBw.put_var_int(bw.getSize());
+   finalBw.put_BinaryDataRef(bw.getDataRef());
+   return finalBw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unique_ptr<EncryptionKey> EncryptionKey::deserialize(const BinaryDataRef& data)
+{
+   BinaryRefReader brr(DBUtils::getDataRefForPacket(data));
+   unique_ptr<EncryptionKey> keyPtr;
+
+   //version
+   auto version = brr.get_uint32_t();
+
+   //prefix
+   auto prefix = brr.get_uint8_t();
+
+   switch (prefix)
+   {
+   case ENCRYPTIONKEY_BYTE:
+   {
+      switch (version)
+      {
+      case 0x00000001:
+      {
+         //id
+         auto id = EncryptionKeyId::deserializeValue(brr);
+
+         //cipher data
+         map<EncryptionKeyId, unique_ptr<CipherData>> cipherMap;
+         auto count = brr.get_var_int();
+         for (unsigned i = 0; i < count; i++)
+         {
+            auto len = brr.get_var_int();
+            if (len > brr.getSizeRemaining())
+               throw AssetException("invalid serialized encrypted data len");
+
+            auto cipherBdr = brr.get_BinaryDataRef(len);
+            BinaryRefReader cipherBrr(cipherBdr);
+
+            auto cipherData = CipherData::deserialize(cipherBrr);
+            cipherMap.insert(make_pair(
+               cipherData->cipher_->getEncryptionKeyId(), std::move(cipherData)));
+         }
+
+         //ptr
+         keyPtr = make_unique<EncryptionKey>(id, move(cipherMap));
+         break;
+      }
+
+      default:
+         throw AssetException("unsupported encryption key version");
+      }
+
+      break;
+   }
+
+   default:
+      throw AssetException("unexpected encrypted key prefix");
+   }
+
+   if (keyPtr == nullptr)
+      throw AssetException("failed to deserialize encrypted asset");
+
+   return keyPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//// Asset
+//
+////////////////////////////////////////////////////////////////////////////////
+Asset::~Asset()
+{}
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData Asset_PublicKey::serialize() const
@@ -820,11 +941,7 @@ BinaryData Asset_PrivateKey::serialize() const
    BinaryWriter bw;
    bw.put_uint32_t(PRIVKEY_VERSION);
    bw.put_uint8_t(PRIVKEY_BYTE);
-   bw.put_var_int(id_.getSize());
-   bw.put_BinaryData(id_);
-
-   if (cipherData_.size() != 1)
-      throw AssetException("invalid cipherData size");
+   id_.serializeValue(bw);
 
    auto&& cipherData = getCipherDataPtr()->serialize();
    bw.put_var_int(cipherData.getSize());
@@ -837,57 +954,34 @@ BinaryData Asset_PrivateKey::serialize() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData Asset_EncryptionKey::serialize() const
+//
+//// EncryptedAssetData
+//
+////////////////////////////////////////////////////////////////////////////////
+EncryptedAssetData::~EncryptedAssetData()
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+unique_ptr<ClearTextAssetData> EncryptedAssetData::decrypt(
+   const SecureBinaryData& key) const
 {
-   BinaryWriter bw;
-   bw.put_uint32_t(ENCRYPTION_KEY_VERSION);
-   bw.put_uint8_t(ENCRYPTIONKEY_BYTE);
-   bw.put_var_int(id_.getSize());
-   bw.put_BinaryData(id_);
+   auto cipherDataPtr = getCipherDataPtr();
+   auto&& decryptedData = cipherDataPtr->cipher_->decrypt(
+      key, cipherDataPtr->cipherText_);
+   auto decrPtr = make_unique<ClearTextAssetData>(getAssetId(), decryptedData);
+   return decrPtr;
+}
 
-   bw.put_var_int(cipherData_.size());
+bool EncryptedAssetData::isSame(EncryptedAssetData* const asset) const
+{
+   if (asset == nullptr)
+      return false;
 
-   for (auto& dataPair : cipherData_)
-   {
-      auto&& cipherData = dataPair.second->serialize();
-      bw.put_var_int(cipherData.getSize());
-      bw.put_BinaryData(cipherData);
-   }
-
-   BinaryWriter finalBw;
-   finalBw.put_var_int(bw.getSize());
-   finalBw.put_BinaryDataRef(bw.getDataRef());
-   return finalBw.getData();
+   return cipherData_->isSame(asset->cipherData_.get());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool Asset_PrivateKey::isSame(Asset_EncryptedData* const asset) const
-{
-   auto asset_ed = dynamic_cast<Asset_PrivateKey*>(asset);
-   if (asset_ed == nullptr)
-      return false;
-
-   if (id_ != asset_ed->id_)
-      return false;
-
-   return Asset_EncryptedData::isSame(asset);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool Asset_EncryptionKey::isSame(Asset_EncryptedData* const asset) const
-{
-   auto asset_ed = dynamic_cast<Asset_EncryptionKey*>(asset);
-   if (asset_ed == nullptr)
-      return false;
-
-   if (id_ != asset_ed->id_)
-      return false;
-
-   return Asset_EncryptedData::isSame(asset);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
+unique_ptr<EncryptedAssetData> EncryptedAssetData::deserialize(
    const BinaryDataRef& data)
 {
    BinaryRefReader brr(data);
@@ -898,7 +992,7 @@ unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
+unique_ptr<EncryptedAssetData> EncryptedAssetData::deserialize(
    size_t totalLen, const BinaryDataRef& data)
 {
    BinaryRefReader brr(data);
@@ -908,7 +1002,7 @@ unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
       throw AssetException("invalid serialized encrypted data len");
 
    //return ptr
-   unique_ptr<Asset_EncryptedData> assetPtr = nullptr;
+   unique_ptr<EncryptedAssetData> assetPtr = nullptr;
 
    //version
    auto version = brr.get_uint32_t();
@@ -945,45 +1039,6 @@ unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
 
       default: 
          throw AssetException("unsupported privkey version");
-      }
-
-      break;
-   }
-
-   case ENCRYPTIONKEY_BYTE:
-   {
-      switch (version)
-      {
-      case 0x00000001:
-      {
-         //id
-         auto len = brr.get_var_int();
-         auto&& id = brr.get_BinaryData(len);
-
-         //cipher data
-         map<BinaryData, unique_ptr<CipherData>> cipherMap;
-         auto count = brr.get_var_int();
-         for (unsigned i = 0; i < count; i++)
-         {
-            len = brr.get_var_int();
-            if (len > brr.getSizeRemaining())
-               throw AssetException("invalid serialized encrypted data len");
-
-            auto cipherBdr = brr.get_BinaryDataRef(len);
-            BinaryRefReader cipherBrr(cipherBdr);
-
-            auto cipherData = CipherData::deserialize(cipherBrr);
-            cipherMap.insert(make_pair(
-               cipherData->cipher_->getEncryptionKeyId(), std::move(cipherData)));
-         }
-
-         //ptr
-         assetPtr = make_unique<Asset_EncryptionKey>(id, move(cipherMap));
-         break;
-      }
-
-      default:
-         throw AssetException("unsupported encryption key version");
       }
 
       break;
@@ -1026,14 +1081,69 @@ unique_ptr<Asset_EncryptedData> Asset_EncryptedData::deserialize(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+const SecureBinaryData& EncryptedAssetData::getCipherText() const
+{
+   auto ptr = getCipherDataPtr();
+   return ptr->cipherText_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const SecureBinaryData& EncryptedAssetData::getIV() const
+{
+   auto ptr = getCipherDataPtr();
+   return ptr->cipher_->getIV();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const EncryptionKeyId& EncryptedAssetData::getEncryptionKeyId() const
+{
+   auto ptr = getCipherDataPtr();
+   return ptr->cipher_->getEncryptionKeyId();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const BinaryData& EncryptedAssetData::getKdfId() const
+{
+   auto ptr = getCipherDataPtr();
+   return ptr->cipher_->getKdfId();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//// Asset_PrivateKey
+//
+////////////////////////////////////////////////////////////////////////////////
+bool Asset_PrivateKey::isSame(EncryptedAssetData* const asset) const
+{
+   auto asset_ed = dynamic_cast<Asset_PrivateKey*>(asset);
+   if (asset_ed == nullptr)
+      return false;
+
+   if (id_ != asset_ed->id_)
+      return false;
+
+   return EncryptedAssetData::isSame(asset);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const AssetId& Asset_PrivateKey::getAssetId() const
+{
+   return id_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//// EncryptedSeed
+//
+////////////////////////////////////////////////////////////////////////////////
+const AssetId EncryptedSeed::seedAssetId_(0x5EED, 0xDEE5, 0x5EED);
+
+////////////////////////////////////////////////////////////////////////////////
 BinaryData EncryptedSeed::serialize() const
 {
    BinaryWriter bw;
    bw.put_uint32_t(ENCRYPTED_SEED_VERSION);
    bw.put_uint8_t(WALLET_SEED_BYTE);
-
-   if (cipherData_.size() != 1)
-      throw AssetException("invalid cipherData size");
 
    auto&& cipherData = getCipherDataPtr()->serialize();
    bw.put_var_int(cipherData.getSize());
@@ -1046,138 +1156,25 @@ BinaryData EncryptedSeed::serialize() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool EncryptedSeed::isSame(Asset_EncryptedData* const seed) const
+bool EncryptedSeed::isSame(EncryptedAssetData* const seed) const
 {
    auto asset_ed = dynamic_cast<EncryptedSeed*>(seed);
    if (asset_ed == nullptr)
       return false;
 
-   return Asset_EncryptedData::isSame(seed);
+   return EncryptedAssetData::isSame(seed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& Asset_EncryptionKey::getCipherText(void) const
+const AssetId& EncryptedSeed::getAssetId() const
 {
-   throw AssetException("illegal for encryption keys");
+   return seedAssetId_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& Asset_EncryptionKey::getIV(void) const
-{
-   throw AssetException("illegal for encryption keys");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const BinaryData& Asset_EncryptionKey::getEncryptionKeyId(void) const
-{
-   throw AssetException("illegal for encryption keys");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const BinaryData& Asset_EncryptionKey::getKdfId(void) const
-{
-   throw AssetException("illegal for encryption keys");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-unique_ptr<DecryptedData> Asset_EncryptionKey::decrypt(
-   const SecureBinaryData&) const
-{
-   throw std::runtime_error("illegal for encryption keys");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-CipherData* Asset_EncryptionKey::getCipherDataPtr(void) const
-{
-   throw std::runtime_error("illegal for encryption keys");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-Cipher* Asset_EncryptionKey::getCipherPtrForId(const BinaryData& id) const
-{
-   auto iter = cipherData_.find(id);
-   if (iter == cipherData_.end())
-      return nullptr;
-
-   return iter->second->cipher_.get();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool Asset_EncryptionKey::removeCipherData(const BinaryData& id)
-{
-   return cipherData_.erase(id) == 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-bool Asset_EncryptionKey::addCipherData(std::unique_ptr<CipherData> dataPtr)
-{
-   auto insertIter = cipherData_.insert(make_pair(
-      dataPtr->cipher_->getEncryptionKeyId(), move(dataPtr)));
-
-   return insertIter.second;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& Asset_PrivateKey::getCipherText(void) const
-{
-   auto ptr = getCipherDataPtr();
-   return ptr->cipherText_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& Asset_PrivateKey::getIV(void) const
-{
-   auto ptr = getCipherDataPtr();
-   return ptr->cipher_->getIV();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const BinaryData& Asset_PrivateKey::getEncryptionKeyId(void) const
-{
-   auto ptr = getCipherDataPtr();
-   return ptr->cipher_->getEncryptionKeyId();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const BinaryData& Asset_PrivateKey::getKdfId(void) const
-{
-   auto ptr = getCipherDataPtr();
-   return ptr->cipher_->getKdfId();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& EncryptedSeed::getCipherText(void) const
-{
-   auto ptr = getCipherDataPtr();
-   return ptr->cipherText_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& EncryptedSeed::getIV(void) const
-{
-   auto ptr = getCipherDataPtr();
-   return ptr->cipher_->getIV();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const BinaryData& EncryptedSeed::getEncryptionKeyId(void) const
-{
-   auto ptr = getCipherDataPtr();
-   return ptr->cipher_->getEncryptionKeyId();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-const BinaryData& EncryptedSeed::getKdfId(void) const
-{
-   auto ptr = getCipherDataPtr();
-   return ptr->cipher_->getKdfId();
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////
+//
 //// MetaData
-////////////////////////////////////////////////////////////////////////////////
+//
 ////////////////////////////////////////////////////////////////////////////////
 MetaData::~MetaData()
 {}

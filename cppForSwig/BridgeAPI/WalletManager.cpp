@@ -17,6 +17,7 @@
 
 using namespace std;
 using namespace ArmorySigner;
+using namespace Armory::Wallets;
 
 #define WALLET_135_HEADER "\xbaWALLET\x00"
 #define PYBTC_ADDRESS_SIZE 237
@@ -99,8 +100,7 @@ void WalletManager::deleteWallet(const string& wltId)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletManager::loadWallets(
-   const function<SecureBinaryData(const set<BinaryData>&)>& passLbd)
+void WalletManager::loadWallets(const PassphraseLambda& passLbd)
 {
    //list .lmdb files in folder
    DIR *dir;
@@ -308,10 +308,10 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
 {
    unique_lock<mutex> lock(stateMutex_);
 
-   uint32_t topIndex = 0;
-   shared_ptr<DBIfaceTransaction> dbtx;
+   AssetKeyType topIndex = -1;
+   shared_ptr<WalletIfaceTransaction> dbtx;
    map<BinaryData, shared_ptr<AddressEntry>> updatedAddressMap;
-   map<BinaryData, AddressEntryType> orderedUpdatedAddresses;
+   map<AssetId, AddressEntryType> orderedUpdatedAddresses;
 
    for (auto& addrPair : cnt.addressTxnCounts_)
    {
@@ -326,10 +326,10 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
       auto& ID = wallet_->getAssetIDForScrAddr(addrPair.first);
 
       //grab asset to track top used index
-      auto asset = wallet_->getAssetForID(ID.first);
-      if (asset->getIndex() > topIndex)
-         topIndex = asset->getIndex();
-      
+      auto idKey = ID.first.getAssetKey();
+      if (idKey > topIndex)
+         topIndex = idKey;
+
       //mark newly seen addresses for further processing
       orderedUpdatedAddresses.insert(ID);
 
@@ -337,20 +337,20 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
       countMap_.emplace(addrPair);
    }
 
-   map<BinaryData, AddressEntryType> unpulledAddresses;
+   map<AssetId, AddressEntryType> unpulledAddresses;
    for (auto& idPair : orderedUpdatedAddresses)
    {
       //check scrAddr with on chain data matches scrAddr for 
       //address entry in wallet
       try
-      {      
+      {
          auto addrType = wallet_->getAddrTypeForID(idPair.first);
          if (addrType == idPair.second)
             continue;
       }
-      catch(UnrequestedAddressException&)
+      catch (const UnrequestedAddressException&)
       {
-         //db has history for an address that hasn't been pulled 
+         //db has history for an address that hasn't been pulled
          //from the wallet yet, save it for further processing
          unpulledAddresses.insert(idPair);
          continue;
@@ -365,21 +365,17 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
       wallet_->updateAddressEntryType(idPair.first, idPair.second);
 
       auto addrPtr = wallet_->getAddressEntryForID(idPair.first);
-      updatedAddressMap.insert(make_pair(idPair.first, addrPtr));
+      updatedAddressMap.emplace(addrPtr->getPrefixedHash(), addrPtr);
    }
 
    //split unpulled addresses by their accounts
-   map<BinaryData, map<BinaryData, AddressEntryType>> accIDMap;
+   map<AssetAccountId, map<AssetId, AddressEntryType>> accIDMap;
    for (auto& idPair : unpulledAddresses)
    {
-      auto accID = idPair.first.getSliceRef(0, 8);
+      auto accID = idPair.first.getAssetAccountId();
       auto iter = accIDMap.find(accID);
       if (iter == accIDMap.end())
-      {
-         iter = accIDMap.insert(make_pair(
-            accID, map<BinaryData, AddressEntryType>())).first;
-      }
-
+         iter = accIDMap.emplace(accID, map<AssetId, AddressEntryType>()).first;
       iter->second.insert(idPair);
    }
 
@@ -389,26 +385,25 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
    //run through each account, pulling addresses accordingly
    for (auto& accData : accIDMap)
    {
-      auto assetAccountID = accData.first.getSliceCopy(4, 4);
-      auto addrAccount = wallet_->getAccountForID(accData.first);
-      auto assAccount = addrAccount->getAccountForID(assetAccountID);
+      auto addrAccount = wallet_->getAccountForID(
+         accData.first.getAddressAccountId());
+      auto assAccount = addrAccount->getAccountForID(accData.first);
 
       auto currentTop = assAccount->getHighestUsedIndex();
       for (auto& idPair : accData.second)
       {
-         auto idInt = READ_UINT32_BE(idPair.first.getSliceRef(8, 4));
-
-         while (idInt > currentTop + 1)
+         auto assetKey = idPair.first.getAssetKey();
+         while (assetKey > currentTop + 1)
          {
             auto addrEntry = 
                wallet_->getNewAddress(accData.first, AddressEntryType_Default);
             updatedAddressMap.insert(
                make_pair(addrEntry->getPrefixedHash(), addrEntry));
-            
+
             ++currentTop;
          }
 
-         auto addrEntry = 
+         auto addrEntry =
             wallet_->getNewAddress(accData.first, idPair.second);
          updatedAddressMap.insert(
             make_pair(addrEntry->getPrefixedHash(), addrEntry));
@@ -699,7 +694,7 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
             const PassphraseLambda& passLbd, 
             const Armory135Address& rootAddrObj)->SecureBinaryData
          {
-            set<BinaryData> idSet = { BinaryData::fromString(walletID_) };
+            set<EncryptionKeyId> idSet = { BinaryData::fromString(walletID_) };
 
             while (true)
             {
@@ -762,29 +757,25 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
 
    //TODO: deal with imports
 
-   map<BinaryData, AddressEntryType> typeMap;
+   map<AssetId, AddressEntryType> typeMap;
    for (auto& addrPair : addrMap_)
    {
       if (addrPair.second.chainIndex() < 0 || 
          addrPair.second.chainIndex() > highestUsedIndex_)
          continue;
 
-      typeMap.insert(mainAccPtr->getAssetIDPairForAddrUnprefixed(
+      typeMap.emplace(mainAccPtr->getAssetIDPairForAddrUnprefixed(
          addrPair.second.scrAddr()));
    }
 
    {
       //set script types
       auto dbtx = wallet->beginSubDBTransaction(walletID_, true);
-      int lastIndex = 0;
+      AssetKeyType lastIndex = -1;
       for (auto& typePair : typeMap)
       {
          //get int index for pair
-         BinaryRefReader brr(typePair.first.getRef());
-         brr.advance(8);
-         auto intId = brr.get_int32_t(BE);
-
-         while (intId != lastIndex)
+         while (typePair.first.getAssetKey() != lastIndex)
          {
             wallet->getNewAddress();
             ++lastIndex;
@@ -830,7 +821,7 @@ void Armory135Address::parseFromRef(const BinaryDataRef& bdr)
    }
 
    //address version, unused
-   auto addrVersion = brrScrAddr.get_uint32_t();
+   brrScrAddr.get_uint32_t();
 
    //address flags
    auto addrFlags = brrScrAddr.get_uint64_t();

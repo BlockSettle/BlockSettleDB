@@ -13,9 +13,10 @@
 #include <set>
 
 #include "../SecureBinaryData.h"
+#include "WalletIdTypes.h"
 
 ////////////////////////////////////////////////////////////////////////////////
-typedef std::function<SecureBinaryData(const std::set<BinaryData>&)> 
-   PassphraseLambda;
+typedef std::function<SecureBinaryData(
+   const std::set<Armory::Wallets::EncryptionKeyId>&)> PassphraseLambda;
 
 #endif

@@ -35,6 +35,46 @@ const map<char, uint8_t> BtcUtils::base64Vals_ = {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+uint64_t BtcUtils::readVarInt(uint8_t const * strmPtr, size_t remaining,
+   uint32_t* lenOutPtr)
+{
+   if (remaining < 1)
+      throw VarIntException("invalid varint");
+   uint8_t firstByte = strmPtr[0];
+
+   if(firstByte < 0xfd)
+   {
+      if(lenOutPtr != NULL) 
+         *lenOutPtr = 1;
+      return firstByte;
+   }
+   if(firstByte == 0xfd)
+   {
+      if (remaining < 3)
+         throw VarIntException("invalid varint");
+      if(lenOutPtr != NULL) 
+         *lenOutPtr = 3;
+      return READ_UINT16_LE(strmPtr+1);
+   }
+   else if(firstByte == 0xfe)
+   {
+      if (remaining < 5)
+         throw VarIntException("invalid varint");
+      if(lenOutPtr != NULL) 
+         *lenOutPtr = 5;
+      return READ_UINT32_LE(strmPtr+1);
+   }
+   else //if(firstByte == 0xff)
+   {
+      if (remaining < 9)
+         throw VarIntException("invalid varint");
+      if(lenOutPtr != NULL) 
+         *lenOutPtr = 9;
+      return READ_UINT64_LE(strmPtr+1);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 string BtcUtils::computeID(const SecureBinaryData& pubkey)
 {
    BinaryDataRef bdr(pubkey);
@@ -174,10 +214,10 @@ SecureBinaryData BtcUtils::computeChainCode_Armory135(
 BinaryData BtcUtils::computeDataId(const SecureBinaryData& data,
    const string& message)
 {
-   if (data.getSize() == 0)
+   if (data.empty())
       throw runtime_error("cannot compute id for empty data");
 
-   if (message.size() == 0)
+   if (message.empty())
       throw runtime_error("cannot compute id for empty message");
 
    //hmac the hash256 of the data with message

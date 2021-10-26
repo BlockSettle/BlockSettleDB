@@ -16,6 +16,7 @@
 
 #include "../../ReentrantLock.h"
 #include "../../BinaryData.h"
+#include "../WalletIdTypes.h"
 #include "../../EncryptionUtils.h"
 #include "../Assets.h"
 #include "../Addresses.h"
@@ -35,23 +36,29 @@ struct UnrequestedAddressException
 ////////////////////////////////////////////////////////////////////////////////
 struct AddressAccountPublicData
 {
-   BinaryData ID_;
+   const Armory::Wallets::AddressAccountId ID_;
 
-   BinaryData outerAccount_;
-   BinaryData innerAccount_;
+   const Armory::Wallets::AssetAccountId outerAccountId_;
+   const Armory::Wallets::AssetAccountId innerAccountId_;
 
    AddressEntryType defaultAddressEntryType_ = AddressEntryType_P2PKH;
    std::set<AddressEntryType> addressTypes_;
 
-   std::map<BinaryData, AddressEntryType> addresses_;
+   std::map<Armory::Wallets::AssetId,
+      AddressEntryType> instantiatedAddressTypes_;
 
    //<accountID, <account data>
-   std::map<BinaryData, AssetAccountPublicData> accountDataMap_;
+   std::map<Armory::Wallets::AssetAccountId,
+      AssetAccountPublicData> accountDataMap_;
+
+   AddressAccountPublicData(const Armory::Wallets::AddressAccountId&,
+      const Armory::Wallets::AssetAccountId&,
+      const Armory::Wallets::AssetAccountId&);
 };
 
 ////
 class WalletDBInterface;
-class DBIfaceTransaction;
+class WalletIfaceTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////
 class AddressAccount : public Lockable
@@ -60,29 +67,33 @@ class AddressAccount : public Lockable
    friend class AssetWallet_Single;
 
 private:
-   std::map<BinaryData, std::shared_ptr<AssetAccountData>> accountDataMap_;
-   std::map<BinaryData, AddressEntryType> addresses_;
+   const std::string dbName_;
+   const Armory::Wallets::AddressAccountId ID_;
 
-private:
-   BinaryData outerAccount_;
-   BinaryData innerAccount_;
+   std::map<Armory::Wallets::AssetAccountId,
+      std::shared_ptr<AssetAccountData>> accountDataMap_;
+   std::map<Armory::Wallets::AssetId,
+      AddressEntryType> instantiatedAddressTypes_;
+
+   Armory::Wallets::AssetAccountId outerAccountId_;
+   Armory::Wallets::AssetAccountId innerAccountId_;
 
    AddressEntryType defaultAddressEntryType_ = AddressEntryType_P2PKH;
    std::set<AddressEntryType> addressTypes_;
 
    //<prefixed address hash, <assetID, address type>>
-   std::map<BinaryData, std::pair<BinaryData, AddressEntryType>> addressHashes_;
+   std::map<BinaryData,
+      std::pair<Armory::Wallets::AssetId, AddressEntryType>> addressHashes_;
 
-   //account id, asset id
-   std::map<BinaryData, BinaryData> topHashedAssetId_;
-
-   BinaryData ID_;
-   const std::string dbName_;
+   std::map<Armory::Wallets::AssetAccountId,
+      Armory::Wallets::AssetId> topHashedAssetId_;
 
 private:
+   AddressAccount(const std::string&,
+      const Armory::Wallets::AddressAccountId&);
+
    //used for initial commit to disk
    void commit(std::shared_ptr<WalletDBInterface>);
-   void reset(void);
 
    void addAccount(std::shared_ptr<AssetAccount>);
    void addAccount(std::shared_ptr<AssetAccountData>);
@@ -92,49 +103,46 @@ private:
       std::shared_ptr<AddressEntry>);
    void updateInstantiatedAddressType(
       std::shared_ptr<WalletDBInterface>,
-      const BinaryData&, AddressEntryType);
+      const Armory::Wallets::AssetId&, AddressEntryType);
    void eraseInstantiatedAddressType(
       std::shared_ptr<WalletDBInterface>,
-      const BinaryData&);
+      const Armory::Wallets::AssetId&);
 
    void writeAddressType(std::shared_ptr<WalletDBInterface>,
-      const BinaryData&, AddressEntryType);
+      const Armory::Wallets::AssetId&, AddressEntryType);
    void writeAddressType(std::shared_ptr<DBIfaceTransaction>,
-      const BinaryData&, AddressEntryType);
+      const Armory::Wallets::AssetId&, AddressEntryType);
 
    std::shared_ptr<Asset_PrivateKey> fillPrivateKey(
       std::shared_ptr<WalletDBInterface>,
       std::shared_ptr<DecryptedDataContainer> ddc,
-      const BinaryData& id);
+      const Armory::Wallets::AssetId& id);
 
    std::shared_ptr<AssetEntry_BIP32Root> getBip32RootForAssetId(
-      const BinaryData&) const;
+      const Armory::Wallets::AssetId&) const;
 
    const std::shared_ptr<AssetAccountData>& getAccountDataForID(
-      const BinaryData&) const;
+      const Armory::Wallets::AssetAccountId&) const;
 
 public:
-   AddressAccount(const std::string& dbName) :
-      dbName_(dbName)
-   {}
+   const Armory::Wallets::AddressAccountId& getID(void) const { return ID_; }
 
-   const BinaryData& getID(void) const { return ID_; }
-
-   void make_new(
+   static std::unique_ptr<AddressAccount> make_new(
+      const std::string&,
       std::shared_ptr<AccountType>,
       std::shared_ptr<DecryptedDataContainer>,
       std::unique_ptr<Cipher>,
       const std::function<std::shared_ptr<AssetEntry>(void)>&);
 
-   void readFromDisk(
-      std::shared_ptr<WalletDBInterface>, 
-      const BinaryData& key);
+   static std::unique_ptr<AddressAccount> readFromDisk(
+      std::shared_ptr<WalletIfaceTransaction>,
+      const Armory::Wallets::AddressAccountId&);
 
    void extendPublicChain(std::shared_ptr<WalletDBInterface>, unsigned);
    void extendPublicChain(std::shared_ptr<WalletDBInterface>,
-      const BinaryData&, unsigned);
+      const Armory::Wallets::AssetAccountId&, unsigned);
    void extendPublicChainToIndex(std::shared_ptr<WalletDBInterface>,
-      const BinaryData&, unsigned);
+      const Armory::Wallets::AssetAccountId&, unsigned);
 
    void extendPrivateChain(
       std::shared_ptr<WalletDBInterface>,
@@ -143,14 +151,14 @@ public:
    void extendPrivateChainToIndex(
       std::shared_ptr<WalletDBInterface>,
       std::shared_ptr<DecryptedDataContainer>,
-      const BinaryData&, unsigned);
+      const Armory::Wallets::AssetAccountId&, unsigned);
 
    std::shared_ptr<AddressEntry> getNewAddress(
       std::shared_ptr<WalletDBInterface>,
       AddressEntryType aeType = AddressEntryType_Default);
    std::shared_ptr<AddressEntry> getNewAddress(
       std::shared_ptr<WalletDBInterface>,
-      const BinaryData& account, AddressEntryType aeType);
+      const Armory::Wallets::AssetAccountId& account, AddressEntryType aeType);
    std::shared_ptr<AddressEntry> getNewChangeAddress(
       std::shared_ptr<WalletDBInterface> iface,
       AddressEntryType aeType = AddressEntryType_Default);
@@ -158,8 +166,7 @@ public:
       std::shared_ptr<WalletDBInterface>,
       AddressEntryType aeType = AddressEntryType_Default);
 
-   std::shared_ptr<AssetEntry> getOutterAssetForIndex(unsigned) const;
-   std::shared_ptr<AssetEntry> getOutterAssetRoot(void) const;
+   std::shared_ptr<AssetEntry> getOuterAssetRoot(void) const;
 
 
    AddressEntryType getAddressType(void) const
@@ -168,34 +175,37 @@ public:
       { return addressTypes_; }
    bool hasAddressType(AddressEntryType);
 
-   //get asset by binary string ID
-   std::shared_ptr<AssetEntry> getAssetForID(const BinaryData&) const;
+   std::shared_ptr<AssetEntry> getAssetForID(
+      const Armory::Wallets::AssetId&) const;
 
-   //get asset by integer ID; bool arg defines whether it comes from the
-   //outer account (true) or the inner account (false)
-   std::shared_ptr<AssetEntry> getAssetForID(unsigned, bool) const;
-
-   const std::pair<BinaryData, AddressEntryType>& 
+   const std::pair<Armory::Wallets::AssetId, AddressEntryType>& 
       getAssetIDPairForAddr(const BinaryData&);
-   const std::pair<BinaryData, AddressEntryType>& 
+   const std::pair<Armory::Wallets::AssetId, AddressEntryType>& 
       getAssetIDPairForAddrUnprefixed(const BinaryData&);
 
    void updateAddressHashMap(void);
-   const std::map<BinaryData, std::pair<BinaryData, AddressEntryType>>& 
-      getAddressHashMap(void);
+   const std::map<BinaryData,
+      std::pair<Armory::Wallets::AssetId, AddressEntryType>>&
+         getAddressHashMap(void);
 
-   std::set<BinaryData> getAccountIdSet(void) const;
-   std::unique_ptr<AssetAccount> getAccountForID(const BinaryData&) const;
+   std::set<Armory::Wallets::AssetAccountId> getAccountIdSet(void) const;
+   std::unique_ptr<AssetAccount> getAccountForID(
+      const Armory::Wallets::AssetId&) const;
+   std::unique_ptr<AssetAccount> getAccountForID(
+      const Armory::Wallets::AssetAccountId&) const;
    std::unique_ptr<AssetAccount> getOuterAccount(void) const;
-   const BinaryData& getOuterAccountID(void) const { return outerAccount_; }
-   const BinaryData& getInnerAccountID(void) const { return innerAccount_; }
+
+   const Armory::Wallets::AssetAccountId& getOuterAccountID(void) const
+   { return outerAccountId_; }
+   const Armory::Wallets::AssetAccountId& getInnerAccountID(void) const
+   { return innerAccountId_; }
 
    AddressAccountPublicData exportPublicData() const;
    void importPublicData(const AddressAccountPublicData&);
 
    std::shared_ptr<AddressEntry> getAddressEntryForID(
-      const BinaryDataRef&) const;
-   std::map<BinaryData, std::shared_ptr<AddressEntry>> 
+      const Armory::Wallets::AssetId&) const;
+   std::map<Armory::Wallets::AssetId, std::shared_ptr<AddressEntry>>
       getUsedAddressMap(void) const;
 
    //Lockable virtuals

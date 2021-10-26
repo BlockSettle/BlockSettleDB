@@ -773,30 +773,8 @@ public:
 
 
    /////////////////////////////////////////////////////////////////////////////
-   bool startsWith(BinaryDataRef const & matchStr) const
-   {
-      if(matchStr.getSize() > nBytes_)
-         return false;
-   
-      for(uint32_t i=0; i<matchStr.getSize(); i++)
-         if(matchStr[i] != (*this)[i])
-            return false;
-   
-      return true;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   bool startsWith(BinaryData const & matchStr) const
-   {
-      if(matchStr.getSize() > nBytes_)
-         return false;
-   
-      for(uint32_t i=0; i<matchStr.getSize(); i++)
-         if(matchStr[i] != (*this)[i])
-            return false;
-   
-      return true;
-   }
+   bool startsWith(BinaryDataRef const &) const;
+   bool startsWith(BinaryData const &) const;
 
    /////////////////////////////////////////////////////////////////////////////
    bool endsWith(BinaryDataRef const & matchStr) const
@@ -1016,9 +994,9 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   uint32_t get_int32_t(ENDIAN e = LE)
+   int32_t get_int32_t(ENDIAN e = LE)
    {
-      uint32_t outVal = (e == LE ? 
+      int32_t outVal = (e == LE ? 
          BinaryData::StrToIntLE<int32_t>(bdStr_.getPtr() + pos_) :
          BinaryData::StrToIntBE<int32_t>(bdStr_.getPtr() + pos_));
       pos_ += 4;
@@ -1145,7 +1123,6 @@ public:
       setNewData(rawPtr, nBytes);
    }
 
-
    void setNewData(BinaryData const & toRead)
    {
       setNewData(toRead.getPtr(), toRead.getSize());
@@ -1168,17 +1145,15 @@ public:
 
    /////////////////////////////////////////////////////////////////////////////
    void rewind(uint32_t nBytes) 
-   { 
+   {
       size_t start = pos_.load(std::memory_order_relaxed);
       pos_.fetch_sub(nBytes, std::memory_order_relaxed);
       if(pos_.load(std::memory_order_relaxed) > start)
          pos_.store(0, std::memory_order_relaxed);
    }
 
-
    /////////////////////////////////////////////////////////////////////////////
    uint64_t get_var_int(uint8_t* nRead=NULL);
-
 
    /////////////////////////////////////////////////////////////////////////////
    uint8_t get_uint8_t()

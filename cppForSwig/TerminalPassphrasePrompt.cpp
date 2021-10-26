@@ -16,19 +16,21 @@
 #endif
 
 using namespace std;
-    
+using namespace Armory::Wallets;
+
 ////////////////////////////////////////////////////////////////////////////////
-SecureBinaryData TerminalPassphrasePrompt::prompt(const set<BinaryData>& idSet)
+SecureBinaryData TerminalPassphrasePrompt::prompt(
+   const set<EncryptionKeyId>& idSet)
 {
    unique_lock<mutex> lock(mu_);
 
    //check ids
-   if (idSet.size() == 0)
+   if (idSet.empty())
    {
       //empty ids means we need to prompt for a new passphrase
       cout << endl;
       cout << "Set password for " << verbose_ << endl;
-        
+
       return promptNewPass();
    }
    else if (idSet.size() == 1)
@@ -47,7 +49,7 @@ SecureBinaryData TerminalPassphrasePrompt::prompt(const set<BinaryData>& idSet)
 
 ////////////////////////////////////////////////////////////////////////////////
 SecureBinaryData TerminalPassphrasePrompt::promptNewPass()
-{   
+{
    while (true)
    {
       string pass1, pass2;
@@ -117,7 +119,7 @@ SecureBinaryData TerminalPassphrasePrompt::promptNewPass()
 
 ////////////////////////////////////////////////////////////////////////////////
 SecureBinaryData TerminalPassphrasePrompt::promptForPassphrase(
-   const set<BinaryData>& idSet)
+   const set<EncryptionKeyId>& idSet)
 {
    if (idSet.size() == 0)
       throw runtime_error("invalid id count");
@@ -127,7 +129,7 @@ SecureBinaryData TerminalPassphrasePrompt::promptForPassphrase(
    {
       auto iter = countMap_.find(id);
       if (iter == countMap_.end())
-         iter = countMap_.insert(make_pair(id, 0)).first;
+         iter = countMap_.emplace(id, 0).first;
 
       if (iter->second > 0)
          suppress = true;
@@ -194,7 +196,7 @@ PassphraseLambda TerminalPassphrasePrompt::getLambda(const string& verbose)
    auto ptr = new TerminalPassphrasePrompt(verbose);
    shared_ptr<TerminalPassphrasePrompt> smartPtr(ptr);
 
-   auto passLbd = [smartPtr](const set<BinaryData>& idSet)->SecureBinaryData
+   auto passLbd = [smartPtr](const set<EncryptionKeyId>& idSet)->SecureBinaryData
    {
       return smartPtr->prompt(idSet);
    };

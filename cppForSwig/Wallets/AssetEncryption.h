@@ -12,6 +12,7 @@
 #include <memory>
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
+#include "WalletIdTypes.h"
 
 #define KDF_PREFIX                  0xC1
 #define KDF_ROMIX_PREFIX            0xC100
@@ -86,7 +87,7 @@ public:
    const BinaryData& getId(void) const;
 };
 
-struct DecryptedEncryptionKey;
+struct ClearTextEncryptionKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 class Cipher
@@ -112,7 +113,7 @@ private:
 
 protected:
    const BinaryData kdfId_;
-   const BinaryData encryptionKeyId_;
+   const Armory::Wallets::EncryptionKeyId encryptionKeyId_;
    const SecureBinaryData iv_;
 
 private:
@@ -124,8 +125,8 @@ public:
    //tors
    Cipher(CipherType type, 
       const BinaryData& kdfId,
-      const BinaryData& encryptionKeyId) :
-      type_(type), kdfId_(kdfId), 
+      const Armory::Wallets::EncryptionKeyId& encryptionKeyId) :
+      type_(type), kdfId_(kdfId),
       encryptionKeyId_(encryptionKeyId),
       iv_(generateIV())
    {
@@ -134,7 +135,7 @@ public:
 
    Cipher(CipherType type,
       const BinaryData& kdfId,
-      const BinaryData& encryptionKeyId,
+      const Armory::Wallets::EncryptionKeyId& encryptionKeyId,
       SecureBinaryData& iv) :
       type_(type), kdfId_(kdfId), 
       encryptionKeyId_(encryptionKeyId),
@@ -151,7 +152,7 @@ public:
    //locals
    CipherType getType(void) const { return type_; }
    const BinaryData& getKdfId(void) const { return kdfId_; }
-   const BinaryData& getEncryptionKeyId(void) const { return encryptionKeyId_; }
+   const Armory::Wallets::EncryptionKeyId& getEncryptionKeyId(void) const;
    const SecureBinaryData& getIV(void) const { return iv_; }
    SecureBinaryData generateIV(void) const;
    unsigned getBlockSize(void) const { return getBlockSize(getType()); }
@@ -159,17 +160,18 @@ public:
    //virtuals
    virtual BinaryData serialize(void) const = 0;
    virtual std::unique_ptr<Cipher> getCopy(void) const = 0;
-   virtual std::unique_ptr<Cipher> getCopy(const BinaryData& keyId) const = 0;
+   virtual std::unique_ptr<Cipher> getCopy(
+      const Armory::Wallets::EncryptionKeyId& keyId) const = 0;
+   virtual bool isSame(Cipher* const) const = 0;
 
-   virtual SecureBinaryData encrypt(DecryptedEncryptionKey* const key,
+   virtual SecureBinaryData encrypt(ClearTextEncryptionKey* const key,
       const BinaryData& kdfId, const SecureBinaryData& data) const = 0;
-   virtual SecureBinaryData encrypt(DecryptedEncryptionKey* const key,
-      const BinaryData& kdfId, DecryptedEncryptionKey* const data) const = 0;
+   virtual SecureBinaryData encrypt(ClearTextEncryptionKey* const key,
+      const BinaryData& kdfId, ClearTextEncryptionKey* const data) const = 0;
 
    virtual SecureBinaryData decrypt(const SecureBinaryData& key,
       const SecureBinaryData& data) const = 0;
 
-   virtual bool isSame(Cipher* const) const = 0;
 
    //statics
    static std::unique_ptr<Cipher> deserialize(BinaryRefReader& brr);
@@ -181,30 +183,35 @@ class Cipher_AES : public Cipher
 {
 public:
    //tors
-   Cipher_AES(const BinaryData& kdfId, const BinaryData& encryptionKeyId) :
+   Cipher_AES(const BinaryData& kdfId,
+      const Armory::Wallets::EncryptionKeyId& encryptionKeyId) :
       Cipher(CipherType_AES, kdfId, encryptionKeyId)
    {}
 
-   Cipher_AES(const BinaryData& kdfId, const BinaryData& encryptionKeyId,
+   Cipher_AES(const BinaryData& kdfId,
+      const Armory::Wallets::EncryptionKeyId& encryptionKeyId,
       SecureBinaryData& iv) :
       Cipher(CipherType_AES, kdfId, encryptionKeyId, iv)
    {}
 
    //virtuals
-   BinaryData serialize(void) const;
-   std::unique_ptr<Cipher> getCopy(void) const;
-   std::unique_ptr<Cipher> getCopy(const BinaryData& keyId) const;
-      bool isSame(Cipher* const) const;
+   BinaryData serialize(void) const override;
+   std::unique_ptr<Cipher> getCopy(void) const override;
+   std::unique_ptr<Cipher> getCopy(
+      const Armory::Wallets::EncryptionKeyId& keyId) const override;
+   bool isSame(Cipher* const) const override;
 
    //encrypt
-   SecureBinaryData encrypt(DecryptedEncryptionKey* const key,
-      const BinaryData& kdfId, const SecureBinaryData& data) const;
-   SecureBinaryData encrypt(DecryptedEncryptionKey* const key,
-      const BinaryData& kdfId, DecryptedEncryptionKey* const data) const;
+   SecureBinaryData encrypt(ClearTextEncryptionKey* const key,
+      const BinaryData& kdfId,
+      const SecureBinaryData& data) const override;
+   SecureBinaryData encrypt(ClearTextEncryptionKey* const key,
+      const BinaryData& kdfId,
+      ClearTextEncryptionKey* const data) const override;
 
    //decrypt
    SecureBinaryData decrypt(const SecureBinaryData& key,
-      const SecureBinaryData& data) const;
+      const SecureBinaryData& data) const override;
 
    //utils
    unsigned getBlockSize(void) const;

@@ -17,9 +17,8 @@
 #include "make_unique.h"
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
+#include "WalletIdTypes.h"
 #include "AssetEncryption.h"
-
-using AssetKeyType = int32_t;
 
 class AssetException : public std::runtime_error
 {
@@ -44,15 +43,12 @@ public:
 #define METADATA_PEERROOT_PREFIX 0x92
 #define METADATA_ROOTSIG_PREFIX  0x93
 
-#define ROOT_ASSETENTRY_ID       -1
-#define SEED_ID                  READHEX("0x5EEDDEE55EEDDEE5");
-
 ////////////////////////////////////////////////////////////////////////////////
-enum AssetType
+enum class AssetType : int
 {
-   AssetType_EncryptedData,
-   AssetType_PublicKey,
-   AssetType_PrivateKey,
+   EncryptedData,
+   PublicKey,
+   PrivateKey,
 };
 
 enum MetaType
@@ -81,7 +77,7 @@ enum ScriptHashType
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct DecryptedEncryptionKey
+struct ClearTextEncryptionKey
 {
    friend class DecryptedDataContainer;
    friend class Cipher_AES;
@@ -93,40 +89,39 @@ private:
    std::map<BinaryData, SecureBinaryData> derivedKeys_;
 
 private:
-   BinaryData computeId(const SecureBinaryData& key) const;
+   Armory::Wallets::EncryptionKeyId computeId(
+      const SecureBinaryData& key) const;
    const SecureBinaryData& getData(void) const { return rawKey_; }
    const SecureBinaryData& getDerivedKey(const BinaryData& id) const;
 
 public:
-   DecryptedEncryptionKey(SecureBinaryData& key) :
+   ClearTextEncryptionKey(SecureBinaryData& key) :
       rawKey_(std::move(key))
    {}
 
    void deriveKey(std::shared_ptr<KeyDerivationFunction> kdf);
-   BinaryData getId(const BinaryData& kdfid) const;
+   Armory::Wallets::EncryptionKeyId getId(const BinaryData& kdfid) const;
 
-   std::unique_ptr<DecryptedEncryptionKey> copy(void) const;
-   bool hasData(void) const { return rawKey_.getSize() != 0; }
+   std::unique_ptr<ClearTextEncryptionKey> copy(void) const;
+   bool hasData(void) const { return !rawKey_.empty(); }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct DecryptedData
+class ClearTextAssetData
 {
 private:
-   const BinaryData id_;
-   const SecureBinaryData privateKey_;
-
-private:
-   const SecureBinaryData& getData(void) const { return privateKey_; }
+   const Armory::Wallets::AssetId id_;
+   const SecureBinaryData clearText_;
 
 public:
-   DecryptedData(const BinaryData& id, SecureBinaryData& key) :
-      id_(id), privateKey_(std::move(key))
+   ClearTextAssetData(const Armory::Wallets::AssetId& id,
+      SecureBinaryData& clearText) :
+      id_(id), clearText_(std::move(clearText))
    {}
 
-   bool hasData(void) const { return privateKey_.getSize() != 0; }
-   const BinaryData& getId(void) const { return id_; }
-   const SecureBinaryData& getDataRef(void) const { return privateKey_; }
+   bool hasData(void) const { return !clearText_.empty(); }
+   const Armory::Wallets::AssetId& getId(void) const { return id_; }
+   const SecureBinaryData& getData(void) const { return clearText_; }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,7 +148,7 @@ public:
 
 public:
    Asset_PublicKey(SecureBinaryData& pubkey) :
-      Asset(AssetType_PublicKey)
+      Asset(AssetType::PublicKey)
    {
       switch (pubkey.getSize())
       {
@@ -178,7 +173,7 @@ public:
 
    Asset_PublicKey(SecureBinaryData& uncompressedKey,
       SecureBinaryData& compressedKey) :
-      Asset(AssetType_PublicKey),
+      Asset(AssetType::PublicKey),
       uncompressed_(std::move(uncompressedKey)),
       compressed_(std::move(compressedKey))
    {
@@ -220,7 +215,55 @@ struct CipherData
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct Asset_EncryptedData : public Asset
+class DecryptedDataContainer;
+
+class EncryptionKey
+{
+   /*
+   May have multiple cipher data objects
+   */
+
+   friend class DecryptedDataContainer;
+
+protected:
+   const Armory::Wallets::EncryptionKeyId id_;
+   std::map<Armory::Wallets::EncryptionKeyId,
+      std::unique_ptr<CipherData>> cipherDataMap_;
+
+private:
+   Cipher* getCipherPtrForId(const Armory::Wallets::EncryptionKeyId&) const;
+   bool removeCipherData(const Armory::Wallets::EncryptionKeyId&);
+   bool addCipherData(std::unique_ptr<CipherData>);
+
+public:
+   EncryptionKey(Armory::Wallets::EncryptionKeyId&,
+      SecureBinaryData&,
+      std::unique_ptr<Cipher>);
+
+   EncryptionKey(Armory::Wallets::EncryptionKeyId&,
+      std::map<Armory::Wallets::EncryptionKeyId,
+         std::unique_ptr<CipherData>>);
+
+   ////
+   bool isSame(EncryptionKey* const) const;
+   const Armory::Wallets::EncryptionKeyId& getId(void) const { return id_; }
+   BinaryData serialize(void) const;
+   static std::unique_ptr<EncryptionKey> deserialize(const BinaryDataRef&);
+
+   /*
+   TODO:
+      - dedicated decrypt per sub class instead of virtual (
+        otherwise the return type is always ClearTextAssetData)
+      - dedicated encryption key id
+   */
+
+   std::unique_ptr<ClearTextAssetData> decrypt(
+      const SecureBinaryData& key) const;
+   CipherData* getCipherDataPtr(void) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class EncryptedAssetData
 {
    /***
    This class holds the cipher data for an encrypted key. It can yield the
@@ -229,198 +272,92 @@ struct Asset_EncryptedData : public Asset
 
    Use Cipher::encrypt to generate the cipher text first. Pass that cipher data
    at construction time.
-
-   Different subclasses of Asset_Encrypted data may have variable amount of 
-   cipher data entries.
    ***/
 
    friend class DecryptedDataContainer;
 
 protected:
-   std::map<BinaryData, std::unique_ptr<CipherData>> cipherData_;
+   const Armory::Wallets::EncryptionKeyId& encryptionKeyId_;
+   const std::unique_ptr<CipherData> cipherData_;
 
 public:
-   Asset_EncryptedData(
-      SecureBinaryData& cipherText, std::unique_ptr<Cipher> cipher) :
-      Asset(AssetType_EncryptedData)
+   EncryptedAssetData(std::unique_ptr<CipherData> cipherData) :
+      encryptionKeyId_(cipherData->cipher_->getEncryptionKeyId()),
+      cipherData_(std::move(cipherData))
    {
-      auto data = make_unique<CipherData>(cipherText, std::move(cipher));
-      cipherData_.insert(std::make_pair(
-         data->cipher_->getEncryptionKeyId(), std::move(data)));
+      if (cipherData_ == nullptr)
+         throw std::runtime_error("nullptr cipher data");
    }
-
-   Asset_EncryptedData(
-      std::unique_ptr<CipherData> cipherData) :
-      Asset(AssetType_EncryptedData)
-   {
-      cipherData_.insert(std::make_pair(
-         cipherData->cipher_->getEncryptionKeyId(), std::move(cipherData)));
-   }
-
-   Asset_EncryptedData(std::map<BinaryData, std::unique_ptr<CipherData>> cipherVec) :
-      Asset(AssetType_EncryptedData)
-   {
-      cipherData_ = std::move(cipherVec);
-   }
-
 
    //virtual
-   virtual ~Asset_EncryptedData(void) = 0;
-   virtual bool isSame(Asset_EncryptedData* const) const;
-   virtual BinaryData getId(void) const = 0;
+   virtual ~EncryptedAssetData(void) = 0;
 
-   virtual const SecureBinaryData& getCipherText(void) const = 0;
-   virtual const SecureBinaryData& getIV(void) const = 0;
-   virtual const BinaryData& getEncryptionKeyId(void) const = 0;
-   virtual const BinaryData& getKdfId(void) const = 0;
+   virtual bool isSame(EncryptedAssetData* const) const;
+   virtual BinaryData serialize(void) const = 0;
+   virtual const Armory::Wallets::AssetId& getAssetId(void) const = 0;
 
-   //local
-   bool hasData(void) const
-   {
-      return cipherData_.size() != 0;
-   }
-
-   const CipherData* getCipherDataPtr(const BinaryData& id) const
-   {
-      auto iter = cipherData_.find(id);
-      if (iter == cipherData_.end())
-         throw AssetException("no cipher for that id");
-
-      return iter->second.get();
-   }
-
-   virtual CipherData* getCipherDataPtr(void) const
-   {
-      auto iter = cipherData_.begin();
-      if (iter == cipherData_.end())
-         throw AssetException("empty cipher map");
-
-      return iter->second.get();
-   }
-
-
-   size_t getCipherDataCount(void) const
-   {
-      return cipherData_.size();
-   }
-
-   virtual std::unique_ptr<DecryptedData> decrypt(
+   virtual std::unique_ptr<ClearTextAssetData> decrypt(
       const SecureBinaryData& key) const;
 
+   //local
+   const SecureBinaryData& getCipherText(void) const;
+   const SecureBinaryData& getIV(void) const;
+   const Armory::Wallets::EncryptionKeyId& getEncryptionKeyId(void) const;
+   const BinaryData& getKdfId(void) const;
+
+   bool hasData(void) const
+   {
+      return cipherData_ != nullptr;
+   }
+
+   const CipherData* getCipherDataPtr() const
+   {
+      return cipherData_.get();
+   }
+
    //static
-   static std::unique_ptr<Asset_EncryptedData> deserialize(
+   static std::unique_ptr<EncryptedAssetData> deserialize(
       const BinaryDataRef&);
-   static std::unique_ptr<Asset_EncryptedData> deserialize(
+   static std::unique_ptr<EncryptedAssetData> deserialize(
       size_t len, const BinaryDataRef&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class DecryptedDataContainer;
-////
-struct Asset_EncryptionKey : public Asset_EncryptedData
+struct Asset_PrivateKey : public EncryptedAssetData, public Asset
 {
-   /*
-   May have multiple cipher data objects
-   */
-
-   friend class DecryptedDataContainer;
+public:
+   const Armory::Wallets::AssetId id_;
 
 public:
-   const BinaryData id_;
-
-private:
-   Cipher* getCipherPtrForId(const BinaryData&) const;
-   bool removeCipherData(const BinaryData&);
-   bool addCipherData(std::unique_ptr<CipherData>);
-
-public:
-   Asset_EncryptionKey(BinaryData& id, 
-      SecureBinaryData& cipherText,
-      std::unique_ptr<Cipher> cipher) :
-      Asset_EncryptedData(cipherText, std::move(cipher)), 
-      id_(std::move(id))
-   {}
-
-   Asset_EncryptionKey(BinaryData& id,
-      std::map<BinaryData, std::unique_ptr<CipherData>> cipherData) :
-      Asset_EncryptedData(std::move(cipherData)),
-      id_(std::move(id))
-   {}
-
-   ////
-   BinaryData serialize(void) const override;
-   BinaryData getId(void) const { return id_; }
-   bool isSame(Asset_EncryptedData* const) const;
-
-   const SecureBinaryData& getCipherText(void) const override;
-   const SecureBinaryData& getIV(void) const override;
-   const BinaryData& getEncryptionKeyId(void) const override;
-   const BinaryData& getKdfId(void) const override;
-
-   std::unique_ptr<DecryptedData> decrypt(
-      const SecureBinaryData& key) const override;
-   CipherData* getCipherDataPtr(void) const override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-struct Asset_PrivateKey : public Asset_EncryptedData
-{
-   /*
-   Only ever 1 cipher data object
-   */
-public:
-   const BinaryData id_;
-
-public:
-   Asset_PrivateKey(const BinaryData& id,
-      SecureBinaryData& data, std::unique_ptr<Cipher> cipher) :
-      Asset_EncryptedData(data, std::move(cipher)), id_(id)
-   {}
-
-   Asset_PrivateKey(const BinaryData& id,
+   Asset_PrivateKey(const Armory::Wallets::AssetId& id,
       std::unique_ptr<CipherData> cipherData) :
-      Asset_EncryptedData(std::move(cipherData)), id_(id)
+      EncryptedAssetData(std::move(cipherData)),
+      Asset(AssetType::PrivateKey), id_(id)
    {}
 
    ////
+   bool isSame(EncryptedAssetData* const) const override;
    BinaryData serialize(void) const override;
-   BinaryData getId(void) const { return id_; }
-   bool isSame(Asset_EncryptedData* const) const;
-
-   const SecureBinaryData& getCipherText(void) const override;
-   const SecureBinaryData& getIV(void) const override;
-   const BinaryData& getEncryptionKeyId(void) const override;
-   const BinaryData& getKdfId(void) const override;
+   const Armory::Wallets::AssetId& getAssetId(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class EncryptedSeed : public Asset_EncryptedData
-{   
-   /*
-   Only ever 1 cipher data object
-   */
+class EncryptedSeed : public EncryptedAssetData
+{
+public:
+   static const Armory::Wallets::AssetId seedAssetId_;
+
 public:
    //tors
    EncryptedSeed(
-      SecureBinaryData cipherText, std::unique_ptr<Cipher> cipher) :
-      Asset_EncryptedData(cipherText, move(cipher))
-   {}
-
-   EncryptedSeed(
       std::unique_ptr<CipherData> cipher) :
-      Asset_EncryptedData(move(cipher))
+      EncryptedAssetData(move(cipher))
    {}
-   
-   //virtual
-   BinaryData serialize(void) const override;
-   bool isSame(Asset_EncryptedData* const) const;
-   BinaryData getId(void) const { return SEED_ID; }
 
-   const SecureBinaryData& getCipherText(void) const override;
-   const SecureBinaryData& getIV(void) const override;
-   const BinaryData& getEncryptionKeyId(void) const override;
-   const BinaryData& getKdfId(void) const override;
+   //virtual
+   bool isSame(EncryptedAssetData* const) const override;
+   BinaryData serialize(void) const override;
+   const Armory::Wallets::AssetId& getAssetId(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -429,28 +366,22 @@ class AssetEntry
 {
 protected:
    AssetEntryType type_;
-   const AssetKeyType index_;
-   const BinaryData accountID_;
-   BinaryData ID_; //accountID | index
+   const Armory::Wallets::AssetId ID_;
 
    bool needsCommit_ = true;
 
 public:
    //tors
-   AssetEntry(AssetEntryType type, AssetKeyType id,
-      const BinaryData& accountID) :
-      type_(type), index_(id), accountID_(accountID)
-   {
-      ID_ = accountID_;
-      ID_.append(WRITE_UINT32_BE(id));
-   }
+   AssetEntry(AssetEntryType type, Armory::Wallets::AssetId id) :
+      type_(type), ID_(id)
+   {}
 
    virtual ~AssetEntry(void) = 0;
 
    //local
-   AssetKeyType getIndex(void) const { return index_; }
-   const BinaryData& getAccountID(void) const { return accountID_; }
-   const BinaryData& getID(void) const { return ID_; }
+   Armory::Wallets::AssetKeyType getIndex(void) const;
+   const Armory::Wallets::AssetAccountId getAccountID(void) const;
+   const Armory::Wallets::AssetId& getID(void) const { return ID_; }
 
    virtual const AssetEntryType getType(void) const { return type_; }
    bool needsCommit(void) const { return needsCommit_; }
@@ -461,14 +392,14 @@ public:
    //virtual
    virtual BinaryData serialize(void) const = 0;
    virtual bool hasPrivateKey(void) const = 0;
-   virtual const BinaryData& getPrivateEncryptionKeyId(void) const = 0;
+   virtual const Armory::Wallets::EncryptionKeyId&
+      getPrivateEncryptionKeyId(void) const = 0;
 
    //static
    static std::shared_ptr<AssetEntry> deserialize(
       BinaryDataRef key, BinaryDataRef value);
    static std::shared_ptr<AssetEntry> deserDBValue(
-      AssetKeyType index, const BinaryData& account_id,
-      BinaryDataRef value);
+      const Armory::Wallets::AssetId&, BinaryDataRef);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -480,30 +411,30 @@ private:
 
 public:
    //tors
-   AssetEntry_Single(AssetKeyType id, const BinaryData& accountID,
+   AssetEntry_Single(Armory::Wallets::AssetId id,
       SecureBinaryData& pubkey,
       std::shared_ptr<Asset_PrivateKey> privkey) :
-      AssetEntry(AssetEntryType_Single, id, accountID), 
+      AssetEntry(AssetEntryType_Single, id),
       privkey_(privkey)
    {
       pubkey_ = std::make_shared<Asset_PublicKey>(pubkey);
    }
 
-   AssetEntry_Single(AssetKeyType id, const BinaryData& accountID,
+   AssetEntry_Single(Armory::Wallets::AssetId id,
       SecureBinaryData& pubkeyUncompressed,
       SecureBinaryData& pubkeyCompressed,
       std::shared_ptr<Asset_PrivateKey> privkey) :
-      AssetEntry(AssetEntryType_Single, id, accountID), 
+      AssetEntry(AssetEntryType_Single, id),
       privkey_(privkey)
    {
       pubkey_ = std::make_shared<Asset_PublicKey>(
          pubkeyUncompressed, pubkeyCompressed);
    }
 
-   AssetEntry_Single(AssetKeyType id, const BinaryData& accountID,
+   AssetEntry_Single(Armory::Wallets::AssetId id,
       std::shared_ptr<Asset_PublicKey> pubkey,
       std::shared_ptr<Asset_PrivateKey> privkey) :
-      AssetEntry(AssetEntryType_Single, id, accountID),
+      AssetEntry(AssetEntryType_Single, id),
       pubkey_(pubkey), privkey_(privkey)
    {}
 
@@ -514,7 +445,8 @@ public:
    //virtual
    virtual BinaryData serialize(void) const override;
    bool hasPrivateKey(void) const;
-   const BinaryData& getPrivateEncryptionKeyId(void) const override;
+   const Armory::Wallets::EncryptionKeyId&
+      getPrivateEncryptionKeyId(void) const override;
    const BinaryData& getKdfId(void) const;
 
    virtual std::shared_ptr<AssetEntry_Single> getPublicCopy(void);
@@ -528,11 +460,12 @@ private:
 
 public:
    //tors
-   AssetEntry_ArmoryLegacyRoot(AssetKeyType id, const BinaryData& accountID,
+   AssetEntry_ArmoryLegacyRoot(
+      Armory::Wallets::AssetId id,
       SecureBinaryData& pubkey,
       std::shared_ptr<Asset_PrivateKey> privkey,
       const SecureBinaryData& chaincode):
-      AssetEntry_Single(id, accountID, pubkey, privkey),
+      AssetEntry_Single(id, pubkey, privkey),
       chaincode_(chaincode)
    {}
 
@@ -576,7 +509,7 @@ private:
 public:
    //tors
    AssetEntry_BIP32Root(
-      AssetKeyType, const BinaryData&, //id & account id
+      const Armory::Wallets::AssetId&,
       SecureBinaryData&, //pubkey
       std::shared_ptr<Asset_PrivateKey>, //privkey
       const SecureBinaryData&, //chaincode
@@ -585,7 +518,7 @@ public:
       const std::vector<uint32_t>&); //der path
 
    AssetEntry_BIP32Root(
-      AssetKeyType, const BinaryData&,
+      const Armory::Wallets::AssetId&,
       std::shared_ptr<Asset_PublicKey>,
       std::shared_ptr<Asset_PrivateKey>,
       const SecureBinaryData&,
@@ -637,10 +570,10 @@ private:
 
 public:
    //tors
-   AssetEntry_Multisig(int id, const BinaryData& accountID,
+   AssetEntry_Multisig(Armory::Wallets::AssetId id,
       const std::map<BinaryData, std::shared_ptr<AssetEntry>>& assetMap,
       unsigned m, unsigned n) :
-      AssetEntry(AssetEntryType_Multisig, id, accountID),
+      AssetEntry(AssetEntryType_Multisig, id),
       assetMap_(assetMap), m_(m), n_(n)
    {
       if (assetMap.size() != n)
@@ -661,7 +594,8 @@ public:
    }
 
    bool hasPrivateKey(void) const;
-   const BinaryData& getPrivateEncryptionKeyId(void) const override;
+   const Armory::Wallets::EncryptionKeyId&
+      getPrivateEncryptionKeyId(void) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

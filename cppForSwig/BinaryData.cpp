@@ -18,21 +18,17 @@ BinaryData::BinaryData(BinaryDataRef const & bdRef)
    copyFrom(bdRef.getPtr(), bdRef.getSize());
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 void BinaryData::copyFrom(BinaryDataRef const & bdr)
 {
    copyFrom( bdr.getPtr(), bdr.getSize() );
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef BinaryData::getRef(void) const
 {
    return BinaryDataRef(getPtr(), getSize());
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData & BinaryData::append(BinaryDataRef const & bd2)
@@ -47,7 +43,6 @@ BinaryData & BinaryData::append(BinaryDataRef const & bd2)
 
    return (*this);
 }
-
 
 /////////////////////////////////////////////////////////////////////////////
 BinaryData & BinaryData::append(uint8_t const * str, size_t sz)
@@ -85,7 +80,6 @@ int32_t BinaryData::find(BinaryDataRef const & matchStr, uint32_t startPos)
    return finalAnswer;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 int32_t BinaryData::find(BinaryData const & matchStr, uint32_t startPos)
 {
@@ -105,8 +99,6 @@ bool BinaryData::contains(BinaryDataRef const & matchStr, uint32_t startPos)
 {
    return (find(matchStr, startPos) != -1);
 }
-
-
 
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryData::startsWith(BinaryDataRef const & matchStr) const
@@ -274,7 +266,6 @@ uint64_t BinaryRefReader::get_var_int(uint8_t* nRead)
    return varInt;
 }
 
-
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryData::operator==(BinaryDataRef const & bd2) const
 {
@@ -330,6 +321,10 @@ bool BinaryData::operator>(BinaryData const & bd2) const
 }
 
 /////////////////////////////////////////////////////////////////////////////
+//
+////BinaryDataRef
+//
+/////////////////////////////////////////////////////////////////////////////
 bool BinaryDataRef::operator<(BinaryDataRef const & bd2) const
 {
    auto minsize = min(nBytes_, bd2.nBytes_);
@@ -357,6 +352,36 @@ bool BinaryDataRef::operator>(BinaryDataRef const & bd2) const
 }
 
 /////////////////////////////////////////////////////////////////////////////
+bool BinaryDataRef::startsWith(BinaryDataRef const & matchStr) const
+{
+   if(matchStr.getSize() > nBytes_)
+      return false;
+   
+   for(uint32_t i=0; i<matchStr.getSize(); i++)
+      if(matchStr[i] != (*this)[i])
+         return false;
+   
+   return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+bool BinaryDataRef::startsWith(BinaryData const & matchStr) const
+{
+   if(matchStr.getSize() > nBytes_)
+      return false;
+   
+   for(uint32_t i=0; i<matchStr.getSize(); i++)
+      if(matchStr[i] != (*this)[i])
+         return false;
+   
+   return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+////BinaryReader
+//
+/////////////////////////////////////////////////////////////////////////////
 void BinaryReader::advance(uint32_t nBytes)
 {
    pos_ += nBytes;
@@ -378,6 +403,10 @@ void BinaryReader::resize(size_t nBytes)
 }
 
 /////////////////////////////////////////////////////////////////////////////
+//
+////BinaryRefReader
+//
+/////////////////////////////////////////////////////////////////////////////
 SecureBinaryData BinaryRefReader::get_SecureBinaryData(uint32_t nBytes)
 {
    if (getSizeRemaining() < nBytes)
@@ -396,7 +425,3 @@ void BinaryRefReader::advance(size_t nBytes)
 
    pos_.fetch_add(nBytes, memory_order_relaxed);
 }
-
-
-
-

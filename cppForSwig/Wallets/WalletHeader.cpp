@@ -85,15 +85,13 @@ BinaryData WalletHeader::serializeEncryptionKey() const
    BinaryWriter bw;
    bw.put_uint32_t(HEADER_ENCRYPTIONKEY_VERSION);
 
-   bw.put_var_int(defaultEncryptionKeyId_.getSize());
-   bw.put_BinaryData(defaultEncryptionKeyId_);
+   defaultEncryptionKeyId_.serializeValue(bw);
    bw.put_var_int(defaultEncryptionKey_.getSize());
    bw.put_BinaryData(defaultEncryptionKey_);
 
    bw.put_var_int(defaultKdfId_.getSize());
    bw.put_BinaryData(defaultKdfId_);
-   bw.put_var_int(masterEncryptionKeyId_.getSize());
-   bw.put_BinaryData(masterEncryptionKeyId_);
+   masterEncryptionKeyId_.serializeValue(bw);
 
 
    return bw.getData();

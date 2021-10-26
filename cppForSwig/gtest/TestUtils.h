@@ -98,6 +98,10 @@ namespace TestUtils
    void setBlocks(const std::vector<std::string> &files, const std::string &to);
    void nullProgress(unsigned, double, unsigned, unsigned);
    BinaryData getTx(unsigned height, unsigned id);
+
+   std::shared_ptr<AssetEntry> getMainAccountAssetForIndex(
+      std::shared_ptr<AssetWallet>, Armory::Wallets::AssetKeyType);
+   size_t getMainAccountAssetCount(std::shared_ptr<AssetWallet>);
 }
 
 namespace DBTestUtils

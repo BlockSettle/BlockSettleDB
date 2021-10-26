@@ -15,6 +15,7 @@
 using namespace std;
 using namespace ArmorySigner;
 using namespace ArmoryConfig;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<ScriptSpender> getSpenderPtr(const UTXO& utxo, bool RBF = false)
@@ -5230,7 +5231,7 @@ protected:
       });
 
       //setup auth peers for server and client
-      authPeersPassLbd_ = [](const set<BinaryData>&)->SecureBinaryData
+      authPeersPassLbd_ = [](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return SecureBinaryData::fromString("authpeerpass");
       };

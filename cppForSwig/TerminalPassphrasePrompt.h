@@ -10,15 +10,16 @@
 #include <map>
 
 #include "SecureBinaryData.h"
+#include "Wallets/WalletIdTypes.h"
 #include "Wallets/PassphraseLambda.h"
 
-#define CHANGE_PASS_FLAG BinaryData::fromString("change-pass")
+#define CHANGE_PASS_FLAG BinaryData::fromString("change-pass     ")
 
 class TerminalPassphrasePrompt
 {
 private:
     std::mutex mu_;
-    std::map<BinaryData, unsigned> countMap_;
+    std::map<Armory::Wallets::EncryptionKeyId, unsigned> countMap_;
 
     const std::string verbose_;
 
@@ -30,9 +31,10 @@ private:
             throw std::runtime_error("empty verbose is not allowed");
     }
     
-    SecureBinaryData prompt(const std::set<BinaryData>& idSet);
+    SecureBinaryData prompt(
+        const std::set<Armory::Wallets::EncryptionKeyId>& idSet);
     SecureBinaryData promptForPassphrase(
-        const std::set<BinaryData>& idSet);
+        const std::set<Armory::Wallets::EncryptionKeyId>& idSet);
     SecureBinaryData promptNewPass();
 
     static void setEcho(bool);

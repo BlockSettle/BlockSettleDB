@@ -65,7 +65,7 @@ public:
    virtual AddressEntryType getType(void) const { return type_; }
 
    //virtual
-   virtual const BinaryData& getID(void) const = 0;
+   virtual const Armory::Wallets::AssetId& getID(void) const = 0;
 
    virtual const std::string& getAddress() const = 0;
    virtual std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(uint64_t) const = 0;
@@ -124,7 +124,7 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const override;
+   const Armory::Wallets::AssetId& getID(void) const override;
    const std::string& getAddress(void) const override;
 
    const BinaryData& getPrefixedHash(void) const override;
@@ -154,7 +154,7 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const override;
+   const Armory::Wallets::AssetId& getID(void) const override;
    const std::string& getAddress(void) const override;
 
    const BinaryData& getHash(void) const override;
@@ -184,7 +184,7 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const override;
+   const Armory::Wallets::AssetId& getID(void) const override;
    const std::string& getAddress(void) const override;
 
    const BinaryData& getHash(void) const override;
@@ -215,7 +215,7 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const override;
+   const Armory::Wallets::AssetId& getID(void) const override;
    const std::string& getAddress(void) const override;
 
    const BinaryData& getHash(void) const override;
@@ -263,7 +263,7 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const override;
+   const Armory::Wallets::AssetId& getID(void) const override;
    const std::string& getAddress(void) const override;
 
    const BinaryData& getHash(void) const override;
@@ -299,7 +299,7 @@ public:
    }
 
    //virtual
-   const BinaryData& getID(void) const override;
+   const Armory::Wallets::AssetId& getID(void) const override;
    const std::string& getAddress(void) const override;
 
    const BinaryData& getHash(void) const override;

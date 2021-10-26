@@ -103,7 +103,7 @@ size_t AddressEntry_P2PKH::getInputSize() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_P2PKH::getID() const
+const Armory::Wallets::AssetId& AddressEntry_P2PKH::getID() const
 {
    return getAsset()->getID();
 }
@@ -178,7 +178,7 @@ size_t AddressEntry_P2PK::getInputSize() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_P2PK::getID() const
+const Armory::Wallets::AssetId& AddressEntry_P2PK::getID() const
 {
    return getAsset()->getID();
 }
@@ -261,7 +261,7 @@ shared_ptr<ScriptRecipient> AddressEntry_P2WPKH::getRecipient(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_P2WPKH::getID() const
+const Armory::Wallets::AssetId& AddressEntry_P2WPKH::getID() const
 {
    return getAsset()->getID();
 }
@@ -345,7 +345,7 @@ size_t AddressEntry_Multisig::getInputSize() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_Multisig::getID() const
+const Armory::Wallets::AssetId& AddressEntry_Multisig::getID() const
 {
    return getAsset()->getID();
 }
@@ -448,7 +448,7 @@ const BinaryData& AddressEntry_P2SH::getPrefixedHash() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_P2SH::getID() const
+const Armory::Wallets::AssetId& AddressEntry_P2SH::getID() const
 {
    if (getPredecessor() == nullptr)
       throw AddressException("missing predecessor");
@@ -564,7 +564,7 @@ shared_ptr<ScriptRecipient> AddressEntry_P2WSH::getRecipient(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const BinaryData& AddressEntry_P2WSH::getID() const
+const Armory::Wallets::AssetId& AddressEntry_P2WSH::getID() const
 {
    if (getPredecessor() == nullptr)
       throw AddressException("missing predecessor");

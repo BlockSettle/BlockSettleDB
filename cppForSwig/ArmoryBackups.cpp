@@ -9,6 +9,7 @@
 #include "ArmoryBackups.h"
 #include "EncryptionUtils.h"
 #include "BtcUtils.h"
+#include "Wallets/WalletIdTypes.h"
 
 #define EASY16_CHECKSUM_LEN 2
 #define EASY16_INDEX_MAX   15
@@ -1069,7 +1070,7 @@ shared_ptr<AssetWallet> Helpers::restoreFromBackup(
 
       auto pubkey = CryptoECDSA().ComputePublicKey(root);
       auto asset_single = make_shared<AssetEntry_Single>(
-         ROOT_ASSETENTRY_ID, BinaryData(), pubkey, nullptr);
+         Armory::Wallets::AssetId::getRootAssetId(), pubkey, nullptr);
 
       return AssetWallet_Single::computeWalletID(derScheme, asset_single);
    };

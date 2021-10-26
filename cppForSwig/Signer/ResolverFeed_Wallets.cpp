@@ -107,8 +107,7 @@ pair<shared_ptr<AssetEntry>, AddressEntryType>
          rather the one used to roll the prefix.
          */
 
-         auto asset =
-            accPtr->getAssetForID(iter->second.first.getSliceRef(4, 8));
+         auto asset = accPtr->getAssetForID(iter->second.first);
          return make_pair(asset, iter->second.second);
       }
    }
@@ -169,9 +168,9 @@ const SecureBinaryData& ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
       auto pathIter = bip32Paths_.find(pubkey);
       if (pathIter != bip32Paths_.end())
       {
-         if (pathIter->second.second.empty())
+         if (!pathIter->second.second.isValid())
          {
-            pathIter->second.second = 
+            pathIter->second.second =
                wltPtr_->derivePrivKeyFromPath(pathIter->second.first);
          }
 
@@ -269,7 +268,7 @@ void ResolverFeed_AssetWalletSingle::seedFromAddressEntry(
 void ResolverFeed_AssetWalletSingle::setBip32PathForPubkey(
    const BinaryData& pubkey, const BIP32_AssetPath& path)
 {
-   bip32Paths_.emplace(pubkey, make_pair(path, BinaryData()));
+   bip32Paths_.emplace(pubkey, make_pair(path, Armory::Wallets::AssetId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -290,7 +289,7 @@ ResolverFeed_AssetWalletSingle_ForMultisig::ResolverFeed_AssetWalletSingle_ForMu
          auto assAcc = addrAcc->getAccountForID(assID);
          for (unsigned i = 0; i < assAcc->getAssetCount(); i++)
          {
-            auto asset = assAcc->getAssetForIndex(i);
+            auto asset = assAcc->getAssetForKey(i);
             addToMap(asset);
          }
       }

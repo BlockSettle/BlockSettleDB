@@ -85,6 +85,7 @@ ARMORYWALLETS_SOURCE_FILES = Wallets/BIP32_Node.cpp \
 	Wallets/Accounts/AssetAccounts.cpp \
 	Wallets/Accounts/AddressAccounts.cpp \
 	Wallets/Accounts/MetaAccounts.cpp \
+	Wallets/WalletIdTypes.cpp \
 	Wallets/Assets.cpp \
 	Wallets/WalletHeader.cpp \
 	Wallets/EncryptedDB.cpp \

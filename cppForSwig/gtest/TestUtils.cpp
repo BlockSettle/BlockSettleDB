@@ -163,6 +163,23 @@ namespace TestUtils
       auto& stx = sbh.stxMap_[id];
       return stx.dataCopy_;
    }
+
+   ////////////////////////////////////////////////////////////////////////////////
+   std::shared_ptr<AssetEntry> getMainAccountAssetForIndex(
+      std::shared_ptr<AssetWallet> wlt, Armory::Wallets::AssetKeyType index)
+   {
+      auto mainAcc = wlt->getAccountForID(wlt->getMainAccountID());
+      auto outerAcc = mainAcc->getOuterAccount();
+      return outerAcc->getAssetForKey(index);
+   }
+
+   ////////////////////////////////////////////////////////////////////////////////
+   size_t getMainAccountAssetCount(std::shared_ptr<AssetWallet> wlt)
+   {
+      auto mainAcc = wlt->getAccountForID(wlt->getMainAccountID());
+      auto outerAcc = mainAcc->getOuterAccount();
+      return outerAcc->getAssetCount();
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

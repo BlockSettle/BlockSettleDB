@@ -14,6 +14,7 @@
 
 #include "../BinaryData.h"
 #include "ResolverFeed.h"
+#include "../Wallets/WalletIdTypes.h"
 #include "../Wallets/Addresses.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +35,8 @@ private:
 protected:
    std::map<BinaryData, BinaryData> hash_to_preimage_;
    std::map<BinaryData, std::shared_ptr<AssetEntry_Single>> pubkey_to_asset_;
-   std::map<BinaryData, std::pair<BIP32_AssetPath, BinaryData>> bip32Paths_;
+   std::map<BinaryData,
+      std::pair<BIP32_AssetPath, Armory::Wallets::AssetId>> bip32Paths_;
 
 private:
 

@@ -9,12 +9,13 @@
 #ifndef _H_ACCOUNT_TYPES
 #define _H_ACCOUNT_TYPES
 
+#include "../WalletIdTypes.h"
 #include "../Addresses.h"
 
 #define ARMORY_LEGACY_ACCOUNTID        0xF6E10000
 #define IMPORTS_ACCOUNTID              0x00000000
-#define ARMORY_LEGACY_ASSET_ACCOUNTID  0x00000001
-#define ECDH_ASSET_ACCOUNTID           0x20000000
+#define ARMORY_LEGACY_ASSET_ACCOUNTID  0x00000001U
+#define ECDH_ASSET_ACCOUNTID           0x20000000U
 #define SEED_DEPTH                     0xFFFF
 
 class AccountException : public std::runtime_error
@@ -103,9 +104,9 @@ public:
 
    //virtuals
    virtual AccountTypeEnum type(void) const = 0;
-   virtual BinaryData getAccountID(void) const = 0;
-   virtual BinaryData getOuterAccountID(void) const = 0;
-   virtual BinaryData getInnerAccountID(void) const = 0;
+   virtual Armory::Wallets::AddressAccountId getAccountID(void) const = 0;
+   virtual Armory::Wallets::AssetAccountId getOuterAccountID(void) const = 0;
+   virtual Armory::Wallets::AssetAccountId getInnerAccountID(void) const = 0;
    virtual bool isWatchingOnly(void) const = 0;
 };
 
@@ -120,9 +121,9 @@ public:
 
    bool isWatchingOnly(void) const override {return false;}
 
-   BinaryData getAccountID(void) const override;
-   BinaryData getOuterAccountID(void) const override;
-   BinaryData getInnerAccountID(void) const override;
+   Armory::Wallets::AddressAccountId getAccountID(void) const override;
+   Armory::Wallets::AssetAccountId getOuterAccountID(void) const override;
+   Armory::Wallets::AssetAccountId getInnerAccountID(void) const override;
 };
 
 struct NodeData
@@ -322,19 +323,19 @@ public:
 
 ////
 class AccountType_BIP32 : public AccountType
-{   
+{
    friend struct AccountType_BIP32_Custom;
 
 private:
    DerivationTree derTree_;
 
-   BinaryData outerAccount_;
-   BinaryData innerAccount_;
+   Armory::Wallets::AccountKeyType outerAccountKey_;
+   Armory::Wallets::AccountKeyType innerAccountKey_;
+   bool haveOuterAccId_ = false;
+   bool haveInnerAccId_ = false;
 
 protected:
    unsigned addressLookup_ = UINT32_MAX;
-
-private:
 
 public:
    AccountType_BIP32(DerivationTree&);
@@ -343,10 +344,10 @@ public:
       uint32_t, const std::vector<std::vector<uint32_t>>&);
 
    //AccountType virtuals
-   BinaryData getAccountID(void) const override;
-   BinaryData getOuterAccountID(void) const override;
-   BinaryData getInnerAccountID(void) const override;
-   bool isWatchingOnly(void) const override {return false;}
+   Armory::Wallets::AddressAccountId getAccountID(void) const override;
+   Armory::Wallets::AssetAccountId getOuterAccountID(void) const override;
+   Armory::Wallets::AssetAccountId getInnerAccountID(void) const override;
+   bool isWatchingOnly(void) const override { return false;}
 
    //bip32 locals
    unsigned getSeedFingerprint(void) const;
@@ -357,8 +358,8 @@ public:
    }
 
    void setNodes(const std::set<unsigned>& nodes);
-   void setOuterAccountID(const BinaryData&);
-   void setInnerAccountID(const BinaryData&);
+   void setOuterAccountID(const Armory::Wallets::AccountKeyType&);
+   void setInnerAccountID(const Armory::Wallets::AccountKeyType&);
    void setRoots(const std::vector<PathAndRoot>&);
    void setSeedRoot(const SecureBinaryData&);
 
@@ -398,16 +399,12 @@ private:
    const SecureBinaryData privateKey_;
    const SecureBinaryData publicKey_;
 
-   //ECDH accounts are always single
-   const BinaryData accountID_;
-
 public:
    //tor
    AccountType_ECDH(
       const SecureBinaryData& privKey,
       const SecureBinaryData& pubKey) :
-      privateKey_(privKey), publicKey_(pubKey),
-      accountID_(WRITE_UINT32_BE(ECDH_ASSET_ACCOUNTID))
+      privateKey_(privKey), publicKey_(pubKey)
    {
       //run checks
       if (privateKey_.getSize() == 0 && publicKey_.getSize() == 0)
@@ -420,9 +417,10 @@ public:
 
    //virtual
    AccountTypeEnum type(void) const override { return AccountTypeEnum_ECDH; }
-   BinaryData getAccountID(void) const override;
-   BinaryData getOuterAccountID(void) const override { return accountID_; }
-   BinaryData getInnerAccountID(void) const override { return accountID_; }
+   Armory::Wallets::AddressAccountId getAccountID(void) const override;
+   Armory::Wallets::AssetAccountId getOuterAccountID(void) const override;
+   Armory::Wallets::AssetAccountId getInnerAccountID(void) const override;
+
    virtual bool isWatchingOnly(void) const override;
 };
 

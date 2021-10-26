@@ -13,6 +13,7 @@
 #include <functional>
 #include <string>
 
+#include "../WalletIdTypes.h"
 #include "../../ReentrantLock.h"
 
 #define ASSET_ACCOUNT_PREFIX        0xE1
@@ -21,43 +22,40 @@
 #define ASSET_TOP_INDEX_PREFIX_V2   0xE4
 
 ////////////////////////////////////////////////////////////////////////////////
-class DBIfaceTransaction;
+class WalletIfaceTransaction;
 class WalletDBInterface;
 class DerivationScheme;
 enum class DerivationSchemeType : int;
 
-using AssetKeyType = int32_t;
-
 ////////////////////////////////////////////////////////////////////////////////
 struct AssetAccountData
 {
-
 public:
    const AssetAccountTypeEnum type_;
-   BinaryData id_;
-   BinaryData parentId_;
+   Armory::Wallets::AssetAccountId id_;
 
    std::shared_ptr<AssetEntry> root_;
    std::shared_ptr<DerivationScheme> derScheme_;
 
    const std::string dbName_;
 
-   std::map<AssetKeyType, std::shared_ptr<AssetEntry>> assets_;
-   AssetKeyType lastUsedIndex_ = -1;
+   std::map<Armory::Wallets::AssetKeyType, std::shared_ptr<AssetEntry>> assets_;
+   Armory::Wallets::AssetKeyType lastUsedIndex_ = -1;
 
    //<assetID, <address type, prefixed address hash>>
-   std::map<BinaryData, std::map<AddressEntryType, BinaryData>> addrHashMap_;
-   AssetKeyType lastHashedAsset_ = -1;
+   using AddrHashMapType = std::map<Armory::Wallets::AssetId,
+      std::map<AddressEntryType, BinaryData>>;
+   AddrHashMapType addrHashMap_;
+   Armory::Wallets::AssetKeyType lastHashedAsset_ = -1;
 
 public:
    AssetAccountData(
       const AssetAccountTypeEnum type,
-      const BinaryData& id,
-      const BinaryData& parentId,
+      const Armory::Wallets::AssetAccountId& id,
       std::shared_ptr<AssetEntry> root,
       std::shared_ptr<DerivationScheme> scheme,
       const std::string& dbName) :
-      type_(type), id_(id), parentId_(parentId), 
+      type_(type), id_(id),
       root_(root), derScheme_(scheme),
       dbName_(dbName)
    {}
@@ -68,14 +66,13 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 struct AssetAccountPublicData
 {
-   const BinaryData id_;
-   const BinaryData parentId_;
+   const Armory::Wallets::AssetAccountId id_;
 
    const SecureBinaryData rootData_;
    const SecureBinaryData derivationData_;
 
-   const AssetKeyType lastUsedIndex_;
-   const AssetKeyType lastComputedIndex_;
+   const Armory::Wallets::AssetKeyType lastUsedIndex_;
+   const Armory::Wallets::AssetKeyType lastComputedIndex_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,8 +128,8 @@ private:
 
    std::shared_ptr<Asset_PrivateKey> fillPrivateKey(
       std::shared_ptr<WalletDBInterface>,
-      std::shared_ptr<DecryptedDataContainer> ddc,
-      const BinaryData& id);
+      std::shared_ptr<DecryptedDataContainer>,
+      const Armory::Wallets::AssetId&);
 
    virtual unsigned getLookup(void) const;
    virtual AssetAccountTypeEnum type(void) const
@@ -152,16 +149,17 @@ public:
    int32_t getHighestUsedIndex(void) const;
    std::shared_ptr<AssetEntry> getLastAssetWithPrivateKey(void) const;
 
-   std::shared_ptr<AssetEntry> getAssetForID(const BinaryData&) const;
-   std::shared_ptr<AssetEntry> getAssetForIndex(unsigned id) const;
+   std::shared_ptr<AssetEntry> getAssetForID(
+      const Armory::Wallets::AssetId&) const;
+   std::shared_ptr<AssetEntry> getAssetForKey(
+      const Armory::Wallets::AssetKeyType&) const;
+   bool isAssetIDValid(const Armory::Wallets::AssetId&) const;
 
    void updateAddressHashMap(const std::set<AddressEntryType>&);
-   const std::map<BinaryData, std::map<AddressEntryType, BinaryData>>&
+   const AssetAccountData::AddrHashMapType&
       getAddressHashMap(const std::set<AddressEntryType>&);
 
-   const BinaryData& getID(void) const;
-   BinaryData getFullID(void) const;
-
+   const Armory::Wallets::AssetAccountId& getID(void) const;
    const SecureBinaryData& getChaincode(void) const;
    std::shared_ptr<AssetEntry> getRoot(void) const;
 
@@ -169,8 +167,7 @@ public:
 
    //static
    static std::shared_ptr<AssetAccountData> loadFromDisk(
-      const BinaryData& key, std::shared_ptr<WalletDBInterface>,
-      const std::string&);
+      const BinaryData& key, std::shared_ptr<WalletIfaceTransaction>);
 
    //Lockable virtuals
    void initAfterLock(void) {}
@@ -193,8 +190,9 @@ public:
       AssetAccount(data)
    {}
 
-   unsigned addSalt(std::shared_ptr<DBIfaceTransaction>, const SecureBinaryData&);
-   unsigned getSaltIndex(const SecureBinaryData&) const;
+   Armory::Wallets::AssetKeyType addSalt(
+      std::shared_ptr<WalletIfaceTransaction>, const SecureBinaryData&);
+   Armory::Wallets::AssetKeyType getSaltIndex(const SecureBinaryData&) const;
 };
 
 #endif

@@ -260,6 +260,14 @@ public:
    { }
 };
 
+class VarIntException : public BlockDeserializingException
+{
+public:
+   VarIntException(const std::string &what="")
+      : BlockDeserializingException(what)
+   { }
+};
+
 class DERException : public std::runtime_error
 {
 public:
@@ -297,44 +305,7 @@ public:
 
    /////////////////////////////////////////////////////////////////////////////
    static uint64_t readVarInt(uint8_t const * strmPtr, size_t remaining, 
-      uint32_t* lenOutPtr=NULL)
-   {
-      if (remaining < 1)
-         throw BlockDeserializingException("invalid varint");
-      uint8_t firstByte = strmPtr[0];
-
-      if(firstByte < 0xfd)
-      {
-         if(lenOutPtr != NULL) 
-            *lenOutPtr = 1;
-         return firstByte;
-      }
-      if(firstByte == 0xfd)
-      {
-         if (remaining < 3)
-            throw BlockDeserializingException("invalid varint");
-         if(lenOutPtr != NULL) 
-            *lenOutPtr = 3;
-         return READ_UINT16_LE(strmPtr+1);
-         
-      }
-      else if(firstByte == 0xfe)
-      {
-         if (remaining < 5)
-            throw BlockDeserializingException("invalid varint");
-         if(lenOutPtr != NULL) 
-            *lenOutPtr = 5;
-         return READ_UINT32_LE(strmPtr+1);
-      }
-      else //if(firstByte == 0xff)
-      {
-         if (remaining < 9)
-            throw BlockDeserializingException("invalid varint");
-         if(lenOutPtr != NULL) 
-            *lenOutPtr = 9;
-         return READ_UINT64_LE(strmPtr+1);
-      }
-   }
+      uint32_t* lenOutPtr=NULL);
 
    /////////////////////////////////////////////////////////////////////////////
    static std::pair<uint64_t, uint8_t> readVarInt(BinaryRefReader & brr)

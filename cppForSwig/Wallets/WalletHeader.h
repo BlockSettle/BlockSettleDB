@@ -14,6 +14,7 @@
 
 #include "BinaryData.h"
 #include "SecureBinaryData.h"
+#include "WalletIdTypes.h"
 
 
 #define WALLETTYPE_KEY        0x00000001
@@ -59,14 +60,14 @@ enum WalletHeaderType
 ////
 struct WalletHeader
 {
-   WalletHeaderType type_;
+   const WalletHeaderType type_;
    std::string walletID_;
 
    SecureBinaryData defaultEncryptionKey_;
-   SecureBinaryData defaultEncryptionKeyId_;
+   Armory::Wallets::EncryptionKeyId defaultEncryptionKeyId_;
 
    SecureBinaryData defaultKdfId_;
-   SecureBinaryData masterEncryptionKeyId_;
+   Armory::Wallets::EncryptionKeyId masterEncryptionKeyId_;
 
    SecureBinaryData controlSalt_;
 
@@ -94,7 +95,8 @@ struct WalletHeader
    {
       return defaultEncryptionKey_;
    }
-   const BinaryData& getDefaultEncryptionKeyId(void) const
+   const Armory::Wallets::EncryptionKeyId&
+      getDefaultEncryptionKeyId(void) const
    {
       return defaultEncryptionKeyId_;
    }
@@ -191,16 +193,16 @@ struct WalletHeader_Custom : public WalletHeader
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct Asset_EncryptionKey;
-struct DecryptedEncryptionKey;
+struct EncryptionKey;
+struct ClearTextEncryptionKey;
 struct KeyDerivationFunction;
 class Cipher;
 class DecryptedDataContainer;
 
 struct MasterKeyStruct
 {
-   std::shared_ptr<Asset_EncryptionKey> masterKey_;
-   std::shared_ptr<DecryptedEncryptionKey> decryptedMasterKey_;
+   std::shared_ptr<EncryptionKey> masterKey_;
+   std::shared_ptr<ClearTextEncryptionKey> decryptedMasterKey_;
    std::shared_ptr<KeyDerivationFunction> kdf_;
    std::unique_ptr<Cipher> cipher_;
 };
