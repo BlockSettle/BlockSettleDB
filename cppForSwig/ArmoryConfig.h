@@ -203,7 +203,7 @@ public:
    
    static bool ephemeralPeers(void) { return ephemeralPeers_; }
    static bool oneWayAuth(void) { return oneWayAuth_; }
-   static bool offline(void) { return offline_; }
+   static bool isOffline(void) { return offline_; }
 
    static BinaryData uiPublicKey(void) { return uiPublicKey_; }
    static void injectUiPubkey(BinaryData&);

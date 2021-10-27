@@ -1036,7 +1036,7 @@ void Pathing::processArgs(const map<string, string>& args)
 
    testPath(ArmoryConfig::getDataDir(), 6);
 
-   if (NetworkSettings::offline())
+   if (NetworkSettings::isOffline())
    {
       //skip checks on block and db folders in offline mode
       return;
@@ -1062,7 +1062,8 @@ void Pathing::processArgs(const map<string, string>& args)
    //now for the regular test, let it throw if it fails
    testPath(dbDir_, 6);
 
-   testPath(blkFilePath_, 2);
+   if (!NetworkSettings::isOffline())
+      testPath(blkFilePath_, 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
