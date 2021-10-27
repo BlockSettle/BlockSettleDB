@@ -7,6 +7,7 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #include "TestUtils.h"
+#include "BIP15x_Handshake.h"
 
 using namespace std;
 using namespace ::Codec_BDVCommand;
@@ -772,7 +773,8 @@ namespace DBTestUtils
       vector<uint8_t> buffer(len);
       msg->SerializeToArray(&buffer[0], len);
       auto&& bdVec = WebSocketMessageCodec::serialize(
-         buffer, nullptr, WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, commandCtr_++);
+         buffer, nullptr,
+         ArmoryAEAD::BIP151_PayloadType::FragmentHeader, commandCtr_++);
       
       if (bdVec.size() > 1)
          LOGWARN << "large message in unit tests";

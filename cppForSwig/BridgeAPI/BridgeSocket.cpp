@@ -135,7 +135,8 @@ void CppBridgeSocket::respond(vector<uint8_t>& data)
          return;
       }
 
-      if (encr && dataRef[0] < ArmoryAEAD::HandshakeSequence::Threshold_Begin)
+      auto dataType = (ArmoryAEAD::BIP151_PayloadType)dataRef[0];
+      if (encr && dataType < ArmoryAEAD::BIP151_PayloadType::Threshold_Begin)
       {
          //we can only process user messages after the AEAD channel is auth'ed
          //and the data is encrypted
@@ -206,9 +207,10 @@ void CppBridgeSocket::pushPayload(
          vector<uint8_t> rekeyPacket(BIP151PUBKEYSIZE + 5 + POLY1305MACLEN);
          memset(&rekeyPacket[5], 0, BIP151PUBKEYSIZE);
          
-         auto rekeyPacketLen = (uint32_t*)&rekeyPacket[0];
-         *rekeyPacketLen = BIP151PUBKEYSIZE + 1;
-         rekeyPacket[4] = ArmoryAEAD::HandshakeSequence::Rekey;
+         uint32_t rekeyPacketLen = BIP151PUBKEYSIZE + 1;
+         memcpy(&rekeyPacket[0], &rekeyPacketLen, sizeof(uint32_t));
+         memset(&rekeyPacket[4],
+            (uint8_t)ArmoryAEAD::BIP151_PayloadType::Rekey, 1);
 
          bip151Connection_->assemblePacket(
             &rekeyPacket[0], rekeyPacket.size() - POLY1305MACLEN,
@@ -225,7 +227,7 @@ void CppBridgeSocket::pushPayload(
    write_payload->serialize(data);
 
    //set data flag
-   data[4] = 0;
+   memset(&data[4], 0, 1);
 
    //encrypt
    bip151Connection_->assemblePacket(
@@ -240,7 +242,7 @@ bool CppBridgeSocket::processAEADHandshake(BinaryDataRef data)
 {
    //write lambda
    auto writeData = [this](
-      const BinaryData& payload, uint8_t msgType, bool encrypt)
+      const BinaryData& payload, ArmoryAEAD::BIP151_PayloadType msgType, bool encrypt)
    {
       //prepend message type to payload
       size_t packetSize = 5 + payload.getSize() + POLY1305MACLEN;
@@ -249,12 +251,12 @@ bool CppBridgeSocket::processAEADHandshake(BinaryDataRef data)
       unsigned index = 0;
       if (encrypt)
       {
-         auto sizeHeader = (uint32_t*)&cipherText[0];
-         *sizeHeader = payload.getSize() + 1;
+         uint32_t sizeHeader = payload.getSize() + 1;
+         memcpy(&cipherText[0], &sizeHeader, sizeof(uint32_t));
          index = 4;
       }
 
-      cipherText[index] = msgType;
+      memset(&cipherText[index], (uint8_t)msgType, 1);
       memcpy(&cipherText[index + 1], payload.getPtr(), payload.getSize());
 
       //encrypt if necessary
@@ -274,11 +276,11 @@ bool CppBridgeSocket::processAEADHandshake(BinaryDataRef data)
    };
 
    //first byte is the AEAD sequence
-   auto seqId = (ArmoryAEAD::HandshakeSequence)data[0];
+   auto seqId = (ArmoryAEAD::BIP151_PayloadType)data[0];
 
    switch (seqId)
    {
-   case ArmoryAEAD::HandshakeSequence::PresentPubKey:
+   case ArmoryAEAD::BIP151_PayloadType::PresentPubKey:
    {
       LOGERR << "Server presented pubkey, bridge does not tolerate 1-way auth";
       return false;
@@ -328,12 +330,11 @@ void WritePayload_Bridge::serialize(std::vector<uint8_t>& data)
    data.resize(msgSize + 9 + POLY1305MACLEN);
 
    //set packet size
-   auto sizePtr = (uint32_t*)&data[0];
-   *sizePtr = msgSize + 5;
+   uint32_t sizeVal = msgSize + 5;
+   memcpy(&data[0], &sizeVal, sizeof(uint32_t));
 
    //set id
-   auto idPtr = (uint32_t*)&data[5];
-   *idPtr = id_;
+   memcpy(&data[5], &id_, sizeof(uint32_t));
 
    //serialize protobuf message
    message_->SerializeToArray(&data[9], msgSize);

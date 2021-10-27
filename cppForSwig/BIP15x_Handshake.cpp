@@ -161,12 +161,12 @@ using namespace ArmoryAEAD;
 ////////////////////////////////////////////////////////////////////////////////
 HandshakeState BIP15x_Handshake::serverSideHandshake(
    BIP151Connection* connPtr,
-   uint8_t msgType, const BinaryDataRef& msg, 
+   BIP151_PayloadType msgType, const BinaryDataRef& msg,
    const WriteCallback& writeCb)
 {
    switch (msgType)
    {
-   case HandshakeSequence::Start:
+   case BIP151_PayloadType::Start:
    {
       //init bip151 handshake
       BinaryData encinitData(ENCINITMSGSIZE);
@@ -178,11 +178,11 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
          return HandshakeState::Error_GetEncInit;
       }
 
-      writeCb(encinitData.getRef(), HandshakeSequence::EncInit, false);
+      writeCb(encinitData.getRef(), BIP151_PayloadType::EncInit, false);
       break;
    }
 
-   case HandshakeSequence::Rekey:
+   case BIP151_PayloadType::Rekey:
    {
       if (connPtr->getBIP150State() !=
          BIP150State::SUCCESS)
@@ -203,7 +203,7 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
       break;
    }
 
-   case HandshakeSequence::EncInit:
+   case BIP151_PayloadType::EncInit:
    {
       //process client encinit
       if (connPtr->processEncinit(
@@ -222,11 +222,11 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
          return HandshakeState::Error_GetEncAck;
       }
 
-      writeCb(encackData.getRef(), HandshakeSequence::EncAck, false);
+      writeCb(encackData.getRef(), BIP151_PayloadType::EncAck, false);
       break;
    }
 
-   case HandshakeSequence::EncAck:
+   case BIP151_PayloadType::EncAck:
    {
       //process client encack
       if (connPtr->processEncack(
@@ -239,7 +239,7 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
       break;
    }
 
-   case HandshakeSequence::Challenge:
+   case BIP151_PayloadType::Challenge:
    {
       auto challengeResult = connPtr->processAuthchallenge(
          msg.getPtr(),
@@ -262,12 +262,12 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
          return HandshakeState::Error_GetAuthReply;
       }
 
-      writeCb(authreplyBuf.getRef(), HandshakeSequence::Reply, true);
+      writeCb(authreplyBuf.getRef(), BIP151_PayloadType::Reply, true);
 
       break;
    }
 
-   case HandshakeSequence::Propose:
+   case BIP151_PayloadType::Propose:
    {
       auto proposeResult = connPtr->processAuthpropose(
          msg.getPtr(),
@@ -291,12 +291,12 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
          return HandshakeState::Error_GetAuthChallenge;
       }
 
-      writeCb(authchallengeBuf.getRef(), HandshakeSequence::Challenge, true);
+      writeCb(authchallengeBuf.getRef(), BIP151_PayloadType::Challenge, true);
 
       break;
    }
 
-   case HandshakeSequence::Reply:
+   case BIP151_PayloadType::Reply:
    {
       if (connPtr->processAuthreply(
          msg.getPtr(),
@@ -325,7 +325,7 @@ HandshakeState BIP15x_Handshake::serverSideHandshake(
 ////////////////////////////////////////////////////////////////////////////////
 HandshakeState BIP15x_Handshake::clientSideHandshake(
    BIP151Connection* connPtr, const string& servName,
-   uint8_t msgType, const BinaryDataRef& msg, 
+   BIP151_PayloadType msgType, const BinaryDataRef& msg,
    const WriteCallback& writeCb)
 {
    if (connPtr == nullptr)
@@ -333,7 +333,7 @@ HandshakeState BIP15x_Handshake::clientSideHandshake(
    
    switch (msgType)
    {
-   case HandshakeSequence::EncInit:
+   case BIP151_PayloadType::EncInit:
    {
       if (connPtr->processEncinit(
          msg.getPtr(), msg.getSize(), false) != 0)
@@ -347,7 +347,7 @@ HandshakeState BIP15x_Handshake::clientSideHandshake(
          return HandshakeState::Error_GetEncAck;
       }
       
-      writeCb(encackPayload, HandshakeSequence::EncAck, false);
+      writeCb(encackPayload, BIP151_PayloadType::EncAck, false);
 
       //start client side encinit
       BinaryData encinitPayload(ENCINITMSGSIZE);
@@ -358,11 +358,11 @@ HandshakeState BIP15x_Handshake::clientSideHandshake(
          return HandshakeState::Error_GetEncInit;
       }
 
-      writeCb(encinitPayload, HandshakeSequence::EncInit, false);
+      writeCb(encinitPayload, BIP151_PayloadType::EncInit, false);
       break;
    }
 
-   case HandshakeSequence::EncAck:
+   case BIP151_PayloadType::EncAck:
    {
       if (connPtr->processEncack(
          msg.getPtr(), msg.getSize(), true) == -1)
@@ -381,11 +381,11 @@ HandshakeState BIP15x_Handshake::clientSideHandshake(
          return HandshakeState::Error_GetAuthChallenge;
       }
 
-      writeCb(authchallengeBuf, HandshakeSequence::Challenge, true);
+      writeCb(authchallengeBuf, BIP151_PayloadType::Challenge, true);
       break;
    }
 
-   case HandshakeSequence::Rekey:
+   case BIP151_PayloadType::Rekey:
    {
       //rekey requests before auth are invalid
       if (connPtr->getBIP150State() != BIP150State::SUCCESS)
@@ -398,7 +398,7 @@ HandshakeState BIP15x_Handshake::clientSideHandshake(
       return HandshakeState::RekeySuccessful;
    }
 
-   case HandshakeSequence::Reply:
+   case BIP151_PayloadType::Reply:
    {
       if (connPtr->processAuthreply(
          msg.getPtr(),
@@ -416,11 +416,11 @@ HandshakeState BIP15x_Handshake::clientSideHandshake(
          return HandshakeState::Error_GetAuthPropose;
       }
 
-      writeCb(authproposeBuf, HandshakeSequence::Propose, true);
+      writeCb(authproposeBuf, BIP151_PayloadType::Propose, true);
       break;
    }
 
-   case HandshakeSequence::Challenge:
+   case BIP151_PayloadType::Challenge:
    {
       //should return a reply packet to the server even if this step fails
 
@@ -436,7 +436,7 @@ HandshakeState BIP15x_Handshake::clientSideHandshake(
          authreplyBuf.getSize(),
          false); //false: step #5 of 6
 
-      writeCb(authreplyBuf, HandshakeSequence::Reply, true);
+      writeCb(authreplyBuf, BIP151_PayloadType::Reply, true);
 
       if (challengeResult == -1)
       {

@@ -235,7 +235,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
    //setup encinit and pubkey present packet
    BinaryWriter encInitPacket;
    encInitPacket.put_uint32_t(1);
-   encInitPacket.put_uint8_t(ArmoryAEAD::HandshakeSequence::Start);
+   encInitPacket.put_uint8_t((uint8_t)ArmoryAEAD::BIP151_PayloadType::Start);
    instance->encInitPacket_ = encInitPacket.getData();
    instance->oneWayAuth_ = ArmoryConfig::NetworkSettings::oneWayAuth();
 
@@ -579,7 +579,7 @@ void WebSocketServer::prepareWriteThread()
             ws_msg.construct(
                rekeyPacket.getDataVector(), 
                statePtr->bip151Connection_.get(),
-               ArmoryAEAD::HandshakeSequence::Rekey);
+               ArmoryAEAD::BIP151_PayloadType::Rekey);
 
             //push to write map
             writeToSocket(statePtr->wsiPtr_, ws_msg);
@@ -608,8 +608,8 @@ void WebSocketServer::prepareWriteThread()
 
       SerializedMessage ws_msg;
       ws_msg.construct(
-         serializedData, statePtr->bip151Connection_.get(), 
-         WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, msg->msgid_);
+         serializedData, statePtr->bip151Connection_.get(),
+         ArmoryAEAD::BIP151_PayloadType::FragmentHeader, msg->msgid_);
 
       //push to write map
       writeToSocket(statePtr->wsiPtr_, ws_msg);
@@ -840,10 +840,10 @@ void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
          packetData.resize(plainTextSize);
       }
 
-      uint8_t msgType =
+      auto msgType =
          WebSocketMessagePartial::getPacketType(packetData.getRef());
 
-      if (msgType > ArmoryAEAD::HandshakeSequence::Threshold_Begin)
+      if (msgType > ArmoryAEAD::BIP151_PayloadType::Threshold_Begin)
       {
          processAEADHandshake(move(packetData));
          continue;
@@ -876,7 +876,7 @@ void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
          //unregistered command
          WebSocketMessagePartial msgObj;
          msgObj.parsePacket(packetData);
-         if (msgObj.getType() != WS_MSGTYPE_SINGLEPACKET)
+         if (msgObj.getType() != ArmoryAEAD::BIP151_PayloadType::SinglePacket)
          {
             //invalid msg type, kill connection
             continue;
@@ -910,8 +910,8 @@ void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
 ///////////////////////////////////////////////////////////////////////////////
 void ClientConnection::processAEADHandshake(BinaryData msg)
 {
-   auto writeToClient = [this](
-      const BinaryDataRef& msg, uint8_t type, bool encrypt)->void
+   auto writeToClient = [this](const BinaryDataRef& msg,
+      ArmoryAEAD::BIP151_PayloadType type, bool encrypt)->void
    {
       BIP151Connection* connPtr = nullptr;
       if (encrypt)
@@ -936,7 +936,7 @@ void ClientConnection::processAEADHandshake(BinaryData msg)
       auto dataBdr = wsMsg.getSingleBinaryMessage();
       switch (wsMsg.getType())
       {
-      case ArmoryAEAD::HandshakeSequence::Start:
+      case ArmoryAEAD::BIP151_PayloadType::Start:
       {
          /*
          Announce server pubkey if it's public. This is done without encryption. 
@@ -947,8 +947,8 @@ void ClientConnection::processAEADHandshake(BinaryData msg)
          if (bip151Connection_->isOneWayAuth())
          {
             writeToClient(
-               bip151Connection_->getOwnPubKey(), 
-               ArmoryAEAD::HandshakeSequence::PresentPubKey,
+               bip151Connection_->getOwnPubKey(),
+               ArmoryAEAD::BIP151_PayloadType::PresentPubKey,
                false);
          }
 

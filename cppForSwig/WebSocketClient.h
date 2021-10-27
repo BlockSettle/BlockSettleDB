@@ -62,7 +62,7 @@ namespace SwigClient
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-struct ClientPartialMessage
+class ClientPartialMessage
 {
 private:
    int counter_ = 0;

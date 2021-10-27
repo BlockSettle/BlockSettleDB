@@ -123,8 +123,8 @@ void WebSocketClient::writeService()
             SerializedMessage rekey_msg;
             rekey_msg.construct(
                rekeyPacket.getDataVector(),
-               bip151Connection_.get(), 
-               ArmoryAEAD::HandshakeSequence::Rekey);
+               bip151Connection_.get(),
+               ArmoryAEAD::BIP151_PayloadType::Rekey);
 
             writeQueue_->push_back(rekey_msg);
             bip151Connection_->rekeyOuterSession();
@@ -134,9 +134,10 @@ void WebSocketClient::writeService()
       }
 
       SerializedMessage ws_msg;
-      ws_msg.construct(
-         data, bip151Connection_.get(), 
-         WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, message->id_);
+      ws_msg.construct(data,
+         bip151Connection_.get(),
+         ArmoryAEAD::BIP151_PayloadType::FragmentHeader,
+         message->id_);
 
       writeQueue_->push_back(ws_msg);
    }
@@ -304,7 +305,7 @@ void WebSocketClient::cleanUp()
 
    BinaryWriter msgBW;
    msgBW.put_uint32_t(5 + errPacket.getSize());
-   msgBW.put_uint8_t(WS_MSGTYPE_SINGLEPACKET);
+   msgBW.put_uint8_t((uint8_t)ArmoryAEAD::BIP151_PayloadType::SinglePacket);
    msgBW.put_uint32_t(0);
    msgBW.put_BinaryData(errPacket, errPacket.getSize());
 
@@ -514,8 +515,8 @@ void WebSocketClient::readService()
       if (!currentReadMessage_.message_.isReady())
          continue;
 
-      if (currentReadMessage_.message_.getType() > 
-         ArmoryAEAD::HandshakeSequence::Threshold_Begin)
+      if (currentReadMessage_.message_.getType() >
+         ArmoryAEAD::BIP151_PayloadType::Threshold_Begin)
       {
          if (!processAEADHandshake(currentReadMessage_.message_))
          {
@@ -587,7 +588,9 @@ void WebSocketClient::readService()
 ////////////////////////////////////////////////////////////////////////////////
 bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj)
 {
-   auto writeData = [this](const BinaryData& payload, uint8_t type, bool encrypt)
+   auto writeData = [this](const BinaryData& payload,
+      ArmoryAEAD::BIP151_PayloadType type, bool encrypt)
+      ->void
    {
       SerializedMessage msg;
       BIP151Connection* connPtr = nullptr;
@@ -610,7 +613,7 @@ bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj
    auto msgbdr = msgObj.getSingleBinaryMessage();
    switch (msgObj.getType())
    {
-   case ArmoryAEAD::HandshakeSequence::PresentPubKey:
+   case ArmoryAEAD::BIP151_PayloadType::PresentPubKey:
    {
       serverPubkeyAnnounce_ = true;
 
@@ -632,7 +635,7 @@ bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj
       return true;
    }
 
-   case ArmoryAEAD::HandshakeSequence::EncInit:
+   case ArmoryAEAD::BIP151_PayloadType::EncInit:
    {
       if (bip151Connection_->isOneWayAuth() && !serverPubkeyAnnounce_)
       {
@@ -651,8 +654,7 @@ bool WebSocketClient::processAEADHandshake(const WebSocketMessagePartial& msgObj
    //regular client side AEAD handshake processing
    auto status = ArmoryAEAD::BIP15x_Handshake::clientSideHandshake(
       bip151Connection_.get(), servName_,
-      msgObj.getType(), msgbdr, 
-      writeData);
+      msgObj.getType(), msgbdr, writeData);
 
    switch (status)
    {
