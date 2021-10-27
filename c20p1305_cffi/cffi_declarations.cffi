@@ -2,6 +2,11 @@
 This is the set of functions and struct CFFI has to pythonize. It
 is not C code nor will it be part of any translation unit at compile
 time.
+
+This file was generated manually instead of reading an existing C lib
+headers and stripping out the compiler directives (CFFI can't make sense
+of those). It's more work but it results in a strict, narrow set of
+functions CFFI will expose to Python.
 */
 
 //encyption channels

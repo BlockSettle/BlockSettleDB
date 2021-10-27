@@ -324,7 +324,7 @@ class BlockDataManager(object):
             self.bdmState = BDM_SCANNING
 
             for cppNotificationListener in self.getListenerList():
-               cppNotificationListener(BDM_SCAN_PROGRESS, [None, None])            
+               cppNotificationListener(BDM_SCAN_PROGRESS, [None, None])
          else:
             progInfo = [walletVec, prog]
             for cppNotificationListener in self.getListenerList():
@@ -336,7 +336,7 @@ class BlockDataManager(object):
 
    #############################################################################
    def pushFromBridge(self, payloadType, payload, uniqueId, callerId):
-      
+
       if payloadType == OpaquePayloadType.Value("commandWithCallback"):
          if len(uniqueId) == 0 or uniqueId not in self.pythonPrompts:
             LOGWARN("Unknown prompt id")
