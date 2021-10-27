@@ -13,9 +13,6 @@
 ##############################################################################
 from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
-import sip
-sip.setapi('QString', 2)
-sip.setapi('QVariant', 1)
 import gettext
 
 
@@ -49,8 +46,6 @@ from PySide2.QtWidgets import QMainWindow, QSystemTrayIcon, \
    QTableView, QPushButton, QFrame, QWidget, QProgressBar, QVBoxLayout, \
    QLineEdit
 
-import psutil
-
 from armorycolors import Colors, htmlColor, QAPP
 from armoryengine.ArmoryUtils import HMAC256, GUI_LANGUAGE, \
    OS_MACOSX, OS_WINDOWS, AllowAsync, USE_TESTNET, USE_REGTEST, \
@@ -82,12 +77,14 @@ from qtdialogs.qtdefines import GETFONT, NETWORKMODE, \
    makeLayoutFrame, HORIZONTAL, QRichLabel, relaxedSizeStr, STYLE_SUNKEN, \
    makeHorizFrame, DASHBTNS, STYLE_NONE, UserModeStr, makeVertFrame, \
    restoreTableView, determineWalletType, WLTTYPES, tightSizeStr, \
-   QLabelButton
+   QLabelButton, MsgBoxWithDNAA, MSGBOX
 
 from qtdialogs.qtdialogs import URLHandler, ArmorySplashScreen
 from qtdialogs.DlgMigrateWallet import DlgMigrateWallet
 from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
 from qtdialogs.DlgAddressBook import DlgAddressBook, createAddrBookButton
+from qtdialogs.DlgEULA import DlgEULA
+from qtdialogs.DlgIntroMessage import DlgIntroMessage
 
 from ui.QtExecuteSignal import QtExecuteSignal
 
@@ -1985,8 +1982,6 @@ class ArmoryMainWindow(QMainWindow):
          LOGINFO('Loading Multisig Lockboxes')
          #self.loadLockboxesFromFile(MULTISIG_FILE)
 
-      self.walletModel.reset()
-
       # Get the last directory
       savedDir = self.settings.get('LastDirectory')
       if len(savedDir)==0 or not os.path.exists(savedDir):
@@ -1995,6 +1990,12 @@ class ArmoryMainWindow(QMainWindow):
       self.writeSetting('LastDirectory', savedDir)
       self.setupBlockchainService_step1()
 
+      self.signalExecution.executeMethod([self.finalizeLoadWallets, []])
+
+
+   #############################################################################
+   def finalizeLoadWallets(self):
+      self.walletModel.reset()
       if len(self.walletMap) == 0:
          self.execIntroDialog()
 
