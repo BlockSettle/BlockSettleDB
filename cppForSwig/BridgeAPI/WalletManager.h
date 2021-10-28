@@ -68,14 +68,7 @@ private:
       bdvPtr_ = bdv;
    }
 
-   void setWalletPtr(std::shared_ptr<AssetWallet> wltPtr)
-   {
-      wallet_ = wltPtr;
-      auto mainAcc = wallet_->getAccountForID(wallet_->getMainAccountID());
-      auto outerAccount = mainAcc->getOuterAccount();
-      highestUsedIndex_ = outerAccount->getHighestUsedIndex();
-   }
-
+   void setWalletPtr(std::shared_ptr<AssetWallet> wltPtr);
    void eraseFromDisk(void);
 
 public:

@@ -246,6 +246,25 @@ void WalletManager::updateStateFromDB(const function<void(void)>& callback)
 //// WalletContainer
 ////
 ////////////////////////////////////////////////////////////////////////////////
+void WalletContainer::setWalletPtr(std::shared_ptr<AssetWallet> wltPtr)
+{
+   wallet_ = wltPtr;
+   auto accId = wallet_->getMainAccountID();
+   if (!accId.isValid())
+   {
+      auto accIds = wallet_->getAccountIDs();
+      if (accIds.empty())
+         throw runtime_error("[setWalletPtr] wallet has no ids");
+
+      accId = *accIds.begin();
+   }
+
+   auto mainAcc = wallet_->getAccountForID(accId);
+   auto outerAccount = mainAcc->getOuterAccount();
+   highestUsedIndex_ = outerAccount->getHighestUsedIndex();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void WalletContainer::resetCache(void)
 {
    unique_lock<mutex> lock(stateMutex_);

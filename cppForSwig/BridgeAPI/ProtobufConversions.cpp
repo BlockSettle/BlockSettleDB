@@ -102,7 +102,17 @@ void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr)
    wltProto->set_watchingonly(isWO);
 
    //use index
-   auto accPtr = wltPtr->getAccountForID(wltPtr->getMainAccountID());
+   auto accId = wltSingle->getMainAccountID();
+   if (!accId.isValid())
+   {
+      auto accIds = wltSingle->getAccountIDs();
+      if (accIds.empty())
+         throw runtime_error("[CppToProto::wallet] wallet has no ids");
+
+      accId = *accIds.begin();
+   }
+
+   auto accPtr = wltSingle->getAccountForID(accId);
    auto assetAccountPtr = accPtr->getOuterAccount();
    wltProto->set_lookupcount(assetAccountPtr->getLastComputedIndex());
    wltProto->set_usecount(assetAccountPtr->getHighestUsedIndex());
