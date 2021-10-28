@@ -1582,36 +1582,36 @@ class PyBtcWallet(object):
    
    ###############################################################################
    def returnFilteredAddrList(self, filterUse, filterType):
-      from qtdefines import CHANGE_ADDR_DESCR_STRING
-      
+      from qtdialogs.qtdefines import CHANGE_ADDR_DESCR_STRING
+
       addrList = []
       keepInUse = filterUse != "Unused"
       keepChange = filterUse == "Change"
-            
+
       for addr in self.linearAddr160List:
-         addrObj = self.addrMap[addr]         
+         addrObj = self.addrMap[addr]
          if addrObj.chainIndex < 0:
             continue
-         
+
          #filter by address type
          if filterType != addrObj.addrType:
             continue
-                  
+
          #filter by usage
          inUse = addrObj.getTxioCount() != 0
          if not keepChange and inUse != keepInUse:
             continue
-         
+
          #filter by change flag
          addrComment = self.getCommentForAddress(addrObj.getAddr160())
          isChange = addrComment == CHANGE_ADDR_DESCR_STRING
          if isChange != keepChange:
             continue
-         
+
          addrList.append(addrObj)
-         
+
       return addrList
-   
+
    ###############################################################################
    def getAddrByIndex(self, index):
       if index > -2:

@@ -39,7 +39,7 @@ import glob
 from PySide2.QtGui import QDesktopServices, QPixmap, QPalette, \
    QCursor, QIcon
 from PySide2.QtCore import Qt, QTranslator, Signal, QByteArray, \
-   QSize
+   QSize, QModelIndex
 from PySide2.QtWidgets import QMainWindow, QSystemTrayIcon, \
    QMenu, QAction, QGridLayout, QTabWidget, QScrollArea, \
    QComboBox, QSizePolicy, QActionGroup, QMessageBox, QLabel, \
@@ -85,6 +85,7 @@ from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
 from qtdialogs.DlgAddressBook import DlgAddressBook, createAddrBookButton
 from qtdialogs.DlgEULA import DlgEULA
 from qtdialogs.DlgIntroMessage import DlgIntroMessage
+from qtdialogs.DlgWalletDetails import DlgWalletDetails
 
 from ui.QtExecuteSignal import QtExecuteSignal
 

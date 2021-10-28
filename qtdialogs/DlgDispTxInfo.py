@@ -6,6 +6,11 @@
 #                                                                              #
 ################################################################################
 
+from PySide2.QtCore import Qt
+from PySide2.QtWidgets import QLabel, QGridLayout, QFrame, QTableView, \
+   QPushButton, QSpacerItem, QScrollArea, QTextBrowser, QTextEdit, \
+   QVBoxLayout
+
 from armoryengine.ArmoryUtils import enum, CPP_TXOUT_MULTISIG, \
    CPP_TXOUT_P2SH, CPP_TXOUT_HAS_ADDRSTR, script_to_addrStr, \
    addrStr_to_hash160, script_to_scrAddr, BIGENDIAN, binary_to_hex, \
@@ -25,11 +30,6 @@ from qtdialogs.qtdefines import ArmoryDialog, STYLE_RAISED, USERMODE, \
    QRichLabel, relaxedSizeStr, GETFONT, tightSizeNChar, STYLE_SUNKEN, \
    HORIZONTAL, makeHorizFrame, initialColResize, makeLayoutFrame
 from qtdialogs.qtdialogs import STRETCH
-
-from PySide2.QtCore import Qt
-from PySide2.QtWidgets import QLabel, QGridLayout, QFrame, QTableView, \
-   QPushButton, QSpacerItem, QScrollArea, QTextBrowser, QTextEdit, \
-   QVBoxLayout
 
 ################################################################################
 def extractTxInfo(pytx, rcvTime=None):
