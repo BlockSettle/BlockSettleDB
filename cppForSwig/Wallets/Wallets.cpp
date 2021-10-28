@@ -272,8 +272,7 @@ void AssetWallet_Single::readFromFile()
          bwKey.put_uint32_t(WALLET_SEED_KEY);
          auto rootAssetRef = getDataRefForKey(sharedTx.get(), bwKey.getData());
 
-         auto seedUPtr = EncryptedAssetData::deserialize(
-            rootAssetRef.getSize(), rootAssetRef);
+         auto seedUPtr = EncryptedAssetData::deserialize(rootAssetRef);
          shared_ptr<EncryptedAssetData> seedSPtr(move(seedUPtr));
          auto seedObj = dynamic_pointer_cast<EncryptedSeed>(seedSPtr);
          if (seedObj == nullptr)

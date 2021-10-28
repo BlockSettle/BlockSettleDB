@@ -775,7 +775,7 @@ namespace DBTestUtils
       auto&& bdVec = WebSocketMessageCodec::serialize(
          buffer, nullptr,
          ArmoryAEAD::BIP151_PayloadType::FragmentHeader, commandCtr_++);
-      
+
       if (bdVec.size() > 1)
          LOGWARN << "large message in unit tests";
 
@@ -786,7 +786,7 @@ namespace DBTestUtils
       auto bdRef = bdVec[0].getSliceRef(
          LWS_PRE, bdVec[0].getSize() - LWS_PRE);
       payload->packetData_ = bdRef;
-      
+
       BinaryData zero;
       zero.resize(8);
       memset(zero.getPtr(), 0, 8);

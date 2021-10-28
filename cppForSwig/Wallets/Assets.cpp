@@ -214,25 +214,24 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
    auto val = brrVal.get_uint8_t();
    auto entryType = AssetEntryType(val & 0x0F);
 
-   auto getKeyData = [](BinaryRefReader& brr,
+   auto getKeyData = [&assetId](BinaryRefReader& brr,
       shared_ptr<Asset_PrivateKey>& privKeyPtr,
       SecureBinaryData& pubKeyCompressed,
       SecureBinaryData& pubKeyUncompressed
    )->void
    {
-      vector<pair<size_t, BinaryDataRef>> dataVec;
+      vector<BinaryDataRef> dataVec;
 
       while (brr.getSizeRemaining() > 0)
       {
          auto len = brr.get_var_int();
          auto valref = brr.get_BinaryDataRef(len);
-
-         dataVec.push_back(make_pair(len, valref));
+         dataVec.push_back(valref);
       }
 
-      for (auto& datapair : dataVec)
+      for (auto& dataRef : dataVec)
       {
-         BinaryRefReader brrData(datapair.second);
+         BinaryRefReader brrData(dataRef);
          auto version = brrData.get_uint32_t();
          auto keybyte = brrData.get_uint8_t();
 
@@ -244,15 +243,14 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
             {
             case 0x00000001:
             {
-               if (datapair.first != 70)
+               if (dataRef.getSize() != 70)
                   throw AssetException("invalid size for uncompressed pub key");
 
-               if (pubKeyUncompressed.getSize() != 0)
+               if (!pubKeyUncompressed.empty())
                   throw AssetException("multiple pub keys for entry");
 
                pubKeyUncompressed = move(SecureBinaryData(
-                  brrData.get_BinaryDataRef(
-                     brrData.getSizeRemaining())));
+                  brrData.get_BinaryDataRef(brrData.getSizeRemaining())));
 
                break;
             }
@@ -270,15 +268,14 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
             {
             case 0x00000001:
             {
-               if (datapair.first != 38)
+               if (dataRef.getSize() != 38)
                   throw AssetException("invalid size for compressed pub key");
 
-               if (pubKeyCompressed.getSize() != 0)
+               if (!pubKeyCompressed.empty())
                   throw AssetException("multiple pub keys for entry");
 
                pubKeyCompressed = move(SecureBinaryData(
-                  brrData.get_BinaryDataRef(
-                     brrData.getSizeRemaining())));
+                  brrData.get_BinaryDataRef(brrData.getSizeRemaining())));
 
                break;
             }
@@ -299,8 +296,20 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
                if (privKeyPtr != nullptr)
                   throw AssetException("multiple priv keys for entry");
 
-               auto keyUPtr = EncryptedAssetData::deserialize(
-                  datapair.first, datapair.second);
+               unique_ptr<EncryptedAssetData> keyUPtr;
+               try
+               {
+                  keyUPtr = EncryptedAssetData::deserialize(dataRef);
+               }
+               catch (const IdException&)
+               {
+                  //potentially an old id format, let's try that instead
+                  keyUPtr = EncryptedAssetData::deserializeOld(
+                     assetId, dataRef);
+               }
+
+               if (keyUPtr->getAssetId() != assetId)
+                  throw AssetException("priv key asset mismatch");
                shared_ptr<EncryptedAssetData> keySPtr(move(keyUPtr));
 
                privKeyPtr = dynamic_pointer_cast<Asset_PrivateKey>(keySPtr);
@@ -981,25 +990,10 @@ bool EncryptedAssetData::isSame(EncryptedAssetData* const asset) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<EncryptedAssetData> EncryptedAssetData::deserialize(
-   const BinaryDataRef& data)
+unique_ptr<EncryptedAssetData> EncryptedAssetData::deserializeOld(
+   const Armory::Wallets::AssetId& id, const BinaryDataRef& data)
 {
    BinaryRefReader brr(data);
-
-   //grab size
-   auto totalLen = brr.get_var_int();
-   return deserialize(totalLen, brr.get_BinaryDataRef(brr.getSizeRemaining()));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-unique_ptr<EncryptedAssetData> EncryptedAssetData::deserialize(
-   size_t totalLen, const BinaryDataRef& data)
-{
-   BinaryRefReader brr(data);
-
-   //check size
-   if (totalLen != brr.getSizeRemaining())
-      throw AssetException("invalid serialized encrypted data len");
 
    //return ptr
    unique_ptr<EncryptedAssetData> assetPtr = nullptr;
@@ -1020,7 +1014,87 @@ unique_ptr<EncryptedAssetData> EncryptedAssetData::deserialize(
       {
          //id
          auto len = brr.get_var_int();
-         auto&& id = brr.get_BinaryData(len);
+         auto onDiskId = brr.get_BinaryData(len);
+
+         if (onDiskId.getSize() != 4)
+         {
+            throw AssetException("[EncryptedAssetData::deserialize]"
+               " invalid id size");
+         }
+
+         BinaryRefReader keyRefReader(onDiskId);
+         AssetKeyType assetKey = keyRefReader.get_int32_t();
+         if (id.getAssetKey() != assetKey)
+         {
+            throw AssetException("[EncryptedAssetData::deserialize]"
+               " privkey id mismatch");
+         }
+
+         //cipher data
+         len = brr.get_var_int();
+         if (len > brr.getSizeRemaining())
+         {
+            throw AssetException("[EncryptedAssetData::deserialize]"
+               " invalid serialized encrypted data len");
+         }
+
+         auto cipherBdr = brr.get_BinaryDataRef(len);
+         BinaryRefReader cipherBrr(cipherBdr);
+         auto cipherData = CipherData::deserialize(cipherBrr);
+
+         //ptr
+         assetPtr = make_unique<Asset_PrivateKey>(id, move(cipherData));
+
+         break;
+      }
+
+      default:
+         throw AssetException("[EncryptedAssetData::deserialize]"
+            "unsupported privkey version");
+      }
+
+      break;
+   }
+
+   default:
+      throw AssetException("unexpected encrypted data prefix");
+   }
+
+   if (assetPtr == nullptr)
+   {
+      throw AssetException("[EncryptedAssetData::deserialize]"
+         " failed to deserialize encrypted asset");
+   }
+
+   return assetPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unique_ptr<EncryptedAssetData> EncryptedAssetData::deserialize(
+   const BinaryDataRef& data)
+{
+   BinaryRefReader brr(data);
+
+   //return ptr
+   unique_ptr<EncryptedAssetData> assetPtr = nullptr;
+
+   //version
+   auto version = brr.get_uint32_t();
+
+   //prefix
+   auto prefix = brr.get_uint8_t();
+
+   switch (prefix)
+   {
+   case PRIVKEY_BYTE:
+   {
+      switch(version)
+      {
+      case 0x00000001:
+      {
+         //id
+         auto len = brr.get_var_int();
+         auto id = brr.get_BinaryData(len);
 
          //cipher data
          len = brr.get_var_int();
@@ -1037,7 +1111,7 @@ unique_ptr<EncryptedAssetData> EncryptedAssetData::deserialize(
          break;
       }
 
-      default: 
+      default:
          throw AssetException("unsupported privkey version");
       }
 

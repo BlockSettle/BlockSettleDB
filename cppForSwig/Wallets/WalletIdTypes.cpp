@@ -275,15 +275,31 @@ void AssetAccountId::serializeValue(BinaryWriter& bw) const
 ////////////////////////////////////////////////////////////////////////////////
 AssetAccountId AssetAccountId::deserializeValue(BinaryRefReader& brr)
 {
+   auto pos = brr.getPosition();
    try
    {
       auto len = brr.get_var_int();
       return AssetAccountId(brr.get_BinaryData(len));
    }
-   catch (const VarIntException&)
+   catch (const std::exception&)
    {
-      throw IdException("AssetAccountId::deserializeValue");
+      //reset reader to its original position
+      brr.resetPosition();
+      brr.advance(pos);
+
+      throw IdException("[AssetAccountId::deserializeValue]");
    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+AssetAccountId AssetAccountId::deserializeValueOld(
+   const AddressAccountId& id, BinaryRefReader& brr)
+{
+   auto len = brr.get_var_int();
+   if (len != sizeof(AccountKeyType))
+      throw IdException("[AssetAccountId::deserializeValueOld] error");
+
+   return AssetAccountId(id, brr.get_int32_t());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

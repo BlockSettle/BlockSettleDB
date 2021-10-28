@@ -338,8 +338,7 @@ void WalletDBInterface::loadSeed(shared_ptr<WalletHeader> headerPtr)
    bwKey.put_uint32_t(WALLET_SEED_KEY);
    auto rootAssetRef = getDataRefForKey(tx.get(), bwKey.getData());
 
-   auto seedPtr = EncryptedAssetData::deserialize(
-      rootAssetRef.getSize(), rootAssetRef);
+   auto seedPtr = EncryptedAssetData::deserialize(rootAssetRef);
    auto ptrCast = dynamic_cast<EncryptedSeed*>(seedPtr.get());
    if (ptrCast == nullptr)
       throw WalletException("failed to deser wallet seed");

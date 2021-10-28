@@ -318,8 +318,8 @@ public:
    //static
    static std::unique_ptr<EncryptedAssetData> deserialize(
       const BinaryDataRef&);
-   static std::unique_ptr<EncryptedAssetData> deserialize(
-      size_t len, const BinaryDataRef&);
+   static std::unique_ptr<EncryptedAssetData> deserializeOld(
+      const Armory::Wallets::AssetId&, const BinaryDataRef&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

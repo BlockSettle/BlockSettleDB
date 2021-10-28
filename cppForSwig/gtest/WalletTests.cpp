@@ -3257,8 +3257,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
          auto len = brrVal.get_var_int();
          auto seedVal = brrVal.get_BinaryDataRef(len);
 
-         auto seedPtr = EncryptedSeed::deserialize(
-            seedVal.getSize(), seedVal);
+         auto seedPtr = EncryptedSeed::deserialize(seedVal);
          auto ptrCast = dynamic_cast<EncryptedSeed*>(seedPtr.get());
          if (ptrCast == nullptr)
             throw WalletException("failed to deser wallet seed");

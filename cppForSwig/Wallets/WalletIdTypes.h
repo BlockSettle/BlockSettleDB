@@ -100,6 +100,8 @@ namespace Armory
          BinaryData getSerializedKey(uint8_t) const;
 
          static AssetAccountId deserializeValue(BinaryRefReader&);
+         static AssetAccountId deserializeValueOld(
+            const AddressAccountId&, BinaryRefReader&);
          static AssetAccountId deserializeKey(const BinaryData&, uint8_t);
          static AccountKeyType getRootKey(void) { return rootAccountId; }
       };

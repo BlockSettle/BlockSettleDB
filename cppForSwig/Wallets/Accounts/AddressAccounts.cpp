@@ -452,10 +452,27 @@ unique_ptr<AddressAccount> AddressAccount::readFromDisk(
    accPtr.reset(new AddressAccount(dbName, ID));
 
    //outer and inner account ids
-   size_t len, count;
+   AssetAccountId outId, innId;
+   try
+   {
+      outId = AssetAccountId::deserializeValue(brr);
+   }
+   catch (const IdException&)
+   {
+      //possibly an old id, let's try that
+      outId = AssetAccountId::deserializeValueOld(ID, brr);
+   }
 
-   auto outId = AssetAccountId::deserializeValue(brr);
-   auto innId = AssetAccountId::deserializeValue(brr);
+   try
+   {
+      innId = AssetAccountId::deserializeValue(brr);
+   }
+   catch (const IdException&)
+   {
+      //possibly an old id, let's try that
+      innId = AssetAccountId::deserializeValueOld(ID, brr);
+   }
+
    accPtr->outerAccountId_ = outId;
    accPtr->innerAccountId_ = innId;
 
@@ -473,7 +490,7 @@ unique_ptr<AddressAccount> AddressAccount::readFromDisk(
    }
 
    //address type set
-   count = brr.get_var_int();
+   auto count = brr.get_var_int();
    for (unsigned i = 0; i < count; i++)
       accPtr->addressTypes_.insert(AddressEntryType(brr.get_uint32_t()));
 
@@ -484,7 +501,7 @@ unique_ptr<AddressAccount> AddressAccount::readFromDisk(
    count = brr.get_var_int();
    for (unsigned i = 0; i < count; i++)
    {
-      len = brr.get_var_int();
+      auto len = brr.get_var_int();
       BinaryWriter bw_asset_key(1 + len);
       bw_asset_key.put_uint8_t(ASSET_ACCOUNT_PREFIX);
       bw_asset_key.put_BinaryData(brr.get_BinaryData(len));
