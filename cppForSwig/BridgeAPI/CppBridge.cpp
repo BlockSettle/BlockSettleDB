@@ -357,9 +357,12 @@ BridgeReply CppBridge::createWalletsPacket()
    for (auto& wltPair : wltMap)
    {
       auto wltPtr = wltPair.second->getWalletPtr();
-      auto payload = response->add_wallets();
 
-      CppToProto::wallet(payload, wltPtr);
+      for (auto& id : wltPtr->getAccountIDs())
+      {
+         auto payload = response->add_wallets();
+         CppToProto::wallet(payload, wltPtr, id);
+      }
    }
 
    return response;
@@ -891,9 +894,10 @@ void CppBridge::extendAddressPool(
    auto lbd = [this, wltPtr, count, msgId](void)->void
    {
       wltPtr->extendPublicChain(count);
-      
+
       auto msg = make_unique<WalletData>();
-      CppToProto::wallet(msg.get(), wltPtr);
+      CppToProto::wallet(msg.get(), wltPtr,
+         Armory::Wallets::AddressAccountId());
       this->writeToClient(move(msg), msgId);
    };
 
@@ -960,6 +964,8 @@ string CppBridge::createWallet(const ClientCommand& msg)
 ////////////////////////////////////////////////////////////////////////////////
 BridgeReply CppBridge::getWalletPacket(const string& wltId) const
 {
+   auto response = make_unique<WalletPayload>();
+
    auto wltMap = wltManager_->getMap();
    auto iter = wltMap.find(wltId);
    if (iter == wltMap.end())
@@ -970,12 +976,15 @@ BridgeReply CppBridge::getWalletPacket(const string& wltId) const
       LOGERR << "null wallet ptr";
       throw runtime_error("null wallet ptr");
    }
-
    auto wltPtr = iter->second->getWalletPtr();
-   auto walletData = make_unique<WalletData>();
-   CppToProto::wallet(walletData.get(), wltPtr);
-   
-   return move(walletData);
+
+   for (auto& id : wltPtr->getAccountIDs())
+   {
+      auto payload = response->add_wallets();
+      CppToProto::wallet(payload, wltPtr, id);
+   }
+
+   return move(response);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -985,7 +994,7 @@ BridgeReply CppBridge::getNewAddress(const string& wltId, unsigned type)
    auto iter = wltMap.find(wltId);
    if (iter == wltMap.end())
       throw runtime_error("unknown wallet id");
-   
+
    auto wltPtr = iter->second->getWalletPtr();
    auto addrPtr = wltPtr->getNewAddress((AddressEntryType)type);
 

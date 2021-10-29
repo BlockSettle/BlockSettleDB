@@ -20,6 +20,14 @@ namespace DBClientClasses
    class NodeStatus;
 };
 
+namespace Armory
+{
+   namespace Wallets
+   {
+      class AddressAccountId;
+   };
+};
+
 class UTXO;
 class TxInEvalState;
 
@@ -32,28 +40,29 @@ namespace ArmoryBridge
 struct CppToProto
 {
    static void ledger(
-      Codec_ClientProto::BridgeLedger*, 
+      Codec_ClientProto::BridgeLedger*,
       const DBClientClasses::LedgerEntry&);
 
    static void addr(
-      Codec_ClientProto::WalletAsset*, 
-      std::shared_ptr<AddressEntry>, 
+      Codec_ClientProto::WalletAsset*,
+      std::shared_ptr<AddressEntry>,
       std::shared_ptr<AssetWallet>);
 
    static void wallet(
-      Codec_ClientProto::WalletData* wltProto, 
-      std::shared_ptr<AssetWallet> wltPtr);
+      Codec_ClientProto::WalletData* wltProto,
+      std::shared_ptr<AssetWallet> wltPtr,
+      const Armory::Wallets::AddressAccountId&);
 
    static void utxo(
-      Codec_ClientProto::BridgeUtxo*, 
+      Codec_ClientProto::BridgeUtxo*,
       const UTXO& utxo);
 
    static void nodeStatus(
-      Codec_ClientProto::BridgeNodeStatus*, 
+      Codec_ClientProto::BridgeNodeStatus*,
       const DBClientClasses::NodeStatus&);
 
    static void signatureState(
-      Codec_ClientProto::BridgeInputSignedState*, 
+      Codec_ClientProto::BridgeInputSignedState*,
       const TxInEvalState&);
 };
 }; //namespace ArmoryBridge

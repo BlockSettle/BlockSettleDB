@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "ProtobufConversions.h"
+#include "../Wallets/WalletIdTypes.h"
 
 #include "DBClientClasses.h"
 #include "TxEvalState.h"
@@ -90,9 +91,11 @@ void CppToProto::addr(WalletAsset* assetPtr,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr)
+void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr,
+   const Armory::Wallets::AddressAccountId& accId)
 {
-   wltProto->set_id(wltPtr->getID());
+   string wltId = wltPtr->getID() + ":" + accId.toHexStr();
+   wltProto->set_id(wltId);
 
    //wo status
    bool isWO = true;
@@ -102,16 +105,6 @@ void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr)
    wltProto->set_watchingonly(isWO);
 
    //use index
-   auto accId = wltSingle->getMainAccountID();
-   if (!accId.isValid())
-   {
-      auto accIds = wltSingle->getAccountIDs();
-      if (accIds.empty())
-         throw runtime_error("[CppToProto::wallet] wallet has no ids");
-
-      accId = *accIds.begin();
-   }
-
    auto accPtr = wltSingle->getAccountForID(accId);
    auto assetAccountPtr = accPtr->getOuterAccount();
    wltProto->set_lookupcount(assetAccountPtr->getLastComputedIndex());

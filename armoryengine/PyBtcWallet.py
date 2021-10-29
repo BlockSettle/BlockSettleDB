@@ -234,7 +234,7 @@ class PyBtcWallet(object):
       # Deterministic wallet, need a root key.  Though we can still import keys.
       # The unique ID contains the network byte (id[-1]) but is not intended to
       # resemble the address of the root key
-      self.uniqueIDBin = ''
+      #self.uniqueIDBin = ''
       self.uniqueIDB58 = ''   # Base58 version of reversed-uniqueIDBin
       self.lastComputedChainAddr160  = ''
       self.lastComputedChainIndex = 0
@@ -1642,7 +1642,7 @@ class PyBtcWallet(object):
 
    ###############################################################################
    def loadFromProtobufPayload(self, payload):
-      self.uniqueIDBin = base58_to_binary(payload.id)
+      #self.uniqueIDBin = base58_to_binary(payload.id)
       self.uniqueIDB58 = payload.id
 
       self.labelName   = payload.label
