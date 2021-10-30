@@ -9,7 +9,7 @@
 #include "BitcoinSettings.h"
 
 using namespace std;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 uint8_t BitcoinSettings::pubkeyHashPrefix_;
 uint8_t BitcoinSettings::scriptHashPrefix_;

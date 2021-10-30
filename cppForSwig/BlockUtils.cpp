@@ -23,7 +23,7 @@
 #include "gtest/NodeUnitTest.h"
 
 using namespace std;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 ////////////////////////////////////////////////////////////////////////////////
 class ProgressMeasurer

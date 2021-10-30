@@ -250,7 +250,7 @@ int processArgs(map<string, string> args)
 int main(int argc, char* argv[])
 {
    btc_ecc_start();
-   ArmoryConfig::parseArgs({});
+   Armory::Config::parseArgs({}, Armory::Config::ProcessType::KeyManager);
 
    map<string, string> args;
    try

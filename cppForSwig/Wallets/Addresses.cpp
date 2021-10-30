@@ -10,7 +10,7 @@
 
 using namespace std;
 using namespace ArmorySigner;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 ////////////////////////////////////////////////////////////////////////////////
 AddressEntry::~AddressEntry()

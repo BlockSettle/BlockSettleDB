@@ -12,7 +12,7 @@
 #include "lmdb_wrapper.h"
 
 using namespace std;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 ///////////////////////////////////////////////////////////////////////////////
 void preprocessTx(ParsedTx& tx, LMDBBlockDatabase* db)

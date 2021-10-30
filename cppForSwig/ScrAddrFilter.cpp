@@ -116,7 +116,7 @@ void ScrAddrFilter::updateAddressMerkleInDB()
    }
    catch (runtime_error&)
    {
-      sshSdbi.magic_ = ArmoryConfig::BitcoinSettings::getMagicBytes();
+      sshSdbi.magic_ = Armory::Config::BitcoinSettings::getMagicBytes();
       sshSdbi.metaHash_ = BtcUtils::EmptyHash_;
       sshSdbi.topBlkHgt_ = 0;
       sshSdbi.armoryType_ = ARMORY_DB_BARE;
@@ -291,7 +291,7 @@ void ScrAddrFilter::registrationThread()
          if (batchPtr == nullptr)
             throw runtime_error("unexpected batch ptr type");
 
-         if (ArmoryConfig::DBSettings::getDbType() == ARMORY_DB_SUPER)
+         if (Armory::Config::DBSettings::getDbType() == ARMORY_DB_SUPER)
          {
             //no scanning required in supernode, just update the address map
             auto&& scaSet = updateAddrMap(batchPtr->scrAddrSet_, 0, false);

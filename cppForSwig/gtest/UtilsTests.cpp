@@ -15,7 +15,7 @@
 
 using namespace std;
 using namespace ArmorySigner;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 ////////////////////////////////////////////////////////////////////////////////
 // RFC 5869 (HKDF) unit tests for SHA-256.
@@ -3040,10 +3040,10 @@ protected:
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
          
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--datadir=./fakehomedir",
-         "--offline",
-      });
+         "--offline" },
+         Armory::Config::ProcessType::DB);
 
       rawHead_ = READHEX(
          "010000001d8f4ec0443e1f19f305e488c1085c95de7cc3fd25e0d2c5bb5d0000"
@@ -3068,7 +3068,7 @@ protected:
    virtual void TearDown(void)
    {
       DBUtils::removeDirectory(homedir_);
-      ArmoryConfig::reset();
+      Armory::Config::reset();
    }
 
    BinaryData rawHead_;
@@ -5637,10 +5637,10 @@ protected:
 
       zeros_ = READHEX("00000000");
          
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--datadir=./fakehomedir",
-         "--offline",
-      });
+         "--offline" },
+         Armory::Config::ProcessType::DB);
 
       magic_ = BitcoinSettings::getMagicBytes();
       iface_ = new LMDBBlockDatabase(nullptr, string());
@@ -5842,7 +5842,7 @@ protected:
       iface_ = NULL;
 
       DBUtils::removeDirectory(homedir_);
-      ArmoryConfig::reset();
+      Armory::Config::reset();
 
       CLEANUP_ALL_TIMERS();
    }

@@ -12,7 +12,7 @@
 
 using namespace std;
 using namespace ArmorySigner;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,15 +220,15 @@ protected:
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_ + "/blocks", 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
 
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--datadir=./fakehomedir",
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
          "--public",
          "--db-type=DB_FULL",
          "--thread-count=3",
-         "--public"
-      });
+         "--public" },
+         Armory::Config::ProcessType::DB);
 
       wallet1id = "wallet1";
       wallet2id = "wallet2";
@@ -255,7 +255,7 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory("./ldbtestdir");
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       CLEANUP_ALL_TIMERS();
    }
 
@@ -7309,12 +7309,12 @@ protected:
       mkdir(homedir_);
 
       DBSettings::setServiceType(SERVICE_UNITTEST);
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--offline",
          "--testnet",
          "--datadir=./fakehomedir",
-         "--satoshi-datadir=./blkfiletest",
-      });
+         "--satoshi-datadir=./blkfiletest" },
+         Armory::Config::ProcessType::DB);
 
       wallet1id = "wallet1";
       wallet2id = "wallet2";
@@ -7325,7 +7325,7 @@ protected:
    {
       DBUtils::removeDirectory(homedir_);
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       CLEANUP_ALL_TIMERS();
    }
 
@@ -9010,11 +9010,11 @@ protected:
       mkdir(homedir_);
 
       DBSettings::setServiceType(SERVICE_UNITTEST);
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--offline",
          "--datadir=./fakehomedir",
-         "--satoshi-datadir=./blkfiletest",
-      });
+         "--satoshi-datadir=./blkfiletest" },
+         Armory::Config::ProcessType::DB);
 
       wallet1id = "wallet1";
       wallet2id = "wallet2";
@@ -9025,7 +9025,7 @@ protected:
    {
       DBUtils::removeDirectory(homedir_);
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       CLEANUP_ALL_TIMERS();
    }
 

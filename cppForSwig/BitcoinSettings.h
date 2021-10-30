@@ -44,50 +44,54 @@ typedef enum
    SCRIPT_PREFIX_OPRETURN = 0x6a
 } SCRIPT_PREFIX;
 
-namespace ArmoryConfig
+namespace Armory
 {
-typedef enum
-{
-   NETWORK_MODE_NA = 0,
-   NETWORK_MODE_MAINNET,
-   NETWORK_MODE_TESTNET,
-   NETWORK_MODE_REGTEST,
-} NETWORK_MODE;
+   namespace Config
+   {
+      typedef enum
+      {
+         NETWORK_MODE_NA = 0,
+         NETWORK_MODE_MAINNET,
+         NETWORK_MODE_TESTNET,
+         NETWORK_MODE_REGTEST,
+      } NETWORK_MODE;
 
-struct BitcoinSettings
-{
-private:
-   static BinaryData genesisBlockHash_;
-   static BinaryData genesisTxHash_;
-   static BinaryData magicBytes_;
+      struct BitcoinSettings
+      {
+      private:
+         static BinaryData genesisBlockHash_;
+         static BinaryData genesisTxHash_;
+         static BinaryData magicBytes_;
 
-   static uint8_t pubkeyHashPrefix_;
-   static uint8_t scriptHashPrefix_;
-   static uint8_t privKeyPrefix_;
+         static uint8_t pubkeyHashPrefix_;
+         static uint8_t scriptHashPrefix_;
+         static uint8_t privKeyPrefix_;
 
-   static NETWORK_MODE mode_;
-   static const btc_chainparams* chain_params_;
-   static std::string bech32Prefix_;
-   static uint32_t BIP32_CoinType_;
+         static NETWORK_MODE mode_;
+         static const btc_chainparams* chain_params_;
+         static std::string bech32Prefix_;
+         static uint32_t BIP32_CoinType_;
 
-private:
-   static void selectNetwork(NETWORK_MODE);
+      private:
+         static void selectNetwork(NETWORK_MODE);
 
-public:
-   static void processArgs(const std::map<std::string, std::string>&);
+      public:
+         static void processArgs(const std::map<std::string, std::string>&);
 
-   static uint8_t getPubkeyHashPrefix(void);
-   static uint8_t getScriptHashPrefix(void);
-   static uint8_t getPrivKeyPrefix(void);
+         static uint8_t getPubkeyHashPrefix(void);
+         static uint8_t getScriptHashPrefix(void);
+         static uint8_t getPrivKeyPrefix(void);
 
-   static const BinaryData& getGenesisBlockHash(void);
-   static const BinaryData& getGenesisTxHash(void);
-   static const BinaryData& getMagicBytes(void);
+         static const BinaryData& getGenesisBlockHash(void);
+         static const BinaryData& getGenesisTxHash(void);
+         static const BinaryData& getMagicBytes(void);
 
-   static NETWORK_MODE getMode(void) { return mode_; }
-   static bool isInitialized(void);
-   static const btc_chainparams* get_chain_params(void) { return chain_params_; }
-   static uint32_t getCoinType(void);
-};
+         static NETWORK_MODE getMode(void) { return mode_; }
+         static bool isInitialized(void);
+         static const btc_chainparams* get_chain_params(void)
+         { return chain_params_; }
+         static uint32_t getCoinType(void);
+      };
+   }; //namespace Config
 }; //namespace ArmoryConfig
 #endif

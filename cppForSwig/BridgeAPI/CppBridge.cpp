@@ -427,7 +427,7 @@ void CppBridge::setupDB()
       {
          bdvPtr_->connectToRemote();
          bdvPtr_->registerWithDB(
-            ArmoryConfig::BitcoinSettings::getMagicBytes());
+            Armory::Config::BitcoinSettings::getMagicBytes());
 
          //notify setup is done
          callbackPtr_->notify_SetupDone();

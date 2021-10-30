@@ -213,11 +213,11 @@ void WebSocketServer::initAuthPeers(const PassphraseLambda& passLbd)
    //init auth peer object
    auto instance = getInstance();
 
-   if (!ArmoryConfig::NetworkSettings::ephemeralPeers())
+   if (!Armory::Config::NetworkSettings::ephemeralPeers())
    {
       string peerFilename(SERVER_AUTH_PEER_FILENAME);
       instance->authorizedPeers_ = make_shared<AuthorizedPeers>(
-         ArmoryConfig::getDataDir(), peerFilename, passLbd);
+         Armory::Config::getDataDir(), peerFilename, passLbd);
    }
    else
    {
@@ -237,7 +237,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
    encInitPacket.put_uint32_t(1);
    encInitPacket.put_uint8_t((uint8_t)ArmoryAEAD::BIP151_PayloadType::Start);
    instance->encInitPacket_ = encInitPacket.getData();
-   instance->oneWayAuth_ = ArmoryConfig::NetworkSettings::oneWayAuth();
+   instance->oneWayAuth_ = Armory::Config::NetworkSettings::oneWayAuth();
 
    //init Clients object
    auto shutdownLbd = [](void)->void
@@ -275,7 +275,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
       instance->threads_.push_back(thread(readProcessThread));
    }
    
-   auto port = stoi(ArmoryConfig::NetworkSettings::listenPort());
+   auto port = stoi(Armory::Config::NetworkSettings::listenPort());
    if (port == 0)
       port = WEBSOCKET_PORT;
 

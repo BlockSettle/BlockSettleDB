@@ -14,7 +14,7 @@
 #include "TestUtils.h"
 using namespace std;
 using namespace ArmorySigner;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,15 +229,15 @@ protected:
    {
       DBTestUtils::init();
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       DBSettings::setServiceType(SERVICE_UNITTEST);
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--datadir=./fakehomedir",
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
          "--db-type=DB_SUPER",
-         "--thread-count=3",
-      });
+         "--thread-count=3"},
+         Armory::Config::ProcessType::DB);
 
       theBDMt_ = new BlockDataManagerThread();
       iface_ = theBDMt_->bdm()->getIFace();
@@ -298,7 +298,7 @@ protected:
 
       mkdir("./ldbtestdir");
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
 
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
@@ -1547,15 +1547,15 @@ protected:
    {
       DBTestUtils::init();
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       DBSettings::setServiceType(SERVICE_UNITTEST);
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--datadir=./fakehomedir",
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
          "--db-type=DB_SUPER",
-         "--thread-count=3",
-      });
+         "--thread-count=3"},
+         Armory::Config::ProcessType::DB);
 
       theBDMt_ = new BlockDataManagerThread();
       iface_ = theBDMt_->bdm()->getIFace();
@@ -1619,7 +1619,7 @@ protected:
 
       mkdir("./ldbtestdir");
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
 
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
@@ -2173,15 +2173,15 @@ protected:
       startupBIP150CTX(4);
 
       DBSettings::setServiceType(SERVICE_UNITTEST_WITHWS);
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--datadir=./fakehomedir",
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
          "--db-type=DB_SUPER",
          "--thread-count=3",
          "--public",
-         "--cookie"
-      });
+         "--cookie"},
+         Armory::Config::ProcessType::DB);
 
       //setup auth peers for server and client
       authPeersPassLbd_ = [](const set<EncryptionKeyId>&)->SecureBinaryData
@@ -2220,7 +2220,7 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory("./ldbtestdir");
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
 
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
@@ -2281,7 +2281,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(),
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
@@ -2325,7 +2325,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(), 
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
@@ -2688,7 +2688,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
    }
 
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
       authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
@@ -2748,7 +2748,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(), 
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
@@ -2802,7 +2802,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(),
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
@@ -3161,7 +3161,7 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
    }
 
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
       authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
@@ -3228,7 +3228,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(), 
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
@@ -3280,7 +3280,7 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
       authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
@@ -3340,7 +3340,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(), 
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
@@ -3557,7 +3557,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
       authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
@@ -3609,7 +3609,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(), 
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
@@ -3748,7 +3748,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
       authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
@@ -3800,7 +3800,7 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(), 
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
@@ -4104,7 +4104,7 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
       authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
@@ -4146,7 +4146,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", NetworkSettings::listenPort(), 
-      ArmoryConfig::getDataDir(),
+      Armory::Config::getDataDir(),
       authPeersPassLbd_, 
       NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
@@ -4490,7 +4490,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
       authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
@@ -4532,7 +4532,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", NetworkSettings::listenPort(), 
-      ArmoryConfig::getDataDir(),
+      Armory::Config::getDataDir(),
       authPeersPassLbd_, 
       NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
@@ -4792,7 +4792,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
       auto pCallback2 = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(), 
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          NetworkSettings::ephemeralPeers(), true, //public server
          pCallback2);
@@ -4971,7 +4971,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
       authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
@@ -5042,7 +5042,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(), 
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
@@ -5520,7 +5520,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
       authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();

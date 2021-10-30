@@ -17,7 +17,7 @@
 
 using namespace std;
 using namespace ArmoryThreading;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 #define ZC_GETDATA_TIMEOUT_MS 60000
 

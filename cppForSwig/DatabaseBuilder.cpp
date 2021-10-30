@@ -16,7 +16,7 @@
 #define REWIND_COUNT 100
 
 using namespace std;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 /////////////////////////////////////////////////////////////////////////////
 void dumpBlock(

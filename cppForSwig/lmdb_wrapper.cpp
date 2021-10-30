@@ -34,7 +34,7 @@
 #endif
 
 using namespace std;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 const set<DB_SELECT> LMDBBlockDatabase::supernodeDBs_({});
 const map<string, size_t> LMDBBlockDatabase::mapSizes_ = {

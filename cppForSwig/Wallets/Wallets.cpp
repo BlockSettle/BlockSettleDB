@@ -1243,7 +1243,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    BIP32_Node rootNode;
    rootNode.initFromSeed(seed);
 
-   auto coinType = ArmoryConfig::BitcoinSettings::getCoinType();
+   auto coinType = Armory::Config::BitcoinSettings::getCoinType();
    
    //address accounts
    set<shared_ptr<AccountType_BIP32>> accountTypes;

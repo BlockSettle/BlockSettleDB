@@ -12,7 +12,7 @@
 #include "btc/segwit_addr.h"
 
 using namespace std;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 const BinaryData BtcUtils::BadAddress_ = BinaryData::CreateFromHex("0000000000000000000000000000000000000000");
 const BinaryData BtcUtils::EmptyHash_  = BinaryData::CreateFromHex("0000000000000000000000000000000000000000000000000000000000000000");

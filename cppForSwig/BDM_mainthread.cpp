@@ -21,7 +21,7 @@
 #include <ctime>
 
 using namespace std;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 BDM_CallBack::~BDM_CallBack()
 {}

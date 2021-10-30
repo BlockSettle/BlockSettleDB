@@ -32,7 +32,7 @@ CppBridgeSocket::CppBridgeSocket(
    //setup auth peers db
    authPeers_ = make_shared<AuthorizedPeers>();
 
-   auto uiPubKey = ArmoryConfig::NetworkSettings::uiPublicKey();
+   auto uiPubKey = Armory::Config::NetworkSettings::uiPublicKey();
    if (uiPubKey.getSize() != 33)
    {
       LOGERR << "Invalid UI pubkey!";

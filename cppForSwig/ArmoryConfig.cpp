@@ -25,7 +25,8 @@
 #endif
 
 using namespace std;
-using namespace ArmoryConfig;
+using namespace Armory;
+using namespace Armory::Config;
 
 ////////////////////////////////////////////////////////////////////////////////
 #define DEFAULT_DBDIR_SUFFIX "/databases"
@@ -60,7 +61,7 @@ using namespace ArmoryConfig;
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
-void ArmoryConfig::printHelp(void)
+void Armory::Config::printHelp(void)
 {
   static std::string helpMsg = R"(
 --help                     print help message and exit
@@ -121,23 +122,24 @@ void ArmoryConfig::printHelp(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const string& ArmoryConfig::getDataDir()
+const string& Armory::Config::getDataDir()
 {
    return BaseSettings::dataDir_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ArmoryConfig::parseArgs(int argc, char* argv[])
+void Armory::Config::parseArgs(int argc, char* argv[], ProcessType procType)
 {
    vector<string> lines;
    for (int i=1; i<argc; i++)
       lines.emplace_back(argv[i], strlen(argv[i]));
 
-   ArmoryConfig::parseArgs(lines);
+   Armory::Config::parseArgs(lines, procType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ArmoryConfig::parseArgs(const vector<string>& lines)
+void Armory::Config::parseArgs(
+   const vector<string>& lines, ProcessType procType)
 {
    unique_lock<mutex> lock(BaseSettings::configMutex_);
    if (BaseSettings::initCount_++ > 0)
@@ -160,7 +162,7 @@ void ArmoryConfig::parseArgs(const vector<string>& lines)
       for (const auto& line : lines)
       {
          if (line == ("--help")) {
-            ArmoryConfig::printHelp();
+            Armory::Config::printHelp();
             exit(0);
          }
 
@@ -182,12 +184,12 @@ void ArmoryConfig::parseArgs(const vector<string>& lines)
       BaseSettings::detectDataDir(args);
 
       //get config file
-      auto configPath = ArmoryConfig::getDataDir();
+      auto configPath = Armory::Config::getDataDir();
       DBUtils::appendPath(configPath, "armorydb.conf");
 
       if (SettingsUtils::fileExists(configPath, 2))
       {
-         ConfigFile cf(configPath);
+         Config::File cf(configPath);
          auto mapIter = cf.keyvalMap_.find("datadir");
          if (mapIter != cf.keyvalMap_.end())
             throw DbErrorMsg("datadir is illegal in .conf file");
@@ -203,12 +205,12 @@ void ArmoryConfig::parseArgs(const vector<string>& lines)
       NetworkSettings::processArgs(args);
 
       //parse for paths
-      Pathing::processArgs(args);
+      Pathing::processArgs(args, procType);
 
       //db settings
       DBSettings::processArgs(args);
    }
-   catch (const ConfigError& e)
+   catch (const Config::Error& e)
    {
       cerr << e.what() << endl;
       throw e;
@@ -216,7 +218,7 @@ void ArmoryConfig::parseArgs(const vector<string>& lines)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ArmoryConfig::reset()
+void Armory::Config::reset()
 {
    unique_lock<mutex> lock(BaseSettings::configMutex_);
 
@@ -883,17 +885,17 @@ void NetworkSettings::randomizeListenPort()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void NetworkSettings::createNodes()     
+void NetworkSettings::createNodes()
 {
    auto magicBytes = BitcoinSettings::getMagicBytes();
 
    if (DBSettings::getServiceType() == SERVICE_WEBSOCKET)
    {
-      bitcoinNodes_.first = 
+      bitcoinNodes_.first =
          make_shared<BitcoinP2P>("127.0.0.1", btcPort_,
          *(uint32_t*)magicBytes.getPtr(), false);
 
-      bitcoinNodes_.second = 
+      bitcoinNodes_.second =
          make_shared<BitcoinP2P>("127.0.0.1", btcPort_,
          *(uint32_t*)magicBytes.getPtr(), true);
 
@@ -901,10 +903,10 @@ void NetworkSettings::createNodes()
    }
    else
    {
-      auto primary = 
+      auto primary =
          make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr(), false);
 
-      auto watcher = 
+      auto watcher =
          make_shared<NodeUnitTest>(*(uint32_t*)magicBytes.getPtr(), true);
 
       bitcoinNodes_.first = primary;
@@ -936,7 +938,7 @@ void NetworkSettings::createCookie()
       DBSettings::getServiceType() == SERVICE_UNITTEST_WITHWS)
       return;
 
-   auto cookiePath = ArmoryConfig::getDataDir();
+   auto cookiePath = Armory::Config::getDataDir();
    DBUtils::appendPath(cookiePath, ".cookie_");
    fstream fs(cookiePath, ios_base::out | ios_base::trunc);
    fs << cookie_ << endl;
@@ -980,7 +982,7 @@ string Pathing::blkFilePath_;
 string Pathing::dbDir_;
 
 ////////////////////////////////////////////////////////////////////////////////
-void Pathing::processArgs(const map<string, string>& args)
+void Pathing::processArgs(const map<string, string>& args, ProcessType procType)
 {
    //paths
    auto iter = args.find("dbdir");
@@ -994,7 +996,7 @@ void Pathing::processArgs(const map<string, string>& args)
    bool autoDbDir = false;
    if (dbDir_.empty())
    {
-      dbDir_ = ArmoryConfig::getDataDir();
+      dbDir_ = Armory::Config::getDataDir();
       DBUtils::appendPath(dbDir_, DEFAULT_DBDIR_SUFFIX);
       autoDbDir = true;
    }
@@ -1034,7 +1036,13 @@ void Pathing::processArgs(const map<string, string>& args)
       }
    };
 
-   testPath(ArmoryConfig::getDataDir(), 6);
+   testPath(Armory::Config::getDataDir(), 6);
+
+   if (procType != ProcessType::DB)
+   {
+      //path checks past this point only apply to ArmoryDB
+      return;
+   }
 
    if (NetworkSettings::isOffline())
    {
@@ -1062,6 +1070,11 @@ void Pathing::processArgs(const map<string, string>& args)
    //now for the regular test, let it throw if it fails
    testPath(dbDir_, 6);
 
+   /*
+   TODO: differentiate path defaults and checks between local automated
+      bitcoind, local manual bitcoind and remote armorydb
+   */
+
    if (!NetworkSettings::isOffline())
       testPath(blkFilePath_, 2);
 }
@@ -1084,7 +1097,7 @@ string Pathing::logFilePath(const string& logName)
 // ConfigFile
 //
 ////////////////////////////////////////////////////////////////////////////////
-ConfigFile::ConfigFile(const string& path)
+Config::File::File(const string& path)
 {
    auto&& lines = SettingsUtils::getLines(path);
 
@@ -1104,7 +1117,7 @@ ConfigFile::ConfigFile(const string& path)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<BinaryData> ConfigFile::fleshOutArgs(
+vector<BinaryData> Config::File::fleshOutArgs(
    const string& path, const vector<BinaryData>& argv)
 {
    //sanity check
@@ -1141,7 +1154,7 @@ vector<BinaryData> ConfigFile::fleshOutArgs(
    DBUtils::expandPath(configFile_path);
 
    //process config file
-   ConfigFile cfile(configFile_path);
+   Config::File cfile(configFile_path);
    if (cfile.keyvalMap_.size() == 0)
       return argv;
 

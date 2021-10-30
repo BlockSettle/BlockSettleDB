@@ -17,7 +17,7 @@
 #include "TerminalPassphrasePrompt.h"
 
 using namespace std;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 #define LOG_FILE_NAME "dbLog"
 
@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
    WSAStartup(wVersion, &wsaData);
 #endif
 
-   ArmoryConfig::parseArgs(argc, argv);
+   Armory::Config::parseArgs(argc, argv, Armory::Config::ProcessType::DB);
    
    cout << "logging in " << Pathing::logFilePath(LOG_FILE_NAME) << endl;
    STARTLOGGING(Pathing::logFilePath(LOG_FILE_NAME), LogLvlDebug);

@@ -14,7 +14,7 @@
 
 using namespace std;
 using namespace ArmorySigner;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,15 +40,15 @@ protected:
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--offline",
-         "--datadir=./fakehomedir",
-      });
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
    }
 
    virtual void TearDown(void)
    {
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       DBUtils::removeDirectory(homedir_);
    }
 
@@ -125,15 +125,15 @@ protected:
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--offline",
-         "--datadir=./fakehomedir",
-      });
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
    }
 
    virtual void TearDown(void)
    {
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       DBUtils::removeDirectory(homedir_);
    }
 
@@ -1114,15 +1114,15 @@ protected:
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--offline",
-         "--datadir=./fakehomedir",
-      });
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
    }
 
    virtual void TearDown(void)
    {
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       DBUtils::removeDirectory(homedir_);
    }
 
@@ -1364,10 +1364,10 @@ protected:
       dbPath_ = homedir_;
       DBUtils::appendPath(dbPath_, "wallet_test.wallet");
 
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--offline",
-         "--datadir=./fakehomedir",
-      });
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
 
       allZeroes16_ = READHEX("00000000000000000000000000000000");
       if(allZeroes16_.getSize() != 16)
@@ -1377,7 +1377,7 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       DBUtils::removeDirectory(homedir_);
    }
 
@@ -3496,10 +3496,10 @@ protected:
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--offline",
-         "--datadir=./fakehomedir",
-      });
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
 
       controlPass_ = SecureBinaryData::fromString("control");
       controlLbd_ = [this](const set<EncryptionKeyId>&)->SecureBinaryData
@@ -3511,7 +3511,7 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       DBUtils::removeDirectory(homedir_);
    }
 
@@ -6861,16 +6861,16 @@ protected:
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--offline",
-         "--datadir=./fakehomedir",
-      });
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
    }
 
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
-      ArmoryConfig::reset();
+      Armory::Config::reset();
 
       DBUtils::removeDirectory(homedir_);
    }
@@ -7685,15 +7685,16 @@ public:
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--offline",
-         "--datadir=./fakehomedir",
-      });   }
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
+   }
 
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
-      ArmoryConfig::reset();
+      Armory::Config::reset();
 
       DBUtils::removeDirectory(homedir_);
    }

@@ -1158,7 +1158,7 @@ void BitcoinP2P::checkServices(unique_ptr<Payload> payload)
 {
    Payload_Version* pver = (Payload_Version*)payload.get();
 
-   auto& this_mw = ArmoryConfig::BitcoinSettings::getMagicBytes();
+   auto& this_mw = Armory::Config::BitcoinSettings::getMagicBytes();
    auto mwInt = (uint32_t*)this_mw.getPtr();
 
    auto magicWord = getMagicWord();

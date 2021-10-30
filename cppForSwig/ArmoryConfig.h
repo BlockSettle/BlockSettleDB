@@ -38,208 +38,224 @@ namespace CoreRPC
    class NodeRPCInterface;
 };
 
-namespace ArmoryConfig
+namespace Armory
 {
-
-class ConfigError : public std::runtime_error
-{
-   ConfigError(const std::string& err) :
-      std::runtime_error(err)
-   {}
-};
-
-////////////////////////////////////////////////////////////////////////////////
-namespace SettingsUtils
-{
-   std::vector<std::string> getLines(const std::string& path);
-   std::map<std::string, std::string> getKeyValsFromLines(
-      const std::vector<std::string>&, char delim);
-   std::pair<std::string, std::string> getKeyValFromLine(
-      const std::string&, char delim);
-      
-   std::string stripQuotes(const std::string& input);
-   std::vector<std::string> keyValToArgv(
-      const std::map<std::string, std::string>&);
-   std::vector<std::string> tokenizeLine(
-      const std::string&, const std::string&);
-      
-   bool fileExists(const std::string&, int);
-   std::string portToString(unsigned);
-
-   bool testConnection(const std::string& ip, const std::string& port);
-   std::string getPortFromCookie(const std::string& datadir);
-   std::string hasLocalDB(const std::string& datadir, const std::string& port);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-void printHelp(void);
-void parseArgs(int, char**);
-void parseArgs(const std::vector<std::string>&);
-const std::string& getDataDir(void);
-void reset(void);
-
-////////////////////////////////////////////////////////////////////////////////
-class BaseSettings
-{
-   friend void ArmoryConfig::parseArgs(const std::vector<std::string>&);
-   friend void ArmoryConfig::reset(void);
-   friend const std::string& ArmoryConfig::getDataDir(void);
-
-private:
-   static std::mutex configMutex_;
-   static std::string dataDir_;
-   static unsigned initCount_;
-
-private:
-   static void detectDataDir(std::map<std::string, std::string>&);
-   static void reset(void);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-class DBSettings
-{
-   friend void ArmoryConfig::parseArgs(const std::vector<std::string>&);
-   friend void ArmoryConfig::reset(void);
-
-private:
-   static ARMORY_DB_TYPE armoryDbType_;
-   static SOCKET_SERVICE service_;
-
-   static BDM_INIT_MODE initMode_;
-
-   static unsigned ramUsage_;
-   static unsigned threadCount_;
-   static unsigned zcThreadCount_;
-
-   static bool reportProgress_;
-   static bool checkChain_;
-   static bool clearMempool_;
-
-private:
-   static void processArgs(const std::map<std::string, std::string>&);
-   static void reset(void);
-
-public:
-   static std::string getCookie(const std::string& datadir);
-
-   static ARMORY_DB_TYPE getDbType(void)
+   namespace Config
    {
-      return armoryDbType_;
-   }
+      class Error : public std::runtime_error
+      {
+         Error(const std::string& err) :
+            std::runtime_error(err)
+         {}
+      };
 
-   static void setServiceType(SOCKET_SERVICE _type)
-   {
-      service_ = _type;
-   }
+      ////
+      enum class ProcessType
+      {
+         Bridge,
+         DB,
+         KeyManager,
+      };
 
-   static SOCKET_SERVICE getServiceType(void)
-   {
-      return service_;
-   }
+      //////////////////////////////////////////////////////////////////////////
+      namespace SettingsUtils
+      {
+         std::vector<std::string> getLines(const std::string& path);
+         std::map<std::string, std::string> getKeyValsFromLines(
+            const std::vector<std::string>&, char delim);
+         std::pair<std::string, std::string> getKeyValFromLine(
+            const std::string&, char delim);
+            
+         std::string stripQuotes(const std::string& input);
+         std::vector<std::string> keyValToArgv(
+            const std::map<std::string, std::string>&);
+         std::vector<std::string> tokenizeLine(
+            const std::string&, const std::string&);
+            
+         bool fileExists(const std::string&, int);
+         std::string portToString(unsigned);
 
-   static std::string getDbModeStr(void);
-   static unsigned threadCount(void) { return threadCount_; }
-   static unsigned ramUsage(void) { return ramUsage_; }
-   static unsigned zcThreadCount(void) { return zcThreadCount_; }
+         bool testConnection(const std::string& ip, const std::string& port);
+         std::string getPortFromCookie(const std::string& datadir);
+         std::string hasLocalDB(const std::string& datadir,
+            const std::string& port);
+      };
 
-   static bool checkChain(void) { return checkChain_; }
-   static BDM_INIT_MODE initMode(void) { return initMode_; }
-   static bool clearMempool(void) { return clearMempool_; }
-   static bool reportProgress(void) { return reportProgress_; }
-};
+      //////////////////////////////////////////////////////////////////////////
+      void printHelp(void);
+      void parseArgs(int, char**, ProcessType);
+      void parseArgs(const std::vector<std::string>&, ProcessType);
+      const std::string& getDataDir(void);
+      void reset(void);
 
-////////////////////////////////////////////////////////////////////////////////
-class NetworkSettings
-{
-   using RpcPtr = std::shared_ptr<CoreRPC::NodeRPCInterface>;
-   using NodePair = std::pair<
-      std::shared_ptr<BitcoinNodeInterface>, 
-      std::shared_ptr<BitcoinNodeInterface>>;
+      //////////////////////////////////////////////////////////////////////////
+      class BaseSettings
+      {
+         friend void Config::parseArgs(
+            const std::vector<std::string>&, ProcessType);
+         friend void Config::reset(void);
+         friend const std::string& Config::getDataDir(void);
 
-   friend void ArmoryConfig::parseArgs(const std::vector<std::string>&);
-   friend void ArmoryConfig::reset(void);
+      private:
+         static std::mutex configMutex_;
+         static std::string dataDir_;
+         static unsigned initCount_;
 
-private:
-   static NodePair bitcoinNodes_;
-   static RpcPtr rpcNode_;
+      private:
+         static void detectDataDir(std::map<std::string, std::string>&);
+         static void reset(void);
+      };
 
-   static std::string btcPort_;
-   static std::string listenPort_;
-   static std::string rpcPort_;
+      //////////////////////////////////////////////////////////////////////////
+      class DBSettings
+      {
+         friend void Config::parseArgs(
+            const std::vector<std::string>&, ProcessType);
+         friend void Config::reset(void);
 
-   static bool customListenPort_;
-   static bool customBtcPort_;
+      private:
+         static ARMORY_DB_TYPE armoryDbType_;
+         static SOCKET_SERVICE service_;
 
-   static bool useCookie_;
-   static bool ephemeralPeers_;
-   static bool oneWayAuth_;
+         static BDM_INIT_MODE initMode_;
 
-   static bool offline_;
-   static std::string cookie_;
+         static unsigned ramUsage_;
+         static unsigned threadCount_;
+         static unsigned zcThreadCount_;
 
-   static BinaryData uiPublicKey_;
+         static bool reportProgress_;
+         static bool checkChain_;
+         static bool clearMempool_;
 
-private:
-   static void createNodes(void);
-   static void createCookie(void);
+      private:
+         static void processArgs(const std::map<std::string, std::string>&);
+         static void reset(void);
 
-   static void processArgs(const std::map<std::string, std::string>&);
-   static void reset(void);
+      public:
+         static std::string getCookie(const std::string& datadir);
 
-public:
-   static void selectNetwork(NETWORK_MODE);
-   
-   static const std::string& btcPort(void);
-   static const std::string& listenPort(void);
-   static const std::string& rpcPort(void);
+         static ARMORY_DB_TYPE getDbType(void)
+         {
+            return armoryDbType_;
+         }
 
-   static void randomizeListenPort(void);
+         static void setServiceType(SOCKET_SERVICE _type)
+         {
+            service_ = _type;
+         }
 
-   static const NodePair& bitcoinNodes(void);
-   static RpcPtr rpcNode(void);
+         static SOCKET_SERVICE getServiceType(void)
+         {
+            return service_;
+         }
 
-   static bool useCookie(void) { return useCookie_; }
-   static const std::string& cookie(void) { return cookie_; }
-   
-   static bool ephemeralPeers(void) { return ephemeralPeers_; }
-   static bool oneWayAuth(void) { return oneWayAuth_; }
-   static bool isOffline(void) { return offline_; }
+         static std::string getDbModeStr(void);
+         static unsigned threadCount(void) { return threadCount_; }
+         static unsigned ramUsage(void) { return ramUsage_; }
+         static unsigned zcThreadCount(void) { return zcThreadCount_; }
 
-   static BinaryData uiPublicKey(void) { return uiPublicKey_; }
-   static void injectUiPubkey(BinaryData&);
-};
+         static bool checkChain(void) { return checkChain_; }
+         static BDM_INIT_MODE initMode(void) { return initMode_; }
+         static bool clearMempool(void) { return clearMempool_; }
+         static bool reportProgress(void) { return reportProgress_; }
+      };
 
-////////////////////////////////////////////////////////////////////////////////
-class Pathing
-{
-   friend void ArmoryConfig::parseArgs(const std::vector<std::string>&);
-   friend void ArmoryConfig::reset(void);
+      //////////////////////////////////////////////////////////////////////////
+      class NetworkSettings
+      {
+         using RpcPtr = std::shared_ptr<CoreRPC::NodeRPCInterface>;
+         using NodePair = std::pair<
+            std::shared_ptr<BitcoinNodeInterface>, 
+            std::shared_ptr<BitcoinNodeInterface>>;
 
-private:
-   static std::string blkFilePath_;
-   static std::string dbDir_;
+         friend void Config::parseArgs(
+            const std::vector<std::string>&, ProcessType);
+         friend void Config::reset(void);
 
-private:
-   static void processArgs(const std::map<std::string, std::string>&);
-   static void reset(void);
+      private:
+         static NodePair bitcoinNodes_;
+         static RpcPtr rpcNode_;
 
-public:
-   static std::string logFilePath(const std::string&);
-   static const std::string& blkFilePath(void) { return blkFilePath_; }
-   static const std::string& dbDir(void) { return dbDir_; }
-};
+         static std::string btcPort_;
+         static std::string listenPort_;
+         static std::string rpcPort_;
 
-////////////////////////////////////////////////////////////////////////////////
-struct ConfigFile
-{
-   std::map<std::string, std::string> keyvalMap_;
+         static bool customListenPort_;
+         static bool customBtcPort_;
 
-   ConfigFile(const std::string& path);
+         static bool useCookie_;
+         static bool ephemeralPeers_;
+         static bool oneWayAuth_;
 
-   static std::vector<BinaryData> fleshOutArgs(
-      const std::string& path, const std::vector<BinaryData>& argv);
-};
-}; //namespace ArmoryConfig
+         static bool offline_;
+         static std::string cookie_;
+
+         static BinaryData uiPublicKey_;
+
+      private:
+         static void createNodes(void);
+         static void createCookie(void);
+
+         static void processArgs(const std::map<std::string, std::string>&);
+         static void reset(void);
+
+      public:
+         static void selectNetwork(NETWORK_MODE);
+
+         static const std::string& btcPort(void);
+         static const std::string& listenPort(void);
+         static const std::string& rpcPort(void);
+
+         static void randomizeListenPort(void);
+
+         static const NodePair& bitcoinNodes(void);
+         static RpcPtr rpcNode(void);
+
+         static bool useCookie(void) { return useCookie_; }
+         static const std::string& cookie(void) { return cookie_; }
+         
+         static bool ephemeralPeers(void) { return ephemeralPeers_; }
+         static bool oneWayAuth(void) { return oneWayAuth_; }
+         static bool isOffline(void) { return offline_; }
+
+         static BinaryData uiPublicKey(void) { return uiPublicKey_; }
+         static void injectUiPubkey(BinaryData&);
+      };
+
+      //////////////////////////////////////////////////////////////////////////
+      class Pathing
+      {
+         friend void Config::parseArgs(
+            const std::vector<std::string>&, ProcessType);
+         friend void Config::reset(void);
+
+      private:
+         static std::string blkFilePath_;
+         static std::string dbDir_;
+
+      private:
+         static void processArgs(
+            const std::map<std::string, std::string>&, ProcessType);
+         static void reset(void);
+
+      public:
+         static std::string logFilePath(const std::string&);
+         static const std::string& blkFilePath(void) { return blkFilePath_; }
+         static const std::string& dbDir(void) { return dbDir_; }
+      };
+
+      //////////////////////////////////////////////////////////////////////////
+      struct File
+      {
+         std::map<std::string, std::string> keyvalMap_;
+
+         File(const std::string& path);
+
+         static std::vector<BinaryData> fleshOutArgs(
+            const std::string& path, const std::vector<BinaryData>& argv);
+      };
+   }; //namespace Config
+}; //namespace Armory
 
 ////////////////////////////////////////////////////////////////////////////////
 struct BDV_Error_Struct

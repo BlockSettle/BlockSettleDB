@@ -627,7 +627,7 @@ public:
 
    ARMORY_DB_TYPE getDbType(void) const 
    { 
-      return ArmoryConfig::DBSettings::getDbType(); 
+      return Armory::Config::DBSettings::getDbType(); 
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -864,7 +864,7 @@ public:
    void   printAllDatabaseEntries(DB_SELECT db);
 
    ARMORY_DB_TYPE armoryDbType(void) const
-   { return ArmoryConfig::DBSettings::getDbType(); }
+   { return Armory::Config::DBSettings::getDbType(); }
 
    const std::string& baseDir(void) const { return DatabaseContainer::baseDir_; }
    void setBlkFolder(const std::string& path) { blkFolder_ = path; }

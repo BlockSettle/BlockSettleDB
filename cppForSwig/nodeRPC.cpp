@@ -20,7 +20,7 @@
 
 using namespace std;
 using namespace CoreRPC;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -59,7 +59,7 @@ map<unsigned, FeeEstimateResult> NodeRPCInterface::getFeeSchedule(
 // NodeRPC
 //
 ////////////////////////////////////////////////////////////////////////////////
-NodeRPC::NodeRPC() 
+NodeRPC::NodeRPC()
 {
    //start fee estimate polling thread
    auto pollLbd = [this](void)->void

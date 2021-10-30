@@ -15,7 +15,7 @@
 
 using namespace std;
 using namespace ArmorySigner;
-using namespace ArmoryConfig;
+using namespace Armory::Config;
 using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,15 +50,15 @@ protected:
       mkdir(ldbdir_);
 
       DBSettings::setServiceType(SERVICE_UNITTEST);
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--datadir=./fakehomedir",
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
          "--public",
          "--db-type=DB_FULL",
          "--thread-count=3",
-         "--public"
-      });
+         "--public"},
+         Armory::Config::ProcessType::DB);
       
       DBTestUtils::init();
 
@@ -70,7 +70,7 @@ protected:
    virtual void TearDown(void)
    {
       cleanUp();
-      ArmoryConfig::reset();
+      Armory::Config::reset();
 
       CLEANUP_ALL_TIMERS();
    }
@@ -404,17 +404,17 @@ protected:
 
    void initBDM(void)
    {
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       DBSettings::setServiceType(SERVICE_UNITTEST);
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--datadir=./fakehomedir",
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
          "--public",
          "--db-type=DB_FULL",
          "--thread-count=3",
-         "--public"
-      });
+         "--public"},
+         Armory::Config::ProcessType::DB);
 
       DBTestUtils::init();
             
@@ -470,7 +470,7 @@ protected:
          clients_->shutdown();
       }
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
       delete clients_;
       delete theBDMt_;
 
@@ -483,7 +483,7 @@ protected:
       
       mkdir("./ldbtestdir");
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
 
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
@@ -1684,14 +1684,14 @@ protected:
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_ + "/blocks", 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
 
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--datadir=./fakehomedir",
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
          "--db-type=DB_FULL",
          "--thread-count=3",
-         "--public"
-      });
+         "--public"},
+         Armory::Config::ProcessType::DB);
 
       wallet1id = "wallet1";
       wallet2id = "wallet2";
@@ -1748,7 +1748,7 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory("./ldbtestdir");
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
 
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
@@ -1782,7 +1782,7 @@ TEST_F(WebSocketTests_1Way, WebSocketStack)
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", NetworkSettings::listenPort(), 
-      ArmoryConfig::getDataDir(),
+      Armory::Config::getDataDir(),
       authPeersPassLbd_, 
       NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
@@ -2052,7 +2052,7 @@ TEST_F(WebSocketTests_1Way, WebSocketStack_Reconnect)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(), 
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          true, true, //public server
          pCallback);
@@ -2181,7 +2181,7 @@ TEST_F(WebSocketTests_1Way, WebSocketStack_Reconnect)
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
          "127.0.0.1", NetworkSettings::listenPort(), 
-         ArmoryConfig::getDataDir(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
          true, true, //public server
          pCallback);
@@ -2269,7 +2269,7 @@ TEST_F(WebSocketTests_1Way, WebSocketStack_Reconnect)
    }
 
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", NetworkSettings::listenPort(), ArmoryConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
      authPeersPassLbd_, true, true, nullptr);
    bdvObj2->setCheckServerKeyPromptLambda(pubkeyPrompt);
    bdvObj2->connectToRemote();
@@ -2319,13 +2319,13 @@ protected:
       blk0dat_ = BtcUtils::getBlkFilename(blkdir_ + "/blocks", 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
 
-      ArmoryConfig::parseArgs({
+      Armory::Config::parseArgs({
          "--datadir=./fakehomedir",
          "--dbdir=./ldbtestdir",
          "--satoshi-datadir=./blkfiletest",
          "--db-type=DB_FULL",
-         "--thread-count=3",
-      });
+         "--thread-count=3"},
+         Armory::Config::ProcessType::DB);
 
       wallet1id = "wallet1";
       wallet2id = "wallet2";
@@ -2384,7 +2384,7 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory("./ldbtestdir");
 
-      ArmoryConfig::reset();
+      Armory::Config::reset();
 
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
@@ -2419,7 +2419,7 @@ TEST_F(WebSocketTests_2Way, GrabAddrLedger_PostReg)
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", NetworkSettings::listenPort(), 
-      ArmoryConfig::getDataDir(),
+      Armory::Config::getDataDir(),
       authPeersPassLbd_, 
       NetworkSettings::ephemeralPeers(), false, //private server
       pCallback);
@@ -2473,7 +2473,7 @@ TEST_F(WebSocketTests_2Way, WebSocketStack_ManyZC)
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
       "127.0.0.1", NetworkSettings::listenPort(), 
-      ArmoryConfig::getDataDir(),
+      Armory::Config::getDataDir(),
       authPeersPassLbd_, 
       NetworkSettings::ephemeralPeers(), false, //private server
       pCallback);

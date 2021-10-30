@@ -539,7 +539,7 @@ void BtcWallet::reset()
 ////////////////////////////////////////////////////////////////////////////////
 map<uint32_t, uint32_t> BtcWallet::computeScrAddrMapHistSummary()
 {
-   if (ArmoryConfig::DBSettings::getDbType() == ARMORY_DB_SUPER)
+   if (Armory::Config::DBSettings::getDbType() == ARMORY_DB_SUPER)
       return computeScrAddrMapHistSummary_Super();
 
    struct PreHistory

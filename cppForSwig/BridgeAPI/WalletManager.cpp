@@ -551,7 +551,7 @@ void Armory135Header::parseFile()
 
       //magic bytes
       auto magicBytes  = brr.get_BinaryData(4);
-      if (magicBytes != ArmoryConfig::BitcoinSettings::getMagicBytes())
+      if (magicBytes != Armory::Config::BitcoinSettings::getMagicBytes())
          return;
 
       //flags
