@@ -101,6 +101,9 @@ class PyBtcAddress(object):
       self.unconfirmedBalance    = 0
       self.txioCount             = 0
 
+      self.isUsed = False
+      self.isChange = False
+
    #############################################################################
    def hasPubKey(self):
       return (len(self.binPublicKey) != 0)
@@ -159,9 +162,15 @@ class PyBtcAddress(object):
       self.addressString = payload.addressString
 
       self.precursorScript = payload.precursorScript
+      self.isUsed = payload.isUsed
+      self.isChange = payload.isChange
 
    #############################################################################
    def getTxioCount(self):
+      from armoryengine.BDM import TheBDM, BDM_OFFLINE, BDM_UNINITIALIZED
+      if TheBDM.getState() in (BDM_OFFLINE,BDM_UNINITIALIZED):
+         return "N/A"
+
       return self.txioCount
 
    #############################################################################
@@ -182,3 +191,19 @@ class PyBtcAddress(object):
          return ''
 
       return self.parentWallet.getCommentForAddr(self.getAddr160())
+
+   #############################################################################
+   def filter(self, filterType, isUsed, isChange):
+      if self.chainIndex < 0:
+         return False
+
+      if filterType != None and filterType != self.addrType:
+         return False
+
+      if isUsed != self.isUsed:
+         return False
+
+      if isChange != self.isChange:
+         return False
+
+      return True

@@ -124,6 +124,7 @@ namespace Armory
          bool operator<(const AssetId&) const;
          bool operator==(const AssetId&) const;
          bool operator!=(const AssetId&) const;
+         bool belongsTo(const AssetAccountId&) const;
 
          bool isValid(void) const;
          const AssetKeyType getAssetKey(void) const;

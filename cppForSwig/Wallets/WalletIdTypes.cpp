@@ -424,6 +424,19 @@ bool AssetId::operator!=(const AssetId& rhs) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+bool AssetId::belongsTo(const AssetAccountId& accId) const
+{
+   if (!accId.isValid())
+      return false;
+
+   return (memcmp(
+         accId.data_.getPtr(),
+         data_.getPtr(),
+         sizeof(AccountKeyType) * 2
+      ) == 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 bool AssetId::isValid() const
 {
    return

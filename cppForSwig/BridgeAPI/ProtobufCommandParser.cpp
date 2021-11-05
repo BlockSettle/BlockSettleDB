@@ -291,6 +291,19 @@ bool ProtobufCommandParser::processData(
       break;
    }
 
+   case Methods::getNameForAddrType:
+   {
+      if (msg.intargs_size() != 1)
+         throw runtime_error("invalid command: getNameForAddrType");
+      auto addrTypeInt = msg.intargs(0);
+      auto typeName = bridge->getNameForAddrType(addrTypeInt);
+
+      auto replyMsg = make_unique<ReplyStrings>();
+      replyMsg->add_reply(typeName);
+      response = move(replyMsg);
+      break;
+   }
+
    case Methods::getHeaderByHeight:
    {
       if (msg.intargs_size() != 1)

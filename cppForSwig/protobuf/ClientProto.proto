@@ -45,6 +45,7 @@ enum Methods
     getLastPushDataInScript = 94;
     getTxOutScriptForScrAddr = 95;
     getAddrStrForScrAddr = 96;
+    getNameForAddrType = 97;
 
     getUtxosForValue = 100;
     getSpendableZCList = 101;
@@ -108,6 +109,8 @@ message WalletAsset
 {
     required int32 id = 1;
     required uint32 addrType = 2;
+    required bool isUsed = 3;
+    required bool isChange = 4;
 
     required bytes prefixedHash = 10;
     required bytes publicKey = 11;
@@ -122,6 +125,7 @@ message WalletData
     required int64 useCount = 2;
     required int64 lookupCount = 3;
     required bool watchingOnly = 4;
+    repeated int32 addressTypes = 5;
 
     optional string label = 10;
     optional string desc = 11;

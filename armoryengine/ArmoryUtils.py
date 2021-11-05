@@ -3589,6 +3589,11 @@ def calcLockboxID(script=None, scraddr=None):
    return binary_to_base58(hashedData)[1:9]
 
 
+################################################################################
+def getNameForAddrType(addrType):
+   from armoryengine.CppBridge import TheBridge
+   return TheBridge.getNameForAddrType(addrType)
+
 #################
 # bridge setup
 #################

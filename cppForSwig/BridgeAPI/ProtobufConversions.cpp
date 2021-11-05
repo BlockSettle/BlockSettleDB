@@ -48,8 +48,9 @@ void CppToProto::ledger(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppToProto::addr(WalletAsset* assetPtr, 
-   shared_ptr<AddressEntry> addrPtr, shared_ptr<AssetWallet> wltPtr)
+void CppToProto::addr(WalletAsset* assetPtr,
+   shared_ptr<AddressEntry> addrPtr, shared_ptr<AssetWallet> wltPtr,
+   bool isUsed, bool isChange)
 {
    auto addrID = addrPtr->getID();
    auto wltAsset = wltPtr->getAssetForID(addrID);
@@ -71,7 +72,7 @@ void CppToProto::addr(WalletAsset* assetPtr,
    {
       pubKeyRef = addrPtr->getPreimage().getRef();
    }
-   
+
    assetPtr->set_addrtype(addrType);
    assetPtr->set_publickey(pubKeyRef.toCharPtr(), pubKeyRef.getSize());
 
@@ -82,12 +83,16 @@ void CppToProto::addr(WalletAsset* assetPtr,
    auto& addrStr = addrPtr->getAddress();
    assetPtr->set_addressstring(addrStr);
 
+   assetPtr->set_isused(isUsed);
+   assetPtr->set_ischange(isChange);
+
    //precursor, if any
    if (addrNested == nullptr)
       return;
 
    auto& precursor = addrNested->getPredecessor()->getScript();
    assetPtr->set_precursorscript(precursor.getCharPtr(), precursor.getSize());
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,18 +109,28 @@ void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr,
       isWO = wltSingle->isWatchingOnly();
    wltProto->set_watchingonly(isWO);
 
-   //use index
+   //the address account
    auto accPtr = wltSingle->getAccountForID(accId);
+
+   //address types
+   const auto& addrTypes = accPtr->getAddressTypeSet();
+   for (const auto& addrType : addrTypes)
+      wltProto->add_addresstypes(addrType);
+
+   //use index
    auto assetAccountPtr = accPtr->getOuterAccount();
    wltProto->set_lookupcount(assetAccountPtr->getLastComputedIndex());
    wltProto->set_usecount(assetAccountPtr->getHighestUsedIndex());
 
    //address map
    auto addrMap = accPtr->getUsedAddressMap();
+   const auto& innerAccountId = accPtr->getInnerAccountID();
    for (auto& addrPair : addrMap)
    {
       auto assetPtr = wltProto->add_assets();
-      CppToProto::addr(assetPtr, addrPair.second, wltPtr);
+      bool isChange = addrPair.first.belongsTo(innerAccountId);
+      CppToProto::addr(assetPtr, addrPair.second, wltPtr,
+         true, isChange);
    }
 
    //comments

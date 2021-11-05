@@ -19,7 +19,7 @@ from ui.TreeViewGUI import AddressTreeModel
 from qtdialogs.qtdefines import ArmoryDialog, USERMODE, determineWalletType, \
    relaxedSizeNChar, relaxedSizeStr, QLabelButton, STYLE_SUNKEN, STYLE_NONE, \
    QRichLabel, makeHorizFrame, MsgBoxWithDNAA, restoreTableView, WLTTYPES, \
-   WLTFIELDS, tightSizeStr
+   WLTFIELDS, tightSizeStr, saveTableView
 from qtdialogs.qtdialogs import STRETCH
 
 

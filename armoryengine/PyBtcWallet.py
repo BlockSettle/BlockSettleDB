@@ -197,6 +197,7 @@ class PyBtcWallet(object):
       self.eofByte        = 0
       self.watchingOnly   = True
       self.wltCreateDate  = 0
+      self.addressTypes   = []
 
       # Three dictionaries hold all data
       self.addrMap     = {}  # maps 20-byte addresses to PyBtcAddress objects
@@ -1477,42 +1478,42 @@ class PyBtcWallet(object):
             addrObj.txioCount          = addrCombinedData.count
          else:
             print ("[getAddrDataFromDB] missing address " + addr.hex())
-   
+
    ###############################################################################
    def getHistoryAsCSV(self, currentTop):
       file = open('%s.csv' % self.walletPath, 'wb')
-      
-      sortedAddrList = self.getAddrListSortedByChainIndex()    
-      chainCode = sortedAddrList[0][2].chaincode.toHexStr()  
-      
+
+      sortedAddrList = self.getAddrListSortedByChainIndex()
+      chainCode = sortedAddrList[0][2].chaincode.toHexStr()
+
       bal = self.getBalance('full')
       bal = bal  / float(100000000)
       file.write("%s,%f,%s,#%d\n" % (self.uniqueIDB58, bal, chainCode, currentTop))
-      
+
 
       for i,addr160,addrObj in sortedAddrList:
          cppAddr = self.cppWallet.getScrAddrObjByKey(Hash160ToScrAddr(addr160))
          bal = cppAddr.getFullBalance() / float(100000000)
-         
-         le = cppAddr.getFirstLedger() 
+
+         le = cppAddr.getFirstLedger()
          unixtime = le.getTxTime()
          block = le.getBlockNum()
-         
+
          if unixtime == 0:
             block = 0
-         
+
          realtime = datetime.fromtimestamp(unixtime).strftime('%Y-%m-%d %H:%M:%S')
          timeAndBlock = ",#%d,%s,%d" % (block, realtime, unixtime)
-         
+
          cppAddrObj = self.cppWallet.getAddrObjByIndex(addrObj.chainIndex)
          putStr = '%d,%s,%s,%f%s\n' \
                   % (i, cppAddrObj.getScrAddr(), addrObj.binPublicKey65.toHexStr(), bal, \
                      (timeAndBlock if unixtime != 0 else ""))
-                  
+
          file.write(putStr)
-         
+
       file.close()
-      
+
    ###############################################################################
    @CheckWalletRegistration
    def getHistoryPage(self, pageID):
@@ -1520,7 +1521,7 @@ class PyBtcWallet(object):
          return self.cppWallet.getHistoryPage(pageID)
       except:
          raise Exception('pageID is out of range')
-      
+
    ###############################################################################
    @CheckWalletRegistration
    def doAfterScan(self):
@@ -1568,7 +1569,7 @@ class PyBtcWallet(object):
       assetIndex = self.cppWallet.getAssetIndexForAddr(hashVal)
       if assetIndex == 2**32:
          raise("unknown hash")
-      
+
       try:
          addr160 = self.chainIndexMap[assetIndex]
       except:
@@ -1577,40 +1578,34 @@ class PyBtcWallet(object):
             addr160 = self.linearAddr160List[importIndex]
          else:
             raise Exception("invalid address index")
-         
+
       return self.addrMap[addr160]
-   
+
    ###############################################################################
    def returnFilteredAddrList(self, filterUse, filterType):
-      from qtdialogs.qtdefines import CHANGE_ADDR_DESCR_STRING
-
       addrList = []
-      keepInUse = filterUse != "Unused"
-      keepChange = filterUse == "Change"
+      keepInUse = bool(filterUse != "Unused")
+      keepChange = bool(filterUse == "Change")
 
       for addr in self.linearAddr160List:
          addrObj = self.addrMap[addr]
-         if addrObj.chainIndex < 0:
-            continue
-
-         #filter by address type
-         if filterType != addrObj.addrType:
-            continue
-
-         #filter by usage
-         inUse = addrObj.getTxioCount() != 0
-         if not keepChange and inUse != keepInUse:
-            continue
-
-         #filter by change flag
-         addrComment = self.getCommentForAddress(addrObj.getAddr160())
-         isChange = addrComment == CHANGE_ADDR_DESCR_STRING
-         if isChange != keepChange:
-            continue
-
-         addrList.append(addrObj)
+         if addrObj.filter(filterType, keepInUse, keepChange) == True:
+            addrList.append(addrObj)
 
       return addrList
+
+   ###############################################################################
+   def getFilteredAddrCount(self, filterUse, filterType = None):
+      count = 0
+      keepInUse = bool(filterUse != "Unused")
+      keepChange = bool(filterUse == "Change")
+
+      for addr in self.linearAddr160List:
+         addrObj = self.addrMap[addr]
+         if addrObj.filter(filterType, keepInUse, keepChange) == True:
+            count += 1
+
+      return count
 
    ###############################################################################
    def getAddrByIndex(self, index):
@@ -1621,28 +1616,27 @@ class PyBtcWallet(object):
          importIndex = self.cppWallet.convertFromImportIndex(index)
          addr160 = self.linearAddr160List[importIndex]
          return self.addrMap[addr160]
-   
+
    ###############################################################################
    def getImportCppAddrList(self):
-   
+
       addrList = []
       for addrIndex in self.importList:
-         
-         addrObj = self.cppWallet.getImportAddrObjByIndex(addrIndex)    
+
+         addrObj = self.cppWallet.getImportAddrObjByIndex(addrIndex)
          addrComment = self.getCommentForAddress(addrObj.getAddrHash()[1:])
          addrObj.setComment(addrComment)
-         
+
          addrList.append(addrObj)
-         
+
       return addrList  
-   
+
    ###############################################################################
    def hasImports(self):
       return len(self.importList) != 0
 
    ###############################################################################
    def loadFromProtobufPayload(self, payload):
-      #self.uniqueIDBin = base58_to_binary(payload.id)
       self.uniqueIDB58 = payload.id
 
       self.labelName   = payload.label
@@ -1651,7 +1645,8 @@ class PyBtcWallet(object):
       self.lastComputedChainIndex = payload.lookupCount
       self.highestUsedChainIndex = payload.useCount
       self.watchingOnly = payload.watchingOnly
-     
+      self.addressTypes = payload.addressTypes
+
       #addrMap and chainIndexMap
       for addr in payload.assets:
          addrObj = PyBtcAddress(self)
@@ -1719,6 +1714,10 @@ class PyBtcWallet(object):
    #############################################################################
    def createBackupString(self, callback):
       return TheBridge.createBackupStringForWallet(self.uniqueIDB58, callback)
+
+   #############################################################################
+   def getAddressTypes(self):
+      return self.addressTypes
 
 ###############################################################################
 def getSuffixedPath(walletPath, nameSuffix):

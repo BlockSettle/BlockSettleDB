@@ -24,7 +24,6 @@
 #include "AsyncClient.h"
 #include "ReentrantLock.h"
 
-class WalletContainer;
 
 namespace ArmoryBackups
 {

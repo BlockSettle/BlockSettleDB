@@ -10,8 +10,8 @@ from __future__ import (absolute_import, division,
 
 from PySide2.QtCore import Qt, QAbstractItemModel, QModelIndex, QObject
 
-from armoryengine.ArmoryUtils import coin2str, hash160_to_addrStr,\
-   addrStr_to_hash160
+from armoryengine.ArmoryUtils import coin2str, hash160_to_addrStr, \
+   addrStr_to_hash160, getNameForAddrType
 from armoryengine.BDM import TheBDM
 from armoryengine.Transaction import PyTx, getFeeForTx
 from armoryengine.PyBtcAddress import \
@@ -327,8 +327,17 @@ class CoinControlAddressItem(TreeNode):
 ################################################################################
 class AddressTreeNode(TreeNode):
 
-   def __init__(self, name, isExpendable=False, populateMethod=None):
+   def __init__(self, addrType, isExpendable=False, populateMethod=None):
       self.populateMethod = populateMethod
+      self.addrType = addrType
+
+      if type(addrType) != str:
+         name = getNameForAddrType(addrType)
+      else:
+         name = addrType
+         self.populateMethod = None
+         self.addrType = None
+
       super(AddressTreeNode, self).__init__(None, name, isExpendable)
 
    def populate(self):
@@ -338,7 +347,7 @@ class AddressTreeNode(TreeNode):
       if self.populateMethod == None:
          return
 
-      addrList = self.populateMethod()
+      addrList = self.populateMethod(self.addrType)
       if len(addrList) > 0:
          for addr in addrList:
             self.entries.append(AddressObjectItem(addr))
@@ -360,7 +369,7 @@ class AddressTreeNode(TreeNode):
 class CoinControlTreeNode(TreeNode):
 
    def __init__(self, parent, name, isExpendable=False, populateMethod=None):
-      self.populateMethod = populateMethod      
+      self.populateMethod = populateMethod
       super(CoinControlTreeNode, self).__init__(parent, name, isExpendable)
 
    def getName(self):
@@ -424,7 +433,7 @@ class RBFutxoTreeNode(TreeNode):
          self.entries.append(RBFutxoItem(self, utxo))
 
       self.populated = True
-  
+
 ################################################################################    
 class RBFspendTreeNode(TreeNode):
 
@@ -517,7 +526,7 @@ class RBFTreeNode(TreeNode):
       self.populate()
       return len(self.entries)
 
-################################################################################     
+################################################################################
 class TreeStructure_AddressDisplay():
 
    def __init__(self, wallet, parent_qobj):
@@ -532,28 +541,16 @@ class TreeStructure_AddressDisplay():
       self.root = AddressTreeNode("root", True, None)
 
       def createChildNode(name, filterStr):
+         addrCount = self.wallet.getFilteredAddrCount(filterStr, None)
+         name += " (" + str(addrCount) + ")"
          nodeMain = AddressTreeNode(name, True, None)
-         
-         def walletFilterP2SH_P2PK():
-            return self.wallet.returnFilteredAddrList(\
-                     filterStr, AddressEntryType_P2SH + AddressEntryType_P2PK)
 
-         def walletFilterP2SH_P2WPKH():
-            return self.wallet.returnFilteredAddrList(\
-                     filterStr, AddressEntryType_P2SH + AddressEntryType_P2WPKH)
+         def walletFilter(addrType):
+            return self.wallet.returnFilteredAddrList(filterStr, addrType)
 
-         def walletFilterP2PKH():
-            return self.wallet.returnFilteredAddrList(\
-                     filterStr, AddressEntryType_P2PKH)
-
-         nodep2pkh = AddressTreeNode("P2PKH", True, walletFilterP2PKH)
-         nodeMain.appendEntry(nodep2pkh)
-
-         nodep2shp2pk = AddressTreeNode("P2SH-P2PK", True, walletFilterP2SH_P2PK)
-         nodeMain.appendEntry(nodep2shp2pk)
-
-         nodep2shp2wpkh = AddressTreeNode("P2SH-P2WPKH", True, walletFilterP2SH_P2WPKH)
-         nodeMain.appendEntry(nodep2shp2wpkh)
+         for addrType in self.wallet.getAddressTypes():
+            nodeAddr = AddressTreeNode(addrType, True, walletFilter)
+            nodeMain.appendEntry(nodeAddr)
 
          return nodeMain
 
@@ -840,7 +837,7 @@ class ArmoryTreeModel(QAbstractItemModel):
 
       return item
 
-################################################################################   
+################################################################################
 class AddressTreeModel(ArmoryTreeModel):
    def __init__(self, main, wlt):
       super(AddressTreeModel, self).__init__(main)

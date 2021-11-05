@@ -64,12 +64,13 @@ class PyPromFut(object):
       return self.data
 
 
-#################################################################################
+################################################################################
 class CppBridge(object):
 
    #############################################################################
    def __init__(self):
       self.blockTimeByHeightCache = {}
+      self.addrTypeStrByType = {}
       self.bip15xConnection = BIP15xConnection(\
          self.sendToBridgeRaw)
 
@@ -1276,6 +1277,25 @@ class CppBridge(object):
       packet.intArgs.append(callerId)
 
       self.sendToBridgeProto(packet, False)
+
+   #############################################################################
+   def getNameForAddrType(self, addrType):
+      if addrType in self.addrTypeStrByType:
+         return self.addrTypeStrByType[addrType]
+
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.getNameForAddrType
+      packet.intArgs.append(addrType)
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyStrings()
+      response.ParseFromString(socketResponse)
+
+      addrTypeStr = response.reply[0]
+      self.addrTypeStrByType[addrType] = addrTypeStr
+      return addrTypeStr
 
 ################################################################################
 TheBridge = CppBridge()

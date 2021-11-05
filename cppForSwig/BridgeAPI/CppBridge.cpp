@@ -862,7 +862,8 @@ BridgeReply CppBridge::getAddrCombinedList(const string& wltId)
    {
       auto newAsset = msg->add_updatedassets();
       CppToProto::addr(
-         newAsset, addrPair.second, iter->second->getWalletPtr());
+         newAsset, addrPair.second, iter->second->getWalletPtr(),
+         true, false);
    }
 
    return msg;
@@ -999,7 +1000,7 @@ BridgeReply CppBridge::getNewAddress(const string& wltId, unsigned type)
    auto addrPtr = wltPtr->getNewAddress((AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, wltPtr);
+   CppToProto::addr(msg.get(), addrPtr, wltPtr, false, false);
    return msg;
 }
 
@@ -1016,7 +1017,7 @@ BridgeReply CppBridge::getChangeAddress(
    auto addrPtr = wltPtr->getNewChangeAddress((AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, wltPtr);
+   CppToProto::addr(msg.get(), addrPtr, wltPtr, false, true);
    return msg;
 }
 
@@ -1033,7 +1034,7 @@ BridgeReply CppBridge::peekChangeAddress(
    auto addrPtr = wltPtr->peekNextChangeAddress((AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, wltPtr);
+   CppToProto::addr(msg.get(), addrPtr, wltPtr, false, true);
    return msg;
 }
 
@@ -1150,6 +1151,60 @@ BridgeReply CppBridge::getAddrStrForScrAddr(
       msg->set_error(e.what());
       return msg;
    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string CppBridge::getNameForAddrType(int addrTypeInt) const
+{
+   string result;
+
+   auto nestedFlag = addrTypeInt & ADDRESS_NESTED_MASK;
+   switch (nestedFlag)
+   {
+   case 0:
+      break;
+
+   case AddressEntryType_P2SH:
+      result += "P2SH-";
+      break;
+
+   case AddressEntryType_P2WSH:
+      result += "P2WSH-";
+      break;
+
+   default:
+      throw runtime_error("[getNameForAddrType] unknown nested flag");
+   }
+
+   auto addressType = addrTypeInt & ADDRESS_TYPE_MASK;
+   switch (addressType)
+   {
+   case AddressEntryType_P2PKH:
+      result += "P2PKH";
+      break;
+
+   case AddressEntryType_P2PK:
+      result += "P2PK";
+      break;
+
+   case AddressEntryType_P2WPKH:
+      result += "P2WPKH";
+      break;
+
+   case AddressEntryType_Multisig:
+      result += "Multisig";
+      break;
+
+   default:
+      throw runtime_error("[getNameForAddrType] unknown address type");
+   }
+
+   if (addrTypeInt & ADDRESS_COMPRESSED_MASK)
+      result += " (Uncompressed)";
+
+   if (result.empty())
+      result = "N/A";
+   return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

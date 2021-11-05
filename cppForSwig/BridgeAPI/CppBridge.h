@@ -114,7 +114,7 @@ private:
 
    CommandQueue parentCommandQueue_;
 
-public: 
+public:
    MethodCallbacksHandler(const BinaryData& id, CommandQueue queue) :
       id_(id), parentCommandQueue_(queue)
    {}
@@ -258,20 +258,21 @@ private:
    //utils
    BridgeReply getTxInScriptType(const BinaryData&, const BinaryData&) const;
    BridgeReply getTxOutScriptType(const BinaryData&) const;
-   BridgeReply getScrAddrForScript(const BinaryData&) const;  
+   BridgeReply getScrAddrForScript(const BinaryData&) const;
    BridgeReply getLastPushDataInScript(const BinaryData&) const;
    BridgeReply getHash160(const BinaryDataRef&) const;
    void broadcastTx(const std::vector<BinaryData>&);
-   BridgeReply getTxOutScriptForScrAddr(const BinaryData&) const;  
-   BridgeReply getAddrStrForScrAddr(const BinaryData&) const;  
+   BridgeReply getTxOutScriptForScrAddr(const BinaryData&) const;
+   BridgeReply getAddrStrForScrAddr(const BinaryData&) const;
+   std::string getNameForAddrType(int) const;
    void getBlockTimeByHeight(uint32_t, uint32_t) const;
-         
+
    //passphrase prompt
    PassphraseLambda createPassphrasePrompt(::Codec_ClientProto::UnlockPromptType);
    bool returnPassphrase(const std::string&, const std::string&);
 
 public:
-   CppBridge(const std::string&, const std::string&, 
+   CppBridge(const std::string&, const std::string&,
       const std::string&, bool, bool);
 
    bool processData(BinaryDataRef socketData);
