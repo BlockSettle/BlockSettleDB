@@ -196,7 +196,8 @@ namespace Armory
          static void createNodes(void);
          static void createCookie(void);
 
-         static void processArgs(const std::map<std::string, std::string>&);
+         static void processArgs(
+            const std::map<std::string, std::string>&, ProcessType);
          static void reset(void);
 
       public:

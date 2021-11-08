@@ -202,7 +202,7 @@ void Armory::Config::parseArgs(
       }
 
       //parse for networking
-      NetworkSettings::processArgs(args);
+      NetworkSettings::processArgs(args, procType);
 
       //parse for paths
       Pathing::processArgs(args, procType);
@@ -683,7 +683,8 @@ string NetworkSettings::cookie_;
 BinaryData NetworkSettings::uiPublicKey_;
 
 ////////////////////////////////////////////////////////////////////////////////
-void NetworkSettings::processArgs(const map<string, string>& args)
+void NetworkSettings::processArgs(const map<string, string>& args,
+   ProcessType procType)
 {
    auto iter = args.find("listen-port");
    if (iter != args.end())
@@ -749,14 +750,6 @@ void NetworkSettings::processArgs(const map<string, string>& args)
       }
    }
 
-   //cookie
-   iter = args.find("cookie");
-   if (iter != args.end())
-   {
-      useCookie_ = true;
-      ephemeralPeers_ = true;
-   }
-
    //public
    iter = args.find("public");
    if (iter != args.end())
@@ -772,8 +765,15 @@ void NetworkSettings::processArgs(const map<string, string>& args)
    if (iter != args.end())
       uiPublicKey_ = READHEX(iter->second);
 
+   //cookie
+   iter = args.find("cookie");
+   if (iter != args.end())
+   {
+      useCookie_ = true;
+      ephemeralPeers_ = true;
+   }
 
-   //create cookie
+   //generate cookie
    cookie_ = BtcUtils::fortuna_.generateRandom(32).toHexStr();
 
    if (offline_)
@@ -790,7 +790,8 @@ void NetworkSettings::processArgs(const map<string, string>& args)
       randomizeListenPort();
    }
 
-   createNodes();
+   if (procType == ProcessType::DB)
+      createNodes();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
