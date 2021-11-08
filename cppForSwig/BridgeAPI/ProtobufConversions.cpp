@@ -50,8 +50,11 @@ void CppToProto::ledger(
 ////////////////////////////////////////////////////////////////////////////////
 void CppToProto::addr(WalletAsset* assetPtr,
    shared_ptr<AddressEntry> addrPtr, shared_ptr<AddressAccount> accPtr,
-   bool isUsed, bool isChange)
+   bool isUsed)
 {
+   if (accPtr == nullptr)
+      throw runtime_error("[CppToProto::addr] null acc ptr");
+
    auto assetID = addrPtr->getID();
    auto wltAsset = accPtr->getAssetForID(assetID);
 
@@ -84,6 +87,9 @@ void CppToProto::addr(WalletAsset* assetPtr,
    assetPtr->set_addressstring(addrStr);
 
    assetPtr->set_isused(isUsed);
+
+   //resolve change status
+   bool isChange = accPtr->isAssetChange(addrPtr->getID());
    assetPtr->set_ischange(isChange);
 
    //precursor, if any
@@ -123,13 +129,10 @@ void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr,
 
    //address map
    auto addrMap = accPtr->getUsedAddressMap();
-   const auto& innerAccountId = accPtr->getInnerAccountID();
    for (auto& addrPair : addrMap)
    {
       auto assetPtr = wltProto->add_assets();
-      bool isChange = addrPair.first.belongsTo(innerAccountId);
-      CppToProto::addr(assetPtr, addrPair.second, accPtr,
-         true, isChange);
+      CppToProto::addr(assetPtr, addrPair.second, accPtr, true);
    }
 
    //comments

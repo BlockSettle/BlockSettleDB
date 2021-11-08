@@ -870,7 +870,7 @@ BridgeReply CppBridge::getAddrCombinedList(const string& id)
    for (auto& addrPair : updatedMap)
    {
       auto newAsset = msg->add_updatedassets();
-      CppToProto::addr(newAsset, addrPair.second, accPtr, true, false);
+      CppToProto::addr(newAsset, addrPair.second, accPtr, true);
    }
 
    return msg;
@@ -993,7 +993,7 @@ BridgeReply CppBridge::getNewAddress(const string& id, unsigned type)
       wltPtr->getIface(), (AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, accPtr, false, false);
+   CppToProto::addr(msg.get(), addrPtr, accPtr, false);
    return msg;
 }
 
@@ -1009,7 +1009,7 @@ BridgeReply CppBridge::getChangeAddress(const string& id, unsigned type)
       wltPtr->getIface(), (AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, accPtr, false, true);
+   CppToProto::addr(msg.get(), addrPtr, accPtr, false);
    return msg;
 }
 
@@ -1025,7 +1025,7 @@ BridgeReply CppBridge::peekChangeAddress(const string& id, unsigned type)
       wltPtr->getIface(), (AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, accPtr, false, true);
+   CppToProto::addr(msg.get(), addrPtr, accPtr, false);
    return msg;
 }
 

@@ -613,11 +613,10 @@ shared_ptr<AddressEntry> AddressAccount::getNewAddress(
    if (aeIter == addressTypes_.end())
       throw AccountException("invalid address type for this account");
 
-
    auto accountPtr = getAccountForID(accountId);
    auto assetPtr = accountPtr->getNewAsset(iface);
    auto addrPtr = AddressEntry::instantiate(assetPtr, aeType);
-   
+
    //keep track of the address type for this asset if it doesnt use the 
    //account default
    if (aeType != defaultAddressEntryType_)
@@ -653,8 +652,14 @@ shared_ptr<AddressEntry> AddressAccount::peekNextChangeAddress(
    auto accountPtr = getAccountForID(innerAccountId_);
    auto assetPtr = accountPtr->getNewAsset(iface);
    auto addrPtr = AddressEntry::instantiate(assetPtr, aeType);
-   
+
    return addrPtr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool AddressAccount::isAssetChange(const AssetId& id) const
+{
+   return id.belongsTo(innerAccountId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

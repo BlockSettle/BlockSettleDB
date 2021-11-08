@@ -433,7 +433,7 @@ bool AssetId::operator!=(const AssetId& rhs) const
 ////////////////////////////////////////////////////////////////////////////////
 bool AssetId::belongsTo(const AssetAccountId& accId) const
 {
-   if (!accId.isValid())
+   if (!accId.isValid() || !isValid())
       return false;
 
    return (memcmp(

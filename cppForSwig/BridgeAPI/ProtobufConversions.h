@@ -48,7 +48,7 @@ struct CppToProto
       Codec_ClientProto::WalletAsset*,
       std::shared_ptr<AddressEntry>,
       std::shared_ptr<AddressAccount>,
-      bool, bool);
+      bool);
 
    static void wallet(
       Codec_ClientProto::WalletData* wltProto,
