@@ -49,15 +49,15 @@ void CppToProto::ledger(
 
 ////////////////////////////////////////////////////////////////////////////////
 void CppToProto::addr(WalletAsset* assetPtr,
-   shared_ptr<AddressEntry> addrPtr, shared_ptr<AssetWallet> wltPtr,
+   shared_ptr<AddressEntry> addrPtr, shared_ptr<AddressAccount> accPtr,
    bool isUsed, bool isChange)
 {
-   auto addrID = addrPtr->getID();
-   auto wltAsset = wltPtr->getAssetForID(addrID);
+   auto assetID = addrPtr->getID();
+   auto wltAsset = accPtr->getAssetForID(assetID);
 
    //address
-   auto& addr = addrPtr->getPrefixedHash();
-   assetPtr->set_prefixedhash(addr.toCharPtr(), addr.getSize());
+   auto& addrHash = addrPtr->getPrefixedHash();
+   assetPtr->set_prefixedhash(addrHash.toCharPtr(), addrHash.getSize());
 
    //address type & pubkey
    BinaryDataRef pubKeyRef;
@@ -92,7 +92,6 @@ void CppToProto::addr(WalletAsset* assetPtr,
 
    auto& precursor = addrNested->getPredecessor()->getScript();
    assetPtr->set_precursorscript(precursor.getCharPtr(), precursor.getSize());
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,7 +128,7 @@ void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr,
    {
       auto assetPtr = wltProto->add_assets();
       bool isChange = addrPair.first.belongsTo(innerAccountId);
-      CppToProto::addr(assetPtr, addrPair.second, wltPtr,
+      CppToProto::addr(assetPtr, addrPair.second, accPtr,
          true, isChange);
    }
 

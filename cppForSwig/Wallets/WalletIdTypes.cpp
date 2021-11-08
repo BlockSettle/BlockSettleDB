@@ -75,9 +75,16 @@ const AccountKeyType AddressAccountId::getAddressAccountKey() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-std::string AddressAccountId::toHexStr(void) const
+std::string AddressAccountId::toHexStr() const
 {
    return data_.toHexStr();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+AddressAccountId AddressAccountId::fromHex(const std::string& hexStr)
+{
+   auto id = READHEX(hexStr);
+   return AddressAccountId(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

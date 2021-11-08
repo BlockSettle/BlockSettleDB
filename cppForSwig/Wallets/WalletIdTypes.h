@@ -60,6 +60,7 @@ namespace Armory
          bool isValid(void) const;
          const AccountKeyType getAddressAccountKey(void) const;
          std::string toHexStr(void) const;
+         static AddressAccountId fromHex(const std::string&);
 
          void serializeValue(BinaryWriter&) const;
          BinaryData getSerializedKey(uint8_t) const;

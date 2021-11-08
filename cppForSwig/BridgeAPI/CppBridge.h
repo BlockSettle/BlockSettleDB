@@ -183,7 +183,7 @@ private:
    BridgeReply createWalletsPacket(void);
    bool deleteWallet(const std::string&);
    BridgeReply getWalletPacket(const std::string&) const;
-   
+
    //AsyncClient::BlockDataViewer setup
    void setupDB(void);
    void registerWallets(void);
@@ -197,13 +197,13 @@ private:
    BridgeReply getHighestUsedIndex(const std::string&);
 
    //wallet & addresses
+   void extendAddressPool(const std::string&, unsigned, unsigned);
    BridgeReply getNewAddress(const std::string&, unsigned);
    BridgeReply getChangeAddress(const std::string&, unsigned);
    BridgeReply peekChangeAddress(const std::string&, unsigned);
-   void extendAddressPool(const std::string&, unsigned, unsigned);
    std::string createWallet(const ::Codec_ClientProto::ClientCommand&);
    void createBackupStringForWallet(const std::string&, unsigned);
-   void restoreWallet(const BinaryDataRef&, 
+   void restoreWallet(const BinaryDataRef&,
       std::shared_ptr<MethodCallbacksHandler>);
 
    //ledgers
@@ -230,8 +230,8 @@ private:
       const std::string&, const std::string&, uint64_t, unsigned);
    bool cs_SelectUTXOs(const std::string&, uint64_t, float, unsigned);
    BridgeReply cs_getUtxoSelection(const std::string&);
-   BridgeReply cs_getFlatFee(const std::string&);   
-   BridgeReply cs_getFeeByte(const std::string&);   
+   BridgeReply cs_getFlatFee(const std::string&);
+   BridgeReply cs_getFeeByte(const std::string&);
    bool cs_ProcessCustomUtxoList(const ::Codec_ClientProto::ClientCommand&);
 
    //signer
@@ -239,11 +239,11 @@ private:
    void destroySigner(const std::string&);
    bool signer_SetVersion(const std::string&, unsigned);
    bool signer_SetLockTime(const std::string&, unsigned);
-   
+
    bool signer_addSpenderByOutpoint(
       const std::string&, const BinaryDataRef&, unsigned, unsigned);
    bool signer_populateUtxo(
-      const std::string&, const BinaryDataRef&, unsigned, uint64_t, 
+      const std::string&, const BinaryDataRef&, unsigned, uint64_t,
       const BinaryDataRef&);
 
    bool signer_addRecipient(
@@ -277,7 +277,7 @@ public:
 
    bool processData(BinaryDataRef socketData);
    void writeToClient(BridgeReply msgPtr, unsigned id) const;
-   
+
    void setWriteLambda(
       std::function<void(std::unique_ptr<WritePayload_Bridge>)> lbd)
    {

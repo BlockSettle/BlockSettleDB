@@ -353,15 +353,17 @@ BridgeReply CppBridge::createWalletsPacket()
    auto response = make_unique<WalletPayload>();
 
    //grab wallet map
-   auto& wltMap = wltManager_->getMap();
-   for (auto& wltPair : wltMap)
+   auto accountIdMap = wltManager_->getAccountIdMap();
+   for (auto& idIt : accountIdMap)
    {
-      auto wltPtr = wltPair.second->getWalletPtr();
-
-      for (auto& id : wltPtr->getAccountIDs())
+      for (auto& accId : idIt.second)
       {
+         auto wltContainer = wltManager_->getWalletContainer(
+            idIt.first, accId);
+         auto wltPtr = wltContainer->getWalletPtr();
+
          auto payload = response->add_wallets();
-         CppToProto::wallet(payload, wltPtr, id);
+         CppToProto::wallet(payload, wltPtr, accId);
       }
    }
 
@@ -369,11 +371,12 @@ BridgeReply CppBridge::createWalletsPacket()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool CppBridge::deleteWallet(const string& wltId)
+bool CppBridge::deleteWallet(const string& id)
 {
    try
    {
-      wltManager_->deleteWallet(wltId);
+      auto wai = WalletAccountIdentifier::deserialize(id);
+      wltManager_->deleteWallet(wai.walletId, wai.accountId);
    }
    catch (const exception& e)
    {
@@ -447,11 +450,17 @@ void CppBridge::setupDB()
 void CppBridge::registerWallets()
 {
    auto&& regIds = wltManager_->registerWallets();
-   
+
    set<string> walletIds;
-   auto& wltMap = wltManager_->getMap();
-   for (auto& wltPair : wltMap)
-      walletIds.insert(wltPair.first);
+   auto accountIdMap = wltManager_->getAccountIdMap();
+   for (auto& idIt : accountIdMap)
+   {
+      for (auto& accId : idIt.second)
+      {
+         WalletAccountIdentifier wai(idIt.first, accId);
+         walletIds.insert(wai.serialize());
+      }
+   }
 
    auto cbPtr = callbackPtr_;
    auto lbd = [regIds, walletIds, cbPtr](void)->void
@@ -468,11 +477,13 @@ void CppBridge::registerWallets()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::registerWallet(const string& walletId, bool isNew)
+void CppBridge::registerWallet(const string& id, bool isNew)
 {
    try
    {
-      auto&& regId = wltManager_->registerWallet(walletId, isNew);
+      auto wai = WalletAccountIdentifier::deserialize(id);
+      auto&& regId = wltManager_->registerWallet(
+         wai.walletId, wai.accountId, isNew);
       callbackPtr_->waitOnId(regId);
    }
    catch (const exception& e)
@@ -483,28 +494,26 @@ void CppBridge::registerWallet(const string& walletId, bool isNew)
 
 ////////////////////////////////////////////////////////////////////////////////
 void CppBridge::createBackupStringForWallet(
-   const string& walletId, unsigned msgId)
+   const string& id, unsigned msgId)
 {
    auto passLbd = createPassphrasePrompt(UnlockPromptType::decrypt);
+   auto wai = WalletAccountIdentifier::deserialize(id);
 
+   const auto& walletId = wai.walletId;
    auto backupStringLbd = [this, walletId, msgId, passLbd]()->void
    {
-      ArmoryBackups::WalletBackup backupData; 
+      ArmoryBackups::WalletBackup backupData;
       try
       {
          //grab wallet
-         auto wltMap = wltManager_->getMap();
-         auto iter = wltMap.find(walletId);
-         if (iter == wltMap.end())
-            throw runtime_error("unknown wallet id");
+         auto wltContainer = wltManager_->getWalletContainer(walletId);
 
          //grab root
-         auto wltPtr = iter->second;
-         backupData = move(wltPtr->getBackupStrings(passLbd));
+         backupData = move(wltContainer->getBackupStrings(passLbd));
       }
       catch (const exception&)
       {}
-      
+
       //wind down passphrase prompt
       passLbd({BinaryData::fromString(SHUTDOWN_PASSPROMPT_GUI)});
 
@@ -516,7 +525,7 @@ void CppBridge::createBackupStringForWallet(
          writeToClient(move(result), msgId);
          return;
       }
-           
+
       auto backupStringProto = make_unique<BridgeBackupString>();
 
       for (auto& line : backupData.rootClear_)
@@ -533,7 +542,7 @@ void CppBridge::createBackupStringForWallet(
          for (auto& line : backupData.chaincodeEncr_)
             backupStringProto->add_chainencr(line);
       }
-         
+
       //secure print passphrase
       backupStringProto->set_sppass(
          backupData.spPass_.toCharPtr(), backupData.spPass_.getSize());
@@ -660,7 +669,9 @@ void CppBridge::restoreWallet(
             throw runtime_error("empty wallet");
 
          //add wallet to manager
-         wltManager_->addWallet(wltPtr);
+         auto accIds = wltPtr->getAccountIDs();
+         for (const auto& accId : accIds)
+            wltManager_->addWallet(wltPtr, accId);
 
          //signal caller of success
          SecureBinaryData dummy;
@@ -817,31 +828,28 @@ BridgeReply CppBridge::getNodeStatus()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BridgeReply CppBridge::getBalanceAndCount(const string& wltId)
+BridgeReply CppBridge::getBalanceAndCount(const string& id)
 {
-   auto wltMap = wltManager_->getMap();
-   auto iter = wltMap.find(wltId);
-   if (iter == wltMap.end())
-      throw runtime_error("unknown wallet id");
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
 
    auto msg = make_unique<BridgeBalanceAndCount>();
-   msg->set_full(iter->second->getFullBalance());
-   msg->set_spendable(iter->second->getSpendableBalance());
-   msg->set_unconfirmed(iter->second->getUnconfirmedBalance());
-   msg->set_count(iter->second->getTxIOCount());
+   msg->set_full(wltContainer->getFullBalance());
+   msg->set_spendable(wltContainer->getSpendableBalance());
+   msg->set_unconfirmed(wltContainer->getUnconfirmedBalance());
+   msg->set_count(wltContainer->getTxIOCount());
 
    return msg;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BridgeReply CppBridge::getAddrCombinedList(const string& wltId)
+BridgeReply CppBridge::getAddrCombinedList(const string& id)
 {
-   auto wltMap = wltManager_->getMap();
-   auto iter = wltMap.find(wltId);
-   if (iter == wltMap.end())
-      throw runtime_error("unknown wallet id");
-
-   auto addrMap = iter->second->getAddrBalanceMap();
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+   auto addrMap = wltContainer->getAddrBalanceMap();
 
    auto msg = make_unique<BridgeMultipleBalanceAndCount>();
    for (auto& addrPair : addrMap)
@@ -856,49 +864,46 @@ BridgeReply CppBridge::getAddrCombinedList(const string& wltId)
          addrPair.first.toCharPtr(), addrPair.first.getSize());
    }
 
-   auto&& updatedMap = iter->second->getUpdatedAddressMap();
+   auto&& updatedMap = wltContainer->getUpdatedAddressMap();
+   auto accPtr = wltContainer->getAddressAccount();
 
    for (auto& addrPair : updatedMap)
    {
       auto newAsset = msg->add_updatedassets();
-      CppToProto::addr(
-         newAsset, addrPair.second, iter->second->getWalletPtr(),
-         true, false);
+      CppToProto::addr(newAsset, addrPair.second, accPtr, true, false);
    }
 
    return msg;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BridgeReply CppBridge::getHighestUsedIndex(const string& wltId)
+BridgeReply CppBridge::getHighestUsedIndex(const string& id)
 {
-   auto wltMap = wltManager_->getMap();
-   auto iter = wltMap.find(wltId);
-   if (iter == wltMap.end())
-      throw runtime_error("unknown wallet id");
-   
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
    auto msg = make_unique<ReplyNumbers>();
-   msg->add_ints(iter->second->getHighestUsedIndex());
+   msg->add_ints(wltContainer->getHighestUsedIndex());
    return msg;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::extendAddressPool(
-   const string& wltId, unsigned count, unsigned msgId)
+void CppBridge::extendAddressPool(const string& id,
+   unsigned count, unsigned msgId)
 {
-   auto wltMap = wltManager_->getMap();
-   auto iter = wltMap.find(wltId);
-   if (iter == wltMap.end())
-      throw runtime_error("unknown wallet id");
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+   auto wltPtr = wltContainer->getWalletPtr();
 
-   auto wltPtr = iter->second->getWalletPtr();
-   auto lbd = [this, wltPtr, count, msgId](void)->void
+   const auto& accId = wai.accountId;
+   auto lbd = [this, wltPtr, accId, count, msgId](void)->void
    {
-      wltPtr->extendPublicChain(count);
+      auto accPtr = wltPtr->getAccountForID(accId);
+      accPtr->extendPublicChain(wltPtr->getIface(), count);
 
       auto msg = make_unique<WalletData>();
-      CppToProto::wallet(msg.get(), wltPtr,
-         Armory::Wallets::AddressAccountId());
+      CppToProto::wallet(msg.get(), wltPtr, accId);
       this->writeToClient(move(msg), msgId);
    };
 
@@ -963,78 +968,64 @@ string CppBridge::createWallet(const ClientCommand& msg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BridgeReply CppBridge::getWalletPacket(const string& wltId) const
+BridgeReply CppBridge::getWalletPacket(const string& id) const
 {
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
    auto response = make_unique<WalletPayload>();
-
-   auto wltMap = wltManager_->getMap();
-   auto iter = wltMap.find(wltId);
-   if (iter == wltMap.end())
-      throw runtime_error("unknown wallet id");
-
-   if (iter->second == nullptr)
-   {
-      LOGERR << "null wallet ptr";
-      throw runtime_error("null wallet ptr");
-   }
-   auto wltPtr = iter->second->getWalletPtr();
-
-   for (auto& id : wltPtr->getAccountIDs())
-   {
-      auto payload = response->add_wallets();
-      CppToProto::wallet(payload, wltPtr, id);
-   }
+   auto wltPtr = wltContainer->getWalletPtr();
+   auto payload = response->add_wallets();
+   CppToProto::wallet(payload, wltPtr, wai.accountId);
 
    return move(response);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BridgeReply CppBridge::getNewAddress(const string& wltId, unsigned type)
+BridgeReply CppBridge::getNewAddress(const string& id, unsigned type)
 {
-   auto wltMap = wltManager_->getMap();
-   auto iter = wltMap.find(wltId);
-   if (iter == wltMap.end())
-      throw runtime_error("unknown wallet id");
-
-   auto wltPtr = iter->second->getWalletPtr();
-   auto addrPtr = wltPtr->getNewAddress((AddressEntryType)type);
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+   auto wltPtr = wltContainer->getWalletPtr();
+   auto accPtr = wltContainer->getAddressAccount();
+   auto addrPtr = accPtr->getNewAddress(
+      wltPtr->getIface(), (AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, wltPtr, false, false);
+   CppToProto::addr(msg.get(), addrPtr, accPtr, false, false);
    return msg;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BridgeReply CppBridge::getChangeAddress(
-   const string& wltId, unsigned type)
+BridgeReply CppBridge::getChangeAddress(const string& id, unsigned type)
 {
-   auto wltMap = wltManager_->getMap();
-   auto iter = wltMap.find(wltId);
-   if (iter == wltMap.end())
-      throw runtime_error("unknown wallet id");
-   
-   auto wltPtr = iter->second->getWalletPtr();
-   auto addrPtr = wltPtr->getNewChangeAddress((AddressEntryType)type);
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+   auto wltPtr = wltContainer->getWalletPtr();
+   auto accPtr = wltContainer->getAddressAccount();
+   auto addrPtr = accPtr->getNewChangeAddress(
+      wltPtr->getIface(), (AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, wltPtr, false, true);
+   CppToProto::addr(msg.get(), addrPtr, accPtr, false, true);
    return msg;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BridgeReply CppBridge::peekChangeAddress(
-   const string& wltId, unsigned type)
+BridgeReply CppBridge::peekChangeAddress(const string& id, unsigned type)
 {
-   auto wltMap = wltManager_->getMap();
-   auto iter = wltMap.find(wltId);
-   if (iter == wltMap.end())
-      throw runtime_error("unknown wallet id");
-   
-   auto wltPtr = iter->second->getWalletPtr();
-   auto addrPtr = wltPtr->peekNextChangeAddress((AddressEntryType)type);
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+   auto wltPtr = wltContainer->getWalletPtr();
+   auto accPtr = wltContainer->getAddressAccount();
+   auto addrPtr = accPtr->getNewChangeAddress(
+      wltPtr->getIface(), (AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, wltPtr, false, true);
+   CppToProto::addr(msg.get(), addrPtr, accPtr, false, true);
    return msg;
 }
 
@@ -1223,24 +1214,22 @@ void CppBridge::getHeaderByHeight(unsigned height, unsigned msgid)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::setupNewCoinSelectionInstance(
-   const string& wltId, unsigned height, unsigned msgid)
+void CppBridge::setupNewCoinSelectionInstance(const string& id,
+   unsigned height, unsigned msgid)
 {
-   auto& wltMap = wltManager_->getMap();
-   auto wltIter = wltMap.find(wltId);
-   if (wltIter == wltMap.end())
-      throw runtime_error("invalid wallet id");
-   auto wltPtr = wltIter->second;
-   
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+
    auto csId = fortuna_.generateRandom(6).toHexStr();
    auto insertIter = csMap_.insert(
       make_pair(csId, shared_ptr<CoinSelectionInstance>())).first;
    auto csPtr = &insertIter->second;
 
-   auto lbd = [this, wltPtr, csPtr, csId, height, msgid](
+   auto lbd = [this, wltContainer, csPtr, csId, height, msgid](
       ReturnMessage<vector<AddressBookEntry>> result)->void
    {
-      auto fetchLbd = [wltPtr](uint64_t val)->vector<UTXO>
+      auto fetchLbd = [wltContainer](uint64_t val)->vector<UTXO>
       {
          auto promPtr = make_shared<promise<vector<UTXO>>>();
          auto fut = promPtr->get_future();
@@ -1248,15 +1237,15 @@ void CppBridge::setupNewCoinSelectionInstance(
          {
             promPtr->set_value(result.get());
          };
-         wltPtr->getSpendableTxOutListForValue(val, lbd);
+         wltContainer->getSpendableTxOutListForValue(val, lbd);
 
          return fut.get();
       };
 
       auto&& aeVec = result.get();
       *csPtr = make_shared<CoinSelectionInstance>(
-         wltPtr->getWalletPtr(), fetchLbd, aeVec, 
-         wltPtr->getSpendableBalance(), height);
+         wltContainer->getWalletPtr(), fetchLbd, aeVec, 
+         wltContainer->getSpendableBalance(), height);
 
       auto msg = make_unique<ReplyStrings>();
       msg->add_reply(csId);
@@ -1264,7 +1253,7 @@ void CppBridge::setupNewCoinSelectionInstance(
       this->writeToClient(move(msg), msgid);
    };
 
-   wltIter->second->createAddressBook(lbd);
+   wltContainer->createAddressBook(lbd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1297,7 +1286,7 @@ bool CppBridge::setCoinSelectionRecipient(
       scrAddr = move(BtcUtils::base58toScrAddr(addrStr));
    }
    catch(const exception&)
-   {   
+   {
       try
       {
          scrAddr = move(BtcUtils::segWitAddressToScrAddr(addrStr));
@@ -1307,7 +1296,7 @@ bool CppBridge::setCoinSelectionRecipient(
          return false;
       }
    }
-   
+
    iter->second->updateRecipient(recId, scrAddr, value);
    return true;
 }
@@ -1315,7 +1304,7 @@ bool CppBridge::setCoinSelectionRecipient(
 ////////////////////////////////////////////////////////////////////////////////
 bool CppBridge::cs_SelectUTXOs(
    const string& csId, uint64_t fee, float feeByte, unsigned flags)
-{   
+{
    auto iter = csMap_.find(csId);
    if (iter == csMap_.end())
       throw runtime_error("invalid cs id");
@@ -1418,13 +1407,11 @@ bool CppBridge::cs_ProcessCustomUtxoList(const ClientCommand& msg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::createAddressBook(const string& wltId, unsigned msgId)
+void CppBridge::createAddressBook(const string& id, unsigned msgId)
 {
-   auto& wltMap = wltManager_->getMap();
-   auto wltIter = wltMap.find(wltId);
-   if (wltIter == wltMap.end())
-      throw runtime_error("invalid wallet id");
-   auto wltPtr = wltIter->second;
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
 
    auto lbd = [this, msgId](
       ReturnMessage<vector<AddressBookEntry>> result)->void
@@ -1447,18 +1434,16 @@ void CppBridge::createAddressBook(const string& wltId, unsigned msgId)
       this->writeToClient(move(msg), msgId);
    };
 
-   wltPtr->createAddressBook(lbd);
+   wltContainer->createAddressBook(lbd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::getUtxosForValue(
-   const std::string& wltId, uint64_t value, unsigned msgId)
+void CppBridge::getUtxosForValue(const string& id,
+   uint64_t value, unsigned msgId)
 {
-   auto& wltMap = wltManager_->getMap();
-   auto wltIter = wltMap.find(wltId);
-   if (wltIter == wltMap.end())
-      throw runtime_error("invalid wallet id");
-   auto wltPtr = wltIter->second;
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
 
    auto lbd = [this, msgId](ReturnMessage<vector<UTXO>> result)->void
    {
@@ -1473,18 +1458,15 @@ void CppBridge::getUtxosForValue(
       this->writeToClient(move(msg), msgId);
    };
 
-   wltPtr->getSpendableTxOutListForValue(value, lbd);
+   wltContainer->getSpendableTxOutListForValue(value, lbd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::getSpendableZCList(
-   const std::string& wltId, unsigned msgId)
+void CppBridge::getSpendableZCList(const string& id, unsigned msgId)
 {
-   auto& wltMap = wltManager_->getMap();
-   auto wltIter = wltMap.find(wltId);
-   if (wltIter == wltMap.end())
-      throw runtime_error("invalid wallet id");
-   auto wltPtr = wltIter->second;
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
 
    auto lbd = [this, msgId](ReturnMessage<vector<UTXO>> result)->void
    {
@@ -1499,18 +1481,15 @@ void CppBridge::getSpendableZCList(
       this->writeToClient(move(msg), msgId);
    };
 
-   wltPtr->getSpendableZcTxOutList(lbd);
+   wltContainer->getSpendableZcTxOutList(lbd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::getRBFTxOutList(
-   const std::string& wltId, unsigned msgId)
+void CppBridge::getRBFTxOutList(const string& id, unsigned msgId)
 {
-   auto& wltMap = wltManager_->getMap();
-   auto wltIter = wltMap.find(wltId);
-   if (wltIter == wltMap.end())
-      throw runtime_error("invalid wallet id");
-   auto wltPtr = wltIter->second;
+   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
 
    auto lbd = [this, msgId](ReturnMessage<vector<UTXO>> result)->void
    {
@@ -1525,7 +1504,7 @@ void CppBridge::getRBFTxOutList(
       this->writeToClient(move(msg), msgId);
    };
 
-   wltPtr->getRBFTxOutList(lbd);
+   wltContainer->getRBFTxOutList(lbd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1676,11 +1655,10 @@ void CppBridge::signer_signTx(
    auto signerPtr = iter->second;
 
    //grab wallet
-   auto wltMap = wltManager_->getMap();
-   auto wltIter = wltMap.find(wltId);
-   if (wltIter == wltMap.end())
-      throw runtime_error("invalid wallet id");
-   auto wltPtr = wltIter->second->getWalletPtr();
+   auto wai = WalletAccountIdentifier::deserialize(wltId);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+   auto wltPtr = wltContainer->getWalletPtr();
 
    auto passLbd = createPassphrasePrompt(UnlockPromptType::decrypt);
 
@@ -1690,7 +1668,7 @@ void CppBridge::signer_signTx(
       bool success = true;
       try
       {
-         auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);      
+         auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);
          auto feed = make_shared<ResolverFeed_AssetWalletSingle>(wltSingle);
 
          signerPtr->signer_.resetFeed();
@@ -1738,7 +1716,7 @@ BridgeReply CppBridge::signer_getSignedTx(const string& id) const
    }
    catch (const exception&)
    {}
-   
+
    auto response = make_unique<ReplyBinary>();
    response->add_reply(data.toCharPtr(), data.getSize());
    return response;
@@ -1749,11 +1727,10 @@ BridgeReply CppBridge::signer_resolve(
    const string& state, const string& wltId) const
 {
    //grab wallet
-   auto wltMap = wltManager_->getMap();
-   auto wltIter = wltMap.find(wltId);
-   if (wltIter == wltMap.end())
-      throw runtime_error("invalid wallet id");
-   auto wltPtr = wltIter->second->getWalletPtr();
+   auto wai = WalletAccountIdentifier::deserialize(wltId);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+   auto wltPtr = wltContainer->getWalletPtr();
 
    //deser signer state
    Codec_SignerState::SignerState stateProto;

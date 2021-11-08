@@ -32,6 +32,7 @@ class UTXO;
 class TxInEvalState;
 
 class AssetWallet;
+class AddressAccount;
 class AddressEntry;
 
 ////
@@ -46,7 +47,7 @@ struct CppToProto
    static void addr(
       Codec_ClientProto::WalletAsset*,
       std::shared_ptr<AddressEntry>,
-      std::shared_ptr<AssetWallet>,
+      std::shared_ptr<AddressAccount>,
       bool, bool);
 
    static void wallet(
