@@ -10,7 +10,7 @@ from PySide2.QtCore import Qt, QByteArray
 from PySide2.QtWidgets import QFrame, QVBoxLayout, QGridLayout, QPushButton, \
    QTreeView, QLabel
 
-from armoryengine.ArmoryUtils import getVersionString
+from armoryengine.ArmoryUtils import getVersionString, coin2str
 from armoryengine.BDM import TheBDM, BDM_UNINITIALIZED, BDM_OFFLINE, \
    BDM_SCANNING
 from armorycolors import htmlColor

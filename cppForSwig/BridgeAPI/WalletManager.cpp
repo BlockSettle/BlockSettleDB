@@ -398,21 +398,22 @@ string WalletContainer::registerWithBDV(bool isNew)
 {
    if (bdvPtr_ == nullptr)
       throw runtime_error("bdvPtr is not set");
-
    resetCache();
 
-   auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wallet_);
-   if (wltSingle == nullptr)
-      throw runtime_error("invalid wallet ptr");
+   auto accPtr = wallet_->getAccountForID(accountId_);
+   const auto& addrMap = accPtr->getAddressHashMap();
 
-   auto addrSet = wltSingle->getAddrHashSet();
+   set<BinaryData> addrSet;
+   for (const auto& addrIt : addrMap)
+      addrSet.emplace(addrIt.first);
 
    //convert set to vector
    vector<BinaryData> addrVec;
    addrVec.insert(addrVec.end(), addrSet.begin(), addrSet.end());
 
+   WalletAccountIdentifier wai(wallet_->getID(), accountId_);
    asyncWlt_ = make_shared<AsyncClient::BtcWallet>(
-      bdvPtr_->instantiateWallet(wltSingle->getID()));
+      bdvPtr_->instantiateWallet(wai.serialize()));
    return asyncWlt_->registerAddresses(addrVec, isNew);
 }
 

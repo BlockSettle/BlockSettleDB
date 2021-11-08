@@ -42,7 +42,7 @@ namespace Armory
 ////////////////////////////////////////////////////////////////////////////////
 struct WalletAccountIdentifier
 {
-   const std::string& walletId;
+   const std::string walletId;
    const Armory::Wallets::AddressAccountId accountId;
 
    WalletAccountIdentifier(const std::string&,
