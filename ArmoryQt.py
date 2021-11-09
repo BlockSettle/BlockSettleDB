@@ -50,11 +50,9 @@ from armorycolors import Colors, htmlColor, QAPP
 from armoryengine.ArmoryUtils import HMAC256, GUI_LANGUAGE, \
    OS_MACOSX, OS_WINDOWS, AllowAsync, USE_TESTNET, USE_REGTEST, \
    CLI_OPTIONS, SettingsFile, getVersionString, BTCARMORY_VERSION, \
-   LOGINFO, LOGWARN, LOGDEBUG, LOGEXCEPT, LOGERROR, INTERNET_STATUS
-
-from armoryengine.ArmoryUtils import enum, GetExecDir, RightNow, \
-   CLI_ARGS, ARMORY_HOME_DIR, DEFAULT, ARMORY_DB_DIR, \
-   LEVELDB_BLKDATA, DEFAULT_ADDR_TYPE, coin2str, DEFAULT_DATE_FORMAT, \
+   LOGINFO, LOGWARN, LOGDEBUG, LOGEXCEPT, LOGERROR, INTERNET_STATUS \
+   enum, GetExecDir, RightNow, CLI_ARGS, ARMORY_HOME_DIR, DEFAULT, \
+   ARMORY_DB_DIR, DEFAULT_ADDR_TYPE, coin2str, DEFAULT_DATE_FORMAT, \
    unixTimeToFormatStr, binary_to_hex, BTC_HOME_DIR, secondsToHumanTime
 
 from armoryengine.Block import PyBlock
@@ -67,7 +65,9 @@ from armoryengine.BDM import TheBDM, \
    FINISH_LOAD_BLOCKCHAIN_ACTION, NEW_ZC_ACTION, NEW_BLOCK_ACTION, \
    REFRESH_ACTION, WARNING_ACTION, WARNING_ACTION, SCAN_ACTION, \
    NODESTATUS_UPDATE, BDM_SCAN_PROGRESS, BDV_ERROR, BDV_DISCONNECTED, \
-   SETUP_STEP2, SETUP_STEP3
+   SETUP_STEP2, SETUP_STEP3, BDMPhase_DBHeaders, BDMPhase_OrganizingChain, \
+   BDMPhase_BlockHeaders, BDMPhase_BlockData, BDMPhase_Rescan, \
+   BDMPhase_Balance, BDMPhase_SearchHashes, BDMPhase_ResolveHashes
 
 from armoryengine.PyBtcWallet import PyBtcWallet
 from armoryengine import ClientProto_pb2
