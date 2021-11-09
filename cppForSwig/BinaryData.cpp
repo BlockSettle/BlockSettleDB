@@ -410,7 +410,7 @@ void BinaryReader::resize(size_t nBytes)
 SecureBinaryData BinaryRefReader::get_SecureBinaryData(uint32_t nBytes)
 {
    if (getSizeRemaining() < nBytes)
-      throw runtime_error("buffer overflow");
+      throw runtime_error("[get_SecureBinaryData] buffer overflow");
    SecureBinaryData out(nBytes);
    bdRef_.copyTo(out.getPtr(), pos_, nBytes);
    pos_.fetch_add(nBytes, memory_order_relaxed);
@@ -421,7 +421,234 @@ SecureBinaryData BinaryRefReader::get_SecureBinaryData(uint32_t nBytes)
 void BinaryRefReader::advance(size_t nBytes)
 {
    if (getSizeRemaining() < nBytes)
-      throw runtime_error("buffer overflow");
+      throw runtime_error("[advance] buffer overflow");
 
    pos_.fetch_add(nBytes, memory_order_relaxed);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+uint8_t BinaryRefReader::get_uint8_t()
+{
+   if (getSizeRemaining() < 1)
+   {
+      LOGERR << "[get_uint8_t] buffer overflow";
+      throw runtime_error("[get_uint8_t] buffer overflow");
+   }
+   uint8_t outVal = bdRef_[pos_];
+   pos_.fetch_add(1, memory_order_relaxed);
+   return outVal;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+uint16_t BinaryRefReader::get_uint16_t(ENDIAN e)
+{
+   if (getSizeRemaining() < 2)
+   {
+      LOGERR << "[get_uint16_t] buffer overflow";
+      throw runtime_error("[get_uint16_t] buffer overflow");
+   }
+   uint16_t  outVal = (e==LE ?
+      READ_UINT16_LE(bdRef_.getPtr() + pos_) :
+      READ_UINT16_BE(bdRef_.getPtr() + pos_));
+
+   pos_.fetch_add(2, std::memory_order_relaxed);
+   return outVal;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+uint32_t BinaryRefReader::get_uint32_t(ENDIAN e)
+{
+   if (getSizeRemaining() < 4)
+   {
+      LOGERR << "[get_uint32_t] buffer overflow";
+      throw runtime_error("[get_uint32_t] buffer overflow");
+   }
+   uint32_t  outVal = (e==LE ?
+      READ_UINT32_LE(bdRef_.getPtr() + pos_) :
+      READ_UINT32_BE(bdRef_.getPtr() + pos_));
+
+   pos_.fetch_add(4, memory_order_relaxed);
+   return outVal;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+int32_t BinaryRefReader::get_int32_t(ENDIAN e)
+{
+   if (getSizeRemaining() < 4)
+   {
+      LOGERR << "[get_int32_t] buffer overflow";
+      throw runtime_error("[get_int32_t] buffer overflow");
+   }
+   int32_t outVal = (e == LE ?
+      BinaryData::StrToIntLE<int32_t>(bdRef_.getPtr() + pos_) :
+      BinaryData::StrToIntBE<int32_t>(bdRef_.getPtr() + pos_));
+
+   pos_.fetch_add(4, memory_order_relaxed);
+   return outVal;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+uint64_t BinaryRefReader::get_uint64_t(ENDIAN e)
+{
+   if (getSizeRemaining() < 8)
+   {
+      LOGERR << "[get_uint64_t] buffer overflow";
+      throw runtime_error("[get_uint64_t] buffer overflow");
+   }
+   uint64_t outVal = (e==LE ?
+      READ_UINT64_LE(bdRef_.getPtr() + pos_) :
+      READ_UINT64_BE(bdRef_.getPtr() + pos_));
+
+   pos_.fetch_add(8, memory_order_relaxed);
+   return outVal;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+int64_t BinaryRefReader::get_int64_t(ENDIAN e)
+{
+   if (getSizeRemaining() < 8)
+   {
+      LOGERR << "[get_int64_t] buffer overflow";
+      throw runtime_error("[get_int64_t] buffer overflow");
+   }
+   int64_t outVal = (e == LE ?
+      BinaryData::StrToIntLE<int64_t>(bdRef_.getPtr() + pos_) :
+      BinaryData::StrToIntBE<int64_t>(bdRef_.getPtr() + pos_));
+
+   pos_.fetch_add(8, memory_order_relaxed);
+   return outVal;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+double BinaryRefReader::get_double()
+{
+   if (getSizeRemaining() < 8)
+   {
+      LOGERR << "[get_double] buffer overflow";
+      throw runtime_error("[get_double] buffer overflow");
+   }
+
+   auto doublePtr = (double*)(bdRef_.getPtr() + pos_);
+
+   pos_.fetch_add(8, memory_order_relaxed);
+   return *doublePtr;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+BinaryDataRef BinaryRefReader::get_BinaryDataRef(uint32_t nBytes)
+{
+   if (getSizeRemaining() < nBytes)
+   {
+      LOGERR << "[get_BinaryDataRef] buffer overflow";
+      throw runtime_error("[get_BinaryDataRef] buffer overflow");
+   }
+
+   BinaryDataRef bdrefout(bdRef_.getPtr() + pos_, nBytes);
+   pos_.fetch_add(nBytes, memory_order_relaxed);
+   return bdrefout;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+BinaryRefReader BinaryRefReader::fork() const
+{
+   return BinaryRefReader(
+      bdRef_.getPtr() + pos_.load(memory_order_relaxed), getSizeRemaining());
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void BinaryRefReader::get_BinaryData(BinaryData & bdTarget, uint32_t nBytes)
+{
+   if (getSizeRemaining() < nBytes)
+   {
+      LOGERR << "[get_BinaryData] buffer overflow";
+      throw runtime_error("[get_BinaryData] buffer overflow");
+   }
+
+   bdTarget.copyFrom( bdRef_.getPtr() + pos_, nBytes);
+   pos_.fetch_add(nBytes, memory_order_relaxed);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+BinaryData BinaryRefReader::get_BinaryData(uint32_t nBytes)
+{
+   if (getSizeRemaining() < nBytes)
+   {
+      LOGERR << "[get_BinaryData] buffer overflow!";
+      LOGERR << "grabbing " << nBytes << 
+         " out of " << getSizeRemaining() << " bytes";
+      throw runtime_error("[get_BinaryData] buffer overflow");
+   }
+
+   BinaryData out;
+   get_BinaryData(out, nBytes);
+   return out;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void BinaryRefReader::get_BinaryData(uint8_t* targPtr, uint32_t nBytes)
+{
+   if (getSizeRemaining() < nBytes)
+   {
+      LOGERR << "[get_BinaryData] buffer overflow";
+      throw runtime_error("[get_BinaryData] buffer overflow");
+   }
+
+   bdRef_.copyTo(targPtr, pos_, nBytes);
+   pos_.fetch_add(nBytes, memory_order_relaxed);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+string BinaryRefReader::get_String(uint32_t nBytes)
+{
+   string strOut(bdRef_.toCharPtr() + pos_, nBytes);
+   pos_.fetch_add(nBytes, memory_order_relaxed);
+   return strOut;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void BinaryRefReader::resetPosition()
+{
+   pos_ = 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+size_t BinaryRefReader::getPosition() const
+{
+   return pos_;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+size_t BinaryRefReader::getSize() const
+{
+   return totalSize_;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+size_t BinaryRefReader::getSizeRemaining() const
+{
+   return totalSize_ - pos_.load(memory_order_relaxed);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+bool BinaryRefReader::isEndOfStream() const
+{
+   return pos_.load(memory_order_relaxed) >= totalSize_;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+uint8_t const* BinaryRefReader::exposeDataPtr()
+{
+   return bdRef_.getPtr();
+}
+
+/////////////////////////////////////////////////////////////////////////////
+uint8_t const* BinaryRefReader::getCurrPtr()
+{
+   return bdRef_.getPtr() + pos_.load(memory_order_relaxed);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+BinaryDataRef BinaryRefReader::getRawRef()
+{
+   return bdRef_;
 }

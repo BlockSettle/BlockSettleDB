@@ -1144,7 +1144,7 @@ public:
    void advance(size_t nBytes);
 
    /////////////////////////////////////////////////////////////////////////////
-   void rewind(uint32_t nBytes) 
+   void rewind(uint32_t nBytes)
    {
       size_t start = pos_.load(std::memory_order_relaxed);
       pos_.fetch_sub(nBytes, std::memory_order_relaxed);
@@ -1154,192 +1154,32 @@ public:
 
    /////////////////////////////////////////////////////////////////////////////
    uint64_t get_var_int(uint8_t* nRead=NULL);
+   uint8_t get_uint8_t(void);
+   uint16_t get_uint16_t(ENDIAN e=LE);
+   uint32_t get_uint32_t(ENDIAN e=LE);
+   int32_t get_int32_t(ENDIAN e = LE);
+   uint64_t get_uint64_t(ENDIAN e=LE);
+   int64_t get_int64_t(ENDIAN e = LE);
+   double get_double(void);
+   BinaryDataRef get_BinaryDataRef(uint32_t);
+   BinaryRefReader fork(void) const;
+   void get_BinaryData(BinaryData&, uint32_t);
+   BinaryData get_BinaryData(uint32_t);
+   SecureBinaryData get_SecureBinaryData(uint32_t);
+   void get_BinaryData(uint8_t*, uint32_t);
+   std::string get_String(uint32_t);
 
    /////////////////////////////////////////////////////////////////////////////
-   uint8_t get_uint8_t()
-   {
-      if (getSizeRemaining() < 1)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      uint8_t outVal = bdRef_[pos_];
-      pos_.fetch_add(1, std::memory_order_relaxed);
-      return outVal;
-   }
+   void resetPosition(void);
+   size_t getPosition(void) const;
+   size_t getSize(void) const;
+   size_t getSizeRemaining(void) const;
+   bool isEndOfStream(void) const;
+   uint8_t const* exposeDataPtr(void);
+   uint8_t const* getCurrPtr(void);
 
    /////////////////////////////////////////////////////////////////////////////
-   uint16_t get_uint16_t(ENDIAN e=LE)
-   {
-      if (getSizeRemaining() < 2)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      uint16_t  outVal = (e==LE ? READ_UINT16_LE(bdRef_.getPtr() + pos_) :
-                                  READ_UINT16_BE(bdRef_.getPtr() + pos_) );
-      pos_.fetch_add(2, std::memory_order_relaxed);
-      return outVal;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   uint32_t get_uint32_t(ENDIAN e=LE)
-   {
-      if (getSizeRemaining() < 4)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      uint32_t  outVal = (e==LE ? READ_UINT32_LE(bdRef_.getPtr() + pos_) :
-                                  READ_UINT32_BE(bdRef_.getPtr() + pos_) );
-      pos_.fetch_add(4, std::memory_order_relaxed);
-      return outVal;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   int32_t get_int32_t(ENDIAN e = LE)
-   {
-      if (getSizeRemaining() < 4)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      int32_t outVal = (e == LE ?
-         BinaryData::StrToIntLE<int32_t>(bdRef_.getPtr() + pos_) :
-         BinaryData::StrToIntBE<int32_t>(bdRef_.getPtr() + pos_));
-      pos_.fetch_add(4, std::memory_order_relaxed);
-      return outVal;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   uint64_t get_uint64_t(ENDIAN e=LE)
-   {
-      if (getSizeRemaining() < 8)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      uint64_t  outVal = (e==LE ? READ_UINT64_LE(bdRef_.getPtr() + pos_) :
-                                  READ_UINT64_BE(bdRef_.getPtr() + pos_) );
-      pos_.fetch_add(8, std::memory_order_relaxed);
-      return outVal;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   int64_t get_int64_t(ENDIAN e = LE)
-   {
-      if (getSizeRemaining() < 8)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      int64_t outVal = (e == LE ?
-         BinaryData::StrToIntLE<int64_t>(bdRef_.getPtr() + pos_) :
-         BinaryData::StrToIntBE<int64_t>(bdRef_.getPtr() + pos_));
-      pos_.fetch_add(8, std::memory_order_relaxed);
-      return outVal;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   double get_double()
-   {
-      if (getSizeRemaining() < 8)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-
-      auto doublePtr = (double*)(bdRef_.getPtr() + pos_);
-
-      pos_.fetch_add(8, std::memory_order_relaxed);
-      return *doublePtr;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef get_BinaryDataRef(uint32_t nBytes)
-   {
-      if (getSizeRemaining() < nBytes)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-
-      BinaryDataRef bdrefout(bdRef_.getPtr() + pos_, nBytes);
-      pos_.fetch_add(nBytes, std::memory_order_relaxed);
-      return bdrefout;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   BinaryRefReader fork(void) const
-   {
-      return BinaryRefReader(
-         bdRef_.getPtr() + pos_.load(std::memory_order_relaxed), getSizeRemaining());
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   void get_BinaryData(BinaryData & bdTarget, uint32_t nBytes)
-   {
-      if (getSizeRemaining() < nBytes)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-
-      bdTarget.copyFrom( bdRef_.getPtr() + pos_, nBytes);
-      pos_.fetch_add(nBytes, std::memory_order_relaxed);
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   BinaryData get_BinaryData(uint32_t nBytes)
-   {
-      if (getSizeRemaining() < nBytes)
-      {
-         LOGERR << "buffer overflow!";
-         LOGERR << "grabbing " << nBytes << 
-            " out of " << getSizeRemaining() << " bytes";
-         throw std::runtime_error("buffer overflow");
-      }
-
-      BinaryData out;
-      get_BinaryData(out, nBytes);
-      return out;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   SecureBinaryData get_SecureBinaryData(uint32_t nBytes);
-
-   /////////////////////////////////////////////////////////////////////////////
-   void get_BinaryData(uint8_t* targPtr, uint32_t nBytes)
-   {
-      if (getSizeRemaining() < nBytes)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-
-      bdRef_.copyTo(targPtr, pos_, nBytes);
-      pos_.fetch_add(nBytes, std::memory_order_relaxed);
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   std::string get_String(uint32_t nBytes)
-   {
-      std::string strOut(bdRef_.toCharPtr() + pos_, nBytes);
-      pos_.fetch_add(nBytes, std::memory_order_relaxed);
-      return strOut;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   void     resetPosition(void)           { pos_ = 0; }
-   size_t   getPosition(void) const       { return pos_; }
-   size_t   getSize(void) const           { return totalSize_; }
-   size_t   getSizeRemaining(void) const  { return totalSize_ - pos_.load(std::memory_order_relaxed); }
-   bool     isEndOfStream(void) const     { return pos_.load(std::memory_order_relaxed) >= totalSize_; }
-   uint8_t const * exposeDataPtr(void)    { return bdRef_.getPtr(); }
-   uint8_t const * getCurrPtr(void)       { return bdRef_.getPtr() + pos_.load(std::memory_order_relaxed); }
-
-   /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef getRawRef(void) { return bdRef_;   }
+   BinaryDataRef getRawRef(void);
 
 private:
    BinaryDataRef bdRef_;
@@ -1347,10 +1187,10 @@ private:
 
    /*
    On at least AMD Ryzen CPUs, gcc O1/2 compilation has demonstrated that reset
-   and advance operations can result in out of order execution on pos leading to 
+   and advance operations can result in out of order execution on pos_ leading to
    unexpected offset position, when pos_ is a simple size_t.
 
-   Upgrading pos_ to either volatile or atomic<size_t> enforces the sequential 
+   Upgrading pos_ to either volatile or atomic<size_t> enforces the sequential
    execution of operations on pos_, fixing the issue.
 
    Since the only desirable additional feature is sequentiality, relaxed atomic
