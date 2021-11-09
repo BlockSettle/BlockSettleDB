@@ -2130,7 +2130,7 @@ bool AssetWallet_Single::isWatchingOnly() const
 
 ////////////////////////////////////////////////////////////////////////////////
 BIP32_AssetPath AssetWallet_Single::getBip32PathForAssetID(
-   const BinaryData& id) const
+   const AssetId& id) const
 {
    auto asset = getAssetForID(id);
    return getBip32PathForAsset(asset);

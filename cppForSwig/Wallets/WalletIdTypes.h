@@ -79,9 +79,11 @@ namespace Armory
       private:
          BinaryData data_;
 
+      private:
+         AssetAccountId(const BinaryData&);
+
       public:
          AssetAccountId(void);
-         AssetAccountId(const BinaryData&);
          AssetAccountId(AccountKeyType, AccountKeyType);
          AssetAccountId(const AddressAccountId&, AccountKeyType);
          AssetAccountId(const AssetAccountId&);
@@ -114,9 +116,11 @@ namespace Armory
          static AssetKeyType dummyId_;
          BinaryData data_;
 
+      private:
+         AssetId(const BinaryData&);
+
       public:
          AssetId(void);
-         AssetId(const BinaryData&);
          AssetId(AccountKeyType, AccountKeyType, AssetKeyType);
          AssetId(const AssetAccountId&, AssetKeyType);
          AssetId(const AddressAccountId&, AccountKeyType, AssetKeyType);

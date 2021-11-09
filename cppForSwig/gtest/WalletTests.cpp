@@ -111,6 +111,543 @@ TEST_F(AddressTests, bech32_Tests)
    }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+class WalletIdsTests : public ::testing::Test
+{
+   virtual void SetUp()
+   {}
+
+   virtual void TearDown()
+   {}
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletIdsTests, AddressAccounts)
+{
+   int32_t accIdValue = 0x12345678;
+   AddressAccountId accId(accIdValue);
+
+   //check serialization as key
+   {
+      auto key = accId.getSerializedKey(22);
+      EXPECT_EQ(key.getSize(), 5ull);
+
+      BinaryRefReader brrKey(key);
+      auto prefix = brrKey.get_uint8_t();
+      EXPECT_EQ(prefix, 22);
+
+      auto idkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(idkey, accIdValue);
+
+      try
+      {
+         auto aaidFromKey = AddressAccountId::deserializeKey(key, 22);
+         EXPECT_EQ(aaidFromKey, accId);
+
+         auto aaidKey = aaidFromKey.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, accIdValue);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serKey = READHEX("1612345678");
+      EXPECT_EQ(serKey, key);
+   }
+
+   //key with prefix > 0x7f
+   {
+      auto key = accId.getSerializedKey(231);
+      EXPECT_EQ(key.getSize(), 5ull);
+
+      BinaryRefReader brrKey(key);
+      auto prefix = brrKey.get_uint8_t();
+      EXPECT_EQ(prefix, 231);
+
+      auto idkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(idkey, accIdValue);
+
+      try
+      {
+         auto aaidFromKey = AddressAccountId::deserializeKey(key, 231);
+         EXPECT_EQ(aaidFromKey, accId);
+
+         auto aaidKey = aaidFromKey.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, accIdValue);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serKey = READHEX("E712345678");
+      EXPECT_EQ(serKey, key);
+   }
+
+   //check serialization as value
+   {
+      BinaryWriter bw;
+      accId.serializeValue(bw);
+
+      auto value = bw.getData();
+      EXPECT_EQ(value.getSize(), 5ull);
+      BinaryRefReader brrValue(value);
+
+      auto len = brrValue.get_var_int();
+      EXPECT_EQ(len, 4ull);
+
+      auto aaidKey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(aaidKey, accIdValue);
+
+      try
+      {
+         auto aaidFromValue = AddressAccountId::deserializeValue(value);
+         EXPECT_EQ(aaidFromValue, accId);
+
+         auto aaidKey2 = aaidFromValue.getAddressAccountKey();
+         EXPECT_EQ(aaidKey2, accIdValue);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serValue = READHEX("0412345678");
+      EXPECT_EQ(serValue, value);
+   }
+
+   //invalid deser
+   try
+   {
+      auto serKey = READHEX("0001234567");
+      AddressAccountId::deserializeKey(serKey, 1);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("00012345");
+      AddressAccountId::deserializeKey(serKey, 0);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("000123456789AB");
+      AddressAccountId::deserializeKey(serKey, 0);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("000123456789ABCDEF");
+      AddressAccountId::deserializeValue(serValue);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEF");
+      AddressAccountId::deserializeValue(serValue);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("080123456789ABCD");
+      AddressAccountId::deserializeValue(serValue);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEFA0B1");
+      AddressAccountId::deserializeValue(serValue);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletIdsTests, AssetAccounts)
+{
+   int32_t aaIdValue = 0x01234567;
+   int32_t asIdValue = 0x89ABCDEF;
+   AddressAccountId accId(aaIdValue);
+   AssetAccountId assId1(aaIdValue, asIdValue);
+   AssetAccountId assId2(accId, asIdValue);
+
+   EXPECT_EQ(assId1, assId2);
+
+   //check serialization as key
+   {
+      auto key = assId1.getSerializedKey(185);
+      EXPECT_EQ(key.getSize(), 9ull);
+
+      BinaryRefReader brrKey(key);
+      auto prefix = brrKey.get_uint8_t();
+      EXPECT_EQ(prefix, 185);
+
+      auto aaidkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(aaidkey, aaIdValue);
+
+      auto asidkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(asidkey, asIdValue);
+
+      try
+      {
+         auto asidFromKey = AssetAccountId::deserializeKey(key, 185);
+         EXPECT_EQ(asidFromKey, assId1);
+         EXPECT_EQ(asidFromKey, assId2);
+
+         auto aaidKey = asidFromKey.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, aaIdValue);
+
+         auto asidKey = asidFromKey.getAssetAccountKey();
+         EXPECT_EQ(asidKey, asIdValue);
+
+         auto accid = asidFromKey.getAddressAccountId();
+         EXPECT_EQ(accid, accId);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serKey = READHEX("B90123456789ABCDEF");
+      EXPECT_EQ(serKey, key);
+   }
+
+   //check serialization as value
+   {
+      BinaryWriter bw;
+      assId2.serializeValue(bw);
+
+      auto value = bw.getData();
+      EXPECT_EQ(value.getSize(), 9ull);
+      BinaryRefReader brrValue(value);
+
+      auto len = brrValue.get_var_int();
+      EXPECT_EQ(len, 8ull);
+
+      auto aaidkey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(aaidkey, aaIdValue);
+
+      auto asidkey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(asidkey, asIdValue);
+
+      try
+      {
+         BinaryRefReader brrValue2(value);
+         auto asidFromValue = AssetAccountId::deserializeValue(brrValue2);
+         EXPECT_EQ(asidFromValue, assId1);
+         EXPECT_EQ(asidFromValue, assId2);
+
+         auto aaidKey = asidFromValue.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, aaIdValue);
+
+         auto asidKey = asidFromValue.getAssetAccountKey();
+         EXPECT_EQ(asidKey, asIdValue);
+
+         auto accid = asidFromValue.getAddressAccountId();
+         EXPECT_EQ(accid, accId);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serValue = READHEX("080123456789ABCDEF");
+      EXPECT_EQ(serValue, value);
+   }
+
+   //deser old
+   {
+      BinaryWriter bw;
+      bw.put_var_int(4);
+      bw.put_int32_t(asIdValue, BE);
+      BinaryRefReader brr(bw.getData());
+      auto asidValue = AssetAccountId::deserializeValueOld(accId, brr);
+
+      EXPECT_EQ(assId1, asidValue);
+      EXPECT_EQ(assId2, asidValue);
+
+      auto aaidKey = asidValue.getAddressAccountKey();
+      EXPECT_EQ(aaidKey, aaIdValue);
+
+      auto asidKey = asidValue.getAssetAccountKey();
+      EXPECT_EQ(asidKey, asIdValue);
+
+      auto accid = asidValue.getAddressAccountId();
+      EXPECT_EQ(accid, accId);
+   }
+
+   //invalid deser
+   try
+   {
+      auto serKey = READHEX("000123456798AABBCC");
+      AssetAccountId::deserializeKey(serKey, 230);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("00012345");
+      AssetAccountId::deserializeKey(serKey, 0);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("E60123456789ABCDEF00");
+      AssetAccountId::deserializeKey(serKey, 230);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("000123456789ABCDEF");
+      BinaryRefReader brr(serValue);
+      AssetAccountId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEF");
+      BinaryRefReader brr(serValue);
+      AssetAccountId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("080123456789ABCD");
+      BinaryRefReader brr(serValue);
+      AssetAccountId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEFA0B1");
+      BinaryRefReader brr(serValue);
+      AssetAccountId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletIdsTests, Assets)
+{
+   int32_t aaIdValue = 0x01234567;
+   int32_t asIdValue = 0x89ABCDEF;
+   int32_t assetIdValue = 0xA0B1C2D3;
+   AddressAccountId accId(aaIdValue);
+   AssetAccountId acsId(aaIdValue, asIdValue);
+
+   AssetId assetId1(aaIdValue, asIdValue, assetIdValue);
+   AssetId assetId2(accId, asIdValue, assetIdValue);
+   AssetId assetId3(acsId, assetIdValue);
+
+   EXPECT_EQ(assetId1, assetId2);
+   EXPECT_EQ(assetId1, assetId3);
+   EXPECT_EQ(assetId2, assetId3);
+
+   //check serialization as key
+   {
+      auto key = assetId1.getSerializedKey(214);
+      EXPECT_EQ(key.getSize(), 13ull);
+
+      BinaryRefReader brrKey(key);
+      auto prefix = brrKey.get_uint8_t();
+      EXPECT_EQ(prefix, 214);
+
+      auto aaidkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(aaidkey, aaIdValue);
+
+      auto asidkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(asidkey, asIdValue);
+
+      auto assetkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(assetkey, assetIdValue);
+
+      try
+      {
+         auto assetidFromKey = AssetId::deserializeKey(key, 214);
+         EXPECT_EQ(assetidFromKey, assetId1);
+         EXPECT_EQ(assetidFromKey, assetId2);
+         EXPECT_EQ(assetidFromKey, assetId3);
+
+         auto aaidKey = assetidFromKey.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, aaIdValue);
+         auto assetidKey = assetidFromKey.getAssetKey();
+         EXPECT_EQ(assetIdValue, assetidKey);
+
+         auto acsid = assetidFromKey.getAssetAccountId();
+         EXPECT_EQ(acsid, acsId);
+         auto asidKey = acsid.getAssetAccountKey();
+         EXPECT_EQ(asidKey, asIdValue);
+
+         auto accid = assetidFromKey.getAddressAccountId();
+         EXPECT_EQ(accid, accId);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serKey = READHEX("D60123456789ABCDEFA0B1C2D3");
+      EXPECT_EQ(serKey, key);
+   }
+
+   //check serialization as value
+   {
+      BinaryWriter bw;
+      assetId2.serializeValue(bw);
+
+      auto value = bw.getData();
+      EXPECT_EQ(value.getSize(), 13ull);
+      BinaryRefReader brrValue(value);
+
+      auto len = brrValue.get_var_int();
+      EXPECT_EQ(len, 12ull);
+
+      auto aaidkey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(aaidkey, aaIdValue);
+
+      auto asidkey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(asidkey, asIdValue);
+
+      auto assetkey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(assetkey, assetIdValue);
+
+      try
+      {
+         BinaryRefReader brrValue2(value);
+         auto assetidFromKey = AssetId::deserializeValue(brrValue2);
+         EXPECT_EQ(assetidFromKey, assetId1);
+         EXPECT_EQ(assetidFromKey, assetId2);
+         EXPECT_EQ(assetidFromKey, assetId3);
+
+         auto aaidKey = assetidFromKey.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, aaIdValue);
+         auto assetidKey = assetidFromKey.getAssetKey();
+         EXPECT_EQ(assetIdValue, assetidKey);
+
+         auto acsid = assetidFromKey.getAssetAccountId();
+         EXPECT_EQ(acsid, acsId);
+         auto asidKey = acsid.getAssetAccountKey();
+         EXPECT_EQ(asidKey, asIdValue);
+
+         auto accid = assetidFromKey.getAddressAccountId();
+         EXPECT_EQ(accid, accId);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serValue = READHEX("0C0123456789ABCDEFA0B1C2D3");
+      EXPECT_EQ(serValue, value);
+   }
+
+   //invalid deser
+   try
+   {
+      auto serKey = READHEX("000123456798AABBCC");
+      AssetId::deserializeKey(serKey, 230);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("00012345");
+      AssetId::deserializeKey(serKey, 0);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("E60123456789ABCDEF00");
+      AssetId::deserializeKey(serKey, 230);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("000123456789ABCDEF");
+      BinaryRefReader brr(serValue);
+      AssetId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEF");
+      BinaryRefReader brr(serValue);
+      AssetId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("080123456789ABCD");
+      BinaryRefReader brr(serValue);
+      AssetId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEFA0B1");
+      BinaryRefReader brr(serValue);
+      AssetId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 class DerivationTests : public ::testing::Test
@@ -3687,7 +4224,7 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WalletsTest, WalletID)
+TEST_F(WalletsTest, IDs)
 {
    auto computeId = [](
       const SecureBinaryData& root, const SecureBinaryData& chaincode)->string
@@ -3732,11 +4269,86 @@ TEST_F(WalletsTest, WalletID)
          SecureBinaryData::fromString("control"),
          4); //set lookup computation to 4 entries
 
+      //wallet id
       BIP32_Node node;
       node.initFromSeed(wltRoot);
 
       auto idBip32 = computeId(node.getPrivateKey(), node.getChaincode());
       EXPECT_EQ(wlt->getID(), idBip32);
+
+      //account ids
+      auto seedFingerprint = node.getThisFingerprint();
+      auto generateAddrAccountId = [&seedFingerprint](
+         const vector<uint32_t>& nodes,
+         const set<AddressEntryType>& addrTypeSet,
+         bool isMain)->int32_t
+      {
+         BinaryWriter bw;
+         bw.put_uint32_t(seedFingerprint);
+         for (const auto& node : nodes)
+            bw.put_uint32_t(node, BE);
+         bw.put_uint32_t(0);
+
+         for (const auto& node : nodes)
+            bw.put_uint32_t(node, BE);
+         bw.put_uint32_t(1, BE);
+
+         for (auto& addrType : addrTypeSet)
+            bw.put_uint32_t(addrType, BE);
+         bw.put_uint32_t(*addrTypeSet.begin());
+         bw.put_uint8_t(isMain);
+
+         auto pub_hash160 = BtcUtils::getHash160(bw.getData());
+         BinaryRefReader brr(pub_hash160.getRef());
+         return brr.get_int32_t(BE);
+      };
+
+      AddressAccountId acc44(generateAddrAccountId(
+         {0x8000002C, 0x80000000, 0x80000000},
+         { AddressEntryType(
+            AddressEntryType_P2PKH | AddressEntryType_Uncompressed),
+         AddressEntryType_P2PKH },
+         true));
+      AssetAccountId outer44(acc44, 0);
+      AssetAccountId inner44(acc44, 1);
+
+      AddressAccountId acc49(generateAddrAccountId(
+         {0x80000031, 0x80000000, 0x80000000},
+         {AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH)},
+         false));
+      AssetAccountId outer49(acc49, 0);
+      AssetAccountId inner49(acc49, 1);
+
+      AddressAccountId acc84(generateAddrAccountId(
+         {0x80000054, 0x80000000, 0x80000000},
+         {AddressEntryType_P2WPKH},
+         false));
+      AssetAccountId outer84(acc84, 0);
+      AssetAccountId inner84(acc84, 1);
+
+      auto accIdSet = wlt->getAccountIDs();
+      auto checkId = [&accIdSet, wlt](const AddressAccountId& accId,
+         const AssetAccountId& outId, const AssetAccountId& innId)->bool
+      {
+         auto iter = accIdSet.find(accId);
+         if (iter == accIdSet.end())
+            return false;
+         accIdSet.erase(iter);
+
+         auto accPtr = wlt->getAccountForID(accId);
+         if (accPtr->getOuterAccountID() != outId)
+            return false;
+
+         if (accPtr->getInnerAccountID() != innId)
+            return false;
+
+         return true;
+      };
+
+      EXPECT_TRUE(checkId(acc44, outer44, inner44));
+      EXPECT_TRUE(checkId(acc49, outer49, inner49));
+      EXPECT_TRUE(checkId(acc84, outer84, inner84));
+      EXPECT_TRUE(accIdSet.empty());
    }
 
    //legacy with chaincode
@@ -3755,13 +4367,6 @@ TEST_F(WalletsTest, WalletID)
 
       EXPECT_EQ(wlt->getID(), idcc);
    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WalletsTest, AccountIDs)
-{
-   //TODO: test address account and outer/inner account id generation
-   ASSERT_TRUE(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

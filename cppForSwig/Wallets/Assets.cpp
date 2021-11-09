@@ -188,17 +188,8 @@ BinaryData AssetEntry::getDbKey() const
 shared_ptr<AssetEntry> AssetEntry::deserialize(
    BinaryDataRef key, BinaryDataRef value)
 {
-   //sanity check
-   if (key.getSize() < 5)
-      throw AssetException("invalid AssetEntry db key");
-
    BinaryRefReader brrKey(key);
-
-   auto prefix = brrKey.get_uint8_t();
-   if (prefix != ASSETENTRY_PREFIX)
-      throw AssetException("unexpected asset entry prefix");
-
-   AssetId assetId(brrKey.get_BinaryDataRef(brrKey.getSizeRemaining()));
+   auto assetId = AssetId::deserializeKey(key, ASSETENTRY_PREFIX);
    auto assetPtr = deserDBValue(assetId, value);
    assetPtr->doNotCommit();
    return assetPtr;
@@ -1093,11 +1084,10 @@ unique_ptr<EncryptedAssetData> EncryptedAssetData::deserialize(
       case 0x00000001:
       {
          //id
-         auto len = brr.get_var_int();
-         auto id = brr.get_BinaryData(len);
+         auto assetId = AssetId::deserializeValue(brr);
 
          //cipher data
-         len = brr.get_var_int();
+         auto len = brr.get_var_int();
          if (len > brr.getSizeRemaining())
             throw AssetException("invalid serialized encrypted data len");
 
@@ -1106,7 +1096,7 @@ unique_ptr<EncryptedAssetData> EncryptedAssetData::deserialize(
          auto cipherData = CipherData::deserialize(cipherBrr);
 
          //ptr
-         assetPtr = make_unique<Asset_PrivateKey>(id, move(cipherData));
+         assetPtr = make_unique<Asset_PrivateKey>(assetId, move(cipherData));
 
          break;
       }

@@ -297,7 +297,7 @@ public:
    ArmorySigner::BIP32_AssetPath getBip32PathForAsset(
       std::shared_ptr<AssetEntry>) const;
    ArmorySigner::BIP32_AssetPath getBip32PathForAssetID(
-      const BinaryData&) const;
+      const Armory::Wallets::AssetId&) const;
 
    std::string getXpubForAssetID(const Armory::Wallets::AssetId&) const;
    std::shared_ptr<AccountType_BIP32> makeNewBip32AccTypeObject(

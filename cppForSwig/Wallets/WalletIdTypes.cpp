@@ -306,7 +306,7 @@ AssetAccountId AssetAccountId::deserializeValueOld(
    if (len != sizeof(AccountKeyType))
       throw IdException("[AssetAccountId::deserializeValueOld] error");
 
-   return AssetAccountId(id, brr.get_int32_t());
+   return AssetAccountId(id, brr.get_int32_t(BE));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -506,6 +506,13 @@ void AssetId::serializeValue(BinaryWriter& bw) const
 
    bw.put_var_int(data_.getSize());
    bw.put_BinaryData(data_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+AssetId AssetId::deserializeValue(BinaryRefReader& brr)
+{
+   auto len = brr.get_var_int();
+   return AssetId(brr.get_BinaryData(len));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
