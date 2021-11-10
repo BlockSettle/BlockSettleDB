@@ -162,7 +162,10 @@ class RBFDlg(ArmoryDialog):
       tblgeom  = self.main.settings.get('rbfDlgAddrCols')
 
       if len(hexgeom) > 0:
-         geom = QByteArray.fromHex(hexgeom)
+         if type(hexgeom) == str:
+            geom = QByteArray(bytes.fromhex(hexgeom))
+         else:
+            geom = hexgeom
          self.restoreGeometry(geom)
       if len(tblgeom) > 0:
          restoreTableView(self.rbfView, tblgeom)

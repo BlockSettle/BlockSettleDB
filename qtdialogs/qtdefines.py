@@ -27,7 +27,9 @@ from PySide2.QtWidgets import QWidget, QDialog, QFrame, QLabel, \
 import urllib
 
 from armoryengine.ArmoryUtils import enum, ARMORY_HOME_DIR, OS_MACOSX, \
-   USE_TESTNET, USE_REGTEST, OS_WINDOWS, coin2str, int_to_hex, toBytes
+   USE_TESTNET, USE_REGTEST, OS_WINDOWS, coin2str, int_to_hex, toBytes, \
+   hex_to_binary
+from armoryengine.BinaryUnpacker import BinaryUnpacker, UINT8, UINT16
 
 from armorycolors import Colors, htmlColor
 from ui.QrCodeMatrix import CreateQRMatrix
@@ -668,7 +670,8 @@ def restoreTableView(qtbl, hexBytes):
       for i,c in toRestore[:-1]:
          qtbl.setColumnWidth(i, c)
    except Exception as e:
-      print('ERROR!')
+      print('- Error loading table view -')
+      print(e)
       pass
       # Don't want to crash the program just because couldn't load tbl data
 
