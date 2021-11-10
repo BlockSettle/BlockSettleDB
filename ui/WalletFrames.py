@@ -24,6 +24,8 @@ from qtdialogs.qtdefines import ArmoryFrame, VERTICAL, HORIZONTAL, \
 
 from armorycolors import htmlColor
 from armoryengine.ArmoryUtils import enum, isASCII, coin2str
+from armoryengine.CppBridge import TheBridge
+
 
 if sys.version_info < (3,0):
    import qrc_img_resources
@@ -129,7 +131,7 @@ class SelectWalletFrame(ArmoryFrame):
 
       self.dlgcc = None
       self.dlgrbf = None
-      
+
       self.walletComboBox = QComboBox()
       self.walletListBox  = QListWidget()
       self.balAtLeast = atLeast
@@ -142,9 +144,9 @@ class SelectWalletFrame(ArmoryFrame):
             'a wallet first.'), QMessageBox.Ok)
          self.accept()
          return
-      
+
       self.wltIDList = wltIDList if wltIDList else self.getWalletIdList(onlyOfflineWallets)
-      
+
       selectedWltIndex = 0
       self.selectedID = None
       wltItems = 0
@@ -159,10 +161,10 @@ class SelectWalletFrame(ArmoryFrame):
 
             self.displayIDs.append(wltID)
             if self.doVerticalLayout:
-               self.walletComboBox.addItem(wlt.labelName)
+               self.walletComboBox.addItem(wlt.getDisplayStr())
             else:
-               self.walletListBox.addItem(QListWidgetItem(wlt.labelName))
-         
+               self.walletListBox.addItem(QListWidgetItem(wlt.getDisplayStr()))
+
             if wltID == firstSelect:
                selectedWltIndex = wltItems
                self.selectedID = wltID
@@ -189,7 +191,7 @@ class SelectWalletFrame(ArmoryFrame):
       for i in range(len(lbls)):
          lbls[i].setAlignment(Qt.AlignLeft | Qt.AlignTop)
          lbls[i].setText('<b>' + str(lbls[i].text()) + '</b>')
-         
+
       self.dispID = QRichLabel('')
       self.dispName = QRichLabel('')
       self.dispName.setWordWrap(True)
@@ -218,7 +220,7 @@ class SelectWalletFrame(ArmoryFrame):
       frmLayout.addWidget(self.dispName,   1, 2, 1, 1)
       frmLayout.addWidget(self.dispDescr,  2, 2, 1, 1)
       frmLayout.addWidget(self.dispBal,    3, 2, 1, 1)
-      
+
       if coinControlCallback:
          self.lblCoinCtrl = QRichLabel(self.tr('Source: All addresses'), doWrap=False)
          frmLayout.addWidget(self.lblCoinCtrl, 4, 2, 1, 1)
@@ -251,7 +253,7 @@ class SelectWalletFrame(ArmoryFrame):
       # Make sure this is called once so that the default selection is displayed
       self.updateOnWalletChange()
 
-   
+
    def getWalletIdList(self, onlyOfflineWallets):
       result = []
       if onlyOfflineWallets:
@@ -278,14 +280,14 @@ class SelectWalletFrame(ArmoryFrame):
 
       if not self.dlgcc.exec_():
          return
-      
+
       self.customUtxoList = self.dlgcc.getCustomUtxoList()
       self.altBalance = sum([x.getValue() for x in self.customUtxoList])
       self.useAllCCList = self.dlgcc.isUseAllChecked()
       
       #reset RBF label to signify RBF and by coin control are mutually exclusive
       self.lblRBF.setText(self.tr("Source: N/A"))
-      
+
       #update coin control label
       nUtxo = len(self.customUtxoList)
       if self.altBalance == wlt.getBalance('Spendable'):
@@ -295,38 +297,38 @@ class SelectWalletFrame(ArmoryFrame):
       elif nUtxo == 1:
          utxo = self.customUtxoList[0]
          binAddr = utxo.getRecipientScrAddr()
-         aStr = hash160_to_addrStr(utxo.getRecipientHash160(), binAddr[0])
+         aStr = TheBridge.getAddrStrForScrAddr(binAddr)
          self.lblCoinCtrl.setText(self.tr('Source: %s...' % aStr[:12]))
       elif nUtxo > 1:
          self.lblCoinCtrl.setText(self.tr('Source: %d Outputs' % nUtxo))
-      
+
       self.updateOnCoinControl()
-      
+
    def doRBF(self):
       wlt = self.main.walletMap[self.getSelectedWltID()]
       if self.dlgrbf == None:
          self.dlgrbf = \
-            RBFDlg(self, self.main, wlt)     
-           
+            RBFDlg(self, self.main, wlt)
+
       if not self.dlgrbf.exec_():
-         return 
-      
+         return
+
       self.customUtxoList = self.dlgrbf.getRBFUtxoList()
       self.altBalance = sum([x.getValue() for x in self.customUtxoList])
-      
+
       nUtxo = len(self.customUtxoList)
-      
+
       #no outputs selected is treated as a cancellation
       if nUtxo == 0:
          return
-           
+
       self.updateRBFLabel()
       self.updateOnRBF()
-      
+
    def updateRBFLabel(self):
       #reset coin control label to signify RBF and coin control are mutually exclusive
       self.lblCoinCtrl.setText(self.tr('Source: N/A'))
-      
+
       nUtxo = len(self.customUtxoList)
       if nUtxo == 1:
          utxo = self.customUtxoList[0]
@@ -335,7 +337,7 @@ class SelectWalletFrame(ArmoryFrame):
          self.lblRBF.setText(self.tr('Source: %s...' % aStr[:12]))
       else:
          self.lblRBF.setText(self.tr("Source: %s Outputs" % str(nUtxo)))
-      
+
    def updateOnWalletChange(self, ignoredInt=None):
       """
       "ignoredInt" is because the signals should call this function with the
@@ -347,12 +349,12 @@ class SelectWalletFrame(ArmoryFrame):
 
       if len(wltID) > 0:
          wlt = self.main.walletMap[wltID]
-               
+
          self.dispID.setText(wltID)
          self.dispName.setText(wlt.labelName)
          self.dispDescr.setText(wlt.labelDescr)
          self.selectedID = wltID
-         
+
          if not TheBDM.getState() == BDM_BLOCKCHAIN_READY:
             self.dispBal.setText('-' * 12)
          else:
@@ -378,10 +380,10 @@ class SelectWalletFrame(ArmoryFrame):
             self.dlgcc = None
             self.dlgrbf = None
             self.updateOnCoinControl()
-      
+
    def updateOnCoinControl(self):
       wlt = self.main.walletMap[self.getSelectedWltID()]
-      fullBal = wlt.getBalance('Spendable')      
+      fullBal = wlt.getBalance('Spendable')
       useAllAddr = (self.altBalance == fullBal or self.altBalance == None)
 
       if useAllAddr:
@@ -411,7 +413,7 @@ class SelectWalletFrame(ArmoryFrame):
    def updateOnRBF(self, verbose=False):
       self.dispDescr.setText(self.tr('*RBF subset*'), color='optInRBF', bold=True)
       self.dispBal.setText(coin2str(self.altBalance, maxZeros=0), color='TextRed')
-      
+
       self.updateRBFLabel()
 
       if not TheBDM.getState() == BDM_BLOCKCHAIN_READY:
