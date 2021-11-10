@@ -368,9 +368,15 @@ class AddressTreeNode(TreeNode):
 ################################################################################
 class CoinControlTreeNode(TreeNode):
 
-   def __init__(self, parent, name, isExpendable=False, populateMethod=None):
+   def __init__(self, parent, addrType, isExpendable=False, populateMethod=None):
+      self.addrType = addrType
+      if type(self.addrType) == str:
+         self.name = self.addrType
+      else:
+         self.name = getNameForAddrType(self.addrType)
+
       self.populateMethod = populateMethod
-      super(CoinControlTreeNode, self).__init__(parent, name, isExpendable)
+      super(CoinControlTreeNode, self).__init__(parent, self.name, isExpendable)
 
    def getName(self):
       return self.name
@@ -382,7 +388,7 @@ class CoinControlTreeNode(TreeNode):
       if self.populateMethod == None:
          return
 
-      utxoList = self.populateMethod()
+      utxoList = self.populateMethod(self.addrType)
       if len(utxoList) > 0:
          for addr in utxoList:
             self.entries.append(\
@@ -596,21 +602,23 @@ class TreeStructure_CoinControl():
                utxo.setChecked(True)
 
    def setup(self):
+      addrTypes = self.wallet.getAddressTypes()
+
       self.treeData = {
-         'UTXO':{
-            'p2pkh':dict(),
-            'p2sh_p2pk':dict(),
-            'p2sh_p2wpkh':dict()},
+         'UTXO':dict(),
          'RBF':dict(),
          'CPFP':dict()
          }
 
+      utxoDict = self.treeData['UTXO']
+      for addrType in addrTypes:
+         utxoDict[addrType] = dict()
+
       #populate utxos
-      utxoList = self.wallet.getFullUTXOList()     
+      utxoList = self.wallet.getFullUTXOList()
 
       #arrange by script type
       for utxo in utxoList:
-         h160 = utxo.getRecipientHash160()
          binAddr = utxo.getRecipientScrAddr()
          addrStr = TheBridge.getAddrStrForScrAddr(binAddr)
 
@@ -619,33 +627,20 @@ class TreeStructure_CoinControl():
             continue
          addrType = addrObj.addrType
 
-         addrDict = None
-         if addrType == AddressEntryType_P2PKH:
-            addrDict = self.treeData['UTXO']['p2pkh']
-         elif addrType == AddressEntryType_P2SH + AddressEntryType_P2PK:
-            addrDict = self.treeData['UTXO']['p2sh_p2pk']
-         elif addrType == AddressEntryType_P2SH + AddressEntryType_P2WPKH:
-            addrDict = self.treeData['UTXO']['p2sh_p2wpkh']
-
-         if addrDict == None:
-            continue
-
+         addrDict = self.treeData['UTXO'][addrType]
          if not binAddr in addrDict:
             addrDict[addrStr] = []
-
          addrDict[addrStr].append(utxo)
 
       #populate cpfp
       cpfpList = self.wallet.getZCUTXOList()
       addrDict = self.treeData['CPFP']
       for cpfp in cpfpList:
-         h160 = cpfp.getRecipientHash160()
          binAddr = cpfp.getRecipientScrAddr()
-         scrAddr = hash160_to_addrStr(h160, binAddr[0]) 
+         addrStr = TheBridge.getAddrStrForScrAddr(binAddr)
 
          if not scrAddr in addrDict:
             addrDict[scrAddr] = []
-
          addrDict[scrAddr].append(cpfp)
 
       #create root node
@@ -653,33 +648,22 @@ class TreeStructure_CoinControl():
 
       def createUtxoNode(name):
          nodeMain = CoinControlTreeNode(self, name, True, None)
+         addrTypes = self.wallet.getAddressTypes()
 
-         def ccFilterP2PKH():
-            return self.treeData['UTXO']['p2pkh']
+         def ccFilter(addrType):
+            return self.treeData['UTXO'][addrType]
 
-         def ccFilterP2SH_P2PK():
-            return self.treeData['UTXO']['p2sh_p2pk']
-
-         def ccFilterP2SH_P2WPKH():
-            return self.treeData['UTXO']['p2sh_p2wpkh']
-
-
-         nodeP2KH = CoinControlTreeNode(nodeMain, "P2PKH", True, ccFilterP2PKH)
-         nodeMain.appendEntry(nodeP2KH)
-
-         nodeP2SH_P2PK = CoinControlTreeNode(nodeMain, "P2SH-P2PK", True, ccFilterP2SH_P2PK)
-         nodeMain.appendEntry(nodeP2SH_P2PK)
-
-         nodeP2SH_P2WPKH = CoinControlTreeNode(nodeMain, "P2SH-P2WPKH", True, ccFilterP2SH_P2WPKH)
-         nodeMain.appendEntry(nodeP2SH_P2WPKH)
+         for addrType in addrTypes:
+            node = CoinControlTreeNode(nodeMain, addrType, True, ccFilter)
+            nodeMain.appendEntry(node)
 
          return nodeMain
 
       def createCPFPNode(name):
-         def ccCPFP():
+         def ccCPFP(_):
             return self.treeData['CPFP']
 
-         nodeMain = CoinControlTreeNode(None, name, True, ccCPFP) 
+         nodeMain = CoinControlTreeNode(None, name, True, ccCPFP)
 
          return nodeMain
 
