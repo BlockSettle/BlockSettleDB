@@ -992,7 +992,7 @@ class PyBtcWallet(object):
 
       oldKdfKey = None
       if oldUsedEncryption:
-         if self.isLocked:      
+         if self.isLocked:
             raise WalletLockError('Must unlock wallet to change passphrase')
          else:
             oldKdfKey = self.kdfKey.copy()
@@ -1037,7 +1037,7 @@ class PyBtcWallet(object):
          for addr160,addr in self.addrMap.items():
             Progress(i, nAddr)
             i = i +1
-            
+
             newAddrMap[addr160] = addr.copy()
             newAddrMap[addr160].enableKeyEncryption(generateIVIfNecessary=True)
             newAddrMap[addr160].changeEncryptionKey(oldKdfKey, newKdfKey)
@@ -1053,12 +1053,12 @@ class PyBtcWallet(object):
             # Finally give the new data to the user
             for addr160,addr in newAddrMap.items():
                self.addrMap[addr160] = addr.copy()
-         
+
          self.useEncryption = newUsesEncryption
          if newKdfKey:
             self.lock() 
             self.unlock(newKdfKey, Progress=Progress)
-    
+
       finally:
          # Make sure we always destroy the temporary passphrase results
          if newKdfKey: newKdfKey.destroy()
@@ -1066,6 +1066,7 @@ class PyBtcWallet(object):
 
    #############################################################################
    def getWalletPath(self, nameSuffix=None):
+      raise Exception("fixme")
       fpath = self.walletPath
 
       if self.walletPath=='':
@@ -1095,7 +1096,7 @@ class PyBtcWallet(object):
       for _hash in hashList:
          if _hash in self.commentsMap:
             return self.commentsMap[_hash]
-      
+
       return ''
 
    #############################################################################
@@ -1166,10 +1167,10 @@ class PyBtcWallet(object):
                   addr160 = addrStr_to_hash160(addrStr)[1]
                   if self.hasAddr(addr160):
                      self.txAddrMap[txHash].append(addr160)
-               else: 
+               else:
                   pass
                   #LOGERROR("Unrecognized scraddr: " + binary_to_hex(scrAddr))
-               
+
       addrComments = []
       for a160 in self.txAddrMap[txHash]:
          h160 = a160[1:]
@@ -1207,7 +1208,7 @@ class PyBtcWallet(object):
             comment = ''
 
       return comment
-   
+
    #############################################################################
    def setWalletLabels(self, lshort, llong=''):
       self.labelName = lshort
@@ -1308,7 +1309,7 @@ class PyBtcWallet(object):
             # Either we want imported addresses, or this isn't one
             if (withAddrPool or addr.chainIndex<=self.highestUsedChainIndex):
                addrList.append(addr)
-         
+
       return addrList
 
 
@@ -1451,7 +1452,7 @@ class PyBtcWallet(object):
          return addrObj.getTxioCount()
       except:
          return 0
-      
+
    ###############################################################################
    def getAddrDataFromDB(self):
       result = TheBridge.getAddrCombinedList(self.uniqueIDB58)
@@ -1528,19 +1529,19 @@ class PyBtcWallet(object):
       
       actionsList = self.actionsToTakeAfterScan
       self.actionsToTakeAfterScan = []      
-      
+
       for calls in actionsList:
          calls[0](*calls[1])
-         
+
    ###############################################################################
    @CheckWalletRegistration
    def sweepAfterRescan(self, addrList, main): 
       #get a new address from the wallet to sweep the funds to
       sweepToAddr = self.getNextUnusedAddress().getAddr160()
-      
+
       main.finishSweepScan(self, addrList, sweepToAddr)
       return
- 
+
    ###############################################################################
    @CheckWalletRegistration
    def sweepAddressList(self, addrList, main):
@@ -1549,21 +1550,21 @@ class PyBtcWallet(object):
       addrVec = []
       for addr in addrList:
          addrVec.append(ADDRBYTE + addr.getAddr160())
-      
+
       _id = Cpp.SecureBinaryData().GenerateRandom(8).toHexStr()
       main.oneTimeScanAction[_id] = self.doAfterScan()
       TheBDM.bdv().registerAddrList(_id, addrList)
-            
+
    ###############################################################################
    @CheckWalletRegistration
    def disableWalletUI(self):
-      self.isEnabled = False   
-   
+      self.isEnabled = False
+
    ###############################################################################
    @CheckWalletRegistration
    def getLedgerEntryForTxHash(self, txHash):
       return self.cppWallet.getLedgerEntryForTxHash(txHash)
-   
+
    ###############################################################################
    def getAddrObjectForHash(self, hashVal):
       assetIndex = self.cppWallet.getAssetIndexForAddr(hashVal)

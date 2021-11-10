@@ -50,10 +50,11 @@ from armorycolors import Colors, htmlColor, QAPP
 from armoryengine.ArmoryUtils import HMAC256, GUI_LANGUAGE, \
    OS_MACOSX, OS_WINDOWS, AllowAsync, USE_TESTNET, USE_REGTEST, \
    CLI_OPTIONS, SettingsFile, getVersionString, BTCARMORY_VERSION, \
-   LOGINFO, LOGWARN, LOGDEBUG, LOGEXCEPT, LOGERROR, INTERNET_STATUS \
+   LOGINFO, LOGWARN, LOGDEBUG, LOGEXCEPT, LOGERROR, INTERNET_STATUS, \
    enum, GetExecDir, RightNow, CLI_ARGS, ARMORY_HOME_DIR, DEFAULT, \
    ARMORY_DB_DIR, DEFAULT_ADDR_TYPE, coin2str, DEFAULT_DATE_FORMAT, \
-   unixTimeToFormatStr, binary_to_hex, BTC_HOME_DIR, secondsToHumanTime
+   unixTimeToFormatStr, binary_to_hex, BTC_HOME_DIR, secondsToHumanTime, \
+   LEVELDB_BLKDATA
 
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
@@ -77,7 +78,7 @@ from qtdialogs.qtdefines import GETFONT, NETWORKMODE, \
    makeLayoutFrame, HORIZONTAL, QRichLabel, relaxedSizeStr, STYLE_SUNKEN, \
    makeHorizFrame, DASHBTNS, STYLE_NONE, UserModeStr, makeVertFrame, \
    restoreTableView, determineWalletType, WLTTYPES, tightSizeStr, \
-   QLabelButton, MsgBoxWithDNAA, MSGBOX
+   QLabelButton, MsgBoxWithDNAA, MSGBOX, saveTableView
 
 from qtdialogs.qtdialogs import URLHandler, ArmorySplashScreen
 from qtdialogs.DlgMigrateWallet import DlgMigrateWallet
@@ -5263,7 +5264,9 @@ class ArmoryMainWindow(QMainWindow):
             self.writeSetting('MainGeometry',   self.saveGeometry().toHex())
             self.writeSetting('MainWalletCols', saveTableView(self.walletsView))
             self.writeSetting('MainLedgerCols', saveTableView(self.ledgerView))
-         except:
+         except Exception as e:
+            print ("- failed to save main geometry -")
+            print (e)
             pass
 
          if TheBDM.getState()==BDM_SCANNING:
