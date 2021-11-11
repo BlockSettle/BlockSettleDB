@@ -74,7 +74,7 @@ TXIN_SCRIPT_P2WSH_P2SH = 9
 from armoryengine.PyBtcAddress import \
    AddressEntryType_Default, \
    AddressEntryType_P2PKH, AddressEntryType_P2PK, AddressEntryType_P2WPKH, \
-   AddressEntryType_Multisig, AddressEntryType_Compressed, \
+   AddressEntryType_Multisig, AddressEntryType_Uncompressed, \
    AddressEntryType_P2SH, AddressEntryType_P2WSH
 
 ################################################################################
@@ -1091,7 +1091,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       def getAddr(typeStr):
          typeInt = AddressEntryType_Default
          if typeStr == 'P2PKH':
-            typeInt = AddressEntryType_P2PKH + AddressEntryType_Compressed
+            typeInt = AddressEntryType_P2PKH
          elif typeStr == 'P2SH-P2WPKH':
             typeInt = AddressEntryType_P2SH + AddressEntryType_P2WPKH
          elif typeStr == 'P2SH-P2PK':

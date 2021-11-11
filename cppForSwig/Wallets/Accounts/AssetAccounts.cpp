@@ -305,6 +305,12 @@ int AssetAccount::getHighestUsedIndex() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+bool AssetAccount::isAssetInUse(const AssetId& id) const
+{
+   return id.getAssetKey() <= getHighestUsedIndex();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 size_t AssetAccount::getAssetCount() const
 {
    ReentrantLock lock(this);

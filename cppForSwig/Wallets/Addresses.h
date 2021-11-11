@@ -68,8 +68,9 @@ public:
    virtual const Armory::Wallets::AssetId& getID(void) const = 0;
 
    virtual const std::string& getAddress() const = 0;
-   virtual std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(uint64_t) const = 0;
-   
+   virtual std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+      uint64_t) const = 0;
+
    virtual const BinaryData& getHash(void) const = 0;
    virtual const BinaryData& getPrefixedHash(void) const = 0;
    virtual const BinaryData& getPreimage(void) const = 0;

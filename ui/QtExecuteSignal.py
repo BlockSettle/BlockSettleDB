@@ -12,6 +12,8 @@ from PySide2.QtCore import QObject, Signal
 from threading import Thread
 from time import sleep
 
+from armoryengine.ArmoryUtils import LOGERROR
+
 ################################################################################
 class QtExecuteSignalError(Exception):
    pass
@@ -35,6 +37,8 @@ class QtExecuteSignal(QObject):
    ###########################################################################
    def methodSlot(self, callableList):
       if type(callableList) != list or len(callableList) == 0:
+         LOGERROR('[ArmoryQt::methodSlot] invalid callabale list:')
+         LOGERROR(str(callableList))
          raise QtExecuteSignalError("invalid callable list")
 
       if not callable(callableList[0]):

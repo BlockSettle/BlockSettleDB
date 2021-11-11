@@ -663,6 +663,13 @@ bool AddressAccount::isAssetChange(const AssetId& id) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+bool AddressAccount::isAssetInUse(const Armory::Wallets::AssetId& id) const
+{
+   auto accPtr = getAccountForID(id);
+   return accPtr->isAssetInUse(id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 bool AddressAccount::hasAddressType(AddressEntryType aeType)
 {
    if (aeType == AddressEntryType_Default)

@@ -166,6 +166,7 @@ public:
       std::shared_ptr<WalletDBInterface>,
       AddressEntryType aeType = AddressEntryType_Default);
    bool isAssetChange(const Armory::Wallets::AssetId&) const;
+   bool isAssetInUse(const Armory::Wallets::AssetId&) const;
 
    std::shared_ptr<AssetEntry> getOuterAssetRoot(void) const;
 

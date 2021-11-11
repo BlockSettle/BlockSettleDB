@@ -265,6 +265,8 @@ private:
    BridgeReply getTxOutScriptForScrAddr(const BinaryData&) const;
    BridgeReply getAddrStrForScrAddr(const BinaryData&) const;
    std::string getNameForAddrType(int) const;
+   BridgeReply setAddressTypeFor(
+      const std::string&, const std::string&, uint32_t) const;
    void getBlockTimeByHeight(uint32_t, uint32_t) const;
 
    //passphrase prompt

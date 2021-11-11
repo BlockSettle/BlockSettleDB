@@ -142,6 +142,7 @@ namespace Armory
 
          static AssetId deserializeValue(BinaryRefReader&);
          static AssetId deserializeKey(const BinaryData&, uint8_t);
+         static AssetId deserializeKey(BinaryDataRef, uint8_t);
          static AssetKeyType getRootKey(void) { return rootAssetId; }
          static AssetId getRootAssetId(void);
          static AssetId getNextDummyId(void);

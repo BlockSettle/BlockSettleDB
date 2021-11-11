@@ -1297,5 +1297,21 @@ class CppBridge(object):
       self.addrTypeStrByType[addrType] = addrTypeStr
       return addrTypeStr
 
+   #############################################################################
+   def setAddressTypeFor(self, walletId, assetId, addrType):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.getAddressStrFor
+
+      packet.stringArgs.append(walletId)
+      packet.byteArgs.append(assetId)
+      packet.intArgs.append(addrType)
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.WalletAsset()
+      response.ParseFromString(socketResponse)
+      return response
+
 ################################################################################
 TheBridge = CppBridge()

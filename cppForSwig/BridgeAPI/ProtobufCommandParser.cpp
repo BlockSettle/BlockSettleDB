@@ -304,6 +304,18 @@ bool ProtobufCommandParser::processData(
       break;
    }
 
+   case Methods::setAddressTypeFor:
+   {
+      if (msg.intargs_size() != 1 || msg.stringargs_size() != 1 ||
+         msg.byteargs_size() != 1)
+      {
+         throw runtime_error("invalid command: setAddressTypeFor");
+      }
+      response = bridge->setAddressTypeFor(
+         msg.stringargs(0), msg.byteargs(0), msg.intargs(0));
+      break;
+   }
+
    case Methods::getHeaderByHeight:
    {
       if (msg.intargs_size() != 1)

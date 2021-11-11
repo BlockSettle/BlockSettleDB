@@ -13,6 +13,8 @@
 
 #include "../protobuf/ClientProto.pb.h"
 
+#define PROTO_ASSETID_PREFIX 0xAFu
+
 //forward declarations
 namespace DBClientClasses
 {
@@ -47,8 +49,7 @@ struct CppToProto
    static void addr(
       Codec_ClientProto::WalletAsset*,
       std::shared_ptr<AddressEntry>,
-      std::shared_ptr<AddressAccount>,
-      bool);
+      std::shared_ptr<AddressAccount>);
 
    static void wallet(
       Codec_ClientProto::WalletData* wltProto,

@@ -147,6 +147,7 @@ public:
    size_t getAssetCount(void) const;
    int32_t getLastComputedIndex(void) const;
    int32_t getHighestUsedIndex(void) const;
+   bool isAssetInUse(const Armory::Wallets::AssetId&) const;
    std::shared_ptr<AssetEntry> getLastAssetWithPrivateKey(void) const;
 
    std::shared_ptr<AssetEntry> getAssetForID(

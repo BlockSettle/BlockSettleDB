@@ -528,9 +528,9 @@ BinaryData AssetId::getSerializedKey(uint8_t prefix) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-AssetId AssetId::deserializeKey(const BinaryData& data, uint8_t prefix)
+AssetId AssetId::deserializeKey(BinaryDataRef data, uint8_t prefix)
 {
-   BinaryRefReader brr(data.getRef());
+   BinaryRefReader brr(data);
    auto pref = brr.get_uint8_t();
    if (pref != prefix)
       throw IdException("[AssetId::deserializeKey] prefix mismatch");
@@ -541,6 +541,12 @@ AssetId AssetId::deserializeKey(const BinaryData& data, uint8_t prefix)
       throw IdException("[AssetId::deserializeKey] invalid key size");
 
    return AssetId(idData);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+AssetId AssetId::deserializeKey(const BinaryData& data, uint8_t prefix)
+{
+   return deserializeKey(data.getRef(), prefix);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

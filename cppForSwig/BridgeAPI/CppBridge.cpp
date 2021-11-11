@@ -13,6 +13,7 @@
 #include "ProtobufConversions.h"
 #include "ProtobufCommandParser.h"
 #include "../Signer/ResolverFeed_Wallets.h"
+#include "../Wallets/WalletIdTypes.h"
 
 using namespace std;
 
@@ -870,7 +871,7 @@ BridgeReply CppBridge::getAddrCombinedList(const string& id)
    for (auto& addrPair : updatedMap)
    {
       auto newAsset = msg->add_updatedassets();
-      CppToProto::addr(newAsset, addrPair.second, accPtr, true);
+      CppToProto::addr(newAsset, addrPair.second, accPtr);
    }
 
    return msg;
@@ -993,7 +994,7 @@ BridgeReply CppBridge::getNewAddress(const string& id, unsigned type)
       wltPtr->getIface(), (AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, accPtr, false);
+   CppToProto::addr(msg.get(), addrPtr, accPtr);
    return msg;
 }
 
@@ -1009,7 +1010,7 @@ BridgeReply CppBridge::getChangeAddress(const string& id, unsigned type)
       wltPtr->getIface(), (AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, accPtr, false);
+   CppToProto::addr(msg.get(), addrPtr, accPtr);
    return msg;
 }
 
@@ -1025,7 +1026,7 @@ BridgeReply CppBridge::peekChangeAddress(const string& id, unsigned type)
       wltPtr->getIface(), (AddressEntryType)type);
 
    auto msg = make_unique<WalletAsset>();
-   CppToProto::addr(msg.get(), addrPtr, accPtr, false);
+   CppToProto::addr(msg.get(), addrPtr, accPtr);
    return msg;
 }
 
@@ -1195,6 +1196,32 @@ string CppBridge::getNameForAddrType(int addrTypeInt) const
 
    if (result.empty())
       result = "N/A";
+   return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BridgeReply CppBridge::setAddressTypeFor(
+   const string& walletId, const string& assetIdStr, uint32_t addrType) const
+{
+   auto wai = WalletAccountIdentifier::deserialize(walletId);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+   auto wltPtr = wltContainer->getWalletPtr();
+
+   BinaryDataRef bdr; bdr.setRef(assetIdStr);
+   auto assetId = Armory::Wallets::AssetId::deserializeKey(
+      bdr, PROTO_ASSETID_PREFIX);
+
+   //set address type in wallet
+   wltPtr->updateAddressEntryType(assetId, (AddressEntryType)addrType);
+
+   //get address entry object
+   auto accPtr = wltPtr->getAccountForID(assetId.getAddressAccountId());
+   auto addrPtr = accPtr->getAddressEntryForID(assetId);
+
+   //return address proto payload
+   auto result = make_unique<WalletAsset>();
+   CppToProto::addr(result.get(), addrPtr, accPtr);
    return result;
 }
 

@@ -20,8 +20,10 @@ from qtdialogs.qtdefines import ArmoryDialog, USERMODE, determineWalletType, \
    relaxedSizeNChar, relaxedSizeStr, QLabelButton, STYLE_SUNKEN, STYLE_NONE, \
    QRichLabel, makeHorizFrame, MsgBoxWithDNAA, restoreTableView, WLTTYPES, \
    WLTFIELDS, tightSizeStr, saveTableView
-from qtdialogs.qtdialogs import STRETCH
+from qtdialogs.qtdialogs import STRETCH, showRecvCoinsWarningIfNecessary, \
+   LoadingDisp
 
+from qtdialogs.DlgNewAddress import DlgNewAddressDisp
 
 
 ################################################################################

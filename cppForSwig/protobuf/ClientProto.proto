@@ -46,6 +46,7 @@ enum Methods
     getTxOutScriptForScrAddr = 95;
     getAddrStrForScrAddr = 96;
     getNameForAddrType = 97;
+    setAddressTypeFor = 98;
 
     getUtxosForValue = 100;
     getSpendableZCList = 101;
@@ -111,6 +112,7 @@ message WalletAsset
     required uint32 addrType = 2;
     required bool isUsed = 3;
     required bool isChange = 4;
+    required bytes assetId = 5;
 
     required bytes prefixedHash = 10;
     required bytes publicKey = 11;
@@ -125,7 +127,8 @@ message WalletData
     required int64 useCount = 2;
     required int64 lookupCount = 3;
     required bool watchingOnly = 4;
-    repeated int32 addressTypes = 5;
+    repeated uint32 addressTypes = 5;
+    required uint32 defaultAddressType = 6;
 
     optional string label = 10;
     optional string desc = 11;

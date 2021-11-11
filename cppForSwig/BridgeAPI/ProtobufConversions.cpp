@@ -49,8 +49,7 @@ void CppToProto::ledger(
 
 ////////////////////////////////////////////////////////////////////////////////
 void CppToProto::addr(WalletAsset* assetPtr,
-   shared_ptr<AddressEntry> addrPtr, shared_ptr<AddressAccount> accPtr,
-   bool isUsed)
+   shared_ptr<AddressEntry> addrPtr, shared_ptr<AddressAccount> accPtr)
 {
    if (accPtr == nullptr)
       throw runtime_error("[CppToProto::addr] null acc ptr");
@@ -81,11 +80,14 @@ void CppToProto::addr(WalletAsset* assetPtr,
 
    //index
    assetPtr->set_id(wltAsset->getIndex());
+   const auto& serAssetId = assetID.getSerializedKey(PROTO_ASSETID_PREFIX);
+   assetPtr->set_assetid(serAssetId.getCharPtr(), serAssetId.getSize());
 
    //address string
    auto& addrStr = addrPtr->getAddress();
    assetPtr->set_addressstring(addrStr);
 
+   auto isUsed = accPtr->isAssetInUse(addrPtr->getID());
    assetPtr->set_isused(isUsed);
 
    //resolve change status
@@ -121,6 +123,7 @@ void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr,
    const auto& addrTypes = accPtr->getAddressTypeSet();
    for (const auto& addrType : addrTypes)
       wltProto->add_addresstypes(addrType);
+   wltProto->set_defaultaddresstype((uint32_t)accPtr->getAddressType());
 
    //use index
    auto assetAccountPtr = accPtr->getOuterAccount();
@@ -132,7 +135,7 @@ void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr,
    for (auto& addrPair : addrMap)
    {
       auto assetPtr = wltProto->add_assets();
-      CppToProto::addr(assetPtr, addrPair.second, accPtr, true);
+      CppToProto::addr(assetPtr, addrPair.second, accPtr);
    }
 
    //comments

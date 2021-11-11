@@ -14,15 +14,10 @@ from armoryengine.ArmoryUtils import coin2str, hash160_to_addrStr, \
    addrStr_to_hash160, getNameForAddrType
 from armoryengine.BDM import TheBDM
 from armoryengine.Transaction import PyTx, getFeeForTx
-from armoryengine.PyBtcAddress import \
-   AddressEntryType_P2PKH, AddressEntryType_P2PK, AddressEntryType_P2WPKH, \
-   AddressEntryType_Multisig, AddressEntryType_Compressed, \
-   AddressEntryType_P2SH, AddressEntryType_P2WSH
+from armoryengine.CppBridge import TheBridge
 
 from qtdialogs.qtdefines import GETFONT
 from armorycolors import Colors
-
-from armoryengine.CppBridge import TheBridge
 
 COL_TREE = 0
 COL_COMMENT = 1

@@ -5,12 +5,12 @@ from __future__ import (absolute_import, division,
 # Copyright (C) 2011-2015, Armory Technologies, Inc.                           #
 # Distributed under the GNU Affero General Public License (AGPL v3)            #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
-#                                                                            #
-# Copyright (C) 2016-17, goatpig                                             #
-#  Distributed under the MIT license                                         #
-#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #                                   
-#                                                                            #
-##############################################################################
+#                                                                              #
+# Copyright (C) 2016-2021, goatpig                                             #
+#  Distributed under the MIT license                                           #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
+#                                                                              #
+################################################################################
 import os.path
 import shutil
 
@@ -20,17 +20,7 @@ from armoryengine.BinaryUnpacker import *
 from armoryengine.Timer import *
 from armoryengine.Decorators import singleEntrantMethod
 from armoryengine.CppBridge import TheBridge
-
-from armoryengine.PyBtcAddress import \
-   AddressEntryType_Default, \
-   AddressEntryType_P2PKH, AddressEntryType_P2PK, AddressEntryType_P2WPKH, \
-   AddressEntryType_Multisig, AddressEntryType_Compressed, \
-   AddressEntryType_P2SH, AddressEntryType_P2WSH
-
-# This import is causing a circular import problem when used by findpass and promokit
-# it is imported at the end of the file. Do not add it back at the begining
-# from armoryengine.Transaction import *
-
+from armoryengine.PyBtcAddress import PyBtcAddress, AddressEntryType_Default
 
 BLOCKCHAIN_READONLY   = 0
 BLOCKCHAIN_READWRITE  = 1
@@ -198,6 +188,7 @@ class PyBtcWallet(object):
       self.watchingOnly   = True
       self.wltCreateDate  = 0
       self.addressTypes   = []
+      self.defaultAddressType = AddressEntryType_Default
 
       # Three dictionaries hold all data
       self.addrMap     = {}  # maps 20-byte addresses to PyBtcAddress objects
@@ -207,14 +198,13 @@ class PyBtcWallet(object):
       self.labelName   = ''
       self.labelDescr  = ''
       self.linearAddr160List = []
-      self.chainIndexMap = {}
       self.addrByString = {}
       self.txAddrMap = {}    # cache for getting tx-labels based on addr search
       if USE_TESTNET or USE_REGTEST:
          self.addrPoolSize = 10  # this makes debugging so much easier!
       else:
          self.addrPoolSize = CLI_OPTIONS.keypool
-         
+
       self.importList = []
 
       # For file sync features
@@ -260,26 +250,26 @@ class PyBtcWallet(object):
       self.interruptTest1  = False
       self.interruptTest2  = False
       self.interruptTest3  = False
-      
+
       #flags the wallet if it has off chain imports (from a consistency repair)
       self.hasNegativeImports = False
-      
+
       #To enable/disable wallet row in wallet table model
       self.isEnabled = True
-      
+
       self.mutex = threading.Lock()
-      
+
       #list of callables and their args to perform after a wallet 
       #has been scanned. Entries are order as follows:
       #[[method1, [arg1, ar2, arg3]], [method2, [arg1, arg2]]]
       #list is cleared after each scan.
       self.actionsToTakeAfterScan = []
-      
+
       self.balance_spendable = 0
       self.balance_unconfirmed = 0
       self.balance_full = 0
       self.txnCount = 0
-                  
+
    #############################################################################
    def isWltSigningAnyLockbox(self, lockboxList):
       for lockbox in lockboxList:
@@ -316,7 +306,7 @@ class PyBtcWallet(object):
       if len(comment)>0:
          return comment
 
-      # SWIG BUG! 
+      # SWIG BUG!
       # http://sourceforge.net/tracker/?func=detail&atid=101645&aid=3403085&group_id=1645
       # Apparently, using the -threads option when compiling the swig module
       # causes the "for i in vector<...>:" mechanic to sometimes throw seg faults!
@@ -327,7 +317,7 @@ class PyBtcWallet(object):
             return comment
 
       return ''
-      
+
    #############################################################################
    def getCommentForTxList(self, a160, txhashList):
       comment = self.getComment(a160)
@@ -351,14 +341,14 @@ class PyBtcWallet(object):
          print(len(txlist))
          for rtx in txlist:
             print('\t', binary_to_hex(rtx.getTxHash(), BIGENDIAN))
-         
+
    #############################################################################
    def hasAnyImported(self):
       for a160,addr in self.addrMap.items():
          if addr.chainIndex == -2:
             return True
       return False
-   
+
    def isRegistered(self):
       return True
 
@@ -380,11 +370,11 @@ class PyBtcWallet(object):
          return self.balance_full
       else:
          raise TypeError('Unknown balance type! "' + balType + '"')
-      
+
    #############################################################################
    def getTxnCount(self):
       return self.txnCount
-   
+
    #############################################################################  
    def updateBalancesAndCount(self):
       result = TheBridge.getBalanceAndCount(self.uniqueIDB58)
@@ -399,7 +389,7 @@ class PyBtcWallet(object):
          return -1
       else:
          addrObj = self.addrMap[addr160]
-         
+
          if balType.lower() in ('spendable','spend'):
             return addrObj.getSpendableBalance()
          elif balType.lower() in ('unconfirmed','unconf'):
@@ -412,7 +402,7 @@ class PyBtcWallet(object):
    #############################################################################
    @CheckWalletRegistration
    def getTxLedger(self, ledgType='Full'):
-      """ 
+      """
       Gets the ledger entries for the entire wallet, from C++/SWIG data structs
       """
       ledgBlkChain = self.getHistoryPage(0)
@@ -426,14 +416,14 @@ class PyBtcWallet(object):
       """ Returns UnspentTxOut/C++ objects 
       returns a set of unspent TxOuts to cover for the value to spend 
       """
-      
+
       if not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
          from armoryengine.CoinSelection import PyUnspentTxOut
          utxos = TheBridge.getUtxosForValue(self.uniqueIDB58, valToSpend)
          utxoList = []
          for i in range(len(utxos)):
             utxoList.append(PyUnspentTxOut().createFromBridgeUtxo(utxos[i]))
-         return utxoList         
+         return utxoList
       else:
          LOGERROR('***Blockchain is not available for accessing wallet-tx data')
          return []
@@ -441,7 +431,7 @@ class PyBtcWallet(object):
    #############################################################################
    @CheckWalletRegistration
    def getFullUTXOList(self):
-      """       
+      """
       DO NOT USE THIS CALL UNLESS NECESSARY.
       This call returns *ALL* of the wallet's UTXOs. If your intent is to get
       UTXOs to spend coins, use getUTXOListForSpendVal and pass the amount you 
@@ -450,7 +440,7 @@ class PyBtcWallet(object):
       If you want to get UTXOs for browsing the history, use 
       getUTXOListForBlockRange with the top and bottom block of the desired range
       """
-      
+
       #return full set of unspent TxOuts
       if not self.doBlockchainSync==BLOCKCHAIN_DONOTUSE:
          #calling this with no value argument will return the full UTXO list
@@ -459,7 +449,7 @@ class PyBtcWallet(object):
          utxoList = []
          for i in range(len(utxos)):
             utxoList.append(PyUnspentTxOut().createFromBridgeUtxo(utxos[i]))
-         return utxoList         
+         return utxoList
       else:
          LOGERROR('***Blockchain is not available for accessing wallet-tx data')
          return []
@@ -474,11 +464,11 @@ class PyBtcWallet(object):
          utxoList = []
          for i in range(len(utxos)):
             utxoList.append(PyUnspentTxOut().createFromBridgeUtxo(utxos[i]))
-         return utxoList         
+         return utxoList
       else:
          LOGERROR('***Blockchain is not available for accessing wallet-tx data')
          return []
-      
+
    #############################################################################
    @CheckWalletRegistration
    def getRBFTxOutList(self):
@@ -489,7 +479,7 @@ class PyBtcWallet(object):
          utxoList = []
          for i in range(len(utxos)):
             utxoList.append(PyUnspentTxOut().createFromBridgeUtxo(utxos[i]))
-         return utxoList         
+         return utxoList
       else:
          LOGERROR('***Blockchain is not available for accessing wallet-tx data')
          return []
@@ -562,7 +552,7 @@ class PyBtcWallet(object):
    def loadFromBridge(self, walletId):
       walletProto = TheBridge.getWalletData(walletId)
       self.loadFromProtobufPayload(walletProto)
-  
+
    #############################################################################
    def peekChangeAddr(self, addrType=AddressEntryType_Default):
       newAddrProto = TheBridge.getNewAddress(self.uniqueIDB58, addrType)
@@ -577,14 +567,11 @@ class PyBtcWallet(object):
       self.addrMap[addr160] = addrObj
       self.linearAddr160List.append(addr160)
 
-      if addrObj.chainIndex > -1:
-         self.chainIndexMap[addrObj.chainIndex] = addr160
-
       self.highestUsedChainIndex = \
          max(addrObj.chainIndex, self.highestUsedChainIndex)
 
       self.addrByString[addrObj.getAddressString()] = addr160
-   
+
    #############################################################################
    def getNewChangeAddr(self, addrType=AddressEntryType_Default):
       newAddrProto = TheBridge.getNewAddress(self.uniqueIDB58, addrType)
@@ -602,7 +589,7 @@ class PyBtcWallet(object):
 
       self.addAddress(newAddrObj)
       return newAddrObj
-      
+
    #############################################################################
    def getHighestUsedIndex(self):
       """ 
@@ -611,17 +598,15 @@ class PyBtcWallet(object):
       """
       return self.highestUsedChainIndex
 
-          
+
    #############################################################################
    def getHighestComputedIndex(self):
-      """ 
+      """
       This only retrieves the stored value, but it may not be correct if,
       for instance, the wallet was just imported but has been used before.
       """
       return self.lastComputedChainIndex
-      
 
-         
    #############################################################################
    @CheckWalletRegistration
    def detectHighestUsedIndex(self):
@@ -638,18 +623,15 @@ class PyBtcWallet(object):
             self.freshImportFindHighestIndex()
 
       which will actually extend the address pool as necessary to find the
-      highest address used.      
+      highest address used.
       """
-        
+
       highestIndex = TheBridge.getHighestUsedIndex(self.uniqueIDB58)
 
       if highestIndex > self.highestUsedChainIndex:
          self.highestUsedChainIndex = highestIndex
 
       return highestIndex
-
-         
-
 
    #############################################################################
    @TimeThisFunction
@@ -684,7 +666,6 @@ class PyBtcWallet(object):
          nWhile += 1
          if nWhile>10000:
             raise WalletAddressError('Escaping inf loop in freshImport...')
-            
 
       self.addrPoolSize = oldPoolSize
       return topUsed
@@ -1465,7 +1446,7 @@ class PyBtcWallet(object):
          addr160 = addrObj.getAddr160()
          self.addrMap[addr160] = addrObj
          self.chainIndexMap[addrObj.chainIndex] = addr160
-      
+
       #update balances and txio count
       for i in range(0, len(result.ids)):
          addrCombinedData = result.data[i]
@@ -1647,18 +1628,19 @@ class PyBtcWallet(object):
       self.highestUsedChainIndex = payload.useCount
       self.watchingOnly = payload.watchingOnly
       self.addressTypes = payload.addressTypes
+      self.defaultAddressType = payload.defaultAddressType
 
       #addrMap and chainIndexMap
       for addr in payload.assets:
          addrObj = PyBtcAddress(self)
          addrObj.loadFromProtobufPayload(addr)
          self.addAddress(addrObj)
-      
+
       #importList
       for addr160, addrObj in self.addrMap.items():
          if addrObj.chainIndex <= -2:
             self.importList.append(len(self.linearAddr160List) - 1)
-          
+
    ###############################################################################
    def signUnsignedTx(self, ustx, callback):
       '''
@@ -1720,6 +1702,23 @@ class PyBtcWallet(object):
    def getAddressTypes(self):
       return self.addressTypes
 
+   #############################################################################
+   def getDefaultAddressType(self):
+      return self.defaultAddressType
+
+   #############################################################################
+   def setAddressTypeFor(self, addrObj, addrType):
+      if addrObj.addrType == addrType:
+         return
+
+      if addrType not in self.getAddressTypes():
+         raise Exception(\
+            "[PyBtcWallet::setAddressTypeFor] inneligible address type")
+
+      protoAddr = TheBridge.setAddressTypeFor(\
+         self.uniqueIDB58, addrObj.assetId, addrType)
+      addrObj.loadFromProtobufPayload(protoAddr)
+
 ###############################################################################
 def getSuffixedPath(walletPath, nameSuffix):
    fpath = walletPath
@@ -1731,11 +1730,3 @@ def getSuffixedPath(walletPath, nameSuffix):
       fpath = pieces[0] + nameSuffix + pieces[1]
    return fpath
 
-
-# Putting this at the end because of the circular dependency
-from armoryengine.BDM import TheBDM, getCurrTimeAndBlock, BDM_BLOCKCHAIN_READY
-from armoryengine.PyBtcAddress import PyBtcAddress
-from armoryengine.Transaction import *
-from armoryengine.Script import scriptPushData
-
-# kate: indent-width 3; replace-tabs on;
