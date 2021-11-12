@@ -9,10 +9,10 @@ from __future__ import (absolute_import, division,
 ################################################################################
 
 from PySide2.QtCore import Qt
+from PySide2.QtGui import QPixmap
 from PySide2.QtWidgets import QLineEdit, QLabel, QTextEdit, QVBoxLayout, \
    QTabWidget, QCheckBox, QFrame, QRadioButton, QButtonGroup, QSpacerItem, \
-   QSizePolicy, QPushButton, QComboBox, QListWidget
-from PySide2.QtGui import QPixmap
+   QSizePolicy, QPushButton, QComboBox, QListWidget, QListWidgetItem
 
 import sys
 import math

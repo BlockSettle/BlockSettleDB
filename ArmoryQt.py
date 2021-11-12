@@ -80,13 +80,16 @@ from qtdialogs.qtdefines import GETFONT, NETWORKMODE, \
    restoreTableView, determineWalletType, WLTTYPES, tightSizeStr, \
    QLabelButton, MsgBoxWithDNAA, MSGBOX, saveTableView
 
-from qtdialogs.qtdialogs import URLHandler, ArmorySplashScreen
+from qtdialogs.qtdialogs import URLHandler, ArmorySplashScreen, LoadingDisp
 from qtdialogs.DlgMigrateWallet import DlgMigrateWallet
 from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
 from qtdialogs.DlgAddressBook import DlgAddressBook, createAddrBookButton
 from qtdialogs.DlgEULA import DlgEULA
 from qtdialogs.DlgIntroMessage import DlgIntroMessage
 from qtdialogs.DlgWalletDetails import DlgWalletDetails
+from qtdialogs.DlgWalletSelect import DlgWalletSelect
+from qtdialogs.DlgNewAddress import \
+   DlgNewAddressDisp, ShowRecvCoinsWarningIfNecessary
 
 from ui.QtExecuteSignal import QtExecuteSignal
 
@@ -3311,7 +3314,7 @@ class ArmoryMainWindow(QMainWindow):
          wltSelect = self.walletsView.selectedIndexes()
          if len(wltSelect)>0:
             row = wltSelect[0].row()
-            wltID = str(self.walletsView.model().index(row, WLTVIEWCOLS.ID).data().toString())
+            wltID = str(self.walletsView.model().index(row, WLTVIEWCOLS.ID).data())
          dlg = DlgWalletSelect(self, self, self.tr('Receive coins with wallet...'), '', \
                                        firstSelect=wltID, onlyMyWallets=False)
          if dlg.exec_():
@@ -3324,7 +3327,7 @@ class ArmoryMainWindow(QMainWindow):
       if selectionMade:
          wlt = self.walletMap[wltID]
          wlttype = determineWalletType(wlt, self)[0]
-         if showRecvCoinsWarningIfNecessary(wlt, self, self):
+         if ShowRecvCoinsWarningIfNecessary(wlt, self, self):
             QAPP.processEvents()
             dlg = DlgNewAddressDisp(wlt, self, self, loading)
             dlg.exec_()

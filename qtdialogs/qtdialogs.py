@@ -772,60 +772,6 @@ class DlgChangeLabels(ArmoryDialog):
          return
       super(DlgChangeLabels, self).accept(*args)
 
-def showRecvCoinsWarningIfNecessary(wlt, parent, main):
-
-   numTimesOnline = main.getSettingOrSetDefault("SyncSuccessCount", 0)
-   if numTimesOnline < 1 and not TheBDM.getState() == BDM_OFFLINE:
-      result = QMessageBox.warning(main, main.tr('Careful!'), main.tr(
-         'Armory is not online yet, and will eventually need to be online to '
-         'access any funds sent to your wallet.  Please <u><b>do not</b></u> '
-         'receive Bitcoins to your Armory wallets until you have successfully '
-         'gotten online <i>at least one time</i>. '
-         '<br><br> '
-         'Armory is still beta software, and some users report difficulty '
-         'ever getting online. '
-         '<br><br> '
-         'Do you wish to continue? '), QMessageBox.Cancel | QMessageBox.Ok)
-      if not result == QMessageBox.Ok:
-         return False
-
-   wlttype = determineWalletType(wlt, main)[0]
-   notMyWallet = (wlttype == WLTTYPES.WatchOnly)
-   offlineWallet = (wlttype == WLTTYPES.Offline)
-   dnaaPropName = 'Wallet_%s_%s' % (wlt.uniqueIDB58, 'DNAA_RecvOther')
-   dnaaThisWallet = main.getSettingOrSetDefault(dnaaPropName, False)
-   if notMyWallet and not dnaaThisWallet:
-      result = MsgBoxWithDNAA(parent, main, MSGBOX.Warning, parent.tr('This is not your wallet!'), parent.tr(
-            'You are getting an address for a wallet that '
-            'does not appear to belong to you.  Any money sent to this '
-            'address will not appear in your total balance, and cannot '
-            'be spent from this computer. '
-            '<br><br> '
-            'If this is actually your wallet (perhaps you maintain the full '
-            'wallet on a separate computer), then please change the '
-            '"Belongs To" field in the wallet-properties for this wallet.'), \
-            parent.tr('Do not show this warning again'), wCancel=True)
-      main.writeSetting(dnaaPropName, result[1])
-      return result[0]
-
-   if offlineWallet and not dnaaThisWallet:
-      result = MsgBoxWithDNAA(parent, main, MSGBOX.Warning, parent.tr('This is not your wallet!'), parent.tr(
-            'You are getting an address for a wallet that '
-            'you have specified belongs to you, but you cannot actually '
-            'spend the funds from this computer.  This is usually the case when '
-            'you keep the full wallet on a separate computer for security '
-            'purposes.'
-            '<br><br>'
-            'If this does not sound right, then please do not use the following '
-            'address.  Instead, change the wallet properties "Belongs To" field '
-            'to specify that this wallet is not actually yours.'), \
-            parent.tr('Do not show this warning again'), wCancel=True)
-      main.writeSetting(dnaaPropName, result[1])
-      return result[0]
-   return True
-
-
-
 ################################################################################
 class DlgKeypoolSettings(ArmoryDialog):
    """
@@ -2647,56 +2593,6 @@ class DlgRemoveAddress(ArmoryDialog):
 
       else:
          self.reject()
-
-################################################################################
-class DlgWalletSelect(ArmoryDialog):
-   def __init__(self, parent=None, main=None, title='Select Wallet:',
-                                              descr='',
-                                              firstSelect=None,
-                                              onlyMyWallets=False,
-                                              wltIDList=None,
-                                              atLeast=0):
-      super(DlgWalletSelect, self).__init__(parent, main)
-
-
-      self.balAtLeast = atLeast
-
-      if self.main and len(self.main.walletMap) == 0:
-         QMessageBox.critical(self, self.tr('No Wallets!'), \
-            self.tr('There are no wallets to select from.  Please create or import '
-            'a wallet first.'), QMessageBox.Ok)
-         self.accept()
-         return
-
-      if wltIDList == None:
-         wltIDList = list(self.main.walletIDList)
-
-      # Start the layout
-      layout = QVBoxLayout()
-      # Expect to set selectedId
-      wltFrame = SelectWalletFrame(self, main, HORIZONTAL, firstSelect, onlyMyWallets,
-                                                  wltIDList, atLeast, self.selectWallet)
-      layout.addWidget(wltFrame)
-      self.selectedID = wltFrame.selectedID
-      buttonBox = QDialogButtonBox()
-      btnAccept = QPushButton('OK')
-      btnCancel = QPushButton('Cancel')
-      self.connect(btnAccept, SIGNAL(CLICKED), self.accept)
-      self.connect(btnCancel, SIGNAL(CLICKED), self.reject)
-      buttonBox.addButton(btnAccept, QDialogButtonBox.AcceptRole)
-      buttonBox.addButton(btnCancel, QDialogButtonBox.RejectRole)
-
-      layout.addWidget(buttonBox)
-
-      layout.setSpacing(15)
-      self.setLayout(layout)
-
-      self.setWindowTitle(self.tr('Select Wallet'))
-
-   def selectWallet(self, wlt, isDoubleClick=False):
-      self.selectedID = wlt.uniqueIDB58
-      if isDoubleClick:
-         self.accept()
 
 ################################################################################
 class DlgOfflineTxCreated(ArmoryDialog):

@@ -20,10 +20,10 @@ from qtdialogs.qtdefines import ArmoryDialog, USERMODE, determineWalletType, \
    relaxedSizeNChar, relaxedSizeStr, QLabelButton, STYLE_SUNKEN, STYLE_NONE, \
    QRichLabel, makeHorizFrame, MsgBoxWithDNAA, restoreTableView, WLTTYPES, \
    WLTFIELDS, tightSizeStr, saveTableView
-from qtdialogs.qtdialogs import STRETCH, showRecvCoinsWarningIfNecessary, \
-   LoadingDisp
 
-from qtdialogs.DlgNewAddress import DlgNewAddressDisp
+from qtdialogs.qtdialogs import STRETCH, LoadingDisp
+from qtdialogs.DlgNewAddress import \
+   DlgNewAddressDisp, ShowRecvCoinsWarningIfNecessary
 
 
 ################################################################################
@@ -511,7 +511,7 @@ class DlgWalletDetails(ArmoryDialog):
 
 
    def getNewAddress(self):
-      if showRecvCoinsWarningIfNecessary(self.wlt, self, self.main):
+      if ShowRecvCoinsWarningIfNecessary(self.wlt, self, self.main):
          loading = LoadingDisp(self, self.main)
          loading.show()
          DlgNewAddressDisp(self.wlt, self, self.main, loading).exec_()

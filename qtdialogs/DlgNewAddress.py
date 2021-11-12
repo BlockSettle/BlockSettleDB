@@ -9,7 +9,7 @@
 from PySide2.QtCore import Qt
 from PySide2.QtGui import QPalette, QFont
 from PySide2.QtWidgets import QFrame, QGridLayout, QPushButton, QLabel, \
-   QLineEdit, QHBoxLayout, QDialogButtonBox, QTextEdit
+   QLineEdit, QHBoxLayout, QDialogButtonBox, QTextEdit, QMessageBox
 
 from armorycolors import Colors
 from qtdialogs.qtdefines import ArmoryDialog, determineWalletType, \
@@ -17,6 +17,8 @@ from qtdialogs.qtdefines import ArmoryDialog, determineWalletType, \
    makeVertFrame, WLTTYPES, tightSizeNChar, STYLE_SUNKEN
 from qtdialogs.qtdialogs import STRETCH
 from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE
+
+from armoryengine.BDM import TheBDM, BDM_OFFLINE
 
 
 ################################################################################
@@ -209,3 +211,55 @@ class DlgNewAddressDisp(ArmoryDialog):
       clipb.clear()
       clipb.setText(self.addrStr)
       self.lblIsCopied.setText(self.tr('<i>Copied!</i>'))
+
+################################################################################
+def ShowRecvCoinsWarningIfNecessary(wlt, parent, main):
+   numTimesOnline = main.getSettingOrSetDefault("SyncSuccessCount", 0)
+   if numTimesOnline < 1 and not TheBDM.getState() == BDM_OFFLINE:
+      result = QMessageBox.warning(main, main.tr('Careful!'), main.tr(
+         'Armory is not online yet, and will eventually need to be online to '
+         'access any funds sent to your wallet.  Please <u><b>do not</b></u> '
+         'receive Bitcoins to your Armory wallets until you have successfully '
+         'gotten online <i>at least one time</i>. '
+         '<br><br> '
+         'Armory is still beta software, and some users report difficulty '
+         'ever getting online. '
+         '<br><br> '
+         'Do you wish to continue? '), QMessageBox.Cancel | QMessageBox.Ok)
+      if not result == QMessageBox.Ok:
+         return False
+
+   wlttype = determineWalletType(wlt, main)[0]
+   notMyWallet = (wlttype == WLTTYPES.WatchOnly)
+   offlineWallet = (wlttype == WLTTYPES.Offline)
+   dnaaPropName = 'Wallet_%s_%s' % (wlt.uniqueIDB58, 'DNAA_RecvOther')
+   dnaaThisWallet = main.getSettingOrSetDefault(dnaaPropName, False)
+   if notMyWallet and not dnaaThisWallet:
+      result = MsgBoxWithDNAA(parent, main, MSGBOX.Warning, parent.tr('This is not your wallet!'), parent.tr(
+            'You are getting an address for a wallet that '
+            'does not appear to belong to you.  Any money sent to this '
+            'address will not appear in your total balance, and cannot '
+            'be spent from this computer.'
+            '<br><br>'
+            'If this is actually your wallet (perhaps you maintain the full '
+            'wallet on a separate computer), then please change the '
+            '"Belongs To" field in the wallet-properties for this wallet.'), \
+            parent.tr('Do not show this warning again'), wCancel=True)
+      main.writeSetting(dnaaPropName, result[1])
+      return result[0]
+
+   if offlineWallet and not dnaaThisWallet:
+      result = MsgBoxWithDNAA(parent, main, MSGBOX.Warning, parent.tr('This is not your wallet!'), parent.tr(
+            'You are getting an address for a wallet that '
+            'you have specified belongs to you, but you cannot actually '
+            'spend the funds from this computer.  This is usually the case when '
+            'you keep the full wallet on a separate computer for security '
+            'purposes.'
+            '<br><br>'
+            'If this does not sound right, then please do not use the following '
+            'address.  Instead, change the wallet properties "Belongs To" field '
+            'to specify that this wallet is not actually yours.'), \
+            parent.tr('Do not show this warning again'), wCancel=True)
+      main.writeSetting(dnaaPropName, result[1])
+      return result[0]
+   return True
