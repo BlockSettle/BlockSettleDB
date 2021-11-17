@@ -13,13 +13,16 @@ from PySide2.QtWidgets import QPushButton, QCheckBox, QGridLayout, \
 
 from armorymodels import AllWalletsDispModel, WLTVIEWCOLS, \
    SentToAddrBookModel, SentAddrSortProxy, ADDRBOOKCOLS, \
-   WalletAddrDispModel, WalletAddrSortProxy
-from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE
+   WalletAddrDispModel, WalletAddrSortProxy, ADDRESSCOLS
+from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE, \
+   addrStr_to_hash160, P2SHBYTE
+from armoryengine.MultiSigUtils import isBareLockbox, isP2SHLockbox
 
 from qtdialogs.qtdialogs import STRETCH
 from qtdialogs.qtdefines import ArmoryDialog, QRichLabel, tightSizeStr, \
    initialColResize, USERMODE, HLINE, makeHorizFrame, restoreTableView, \
    saveTableView
+from qtdialogs.DlgSetComment import DlgSetComment
 
 from ui.MultiSigModels import LockboxDisplayModel, LockboxDisplayProxy, \
    LOCKBOXCOLS
@@ -112,9 +115,9 @@ class DlgAddressBook(ArmoryDialog):
          self.wltTableClicked(self.wltDispView.selectionModel().currentIndex())
 
       from ui.AddressTypeSelectDialog import AddressLabelFrame
-      self.addrTypeSelectFrame = AddressLabelFrame(self, toggleAddrType)
-      self.addrType = self.main.getSettingOrSetDefault(\
-                        'Default_ReceiveType', DEFAULT_RECEIVE_TYPE)
+      self.addrType = self.wlt.getDefaultAddressType()
+      self.addrTypeSelectFrame = AddressLabelFrame(self, \
+         toggleAddrType, self.wlt.getAddressTypes(), self.addrType)
       self.addrTypeSelectFrame.setType(self.addrType)
 
       # DISPLAY sent-to addresses
@@ -410,11 +413,14 @@ class DlgAddressBook(ArmoryDialog):
 
       self.btnSelectAddr.setEnabled(True)
       row = currIndex.row()
-      self.selectedAddr = str(currIndex.model().index(row, ADDRBOOKCOLS.Address).data().toString())
-      self.selectedCmmt = str(currIndex.model().index(row, ADDRBOOKCOLS.Comment).data().toString())
+      self.selectedAddr = currIndex.model().index(\
+         row, ADDRBOOKCOLS.Address).data()
+      self.selectedCmmt = currIndex.model().index(\
+         row, ADDRBOOKCOLS.Comment).data()
 
       if not self.isBrowsingOnly:
-         self.btnSelectAddr.setText(self.tr('%s Address: %s...' % (self.actStr, self.selectedAddr[:10])))
+         self.btnSelectAddr.setText(self.tr(\
+            '%s Address: %s...' % (self.actStr, self.selectedAddr[:10])))
 
 
    #############################################################################
@@ -424,11 +430,14 @@ class DlgAddressBook(ArmoryDialog):
 
       self.btnSelectAddr.setEnabled(True)
       row = currIndex.row()
-      self.selectedAddr = str(currIndex.model().index(row, ADDRESSCOLS.Address).data().toString())
-      self.selectedCmmt = str(currIndex.model().index(row, ADDRESSCOLS.Comment).data().toString())
+      self.selectedAddr = currIndex.model().index(\
+         row, ADDRESSCOLS.Address).data()
+      self.selectedCmmt = currIndex.model().index(\
+         row, ADDRESSCOLS.Comment).data()
 
       if not self.isBrowsingOnly:
-         self.btnSelectAddr.setText(self.tr('%s Address: %s...' % (self.actStr, self.selectedAddr[:10])))
+         self.btnSelectAddr.setText(self.tr(\
+            '%s Address: %s...' % (self.actStr, self.selectedAddr[:10])))
 
    #############################################################################
    def dblClickAddressRx(self, index):
@@ -439,9 +448,12 @@ class DlgAddressBook(ArmoryDialog):
       wlt = self.main.walletMap[self.selectedWltID]
 
       if not self.selectedCmmt:
-         dialog = DlgSetComment(self, self.main, self.selectedCmmt, self.tr('Add Address Comment'))
+         dialog = DlgSetComment(self, self.main, self.selectedCmmt, \
+            self.tr('Add Address Comment'))
       else:
-         dialog = DlgSetComment(self, self.main, self.selectedCmmt, self.tr('Change Address Comment'))
+         dialog = DlgSetComment(self, self.main, self.selectedCmmt, \
+            self.tr('Change Address Comment'))
+
       if dialog.exec_():
          newComment = str(dialog.edtComment.text())
          addr160 = addrStr_to_hash160(self.selectedAddr)[1]
