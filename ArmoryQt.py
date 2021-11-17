@@ -52,7 +52,7 @@ from armoryengine.ArmoryUtils import HMAC256, GUI_LANGUAGE, \
    CLI_OPTIONS, SettingsFile, getVersionString, BTCARMORY_VERSION, \
    LOGINFO, LOGWARN, LOGDEBUG, LOGEXCEPT, LOGERROR, INTERNET_STATUS, \
    enum, GetExecDir, RightNow, CLI_ARGS, ARMORY_HOME_DIR, DEFAULT, \
-   ARMORY_DB_DIR, DEFAULT_ADDR_TYPE, coin2str, DEFAULT_DATE_FORMAT, \
+   ARMORY_DB_DIR, coin2str, DEFAULT_DATE_FORMAT, \
    unixTimeToFormatStr, binary_to_hex, BTC_HOME_DIR, secondsToHumanTime, \
    LEVELDB_BLKDATA
 
@@ -254,8 +254,6 @@ class ArmoryMainWindow(QMainWindow):
       self.changelog = []
       self.downloadLinks = {}
       self.almostFullNotificationList = {}
-      self.notifyOnSend = set()
-      self.notifyonRecv = set()
       self.versionNotification = {}
       self.notifyIgnoreLong  = []
       self.notifyIgnoreShort = []

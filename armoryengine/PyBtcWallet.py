@@ -14,13 +14,14 @@ from __future__ import (absolute_import, division,
 import os.path
 import shutil
 
-from armoryengine.ArmoryUtils import *
+from armoryengine.ArmoryUtils import AddressEntryType_Default, UINT32_MAX, \
+   emptyFunc, PYBTCWALLET_VERSION, USE_TESTNET, USE_REGTEST, CLI_OPTIONS
 from armoryengine.BinaryPacker import *
 from armoryengine.BinaryUnpacker import *
-from armoryengine.Timer import *
+from armoryengine.Timer import Timer, TimeThisFunction
 from armoryengine.Decorators import singleEntrantMethod
 from armoryengine.CppBridge import TheBridge
-from armoryengine.PyBtcAddress import PyBtcAddress, AddressEntryType_Default
+from armoryengine.PyBtcAddress import PyBtcAddress
 
 BLOCKCHAIN_READONLY   = 0
 BLOCKCHAIN_READWRITE  = 1
@@ -182,7 +183,6 @@ class PyBtcWallet(object):
    #############################################################################
    def __init__(self):
       self.fileTypeStr    = '\xbaWALLET\x00'
-      self.magicBytes     = MAGIC_BYTES
       self.version        = PYBTCWALLET_VERSION  # (Major, Minor, Minor++, even-more-minor)
       self.eofByte        = 0
       self.watchingOnly   = True
@@ -256,8 +256,6 @@ class PyBtcWallet(object):
 
       #To enable/disable wallet row in wallet table model
       self.isEnabled = True
-
-      self.mutex = threading.Lock()
 
       #list of callables and their args to perform after a wallet 
       #has been scanned. Entries are order as follows:
@@ -783,7 +781,6 @@ class PyBtcWallet(object):
       onlineWallet = PyBtcWallet()
       onlineWallet.fileTypeStr = self.fileTypeStr
       onlineWallet.version = self.version
-      onlineWallet.magicBytes = self.magicBytes
       onlineWallet.wltCreateDate = self.wltCreateDate
       onlineWallet.useEncryption = False
       onlineWallet.watchingOnly = True

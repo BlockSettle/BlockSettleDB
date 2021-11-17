@@ -13,21 +13,15 @@ from armoryengine.ArmoryUtils import ADDRBYTE, hash256, binary_to_base58, \
    computeChecksum, getVersionInt, PYBTCWALLET_VERSION, bitset_to_int, \
    LOGDEBUG, Hash160ToScrAddr, int_to_bitset, UnserializeError, \
    hash160_to_addrStr, int_to_binary, BIGENDIAN, \
-   BadAddressError, checkAddrStrValid, binary_to_hex, ENABLE_DETSIGN
-from armoryengine.BinaryPacker import BinaryPacker, UINT8, UINT16, UINT32, UINT64, \
-   INT8, INT16, INT32, INT64, VAR_INT, VAR_STR, FLOAT, BINARY_CHUNK
+   BadAddressError, checkAddrStrValid, binary_to_hex, ENABLE_DETSIGN, \
+   AddressEntryType_Default, AddressEntryType_P2PKH, AddressEntryType_P2PK, \
+   AddressEntryType_P2WPKH, AddressEntryType_Multisig, \
+   AddressEntryType_Uncompressed, AddressEntryType_P2SH, \
+   AddressEntryType_P2WSH
+from armoryengine.BinaryPacker import BinaryPacker, UINT8, UINT16, UINT32, \
+   UINT64, INT8, INT16, INT32, INT64, VAR_INT, VAR_STR, FLOAT, BINARY_CHUNK
 from armoryengine.BinaryUnpacker import BinaryUnpacker
 from armoryengine.Timer import TimeThisFunction
-
-#address types
-AddressEntryType_Default = 0
-AddressEntryType_P2PKH = 1
-AddressEntryType_P2PK = 2
-AddressEntryType_P2WPKH = 3
-AddressEntryType_Multisig = 4
-AddressEntryType_Uncompressed = 0x10000000
-AddressEntryType_P2SH = 0x40000000
-AddressEntryType_P2WSH = 0x80000000
 
 ################################################################################
 class PyBtcAddress(object):

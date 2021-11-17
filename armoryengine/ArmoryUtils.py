@@ -66,7 +66,7 @@ LEVELDB_HEADERS = 'leveldb_headers'
 
 # Version Numbers
 BTCARMORY_VERSION    = (0, 96, 99, 0)  # (Major, Minor, Bugfix, AutoIncrement)
-PYBTCWALLET_VERSION  = (1, 35,  0, 0)  # (Major, Minor, Bugfix, AutoIncrement)
+PYBTCWALLET_VERSION  = (1, 99,  0, 0)  # (Major, Minor, Bugfix, AutoIncrement)
 
 # ARMORY_DONATION_ADDR = '1ArmoryXcfq7TnCSuZa9fQjRYwJ4bkRKfv'
 # ARMORY_DONATION_PUBKEY = ( '04'
@@ -624,8 +624,15 @@ CPP_TXIN_SCRIPT_NAMES[CPP_TXIN_SPENDMULTI]  = 'Spend Multisig'
 CPP_TXIN_SCRIPT_NAMES[CPP_TXIN_SPENDP2SH]   = 'Spend P2SH'
 CPP_TXIN_SCRIPT_NAMES[CPP_TXIN_NONSTANDARD] = 'Non-Standard'
 
-#default address type
-DEFAULT_ADDR_TYPE = 'P2PKH'
+#address types, copied from cppForSwig/Wallets/Addresses.h
+AddressEntryType_Default = 0
+AddressEntryType_P2PKH = 1
+AddressEntryType_P2PK = 2
+AddressEntryType_P2WPKH = 3
+AddressEntryType_Multisig = 4
+AddressEntryType_Uncompressed = 0x10000000
+AddressEntryType_P2SH = 0x40000000
+AddressEntryType_P2WSH = 0x80000000
 
 ################################################################################
 if not CLI_OPTIONS.satoshiPort == DEFAULT:
@@ -715,74 +722,6 @@ def launchProcess(cmd, useStartInfo=True, *args, **kwargs):
                      stdout=PIPE, \
                      stderr=PIPE, \
                      **kwargs)
-
-
-################################################################################
-def killProcess(pid, sig='default'):
-   # I had to do this, because killing a process in Windows has issues
-   # when using py2exe (yes, os.kill does not work, for the same reason
-   # I had to pass stdin/stdout/stderr everywhere...
-   LOGWARN('Killing process pid=%d', pid)
-   if not OS_WINDOWS:
-      import os
-      sig = signal.SIGKILL if sig=='default' else sig
-      os.kill(pid, sig)
-   else:
-      import sys, os.path, ctypes, ctypes.wintypes
-      k32 = ctypes.WinDLL('kernel32.dll')
-      k32.OpenProcess.restype = ctypes.wintypes.HANDLE
-      k32.TerminateProcess.restype = ctypes.wintypes.BOOL
-      hProcess = k32.OpenProcess(1, False, pid)
-      k32.TerminateProcess(hProcess, 1)
-      k32.CloseHandle(hProcess)
-
-
-
-################################################################################
-def subprocess_check_output(*popenargs, **kwargs):
-   """
-   Run command with arguments and return its output as a byte string.
-   Backported from Python 2.7, because it's stupid useful, short, and
-   won't exist on systems using Python 2.6 or earlier
-   """
-   if not OS_WINDOWS:
-      from subprocess import CalledProcessError
-   else:
-      from subprocess_win import CalledProcessError
-
-   process = launchProcess(*popenargs, **kwargs)
-   output, unused_err = process.communicate()
-   retcode = process.poll()
-   if retcode:
-      cmd = kwargs.get("args")
-      if cmd is None:
-         cmd = popenargs[0]
-      error = CalledProcessError(retcode, cmd)
-      error.output = output
-      raise error
-   return output
-
-################################################################################
-# Similar to subprocess_check_output, but used for long-running commands
-def execAndWait(cli_str, timeout=0, useStartInfo=True):
-   """
-   There may actually still be references to this function where check_output
-   would've been more appropriate.  But I didn't know about check_output at
-   the time...
-   """
-
-   process = launchProcess(cli_str, shell=True, useStartInfo=useStartInfo)
-   pid = process.pid
-   start = RightNow()
-   while process.poll() == None:
-      time.sleep(0.1)
-      if timeout>0 and (RightNow() - start)>timeout:
-         print('Process exceeded timeout, killing it')
-         killProcess(pid)
-   out,err = process.communicate()
-   return [out,err]
-
-
 
 
 #########  INITIALIZE LOGGING UTILITIES  ##########
@@ -1112,17 +1051,17 @@ def GetSystemDetails():
    out.Machine  = platform.machine().lower()
    if OS_LINUX:
       # Get total RAM
-      freeStr = subprocess_check_output('free -m', shell=True)
-      totalMemory = freeStr.split(b'\n')[1].split()[1]
-      out.Memory = int(totalMemory) * 1024
+      #freeStr = subprocess_check_output('free -m', shell=True)
+      #totalMemory = freeStr.split(b'\n')[1].split()[1]
+      out.Memory = 0 #int(totalMemory) * 1024
 
       # Get CPU name
       out.CpuStr = 'Unknown'
-      cpuinfo = subprocess_check_output(['cat','/proc/cpuinfo'])
-      for line in cpuinfo.split(b'\n'):
-         if line.strip().lower().startswith(b'model name'):
-            out.CpuStr = str(line.split(b':')[1].strip())
-            break
+      #cpuinfo = subprocess_check_output(['cat','/proc/cpuinfo'])
+      #for line in cpuinfo.split(b'\n'):
+      #   if line.strip().lower().startswith(b'model name'):
+      #      out.CpuStr = str(line.split(b':')[1].strip())
+      #      break
 
 
    elif OS_WINDOWS:
@@ -1262,6 +1201,7 @@ def GetExecDir():
 
 
 
+################################################################################
 def coin2str(nSatoshi, ndec=8, rJust=True, maxZeros=8):
    """
    Converts a raw value (1e-8 BTC) into a formatted string for display
@@ -1293,7 +1233,6 @@ def coin2str(nSatoshi, ndec=8, rJust=True, maxZeros=8):
 
    return s
 
-
 def coin2strNZ(nSatoshi):
    """ Right-justified, minimum zeros, but with padding for alignment"""
    return coin2str(nSatoshi, 8, True, 0)
@@ -1313,7 +1252,6 @@ def coin2str_approx(nSatoshi, sigfig=3):
    nChop = max(nDig-2, 0 )
    approxVal = round((10**nChop) * round(posVal / (10**nChop)))
    return coin2str( (-1 if isNeg else 1)*approxVal,  maxZeros=0)
-
 
 def str2coin(theStr, negAllowed=True, maxDec=8, roundHighPrec=True):
    coinStr = str(theStr)
@@ -1336,7 +1274,6 @@ def str2coin(theStr, negAllowed=True, maxDec=8, roundHighPrec=True):
          raise NegativeValueError
       fullInt = int(float(coinStr) * ONE_BTC)
       return fullInt*(-1 if isNeg else 1)
-
 
 
 ################################################################################
@@ -1614,6 +1551,55 @@ def addrStr_to_scrAddr(addrStr, p2pkhByte = ADDRBYTE, p2shByte = P2SHBYTE):
 def addrStr_to_script(addrStr):
    """ Convert an addr string to a binary script """
    return scrAddr_to_script(addrStr_to_scrAddr(addrStr))
+
+################################################################################
+# output script type to address type resolution
+def getAddressTypeForOutputType(scriptType):
+   if scriptType == CPP_TXOUT_STDHASH160:
+      return AddressEntryType_P2PKH
+
+   elif scriptType == CPP_TXOUT_STDPUBKEY33:
+      return AddressEntryType_P2PK
+
+   elif scriptType == CPP_TXOUT_STDPUBKEY65:
+      return AddressEntryType_P2PK + AddressEntryType_Uncompressed
+
+   elif scriptType == CPP_TXOUT_MULTISIG:
+      return AddressEntryType_Multisig
+
+   elif scriptType == CPP_TXOUT_P2SH:
+      return AddressEntryType_P2SH
+
+   elif scriptType == CPP_TXOUT_P2WPKH:
+      return AddressEntryType_P2WPKH
+
+   elif scriptType == CPP_TXOUT_P2WSH:
+      return AddressEntryType_P2WSH
+
+   raise Exception("unknown address type")
+
+################################################################################
+def addrTypeInSet(addrType, addrTypeSet):
+   if addrType in addrTypeSet:
+      return True
+
+   def nestedSearch(nestedType):
+      if not (addrType & nestedType):
+         return False
+
+      for aType in addrTypeSet:
+         if aType & nestedType:
+            return True
+      return False
+
+   #couldn't find an exact address type match, try to filter by nested types
+   if nestedSearch(AddressEntryType_P2SH):
+      return True
+
+   if nestedSearch(AddressEntryType_P2WSH):
+      return True
+
+   return False
 
 ################################################################################
 # We need to have some methods for casting ASCII<->Unicode<->Preferred
