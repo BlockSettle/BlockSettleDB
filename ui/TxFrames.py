@@ -2,7 +2,7 @@ from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
 ################################################################################
 #                                                                              #
-# Copyright (C) 2011-2015, Armory Technologies, Inc.                           #
+# Copyright (C) 2011-2021, Armory Technologies, Inc.                           #
 # Distributed under the GNU Affero General Public License (AGPL v3)            #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
@@ -10,29 +10,25 @@ from __future__ import (absolute_import, division,
 
 import random
 
-from qtdialogs.qtdefines import ArmoryFrame, ArmoryDialog, tightSizeNChar, \
-   GETFONT, QRichLabel, VLINE, HLINE, QLabelButton, USERMODE, \
-   VERTICAL, HORIZONTAL, makeHorizFrame, STYLE_RAISED, makeVertFrame, \
+from qtdialogs.qtdefines import ArmoryFrame, tightSizeNChar, \
+   GETFONT, QRichLabel, VLINE, QLabelButton, USERMODE, \
+   VERTICAL, makeHorizFrame, STYLE_RAISED, makeVertFrame, \
    relaxedSizeNChar, STYLE_SUNKEN, CHANGE_ADDR_DESCR_STRING
 
 from qtdialogs.qtdialogs import NO_CHANGE, STRETCH
-from qtdialogs.DlgAddressBook import createAddrBookButton
-from qtdialogs.DlgDispTxInfo import DlgDispTxInfo, extractTxInfo
+from qtdialogs.DlgDispTxInfo import DlgDispTxInfo
 from qtdialogs.DlgConfirmSend import DlgConfirmSend
 
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.Transaction import UnsignedTransaction, getTxOutScriptType
-from armoryengine.Script import convertScriptToOpStrings
-from armoryengine.CoinSelection import PySelectCoins, calcMinSuggestedFees,\
-   calcMinSuggestedFeesHackMS, PyUnspentTxOut, estimateTxSize
+from armoryengine.CoinSelection import PyUnspentTxOut
 from ui.WalletFrames import SelectWalletFrame, LockboxSelectFrame
-from armoryengine.MultiSigUtils import \
-      calcLockboxID, readLockboxEntryStr, createLockboxEntryStr, isBareLockbox,\
-   isP2SHLockbox
+from armoryengine.MultiSigUtils import createLockboxEntryStr
 from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH, getAddrByte, \
    LOGEXCEPT, LOGERROR, LOGINFO, NegativeValueError, TooMuchPrecisionError, \
-   str2coin, DEFAULT_CHANGE_TYPE, CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, \
-   coin2str, MIN_FEE_BYTE
+   str2coin, CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, \
+   coin2str, MIN_FEE_BYTE, getNameForAddrType, addrTypeInSet, \
+   getAddressTypeForOutputType
 
 from ui.FeeSelectUI import FeeSelectionDialog
 
@@ -50,29 +46,7 @@ CS_USE_FULL_CUSTOM_LIST = 1
 CS_ADJUST_FEE           = 2
 CS_SHUFFLE_ENTRIES      = 4
 
-TXOUT_SCRIPT_STDHASH160 = 0
-TXOUT_SCRIPT_STDPUBKEY65 = 1
-TXOUT_SCRIPT_STDPUBKEY33 = 2 
-TXOUT_SCRIPT_MULTISIG = 3
-TXOUT_SCRIPT_P2SH = 4
-TXOUT_SCRIPT_NONSTANDARD = 5
-TXOUT_SCRIPT_P2WPKH = 6
-TXOUT_SCRIPT_P2WSH  = 7
-TXOUT_SCRIPT_OPRETURN = 8
-
-TXIN_SCRIPT_STDUNCOMPR = 0
-TXIN_SCRIPT_STDCOMPR = 1
-TXIN_SCRIPT_COINBASE = 2
-TXIN_SCRIPT_SPENDPUBKEY = 3
-TXIN_SCRIPT_SPENDMULTI = 4
-TXIN_SCRIPT_SPENDP2SH = 5
-TXIN_SCRIPT_NONSTANDARD = 6
-TXIN_SCRIPT_WITNESS = 7
-TXIN_SCRIPT_P2WPKH_P2SH = 8
-TXIN_SCRIPT_P2WSH_P2SH = 9
-
-from armoryengine.PyBtcAddress import \
-   AddressEntryType_Default, \
+from armoryengine.PyBtcAddress import AddressEntryType_Default, \
    AddressEntryType_P2PKH, AddressEntryType_P2PK, AddressEntryType_P2WPKH, \
    AddressEntryType_Multisig, AddressEntryType_Uncompressed, \
    AddressEntryType_P2SH, AddressEntryType_P2WSH
@@ -87,7 +61,7 @@ class CoinSelectionInstance(object):
    #############################################################################
    def __del__(self):
       TheBridge.destroyCoinSelectionInstance(self.id)
-   
+
    #############################################################################
    def setup(self):
       self.id = TheBridge.initCoinSelectionInstance(self.wltId, self.height)
@@ -177,18 +151,17 @@ class SendBitcoinsFrame(ArmoryFrame):
       lblRecip = QRichLabel('<b>Enter Recipients:</b>')
       lblRecip.setAlignment(Qt.AlignLeft | Qt.AlignBottom)
 
-      self.shuffleEntries = True      
+      self.shuffleEntries = True
       self.freeOfErrors = True
-      
-      
+
       def getWalletIdList(onlyOfflineWallets):
          result = []
          if onlyOfflineWallets:
             result = self.main.getWatchingOnlyWallets()
          else:
             result = list(self.main.walletIDList)
-         return result      
-      
+         return result
+
       self.wltIDList = wltIDList
       if wltIDList == None:
          self.wltIDList = getWalletIdList(onlyOfflineWallets)
@@ -201,11 +174,10 @@ class SendBitcoinsFrame(ArmoryFrame):
       self.feeDialog = FeeSelectionDialog(self, self.main, \
                         self.resolveCoinSelection, self.getCoinSelectionState)
       self.feeLblButton = self.feeDialog.getLabelButton()
-      
+
       def feeDlg():
          self.feeDialog.exec_()
       self.feeLblButton.linkActivated.connect(feeDlg)
-
 
       # This used to be in the later, expert-only section, but some of these
       # are actually getting referenced before being declared.  So moved them
@@ -215,8 +187,8 @@ class SendBitcoinsFrame(ArmoryFrame):
       self.radioSpecify = QRadioButton(self.tr('Specify a change address'))
       self.lblChangeAddr = QRichLabel(self.tr('Change:'))
 
-      addrWidgets = self.main.createAddressEntryWidgets(self, maxDetectLen=36,
-                                                      defaultWltID=self.wltID)
+      addrWidgets = self.main.createAddressEntryWidgets(\
+         self, maxDetectLen=36, defaultWltID=self.wltID)
       self.edtChangeAddr  = addrWidgets['QLE_ADDR']
       self.btnChangeAddr  = addrWidgets['BTN_BOOK']
       self.lblAutoDetect  = addrWidgets['LBL_DETECT']
@@ -235,7 +207,7 @@ class SendBitcoinsFrame(ArmoryFrame):
             'created this wallet solely for managing imported addresses, '
             'and want to keep all funds within existing addresses.'))
       self.ttipSpecify = self.main.createToolTipWidget(\
-            self.tr('You can specify any valid Bitcoin address for the change.  '
+            self.tr('You can specify any valid Bitcoin address for the change. '
             '<b>NOTE:</b> If the address you specify is not in this wallet, '
             'Armory will not be able to distinguish the outputs when it shows '
             'up in your ledger.  The change will look like a second recipient, '
@@ -245,7 +217,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          self.tr('Check this box to create an unsigned transaction to be signed'
          ' and/or broadcast later.'))
       self.unsignedCheckbox = QCheckBox(self.tr('Create Unsigned'))
-      
+
       self.RBFcheckbox = QCheckBox(self.tr('enable RBF'))
       self.RBFcheckbox.setChecked(True)
       self.ttipRBF = self.main.createToolTipWidget(\
@@ -253,7 +225,7 @@ class SendBitcoinsFrame(ArmoryFrame):
                  'higher fee as long as the original spending transaction remains '
                  'unconfirmed. <br><br>'
                  'Checking this box will RBF flag all inputs in this transaction'))
-      
+
       self.btnSend = QPushButton(self.tr('Send!'))
       self.btnCancel = QPushButton(self.tr('Cancel'))
       self.btnCancel.clicked.connect(parent.reject)
@@ -266,18 +238,17 @@ class SendBitcoinsFrame(ArmoryFrame):
       if self.lbox is None:
          coinControlCallback = self.coinControlUpdate if self.main.usermode == USERMODE.Expert else None
          RBFcallback = self.RBFupdate if self.main.usermode == USERMODE.Expert else None
-         self.frmSelectedWlt = SelectWalletFrame(parent, main, 
-                     VERTICAL, 
-                     self.wltID, 
-                     wltIDList=self.wltIDList, 
+         self.frmSelectedWlt = SelectWalletFrame(parent, main,
+                     VERTICAL,
+                     self.wltID,
+                     wltIDList=self.wltIDList,
                      selectWltCallback=self.setWallet, \
-                     coinControlCallback=coinControlCallback, 
+                     coinControlCallback=coinControlCallback,
                      onlyOfflineWallets=self.onlyOfflineWallets,
                      RBFcallback=RBFcallback)
       else:
-         self.frmSelectedWlt = LockboxSelectFrame(parent, main, 
-                                    VERTICAL,
-                                    self.lbox.uniqueIDB58)
+         self.frmSelectedWlt = LockboxSelectFrame(\
+            parent, main, VERTICAL, self.lbox.uniqueIDB58)
          self.setupCoinSelectionForLockbox(self.lbox)
 
       # Only the Create  Unsigned Transaction button if there is a callback for it.
@@ -299,8 +270,10 @@ class SendBitcoinsFrame(ArmoryFrame):
          self.btnSend.clicked.connect(self.createTxAndBroadcast)
          buttonList.append(self.btnSend)
 
-      txFrm = makeHorizFrame([self.feeLblButton, feetip], STYLE_RAISED, condenseMargins=True)
-      metaFrm = makeHorizFrame(metaButtonList, STYLE_RAISED, condenseMargins=True)
+      txFrm = makeHorizFrame(\
+         [self.feeLblButton, feetip], STYLE_RAISED, condenseMargins=True)
+      metaFrm = makeHorizFrame(\
+         metaButtonList, STYLE_RAISED, condenseMargins=True)
       buttonFrame = makeHorizFrame(buttonList, condenseMargins=True)
       btnEnterURI = QPushButton(self.tr('Manually Enter "bitcoin:" Link'))
       ttipEnterURI = self.main.createToolTipWidget( self.tr(
@@ -311,7 +284,8 @@ class SendBitcoinsFrame(ArmoryFrame):
       fromFrameList = [self.frmSelectedWlt]
 
       if not self.main.usermode == USERMODE.Standard:
-         frmEnterURI = makeHorizFrame([btnEnterURI, ttipEnterURI], condenseMargins=True)
+         frmEnterURI = makeHorizFrame(\
+            [btnEnterURI, ttipEnterURI], condenseMargins=True)
          fromFrameList.append(frmEnterURI)
 
       ########################################################################
@@ -366,7 +340,8 @@ class SendBitcoinsFrame(ArmoryFrame):
          fromFrameList.append(frmChangeAddr)
       else:
          fromFrameList.append('Stretch')
-      frmBottomLeft = makeVertFrame(fromFrameList, STYLE_RAISED, condenseMargins=True)
+      frmBottomLeft = makeVertFrame(fromFrameList, STYLE_RAISED,
+         condenseMargins=True)
 
       lblSend = QRichLabel(self.tr('<b>Sending from Wallet:</b>'))
       lblSend.setAlignment(Qt.AlignLeft | Qt.AlignBottom)
@@ -374,7 +349,8 @@ class SendBitcoinsFrame(ArmoryFrame):
 
       leftFrame = makeVertFrame([lblSend, frmBottomLeft], condenseMargins=True)
       rightFrame = makeVertFrame(\
-         [lblRecip, self.scrollRecipArea, txFrm, metaFrm, buttonFrame], condenseMargins=True)
+         [lblRecip, self.scrollRecipArea, txFrm, metaFrm, buttonFrame],
+         condenseMargins=True)
       layout = QHBoxLayout()
       layout.addWidget(leftFrame, 0)
       layout.addWidget(rightFrame, 1)
@@ -389,7 +365,6 @@ class SendBitcoinsFrame(ArmoryFrame):
       if self.lbox:
          self.toggleSpecify(False)
          self.toggleChngAddr(False)
-
 
       hexgeom = self.main.settings.get('SendBtcGeometry')
       if len(hexgeom) > 0:
@@ -409,7 +384,6 @@ class SendBitcoinsFrame(ArmoryFrame):
          self.frmSelectedWlt.updateOnWalletChange()
 
       self.unsignedCheckBoxUpdate()
-
 
    #############################################################################
    def unsignedCheckBoxUpdate(self):
@@ -540,22 +514,22 @@ class SendBitcoinsFrame(ArmoryFrame):
       
    #############################################################################
    def resetCoinSelectionRecipients(self):
-      
+
       if self.coinSelection is None:
-         return   
-      
+         return
+
       self.coinSelection.resetRecipients()
       for row in range(len(self.widgetTable)):
          self.addCoinSelectionRecipient(row)
-         
+
       try:
          self.resolveCoinSelection()
       except:
          pass
-         
+
    #############################################################################
    def addCoinSelectionRecipient(self, id_):
-            
+
       try:
          coinSelRow = self.widgetTable[id_]
          scrAddr = str(coinSelRow['QLE_ADDR'].text()).strip()
@@ -564,12 +538,12 @@ class SendBitcoinsFrame(ArmoryFrame):
 
          valueStr = str(coinSelRow['QLE_AMT'].text()).strip()
          value = str2coin(valueStr, negAllowed=False)
-         
+
          self.coinSelection.setRecipient(scrAddr, value, id_)
       except:
          self.resetCoinSelectionText()
-   
-   #############################################################################   
+
+   #############################################################################
    def updateCoinSelectionRecipient(self, uid):
 
       try:
@@ -577,10 +551,10 @@ class SendBitcoinsFrame(ArmoryFrame):
          for i in range(len(self.widgetTable)):
             if self.widgetTable[i]['UID'] == uid:
                id_ = i
-               
+
          if id_ == -1:
             raise Exception()
-         
+
          coinSelRow = self.widgetTable[id_]
          if 'OP_RETURN' not in coinSelRow:
             addrStr = str(coinSelRow['QLE_ADDR'].text()).strip()
@@ -594,9 +568,9 @@ class SendBitcoinsFrame(ArmoryFrame):
          else:
             opreturn_message = str(coinSelRow['QLE_ADDR'].text())
             self.coinSelection.updateOpReturnRecipient(id_, opreturn_message)
-            
+
          self.resolveCoinSelection()
-            
+
       except:
          self.resetCoinSelectionText()
 
@@ -616,48 +590,48 @@ class SendBitcoinsFrame(ArmoryFrame):
          serializedUtxoList.append(bp.getBinaryString())
 
       return serializedUtxoList
-   
-   #############################################################################   
+
+   #############################################################################
    def resolveCoinSelection(self):   
       maxRecipientID = self.getMaxRecipientID()
       if maxRecipientID != None:
          self.setMaximum(maxRecipientID)
-             
+
       try:
          fee, feePerByte, adjust_fee = self.feeDialog.getFeeData()
          processFlag = 0
          if self.useCustomListInFull:
             processFlag += CS_USE_FULL_CUSTOM_LIST
-                  
+
          if adjust_fee:
             processFlag += CS_ADJUST_FEE
-                  
+
          if self.shuffleEntries:
-            processFlag += CS_SHUFFLE_ENTRIES         
-         
+            processFlag += CS_SHUFFLE_ENTRIES
+
          if self.customUtxoList is None or len(self.customUtxoList) == 0:
-            self.coinSelection.selectUTXOs(fee, feePerByte, processFlag)         
+            self.coinSelection.selectUTXOs(fee, feePerByte, processFlag)
          else:
             self.coinSelection.processCustomUtxoList(\
-               self.customUtxoList, fee, feePerByte, processFlag)   
-              
+               self.customUtxoList, fee, feePerByte, processFlag)
+
          self.feeDialog.updateLabelButton()
       except RuntimeError as e:
          self.resetCoinSelectionText()
          raise e
-   
-   #############################################################################    
+
+   #############################################################################
    def getCoinSelectionState(self):
       txSize = self.coinSelection.getSizeEstimate()
       flatFee = self.coinSelection.getFlatFee()
       feeByte = self.coinSelection.getFeeByte()
-         
+
       return txSize, flatFee, feeByte
 
    #############################################################################
    def resetCoinSelectionText(self):
       self.feeDialog.resetLabel()
-      
+
    #############################################################################
    # Update the available source address list and balance based on results from
    # coin control. This callback is now necessary because coin control was moved
@@ -666,29 +640,29 @@ class SendBitcoinsFrame(ArmoryFrame):
       self.customUtxoList = customUtxoList
       self.altBalance = altBalance
       self.useCustomListInFull = useAll
-      
+
       try:
          self.resolveCoinSelection()
       except:
          pass
-      
+
    #############################################################################
    def RBFupdate(self, rbfList, altBalance, forceVerbose=False):
       self.customUtxoList = rbfList
       self.useCustomListInFull = True
       self.altBalance = altBalance
-         
-      try:         
+
+      try:
          self.resolveCoinSelection()
       except:
-         
+
          if forceVerbose == False:
             return
-         
+
          #failed to setup rbf send dialog, maybe the setup cannot cover for 
          #auto fee. let's force the fee to 0 and warn the user
          self.feeDialog.setZeroFee()
-         
+
          try:
             self.resolveCoinSelection()
             MsgBoxCustom(MSGBOX.Warning, self.tr('RBF value error'), \
@@ -700,7 +674,7 @@ class SendBitcoinsFrame(ArmoryFrame):
                'value manually to successfully double spend this transaction.'
                ), \
             yesStr=self.tr('Ok'))
-            
+
          except:
             MsgBoxCustom(MSGBOX.Error, self.tr('RBF failure'), \
             self.tr(
@@ -711,7 +685,7 @@ class SendBitcoinsFrame(ArmoryFrame):
                yesStr=self.tr('Ok'))
 
    #############################################################################
-   def handleCppCoinSelectionExceptions(self):      
+   def handleCppCoinSelectionExceptions(self):
       try:
          self.coinSelection.rethrow()
       except RecipientReuseException as e:
@@ -719,7 +693,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          addrParagraph = '<br>'
          for addrEntry in addrList:
             addrParagraph = addrParagraph + ' - ' + addrEntry + '<br>'
-         
+
          result = MsgBoxCustom(MSGBOX.Warning, self.tr('Recipient reuse'), \
             self.tr(
                'The transaction you crafted <b>reuses</b> the following recipient address(es):<br>'
@@ -735,7 +709,7 @@ class SendBitcoinsFrame(ArmoryFrame):
                      coin2str(e.total(), 5, maxZeros=0), \
                      coin2str(e.value(), 5, maxZeros=0))), \
             wCancel=True, yesStr=self.tr('Ignore'), noStr=self.tr('Cancel'))
-         
+
          if not result:
             return False
 
@@ -748,7 +722,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       scripts = []
       addrList = []
       self.comments = []
-      
+
       #TODO: fix this
       #if self.handleCppCoinSelectionExceptions() == False:
       #   return
@@ -758,7 +732,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          widget_obj = self.widgetTable[row]
          if 'OP_RETURN' in widget_obj:
             continue
-         
+
          addrStr = str(widget_obj['QLE_ADDR'].text()).strip()
          self.widgetTable[row]['QLE_ADDR'].setText(addrStr) # overwrite w/ stripped
          addrIsValid = True
@@ -814,10 +788,10 @@ class SendBitcoinsFrame(ArmoryFrame):
                   self.tr('You have specified a OP_RETURN message over 80 bytes long in recipient %d!' % \
                           (row + 1)), QMessageBox.Ok)
                return False
-            
+
             opreturn_list.append(opreturn_msg)
             continue
-         
+
          try:
             valueStr = str(self.widgetTable[row]['QLE_AMT'].text()).strip()
             value = str2coin(valueStr, negAllowed=False)
@@ -855,14 +829,14 @@ class SendBitcoinsFrame(ArmoryFrame):
          scriptValPairs.append([script, value])
          self.comments.append((str(self.widgetTable[row]['QLE_COMM'].text()), value))
 
-      try:         
+      try:
          utxoSelect = self.getUsableTxOutList()
       except RuntimeError as e:
          QMessageBox.critical(self, self.tr('Coin Selection Failure'), \
                self.tr('Coin selection failed with error: <b>%s<b/>' % e.message), \
                QMessageBox.Ok)
          return False
-      
+
       fee = self.coinSelection.getFlatFee()
       fee_byte = self.coinSelection.getFeeByte()
 
@@ -878,10 +852,10 @@ class SendBitcoinsFrame(ArmoryFrame):
                'Are you <i>absolutely sure</i> that you want to send with this '
                'fee? If you do not want to proceed with this fee rate, click "No".' % \
                   (feebyteStr, str(MIN_FEE_BYTE))), QMessageBox.Yes | QMessageBox.No)
-   
+
             if not reply==QMessageBox.Yes:
                return False
-            
+
          elif fee_byte < MIN_FEE_BYTE:
             reply = QMessageBox.warning(self, self.tr('Insufficient Fee'), self.tr(
                'Your transaction comes with a fee rate of <b>%s satoshi/Byte</b>. '
@@ -891,9 +865,9 @@ class SendBitcoinsFrame(ArmoryFrame):
                'Are you <i>absolutely sure</i> that you want to send with this '
                'fee? If you do not want to proceed with this fee rate, click "No".' % \
                   (feebyteStr, str(MIN_FEE_BYTE))), QMessageBox.Yes | QMessageBox.No)
-   
+
             if not reply==QMessageBox.Yes:
-               return False         
+               return False
 
 
       if len(utxoSelect) == 0:
@@ -912,15 +886,15 @@ class SendBitcoinsFrame(ArmoryFrame):
       self.changeScript = ''
       self.selectedBehavior = ''
       if totalChange > 0:
-         script,behavior = self.determineChangeScript(\
-                              utxoSelect, scriptValPairs, peek)
+         script,behavior = self.determineChangeScript(
+            utxoSelect, scriptValPairs, peek)
          self.changeScript = script
          self.selectedBehavior = behavior
          scriptValPairs.append([self.changeScript, totalChange])
          LOGINFO('Change address behavior: %s', self.selectedBehavior)
       else:
          self.selectedBehavior = NO_CHANGE
-         
+
       # Keep a copy of the originally-sorted list for display
       origSVPairs = scriptValPairs[:]
 
@@ -934,8 +908,8 @@ class SendBitcoinsFrame(ArmoryFrame):
       if self.getRBFFlag():
          for utxo in utxoSelect:
             if utxo.sequence == 2**32 - 1:
-               utxo.sequence = 2**32 - 3             
-      
+               utxo.sequence = 2**32 - 3
+
       # In order to create the USTXI objects, need to make sure we supply a
       # map of public keys that can be included
       if self.lbox:
@@ -955,7 +929,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       else:
          # If this has nothing to do with lockboxes, we need to make sure
          # we're providing a key map for the inputs
-         
+
          for utxo in utxoSelect:
             scrType = getTxOutScriptType(utxo.getScript())
             scrAddr = utxo.getRecipientScrAddr()
@@ -966,8 +940,8 @@ class SendBitcoinsFrame(ArmoryFrame):
             elif scrType == CPP_TXOUT_P2SH:
                p2shScript = addrObj.getPrecursorScript()
                p2shKey = binary_to_hex(addrObj.getPrefixedAddr())
-               p2shMap[p2shKey]  = p2shScript  
-               
+               p2shMap[p2shKey]  = p2shScript
+
                addrIndex = addrObj.chainIndex
                try:
                   addrStr = self.wlt.chainIndexMap[addrIndex]
@@ -977,8 +951,8 @@ class SendBitcoinsFrame(ArmoryFrame):
                      addrStr = self.wlt.linearAddr160List[importIndex]
                   else:
                      raise Exception("invalid address index")
-                  
-               pubKeyMap[scrAddr] = addrObj.getPubKey()              
+
+               pubKeyMap[scrAddr] = addrObj.getPubKey()
 
          '''
          If we are consuming any number of SegWit utxos, pass the utxo selection
@@ -995,13 +969,13 @@ class SendBitcoinsFrame(ArmoryFrame):
             ustx.addOpReturnOutput(str(msg))
 
          #resolve signer before returning it
-         self.wlt.resolveSigner(ustx)
+         ustx.resolveSigner(self.wlt.uniqueIDB58)
 
       txValues = [totalSend, fee, totalChange]
       if not peek:
          if not self.unsignedCheckbox.isChecked():
-            dlg = DlgConfirmSend(self.wlt, origSVPairs, txValues[1], self, \
-                                                     self.main, True, ustx)
+            dlg = DlgConfirmSend(
+               self.wlt, origSVPairs, txValues[1], self, self.main, True, ustx)
 
             if not dlg.exec_():
                return False
@@ -1010,7 +984,6 @@ class SendBitcoinsFrame(ArmoryFrame):
             self.main.warnNewUSTXFormat()
 
       return ustx
-
 
    def createTxAndBroadcast(self):
       # The Send! button is clicked validate and broadcast tx
@@ -1022,7 +995,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          if self.createUnsignedTxCallback and self.unsignedCheckbox.isChecked():
             self.createUnsignedTxCallback(ustx)
          else:
-            try:              
+            try:
                self.wlt.mainWnd = self.main
                self.wlt.parent = self
 
@@ -1071,8 +1044,7 @@ class SendBitcoinsFrame(ArmoryFrame):
             LOGERROR('Somehow failed to get cppWlt for lockbox: %s', lbID)
 
          return cppWlt.getSpendableBalance()
-         
-         
+
    #############################################################################
    def getUsableTxOutList(self):
       self.resolveCoinSelection()
@@ -1082,6 +1054,30 @@ class SendBitcoinsFrame(ArmoryFrame):
          pyUtxo = PyUnspentTxOut().createFromBridgeUtxo(utxoVec[i])
          utxoSelect.append(pyUtxo)
       return utxoSelect
+
+   #############################################################################
+   def warnChangeTypeMismatch(self, changeType, outputAddressTypes):
+      changeTypeStr = getNameForAddrType(changeType)
+
+      txAddrTypesDescr = "<pre>"
+      for addrType in outputAddressTypes:
+         txAddrTypesDescr += getNameForAddrType(addrType) + "<br>"
+      txAddrTypesDescr += "</pre>"
+
+      QMessageBox.warning(self, self.tr('Change address type mismatch'),
+         self.tr("Could not find a change address type that matches the "
+            "outputs in this transaction.<br>"
+
+            "The output types are:<br>%s"
+
+            "<br>The selected change type is <b>%s.</b>"
+            "<br><br>"
+
+            "If sent as such, this transaction can damage your privacy. You "
+            "should consider creating this transaction from a wallet with "
+            "address types that match your recipients."
+            % (txAddrTypesDescr, changeTypeStr)),
+         QMessageBox.Ok)
 
    #############################################################################
    def getDefaultChangeAddress(self, scriptValPairs, peek):
@@ -1103,75 +1099,44 @@ class SendBitcoinsFrame(ArmoryFrame):
             addrObj = self.wlt.getNewChangeAddr(typeInt)
          return addrObj
 
-      changeType = self.main.getSettingOrSetDefault(\
-         'Default_ChangeType', DEFAULT_CHANGE_TYPE)
+      changeType = self.wlt.getDefaultChangeType()
 
-      #check if there are any P2SH recipients
-      haveP2SH = False
-      haveP2PKH = False
-      haveBech32 = False
-      homogenousOutputs = True
-      for script, val in scriptValPairs:
-         scripttype = TheBridge.getTxOutScriptType(script)
-         if scripttype == TXOUT_SCRIPT_P2SH:
-            haveP2SH = True
-         if scripttype == TXOUT_SCRIPT_P2WSH or \
-            scripttype == TXOUT_SCRIPT_P2WPKH:
-            haveBech32 = True
-         else:
-            haveP2PKH
+      #get address type for each of our outputs
+      outputAddressTypes = set()
+      for i in range(0, len(scriptValPairs)):
+         svPair = scriptValPairs[i]
+         scriptType = TheBridge.getTxOutScriptType(svPair[0])
+         try:
+            addrType = getAddressTypeForOutputType(scriptType)
+            outputAddressTypes.add(addrType)
+         except:
+            continue
 
-      count = 0
-      if haveP2SH:
-         count = count + 1
-      if haveP2PKH:
-         count = count + 1
-      if haveBech32:
-         count = count + 1
+      #resolve change type if set to default
+      effectiveType = changeType
+      if effectiveType == AddressEntryType_Default:
+         effectiveType = self.wlt.getDefaultAddressType()
 
-      if count > 1:
-         homogenousOutputs = False
-            
-         
-      def changeTypeMismatch(changetype, rectype):
-         QMessageBox.warning(self, self.tr('Change address type mismatch'), self.tr(
-            "Armory is set to force the change address type to %s.<br>"
-            "All the recipients in this transaction are of the %s type.<br><br>"
-            
-            "If sent as such, this transaction will damage your privacy. It is recommended "
-            "you let Armory define the change script type automatically. You can do this "
-            "by going to File -> Settings and picking <u>'Auto change'</u> in the "
-            "Fee & Change settings tab.<br><br>"
-            
-            "<b>Note</b>: When paying a P2SH script with the auto change setting on, the " 
-            "change script type will be set to P2SH. Only Armory 0.96 and later can spend "
-            "from these scripts.<br>"
-            
-            "If you use an offline signing setup, make sure your signer is up "
-            "to date." % (changetype, rectype)), QMessageBox.Ok)
-         
-      if changeType != 'Auto':
-         if homogenousOutputs:
-            scripttype = TheBridge.getTxOutScriptType(scriptValPairs[0][0])
-            if scripttype == TXOUT_SCRIPT_P2SH:
-               scripttype = 'P2SH'
-            else:
-               scripttype = 'P2PKH'
+      #does out change type match any of the output types?
+      if not addrTypeInSet(effectiveType, outputAddressTypes):
+         if changeType == AddressEntryType_Default:
+            #if the change type is set to default, let's try to find
+            #an eligible address type amoung our output types
+            wltAddrTypeSet = self.wlt.getAddressTypes()
+            for addrType in wltAddrTypeSet:
+               if addrTypeInSet(addrType, outputAddressTypes):
+                  #found an output type that matches the eligible address
+                  #types of our wallet, let's use it for our change type
+                  effectiveType = addrType
+                  break
 
-            if scripttype[0:4] != str(changeType[0:4]):
-               changeTypeMismatch(changeType, scripttype)
+      #if we have failed to match the change type to our outputs,
+      #warn the user and continue
+      if not addrTypeInSet(effectiveType, outputAddressTypes):
+         self.warnChangeTypeMismatch(effectiveType, outputAddressTypes)
 
-         return getAddr(changeType)
-      
-      if not haveP2SH and not haveBech32:
-         return getAddr('P2PKH')
-      
-      #is our Tx SW?
-      if TheBDM.isSegWitEnabled() == True and self.coinSelection.isSW():
-         return getAddr('P2SH-P2WPKH')
-      else:
-         return getAddr('P2SH-P2PK')
-      
+      return getAddr(effectiveType)
+
 
    #############################################################################
    def determineChangeScript(self, utxoList, scriptValPairs, peek=False):
@@ -1180,7 +1145,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       changeAddr160 = ''
 
       selectedBehavior = 'NewAddr' if self.lbox is None else 'Feedback'
-      
+
       if not self.main.usermode == USERMODE.Expert or \
          not self.chkDefaultChangeAddr.isChecked():
          # Default behavior for regular wallets is 'NewAddr', but for lockboxes
@@ -1229,11 +1194,11 @@ class SendBitcoinsFrame(ArmoryFrame):
       for widget_obj in self.widgetTable:
          if 'OP_RETURN' in widget_obj:
             continue
-         
+
          if widget_obj['BTN_MAX'].isChecked():
             return widget_obj['UID']
       return None
-      
+
    #####################################################################
    def setMaximum(self, targWidgetID):
       #is the box checked?
@@ -1241,13 +1206,13 @@ class SendBitcoinsFrame(ArmoryFrame):
       for widget_obj in self.widgetTable:
          if widget_obj['UID'] == targWidgetID:
             targetWidget = widget_obj
-      
+
       if targetWidget != None and targetWidget['BTN_MAX'].isChecked():
          #disable all check boxes but this one
          for widget_obj in self.widgetTable:
             if 'BTN_MAX' in widget_obj:
                widget_obj['BTN_MAX'].setEnabled(False)
-            
+
          targetWidget['BTN_MAX'].setEnabled(True)
          targetWidget['QLE_AMT'].setEnabled(False)
       else:
@@ -1255,9 +1220,9 @@ class SendBitcoinsFrame(ArmoryFrame):
          for widget_obj in self.widgetTable:
             if 'BTN_MAX' in widget_obj:
                widget_obj['BTN_MAX'].setEnabled(True)
-               widget_obj['QLE_AMT'].setEnabled(True)               
+               widget_obj['QLE_AMT'].setEnabled(True)
          return
-         
+
       nRecip = len(self.widgetTable)
       totalOther = 0
       r = 0
@@ -1269,16 +1234,16 @@ class SendBitcoinsFrame(ArmoryFrame):
             if targWidgetID == self.widgetTable[r]['UID']:
                r += 1
                continue
-            
+
             if 'OP_RETURN' in self.widgetTable[r]:
                r += 1
                continue
-         
+
             amtStr = str(self.widgetTable[r]['QLE_AMT'].text()).strip()
             if len(amtStr) > 0:
                totalOther += str2coin(amtStr)
             r += 1
-                     
+
          if txFee == 0 and fee_byte != 0:
             if self.customUtxoList != None and len(self.customUtxoList) > 0:
                serializedUtxoList = self.serializeUtxoList(self.customUtxoList)
@@ -1331,15 +1296,15 @@ class SendBitcoinsFrame(ArmoryFrame):
             self.updateWidgetAddrColor(widget_obj, Colors.Background)
             self.updateCoinSelectionRecipient(widget_obj['UID'])
          return callbk
-      
+
       def recipientValueChanged(uid):
          def callbk():
             self.updateCoinSelectionRecipient(uid)
          return callbk
-      
+
       def createAddrWidget(widget_obj, r):
          widget_obj['LBL_ADDR'] = QLabel('Address %d:' % (r+1))
-   
+
          addrEntryWidgets = self.main.createAddressEntryWidgets(self, maxDetectLen=45, boldDetectParts=1)
          widget_obj['FUNC_GETSCRIPT'] = addrEntryWidgets['CALLBACK_GETSCRIPT']
          widget_obj['QLE_ADDR'] = addrEntryWidgets['QLE_ADDR']
@@ -1374,13 +1339,13 @@ class SendBitcoinsFrame(ArmoryFrame):
          widget_obj['QLE_COMM'].setFont(GETFONT('var', 9))
          widget_obj['QLE_COMM'].setMaximumHeight(self.maxHeight)
          widget_obj['QLE_COMM'].setMaxLength(MAX_COMMENT_LENGTH)    
-      
-      
+
+
       def opReturnMessageChanged(widget_obj):
          def callbk():
             self.updateCoinSelectionRecipient(widget_obj['UID'])
          return callbk
-        
+
       def createOpReturnWidget(widget_obj):     
          widget_obj['LBL_ADDR'] = QLabel('OP_RETURN Message:')
          widget_obj['QLE_ADDR'] = QLineEdit()
@@ -1414,20 +1379,20 @@ class SendBitcoinsFrame(ArmoryFrame):
          subLayout.addWidget(widget_obj['QLE_ADDR'],  0,1, 1,5)
          try:
             subLayout.addWidget(widget_obj['BTN_BOOK'],  0,6, 1,1)
-   
+
             subLayout.addWidget(widget_obj['LBL_DETECT'], 1,1, 1,6)
-   
+
             subLayout.addWidget(widget_obj['LBL_AMT'],   2,0, 1,1)
             subLayout.addWidget(widget_obj['QLE_AMT'],   2,1, 1,2)
             subLayout.addWidget(widget_obj['LBL_BTC'],   2,3, 1,1)
             subLayout.addWidget(widget_obj['BTN_MAX'],   2,4, 1,1)
             subLayout.addWidget(QLabel(''), 2, 5, 1, 2)
-   
+
             subLayout.addWidget(widget_obj['LBL_COMM'],  3,0, 1,1)
             subLayout.addWidget(widget_obj['QLE_COMM'],  3,1, 1,6)
          except:
             pass
-         
+
          subLayout.setContentsMargins(5, 5, 5, 5)
          subLayout.setSpacing(3)
          subfrm.setLayout(subLayout)
@@ -1463,7 +1428,7 @@ class SendBitcoinsFrame(ArmoryFrame):
       frmRecip.setLayout(frmRecipLayout)
       self.scrollRecipArea.setWidget(frmRecip)
       self.scrollRecipArea.setWidgetResizable(True)
-      
+
       if recip_diff < 0:
          self.resetCoinSelectionRecipients()
 
@@ -1500,7 +1465,7 @@ class SendBitcoinsFrame(ArmoryFrame):
 
          self.widgetTable[-1]['QLE_COMM'].setText(dispComment)
 
-      
+
    #############################################################################
    def toggleSpecify(self, b):
       self.lblChangeAddr.setVisible(b)
@@ -1565,40 +1530,40 @@ class SendBitcoinsFrame(ArmoryFrame):
    def prefillFromBatch(self, txBatchStr):
       batch = TransactionBatch()
       batch.processBatchStr(txBatchStr)
-      
+
       prefillData = {}
       
       walletID = batch.getWalletID()
       prefillData['walletID'] = walletID
-      
+
       prefillData['recipients'] = []
       rcpDict = prefillData['recipients']
       recipients = batch.getRecipients()
       recCount = len(recipients)
       for rcp in recipients:
          rcpDict.append([rcp.address_, rcp.value_, rcp.comment_])
-         
+
       spenders = batch.getSpenders()
       if len(spenders) > 0:
          prefillData['spenders'] = []
          spdDict = prefillData['spenders']
          for spd in spenders:
             spdDict.append([spd.txHash_, spd.index_, spd.sequence_])
-            
+
       changeAddr = batch.getChange().address_
       if len(changeAddr) > 0:
          prefillData['change'] = changeAddr
-         
+
       fee_rate = batch.getFeeRate()
       if fee_rate != 0:
          prefillData['fee_rate'] = fee_rate
-         
+
       flat_fee = batch.getFlatFee()
       if flat_fee != 0:
          prefillData['flat_fee'] = flat_fee
-         
+
       self.prefill(prefillData)
-          
+
    #############################################################################      
    def prefill(self, prefill):
       '''
@@ -1612,10 +1577,10 @@ class SendBitcoinsFrame(ArmoryFrame):
       flat_fee:float
       }
       '''
-      
+
       #reset recipients
       self.resetRecipients()
-            
+
       #wallet
       try:
          wltid = prefill['walletID']
@@ -1624,17 +1589,17 @@ class SendBitcoinsFrame(ArmoryFrame):
          self.fireWalletChange()
       except:
          pass
-      
+
       #recipients
       recipients = prefill['recipients']
       for rpt in recipients:
          addrStr = rpt[0]
          value = rpt[1]
-         
+
          comment = ""
          if len(rpt) == 3:
             comment = rpt[2]
-         
+
          hash160 = None
          try:
             prefix, hash160 = addrStr_to_hash160(addrStr)
@@ -1645,15 +1610,15 @@ class SendBitcoinsFrame(ArmoryFrame):
             self.addOneRecipient(hash160, value, comment, plainText=addrStr)
          except:
             pass
-      
-      try:   
+
+      try:
          self.resetCoinSelectionRecipients()
       except:
          pass
-      
+
       #do not shuffle outputs on batches
       self.shuffleEntries = False
-      
+
       #change
       try:
          changeAddr = prefill['change']
@@ -1662,40 +1627,39 @@ class SendBitcoinsFrame(ArmoryFrame):
          self.edtChangeAddr.setText(changeAddr)
       except:
          pass
-      
+
       #fee
-         
-      #spenders     
-      spenders = prefill['spenders']    
-        
+
+      #spenders
+      spenders = prefill['spenders']
+
       def findUtxo(utxoList):
          utxoDict = {}
          for utxo in utxoList:
             txhashstr = utxo.getTxHashStr()
             if not txhashstr in utxoDict:
                utxoDict[txhashstr] = {}
-                   
+
             hashDict = utxoDict[txhashstr]
             txoutid = int(utxo.getTxOutIndex())
             hashDict[txoutid] = utxo
-               
+
          customUtxoList = []
          customBalance = 0 
          for spd in spenders:
             txhashstr = spd[0]
             txoutid = int(spd[1])
             seq = spd[2]
-               
+
             hashDict = utxoDict[txhashstr]
             utxo = hashDict[txoutid]
             utxo.sequence = seq
-                  
+
             customUtxoList.append(utxo)
             customBalance += utxo.getValue()
 
          return customUtxoList, customBalance
 
-      
       try:
          utxolist, balance = findUtxo(self.wlt.getFullUTXOList())
          self.frmSelectedWlt.customUtxoList = utxolist
@@ -1707,14 +1671,14 @@ class SendBitcoinsFrame(ArmoryFrame):
          self.frmSelectedWlt.customUtxoList = utxolist
          self.frmSelectedWlt.altBalance = balance
          self.frmSelectedWlt.updateOnRBF(True) 
- 
+
    #############################################################################
    def updateUserComments(self):
       for row in range(len(self.widgetTable)):
          widget_obj = self.widgetTable[row]
          if 'OP_RETURN' in widget_obj:
             continue
-         
+
          addr_comment = str(self.widgetTable[row]['QLE_COMM'].text())
          addr_str = str(self.widgetTable[row]['QLE_ADDR'].text())
 
@@ -1723,705 +1687,3 @@ class SendBitcoinsFrame(ArmoryFrame):
             self.wlt.setComment(addr160, addr_comment)
          except:
             pass
-         
-
-################################################################################
-class ReviewOfflineTxFrame(ArmoryDialog):
-   def __init__(self, parent=None, main=None, initLabel=''):
-      super(ReviewOfflineTxFrame, self).__init__(parent, main)
-
-      self.ustx = None
-      self.wlt = None
-      self.lblDescr = QRichLabel('')
-
-      ttipDataIsSafe = self.main.createToolTipWidget(\
-         self.tr('There is no security-sensitive information in this data below, so '
-         'it is perfectly safe to copy-and-paste it into an '
-         'email message, or save it to a borrowed USB key.'))
-
-      btnSave = QPushButton(self.tr('Save as file...'))
-      self.connect(btnSave, SIGNAL(CLICKED), self.doSaveFile)
-      ttipSave = self.main.createToolTipWidget(\
-         self.tr('Save this data to a USB key or other device, to be transferred to '
-         'a computer that contains the private keys for this wallet.'))
-
-      btnCopy = QPushButton(self.tr('Copy to clipboard'))
-      self.connect(btnCopy, SIGNAL(CLICKED), self.copyAsciiUSTX)
-      self.lblCopied = QRichLabel('  ')
-      self.lblCopied.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
-
-      ttipCopy = self.main.createToolTipWidget(\
-         self.tr('Copy the transaction data to the clipboard, so that it can be '
-         'pasted into an email or a text document.'))
-
-      lblInstruct = QRichLabel(self.tr('<b>Instructions for completing this transaction:</b>'))
-      self.lblUTX = QRichLabel('')
-
-      frmUTX = makeLayoutFrame(HORIZONTAL, [ttipDataIsSafe, self.lblUTX])
-      frmUpper = makeLayoutFrame(HORIZONTAL, [self.lblDescr], STYLE_SUNKEN)
-
-      # Wow, I just cannot get the txtEdits to be the right size without
-      # forcing them very explicitly
-      self.txtUSTX = QTextEdit()
-      self.txtUSTX.setFont(GETFONT('Fixed', 8))
-      w,h = relaxedSizeNChar(self.txtUSTX, 68)[0], int(12 * 8.2)
-      self.txtUSTX.setMinimumWidth(w)
-      self.txtUSTX.setMinimumHeight(h)
-      self.txtUSTX.setReadOnly(True)
-
-
-
-      frmLower = QFrame()
-      frmLower.setFrameStyle(STYLE_RAISED)
-      frmLowerLayout = QGridLayout()
-
-      frmLowerLayout.addWidget(frmUTX, 0, 0, 1, 3)
-      frmLowerLayout.addWidget(self.txtUSTX, 1, 0, 3, 1)
-      frmLowerLayout.addWidget(btnSave, 1, 1, 1, 1)
-      frmLowerLayout.addWidget(ttipSave, 1, 2, 1, 1)
-      frmLowerLayout.addWidget(btnCopy, 2, 1, 1, 1)
-      frmLowerLayout.addWidget(ttipCopy, 2, 2, 1, 1)
-      frmLowerLayout.addWidget(self.lblCopied, 3, 1, 1, 2)
-      frmLowerLayout.setColumnStretch(0, 1)
-      frmLowerLayout.setColumnStretch(1, 0)
-      frmLowerLayout.setColumnStretch(2, 0)
-      frmLowerLayout.setColumnStretch(3, 0)
-      frmLowerLayout.setRowStretch(0, 0)
-      frmLowerLayout.setRowStretch(1, 1)
-      frmLowerLayout.setRowStretch(2, 1)
-      frmLowerLayout.setRowStretch(3, 1)
-
-      frmLower.setLayout(frmLowerLayout)
-
-
-      frmAll = makeLayoutFrame(VERTICAL, [lblInstruct, \
-                                        frmUpper, \
-                                        'Space(5)', \
-                                        frmLower])
-      frmAll.layout().setStretch(0, 0)
-      frmAll.layout().setStretch(1, 0)
-      frmAll.layout().setStretch(2, 0)
-      frmAll.layout().setStretch(3, 2)
-      frmAll.layout().setStretch(4, 1)
-      frmAll.layout().setStretch(5, 0)
-
-      dlgLayout = QVBoxLayout()
-      dlgLayout.addWidget(frmAll)
-
-      self.setLayout(dlgLayout)
-   
-   def setUSTX(self, ustx):
-      self.ustx = ustx
-      self.lblUTX.setText(self.tr('<b>Transaction Data</b> \t (Unsigned ID: %s)' % ustx.uniqueIDB58))
-      self.txtUSTX.setText(ustx.serializeAscii())
-   
-   def setWallet(self, wlt):
-      self.wlt = wlt
-      if determineWalletType(wlt, self.main)[0] in \
-                                 [ WLTTYPES.Offline, WLTTYPES.WatchOnly ]:
-         self.lblDescr.setText(self.tr(
-            'The block of data shown below is the complete transaction you '
-            'just requested, but is invalid because it does not contain any '
-            'signatures.  You must take this data to the computer with the '
-            'full wallet to get it signed, then bring it back here to be '
-            'broadcast to the Bitcoin network. '
-            '<br><br>'
-            'Use "Save as file..." to save an <i>*.unsigned.tx</i> '
-            'file to USB drive or other removable media. '
-            'On the offline computer, click "Offline Transactions" on the main '
-            'window.  Load the transaction, <b>review it</b>, then sign it '
-            '(the filename now end with <i>*.signed.tx</i>).  Click "Continue" '
-            'below when you have the signed transaction on this computer. ' 
-            '<br><br>'
-            '<b>NOTE:</b> The USB drive only ever holds public transaction '
-            'data that will be broadcast to the network.  This data may be '
-            'considered privacy-sensitive, but does <u>not</u> compromise '
-            'the security of your wallet.'))
-      else:
-         self.lblDescr.setText(self.tr(
-            'You have chosen to create the previous transaction but not sign '
-            'it or broadcast it, yet.  You can save the unsigned '
-            'transaction to file, or copy&paste from the text box. '
-            'You can use the following window (after clicking "Continue") to '
-            'sign and broadcast the transaction when you are ready'))
-           
-         
-   def copyAsciiUSTX(self):
-      clipb = QApplication.clipboard()
-      clipb.clear()
-      clipb.setText(self.txtUSTX.toPlainText())
-      self.lblCopied.setText('<i>Copied!</i>')
-
-   def doSaveFile(self):
-      """ Save the Unsigned-Tx block of data """
-      dpid = self.ustx.uniqueIDB58
-      suffix = ('' if OS_WINDOWS else '.unsigned.tx')
-      toSave = self.main.getFileSave(\
-                      'Save Unsigned Transaction', \
-                      ['Armory Transactions (*.unsigned.tx)'], \
-                      'armory_%s_%s' % (dpid, suffix))
-      LOGINFO('Saving unsigned tx file: %s', toSave)
-      try:
-         theFile = open(toSave, 'w')
-         theFile.write(self.txtUSTX.toPlainText())
-         theFile.close()
-      except IOError:
-         LOGEXCEPT('Failed to save file: %s', toSave)
-         pass
-         
-
-################################################################################
-class SignBroadcastOfflineTxFrame(ArmoryFrame):
-   """
-   We will make the assumption that this Frame is used ONLY for outgoing
-   transactions from your wallet.  This simplifies the logic if we don't
-   have to identify input senders/values, and handle the cases where those
-   may not be specified
-   """
-   def __init__(self, parent=None, main=None, initLabel=''):
-      super(SignBroadcastOfflineTxFrame, self).__init__(parent, main)
-
-      self.wlt = None
-      self.sentToSelfWarn = False
-      self.fileLoaded = None
-
-      lblDescr = QRichLabel(self.tr(
-         'Copy or load a transaction from file into the text box below.  '
-         'If the transaction is unsigned and you have the correct wallet, '
-         'you will have the opportunity to sign it.  If it is already signed '
-         'you will have the opportunity to broadcast it to '
-         'the Bitcoin network to make it final.'))
-
-      self.txtUSTX = QTextEdit()
-      self.txtUSTX.setFont(GETFONT('Fixed', 8))
-      w,h = relaxedSizeNChar(self.txtUSTX, 68)
-      #self.txtUSTX.sizeHint = lambda: QSize(w, h)
-      self.txtUSTX.setMinimumWidth(w)
-      self.txtUSTX.setMinimumHeight(8*h)
-      self.txtUSTX.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-      self.btnSign = QPushButton(self.tr('Sign'))
-      self.btnBroadcast = QPushButton(self.tr('Broadcast'))
-      self.btnSave = QPushButton(self.tr('Save file...'))
-      self.btnLoad = QPushButton(self.tr('Load file...'))
-      self.btnCopy = QPushButton(self.tr('Copy Text'))
-      self.btnCopyHex = QPushButton(self.tr('Copy Raw Tx (Hex)'))
-      self.lblCopied = QRichLabel('')
-      self.lblCopied.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
-
-      self.btnSign.setEnabled(False)
-      self.btnBroadcast.setEnabled(False)
-
-      self.connect(self.txtUSTX, SIGNAL('textChanged()'), self.processUSTX)
-
-
-      self.connect(self.btnSign, SIGNAL(CLICKED), self.signTx)
-      self.connect(self.btnBroadcast, SIGNAL(CLICKED), self.broadTx)
-      self.connect(self.btnSave, SIGNAL(CLICKED), self.saveTx)
-      self.connect(self.btnLoad, SIGNAL(CLICKED), self.loadTx)
-      self.connect(self.btnCopy, SIGNAL(CLICKED), self.copyTx)
-      self.connect(self.btnCopyHex, SIGNAL(CLICKED), self.copyTxHex)
-
-      self.lblStatus = QRichLabel('')
-      self.lblStatus.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
-      wStat, hStat = relaxedSizeStr(self.lblStatus, self.tr('Signature is Invalid!'))
-      self.lblStatus.setMinimumWidth(int(wStat * 1.2))
-      self.lblStatus.setMinimumHeight(int(hStat * 1.2))
-
-
-      frmDescr = makeLayoutFrame(HORIZONTAL, [lblDescr], STYLE_RAISED)
-
-      self.infoLbls = []
-
-      # ##
-      self.infoLbls.append([])
-      self.infoLbls[-1].append(self.main.createToolTipWidget(\
-            self.tr('This is wallet from which the offline transaction spends bitcoins')))
-      self.infoLbls[-1].append(QRichLabel('<b>Wallet:</b>'))
-      self.infoLbls[-1].append(QRichLabel(''))
-
-      # ##
-      self.infoLbls.append([])
-      self.infoLbls[-1].append(self.main.createToolTipWidget(self.tr('The name of the wallet')))
-      self.infoLbls[-1].append(QRichLabel(self.tr('<b>Wallet Label:</b>')))
-      self.infoLbls[-1].append(QRichLabel(''))
-
-      # ##
-      self.infoLbls.append([])
-      self.infoLbls[-1].append(self.main.createToolTipWidget(self.tr(
-         'A unique string that identifies an <i>unsigned</i> transaction.  '
-         'This is different than the ID that the transaction will have when '
-         'it is finally broadcast, because the broadcast ID cannot be '
-         'calculated without all the signatures')))
-      self.infoLbls[-1].append(QRichLabel(self.tr('<b>Pre-Broadcast ID:</b>')))
-      self.infoLbls[-1].append(QRichLabel(''))
-
-      # ##
-      self.infoLbls.append([])
-      self.infoLbls[-1].append(self.main.createToolTipWidget(\
-                               self.tr('Net effect on this wallet\'s balance')))
-      self.infoLbls[-1].append(QRichLabel(self.tr('<b>Transaction Amount:</b>')))
-      self.infoLbls[-1].append(QRichLabel(''))
-
-      self.moreInfo = QLabelButton(self.tr('Click here for more<br> information about <br>this transaction'))
-      self.connect(self.moreInfo, SIGNAL(CLICKED), self.execMoreTxInfo)
-      frmMoreInfo = makeLayoutFrame(HORIZONTAL, [self.moreInfo], STYLE_SUNKEN)
-      frmMoreInfo.setMinimumHeight(tightSizeStr(self.moreInfo, 'Any String')[1] * 5)
-
-      expert = (self.main.usermode == USERMODE.Expert)
-      frmBtn = makeLayoutFrame(VERTICAL, [ self.btnSign, \
-                                         self.btnBroadcast, \
-                                         self.btnSave, \
-                                         self.btnLoad, \
-                                         self.btnCopy, \
-                                         self.btnCopyHex if expert else QRichLabel(''), \
-                                         self.lblCopied, \
-                                         HLINE(), \
-                                         self.lblStatus, \
-                                         HLINE(), \
-                                         'Stretch', \
-                                         frmMoreInfo])
-
-      frmBtn.setMaximumWidth(tightSizeNChar(QPushButton(''), 30)[0])
-
-      frmInfoLayout = QGridLayout()
-      for r in range(len(self.infoLbls)):
-         for c in range(len(self.infoLbls[r])):
-            frmInfoLayout.addWidget(self.infoLbls[r][c], r, c, 1, 1)
-
-      frmInfo = QFrame()
-      frmInfo.setFrameStyle(STYLE_SUNKEN)
-      frmInfo.setLayout(frmInfoLayout)
-
-      frmBottom = QFrame()
-      frmBottom.setFrameStyle(STYLE_SUNKEN)
-      frmBottomLayout = QGridLayout()
-      frmBottomLayout.addWidget(self.txtUSTX, 0, 0, 1, 1)
-      frmBottomLayout.addWidget(frmBtn, 0, 1, 2, 1)
-      frmBottomLayout.addWidget(frmInfo, 1, 0, 1, 1)
-      # frmBottomLayout.addWidget(frmMoreInfo,   1,1,  1,1)
-      frmBottom.setLayout(frmBottomLayout)
-
-      layout = QVBoxLayout()
-      layout.addWidget(frmDescr)
-      layout.addWidget(frmBottom)
-
-      self.setLayout(layout)
-      self.processUSTX()
-
-   def processUSTX(self):
-      # TODO:  it wouldn't be TOO hard to modify this dialog to take
-      #        arbitrary hex-serialized transactions for broadcast...
-      #        but it's not trivial either (for instance, I assume
-      #        that we have inputs values, etc)
-      self.wlt = None
-      self.leValue = None
-      self.ustxObj = None
-      self.idxSelf = []
-      self.idxOther = []
-      self.lblStatus.setText('')
-      self.lblCopied.setText('')
-      self.enoughSigs = False
-      self.sigsValid = False
-      self.ustxReadable = False
-
-      ustxStr = str(self.txtUSTX.toPlainText())
-      if len(ustxStr) > 0:
-         try:
-            self.ustxObj = UnsignedTransaction().unserializeAscii(ustxStr)
-            self.signStat = self.ustxObj.evaluateSigningStatus()
-            self.enoughSigs = self.signStat.canBroadcast
-            self.sigsValid = self.ustxObj.verifySigsAllInputs()
-            self.ustxReadable = True
-         except BadAddressError:
-            QMessageBox.critical(self, self.tr('Inconsistent Data!'), \
-               self.tr('This transaction contains inconsistent information.  This '
-               'is probably not your fault...'), QMessageBox.Ok)
-            self.ustxObj = None
-            self.ustxReadable = False
-         except NetworkIDError:
-            QMessageBox.critical(self, self.tr('Wrong Network!'), \
-               self.tr('This transaction is actually for a different network!  '
-               'Did you load the correct transaction?'), QMessageBox.Ok)
-            self.ustxObj = None
-            self.ustxReadable = False
-         except (UnserializeError, IndexError, ValueError):
-            self.ustxObj = None
-            self.ustxReadable = False
-
-         if not self.enoughSigs or not self.sigsValid or not self.ustxReadable:
-            self.btnBroadcast.setEnabled(False)
-         else:
-            if self.main.netMode == NETWORKMODE.Full:
-               self.btnBroadcast.setEnabled(True)
-            else:
-               self.btnBroadcast.setEnabled(False)
-               self.btnBroadcast.setToolTip(self.tr('No connection to Bitcoin network!'))
-      else:
-         self.ustxObj = None
-         self.ustxReadable = False
-         self.btnBroadcast.setEnabled(False)
-         
-
-      self.btnSave.setEnabled(True)
-      self.btnCopyHex.setEnabled(False)
-      if not self.ustxReadable:
-         if len(ustxStr) > 0:
-            self.lblStatus.setText(self.tr('<b><font color="red">Unrecognized!</font></b>'))
-         else:
-            self.lblStatus.setText('')
-         self.btnSign.setEnabled(False)
-         self.btnBroadcast.setEnabled(False)
-         self.btnSave.setEnabled(False)
-         self.makeReviewFrame()
-         return
-      elif not self.enoughSigs:
-         if not self.main.getSettingOrSetDefault('DNAA_ReviewOfflineTx', False):
-            result = MsgBoxWithDNAA(self, self.main, MSGBOX.Warning, title=self.tr('Offline Warning'), \
-                  msg=self.tr('<b>Please review your transaction carefully before '
-                  'signing and broadcasting it!</b>  The extra security of '
-                  'using offline wallets is lost if you do '
-                  'not confirm the transaction is correct!'), dnaaMsg=None)
-            self.main.writeSetting('DNAA_ReviewOfflineTx', result[1])
-         self.lblStatus.setText(self.tr('<b><font color="red">Unsigned</font></b>'))
-         self.btnSign.setEnabled(True)
-         self.btnBroadcast.setEnabled(False)
-      elif not self.sigsValid:
-         self.lblStatus.setText(self.tr('<b><font color="red">Bad Signature!</font></b>'))
-         self.btnSign.setEnabled(True)
-         self.btnBroadcast.setEnabled(False)
-      else:
-         self.lblStatus.setText(self.tr('<b><font color="green">All Signatures Valid!</font></b>'))
-         self.btnSign.setEnabled(False)
-         self.btnCopyHex.setEnabled(True)
-
-
-      # NOTE:  We assume this is an OUTGOING transaction.  When I pull in the
-      #        multi-sig code, I will have to either make a different dialog,
-      #        or add some logic to this one
-      FIELDS = enum('Hash', 'OutList', 'SumOut', 'InList', 'SumIn', 'Time', 'Blk', 'Idx')
-      data = extractTxInfo(self.ustxObj, -1)
-
-      # Collect the input wallets (hopefully just one of them)
-      fromWlts = set()
-      for scrAddr, amt, a, b, c, script in data[FIELDS.InList]:
-         wltID = self.main.getWalletForAddr160(scrAddr)
-         if not wltID == '':
-            fromWlts.add(wltID)
-
-      if len(fromWlts) > 1:
-         QMessageBox.warning(self, self.tr('Multiple Input Wallets'), \
-            self.tr('Somehow, you have obtained a transaction that actually pulls from more '
-            'than one wallet.  The support for handling multi-wallet signatures is '
-            'not currently implemented (this also could have happened if you imported '
-            'the same private key into two different wallets).') , QMessageBox.Ok)
-         self.makeReviewFrame()
-         return
-      elif len(fromWlts) == 0:
-         QMessageBox.warning(self, self.tr('Unrelated Transaction'), \
-            self.tr('This transaction appears to have no relationship to any of the wallets '
-            'stored on this computer.  Did you load the correct transaction?'), \
-            QMessageBox.Ok)
-         self.makeReviewFrame()
-         return
-
-      spendWltID = fromWlts.pop()
-      self.wlt = self.main.walletMap[spendWltID]
-
-      toWlts = set()
-      myOutSum = 0
-      theirOutSum = 0
-      rvPairs = []
-      idx = 0
-      for scrType, amt, binScript, multiSigList in data[FIELDS.OutList]:
-         recip = script_to_scrAddr(binScript)
-         try:
-            wltID = self.main.getWalletForAddr160(CheckHash160(recip))
-         except BadAddressError:
-            wltID = ''
-            
-         if wltID == spendWltID:
-            toWlts.add(wltID)
-            myOutSum += amt
-            self.idxSelf.append(idx)
-         else:
-            rvPairs.append([recip, amt])
-            theirOutSum += amt
-            self.idxOther.append(idx)
-         idx += 1
-
-      myInSum = data[FIELDS.SumIn]  # because we assume all are ours
-
-      if myInSum == None:
-         fee = None
-      else:
-         fee = myInSum - data[FIELDS.SumOut]
-
-      self.leValue = theirOutSum
-      self.makeReviewFrame()
-
-
-   ############################################################################
-   def makeReviewFrame(self):
-      # ##
-      if self.ustxObj == None:
-         self.infoLbls[0][2].setText('')
-         self.infoLbls[1][2].setText('')
-         self.infoLbls[2][2].setText('')
-         self.infoLbls[3][2].setText('')
-      else:
-         ##### 0
-
-         ##### 1
-         if self.wlt:
-            self.infoLbls[0][2].setText(self.wlt.uniqueIDB58)
-            self.infoLbls[1][2].setText(self.wlt.labelName)
-         else:
-            self.infoLbls[0][2].setText(self.tr('[[ Unrelated ]]'))
-            self.infoLbls[1][2].setText('')
-
-         ##### 2
-         self.infoLbls[2][2].setText(self.ustxObj.uniqueIDB58)
-
-         ##### 3
-         if self.leValue:
-            self.infoLbls[3][2].setText(coin2strNZS(self.leValue) + '  BTC')
-         else:
-            self.infoLbls[3][2].setText('')
-
-         self.moreInfo.setVisible(True)
-
-   def execMoreTxInfo(self):
-
-      if not self.ustxObj:
-         self.processUSTX()
-
-      if not self.ustxObj:
-         QMessageBox.warning(self, self.tr('Invalid Transaction'), \
-            self.tr('Transaction data is invalid and cannot be shown!'), QMessageBox.Ok)
-         return
-
-      leVal = 0 if self.leValue is None else -self.leValue
-      dlgTxInfo = DlgDispTxInfo(self.ustxObj, self.wlt, self.parent(), self.main, \
-                          precomputeIdxGray=self.idxSelf, precomputeAmt=leVal, txtime=-1)
-      dlgTxInfo.exec_()
-
-
-
-   def signTx(self):
-      if not self.ustxObj:
-         QMessageBox.critical(self, self.tr('Cannot Sign'), \
-               self.tr('This transaction is not relevant to any of your wallets.'
-               'Did you load the correct transaction?'), QMessageBox.Ok)
-         return
-
-      if self.ustxObj == None:
-         QMessageBox.warning(self, self.tr('Not Signable'), \
-               self.tr('This is not a valid transaction, and thus it cannot '
-               'be signed. '), QMessageBox.Ok)
-         return
-      elif self.enoughSigs and self.sigsValid:
-         QMessageBox.warning(self, self.tr('Already Signed'), \
-               self.tr('This transaction has already been signed!'), QMessageBox.Ok)
-         return
-
-
-      if self.wlt and self.wlt.watchingOnly:
-         QMessageBox.warning(self, self.tr('No Private Keys!'), \
-            self.tr('This transaction refers one of your wallets, but that wallet '
-            'is a watching-only wallet.  Therefore, private keys are '
-            'not available to sign this transaction.'), \
-             QMessageBox.Ok)
-         return
-
-
-      # We should provide the same confirmation dialog here, as we do when
-      # sending a regular (online) transaction.  But the DlgConfirmSend was
-      # not really designed
-      ustx = self.ustxObj
-      svpairs = []
-      svpairsMine = []
-      theFee = ustx.calculateFee()
-      for scrType,value,script,msInfo in ustx.pytxObj.makeRecipientsList():
-         svpairs.append([script, value])
-         if scrType in CPP_TXOUT_STDSINGLESIG:
-            addrStr = script_to_addrStr(script)
-            if self.wlt.hasAddrString(addrStr):
-               svpairsMine.append([script, value])
-         elif scrType == CPP_TXOUT_P2SH:
-            addrStr = script_to_addrStr(script)
-            if self.wlt.hasScrAddr(addrStr_to_hash160(addrStr)[1]):
-               svpairsMine.append([script, value])
-
-      if len(svpairsMine) == 0 and len(svpairs) > 1:
-         QMessageBox.warning(self, self.tr('Missing Change'), self.tr(
-            'This transaction has %d recipients, and none of them '
-            'are addresses in this wallet (for receiving change). '
-            'This can happen if you specified a custom change address '
-            'for this transaction, or sometimes happens solely by '
-            'chance with a multi-recipient transaction.  It could also '
-            'be the result of someone tampering with the transaction. '
-            '<br><br>The transaction is valid and ready to be signed. '
-            'Please verify the recipient and amounts carefully before '
-            'confirming the transaction on the next screen.' % len(svpairs)), QMessageBox.Ok)
-
-      dlg = DlgConfirmSend(self.wlt, svpairs, theFee, self, self.main, pytxOrUstx=ustx)
-      if not dlg.exec_():
-         return
-
-      def completeSignProcess(success, signerObj):
-         def signTxLastStep(success, signerObj):
-            signerObj.getSignedTx()
-            self.ustxObj.pytxObj.signerState = signerObj.serializeState()
-            self.txtUSTX.setText(self.ustxObj.serializeAscii())
-
-            if not self.fileLoaded == None:
-               self.saveTxAuto()
-
-         self.main.signalExecution.executeMethod(\
-            signTxLastStep, success, signerObj)
-
-      self.wlt.signUnsignedTx(self.ustxObj, completeSignProcess)
-
-   def broadTx(self):
-      if self.main.netMode == NETWORKMODE.Disconnected:
-         QMessageBox.warning(self, self.tr('No Internet!'), \
-            self.tr('Armory lost its connection to Bitcoin Core, and cannot '
-            'broadcast any transactions until it is reconnected. '
-            'Please verify that Bitcoin Core (or bitcoind) is open '
-            'and synchronized with the network.'), QMessageBox.Ok)
-         return
-      elif self.main.netMode == NETWORKMODE.Offline:
-         QMessageBox.warning(self, self.tr('No Internet!'), \
-            self.tr('You do not currently have a connection to the Bitcoin network. '
-            'If this does not seem correct, verify that  is open '
-            'and synchronized with the network.'), QMessageBox.Ok)
-         return
-
-
-
-      try:
-         finalTx = self.ustxObj.getSignedPyTx()
-      except SignatureError:
-         QMessageBox.warning(self, self.tr('Signature Error'), self.tr(
-            'Not all signatures are valid.  This transaction '
-            'cannot be broadcast.'), QMessageBox.Ok)
-      except:
-         QMessageBox.warning(self, self.tr('Error'), self.tr(
-            'There was an error processing this transaction, for reasons '
-            'that are probably not your fault...'), QMessageBox.Ok)
-         return
-
-      # We should provide the same confirmation dialog here, as we do when
-      # sending a regular (online) transaction.  But the DlgConfirmSend was
-      # not really designed
-      ustx = self.ustxObj
-      svpairs = [[r[2],r[1]] for r in ustx.pytxObj.makeRecipientsList()]
-      theFee = ustx.calculateFee()
-
-      doIt = True
-      if self.wlt:
-         dlg = DlgConfirmSend(self.wlt, svpairs, theFee, self, self.main, 
-                                          sendNow=True, pytxOrUstx=ustx)
-         doIt = dlg.exec_()
-
-      if doIt:
-         self.main.broadcastTransaction(finalTx)
-         if self.fileLoaded and os.path.exists(self.fileLoaded):
-            try:
-               # pcs = self.fileLoaded.split('.')
-               # newFileName = '.'.join(pcs[:-2]) + '.DONE.' + '.'.join(pcs[-2:])
-               shutil.move(self.fileLoaded, self.fileLoaded.replace('signed', 'SENT'))
-            except:
-               QMessageBox.critical(self, self.tr('File Remove Error'), \
-                  self.tr('The file could not be deleted.  If you want to delete '
-                  'it, please do so manually.  The file was loaded from: '
-                  '<br><br>%s: ' % self.fileLoaded), QMessageBox.Ok)
-
-         try:
-            self.parent().accept()
-         except:
-            # This just attempts to close the OfflineReview&Sign window.  If 
-            # it fails, the user can close it themselves.
-            LOGEXCEPT('Could not close/accept parent dialog.')            
-
-
-   def saveTxAuto(self):
-      if not self.ustxReadable:
-         QMessageBox.warning(self, self.tr('Formatting Error'), \
-            self.tr('The transaction data was not in a format recognized by '
-            'Armory.'))
-         return
-
-
-      if not self.fileLoaded == None and self.enoughSigs and self.sigsValid:
-         newSaveFile = self.fileLoaded.replace('unsigned', 'signed')
-         LOGINFO('New save file: %s' % newSaveFile)
-         f = open(newSaveFile, 'w')
-         f.write(str(self.txtUSTX.toPlainText()))
-         f.close()
-         if not newSaveFile == self.fileLoaded:
-            os.remove(self.fileLoaded)
-         self.fileLoaded = newSaveFile
-         QMessageBox.information(self, self.tr('Transaction Saved!'), \
-            self.tr('Your transaction has been saved to the following location:'
-            '\n\n%s\n\nIt can now be broadcast from any computer running '
-            'Armory in online mode.' % newSaveFile), QMessageBox.Ok)
-         return
-
-   def saveTx(self):
-      if not self.ustxReadable:
-         QMessageBox.warning(self, self.tr('Formatting Error'), \
-            self.tr('The transaction data was not in a format recognized by '
-            'Armory.'))
-         return
-
-
-      # The strange windows branching is because PyQt in Windows automatically
-      # adds the ffilter suffix to the default filename, where as it needs to
-      # be explicitly added in PyQt in Linux.  Not sure why this behavior exists.
-      defaultFilename = ''
-      if not self.ustxObj == None:
-         if self.enoughSigs and self.sigsValid:
-            suffix = '' if OS_WINDOWS else '.signed.tx'
-            defaultFilename = 'armory_%s_%s' % (self.ustxObj.uniqueIDB58, suffix)
-            ffilt = 'Transactions (*.signed.tx *.unsigned.tx)'
-         else:
-            suffix = '' if OS_WINDOWS else '.unsigned.tx'
-            defaultFilename = 'armory_%s_%s' % (self.ustxObj.uniqueIDB58, suffix)
-            ffilt = 'Transactions (*.unsigned.tx *.signed.tx)'
-      filename = self.main.getFileSave('Save Transaction', \
-                             [ffilt], \
-                             defaultFilename)
-      if len(str(filename)) > 0:
-         LOGINFO('Saving transaction file: %s', filename)
-         f = open(filename, 'w')
-         f.write(str(self.txtUSTX.toPlainText()))
-         f.close()
-
-
-   def loadTx(self):
-      filename = self.main.getFileLoad(self.tr('Load Transaction'), \
-                    ['Transactions (*.signed.tx *.unsigned.tx *.SENT.tx)'])
-
-      if len(str(filename)) > 0:
-         LOGINFO('Selected transaction file to load: %s', filename)
-         f = open(filename, 'r')
-         self.txtUSTX.setText(f.read())
-         f.close()
-         self.fileLoaded = filename
-
-
-   def copyTx(self):
-      clipb = QApplication.clipboard()
-      clipb.clear()
-      clipb.setText(str(self.txtUSTX.toPlainText()))
-      self.lblCopied.setText(self.tr('<i>Copied!</i>'))
-
-
-   def copyTxHex(self):
-      clipb = QApplication.clipboard()
-      clipb.clear()
-      clipb.setText(binary_to_hex(\
-         self.ustxObj.getSignedPyTx().serialize()))
-      self.lblCopied.setText(self.tr('<i>Copied!</i>'))

@@ -73,8 +73,9 @@ enum Methods
     signer_unserializeState = 138;
     signer_signTx = 139;
     signer_getSignedTx = 140;
-    signer_getSignedStateForInput = 141;
-    signer_resolve = 142;
+    signer_getUnsignedTx = 141;
+    signer_getSignedStateForInput = 142;
+    signer_resolve = 143;
 
     getHash160 = 200;
     getBlockTimeByHeight = 201;

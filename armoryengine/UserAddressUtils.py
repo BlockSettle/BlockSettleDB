@@ -178,7 +178,7 @@ def getDisplayStringForScriptImpl(binScript, wltMap, lboxList, maxChars=256,
    if scriptType != CPP_TXOUT_OPRETURN:
       wlt = None
       for iterID,iterWlt in wltMap.items():
-         if iterWlt.hasAddr160(scrAddr[1:]):
+         if iterWlt.hasAddrHash(scrAddr):
             wlt = iterWlt
             break
    

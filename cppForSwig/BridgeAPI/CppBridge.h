@@ -20,21 +20,24 @@ namespace ArmoryBridge
 struct WritePayload_Bridge;
 
 ///////////////////////////////////////////////////////////////////////////////
-struct BridgePassphrasePrompt
+class BridgePassphrasePrompt
 {
 private:
    std::unique_ptr<std::promise<SecureBinaryData>> promPtr_;
    std::unique_ptr<std::shared_future<SecureBinaryData>> futPtr_;
 
-   const std::string id_;
+   const std::string promptId_;
    std::function<void(std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
 
-   std::set<Armory::Wallets::EncryptionKeyId> ids_;
+   std::set<Armory::Wallets::EncryptionKeyId> encryptionKeyIds_;
 
 public:
-   BridgePassphrasePrompt(const std::string id,
+   static const Armory::Wallets::EncryptionKeyId concludeKey;
+
+public:
+   BridgePassphrasePrompt(const std::string& id,
       std::function<void(std::unique_ptr<WritePayload_Bridge>)> lbd) :
-      id_(id), writeLambda_(lbd)
+      promptId_(id), writeLambda_(lbd)
    {}
 
    PassphraseLambda getLambda(::Codec_ClientProto::UnlockPromptType);
@@ -252,8 +255,9 @@ private:
    bool signer_unserializeState(const std::string&, const BinaryData&);
    void signer_signTx(const std::string&, const std::string&, unsigned);
    BridgeReply signer_getSignedTx(const std::string&) const;
+   BridgeReply signer_getUnsignedTx(const std::string&) const;
    BridgeReply signer_getSignedStateForInput(const std::string&, unsigned);
-   BridgeReply signer_resolve(const std::string&, const std::string&) const;
+   int signer_resolve(const std::string&, const std::string&) const;
 
    //utils
    BridgeReply getTxInScriptType(const BinaryData&, const BinaryData&) const;

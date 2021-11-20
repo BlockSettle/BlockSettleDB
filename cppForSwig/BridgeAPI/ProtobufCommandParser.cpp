@@ -629,12 +629,26 @@ bool ProtobufCommandParser::processData(
       break;
    }
 
+   case Methods::signer_getUnsignedTx:
+   {
+      if (msg.stringargs_size() != 1)
+         throw runtime_error("invalid command: signer_getUnsignedTx");
+
+      response = bridge->signer_getUnsignedTx(msg.stringargs(0));
+      break;
+   }
+
    case Methods::signer_resolve:
    {
-      if (msg.stringargs_size() != 1 || msg.byteargs_size() != 1)
+      if (msg.stringargs_size() != 2)
          throw runtime_error("invalid command: signer_resolve");
 
-      response = bridge->signer_resolve(msg.byteargs(0), msg.stringargs(0));
+      auto result = bridge->signer_resolve(
+         msg.stringargs(0), msg.stringargs(1));
+
+      auto resultProto = make_unique<ReplyNumbers>();
+      resultProto->add_ints(result);
+      response = move(resultProto);
       break;
    }
 

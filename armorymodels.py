@@ -1191,7 +1191,7 @@ class TxInDispModel(QAbstractTableModel):
             elif ustx is None:
                self.dispTable[-1].append(CPP_TXIN_SCRIPT_NAMES[scrType])
             else:
-               isSigned = ustx.ustxInputs[i].evaluateSigningStatus(pytx=pytx).allSigned
+               isSigned = ustx.ustxInputs[i].evaluateSigningStatus(ustx.signer).allSigned
                self.dispTable[-1].append('Signed' if isSigned else 'Unsigned')
 
             self.dispTable[-1].append(int_to_hex(txin.intSeq, widthBytes=4))
@@ -1204,7 +1204,7 @@ class TxInDispModel(QAbstractTableModel):
             atype, a160 = '',''
             if len(recipAddr) > 0:
                atype, a160 = addrStr_to_hash160(recipAddr)
-               wltID = self.main.getWalletForAddr160(a160)
+               wltID = self.main.getWalletForAddrHash(a160)
 
             self.dispTable[-1].append(wltID)
             self.dispTable[-1].append(a160)
@@ -1392,7 +1392,7 @@ class SentToAddrBookModel(QAbstractTableModel):
             addr160 = addrStr_to_hash160(scrAddr_to_addrStr(scrAddr))[1]
 
             # Only grab addresses that are not in any of your Armory wallets
-            if not self.main.getWalletForAddr160(addr160):
+            if not self.main.getWalletForAddrHash(addr160):
                txHashList = abe.txHashes
                self.addrBook.append( [scrAddr, txHashList] )
          except Exception as e:
@@ -1417,10 +1417,10 @@ class SentToAddrBookModel(QAbstractTableModel):
       else:
          addrB58 = ''
          addr160 = ''
-      wltID    = self.main.getWalletForAddr160(addr160)
+      wltID    = self.main.getWalletForAddrHash(scrAddr)
       txList   = self.addrBook[row][1]
       numSent  = len(txList)
-      comment  = self.wlt.getCommentForTxList(addr160, txList)
+      comment  = self.wlt.getCommentForTxList(scrAddr, txList)
 
       #ADDRBOOKCOLS = enum('Address', 'WltID', 'NumSent', 'Comment')
       if role==Qt.DisplayRole:

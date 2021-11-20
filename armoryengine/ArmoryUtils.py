@@ -1283,7 +1283,8 @@ def makeAsciiBlock(binStr, headStr='', wid=64, newline='\n'):
    sz = len(b64Data)
    firstLine = '=====%s' % headStr
    lines = [firstLine.ljust(wid, '=')]
-   lines.extend([b64Data[wid*i:wid*(i+1)] for i in range(int((sz-1)/wid)+1)])
+   lines.extend([b64Data[wid*i:wid*(i+1)].decode('ascii') \
+      for i in range(int((sz-1)/wid)+1)])
    lines.append("="*wid)
    return newline.join(lines)
 
@@ -1293,7 +1294,7 @@ def readAsciiBlock(ablock, headStr=''):
    headStr = ''
    rawData = None
 
-   # Contiue only if we actually get data.
+   # Continue only if we actually get data.
    if len(ablock) > 0:
       lines = ablock.strip().split()
       if not lines[0].startswith('=====%s' % headStr) or \

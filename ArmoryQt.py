@@ -44,7 +44,7 @@ from PySide2.QtWidgets import QMainWindow, QSystemTrayIcon, \
    QMenu, QAction, QGridLayout, QTabWidget, QScrollArea, \
    QComboBox, QSizePolicy, QActionGroup, QMessageBox, QLabel, \
    QTableView, QPushButton, QFrame, QWidget, QProgressBar, QVBoxLayout, \
-   QLineEdit
+   QLineEdit, QFileDialog
 
 from armorycolors import Colors, htmlColor, QAPP
 from armoryengine.ArmoryUtils import HMAC256, GUI_LANGUAGE, \
@@ -90,6 +90,8 @@ from qtdialogs.DlgWalletDetails import DlgWalletDetails
 from qtdialogs.DlgWalletSelect import DlgWalletSelect
 from qtdialogs.DlgNewAddress import \
    DlgNewAddressDisp, ShowRecvCoinsWarningIfNecessary
+from qtdialogs.DlgOfflineTx import DlgOfflineSelect, DlgSignBroadcastOfflineTx
+from qtdialogs.DlgUnlockWallet import DlgUnlockWallet
 
 from ui.QtExecuteSignal import QtExecuteSignal
 
@@ -2233,9 +2235,9 @@ class ArmoryMainWindow(QMainWindow):
       return dispStr, cid
 
    #############################################################################
-   def getWalletForAddr160(self, addr160):
+   def getWalletForAddrHash(self, addrHash):
       for wltID, wlt in self.walletMap.items():
-         if wlt.hasAddr160(addr160) is not None:
+         if wlt.hasAddrHash(addrHash) is not None:
             return wltID
       return ''
 
@@ -2390,7 +2392,7 @@ class ArmoryMainWindow(QMainWindow):
       commentSet = set([])
       lbox = self.allLockboxes[self.lockboxIDMap[lboxId]]
       for a160 in lbox.a160List:
-         wltID = self.getWalletForAddr160(a160)
+         wltID = self.getWalletForAddrHash(a160)
          if wltID:
             commentSet.add(self.walletMap[wltID].getCommentForLE(le))
       return ' '.join(commentSet)

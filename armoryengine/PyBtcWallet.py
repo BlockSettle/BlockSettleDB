@@ -189,6 +189,7 @@ class PyBtcWallet(object):
       self.wltCreateDate  = 0
       self.addressTypes   = []
       self.defaultAddressType = AddressEntryType_Default
+      self.defaultChangeType = AddressEntryType_Default
 
       # Three dictionaries hold all data
       self.addrMap     = {}  # maps 20-byte addresses to PyBtcAddress objects
@@ -382,11 +383,11 @@ class PyBtcWallet(object):
       self.txnCount = result.count
 
    #############################################################################
-   def getAddrBalance(self, addr160, balType="Spendable", topBlockHeight=UINT32_MAX):
-      if not self.hasAddr160(addr160):
+   def getAddrBalance(self, addrHash, balType="Spendable", topBlockHeight=UINT32_MAX):
+      if not self.hasAddrHash(addrHash):
          return -1
       else:
-         addrObj = self.addrMap[addr160]
+         addrObj = self.addrMap[addrHash]
 
          if balType.lower() in ('spendable','spend'):
             return addrObj.getSpendableBalance()
@@ -483,14 +484,14 @@ class PyBtcWallet(object):
          return []
 
    #############################################################################
-   def getAddrByHash160(self, addr160):
-      if addr160 not in self.addrMap:
+   def getAddrByHash(self, addrHash):
+      if addrHash not in self.addrMap:
          return None
-      return self.addrMap[addr160]
+      return self.addrMap[addrHash]
 
    #############################################################################
-   def hasAddr160(self, addr160):
-      return addr160 in self.addrMap
+   def hasAddrHash(self, addrHash):
+      return addrHash in self.addrMap
 
    #############################################################################
    def getAddrByString(self, addrStr):
@@ -561,14 +562,14 @@ class PyBtcWallet(object):
 
    #############################################################################
    def addAddress(self, addrObj):
-      addr160 = addrObj.getAddr160()
-      self.addrMap[addr160] = addrObj
-      self.linearAddr160List.append(addr160)
+      prefixedHash = addrObj.getPrefixedAddr()
+      self.addrMap[prefixedHash] = addrObj
+      self.linearAddr160List.append(prefixedHash)
 
       self.highestUsedChainIndex = \
          max(addrObj.chainIndex, self.highestUsedChainIndex)
 
-      self.addrByString[addrObj.getAddressString()] = addr160
+      self.addrByString[addrObj.getAddressString()] = prefixedHash
 
    #############################################################################
    def getNewChangeAddr(self, addrType=AddressEntryType_Default):
@@ -1440,9 +1441,9 @@ class PyBtcWallet(object):
          addrObj = PyBtcAddress()
          addrObj.loadFromProtobufPayload(addrProto)
 
-         addr160 = addrObj.getAddr160()
-         self.addrMap[addr160] = addrObj
-         self.chainIndexMap[addrObj.chainIndex] = addr160
+         addrHash = addrObj.getPrefixedAddr()
+         self.addrMap[addrHash] = addrObj
+         self.chainIndexMap[addrObj.chainIndex] = addrHash
 
       #update balances and txio count
       for i in range(0, len(result.ids)):
@@ -1638,41 +1639,6 @@ class PyBtcWallet(object):
          if addrObj.chainIndex <= -2:
             self.importList.append(len(self.linearAddr160List) - 1)
 
-   ###############################################################################
-   def signUnsignedTx(self, ustx, callback):
-      '''
-      Tx signing may prompt the user for a passphrase. This means this method can 
-      neither block the GUI thread nor the CppBridge read thread.
-
-      Therefor, this method takes a callback that it will trigger once the 
-      CppBridge is done signing
-      '''
-
-      from armoryengine.Transaction import SignerObject
-      
-      #setup signer object, init from serialized state the ustx should be carrying
-      if len(ustx.pytxObj.signerState) == 0:
-         raise Exception("empty signer state")
-
-      signer = SignerObject()
-      signer.setup()
-      signer.initFromSerializedState(ustx.pytxObj.signerState)
-
-      '''
-      Sign the tx, pass the wallet id so the signer can create a resolver 
-      on the fly
-
-      The passprompt lambda should already be setup on the bridge side to 
-      ask the user for his passphrase
-      '''
-      signer.signTx(self.uniqueIDB58, callback)
-
-   ###############################################################################
-   def resolveSigner(self, ustx):
-      resolvedSignerState = \
-         TheBridge.signer_resolve(ustx.pytxObj.signerState, self.uniqueIDB58)
-      ustx.pytxObj.signerState = resolvedSignerState
-
    #############################################################################
    def fillAddressPool(self, numPool, isActuallyNew=True, 
                        doRegister=True, Progress=emptyFunc):
@@ -1702,6 +1668,10 @@ class PyBtcWallet(object):
    #############################################################################
    def getDefaultAddressType(self):
       return self.defaultAddressType
+
+   def getDefaultChangeType(self):
+      #TODO: add entry in cpp wallets for default change type
+      return self.defaultChangeType
 
    #############################################################################
    def setAddressTypeFor(self, addrObj, addrType):

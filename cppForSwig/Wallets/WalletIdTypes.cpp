@@ -567,6 +567,13 @@ EncryptionKeyId::EncryptionKeyId(const BinaryData& data)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+EncryptionKeyId::EncryptionKeyId(const std::string& str)
+{
+   //private ctor to init keys of any size
+   data_ = BinaryData::fromString(str);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 EncryptionKeyId& EncryptionKeyId::operator=(const EncryptionKeyId& rhs)
 {
    data_ = rhs.data_;

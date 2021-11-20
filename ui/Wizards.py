@@ -15,12 +15,13 @@ from PySide2.QtGui import QIcon
 from armoryengine.ArmoryUtils import USE_TESTNET, USE_REGTEST, int_to_binary
 from ui.WalletFrames import NewWalletFrame, SetPassphraseFrame, VerifyPassphraseFrame,\
    WalletBackupFrame, WizardCreateWatchingOnlyWalletFrame, CardDeckFrame
-from ui.TxFrames import SendBitcoinsFrame, SignBroadcastOfflineTxFrame,\
-   ReviewOfflineTxFrame
+from ui.TxFrames import SendBitcoinsFrame
+from ui.TxFramesOffline import SignBroadcastOfflineTxFrame
 from qtdialogs.qtdefines import USERMODE, GETFONT, AddToRunningDialogsList
 from armoryengine.PyBtcWallet import PyBtcWallet
 from armoryengine.BDM import TheBDM, BDM_OFFLINE, BDM_UNINITIALIZED
 from qtdialogs.qtdialogs import DlgProgress
+from qtdialogs.DlgOfflineTx import ReviewOfflineTxFrame
 
 # This class is intended to be an abstract Wizard class that
 # will hold all of the functionality that is common to all
@@ -30,7 +31,7 @@ class ArmoryWizard(QWizard):
       super(ArmoryWizard, self).__init__(parent)
       self.setWizardStyle(QWizard.ClassicStyle)
       self.parent = parent
-      self.main   = main
+      self.main = main
       self.setFont(GETFONT('var'))
       self.setWindowFlags(Qt.Window)
       # Need to adjust the wizard frame size whenever the page changes.

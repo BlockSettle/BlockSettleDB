@@ -1308,8 +1308,6 @@ class DlgLockboxManager(ArmoryDialog):
       # Default is to use frmSingle
       self.stkDashboard.setCurrentIndex(0)
 
-         
-      
 
    #############################################################################
    def updateTxCommentFromView(self, view):
@@ -1326,7 +1324,7 @@ class DlgLockboxManager(ArmoryDialog):
          txHash = str(view.model().index(row, LEDGERCOLS.TxHash).data().toString())
          lbox = self.main.allLockboxes[self.main.lockboxIDMap[lboxId]]
          for a160 in lbox.a160List:
-            wltID = self.main.getWalletForAddr160(a160)
+            wltID = self.main.getWalletForAddrHash(a160)
             if len(wltID)>0:
                self.main.walletMap[wltID].setComment(hex_to_binary(txHash), newComment)
          self.main.walletListChanged()
@@ -1362,7 +1360,7 @@ class DlgLockboxManager(ArmoryDialog):
       wltID = None
       wlt = None
       for a160 in lbox.a160List:
-         wltID = self.main.getWalletForAddr160(a160)
+         wltID = self.main.getWalletForAddrHash(a160)
          if len(wltID)>0:
             wlt = self.main.walletMap[wltID]
             break
@@ -2597,7 +2595,7 @@ class DlgMultiSpendReview(ArmoryDialog):
                dpubkey = this_lb.dPubKeys[i].binPubKey
                cpubkey = this_lb.compressedPubKeys[i]
 
-               wltID = self.main.getWalletForAddr160(a160)
+               wltID = self.main.getWalletForAddrHash(a160)
                iBundle.keyholePixmap[i] = QLabel()
                iBundle.keyholePixmap[i].setPixmap(self.pixWhite())
                if wltID:
@@ -3367,7 +3365,7 @@ class DlgCreatePromNote(ArmoryDialog):
             self.lblTargetID.setText(dispStr, color='TextBlue')
             return
 
-         wltID = self.main.getWalletForAddr160(addrStr_to_hash160(addrText)[1])
+         wltID = self.main.getWalletForAddrHash(addrStr_to_hash160(addrText)[1])
          if wltID:
             wlt = self.main.walletMap[wltID]
             dispStr = '%s (%s)' % (wlt.labelName, wlt.uniqueIDB58)

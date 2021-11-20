@@ -38,7 +38,7 @@ def excludeChange(outputPairs, wlt):
       addr = ''
       if scrType in CPP_TXOUT_HAS_ADDRSTR:
          scrAddr = script_to_scrAddr(script)
-         addr = wlt.getAddrByHash160(scrAddr_to_hash160(scrAddr)[1])
+         addr = wlt.getAddrByHash(scrAddr)
 
       # this logic excludes the pair with the maximum chainIndex from the
       # returned list
@@ -71,8 +71,7 @@ class DlgConfirmSend(ArmoryDialog):
          if scrType in CPP_TXOUT_HAS_ADDRSTR and \
             scrType != CPP_TXOUT_P2WPKH and scrType != CPP_TXOUT_P2WSH:
             scraddr = script_to_scrAddr(script)
-            addr160 = scrAddr_to_hash160(scraddr)[1]
-            if wlt.hasAddr160(addr160):
+            if wlt.hasAddrHash(scraddr):
                returnPairs.append([script,val])
             else:
                sendPairs.append([script,val])

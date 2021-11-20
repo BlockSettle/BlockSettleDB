@@ -114,7 +114,7 @@ class MessageSigningWidget(QWidget):
                QMessageBox.Ok)
          return
 
-      walletId = self.main.getWalletForAddr160(addr160)
+      walletId = self.main.getWalletForAddrHash(addr160)
       wallet = self.main.walletMap[walletId]
       if wallet.useEncryption and wallet.isLocked:
          # Target wallet is encrypted...

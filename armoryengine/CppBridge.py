@@ -38,6 +38,10 @@ class BridgeError(Exception):
    pass
 
 #################################################################################
+class BridgeSignerError(Exception):
+   pass
+
+#################################################################################
 class PyPromFut(object):
 
    #############################################################################
@@ -65,7 +69,7 @@ class PyPromFut(object):
 
 
 ################################################################################
-class CppBridge(object):
+class ArmoryBridge(object):
 
    #############################################################################
    def __init__(self):
@@ -908,211 +912,6 @@ class CppBridge(object):
       return response.reply[0]
 
    #############################################################################
-   def initNewSigner(self):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.initNewSigner
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyStrings()
-      response.ParseFromString(socketResponse)
-
-      return response.reply[0]
-
-   #############################################################################
-   def destroySigner(self, sId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.destroySigner
-      packet.stringArgs.append(sId)
-
-      self.sendToBridgeProto(packet, False)
-
-   #############################################################################
-   def signer_SetVersion(self, sId, version):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_SetVersion
-      packet.stringArgs.append(sId)
-      packet.intArgs.append(version)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeError("error in signer_SetVersion")
-
-   #############################################################################
-   def signer_SetLockTime(self, sId, locktime):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_SetLockTime
-      packet.stringArgs.append(sId)
-      packet.intArgs.append(locktime)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeError("error in signer_SetLockTime")
-
-   #############################################################################
-   def signer_addSpenderByOutpoint(self, sId, hashVal, txoutid, seq, value):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_addSpenderByOutpoint
-      packet.stringArgs.append(sId)
-      packet.byteArgs.append(hashVal)
-      packet.intArgs.append(txoutid)
-      packet.intArgs.append(seq)
-      packet.longArgs.append(value)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeError("error in signer_addSpenderByOutpoint")
-
-   #############################################################################
-   def signer_populateUtxo(self, sId, hashVal, txoutid, value, script):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_populateUtxo
-      packet.stringArgs.append(sId)
-      packet.byteArgs.append(hashVal)
-      packet.intArgs.append(txoutid)
-      packet.longArgs.append(value)
-      packet.byteArgs.append(script)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeError("error in signer_addSpenderByOutpoint")
-
-   #############################################################################
-   def signer_addRecipient(self, sId, value, script):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_addRecipient
-      packet.stringArgs.append(sId)
-      packet.byteArgs.append(script)
-      packet.longArgs.append(value)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeError("error in signer_addRecipient")
-
-   #############################################################################
-   def signer_getSerializedState(self, sId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_getSerializedState
-      packet.stringArgs.append(sId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyBinary()
-      response.ParseFromString(socketResponse)
-
-      return response.reply[0]
-
-   #############################################################################
-   def signer_unserializeState(self, sId, state):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_unserializeState
-      packet.stringArgs.append(sId)
-      packet.byteArgs.append(state)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      if response.ints[0] == 0:
-         raise BridgeError("error in signer_unserializeState")
-
-   #############################################################################
-   def signer_resolve(self, state, wltId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_resolve
-      packet.stringArgs.append(wltId)
-      packet.byteArgs.append(state)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyBinary()
-      response.ParseFromString(socketResponse)
-
-      return response.reply[0]
-
-   #############################################################################
-   def signer_signTx(self, sId, wltId, callback, args):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_signTx
-      packet.stringArgs.append(sId)
-      packet.stringArgs.append(wltId)
-
-      callbackArgs = [callback]
-      callbackArgs.extend(args)
-      self.sendToBridgeProto(packet, False, self.signer_signTxCallback, callbackArgs)
-
-   #############################################################################
-   def signer_signTxCallback(self, socketResponse, args):
-      response = ClientProto_pb2.ReplyNumbers()
-      response.ParseFromString(socketResponse)
-
-      callbackArgs = [response.ints[0]]
-      callbackArgs.extend(args[1:])
-      callbackThread = threading.Thread(\
-         group=None, target=args[0], \
-         name=None, args=callbackArgs, kwargs={})
-      callbackThread.start()
-
-   #############################################################################
-   def signer_getSignedTx(self, sId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_getSignedTx
-      packet.stringArgs.append(sId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.ReplyBinary()
-      response.ParseFromString(socketResponse)
-
-      return response.reply[0]
-
-   #############################################################################
-   def signer_getSignedStateForInput(self, sId, inputId):
-      packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_getSignedStateForInput
-      packet.stringArgs.append(sId)
-      packet.intArgs.append(inputId)
-
-      fut = self.sendToBridgeProto(packet)
-      socketResponse = fut.getVal()
-
-      response = ClientProto_pb2.BridgeInputSignedState()
-      response.ParseFromString(socketResponse)
-
-      return response
-
-   #############################################################################
    def broadcastTx(self, rawTxList):
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.broadcastTx
@@ -1314,4 +1113,241 @@ class CppBridge(object):
       return response
 
 ################################################################################
-TheBridge = CppBridge()
+class BridgeSigner(object):
+   def __init__(self):
+      self.signerId = None
+
+   def __del__(self):
+      self.cleanup()
+
+   #############################################################################
+   def initNew(self):
+      if self.signerId != None:
+         raise BridgeSignerError("initNew")
+
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.initNewSigner
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyStrings()
+      response.ParseFromString(socketResponse)
+
+      self.signerId = response.reply[0]
+
+   #############################################################################
+   def cleanup(self):
+      if self.signerId != None:
+         return
+
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.destroySigner
+      packet.stringArgs.append(self.signerId)
+
+      TheBridge.sendToBridgeProto(packet, False)
+      self.signerId = None
+
+   #############################################################################
+   def setVersion(self, version):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_SetVersion
+      packet.stringArgs.append(self.signerId)
+      packet.intArgs.append(version)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      if response.ints[0] == 0:
+         raise BridgeSignerError("setVersion")
+
+   #############################################################################
+   def setLockTime(self, locktime):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_SetLockTime
+      packet.stringArgs.append(self.signerId)
+      packet.intArgs.append(locktime)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      if response.ints[0] == 0:
+         raise BridgeSignerError("setLockTime")
+
+   #############################################################################
+   def addSpenderByOutpoint(self, hashVal, txoutid, seq, value):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_addSpenderByOutpoint
+      packet.stringArgs.append(self.signerId)
+      packet.byteArgs.append(hashVal)
+      packet.intArgs.append(txoutid)
+      packet.intArgs.append(seq)
+      packet.longArgs.append(value)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      if response.ints[0] == 0:
+         raise BridgeSignerError("addSpenderByOutpoint")
+
+   #############################################################################
+   def populateUtxo(self, hashVal, txoutid, value, script):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_populateUtxo
+      packet.stringArgs.append(self.signerId)
+      packet.byteArgs.append(hashVal)
+      packet.intArgs.append(txoutid)
+      packet.longArgs.append(value)
+      packet.byteArgs.append(script)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      if response.ints[0] == 0:
+         raise BridgeSignerError("addSpenderByOutpoint")
+
+   #############################################################################
+   def addRecipient(self, value, script):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_addRecipient
+      packet.stringArgs.append(self.signerId)
+      packet.byteArgs.append(script)
+      packet.longArgs.append(value)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      if response.ints[0] == 0:
+         raise BridgeSignerError("addRecipient")
+
+   #############################################################################
+   def getSerializedState(self):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_getSerializedState
+      packet.stringArgs.append(self.signerId)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyBinary()
+      response.ParseFromString(socketResponse)
+
+      return response.reply[0]
+
+   #############################################################################
+   def unserializeState(self, state):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_unserializeState
+      packet.stringArgs.append(self.signerId)
+      packet.byteArgs.append(state)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      if response.ints[0] == 0:
+         raise BridgeSignerError("unserializeState")
+
+   #############################################################################
+   def resolve(self, wltId):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_resolve
+      packet.stringArgs.append(self.signerId)
+      packet.stringArgs.append(wltId)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      if response.ints[0] == 0:
+         raise BridgeSignerError("resolve")
+
+   #############################################################################
+   def signTx(self, wltId, callback, args):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_signTx
+      packet.stringArgs.append(self.signerId)
+      packet.stringArgs.append(wltId)
+
+      callbackArgs = [callback]
+      callbackArgs.extend(args)
+      TheBridge.sendToBridgeProto(
+         packet, False, self.signTxCallback, callbackArgs)
+
+   #############################################################################
+   def signTxCallback(self, socketResponse, args):
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      callbackArgs = [response.ints[0]]
+      callbackArgs.extend(args[1:])
+      callbackThread = threading.Thread(\
+         group=None, target=args[0], \
+         name=None, args=callbackArgs, kwargs={})
+      callbackThread.start()
+
+   #############################################################################
+   def getSignedTx(self):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_getSignedTx
+      packet.stringArgs.append(self.signerId)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyBinary()
+      response.ParseFromString(socketResponse)
+
+      return response.reply[0]
+
+   #############################################################################
+   def getUnsignedTx(self):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_getUnsignedTx
+      packet.stringArgs.append(self.signerId)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyBinary()
+      response.ParseFromString(socketResponse)
+
+      return response.reply[0]
+
+
+   #############################################################################
+   def getSignedStateForInput(self, inputId):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_getSignedStateForInput
+      packet.stringArgs.append(self.signerId)
+      packet.intArgs.append(inputId)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.BridgeInputSignedState()
+      response.ParseFromString(socketResponse)
+
+      return response
+
+####
+TheBridge = ArmoryBridge()

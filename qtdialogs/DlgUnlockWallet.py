@@ -6,7 +6,14 @@
 #                                                                              #
 ################################################################################
 
-from qtdialogs.qtdefines import ArmoryDialog
+from armoryengine.CppBridge import TheBridge
+
+from PySide2.QtWidgets import QFrame, QVBoxLayout, QGridLayout, \
+   QPushButton, QLabel, QLineEdit, QDialogButtonBox, QButtonGroup, \
+   QRadioButton, QSizePolicy, QLayout
+
+from qtdialogs.qtdefines import ArmoryDialog, makeHorizFrame
+from qtdialogs.qtdialogs import STRETCH, MIN_PASSWD_WIDTH, LetterButton
 
 ################################################################################
 class DlgUnlockWallet(ArmoryDialog):
@@ -29,8 +36,8 @@ class DlgUnlockWallet(ArmoryDialog):
 
       self.btnAccept = QPushButton(self.tr("Unlock"))
       self.btnCancel = QPushButton(self.tr("Cancel"))
-      self.connect(self.btnAccept, SIGNAL(CLICKED), self.acceptPassphrase)
-      self.connect(self.btnCancel, SIGNAL(CLICKED), self.rejectPassphrase)
+      self.btnAccept.clicked.connect(self.acceptPassphrase)
+      self.btnCancel.clicked.connect(self.rejectPassphrase)
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnAccept, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
@@ -67,9 +74,9 @@ class DlgUnlockWallet(ArmoryDialog):
          self.rdoScrambleLite.setChecked(True)
       elif defaultScramble == 2:
          self.rdoScrambleFull.setChecked(True)
-      self.connect(self.rdoScrambleNone, SIGNAL(CLICKED), self.changeScramble)
-      self.connect(self.rdoScrambleLite, SIGNAL(CLICKED), self.changeScramble)
-      self.connect(self.rdoScrambleFull, SIGNAL(CLICKED), self.changeScramble)
+      self.rdoScrambleNone.clicked.connect(self.changeScramble)
+      self.rdoScrambleLite.clicked.connect(self.changeScramble)
+      self.rdoScrambleFull.clicked.connect(self.changeScramble)
       btnRowFrm = makeHorizFrame([self.rdoScrambleNone, \
                                   self.rdoScrambleLite, \
                                   self.rdoScrambleFull, \
@@ -94,7 +101,7 @@ class DlgUnlockWallet(ArmoryDialog):
       self.btnShowOSD.setChecked(showOSD)
       if showOSD:
          self.toggleOSD()
-      self.connect(self.btnShowOSD, SIGNAL('toggled(bool)'), self.toggleOSD)
+      self.btnShowOSD.toggled.connect(self.toggleOSD)
       frmAccept = makeHorizFrame([self.btnShowOSD, ttipScramble, STRETCH, buttonBox])
 
 
@@ -126,7 +133,7 @@ class DlgUnlockWallet(ArmoryDialog):
    #############################################################################
    def createKeyboardKeyButton(self, keyLow, keyUp, defRow, special=None):
       theBtn = LetterButton(keyLow, keyUp, defRow, special, self.edtPasswd, self)
-      self.connect(theBtn, SIGNAL(CLICKED), theBtn.insertLetter)
+      theBtn.clicked.connect(theBtn.insertLetter)
       theBtn.setMaximumWidth(40)
       return theBtn
 

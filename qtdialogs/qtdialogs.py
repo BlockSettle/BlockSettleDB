@@ -1212,7 +1212,7 @@ class DlgImportAddress(ArmoryDialog):
                return
 
          else:
-            wltID = self.main.getWalletForAddr160(addr160)
+            wltID = self.main.getWalletForAddrHash(addr160)
             if not wltID == '':
                addr = self.main.walletMap[wltID].addrMap[addr160]
                typ = 'Imported' if addr.chainIndex == -2 else 'Permanent'
@@ -1247,7 +1247,7 @@ class DlgImportAddress(ArmoryDialog):
             'wallet.  Address cannot be imported', QMessageBox.Ok)
             return
 
-         wltID = self.main.getWalletForAddr160(addr160)
+         wltID = self.main.getWalletForAddrHash(addr160)
          if not wltID == '':
             addr = self.main.walletMap[wltID].addrMap[addr160]
             typ = 'Imported' if addr.chainIndex == -2 else 'Permanent'
@@ -1339,7 +1339,7 @@ class DlgImportAddress(ArmoryDialog):
       #    [A160, AddrStr, Priv],
       #    [A160, AddrStr, Priv], ... ]
       # Determine if any addresses are already part of some wallets
-      addr_to_wltID = lambda a: self.main.getWalletForAddr160(a)
+      addr_to_wltID = lambda a: self.main.getWalletForAddrHash(a)
       allWltList = [ [addr_to_wltID(k[0]), k[1]] for k in privKeyList]
       # allWltList is now [ [WltID, AddrStr], [WltID, AddrStr], ... ]
 
@@ -1412,7 +1412,7 @@ class DlgImportAddress(ArmoryDialog):
          for addr160, addrStr, sbdKey in privKeyList:
             nTotal += 1
             try:
-               if not self.main.getWalletForAddr160(addr160) == thisWltID:
+               if not self.main.getWalletForAddrHash(addr160) == thisWltID:
                   privKeyToImport.append([sbdKey, addr160])
                   nImport += 1
                else:
@@ -2593,169 +2593,6 @@ class DlgRemoveAddress(ArmoryDialog):
 
       else:
          self.reject()
-
-################################################################################
-class DlgOfflineTxCreated(ArmoryDialog):
-   def __init__(self, wlt, ustx, parent=None, main=None):
-      super(DlgOfflineTxCreated, self).__init__(parent, main)
-      layout = QVBoxLayout()
-
-      reviewOfflineTxFrame = ReviewOfflineTxFrame(self, main, self.tr("Review Offline Transaction"))
-      reviewOfflineTxFrame.setWallet(wlt)
-      reviewOfflineTxFrame.setUSTX(ustx)
-      continueButton = QPushButton(self.tr('Continue'))
-      self.connect(continueButton, SIGNAL(CLICKED), self.signBroadcastTx)
-      doneButton = QPushButton(self.tr('Done'))
-      self.connect(doneButton, SIGNAL(CLICKED), self.accept)
-
-      ttipDone = self.main.createToolTipWidget(self.tr(
-         'By clicking Done you will exit the offline transaction process for now. '
-         'When you are ready to sign and/or broadcast the transaction, click the Offline '
-         'Transactions button in the main window, then click the Sign and/or '
-         'Broadcast Transaction button in the Select Offline Action dialog.'))
-
-      ttipContinue = self.main.createToolTipWidget(self.tr(
-         'By clicking Continue you will continue to the next step in the offline '
-         'transaction process to sign and/or broadcast the transaction.'))
-
-      bottomStrip = makeHorizFrame([doneButton,
-                                    ttipDone,
-                                    STRETCH,
-                                    continueButton,
-                                    ttipContinue])
-
-      frame = makeVertFrame([reviewOfflineTxFrame, bottomStrip])
-      layout.addWidget(frame)
-      self.setLayout(layout)
-      self.setWindowTitle(self.tr('Review Offline Transaction'))
-      self.setWindowIcon(QIcon(self.main.iconfile))
-
-
-   def signBroadcastTx(self):
-      self.accept()
-      DlgSignBroadcastOfflineTx(self.parent,self.main).exec_()
-
-
-
-################################################################################
-class DlgOfflineSelect(ArmoryDialog):
-   def __init__(self, parent=None, main=None):
-      super(DlgOfflineSelect, self).__init__(parent, main)
-
-
-      self.do_review = False
-      self.do_create = False
-      self.do_broadc = False
-      lblDescr = QRichLabel(self.tr(
-         'In order to execute an offline transaction, three steps must '
-         'be followed:'
-         '<ol>'
-         '<li><u>On</u>line Computer:  Create the unsigned transaction</li> '
-         '<li><u>Off</u>line Computer: Get the transaction signed</li> '
-         '<li><u>On</u>line Computer:  Broadcast the signed transaction</li></ol> '
-         'You must create the transaction using a watch-only wallet on an online '
-         'system, but watch-only wallets cannot sign it.  Only the offline system '
-         'can create a valid signature.  The easiest way to execute all three steps '
-         'is to use a USB key to move the data between computers.<br><br> '
-         'All the data saved to the removable medium during all three steps are '
-         'completely safe and do not reveal any private information that would benefit an '
-         'attacker trying to steal your funds.  However, this transaction data does '
-         'reveal some addresses in your wallet, and may represent a breach of '
-         '<i>privacy</i> if not protected.'))
-
-      btnCreate = QPushButton(self.tr('Create New Offline Transaction'))
-      broadcastButton = QPushButton(self.tr('Sign and/or Broadcast Transaction'))
-      if not TheBDM.getState() == BDM_BLOCKCHAIN_READY:
-         btnCreate.setEnabled(False)
-         if len(self.main.walletMap) == 0:
-            broadcastButton = QPushButton(self.tr('No wallets available!'))
-            broadcastButton.setEnabled(False)
-         else:
-            broadcastButton = QPushButton(self.tr('Sign Offline Transaction'))
-      else:
-         if len(self.main.getWatchingOnlyWallets()) == 0:
-            btnCreate = QPushButton(self.tr('No watching-only wallets available!'))
-            btnCreate.setEnabled(False)
-         if len(self.main.walletMap) == 0 and self.main.netMode == NETWORKMODE.Full:
-            broadcastButton = QPushButton('Broadcast Signed Transaction')
-
-      btnCancel = QPushButton(self.tr('<<< Go Back'))
-
-      def create():
-         self.do_create = True; self.accept()
-      def broadc():
-         self.do_broadc = True; self.accept()
-
-      self.connect(btnCreate, SIGNAL(CLICKED), create)
-      self.connect(broadcastButton, SIGNAL(CLICKED), broadc)
-      self.connect(btnCancel, SIGNAL(CLICKED), self.reject)
-
-      lblCreate = QRichLabel(self.tr(
-         'Create a transaction from an Offline/Watching-Only wallet '
-         'to be signed by the computer with the full wallet '))
-
-      lblReview = QRichLabel(self.tr(
-         'Review an unsigned transaction and sign it if you have '
-         'the private keys needed for it '))
-
-      lblBroadc = QRichLabel(self.tr(
-         'Send a pre-signed transaction to the Bitcoin network to finalize it'))
-
-      lblBroadc.setMinimumWidth(tightSizeNChar(lblBroadc, 45)[0])
-
-      frmOptions = QFrame()
-      frmOptions.setFrameStyle(STYLE_PLAIN)
-      frmOptionsLayout = QGridLayout()
-      frmOptionsLayout.addWidget(btnCreate, 0, 0)
-      frmOptionsLayout.addWidget(lblCreate, 0, 2)
-      frmOptionsLayout.addWidget(HLINE(), 1, 0, 1, 3)
-      frmOptionsLayout.addWidget(broadcastButton, 2, 0, 3, 1)
-      frmOptionsLayout.addWidget(lblReview, 2, 2)
-      frmOptionsLayout.addWidget(HLINE(), 3, 2, 1, 1)
-      frmOptionsLayout.addWidget(lblBroadc, 4, 2)
-
-      frmOptionsLayout.addItem(QSpacerItem(20, 20), 0, 1, 3, 1)
-      frmOptions.setLayout(frmOptionsLayout)
-
-      frmDescr = makeLayoutFrame(HORIZONTAL, ['Space(10)', lblDescr, 'Space(10)'], \
-                                             STYLE_SUNKEN)
-      frmCancel = makeLayoutFrame(HORIZONTAL, [btnCancel, STRETCH])
-
-      dlgLayout = QGridLayout()
-      dlgLayout.addWidget(frmDescr, 0, 0, 1, 1)
-      dlgLayout.addWidget(frmOptions, 1, 0, 1, 1)
-      dlgLayout.addWidget(frmCancel, 2, 0, 1, 1)
-
-      self.setLayout(dlgLayout)
-      self.setWindowTitle('Select Offline Action')
-      self.setWindowIcon(QIcon(self.main.iconfile))
-
-################################################################################
-class DlgSignBroadcastOfflineTx(ArmoryDialog):
-   """
-   We will make the assumption that this dialog is used ONLY for outgoing
-   transactions from your wallet.  This simplifies the logic if we don't
-   have to identify input senders/values, and handle the cases where those
-   may not be specified
-   """
-   def __init__(self, parent=None, main=None):
-      super(DlgSignBroadcastOfflineTx, self).__init__(parent, main)
-
-      self.setWindowTitle(self.tr('Review Offline Transaction'))
-      self.setWindowIcon(QIcon(self.main.iconfile))
-
-      signBroadcastOfflineTxFrame = SignBroadcastOfflineTxFrame(
-                           self, main, self.tr("Sign or Broadcast Transaction"))
-
-      doneButton = QPushButton(self.tr('Done'))
-      self.connect(doneButton, SIGNAL(CLICKED), self.accept)
-      doneForm = makeLayoutFrame(HORIZONTAL, [STRETCH, doneButton])
-      dlgLayout = QVBoxLayout()
-      dlgLayout.addWidget(signBroadcastOfflineTxFrame)
-      dlgLayout.addWidget(doneForm)
-      self.setLayout(dlgLayout)
-      signBroadcastOfflineTxFrame.processUSTX()
-
 
 ################################################################################
 class DlgAddressProperties(ArmoryDialog):

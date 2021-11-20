@@ -32,6 +32,8 @@ class QtExecuteSignal(QObject):
 
    ###########################################################################
    def executeMethod(self, callableList):
+      if len(callableList) == 0:
+         raise Exception("-- invalid arg list --")
       self.executeSignal.emit(callableList)
 
    ###########################################################################

@@ -21,7 +21,7 @@ from armoryengine.ArmoryUtils import enum, CPP_TXOUT_MULTISIG, \
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.Transaction import UnsignedTransaction, \
    determineSentToSelfAmt, PyTx, getTxInScriptType, getTxOutScriptType, \
-   TxInExtractAddrStrIfAvail
+   TxInExtractAddrStrIfAvail, extractTxInfo
 from armoryengine.Script import convertScriptToOpStrings
 from armoryengine.CppBridge import TheBridge
 
@@ -30,113 +30,6 @@ from qtdialogs.qtdefines import ArmoryDialog, STYLE_RAISED, USERMODE, \
    QRichLabel, relaxedSizeStr, GETFONT, tightSizeNChar, STYLE_SUNKEN, \
    HORIZONTAL, makeHorizFrame, initialColResize, makeLayoutFrame
 from qtdialogs.qtdialogs import STRETCH
-
-################################################################################
-def extractTxInfo(pytx, rcvTime=None):
-   ustx = None
-   if isinstance(pytx, UnsignedTransaction):
-      ustx = pytx
-      pytx = ustx.pytxObj.copy()
-
-   txHash = pytx.getHash()
-   txSize, txWeight, sumTxIn, txTime, txBlk, txIdx = [None] * 6
-
-   txOutToList = pytx.makeRecipientsList()
-   sumTxOut = sum([t[1] for t in txOutToList])
-
-   if TheBDM.getState() == BDM_BLOCKCHAIN_READY:
-      txProto = TheBridge.getTxByHash(txHash)
-      if txProto.isValid:
-         hgt = txProto.height
-         txWeight = pytx.getTxWeight()
-         if hgt <= TheBDM.getTopBlockHeight():
-            header = PyBlockHeader()
-            header.unserialize(TheBridge.getHeaderByHeight(hgt))
-            txTime = unixTimeToFormatStr(header.timestamp)
-            txBlk = hgt
-            txIdx = txProto.txIndex
-            txSize = pytx.getSize()
-         else:
-            if rcvTime == None:
-               txTime = 'Unknown'
-            elif rcvTime == -1:
-               txTime = '[[Not broadcast yet]]'
-            elif isinstance(rcvTime, basestring):
-               txTime = rcvTime
-            else:
-               txTime = unixTimeToFormatStr(rcvTime)
-            txBlk = UINT32_MAX
-            txIdx = -1
-
-   txinFromList = []
-   if TheBDM.getState() == BDM_BLOCKCHAIN_READY and pytx.isInitialized():
-      haveAllInput = True
-      for i in range(pytx.getNumTxIn()):
-         txinFromList.append([])
-         txin = pytx.getTxIn(i)
-         prevTxHash = txin.getOutPoint().txHash
-         prevTxIndex = txin.getOutPoint().txOutIndex
-         prevTxRaw = TheBridge.getTxByHash(prevTxHash)
-         prevTx = PyTx().unserialize(prevTxRaw.raw)
-         if prevTx.isInitialized():
-            prevTxOut = prevTx.getTxOut(prevTxIndex)
-            txinFromList[-1].append(prevTxOut.getScrAddressStr())
-            txinFromList[-1].append(prevTxOut.getValue())
-            if prevTx.isInitialized():
-               txinFromList[-1].append(prevTxRaw.height)
-               txinFromList[-1].append(prevTxHash)
-               txinFromList[-1].append(prevTxRaw.txIndex)
-               txinFromList[-1].append(prevTxOut.getScript())
-            else:
-               LOGERROR('How did we get a bad parent pointer? (extractTxInfo)')
-               #prevTxOut.pprint()
-               txinFromList[-1].append('')
-               txinFromList[-1].append('')
-               txinFromList[-1].append('')
-               txinFromList[-1].append('')
-         else:
-            haveAllInput = False
-            try:
-               scraddr = addrStr_to_scrAddr(TxInExtractAddrStrIfAvail(txin))
-            except:
-               pass
-
-            txinFromList[-1].append(scraddr)
-            txinFromList[-1].append('')
-            txinFromList[-1].append('')
-            txinFromList[-1].append('')
-            txinFromList[-1].append('')
-            txinFromList[-1].append('')
-
-   elif ustx is not None:
-      haveAllInput = True
-      for ustxi in ustx.ustxInputs:
-         txinFromList.append([])
-         txinFromList[-1].append(script_to_scrAddr(ustxi.txoScript))
-         txinFromList[-1].append(ustxi.value)
-         txinFromList[-1].append('')
-         txinFromList[-1].append(hash256(ustxi.supportTx))
-         txinFromList[-1].append(ustxi.outpoint.txOutIndex)
-         txinFromList[-1].append(ustxi.txoScript)
-   else:  # BDM is not initialized
-      haveAllInput = False
-      for i, txin in enumerate(pytx.inputs):
-         scraddr = addrStr_to_scrAddr(TxInExtractAddrStrIfAvail(txin))
-         txinFromList.append([])
-         txinFromList[-1].append(scraddr)
-         txinFromList[-1].append('')
-         txinFromList[-1].append('')
-         txinFromList[-1].append('')
-         txinFromList[-1].append('')
-         txinFromList[-1].append('')
-
-   if haveAllInput:
-      sumTxIn = sum([x[1] for x in txinFromList])
-   else:
-      sumTxIn = None
-
-   return [txHash, txOutToList, sumTxOut, txinFromList, sumTxIn, \
-           txTime, txBlk, txIdx, txSize, txWeight]
 
 ################################################################################
 class DlgDisplayTxIn(ArmoryDialog):
@@ -169,7 +62,7 @@ class DlgDisplayTxIn(ArmoryDialog):
       if not senderAddr:
          senderAddr = self.tr('[[Cannot determine from TxIn Script]]')
       else:
-         wltID  = self.main.getWalletForAddr160(addrStr_to_hash160(senderAddr)[1])
+         wltID  = self.main.getWalletForAddrHash(addrStr_to_hash160(senderAddr)[1])
          if wltID:
             wlt = self.main.walletMap[wltID]
             srcStr = self.tr('Wallet "%s" (%s)' % (wlt.labelName, wlt.uniqueIDB58))
@@ -377,12 +270,11 @@ class DlgDispTxInfo(ArmoryDialog):
          if scrType in CPP_TXOUT_HAS_ADDRSTR:
             try:
                addrStr = script_to_addrStr(script)
-               addr160 = addrStr_to_hash160(addrStr)[1]
             except:
-               addr160 = ""
+               addrStr = ""
 
             scrAddr = script_to_scrAddr(script)
-            if haveWallet and wlt.hasAddr160(addr160):
+            if haveWallet and wlt.hasAddrHash(addrStr):
                svPairSelf.append([scrAddr, amt])
                indicesSelf.append(idx)
             else:

@@ -573,10 +573,7 @@ map<BinaryData, vector<uint64_t>> WalletContainer::getAddrBalanceMap() const
          balVec = iter->second;
 
       balVec.push_back(dataPair.second);
-
-      auto addrNoPrefix = 
-         dataPair.first.getSliceRef(1, dataPair.first.getSize() - 1);
-      result.emplace(make_pair(addrNoPrefix, balVec));
+      result.emplace(make_pair(dataPair.first, balVec));
    }
 
    return result;

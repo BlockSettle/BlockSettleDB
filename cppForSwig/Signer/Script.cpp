@@ -783,16 +783,17 @@ void StackInterpreter::op_checksig()
    if (stack_.size() < 2)
       throw ScriptException("insufficient stack size for checksig operation");
 
+   txInEvalState_.n_ = 1;
+   txInEvalState_.m_ = 1;
+
    auto&& pubkey = pop_back();
    auto&& sigScript = pop_back();
    if (sigScript.getSize() < 65)
    {
+      txInEvalState_.pubKeyState_.insert(make_pair(pubkey, false));
       stack_.push_back(move(intToRawBinary(false)));
       return;
    }
-
-   txInEvalState_.n_ = 1;
-   txInEvalState_.m_ = 1;
 
    //extract sig and sighash type
    BinaryRefReader brrSig(sigScript);

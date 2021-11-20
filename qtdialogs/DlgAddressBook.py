@@ -568,7 +568,7 @@ class DlgAddressBook(ArmoryDialog):
       if not self.returnPubKey:
          LOGERROR('Requested getPubKeyNotAddr, but looks like addr requested')
 
-      wid = self.main.getWalletForAddr160(addr160)
+      wid = self.main.getWalletForAddrHash(addr160)
       if not wid:
          QMessageBox.critical(self, self.tr('No Public Key'), self.tr(
             'This operation requires a full public key, not just an address. '

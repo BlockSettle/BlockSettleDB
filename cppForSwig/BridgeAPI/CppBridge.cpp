@@ -32,8 +32,6 @@ enum CppBridgeState
 #define BRIDGE_CALLBACK_BDM         UINT32_MAX
 #define BRIDGE_CALLBACK_PROGRESS    UINT32_MAX - 1
 #define BRIDGE_CALLBACK_PROMPTUSER  UINT32_MAX - 2
-
-#define SHUTDOWN_PASSPROMPT_GUI     "concludePrompt"
 #define DISCONNECTED_CALLBACK_ID    0xff543ad8
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +39,9 @@ enum CppBridgeState
 ////  BridgePassphrasePrompt
 ////
 ////////////////////////////////////////////////////////////////////////////////
+const Armory::Wallets::EncryptionKeyId
+   BridgePassphrasePrompt::concludeKey("concludePrompt");
+
 PassphraseLambda BridgePassphrasePrompt::getLambda(UnlockPromptType type)
 {
    auto lbd = [this, type]
@@ -48,8 +49,14 @@ PassphraseLambda BridgePassphrasePrompt::getLambda(UnlockPromptType type)
       ->SecureBinaryData
    {
       UnlockPromptState promptState = UnlockPromptState::cycle;
-      if (ids != ids_)
+      if (encryptionKeyIds_.empty())
+      {
+         if (ids.empty()) 
+            throw runtime_error("malformed command");
+
+         encryptionKeyIds_ = ids;
          promptState = UnlockPromptState::start;
+      }
 
       //cycle the promise & future
       promPtr_ = make_unique<promise<SecureBinaryData>>();
@@ -58,7 +65,7 @@ PassphraseLambda BridgePassphrasePrompt::getLambda(UnlockPromptType type)
 
       //create protobuf payload
       UnlockPromptCallback opaque;
-      opaque.set_promptid(id_);
+      opaque.set_promptid(promptId_);
       opaque.set_prompttype(type);
 
       switch (type)
@@ -83,28 +90,11 @@ PassphraseLambda BridgePassphrasePrompt::getLambda(UnlockPromptType type)
       if (!ids.empty())
       {
          auto iter = ids.begin();
-         /*bool hasAscii = false;
-         auto ptr = iter->getCharPtr();
-         for (unsigned i=0; i<iter->getSize(); i++)
-         {
-            if (ptr[i] < 33 || ptr[i] > 127)
-            {
-               hasAscii = true;
-               break;
-            }
-         }
-
-         string wltId;
-         if (!hasAscii) 
-            wltId = string(iter->toCharPtr(), iter->getSize());
-         else
-            wltId = iter->toHexStr();
-
-         if (wltId == SHUTDOWN_PASSPROMPT_GUI)
+         if (*iter == concludeKey)
          {
             promptState = UnlockPromptState::stop;
             exit = true;
-         }*/
+         }
 
          opaque.set_walletid(iter->toHexStr());
       }
@@ -516,7 +506,7 @@ void CppBridge::createBackupStringForWallet(
       {}
 
       //wind down passphrase prompt
-      passLbd({BinaryData::fromString(SHUTDOWN_PASSPROMPT_GUI)});
+      passLbd({BridgePassphrasePrompt::concludeKey});
 
       if (backupData.rootClear_.empty())
       {
@@ -1151,17 +1141,20 @@ string CppBridge::getNameForAddrType(int addrTypeInt) const
    string result;
 
    auto nestedFlag = addrTypeInt & ADDRESS_NESTED_MASK;
+   bool nested = false;
    switch (nestedFlag)
    {
    case 0:
       break;
 
    case AddressEntryType_P2SH:
-      result += "P2SH-";
+      result += "P2SH";
+      nested = true;
       break;
 
    case AddressEntryType_P2WSH:
-      result += "P2WSH-";
+      result += "P2WSH";
+      nested = true;
       break;
 
    default:
@@ -1169,6 +1162,12 @@ string CppBridge::getNameForAddrType(int addrTypeInt) const
    }
 
    auto addressType = addrTypeInt & ADDRESS_TYPE_MASK;
+   if (addressType == 0)
+      return result;
+
+   if (nested)
+      result += "-";
+
    switch (addressType)
    {
    case AddressEntryType_P2PKH:
@@ -1721,7 +1720,7 @@ void CppBridge::signer_signTx(
       this->writeToClient(move(msg), msgId);
 
       //wind down passphrase prompt
-      passLbd({BinaryData::fromString(SHUTDOWN_PASSPROMPT_GUI)});
+      passLbd({BridgePassphrasePrompt::concludeKey});
    };
 
    thread thr(signLbd);
@@ -1750,36 +1749,52 @@ BridgeReply CppBridge::signer_getSignedTx(const string& id) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BridgeReply CppBridge::signer_resolve(
-   const string& state, const string& wltId) const
+BridgeReply CppBridge::signer_getUnsignedTx(const string& id) const
 {
+   auto iter = signerMap_.find(id);
+   if (iter == signerMap_.end())
+      throw runtime_error("invalid signer id");
+
+   BinaryDataRef data;
+   try
+   {
+      data = iter->second->signer_.serializeUnsignedTx();
+   }
+   catch (const exception&)
+   {}
+
+   auto response = make_unique<ReplyBinary>();
+   response->add_reply(data.toCharPtr(), data.getSize());
+   return response;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+int CppBridge::signer_resolve(
+   const string& sId, const string& wltId) const
+{
+   //grab signer
+   auto iter = signerMap_.find(sId);
+   if (iter == signerMap_.end())
+      throw runtime_error("invalid signer id");
+   auto& signer = iter->second->signer_;
+
    //grab wallet
    auto wai = WalletAccountIdentifier::deserialize(wltId);
    auto wltContainer = wltManager_->getWalletContainer(
       wai.walletId, wai.accountId);
    auto wltPtr = wltContainer->getWalletPtr();
 
-   //deser signer state
-   Codec_SignerState::SignerState stateProto;
-   if (!stateProto.ParseFromString(state))
-      throw runtime_error("invalid signer state");
-   Signer signer(stateProto);
-
    //get wallet feed
-   auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);      
+   auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);
    auto feed = make_shared<ResolverFeed_AssetWalletSingle>(wltSingle);
 
    //set feed & resolve
+   signer.resetFeed();
    signer.setFeed(feed);
    signer.resolvePublicData();
-   auto resolvedState = signer.serializeState();
-   
-   auto response = make_unique<ReplyBinary>();
-   string resolvedStateStr;
-   resolvedState.SerializeToString(&resolvedStateStr);
 
-   response->add_reply(resolvedStateStr);
-   return response;
+   return 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1792,7 +1807,6 @@ BridgeReply CppBridge::signer_getSignedStateForInput(
 
    if (iter->second->signState_ == nullptr)
    {
-      auto&& signedState = iter->second->signer_.evaluateSignedState();
       iter->second->signState_ = make_unique<TxEvalState>(
          iter->second->signer_.evaluateSignedState());
    }
