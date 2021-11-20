@@ -170,10 +170,10 @@ class PyUnspentTxOut(object):
 
    def pprint(self, indent=''):
       print(self.prettyStr(indent))
-      
+
    def setChecked(self, val):
       self.checked = val
-      
+
    def isChecked(self):
       return self.checked
 

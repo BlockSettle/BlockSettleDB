@@ -109,7 +109,7 @@ void TransactionVerifier::checkSigs() const
       }
       catch (exception&)
       {}
-         
+
       txEvalState_.updateState(i, stack_ptr->getTxInEvalState());
    }
 }
