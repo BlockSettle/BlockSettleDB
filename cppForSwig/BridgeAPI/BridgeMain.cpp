@@ -17,24 +17,26 @@ int main(int argc, char* argv[])
    startupBIP150CTX(4);
 
    //init static configuration variables
-   ArmoryConfig::parseArgs(argc, argv);
+   Armory::Config::parseArgs(
+      argc, argv, Armory::Config::ProcessType::Bridge);
 
    //enable logs
-   STARTLOGGING(ArmoryConfig::Pathing::logFilePath("bridgeLog"), LogLvlDebug);
+   STARTLOGGING(
+      Armory::Config::Pathing::logFilePath("bridgeLog"), LogLvlDebug);
    LOGDISABLESTDOUT();
 
    //setup the bridge
    auto bridge = std::make_shared<ArmoryBridge::CppBridge>(
-      ArmoryConfig::getDataDir(),
-      "127.0.0.1", ArmoryConfig::NetworkSettings::listenPort(),
-      ArmoryConfig::NetworkSettings::oneWayAuth(), 
-      ArmoryConfig::NetworkSettings::offline());
+      Armory::Config::getDataDir(),
+      "127.0.0.1", Armory::Config::NetworkSettings::listenPort(),
+      Armory::Config::NetworkSettings::oneWayAuth(),
+      Armory::Config::NetworkSettings::isOffline());
 
    bridge->startThreads();
-   
+
    //setup the socket
    auto sockPtr = std::make_shared<ArmoryBridge::CppBridgeSocket>(
-       "127.0.0.1", "46122", bridge);
+      "127.0.0.1", "46122", bridge);
 
    //set bridge write lambda
    auto pushPayloadLbd = [sockPtr](
