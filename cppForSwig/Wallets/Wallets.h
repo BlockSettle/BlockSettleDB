@@ -90,7 +90,7 @@ protected:
       const std::string&);
 
    static std::shared_ptr<WalletDBInterface> getIfaceFromFile(
-      const std::string&, const PassphraseLambda&);
+      const std::string&, bool, const PassphraseLambda&);
 
    //locals
 

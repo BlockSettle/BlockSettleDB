@@ -3320,7 +3320,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
    {
       //create wallet iface
       WalletDBInterface dbIface;
-      dbIface.setupEnv(dbPath_, passLbd);
+      dbIface.setupEnv(dbPath_, false, passLbd);
 
       //close iface
       dbIface.shutdown();
@@ -3331,7 +3331,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
       try
       {
          WalletDBInterface dbIface;
-         dbIface.setupEnv(dbPath_, passEmpty);
+         dbIface.setupEnv(dbPath_, true, passEmpty);
          ASSERT_TRUE(false);
       }
       catch (DecryptedDataContainerException& e)
@@ -3339,11 +3339,23 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
          EXPECT_EQ(e.what(), string("empty passphrase"));
       }
 
+      //try to open iface with wrong file flag
+      try
+      {
+         WalletDBInterface dbIface;
+         dbIface.setupEnv(dbPath_, false, passLbd);
+         ASSERT_TRUE(false);
+      }
+      catch (WalletInterfaceException& e)
+      {
+         EXPECT_EQ(e.what(), string("[openEnv] file flag mismatch"));
+      }
+
       //open with proper passphrase
       try
       {
          WalletDBInterface dbIface;
-         dbIface.setupEnv(dbPath_, passLbd);
+         dbIface.setupEnv(dbPath_, true, passLbd);
          dbIface.shutdown();
       }
       catch(...)
@@ -3358,7 +3370,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
    {
       //create wallet iface with empty passphrase lambda
       WalletDBInterface dbIface;
-      dbIface.setupEnv(dbPath2, passEmpty);
+      dbIface.setupEnv(dbPath2, false, passEmpty);
 
       //close iface
       dbIface.shutdown();
@@ -3374,7 +3386,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
       WalletDBInterface dbIface;
       try
       {
-         dbIface.setupEnv(dbPath2, passLbd2);
+         dbIface.setupEnv(dbPath2, true, passLbd2);
          dbIface.shutdown();
       }
       catch (...)
@@ -3419,7 +3431,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
 
    //create wallet dbEnv
    WalletDBInterface dbIface;
-   dbIface.setupEnv(dbPath_, passLbd);
+   dbIface.setupEnv(dbPath_, false, passLbd);
 
    //add db
    {
@@ -3578,7 +3590,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    }
 
    //setup db env anew
-   dbIface.setupEnv(dbPath_, passLbd);
+   dbIface.setupEnv(dbPath_, true, passLbd);
 
    try
    {
@@ -3693,7 +3705,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    dbIface.shutdown();
 
    //setup db env anew
-   dbIface.setupEnv(dbPath_, passLbd);
+   dbIface.setupEnv(dbPath_, true, passLbd);
 
    //check db values
    EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
@@ -3710,7 +3722,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
    };
 
    auto iface = make_shared<WalletDBInterface>();
-   iface->setupEnv(dbPath_, passLbd);
+   iface->setupEnv(dbPath_, false, passLbd);
 
    string dbName("test");
    auto dbHeader = make_shared<WalletHeader_Custom>();
@@ -3955,7 +3967,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
 
    //reopen db iface
    iface = make_shared<WalletDBInterface>();
-   iface->setupEnv(dbPath_, passLbd);
+   iface->setupEnv(dbPath_, true, passLbd);
 
    //replace a couple entries
    {
@@ -4437,7 +4449,7 @@ TEST_F(WalletsTest, Encryption_Test)
    };
 
    WalletDBInterface dbIface;
-   dbIface.setupEnv(filename, passLbd);
+   dbIface.setupEnv(filename, true, passLbd);
    string dbName;
    
    {
@@ -5638,7 +5650,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    };
 
    WalletDBInterface dbIface;
-   dbIface.setupEnv(filename, passLbd);
+   dbIface.setupEnv(filename, true, passLbd);
    string dbName;
    
    {

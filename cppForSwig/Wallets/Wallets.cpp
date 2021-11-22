@@ -51,7 +51,7 @@ AssetWallet::~AssetWallet()
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<WalletDBInterface> AssetWallet::getIfaceFromFile(
-    const string& path, const PassphraseLambda& passLbd)
+    const string& path, bool fileExists, const PassphraseLambda& passLbd)
 {
    /*
    This passphrase lambda is used to prompt the user for the wallet file's
@@ -59,7 +59,7 @@ shared_ptr<WalletDBInterface> AssetWallet::getIfaceFromFile(
    */
 
    auto iface = make_shared<WalletDBInterface>();
-   iface->setupEnv(path, passLbd);
+   iface->setupEnv(path, fileExists, passLbd);
 
    return iface;
 }
@@ -737,7 +737,7 @@ shared_ptr<WalletIfaceTransaction> AssetWallet::beginSubDBTransaction(
 shared_ptr<AssetWallet> AssetWallet::loadMainWalletFromFile(
    const string& path, const PassphraseLambda& passLbd)
 {
-   auto iface = getIfaceFromFile(path.c_str(), passLbd);
+   auto iface = getIfaceFromFile(path.c_str(), true, passLbd);
    auto mainWalletID = getMainWalletID(iface);
    auto headerPtr = iface->getWalletHeader(mainWalletID);
 
@@ -866,10 +866,10 @@ string AssetWallet::forkWatchingOnly(
       throw WalletException("WO wallet filename already exists");
 
    //open original wallet db & new 
-   auto originIface = getIfaceFromFile(filename, passLbd);
+   auto originIface = getIfaceFromFile(filename, true, passLbd);
    auto masterID = getMasterID(originIface);
 
-   auto woIface = getIfaceFromFile(newname, passLbd);
+   auto woIface = getIfaceFromFile(newname, false, passLbd);
    woIface->setDbCount(originIface->getDbCount());
    woIface->lockControlContainer(passLbd);
 
@@ -1110,7 +1110,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
    //create wallet file and dbenv
    stringstream pathSS;
    pathSS << folder << "/armory_" << masterID << "_wallet.lmdb";
-   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
+   auto iface = getIfaceFromFile(pathSS.str(), false, controlPassLbd);
 
    string walletID;
    {
@@ -1167,8 +1167,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetWallet_Single> AssetWallet_Single::
-createFromPublicRoot_Armory135(
+shared_ptr<AssetWallet_Single>
+   AssetWallet_Single::createFromPublicRoot_Armory135(
    const string& folder,
    SecureBinaryData& pubRoot,
    SecureBinaryData& chainCode,
@@ -1183,7 +1183,7 @@ createFromPublicRoot_Armory135(
    /*
    Create control passphrase lambda. It gets wiped after the wallet is setup
    */
-   auto controlPassLbd = 
+   auto controlPassLbd =
       [&controlPassphrase](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return controlPassphrase;
@@ -1192,7 +1192,7 @@ createFromPublicRoot_Armory135(
    //create wallet file and dbenv
    stringstream pathSS;
    pathSS << folder << "/armory_" << masterID << "_WatchingOnly.lmdb";
-   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
+   auto iface = getIfaceFromFile(pathSS.str(), false, controlPassLbd);
 
    string walletID;
    shared_ptr<AssetEntry_Single> rootPtr;
@@ -1410,7 +1410,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromBIP32Node(
    else
       pathSS << folder << "/armory_" << masterID << "_WatchingOnly.lmdb";
 
-   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
+   auto iface = getIfaceFromFile(pathSS.str(), false, controlPassLbd);
 
    string walletID;
    {
@@ -1482,7 +1482,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createBlank(
    //create wallet file and dbenv
    stringstream pathSS;
    pathSS << folder << "/armory_" << masterID << "_WatchingOnly.lmdb";
-   auto iface = getIfaceFromFile(pathSS.str(), controlPassLbd);
+   auto iface = getIfaceFromFile(pathSS.str(), false, controlPassLbd);
 
    //address accounts
    shared_ptr<AssetWallet_Single> walletPtr = nullptr;

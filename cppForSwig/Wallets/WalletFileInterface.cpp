@@ -44,7 +44,7 @@ WalletDBInterface::~WalletDBInterface()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletDBInterface::setupEnv(const string& path,
+void WalletDBInterface::setupEnv(const string& path, bool fileExists,
    const PassphraseLambda& passLbd)
 {
    auto lock = unique_lock<mutex>(setupMutex_);
@@ -55,7 +55,7 @@ void WalletDBInterface::setupEnv(const string& path,
    dbCount_ = 2;
 
    //open env for control and meta dbs
-   openDbEnv();
+   openDbEnv(fileExists);
 
    //open control db
    openControlDb();
@@ -523,14 +523,14 @@ void WalletDBInterface::putHeader(shared_ptr<WalletHeader> headerPtr)
 void WalletDBInterface::addHeader(std::shared_ptr<WalletHeader> headerPtr)
 {
    auto lock = unique_lock<mutex>(setupMutex_);
-   
+
    auto iter = headerMap_.find(headerPtr->walletID_);
    if (iter != headerMap_.end())
       throw WalletInterfaceException("header already in map");
-   
+
    if (dbMap_.size() + 2 > dbCount_)
       throw WalletInterfaceException("dbCount is too low");
- 
+
    auto&& dbName = headerPtr->getDbName();
    if (dbName.size() == 0)
       throw WalletInterfaceException("empty dbname");
@@ -540,7 +540,7 @@ void WalletDBInterface::addHeader(std::shared_ptr<WalletHeader> headerPtr)
    auto dbiPtr = make_unique<DBInterface>(
       dbEnv_.get(), dbName, headerPtr->controlSalt_, encryptionVersion_);
    dbiPtr->loadAllEntries(rootEncrKey);
-   
+
    putHeader(headerPtr);
    dbMap_.insert(make_pair(dbName, move(dbiPtr)));
    headerMap_.insert(make_pair(headerPtr->walletID_, headerPtr));
@@ -589,10 +589,13 @@ void WalletDBInterface::setDbCount(unsigned count)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void WalletDBInterface::openDbEnv()
+void WalletDBInterface::openDbEnv(bool fileExists)
 {
+   if (DBUtils::fileExists(path_, 0) != fileExists)
+      throw WalletInterfaceException("[openEnv] file flag mismatch");
+
    if (dbEnv_ != nullptr)
-      throw WalletInterfaceException("dbEnv already instantiated");
+      throw WalletInterfaceException("[openEnv] dbEnv already instantiated");
 
    dbEnv_ = make_unique<LMDBEnv>(dbCount_);
    dbEnv_->open(path_, MDB_NOTLS);
@@ -602,7 +605,7 @@ void WalletDBInterface::openDbEnv()
 ////////////////////////////////////////////////////////////////////////////////
 void WalletDBInterface::openEnv()
 {
-   openDbEnv();
+   openDbEnv(true);
 
    for (auto& dbPtr : dbMap_)
       dbPtr.second->reset(dbEnv_.get());
@@ -748,7 +751,7 @@ void WalletDBInterface::compactFile()
    /*
    To wipe this file of its deleted entries, we perform a LMDB compact copy
    of the dbEnv, which will skip free/loose data pages and only copy the
-   currently valid data in the db. We then swap files and delete the 
+   currently valid data in the db. We then swap files and delete the
    original.
    */
 

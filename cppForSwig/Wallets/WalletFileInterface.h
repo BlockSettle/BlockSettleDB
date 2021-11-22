@@ -172,7 +172,7 @@ private:
       const PassphraseLambda&);
    void putHeader(std::shared_ptr<WalletHeader>);
 
-   void openDbEnv(void);
+   void openDbEnv(bool);
    void openEnv(void);
    void closeEnv(void);
 
@@ -185,7 +185,7 @@ public:
    ~WalletDBInterface(void);
 
    //setup
-   void setupEnv(const std::string& path, const PassphraseLambda&);
+   void setupEnv(const std::string&, bool, const PassphraseLambda&);
    void shutdown(void);
    void eraseFromDisk(void);
 
