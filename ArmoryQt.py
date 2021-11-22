@@ -2027,17 +2027,25 @@ class ArmoryMainWindow(QMainWindow):
       # calls a dialog produces better results but still freezes under some
       # circumstances.
       if not OS_MACOSX:
-         fullPath = str(QFileDialog.getSaveFileName(self, title, startPath,
-                                                        typesStr))
+         fullPath = str(QFileDialog.getSaveFileName(
+            self, title, startPath, typesStr))
       else:
-         fullPath = str(QFileDialog.getSaveFileName(self, title, startPath,
-                                                        typesStr,
-                                       options=QFileDialog.DontUseNativeDialog))
+         fullPath = str(QFileDialog.getSaveFileName(
+            self, title, startPath, typesStr,
+            options=QFileDialog.DontUseNativeDialog))
 
-      fdir,fname = os.path.split(fullPath)
+      '''
+      With PySide2, QFileDialog.getSaveFileName return the user selection as
+      str("('file name', 'filter1'; 'filter2')")
+      '''
+      pathStripped = fullPath.strip('(')
+      pathList = pathStripped.split(',')
+      filePath = pathList[0].strip('\'')
+
+      fdir,fname = os.path.split(filePath)
       if fdir:
          self.writeSetting('LastDirectory', fdir)
-      return fullPath
+      return filePath
 
 
    #############################################################################
@@ -2069,15 +2077,24 @@ class ArmoryMainWindow(QMainWindow):
       # calls a dialog produces better results but still freezes under some
       # circumstances.
       if not OS_MACOSX:
-         fullPath = str(QFileDialog.getOpenFileName(self, title, defaultDir,
-                                                        typeStr))
+         fullPath = str(QFileDialog.getOpenFileName(
+            self, title, defaultDir, typeStr))
       else:
-         fullPath = str(QFileDialog.getOpenFileName(self, title, defaultDir,
-                                                        typeStr,
-                                       options=QFileDialog.DontUseNativeDialog))
+         fullPath = str(QFileDialog.getOpenFileName(
+            self, title, defaultDir, typeStr,
+            options=QFileDialog.DontUseNativeDialog))
 
-      self.writeSetting('LastDirectory', os.path.split(fullPath)[0])
-      return fullPath
+      '''
+      With PySide2, QFileDialog.getOpenFileName return the user selection as
+      str("('file name', 'filter1'; 'filter2')")
+      '''
+      pathStripped = fullPath.strip('(')
+      pathList = pathStripped.split(',')
+      filePath = pathList[0].strip('\'')
+
+
+      self.writeSetting('LastDirectory', os.path.split(filePath)[0])
+      return filePath
 
    ##############################################################################
    def getWltSetting(self, wltID, propName, defaultValue=''):
