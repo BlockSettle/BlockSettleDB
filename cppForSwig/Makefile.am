@@ -75,7 +75,8 @@ CPPBRIDGE_SOURCE_FILES = BridgeAPI/CppBridge.cpp \
 	BridgeAPI/ProtobufConversions.cpp \
 	BridgeAPI/BridgeSocket.cpp \
 	BridgeAPI/WalletManager.cpp \
-	BridgeAPI/ProtobufCommandParser.cpp
+	BridgeAPI/ProtobufCommandParser.cpp \
+	BridgeAPI/PassphrasePrompt.cpp
 
 ARMORYWALLETS_SOURCE_FILES = Wallets/BIP32_Node.cpp \
 	Wallets/Addresses.cpp \

@@ -8,6 +8,7 @@
 
 #include "WalletManager.h"
 #include "ArmoryBackups.h"
+#include "PassphrasePrompt.h"
 
 #ifdef _WIN32
 #include "leveldb_windows_port\win32_posix\dirent_win32.h"
@@ -861,16 +862,16 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
          decryptedRoot = move(decryptPrivKey(passLbd, rootAddrObj));
       }
 
-      passLbd({BinaryData::fromString("concludePrompt")});
+      passLbd({ArmoryBridge::BridgePassphrasePrompt::concludeKey});
    }
 
    //create wallet
    shared_ptr<AssetWallet_Single> wallet;
-   if (decryptedRoot.getSize() == 0)
+   if (decryptedRoot.empty())
    {
       auto pubKeyCopy = rootAddrObj.pubKey();
       wallet = AssetWallet_Single::createFromPublicRoot_Armory135(
-         folder, pubKeyCopy, chaincodeCopy, 
+         folder, pubKeyCopy, chaincodeCopy,
          controlPass, highestIndex);
    }
    else
@@ -894,7 +895,7 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
    map<AssetId, AddressEntryType> typeMap;
    for (auto& addrPair : addrMap_)
    {
-      if (addrPair.second.chainIndex() < 0 || 
+      if (addrPair.second.chainIndex() < 0 ||
          addrPair.second.chainIndex() > highestUsedIndex_)
          continue;
 
