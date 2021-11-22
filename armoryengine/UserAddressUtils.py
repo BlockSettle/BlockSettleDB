@@ -48,7 +48,7 @@ def getScriptForUserStringImpl(userStr, wltMap, lboxList):
 
    def getWltIDForScrAddr(scrAddr, walletMap):
       for iterID,iterWlt in walletMap.items():
-         if iterWlt.hasAddr160(scrAddr):
+         if iterWlt.hasAddrHash(scrAddr):
             return iterID
       return None
 
@@ -87,12 +87,11 @@ def getScriptForUserStringImpl(userStr, wltMap, lboxList):
       else:
          try:
             scrAddr = addrStr_to_scrAddr(userStr, ADDRBYTE, P2SHBYTE)
-            a160 = scrAddr_to_hash160(scrAddr)[1]
             outScript = TheBridge.getTxOutScriptForScrAddr(scrAddr)
             hasAddrInIt = True
 
             # Check if it's a wallet scrAddr
-            wltID  = getWltIDForScrAddr(a160, wltMap)
+            wltID = getWltIDForScrAddr(scrAddr, wltMap)
 
             # Check if it's a known P2SH
             for lbox in lboxList:
@@ -102,13 +101,13 @@ def getScriptForUserStringImpl(userStr, wltMap, lboxList):
          except:
             outScript = Cpp.BtcUtils.bech32ToScript(userStr, BECH32_PREFIX)
             isBech32 = True
-            
+
       # Caller might be expecting to see None, instead of '' (empty string)
       wltID  = None if not wltID  else wltID
       lboxID = None if not lboxID else lboxID
-      return {'Script': outScript, 
-              'WltID':  wltID, 
-              'LboxID': lboxID, 
+      return {'Script': outScript,
+              'WltID':  wltID,
+              'LboxID': lboxID,
               'ShowID': hasAddrInIt,
               'IsBech32' : isBech32}
    except:
