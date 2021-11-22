@@ -993,7 +993,7 @@ class WalletAddrDispModel(QAbstractTableModel):
          isUsed = lambda a: (self.wlt.getAddrTotalTxnCount(Hash160ToScrAddr(a.getAddr160())))
          addrList = filter(isUsed, addrList)
 
-      self.addr160List = [a.getAddr160() for a in addrList]
+      self.addr160List = [a.getPrefixedAddr() for a in addrList]
 
 
    @TimeThisFunction
@@ -1017,27 +1017,27 @@ class WalletAddrDispModel(QAbstractTableModel):
       addr = self.wlt.addrMap[self.addr160List[row]]
       addr_index = addr.chainIndex
 
-      addr160 = addr.getAddr160()
+      addrHash = addr.getPrefixedAddr()
       addrB58 = addr.getAddressString()
       chainIdx = addr.chainIndex+1  # user must get 1-indexed
       if role==Qt.DisplayRole:
          if col==COL.Address:
             return addrB58
          if col==COL.Comment:
-            return self.wlt.getComment(addr160[1:])
+            return self.wlt.getComment(addrHash)
          if col==COL.NumTx:
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
                return 'n/a'
             return addr.getTxioCount()
          if col==COL.ChainIdx:
-            if self.wlt.addrMap[addr.getAddr160()].chainIndex==-2:
+            if self.wlt.addrMap[addrHash].chainIndex==-2:
                return 'Imported'
             else:
                return chainIdx
          if col==COL.Balance:
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
                return '(...)'
-            addrFullBalance = self.wlt.getAddrBalance(addr160, balType="full")
+            addrFullBalance = self.wlt.getAddrBalance(addrHash, balType="full")
             return coin2str(addrFullBalance, maxZeros=2)
       elif role==Qt.TextAlignmentRole:
          if col in (COL.Address, COL.Comment, COL.ChainIdx):
@@ -1053,7 +1053,7 @@ class WalletAddrDispModel(QAbstractTableModel):
          if col==COL.Balance:
             if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
                return Colors.Foreground
-            addrFullBalance = self.wlt.getAddrBalance(addr160, balType="full")
+            addrFullBalance = self.wlt.getAddrBalance(addrHash, balType="full")
             if addrFullBalance>0: return Colors.TextGreen
             else: return Colors.Foreground
       elif role==Qt.FontRole:
@@ -1093,7 +1093,7 @@ class WalletAddrDispModel(QAbstractTableModel):
          if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
             return Colors.TblWltOther
 
-         addrFullBalance = self.wlt.getAddrBalance(addr160, balType="full")
+         addrFullBalance = self.wlt.getAddrBalance(addrHash, balType="full")
          if addrFullBalance>0:
             return Colors.SlightGreen
          else:
