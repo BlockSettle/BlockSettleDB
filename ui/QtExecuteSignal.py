@@ -70,5 +70,5 @@ class QtExecuteSignal(QObject):
    ###########################################################################
    def callLaterThread(self, delay, _callable, *args):
       sleep(delay)
-      self.waiting.pop(_callable, None)
-      self.executeMethod(_callable, *args)
+      args = self.waiting.pop(_callable, [])
+      self.executeMethod([_callable, args])

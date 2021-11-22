@@ -1688,7 +1688,7 @@ class ArmoryMainWindow(QMainWindow):
    ############################################################################
    def notifyBitcoindIsReady(self):
       self.signalExecution.executeMethod(\
-         self.completeBlockchainProcessingInitialization)
+         [self.completeBlockchainProcessingInitialization], [])
 
    ############################################################################
    def setSatoshiPaths(self):
@@ -2254,7 +2254,7 @@ class ArmoryMainWindow(QMainWindow):
    #############################################################################
    def getWalletForAddrHash(self, addrHash):
       for wltID, wlt in self.walletMap.items():
-         if wlt.hasAddrHash(addrHash) is not None:
+         if wlt.hasAddrHash(addrHash):
             return wltID
       return ''
 

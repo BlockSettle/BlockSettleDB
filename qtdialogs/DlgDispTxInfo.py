@@ -7,16 +7,17 @@
 ################################################################################
 
 from PySide2.QtCore import Qt
+from PySide2.QtGui import QFont
 from PySide2.QtWidgets import QLabel, QGridLayout, QFrame, QTableView, \
    QPushButton, QSpacerItem, QScrollArea, QTextBrowser, QTextEdit, \
-   QVBoxLayout
+   QVBoxLayout, QDialogButtonBox, QApplication
 
 from armoryengine.ArmoryUtils import enum, CPP_TXOUT_MULTISIG, \
    CPP_TXOUT_P2SH, CPP_TXOUT_HAS_ADDRSTR, script_to_addrStr, \
    addrStr_to_hash160, script_to_scrAddr, BIGENDIAN, binary_to_hex, \
    hex_to_binary, coin2str, coin2strNZS, LOGEXCEPT, LOGERROR, \
    CPP_TXIN_SCRIPT_NAMES, CPP_TXOUT_SCRIPT_NAMES, int_to_hex, \
-   script_to_scrAddr
+   script_to_scrAddr, scrAddr_to_addrStr
 
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.Transaction import UnsignedTransaction, \
@@ -218,7 +219,7 @@ class DlgDisplayTxOut(ArmoryDialog):
 ################################################################################
 class DlgDispTxInfo(ArmoryDialog):
    def __init__(self, pytx, wlt, parent, main, mode=None, \
-                             precomputeIdxGray=None, precomputeAmt=None, txtime=None):
+      precomputeIdxGray=None, precomputeAmt=None, txtime=None):
       """
       This got freakin' complicated, because I'm trying to handle
       wallet/nowallet, BDM/noBDM and Std/Adv/Dev all at once.
@@ -262,25 +263,12 @@ class DlgDispTxInfo(ArmoryDialog):
       indicesMakeGray = []
       idx = 0
       for scrType, amt, script, msInfo in self.data[FIELDS.OutList]:
-         # If it's a multisig, pretend it's P2SH
-         if scrType == CPP_TXOUT_MULTISIG:
-            script = script_to_p2sh_script(script)
-            scrType = CPP_TXOUT_P2SH
-
-         if scrType in CPP_TXOUT_HAS_ADDRSTR:
-            try:
-               addrStr = script_to_addrStr(script)
-            except:
-               addrStr = ""
-
-            scrAddr = script_to_scrAddr(script)
-            if haveWallet and wlt.hasAddrHash(addrStr):
-               svPairSelf.append([scrAddr, amt])
-               indicesSelf.append(idx)
-            else:
-               svPairOther.append([scrAddr, amt])
-               indicesOther.append(idx)
+         scrAddr = script_to_scrAddr(script)
+         if haveWallet and wlt.hasAddrHash(scrAddr):
+            svPairSelf.append([scrAddr, amt])
+            indicesSelf.append(idx)
          else:
+            svPairOther.append([scrAddr, amt])
             indicesOther.append(idx)
          idx += 1
 
@@ -320,8 +308,15 @@ class DlgDispTxInfo(ArmoryDialog):
                   svPairDisp = svPairOther
                   indicesMakeGray.extend(indicesSelf)
          except:
-            pass
-
+            '''
+            no ledger entry is available for this tx, let's try to figure
+            out if it affects us
+            '''
+            #short-hand in case of USTX
+            if ustx is not None:
+               svPairDisp = svPairOther
+               indicesMakeGray.extend(indicesSelf)
+               txAmt = -1 * sum([val[1] for val in svPairOther])
 
       # If this is a USTX, the above calculation probably didn't do its job
       # It is possible, but it's also possible that this Tx has nothing to
@@ -473,8 +468,6 @@ class DlgDispTxInfo(ArmoryDialog):
                'a higher fee.')))
          lbls[-1].append(QLabel(self.tr('Mempool Replaceable: ')))
          lbls[-1].append(QRichLabel(str(isRBF)))
-
-
 
 
       if svPairDisp == None and precomputeAmt == None:
@@ -756,12 +749,7 @@ class DlgDispTxInfo(ArmoryDialog):
       layout.addWidget(self.frmIOList, 3, 0, 1, 2)
       layout.addWidget(btnStrip, 4, 0, 1, 2)
 
-      # bbox = QDialogButtonBox(QDialogButtonBox.Ok)
-      # self.connect(bbox, SIGNAL('accepted()'), self.accept)
-      # layout.addWidget(bbox, 6,0, 1,1)
-
       self.setLayout(layout)
-      #self.layout().setSizeConstraint(QLayout.SetFixedSize)
       self.setWindowTitle(self.tr('Transaction Info'))
 
 

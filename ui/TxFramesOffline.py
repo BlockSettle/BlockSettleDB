@@ -26,7 +26,7 @@ from qtdialogs.DlgConfirmSend import DlgConfirmSend
 from armoryengine.Transaction import UnsignedTransaction, extractTxInfo
 from armoryengine.ArmoryUtils import LOGEXCEPT, LOGERROR, LOGINFO, \
    CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, coin2str, enum, \
-   script_to_scrAddr, binary_to_hex
+   script_to_scrAddr, binary_to_hex, coin2strNZS
 
 ################################################################################
 class SignBroadcastOfflineTxFrame(ArmoryFrame):
@@ -261,8 +261,8 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
 
       # Collect the input wallets (hopefully just one of them)
       fromWlts = set()
-      for scrAddr, amt, a, b, c, script in data[FIELDS.InList]:
-         wltID = self.main.getWalletForAddrHash(scrAddr)
+      for addrStr, amt, a, b, c, script in data[FIELDS.InList]:
+         wltID = self.main.getWalletForAddressString(addrStr)
          if not wltID == '':
             fromWlts.add(wltID)
 
@@ -360,7 +360,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
 
       leVal = 0 if self.leValue is None else -self.leValue
       dlgTxInfo = DlgDispTxInfo(self.ustxObj, self.wlt, self.parent(), self.main, \
-                          precomputeIdxGray=self.idxSelf, precomputeAmt=leVal, txtime=-1)
+         precomputeIdxGray=self.idxSelf, precomputeAmt=leVal, txtime=-1)
       dlgTxInfo.exec_()
 
 
@@ -401,14 +401,9 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       theFee = ustx.calculateFee()
       for scrType,value,script,msInfo in ustx.pytxObj.makeRecipientsList():
          svpairs.append([script, value])
-         if scrType in CPP_TXOUT_STDSINGLESIG:
-            scrAddr = script_to_scrAddr(script)
-            if self.wlt.hasAddrHash(scrAddr):
-               svpairsMine.append([script, value])
-         elif scrType == CPP_TXOUT_P2SH:
-            scrAddr = script_to_scrAddr(script)
-            if self.wlt.hasAddrHash(scrAddr):
-               svpairsMine.append([script, value])
+         scrAddr = script_to_scrAddr(script)
+         if self.wlt.hasAddrHash(scrAddr):
+            svpairsMine.append([script, value])
 
       if len(svpairsMine) == 0 and len(svpairs) > 1:
          QMessageBox.warning(self, self.tr('Missing Change'), self.tr(

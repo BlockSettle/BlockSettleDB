@@ -68,15 +68,10 @@ class DlgConfirmSend(ArmoryDialog):
       returnPairs = []
       for script,val in scriptValPairs:
          scrType = getTxOutScriptType(script)
-         if scrType in CPP_TXOUT_HAS_ADDRSTR and \
-            scrType != CPP_TXOUT_P2WPKH and scrType != CPP_TXOUT_P2WSH:
-            scraddr = script_to_scrAddr(script)
-            if wlt.hasAddrHash(scraddr):
-               returnPairs.append([script,val])
-            else:
-               sendPairs.append([script,val])
+         scraddr = script_to_scrAddr(script)
+         if wlt.hasAddrHash(scraddr):
+            returnPairs.append([script,val])
          else:
-            # We assume that anything without an addrStr is going external
             sendPairs.append([script,val])
 
       # If there are more than 3 return pairs then this is a 1%'er tx we should
