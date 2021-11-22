@@ -933,7 +933,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          for utxo in utxoSelect:
             scrType = getTxOutScriptType(utxo.getScript())
             scrAddr = utxo.getRecipientScrAddr()
-            addrObj = self.wlt.getAddrByHash160(scrAddr[1:])
+            addrObj = self.wlt.getAddrByHash(scrAddr)
             if scrType in CPP_TXOUT_STDSINGLESIG:
                if addrObj:
                   pubKeyMap[scrAddr] = addrObj.getPubKey()

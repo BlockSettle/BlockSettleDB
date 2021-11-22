@@ -11,7 +11,7 @@ from PySide2.QtGui import QIcon
 from PySide2.QtWidgets import QVBoxLayout, QPushButton, QTextEdit, \
    QFrame, QGridLayout, QApplication, QSpacerItem
 
-from armoryengine.ArmoryUtils import OS_WINDOWS
+from armoryengine.ArmoryUtils import OS_WINDOWS, LOGINFO, LOGEXCEPT
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 
 from qtdialogs.qtdefines import ArmoryDialog, QRichLabel, HORIZONTAL, \
