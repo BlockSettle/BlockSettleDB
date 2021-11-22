@@ -4216,18 +4216,27 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
       4);
 
    //get AddrVec
-   auto&& hashSetWO = woWallet->getAddrHashSet();
+   auto hashSetWO = woWallet->getAddrHashSet();
 
    ASSERT_EQ(hashSet, hashSetWO);
    auto woFilename = woWallet->getDbFilename();
    woWallet.reset();
-   unlink(woFilename.c_str());
 
-   //fork WO from full wallet
+   //reload the WO wallet
    auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("control");
    };
+
+   auto reloadWoWallet = AssetWallet_Single::loadMainWalletFromFile(woFilename, passLbd);
+   auto hashSetWO2 = reloadWoWallet->getAddrHashSet();
+   ASSERT_EQ(hashSet, hashSetWO);
+
+   //delete the underlying file so we can fork anew
+   reloadWoWallet.reset();
+   unlink(woFilename.c_str());
+
+   //fork WO from full wallet
    auto forkFilename = AssetWallet_Single::forkWatchingOnly(filename, passLbd);
 
    auto woFork = AssetWallet::loadMainWalletFromFile(forkFilename, passLbd);
