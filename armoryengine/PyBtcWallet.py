@@ -1164,7 +1164,7 @@ class PyBtcWallet(object):
       txHash = le.hash
       if txHash not in self.txAddrMap:
          self.txAddrMap[txHash] = le.scrAddrList
-                      
+
       addrComments = []
       for a160 in self.txAddrMap[txHash]:
          hash160 = a160[1:]
@@ -1425,9 +1425,9 @@ class PyBtcWallet(object):
          LOGWARN('   Armory Version: %d' % UNSIGNED_TX_VERSION)
 
    ###############################################################################
-   def getAddrTotalTxnCount(self, a160):
+   def getAddrTotalTxnCount(self, addrHash):
       try:
-         addrObj = addrMap[a160]
+         addrObj = self.addrMap[addrHash]
          return addrObj.getTxioCount()
       except:
          return 0

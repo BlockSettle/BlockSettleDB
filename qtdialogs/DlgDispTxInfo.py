@@ -17,12 +17,13 @@ from armoryengine.ArmoryUtils import enum, CPP_TXOUT_MULTISIG, \
    addrStr_to_hash160, script_to_scrAddr, BIGENDIAN, binary_to_hex, \
    hex_to_binary, coin2str, coin2strNZS, LOGEXCEPT, LOGERROR, \
    CPP_TXIN_SCRIPT_NAMES, CPP_TXOUT_SCRIPT_NAMES, int_to_hex, \
-   script_to_scrAddr, scrAddr_to_addrStr
+   script_to_scrAddr, scrAddr_to_addrStr, unixTimeToFormatStr
 
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.Transaction import UnsignedTransaction, \
    determineSentToSelfAmt, PyTx, getTxInScriptType, getTxOutScriptType, \
-   TxInExtractAddrStrIfAvail, extractTxInfo
+   TxInExtractAddrStrIfAvail
+from armoryengine.Block import PyBlockHeader
 from armoryengine.Script import convertScriptToOpStrings
 from armoryengine.CppBridge import TheBridge
 
@@ -219,7 +220,8 @@ class DlgDisplayTxOut(ArmoryDialog):
 ################################################################################
 class DlgDispTxInfo(ArmoryDialog):
    def __init__(self, pytx, wlt, parent, main, mode=None, \
-      precomputeIdxGray=None, precomputeAmt=None, txtime=None):
+      precomputeIdxGray=None, precomputeAmt=None, txtime=None,
+      ledgerEntry=None):
       """
       This got freakin' complicated, because I'm trying to handle
       wallet/nowallet, BDM/noBDM and Std/Adv/Dev all at once.
@@ -276,47 +278,47 @@ class DlgDispTxInfo(ArmoryDialog):
       changeIndex = None
       svPairDisp = None
 
-      if haveBDM and haveWallet and self.data[FIELDS.SumOut] and self.data[FIELDS.SumIn]:
+      if self.data[FIELDS.SumOut] and self.data[FIELDS.SumIn]:
          fee = self.data[FIELDS.SumOut] - self.data[FIELDS.SumIn]
-         try:
-            le = wlt.getLedgerEntryForTxHash(txHash)
-            txAmt = le.getValue()
 
-            if le.isSentToSelf():
-               txdir = self.tr('Sent-to-Self')
-               svPairDisp = []
-               if len(self.pytx.outputs)==1:
-                  txAmt = fee
-                  triplet = self.data[FIELDS.OutList][0]
-                  scrAddr = script_to_scrAddr(triplet[2])
-                  svPairDisp.append([scrAddr, triplet[1]])
-               else:
-                  txAmt, changeIndex = determineSentToSelfAmt(le, wlt)
-                  for i, triplet in enumerate(self.data[FIELDS.OutList]):
-                     if not i == changeIndex:
-                        scrAddr = script_to_scrAddr(triplet[2])
-                        svPairDisp.append([scrAddr, triplet[1]])
-                     else:
-                        indicesMakeGray.append(i)
+      if ledgerEntry:
+         txAmt = ledgerEntry.value
+
+         if ledgerEntry.isSentToSelf:
+            txdir = self.tr('Sent-to-Self')
+            svPairDisp = []
+            if len(self.pytx.outputs)==1:
+               txAmt = fee
+               triplet = self.data[FIELDS.OutList][0]
+               scrAddr = script_to_scrAddr(triplet[2])
+               svPairDisp.append([scrAddr, triplet[1]])
             else:
-               if le.getValue() > 0:
-                  txdir = self.tr('Received')
-                  svPairDisp = svPairSelf
-                  indicesMakeGray.extend(indicesOther)
-               if le.getValue() < 0:
-                  txdir = self.tr('Sent')
-                  svPairDisp = svPairOther
-                  indicesMakeGray.extend(indicesSelf)
-         except:
-            '''
-            no ledger entry is available for this tx, let's try to figure
-            out if it affects us
-            '''
-            #short-hand in case of USTX
-            if ustx is not None:
+               txAmt, changeIndex = determineSentToSelfAmt(ledgerEntry, wlt)
+               for i, triplet in enumerate(self.data[FIELDS.OutList]):
+                  if not i == changeIndex:
+                     scrAddr = script_to_scrAddr(triplet[2])
+                     svPairDisp.append([scrAddr, triplet[1]])
+                  else:
+                     indicesMakeGray.append(i)
+         else:
+            if ledgerEntry.value > 0:
+               txdir = self.tr('Received')
+               svPairDisp = svPairSelf
+               indicesMakeGray.extend(indicesOther)
+            if ledgerEntry.value < 0:
+               txdir = self.tr('Sent')
                svPairDisp = svPairOther
                indicesMakeGray.extend(indicesSelf)
-               txAmt = -1 * sum([val[1] for val in svPairOther])
+      else:
+         '''
+         no ledger entry is available for this tx, let's try to figure
+         out if it affects us
+         '''
+         #short-hand in case of USTX
+         if ustx is not None:
+            svPairDisp = svPairOther
+            indicesMakeGray.extend(indicesSelf)
+            txAmt = -1 * sum([val[1] for val in svPairOther])
 
       # If this is a USTX, the above calculation probably didn't do its job
       # It is possible, but it's also possible that this Tx has nothing to
@@ -912,3 +914,110 @@ class DlgDispTxInfo(ArmoryDialog):
       clipb = QApplication.clipboard()
       clipb.clear()
       clipb.setText(str(s).strip())
+
+################################################################################
+def extractTxInfo(pytx, rcvTime=None):
+   ustx = None
+   if isinstance(pytx, UnsignedTransaction):
+      ustx = pytx
+      pytx = ustx.pytxObj
+
+   txHash = pytx.getHash()
+   txSize, txWeight, sumTxIn, txTime, txBlk, txIdx = [None] * 6
+
+   txOutToList = pytx.makeRecipientsList()
+   sumTxOut = sum([t[1] for t in txOutToList])
+
+   if TheBDM.getState() == BDM_BLOCKCHAIN_READY:
+      txProto = TheBridge.getTxByHash(txHash)
+      if txProto.isValid:
+         hgt = txProto.height
+         txWeight = pytx.getTxWeight()
+         if hgt <= TheBDM.getTopBlockHeight():
+            header = PyBlockHeader()
+            header.unserialize(TheBridge.getHeaderByHeight(hgt))
+            txTime = unixTimeToFormatStr(header.timestamp)
+            txBlk = hgt
+            txIdx = txProto.txIndex
+            txSize = pytx.getSize()
+         else:
+            if rcvTime == None:
+               txTime = 'Unknown'
+            elif rcvTime == -1:
+               txTime = '[[Not broadcast yet]]'
+            elif isinstance(rcvTime, basestring):
+               txTime = rcvTime
+            else:
+               txTime = unixTimeToFormatStr(rcvTime)
+            txBlk = UINT32_MAX
+            txIdx = -1
+
+   txinFromList = []
+   if TheBDM.getState() == BDM_BLOCKCHAIN_READY and pytx.isInitialized():
+      haveAllInput = True
+      for i in range(pytx.getNumTxIn()):
+         txinFromList.append([])
+         txin = pytx.getTxIn(i)
+         prevTxHash = txin.getOutPoint().txHash
+         prevTxIndex = txin.getOutPoint().txOutIndex
+         prevTxRaw = TheBridge.getTxByHash(prevTxHash)
+         prevTx = PyTx().unserialize(prevTxRaw.raw)
+         if prevTx.isInitialized():
+            prevTxOut = prevTx.getTxOut(prevTxIndex)
+            txinFromList[-1].append(prevTxOut.getScrAddressStr())
+            txinFromList[-1].append(prevTxOut.getValue())
+            if prevTx.isInitialized():
+               txinFromList[-1].append(prevTxRaw.height)
+               txinFromList[-1].append(prevTxHash)
+               txinFromList[-1].append(prevTxRaw.txIndex)
+               txinFromList[-1].append(prevTxOut.getScript())
+            else:
+               LOGERROR('How did we get a bad parent pointer? (extractTxInfo)')
+               #prevTxOut.pprint()
+               txinFromList[-1].append('')
+               txinFromList[-1].append('')
+               txinFromList[-1].append('')
+               txinFromList[-1].append('')
+         else:
+            haveAllInput = False
+            try:
+               scraddr = addrStr_to_scrAddr(TxInExtractAddrStrIfAvail(txin))
+            except:
+               pass
+
+            txinFromList[-1].append(scraddr)
+            txinFromList[-1].append('')
+            txinFromList[-1].append('')
+            txinFromList[-1].append('')
+            txinFromList[-1].append('')
+            txinFromList[-1].append('')
+
+   elif ustx is not None:
+      haveAllInput = True
+      for ustxi in ustx.ustxInputs:
+         txinFromList.append([])
+         txinFromList[-1].append(script_to_scrAddr(ustxi.txoScript))
+         txinFromList[-1].append(ustxi.value)
+         txinFromList[-1].append('')
+         txinFromList[-1].append(hash256(ustxi.supportTx))
+         txinFromList[-1].append(ustxi.outpoint.txOutIndex)
+         txinFromList[-1].append(ustxi.txoScript)
+   else:  # BDM is not initialized
+      haveAllInput = False
+      for i, txin in enumerate(pytx.inputs):
+         scraddr = addrStr_to_scrAddr(TxInExtractAddrStrIfAvail(txin))
+         txinFromList.append([])
+         txinFromList[-1].append(scraddr)
+         txinFromList[-1].append('')
+         txinFromList[-1].append('')
+         txinFromList[-1].append('')
+         txinFromList[-1].append('')
+         txinFromList[-1].append('')
+
+   if haveAllInput:
+      sumTxIn = sum([x[1] for x in txinFromList])
+   else:
+      sumTxIn = None
+
+   return [txHash, txOutToList, sumTxOut, txinFromList, sumTxIn, \
+           txTime, txBlk, txIdx, txSize, txWeight]

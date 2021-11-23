@@ -54,7 +54,7 @@ from armoryengine.ArmoryUtils import HMAC256, GUI_LANGUAGE, \
    enum, GetExecDir, RightNow, CLI_ARGS, ARMORY_HOME_DIR, DEFAULT, \
    ARMORY_DB_DIR, coin2str, DEFAULT_DATE_FORMAT, \
    unixTimeToFormatStr, binary_to_hex, BTC_HOME_DIR, secondsToHumanTime, \
-   LEVELDB_BLKDATA
+   LEVELDB_BLKDATA, LOGRAWDATA, LOGPPRINT, hex_to_binary
 
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
@@ -71,6 +71,7 @@ from armoryengine.BDM import TheBDM, \
    BDMPhase_Balance, BDMPhase_SearchHashes, BDMPhase_ResolveHashes
 
 from armoryengine.PyBtcWallet import PyBtcWallet
+from armoryengine.Transaction import PyTx
 from armoryengine import ClientProto_pb2
 
 from qtdialogs.qtdefines import GETFONT, NETWORKMODE, \
@@ -92,6 +93,7 @@ from qtdialogs.DlgNewAddress import \
    DlgNewAddressDisp, ShowRecvCoinsWarningIfNecessary
 from qtdialogs.DlgOfflineTx import DlgOfflineSelect, DlgSignBroadcastOfflineTx
 from qtdialogs.DlgUnlockWallet import DlgUnlockWallet
+from qtdialogs.DlgDispTxInfo import DlgDispTxInfo
 
 from ui.QtExecuteSignal import QtExecuteSignal
 
@@ -3142,7 +3144,12 @@ class ArmoryMainWindow(QMainWindow):
          'Armory\'s database.  This is unusual...'), QMessageBox.Ok)
          return
 
-      DlgDispTxInfo( pytx, self.walletMap[wltID], self, self, txtime=txtime).exec_()
+      def filter(leProto):
+         return leProto.hash == txHashBin
+      le = self.ledgerView.model().getRawDataEntry(filter)
+
+      DlgDispTxInfo(pytx, self.walletMap[wltID], self, self,
+         txtime=txtime, ledgerEntry=le).exec_()
 
 
    #############################################################################

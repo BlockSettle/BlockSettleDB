@@ -8,6 +8,8 @@ from __future__ import (absolute_import, division,
 #                                                                              #
 ################################################################################
 
+import os
+
 from PySide2.QtCore import Qt
 from PySide2.QtWidgets import QPushButton, QGridLayout, QFrame, \
    QVBoxLayout, QLabel, QMessageBox, QTextEdit, QSizePolicy, \
@@ -20,10 +22,10 @@ from qtdialogs.qtdefines import ArmoryFrame, tightSizeNChar, \
    MsgBoxWithDNAA, MSGBOX
 
 from qtdialogs.qtdialogs import STRETCH
-from qtdialogs.DlgDispTxInfo import DlgDispTxInfo
+from qtdialogs.DlgDispTxInfo import DlgDispTxInfo, extractTxInfo
 from qtdialogs.DlgConfirmSend import DlgConfirmSend
 
-from armoryengine.Transaction import UnsignedTransaction, extractTxInfo
+from armoryengine.Transaction import UnsignedTransaction
 from armoryengine.ArmoryUtils import LOGEXCEPT, LOGERROR, LOGINFO, \
    CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, coin2str, enum, \
    script_to_scrAddr, binary_to_hex, coin2strNZS

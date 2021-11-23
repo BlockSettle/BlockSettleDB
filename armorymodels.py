@@ -23,7 +23,8 @@ from PySide2.QtWidgets import QStyle, QApplication, QCalendarWidget, \
 
 
 from armoryengine.ArmoryUtils import enum, coin2str, binary_to_hex, \
-   int_to_hex, CPP_TXOUT_SCRIPT_NAMES, CPP_TXOUT_MULTISIG
+   int_to_hex, CPP_TXOUT_SCRIPT_NAMES, CPP_TXOUT_MULTISIG, \
+   CPP_TXIN_SCRIPT_NAMES
 from armoryengine.UserAddressUtils import getDisplayStringForScriptImpl
 from armoryengine.Transaction import UnsignedTransaction, \
    getTxInScriptType
@@ -177,7 +178,8 @@ class AllWalletsCheckboxDelegate(QStyledItemDelegate):
 
 ################################################################################
 class TableEntry():
-   def __init__(self, id=-1, table=[]):
+   def __init__(self, rawData, id=-1, table=[]):
+      self.rawData = rawData
       self.id = id
       self.table = table
 
@@ -190,9 +192,9 @@ class LedgerDispModelSimple(QAbstractTableModel):
       self.main   = main
       self.isLboxModel = isLboxModel
 
-      self.bottomPage = TableEntry(1, [])
-      self.currentPage = TableEntry(0, [])
-      self.topPage = TableEntry(-1, [])
+      self.bottomPage = TableEntry(None, 1, [])
+      self.currentPage = TableEntry(None, 0, [])
+      self.topPage = TableEntry(None, -1, [])
 
       self.getPageLedger = None
       self.convertLedger = None
@@ -412,6 +414,7 @@ class LedgerDispModelSimple(QAbstractTableModel):
          self.bottomPage = deepcopy(self.currentPage)
          self.currentPage = deepcopy(self.topPage)
 
+         self.topPage.rawData = newLedger
          self.topPage.id -= 1
          self.topPage.table = toTable
 
@@ -439,24 +442,24 @@ class LedgerDispModelSimple(QAbstractTableModel):
 
       if self.topPage.id == 0 or len(self.topPage.table) == 0:
          try:
-            newLedger = TheBridge.getHistoryPageForDelegate(\
+            self.topPage.rawData = TheBridge.getHistoryPageForDelegate(\
                self.ledgerDelegateId, self.topPage.id)
-            toTable = self.convertLedger(newLedger)
+            toTable = self.convertLedger(self.topPage.rawData)
             self.topPage.table = toTable
          except:
             pass
 
       if self.currentPage.id == 0 or len(self.currentPage.table) == 0:
-            newLedger = TheBridge.getHistoryPageForDelegate(\
+            self.currentPage.rawData = TheBridge.getHistoryPageForDelegate(\
                self.ledgerDelegateId, self.currentPage.id)
-            toTable = self.convertLedger(newLedger)
+            toTable = self.convertLedger(self.currentPage.rawData)
             self.currentPage.table = toTable
 
       if len(self.bottomPage.table) == 0:
          try:
-            newLedger = TheBridge.getHistoryPageForDelegate(\
+            self.bottomPage.rawData = TheBridge.getHistoryPageForDelegate(\
                self.ledgerDelegateId, self.bottomPage.id)
-            toTable = self.convertLedger(newLedger)
+            toTable = self.convertLedger(self.bottomPage.rawData)
             self.bottomPage.table = toTable
          except:
             pass
@@ -497,6 +500,30 @@ class LedgerDispModelSimple(QAbstractTableModel):
       row = index.row()
       rowData = self.ledger[row]
       rowData[LEDGERCOLS.Comment] = comment
+
+   def getRawDataEntry(self, filter):
+      def filterRawData(rawDataList, filter):
+         for rawData in rawDataList:
+            if filter(rawData):
+               return rawData
+         return None
+
+      if self.bottomPage.rawData:
+         result = filterRawData(self.bottomPage.rawData.le, filter)
+         if result:
+            return result
+
+      if self.currentPage.rawData:
+         result = filterRawData(self.currentPage.rawData.le, filter)
+         if result:
+            return result
+
+      if self.topPage.rawData:
+         result = filterRawData(self.topPage.rawData.le, filter)
+         if result:
+            return result
+
+      return None
 
 ################################################################################
 class CalendarDialog(ArmoryDialog):

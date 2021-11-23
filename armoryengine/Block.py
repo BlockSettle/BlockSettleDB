@@ -7,12 +7,12 @@ from __future__ import (absolute_import, division,
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
 ################################################################################
-from armoryengine.ArmoryUtils import UNINITIALIZED, UnitializedBlockDataError, \
-   hash256, LITTLEENDIAN, BIGENDIAN, binary_switchEndian, binary_to_hex, \
-   binaryBits_to_difficulty
+from armoryengine.ArmoryUtils import UNINITIALIZED, BlockComponent, \
+   UnitializedBlockDataError, hash256, LITTLEENDIAN, BIGENDIAN, \
+   binary_switchEndian, binary_to_hex, binaryBits_to_difficulty, indent
 from armoryengine.BDM import TheBDM
 from armoryengine.BinaryUnpacker import BinaryUnpacker
-from armoryengine.Transaction import BlockComponent, indent, PyTx
+from armoryengine.Transaction import PyTx
 from armoryengine.BinaryPacker import BinaryPacker, UINT32, BINARY_CHUNK, \
    VAR_INT
 

@@ -3302,6 +3302,17 @@ def decompressPK(inKey, inStr=False):
       outKey = binary_to_hex(outKey)
    return outKey
 
+################################################################################
+class BlockComponent(object):
+
+   def copy(self):
+      return self.__class__().unserialize(self.serialize())
+
+   def serialize(self):
+      raise NotImplementedError
+
+   def unserialize(self):
+      raise NotImplementedError
 
 ################################################################################
 # Function that can be used to send an e-mail to multiple recipients.

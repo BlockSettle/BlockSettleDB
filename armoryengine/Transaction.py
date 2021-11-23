@@ -10,7 +10,6 @@ from __future__ import (absolute_import, division,
 import logging
 import os
 
-import armoryengine.ArmoryUtils
 from armoryengine.ArmoryUtils import *
 from armoryengine.BinaryPacker import *
 from armoryengine.BinaryUnpacker import *
@@ -568,18 +567,6 @@ def TxInExtractPreImageIfAvail(txinObj):
 #  Transaction Classes
 ################################################################################
 
-
-#####
-class BlockComponent(object):
-
-   def copy(self):
-      return self.__class__().unserialize(self.serialize())
-
-   def serialize(self):
-      raise NotImplementedError
-
-   def unserialize(self):
-      raise NotImplementedError
 
 ################################################################################
 class PyOutPoint(BlockComponent):
@@ -2948,23 +2935,24 @@ def determineSentToSelfAmt(le, wlt):
           creative with this tx, this may not actually work.
    """
    amt = 0
-   if le.isSentToSelf():
-      txref = TheBDM.bdv().getTxByHash(le.getTxHash())
-      if not txref.isInitialized():
+   if le.isSentToSelf:
+      txProto = TheBridge.getTxByHash(txHashBin)
+      pytx = PyTx().unserialize(txProto.raw)
+      if not pytx.isInitialized():
          return (0, 0)
-      if txref.getNumTxOut()==1:
-         return (txref.getTxOutCopy(0).getValue(), -1)
+      if pytx.getNumTxOut()==1:
+         return (pytx.getTxOutCopy(0).getValue(), -1)
       maxChainIndex = -5
       txOutChangeVal = 0
       changeIndex = -1
       valSum = 0
-      for i in range(txref.getNumTxOut()):
-         valSum += txref.getTxOutCopy(i).getValue()
-         addr160 = CheckHash160(txref.getTxOutCopy(i).getScrAddressStr())
+      for i in range(pytx.getNumTxOut()):
+         valSum += pytx.getTxOutCopy(i).getValue()
+         addr160 = CheckHash160(pytx.getTxOutCopy(i).getScrAddressStr())
          addr    = wlt.getAddrByHash160(addr160)
          if addr and addr.chainIndex > maxChainIndex:
             maxChainIndex = addr.chainIndex
-            txOutChangeVal = txref.getTxOutCopy(i).getValue()
+            txOutChangeVal = pytx.getTxOutCopy(i).getValue()
             changeIndex = i
 
       amt = valSum - txOutChangeVal
@@ -3043,110 +3031,3 @@ def pprintLedgerEntry(le, indent=''):
    blkStr = str(le.getBlockNum())
    print(indent + 'LE %s %s %s %s' % \
             (addrStr.ljust(15), leVal, txType.ljust(8), blkStr.ljust(8)))
-
-################################################################################
-def extractTxInfo(pytx, rcvTime=None):
-   ustx = None
-   if isinstance(pytx, UnsignedTransaction):
-      ustx = pytx
-      pytx = ustx.pytxObj
-
-   txHash = pytx.getHash()
-   txSize, txWeight, sumTxIn, txTime, txBlk, txIdx = [None] * 6
-
-   txOutToList = pytx.makeRecipientsList()
-   sumTxOut = sum([t[1] for t in txOutToList])
-
-   if TheBDM.getState() == BDM_BLOCKCHAIN_READY:
-      txProto = TheBridge.getTxByHash(txHash)
-      if txProto.isValid:
-         hgt = txProto.height
-         txWeight = pytx.getTxWeight()
-         if hgt <= TheBDM.getTopBlockHeight():
-            header = PyBlockHeader()
-            header.unserialize(TheBridge.getHeaderByHeight(hgt))
-            txTime = unixTimeToFormatStr(header.timestamp)
-            txBlk = hgt
-            txIdx = txProto.txIndex
-            txSize = pytx.getSize()
-         else:
-            if rcvTime == None:
-               txTime = 'Unknown'
-            elif rcvTime == -1:
-               txTime = '[[Not broadcast yet]]'
-            elif isinstance(rcvTime, basestring):
-               txTime = rcvTime
-            else:
-               txTime = unixTimeToFormatStr(rcvTime)
-            txBlk = UINT32_MAX
-            txIdx = -1
-
-   txinFromList = []
-   if TheBDM.getState() == BDM_BLOCKCHAIN_READY and pytx.isInitialized():
-      haveAllInput = True
-      for i in range(pytx.getNumTxIn()):
-         txinFromList.append([])
-         txin = pytx.getTxIn(i)
-         prevTxHash = txin.getOutPoint().txHash
-         prevTxIndex = txin.getOutPoint().txOutIndex
-         prevTxRaw = TheBridge.getTxByHash(prevTxHash)
-         prevTx = PyTx().unserialize(prevTxRaw.raw)
-         if prevTx.isInitialized():
-            prevTxOut = prevTx.getTxOut(prevTxIndex)
-            txinFromList[-1].append(prevTxOut.getScrAddressStr())
-            txinFromList[-1].append(prevTxOut.getValue())
-            if prevTx.isInitialized():
-               txinFromList[-1].append(prevTxRaw.height)
-               txinFromList[-1].append(prevTxHash)
-               txinFromList[-1].append(prevTxRaw.txIndex)
-               txinFromList[-1].append(prevTxOut.getScript())
-            else:
-               LOGERROR('How did we get a bad parent pointer? (extractTxInfo)')
-               #prevTxOut.pprint()
-               txinFromList[-1].append('')
-               txinFromList[-1].append('')
-               txinFromList[-1].append('')
-               txinFromList[-1].append('')
-         else:
-            haveAllInput = False
-            try:
-               scraddr = addrStr_to_scrAddr(TxInExtractAddrStrIfAvail(txin))
-            except:
-               pass
-
-            txinFromList[-1].append(scraddr)
-            txinFromList[-1].append('')
-            txinFromList[-1].append('')
-            txinFromList[-1].append('')
-            txinFromList[-1].append('')
-            txinFromList[-1].append('')
-
-   elif ustx is not None:
-      haveAllInput = True
-      for ustxi in ustx.ustxInputs:
-         txinFromList.append([])
-         txinFromList[-1].append(script_to_scrAddr(ustxi.txoScript))
-         txinFromList[-1].append(ustxi.value)
-         txinFromList[-1].append('')
-         txinFromList[-1].append(hash256(ustxi.supportTx))
-         txinFromList[-1].append(ustxi.outpoint.txOutIndex)
-         txinFromList[-1].append(ustxi.txoScript)
-   else:  # BDM is not initialized
-      haveAllInput = False
-      for i, txin in enumerate(pytx.inputs):
-         scraddr = addrStr_to_scrAddr(TxInExtractAddrStrIfAvail(txin))
-         txinFromList.append([])
-         txinFromList[-1].append(scraddr)
-         txinFromList[-1].append('')
-         txinFromList[-1].append('')
-         txinFromList[-1].append('')
-         txinFromList[-1].append('')
-         txinFromList[-1].append('')
-
-   if haveAllInput:
-      sumTxIn = sum([x[1] for x in txinFromList])
-   else:
-      sumTxIn = None
-
-   return [txHash, txOutToList, sumTxOut, txinFromList, sumTxIn, \
-           txTime, txBlk, txIdx, txSize, txWeight]
