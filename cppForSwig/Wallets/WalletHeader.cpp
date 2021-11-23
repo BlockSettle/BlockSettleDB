@@ -16,8 +16,8 @@
 #define HEADER_ENCRYPTIONKEY_VERSION      0x00000001
 #define HEADER_SALT_VERSION               0x00000001
 
-#define WALLETHEADER_SINGLE_VERSION       0x00000001
-#define WALLETHEADER_MULTISIG_VERSION     0x00000001
+#define WALLETHEADER_SINGLE_VERSION       0x00000002
+#define WALLETHEADER_MULTISIG_VERSION     0x00000002
 #define WALLETHEADER_SUBWALLET_VERSION    0x00000001
 #define WALLETHEADER_CONTROL_VERSION      0x00000001
 #define WALLETHEADER_CUSTOM_VERSION       0x00000001
@@ -163,6 +163,7 @@ BinaryData WalletHeader_Single::serialize() const
    BinaryWriter bw;
    bw.put_uint32_t(WALLETHEADER_SINGLE_VERSION);
    bw.put_uint32_t(type_);
+   bw.put_BinaryData(magicBytes_);
    bw.put_BinaryData(serializeEncryptionKey());
    bw.put_BinaryData(serializeControlSalt());
 
@@ -185,6 +186,7 @@ BinaryData WalletHeader_Multisig::serialize() const
    BinaryWriter bw;
    bw.put_uint32_t(WALLETHEADER_MULTISIG_VERSION);
    bw.put_uint32_t(type_);
+   bw.put_BinaryData(magicBytes_);
    bw.put_BinaryData(serializeEncryptionKey());
    bw.put_BinaryData(serializeControlSalt());
 
@@ -289,9 +291,19 @@ shared_ptr<WalletHeader> WalletHeader::deserialize(
       {
       case 0x00000001:
       {
-         wltHeaderPtr = make_shared<WalletHeader_Single>();
+         wltHeaderPtr = make_shared<WalletHeader_Single>(
+            Armory::Config::BitcoinSettings::getMainnetMagicBytes());
          wltHeaderPtr->unserializeEncryptionKey(brrVal);
-         wltHeaderPtr->unserializeControlSalt(brrVal);      
+         wltHeaderPtr->unserializeControlSalt(brrVal);
+         break;
+      }
+
+      case 0x00000002:
+      {
+         auto magicBytes = brrVal.get_BinaryData(4);
+         wltHeaderPtr = make_shared<WalletHeader_Single>(magicBytes);
+         wltHeaderPtr->unserializeEncryptionKey(brrVal);
+         wltHeaderPtr->unserializeControlSalt(brrVal);
          break;
       }
 
@@ -325,7 +337,17 @@ shared_ptr<WalletHeader> WalletHeader::deserialize(
       {
       case 0x00000001:
       {
-         wltHeaderPtr = make_shared<WalletHeader_Multisig>();
+         wltHeaderPtr = make_shared<WalletHeader_Multisig>(
+            Armory::Config::BitcoinSettings::getMainnetMagicBytes());
+         wltHeaderPtr->unserializeEncryptionKey(brrVal);
+         wltHeaderPtr->unserializeControlSalt(brrVal);
+         break;
+      }
+
+      case 0x00000002:
+      {
+         auto magicBytes = brrVal.get_BinaryData(4);
+         wltHeaderPtr = make_shared<WalletHeader_Multisig>(magicBytes);
          wltHeaderPtr->unserializeEncryptionKey(brrVal);
          wltHeaderPtr->unserializeControlSalt(brrVal);
          break;

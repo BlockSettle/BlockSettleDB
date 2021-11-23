@@ -61,6 +61,7 @@ enum WalletHeaderType
 struct WalletHeader
 {
    const WalletHeaderType type_;
+   const BinaryData magicBytes_;
    std::string walletID_;
 
    SecureBinaryData defaultEncryptionKey_;
@@ -72,8 +73,8 @@ struct WalletHeader
    SecureBinaryData controlSalt_;
 
    //tors
-   WalletHeader(WalletHeaderType type) :
-      type_(type)
+   WalletHeader(WalletHeaderType type, const BinaryData& mb) :
+      type_(type), magicBytes_(mb)
    {}
 
    virtual ~WalletHeader(void) = 0;
@@ -114,8 +115,8 @@ struct WalletHeader
 struct WalletHeader_Single : public WalletHeader
 {
    //tors
-   WalletHeader_Single() :
-      WalletHeader(WalletHeaderType_Single)
+   WalletHeader_Single(const BinaryData& mb) :
+      WalletHeader(WalletHeaderType_Single, mb)
    {}
 
    //virtual
@@ -127,8 +128,8 @@ struct WalletHeader_Single : public WalletHeader
 struct WalletHeader_Multisig : public WalletHeader
 {
    //tors
-   WalletHeader_Multisig() :
-      WalletHeader(WalletHeaderType_Multisig)
+   WalletHeader_Multisig(const BinaryData& mb) :
+      WalletHeader(WalletHeaderType_Multisig, mb)
    {}
 
    //virtual
@@ -141,7 +142,7 @@ struct WalletHeader_Subwallet : public WalletHeader
 {
    //tors
    WalletHeader_Subwallet() :
-      WalletHeader(WalletHeaderType_Subwallet)
+      WalletHeader(WalletHeaderType_Subwallet, {})
    {}
 
    //virtual
@@ -166,7 +167,7 @@ private:
 public:
    //tors
    WalletHeader_Control() :
-      WalletHeader(WalletHeaderType_Control)
+      WalletHeader(WalletHeaderType_Control, {})
    {
       versionMajor_ = VERSION_MAJOR;
       versionMinor_ = VERSION_MINOR;
@@ -184,7 +185,7 @@ struct WalletHeader_Custom : public WalletHeader
 {
    //tors
    WalletHeader_Custom() :
-      WalletHeader(WalletHeaderType_Custom)
+      WalletHeader(WalletHeaderType_Custom, {})
    {}
 
    //virtual

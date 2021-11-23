@@ -805,7 +805,7 @@ void NetworkSettings::selectNetwork(NETWORK_MODE mode)
       
       if (!customListenPort_)
          listenPort_ = SettingsUtils::portToString(LISTEN_PORT_MAINNET);
-      
+
       if (!customBtcPort_)
          btcPort_ = SettingsUtils::portToString(NODE_PORT_MAINNET);
 

@@ -265,10 +265,8 @@ private:
 
 public:
    //tors
-   AssetWallet_Single(std::shared_ptr<WalletDBInterface> iface,
-      std::shared_ptr<WalletHeader> metaPtr, const std::string& masterID) :
-      AssetWallet(iface, metaPtr, masterID)
-   {}
+   AssetWallet_Single(std::shared_ptr<WalletDBInterface>,
+      std::shared_ptr<WalletHeader>, const std::string&);
 
    //locals
    void addPrivateKeyPassphrase(const std::function<SecureBinaryData(void)>&);
@@ -370,10 +368,8 @@ protected:
 
 public:
    //tors
-   AssetWallet_Multisig(std::shared_ptr<WalletDBInterface> iface,
-      std::shared_ptr<WalletHeader> metaPtr, const std::string& masterID) :
-      AssetWallet(iface, metaPtr, masterID)
-   {}
+   AssetWallet_Multisig(std::shared_ptr<WalletDBInterface>,
+      std::shared_ptr<WalletHeader>, const std::string&);
 
    //virtual
    bool setImport(int importID, const SecureBinaryData& pubkey);

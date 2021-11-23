@@ -85,6 +85,7 @@ namespace Armory
          static const BinaryData& getGenesisBlockHash(void);
          static const BinaryData& getGenesisTxHash(void);
          static const BinaryData& getMagicBytes(void);
+         static BinaryData getMainnetMagicBytes(void);
 
          static NETWORK_MODE getMode(void) { return mode_; }
          static bool isInitialized(void);

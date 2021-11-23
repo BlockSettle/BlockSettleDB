@@ -86,6 +86,12 @@ void BitcoinSettings::selectNetwork(NETWORK_MODE mode)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+BinaryData BitcoinSettings::getMainnetMagicBytes()
+{
+   return READHEX(MAINNET_MAGIC_BYTES);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 bool BitcoinSettings::isInitialized()
 {
    return mode_ != NETWORK_MODE_NA;
@@ -160,7 +166,7 @@ const BinaryData& BitcoinSettings::getMagicBytes(void)
       throw runtime_error("BitcoinSettings is uninitialized!");
    }
 
-   return magicBytes_; 
+   return magicBytes_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,7 +184,7 @@ uint32_t BitcoinSettings::getCoinType()
 ////////////////////////////////////////////////////////////////////////////////
 void BitcoinSettings::processArgs(const map<string, string>& argMap)
 {
-   auto findMode = [&argMap](void)->NETWORK_MODE
+   auto detectMode = [&argMap](void)->NETWORK_MODE
    {
       auto iter = argMap.find("testnet");
       if (iter != argMap.end())
@@ -191,6 +197,6 @@ void BitcoinSettings::processArgs(const map<string, string>& argMap)
       return NETWORK_MODE_MAINNET;
    };
 
-   auto mode = findMode();
+   auto mode = detectMode();
    selectNetwork(mode);
 }

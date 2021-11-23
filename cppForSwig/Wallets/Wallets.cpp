@@ -1050,6 +1050,19 @@ void AssetWallet::eraseFromDisk(AssetWallet* wltPtr)
 //// AssetWallet_Single
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+AssetWallet_Single::AssetWallet_Single(shared_ptr<WalletDBInterface> iface,
+   shared_ptr<WalletHeader> metaPtr, const string& masterID) :
+   AssetWallet(iface, metaPtr, masterID)
+{
+   if (metaPtr == nullptr ||
+      metaPtr->magicBytes_ != Armory::Config::BitcoinSettings::getMagicBytes())
+   {
+      throw WalletException(
+         "[AssetWallet_Single] network magic bytes mismatch");
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 const AddressAccountId& AssetWallet_Single::createBIP32Account(
    std::shared_ptr<AccountType_BIP32> accTypePtr)
 {
@@ -1244,7 +1257,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    rootNode.initFromSeed(seed);
 
    auto coinType = Armory::Config::BitcoinSettings::getCoinType();
-   
+
    //address accounts
    set<shared_ptr<AccountType_BIP32>> accountTypes;
 
@@ -1523,10 +1536,11 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    const SecureBinaryData& passphrase,
    const SecureBinaryData& controlPassphrase,
    const SecureBinaryData& privateRoot,
-   const SecureBinaryData& chaincode, 
+   const SecureBinaryData& chaincode,
    uint32_t seedFingerprint)
 {
-   auto headerPtr = make_shared<WalletHeader_Single>();
+   auto headerPtr = make_shared<WalletHeader_Single>(
+      Armory::Config::BitcoinSettings::getMagicBytes());
    headerPtr->walletID_ = walletID;
 
    //init headerPtr object
@@ -1627,10 +1641,10 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbWithPubRoot(
          throw WalletException("[initWalletDbWithPubRoot] root has priv key");
    }
 
-   auto headerPtr = make_shared<WalletHeader_Single>();
+   auto headerPtr = make_shared<WalletHeader_Single>(
+      Armory::Config::BitcoinSettings::getMagicBytes());
    headerPtr->walletID_ = walletID;
-   headerPtr->controlSalt_ = CryptoPRNG::generateRandom(32);
-
+   WalletDBInterface::initWalletHeaderObject(headerPtr, {});
    auto walletPtr = make_shared<AssetWallet_Single>(iface, headerPtr, masterID);
 
    auto controlPassLbd = 
@@ -1810,7 +1824,8 @@ void AssetWallet_Single::importPublicData(
    auto&& tx = iface->beginWriteTransaction(wpd.dbName_);
 
    //open the wallet
-   auto headerPtr = make_shared<WalletHeader_Single>();
+   auto headerPtr = make_shared<WalletHeader_Single>(
+      Armory::Config::BitcoinSettings::getMagicBytes());
    headerPtr->walletID_ = wpd.walletID_;
    auto wltWO = make_unique<AssetWallet_Single>(iface, headerPtr, wpd.masterID_);
 
@@ -2237,6 +2252,19 @@ std::shared_ptr<AccountType_BIP32> AssetWallet_Single::makeNewBip32AccTypeObject
 ////////////////////////////////////////////////////////////////////////////////
 //// AssetWallet_Multisig
 ////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+AssetWallet_Multisig::AssetWallet_Multisig(shared_ptr<WalletDBInterface> iface,
+   shared_ptr<WalletHeader> metaPtr, const string& masterID) :
+   AssetWallet(iface, metaPtr, masterID)
+{
+   if (metaPtr == nullptr ||
+      metaPtr->magicBytes_ != Armory::Config::BitcoinSettings::getMagicBytes())
+   {
+      throw WalletException(
+         "[AssetWallet_Multisig] network magic bytes mismatch");
+   }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet_Multisig::readFromFile()
 {

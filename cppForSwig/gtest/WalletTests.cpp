@@ -1437,7 +1437,8 @@ TEST_F(DerivationTests, DerivationTree_FromWalletRoot)
 
    {
       //generate bip32 encrypted root
-      auto whs = make_shared<WalletHeader_Single>();
+      auto whs = make_shared<WalletHeader_Single>(
+         Armory::Config::BitcoinSettings::getMagicBytes());
       whs->walletID_ = "abc";
       auto mks = WalletDBInterface::initWalletHeaderObject(whs, {});
 
@@ -4205,7 +4206,7 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
    auto pubRoot = assetWlt->getPublicRoot();
    auto chainCode = assetWlt->getArmory135Chaincode();
 
-   //close wallet 
+   //close wallet
    assetWlt.reset();
 
    auto woWallet = AssetWallet_Single::createFromPublicRoot_Armory135(
