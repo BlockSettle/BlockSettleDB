@@ -84,7 +84,7 @@ void CppToProto::addr(WalletAsset* assetPtr,
    assetPtr->set_assetid(serAssetId.getCharPtr(), serAssetId.getSize());
 
    //address string
-   auto& addrStr = addrPtr->getAddress();
+   const auto& addrStr = addrPtr->getAddress();
    assetPtr->set_addressstring(addrStr);
 
    auto isUsed = accPtr->isAssetInUse(addrPtr->getID());
@@ -123,7 +123,7 @@ void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr,
    const auto& addrTypes = accPtr->getAddressTypeSet();
    for (const auto& addrType : addrTypes)
       wltProto->add_addresstypes(addrType);
-   wltProto->set_defaultaddresstype((uint32_t)accPtr->getAddressType());
+   wltProto->set_defaultaddresstype((uint32_t)accPtr->getDefaultAddressType());
 
    //use index
    auto assetAccountPtr = accPtr->getOuterAccount();

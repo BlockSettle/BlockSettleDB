@@ -158,9 +158,9 @@ public:
       AddressEntryType aeType = AddressEntryType_Default);
    std::shared_ptr<AddressEntry> getNewAddress(
       std::shared_ptr<WalletDBInterface>,
-      const Armory::Wallets::AssetAccountId& account, AddressEntryType aeType);
+      const Armory::Wallets::AssetAccountId&, AddressEntryType);
    std::shared_ptr<AddressEntry> getNewChangeAddress(
-      std::shared_ptr<WalletDBInterface> iface,
+      std::shared_ptr<WalletDBInterface>,
       AddressEntryType aeType = AddressEntryType_Default);
    std::shared_ptr<AddressEntry> peekNextChangeAddress(
       std::shared_ptr<WalletDBInterface>,
@@ -171,18 +171,18 @@ public:
    std::shared_ptr<AssetEntry> getOuterAssetRoot(void) const;
 
 
-   AddressEntryType getAddressType(void) const
+   AddressEntryType getDefaultAddressType(void) const
       { return defaultAddressEntryType_; }
-   std::set<AddressEntryType> getAddressTypeSet(void) const
+   const std::set<AddressEntryType>& getAddressTypeSet(void) const
       { return addressTypes_; }
    bool hasAddressType(AddressEntryType);
 
    std::shared_ptr<AssetEntry> getAssetForID(
       const Armory::Wallets::AssetId&) const;
 
-   const std::pair<Armory::Wallets::AssetId, AddressEntryType>& 
+   const std::pair<Armory::Wallets::AssetId, AddressEntryType>&
       getAssetIDPairForAddr(const BinaryData&);
-   const std::pair<Armory::Wallets::AssetId, AddressEntryType>& 
+   const std::pair<Armory::Wallets::AssetId, AddressEntryType>&
       getAssetIDPairForAddrUnprefixed(const BinaryData&);
 
    void updateAddressHashMap(void);

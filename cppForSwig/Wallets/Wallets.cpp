@@ -586,7 +586,7 @@ void AssetWallet::shutdown()
 AddressEntryType AssetWallet::getAddrTypeForAccount(const AssetId& id) const
 {
    auto acc = getAccountForID(id.getAddressAccountId());
-   return acc->getAddressType();
+   return acc->getDefaultAddressType();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -708,7 +708,7 @@ const pair<AssetId, AddressEntryType>&
 {
    updateAddressHashMap();
 
-   auto addressTypeSet = getAddressTypeSet();
+   const auto& addressTypeSet = getAddressTypeSet();
    set<uint8_t> usedPrefixes;
    for (auto& addrType : addressTypeSet)
    {

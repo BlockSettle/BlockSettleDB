@@ -42,6 +42,9 @@ enum AddressEntryType
 #define ADDRESS_COMPRESSED_MASK  0x10000000
 #define ADDRESS_TYPE_MASK        0x0FFFFFFF
 
+#define WITH_COMPRESSED_FLAG(a, b) b ? a : \
+   AddressEntryType(a | AddressEntryType::AddressEntryType_Uncompressed)
+
 ////////////////////////////////////////////////////////////////////////////////
 class AddressEntry
 {
@@ -116,12 +119,12 @@ class AddressEntry_P2PKH : public AddressEntry, public AddressEntry_WithAsset
 public:
    //tors
    AddressEntry_P2PKH(std::shared_ptr<AssetEntry> asset, bool isCompressed) :
-      AddressEntry(AddressEntryType_P2PKH), 
+      AddressEntry(WITH_COMPRESSED_FLAG(AddressEntryType_P2PKH, isCompressed)),
       AddressEntry_WithAsset(asset, isCompressed)
    {
       auto asset_single = std::dynamic_pointer_cast<AssetEntry_Single>(asset);
       if (asset_single == nullptr)
-         throw AddressException("need single asset for single signer address type");
+         throw AddressException("[AddressEntry_P2PKH] unexpected asset type");
    }
 
    //virtual
@@ -146,12 +149,12 @@ class AddressEntry_P2PK : public AddressEntry, public AddressEntry_WithAsset
 public:
    //tors
    AddressEntry_P2PK(std::shared_ptr<AssetEntry> asset, bool isCompressed) :
-      AddressEntry(AddressEntryType_P2PK), 
+      AddressEntry(WITH_COMPRESSED_FLAG(AddressEntryType_P2PK, isCompressed)),
       AddressEntry_WithAsset(asset, isCompressed)
    {
       auto asset_single = std::dynamic_pointer_cast<AssetEntry_Single>(asset);
       if (asset_single == nullptr)
-         throw AddressException("need single asset for single signer address type");
+         throw AddressException("[AddressEntry_P2PK] unexpected asset type");
    }
 
    //virtual
@@ -176,12 +179,12 @@ class AddressEntry_P2WPKH : public AddressEntry, public AddressEntry_WithAsset
 public:
    //tors
    AddressEntry_P2WPKH(std::shared_ptr<AssetEntry> asset) :
-      AddressEntry(AddressEntryType_P2WPKH), 
+      AddressEntry(AddressEntryType_P2WPKH),
       AddressEntry_WithAsset(asset, true)
    {
       auto asset_single = std::dynamic_pointer_cast<AssetEntry_Single>(asset);
       if (asset_single == nullptr)
-         throw AddressException("need single asset for single signer address type");
+         throw AddressException("[AddressEntry_P2WPKH] unexpected asset type");
    }
 
    //virtual
@@ -207,12 +210,12 @@ class AddressEntry_Multisig : public AddressEntry, public AddressEntry_WithAsset
 public:
    //tors
    AddressEntry_Multisig(std::shared_ptr<AssetEntry> asset, bool compressed) :
-      AddressEntry(AddressEntryType_Multisig),
+      AddressEntry(WITH_COMPRESSED_FLAG(AddressEntryType_Multisig, compressed)),
       AddressEntry_WithAsset(asset, compressed)
    {
       auto asset_ms = std::dynamic_pointer_cast<AssetEntry_Multisig>(asset);
       if (asset_ms == nullptr)
-         throw AddressException("need multisig asset for multisig address type");
+         throw AddressException("[AddressEntry_Multisig] unexpected asset type");
    }
 
    //virtual
@@ -256,7 +259,7 @@ class AddressEntry_P2SH : public AddressEntry, public AddressEntry_Nested
 public:
    //tors
    AddressEntry_P2SH(std::shared_ptr<AddressEntry> addrPtr) :
-      AddressEntry(AddressEntryType_P2SH), 
+      AddressEntry(AddressEntryType_P2SH),
       AddressEntry_Nested(addrPtr)
    {
       if (addrPtr->getType() & AddressEntryType_P2SH)
@@ -288,7 +291,7 @@ class AddressEntry_P2WSH : public AddressEntry, public AddressEntry_Nested
 public:
    //tors
    AddressEntry_P2WSH(std::shared_ptr<AddressEntry> addrPtr) :
-      AddressEntry(AddressEntryType_P2WSH), 
+      AddressEntry(AddressEntryType_P2WSH),
       AddressEntry_Nested(addrPtr)
    {
       auto addrType = addrPtr->getType() & ADDRESS_TYPE_MASK;

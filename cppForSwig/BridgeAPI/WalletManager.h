@@ -129,7 +129,7 @@ public:
       };
       asyncWlt_->getAddrTxnCountsFromDB(lbd);
    }
-   
+
    void updateAddrBalancesFromDB(void)
    {
       auto lbd = [this](ReturnMessage<
@@ -218,14 +218,14 @@ enum Armory135WalletEntriesEnum
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct Armory135Address
+class Armory135Address
 {
 private:
    //public data
    BinaryData scrAddr_;
    SecureBinaryData pubKey_;
    SecureBinaryData chaincode_;
-   
+
    //private data
    SecureBinaryData privKey_;
    SecureBinaryData decryptedPrivKey_;
@@ -248,7 +248,7 @@ public:
    void parseFromRef(const BinaryDataRef&);
    bool isEncrypted(void) const { return isEncrypted_; }
    bool hasPrivKey(void) const { return hasPrivKey_; }
-   
+
    const SecureBinaryData& privKey(void) const { return privKey_; }
    const SecureBinaryData& pubKey(void) const { return pubKey_; }
    const SecureBinaryData& chaincode(void) const { return chaincode_; }
@@ -259,7 +259,7 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct Armory135Header
+class Armory135Header
 {
 private:
    //file system

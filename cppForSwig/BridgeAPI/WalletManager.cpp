@@ -666,7 +666,7 @@ void Armory135Header::parseFile()
       version = brr.get_uint32_t();
 
       //magic bytes
-      auto magicBytes  = brr.get_BinaryData(4);
+      auto magicBytes = brr.get_BinaryData(4);
       if (magicBytes != Armory::Config::BitcoinSettings::getMagicBytes())
          return;
 
@@ -801,7 +801,7 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
    auto rootAddrIter = addrMap_.find(rootKey);
    if (rootAddrIter == addrMap_.end())
       throw runtime_error("no root entry");
-   
+
    auto& rootAddrObj = rootAddrIter->second;
    auto chaincodeCopy = rootAddrObj.chaincode();
 
@@ -887,8 +887,7 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
 
    //run through addresses, figure out script types
    auto accID = wallet->getMainAccountID();
-   auto mainAccPtr = 
-      wallet->getAccountForID(accID);
+   auto mainAccPtr = wallet->getAccountForID(accID);
 
    //TODO: deal with imports
 
@@ -899,8 +898,11 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
          addrPair.second.chainIndex() > highestUsedIndex_)
          continue;
 
-      typeMap.emplace(mainAccPtr->getAssetIDPairForAddrUnprefixed(
-         addrPair.second.scrAddr()));
+      const auto& addrTypePair = mainAccPtr->getAssetIDPairForAddrUnprefixed(
+         addrPair.second.scrAddr());
+
+      if (addrTypePair.second != mainAccPtr->getDefaultAddressType())
+         typeMap.emplace(addrTypePair);
    }
 
    {
@@ -917,6 +919,12 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
          }
 
          wallet->getNewAddress(typePair.second);
+         ++lastIndex;
+      }
+
+      while (lastIndex < highestUsedIndex_)
+      {
+         wallet->getNewAddress();
          ++lastIndex;
       }
    }
@@ -962,7 +970,7 @@ void Armory135Address::parseFromRef(const BinaryDataRef& bdr)
    auto addrFlags = brrScrAddr.get_uint64_t();
    hasPrivKey_ = addrFlags & 0x0000000000000001;
    hasPubKey_  = addrFlags & 0x0000000000000002;
-         
+
    isEncrypted_ = addrFlags & 0x0000000000000004;
 
    //chaincode
