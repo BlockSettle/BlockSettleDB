@@ -15,6 +15,7 @@
 using namespace std;
 using namespace Armory::Wallets;
 
+std::string legacyChangeComment("[[ Change received ]]");
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -668,7 +669,20 @@ shared_ptr<AddressEntry> AddressAccount::peekNextChangeAddress(
 ////////////////////////////////////////////////////////////////////////////////
 bool AddressAccount::isAssetChange(const AssetId& id) const
 {
-   return id.belongsTo(innerAccountId_);
+   if (innerAccountId_ != outerAccountId_)
+      return id.belongsTo(innerAccountId_);
+
+   if (!isLegacy())
+      return false;
+
+   if (!getComment_)
+      return false;
+
+   //TODO: get addr for asset
+   BinaryData standin_replace_later;
+
+   const auto& comment = getComment_(standin_replace_later);
+   return (comment == legacyChangeComment);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1166,6 +1180,12 @@ bool AddressAccount::hasBip32Path(
    }
 
    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool AddressAccount::isLegacy() const
+{
+   return ID_ == AccountType_ArmoryLegacy::addrAccountId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

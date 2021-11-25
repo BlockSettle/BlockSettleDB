@@ -124,6 +124,8 @@ public:
    Armory::Wallets::AddressAccountId getAccountID(void) const override;
    Armory::Wallets::AssetAccountId getOuterAccountID(void) const override;
    Armory::Wallets::AssetAccountId getInnerAccountID(void) const override;
+
+   static const Armory::Wallets::AddressAccountId addrAccountId;
 };
 
 struct NodeData

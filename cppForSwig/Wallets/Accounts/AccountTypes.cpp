@@ -48,6 +48,9 @@ void AccountType::setDefaultAddressType(AddressEntryType addrType)
 //// AccountType_ArmoryLegacy
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
+const Armory::Wallets::AddressAccountId
+   AccountType_ArmoryLegacy::addrAccountId(ARMORY_LEGACY_ACCOUNTID);
+
 AccountType_ArmoryLegacy::AccountType_ArmoryLegacy() :
    AccountType()
 {
@@ -83,10 +86,7 @@ AssetAccountId AccountType_ArmoryLegacy::getInnerAccountID(void) const
 ////////////////////////////////////////////////////////////////////////////////
 AddressAccountId AccountType_ArmoryLegacy::getAccountID() const
 {
-   auto legacyAddressAccountId = ARMORY_LEGACY_ACCOUNTID;
-   int32_t legacyAccountKey;
-   memcpy(&legacyAccountKey, &legacyAddressAccountId, 4);
-   return AddressAccountId(legacyAccountKey);
+   return addrAccountId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

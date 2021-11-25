@@ -88,6 +88,9 @@ private:
    std::map<Armory::Wallets::AssetAccountId,
       Armory::Wallets::AssetId> topHashedAssetId_;
 
+   //temp placeholder for fetching comments
+   std::function<const std::string&(const BinaryData&)> getComment_ = nullptr;
+
 private:
    AddressAccount(const std::string&,
       const Armory::Wallets::AddressAccountId&);
@@ -123,6 +126,8 @@ private:
 
    const std::shared_ptr<AssetAccountData>& getAccountDataForID(
       const Armory::Wallets::AssetAccountId&) const;
+
+   bool isLegacy(void) const;
 
 public:
    const Armory::Wallets::AddressAccountId& getID(void) const { return ID_; }
