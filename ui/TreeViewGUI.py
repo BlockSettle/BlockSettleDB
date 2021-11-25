@@ -2,9 +2,9 @@ from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
 ##############################################################################
 #                                                                            #
-# Copyright (C) 2016-17, goatpig                                             #
+# Copyright (C) 2016-2021, goatpig                                           #
 #  Distributed under the MIT license                                         #
-#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #                                   
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
 #                                                                            #
 ##############################################################################
 
@@ -34,41 +34,41 @@ COL_ADDR = 1
 
 ################################################################################
 class AddressObjectItem(object):
-   
+
    def __init__(self, addrObj):
       self.addrObj = addrObj
-      
+
    def rowCount(self):
       return 0
-   
+
    def hasEntries(self):
       return False
-   
+
    def getName(self):
       return self.addrObj.getAddressString()
-   
+
    def getCount(self):
       return self.addrObj.getTxioCount()
-   
+
    def getBalance(self):
       return self.addrObj.getFullBalance()
-   
+
    def getComment(self):
       return self.addrObj.getComment()
-   
+
    def getAddrObj(self):
       return self.addrObj
-   
+
    def canDoubleClick(self):
       return True
- 
+
 ################################################################################   
 class CoinControlUtxoItem():
-   
+
    def __init__(self, parent, utxo):
       self.utxo = utxo
       self.parent = parent
-      
+
       if utxo.getTxHeight() == 2**32 - 1:
          self.name = QObject().tr("ZC ID: %s | TxOut: %s" % \
             (str(utxo.getTxIndex()), \
@@ -78,51 +78,50 @@ class CoinControlUtxoItem():
             (str(utxo.getTxHeight()), \
             str(utxo.getTxIndex()), \
             str(utxo.getTxOutIndex())))
-         
-      
+
       self.state = Qt.Checked
       if utxo.isChecked() == False:
          self.state = Qt.Unchecked
-         
+
       self.comment = self.parent.getCommentFromWallet(self.utxo.getTxHash())
-      
+
    def rowCount(self):
       return 0
-   
+
    def hasEntries(self):
       return False
-   
+
    def getName(self):
       return self.name
-   
+
    def getBalance(self):
       return self.utxo.getValue()
 
    def getComment(self):
       return self.comment
-   
+
    def checked(self):
       return self.state
-   
+
    def setCheckState(self, val):
       self.checkDown(val)
-      
+
       try:
          self.parent.checkUp()
       except:
          pass
-      
+
    def checkDown(self, val):
       self.state = val
-      
+
       if val == Qt.Checked:
          self.utxo.setChecked(True)
       else:
          self.utxo.setChecked(False)
-      
+
 ################################################################################
 class RBFutxoItem():
-   
+
    def __init__(self, parent, utxo):
       self.utxo = utxo
       self.parent = parent
@@ -135,7 +134,7 @@ class RBFutxoItem():
             (str(utxo.getTxHeight()), \
             str(utxo.getTxIndex()), \
             str(utxo.getTxOutIndex())))
-      
+
       self.state = Qt.Checked
       if utxo.isChecked() == False:
          self.state = Qt.Unchecked
@@ -143,33 +142,33 @@ class RBFutxoItem():
       h160 = utxo.getRecipientHash160()
       binAddr = utxo.getRecipientScrAddr()
       self.scrAddr = hash160_to_addrStr(h160, binAddr[0])   
-      
+
       self.value = coin2str(utxo.getValue(), maxZeros=2)      
-            
+
    def rowCount(self):
       return 0
-   
+
    def hasEntries(self):
       return False
-   
+
    def getName(self):
       return self.name
-   
+
    def getValue(self):
       return self.value
-   
+
    def getAddress(self):
       return self.scrAddr
-   
+
    def checked(self):
       return self.state
-   
+
    def setCheckState(self, val):
       self.state = val
-      
+
    def isCheckable(self):
       return True
-      
+
 ################################################################################
 class EmptyNode(object):
 
@@ -832,7 +831,7 @@ class AddressTreeModel(ArmoryTreeModel):
    def data(self, index, role=Qt.DisplayRole):
       if role==Qt.DisplayRole:
          col = index.column()
-         node = self.getNodeItem(index)  
+         node = self.getNodeItem(index)
 
          if col == COL_TREE:
             return node.treeNode.getName()
