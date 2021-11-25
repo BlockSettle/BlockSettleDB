@@ -21,7 +21,7 @@ using namespace std;
 using namespace ::google::protobuf;
 using namespace ::Codec_ClientProto;
 using namespace ArmoryThreading;
-using namespace ArmorySigner;
+using namespace Armory::Signer;
 using namespace ArmoryBridge;
 
 enum CppBridgeState

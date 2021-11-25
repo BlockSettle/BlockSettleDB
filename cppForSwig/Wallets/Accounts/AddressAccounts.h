@@ -29,6 +29,14 @@
 
 #define ADDRESS_ACCOUNT_PREFIX   0xD0
 
+namespace Armory
+{
+   namespace Signer
+   {
+      class BIP32_AssetPath;
+   }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 struct UnrequestedAddressException
 {};
@@ -217,7 +225,7 @@ public:
    void initAfterLock(void) {}
    void cleanUpBeforeUnlock(void) {}
 
-   bool hasBip32Path(const ArmorySigner::BIP32_AssetPath&) const;
+   bool hasBip32Path(const Armory::Signer::BIP32_AssetPath&) const;
    bool isLegacy(void) const;
 };
 

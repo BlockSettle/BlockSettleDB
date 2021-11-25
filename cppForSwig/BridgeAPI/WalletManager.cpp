@@ -17,7 +17,7 @@
 #endif
 
 using namespace std;
-using namespace ArmorySigner;
+using namespace Armory::Signer;
 using namespace Armory::Wallets;
 
 #define WALLET_135_HEADER "\xbaWALLET\x00"

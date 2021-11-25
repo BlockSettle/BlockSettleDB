@@ -12,7 +12,7 @@
 
 using namespace std;
 using namespace ArmoryThreading;
-using namespace ArmorySigner;
+using namespace Armory::Signer;
 
 ////////////////////////////////////////////////////////////////////////////////
 int verifyTxSigs(const BinaryData& rawTx, const LMDBBlockDatabase* iface, 
@@ -26,7 +26,7 @@ int verifyTxSigs(const BinaryData& rawTx, const LMDBBlockDatabase* iface,
       //grab all utxos
       auto&& txin = tx.getTxInCopy(i);
       auto&& outpoint = txin.getOutPoint();
-         
+
       StoredTxOut stxo;
       if (iface->getStoredTxOut(
          stxo, outpoint.getTxHash(), outpoint.getTxOutIndex()))

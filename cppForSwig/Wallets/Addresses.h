@@ -71,7 +71,7 @@ public:
    virtual const Armory::Wallets::AssetId& getID(void) const = 0;
 
    virtual const std::string& getAddress() const = 0;
-   virtual std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+   virtual std::shared_ptr<Armory::Signer::ScriptRecipient> getRecipient(
       uint64_t) const = 0;
 
    virtual const BinaryData& getHash(void) const = 0;
@@ -135,7 +135,7 @@ public:
    const BinaryData& getHash(void) const override;
    const BinaryData& getPreimage(void) const override;
 
-   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+   std::shared_ptr<Armory::Signer::ScriptRecipient> getRecipient(
       uint64_t) const override;
    const BinaryData& getScript(void) const override;
 
@@ -165,7 +165,7 @@ public:
    const BinaryData& getPrefixedHash(void) const override;
    const BinaryData& getPreimage(void) const override;
 
-   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+   std::shared_ptr<Armory::Signer::ScriptRecipient> getRecipient(
       uint64_t) const override;
    const BinaryData& getScript(void) const override;
 
@@ -195,7 +195,7 @@ public:
    const BinaryData& getPrefixedHash(void) const override;
    const BinaryData& getPreimage(void) const override;
 
-   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+   std::shared_ptr<Armory::Signer::ScriptRecipient> getRecipient(
       uint64_t) const override;
    const BinaryData& getScript(void) const override;
 
@@ -226,7 +226,7 @@ public:
    const BinaryData& getPrefixedHash(void) const override;
    const BinaryData& getPreimage(void) const override;
 
-   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+   std::shared_ptr<Armory::Signer::ScriptRecipient> getRecipient(
       uint64_t) const override;
    const BinaryData& getScript(void) const override;
 
@@ -275,7 +275,7 @@ public:
    const BinaryData& getPreimage(void) const override;
    
    const BinaryData& getScript(void) const;
-   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+   std::shared_ptr<Armory::Signer::ScriptRecipient> getRecipient(
       uint64_t) const override;
 
    AddressEntryType getType(void) const override;
@@ -311,7 +311,7 @@ public:
    const BinaryData& getPreimage(void) const override;
 
    const BinaryData& getScript(void) const override;
-   std::shared_ptr<ArmorySigner::ScriptRecipient> getRecipient(
+   std::shared_ptr<Armory::Signer::ScriptRecipient> getRecipient(
       uint64_t) const override;
 
    AddressEntryType getType(void) const override;

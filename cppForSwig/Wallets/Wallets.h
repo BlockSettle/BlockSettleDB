@@ -33,6 +33,14 @@
 #include "Accounts/MetaAccounts.h"
 
 
+namespace Armory
+{
+   namespace Signer
+   {
+      class BIP32_AssetPath;
+   };
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 struct WalletPublicData
 {
@@ -284,16 +292,16 @@ public:
    const SecureBinaryData& getDecryptedPrivateKeyForAsset(
       std::shared_ptr<AssetEntry_Single>);
    const Armory::Wallets::AssetId& derivePrivKeyFromPath(
-      const ArmorySigner::BIP32_AssetPath&);
+      const Armory::Signer::BIP32_AssetPath&);
    const SecureBinaryData& getDecrypedPrivateKeyForId(
       const Armory::Wallets::AssetId&) const;
 
    std::shared_ptr<EncryptedSeed> getEncryptedSeed(void) const
    { return seed_; }
 
-   ArmorySigner::BIP32_AssetPath getBip32PathForAsset(
+   Armory::Signer::BIP32_AssetPath getBip32PathForAsset(
       std::shared_ptr<AssetEntry>) const;
-   ArmorySigner::BIP32_AssetPath getBip32PathForAssetID(
+   Armory::Signer::BIP32_AssetPath getBip32PathForAssetID(
       const Armory::Wallets::AssetId&) const;
 
    std::string getXpubForAssetID(const Armory::Wallets::AssetId&) const;

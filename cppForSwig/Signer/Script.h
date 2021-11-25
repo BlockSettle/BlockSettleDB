@@ -1056,9 +1056,12 @@ struct StackItem_SerializedScript : public StackItem
    void serialize(Codec_SignerState::StackEntryState&) const;
 };
 
-namespace ArmorySigner
+namespace Armory
 {
-   class SignerProxy;
+   namespace Signer
+   {
+      class SignerProxy;
+   };
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1112,7 +1115,7 @@ private:
    bool isSW_ = false;
 
    const BinaryDataRef script_;
-   std::shared_ptr<ArmorySigner::ResolverFeed> feed_;
+   std::shared_ptr<Armory::Signer::ResolverFeed> feed_;
 
 private:
    std::shared_ptr<ReversedStackEntry> pop_back(void)
@@ -1234,7 +1237,7 @@ private:
 
 public:
    StackResolver(BinaryDataRef script,
-      std::shared_ptr<ArmorySigner::ResolverFeed> feed) :
+      std::shared_ptr<Armory::Signer::ResolverFeed> feed) :
       script_(script), feed_(feed)
    {}
 
@@ -1250,7 +1253,8 @@ public:
    std::shared_ptr<ResolvedStack> getResolvedStack();
    unsigned getFlags(void) const { return flags_; }
    void setFlags(unsigned flags) { flags_ = flags; }
-   std::shared_ptr<ArmorySigner::ResolverFeed> getFeed(void) const { return feed_; }
+   std::shared_ptr<Armory::Signer::ResolverFeed> getFeed(
+      void) const { return feed_; }
 };
 
 #endif

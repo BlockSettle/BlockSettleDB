@@ -114,7 +114,7 @@ struct RestrictedUtxoSet
 class PaymentStruct
 {
    using RecipientMap = const std::map<unsigned, 
-      std::vector<std::shared_ptr<ArmorySigner::ScriptRecipient>>>;
+      std::vector<std::shared_ptr<Armory::Signer::ScriptRecipient>>>;
 
 private:
    const RecipientMap& recipients_;
@@ -366,8 +366,8 @@ class CoinSelectionInstance
 private:
    CoinSelection cs_;
 
-   using RecipientMap = std::map<unsigned, 
-      std::vector<std::shared_ptr<ArmorySigner::ScriptRecipient>>>;
+   using RecipientMap = std::map<unsigned,
+      std::vector<std::shared_ptr<Armory::Signer::ScriptRecipient>>>;
    
    RecipientMap recipients_;
    UtxoSelection selection_;
@@ -418,6 +418,6 @@ public:
    bool isSW(void) const { return selection_.witnessSize_ != 0; }
    void rethrow(void) { cs_.rethrow(); }
 
-   static std::shared_ptr<ArmorySigner::ScriptRecipient> createRecipient(
+   static std::shared_ptr<Armory::Signer::ScriptRecipient> createRecipient(
       const BinaryData&, uint64_t);
 };

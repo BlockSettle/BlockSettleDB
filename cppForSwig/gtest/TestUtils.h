@@ -487,13 +487,13 @@ namespace DBTestUtils
 namespace ResolverUtils
 {
    ////////////////////////////////////////////////////////////////////////////////
-   struct TestResolverFeed : public ArmorySigner::ResolverFeed
+   struct TestResolverFeed : public Armory::Signer::ResolverFeed
    {
    private:
       std::map<BinaryData, BinaryData> hashToPreimage_;
       std::map<BinaryData, SecureBinaryData> pubKeyToPrivKey_;
 
-      std::map<BinaryData, ArmorySigner::BIP32_AssetPath> bip32Paths_;
+      std::map<BinaryData, Armory::Signer::BIP32_AssetPath> bip32Paths_;
 
    public:
       BinaryData getByVal(const BinaryData& val) override
@@ -526,7 +526,7 @@ namespace ResolverUtils
          hashToPreimage_.emplace(key, val);
       }
 
-      ArmorySigner::BIP32_AssetPath resolveBip32PathForPubkey(
+      Armory::Signer::BIP32_AssetPath resolveBip32PathForPubkey(
          const BinaryData& pubkey) override
       {
          auto iter = bip32Paths_.find(pubkey);
@@ -537,17 +537,17 @@ namespace ResolverUtils
       }
 
       void setBip32PathForPubkey(
-         const BinaryData& pubkey, const ArmorySigner::BIP32_AssetPath& path)
+         const BinaryData& pubkey, const Armory::Signer::BIP32_AssetPath& path)
       {
          bip32Paths_.emplace(pubkey, path);
       }
    };
 
    ////////////////////////////////////////////////////////////////////////////////
-   class HybridFeed : public ArmorySigner::ResolverFeed
+   class HybridFeed : public Armory::Signer::ResolverFeed
    {
    private:
-      std::shared_ptr<ArmorySigner::ResolverFeed_AssetWalletSingle> feedPtr_;
+      std::shared_ptr<Armory::Signer::ResolverFeed_AssetWalletSingle> feedPtr_;
 
    public:
       TestResolverFeed testFeed_;
@@ -555,7 +555,8 @@ namespace ResolverUtils
    public:
       HybridFeed(std::shared_ptr<AssetWallet_Single> wltPtr)
       {
-         feedPtr_ = std::make_shared<ArmorySigner::ResolverFeed_AssetWalletSingle>(wltPtr);
+         feedPtr_ = std::make_shared<
+            Armory::Signer::ResolverFeed_AssetWalletSingle>(wltPtr);
       }
 
       BinaryData getByVal(const BinaryData& val) override
@@ -582,18 +583,18 @@ namespace ResolverUtils
          return feedPtr_->getPrivKeyForPubkey(pubkey);
       }
 
-      ArmorySigner::BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override
+      Armory::Signer::BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override
       {
          throw std::runtime_error("invalid pubkey");
       }
 
       void setBip32PathForPubkey(
-         const BinaryData&, const ArmorySigner::BIP32_AssetPath&) override
+         const BinaryData&, const Armory::Signer::BIP32_AssetPath&) override
       {}
    };
 
    /////////////////////////////////////////////////////////////////////////////
-   struct CustomFeed : public ArmorySigner::ResolverFeed
+   struct CustomFeed : public Armory::Signer::ResolverFeed
    {
       std::map<BinaryDataRef, BinaryDataRef> hash_to_preimage_;
       std::shared_ptr<ResolverFeed> wltFeed_;
@@ -620,13 +621,14 @@ namespace ResolverUtils
    public:
       CustomFeed(std::shared_ptr<AddressEntry> addrPtr,
          std::shared_ptr<AssetWallet_Single> wlt) :
-         wltFeed_(std::make_shared<ArmorySigner::ResolverFeed_AssetWalletSingle>(wlt))
+         wltFeed_(std::make_shared<
+            Armory::Signer::ResolverFeed_AssetWalletSingle>(wlt))
       {
          addAddressEntry(addrPtr);
       }
 
       CustomFeed(std::shared_ptr<AddressEntry> addrPtr,
-         std::shared_ptr<ArmorySigner::ResolverFeed> feed) :
+         std::shared_ptr<Armory::Signer::ResolverFeed> feed) :
          wltFeed_(feed)
       {
          addAddressEntry(addrPtr);
@@ -642,18 +644,20 @@ namespace ResolverUtils
          return iter->second;
       }
 
-      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey) override
+      const SecureBinaryData& getPrivKeyForPubkey(
+         const BinaryData& pubkey) override
       {
          return wltFeed_->getPrivKeyForPubkey(pubkey);
       }
 
-      ArmorySigner::BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override
+      Armory::Signer::BIP32_AssetPath resolveBip32PathForPubkey(
+         const BinaryData&) override
       {
          throw std::runtime_error("invalid pubkey");
       }
 
       void setBip32PathForPubkey(
-         const BinaryData&, const ArmorySigner::BIP32_AssetPath&) override
+         const BinaryData&, const Armory::Signer::BIP32_AssetPath&) override
       {}
    };
 }

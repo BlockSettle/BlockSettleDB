@@ -10,7 +10,7 @@
 #include "Wallets.h"
 
 using namespace std;
-using namespace ArmorySigner;
+using namespace Armory::Signer;
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //

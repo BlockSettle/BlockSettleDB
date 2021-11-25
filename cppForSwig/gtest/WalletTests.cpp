@@ -1,9 +1,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2017, goatpig                                               //            
+//  Copyright (C) 2017-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,7 +13,7 @@
 #include "../Wallets/WalletFileInterface.h"
 
 using namespace std;
-using namespace ArmorySigner;
+using namespace Armory::Signer;
 using namespace Armory::Config;
 using namespace Armory::Wallets;
 
