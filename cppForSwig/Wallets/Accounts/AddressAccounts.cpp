@@ -197,7 +197,7 @@ unique_ptr<AddressAccount> AddressAccount::make_new(
 
       //grab derivation tree, generate node roots
       const auto& derTree = accBip32->getDerivationTree();
-      auto walletRootBip32 = 
+      auto walletRootBip32 =
          dynamic_pointer_cast<AssetEntry_BIP32Root>(getRootLbd());
       
       ReentrantLock lock(decrData.get());
@@ -611,7 +611,10 @@ shared_ptr<AddressEntry> AddressAccount::getNewAddress(
 
    auto aeIter = addressTypes_.find(aeType);
    if (aeIter == addressTypes_.end())
-      throw AccountException("invalid address type for this account");
+   {
+      throw AccountException(
+         "[getNewAddress] invalid address type for this account");
+   }
 
    auto accountPtr = getAccountForID(accountId);
    auto assetPtr = accountPtr->getNewAsset(iface);
@@ -633,7 +636,10 @@ shared_ptr<AddressEntry> AddressAccount::getNewChangeAddress(
    std::shared_ptr<WalletDBInterface> iface, AddressEntryType aeType)
 {
    if (!innerAccountId_.isValid())
-      throw AccountException("no currently active asset account");
+   {
+      throw AccountException(
+         "[getNewChangeAddress] no currently active asset account");
+   }
 
    return getNewAddress(iface, innerAccountId_, aeType);
 }
@@ -647,7 +653,10 @@ shared_ptr<AddressEntry> AddressAccount::peekNextChangeAddress(
 
    auto aeIter = addressTypes_.find(aeType);
    if (aeIter == addressTypes_.end())
-      throw AccountException("invalid address type for this account");
+   {
+      throw AccountException(
+         "[peekNextChangeAddress] invalid address type for this account");
+   }
 
    auto accountPtr = getAccountForID(innerAccountId_);
    auto assetPtr = accountPtr->getNewAsset(iface);
