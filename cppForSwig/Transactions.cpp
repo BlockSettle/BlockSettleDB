@@ -127,10 +127,10 @@ void TransactionVerifier::checkSigs_NoCatch() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<StackInterpreter> TransactionVerifier::getStackInterpreter(
-   unsigned inputid) const
+unique_ptr<Armory::Signer::StackInterpreter>
+TransactionVerifier::getStackInterpreter(unsigned inputid) const
 {
-   auto sstack = make_unique<StackInterpreter>(this, inputid);
+   auto sstack = make_unique<Armory::Signer::StackInterpreter>(this, inputid);
    auto flags = sstack->getFlags();
    flags |= flags_;
    sstack->setFlags(flags);
@@ -138,13 +138,13 @@ unique_ptr<StackInterpreter> TransactionVerifier::getStackInterpreter(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TxInEvalState TransactionVerifier::checkSig(
-   unsigned inputId, StackInterpreter* sstack_ptr) const
+TxInEvalState TransactionVerifier::checkSig(unsigned inputId,
+   Armory::Signer::StackInterpreter* sstack_ptr) const
 {
    //grab the uxto
    auto&& input = theTx_.getTxInRef(inputId);
    if (input.getSize() < 41)
-      throw ScriptException("unexpected txin size");
+      throw Armory::Signer::ScriptException("unexpected txin size");
 
    //grab input script
    BinaryRefReader inputBrr(input);
@@ -167,7 +167,7 @@ TxInEvalState TransactionVerifier::checkSig(
    auto& outputScript = utxo.getScript();
 
    //init stack
-   unique_ptr<StackInterpreter> sstack;
+   unique_ptr<Armory::Signer::StackInterpreter> sstack;
    auto stackPtr = sstack_ptr;
    if (stackPtr == nullptr)
    {
@@ -334,7 +334,7 @@ uint64_t TransactionVerifier::getOutpointValue(unsigned inputID) const
 unsigned TransactionVerifier::getTxInSequence(unsigned inputID) const
 {
    if (inputID >= theTx_.txins_.size())
-      throw ScriptException("invalid txin index");
+      throw Armory::Signer::ScriptException("invalid txin index");
 
    auto& inputOnS = theTx_.txins_[inputID];
    auto sequenceOffset = inputOnS.first + inputOnS.second - 4;
@@ -371,7 +371,7 @@ vector<BinaryDataRef> SigHashData::tokenize(
 
    BinaryRefReader brr(data.getRef());
    size_t start = 0;
-   StackInterpreter ss;
+   Armory::Signer::StackInterpreter ss;
    
    while (brr.getSizeRemaining())
    {

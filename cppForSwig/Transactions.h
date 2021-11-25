@@ -26,6 +26,14 @@ public:
    {}
 };
 
+namespace Armory
+{
+   namespace Signer
+   {
+      class StackInterpreter;
+   };
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 struct TxInData
 {
@@ -150,12 +158,14 @@ private:
    uint64_t checkOutputs(void) const;
    void checkSigs(void) const;
    void checkSigs_NoCatch(void) const;
-   TxInEvalState checkSig(unsigned, StackInterpreter* ptr=nullptr) const;
+   TxInEvalState checkSig(unsigned,
+      Armory::Signer::StackInterpreter* ptr=nullptr) const;
 
    mutable TxEvalState txEvalState_;
 
 protected:
-   virtual std::unique_ptr<StackInterpreter> getStackInterpreter(unsigned) const;
+   virtual std::unique_ptr<Armory::Signer::StackInterpreter>
+      getStackInterpreter(unsigned) const;
 
 public:
    TransactionVerifier(const BCTX& theTx, const utxoMap& utxos) :

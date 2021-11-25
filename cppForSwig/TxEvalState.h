@@ -20,11 +20,18 @@ enum PubKeyType
    Type_Unkonwn
 };
 
+namespace Armory
+{
+   namespace Signer
+   {
+      class StackInterpreter;
+   };
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 class TxInEvalState
 {
-   friend class StackInterpreter;
+   friend class Armory::Signer::StackInterpreter;
 
 private:
    bool validStack_ = false;
