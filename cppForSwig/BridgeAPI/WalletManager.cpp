@@ -134,7 +134,7 @@ shared_ptr<WalletContainer> WalletManager::addWallet(
       wltCont->setBdvPtr(bdvPtr_);
 
    //set & add to map
-   wltCont->setWalletPtr(wltPtr);
+   wltCont->setWalletPtr(wltPtr, accId);
    wltIter->second.emplace(accId, wltCont);
 
    //return it
@@ -351,21 +351,12 @@ void WalletManager::updateStateFromDB(const function<void(void)>& callback)
 //// WalletContainer
 ////
 ////////////////////////////////////////////////////////////////////////////////
-void WalletContainer::setWalletPtr(shared_ptr<AssetWallet> wltPtr)
+void WalletContainer::setWalletPtr(shared_ptr<AssetWallet> wltPtr,
+   const Armory::Wallets::AddressAccountId& accId)
 {
    wallet_ = wltPtr;
-   auto accId = wallet_->getMainAccountID();
-   if (!accId.isValid())
-   {
-      auto accIds = wallet_->getAccountIDs();
-      if (accIds.empty())
-         throw runtime_error("[setWalletPtr] wallet has no ids");
-
-      accId = *accIds.begin();
-   }
-
-   auto mainAcc = wallet_->getAccountForID(accId);
-   auto outerAccount = mainAcc->getOuterAccount();
+   auto acc = wallet_->getAccountForID(accId);
+   auto outerAccount = acc->getOuterAccount();
    highestUsedIndex_ = outerAccount->getHighestUsedIndex();
 }
 

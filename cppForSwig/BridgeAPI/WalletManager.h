@@ -91,7 +91,8 @@ private:
       bdvPtr_ = bdv;
    }
 
-   void setWalletPtr(std::shared_ptr<AssetWallet> wltPtr);
+   void setWalletPtr(std::shared_ptr<AssetWallet>,
+      const Armory::Wallets::AddressAccountId&);
    void eraseFromDisk(void);
 
 public:
