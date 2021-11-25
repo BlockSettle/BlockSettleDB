@@ -99,7 +99,9 @@ ARMORYSIGNER_SOURCE_FILES = Signer/Script.cpp \
 	Signer/ScriptRecipient.cpp \
 	Signer/Signer.cpp \
 	Signer/ResolverFeed.cpp \
-	Signer/ResolverFeed_Wallets.cpp
+	Signer/ResolverFeed_Wallets.cpp \
+	Signer/Transactions.cpp \
+	Signer/TxEvalState.cpp
 
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = TransactionBatch.cpp
@@ -153,9 +155,7 @@ ARMORYCOMMON_SOURCE_FILES = AsyncClient.cpp \
 	ArmoryBackups.cpp \
 	SocketObject.cpp \
 	StoredBlockObj.cpp \
-	Transactions.cpp \
 	TxClasses.cpp \
-	TxEvalState.cpp \
 	txio.cpp \
 	UniversalTimer.cpp \
 	WebSocketClient.cpp \
