@@ -788,13 +788,12 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
    //// create assetWlt ////
 
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       move(wltRoot), //root as a rvalue
-      {},
       SecureBinaryData(),
       SecureBinaryData(),
-      5); //set lookup computation to 3 entries
+      5); //set lookup computation to 5 entries
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec;
@@ -1038,6 +1037,9 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
    //// create assetWlt ////
 
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
+   BIP32_Node node;
+   node.initFromSeed(wltRoot);
+
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
@@ -1045,6 +1047,19 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
       SecureBinaryData(),
       SecureBinaryData(),
       5); //set lookup computation to 3 entries
+
+   //add a bip32 account
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto accTypePtr = AccountType_BIP32::makeFromDerPaths(
+         node.getThisFingerprint(), {{0x80000000, 0x80000000, 0, 1}});
+      accTypePtr->setSeedRoot(node.getBase58());
+      accTypePtr->setAddressLookup(5);
+      accTypePtr->addAddressType(AddressEntryType_P2WPKH);
+      accTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
+
+      assetWlt->createBIP32Account(accTypePtr);
+   }
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec;
@@ -1744,7 +1759,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
 
-	   //grab ZC from DB and verify it again
+      //grab ZC from DB and verify it again
       auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
       auto&& raw_tx = zc_from_db.serialize();
       auto bctx = BCTX::parse(raw_tx);
@@ -1819,14 +1834,14 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    {
       EXPECT_EQ(signerState.getEvalMapSize(), 2U);
 
-      auto&& txinEval = signerState.getSignedStateForInput(0);
-      auto& pubkeyMap = txinEval.getPubKeyMap();
+      const auto& txinEval = signerState.getSignedStateForInput(0);
+      const auto& pubkeyMap = txinEval.getPubKeyMap();
       EXPECT_EQ(pubkeyMap.size(), 3ULL);
       for (auto& pubkeyState : pubkeyMap)
          EXPECT_FALSE(pubkeyState.second);
 
-      txinEval = signerState.getSignedStateForInput(1);
-      auto& pubkeyMap_2 = txinEval.getPubKeyMap();
+      const auto& txinEval2 = signerState.getSignedStateForInput(1);
+      const auto& pubkeyMap_2 = txinEval2.getPubKeyMap();
       EXPECT_EQ(pubkeyMap_2.size(), 0ULL);
    }
 
@@ -2611,10 +2626,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
-   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   auto assetWlt_2 = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       move(CryptoPRNG::generateRandom(32)), //root as rvalue
-      {},
       SecureBinaryData(), //empty passphrase
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
@@ -2989,18 +3003,18 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    //register with db
    auto addr_type_nested_p2sh = AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH);
    vector<shared_ptr<AddressEntry>> addrVec_1;
-   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2sh));
-   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2sh));
-   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2sh));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(AddressEntryType_P2WPKH));
 
    vector<BinaryData> hashVec_1;
    for (auto addrPtr : addrVec_1)
       hashVec_1.push_back(addrPtr->getPrefixedHash());
 
    vector<shared_ptr<AddressEntry>> addrVec_2;
-   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
-   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
-   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2sh));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2sh));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2sh));
 
    vector<BinaryData> hashVec_2;
    for (auto addrPtr : addrVec_2)
@@ -3173,6 +3187,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 
       signer2.setFeed(_assetFeed);
       signer2.resolvePublicData();
+      EXPECT_TRUE(signer2.isResolved());
 
       {
          auto assetID = assetWlt_1->getAssetIDForScrAddr(
@@ -3197,7 +3212,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 
    BinaryData unsignedTxRaw, unsignedHash;
    {
-      //serialize signer 2, deser with signer3 and populate with outpoint and 
+      //deser signer2 state in signer3 and populate with outpoint and
       //change from wlt_2
       auto spendVal = 10 * COIN;
       Signer signer3;
@@ -3222,8 +3237,10 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       //get txid & unsigned tx, should be valid now
       auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
       signer3.setFeed(_assetFeed);
+      EXPECT_FALSE(signer3.isResolved());
       unsignedHash = signer3.getTxId();
       unsignedTxRaw = signer3.serializeUnsignedTx();
+      EXPECT_TRUE(signer3.isResolved());
 
       //spender resolved state should be seralized along
       serializedSignerState = move(signer3.serializeState());
@@ -3243,6 +3260,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    }
 
    signer4.deserializeState(serializedSignerState);
+   EXPECT_TRUE(signer4.isResolved());
 
    {
       signer4.setFeed(assetFeed2);
@@ -3254,6 +3272,44 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    EXPECT_TRUE(signer4.isResolved());
    EXPECT_FALSE(signer4.isSigned());
 
+   auto checkInputsAreSigned = [](
+      const Signer& signer,
+      const vector<UTXO>& utxoVec)->bool
+   {
+      EXPECT_EQ(signer.getTxInCount(), 2U);
+      set<unsigned> spenderIndexes;
+
+      for (unsigned i=0; i<utxoVec.size(); i++)
+      {
+         const auto& utxo = utxoVec[i];
+         for (unsigned y=0; y<signer.getTxInCount(); y++)
+         {
+            auto spender = signer.getSpender(y);
+            if (spender->getOutputHash() == utxo.txHash_ &&
+               spender->getOutputIndex() == utxo.txOutIndex_)
+            {
+               spenderIndexes.emplace(y);
+               break;
+            }
+         }
+      }
+
+      if (spenderIndexes.size() != utxoVec.size())
+         return false;
+
+      auto evalSignState = signer.evaluateSignedState();
+      for (const auto& spenderId : spenderIndexes)
+      {
+         const auto& inputEvalState =
+            evalSignState.getSignedStateForInput(spenderId);
+         if (inputEvalState.getM() != 1 || !inputEvalState.isValid())
+            return false;
+      }
+
+      return true;
+   };
+   ASSERT_TRUE(checkInputsAreSigned(signer4, unspentVec_1));
+
    //deser from same state into wlt_2 signer
    Signer signer5;
 
@@ -3261,6 +3317,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    //utxo ordering. we have to deser first, then populate utxos
    signer5.deserializeState(serializedSignerState);
 
+   auto unspentVec_2Copy = unspentVec_2;
    for (auto& utxo : unspentVec_2)
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
@@ -3271,26 +3328,27 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 
    //finally set the feed
    signer5.setFeed(assetFeed3);
-
    {
       auto lock = assetWlt_2->lockDecryptedContainer();
       signer5.sign();
    }
 
    EXPECT_FALSE(signer5.verify());
+   EXPECT_TRUE(signer5.isResolved());
+   ASSERT_TRUE(checkInputsAreSigned(signer5, unspentVec_2Copy));
 
    //now serialize both signers into the final signer, verify and broadcast
    Signer signer6(signer4.serializeState());
    signer6.deserializeState(signer5.serializeState());
 
-   ASSERT_TRUE(signer6.isSigned());
+   EXPECT_TRUE(signer6.isSigned());
    EXPECT_TRUE(signer6.verify());
 
    //try again in the opposite order, that should not matter
    Signer signer7(signer5.serializeState());
    signer7.deserializeState(signer4.serializeState());
 
-   ASSERT_TRUE(signer7.isSigned());
+   EXPECT_TRUE(signer7.isSigned());
    EXPECT_TRUE(signer7.verify());
 
    auto&& tx1 = signer7.serializeSignedTx();
@@ -4750,13 +4808,30 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    //// create assetWlt ////
 
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
       homedir_,
       move(wltRoot), //root as a rvalue
-      {},
       SecureBinaryData(),
-      SecureBinaryData(),
-      5); //set lookup computation to 5 entries
+      SecureBinaryData());
+
+   //add a bip32 account
+   {
+      auto root = dynamic_pointer_cast<AssetEntry_BIP32Root>(
+         assetWlt->getRoot());
+      ASSERT_NE(root, nullptr);
+
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto accTypePtr = AccountType_BIP32::makeFromDerPaths(
+         root->getSeedFingerprint(true), {{0x80000000, 0x80000000, 0, 1}});
+      accTypePtr->setAddressLookup(5);
+      accTypePtr->addAddressType(AddressEntryType_P2WPKH);
+      accTypePtr->addAddressType(AddressEntryType(
+         AddressEntryType_P2SH | AddressEntryType_P2WPKH));
+      accTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
+      accTypePtr->setMain(true);
+
+      assetWlt->createBIP32Account(accTypePtr);
+   }
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec;
@@ -4884,6 +4959,8 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    auto loadedWlt = AssetWallet::loadMainWalletFromFile(
       fName, controlPassLbd);
    assetWlt = dynamic_pointer_cast<AssetWallet_Single>(loadedWlt);
+   auto accIdReload = assetWlt->getMainAccountID();
+   ASSERT_EQ(accIdReload, accID);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -6458,10 +6535,9 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
    //// create assetWlt ////
 
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       move(wltRoot), //root as a rvalue
-      {},
       SecureBinaryData(),
       SecureBinaryData(),
       5); //set lookup computation to 3 entries
@@ -7077,14 +7153,14 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    {
       EXPECT_EQ(signerState.getEvalMapSize(), 2ULL);
 
-      auto&& txinEval = signerState.getSignedStateForInput(0);
-      auto& pubkeyMap = txinEval.getPubKeyMap();
+      const auto& txinEval = signerState.getSignedStateForInput(0);
+      const auto& pubkeyMap = txinEval.getPubKeyMap();
       EXPECT_EQ(pubkeyMap.size(), 3ULL);
       for (auto& pubkeyState : pubkeyMap)
          EXPECT_FALSE(pubkeyState.second);
 
-      txinEval = signerState.getSignedStateForInput(1);
-      auto& pubkeyMap_2 = txinEval.getPubKeyMap();
+      const auto& txinEval2 = signerState.getSignedStateForInput(1);
+      const auto& pubkeyMap_2 = txinEval2.getPubKeyMap();
       EXPECT_EQ(pubkeyMap_2.size(), 0ULL);
    }
 
@@ -7102,7 +7178,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2U);
 
-      auto&& txinEval = signerState.getSignedStateForInput(0);
+      const auto& txinEval = signerState.getSignedStateForInput(0);
       EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);

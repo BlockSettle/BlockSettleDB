@@ -4815,7 +4815,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
          4); //set lookup computation to 4 entries
       filename = assetWlt->getDbFilename();
       addrSet = assetWlt->getAddrHashSet();
-      ASSERT_EQ(addrSet.size(), 16ULL);
+      ASSERT_EQ(addrSet.size(), 12ULL);
 
       unsigned count = 0;
       auto badPassLbd = [&count]

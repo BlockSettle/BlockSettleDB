@@ -1989,14 +1989,14 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    {
       ASSERT_EQ(signerState.getEvalMapSize(), 2U);
 
-      auto&& txinEval = signerState.getSignedStateForInput(0);
-      auto& pubkeyMap = txinEval.getPubKeyMap();
+      const auto& txinEval = signerState.getSignedStateForInput(0);
+      const auto& pubkeyMap = txinEval.getPubKeyMap();
       EXPECT_EQ(pubkeyMap.size(), 3U);
-      for (auto& pubkeyState : pubkeyMap)
+      for (const auto& pubkeyState : pubkeyMap)
          EXPECT_FALSE(pubkeyState.second);
 
-      txinEval = signerState.getSignedStateForInput(1);
-      auto& pubkeyMap_2 = txinEval.getPubKeyMap();
+      const auto& txinEval2 = signerState.getSignedStateForInput(1);
+      const auto& pubkeyMap_2 = txinEval2.getPubKeyMap();
       EXPECT_EQ(pubkeyMap_2.size(), 0U);
    }
 
@@ -2014,7 +2014,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2U);
 
-      auto&& txinEval = signerState.getSignedStateForInput(0);
+      const auto& txinEval = signerState.getSignedStateForInput(0);
       EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
@@ -2034,7 +2034,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       signerState = signer3.evaluateSignedState();
 
       EXPECT_EQ(signerState.getEvalMapSize(), 2U);
-      auto&& txinEval = signerState.getSignedStateForInput(0);
+      const auto& txinEval = signerState.getSignedStateForInput(0);
       EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
