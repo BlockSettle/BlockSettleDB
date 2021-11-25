@@ -180,6 +180,7 @@ class ArmoryMainWindow(QMainWindow):
       super(ArmoryMainWindow, self).__init__(parent)
 
       self.isShuttingDown = False
+      self.ledgerView = None
 
       # Load the settings file
       self.settingsPath = CLI_OPTIONS.settingsPath
@@ -5290,7 +5291,8 @@ class ArmoryMainWindow(QMainWindow):
          try:
             self.writeSetting('MainGeometry',   self.saveGeometry().toHex())
             self.writeSetting('MainWalletCols', saveTableView(self.walletsView))
-            self.writeSetting('MainLedgerCols', saveTableView(self.ledgerView))
+            if self.ledgerView:
+               self.writeSetting('MainLedgerCols', saveTableView(self.ledgerView))
          except Exception as e:
             print ("- failed to save main geometry -")
             print (e)

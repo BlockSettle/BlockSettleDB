@@ -802,7 +802,7 @@ class DlgWalletDetails(ArmoryDialog):
                self.labelValues[WLTFIELDS.BelongsTo] = QLabelButton(owner)
                self.labelValues[WLTFIELDS.BelongsTo].setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
-         self.labelValues[WLTFIELDS.BelongsTo].clicked.connect(self.execSetOwner)
+         self.labelValues[WLTFIELDS.BelongsTo].linkActivated.connect(self.execSetOwner)
 
       if dispCrypto:
          self.labelValues[WLTFIELDS.Time] = QLabelButton(self.tr('Click to Test'))
