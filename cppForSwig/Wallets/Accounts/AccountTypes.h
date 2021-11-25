@@ -354,7 +354,7 @@ public:
    unsigned getAddressLookup(void) const;
    void setAddressLookup(unsigned count) 
    { 
-      addressLookup_ = count; 
+      addressLookup_ = count;
    }
 
    void setNodes(const std::set<unsigned>& nodes);

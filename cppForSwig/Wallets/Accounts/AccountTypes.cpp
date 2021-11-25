@@ -63,9 +63,6 @@ AccountType_ArmoryLegacy::AccountType_ArmoryLegacy() :
    addressTypes_.insert(AddressEntryType(
       AddressEntryType_P2WPKH | AddressEntryType_P2SH));
 
-   //native p2wpkh
-   addressTypes_.insert(AddressEntryType_P2WPKH);
-
    //default type
    defaultAddressEntryType_ = AddressEntryType(
       AddressEntryType_P2PKH | AddressEntryType_Uncompressed);
@@ -185,7 +182,7 @@ AssetAccountId AccountType_BIP32::getInnerAccountID(void) const
 unsigned AccountType_BIP32::getAddressLookup() const
 {
    if (addressLookup_ == UINT32_MAX)
-      throw AccountException("uninitialized address lookup");
+      throw AccountException("[AccountType_BIP32] uninitialized address lookup");
    return addressLookup_;
 }
 
