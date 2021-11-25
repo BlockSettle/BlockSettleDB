@@ -378,7 +378,7 @@ shared_ptr<AddressEntry> AssetWallet::getNewAddress(
          return account.second->getNewAddress(iface_, aeType);
    }
 
-   throw WalletException("unexpected address entry type");
+   throw WalletException("[getNewAddress] unexpected address entry type");
    return nullptr;
 }
 
@@ -401,7 +401,7 @@ shared_ptr<AddressEntry> AssetWallet::getNewChangeAddress(
          return account.second->getNewChangeAddress(iface_, aeType);
    }
 
-   throw WalletException("unexpected address entry type");
+   throw WalletException("[getNewChangeAddress] unexpected address entry type");
    return nullptr;
 }
 
@@ -424,7 +424,7 @@ shared_ptr<AddressEntry> AssetWallet::peekNextChangeAddress(
          return account.second->peekNextChangeAddress(iface_, aeType);
    }
 
-   throw WalletException("unexpected address entry type");
+   throw WalletException("[peekNextChangeAddress] unexpected address entry type");
    return nullptr;
 }
 
@@ -541,6 +541,15 @@ AddressEntryType AssetWallet::getAddrTypeForID(const AssetId& id) const
    
    auto addrPtr = getAddressEntryForID(id);
    return addrPtr->getType();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+const Armory::Wallets::AddressAccountId& AssetWallet::getMainAccountID() const
+{
+   if (!mainAccount_.isValid())
+      throw WalletException("[getMainAccountID] invalid account id");
+
+   return mainAccount_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

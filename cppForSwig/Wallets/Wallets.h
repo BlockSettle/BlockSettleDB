@@ -195,8 +195,7 @@ public:
    std::map<BinaryData, std::string> getCommentMap(void) const;
    void deleteComment(const BinaryData&);
 
-   const Armory::Wallets::AddressAccountId& getMainAccountID(void) const
-   { return mainAccount_; }
+   const Armory::Wallets::AddressAccountId& getMainAccountID(void) const;
 
    void setLabel(const std::string&);
    void setDescription(const std::string&);
@@ -316,7 +315,7 @@ public:
    static std::shared_ptr<AssetWallet_Single> createFromPrivateRoot_Armory135(
       const std::string& folder,
       const SecureBinaryData& privateRoot,
-      SecureBinaryData chaincode, 
+      SecureBinaryData chaincode,
       const SecureBinaryData& passphrase,
       const SecureBinaryData& controlPassphrase,
       unsigned lookup);
