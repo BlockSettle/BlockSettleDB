@@ -13,7 +13,7 @@ BIP15X_READY         = "ready"
 
 #CHACHA20POLY1305MAXBYTESSENT = 1000000000
 CHACHA20POLY1305MAXBYTESSENT = 1200
-CHACHA20POLY1305MAXPACKETSIZE = 1000000
+CHACHA20POLY1305MAXPACKETSIZE = 1024 * 1024 * 1024 #1MB
 
 import sys
 sys.path.insert(1, './c20p1305_cffi')
@@ -96,11 +96,6 @@ class BIP15xConnection(object):
 
       self.sendToBridgeLbd = sendToBridgeLbd
       self.notifyReadyLbd = None
-
-      """
-      Server pubkey should be passed in as CLI arg to the bridge at spawn time.
-      It's passed through a cookie at the moment, for debugging purposes.
-      """
 
       self.privkey = lib.generate_random(32)
       self.pubkey = lib.compute_pubkey(self.privkey)
