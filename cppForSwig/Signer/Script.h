@@ -33,14 +33,14 @@
 
 #include "protobuf/Signer.pb.h"
 
-class TransactionStub;
-class SigHashData;
-class SigHashDataSegWit;
 
 namespace Armory
 {
    namespace Signer
    {
+      class TransactionStub;
+      class SigHashData;
+      class SigHashDataSegWit;
       class SignerProxy;
 
       //////////////////////////////////////////////////////////////////////////
@@ -1113,7 +1113,7 @@ namespace Armory
          bool isSW_ = false;
 
          const BinaryDataRef script_;
-         std::shared_ptr<Armory::Signer::ResolverFeed> feed_;
+         std::shared_ptr<ResolverFeed> feed_;
 
       private:
          std::shared_ptr<ReversedStackEntry> pop_back(void)
@@ -1235,7 +1235,7 @@ namespace Armory
 
       public:
          StackResolver(BinaryDataRef script,
-            std::shared_ptr<Armory::Signer::ResolverFeed> feed) :
+            std::shared_ptr<ResolverFeed> feed) :
             script_(script), feed_(feed)
          {}
 
@@ -1251,7 +1251,7 @@ namespace Armory
          std::shared_ptr<ResolvedStack> getResolvedStack();
          unsigned getFlags(void) const { return flags_; }
          void setFlags(unsigned flags) { flags_ = flags; }
-         std::shared_ptr<Armory::Signer::ResolverFeed> getFeed(
+         std::shared_ptr<ResolverFeed> getFeed(
             void) const { return feed_; }
       };
    }; //namespace Signer
