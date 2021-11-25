@@ -127,8 +127,6 @@ private:
    const std::shared_ptr<AssetAccountData>& getAccountDataForID(
       const Armory::Wallets::AssetAccountId&) const;
 
-   bool isLegacy(void) const;
-
 public:
    const Armory::Wallets::AddressAccountId& getID(void) const { return ID_; }
 
@@ -220,6 +218,7 @@ public:
    void cleanUpBeforeUnlock(void) {}
 
    bool hasBip32Path(const ArmorySigner::BIP32_AssetPath&) const;
+   bool isLegacy(void) const;
 };
 
 #endif

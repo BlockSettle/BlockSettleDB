@@ -4200,7 +4200,12 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
    auto filename = assetWlt->getDbFilename();
 
    //get AddrVec
-   auto&& hashSet = assetWlt->getAddrHashSet();
+   auto hashSet = assetWlt->getAddrHashSet();
+   auto mainAccId = assetWlt->getMainAccountID();
+   {
+      auto accPtr = assetWlt->getAccountForID(mainAccId);
+      EXPECT_TRUE(accPtr->isLegacy());
+   }
 
    //get pub root and chaincode
    auto pubRoot = assetWlt->getPublicRoot();
@@ -4215,6 +4220,11 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
       chainCode,
       SecureBinaryData::fromString("control"),
       4);
+   EXPECT_EQ(mainAccId, woWallet->getMainAccountID());
+   {
+      auto accPtr = woWallet->getAccountForID(mainAccId);
+      EXPECT_TRUE(accPtr->isLegacy());
+   }
 
    //get AddrVec
    auto hashSetWO = woWallet->getAddrHashSet();
@@ -4232,6 +4242,11 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
    auto reloadWoWallet = AssetWallet_Single::loadMainWalletFromFile(woFilename, passLbd);
    auto hashSetWO2 = reloadWoWallet->getAddrHashSet();
    ASSERT_EQ(hashSet, hashSetWO);
+   EXPECT_EQ(mainAccId, reloadWoWallet->getMainAccountID());
+   {
+      auto accPtr = reloadWoWallet->getAccountForID(mainAccId);
+      EXPECT_TRUE(accPtr->isLegacy());
+   }
 
    //delete the underlying file so we can fork anew
    reloadWoWallet.reset();
@@ -4243,6 +4258,11 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
    auto woFork = AssetWallet::loadMainWalletFromFile(forkFilename, passLbd);
    auto hashSetFork = woFork->getAddrHashSet();
    ASSERT_EQ(hashSet, hashSetFork);
+   EXPECT_EQ(mainAccId, woFork->getMainAccountID());
+   {
+      auto accPtr = woFork->getAccountForID(mainAccId);
+      EXPECT_TRUE(accPtr->isLegacy());
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
