@@ -472,7 +472,7 @@ struct UTXO
       return false;
    }
 
-   bool isInitialized(void) const { return script_.getSize() > 0; }
+   bool isInitialized(void) const { return !script_.empty(); }
 
    void toProtobuf(Codec_Utxo::Utxo&) const;
    static UTXO fromProtobuf(const Codec_Utxo::Utxo&);

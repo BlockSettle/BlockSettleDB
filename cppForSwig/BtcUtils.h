@@ -553,14 +553,6 @@ public:
       return hashOutput;
    }
 
-
-   /////////////////////////////////////////////////////////////////////////////
-   //  I need a non-static, non-overloaded method to be able to use this in SWIG
-   BinaryData getHash160_SWIG(BinaryData const & strToHash)
-   {
-      return getHash160(strToHash);
-   }
-
    /////////////////////////////////////////////////////////////////////////////
    //  I need a non-static, non-overloaded method to be able to use this in SWIG
    BinaryData ripemd160(BinaryData const & strToHash)

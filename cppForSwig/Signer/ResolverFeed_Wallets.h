@@ -46,7 +46,7 @@ public:
    //tors
    ResolverFeed_AssetWalletSingle(std::shared_ptr<AssetWallet_Single> wltPtr) :
       wltPtr_(wltPtr)
-   {  
+   {
       if (wltPtr_ == nullptr)
          throw std::runtime_error("null wallet ptr");
    }
@@ -55,18 +55,18 @@ public:
    BinaryData getByVal(const BinaryData&) override;
    virtual const SecureBinaryData& getPrivKeyForPubkey(const BinaryData&) override;
    BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override;
-   
+
    //local
    void seedFromAddressEntry(std::shared_ptr<AddressEntry>);
    void setBip32PathForPubkey(const BinaryData& pubkey, 
       const BIP32_AssetPath& path) override;
-      
+
    std::pair<std::shared_ptr<AssetEntry>, AddressEntryType> 
       getAssetPairForKey(const BinaryData&) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class ResolverFeed_AssetWalletSingle_Exotic : 
+class ResolverFeed_AssetWalletSingle_Exotic :
    public ResolverFeed_AssetWalletSingle
 {
    //tors

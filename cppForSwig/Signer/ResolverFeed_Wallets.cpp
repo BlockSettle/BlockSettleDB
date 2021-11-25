@@ -52,7 +52,7 @@ void ResolverFeed_AssetWalletSingle::addToMap(shared_ptr<AddressEntry> addrPtr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-pair<shared_ptr<AssetEntry>, AddressEntryType> 
+pair<shared_ptr<AssetEntry>, AddressEntryType>
    ResolverFeed_AssetWalletSingle::getAssetPairForKey(const BinaryData& key) const
 {
    //run through accounts
@@ -97,8 +97,8 @@ pair<shared_ptr<AssetEntry>, AddressEntryType>
 
          /*
          We have a hit for this prefix, return the asset and its
-         address type. 
-            
+         address type.
+
          Note that we can't use addrType, as it may use a prefix 
          shared across several address types (i.e. P2SH-P2PK and 
          P2SH-P2WPKH).
@@ -125,7 +125,7 @@ BinaryData ResolverFeed_AssetWalletSingle::getByVal(const BinaryData& key)
 
    //short of that, try to get the asset for this key
    auto assetPair = getAssetPairForKey(key);
-   if (assetPair.first == nullptr || 
+   if (assetPair.first == nullptr ||
       assetPair.second == AddressEntryType_Default)
    {
       throw runtime_error("could not resolve key");
@@ -187,12 +187,9 @@ const SecureBinaryData& ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
    variation should yield a hit from the key to asset resolution logic.
 
    From that asset object, we can then get the private key.
-
-   Conveniently, the only hash ever used on public keys is
-   BtcUtils::getHash160
    */
 
-   auto&& hash = BtcUtils::getHash160(pubkey);
+   auto hash = BtcUtils::getHash160(pubkey);
    auto assetPair = getAssetPairForKey(hash);
    if (assetPair.first == nullptr)
       throw NoAssetException("invalid pubkey");
