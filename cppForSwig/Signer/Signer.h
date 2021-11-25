@@ -253,7 +253,7 @@ public:
 
    bool verifyEvalState(unsigned);
    void injectSignature(SecureBinaryData&, unsigned sigId = UINT32_MAX);
-   void seedResolver(std::shared_ptr<ResolverFeed>) const;
+   void seedResolver(std::shared_ptr<ResolverFeed>, bool) const;
    void sign(std::shared_ptr<SignerProxy>);
 
    void toPSBT(BinaryWriter& bw) const;
@@ -279,7 +279,7 @@ public:
 class Signer : public TransactionStub
 {
    friend class SignerProxyFromSigner;
-   using RecipientMap = 
+   using RecipientMap =
       std::map<unsigned, std::vector<std::shared_ptr<ScriptRecipient>>>;
 
 protected:
@@ -324,8 +324,8 @@ protected:
 public:
    Signer(void) :
       TransactionStub(
-         SCRIPT_VERIFY_P2SH | 
-         SCRIPT_VERIFY_SEGWIT | 
+         SCRIPT_VERIFY_P2SH |
+         SCRIPT_VERIFY_SEGWIT |
          SCRIPT_VERIFY_P2SH_SHA256)
    {
       supportingTxMap_ = std::make_shared<std::map<BinaryData, Tx>>();
@@ -361,7 +361,7 @@ public:
    /*script fetching*/
 
    BinaryDataRef getSerializedOutputScripts(void) const override;
-   std::vector<TxInData> getTxInsData(void) const override;   
+   std::vector<TxInData> getTxInsData(void) const override;
    BinaryData getSubScript(unsigned index) const override;
    BinaryDataRef getWitnessData(unsigned inputId) const override;
    static std::map<unsigned, BinaryData> getPubkeysForScript(
@@ -398,7 +398,7 @@ public:
    /*signer state*/
 
    //state resolution
-   void resolvePublicData(void);
+   std::set<unsigned> resolvePublicData(void);
    bool verifySpenderEvalState(void) const;
 
    //sig state

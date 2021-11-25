@@ -426,7 +426,7 @@ BinaryData ScriptSpender::getAvailableInputScript() const
    //if we have a serialized script already, return that
    if (!finalInputScript_.empty())
       return finalInputScript_;
-      
+
    //otherwise, serialize it from the stack
    vector<shared_ptr<StackItem>> stack;
    for (auto& stack_item : legacyStack_)
@@ -1468,7 +1468,7 @@ void ScriptSpender::sign(shared_ptr<SignerProxy> proxy)
             if (sigItem == nullptr)
                throw runtime_error("unexpected stack item type");
 
-            sigItem->sig_ = 
+            sigItem->sig_ =
                move(proxy->sign(sigItem->script_, sigItem->pubkey_, isSW));
             break;
          }
@@ -1510,7 +1510,6 @@ void ScriptSpender::sign(shared_ptr<SignerProxy> proxy)
 
    try
    {
-      
       signStack(legacyStack_, false);
       signStack(witnessStack_, true);
 
@@ -2268,10 +2267,80 @@ uint64_t ScriptSpender::getValue() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ScriptSpender::seedResolver(shared_ptr<ResolverFeed> ptr) const
+void ScriptSpender::seedResolver(shared_ptr<ResolverFeed> feedPtr,
+   bool seedLegacyAssets) const
 {
    for (auto& bip32Path : bip32Paths_)
-      ptr->setBip32PathForPubkey(bip32Path.first, bip32Path.second);
+      feedPtr->setBip32PathForPubkey(bip32Path.first, bip32Path.second);
+
+   if (!seedLegacyAssets)
+      return;
+
+   if (!bip32Paths_.empty())
+      return;
+
+   if (!isP2SH())
+      return;
+
+   /***
+   Covering for a ResolverFeed edge case:
+
+   When a P2SH spender is resolved for the first time, its P2SH script is
+   processed, the hash we're paying to (P2SH stands for Pay-2-Script-Hash)
+   is extracted then passed to the resolver feed to get the preimage used
+   to construct that hash.
+   The resolver will find the asset for this hash and cache to relation to
+   the public key as part of the operation. It will also cache the bip32
+   path to the asset if available. This works because Armory wallets keep
+   track of assets by their final script hash.
+
+   Later, at signature time, the signer will present pubkeys to the resolver,
+   expecting private keys in return. This does not work for P2SH natively.
+   This is because there is no direct translation from a pubkey to a P2SH
+   script. The resolver cannot find the asset for a pubkey by simply hashing
+   it, and Armory wallets do not track assets by their pubkey. This holds
+   true for all script hashes that do not directly descend from their pubkey.
+
+   However, thanks to the caching that occured previously (caching the pubkey
+   when looking for the asset by hash), this isn't an issue when *the resolver
+   state is carried along from resolution to signing*. This is typically the
+   case when signing a single sig input, but cannot be guaranteed when
+   signing across multiple wallets.
+
+   Since the resolver knows to look for data in its cache, a simple solution
+   is to preseed the resolver feed cache with the resolved data. For bip32
+   assets, this is a straight forward operation (pass the bip32 path
+   for each known pubkey to the resolver). This also happens to make the
+   signer compliant with PSBT (which requires the BIP32 path for each key to
+   sign for).
+
+   This would be the end of it if Armory only used BIP32 wallets, but it
+   doesn't. Signers do not carry any data specifically tying back to legacy
+   Armory assets (1.xx wallets).
+
+   The best solution is to carry such data. In the meantime, a stopgap
+   solution is to present those script hashes from legacy assets to the
+   resolver so as to trigger resolution and pubkey hashing, as if processed
+   for the first time.
+
+   TODO: carry dedicated identifiers for resolved legacy armory assets
+         as part of resolvers and signer states
+   ***/
+   if (!utxo_.isInitialized())
+   {
+      LOGWARN << "[seedResolver] missing utxo";
+      return;
+   }
+
+   auto hash = BtcUtils::getTxOutRecipientAddr(utxo_.script_);
+   try
+   {
+      feedPtr->getByVal(hash);
+   }
+   catch (const exception&)
+   {
+      LOGWARN << "[seedResolver] failed to preseed cache";
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2429,23 +2498,23 @@ unsigned Signer::getTxInSequence(unsigned index) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Signer::sign(void)
+void Signer::sign()
 { 
    /***
    About the SegWit perma flagging:
-   Armory SegWit support was implemented prior to the soft fork activation 
-   (April 2016). At the time it was uncertain whether SegWit would be activated. 
-   
-   The chain was also getting hardforked to a ruleset specifically blocking 
+   Armory SegWit support was implemented prior to the soft fork activation
+   (April 2016). At the time it was uncertain whether SegWit would be activated.
+
+   The chain was also getting hardforked to a ruleset specifically blocking
    SegWit (Bcash).
 
-   As a result, Armory had a responsibility to allow users to spend the 
-   airdropped coins. Since Bcash does not support SegWit and such scripts are 
-   otherwise anyone-can-spend, there had to be a toggle for this feature, 
+   As a result, Armory had a responsibility to allow users to spend the
+   airdropped coins. Since Bcash does not support SegWit and such scripts are
+   otherwise anyone-can-spend, there had to be a toggle for this feature,
    which applies to script resolution rules as well.
 
-   Since SegWit is a done deal and Armory has no pretention to support Bcash, 
-   SW can now be on by default, which reduces potential client side or unit 
+   Since SegWit is a done deal and Armory has no pretention to support Bcash,
+   SW can now be on by default, which reduces potential client side or unit
    test snafus.
    ***/
 
@@ -2463,8 +2532,8 @@ void Signer::sign(void)
       throw runtime_error("tx has no recipients");
 
    /*
-   Try to check input value vs output value. We're not guaranteed to 
-   have this information, since we may be partially signing this 
+   Try to check input value vs output value. We're not guaranteed to
+   have this information, since we may be partially signing this
    transaction. In that case, skip this step
    */
    try
@@ -2488,7 +2557,7 @@ void Signer::sign(void)
    /* sanity checks end */
 
    //resolve
-   resolvePublicData();
+   auto resolvedSpenderIds = resolvePublicData();
 
    //sign sig stack entries in each spender
    for (unsigned i=0; i < spenders_.size(); i++)
@@ -2496,19 +2565,26 @@ void Signer::sign(void)
       auto& spender = spenders_[i];
       if (!spender->isResolved() || spender->isSigned())
          continue;
-      
-      spender->seedResolver(resolverPtr_);
+
+      bool seedLegacyAssets = false;
+      if (resolvedSpenderIds.find(i) == resolvedSpenderIds.end())
+         seedLegacyAssets = true;
+
+      spender->seedResolver(resolverPtr_, seedLegacyAssets);
       auto proxy = make_shared<SignerProxyFromSigner>(this, i, resolverPtr_);
       spender->sign(proxy);
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void Signer::resolvePublicData()
+set<unsigned> Signer::resolvePublicData()
 {
+   set<unsigned> resolvedSpenderIds;
+
    //run through each spenders
-   for (auto& spender : spenders_)
+   for (unsigned i=0; i<spenders_.size(); i++)
    {
+      auto& spender = spenders_[i];
       if (spender->isResolved())
          continue;
 
@@ -2537,10 +2613,12 @@ void Signer::resolvePublicData()
          if (assetPath.hasRoot())
             addBip32Root(assetPath.getRoot());
       }
+
+      resolvedSpenderIds.emplace(i);
    }
 
    if (resolverPtr_ == nullptr)
-      return;
+      return resolvedSpenderIds;
 
    for (auto& recipient : getRecipientVector())
    {
@@ -2568,6 +2646,8 @@ void Signer::resolvePublicData()
          }
       }
    }
+
+   return resolvedSpenderIds;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2956,7 +3036,7 @@ Codec_SignerState::SignerState Signer::serializeState() const
    {
       auto& rootPtr = bip32PublicRoot.second;
       auto pubRoot = protoMsg.add_bip32roots();
-      
+
       pubRoot->set_xpub(rootPtr->getXPub());
       pubRoot->set_fingerprint(rootPtr->getSeedFingerprint());
       
@@ -3692,7 +3772,7 @@ uint32_t Signer::getTxOutCount() const
    for (const auto& group : recipients_)
       count += group.second.size();
 
-   return count;   
+   return count;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3700,7 +3780,7 @@ void Signer::addBip32Root(shared_ptr<BIP32_PublicDerivedRoot> rootPtr)
 {
    if (rootPtr == nullptr)
       return;
-   
+
    bip32PublicRoots_.emplace(rootPtr->getThisFingerprint(), rootPtr);
 }
 
