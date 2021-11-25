@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2019-20, goatpig                                            //
+//  Copyright (C) 2019-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -183,7 +183,7 @@ void CppToProto::nodeStatus(
 
 ////////////////////////////////////////////////////////////////////////////////
 void CppToProto::signatureState(
-   BridgeInputSignedState* ssProto, const TxInEvalState& ssCpp)
+   BridgeInputSignedState* ssProto, const Armory::Signer::TxInEvalState& ssCpp)
 {
    ssProto->set_isvalid(ssCpp.isValid());
    ssProto->set_m(ssCpp.getM());

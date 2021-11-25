@@ -158,10 +158,10 @@ private:
    uint64_t checkOutputs(void) const;
    void checkSigs(void) const;
    void checkSigs_NoCatch(void) const;
-   TxInEvalState checkSig(unsigned,
+   Armory::Signer::TxInEvalState checkSig(unsigned,
       Armory::Signer::StackInterpreter* ptr=nullptr) const;
 
-   mutable TxEvalState txEvalState_;
+   mutable Armory::Signer::TxEvalState txEvalState_;
 
 protected:
    virtual std::unique_ptr<Armory::Signer::StackInterpreter>
@@ -207,7 +207,7 @@ public:
    }
 
    bool verify(bool noCatch = true, bool strict = true) const;
-   TxEvalState evaluateState(bool strict = true) const;
+   Armory::Signer::TxEvalState evaluateState(bool strict = true) const;
 
    BinaryDataRef getSerializedOutputScripts(void) const;
    std::vector<TxInData> getTxInsData(void) const;

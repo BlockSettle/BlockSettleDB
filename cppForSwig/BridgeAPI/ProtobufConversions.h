@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2019-20, goatpig                                            //
+//  Copyright (C) 2019-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -28,11 +28,14 @@ namespace Armory
    {
       class AddressAccountId;
    };
+
+   namespace Signer
+   {
+      class TxInEvalState;
+   };
 };
 
 class UTXO;
-class TxInEvalState;
-
 class AssetWallet;
 class AddressAccount;
 class AddressEntry;
@@ -40,34 +43,34 @@ class AddressEntry;
 ////
 namespace ArmoryBridge
 {
-struct CppToProto
-{
-   static void ledger(
-      Codec_ClientProto::BridgeLedger*,
-      const DBClientClasses::LedgerEntry&);
+   struct CppToProto
+   {
+      static void ledger(
+         Codec_ClientProto::BridgeLedger*,
+         const DBClientClasses::LedgerEntry&);
 
-   static void addr(
-      Codec_ClientProto::WalletAsset*,
-      std::shared_ptr<AddressEntry>,
-      std::shared_ptr<AddressAccount>);
+      static void addr(
+         Codec_ClientProto::WalletAsset*,
+         std::shared_ptr<AddressEntry>,
+         std::shared_ptr<AddressAccount>);
 
-   static void wallet(
-      Codec_ClientProto::WalletData* wltProto,
-      std::shared_ptr<AssetWallet> wltPtr,
-      const Armory::Wallets::AddressAccountId&);
+      static void wallet(
+         Codec_ClientProto::WalletData* wltProto,
+         std::shared_ptr<AssetWallet> wltPtr,
+         const Armory::Wallets::AddressAccountId&);
 
-   static void utxo(
-      Codec_ClientProto::BridgeUtxo*,
-      const UTXO& utxo);
+      static void utxo(
+         Codec_ClientProto::BridgeUtxo*,
+         const UTXO& utxo);
 
-   static void nodeStatus(
-      Codec_ClientProto::BridgeNodeStatus*,
-      const DBClientClasses::NodeStatus&);
+      static void nodeStatus(
+         Codec_ClientProto::BridgeNodeStatus*,
+         const DBClientClasses::NodeStatus&);
 
-   static void signatureState(
-      Codec_ClientProto::BridgeInputSignedState*,
-      const TxInEvalState&);
-};
+      static void signatureState(
+         Codec_ClientProto::BridgeInputSignedState*,
+         const Armory::Signer::TxInEvalState&);
+   };
 }; //namespace ArmoryBridge
 
 #endif

@@ -69,7 +69,7 @@ public:
 struct CppBridgeSignerStruct
 {
    Armory::Signer::Signer signer_;
-   std::unique_ptr<TxEvalState> signState_;
+   std::unique_ptr<Armory::Signer::TxEvalState> signState_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
