@@ -90,7 +90,7 @@
     <ClCompile Include="..\Win_TranslatePath.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\NetworkConfig.cpp">
+    <ClCompile Include="..\BitcoinSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\ScriptRecipient.cpp">

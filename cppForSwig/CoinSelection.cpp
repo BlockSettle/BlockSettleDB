@@ -8,6 +8,7 @@
 
 #include "CoinSelection.h"
 #include <random>
+#include "Wallets.h"
 
 using namespace std;
 using namespace ArmorySigner;
@@ -1132,4 +1133,307 @@ size_t PaymentStruct::getRecipientCount() const
       count += group.second.size();
    
    return count;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+// CoinSelectionInstance                                                      //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+CoinSelectionInstance::CoinSelectionInstance(
+   std::shared_ptr<AssetWallet> const walletPtr,
+   std::function<std::vector<UTXO>(uint64_t)> getUtxoLbd,
+   const vector<AddressBookEntry>& addrBook, 
+   uint64_t spendableBalance, unsigned topHeight) :
+   cs_(getFetchLambdaFromWallet(walletPtr, getUtxoLbd), addrBook, spendableBalance, topHeight),
+   walletPtr_(walletPtr), spendableBalance_(spendableBalance)
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+function<vector<UTXO>(uint64_t)> CoinSelectionInstance::
+getFetchLambdaFromWallet(shared_ptr<AssetWallet> const walletPtr,
+   function<vector<UTXO>(uint64_t)> lbd)
+{
+   if (walletPtr == nullptr)
+      throw runtime_error("null wallet ptr");
+
+   auto fetchLbd = [walletPtr, lbd](uint64_t val)->vector<UTXO>
+   {
+      auto&& vecUtxo = lbd(val);
+      decorateUTXOs(walletPtr, vecUtxo);
+
+      return vecUtxo;
+   };
+
+   return fetchLbd;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CoinSelectionInstance::decorateUTXOs(
+   shared_ptr<AssetWallet> const walletPtr, vector<UTXO>& vecUtxo)
+{
+   if (walletPtr == nullptr)
+      throw runtime_error("nullptr wallet");
+
+   for (auto& utxo : vecUtxo)
+   {
+      auto&& scrAddr = utxo.getRecipientScrAddr();
+      auto& ID = walletPtr->getAssetIDForScrAddr(scrAddr);
+      auto addrPtr = walletPtr->getAddressEntryForID(ID.first);
+
+      utxo.txinRedeemSizeBytes_ = 0;
+      utxo.witnessDataSizeBytes_ = 0;
+      utxo.isInputSW_ = false;
+
+      while (true)
+      {
+         utxo.txinRedeemSizeBytes_ += addrPtr->getInputSize();
+
+         try
+         {
+            utxo.witnessDataSizeBytes_ += addrPtr->getWitnessDataSize();
+            utxo.isInputSW_ = true;
+         }
+         catch (runtime_error&)
+         {}
+
+         auto addrNested = dynamic_pointer_cast<AddressEntry_Nested>(addrPtr);
+         if (addrNested == nullptr)
+            break;
+
+         addrPtr = addrNested->getPredecessor();
+      }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CoinSelectionInstance::selectUTXOs(vector<UTXO>& vecUtxo, 
+   uint64_t fee, float fee_byte, unsigned flags)
+{
+   uint64_t spendableVal = 0;
+   for (auto& utxo : vecUtxo)
+      spendableVal += utxo.getValue();
+
+   //sanity check
+   checkSpendVal(spendableVal);
+
+   //decorate coin control selection
+   decorateUTXOs(walletPtr_, vecUtxo);
+
+   state_utxoVec_ = vecUtxo;
+
+   PaymentStruct payStruct(recipients_, fee, fee_byte, flags);
+   selection_ = move(
+      cs_.getUtxoSelectionForRecipients(payStruct, vecUtxo));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool CoinSelectionInstance::selectUTXOs(uint64_t fee, float fee_byte, 
+   unsigned flags)
+{
+   //sanity check
+   try
+   {
+      checkSpendVal(spendableBalance_);
+
+      state_utxoVec_.clear();
+      PaymentStruct payStruct(recipients_, fee, fee_byte, flags);
+      selection_ = move(
+         cs_.getUtxoSelectionForRecipients(payStruct, vector<UTXO>()));
+      
+      return true;
+   }
+   catch (CoinSelectionException&)
+   {}
+
+   return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CoinSelectionInstance::updateState(
+   uint64_t fee, float fee_byte, unsigned flags)
+{
+   PaymentStruct payStruct(recipients_, fee, fee_byte, flags);
+   selection_ = move(
+      cs_.getUtxoSelectionForRecipients(payStruct, state_utxoVec_));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+unsigned CoinSelectionInstance::addRecipient(
+   const BinaryData& hash, uint64_t value)
+{
+   unsigned id = 0;
+   if (recipients_.size() != 0)
+   {
+      auto iter = recipients_.rbegin();
+      id = iter->first + 1;
+   }
+
+   addRecipient(id, hash, value);
+   return id;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CoinSelectionInstance::addRecipient(
+   unsigned id, const BinaryData& hash, uint64_t value)
+{
+   if (hash.getSize() == 0)
+      throw CoinSelectionException("empty script hash");
+   
+   vector<shared_ptr<ScriptRecipient>> recVec;
+   recVec.emplace_back(createRecipient(hash, value));
+   recipients_.emplace(id, move(recVec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptRecipient> CoinSelectionInstance::createRecipient(
+   const BinaryData& hash, uint64_t value)
+{
+   shared_ptr<ScriptRecipient> rec;
+   auto scrType = *hash.getPtr();
+
+   const auto p2pkh_byte = Armory::Config::BitcoinSettings::getPubkeyHashPrefix();
+   const auto p2sh_byte = Armory::Config::BitcoinSettings::getScriptHashPrefix();
+
+   if (scrType == p2pkh_byte)
+   {
+      rec = make_shared<Recipient_P2PKH>(
+         hash.getSliceRef(1, hash.getSize() - 1), value);
+   }
+   else if (scrType == p2sh_byte)
+   {
+      rec = make_shared<Recipient_P2SH>(
+         hash.getSliceRef(1, hash.getSize() - 1), value);
+   }
+   else if(scrType == SCRIPT_PREFIX_P2WPKH)
+   {
+      auto&& hashVal = hash.getSliceCopy(1, hash.getSize() - 1);
+      rec = make_shared<Recipient_P2WPKH>(
+         hashVal, value);
+   }
+   else if (scrType == SCRIPT_PREFIX_P2WSH)
+   {
+      auto&& hashVal = hash.getSliceCopy(1, hash.getSize() - 1);
+      rec = make_shared<Recipient_P2WSH>(
+         hashVal, value);
+   }
+   else
+   {
+      throw ScriptRecipientException("unexpected script type");
+   }
+
+   return rec;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CoinSelectionInstance::updateRecipient(
+   unsigned id, const BinaryData& hash, uint64_t value)
+{
+   recipients_.erase(id);
+   
+   addRecipient(id, hash, value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CoinSelectionInstance::updateOpReturnRecipient(
+   unsigned id, const BinaryData& message)
+{
+   recipients_.erase(id);
+
+   auto recipient = make_shared<Recipient_OPRETURN>(message);
+   auto iter = recipients_.find(id);
+   if (iter == recipients_.end())
+   {
+      LOGERR << "missing op return recipient";
+      throw runtime_error("missing op return recipient");
+   }
+   iter->second.clear();
+   iter->second.emplace_back(recipient);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CoinSelectionInstance::removeRecipient(unsigned id)
+{
+   recipients_.erase(id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CoinSelectionInstance::resetRecipients()
+{
+   recipients_.clear();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint64_t CoinSelectionInstance::getSpendVal() const
+{
+   uint64_t total = 0;
+   for (const auto& group : recipients_)
+   {
+      for (const auto& recipient : group.second)
+         total += recipient->getValue();
+   }
+
+   return total;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CoinSelectionInstance::checkSpendVal(uint64_t spendableBalance) const
+{
+   try
+   {
+      auto total = getSpendVal();
+      if (total == 0 || total > spendableBalance)
+      {
+         throw CoinSelectionException("Invalid spend value");
+      }
+   }
+   catch (const ScriptRecipientException&)
+   {
+      throw CoinSelectionException("Invalid value in at least one recipient");
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CoinSelectionInstance::processCustomUtxoList(
+   vector<UTXO>& utxos, uint64_t fee, float fee_byte, unsigned flags)
+{
+   if (utxos.size() == 0)
+      throw CoinSelectionException("empty custom utxo list!");
+   
+   selectUTXOs(utxos, fee, fee_byte, flags);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint64_t CoinSelectionInstance::getFeeForMaxValUtxoVector(
+   const vector<BinaryData>& serializedUtxos, float fee_byte)
+{
+   auto txoutsize = 0;
+   for (const auto& group : recipients_)
+   {
+      for (const auto& recipient : group.second)
+         txoutsize += recipient->getSize();
+   }
+
+   vector<UTXO> utxoVec;
+   if (serializedUtxos.size() > 0)
+   {
+      for (auto& rawUtxo : serializedUtxos)
+      {
+         UTXO utxo;
+         utxo.unserialize(rawUtxo);
+         utxoVec.push_back(move(utxo));
+      }
+
+      //decorate coin control selection
+      decorateUTXOs(walletPtr_, utxoVec);
+   }
+
+   return cs_.getFeeForMaxVal(txoutsize, fee_byte, utxoVec);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+uint64_t CoinSelectionInstance::getFeeForMaxVal(float fee_byte)
+{
+   vector<BinaryData> utxos;
+   return getFeeForMaxValUtxoVector(utxos, fee_byte);
 }

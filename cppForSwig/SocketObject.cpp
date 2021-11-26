@@ -149,7 +149,6 @@ void SocketPrototype::setBlocking(SOCKET sock, bool setblocking)
    int rt = fcntl(sock, F_SETFL, flags);
    if (rt != 0)
    {
-      auto thiserrno = errno;
       cout << "fcntl returned " << rt << endl;
       cout << "error: " << strerror(errno);
       throw SocketError("failed to set blocking mode on socket");
@@ -458,7 +457,7 @@ void PersistentSocket::socketService_win()
          {
             payload = move(writeQueue_.pop_front());
          }
-         catch (IsEmpty&)
+         catch (ArmoryThreading::IsEmpty&)
          {
             return;
          }
@@ -903,7 +902,7 @@ vector<uint8_t> SimpleSocket::readFromSocket(void)
             }
 
             totalread += readAmt;
-            if (readAmt < readIncrement)
+            if (readAmt < (ssize_t)readIncrement)
                break;
 
             readdata.resize(totalread + readIncrement);
@@ -1108,6 +1107,6 @@ void WritePayload_Protobuf::serialize(vector<uint8_t>& data)
    if (message_ == nullptr)
       return;
 
-   data.resize(message_->ByteSize());
+   data.resize(message_->ByteSizeLong());
    message_->SerializeToArray(&data[0], data.size());
 }

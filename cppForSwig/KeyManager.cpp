@@ -19,6 +19,8 @@
 #define CLIENT_FILE "client.peers"
 
 using namespace std;
+using namespace Armory::Wallets;
+
 vector<string> names;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,7 +150,7 @@ int processArgs(map<string, string> args)
    }
    else
    {
-      passLbd = [](const set<BinaryData>&)->SecureBinaryData 
+      passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData 
       { return SecureBinaryData(); };
    }
 
@@ -248,7 +250,7 @@ int processArgs(map<string, string> args)
 int main(int argc, char* argv[])
 {
    btc_ecc_start();
-   NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+   Armory::Config::parseArgs({}, Armory::Config::ProcessType::KeyManager);
 
    map<string, string> args;
    try

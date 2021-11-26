@@ -13,21 +13,15 @@ from armoryengine.ArmoryUtils import ADDRBYTE, hash256, binary_to_base58, \
    computeChecksum, getVersionInt, PYBTCWALLET_VERSION, bitset_to_int, \
    LOGDEBUG, Hash160ToScrAddr, int_to_bitset, UnserializeError, \
    hash160_to_addrStr, int_to_binary, BIGENDIAN, \
-   BadAddressError, checkAddrStrValid, binary_to_hex, ENABLE_DETSIGN
-from armoryengine.BinaryPacker import BinaryPacker, UINT8, UINT16, UINT32, UINT64, \
-   INT8, INT16, INT32, INT64, VAR_INT, VAR_STR, FLOAT, BINARY_CHUNK
+   BadAddressError, checkAddrStrValid, binary_to_hex, ENABLE_DETSIGN, \
+   AddressEntryType_Default, AddressEntryType_P2PKH, AddressEntryType_P2PK, \
+   AddressEntryType_P2WPKH, AddressEntryType_Multisig, \
+   AddressEntryType_Uncompressed, AddressEntryType_P2SH, \
+   AddressEntryType_P2WSH
+from armoryengine.BinaryPacker import BinaryPacker, UINT8, UINT16, UINT32, \
+   UINT64, INT8, INT16, INT32, INT64, VAR_INT, VAR_STR, FLOAT, BINARY_CHUNK
 from armoryengine.BinaryUnpacker import BinaryUnpacker
 from armoryengine.Timer import TimeThisFunction
-
-#address types
-AddressEntryType_Default = 0
-AddressEntryType_P2PKH = 1
-AddressEntryType_P2PK = 2
-AddressEntryType_P2WPKH = 3
-AddressEntryType_Multisig = 4
-AddressEntryType_Compressed = 0x10000000
-AddressEntryType_P2SH = 0x40000000
-AddressEntryType_P2WSH = 0x80000000
 
 ################################################################################
 class PyBtcAddress(object):
@@ -101,6 +95,9 @@ class PyBtcAddress(object):
       self.unconfirmedBalance    = 0
       self.txioCount             = 0
 
+      self.isUsed = False
+      self.isChange = False
+
    #############################################################################
    def hasPubKey(self):
       return (len(self.binPublicKey) != 0)
@@ -154,14 +151,21 @@ class PyBtcAddress(object):
       self.prefixedHash = payload.prefixedHash
       self.binPublicKey = payload.publicKey
       self.chainIndex = payload.id
+      self.assetId = payload.assetId
       self.isInitialized = True
       self.addrType = payload.addrType
       self.addressString = payload.addressString
 
       self.precursorScript = payload.precursorScript
+      self.isUsed = payload.isUsed
+      self.isChange = payload.isChange
 
    #############################################################################
    def getTxioCount(self):
+      from armoryengine.BDM import TheBDM, BDM_OFFLINE, BDM_UNINITIALIZED
+      if TheBDM.getState() in (BDM_OFFLINE,BDM_UNINITIALIZED):
+         return "N/A"
+
       return self.txioCount
 
    #############################################################################
@@ -182,3 +186,19 @@ class PyBtcAddress(object):
          return ''
 
       return self.parentWallet.getCommentForAddr(self.getAddr160())
+
+   #############################################################################
+   def filter(self, filterType, isUsed, isChange):
+      if self.chainIndex < 0:
+         return False
+
+      if filterType != None and filterType != self.addrType:
+         return False
+
+      if isUsed != self.isUsed:
+         return False
+
+      if isChange != self.isChange:
+         return False
+
+      return True

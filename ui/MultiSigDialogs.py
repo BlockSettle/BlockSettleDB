@@ -7,18 +7,24 @@ from __future__ import (absolute_import, division,
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
 ################################################################################
-from PyQt4.Qt import *
-from PyQt4.QtGui import *
-from PyQt4.QtNetwork import *
-from qtdefines import *
-from qtdialogs import createAddrBookButton, DlgSetComment, DlgSendBitcoins, \
-                      DlgUnlockWallet, DlgQRCodeDisplay, DlgRequestPayment,\
-                      DlgDispTxInfo, DlgBrowserWarn, STRETCH
-from armoryengine.ALL import *
-from armorymodels import *
-from armorycolors import *
 from armoryengine.MultiSigUtils import MultiSigLockbox, calcLockboxID,\
    createLockboxEntryStr, readLockboxEntryStr, isMofNNonStandardToSpend
+
+from armoryengine.ArmoryUtils import LB_MAXM, LB_MAXN
+
+from qtdialogs.qtdefines import ArmoryDialog
+from qtdialogs.qtdialogs import STRETCH
+
+from qtdialogs.DlgSetComment     import DlgSetComment
+from qtdialogs.DlgUnlockWallet   import DlgUnlockWallet
+from qtdialogs.DlgSendBitcoins   import DlgSendBitcoins
+from qtdialogs.DlgDispTxInfo     import DlgDispTxInfo
+from qtdialogs.DlgRequestPayment import DlgRequestPayment
+from qtdialogs.DlgQRCodeDisplay  import DlgQRCodeDisplay
+from qtdialogs.DlgBrowserWarn    import DlgBrowserWarn
+from qtdialogs.DlgAddressBook    import DlgAddressBook, createAddrBookButton
+
+
 from ui.MultiSigModels import \
             LockboxDisplayModel,  LockboxDisplayProxy, LOCKBOXCOLS
 from armoryengine.CoinSelection import PySelectCoins, PyUnspentTxOut, \
@@ -1302,8 +1308,6 @@ class DlgLockboxManager(ArmoryDialog):
       # Default is to use frmSingle
       self.stkDashboard.setCurrentIndex(0)
 
-         
-      
 
    #############################################################################
    def updateTxCommentFromView(self, view):
@@ -1320,7 +1324,7 @@ class DlgLockboxManager(ArmoryDialog):
          txHash = str(view.model().index(row, LEDGERCOLS.TxHash).data().toString())
          lbox = self.main.allLockboxes[self.main.lockboxIDMap[lboxId]]
          for a160 in lbox.a160List:
-            wltID = self.main.getWalletForAddr160(a160)
+            wltID = self.main.getWalletForAddrHash(a160)
             if len(wltID)>0:
                self.main.walletMap[wltID].setComment(hex_to_binary(txHash), newComment)
          self.main.walletListChanged()
@@ -1356,7 +1360,7 @@ class DlgLockboxManager(ArmoryDialog):
       wltID = None
       wlt = None
       for a160 in lbox.a160List:
-         wltID = self.main.getWalletForAddr160(a160)
+         wltID = self.main.getWalletForAddrHash(a160)
          if len(wltID)>0:
             wlt = self.main.walletMap[wltID]
             break
@@ -2591,7 +2595,7 @@ class DlgMultiSpendReview(ArmoryDialog):
                dpubkey = this_lb.dPubKeys[i].binPubKey
                cpubkey = this_lb.compressedPubKeys[i]
 
-               wltID = self.main.getWalletForAddr160(a160)
+               wltID = self.main.getWalletForAddrHash(a160)
                iBundle.keyholePixmap[i] = QLabel()
                iBundle.keyholePixmap[i].setPixmap(self.pixWhite())
                if wltID:
@@ -3361,7 +3365,7 @@ class DlgCreatePromNote(ArmoryDialog):
             self.lblTargetID.setText(dispStr, color='TextBlue')
             return
 
-         wltID = self.main.getWalletForAddr160(addrStr_to_hash160(addrText)[1])
+         wltID = self.main.getWalletForAddrHash(addrStr_to_hash160(addrText)[1])
          if wltID:
             wlt = self.main.walletMap[wltID]
             dispStr = '%s (%s)' % (wlt.labelName, wlt.uniqueIDB58)
@@ -4058,7 +4062,3 @@ class DlgSelectMultiSigOption(ArmoryDialog):
    #############################################################################
    def openSpend(self):
       DlgSpendFromLockbox(self, self.main).exec_()
-
-
-# Get around circular dependencies
-from ui.WalletFrames import SelectWalletFrame

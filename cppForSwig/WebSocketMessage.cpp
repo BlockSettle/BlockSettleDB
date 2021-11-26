@@ -2,7 +2,7 @@
 //                                                                            //
 //  Copyright (C) 2018, goatpig.                                              //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +22,7 @@ using namespace ::google::protobuf::io;
 ////////////////////////////////////////////////////////////////////////////////
 vector<BinaryData> WebSocketMessageCodec::serialize(
    const vector<uint8_t>& payload, BIP151Connection* connPtr,
-   uint8_t type, uint32_t id)
+   ArmoryAEAD::BIP151_PayloadType type, uint32_t id)
 {
    BinaryDataRef bdr;
    if(payload.size() > 0)
@@ -33,7 +33,7 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
 ////////////////////////////////////////////////////////////////////////////////
 vector<BinaryData> WebSocketMessageCodec::serialize(
    const string& payload, BIP151Connection* connPtr,
-   uint8_t type, uint32_t id)
+   ArmoryAEAD::BIP151_PayloadType type, uint32_t id)
 {
    BinaryDataRef bdr((uint8_t*)payload.c_str(), payload.size());
    return serialize(bdr, connPtr, type, id);
@@ -42,7 +42,7 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
 ////////////////////////////////////////////////////////////////////////////////
 vector<BinaryData> WebSocketMessageCodec::serializePacketWithoutId(
    const BinaryDataRef& payload, BIP151Connection* connPtr,
-   uint8_t type)
+   ArmoryAEAD::BIP151_PayloadType type)
 {
    /***
    no packet fragmentation, flat size serialization:
@@ -61,7 +61,7 @@ vector<BinaryData> WebSocketMessageCodec::serializePacketWithoutId(
    size += 4;
 
    //type
-   plainText.getPtr()[LWS_PRE + 4] = type;
+   memset(plainText.getPtr() + LWS_PRE + 4, (uint8_t)type, 1);
 
    //payload
    memcpy(plainText.getPtr() + LWS_PRE + 5, payload.getPtr(), payload.getSize());
@@ -85,10 +85,10 @@ vector<BinaryData> WebSocketMessageCodec::serializePacketWithoutId(
 ////////////////////////////////////////////////////////////////////////////////
 vector<BinaryData> WebSocketMessageCodec::serialize(
    const BinaryDataRef& payload, BIP151Connection* connPtr,
-   uint8_t type, uint32_t id)
+   ArmoryAEAD::BIP151_PayloadType type, uint32_t id)
 {   
    //is this payload carrying a msgid?
-   if (type > ArmoryAEAD::HandshakeSequence::Threshold_Begin)
+   if (type > ArmoryAEAD::BIP151_PayloadType::Threshold_Begin)
       return serializePacketWithoutId(payload, connPtr, type);
 
    /***
@@ -153,9 +153,12 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
       BinaryData plainText(LWS_PRE + POLY1305MACLEN + 9 + data_len);
 
       memcpy(plainText.getPtr() + LWS_PRE, &size, 4);
-      plainText.getPtr()[LWS_PRE + 4] = WS_MSGTYPE_SINGLEPACKET;
+      memset(plainText.getPtr() + LWS_PRE + 4,
+         (uint8_t)ArmoryAEAD::BIP151_PayloadType::SinglePacket, 1);
       memcpy(plainText.getPtr() + LWS_PRE + 5, &id, 4);
-      memcpy(plainText.getPtr() + LWS_PRE + 9, payload.getPtr(), data_len);
+
+      if (!payload.empty())
+         memcpy(plainText.getPtr() + LWS_PRE + 9, payload.getPtr(), data_len);
 
       encryptAndAdd(plainText);
    }
@@ -192,7 +195,8 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
       header_room = payload_room + 5; 
 
       memcpy(header_packet.getPtr() + LWS_PRE, &header_room, 4);
-      header_packet.getPtr()[LWS_PRE + 4] = WS_MSGTYPE_FRAGMENTEDPACKET_HEADER;
+      memset(header_packet.getPtr() + LWS_PRE + 4,
+         (uint8_t)ArmoryAEAD::BIP151_PayloadType::FragmentHeader, 1);
       memcpy(header_packet.getPtr() + LWS_PRE + 5, &id, 4);
       memcpy(header_packet.getPtr() + LWS_PRE + 9, &fragment_count, 2);
       memcpy(header_packet.getPtr() + LWS_PRE + 11, payload.getPtr(), pos);
@@ -214,7 +218,8 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
             data_size + fragment_overhead - LWS_PRE - POLY1305MACLEN - 4;
 
          memcpy(fragment_packet.getPtr() + LWS_PRE, &packet_size, 4);
-         fragment_packet.getPtr()[LWS_PRE + 4] = WS_MSGTYPE_FRAGMENTEDPACKET_FRAGMENT;
+         memset(fragment_packet.getPtr() + LWS_PRE + 4,
+            (uint8_t)ArmoryAEAD::BIP151_PayloadType::FragmentPacket, 1);
          memcpy(fragment_packet.getPtr() + LWS_PRE + 5, &id, 4);
 
          size_t offset = LWS_PRE + 9;
@@ -304,7 +309,7 @@ uint32_t WebSocketMessageCodec::getMessageId(const BinaryDataRef& packet)
 //
 ///////////////////////////////////////////////////////////////////////////////
 void SerializedMessage::construct(const vector<uint8_t>& data,
-   BIP151Connection* connPtr, uint8_t type, uint32_t id)
+   BIP151Connection* connPtr, ArmoryAEAD::BIP151_PayloadType type, uint32_t id)
 {
    packets_ = move(
       WebSocketMessageCodec::serialize(data, connPtr, type, id));
@@ -312,7 +317,7 @@ void SerializedMessage::construct(const vector<uint8_t>& data,
 
 ///////////////////////////////////////////////////////////////////////////////
 void SerializedMessage::construct(const BinaryDataRef& data,
-   BIP151Connection* connPtr, uint8_t type, uint32_t id)
+   BIP151Connection* connPtr, ArmoryAEAD::BIP151_PayloadType type, uint32_t id)
 {
    packets_ = move(
       WebSocketMessageCodec::serialize(data, connPtr, type, id));
@@ -330,11 +335,16 @@ BinaryData SerializedMessage::consumeNextPacket()
 // WebSocketMessagePartial
 //
 ///////////////////////////////////////////////////////////////////////////////
+WebSocketMessagePartial::WebSocketMessagePartial() :
+   type_(ArmoryAEAD::BIP151_PayloadType::Undefined)
+{}
+
+///////////////////////////////////////////////////////////////////////////////
 void WebSocketMessagePartial::reset()
 {
    packets_.clear();
    id_ = UINT32_MAX;
-   type_ = UINT8_MAX;
+   type_ = ArmoryAEAD::BIP151_PayloadType::Undefined;
    packetCount_ = UINT32_MAX;
 }
 
@@ -355,34 +365,34 @@ bool WebSocketMessagePartial::parsePacket(const BinaryDataRef& dataRef)
    auto dataSlice = brrPacket.get_BinaryDataRef(packetlen);
    BinaryRefReader brrSlice(dataSlice);
 
-   auto msgType = brrSlice.get_uint8_t();
+   auto msgType = (ArmoryAEAD::BIP151_PayloadType)brrSlice.get_uint8_t();
 
    switch (msgType)
    {
-   case WS_MSGTYPE_SINGLEPACKET:
+   case ArmoryAEAD::BIP151_PayloadType::SinglePacket:
    {
       return parseSinglePacket(dataSlice);
    }
 
-   case WS_MSGTYPE_FRAGMENTEDPACKET_HEADER:
+   case ArmoryAEAD::BIP151_PayloadType::FragmentHeader:
    {
       return parseFragmentedMessageHeader(dataSlice);
    }
 
-   case WS_MSGTYPE_FRAGMENTEDPACKET_FRAGMENT:
+   case ArmoryAEAD::BIP151_PayloadType::FragmentPacket:
    {
       return parseMessageFragment(dataSlice);
    }
 
-   case ArmoryAEAD::HandshakeSequence::Start:
-   case ArmoryAEAD::HandshakeSequence::PresentPubKey:
-   case ArmoryAEAD::HandshakeSequence::PresentPubKeyChild:
-   case ArmoryAEAD::HandshakeSequence::EncInit:
-   case ArmoryAEAD::HandshakeSequence::EncAck:
-   case ArmoryAEAD::HandshakeSequence::Rekey:
-   case ArmoryAEAD::HandshakeSequence::Challenge:
-   case ArmoryAEAD::HandshakeSequence::Reply:
-   case ArmoryAEAD::HandshakeSequence::Propose:
+   case ArmoryAEAD::BIP151_PayloadType::Start:
+   case ArmoryAEAD::BIP151_PayloadType::PresentPubKey:
+   case ArmoryAEAD::BIP151_PayloadType::PresentPubKeyChild:
+   case ArmoryAEAD::BIP151_PayloadType::EncInit:
+   case ArmoryAEAD::BIP151_PayloadType::EncAck:
+   case ArmoryAEAD::BIP151_PayloadType::Rekey:
+   case ArmoryAEAD::BIP151_PayloadType::Challenge:
+   case ArmoryAEAD::BIP151_PayloadType::Reply:
+   case ArmoryAEAD::BIP151_PayloadType::Propose:
    {
       return parseMessageWithoutId(dataSlice);
    }
@@ -407,8 +417,8 @@ bool WebSocketMessagePartial::parseSinglePacket(const BinaryDataRef& bdr)
       return false;
    BinaryRefReader brr(bdr);
 
-   type_ = brr.get_uint8_t();
-   if (type_ != WS_MSGTYPE_SINGLEPACKET)
+   type_ = (ArmoryAEAD::BIP151_PayloadType)brr.get_uint8_t();
+   if (type_ != ArmoryAEAD::BIP151_PayloadType::SinglePacket)
       return false;
 
    id_ = brr.get_uint32_t();
@@ -432,8 +442,8 @@ bool WebSocketMessagePartial::parseFragmentedMessageHeader(
 
    BinaryRefReader brr(bdr);
 
-   type_ = brr.get_uint8_t();
-   if (type_ != WS_MSGTYPE_FRAGMENTEDPACKET_HEADER)
+   type_ = (ArmoryAEAD::BIP151_PayloadType)brr.get_uint8_t();
+   if (type_ != ArmoryAEAD::BIP151_PayloadType::FragmentHeader)
       return false;
 
    auto id = brr.get_uint32_t();
@@ -460,8 +470,8 @@ bool WebSocketMessagePartial::parseMessageFragment(const BinaryDataRef& bdr)
 
    BinaryRefReader brr(bdr);
 
-   auto type = brr.get_uint8_t();
-   if (type != WS_MSGTYPE_FRAGMENTEDPACKET_FRAGMENT)
+   auto type = (ArmoryAEAD::BIP151_PayloadType)brr.get_uint8_t();
+   if (type != ArmoryAEAD::BIP151_PayloadType::FragmentPacket)
       return false;
 
    auto id = brr.get_uint32_t();
@@ -486,8 +496,8 @@ bool WebSocketMessagePartial::parseMessageWithoutId(const BinaryDataRef& bdr)
 
    BinaryRefReader brr(bdr);
 
-   type_ = brr.get_uint8_t();
-   if (type_ <= ArmoryAEAD::HandshakeSequence::Threshold_Begin)
+   type_ = (ArmoryAEAD::BIP151_PayloadType)brr.get_uint8_t();
+   if (type_ <= ArmoryAEAD::BIP151_PayloadType::Threshold_Begin)
       return false;
 
    packets_.emplace(make_pair(
@@ -531,11 +541,12 @@ BinaryDataRef WebSocketMessagePartial::getSingleBinaryMessage(void) const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-uint8_t WebSocketMessagePartial::getPacketType(const BinaryDataRef& bdr)
+ArmoryAEAD::BIP151_PayloadType WebSocketMessagePartial::getPacketType(
+   const BinaryDataRef& bdr)
 {
    if (bdr.getSize() < 5)
       throw runtime_error("packet is too small to be serialized fragment");
-   return bdr.getPtr()[4];
+   return (ArmoryAEAD::BIP151_PayloadType)bdr.getPtr()[4];
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -547,11 +558,12 @@ unsigned WebSocketMessagePartial::getMessageId(const BinaryDataRef& bdr)
    BinaryRefReader brr(bdr);
    brr.advance(4);
 
-   switch (brr.get_uint8_t())
+   auto type = (ArmoryAEAD::BIP151_PayloadType)brr.get_uint8_t();
+   switch (type)
    {
-   case WS_MSGTYPE_SINGLEPACKET:
-   case WS_MSGTYPE_FRAGMENTEDPACKET_HEADER:
-   case WS_MSGTYPE_FRAGMENTEDPACKET_FRAGMENT:
+   case ArmoryAEAD::BIP151_PayloadType::SinglePacket:
+   case ArmoryAEAD::BIP151_PayloadType::FragmentHeader:
+   case ArmoryAEAD::BIP151_PayloadType::FragmentPacket:
       return brr.get_uint32_t();
 
    default:

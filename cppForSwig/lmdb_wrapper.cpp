@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +34,7 @@
 #endif
 
 using namespace std;
+using namespace Armory::Config;
 
 const set<DB_SELECT> LMDBBlockDatabase::supernodeDBs_({});
 const map<string, size_t> LMDBBlockDatabase::mapSizes_ = {
@@ -350,6 +351,13 @@ bool LDBIter_Single::seekToFirst(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+bool LDBIter_Single::seekToLast(void)
+{
+   iter_.toLast();
+   return readIterData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 /////LMDBBlockDatabase
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,12 +382,12 @@ void LMDBBlockDatabase::openDatabases(
    const string& basedir)
 {
    LOGINFO << "Opening databases...";
-   LOGINFO << "dbmode: " << BlockDataManagerConfig::getDbModeStr();
+   LOGINFO << "dbmode: " << DBSettings::getDbModeStr();
    
    DatabaseContainer::baseDir_ = basedir;
-   DatabaseContainer::magicBytes_ = NetworkConfig::getMagicBytes();
+   DatabaseContainer::magicBytes_ = BitcoinSettings::getMagicBytes();
 
-   if (!NetworkConfig::isInitialized())
+   if (!BitcoinSettings::isInitialized())
    {
       LOGERR << " must set magic bytes and genesis block";
       LOGERR << "           before opening databases.";
@@ -410,7 +418,7 @@ void LMDBBlockDatabase::openDatabases(
       StoredDBInfo sdbi = openDB(CURRDB);
 
       // Check that the magic bytes are correct
-      if (NetworkConfig::getMagicBytes() != sdbi.magic_)
+      if (BitcoinSettings::getMagicBytes() != sdbi.magic_)
       {
          throw DbErrorMsg("Magic bytes mismatch!  Different blokchain?");
       }
@@ -830,7 +838,7 @@ void LMDBBlockDatabase::deleteValue(DB_SELECT db,
 bool LMDBBlockDatabase::fillStoredSubHistory(
    StoredScriptHistory& ssh, unsigned start, unsigned end) const
 {
-   if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
+   if (DBSettings::getDbType() == ARMORY_DB_SUPER)
    {
       return fillStoredSubHistory_Super(ssh, start, end);
    }
@@ -1979,6 +1987,12 @@ BinaryData LMDBBlockDatabase::getRawBlock(uint32_t height, uint8_t dupId) const
    if (bh->getDuplicateID() != dupId)
       throw LmdbWrapperException("invalid dupId");
 
+   return getRawBlock(bh);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData LMDBBlockDatabase::getRawBlock(shared_ptr<BlockHeader> bh) const
+{
    //open block file
    BlockDataLoader bdl(blkFolder_);
 
@@ -3051,24 +3065,7 @@ void DBPair::open(const string& path, const string& dbName)
    unsigned flags = MDB_NOSYNC | MDB_NOTLS;
 
    env_.open(path, flags);
-   auto map_size = env_.getMapSize();
-   auto iter = LMDBBlockDatabase::mapSizes_.find(dbName);
-   if (iter != LMDBBlockDatabase::mapSizes_.end())
-   {
-      auto default_size = iter->second;
-      if (map_size < default_size)
-         map_size = default_size;
-      try
-      {
-         auto file_size = DBUtils::getFileSize(path);
-         auto ratio = float(file_size) / float(map_size);
-         if (ratio > 0.75f)
-            map_size *= 2;
-      }
-      catch (runtime_error&)
-      {
-      }
-   }
+   auto map_size = LMDBBlockDatabase::mapSizes_.at(dbName);
    env_.setMapSize(map_size);
 
    auto&& tx = beginTransaction(LMDB::ReadWrite);
@@ -3163,7 +3160,7 @@ StoredDBInfo DatabaseContainer_Single::open()
       sdbi.magic_ = magicBytes_;
       sdbi.metaHash_ = BtcUtils::EmptyHash_;
       sdbi.topBlkHgt_ = 0;
-      sdbi.armoryType_ = BlockDataManagerConfig::getDbType();
+      sdbi.armoryType_ = DBSettings::getDbType();
       putStoredDBInfo(sdbi, 0);
    }
 

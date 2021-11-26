@@ -8,31 +8,34 @@ from __future__ import (absolute_import, division,
 #                                                                              #
 ################################################################################
 
-from PyQt4.Qt import * #@UnusedWildImport
-from PyQt4.QtGui import * #@UnusedWildImport
+from PySide2.QtWidgets import QWizard, QWizardPage, QVBoxLayout
+from PySide2.QtCore import Qt
+from PySide2.QtGui import QIcon
+
 from armoryengine.ArmoryUtils import USE_TESTNET, USE_REGTEST, int_to_binary
 from ui.WalletFrames import NewWalletFrame, SetPassphraseFrame, VerifyPassphraseFrame,\
    WalletBackupFrame, WizardCreateWatchingOnlyWalletFrame, CardDeckFrame
-from ui.TxFrames import SendBitcoinsFrame, SignBroadcastOfflineTxFrame,\
-   ReviewOfflineTxFrame
-from qtdefines import USERMODE, GETFONT, AddToRunningDialogsList
+from ui.TxFrames import SendBitcoinsFrame
+from ui.TxFramesOffline import SignBroadcastOfflineTxFrame
+from qtdialogs.qtdefines import USERMODE, GETFONT, AddToRunningDialogsList
 from armoryengine.PyBtcWallet import PyBtcWallet
 from armoryengine.BDM import TheBDM, BDM_OFFLINE, BDM_UNINITIALIZED
-from qtdialogs import DlgProgress
+from qtdialogs.qtdialogs import DlgProgress
+from qtdialogs.DlgOfflineTx import ReviewOfflineTxFrame
 
 # This class is intended to be an abstract Wizard class that
-# will hold all of the functionality that is common to all 
-# Wizards in Armory. 
+# will hold all of the functionality that is common to all
+# Wizards in Armory.
 class ArmoryWizard(QWizard):
    def __init__(self, parent, main):
-      super(QWizard, self).__init__(parent)
+      super(ArmoryWizard, self).__init__(parent)
       self.setWizardStyle(QWizard.ClassicStyle)
       self.parent = parent
-      self.main   = main
+      self.main = main
       self.setFont(GETFONT('var'))
       self.setWindowFlags(Qt.Window)
       # Need to adjust the wizard frame size whenever the page changes.
-      self.connect(self, SIGNAL('currentIdChanged(int)'), self.fitContents)
+      self.currentIdChanged.connect(self.fitContents)
       if USE_TESTNET:
          self.setWindowTitle('Armory - Bitcoin Wallet Management [TESTNET]')
          self.setWindowIcon(QIcon(':/armory_icon_green_32x32.png'))
@@ -42,10 +45,10 @@ class ArmoryWizard(QWizard):
       else:
          self.setWindowTitle('Armory - Bitcoin Wallet Management')
          self.setWindowIcon(QIcon(':/armory_icon_32x32.png'))
-   
+
    def fitContents(self):
       self.adjustSize()
-   
+
    @AddToRunningDialogsList
    def exec_(self):
       return super(ArmoryWizard, self).exec_()
@@ -250,15 +253,15 @@ class WalletCreationPage(ArmoryWizardPage):
 
 class SetPassphrasePage(ArmoryWizardPage):
    def __init__(self, wizard):
-      super(SetPassphrasePage, self).__init__(wizard, 
+      super(SetPassphrasePage, self).__init__(wizard,
                SetPassphraseFrame(wizard, wizard.main, wizard.tr("Set Passphrase"), self.updateNextButton))
       self.wizard = wizard
       self.setTitle(wizard.tr("Step 2: Set Passphrase"))
       self.updateNextButton()
 
    def updateNextButton(self):
-      self.emit(SIGNAL("completeChanged()"))
-   
+      self.completeChanged.emit()
+
    def isComplete(self):
       return self.pageFrame.checkPassphrase(False)
 

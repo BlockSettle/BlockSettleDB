@@ -1,11 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27428.2015
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31005.135
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "guardian", "guardian\guardian.vcxproj", "{D35F732D-55D7-4037-9C6D-E141F740F802}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cryptopp", "cryptopp\cryptopp.vcxproj", "{B1055DA3-83CE-47BF-98E6-2850E3411D39}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LMDB_Win", "LMDB_Win\LMDB_Win.vcxproj", "{2DAEB6BF-8CF7-43D5-AEA9-BF824BBC8AE4}"
 EndProject
@@ -88,33 +86,6 @@ Global
 		{D35F732D-55D7-4037-9C6D-E141F740F802}.WinXP_32|Win32.Build.0 = WinXP_32|Win32
 		{D35F732D-55D7-4037-9C6D-E141F740F802}.WinXP_32|x64.ActiveCfg = Release|x64
 		{D35F732D-55D7-4037-9C6D-E141F740F802}.WinXP_32|x64.Build.0 = Release|x64
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.Debug|Mixed Platforms.Build.0 = Debug|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.Debug|Win32.ActiveCfg = Debug|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.Debug|x64.ActiveCfg = Debug|x64
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.MinSizeRel|Mixed Platforms.ActiveCfg = WinXP_32|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.MinSizeRel|Mixed Platforms.Build.0 = WinXP_32|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.MinSizeRel|Win32.ActiveCfg = WinXP_32|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.MinSizeRel|Win32.Build.0 = WinXP_32|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.MinSizeRel|x64.ActiveCfg = WinXP_32|x64
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.MinSizeRel|x64.Build.0 = WinXP_32|x64
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.Release|Mixed Platforms.ActiveCfg = Release|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.Release|Mixed Platforms.Build.0 = Release|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.Release|Win32.ActiveCfg = Release|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.Release|x64.ActiveCfg = Release|x64
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.Release|x64.Build.0 = Release|x64
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.RelWithDebInfo|Mixed Platforms.ActiveCfg = Release|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.RelWithDebInfo|Mixed Platforms.Build.0 = Release|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.RelWithDebInfo|Win32.ActiveCfg = Release|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.RelWithDebInfo|Win32.Build.0 = Release|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.RelWithDebInfo|x64.ActiveCfg = Release|x64
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.RelWithDebInfo|x64.Build.0 = Release|x64
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.WinXP_32|Mixed Platforms.ActiveCfg = WinXP_32|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.WinXP_32|Mixed Platforms.Build.0 = WinXP_32|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.WinXP_32|Win32.ActiveCfg = WinXP_32|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.WinXP_32|Win32.Build.0 = WinXP_32|Win32
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.WinXP_32|x64.ActiveCfg = Release|x64
-		{B1055DA3-83CE-47BF-98E6-2850E3411D39}.WinXP_32|x64.Build.0 = Release|x64
 		{2DAEB6BF-8CF7-43D5-AEA9-BF824BBC8AE4}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
 		{2DAEB6BF-8CF7-43D5-AEA9-BF824BBC8AE4}.Debug|Mixed Platforms.Build.0 = Debug|Win32
 		{2DAEB6BF-8CF7-43D5-AEA9-BF824BBC8AE4}.Debug|Win32.ActiveCfg = Debug|Win32

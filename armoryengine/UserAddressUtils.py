@@ -14,7 +14,7 @@ from armoryengine.Transaction import getTxOutScriptType, getMultisigScriptInfo
 from armoryengine.CppBridge import TheBridge
 
 #############################################################################
-def getScriptForUserString(userStr, wltMap, lboxList):
+def getScriptForUserStringImpl(userStr, wltMap, lboxList):
    """
    NOTE: Just like getDisplayStringForScript(), this used to be in ArmoryQt
    but I can envision that it would be useful for reading user input in a
@@ -48,7 +48,7 @@ def getScriptForUserString(userStr, wltMap, lboxList):
 
    def getWltIDForScrAddr(scrAddr, walletMap):
       for iterID,iterWlt in walletMap.items():
-         if iterWlt.hasAddr160(scrAddr):
+         if iterWlt.hasAddrHash(scrAddr):
             return iterID
       return None
 
@@ -87,12 +87,11 @@ def getScriptForUserString(userStr, wltMap, lboxList):
       else:
          try:
             scrAddr = addrStr_to_scrAddr(userStr, ADDRBYTE, P2SHBYTE)
-            a160 = scrAddr_to_hash160(scrAddr)[1]
             outScript = TheBridge.getTxOutScriptForScrAddr(scrAddr)
             hasAddrInIt = True
 
             # Check if it's a wallet scrAddr
-            wltID  = getWltIDForScrAddr(a160, wltMap)
+            wltID = getWltIDForScrAddr(scrAddr, wltMap)
 
             # Check if it's a known P2SH
             for lbox in lboxList:
@@ -102,13 +101,13 @@ def getScriptForUserString(userStr, wltMap, lboxList):
          except:
             outScript = Cpp.BtcUtils.bech32ToScript(userStr, BECH32_PREFIX)
             isBech32 = True
-            
+
       # Caller might be expecting to see None, instead of '' (empty string)
       wltID  = None if not wltID  else wltID
       lboxID = None if not lboxID else lboxID
-      return {'Script': outScript, 
-              'WltID':  wltID, 
-              'LboxID': lboxID, 
+      return {'Script': outScript,
+              'WltID':  wltID,
+              'LboxID': lboxID,
               'ShowID': hasAddrInIt,
               'IsBech32' : isBech32}
    except:
@@ -122,7 +121,7 @@ def getScriptForUserString(userStr, wltMap, lboxList):
 
 
 ################################################################################
-def getDisplayStringForScript(binScript, wltMap, lboxList, maxChars=256, 
+def getDisplayStringForScriptImpl(binScript, wltMap, lboxList, maxChars=256, 
                               doBold=0, prefIDOverAddr=False, 
                               lblTrunc=12, lastTrunc=12):
    """
@@ -178,7 +177,7 @@ def getDisplayStringForScript(binScript, wltMap, lboxList, maxChars=256,
    if scriptType != CPP_TXOUT_OPRETURN:
       wlt = None
       for iterID,iterWlt in wltMap.items():
-         if iterWlt.hasAddr160(scrAddr[1:]):
+         if iterWlt.hasAddrHash(scrAddr):
             wlt = iterWlt
             break
    
@@ -272,7 +271,8 @@ def getDisplayStringForScript(binScript, wltMap, lboxList, maxChars=256,
       return {'String':  displayStr,
               'WltID':   wltID,
               'LboxID':  lboxID,
-              'AddrStr': addrStr}
+              'AddrStr': addrStr,
+              'ScrType': scriptType}
 
 
 
@@ -313,5 +313,5 @@ def getDisplayStringForScript(binScript, wltMap, lboxList, maxChars=256,
    return {'String':  dispStr,
            'WltID':   None,
            'LboxID':  None,
-           'AddrStr': addrStr}
-
+           'AddrStr': addrStr,
+           'ScrType': scriptType}

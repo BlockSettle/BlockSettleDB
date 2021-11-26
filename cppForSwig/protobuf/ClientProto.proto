@@ -5,12 +5,12 @@ package Codec_ClientProto;
 enum Methods
 {
     shutdown = 1;
-    
+
     setupDB = 10;
     goOnline = 11;
     registerWallets = 12;
     registerWallet = 13;
-    
+
     loadWallets = 20;
     getNodeStatus = 21;
     returnPassphrase = 22;
@@ -18,11 +18,12 @@ enum Methods
 
     getLedgerDelegateIdForWallets = 30;
     updateWalletsLedgerFilter = 31;
-    
+    getLedgerDelegateIdForScrAddr = 32;
+
     getHistoryPageForDelegate = 40;
     getBalanceAndCount = 41;
     getAddrCombinedList = 42;
-    
+
     getTxByHash = 70;
     getHeaderByHeight = 71;
     createAddressBook = 72;
@@ -44,7 +45,9 @@ enum Methods
     getLastPushDataInScript = 94;
     getTxOutScriptForScrAddr = 95;
     getAddrStrForScrAddr = 96;
-    
+    getNameForAddrType = 97;
+    setAddressTypeFor = 98;
+
     getUtxosForValue = 100;
     getSpendableZCList = 101;
     getRBFTxOutList = 102;
@@ -70,8 +73,9 @@ enum Methods
     signer_unserializeState = 138;
     signer_signTx = 139;
     signer_getSignedTx = 140;
-    signer_getSignedStateForInput = 141;
-    signer_resolve = 142;
+    signer_getUnsignedTx = 141;
+    signer_getSignedStateForInput = 142;
+    signer_resolve = 143;
 
     getHash160 = 200;
     getBlockTimeByHeight = 201;
@@ -107,6 +111,9 @@ message WalletAsset
 {
     required int32 id = 1;
     required uint32 addrType = 2;
+    required bool isUsed = 3;
+    required bool isChange = 4;
+    required bytes assetId = 5;
 
     required bytes prefixedHash = 10;
     required bytes publicKey = 11;
@@ -121,6 +128,8 @@ message WalletData
     required int64 useCount = 2;
     required int64 lookupCount = 3;
     required bool watchingOnly = 4;
+    repeated uint32 addressTypes = 5;
+    required uint32 defaultAddressType = 6;
 
     optional string label = 10;
     optional string desc = 11;
@@ -205,7 +214,7 @@ message BridgeLedgers
     repeated BridgeLedger le = 1;
 }
 
-message BridgeNodeChainState
+message BridgeNodeChainStatus
 {
     required uint32 chainState = 2;
     required float blockSpeed = 3;
@@ -218,10 +227,10 @@ message BridgeNodeStatus
 {
     required bool isValid = 1;
     
-    optional uint32 nodeStatus = 10;
+    optional uint32 nodeState = 10;
     optional bool isSegWitEnabled = 11;
-    optional uint32 rpcStatus = 12;
-    optional BridgeNodeChainState chainState = 13;
+    optional uint32 rpcState = 12;
+    optional BridgeNodeChainStatus chainStatus = 13;
 }
 
 message BridgeBalanceAndCount

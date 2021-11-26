@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -173,6 +173,7 @@ public:
    bool seekToBefore(DB_PREFIX prefix);
    bool seekToBefore(DB_PREFIX pref, BinaryDataRef key);
    virtual bool seekToFirst(void) = 0;
+   virtual bool seekToLast(void) = 0;
 
    // Return true if the iterator is currently on valid data, with key match
    bool checkKeyExact(BinaryDataRef key);
@@ -205,50 +206,20 @@ public:
    {}
 
    //virutals
-   bool isNull(void) const { return !iter_.isValid(); }
-   bool isValid(void) const { return iter_.isValid(); }
+   bool isNull(void) const override { return !iter_.isValid(); }
+   bool isValid(void) const override { return iter_.isValid(); }
 
-   bool seekTo(BinaryDataRef key);
-   bool seekToExact(BinaryDataRef key);
-   bool seekToBefore(BinaryDataRef key);
-   bool seekToFirst(void);
+   bool seekTo(BinaryDataRef key) override;
+   bool seekToExact(BinaryDataRef key) override;
+   bool seekToBefore(BinaryDataRef key) override;
+   bool seekToFirst(void) override;
+   bool seekToLast(void) override;
 
-   bool advance(void);
-   bool retreat(void);
-   bool readIterData(void);
+   bool advance(void) override;
+   bool retreat(void) override;
+   bool readIterData(void) override;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-class DBPair;
-class DatabaseContainer_Sharded;
-class LDBIter_Sharded : public LDBIter
-{
-private:
-   std::unique_ptr<LDBIter> iter_;
-   DatabaseContainer_Sharded* dbPtr_;
-   unsigned currentShard_;
-
-public:
-   LDBIter_Sharded(
-      DatabaseContainer_Sharded* dbPtr) :
-      dbPtr_(dbPtr)
-   {}
-
-   //virutals
-   bool isNull(void) const;
-   bool isValid(void) const;
-
-   bool seekTo(BinaryDataRef key);
-   bool seekToExact(BinaryDataRef key);
-   bool seekToBefore(BinaryDataRef key);
-   bool seekToFirst(void);
-
-   bool advance(void);
-   bool retreat(void);
-   bool readIterData(void);
-};
-
-////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class DBPair
 {
@@ -654,7 +625,10 @@ public:
       return dbObj->beginTransaction(mode);
    }
 
-   ARMORY_DB_TYPE getDbType(void) const { return BlockDataManagerConfig::getDbType(); }
+   ARMORY_DB_TYPE getDbType(void) const 
+   { 
+      return Armory::Config::DBSettings::getDbType(); 
+   }
 
    /////////////////////////////////////////////////////////////////////////////
    // Sometimes, we just need to nuke everything and start over
@@ -752,6 +726,7 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    // still using the old name even though no block data is stored anymore
    BinaryData getRawBlock(uint32_t height, uint8_t dupId) const;
+   BinaryData getRawBlock(std::shared_ptr<BlockHeader>) const;
    bool getStoredHeader(StoredHeader&, uint32_t, uint8_t, bool withTx = true) const;
    bool getStoredHeader(StoredHeader&, std::shared_ptr<BlockHeader>, bool withTx = true) const;
 
@@ -889,7 +864,7 @@ public:
    void   printAllDatabaseEntries(DB_SELECT db);
 
    ARMORY_DB_TYPE armoryDbType(void) const
-   { return BlockDataManagerConfig::getDbType(); }
+   { return Armory::Config::DBSettings::getDbType(); }
 
    const std::string& baseDir(void) const { return DatabaseContainer::baseDir_; }
    void setBlkFolder(const std::string& path) { blkFolder_ = path; }

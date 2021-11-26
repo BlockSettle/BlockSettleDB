@@ -175,3 +175,9 @@ test-driver
 /cppForSwig/LMDB_Win/x64*
 /cppForSwig/protobuf/*.pb.*
 /cppForSwig/x64/*.*
+CppBridge
+armoryengine/ClientProto_pb2.py
+cppForSwig/gtest/UtilsTests
+cppForSwig/gtest/ZeroConfTests
+c20p1305_cffi/c20p1305.c
+c20p1305_cffi/c20p1305.cpython-39-x86_64-linux-gnu.so

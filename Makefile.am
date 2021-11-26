@@ -11,16 +11,6 @@ EXTRA_DIST = *.py *.md LICENSE LICENSE-ATI LICENSE-MIT \
 
 ACLOCAL_AMFLAGS = -I build-aux/m4
 
-if BUILD_GUI
-lrelease:
-	lrelease lang/*.ts
-endif
-
-if BUILD_GUI
-qrc_img_resources.py: imgList.xml
-	pyrcc4 -o qrc_img_resources.py imgList.xml
-endif
-
 copy-script:
 	cp cppForSwig/ArmoryDB ./ArmoryDB
 	cp cppForSwig/BIP150KeyManager ./BIP150KeyManager
@@ -29,6 +19,7 @@ copy-script:
 # SWIG code and requirements.
 if BUILD_CLIENT
 	protoc --python_out=armoryengine --proto_path=cppForSwig/protobuf cppForSwig/protobuf/ClientProto.proto
+#TODO: build c20p1305 CFFI python lib
 endif
 
 .PHONY: copy-script lrelease qrc_img_resources.py

@@ -1,9 +1,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016-17, goatpig                                            //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,11 +43,12 @@
 #include "../TxClasses.h"
 #include "../txio.h"
 #include "../bdmenums.h"
-#include "../Script.h"
-#include "../Signer.h"
-#include "../Wallets.h"
-#include "../WalletManager.h"
-#include "../BIP32_Node.h"
+#include "../Signer/Script.h"
+#include "../Signer/Signer.h"
+#include "../Signer/ResolverFeed_Wallets.h"
+#include "../Wallets/Wallets.h"
+#include "../AsyncClient.h"
+#include "../Wallets/BIP32_Node.h"
 #include "../BitcoinP2p.h"
 #include "btc/ecc.h"
 
@@ -97,6 +98,10 @@ namespace TestUtils
    void setBlocks(const std::vector<std::string> &files, const std::string &to);
    void nullProgress(unsigned, double, unsigned, unsigned);
    BinaryData getTx(unsigned height, unsigned id);
+
+   std::shared_ptr<AssetEntry> getMainAccountAssetForIndex(
+      std::shared_ptr<AssetWallet>, Armory::Wallets::AssetKeyType);
+   size_t getMainAccountAssetCount(std::shared_ptr<AssetWallet>);
 }
 
 namespace DBTestUtils
@@ -120,7 +125,7 @@ namespace DBTestUtils
    std::vector<uint64_t> getBalanceAndCount(Clients* clients,
       const std::string& bdvId, const std::string& walletId, unsigned blockheight);
    std::string getLedgerDelegate(Clients* clients, const std::string& bdvId);
-   std::vector<::ClientClasses::LedgerEntry> getHistoryPage(
+   std::vector<DBClientClasses::LedgerEntry> getHistoryPage(
       Clients* clients, const std::string& bdvId,
       const std::string& delegateId, uint32_t pageId);
 
@@ -131,7 +136,7 @@ namespace DBTestUtils
 
    std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> 
       waitOnNewBlockSignal(Clients* clients, const std::string& bdvId);
-   std::pair<std::vector<::ClientClasses::LedgerEntry>, std::set<BinaryData>>
+   std::pair<std::vector<DBClientClasses::LedgerEntry>, std::set<BinaryData>>
       waitOnNewZcSignal(Clients* clients, const std::string& bdvId);
    void waitOnWalletRefresh(Clients* clients, const std::string& bdvId,
       const BinaryData& wltId);
@@ -164,7 +169,8 @@ namespace DBTestUtils
    std::vector<UTXO> getUtxoForAddress(Clients* clients, const std::string bdvId, 
       const BinaryData& addr, bool withZc);
 
-   void addTxioToSsh(StoredScriptHistory&, const std::map<BinaryData, std::shared_ptr<TxIOPair>>&);
+   void addTxioToSsh(StoredScriptHistory&, 
+      const std::map<BinaryDataRef, std::shared_ptr<const TxIOPair>>&);
    void prettyPrintSsh(StoredScriptHistory& ssh);
    LedgerEntry getLedgerEntryFromWallet(std::shared_ptr<BtcWallet>, const BinaryData&);
    LedgerEntry getLedgerEntryFromAddr(ScrAddrObj*, const BinaryData&);
@@ -182,7 +188,7 @@ namespace DBTestUtils
       std::shared_ptr<AsyncClient::BlockDataViewer> bdv,
       const std::string& walletId, const BinaryData& scrAddr);
    
-   std::vector<ClientClasses::LedgerEntry> getHistoryPage(
+   std::vector<DBClientClasses::LedgerEntry> getHistoryPage(
       AsyncClient::LedgerDelegate& del, uint32_t id);
    uint64_t getPageCount(AsyncClient::LedgerDelegate& del);
 
@@ -541,7 +547,7 @@ namespace ResolverUtils
    class HybridFeed : public ArmorySigner::ResolverFeed
    {
    private:
-      std::shared_ptr<ResolverFeed_AssetWalletSingle> feedPtr_;
+      std::shared_ptr<ArmorySigner::ResolverFeed_AssetWalletSingle> feedPtr_;
 
    public:
       TestResolverFeed testFeed_;
@@ -549,7 +555,7 @@ namespace ResolverUtils
    public:
       HybridFeed(std::shared_ptr<AssetWallet_Single> wltPtr)
       {
-         feedPtr_ = std::make_shared<ResolverFeed_AssetWalletSingle>(wltPtr);
+         feedPtr_ = std::make_shared<ArmorySigner::ResolverFeed_AssetWalletSingle>(wltPtr);
       }
 
       BinaryData getByVal(const BinaryData& val) override
@@ -601,7 +607,7 @@ namespace ResolverUtils
             BinaryDataRef preimage(addrPtr->getPreimage());
             hash_to_preimage_.insert(std::make_pair(hash, preimage));
          }
-         catch (std::exception)
+         catch (const std::exception&)
          {
             return;
          }
@@ -614,7 +620,7 @@ namespace ResolverUtils
    public:
       CustomFeed(std::shared_ptr<AddressEntry> addrPtr,
          std::shared_ptr<AssetWallet_Single> wlt) :
-         wltFeed_(std::make_shared<ResolverFeed_AssetWalletSingle>(wlt))
+         wltFeed_(std::make_shared<ArmorySigner::ResolverFeed_AssetWalletSingle>(wlt))
       {
          addAddressEntry(addrPtr);
       }

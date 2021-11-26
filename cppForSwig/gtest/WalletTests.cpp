@@ -8,11 +8,16 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "TestUtils.h"
-#include "ArmoryBackups.h"
+#include "../Wallets/PassphraseLambda.h"
+#include "../ArmoryBackups.h"
+#include "../Wallets/WalletFileInterface.h"
 
 using namespace std;
 using namespace ArmorySigner;
+using namespace Armory::Config;
+using namespace Armory::Wallets;
 
+////////////////////////////////////////////////////////////////////////////////
 #define METHOD_ASSERT_EQ(a, b) \
    if (a != b) { EXPECT_EQ(a, b); return false; }
 
@@ -31,8 +36,23 @@ class AddressTests : public ::testing::Test
 protected:
    virtual void SetUp(void)
    {
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      Armory::Config::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
    }
+
+   virtual void TearDown(void)
+   {
+      Armory::Config::reset();
+      DBUtils::removeDirectory(homedir_);
+   }
+
+   string homedir_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,6 +111,543 @@ TEST_F(AddressTests, bech32_Tests)
    }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+class WalletIdsTests : public ::testing::Test
+{
+   virtual void SetUp()
+   {}
+
+   virtual void TearDown()
+   {}
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletIdsTests, AddressAccounts)
+{
+   int32_t accIdValue = 0x12345678;
+   AddressAccountId accId(accIdValue);
+
+   //check serialization as key
+   {
+      auto key = accId.getSerializedKey(22);
+      EXPECT_EQ(key.getSize(), 5ull);
+
+      BinaryRefReader brrKey(key);
+      auto prefix = brrKey.get_uint8_t();
+      EXPECT_EQ(prefix, 22);
+
+      auto idkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(idkey, accIdValue);
+
+      try
+      {
+         auto aaidFromKey = AddressAccountId::deserializeKey(key, 22);
+         EXPECT_EQ(aaidFromKey, accId);
+
+         auto aaidKey = aaidFromKey.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, accIdValue);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serKey = READHEX("1612345678");
+      EXPECT_EQ(serKey, key);
+   }
+
+   //key with prefix > 0x7f
+   {
+      auto key = accId.getSerializedKey(231);
+      EXPECT_EQ(key.getSize(), 5ull);
+
+      BinaryRefReader brrKey(key);
+      auto prefix = brrKey.get_uint8_t();
+      EXPECT_EQ(prefix, 231);
+
+      auto idkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(idkey, accIdValue);
+
+      try
+      {
+         auto aaidFromKey = AddressAccountId::deserializeKey(key, 231);
+         EXPECT_EQ(aaidFromKey, accId);
+
+         auto aaidKey = aaidFromKey.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, accIdValue);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serKey = READHEX("E712345678");
+      EXPECT_EQ(serKey, key);
+   }
+
+   //check serialization as value
+   {
+      BinaryWriter bw;
+      accId.serializeValue(bw);
+
+      auto value = bw.getData();
+      EXPECT_EQ(value.getSize(), 5ull);
+      BinaryRefReader brrValue(value);
+
+      auto len = brrValue.get_var_int();
+      EXPECT_EQ(len, 4ull);
+
+      auto aaidKey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(aaidKey, accIdValue);
+
+      try
+      {
+         auto aaidFromValue = AddressAccountId::deserializeValue(value);
+         EXPECT_EQ(aaidFromValue, accId);
+
+         auto aaidKey2 = aaidFromValue.getAddressAccountKey();
+         EXPECT_EQ(aaidKey2, accIdValue);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serValue = READHEX("0412345678");
+      EXPECT_EQ(serValue, value);
+   }
+
+   //invalid deser
+   try
+   {
+      auto serKey = READHEX("0001234567");
+      AddressAccountId::deserializeKey(serKey, 1);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("00012345");
+      AddressAccountId::deserializeKey(serKey, 0);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("000123456789AB");
+      AddressAccountId::deserializeKey(serKey, 0);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("000123456789ABCDEF");
+      AddressAccountId::deserializeValue(serValue);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEF");
+      AddressAccountId::deserializeValue(serValue);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("080123456789ABCD");
+      AddressAccountId::deserializeValue(serValue);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEFA0B1");
+      AddressAccountId::deserializeValue(serValue);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletIdsTests, AssetAccounts)
+{
+   int32_t aaIdValue = 0x01234567;
+   int32_t asIdValue = 0x89ABCDEF;
+   AddressAccountId accId(aaIdValue);
+   AssetAccountId assId1(aaIdValue, asIdValue);
+   AssetAccountId assId2(accId, asIdValue);
+
+   EXPECT_EQ(assId1, assId2);
+
+   //check serialization as key
+   {
+      auto key = assId1.getSerializedKey(185);
+      EXPECT_EQ(key.getSize(), 9ull);
+
+      BinaryRefReader brrKey(key);
+      auto prefix = brrKey.get_uint8_t();
+      EXPECT_EQ(prefix, 185);
+
+      auto aaidkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(aaidkey, aaIdValue);
+
+      auto asidkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(asidkey, asIdValue);
+
+      try
+      {
+         auto asidFromKey = AssetAccountId::deserializeKey(key, 185);
+         EXPECT_EQ(asidFromKey, assId1);
+         EXPECT_EQ(asidFromKey, assId2);
+
+         auto aaidKey = asidFromKey.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, aaIdValue);
+
+         auto asidKey = asidFromKey.getAssetAccountKey();
+         EXPECT_EQ(asidKey, asIdValue);
+
+         auto accid = asidFromKey.getAddressAccountId();
+         EXPECT_EQ(accid, accId);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serKey = READHEX("B90123456789ABCDEF");
+      EXPECT_EQ(serKey, key);
+   }
+
+   //check serialization as value
+   {
+      BinaryWriter bw;
+      assId2.serializeValue(bw);
+
+      auto value = bw.getData();
+      EXPECT_EQ(value.getSize(), 9ull);
+      BinaryRefReader brrValue(value);
+
+      auto len = brrValue.get_var_int();
+      EXPECT_EQ(len, 8ull);
+
+      auto aaidkey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(aaidkey, aaIdValue);
+
+      auto asidkey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(asidkey, asIdValue);
+
+      try
+      {
+         BinaryRefReader brrValue2(value);
+         auto asidFromValue = AssetAccountId::deserializeValue(brrValue2);
+         EXPECT_EQ(asidFromValue, assId1);
+         EXPECT_EQ(asidFromValue, assId2);
+
+         auto aaidKey = asidFromValue.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, aaIdValue);
+
+         auto asidKey = asidFromValue.getAssetAccountKey();
+         EXPECT_EQ(asidKey, asIdValue);
+
+         auto accid = asidFromValue.getAddressAccountId();
+         EXPECT_EQ(accid, accId);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serValue = READHEX("080123456789ABCDEF");
+      EXPECT_EQ(serValue, value);
+   }
+
+   //deser old
+   {
+      BinaryWriter bw;
+      bw.put_var_int(4);
+      bw.put_int32_t(asIdValue, BE);
+      BinaryRefReader brr(bw.getData());
+      auto asidValue = AssetAccountId::deserializeValueOld(accId, brr);
+
+      EXPECT_EQ(assId1, asidValue);
+      EXPECT_EQ(assId2, asidValue);
+
+      auto aaidKey = asidValue.getAddressAccountKey();
+      EXPECT_EQ(aaidKey, aaIdValue);
+
+      auto asidKey = asidValue.getAssetAccountKey();
+      EXPECT_EQ(asidKey, asIdValue);
+
+      auto accid = asidValue.getAddressAccountId();
+      EXPECT_EQ(accid, accId);
+   }
+
+   //invalid deser
+   try
+   {
+      auto serKey = READHEX("000123456798AABBCC");
+      AssetAccountId::deserializeKey(serKey, 230);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("00012345");
+      AssetAccountId::deserializeKey(serKey, 0);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("E60123456789ABCDEF00");
+      AssetAccountId::deserializeKey(serKey, 230);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("000123456789ABCDEF");
+      BinaryRefReader brr(serValue);
+      AssetAccountId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEF");
+      BinaryRefReader brr(serValue);
+      AssetAccountId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("080123456789ABCD");
+      BinaryRefReader brr(serValue);
+      AssetAccountId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEFA0B1");
+      BinaryRefReader brr(serValue);
+      AssetAccountId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletIdsTests, Assets)
+{
+   int32_t aaIdValue = 0x01234567;
+   int32_t asIdValue = 0x89ABCDEF;
+   int32_t assetIdValue = 0xA0B1C2D3;
+   AddressAccountId accId(aaIdValue);
+   AssetAccountId acsId(aaIdValue, asIdValue);
+
+   AssetId assetId1(aaIdValue, asIdValue, assetIdValue);
+   AssetId assetId2(accId, asIdValue, assetIdValue);
+   AssetId assetId3(acsId, assetIdValue);
+
+   EXPECT_EQ(assetId1, assetId2);
+   EXPECT_EQ(assetId1, assetId3);
+   EXPECT_EQ(assetId2, assetId3);
+
+   //check serialization as key
+   {
+      auto key = assetId1.getSerializedKey(214);
+      EXPECT_EQ(key.getSize(), 13ull);
+
+      BinaryRefReader brrKey(key);
+      auto prefix = brrKey.get_uint8_t();
+      EXPECT_EQ(prefix, 214);
+
+      auto aaidkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(aaidkey, aaIdValue);
+
+      auto asidkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(asidkey, asIdValue);
+
+      auto assetkey = brrKey.get_int32_t(BE);
+      EXPECT_EQ(assetkey, assetIdValue);
+
+      try
+      {
+         auto assetidFromKey = AssetId::deserializeKey(key, 214);
+         EXPECT_EQ(assetidFromKey, assetId1);
+         EXPECT_EQ(assetidFromKey, assetId2);
+         EXPECT_EQ(assetidFromKey, assetId3);
+
+         auto aaidKey = assetidFromKey.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, aaIdValue);
+         auto assetidKey = assetidFromKey.getAssetKey();
+         EXPECT_EQ(assetIdValue, assetidKey);
+
+         auto acsid = assetidFromKey.getAssetAccountId();
+         EXPECT_EQ(acsid, acsId);
+         auto asidKey = acsid.getAssetAccountKey();
+         EXPECT_EQ(asidKey, asIdValue);
+
+         auto accid = assetidFromKey.getAddressAccountId();
+         EXPECT_EQ(accid, accId);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serKey = READHEX("D60123456789ABCDEFA0B1C2D3");
+      EXPECT_EQ(serKey, key);
+   }
+
+   //check serialization as value
+   {
+      BinaryWriter bw;
+      assetId2.serializeValue(bw);
+
+      auto value = bw.getData();
+      EXPECT_EQ(value.getSize(), 13ull);
+      BinaryRefReader brrValue(value);
+
+      auto len = brrValue.get_var_int();
+      EXPECT_EQ(len, 12ull);
+
+      auto aaidkey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(aaidkey, aaIdValue);
+
+      auto asidkey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(asidkey, asIdValue);
+
+      auto assetkey = brrValue.get_int32_t(BE);
+      EXPECT_EQ(assetkey, assetIdValue);
+
+      try
+      {
+         BinaryRefReader brrValue2(value);
+         auto assetidFromKey = AssetId::deserializeValue(brrValue2);
+         EXPECT_EQ(assetidFromKey, assetId1);
+         EXPECT_EQ(assetidFromKey, assetId2);
+         EXPECT_EQ(assetidFromKey, assetId3);
+
+         auto aaidKey = assetidFromKey.getAddressAccountKey();
+         EXPECT_EQ(aaidKey, aaIdValue);
+         auto assetidKey = assetidFromKey.getAssetKey();
+         EXPECT_EQ(assetIdValue, assetidKey);
+
+         auto acsid = assetidFromKey.getAssetAccountId();
+         EXPECT_EQ(acsid, acsId);
+         auto asidKey = acsid.getAssetAccountKey();
+         EXPECT_EQ(asidKey, asIdValue);
+
+         auto accid = assetidFromKey.getAddressAccountId();
+         EXPECT_EQ(accid, accId);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
+
+      auto serValue = READHEX("0C0123456789ABCDEFA0B1C2D3");
+      EXPECT_EQ(serValue, value);
+   }
+
+   //invalid deser
+   try
+   {
+      auto serKey = READHEX("000123456798AABBCC");
+      AssetId::deserializeKey(serKey, 230);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("00012345");
+      AssetId::deserializeKey(serKey, 0);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serKey = READHEX("E60123456789ABCDEF00");
+      AssetId::deserializeKey(serKey, 230);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("000123456789ABCDEF");
+      BinaryRefReader brr(serValue);
+      AssetId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEF");
+      BinaryRefReader brr(serValue);
+      AssetId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("080123456789ABCD");
+      BinaryRefReader brr(serValue);
+      AssetId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const runtime_error&)
+   {}
+
+   try
+   {
+      auto serValue = READHEX("0A0123456789ABCDEFA0B1");
+      BinaryRefReader brr(serValue);
+      AssetId::deserializeValue(brr);
+      EXPECT_TRUE(false);
+   }
+   catch (const IdException&)
+   {}
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 class DerivationTests : public ::testing::Test
@@ -101,8 +658,23 @@ protected:
 protected:
    virtual void SetUp(void)
    {
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      Armory::Config::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
    }
+
+   virtual void TearDown(void)
+   {
+      Armory::Config::reset();
+      DBUtils::removeDirectory(homedir_);
+   }
+
+   string homedir_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,7 +696,7 @@ TEST_F(DerivationTests, BIP32_Tests)
          BIP32_Node deserObj;
          deserObj.initFromBase58(ext_prv);
          EXPECT_EQ(deserObj.getDepth(), 0);
-         EXPECT_EQ(deserObj.getLeafID(), 0);
+         EXPECT_EQ(deserObj.getLeafID(), 0ULL);
 
          EXPECT_EQ(deserObj.getChaincode().toHexStr(), "873dff81c02f525623fd1fe5167eac3a55a049de3d314bb42ee227ffed37d508");
 
@@ -141,7 +713,7 @@ TEST_F(DerivationTests, BIP32_Tests)
          BIP32_Node deserObj;
          deserObj.initFromBase58(ext_pub);
          EXPECT_EQ(deserObj.getDepth(), 0);
-         EXPECT_EQ(deserObj.getLeafID(), 0);
+         EXPECT_EQ(deserObj.getLeafID(), 0ULL);
 
          EXPECT_EQ(deserObj.getChaincode().toHexStr(), "873dff81c02f525623fd1fe5167eac3a55a049de3d314bb42ee227ffed37d508");
          EXPECT_EQ(deserObj.getPublicKey().toHexStr(), "0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2");
@@ -240,16 +812,859 @@ TEST_F(DerivationTests, ArmoryChain_Tests)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree)
+{
+   //seed fingerprint is 1234
+   vector<uint32_t> path1 = {
+      0x80000020,
+      0x80005081,
+      0x80001111,
+   };
+   DerivationTree tree(1234);
+
+   //get root branch
+   auto& branch = tree.getBranch(0);
+   for (const auto& node : path1)
+      branch.appendNode(node);
+
+   //resolve paths 1: main branch
+   auto resolvedPaths1 = tree.getPaths();
+   ASSERT_EQ(resolvedPaths1.size(), 1ULL);
+   auto resolvedPaths1_32 = DerivationTree::toPath32(resolvedPaths1[0]);
+   EXPECT_EQ(resolvedPaths1_32, path1);
+
+   //fork the tree
+   auto& fork1 = tree.forkFromBranch(0);
+
+   //add another node to the main branch
+   auto path2 = path1;
+   path1.push_back(0x00000781);
+   branch.appendNode(path1.back());
+
+   //resolve paths 2: main branch with uninitialized fork
+   const auto& resolvedPaths2 = tree.getPaths();
+   ASSERT_EQ(resolvedPaths2.size(), 1ULL);
+   auto resolvedPaths2_32 = DerivationTree::toPath32(resolvedPaths2[0]);
+   EXPECT_EQ(resolvedPaths2_32, path1);
+
+   //add 2 nodes to the fork
+   path2.push_back(0x00000084);
+   fork1.appendNode(path2.back());
+   path2.push_back(0x00065c11);
+   fork1.appendNode(path2.back());
+
+   //resolve paths 3: main branch with a fork
+   const auto& resolvedPaths3 = tree.getPaths();
+   ASSERT_EQ(resolvedPaths3.size(), 2ULL);
+   auto resolvedPaths3_32_1 = DerivationTree::toPath32(resolvedPaths3[0]);
+   EXPECT_EQ(resolvedPaths3_32_1, path1);
+   auto resolvedPaths3_32_2 = DerivationTree::toPath32(resolvedPaths3[1]);
+   EXPECT_EQ(resolvedPaths3_32_2, path2);
+
+   //fork twice at the end of the the main branch
+   auto& fork2 = tree.forkFromBranch(0);
+   auto path3 = path1;
+   path3.push_back(0);
+   fork2.appendNode(path3.back());
+
+   auto& fork3 = tree.forkFromBranch(0);
+   auto path4 = path1;
+   path4.push_back(1);
+   fork3.appendNode(path4.back());
+   path4.push_back(22);
+   fork3.appendNode(path4.back());
+
+   //resolve paths 4: 3 forks, 2 end the main branch, 2 fork from the same node
+   const auto& resolvedPaths4 = tree.getPaths();
+   ASSERT_EQ(resolvedPaths4.size(), 3ULL);
+   auto resolvedPaths4_32_1 = DerivationTree::toPath32(resolvedPaths4[0]);
+   EXPECT_EQ(resolvedPaths4_32_1, path2);
+   auto resolvedPaths4_32_2 = DerivationTree::toPath32(resolvedPaths4[1]);
+   EXPECT_EQ(resolvedPaths4_32_2, path3);
+   auto resolvedPaths4_32_3 = DerivationTree::toPath32(resolvedPaths4[2]);
+   EXPECT_EQ(resolvedPaths4_32_3, path4);
+
+   //check branch id and depth
+   auto checkBranchAndDepth = [](const DerivationBranch::Path& path,
+      const vector<pair<uint16_t, uint16_t>>& pathBD)->bool
+   {
+      if (path.size() != pathBD.size())
+         return false;
+
+      auto pathIt = path.begin();
+      for (unsigned i=0; i<path.size(); i++)
+      {
+         if (pathIt->branchId != pathBD[i].first)
+            return false;
+
+         if (pathIt->depth != pathBD[i].second)
+            return false;
+
+         ++pathIt;
+      }
+      return true;
+   };
+
+   vector<pair<uint16_t, uint16_t>> path2_bd = {
+      { 0, 0 },
+      { 0, 1 },
+      { 0, 2 },
+      { 1, 3 },
+      { 1, 4 }
+   };
+   EXPECT_TRUE(checkBranchAndDepth(resolvedPaths4[0], path2_bd));
+
+   vector<pair<uint16_t, uint16_t>> path3_bd = {
+      { 0, 0 },
+      { 0, 1 },
+      { 0, 2 },
+      { 0, 3 },
+      { 2, 4 }
+   };
+   EXPECT_TRUE(checkBranchAndDepth(resolvedPaths4[1], path3_bd));
+
+   vector<pair<uint16_t, uint16_t>> path4_bd = {
+      { 0, 0 },
+      { 0, 1 },
+      { 0, 2 },
+      { 0, 3 },
+      { 3, 4 },
+      { 3, 5 }
+  };
+   EXPECT_TRUE(checkBranchAndDepth(resolvedPaths4[2], path4_bd));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree_FromSeed)
+{
+   vector<uint32_t> path = 
+   {
+      0x80001564,
+      0x80001111,
+      0x8AEE0003,
+      0x81116000,
+      5
+   };
+
+   vector<uint32_t> fork1 =
+   {
+      0x85550314,
+      0x00000000,
+      0x00000054
+   };
+
+   vector<uint32_t> fork2 =
+   {
+      0,
+      1,
+      1,
+   };
+
+   vector<uint32_t> fork3 =
+   {
+      0x80001000,
+      0x8ab01000,
+      5,
+      4
+   };
+
+   auto seed = CryptoPRNG::generateRandom(32);
+   BIP32_Node rootNode;
+   rootNode.initFromSeed(seed);
+
+   DerivationTree tree(rootNode.getThisFingerprint());
+   DerivationBranch *f1, *f2, *f3;
+
+   auto& origin = tree.getBranch(0);
+   for (unsigned i=0; i<path.size(); i++)
+   {
+      const auto& node = path[i];
+      origin.appendNode(node);
+
+      if (i == 2)
+         f1 = &tree.forkFromBranch(0);
+
+      if (i==3)
+      {
+         f2 = &tree.forkFromBranch(0);
+         f3 = &tree.forkFromBranch(0);
+      }
+   }
+
+   for (const auto& node : fork1)
+      f1->appendNode(node);
+
+   for (const auto& node : fork2)
+      f2->appendNode(node);
+
+   for (const auto& node : fork3)
+      f3->appendNode(node);
+
+   tree.addB58Root(tree.getSeedNode(), rootNode.getBase58());
+   auto roots = tree.resolveNodeRoots(nullptr, nullptr);
+   ASSERT_EQ(roots.size(), 4ULL);
+
+   auto checkRoot = [&rootNode](
+      const vector<uint32_t>& path, const NodeRoot& rootData)->bool
+   {
+      auto rootNodeCopy = rootNode;
+      for (const auto& node : path)
+         rootNodeCopy.derivePrivate(node);
+      auto b58 = rootNodeCopy.getBase58();
+
+      string b58str(b58.toCharPtr(), b58.getSize());
+      string rootStr(rootData.b58Root.toCharPtr(), rootData.b58Root.getSize());
+      EXPECT_EQ(b58str, rootStr);
+
+      return b58 == rootData.b58Root;
+   };
+
+   /*derive roots locally and compare*/
+
+   //fork1
+   vector<uint32_t> pathFork1;
+   pathFork1.insert(pathFork1.end(), path.begin(), path.begin() + 3);
+   pathFork1.insert(pathFork1.end(), fork1.begin(), fork1.end());
+
+   //fork 2
+   vector<uint32_t> pathFork2;
+   pathFork2.insert(pathFork2.end(), path.begin(), path.begin() + 4);
+   pathFork2.insert(pathFork2.end(), fork2.begin(), fork2.end());
+
+   //fork 3
+   vector<uint32_t> pathFork3;
+   pathFork3.insert(pathFork3.end(), path.begin(), path.begin() + 4);
+   pathFork3.insert(pathFork3.end(), fork3.begin(), fork3.end());
+
+   vector<vector<uint32_t>> paths = 
+   {
+      path, pathFork1, pathFork2, pathFork3
+   };
+
+   //compare
+   for (const auto& nodeRoot : roots)
+   {
+      auto p32 = DerivationTree::toPath32(nodeRoot.path);
+      auto pathIt = paths.begin();
+      while (pathIt != paths.end())
+      {
+         if (p32 == *pathIt)
+         {
+            EXPECT_TRUE(checkRoot(*pathIt, nodeRoot));
+            paths.erase(pathIt);
+            break;
+         }
+
+         ++pathIt;
+      }
+   }
+   ASSERT_TRUE(paths.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree_FromRoots)
+{
+   vector<uint32_t> path = 
+   {
+      0x80001564,
+      0x80001111,
+      0x8AEE0003,
+      0x81116000,
+      5
+   };
+
+   vector<uint32_t> fork1 =
+   {
+      0x85550314,
+      0x00000000,
+      0x00000054
+   };
+
+   vector<uint32_t> fork2 =
+   {
+      0,
+      1,
+      1,
+   };
+
+   vector<uint32_t> fork3 =
+   {
+      0x80001000,
+      0x8ab01000,
+      5,
+      4
+   };
+
+   auto seed = CryptoPRNG::generateRandom(32);
+   BIP32_Node rootNode;
+   rootNode.initFromSeed(seed);
+
+   DerivationTree tree(rootNode.getThisFingerprint());
+   DerivationBranch *f1, *f2, *f3;
+
+   auto& origin = tree.getBranch(0);
+   for (unsigned i=0; i<path.size(); i++)
+   {
+      const auto& node = path[i];
+      origin.appendNode(node);
+
+      if (i == 2)
+         f1 = &tree.forkFromBranch(0);
+
+      if (i==3)
+      {
+         f2 = &tree.forkFromBranch(0);
+         f3 = &tree.forkFromBranch(0);
+      }
+   }
+
+   for (const auto& node : fork1)
+      f1->appendNode(node);
+
+   for (const auto& node : fork2)
+      f2->appendNode(node);
+
+   for (const auto& node : fork3)
+      f3->appendNode(node);
+
+   auto checkRoot = [&rootNode](
+      const vector<uint32_t>& path,
+      const NodeRoot& rootData)->bool
+   {
+      auto rootNodeCopy = rootNode;
+      for (const auto& node : path)
+         rootNodeCopy.derivePrivate(node);
+      auto b58 = rootNodeCopy.getBase58();
+
+      string b58str(b58.toCharPtr(), b58.getSize());
+      string rootStr(rootData.b58Root.toCharPtr(), rootData.b58Root.getSize());
+      EXPECT_EQ(b58str, rootStr);
+
+      return b58 == rootData.b58Root;
+   };
+
+   /*derive roots locally and compare*/
+
+   //fork1
+   vector<uint32_t> pathFork1;
+   pathFork1.insert(pathFork1.end(), path.begin(), path.begin() + 3);
+   pathFork1.insert(pathFork1.end(), fork1.begin(), fork1.end());
+
+   //fork 2
+   vector<uint32_t> pathFork2;
+   pathFork2.insert(pathFork2.end(), path.begin(), path.begin() + 4);
+   pathFork2.insert(pathFork2.end(), fork2.begin(), fork2.end());
+
+   //fork 3
+   vector<uint32_t> pathFork3;
+   pathFork3.insert(pathFork3.end(), path.begin(), path.begin() + 4);
+   pathFork3.insert(pathFork3.end(), fork3.begin(), fork3.end());
+
+   vector<vector<uint32_t>> paths = 
+   {
+      path, pathFork1, pathFork2, pathFork3
+   };
+
+   auto rootNode3 = rootNode;
+   for (unsigned i=0; i<3; i++)
+      rootNode3.derivePrivate(path[i]);
+   tree.addB58Root(origin.getNodeByRelativeDepth(2), rootNode3.getBase58());
+
+   auto rootNode5 = rootNode;
+   for (unsigned i=0; i<5; i++)
+      rootNode5.derivePrivate(pathFork2[i]);
+   tree.addB58Root(f2->getNodeByRelativeDepth(0), rootNode5.getBase58());
+
+   auto roots = tree.resolveNodeRoots(nullptr, nullptr);
+   ASSERT_EQ(roots.size(), 4ULL);
+
+   //compare
+   for (const auto& nodeRoot : roots)
+   {
+      auto p32 = DerivationTree::toPath32(nodeRoot.path);
+      auto pathIt = paths.begin();
+      while (pathIt != paths.end())
+      {
+         if (p32 == *pathIt)
+         {
+            EXPECT_TRUE(checkRoot(*pathIt, nodeRoot));
+            paths.erase(pathIt);
+            break;
+         }
+
+         ++pathIt;
+      }
+   }
+   ASSERT_TRUE(paths.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree_FromPublicRoots)
+{
+   vector<uint32_t> path = 
+   {
+      0x80001564,
+      0x80001111,
+      0x8AEE0003,
+      0x81116000,
+      5
+   };
+
+   vector<uint32_t> fork1 =
+   {
+      0x85550314,
+      0x00000000,
+      0x00000054
+   };
+
+   vector<uint32_t> fork2 =
+   {
+      0,
+      1,
+      1,
+   };
+
+   vector<uint32_t> fork3 =
+   {
+      0x80001000,
+      0x8ab01000,
+      5,
+      4
+   };
+
+   auto seed = CryptoPRNG::generateRandom(32);
+   BIP32_Node rootNode;
+   rootNode.initFromSeed(seed);
+
+   DerivationTree tree(rootNode.getThisFingerprint());
+   DerivationBranch *f1, *f2, *f3;
+
+   auto& origin = tree.getBranch(0);
+   for (unsigned i=0; i<path.size(); i++)
+   {
+      const auto& node = path[i];
+      origin.appendNode(node);
+
+      if (i == 2)
+         f1 = &tree.forkFromBranch(0);
+
+      if (i==3)
+      {
+         f2 = &tree.forkFromBranch(0);
+         f3 = &tree.forkFromBranch(0);
+      }
+   }
+
+   for (const auto& node : fork1)
+      f1->appendNode(node);
+
+   for (const auto& node : fork2)
+      f2->appendNode(node);
+
+   for (const auto& node : fork3)
+      f3->appendNode(node);
+
+   auto checkRoot = [&rootNode](
+      const vector<uint32_t>& path,
+      const NodeRoot& rootData)->bool
+   {
+      auto rootNodeCopy = rootNode;
+      for (const auto& node : path)
+         rootNodeCopy.derivePrivate(node);
+      auto rootNodePub = rootNodeCopy.getPublicCopy();
+      auto b58 = rootNodePub.getBase58();
+
+      string b58str(b58.toCharPtr(), b58.getSize());
+      string rootStr(rootData.b58Root.toCharPtr(), rootData.b58Root.getSize());
+      EXPECT_EQ(b58str, rootStr);
+
+      return b58 == rootData.b58Root;
+   };
+
+   /*derive roots locally and compare*/
+
+   //fork1
+   vector<uint32_t> pathFork1;
+   pathFork1.insert(pathFork1.end(), path.begin(), path.begin() + 3);
+   pathFork1.insert(pathFork1.end(), fork1.begin(), fork1.end());
+
+   //fork 2
+   vector<uint32_t> pathFork2;
+   pathFork2.insert(pathFork2.end(), path.begin(), path.begin() + 4);
+   pathFork2.insert(pathFork2.end(), fork2.begin(), fork2.end());
+
+   //fork 3
+   vector<uint32_t> pathFork3;
+   pathFork3.insert(pathFork3.end(), path.begin(), path.begin() + 4);
+   pathFork3.insert(pathFork3.end(), fork3.begin(), fork3.end());
+
+   vector<vector<uint32_t>> paths = 
+   {
+      path, pathFork1, pathFork2, pathFork3
+   };
+
+   //this one should work for main path and fork2: grab the
+   //root last hard derivation in main path (all derivations
+   //in main and f2 are soft past this point)
+   //will fail for f3&4
+   auto rootNodePath = rootNode;
+   for (unsigned i=0; i<4; i++)
+      rootNodePath.derivePrivate(path[i]);
+   auto rootNodePath_public = rootNodePath.getPublicCopy();
+   ASSERT_TRUE(rootNodePath_public.isPublic());
+   tree.addB58Root(origin.getNodeByRelativeDepth(3),
+      rootNodePath_public.getBase58());
+
+   //this one should work: grab root for first soft derivation
+   auto rootNodeF1 = rootNode;
+   for (unsigned i=0; i<5; i++)
+      rootNodeF1.derivePrivate(pathFork1[i]);
+   auto rootNodeF1_public = rootNodeF1.getPublicCopy();
+   ASSERT_TRUE(rootNodeF1_public.isPublic());
+   tree.addB58Root(f1->getNodeByRelativeDepth(1),
+      rootNodeF1_public.getBase58());
+
+   //this one should fail: grab root for next to last hard derivation
+   auto rootNodeF3 = rootNode;
+   for (unsigned i=0; i<5; i++)
+      rootNodeF3.derivePrivate(pathFork3[i]);
+   auto rootNodeF3_public = rootNodeF3.getPublicCopy();
+   ASSERT_TRUE(rootNodeF3_public.isPublic());
+   tree.addB58Root(f3->getNodeByRelativeDepth(0),
+      rootNodeF3_public.getBase58());
+
+
+   //resolve the roots
+   auto roots = tree.resolveNodeRoots(nullptr, nullptr);
+   ASSERT_EQ(roots.size(), 4ULL);
+
+   //compare
+   auto pathsCopy = paths;
+   for (const auto& nodeRoot : roots)
+   {
+      auto p32 = DerivationTree::toPath32(nodeRoot.path);
+      auto pathIt = pathsCopy.begin();
+      while (pathIt != pathsCopy.end())
+      {
+         if (p32 == *pathIt)
+         {
+            if (pathIt == prev(pathsCopy.end()))
+               EXPECT_FALSE(nodeRoot.isInitialized());
+            else
+               EXPECT_TRUE(checkRoot(*pathIt, nodeRoot));
+
+            pathsCopy.erase(pathIt);
+            break;
+         }
+
+         ++pathIt;
+      }
+   }
+   ASSERT_TRUE(pathsCopy.empty());
+
+   //add tail public root for f3 and compare again, all should match
+   rootNodeF3 = rootNode;
+   for (auto& node : pathFork3)
+      rootNodeF3.derivePrivate(node);
+   rootNodeF3_public = rootNodeF3.getPublicCopy();
+   ASSERT_TRUE(rootNodeF3_public.isPublic());
+   tree.addB58Root(f3->getNodeByRelativeDepth(3),
+      rootNodeF3_public.getBase58());
+
+   roots = tree.resolveNodeRoots(nullptr, nullptr);
+   ASSERT_EQ(roots.size(), 4ULL);
+
+   //compare
+   for (const auto& nodeRoot : roots)
+   {
+      auto p32 = DerivationTree::toPath32(nodeRoot.path);
+      auto pathIt = paths.begin();
+      while (pathIt != paths.end())
+      {
+         if (p32 == *pathIt)
+         {
+            EXPECT_TRUE(checkRoot(*pathIt, nodeRoot));
+            paths.erase(pathIt);
+            break;
+         }
+
+         ++pathIt;
+      }
+   }
+   ASSERT_TRUE(paths.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree_FromWalletRoot)
+{
+   vector<uint32_t> path = 
+   {
+      0x80001564,
+      0x80001111,
+      0x8AEE0003,
+      0x81116000,
+      5
+   };
+
+   vector<uint32_t> fork1 =
+   {
+      0x85550314,
+      0x00000000,
+      0x00000054
+   };
+
+   vector<uint32_t> fork2 =
+   {
+      0,
+      1,
+      1,
+   };
+
+   vector<uint32_t> fork3 =
+   {
+      0x80001000,
+      0x8ab01000,
+      5,
+      4
+   };
+
+   auto seed = CryptoPRNG::generateRandom(32);
+   BIP32_Node rootNode;
+   rootNode.initFromSeed(seed);
+
+   shared_ptr<AssetEntry_BIP32Root> rootPtr;
+   shared_ptr<DecryptedDataContainer> decrData;
+
+   {
+      //generate bip32 encrypted root
+      auto whs = make_shared<WalletHeader_Single>(
+         Armory::Config::BitcoinSettings::getMagicBytes());
+      whs->walletID_ = "abc";
+      auto mks = WalletDBInterface::initWalletHeaderObject(whs, {});
+
+      auto rootCipher = mks.cipher_->getCopy(
+         whs->masterEncryptionKeyId_);
+      auto encryptedRoot = rootCipher->encrypt(
+         mks.decryptedMasterKey_.get(),
+         rootCipher->getKdfId(),
+         rootNode.getPrivateKey());
+
+      auto cipherData =
+         make_unique<CipherData>(encryptedRoot, move(rootCipher));
+      auto rootAsset = make_shared<Asset_PrivateKey>(
+         AssetId::getRootAssetId(), move(cipherData));
+
+      auto pubkey = rootNode.getPublicKey();
+      auto chaincode = rootNode.getChaincode();
+      rootPtr = make_unique<AssetEntry_BIP32Root>(
+         AssetId::getRootAssetId(),
+         pubkey, rootAsset,
+         chaincode, 0, 0, 0, rootNode.getThisFingerprint(), vector<uint32_t>());
+
+      decrData = make_shared<DecryptedDataContainer>(
+         nullptr, "",
+         whs->defaultEncryptionKey_, whs->defaultEncryptionKeyId_,
+         whs->defaultKdfId_, whs->masterEncryptionKeyId_);
+      decrData->addKdf(mks.kdf_);
+      decrData->addEncryptionKey(mks.masterKey_);
+   }
+
+   DerivationTree tree(rootNode.getThisFingerprint());
+   DerivationBranch *f1, *f2, *f3;
+
+   auto& origin = tree.getBranch(0);
+   for (unsigned i=0; i<path.size(); i++)
+   {
+      const auto& node = path[i];
+      origin.appendNode(node);
+
+      if (i == 2)
+         f1 = &tree.forkFromBranch(0);
+
+      if (i==3)
+      {
+         f2 = &tree.forkFromBranch(0);
+         f3 = &tree.forkFromBranch(0);
+      }
+   }
+
+   for (const auto& node : fork1)
+      f1->appendNode(node);
+
+   for (const auto& node : fork2)
+      f2->appendNode(node);
+
+   for (const auto& node : fork3)
+      f3->appendNode(node);
+
+   vector<NodeRoot> roots;
+   {
+      ReentrantLock lock(decrData.get());
+      roots = move(tree.resolveNodeRoots(decrData, rootPtr));
+      ASSERT_EQ(roots.size(), 4ULL);
+   }
+
+   auto checkRoot = [&rootNode](
+      const vector<uint32_t>& path,
+      const NodeRoot& rootData)->bool
+   {
+      auto rootNodeCopy = rootNode;
+      for (const auto& node : path)
+         rootNodeCopy.derivePrivate(node);
+      auto b58 = rootNodeCopy.getBase58();
+
+      string b58str(b58.toCharPtr(), b58.getSize());
+      string rootStr(rootData.b58Root.toCharPtr(), rootData.b58Root.getSize());
+      EXPECT_EQ(b58str, rootStr);
+
+      return b58 == rootData.b58Root;
+   };
+
+   /*derive roots locally and compare*/
+
+   //fork1
+   vector<uint32_t> pathFork1;
+   pathFork1.insert(pathFork1.end(), path.begin(), path.begin() + 3);
+   pathFork1.insert(pathFork1.end(), fork1.begin(), fork1.end());
+
+   //fork 2
+   vector<uint32_t> pathFork2;
+   pathFork2.insert(pathFork2.end(), path.begin(), path.begin() + 4);
+   pathFork2.insert(pathFork2.end(), fork2.begin(), fork2.end());
+
+   //fork 3
+   vector<uint32_t> pathFork3;
+   pathFork3.insert(pathFork3.end(), path.begin(), path.begin() + 4);
+   pathFork3.insert(pathFork3.end(), fork3.begin(), fork3.end());
+
+   vector<vector<uint32_t>> paths = 
+   {
+      path, pathFork1, pathFork2, pathFork3
+   };
+
+   //compare
+   for (const auto& nodeRoot : roots)
+   {
+      auto p32 = DerivationTree::toPath32(nodeRoot.path);
+      auto pathIt = paths.begin();
+      while (pathIt != paths.end())
+      {
+         if (p32 == *pathIt)
+         {
+            EXPECT_TRUE(checkRoot(*pathIt, nodeRoot));
+            paths.erase(pathIt);
+            break;
+         }
+
+         ++pathIt;
+      }
+   }
+   ASSERT_TRUE(paths.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(DerivationTests, DerivationTree_MergePaths)
+{
+   vector<uint32_t> path = 
+   {
+      0x80001564,
+      0x80001111,
+      0x8AEE0003,
+      0x81116000,
+      5
+   };
+
+   vector<uint32_t> fork1 =
+   {
+      0x85550314,
+      0x00000000,
+      0x00000054
+   };
+
+   vector<uint32_t> fork2 =
+   {
+      0,
+      1,
+      1,
+   };
+
+   vector<uint32_t> fork3 =
+   {
+      0x80001000,
+      0x8ab01000,
+      5,
+      4
+   };
+
+   vector<uint32_t> p0 = path;
+
+   vector<uint32_t> p1 = {
+      path[0], path[1], path[2],
+      fork1[0], fork1[1], fork1[2]
+   };
+
+   vector<uint32_t> p2 {
+      path[0], path[1], path[2], path[3],
+      fork2[0], fork2[1], fork2[2]
+   };
+
+   vector<uint32_t> p3 {
+      path[0], path[1], path[2], path[3],
+      fork3[0], fork3[1], fork3[2], fork3[3]
+   };
+
+   vector<vector<uint32_t>> pathVec = { p0, p1, p2, p3 };
+   auto derTree = DerivationTree::fromDerivationPaths(1234, pathVec);
+   auto treePaths = derTree.getPaths();
+
+   for (auto& pathIt : treePaths)
+   {
+      bool collision = false;
+      auto path32 = DerivationTree::toPath32(pathIt);
+
+      auto pathVecIt = pathVec.begin();
+      while (pathVecIt != pathVec.end())
+      {
+         if (path32 == *pathVecIt)
+         {
+            pathVec.erase(pathVecIt);
+            collision = true;
+            break;
+         }
+         ++pathVecIt;
+      }
+
+      ASSERT_TRUE(collision);
+   }
+
+   EXPECT_TRUE(pathVec.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class AddressEntryTest : public ::testing::Test
 {
 protected:
-   virtual void SetUp()
+   virtual void SetUp(void)
    {
-      LOGDISABLESTDOUT();
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      Armory::Config::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
    }
+
+   virtual void TearDown(void)
+   {
+      Armory::Config::reset();
+      DBUtils::removeDirectory(homedir_);
+   }
+
+   string homedir_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,7 +1675,7 @@ TEST_F(AddressEntryTest, P2PKH)
 
    auto pubKeyCopy = pubKey; //assetentry ctor moves in crypto assets
    auto assetPtr = 
-      make_shared<AssetEntry_Single>(0, BinaryData(), pubKeyCopy, nullptr);
+      make_shared<AssetEntry_Single>(AssetId(0, 0, 0), pubKeyCopy, nullptr);
 
    //uncompressed
    AddressEntry_P2PKH address(assetPtr, false);
@@ -268,7 +1683,7 @@ TEST_F(AddressEntryTest, P2PKH)
 
    auto scrAddrUnc = BtcUtils::getHash160(pubKey);
    BinaryWriter bw;
-   bw.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+   bw.put_uint8_t(BitcoinSettings::getPubkeyHashPrefix());
    bw.put_BinaryData(scrAddrUnc);
    auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
 
@@ -281,7 +1696,7 @@ TEST_F(AddressEntryTest, P2PKH)
 
    auto scrAddrCmp = BtcUtils::getHash160(pubKeyCmp);
    BinaryWriter bwCmp;
-   bwCmp.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+   bwCmp.put_uint8_t(BitcoinSettings::getPubkeyHashPrefix());
    bwCmp.put_BinaryData(scrAddrCmp);
    auto addrB58Cmp = BtcUtils::scrAddrToBase58(bwCmp.getData());
 
@@ -296,7 +1711,7 @@ TEST_F(AddressEntryTest, P2WPKH)
 
    auto pubKeyCopy = pubKey; //assetentry ctor moves in crypto assets
    auto assetPtr =
-      make_shared<AssetEntry_Single>(0, BinaryData(), pubKeyCopy, nullptr);
+      make_shared<AssetEntry_Single>(AssetId(0, 0, 0), pubKeyCopy, nullptr);
 
    //sw enforces compressed pubkeys
    AddressEntry_P2WPKH address(assetPtr);
@@ -316,7 +1731,7 @@ TEST_F(AddressEntryTest, P2SH)
 
    auto pubKeyCopy = pubKey; //assetentry ctor moves in crypto assets
    auto assetPtr =
-      make_shared<AssetEntry_Single>(0, BinaryData(), pubKeyCopy, nullptr);
+      make_shared<AssetEntry_Single>(AssetId(0, 0, 0), pubKeyCopy, nullptr);
 
    {
       //p2sh-p2pk
@@ -332,7 +1747,7 @@ TEST_F(AddressEntryTest, P2SH)
       auto scriptHash = BtcUtils::getHash160(bwScript.getData());
       
       BinaryWriter bw;
-      bw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bw.put_uint8_t(BitcoinSettings::getScriptHashPrefix());
       bw.put_BinaryData(scriptHash);
       auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
 
@@ -355,7 +1770,7 @@ TEST_F(AddressEntryTest, P2SH)
       auto scriptHash = BtcUtils::getHash160(bwScript.getData());
 
       BinaryWriter bw;
-      bw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bw.put_uint8_t(BitcoinSettings::getScriptHashPrefix());
       bw.put_BinaryData(scriptHash);
       auto addrB58 = BtcUtils::scrAddrToBase58(bw.getData());
 
@@ -383,13 +1798,13 @@ TEST_F(AddressEntryTest, P2SH)
       for (auto pubKey : pubKeys)
       {
          auto asset = make_shared<AssetEntry_Single>(
-            i++, BinaryData(), pubKey.second, nullptr);
+            AssetId(0, 0, i++), pubKey.second, nullptr);
 
          assetMap.emplace(make_pair(pubKey.first, asset));
       }
 
       auto assetMs = make_shared<AssetEntry_Multisig>(
-         0, BinaryData(), assetMap, 2, 3);
+         AssetId(0, 0, 0), assetMap, 2, 3);
       auto addressMs = make_shared<AddressEntry_Multisig>(assetMs, true);
       auto nested = make_shared<AddressEntry_P2SH>(addressMs);
       auto addr = nested->getAddress();
@@ -408,7 +1823,7 @@ TEST_F(AddressEntryTest, P2SH)
 
       auto scriptHash = BtcUtils::getHash160(bw.getData());
       BinaryWriter bwScrAddr;
-      bwScrAddr.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      bwScrAddr.put_uint8_t(BitcoinSettings::getScriptHashPrefix());
       bwScrAddr.put_BinaryData(scriptHash);
       auto addrB58 = BtcUtils::scrAddrToBase58(bwScrAddr.getData());
 
@@ -438,13 +1853,13 @@ TEST_F(AddressEntryTest, P2WSH)
    for (auto pubKey : pubKeys)
    {
       auto asset = make_shared<AssetEntry_Single>(
-         i++, BinaryData(), pubKey.second, nullptr);
+         AssetId(0, 0, i++), pubKey.second, nullptr);
 
       assetMap.emplace(make_pair(pubKey.first, asset));
    }
 
    auto assetMs = make_shared<AssetEntry_Multisig>(
-      0, BinaryData(), assetMap, 2, 3);
+      AssetId(0, 0, 0), assetMap, 2, 3);
    auto addressMs = make_shared<AddressEntry_Multisig>(assetMs, true);
    auto nested = make_shared<AddressEntry_P2WSH>(addressMs);
    auto addr = nested->getAddress();
@@ -480,14 +1895,17 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
-      LOGDISABLESTDOUT();
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       homedir_ = string("./fakehomedir");
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
       dbPath_ = homedir_;
       DBUtils::appendPath(dbPath_, "wallet_test.wallet");
+
+      Armory::Config::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
 
       allZeroes16_ = READHEX("00000000000000000000000000000000");
       if(allZeroes16_.getSize() != 16)
@@ -497,6 +1915,7 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
+      Armory::Config::reset();
       DBUtils::removeDirectory(homedir_);
    }
 
@@ -540,8 +1959,8 @@ protected:
          int keyInt = READ_UINT32_BE(keyVal.first);
          if(keyInt - prevKeyInt != 1)
          {
-            for(unsigned i=prevKeyInt + 1; i<keyInt; i++)
-               gaps.insert(i);
+            for(int i=prevKeyInt + 1; i<keyInt; i++)
+               gaps.insert((unsigned)i);
          }
 
          prevKeyInt = keyInt;
@@ -841,9 +2260,9 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
    dbIface->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
 
    map<BinaryData, BinaryData> dataMap1;
    for (unsigned i=0; i<30; i++)
@@ -911,12 +2330,12 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
       WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       
       //check dataMap1 is in
-      EXPECT_EQ(checkDbValues(&tx, dataMap1), 0);
+      EXPECT_EQ(checkDbValues(&tx, dataMap1), 0U);
 
       for (auto& dataPair : dataMap2)
          tx.insert(dataPair.first, dataPair.second);
 
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
    };
 
    thread* writeThr;
@@ -937,7 +2356,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
          tx.insert(dataPair.first, dataPair.second);
 
       //check values
-      EXPECT_EQ(checkDbValues(&tx, dataMap1), 0);
+      EXPECT_EQ(checkDbValues(&tx, dataMap1), 0U);
    }
 
    //wait on 2nd thread
@@ -947,7 +2366,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
    {
       //check db is consistent with main thread -> 2nd thread modification order
       WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
    }
    
    /***********/
@@ -982,32 +2401,32 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
    auto writeThread4 = [&](void)->void
    {
       WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
 
       for (auto& dataPair : dataMap5)
          tx.insert(dataPair.first, dataPair.second);
 
-      EXPECT_EQ(checkDbValues(&tx, finalMap2), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap2), 0U);
    };
 
    //create read tx
    {
       WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
 
       //create write thread
       thread writeThr4(writeThread4);
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
 
       writeThr4.join();
 
       //data for this read tx should be unchanged
-      EXPECT_EQ(checkDbValues(&tx, finalMap), 0);
+      EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
    }
 
    //final check
    WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
-   EXPECT_EQ(checkDbValues(&tx, finalMap2), 0);
+   EXPECT_EQ(checkDbValues(&tx, finalMap2), 0U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1026,9 +2445,9 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //setup new db
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
    dbIface->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
 
    //generate data
    auto&& key1 = CryptoPRNG::generateRandom(20);
@@ -1070,7 +2489,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
    }
 
    //check entry count
-   ASSERT_EQ(dbIface->getEntryCount(), 3);
+   ASSERT_EQ(dbIface->getEntryCount(), 3U);
 
    //check file content
    {
@@ -1098,10 +2517,10 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
 
    //grab all entries in db
    auto&& keyValMap = getAllEntries(dbEnv, dbObj);
-   EXPECT_EQ(keyValMap.size(), 4);
+   EXPECT_EQ(keyValMap.size(), 4ULL);
 
    //check gaps
-   ASSERT_EQ(tallyGaps(keyValMap).size(), 0);
+   ASSERT_EQ(tallyGaps(keyValMap).size(), 0ULL);
 
    //convert to IES packets
    vector<IESPacket> packets;
@@ -1144,11 +2563,11 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
       auto& packet = packets[0];
 
       //check cylce flag is first entry in db
-      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0U);
 
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
-      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.first.getSize(), 0ULL);
       ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
 
       //cycle key pair
@@ -1222,9 +2641,9 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
    dbIface->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
 
    //generate data
    auto&& key1 = CryptoPRNG::generateRandom(20);
@@ -1262,7 +2681,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
    }
 
    //check entry count
-   ASSERT_EQ(dbIface->getEntryCount(), 3);
+   ASSERT_EQ(dbIface->getEntryCount(), 3U);
 
    //check file content
    {
@@ -1287,7 +2706,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
       tx.insert(key3, valToWrite);
 
       auto key2Data = tx.getDataRef(key2);
-      EXPECT_EQ(key2Data.getSize(), 0);
+      EXPECT_EQ(key2Data.getSize(), 0ULL);
 
       auto key3Data = tx.getDataRef(key3);
       EXPECT_EQ(key3Data, val4);
@@ -1307,7 +2726,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
    }
 
    //check entry count
-   ASSERT_EQ(dbIface->getEntryCount(), 2);
+   ASSERT_EQ(dbIface->getEntryCount(), 2U);
 
    //close dbIface
    dbIface->close();
@@ -1322,18 +2741,18 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
 
    //grab all entries in db
    auto&& keyValMap = getAllEntries(dbEnv, dbObj);
-   EXPECT_EQ(keyValMap.size(), 5);
+   EXPECT_EQ(keyValMap.size(), 5ULL);
 
    //check gaps
    {
       auto&& gaps = tallyGaps(keyValMap);
-      ASSERT_EQ(gaps.size(), 2);
+      ASSERT_EQ(gaps.size(), 2ULL);
 
       auto gapsIter = gaps.begin();
-      EXPECT_EQ(*gapsIter, 2);
+      EXPECT_EQ(*gapsIter, 2U);
       
       ++gapsIter;
-      EXPECT_EQ(*gapsIter, 3);
+      EXPECT_EQ(*gapsIter, 3U);
 
       ++gapsIter;
       EXPECT_EQ(gapsIter, gaps.end());
@@ -1380,11 +2799,11 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
       auto& packet = packets[0];
 
       //check cylce flag is first entry in db
-      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0U);
 
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
-      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.first.getSize(), 0ULL);
       ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
 
       //cycle key pair
@@ -1433,11 +2852,11 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
    EXPECT_EQ(decryptedPairs[0].first, key1);
    EXPECT_EQ(decryptedPairs[0].second, val1);
 
-   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0ULL);
    EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(2));
 
-   EXPECT_EQ(decryptedPairs[2].first.getSize(), 0);
-   EXPECT_EQ(decryptedPairs[2].second, getErasurePacket(3));   
+   EXPECT_EQ(decryptedPairs[2].first.getSize(), 0ULL);
+   EXPECT_EQ(decryptedPairs[2].second, getErasurePacket(3));
 
    EXPECT_EQ(decryptedPairs[3].first, key3);
    EXPECT_EQ(decryptedPairs[3].second, val4);
@@ -1459,9 +2878,9 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
    dbIface->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
 
    //generate data
    auto&& key1 = CryptoPRNG::generateRandom(20);
@@ -1499,7 +2918,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    }
 
    //check entry count
-   ASSERT_EQ(dbIface->getEntryCount(), 3);
+   ASSERT_EQ(dbIface->getEntryCount(), 3U);
 
    //check file content
    {
@@ -1524,7 +2943,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       tx.erase(key2);
 
       auto key2Data = tx.getDataRef(key2);
-      EXPECT_EQ(key2Data.getSize(), 0);
+      EXPECT_EQ(key2Data.getSize(), 0ULL);
 
       auto key3Data = tx.getDataRef(key3);
       EXPECT_EQ(key3Data, val4);
@@ -1544,7 +2963,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    }
 
    //check entry count
-   ASSERT_EQ(dbIface->getEntryCount(), 2);
+   ASSERT_EQ(dbIface->getEntryCount(), 2U);
 
    //close dbIface
    dbIface->close();
@@ -1559,18 +2978,18 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    //grab all entries in db
    auto&& keyValMap = getAllEntries(dbEnv, dbObj);
-   EXPECT_EQ(keyValMap.size(), 5);
+   EXPECT_EQ(keyValMap.size(), 5ULL);
 
    //check gaps
    {
       auto&& gaps = tallyGaps(keyValMap);
-      ASSERT_EQ(gaps.size(), 2);
+      ASSERT_EQ(gaps.size(), 2ULL);
 
       auto gapsIter = gaps.begin();
-      EXPECT_EQ(*gapsIter, 2);
+      EXPECT_EQ(*gapsIter, 2U);
       
       ++gapsIter;
-      EXPECT_EQ(*gapsIter, 3);
+      EXPECT_EQ(*gapsIter, 3U);
 
       ++gapsIter;
       EXPECT_EQ(gapsIter, gaps.end());
@@ -1617,11 +3036,11 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       auto& packet = packets[0];
 
       //check cylce flag is first entry in db
-      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0U);
 
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
-      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.first.getSize(), 0ULL);
       ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
 
       //cycle key pair
@@ -1670,14 +3089,14 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    EXPECT_EQ(decryptedPairs[0].first, key1);
    EXPECT_EQ(decryptedPairs[0].second, val1);
 
-   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0ULL);
    EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(3));
 
    EXPECT_EQ(decryptedPairs[2].first, key3);
-   EXPECT_EQ(decryptedPairs[2].second, val4);   
+   EXPECT_EQ(decryptedPairs[2].second, val4);
    
-   EXPECT_EQ(decryptedPairs[3].first.getSize(), 0);
-   EXPECT_EQ(decryptedPairs[3].second, getErasurePacket(2));   
+   EXPECT_EQ(decryptedPairs[3].first.getSize(), 0ULL);
+   EXPECT_EQ(decryptedPairs[3].second, getErasurePacket(2));
 
    //cycle dbEnv
    dbObj.close();
@@ -1689,9 +3108,9 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
-   ASSERT_EQ(dbIface->getEntryCount(), 0);
+   ASSERT_EQ(dbIface->getEntryCount(), 0U);
    dbIface->loadAllEntries(rawRoot);
-   ASSERT_EQ(dbIface->getEntryCount(), 2);
+   ASSERT_EQ(dbIface->getEntryCount(), 2U);
 
    {
       //read db values
@@ -1701,10 +3120,10 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       EXPECT_EQ(key1Data, val1);
 
       auto key2Data = tx.getDataRef(key2);
-      EXPECT_EQ(key2Data.getSize(), 0);
+      EXPECT_EQ(key2Data.getSize(), 0ULL);
 
       auto key3Data = tx.getDataRef(key3);
-      EXPECT_EQ(key3Data, val4);     
+      EXPECT_EQ(key3Data, val4);
    }
 
    auto key4 = CryptoPRNG::generateRandom(30);
@@ -1723,7 +3142,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       tx.erase(key1);
 
       auto key1Data = tx.getDataRef(key1);
-      EXPECT_EQ(key1Data.getSize(), 0);
+      EXPECT_EQ(key1Data.getSize(), 0ULL);
 
       auto key2Data = tx.getDataRef(key2);
       EXPECT_EQ(key2Data, val5);
@@ -1748,24 +3167,24 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    //grab all entries in db
    keyValMap = getAllEntries(dbEnv, dbObj2);
-   EXPECT_EQ(keyValMap.size(), 9);
+   EXPECT_EQ(keyValMap.size(), 9ULL);
 
    //check gaps
    {
       auto&& gaps = tallyGaps(keyValMap);
-      ASSERT_EQ(gaps.size(), 4);
+      ASSERT_EQ(gaps.size(), 4ULL);
 
       auto gapsIter = gaps.begin();
-      EXPECT_EQ(*gapsIter, 1);
+      EXPECT_EQ(*gapsIter, 1U);
       
       ++gapsIter;
-      EXPECT_EQ(*gapsIter, 2);
+      EXPECT_EQ(*gapsIter, 2U);
 
       ++gapsIter;
-      EXPECT_EQ(*gapsIter, 3);
+      EXPECT_EQ(*gapsIter, 3U);
 
       ++gapsIter;
-      EXPECT_EQ(*gapsIter, 5);
+      EXPECT_EQ(*gapsIter, 5U);
 
       ++gapsIter;
       EXPECT_EQ(gapsIter, gaps.end());
@@ -1805,11 +3224,11 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
       auto& packet = packets[0];
 
       //check cylce flag is first entry in db
-      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0);
+      ASSERT_EQ(READ_UINT32_BE(packet.dbKey_), 0U);
 
       //check first entry is a cycle flag
       auto&& dataPair = decryptPair(packet, firstKeyPair);
-      ASSERT_EQ(dataPair.first.getSize(), 0);
+      ASSERT_EQ(dataPair.first.getSize(), 0ULL);
       ASSERT_EQ(dataPair.second, BinaryData::fromString("cycle"));
    }
    catch(...)
@@ -1836,7 +3255,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    {
       //check packets[2] is a cycle flag
-      ASSERT_EQ(decryptedPairs[2].first.getSize(), 0);
+      ASSERT_EQ(decryptedPairs[2].first.getSize(), 0ULL);
       ASSERT_EQ(decryptedPairs[2].second, BinaryData::fromString("cycle"));
 
       //cycle key
@@ -1860,25 +3279,25 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    }
 
    //check decrypted values
-   EXPECT_EQ(decryptedPairs[0].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[0].first.getSize(), 0ULL);
    EXPECT_EQ(decryptedPairs[0].second, getErasurePacket(3));
    
-   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0);
-   EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(2));   
+   EXPECT_EQ(decryptedPairs[1].first.getSize(), 0ULL);
+   EXPECT_EQ(decryptedPairs[1].second, getErasurePacket(2));
 
    EXPECT_EQ(decryptedPairs[3].first, key2);
-   EXPECT_EQ(decryptedPairs[3].second, val5);   
+   EXPECT_EQ(decryptedPairs[3].second, val5);
 
    EXPECT_EQ(decryptedPairs[4].first, key4);
-   EXPECT_EQ(decryptedPairs[4].second, val3);   
+   EXPECT_EQ(decryptedPairs[4].second, val3);
 
-   EXPECT_EQ(decryptedPairs[5].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[5].first.getSize(), 0ULL);
    EXPECT_EQ(decryptedPairs[5].second, getErasurePacket(5));
 
    EXPECT_EQ(decryptedPairs[6].first, key3);
-   EXPECT_EQ(decryptedPairs[6].second, val6);   
+   EXPECT_EQ(decryptedPairs[6].second, val6);
 
-   EXPECT_EQ(decryptedPairs[7].first.getSize(), 0);
+   EXPECT_EQ(decryptedPairs[7].first.getSize(), 0ULL);
    EXPECT_EQ(decryptedPairs[7].second, getErasurePacket(1));
 
    dbObj2.close();
@@ -1889,12 +3308,12 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 TEST_F(WalletInterfaceTest, Passphrase_Test)
 {
    //passphrase lambdas
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("abcd");
    };
 
-   auto passEmpty = [](const set<BinaryData>&)->SecureBinaryData
+   auto passEmpty = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData();
    };
@@ -1902,7 +3321,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
    {
       //create wallet iface
       WalletDBInterface dbIface;
-      dbIface.setupEnv(dbPath_, passLbd);
+      dbIface.setupEnv(dbPath_, false, passLbd);
 
       //close iface
       dbIface.shutdown();
@@ -1913,7 +3332,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
       try
       {
          WalletDBInterface dbIface;
-         dbIface.setupEnv(dbPath_, passEmpty);
+         dbIface.setupEnv(dbPath_, true, passEmpty);
          ASSERT_TRUE(false);
       }
       catch (DecryptedDataContainerException& e)
@@ -1921,11 +3340,23 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
          EXPECT_EQ(e.what(), string("empty passphrase"));
       }
 
+      //try to open iface with wrong file flag
+      try
+      {
+         WalletDBInterface dbIface;
+         dbIface.setupEnv(dbPath_, false, passLbd);
+         ASSERT_TRUE(false);
+      }
+      catch (WalletInterfaceException& e)
+      {
+         EXPECT_EQ(e.what(), string("[openEnv] file flag mismatch"));
+      }
+
       //open with proper passphrase
       try
       {
          WalletDBInterface dbIface;
-         dbIface.setupEnv(dbPath_, passLbd);
+         dbIface.setupEnv(dbPath_, true, passLbd);
          dbIface.shutdown();
       }
       catch(...)
@@ -1940,14 +3371,14 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
    {
       //create wallet iface with empty passphrase lambda
       WalletDBInterface dbIface;
-      dbIface.setupEnv(dbPath2, passEmpty);
+      dbIface.setupEnv(dbPath2, false, passEmpty);
 
       //close iface
       dbIface.shutdown();
    }
 
    {
-      auto passLbd2 = [](const set<BinaryData>&)->SecureBinaryData
+      auto passLbd2 = [](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          throw runtime_error("shouldn't get here");
       };
@@ -1956,7 +3387,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
       WalletDBInterface dbIface;
       try
       {
-         dbIface.setupEnv(dbPath2, passLbd2);
+         dbIface.setupEnv(dbPath2, true, passLbd2);
          dbIface.shutdown();
       }
       catch (...)
@@ -1970,7 +3401,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
 TEST_F(WalletInterfaceTest, DbCount_Test)
 {
    //lambdas
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("abcd");
    };
@@ -2001,11 +3432,11 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
 
    //create wallet dbEnv
    WalletDBInterface dbIface;
-   dbIface.setupEnv(dbPath_, passLbd);
+   dbIface.setupEnv(dbPath_, false, passLbd);
 
    //add db
    {
-      EXPECT_EQ(dbIface.getDbCount(), 0);
+      EXPECT_EQ(dbIface.getDbCount(), 0U);
 
       auto headerPtr = make_shared<WalletHeader_Custom>();
       headerPtr->walletID_ = "db1";
@@ -2013,7 +3444,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
       dbIface.unlockControlContainer();
-      EXPECT_EQ(dbIface.getDbCount(), 1);
+      EXPECT_EQ(dbIface.getDbCount(), 1U);
    }
 
    {
@@ -2074,14 +3505,14 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
   
    //add new db
    {
-      EXPECT_EQ(dbIface.getDbCount(), 1);
+      EXPECT_EQ(dbIface.getDbCount(), 1U);
       auto headerPtr = make_shared<WalletHeader_Custom>();
       headerPtr->walletID_ = "db2";
 
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
       dbIface.unlockControlContainer();
-      EXPECT_EQ(dbIface.getDbCount(), 2);
+      EXPECT_EQ(dbIface.getDbCount(), 2U);
    }
 
    //check db1 modifcations held
@@ -2110,7 +3541,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    //try to add db, should fail
    try
    {
-      EXPECT_EQ(dbIface.getDbCount(), 2);
+      EXPECT_EQ(dbIface.getDbCount(), 2U);
       auto headerPtr = make_shared<WalletHeader_Custom>();
       headerPtr->walletID_ = "db3";
 
@@ -2122,7 +3553,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    {
       EXPECT_EQ(e.what(), string("dbCount is too low"));
       dbIface.unlockControlContainer();
-      EXPECT_EQ(dbIface.getDbCount(), 2);
+      EXPECT_EQ(dbIface.getDbCount(), 2U);
    }
 
    //shutdown db env
@@ -2160,7 +3591,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    }
 
    //setup db env anew
-   dbIface.setupEnv(dbPath_, passLbd);
+   dbIface.setupEnv(dbPath_, true, passLbd);
 
    try
    {
@@ -2175,7 +3606,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
 
    //increase db count
    dbIface.setDbCount(5);
-   EXPECT_EQ(dbIface.getDbCount(), 2);
+   EXPECT_EQ(dbIface.getDbCount(), 2U);
 
    //check db1 values
    EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
@@ -2191,7 +3622,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
       dbIface.unlockControlContainer();
-      EXPECT_EQ(dbIface.getDbCount(), 3);
+      EXPECT_EQ(dbIface.getDbCount(), 3U);
    }
 
    //modify db2
@@ -2240,7 +3671,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    //try to overwrite db3
    try
    {
-      EXPECT_EQ(dbIface.getDbCount(), 3);
+      EXPECT_EQ(dbIface.getDbCount(), 3U);
       auto headerPtr = make_shared<WalletHeader_Custom>();
       headerPtr->walletID_ = "db3";
 
@@ -2275,7 +3706,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    dbIface.shutdown();
 
    //setup db env anew
-   dbIface.setupEnv(dbPath_, passLbd);
+   dbIface.setupEnv(dbPath_, true, passLbd);
 
    //check db values
    EXPECT_TRUE(checkDbValues(dbIface, "db1", db1Values));
@@ -2286,13 +3717,13 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletInterfaceTest, WipeEntries_Test)
 {
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData();
    };
 
    auto iface = make_shared<WalletDBInterface>();
-   iface->setupEnv(dbPath_, passLbd);
+   iface->setupEnv(dbPath_, false, passLbd);
 
    string dbName("test");
    auto dbHeader = make_shared<WalletHeader_Custom>();
@@ -2353,13 +3784,14 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
 
       //grab DecryptedDataContainer
       auto decryptedData = make_unique<DecryptedDataContainer>(
-            iface, controlHeader->getDbName(),
+            nullptr, controlHeader->getDbName(),
             controlHeader->getDefaultEncryptionKey(),
             controlHeader->getDefaultEncryptionKeyId(),
             controlHeader->defaultKdfId_, controlHeader->masterEncryptionKeyId_);
       {
-         RawIfaceTransaction txInner(dbEnv.get(), &dbCtrl, true);
-         decryptedData->readFromDisk(&txInner);
+         auto txInner = 
+            make_shared<RawIfaceTransaction>(dbEnv.get(), &dbCtrl, true);
+         decryptedData->readFromDisk(txInner);
       }
 
       //grab seed
@@ -2375,8 +3807,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
          auto len = brrVal.get_var_int();
          auto seedVal = brrVal.get_BinaryDataRef(len);
 
-         auto seedPtr = Asset_EncryptedData::deserialize(
-            seedVal.getSize(), seedVal);
+         auto seedPtr = EncryptedSeed::deserialize(seedVal);
          auto ptrCast = dynamic_cast<EncryptedSeed*>(seedPtr.get());
          if (ptrCast == nullptr)
             throw WalletException("failed to deser wallet seed");
@@ -2387,12 +3818,14 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
 
       {
          ReentrantLock lock(decryptedData.get());
-         controlRoot = decryptedData->getDecryptedPrivateData(controlSeed.get());
+         controlRoot = decryptedData->getClearTextAssetData(controlSeed.get());
       }
    }
    
    iface->shutdown();
-   
+   dbEnv->close();
+   dbEnv->open(dbPath_, 0);
+
    //grab db salt
    SecureBinaryData dbSalt;
    {
@@ -2535,7 +3968,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
 
    //reopen db iface
    iface = make_shared<WalletDBInterface>();
-   iface->setupEnv(dbPath_, passLbd);
+   iface->setupEnv(dbPath_, true, passLbd);
 
    //replace a couple entries
    {
@@ -2565,7 +3998,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
          iter->advance();
       }
 
-      EXPECT_EQ(finalMap.size(), 0);
+      EXPECT_EQ(finalMap.size(), 0ULL);
    }
 
    //shutdown db
@@ -2604,19 +4037,22 @@ class WalletsTest : public ::testing::Test
 protected:
    string homedir_;
    SecureBinaryData controlPass_;
-   function<SecureBinaryData(const set<BinaryData>&)> controlLbd_;
+   PassphraseLambda controlLbd_;
 
    /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
-      LOGDISABLESTDOUT();
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
       homedir_ = string("./fakehomedir");
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
+      Armory::Config::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
+
       controlPass_ = SecureBinaryData::fromString("control");
-      controlLbd_ = [this](const set<BinaryData>&)->SecureBinaryData
+      controlLbd_ = [this](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return controlPass_;
       };
@@ -2625,6 +4061,7 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
+      Armory::Config::reset();
       DBUtils::removeDirectory(homedir_);
    }
 
@@ -2692,25 +4129,24 @@ protected:
 
       return data.size() - dataSet.size();
    };
-
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, CreateCloseOpen_Test)
 {
    map<string, vector<BinaryData>> addrMap;
+   map<string, string> filenames;
 
    //create 3 wallets
-   for (unsigned i = 0; i < 3; i++)
+   for (unsigned i = 0; i < 1; i++)
    {
       auto&& wltRoot = CryptoPRNG::generateRandom(32);
       auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
          homedir_,
          move(wltRoot), //root as a r value
          {},
-         SecureBinaryData::fromString("passphrase"), 
-         SecureBinaryData::fromString("control"),
+         SecureBinaryData::fromString("passphrase"),
+         controlPass_,
          4); //set lookup computation to 4 entries
 
       //get AddrVec
@@ -2721,35 +4157,23 @@ TEST_F(WalletsTest, CreateCloseOpen_Test)
 
       vec.insert(vec.end(), hashSet.begin(), hashSet.end());
 
+      //get filename
+      filenames.emplace(id, assetWlt->getDbFilename());
+
       //close wallet 
       assetWlt.reset();
    }
 
-   //load all wallets in homedir
-   auto controlLbd = [](const set<BinaryData>&)->SecureBinaryData
-   {
-      return SecureBinaryData::fromString("control");
-   };
-   WalletManager wltMgr(homedir_, controlLbd);
-
-   class WalletContainerEx : public WalletContainer
-   {
-   public:
-      shared_ptr<AssetWallet> getWalletPtr(void) const
-      {
-         return WalletContainer::getWalletPtr();
-      }
-   };
-
    for (auto& addrVecPair : addrMap)
    {
-      auto wltMgrMap = wltMgr.getMap();
-      auto wltCtrIter = wltMgrMap.find(addrVecPair.first);
-      ASSERT_NE(wltCtrIter, wltMgrMap.end());
+      auto fnameIter = filenames.find(addrVecPair.first);
+      ASSERT_NE(fnameIter, filenames.end());
 
-      auto wltCtr = wltCtrIter->second;
+      auto newWallet = 
+         AssetWallet::loadMainWalletFromFile(fnameIter->second, controlLbd_);
+
       auto wltSingle =
-         dynamic_pointer_cast<AssetWallet_Single>(wltCtr->getWalletPtr());
+         dynamic_pointer_cast<AssetWallet_Single>(newWallet);
       ASSERT_NE(wltSingle, nullptr);
 
       auto&& hashSet = wltSingle->getAddrHashSet();
@@ -2782,7 +4206,7 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
    auto pubRoot = assetWlt->getPublicRoot();
    auto chainCode = assetWlt->getArmory135Chaincode();
 
-   //close wallet 
+   //close wallet
    assetWlt.reset();
 
    auto woWallet = AssetWallet_Single::createFromPublicRoot_Armory135(
@@ -2793,18 +4217,27 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
       4);
 
    //get AddrVec
-   auto&& hashSetWO = woWallet->getAddrHashSet();
+   auto hashSetWO = woWallet->getAddrHashSet();
 
    ASSERT_EQ(hashSet, hashSetWO);
    auto woFilename = woWallet->getDbFilename();
    woWallet.reset();
-   unlink(woFilename.c_str());
 
-   //fork WO from full wallet
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   //reload the WO wallet
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("control");
    };
+
+   auto reloadWoWallet = AssetWallet_Single::loadMainWalletFromFile(woFilename, passLbd);
+   auto hashSetWO2 = reloadWoWallet->getAddrHashSet();
+   ASSERT_EQ(hashSet, hashSetWO);
+
+   //delete the underlying file so we can fork anew
+   reloadWoWallet.reset();
+   unlink(woFilename.c_str());
+
+   //fork WO from full wallet
    auto forkFilename = AssetWallet_Single::forkWatchingOnly(filename, passLbd);
 
    auto woFork = AssetWallet::loadMainWalletFromFile(forkFilename, passLbd);
@@ -2813,7 +4246,7 @@ TEST_F(WalletsTest, CreateWOCopy_Test)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(WalletsTest, WalletID)
+TEST_F(WalletsTest, IDs)
 {
    auto computeId = [](
       const SecureBinaryData& root, const SecureBinaryData& chaincode)->string
@@ -2827,7 +4260,7 @@ TEST_F(WalletsTest, WalletID)
 
       auto pubkey = CryptoECDSA().ComputePublicKey(root);
       auto asset_single = make_shared<AssetEntry_Single>(
-         ROOT_ASSETENTRY_ID, BinaryData(), pubkey, nullptr);
+         AssetId::getRootAssetId(), pubkey, nullptr);
 
       return AssetWallet_Single::computeWalletID(derScheme, asset_single);      
    };
@@ -2858,11 +4291,86 @@ TEST_F(WalletsTest, WalletID)
          SecureBinaryData::fromString("control"),
          4); //set lookup computation to 4 entries
 
+      //wallet id
       BIP32_Node node;
       node.initFromSeed(wltRoot);
 
       auto idBip32 = computeId(node.getPrivateKey(), node.getChaincode());
       EXPECT_EQ(wlt->getID(), idBip32);
+
+      //account ids
+      auto seedFingerprint = node.getThisFingerprint();
+      auto generateAddrAccountId = [&seedFingerprint](
+         const vector<uint32_t>& nodes,
+         const set<AddressEntryType>& addrTypeSet,
+         bool isMain)->int32_t
+      {
+         BinaryWriter bw;
+         bw.put_uint32_t(seedFingerprint);
+         for (const auto& node : nodes)
+            bw.put_uint32_t(node, BE);
+         bw.put_uint32_t(0);
+
+         for (const auto& node : nodes)
+            bw.put_uint32_t(node, BE);
+         bw.put_uint32_t(1, BE);
+
+         for (auto& addrType : addrTypeSet)
+            bw.put_uint32_t(addrType, BE);
+         bw.put_uint32_t(*addrTypeSet.begin());
+         bw.put_uint8_t(isMain);
+
+         auto pub_hash160 = BtcUtils::getHash160(bw.getData());
+         BinaryRefReader brr(pub_hash160.getRef());
+         return brr.get_int32_t(BE);
+      };
+
+      AddressAccountId acc44(generateAddrAccountId(
+         {0x8000002C, 0x80000000, 0x80000000},
+         { AddressEntryType(
+            AddressEntryType_P2PKH | AddressEntryType_Uncompressed),
+         AddressEntryType_P2PKH },
+         true));
+      AssetAccountId outer44(acc44, 0);
+      AssetAccountId inner44(acc44, 1);
+
+      AddressAccountId acc49(generateAddrAccountId(
+         {0x80000031, 0x80000000, 0x80000000},
+         {AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH)},
+         false));
+      AssetAccountId outer49(acc49, 0);
+      AssetAccountId inner49(acc49, 1);
+
+      AddressAccountId acc84(generateAddrAccountId(
+         {0x80000054, 0x80000000, 0x80000000},
+         {AddressEntryType_P2WPKH},
+         false));
+      AssetAccountId outer84(acc84, 0);
+      AssetAccountId inner84(acc84, 1);
+
+      auto accIdSet = wlt->getAccountIDs();
+      auto checkId = [&accIdSet, wlt](const AddressAccountId& accId,
+         const AssetAccountId& outId, const AssetAccountId& innId)->bool
+      {
+         auto iter = accIdSet.find(accId);
+         if (iter == accIdSet.end())
+            return false;
+         accIdSet.erase(iter);
+
+         auto accPtr = wlt->getAccountForID(accId);
+         if (accPtr->getOuterAccountID() != outId)
+            return false;
+
+         if (accPtr->getInnerAccountID() != innId)
+            return false;
+
+         return true;
+      };
+
+      EXPECT_TRUE(checkId(acc44, outer44, inner44));
+      EXPECT_TRUE(checkId(acc49, outer49, inner49));
+      EXPECT_TRUE(checkId(acc84, outer84, inner84));
+      EXPECT_TRUE(accIdSet.empty());
    }
 
    //legacy with chaincode
@@ -2919,10 +4427,12 @@ TEST_F(WalletsTest, Encryption_Test)
    }
 
    //compare with wallet's own
+   auto accountPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+   auto outerAcc = accountPtr->getOuterAccount();
    for (int i = 0; i < 4; i++)
    {
       //grab indexes from 0 to 3
-      auto assetptr = assetWlt->getMainAccountAssetForIndex(i);
+      auto assetptr = outerAcc->getAssetForKey(i);
       ASSERT_EQ(assetptr->getType(), AssetEntryType_Single);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(assetptr);
@@ -2941,13 +4451,15 @@ TEST_F(WalletsTest, Encryption_Test)
    assetWlt.reset();
 
    //open db env for wallet
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = []
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return SecureBinaryData::fromString("control");
    };
 
    WalletDBInterface dbIface;
-   dbIface.setupEnv(filename, passLbd);
+   dbIface.setupEnv(filename, true, passLbd);
    string dbName;
    
    {
@@ -2964,8 +4476,8 @@ TEST_F(WalletsTest, Encryption_Test)
 
    auto tx = dbIface.beginReadTransaction(dbName);
 
-   ASSERT_EQ(checkDb(tx.get(), privateKeys), 0);
-   ASSERT_EQ(checkDb(tx.get(), publicKeys), 4);
+   ASSERT_EQ(checkDb(tx.get(), privateKeys), 0U);
+   ASSERT_EQ(checkDb(tx.get(), publicKeys), 4U);
 
    /*
    Parse file for the presence of keys, neither should be visible as 
@@ -3010,7 +4522,9 @@ TEST_F(WalletsTest, SeedEncryption)
    {}
 
    //set passphrase lambda
-   auto passLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = [&passphrase]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return passphrase;
    };
@@ -3096,7 +4610,9 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       controlPass_,
       4); //set lookup computation to 4 entries
 
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = []
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return SecureBinaryData::fromString("passphrase");
    };
@@ -3122,17 +4638,19 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       auto secondlock = assetWlt->lockDecryptedContainer();
 
       //wallet should have 10 assets, last half with only pub keys
-      ASSERT_TRUE(assetWlt->getMainAccountAssetCount() == 10);
+      auto accPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+      auto outerAcc = accPtr->getOuterAccount();
+      ASSERT_EQ(outerAcc->getAssetCount(), 10U);
 
       //none of the new assets should have private keys
       for (unsigned i = 4; i < 10; i++)
       {
-         auto asseti = assetWlt->getMainAccountAssetForIndex(i);
+         auto asseti = outerAcc->getAssetForKey(i);
          ASSERT_FALSE(asseti->hasPrivateKey());
       }
 
       //grab last asset with a priv key
-      auto asset3 = assetWlt->getMainAccountAssetForIndex(3);
+      auto asset3 = outerAcc->getAssetForKey(3);
       auto asset3_single = dynamic_pointer_cast<AssetEntry_Single>(asset3);
       if (asset3_single == nullptr)
          throw runtime_error("unexpected asset entry type");
@@ -3145,10 +4663,10 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       assetWlt->extendPrivateChainToIndex(assetWlt->getMainAccountID(), 9);
 
       //there should still be 10 assets
-      ASSERT_EQ(assetWlt->getMainAccountAssetCount(), 10);
+      ASSERT_EQ(outerAcc->getAssetCount(), 10U);
 
       //try to grab 10th private key
-      auto asset9 = assetWlt->getMainAccountAssetForIndex(9);
+      auto asset9 = outerAcc->getAssetForKey(9);
       auto asset9_single = dynamic_pointer_cast<AssetEntry_Single>(asset9);
       if (asset9_single == nullptr)
          throw runtime_error("unexpected asset entry type");
@@ -3172,10 +4690,12 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       this_thread::sleep_for(chrono::seconds(1));
 
       //make sure there are only 4 entries
-      ASSERT_EQ(assetWlt->getMainAccountAssetCount(), 4);
+      auto accPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+      auto outerAcc = accPtr->getOuterAccount();
+      ASSERT_EQ(outerAcc->getAssetCount(), 4U);
 
-      //grab 4th privkey 
-      auto asset3 = assetWlt->getMainAccountAssetForIndex(3);
+      //grab 4th privkey
+      auto asset3 = outerAcc->getAssetForKey(3);
       auto asset3_single = dynamic_pointer_cast<AssetEntry_Single>(asset3);
       if (asset3_single == nullptr)
          throw runtime_error("unexpected asset entry type");
@@ -3188,12 +4708,12 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       assetWlt->extendPublicChainToIndex(
          assetWlt->getMainAccountID(), 9);
 
-      ASSERT_EQ(assetWlt->getMainAccountAssetCount(), 10);
+      ASSERT_EQ(outerAcc->getAssetCount(), 10U);
 
       //none of the new assets should have private keys
       for (unsigned i = 4; i < 10; i++)
       {
-         auto asseti = assetWlt->getMainAccountAssetForIndex(i);
+         auto asseti = outerAcc->getAssetForKey(i);
          ASSERT_FALSE(asseti->hasPrivateKey());
       }
    }
@@ -3206,34 +4726,22 @@ TEST_F(WalletsTest, LockAndExtend_Test)
 
    //delete wallet, reload and check private keys are on disk and valid
    auto wltID = assetWlt->getID();
+   auto filename = assetWlt->getDbFilename();
    assetWlt.reset();
 
-   WalletManager wltMgr(homedir_, controlLbd_);
+   auto newWallet = AssetWallet::loadMainWalletFromFile(filename, controlLbd_);
+   auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(newWallet);
 
-   class WalletContainerEx : public WalletContainer
-   {
-   public:
-      shared_ptr<AssetWallet> getWalletPtr(void) const
-      {
-         return WalletContainer::getWalletPtr();
-      }
-   };
-
-   auto& wltMgrMap = wltMgr.getMap();
-   auto wltCtrIter = wltMgrMap.find(wltID);
-   ASSERT_NE(wltCtrIter, wltMgrMap.end());
-
-   auto wltCtr = wltCtrIter->second;
-   auto wltSingle =
-      dynamic_pointer_cast<AssetWallet_Single>(wltCtr->getWalletPtr());
    ASSERT_NE(wltSingle, nullptr);
    ASSERT_FALSE(wltSingle->isDecryptedContainerLocked());
    wltSingle->setPassphrasePromptLambda(passLbd);
 
+   auto accountPtr = wltSingle->getAccountForID(wltSingle->getMainAccountID());
+   auto outerAcc = accountPtr->getOuterAccount();
    auto lastlock = wltSingle->lockDecryptedContainer();
    for (unsigned i = 0; i < 10; i++)
    {
-      auto asseti = wltSingle->getMainAccountAssetForIndex(i);
+      auto asseti = outerAcc->getAssetForKey(i);
       auto asseti_single = dynamic_pointer_cast<AssetEntry_Single>(asseti);
       ASSERT_NE(asseti_single, nullptr);
 
@@ -3247,12 +4755,16 @@ TEST_F(WalletsTest, LockAndExtend_Test)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletsTest, ControlPassphrase_Test)
 {
-   auto goodPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto goodPassLbd = []
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return SecureBinaryData::fromString("control");
    };
 
-   auto noPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto noPassLbd = []
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return SecureBinaryData();
    };
@@ -3303,10 +4815,12 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
          4); //set lookup computation to 4 entries
       filename = assetWlt->getDbFilename();
       addrSet = assetWlt->getAddrHashSet();
-      ASSERT_EQ(addrSet.size(), 16);
+      ASSERT_EQ(addrSet.size(), 12ULL);
 
       unsigned count = 0;
-      auto badPassLbd = [&count](const set<BinaryData>&)->SecureBinaryData
+      auto badPassLbd = [&count]
+         (const set<EncryptionKeyId>&)
+         ->SecureBinaryData
       {
          while (count++ < 3)
             return CryptoPRNG::generateRandom(15);
@@ -3340,7 +4854,9 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
 
    {
       unsigned badPassCtr = 0;
-      auto badPassLbd = [&badPassCtr](const set<BinaryData>&)->SecureBinaryData
+      auto badPassLbd = [&badPassCtr]
+         (const set<EncryptionKeyId>&)
+         ->SecureBinaryData
       {
          if (badPassCtr++ > 3)
             return SecureBinaryData();
@@ -3367,7 +4883,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       catch(DecryptedDataContainerException& e)
       {
          EXPECT_EQ(e.what(), string("empty passphrase"));
-         EXPECT_EQ(badPassCtr, 5);
+         EXPECT_EQ(badPassCtr, 5U);
       }
 
       auto assetWlt = AssetWallet::loadMainWalletFromFile(
@@ -3381,13 +4897,15 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
 
    //create WO copy with different passphrase
    {
-      BinaryData wltPassID;
+      EncryptionKeyId wltPassID;
       try
       {
          //try with bad pass, should fail
-         auto badPassLbd = [&wltPassID](const set<BinaryData>& ids)->SecureBinaryData
+         auto badPassLbd = [&wltPassID]
+            (const set<EncryptionKeyId>& ids)
+            ->SecureBinaryData
          {
-            if (wltPassID.getSize() == 0)
+            if (!wltPassID.isValid())
             {
                if (ids.size() != 1)
                   throw range_error("");
@@ -3406,7 +4924,9 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       }
 
       //set different pass for WO fork
-      auto passShift = [&wltPassID](const set<BinaryData>& ids)->SecureBinaryData
+      auto passShift = [&wltPassID]
+         (const set<EncryptionKeyId>& ids)
+         ->SecureBinaryData
       {
          if (ids.size() == 1 && *ids.begin() == wltPassID)
             return SecureBinaryData::fromString("control");
@@ -3418,7 +4938,9 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       try
       {
          unsigned ctr = 0;
-         auto oldPassLbd = [&ctr](const set<BinaryData>&)->SecureBinaryData
+         auto oldPassLbd = [&ctr]
+            (const set<EncryptionKeyId>&)
+            ->SecureBinaryData
          {
             while (ctr++ < 2)
                return CryptoPRNG::generateRandom(18);
@@ -3431,11 +4953,13 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
          EXPECT_EQ(e.what(), string("empty passphrase"));
       }
 
-      auto newPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+      auto newPassLbd = []
+         (const set<EncryptionKeyId>&)
+         ->SecureBinaryData
       {
          return SecureBinaryData::fromString("newwopass");
       };
-      auto woWlt = AssetWallet::loadMainWalletFromFile(woFilename, passShift);
+      auto woWlt = AssetWallet::loadMainWalletFromFile(woFilename, newPassLbd);
       auto loadedAddrSet = woWlt->getAddrHashSet();
       EXPECT_EQ(addrSet, loadedAddrSet);
    }
@@ -3443,7 +4967,9 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
    /***********/
 
    //create wallet with no passphrase
-   auto emptyPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto emptyPassLbd = []
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       throw runtime_error("shouldn't get here");
    };
@@ -3459,7 +4985,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
          4); //set lookup computation to 4 entries
       filename2 = assetWlt->getDbFilename();
       addrSet = assetWlt->getAddrHashSet();
-      ASSERT_EQ(addrSet.size(), 32);
+      ASSERT_EQ(addrSet.size(), 32ULL);
 
       //with good pass
       try
@@ -3527,7 +5053,9 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
    /***********/
    
    {
-      auto newPass = [](const set<BinaryData>&)->SecureBinaryData
+      auto newPass = []
+         (const set<EncryptionKeyId>&)
+         ->SecureBinaryData
       {
          return SecureBinaryData::fromString("newpass");
       };
@@ -3537,7 +5065,9 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
          AssetWallet_Single::forkWatchingOnly(filename2, newPass);
 
       unsigned count = 0;
-      auto wrongPass = [&count](const set<BinaryData>&)->SecureBinaryData
+      auto wrongPass = [&count]
+         (const set<EncryptionKeyId>&)
+         ->SecureBinaryData
       {
          while (count++ < 5)
             return CryptoPRNG::generateRandom(12);
@@ -3553,7 +5083,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       catch (DecryptedDataContainerException& e)
       {
          EXPECT_EQ(e.what(), string("empty passphrase"));
-         EXPECT_EQ(count, 6);
+         EXPECT_EQ(count, 6U);
       }
 
       //check WO works with different pass
@@ -3587,7 +5117,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
       catch (DecryptedDataContainerException& e)
       {
          EXPECT_EQ(e.what(), string("empty passphrase"));
-         EXPECT_EQ(count, 6);
+         EXPECT_EQ(count, 6U);
       }
 
       //with right pass
@@ -3622,7 +5152,9 @@ TEST_F(WalletsTest, SignPassphrase_Test)
       4); //set lookup computation to 4 entries
 
    unsigned passphraseCount = 0;
-   auto badPassphrase = [&passphraseCount](const set<BinaryData>&)->SecureBinaryData
+   auto badPassphrase = [&passphraseCount]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       //pass wrong passphrase once then give up
       if (passphraseCount++ > 1)
@@ -3637,7 +5169,9 @@ TEST_F(WalletsTest, SignPassphrase_Test)
    try
    {
       auto containerLock = assetWlt->lockDecryptedContainer();
-      auto asset = assetWlt->getMainAccountAssetForIndex(0);
+      auto accountPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+      auto outerAcc = accountPtr->getOuterAccount();
+      auto asset = outerAcc->getAssetForKey(0);
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
       if (asset_single == nullptr)
          throw runtime_error("unexpected asset entry type");
@@ -3648,11 +5182,13 @@ TEST_F(WalletsTest, SignPassphrase_Test)
    }
    catch (DecryptedDataContainerException&)
    {
-      EXPECT_EQ(passphraseCount, 3);
+      EXPECT_EQ(passphraseCount, 3U);
    }
 
    passphraseCount = 0;
-   auto goodPassphrase = [&passphraseCount](const set<BinaryData>&)->SecureBinaryData
+   auto goodPassphrase = [&passphraseCount]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       //pass wrong passphrase once then the right one
       if (passphraseCount++ > 1)
@@ -3666,7 +5202,9 @@ TEST_F(WalletsTest, SignPassphrase_Test)
    try
    {
       auto&& containerLock = assetWlt->lockDecryptedContainer();
-      auto asset = assetWlt->getMainAccountAssetForIndex(0);
+      auto accountPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+      auto outerAcc = accountPtr->getOuterAccount();
+      auto asset = outerAcc->getAssetForKey(0);
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
       if (asset_single == nullptr)
          throw runtime_error("unexpected asset entry type");
@@ -3685,7 +5223,7 @@ TEST_F(WalletsTest, SignPassphrase_Test)
       ASSERT_TRUE(false);
    }
 
-   EXPECT_EQ(passphraseCount, 3);
+   EXPECT_EQ(passphraseCount, 3U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3702,7 +5240,9 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       4); //set lookup computation to 4 entries
 
    unsigned passphraseCount = 0;
-   auto badPassphrase = [&passphraseCount](const set<BinaryData>&)->SecureBinaryData
+   auto badPassphrase = [&passphraseCount]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       //pass wrong passphrase once then give up
       if (passphraseCount++ > 1)
@@ -3717,7 +5257,9 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
    try
    {
       auto containerLock = assetWlt->lockDecryptedContainer();
-      auto asset = assetWlt->getMainAccountAssetForIndex(0);
+      auto accountPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+      auto outerAcc = accountPtr->getOuterAccount();
+      auto asset = outerAcc->getAssetForKey(0);
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
       if (asset_single == nullptr)
          throw runtime_error("unexpected asset entry type");
@@ -3728,11 +5270,13 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
    }
    catch (DecryptedDataContainerException&)
    {
-      EXPECT_EQ(passphraseCount, 3);
+      EXPECT_EQ(passphraseCount, 3U);
    }
 
    passphraseCount = 0;
-   auto goodPassphrase = [&passphraseCount](const set<BinaryData>&)->SecureBinaryData
+   auto goodPassphrase = [&passphraseCount]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       //pass wrong passphrase once then the right one
       if (passphraseCount++ > 2)
@@ -3746,7 +5290,9 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
    try
    {
       auto&& containerLock = assetWlt->lockDecryptedContainer();
-      auto asset = assetWlt->getMainAccountAssetForIndex(0);
+      auto accountPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+      auto outerAcc = accountPtr->getOuterAccount();
+      auto asset = outerAcc->getAssetForKey(0);
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
       if (asset_single == nullptr)
          throw runtime_error("unexpected asset entry type");
@@ -3770,7 +5316,7 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       ASSERT_TRUE(false);
    }
 
-   EXPECT_EQ(passphraseCount, 4);
+   EXPECT_EQ(passphraseCount, 4U);
 
    //add another account
    vector<unsigned> derPath2 =
@@ -3779,10 +5325,10 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       0x8000c103,
    };
 
-   auto accTypePtr = make_shared<AccountType_BIP32>(derPath2);
+   auto accTypePtr = assetWlt->makeNewBip32AccTypeObject(derPath2);
    accTypePtr->setAddressLookup(10);
    accTypePtr->setNodes({0, 1});
-   accTypePtr->setOuterAccountID(WRITE_UINT32_BE(0));
+   accTypePtr->setOuterAccountID(0);
 
    auto newAccId = assetWlt->createBIP32Account(accTypePtr);
    auto accPtr = assetWlt->getAccountForID(newAccId);
@@ -3795,7 +5341,8 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
    try
    {
       auto containerLock = assetWlt->lockDecryptedContainer();
-      auto asset = accPtr->getOutterAssetForIndex(5);
+      auto outerAcc = accPtr->getOuterAccount();
+      auto asset = outerAcc->getAssetForKey(5);
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
       if (asset_single == nullptr)
          throw runtime_error("unexpected asset entry type");
@@ -3806,7 +5353,7 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
    }
    catch (DecryptedDataContainerException&)
    {
-      EXPECT_EQ(passphraseCount, 3);
+      EXPECT_EQ(passphraseCount, 3U);
    }
 
    //try to decrypt with wrong passphrase then the right one
@@ -3815,7 +5362,8 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
    try
    {
       auto&& containerLock = assetWlt->lockDecryptedContainer();
-      auto asset = accPtr->getOutterAssetForIndex(5);
+      auto outerAcc = accPtr->getOuterAccount();
+      auto asset = outerAcc->getAssetForKey(5);
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
       if (asset_single == nullptr)
          throw runtime_error("unexpected asset entry type");
@@ -3838,7 +5386,7 @@ TEST_F(WalletsTest, WrongPassphrase_BIP32_Test)
       ASSERT_TRUE(false);
    }
 
-   EXPECT_EQ(passphraseCount, 4);
+   EXPECT_EQ(passphraseCount, 4U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3851,7 +5399,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       wltRoot, //root as a r value
       {},
       SecureBinaryData::fromString("test"), //set passphrase to "test"
-      SecureBinaryData::fromString("control"),
+      controlPass_,
       4); //set lookup computation to 4 entries
 
    auto&& chaincode = BtcUtils::computeChainCode_Armory135(wltRoot);
@@ -3864,11 +5412,12 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    vector<SecureBinaryData> ivVec;
    vector<SecureBinaryData> privateKeys;
 
-   struct Asset_EncryptedDataEx : protected Asset_EncryptedData
+   struct EncryptionKeyEx : public EncryptionKey
    {
-      const map<BinaryData, unique_ptr<CipherData>>& getCipherDataMap() const
+      const std::map<EncryptionKeyId, std::unique_ptr<CipherData>>&
+         getCipherDataMap(void) const
       {
-         return cipherData_;
+         return cipherDataMap_;
       }
    };
 
@@ -3877,9 +5426,9 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       vector<SecureBinaryData> getMasterKeyIVs(void) const
       {
          vector<SecureBinaryData> result;
-         for (auto& keyPair : encryptionKeyMap_)
+         for (auto& keyPair : encryptedKeys_)
          {
-            auto encrKeyPtr = (Asset_EncryptedDataEx*)keyPair.second.get();
+            auto encrKeyPtr = (EncryptionKeyEx*)keyPair.second.get();
             auto& cipherMap = encrKeyPtr->getCipherDataMap();
 
             for (auto& cipherPair : cipherMap)
@@ -3895,9 +5444,9 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       vector<SecureBinaryData> getMasterEncryptionKeys(void) const
       {
          vector<SecureBinaryData> result;
-         for (auto& keyPair : encryptionKeyMap_)
+         for (auto& keyPair : encryptedKeys_)
          {
-            auto encrKeyPtr = (Asset_EncryptedDataEx*)keyPair.second.get();
+            auto encrKeyPtr = (EncryptionKeyEx*)keyPair.second.get();
             auto& cipherMap = encrKeyPtr->getCipherDataMap();
 
             for (auto& cipherPair : cipherMap)
@@ -3933,7 +5482,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
 
    for (unsigned i = 0; i < 4; i++)
    {
-      auto asseti = assetWlt->getMainAccountAssetForIndex(i);
+      auto asseti = TestUtils::getMainAccountAssetForIndex(assetWlt, i);
       auto asseti_single = dynamic_pointer_cast<AssetEntry_Single>(asseti);
       ASSERT_NE(asseti_single, nullptr);
 
@@ -3957,7 +5506,9 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    auto&& newPassphrase = SecureBinaryData::fromString("new pass");
 
    unsigned counter = 0;
-   auto passphrasePrompt = [&counter](const set<BinaryData>&)->SecureBinaryData
+   auto passphrasePrompt = [&counter]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       if (counter++ == 0)
          return SecureBinaryData::fromString("test");
@@ -4001,7 +5552,9 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    }
 
    //try to decrypt with new passphrase
-   auto newPassphrasePrompt = [&newPassphrase](const set<BinaryData>&)->SecureBinaryData
+   auto newPassphrasePrompt = [&newPassphrase]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return newPassphrase;
    };
@@ -4010,7 +5563,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       assetWlt->setPassphrasePromptLambda(newPassphrasePrompt);
       auto lock = assetWlt->lockDecryptedContainer();
 
-      auto asset0 = assetWlt->getMainAccountAssetForIndex(0);
+      auto asset0 = TestUtils::getMainAccountAssetForIndex(assetWlt, 0);
       auto asset0_single = dynamic_pointer_cast<AssetEntry_Single>(asset0);
       ASSERT_NE(asset0_single, nullptr);
 
@@ -4024,24 +5577,10 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    auto walletID = assetWlt->getID();
    assetWlt.reset();
 
-   WalletManager wltMgr(homedir_, controlLbd_);
+   auto newWallet = AssetWallet::loadMainWalletFromFile(filename, controlLbd_);
 
-   class WalletContainerEx : public WalletContainer
-   {
-   public:
-      shared_ptr<AssetWallet> getWalletPtr(void) const
-      {
-         return WalletContainer::getWalletPtr();
-      }
-   };
-
-   auto wltMgrMap = wltMgr.getMap();
-   auto wltCtrIter = wltMgrMap.find(walletID);
-   ASSERT_NE(wltCtrIter, wltMgrMap.end());
-
-   auto wltCtr = wltCtrIter->second;
    auto wltSingle =
-      dynamic_pointer_cast<AssetWallet_Single>(wltCtr->getWalletPtr());
+      dynamic_pointer_cast<AssetWallet_Single>(newWallet);
    ASSERT_NE(wltSingle, nullptr);
    ASSERT_FALSE(wltSingle->isDecryptedContainerLocked());
 
@@ -4063,7 +5602,7 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
 
    for (unsigned i = 0; i < 4; i++)
    {
-      auto asseti = wltSingle->getMainAccountAssetForIndex(i);
+      auto asseti = TestUtils::getMainAccountAssetForIndex(wltSingle, i);
       auto asseti_single = dynamic_pointer_cast<AssetEntry_Single>(asseti);
       ASSERT_NE(asseti_single, nullptr);
 
@@ -4092,14 +5631,13 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       counter = 0;
       wltSingle->setPassphrasePromptLambda(passphrasePrompt);
 
-      auto asset0 = wltSingle->getMainAccountAssetForIndex(0);
+      auto asset0 = TestUtils::getMainAccountAssetForIndex(wltSingle, 0);
       auto asset0_single = dynamic_pointer_cast<AssetEntry_Single>(asset0);
       ASSERT_NE(asset0_single, nullptr);
 
       try
       {
-         auto& decryptedKey =
-            wltSingle->getDecryptedValue(asset0_single->getPrivKey());
+         wltSingle->getDecryptedValue(asset0_single->getPrivKey());
          ASSERT_FALSE(true);
       }
       catch (...)
@@ -4114,13 +5652,15 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
    }
 
    //check on file values
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = []
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return SecureBinaryData::fromString("control");
    };
 
    WalletDBInterface dbIface;
-   dbIface.setupEnv(filename, passLbd);
+   dbIface.setupEnv(filename, true, passLbd);
    string dbName;
    
    {
@@ -4137,15 +5677,15 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
 
    auto tx = dbIface.beginReadTransaction(dbName);
 
-   ASSERT_EQ(checkDb(tx.get(), { privateKeys[0] }), 0);
-   ASSERT_EQ(checkDb(tx.get(), privateKeys), 4);
-   ASSERT_EQ(checkDb(tx.get(), { ivVec[0] }), 0);
-   ASSERT_EQ(checkDb(tx.get(), ivVec), 4);
+   ASSERT_EQ(checkDb(tx.get(), { privateKeys[0] }), 0U);
+   ASSERT_EQ(checkDb(tx.get(), privateKeys), 4U);
+   ASSERT_EQ(checkDb(tx.get(), { ivVec[0] }), 0U);
+   ASSERT_EQ(checkDb(tx.get(), ivVec), 4U);
 
-   ASSERT_EQ(checkDb(tx.get(), { newPrivKeys[0] }), 1);
-   ASSERT_EQ(checkDb(tx.get(), newPrivKeys), 5);
-   ASSERT_EQ(checkDb(tx.get(), { newIVs[0] }), 1);
-   ASSERT_EQ(checkDb(tx.get(), newIVs), 5);
+   ASSERT_EQ(checkDb(tx.get(), { newPrivKeys[0] }), 1U);
+   ASSERT_EQ(checkDb(tx.get(), newPrivKeys), 5U);
+   ASSERT_EQ(checkDb(tx.get(), { newIVs[0] }), 1U);
+   ASSERT_EQ(checkDb(tx.get(), newIVs), 5U);
 
    //check values aren't on file
    ASSERT_FALSE(TestUtils::searchFile(filename, ivVec[0]));
@@ -4175,12 +5715,14 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
 
    auto newPass = SecureBinaryData::fromString("newpass");
 
-   auto asset0 = assetWlt->getMainAccountAssetForIndex(0);
+   auto asset0 = TestUtils::getMainAccountAssetForIndex(assetWlt, 0);
    auto asset0_single = dynamic_pointer_cast<AssetEntry_Single>(asset0);
    ASSERT_NE(asset0_single, nullptr);
 
    //check the wallet has no passphrase
-   auto emptyPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto emptyPassLbd = []
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return SecureBinaryData();
    };
@@ -4217,8 +5759,7 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
    try
    {
       auto lock = assetWlt->lockDecryptedContainer();
-      auto& decryptedKey =
-         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+      assetWlt->getDecryptedValue(asset0_single->getPrivKey());
       ASSERT_TRUE(false);
    }
    catch (DecryptedDataContainerException& e)
@@ -4227,7 +5768,9 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
    }
 
    //check the new pass works
-   auto newPassLbd = [&newPass](const set<BinaryData>&)->SecureBinaryData
+   auto newPassLbd = [&newPass]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return newPass;
    };
@@ -4279,7 +5822,9 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
    }
 
    //check new pass works
-   auto newPass2Lbd = [&newPass2](const set<BinaryData>&)->SecureBinaryData
+   auto newPass2Lbd = [&newPass2]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return newPass2;
    };
@@ -4299,7 +5844,9 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
 
    //check old pass fails
    unsigned counter = 0;
-   auto newPassLbdFail = [&counter, &newPass](const set<BinaryData>&)->SecureBinaryData
+   auto newPassLbdFail = [&counter, &newPass]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       while (counter++ < 4)
          return newPass;
@@ -4310,14 +5857,13 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
    try
    {
       auto lock = assetWlt->lockDecryptedContainer();
-      auto& decryptedKey =
-         assetWlt->getDecryptedValue(asset0_single->getPrivKey());
+      assetWlt->getDecryptedValue(asset0_single->getPrivKey());
       ASSERT_TRUE(false);
    }
    catch (DecryptedDataContainerException& e)
    {
       EXPECT_EQ(e.what(), string("empty passphrase"));
-      EXPECT_EQ(counter, 5);
+      EXPECT_EQ(counter, 5U);
    }
 
    //check new pass works
@@ -4335,7 +5881,7 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
    assetWlt->erasePrivateKeyPassphrase();
 
    counter = 0;
-   auto emptyPassLbd2 = [&counter](const set<BinaryData>&)->SecureBinaryData
+   auto emptyPassLbd2 = [&counter](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       ++counter;
       return SecureBinaryData();
@@ -4349,7 +5895,7 @@ TEST_F(WalletsTest, ChangePassphrase_FromUnencryptedWallet_Test)
          assetWlt->getDecryptedValue(asset0_single->getPrivKey());
 
       ASSERT_EQ(decryptedKey, privkey_ex);
-      EXPECT_EQ(counter, 0);
+      EXPECT_EQ(counter, 0U);
    }
 }
 
@@ -4373,7 +5919,7 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
       filename = assetWlt->getDbFilename();
 
       //change control pass
-      auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+      auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return SecureBinaryData::fromString("control");
       };
@@ -4389,7 +5935,9 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
 
    //open with old pass, should fail
    unsigned oldCounter = 0;
-   auto oldPassLbd = [&oldCounter](const set<BinaryData>&)->SecureBinaryData
+   auto oldPassLbd = [&oldCounter]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       while (oldCounter++ < 10)
          return SecureBinaryData::fromString("control");
@@ -4404,12 +5952,14 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
    catch (DecryptedDataContainerException& e)
    {
       EXPECT_EQ(e.what(), string("empty passphrase"));
-      EXPECT_EQ(oldCounter, 11);
+      EXPECT_EQ(oldCounter, 11U);
    }
 
    //open with any/empty pass, should fail
    unsigned counter = 0;
-   auto anyPassLbd = [&counter](const set<BinaryData>&)->SecureBinaryData
+   auto anyPassLbd = [&counter]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       while (counter++ < 10)
          return BtcUtils::fortuna_.generateRandom(20);
@@ -4424,11 +5974,13 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
    catch (DecryptedDataContainerException& e)
    {
       EXPECT_EQ(e.what(), string("empty passphrase"));
-      EXPECT_EQ(counter, 11);
+      EXPECT_EQ(counter, 11U);
    }
 
    //open with new pass, should work
-   auto newPassLbd = [&newPass](const set<BinaryData>&)->SecureBinaryData
+   auto newPassLbd = [&newPass]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return newPass;
    };
@@ -4452,7 +6004,9 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
 
    //open with old pass, should fail
    oldCounter = 0;
-   auto oldPassLbd2 = [&oldCounter, &newPass](const set<BinaryData>&)->SecureBinaryData
+   auto oldPassLbd2 = [&oldCounter, &newPass]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       while (oldCounter++ < 10)
          return newPass;
@@ -4467,7 +6021,7 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
    catch (DecryptedDataContainerException& e)
    {
       EXPECT_EQ(e.what(), string("empty passphrase"));
-      EXPECT_EQ(oldCounter, 11);
+      EXPECT_EQ(oldCounter, 11U);
    }
 
    //open with any/empty pass, should fail
@@ -4480,11 +6034,11 @@ TEST_F(WalletsTest, ChangeControlPassphrase_Test)
    catch (DecryptedDataContainerException& e)
    {
       EXPECT_EQ(e.what(), string("empty passphrase"));
-      EXPECT_EQ(counter, 11);
+      EXPECT_EQ(counter, 11U);
    }
 
    //open with new pass, should work
-   auto newPassLbd2 = [](const set<BinaryData>&)->SecureBinaryData
+   auto newPassLbd2 = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("second-pass");
    };
@@ -4512,12 +6066,12 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
       controlPass_,
       4); //set lookup computation to 4 entries
 
-   auto passLbd1 = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd1 = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("test");
    };
 
-   auto passLbd2 = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd2 = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("abcdedfg");
    };
@@ -4559,7 +6113,7 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
       auto lock = assetWlt->lockDecryptedContainer();
       assetWlt->setPassphrasePromptLambda(passLbd1);
 
-      auto asset0 = assetWlt->getMainAccountAssetForIndex(0);
+      auto asset0 = TestUtils::getMainAccountAssetForIndex(assetWlt, 0);
       auto asset0_single = dynamic_pointer_cast<AssetEntry_Single>(asset0);
       ASSERT_NE(asset0_single, nullptr);
 
@@ -4579,7 +6133,7 @@ TEST_F(WalletsTest, MultiplePassphrase_Test)
       auto lock = assetWlt->lockDecryptedContainer();
       assetWlt->setPassphrasePromptLambda(passLbd2);
 
-      auto asset0 = assetWlt->getMainAccountAssetForIndex(0);
+      auto asset0 = TestUtils::getMainAccountAssetForIndex(assetWlt, 0);
       auto asset0_single = dynamic_pointer_cast<AssetEntry_Single>(asset0);
       ASSERT_NE(asset0_single, nullptr);
 
@@ -4606,17 +6160,20 @@ TEST_F(WalletsTest, BIP32_Chain)
    seedNode.initFromSeed(wltSeed);
 
    //0'/1/2'/2
-   vector<unsigned> derivationPath = { 0x80000000, 1, 0x80000002 };         
-   auto account = make_shared<AccountType_BIP32>(derivationPath);
+   vector<unsigned> derivationPath = { 0x80000000, 1, 0x80000002 };
+   auto account = AccountType_BIP32::makeFromDerPaths(
+      seedNode.getThisFingerprint(), {derivationPath});
    account->setMain(true);
    account->setAddressLookup(4);
 
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-      homedir_, wltSeed, 
+      homedir_, wltSeed,
       SecureBinaryData::fromString("test"), controlPass_);
 
    {
-      auto passphraseLbd = [](const set<BinaryData>&)->SecureBinaryData
+      auto passphraseLbd = []
+         (const set<EncryptionKeyId>&)
+         ->SecureBinaryData
       {
          return SecureBinaryData::fromString("test");
       };
@@ -4624,7 +6181,9 @@ TEST_F(WalletsTest, BIP32_Chain)
       assetWlt->createBIP32Account(account);
    }
 
-   auto passphrasePrompt = [](const set<BinaryData>&)->SecureBinaryData
+   auto passphrasePrompt = []
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return SecureBinaryData::fromString("test");
    };
@@ -4632,7 +6191,7 @@ TEST_F(WalletsTest, BIP32_Chain)
    assetWlt->setPassphrasePromptLambda(passphrasePrompt);
    auto lock = assetWlt->lockDecryptedContainer();
 
-   auto assetPtr = assetWlt->getMainAccountAssetForIndex(2);
+   auto assetPtr = TestUtils::getMainAccountAssetForIndex(assetWlt, 2);
    auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
    ASSERT_NE(assetSingle, nullptr);
 
@@ -4640,7 +6199,7 @@ TEST_F(WalletsTest, BIP32_Chain)
       assetWlt->getDecryptedValue(assetSingle->getPrivKey());
 
    BIP32_Node privNode;
-   auto&& priv_b58 = 
+   auto&& priv_b58 =
       SecureBinaryData::fromString("xprvA2JDeKCSNNZky6uBCviVfJSKyQ1mDYahRjijr5idH2WwLsEd4Hsb2Tyh8RfQMuPh7f7RtyzTtdrbdqqsunu5Mm3wDvUAKRHSC34sJ7in334");
    privNode.initFromBase58(priv_b58);
 
@@ -4662,45 +6221,29 @@ TEST_F(WalletsTest, BIP32_Public_Chain)
       seedNode.derivePrivate(derId);
 
    auto pubSeedNode = seedNode.getPublicCopy();
-   auto pubkeyCopy = pubSeedNode.getPublicKey();
-   auto chaincodeCopy = pubSeedNode.getChaincode();
-
-   auto pubRootAsset = make_shared<AssetEntry_BIP32Root>(
-      -1, BinaryData(), //not relevant, this stuff is ignored in this context
-
-      pubkeyCopy, //pub key
-      nullptr, //no priv key, this is a public node
-      chaincodeCopy, //have to pass the chaincode too
-
-      //aesthetical stuff, not mandatory, not useful for the crypto side of things
-      pubSeedNode.getDepth(), pubSeedNode.getLeafID(), pubSeedNode.getParentFingerprint(), seedFingerprint,
-
-      //derivation path for this root, only relevant for path discovery & PSBT
-      derivationPath
-   );
 
    //2
    vector<unsigned> derivationPath_Soft = { 2 };
    auto mainAccType =
-      make_shared<AccountType_BIP32>(derivationPath_Soft);
+      AccountType_BIP32::makeFromDerPaths(seedFingerprint, {derivationPath_Soft});
+   mainAccType->setSeedRoot(pubSeedNode.getBase58());
    mainAccType->setMain(true);
    mainAccType->setAddressLookup(4);
    mainAccType->setDefaultAddressType(
       AddressEntryType(AddressEntryType_P2WPKH));
-   mainAccType->setAddressTypes(
-      { AddressEntryType(AddressEntryType_P2WPKH) });
+   mainAccType->addAddressType(AddressEntryType_P2WPKH);
 
-   auto assetWlt = AssetWallet_Single::createSeedless_WatchingOnly(
+   auto assetWlt = AssetWallet_Single::createBlank(
       homedir_,
       "a wallet",
       controlPass_); //set lookup computation to 4 entries
 
-   assetWlt->createBIP32Account_WithParent(
-      pubRootAsset, mainAccType);
+   assetWlt->createBIP32Account(mainAccType);
 
    auto accID = assetWlt->getMainAccountID();
-   auto assetPtr = assetWlt->getAccountRoot(accID);
-   auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
+   auto accPtr = assetWlt->getAccountForID(accID);
+   auto outerAcc = accPtr->getOuterAccount();
+   auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(outerAcc->getRoot());
    ASSERT_NE(assetSingle, nullptr);
 
    BIP32_Node pubNode;
@@ -4728,9 +6271,10 @@ TEST_F(WalletsTest, BIP32_ArmoryDefault)
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_, seed, passphrase, controlPass_, 5);
 
-   auto rootAccId = assetWlt->getMainAccountID();
-   auto accRoot = assetWlt->getAccountRoot(rootAccId);
-   auto accRootPtr = dynamic_pointer_cast<AssetEntry_BIP32Root>(accRoot);
+   auto mainAcc = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+   auto outerAcc = mainAcc->getOuterAccount();
+   auto accRootPtr = dynamic_pointer_cast<AssetEntry_BIP32Root>(
+      outerAcc->getRoot());
 
    BIP32_Node node;
    node.initFromSeed(seed);
@@ -4743,15 +6287,12 @@ TEST_F(WalletsTest, BIP32_ArmoryDefault)
    auto accIDs = assetWlt->getAccountIDs();
    for (auto& id : accIDs)
    {
-      if (id != rootAccId)
+      if (id != mainAcc->getID())
       {
-         auto accID = id;
-
-         auto accPtr = assetWlt->getAccountForID(accID);
-         auto addrPtr = accPtr->getNewAddress();
-         auto assetID = assetWlt->getAssetIDForScrAddr(addrPtr->getPrefixedHash());
-         accID.append(WRITE_UINT32_BE(0));
-         accID.append(WRITE_UINT32_BE(0));
+         auto accID = AssetId(id, 0, 0);
+         auto addrPtr = assetWlt->getNewAddress(id);
+         auto assetID = assetWlt->getAssetIDForScrAddr(
+            addrPtr->getPrefixedHash());
          EXPECT_EQ(assetID.first, accID);
       }
    }
@@ -4777,16 +6318,18 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
 
    //this is a hard derivation scenario, the wallet needs to be able to 
    //decrypt its root's private key
-   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+   auto passphraseLbd = [&passphrase]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return passphrase;
    };
    assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
-   auto accountPtr = make_shared<AccountType_BIP32>(derivationPath1);
+   auto accountPtr = assetWlt->makeNewBip32AccTypeObject(derivationPath1);
    accountPtr->setMain(true);
    accountPtr->setNodes({0, 1});
-   accountPtr->setOuterAccountID(WRITE_UINT32_BE(0));
+   accountPtr->setOuterAccountID(0);
    accountPtr->setAddressLookup(10);
 
    //add bip32 account for derivationPath1
@@ -4803,9 +6346,10 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
 
    {
       //check vs wallet account root
-      auto accountRoot = assetWlt->getAccountRoot(accountID1);
+      auto accountPtr = assetWlt->getAccountForID(accountID1);
+      auto outerAcc = accountPtr->getOuterAccount();
       auto accountRoot_BIP32 =
-         dynamic_pointer_cast<AssetEntry_BIP32Root>(accountRoot);
+         dynamic_pointer_cast<AssetEntry_BIP32Root>(outerAcc->getRoot());
       auto& pubkeyAcc = accountRoot_BIP32->getPubKey()->getCompressedKey();
       EXPECT_EQ(pubkeyAcc, outerNode.getPublicKey());
 
@@ -4815,8 +6359,7 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
          //try to fetch without locking wallet
          try
          {
-            auto& accountPrivKey =
-               assetWlt->getDecryptedValue(accountRoot_BIP32->getPrivKey());
+            assetWlt->getDecryptedValue(accountRoot_BIP32->getPrivKey());
 
             //should not get here
             ASSERT_TRUE(false);
@@ -4850,13 +6393,13 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
       304
    };
 
-   auto accountTypePtr =
-      make_shared<AccountType_BIP32>(derivationPath2);
-   accountTypePtr->setAddressTypes({ AddressEntryType_P2WPKH, AddressEntryType_P2PK });
+   auto accountTypePtr = assetWlt->makeNewBip32AccTypeObject(derivationPath2);
+   accountTypePtr->addAddressType(AddressEntryType_P2WPKH);
+   accountTypePtr->addAddressType(AddressEntryType_P2PK);
    accountTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
    accountTypePtr->setNodes({ 50, 60 });
-   accountTypePtr->setOuterAccountID(WRITE_UINT32_BE(50));
-   accountTypePtr->setInnerAccountID(WRITE_UINT32_BE(60));
+   accountTypePtr->setOuterAccountID(50);
+   accountTypePtr->setInnerAccountID(60);
    accountTypePtr->setAddressLookup(100);
 
    //add bip32 custom account for derivationPath2
@@ -4870,15 +6413,17 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
 
    {
       //check vs wallet account root
-      auto accountRoot = assetWlt->getAccountRoot(accountID2);
+      auto accountPtr1 = assetWlt->getAccountForID(accountID2);
+      auto outerAcc1 = accountPtr1->getOuterAccount();
       auto accountRoot_BIP32 =
-         dynamic_pointer_cast<AssetEntry_BIP32Root>(accountRoot);
+         dynamic_pointer_cast<AssetEntry_BIP32Root>(outerAcc1->getRoot());
       auto& pubkey2 = accountRoot_BIP32->getPubKey()->getCompressedKey();
       EXPECT_EQ(pubkey2, seedNode2.getPublicKey());
 
       //grab address 32, check vs derivation
-      auto accountPtr = assetWlt->getAccountForID(accountID2);
-      auto assetPtr = accountPtr->getAssetForID(32, true);
+      auto accountPtr2 = assetWlt->getAccountForID(accountID2);
+      auto outerAcc2 = accountPtr2->getOuterAccount();
+      auto assetPtr = outerAcc2->getAssetForKey(32);
 
       auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
       ASSERT_NE(assetSingle, nullptr);
@@ -4898,9 +6443,10 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
 
    {
       //check first account
-      auto accountRoot = wltSingle2->getAccountRoot(accountID1);
+      auto accPtr = wltSingle2->getAccountForID(accountID1);
+      auto outerAcc = accPtr->getOuterAccount();
       auto accountRoot_BIP32 =
-         dynamic_pointer_cast<AssetEntry_BIP32Root>(accountRoot);
+         dynamic_pointer_cast<AssetEntry_BIP32Root>(outerAcc->getRoot());
       auto& pubkeyAcc = accountRoot_BIP32->getPubKey()->getCompressedKey();
       EXPECT_EQ(pubkeyAcc, outerNode.getPublicKey());
    }
@@ -4908,7 +6454,8 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
    {
       //check 2nd account
       auto accountPtr = wltSingle2->getAccountForID(accountID2);
-      auto assetPtr = accountPtr->getAssetForID(32, true);
+      auto outerAcc = accountPtr->getOuterAccount();
+      auto assetPtr = outerAcc->getAssetForKey(32);
 
       auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
       ASSERT_NE(assetSingle, nullptr);
@@ -4923,15 +6470,17 @@ TEST_F(WalletsTest, BIP32_Chain_AddAccount)
       auto lock = wltSingle2->lockDecryptedContainer();
 
       //check first account
-      auto accountRoot = wltSingle2->getAccountRoot(accountID1);
+      auto accPtr1 = wltSingle2->getAccountForID(accountID1);
+      auto outerAcc1 = accPtr1->getOuterAccount();
       auto accountRoot_BIP32 =
-         dynamic_pointer_cast<AssetEntry_BIP32Root>(accountRoot);
+         dynamic_pointer_cast<AssetEntry_BIP32Root>(outerAcc1->getRoot());
       auto& privKey = wltSingle2->getDecryptedValue(accountRoot_BIP32->getPrivKey());
       EXPECT_EQ(privKey, outerNode.getPrivateKey());
 
       //check 2nd account
-      auto accountPtr = wltSingle2->getAccountForID(accountID2);
-      auto assetPtr = accountPtr->getAssetForID(32, true);
+      auto accPtr2 = wltSingle2->getAccountForID(accountID2);
+      auto outerAcc2 = accPtr2->getOuterAccount();
+      auto assetPtr = outerAcc2->getAssetForKey(32);
 
       auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
       ASSERT_NE(assetSingle, nullptr);
@@ -4963,7 +6512,7 @@ TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
 
       auto mainAccountID = woSingle->getMainAccountID();
       auto mainAccount = woSingle->getAccountForID(mainAccountID);
-      auto root = mainAccount->getOutterAssetRoot();
+      auto root = mainAccount->getOuterAssetRoot();
       auto rootSingle = dynamic_pointer_cast<AssetEntry_BIP32Root>(root);
       EXPECT_EQ(rootSingle->getPrivKey(), nullptr);
    }
@@ -4971,10 +6520,10 @@ TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
    //compare keys
    for (unsigned i = 0; i < 10; i++)
    {
-      auto assetFull = wlt->getMainAccountAssetForIndex(i);
+      auto assetFull = TestUtils::getMainAccountAssetForIndex(wlt, i);
       auto assetFullSingle = dynamic_pointer_cast<AssetEntry_Single>(assetFull);
 
-      auto assetWo = woSingle->getMainAccountAssetForIndex(i);
+      auto assetWo = TestUtils::getMainAccountAssetForIndex(woSingle, i);
       auto assetWoSingle = dynamic_pointer_cast<AssetEntry_Single>(assetWo);
       
       //compare keys
@@ -4988,7 +6537,14 @@ TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
 
    //extend chains, check new stuff derives properly
    {
-      auto passphraseLBD = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+      auto filename = wlt->getDbFilename();
+      wlt.reset();
+      wlt = dynamic_pointer_cast<AssetWallet_Single>(
+         AssetWallet::loadMainWalletFromFile(filename, controlLbd_));
+
+      auto passphraseLBD = [&passphrase]
+         (const set<EncryptionKeyId>&)
+         ->SecureBinaryData
       {
          return passphrase;
       };
@@ -5003,10 +6559,10 @@ TEST_F(WalletsTest, BIP32_Fork_WatchingOnly)
    //compare keys
    for (unsigned i = 10; i < 20; i++)
    {
-      auto assetFull = wlt->getMainAccountAssetForIndex(i);
+      auto assetFull = TestUtils::getMainAccountAssetForIndex(wlt, i);
       auto assetFullSingle = dynamic_pointer_cast<AssetEntry_Single>(assetFull);
 
-      auto assetWo = woSingle->getMainAccountAssetForIndex(i);
+      auto assetWo = TestUtils::getMainAccountAssetForIndex(woSingle, i);
       auto assetWoSingle = dynamic_pointer_cast<AssetEntry_Single>(assetWo);
 
       //compare keys
@@ -5048,50 +6604,27 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
    /* WO wallet creation */
 
    //1: create wallet
-   auto wltWO = AssetWallet_Single::createSeedless_WatchingOnly(
+   auto wltWO = AssetWallet_Single::createBlank(
       homedir_, "walletWO1", controlPass_);
-   
-   //2: create a public root asset from the xpub
 
-   //init bip32 node from xpub
-   BIP32_Node newPubNode;
-   newPubNode.initFromBase58(xpub);
-
-   //asset ctor moves root material in, gotta create copies from 
-   //the bip32 node object
-   auto pubkeyCopy = newPubNode.getPublicKey();
-   auto chaincodeCopy = newPubNode.getChaincode();
-
-   //init pub root from bip32 node data
-   auto pubRootAsset = make_shared<AssetEntry_BIP32Root>(
-      -1, BinaryData(), //not relevant, this stuff is ignored in this context
-
-      pubkeyCopy, //pub key
-      nullptr, //no priv key, this is a public node
-      chaincodeCopy, //have to pass the chaincode too
-
-      //aesthetical stuff, not mandatory, not useful for the crypto side of things
-      newPubNode.getDepth(), newPubNode.getLeafID(), 
-
-      //used for bip32 path detection when resolving/signing
-      newPubNode.getParentFingerprint(), seedFingerprint,
-
-      //derivation path for this root, only relevant for path discovery & PSBT
-      derPath
-   );
-
-   //3: create a custom bip32 account meta data object to setup the WO account
+   //2: create a custom bip32 account meta data object to setup the WO account
    //structure (nodes & address types)
-   auto accountTypePtr = make_shared<AccountType_BIP32>(vector<unsigned>()); //empty ctor
-   
+   auto accountTypePtr = AccountType_BIP32::makeFromDerPaths(
+      seedFingerprint, {derPath});
+
    //set nodes
    set<unsigned> nodes = {
       BIP32_OUTER_ACCOUNT_DERIVATIONID, 
       BIP32_INNER_ACCOUNT_DERIVATIONID};
    accountTypePtr->setNodes(nodes);
 
+   //set xpub
+   vector<PathAndRoot> pathsAndRoots;
+   pathsAndRoots.emplace_back(derPath, xpub);
+   accountTypePtr->setRoots(pathsAndRoots);
+
    //populate address types, here native SegWit only
-   accountTypePtr->setAddressTypes({ AddressEntryType_P2WPKH });
+   accountTypePtr->addAddressType(AddressEntryType_P2WPKH);
 
    //set the default address type as well
    accountTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
@@ -5100,20 +6633,17 @@ TEST_F(WalletsTest, BIP32_WatchingOnly_FromXPub)
    accountTypePtr->setAddressLookup(10);
 
    //and finally internal accounts
-   accountTypePtr->setOuterAccountID(WRITE_UINT32_BE(*nodes.begin()));
-   accountTypePtr->setInnerAccountID(WRITE_UINT32_BE(*nodes.rbegin()));
+   accountTypePtr->setOuterAccountID(*nodes.begin());
+   accountTypePtr->setInnerAccountID(*nodes.rbegin());
 
    //set account as main, there has to be a main account and this is the
    //the first one in this wallet
    accountTypePtr->setMain(true);
 
-   //4: feed it to the wallet
-   wltWO->createBIP32Account_WithParent(
-      pubRootAsset, //root asset
-      accountTypePtr //account meta data
-   );
+   //3: feed it to the wallet
+   wltWO->createBIP32Account(accountTypePtr);
 
-   //5: check address chain matches with original wallet
+   //4: check address chain matches with original wallet
    auto addressWO = wltWO->getNewAddress();
    auto addressOriginal = wlt->getNewAddress(AddressEntryType_P2WPKH);
 
@@ -5213,23 +6743,26 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
 
    //create account with all common uncompressed address types & their 
    //compressed counterparts
-   auto accountTypePtr = make_shared<AccountType_BIP32>(derPath);
+   auto accountTypePtr = wlt->makeNewBip32AccTypeObject(derPath);
    
-   set<unsigned> nodes = {0, 1}; 
+   set<unsigned> nodes = {0, 1};
    accountTypePtr->setNodes(nodes);
-   accountTypePtr->setOuterAccountID(WRITE_UINT32_BE(*nodes.begin()));
-   accountTypePtr->setInnerAccountID(WRITE_UINT32_BE(*nodes.rbegin()));
+   accountTypePtr->setOuterAccountID(*nodes.begin());
+   accountTypePtr->setInnerAccountID(*nodes.rbegin());
 
    accountTypePtr->setDefaultAddressType(AddressEntryType_P2PKH);
-   accountTypePtr->setAddressTypes({ 
-      AddressEntryType_P2PKH, 
-      AddressEntryType(AddressEntryType_P2PKH | AddressEntryType_Uncompressed), 
-      AddressEntryType(AddressEntryType_P2PK | AddressEntryType_P2SH) });
+   accountTypePtr->addAddressType(AddressEntryType_P2PKH);
+   accountTypePtr->addAddressType(AddressEntryType(
+      AddressEntryType_P2PKH | AddressEntryType_Uncompressed));
+   accountTypePtr->addAddressType(AddressEntryType(
+      AddressEntryType_P2PK | AddressEntryType_P2SH));
 
    accountTypePtr->setAddressLookup(20);
    accountTypePtr->setMain(true);
 
-   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+   auto passphraseLbd = [&passphrase]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return passphrase;
    };
@@ -5259,7 +6792,7 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
       auto pubkey = nodeCopy.getPublicKey();
       auto hash160 = BtcUtils::getHash160(pubkey);
       BinaryWriter bw;
-      bw.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+      bw.put_uint8_t(BitcoinSettings::getPubkeyHashPrefix());
       bw.put_BinaryData(hash160);
 
       EXPECT_EQ(addr1->getPrefixedHash(), bw.getData());
@@ -5274,7 +6807,7 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
       auto pubkey2 = CryptoECDSA().UncompressPoint(pubkey);
       auto hash160 = BtcUtils::getHash160(pubkey2);
       BinaryWriter bw;
-      bw.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+      bw.put_uint8_t(BitcoinSettings::getPubkeyHashPrefix());
       bw.put_BinaryData(hash160);
 
       EXPECT_EQ(addr2->getPrefixedHash(), bw.getData());
@@ -5292,7 +6825,7 @@ TEST_F(WalletsTest, LegacyUncompressedAddressTypes)
       bw.put_uint8_t(OP_CHECKSIG);
 
       BinaryWriter p2shBw;
-      p2shBw.put_uint8_t(NetworkConfig::getScriptHashPrefix());
+      p2shBw.put_uint8_t(BitcoinSettings::getScriptHashPrefix());
       p2shBw.put_BinaryData(BtcUtils::getHash160(bw.getData()));
 
       EXPECT_EQ(addr3->getPrefixedHash(), p2shBw.getData());
@@ -5321,8 +6854,8 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
    auto&& salt2 = CryptoPRNG::generateRandom(32);
 
    string filename;
-   BinaryData accountID1;
-   BinaryData accountID2;
+   AddressAccountId accountID1;
+   AddressAccountId accountID2;
 
    set<BinaryData> addrHashSet;
 
@@ -5332,28 +6865,32 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
          homedir_, seed, passphrase, controlPass_);
 
-      auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+      auto rootbip32 = dynamic_pointer_cast<AssetEntry_BIP32Root>(
+         assetWlt->getRoot());
+      ASSERT_NE(rootbip32, nullptr);
+
+      auto passphraseLbd = [&passphrase]
+         (const set<EncryptionKeyId>&)
+         ->SecureBinaryData
       {
          return passphrase;
       };
       assetWlt->setPassphrasePromptLambda(passphraseLbd);
 
       //create accounts
-      auto saltedAccType1 = 
-         make_shared<AccountType_BIP32_Salted>(derivationPath1, salt1);   
+      auto saltedAccType1 = AccountType_BIP32_Salted::makeFromDerPaths(
+            rootbip32->getSeedFingerprint(true), {derivationPath1}, salt1);
       saltedAccType1->setAddressLookup(40);
       saltedAccType1->setDefaultAddressType(
          AddressEntryType_P2WPKH);
-      saltedAccType1->setAddressTypes(
-         { AddressEntryType_P2WPKH });
+      saltedAccType1->addAddressType(AddressEntryType_P2WPKH);
 
-      auto saltedAccType2 =
-         make_shared<AccountType_BIP32_Salted>(derivationPath2, salt2);
+      auto saltedAccType2 = AccountType_BIP32_Salted::makeFromDerPaths(
+            rootbip32->getSeedFingerprint(true), {derivationPath2}, salt2);
       saltedAccType2->setAddressLookup(40);
       saltedAccType2->setDefaultAddressType(
          AddressEntryType_P2WPKH);
-      saltedAccType2->setAddressTypes(
-         { AddressEntryType_P2WPKH });
+      saltedAccType2->addAddressType(AddressEntryType_P2WPKH);
 
       //add bip32 account for derivationPath1
       accountID1 = assetWlt->createBIP32Account(saltedAccType1);
@@ -5361,18 +6898,12 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       //add bip32 account for derivationPath2
       accountID2 = assetWlt->createBIP32Account(saltedAccType2);
 
-      //grab the accounts
-      auto accountSalted1 = assetWlt->getAccountForID(
-         accountID1);
-      auto accountSalted2 = assetWlt->getAccountForID(
-         accountID2);
-
       //grab 10 addresses
       vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
       for (unsigned i = 0; i < 10; i++)
       {
-         addrVec1.push_back(accountSalted1->getNewAddress());
-         addrVec2.push_back(accountSalted2->getNewAddress());
+         addrVec1.push_back(assetWlt->getNewAddress(accountID1));
+         addrVec2.push_back(assetWlt->getNewAddress(accountID2));
       }
 
       //derive from seed
@@ -5411,7 +6942,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       }
 
       addrHashSet = assetWlt->getAddrHashSet();
-      ASSERT_EQ(addrHashSet.size(), 80);
+      ASSERT_EQ(addrHashSet.size(), 80ULL);
 
       //shut down the wallet
       filename = assetWlt->getDbFilename();
@@ -5421,9 +6952,6 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       auto assetWlt = AssetWallet::loadMainWalletFromFile(
          filename, controlLbd_);
       auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(assetWlt);
-      
-      auto accountSalted1 = wltSingle->getAccountForID(accountID1);
-      auto accountSalted2 = wltSingle->getAccountForID(accountID2);
 
       //check current address map
       EXPECT_EQ(addrHashSet, assetWlt->getAddrHashSet());
@@ -5432,8 +6960,8 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
       for (unsigned i = 0; i < 10; i++)
       {
-         addrVec1.push_back(accountSalted1->getNewAddress());
-         addrVec2.push_back(accountSalted2->getNewAddress());
+         addrVec1.push_back(wltSingle->getNewAddress(accountID1));
+         addrVec2.push_back(wltSingle->getNewAddress(accountID2));
       }
 
       //derive from seed
@@ -5472,7 +7000,7 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       }
 
       addrHashSet = assetWlt->getAddrHashSet();
-      ASSERT_EQ(addrHashSet.size(), 80);
+      ASSERT_EQ(addrHashSet.size(), 80ULL);
 
       //create WO copy
       filename = AssetWallet_Single::forkWatchingOnly(
@@ -5494,8 +7022,8 @@ TEST_F(WalletsTest, BIP32_SaltedAccount)
       vector<shared_ptr<AddressEntry>> addrVec1, addrVec2;
       for (unsigned i = 0; i < 10; i++)
       {
-         addrVec1.push_back(accountSalted1->getNewAddress());
-         addrVec2.push_back(accountSalted2->getNewAddress());
+         addrVec1.push_back(wltSingle->getNewAddress(accountID1));
+         addrVec2.push_back(wltSingle->getNewAddress(accountID2));
       }
 
       //derive from seed
@@ -5557,7 +7085,7 @@ TEST_F(WalletsTest, ECDH_Account)
    map<unsigned, SecureBinaryData> saltMap1;
    map<unsigned, SecureBinaryData> saltMap2;
 
-   BinaryData accID2;
+   AddressAccountId accID2;
    map<unsigned, BinaryData> addrMap1, addrMap2;
 
    {
@@ -5565,7 +7093,9 @@ TEST_F(WalletsTest, ECDH_Account)
       auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
          homedir_, seed, passphrase, controlPass_);
 
-      auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+      auto passphraseLbd = [&passphrase]
+         (const set<EncryptionKeyId>&)
+         ->SecureBinaryData
       {
          return passphrase;
       };
@@ -5576,48 +7106,51 @@ TEST_F(WalletsTest, ECDH_Account)
          make_shared<AccountType_ECDH>(privKey1, pubKey1);
       ecdhAccType1->setDefaultAddressType(
          AddressEntryType_P2WPKH);
-      ecdhAccType1->setAddressTypes(
-         { AddressEntryType_P2WPKH });
+      ecdhAccType1->addAddressType(AddressEntryType_P2WPKH);
       ecdhAccType1->setMain(true);
 
       auto ecdhAccType2 =
          make_shared<AccountType_ECDH>(privKey2, pubKey2);
       ecdhAccType2->setDefaultAddressType(
          AddressEntryType_P2WPKH);
-      ecdhAccType2->setAddressTypes(
-         { AddressEntryType_P2WPKH });
+      ecdhAccType2->addAddressType(AddressEntryType_P2WPKH);
 
       //add accounts
       auto accPtr1 = assetWlt->createAccount(ecdhAccType1);
-      auto accEcdh1 = dynamic_pointer_cast<AssetAccount_ECDH>(
-         accPtr1->getOuterAccount());
+      auto assAccPtr1 = accPtr1->getOuterAccount();
+      auto accEcdh1 = dynamic_cast<AssetAccount_ECDH*>(assAccPtr1.get());
       if (accEcdh1 == nullptr)
-         throw runtime_error("unexpected account type");
+         throw runtime_error("unexpected account type 1");
 
       auto accPtr2 = assetWlt->createAccount(ecdhAccType2);
-      auto accEcdh2 = dynamic_pointer_cast<AssetAccount_ECDH>(
-         accPtr2->getOuterAccount());
+      auto assAccPtr2 = accPtr2->getOuterAccount();
+      auto accEcdh2 = dynamic_cast<AssetAccount_ECDH*>(assAccPtr2.get());
       if (accEcdh2 == nullptr)
-         throw runtime_error("unexpected account type");
+         throw runtime_error("unexpected account type 2");
       accID2 = accPtr2->getID();
 
-      //add salts
-      for (unsigned i = 0; i < 5; i++)
       {
-         auto&& salt = CryptoPRNG::generateRandom(32);
-         auto index = accEcdh1->addSalt(salt);
-         saltMap1.insert(make_pair(index, salt));
+         //add salts
+         auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
+         for (unsigned i = 0; i < 5; i++)
+         {
+            auto&& salt = CryptoPRNG::generateRandom(32);
+            auto index = accEcdh1->addSalt(tx, salt);
+            saltMap1.insert(make_pair(index, salt));
 
-         salt = CryptoPRNG::generateRandom(32);
-         index = accEcdh2->addSalt(salt);
-         saltMap2.insert(make_pair(index, salt));
+            salt = CryptoPRNG::generateRandom(32);
+            index = accEcdh2->addSalt(tx, salt);
+            saltMap2.insert(make_pair(index, salt));
+         }
       }
 
       //grab addresses
       for (unsigned i = 0; i < 5; i++)
       {
-         addrMap1.insert(make_pair(i, accPtr1->getNewAddress()->getHash()));
-         addrMap2.insert(make_pair(i, accPtr2->getNewAddress()->getHash()));
+         addrMap1.insert(make_pair(i,
+            assetWlt->getNewAddress(accPtr1->getID())->getHash()));
+         addrMap2.insert(make_pair(i,
+            assetWlt->getNewAddress(accPtr2->getID())->getHash()));
       }
    
       //derive locally, check addresses match
@@ -5645,7 +7178,7 @@ TEST_F(WalletsTest, ECDH_Account)
 
       //check existing address set
       auto&& addrHashSet = assetWlt->getAddrHashSet();
-      EXPECT_EQ(addrHashSet.size(), 10);
+      EXPECT_EQ(addrHashSet.size(), 10ULL);
 
       for (unsigned i = 0; i < 5; i++)
       {
@@ -5671,20 +7204,21 @@ TEST_F(WalletsTest, ECDH_Account)
 
       auto accID = assetWlt->getMainAccountID();
       auto accPtr = assetWlt->getAccountForID(accID);
-      auto accEcdh = dynamic_pointer_cast<AssetAccount_ECDH>(
-         accPtr->getOuterAccount());
+      auto assAccPtr = accPtr->getOuterAccount();
+      auto accEcdh = dynamic_cast<AssetAccount_ECDH*>(assAccPtr.get());
       if (accEcdh == nullptr)
-         throw runtime_error("unexpected account type");
+         throw runtime_error("unexpected account type 3");
 
       {
+         auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
          auto&& salt = CryptoPRNG::generateRandom(32);
-         auto index = accEcdh->addSalt(salt);
+         auto index = accEcdh->addSalt(tx, salt);
          saltMap1.insert(make_pair(index, salt));
       }
 
       {
          //grab another address & check it
-         auto addr = accPtr->getNewAddress()->getHash();
+         auto addr = assetWlt->getNewAddress()->getHash();
          auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey1, saltMap1[5]);
          auto hash = BtcUtils::getHash160(saltedKey);
 
@@ -5693,10 +7227,11 @@ TEST_F(WalletsTest, ECDH_Account)
 
       {
          //grab an existing address from its settlement id
-         auto id = accEcdh->addSalt(saltMap1[3]);
+         auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
+         auto id = accEcdh->addSalt(tx, saltMap1[3]);
          EXPECT_EQ(id, 3);
 
-         auto assetPtr = accEcdh->getAssetForIndex(id);
+         auto assetPtr = accEcdh->getAssetForKey(id);
          auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
          auto hash = BtcUtils::getHash160(
             assetSingle->getPubKey()->getCompressedKey());
@@ -5708,14 +7243,15 @@ TEST_F(WalletsTest, ECDH_Account)
 
       {
          //same with account 2
-         auto accEcdhPtr = dynamic_pointer_cast<AssetAccount_ECDH>(
-            accPtr2->getOuterAccount());
+         auto assAcc2 = accPtr2->getOuterAccount();
+         auto accEcdhPtr = dynamic_cast<AssetAccount_ECDH*>(assAcc2.get());
          ASSERT_NE(accEcdhPtr, nullptr);
 
-         auto id = accEcdhPtr->addSalt(saltMap2[2]);
+         auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
+         auto id = accEcdhPtr->addSalt(tx, saltMap2[2]);
          EXPECT_EQ(id, 2);
 
-         auto assetPtr = accEcdhPtr->getAssetForIndex(id);
+         auto assetPtr = accEcdhPtr->getAssetForKey(id);
          auto assetSingle = dynamic_pointer_cast<AssetEntry_Single>(assetPtr);
          auto hash = BtcUtils::getHash160(
             assetSingle->getPubKey()->getCompressedKey());
@@ -5723,7 +7259,7 @@ TEST_F(WalletsTest, ECDH_Account)
          EXPECT_EQ(addrMap2[2], hash);
       }
    }
-      
+
    woFilename = AssetWallet::forkWatchingOnly(
       filename, controlLbd_);
 
@@ -5740,7 +7276,7 @@ TEST_F(WalletsTest, ECDH_Account)
 
       //check existing address set
       auto&& addrHashSet = assetWlt->getAddrHashSet();
-      EXPECT_EQ(addrHashSet.size(), 11);
+      EXPECT_EQ(addrHashSet.size(), 11ULL);
 
       for (unsigned i = 0; i < 6; i++)
       {
@@ -5756,10 +7292,10 @@ TEST_F(WalletsTest, ECDH_Account)
 
       auto accID = assetWlt->getMainAccountID();
       auto accPtr = assetWlt->getAccountForID(accID);
-      auto accEcdh = dynamic_pointer_cast<AssetAccount_ECDH>(
-         accPtr->getOuterAccount());
+      auto assAccPtr = accPtr->getOuterAccount();
+      auto accEcdh = dynamic_cast<AssetAccount_ECDH*>(assAccPtr.get());
       if (accEcdh == nullptr)
-         throw runtime_error("unexpected account type");
+         throw runtime_error("unexpected account type 4");
 
       auto rootAsset = accEcdh->getRoot();
       auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(rootAsset);
@@ -5767,14 +7303,15 @@ TEST_F(WalletsTest, ECDH_Account)
       EXPECT_EQ(rootSingle->getPrivKey(), nullptr);
 
       {
+         auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
          auto&& salt = CryptoPRNG::generateRandom(32);
-         auto index = accEcdh->addSalt(salt);
+         auto index = accEcdh->addSalt(tx, salt);
          saltMap1.insert(make_pair(index, salt));
       }
 
       {
          //grab another address & check it
-         auto addr = accPtr->getNewAddress()->getHash();
+         auto addr = assetWlt->getNewAddress()->getHash();
          auto saltedKey = CryptoECDSA::PubKeyScalarMultiply(pubKey1, saltMap1[6]);
          auto hash = BtcUtils::getHash160(saltedKey);
 
@@ -5861,16 +7398,15 @@ TEST_F(WalletsTest, AssetPathResolution)
    {
       //empty wallet + custom account
       auto wlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
-         homedir_, seed, 
+         homedir_, seed,
          SecureBinaryData(), SecureBinaryData());
 
-      auto account = make_shared<AccountType_BIP32>(derPath);
+      auto account = wlt->makeNewBip32AccTypeObject(derPath);
       account->setMain(true);
       account->setNodes({0});
       account->setDefaultAddressType(
          AddressEntryType(AddressEntryType_P2WPKH));
-      account->setAddressTypes(
-         { AddressEntryType(AddressEntryType_P2WPKH) });
+      account->addAddressType(AddressEntryType_P2WPKH);
       account->setAddressLookup(10);
 
       wlt->createBIP32Account(account);
@@ -5886,8 +7422,10 @@ TEST_F(WalletsTest, AssetPathResolution)
 
       //check WO wallet
       auto wltWO = AssetWallet_Single::loadMainWalletFromFile(
-         woFilename, 
-         [](const set<BinaryData>&)->SecureBinaryData{return SecureBinaryData();});
+         woFilename,
+         [](const set<EncryptionKeyId>&)
+            ->SecureBinaryData
+            {return SecureBinaryData();});
       EXPECT_TRUE(checkWlt(wltWO));
 
       //cleanup WO
@@ -5897,14 +7435,13 @@ TEST_F(WalletsTest, AssetPathResolution)
 
    {
       //empty WO wallet
-      auto wltWO = AssetWallet_Single::createSeedless_WatchingOnly(
-         homedir_, "walletWO1", SecureBinaryData());
+      auto wltWO = AssetWallet_Single::createBlank(homedir_, "walletWO1", {});
 
       auto pubkey = pubNode.getPublicKey();
       auto chaincode = pubNode.getChaincode();
 
       auto pubRootAsset = make_shared<AssetEntry_BIP32Root>(
-         -1, BinaryData(), //not relevant, this stuff is ignored in this context
+         AssetId(0, 0, 0), //not relevant, this stuff is ignored in this context
 
          pubkey, //pub key
          nullptr, //no priv key, this is a public node
@@ -5919,17 +7456,19 @@ TEST_F(WalletsTest, AssetPathResolution)
 
       //add account
       auto mainAccType =
-         make_shared<AccountType_BIP32>(vector<unsigned>());
+         AccountType_BIP32::makeFromDerPaths(seedFingerprint, {derPath});
       mainAccType->setMain(true);
       mainAccType->setAddressLookup(10);
       mainAccType->setNodes({0});
       mainAccType->setDefaultAddressType(
          AddressEntryType(AddressEntryType_P2WPKH));
-      mainAccType->setAddressTypes(
-         { AddressEntryType(AddressEntryType_P2WPKH) });
+      mainAccType->addAddressType(AddressEntryType_P2WPKH);
 
-      auto accountID = wltWO->createBIP32Account_WithParent(
-         pubRootAsset, mainAccType);
+      auto b58sbd = pubNode.getBase58();
+      string xpub(b58sbd.toCharPtr(), b58sbd.getSize());
+      mainAccType->setRoots({{derPath, xpub}});
+
+      wltWO->createBIP32Account(mainAccType);
       EXPECT_TRUE(checkWlt(wltWO));
    }
 }
@@ -5941,20 +7480,25 @@ class WalletMetaDataTest : public ::testing::Test
 {
 protected:
    string homedir_;
-   BlockDataManagerConfig config_;
-
+   
    /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
-      LOGDISABLESTDOUT();
       homedir_ = string("./fakehomedir");
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
+
+      Armory::Config::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
    }
 
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
+      Armory::Config::reset();
+
       DBUtils::removeDirectory(homedir_);
    }
 };
@@ -5962,7 +7506,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WalletMetaDataTest, AuthPeers)
 {
-   auto peerPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto peerPassLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("authpeerpass");
    };
@@ -6682,7 +8226,9 @@ TEST_F(WalletMetaDataTest, Comments)
    auto&& passphrase = SecureBinaryData::fromString("password");
    auto&& controlPass = SecureBinaryData::fromString("control");
 
-   auto controlLbd = [controlPass](const set<BinaryData>&)->SecureBinaryData
+   auto controlLbd = [controlPass]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return controlPass;
    };
@@ -6762,18 +8308,21 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
-      LOGDISABLESTDOUT();
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
-
       homedir_ = string("./fakehomedir");
       DBUtils::removeDirectory(homedir_);
       mkdir(homedir_);
 
+      Armory::Config::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir" },
+         Armory::Config::ProcessType::DB);
    }
 
    /////////////////////////////////////////////////////////////////////////////
    virtual void TearDown(void)
    {
+      Armory::Config::reset();
+
       DBUtils::removeDirectory(homedir_);
    }
 
@@ -6785,7 +8334,7 @@ public:
    {
       unsigned controlPassCount = 0;
       auto controlPassLbd = [&controlPassCount, &control](
-         const set<BinaryData>&)->SecureBinaryData
+         const set<EncryptionKeyId>&)->SecureBinaryData
       {
          ++controlPassCount;
          return control;
@@ -6794,7 +8343,7 @@ public:
       //load it, newCtrl should work for the control passphrase
       auto loadedWlt = AssetWallet::loadMainWalletFromFile(path, controlPassLbd);
       METHOD_ASSERT_NE(loadedWlt, nullptr);
-      METHOD_ASSERT_EQ(controlPassCount, 1);
+      METHOD_ASSERT_EQ(controlPassCount, 1U);
 
       //check wallet id
       EXPECT_EQ(assetWlt->getID(), loadedWlt->getID());
@@ -6805,14 +8354,14 @@ public:
       EXPECT_EQ(accountIDs, loadedIDs);
 
       //
-      auto oldPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+      auto oldPassLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return SecureBinaryData::fromString("passphrase");
       };
 
       unsigned keyPassCount = 0;
       auto newPassLbd = [&pass, &keyPassCount](
-         const set<BinaryData>&)->SecureBinaryData
+         const set<EncryptionKeyId>&)->SecureBinaryData
       {
          ++keyPassCount;
          return pass;
@@ -6849,7 +8398,7 @@ public:
          EXPECT_EQ(privKey, newKey);
       }
 
-      METHOD_ASSERT_EQ(keyPassCount, 10);
+      METHOD_ASSERT_EQ(keyPassCount, 10U);
       return true;
    }
 };
@@ -6863,11 +8412,11 @@ TEST_F(BackupTests, Easy16)
       
       //encode the root
       auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), index);
-      ASSERT_EQ(encoded.size(), 2);
+      ASSERT_EQ(encoded.size(), 2ULL);
 
 
       auto decoded = ArmoryBackups::BackupEasy16::decode(encoded);
-      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       EXPECT_EQ(decoded.checksumIndexes_[0], index);
       EXPECT_EQ(decoded.checksumIndexes_[1], index);
 
@@ -6913,7 +8462,7 @@ TEST_F(BackupTests, Easy16_Repair)
       
       //encode the root
       auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
-      ASSERT_EQ(encoded.size(), 2);
+      ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt one character in one line
       auto randomSelection = prng.generateRandom(4);
@@ -6929,7 +8478,7 @@ TEST_F(BackupTests, Easy16_Repair)
 
       //decode the corrupted data, should yield an incorrect value
       auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
-      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       if (lineSelect == 0)
       {
          EXPECT_NE(decoded.checksumIndexes_[0], 0);
@@ -6949,7 +8498,7 @@ TEST_F(BackupTests, Easy16_Repair)
          auto result = ArmoryBackups::BackupEasy16::repair(decoded);
          if (result)
          {
-            ASSERT_EQ(decoded.repairedIndexes_.size(), 2);
+            ASSERT_EQ(decoded.repairedIndexes_.size(), 2ULL);
             EXPECT_EQ(decoded.repairedIndexes_[0], 0);
             EXPECT_EQ(decoded.repairedIndexes_[1], 0);
             EXPECT_EQ(root, decoded.data_);
@@ -6961,8 +8510,7 @@ TEST_F(BackupTests, Easy16_Repair)
       {}
    }
 
-   EXPECT_GE(succesfulRepairs, 20);
-   cout << "1 err repair count: " << succesfulRepairs << endl;
+   EXPECT_GE(succesfulRepairs, 20U);
 
    //2 errors, fail
    for (unsigned i=0; i<64; i++)
@@ -6971,7 +8519,7 @@ TEST_F(BackupTests, Easy16_Repair)
       
       //encode the root
       auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
-      ASSERT_EQ(encoded.size(), 2);
+      ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt 2 characters in one line
       auto randomSelection = prng.generateRandom(8);
@@ -6994,7 +8542,7 @@ TEST_F(BackupTests, Easy16_Repair)
 
       //decode, should yield an incorrect value
       auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
-      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       if (lineSelect == 0)
       {
          EXPECT_EQ(decoded.checksumIndexes_[0], EASY16_INVALID_CHECKSUM_INDEX);
@@ -7024,7 +8572,7 @@ TEST_F(BackupTests, Easy16_Repair)
       
       //encode the root
       auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
-      ASSERT_EQ(encoded.size(), 2);
+      ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt 1 character per line
       auto randomSelection = prng.generateRandom(8);
@@ -7043,7 +8591,7 @@ TEST_F(BackupTests, Easy16_Repair)
 
       //decode, should yield an incorrect value
       auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
-      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       EXPECT_NE(decoded.checksumIndexes_[0], 0);
       EXPECT_NE(decoded.checksumIndexes_[1], 0);
 
@@ -7053,7 +8601,7 @@ TEST_F(BackupTests, Easy16_Repair)
          auto result = ArmoryBackups::BackupEasy16::repair(decoded);
          if (result)
          {
-            ASSERT_EQ(decoded.repairedIndexes_.size(), 2);
+            ASSERT_EQ(decoded.repairedIndexes_.size(), 2ULL);
             if (decoded.repairedIndexes_[0] != decoded.repairedIndexes_[1] ||
                decoded.repairedIndexes_[0] != 0)
             {
@@ -7068,8 +8616,7 @@ TEST_F(BackupTests, Easy16_Repair)
       {}
    }
 
-   EXPECT_GE(succesfulRepairs, 5);
-   cout << "2 err repair count: " << succesfulRepairs << endl;
+   EXPECT_GE(succesfulRepairs, 5U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -7081,15 +8628,15 @@ TEST_F(BackupTests, SecurePrint)
    ArmoryBackups::SecurePrint spEncr;
    auto encryptedData = spEncr.encrypt(root, {});
    ASSERT_FALSE(spEncr.getPassphrase().empty());
-   ASSERT_EQ(encryptedData.first.getSize(), 32);
-   ASSERT_EQ(encryptedData.second.getSize(), 0);
+   ASSERT_EQ(encryptedData.first.getSize(), 32ULL);
+   ASSERT_EQ(encryptedData.second.getSize(), 0ULL);
    EXPECT_NE(encryptedData.first, root);
 
    ArmoryBackups::SecurePrint spDecr;
    auto decryptedData = 
       spDecr.decrypt(encryptedData.first, spEncr.getPassphrase());
 
-   ASSERT_EQ(decryptedData.getSize(), 32);
+   ASSERT_EQ(decryptedData.getSize(), 32ULL);
    EXPECT_EQ(decryptedData, root);
 
    //with chaincode
@@ -7099,8 +8646,8 @@ TEST_F(BackupTests, SecurePrint)
    auto dataWithCC = spWithCC.encrypt(root, chaincode);
 
    ASSERT_FALSE(spWithCC.getPassphrase().empty());
-   ASSERT_EQ(dataWithCC.first.getSize(), 32);
-   ASSERT_EQ(dataWithCC.second.getSize(), 32);
+   ASSERT_EQ(dataWithCC.first.getSize(), 32ULL);
+   ASSERT_EQ(dataWithCC.second.getSize(), 32ULL);
    EXPECT_NE(dataWithCC.first, root);
 
    EXPECT_NE(spEncr.getPassphrase(), spWithCC.getPassphrase());
@@ -7110,20 +8657,20 @@ TEST_F(BackupTests, SecurePrint)
    auto decrRoot = spDecrWithCC.decrypt(
       dataWithCC.first, spWithCC.getPassphrase());
    
-   ASSERT_EQ(decrRoot.getSize(), 32);
+   ASSERT_EQ(decrRoot.getSize(), 32ULL);
    EXPECT_EQ(decrRoot, root);
 
    auto decrCC = spDecrWithCC.decrypt(
       dataWithCC.second, spWithCC.getPassphrase());
 
-   ASSERT_EQ(decrCC.getSize(), 32);
+   ASSERT_EQ(decrCC.getSize(), 32ULL);
    EXPECT_EQ(decrCC, chaincode);
 
    //mangled passphrase
    try 
    {
       auto mangledPass = spWithCC.getPassphrase();
-      ASSERT_GE(mangledPass.getSize(), 4);
+      ASSERT_GE(mangledPass.getSize(), 4ULL);
       mangledPass.getPtr()[3] ^= 0xFF;
 
       ArmoryBackups::SecurePrint spDecrWithCC;
@@ -7151,7 +8698,7 @@ TEST_F(BackupTests, SecurePrint)
       auto decrypted = spDecrWithCC.decrypt(
          dataWithCC.first, passB58);
 
-      ASSERT_FALSE(true);      
+      ASSERT_FALSE(true);
    }
    catch (const runtime_error& e)
    {
@@ -7176,11 +8723,11 @@ TEST_F(BackupTests, BackupStrings_Legacy)
       homedir_,
       move(wltRoot), //root as a r value
       {},
-      SecureBinaryData::fromString("passphrase"), 
+      SecureBinaryData::fromString("passphrase"),
       SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
 
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("passphrase");
    };
@@ -7191,7 +8738,7 @@ TEST_F(BackupTests, BackupStrings_Legacy)
    auto newPass = CryptoPRNG::generateRandom(10);
    auto newCtrl = CryptoPRNG::generateRandom(10);
    auto callback = [&backupData, &newPass, &newCtrl](
-      const ArmoryBackups::RestorePromptType promptType, 
+      const ArmoryBackups::RestorePromptType promptType,
       const vector<int> checksums, SecureBinaryData& extra)->bool
    {
       switch (promptType)
@@ -7212,7 +8759,7 @@ TEST_F(BackupTests, BackupStrings_Legacy)
       {
          EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
          
-         EXPECT_EQ(checksums.size(), 2);
+         EXPECT_EQ(checksums.size(), 2ULL);
          for (const auto& chksum : checksums)
             EXPECT_EQ(chksum, 0);
 
@@ -7252,11 +8799,11 @@ TEST_F(BackupTests, BackupStrings_Legacy_SecurePrint)
       homedir_,
       move(wltRoot), //root as a r value
       {},
-      SecureBinaryData::fromString("passphrase"), 
+      SecureBinaryData::fromString("passphrase"),
       SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
 
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("passphrase");
    };
@@ -7267,7 +8814,7 @@ TEST_F(BackupTests, BackupStrings_Legacy_SecurePrint)
    auto newPass = CryptoPRNG::generateRandom(10);
    auto newCtrl = CryptoPRNG::generateRandom(10);
    auto callback = [&backupData, &newPass, &newCtrl](
-      const ArmoryBackups::RestorePromptType promptType, 
+      const ArmoryBackups::RestorePromptType promptType,
       const vector<int> checksums, SecureBinaryData& extra)->bool
    {
       switch (promptType)
@@ -7289,7 +8836,7 @@ TEST_F(BackupTests, BackupStrings_Legacy_SecurePrint)
          if (extra != SecureBinaryData::fromString(backupData.wltId_))
             return false;
                   
-         EXPECT_EQ(checksums.size(), 2);
+         EXPECT_EQ(checksums.size(), 2ULL);
          for (const auto& chksum : checksums)
             EXPECT_EQ(chksum, 0);
 
@@ -7366,7 +8913,7 @@ TEST_F(BackupTests, Easy16_AutoRepair)
 
       auto pubkey = CryptoECDSA().ComputePublicKey(root);
       auto asset_single = make_shared<AssetEntry_Single>(
-         ROOT_ASSETENTRY_ID, BinaryData(), pubkey, nullptr);
+         AssetId::getRootAssetId(), pubkey, nullptr);
 
       return AssetWallet_Single::computeWalletID(derScheme, asset_single);
    };
@@ -7382,7 +8929,7 @@ TEST_F(BackupTests, Easy16_AutoRepair)
       
       //encode the root
       auto encoded = ArmoryBackups::BackupEasy16::encode(root.getRef(), 0);
-      ASSERT_EQ(encoded.size(), 2);
+      ASSERT_EQ(encoded.size(), 2ULL);
 
       //corrupt one character in one line
       auto randomSelection = prng.generateRandom(4);
@@ -7398,7 +8945,7 @@ TEST_F(BackupTests, Easy16_AutoRepair)
 
       //decode the corrupted data, should yield an incorrect value
       auto decoded = ArmoryBackups::BackupEasy16::decode(corrupted);
-      ASSERT_EQ(decoded.checksumIndexes_.size(), 2);
+      ASSERT_EQ(decoded.checksumIndexes_.size(), 2ULL);
       if (lineSelect == 0)
       {
          EXPECT_NE(decoded.checksumIndexes_[0], 0);
@@ -7450,7 +8997,7 @@ TEST_F(BackupTests, Easy16_AutoRepair)
       {}
    }
 
-   EXPECT_GE(succesfulRepairs, 20);
+   EXPECT_GE(succesfulRepairs, 20U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -7463,11 +9010,11 @@ TEST_F(BackupTests, BackupStrings_LegacyWithChaincode_SecurePrint)
       homedir_,
       wltRoot, //root as a r value
       chaincode,
-      SecureBinaryData::fromString("passphrase"), 
+      SecureBinaryData::fromString("passphrase"),
       SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
 
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("passphrase");
    };
@@ -7478,7 +9025,7 @@ TEST_F(BackupTests, BackupStrings_LegacyWithChaincode_SecurePrint)
    auto newPass = CryptoPRNG::generateRandom(10);
    auto newCtrl = CryptoPRNG::generateRandom(10);
    auto callback = [&backupData, &newPass, &newCtrl](
-      const ArmoryBackups::RestorePromptType promptType, 
+      const ArmoryBackups::RestorePromptType promptType,
       const vector<int> checksums, SecureBinaryData& extra)->bool
    {
       switch (promptType)
@@ -7500,7 +9047,7 @@ TEST_F(BackupTests, BackupStrings_LegacyWithChaincode_SecurePrint)
          if (extra != SecureBinaryData::fromString(backupData.wltId_))
             return false;
                   
-         EXPECT_EQ(checksums.size(), 4);
+         EXPECT_EQ(checksums.size(), 4ULL);
          for (const auto& chksum : checksums)
             EXPECT_EQ(chksum, 0);
 
@@ -7560,11 +9107,11 @@ TEST_F(BackupTests, BackupStrings_BIP32)
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       move(wltRoot), //root as a r value
-      SecureBinaryData::fromString("passphrase"), 
+      SecureBinaryData::fromString("passphrase"),
       SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
 
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("passphrase");
    };
@@ -7575,7 +9122,7 @@ TEST_F(BackupTests, BackupStrings_BIP32)
    auto newPass = CryptoPRNG::generateRandom(10);
    auto newCtrl = CryptoPRNG::generateRandom(10);
    auto callback = [&backupData, &newPass, &newCtrl](
-      const ArmoryBackups::RestorePromptType promptType, 
+      const ArmoryBackups::RestorePromptType promptType,
       const vector<int> checksums, SecureBinaryData& extra)->bool
    {
       switch (promptType)
@@ -7596,7 +9143,7 @@ TEST_F(BackupTests, BackupStrings_BIP32)
       {
          EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
          
-         EXPECT_EQ(checksums.size(), 2);
+         EXPECT_EQ(checksums.size(), 2U);
          for (const auto& chksum : checksums)
             EXPECT_EQ(chksum, 1);
 
@@ -7634,11 +9181,11 @@ TEST_F(BackupTests, BackupStrings_BIP32_Custom)
    auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       move(wltRoot), //root as a r value
-      SecureBinaryData::fromString("passphrase"), 
+      SecureBinaryData::fromString("passphrase"),
       SecureBinaryData::fromString("control"),
       4); //set lookup computation to 4 entries
 
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
    {
       return SecureBinaryData::fromString("passphrase");
    };
@@ -7650,7 +9197,7 @@ TEST_F(BackupTests, BackupStrings_BIP32_Custom)
    auto newPass = CryptoPRNG::generateRandom(10);
    auto newCtrl = CryptoPRNG::generateRandom(10);
    auto callback = [&backupData, &newPass, &newCtrl](
-      const ArmoryBackups::RestorePromptType promptType, 
+      const ArmoryBackups::RestorePromptType promptType,
       const vector<int> checksums, SecureBinaryData& extra)->bool
    {
       switch (promptType)
@@ -7671,7 +9218,7 @@ TEST_F(BackupTests, BackupStrings_BIP32_Custom)
       {
          EXPECT_EQ(extra, SecureBinaryData::fromString(backupData.wltId_));
          
-         EXPECT_EQ(checksums.size(), 2);
+         EXPECT_EQ(checksums.size(), 2U);
          for (const auto& chksum : checksums)
             EXPECT_EQ(chksum, 15);
 
@@ -7697,7 +9244,7 @@ TEST_F(BackupTests, BackupStrings_BIP32_Custom)
 
    //compare account types between original and restored
    auto loadedIDs = newWltPtr->getAccountIDs();
-   EXPECT_EQ(loadedIDs.size(), 0);
+   EXPECT_EQ(loadedIDs.size(), 0ULL);
 
    DBUtils::removeDirectory(newHomeDir);
 }

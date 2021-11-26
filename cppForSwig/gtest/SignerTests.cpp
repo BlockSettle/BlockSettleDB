@@ -8,9 +8,22 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "TestUtils.h"
+#include "CoinSelection.h"
 
 using namespace std;
 using namespace ArmorySigner;
+using namespace Armory::Config;
+using namespace Armory::Wallets;
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptSpender> getSpenderPtr(const UTXO& utxo, bool RBF = false)
+{
+   auto spender = make_shared<ScriptSpender>(utxo);
+   if (RBF)
+      spender->setSequence(UINT32_MAX - 2);
+
+   return spender;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 class PRNGTest : public ::testing::Test
@@ -76,10 +89,10 @@ TEST_F(PRNGTest, FortunaTest)
       pool2.insert(prng2.generateRandom(32));
 
    auto check1 = checkPools(pool1, pool2, sampleSize, 32);
-   EXPECT_EQ(check1[0], 0);
-   EXPECT_EQ(check1[1], 0);
-   EXPECT_EQ(check1[2], 0);
-   EXPECT_EQ(check1[3], 0);
+   EXPECT_EQ(check1[0], 0ULL);
+   EXPECT_EQ(check1[1], 0ULL);
+   EXPECT_EQ(check1[2], 0ULL);
+   EXPECT_EQ(check1[3], 0ULL);
 
    //interlaced
    set<SecureBinaryData> pool3, pool4;
@@ -97,35 +110,35 @@ TEST_F(PRNGTest, FortunaTest)
    thr2.join();
 
    auto check2 = checkPools(pool3, pool4, sampleSize, 32);
-   EXPECT_EQ(check2[0], 0);
-   EXPECT_EQ(check2[1], 0);
-   EXPECT_EQ(check2[2], 0);
-   EXPECT_EQ(check2[3], 0);
+   EXPECT_EQ(check2[0], 0ULL);
+   EXPECT_EQ(check2[1], 0ULL);
+   EXPECT_EQ(check2[2], 0ULL);
+   EXPECT_EQ(check2[3], 0ULL);
 
    //cross checks
    auto check3 = checkPools(pool1, pool3, sampleSize, 32);
-   EXPECT_EQ(check3[0], 0);
-   EXPECT_EQ(check3[1], 0);
-   EXPECT_EQ(check3[2], 0);
-   EXPECT_EQ(check3[3], 0);
+   EXPECT_EQ(check3[0], 0ULL);
+   EXPECT_EQ(check3[1], 0ULL);
+   EXPECT_EQ(check3[2], 0ULL);
+   EXPECT_EQ(check3[3], 0ULL);
 
    auto check4 = checkPools(pool1, pool4, sampleSize, 32);
-   EXPECT_EQ(check4[0], 0);
-   EXPECT_EQ(check4[1], 0);
-   EXPECT_EQ(check4[2], 0);
-   EXPECT_EQ(check4[3], 0);
+   EXPECT_EQ(check4[0], 0ULL);
+   EXPECT_EQ(check4[1], 0ULL);
+   EXPECT_EQ(check4[2], 0ULL);
+   EXPECT_EQ(check4[3], 0ULL);
 
    auto check5 = checkPools(pool2, pool3, sampleSize, 32);
-   EXPECT_EQ(check5[0], 0);
-   EXPECT_EQ(check5[1], 0);
-   EXPECT_EQ(check5[2], 0);
-   EXPECT_EQ(check5[3], 0);
+   EXPECT_EQ(check5[0], 0ULL);
+   EXPECT_EQ(check5[1], 0ULL);
+   EXPECT_EQ(check5[2], 0ULL);
+   EXPECT_EQ(check5[3], 0ULL);
 
    auto check6 = checkPools(pool2, pool4, sampleSize, 32);
-   EXPECT_EQ(check6[0], 0);
-   EXPECT_EQ(check6[1], 0);
-   EXPECT_EQ(check6[2], 0);
-   EXPECT_EQ(check6[3], 0);
+   EXPECT_EQ(check6[0], 0ULL);
+   EXPECT_EQ(check6[1], 0ULL);
+   EXPECT_EQ(check6[2], 0ULL);
+   EXPECT_EQ(check6[3], 0ULL);
 
    //odd size pulls
    set<SecureBinaryData> pool5, pool6;
@@ -136,10 +149,10 @@ TEST_F(PRNGTest, FortunaTest)
       pool6.insert(prng2.generateRandom(15));
 
    auto check7 = checkPools(pool5, pool6, 100, 15);
-   EXPECT_EQ(check7[0], 0);
-   EXPECT_EQ(check7[1], 0);
-   EXPECT_EQ(check7[2], 0);
-   EXPECT_EQ(check7[3], 0);
+   EXPECT_EQ(check7[0], 0ULL);
+   EXPECT_EQ(check7[1], 0ULL);
+   EXPECT_EQ(check7[2], 0ULL);
+   EXPECT_EQ(check7[3], 0ULL);
 
    //
    set<SecureBinaryData> pool7, pool8;
@@ -150,10 +163,10 @@ TEST_F(PRNGTest, FortunaTest)
       pool8.insert(prng2.generateRandom(70));
 
    auto check8 = checkPools(pool7, pool8, 100, 70);
-   EXPECT_EQ(check8[0], 0);
-   EXPECT_EQ(check8[1], 0);
-   EXPECT_EQ(check8[2], 0);
-   EXPECT_EQ(check8[3], 0);
+   EXPECT_EQ(check8[0], 0ULL);
+   EXPECT_EQ(check8[1], 0ULL);
+   EXPECT_EQ(check8[2], 0ULL);
+   EXPECT_EQ(check8[3], 0ULL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,19 +181,12 @@ protected:
    void initBDM(void)
    {
       DBTestUtils::init();
-      auto& magicBytes = NetworkConfig::getMagicBytes();
 
-      auto nodePtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), false);
-      auto watcherPtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), true);
-      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
-      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(
-         nodePtr, watcherPtr);
-      
-      theBDMt_ = new BlockDataManagerThread(config);
+      theBDMt_ = new BlockDataManagerThread();
       iface_ = theBDMt_->bdm()->getIFace();
 
+      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(
+         NetworkSettings::bitcoinNodes().first);
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
       nodePtr->setIface(iface_);
@@ -192,7 +198,6 @@ protected:
    /////////////////////////////////////////////////////////////////////////////
    virtual void SetUp()
    {
-      LOGDISABLESTDOUT();
       ghash_ = READHEX(MAINNET_GENESIS_HASH_HEX);
       gentx_ = READHEX(MAINNET_GENESIS_TX_HASH_HEX);
       zeros_ = READHEX("00000000");
@@ -205,23 +210,25 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory(ldbdir_);
 
-      mkdir(blkdir_);
+      mkdir(blkdir_ + "/blocks");
       mkdir(homedir_);
       mkdir(ldbdir_);
 
-      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
-      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
+      DBSettings::setServiceType(SERVICE_UNITTEST);
 
       // Put the first 5 blocks into the blkdir
-      blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
+      blk0dat_ = BtcUtils::getBlkFilename(blkdir_ + "/blocks", 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
 
-      BlockDataManagerConfig::setDbType(ARMORY_DB_BARE);
-      config.blkFileLocation_ = blkdir_;
-      config.dbDir_ = ldbdir_;
-      config.threadCount_ = 3;
-
-      NetworkConfig::selectNetwork(NETWORK_MODE_MAINNET);
+      Armory::Config::parseArgs({
+         "--datadir=./fakehomedir",
+         "--dbdir=./ldbtestdir",
+         "--satoshi-datadir=./blkfiletest",
+         "--public",
+         "--db-type=DB_FULL",
+         "--thread-count=3",
+         "--public" },
+         Armory::Config::ProcessType::DB);
 
       wallet1id = "wallet1";
       wallet2id = "wallet2";
@@ -248,13 +255,9 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory("./ldbtestdir");
 
-      mkdir("./ldbtestdir");
-
-      LOGENABLESTDOUT();
+      Armory::Config::reset();
       CLEANUP_ALL_TIMERS();
    }
-
-   BlockDataManagerConfig config;
 
    LMDBBlockDatabase* iface_;
    BinaryData ghash_;
@@ -278,10 +281,7 @@ TEST_F(SignerTest, DISABLED_CheckChain_Test)
    //this test fails because the p2sh tx in our unit test chain are botched
    //(the input script has opcode when it should only be push data)
 
-   config.threadCount_ = 1;
-   config.checkChain_ = true;
-
-   BlockDataManager bdm(config);
+   BlockDataManager bdm;
 
    try
    {
@@ -293,7 +293,7 @@ TEST_F(SignerTest, DISABLED_CheckChain_Test)
       EXPECT_TRUE(false);
    }
 
-   EXPECT_EQ(bdm.getCheckedTxCount(), 20);
+   EXPECT_EQ(bdm.getCheckedTxCount(), 20U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,9 +304,9 @@ TEST_F(SignerTest, Signer_Test)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -339,14 +339,6 @@ TEST_F(SignerTest, Signer_Test)
    auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
    //create script spender objects
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
    uint64_t total = 0;
    for (auto& utxo : unspentVec)
    {
@@ -376,23 +368,13 @@ TEST_F(SignerTest, Signer_Test)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_SizeEstimates)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -468,7 +450,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -788,23 +770,13 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_P2WPKH)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -816,13 +788,12 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
    //// create assetWlt ////
 
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       move(wltRoot), //root as a rvalue
-      {},
       SecureBinaryData(),
       SecureBinaryData(),
-      5); //set lookup computation to 3 entries
+      5); //set lookup computation to 5 entries
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec;
@@ -883,7 +854,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -1048,23 +1019,13 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MixedInputTypes)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -1076,6 +1037,9 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
    //// create assetWlt ////
 
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
+   BIP32_Node node;
+   node.initFromSeed(wltRoot);
+
    auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
       homedir_,
       move(wltRoot), //root as a rvalue
@@ -1083,6 +1047,19 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
       SecureBinaryData(),
       SecureBinaryData(),
       5); //set lookup computation to 3 entries
+
+   //add a bip32 account
+   {
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto accTypePtr = AccountType_BIP32::makeFromDerPaths(
+         node.getThisFingerprint(), {{0x80000000, 0x80000000, 0, 1}});
+      accTypePtr->setSeedRoot(node.getBase58());
+      accTypePtr->setAddressLookup(5);
+      accTypePtr->addAddressType(AddressEntryType_P2WPKH);
+      accTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
+
+      assetWlt->createBIP32Account(accTypePtr);
+   }
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec;
@@ -1148,7 +1125,7 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -1268,7 +1245,7 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
          signer2.sign();
       }
       EXPECT_TRUE(signer2.verify());
-      EXPECT_EQ(signer2.getTxInCount(), 4);
+      EXPECT_EQ(signer2.getTxInCount(), 4U);
 
       DBTestUtils::ZcVector zcVec2;
       auto signedTxRaw = signer2.serializeSignedTx();
@@ -1308,23 +1285,13 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -1364,19 +1331,27 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 
    //create 1-of-3 multisig asset entry from 3 different wallets
    map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
-   auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
+
+   auto accountPtr1 = assetWlt_1->getAccountForID(assetWlt_1->getMainAccountID());
+   auto outerAcc1 = accountPtr1->getOuterAccount();
+   auto asset1 = outerAcc1->getAssetForKey(0);
    auto wltid1_bd = assetWlt_1->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid1_bd), asset1));
 
-   auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
+   auto accountPtr2 = assetWlt_2->getAccountForID(assetWlt_2->getMainAccountID());
+   auto outerAcc2 = accountPtr2->getOuterAccount();
+   auto asset2 = outerAcc2->getAssetForKey(0);
    auto wltid2_bd = assetWlt_2->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid2_bd), asset2));
 
-   auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
+   auto accountPtr3 = assetWlt_3->getAccountForID(assetWlt_3->getMainAccountID());
+   auto outerAcc3 = accountPtr3->getOuterAccount();
+   auto asset3 = outerAcc3->getAssetForKey(0);
    auto wltid3_bd = assetWlt_3->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid3_bd), asset3));
 
-   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
+   auto ae_ms = make_shared<AssetEntry_Multisig>(
+      AssetId(0, 0, 0),
       asset_single_map, 1, 3);
    auto addr_ms_raw = make_shared<AddressEntry_Multisig>(ae_ms, true);
    auto addr_p2wsh = make_shared<AddressEntry_P2WSH>(addr_ms_raw);
@@ -1432,7 +1407,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -1604,23 +1579,13 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -1660,21 +1625,29 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 
    //create 2-of-3 multisig asset entry from 3 different wallets
    map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
-   auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
+   
+   auto accountPtr1 = assetWlt_1->getAccountForID(assetWlt_1->getMainAccountID());
+   auto outerAcc1 = accountPtr1->getOuterAccount();
+   auto asset1 = outerAcc1->getAssetForKey(0);
    auto wltid1_bd = assetWlt_1->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid1_bd), asset1));
 
-   auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
+   auto accountPtr2 = assetWlt_2->getAccountForID(assetWlt_2->getMainAccountID());
+   auto outerAcc2 = accountPtr2->getOuterAccount();
+   auto asset2 = outerAcc2->getAssetForKey(0);
    auto wltid2_bd = assetWlt_2->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid2_bd), asset2));
 
    auto asset4_singlesig = assetWlt_2->getNewAddress();
 
-   auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
+   auto accountPtr3 = assetWlt_3->getAccountForID(assetWlt_3->getMainAccountID());
+   auto outerAcc3 = accountPtr3->getOuterAccount();
+   auto asset3 = outerAcc3->getAssetForKey(0);
    auto wltid3_bd = assetWlt_3->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid3_bd), asset3));
 
-   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
+   auto ae_ms = make_shared<AssetEntry_Multisig>(
+      AssetId::getRootAssetId(),
       asset_single_map, 2, 3);
    auto addr_ms_raw = make_shared<AddressEntry_Multisig>(ae_ms, true);
    auto addr_p2wsh = make_shared<AddressEntry_P2WSH>(addr_ms_raw);
@@ -1737,7 +1710,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -1786,7 +1759,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       DBTestUtils::pushNewZc(theBDMt_, zcVec);
       DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
 
-	   //grab ZC from DB and verify it again
+      //grab ZC from DB and verify it again
       auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
       auto&& raw_tx = zc_from_db.serialize();
       auto bctx = BCTX::parse(raw_tx);
@@ -1820,10 +1793,10 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    //get the zc utxo (ms script)
    auto&& unspentVec =
       ms_wlt->getSpendableTxOutListZC();
-   ASSERT_EQ(unspentVec.size(), 1);
+   ASSERT_EQ(unspentVec.size(), 1ULL);
 
    auto&& unspentVec_singleSig = wlt_singleSig->getSpendableTxOutListZC();
-   ASSERT_EQ(unspentVec_singleSig.size(), 1);
+   ASSERT_EQ(unspentVec_singleSig.size(), 1ULL);
 
    unspentVec.insert(unspentVec.end(),
       unspentVec_singleSig.begin(), unspentVec_singleSig.end());
@@ -1859,17 +1832,17 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    auto&& signerState = signer2.evaluateSignedState();
 
    {
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
 
-      auto&& txinEval = signerState.getSignedStateForInput(0);
-      auto& pubkeyMap = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap.size(), 3);
+      const auto& txinEval = signerState.getSignedStateForInput(0);
+      const auto& pubkeyMap = txinEval.getPubKeyMap();
+      EXPECT_EQ(pubkeyMap.size(), 3ULL);
       for (auto& pubkeyState : pubkeyMap)
          EXPECT_FALSE(pubkeyState.second);
 
-      txinEval = signerState.getSignedStateForInput(1);
-      auto& pubkeyMap_2 = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap_2.size(), 0);
+      const auto& txinEval2 = signerState.getSignedStateForInput(1);
+      const auto& pubkeyMap_2 = txinEval2.getPubKeyMap();
+      EXPECT_EQ(pubkeyMap_2.size(), 0ULL);
    }
 
    {
@@ -1884,10 +1857,10 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       EXPECT_FALSE(signer2.isSigned());
       signerState = signer2.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
 
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -1905,9 +1878,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       EXPECT_FALSE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -1921,9 +1894,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       signer3.sign();
 
       signerState = signer3.evaluateSignedState();
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 2);
+      EXPECT_EQ(txinEval.getSigCount(), 2U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset2);
       ASSERT_NE(asset_single, nullptr);
@@ -1946,9 +1919,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       EXPECT_TRUE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 2);
+      EXPECT_EQ(txinEval.getSigCount(), 2U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -2000,23 +1973,13 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2111,7 +2074,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -2307,23 +2270,13 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2418,7 +2371,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -2650,23 +2603,13 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2683,10 +2626,9 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
 
-   auto assetWlt_2 = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   auto assetWlt_2 = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       move(CryptoPRNG::generateRandom(32)), //root as rvalue
-      {},
       SecureBinaryData(), //empty passphrase
       SecureBinaryData(),
       3); //set lookup computation to 3 entries
@@ -2759,7 +2701,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -2871,9 +2813,10 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       {
          auto assetID = assetWlt_1->getAssetIDForScrAddr(
             (*addrVec_1.begin())->getPrefixedHash());
-         auto accountPtr = assetWlt_1->getAccountForID(assetID.first);
+         auto accountPtr = assetWlt_1->getAccountForID(
+            assetID.first.getAddressAccountId());
 
-         EXPECT_NE(signer2.getTxInCount(), 0) ;
+         EXPECT_NE(signer2.getTxInCount(), 0ULL) ;
          for (unsigned i=0; i<signer2.getTxInCount(); i++)
          {
             auto spender = signer2.getSpender(i);
@@ -2903,7 +2846,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
          total += utxo.getValue();
          auto spender = getSpenderPtr(utxo);
          spender->setSequence(UINT32_MAX - 2);
-         signer3.addSpender(spender);         
+         signer3.addSpender(spender);
       }
 
       //set change
@@ -3026,23 +2969,13 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Nested)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -3070,18 +3003,18 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    //register with db
    auto addr_type_nested_p2sh = AddressEntryType(AddressEntryType_P2WPKH | AddressEntryType_P2SH);
    vector<shared_ptr<AddressEntry>> addrVec_1;
-   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2sh));
-   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2sh));
-   addrVec_1.push_back(assetWlt_1->getNewAddress(addr_type_nested_p2sh));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_1.push_back(assetWlt_1->getNewAddress(AddressEntryType_P2WPKH));
 
    vector<BinaryData> hashVec_1;
    for (auto addrPtr : addrVec_1)
       hashVec_1.push_back(addrPtr->getPrefixedHash());
 
    vector<shared_ptr<AddressEntry>> addrVec_2;
-   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
-   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
-   addrVec_2.push_back(assetWlt_2->getNewAddress(AddressEntryType_P2WPKH));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2sh));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2sh));
+   addrVec_2.push_back(assetWlt_2->getNewAddress(addr_type_nested_p2sh));
 
    vector<BinaryData> hashVec_2;
    for (auto addrPtr : addrVec_2)
@@ -3136,7 +3069,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -3243,7 +3176,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       }
 
       {
-         EXPECT_NE(signer2.getTxInCount(), 0) ;
+         EXPECT_NE(signer2.getTxInCount(), 0U);
          for (unsigned i=0; i<signer2.getTxInCount(); i++)
          {
             auto spender = signer2.getSpender(i);
@@ -3254,13 +3187,15 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 
       signer2.setFeed(_assetFeed);
       signer2.resolvePublicData();
+      EXPECT_TRUE(signer2.isResolved());
 
       {
          auto assetID = assetWlt_1->getAssetIDForScrAddr(
             (*addrVec_1.begin())->getPrefixedHash());
-         auto accountPtr = assetWlt_1->getAccountForID(assetID.first);
+         auto accountPtr = assetWlt_1->getAccountForID(
+            assetID.first.getAddressAccountId());
 
-         EXPECT_NE(signer2.getTxInCount(), 0) ;
+         EXPECT_NE(signer2.getTxInCount(), 0U);
          for (unsigned i=0; i<signer2.getTxInCount(); i++)
          {
             auto spender = signer2.getSpender(i);
@@ -3277,7 +3212,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 
    BinaryData unsignedTxRaw, unsignedHash;
    {
-      //serialize signer 2, deser with signer3 and populate with outpoint and 
+      //deser signer2 state in signer3 and populate with outpoint and
       //change from wlt_2
       auto spendVal = 10 * COIN;
       Signer signer3;
@@ -3302,8 +3237,10 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       //get txid & unsigned tx, should be valid now
       auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
       signer3.setFeed(_assetFeed);
+      EXPECT_FALSE(signer3.isResolved());
       unsignedHash = signer3.getTxId();
       unsignedTxRaw = signer3.serializeUnsignedTx();
+      EXPECT_TRUE(signer3.isResolved());
 
       //spender resolved state should be seralized along
       serializedSignerState = move(signer3.serializeState());
@@ -3323,6 +3260,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    }
 
    signer4.deserializeState(serializedSignerState);
+   EXPECT_TRUE(signer4.isResolved());
 
    {
       signer4.setFeed(assetFeed2);
@@ -3334,6 +3272,44 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    EXPECT_TRUE(signer4.isResolved());
    EXPECT_FALSE(signer4.isSigned());
 
+   auto checkInputsAreSigned = [](
+      const Signer& signer,
+      const vector<UTXO>& utxoVec)->bool
+   {
+      EXPECT_EQ(signer.getTxInCount(), 2U);
+      set<unsigned> spenderIndexes;
+
+      for (unsigned i=0; i<utxoVec.size(); i++)
+      {
+         const auto& utxo = utxoVec[i];
+         for (unsigned y=0; y<signer.getTxInCount(); y++)
+         {
+            auto spender = signer.getSpender(y);
+            if (spender->getOutputHash() == utxo.txHash_ &&
+               spender->getOutputIndex() == utxo.txOutIndex_)
+            {
+               spenderIndexes.emplace(y);
+               break;
+            }
+         }
+      }
+
+      if (spenderIndexes.size() != utxoVec.size())
+         return false;
+
+      auto evalSignState = signer.evaluateSignedState();
+      for (const auto& spenderId : spenderIndexes)
+      {
+         const auto& inputEvalState =
+            evalSignState.getSignedStateForInput(spenderId);
+         if (inputEvalState.getM() != 1 || !inputEvalState.isValid())
+            return false;
+      }
+
+      return true;
+   };
+   ASSERT_TRUE(checkInputsAreSigned(signer4, unspentVec_1));
+
    //deser from same state into wlt_2 signer
    Signer signer5;
 
@@ -3341,6 +3317,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
    //utxo ordering. we have to deser first, then populate utxos
    signer5.deserializeState(serializedSignerState);
 
+   auto unspentVec_2Copy = unspentVec_2;
    for (auto& utxo : unspentVec_2)
    {
       UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
@@ -3351,26 +3328,27 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 
    //finally set the feed
    signer5.setFeed(assetFeed3);
-
    {
       auto lock = assetWlt_2->lockDecryptedContainer();
       signer5.sign();
    }
 
    EXPECT_FALSE(signer5.verify());
+   EXPECT_TRUE(signer5.isResolved());
+   ASSERT_TRUE(checkInputsAreSigned(signer5, unspentVec_2Copy));
 
    //now serialize both signers into the final signer, verify and broadcast
    Signer signer6(signer4.serializeState());
    signer6.deserializeState(signer5.serializeState());
 
-   ASSERT_TRUE(signer6.isSigned());
+   EXPECT_TRUE(signer6.isSigned());
    EXPECT_TRUE(signer6.verify());
 
    //try again in the opposite order, that should not matter
    Signer signer7(signer5.serializeState());
    signer7.deserializeState(signer4.serializeState());
 
-   ASSERT_TRUE(signer7.isSigned());
+   EXPECT_TRUE(signer7.isSigned());
    EXPECT_TRUE(signer7.verify());
 
    auto&& tx1 = signer7.serializeSignedTx();
@@ -3414,23 +3392,13 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, GetUnsignedTxId)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -3525,7 +3493,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -3686,7 +3654,7 @@ TEST_F(SignerTest, GetUnsignedTxId)
       auto mainAccountID = assetWlt_1->getMainAccountID();
       auto mainAccount = assetWlt_1->getAccountForID(mainAccountID);
 
-      EXPECT_NE(signer4.getTxInCount(), 0) ;
+      EXPECT_NE(signer4.getTxInCount(), 0U);
       for (unsigned i=0; i<signer4.getTxInCount(); i++)
       {
          auto spender = signer4.getSpender(i);
@@ -3767,23 +3735,13 @@ TEST_F(SignerTest, GetUnsignedTxId)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -3806,13 +3764,13 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
    vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
 
    auto mainAccType =
-      make_shared<AccountType_BIP32>(derPath);
+      assetWlt->makeNewBip32AccTypeObject(derPath);
    mainAccType->setMain(true);
    mainAccType->setAddressLookup(3);
    mainAccType->setDefaultAddressType(
       AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
-   mainAccType->setAddressTypes(
-      { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
+   mainAccType->addAddressType(
+      AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
 
    auto accountID = assetWlt->createBIP32Account(mainAccType);
 
@@ -3872,7 +3830,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -4035,23 +3993,13 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -4077,18 +4025,18 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
       //add p2sh-p2wpkh account
       vector<unsigned> derPath = { 0x800061a5, 0x80000000 };
       auto mainAccType =
-         make_shared<AccountType_BIP32>(derPath);
+         assetWlt->makeNewBip32AccTypeObject(derPath);
       mainAccType->setMain(true);
       mainAccType->setAddressLookup(3);
       mainAccType->setDefaultAddressType(
          AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
-      mainAccType->setAddressTypes(
-         { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
+      mainAccType->addAddressType(
+         AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
 
       set<unsigned> nodes = { 0, 1 };
       mainAccType->setNodes(nodes);
-      mainAccType->setOuterAccountID(WRITE_UINT32_BE(*nodes.begin()));
-      mainAccType->setInnerAccountID(WRITE_UINT32_BE(*nodes.rbegin()));
+      mainAccType->setOuterAccountID(*nodes.begin());
+      mainAccType->setInnerAccountID(*nodes.rbegin());
 
       auto accountID = assetWlt->createBIP32Account(mainAccType);
 
@@ -4163,7 +4111,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -4334,23 +4282,13 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -4370,7 +4308,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
       SecureBinaryData());
 
    //create empty WO wallet
-   auto wltWO = AssetWallet_Single::createSeedless_WatchingOnly(
+   auto wltWO = AssetWallet_Single::createBlank(
       homedir_, "walletWO1", SecureBinaryData());
 
    //derive public root
@@ -4382,35 +4320,20 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
       seedNode.derivePrivate(derId);
 
    auto pubNode = seedNode.getPublicCopy();
-   auto pubkeyCopy = pubNode.getPublicKey();
-   auto chaincodeCopy = pubNode.getChaincode();
-
-   auto pubRootAsset = make_shared<AssetEntry_BIP32Root>(
-      -1, BinaryData(), //not relevant, this stuff is ignored in this context
-
-      pubkeyCopy, //pub key
-      nullptr, //no priv key, this is a public node
-      chaincodeCopy, //have to pass the chaincode too
-
-      //aesthetical stuff, not mandatory, not useful for the crypto side of things
-      pubNode.getDepth(), pubNode.getLeafID(), pubNode.getParentFingerprint(), seedFingerprint,
-
-      //derivation path for this root, only relevant for path discovery & PSBT
-      derPath
-   );
+   auto xpub = pubNode.getBase58();
 
    //add p2sh-p2wpkh account
    auto mainAccType =
-      make_shared<AccountType_BIP32>(vector<unsigned>());
+      AccountType_BIP32::makeFromDerPaths(seedFingerprint, {derPath});
+   mainAccType->setRoots({{derPath, xpub}});
    mainAccType->setMain(true);
    mainAccType->setAddressLookup(3);
    mainAccType->setDefaultAddressType(
       AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
-   mainAccType->setAddressTypes(
-      { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
+   mainAccType->addAddressType(
+      AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
 
-   auto accountID = wltWO->createBIP32Account_WithParent(
-      pubRootAsset, mainAccType);
+   auto accountID = wltWO->createBIP32Account(mainAccType);
 
    //// register with db ////
    vector<BinaryData> addrVec;
@@ -4468,7 +4391,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -4631,23 +4554,13 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -4723,7 +4636,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -4877,23 +4790,13 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_FromAccount_Reload)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -4905,22 +4808,38 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    //// create assetWlt ////
 
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32_Blank(
       homedir_,
       move(wltRoot), //root as a rvalue
-      {},
       SecureBinaryData(),
-      SecureBinaryData(),
-      5); //set lookup computation to 5 entries
+      SecureBinaryData());
+
+   //add a bip32 account
+   {
+      auto root = dynamic_pointer_cast<AssetEntry_BIP32Root>(
+         assetWlt->getRoot());
+      ASSERT_NE(root, nullptr);
+
+      auto lock = assetWlt->lockDecryptedContainer();
+      auto accTypePtr = AccountType_BIP32::makeFromDerPaths(
+         root->getSeedFingerprint(true), {{0x80000000, 0x80000000, 0, 1}});
+      accTypePtr->setAddressLookup(5);
+      accTypePtr->addAddressType(AddressEntryType_P2WPKH);
+      accTypePtr->addAddressType(AddressEntryType(
+         AddressEntryType_P2SH | AddressEntryType_P2WPKH));
+      accTypePtr->setDefaultAddressType(AddressEntryType_P2WPKH);
+      accTypePtr->setMain(true);
+
+      assetWlt->createBIP32Account(accTypePtr);
+   }
 
    //register with db
    vector<shared_ptr<AddressEntry>> addrVec;
    auto accID = assetWlt->getMainAccountID();
    {
-      auto accPtr = assetWlt->getAccountForID(accID);
-      addrVec.push_back(accPtr->getNewAddress(AddressEntryType_P2WPKH));
-      addrVec.push_back(accPtr->getNewAddress(AddressEntryType_P2WPKH));
-      addrVec.push_back(accPtr->getNewAddress(AddressEntryType_P2WPKH));
+      addrVec.push_back(assetWlt->getNewAddress(accID, AddressEntryType_P2WPKH));
+      addrVec.push_back(assetWlt->getNewAddress(accID, AddressEntryType_P2WPKH));
+      addrVec.push_back(assetWlt->getNewAddress(accID, AddressEntryType_P2WPKH));
    }
 
    vector<BinaryData> hashVec;
@@ -4937,7 +4856,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
    auto dbAssetWlt = bdvPtr->getWalletOrLockbox(assetWlt->getID());
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -4976,7 +4895,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5031,13 +4950,17 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    assetWlt.reset();
 
    //reload it
-   auto controlPassLbd = [](const set<BinaryData>&)->SecureBinaryData
+   auto controlPassLbd = []
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return SecureBinaryData();
    };
    auto loadedWlt = AssetWallet::loadMainWalletFromFile(
       fName, controlPassLbd);
    assetWlt = dynamic_pointer_cast<AssetWallet_Single>(loadedWlt);
+   auto accIdReload = assetWlt->getMainAccountID();
+   ASSERT_EQ(accIdReload, accID);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -5089,10 +5012,8 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       if (total > spendVal)
       {
          //change to new address, use P2SH-P2WPKH
-         auto accPtr = assetWlt->getAccountForID(accID);
-
          auto changeVal = total - spendVal;
-         auto addr3 = accPtr->getNewAddress(
+         auto addr3 = assetWlt->getNewAddress(accID,
             AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
          signer2.addRecipient(addr3->getRecipient(changeVal));
 
@@ -5163,7 +5084,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    //mine 2 blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -5192,7 +5113,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
    {
       //check there are no zc utxos anymore
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
-      ASSERT_EQ(unspentVec.size(), 0);
+      ASSERT_EQ(unspentVec.size(), 0ULL);
    }
 
    {
@@ -5264,23 +5185,13 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -5299,18 +5210,24 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       SecureBinaryData(),
       passphrase);
 
+   auto rootBip32 = dynamic_pointer_cast<
+      AssetEntry_BIP32Root>(assetWlt->getRoot());
+   auto seedFingerprint = rootBip32->getSeedFingerprint(true);
+
    //salted account
    vector<unsigned> derPath = { 0x80000099, 0x80000001 };
    auto&& salt = CryptoPRNG::generateRandom(32);
    auto saltedAccType =
-      make_shared<AccountType_BIP32_Salted>(derPath, salt);
+      AccountType_BIP32_Salted::makeFromDerPaths(seedFingerprint, {derPath}, salt);
    saltedAccType->setAddressLookup(5);
    saltedAccType->setDefaultAddressType(
       AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
-   saltedAccType->setAddressTypes(
-      { AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH) });
+   saltedAccType->addAddressType(
+      AddressEntryType(AddressEntryType_P2SH | AddressEntryType_P2WPKH));
 
-   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+   auto passphraseLbd = [&passphrase]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return passphrase;
    };
@@ -5321,12 +5238,11 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    //regular account
    vector<unsigned> derPath2 = { 0x80000099, 0x80000001 };
    auto mainAccType =
-      make_shared<AccountType_BIP32>(derPath2);
+     assetWlt->makeNewBip32AccTypeObject(derPath2);
    mainAccType->setAddressLookup(5);
    mainAccType->setDefaultAddressType(
       AddressEntryType_P2WPKH);
-   mainAccType->setAddressTypes(
-      { AddressEntryType_P2WPKH });
+   mainAccType->addAddressType(AddressEntryType_P2WPKH);
 
    auto accountID2 = assetWlt->createBIP32Account(mainAccType);
 
@@ -5340,14 +5256,11 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
-   auto accPtr1 = assetWlt->getAccountForID(accountID1);
-   auto accPtr2 = assetWlt->getAccountForID(accountID2);
-
-   auto newAddr1 = accPtr1->getNewAddress();
-   auto newAddr2 = accPtr2->getNewAddress();
-   auto newAddr3 = accPtr2->getNewAddress();
+   auto newAddr1 = assetWlt->getNewAddress(accountID1);
+   auto newAddr2 = assetWlt->getNewAddress(accountID2);
+   auto newAddr3 = assetWlt->getNewAddress(accountID2);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -5379,7 +5292,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5450,7 +5363,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    //mine some blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -5469,7 +5382,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 13 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[2]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    //spend from the new addresses
    {
@@ -5482,7 +5395,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5509,7 +5422,9 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
+         auto passlbd = [passphrase]
+            (const set<EncryptionKeyId>&)
+            ->SecureBinaryData
          {
             return passphrase;
          };
@@ -5542,7 +5457,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[2]);
@@ -5552,23 +5467,13 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -5597,7 +5502,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -5613,13 +5518,15 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //grab enough addresses to trigger a lookup extention
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5);
+   auto accountPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+   auto outerAcc = accountPtr->getOuterAccount();
+   EXPECT_EQ(outerAcc->getAssetCount(), 5U);
 
    for (unsigned i = 0; i < 15; i++)
       assetWlt->getNewAddress();
    auto newAddr = assetWlt->getNewAddress();
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105);
+   EXPECT_EQ(outerAcc->getAssetCount(), 105U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -5638,7 +5545,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5708,7 +5615,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    //mine some blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -5720,12 +5627,12 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
    EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    //spend from the new address
    {
@@ -5739,7 +5646,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5766,7 +5673,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
+         auto passlbd = [passphrase]
+            (const set<EncryptionKeyId>&)
+            ->SecureBinaryData
          {
             return passphrase;
          };
@@ -5799,7 +5708,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
 }
@@ -5807,23 +5716,13 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -5851,7 +5750,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -5867,13 +5766,15 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //grab enough addresses to trigger a lookup extention
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5);
+   auto accountPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+   auto outerAcc = accountPtr->getOuterAccount();
+   EXPECT_EQ(outerAcc->getAssetCount(), 5U);
 
    for (unsigned i = 0; i < 10; i++)
       assetWlt->getNewAddress();
    auto newAddr = assetWlt->getNewAddress();
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105);
+   EXPECT_EQ(outerAcc->getAssetCount(), 105U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -5892,7 +5793,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -5962,7 +5863,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    //mine some blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -5979,7 +5880,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    //spend from the new address
    {
@@ -5993,7 +5894,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -6020,7 +5921,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
+         auto passlbd = [passphrase]
+            (const set<EncryptionKeyId>&)
+            ->SecureBinaryData
          {
             return passphrase;
          };
@@ -6053,7 +5956,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
 }
@@ -6061,23 +5964,13 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6096,18 +5989,23 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       passphrase,
       SecureBinaryData::fromString("control"));
 
+   auto rootBip32 = dynamic_pointer_cast<
+      AssetEntry_BIP32Root>(assetWlt->getRoot());
+   auto seedFingerprint = rootBip32->getSeedFingerprint(true);
+
    vector<unsigned> derPath = {0x80000099, 0x80000001};
    auto&& salt = CryptoPRNG::generateRandom(32);
    auto saltedAccType =
-      make_shared<AccountType_BIP32_Salted>(derPath, salt);
+      AccountType_BIP32_Salted::makeFromDerPaths(seedFingerprint, {derPath}, salt);
    saltedAccType->setAddressLookup(5);
    saltedAccType->setDefaultAddressType(
       AddressEntryType_P2WPKH);
-   saltedAccType->setAddressTypes(
-      { AddressEntryType_P2WPKH });
+   saltedAccType->addAddressType(AddressEntryType_P2WPKH);
    saltedAccType->setMain(true);
 
-   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+   auto passphraseLbd = [&passphrase]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return passphrase;
    };
@@ -6126,7 +6024,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -6142,13 +6040,15 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //grab enough addresses to trigger a lookup extention
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5);
+   auto accountPtr = assetWlt->getAccountForID(assetWlt->getMainAccountID());
+   auto outerAcc = accountPtr->getOuterAccount();
+   EXPECT_EQ(outerAcc->getAssetCount(), 5U);
 
    for (unsigned i = 0; i < 10; i++)
       assetWlt->getNewAddress();
    auto newAddr = assetWlt->getNewAddress();
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 105);
+   EXPECT_EQ(outerAcc->getAssetCount(), 105U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -6167,7 +6067,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -6237,7 +6137,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    //mine some blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -6254,7 +6154,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    //spend from the new address
    {
@@ -6268,7 +6168,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -6295,7 +6195,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
+         auto passlbd = [passphrase]
+            (const set<EncryptionKeyId>&)
+            ->SecureBinaryData
          {
             return passphrase;
          };
@@ -6328,7 +6230,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
 }
@@ -6341,23 +6243,14 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F");
    auto&& pubKey = CryptoECDSA().ComputePublicKey(privKey, true);
 
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
    //setup bdm
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6379,11 +6272,12 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    auto ecdhAccType = make_shared<AccountType_ECDH>(privKey, pubKey);
    ecdhAccType->setDefaultAddressType(
       AddressEntryType_P2WPKH);
-   ecdhAccType->setAddressTypes(
-      { AddressEntryType_P2WPKH });
+   ecdhAccType->addAddressType(AddressEntryType_P2WPKH);
    ecdhAccType->setMain(true);
 
-   auto passphraseLbd = [&passphrase](const set<BinaryData>&)->SecureBinaryData
+   auto passphraseLbd = [&passphrase]
+      (const set<EncryptionKeyId>&)
+      ->SecureBinaryData
    {
       return passphrase;
    };
@@ -6401,7 +6295,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
    auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3U);
 
    //check balances
    const ScrAddrObj* scrObj;
@@ -6417,23 +6311,24 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
 
    //generate some ECDH addresses
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 0);
+   EXPECT_EQ(TestUtils::getMainAccountAssetCount(assetWlt), 0U);
 
-   auto accPtr = dynamic_pointer_cast<AssetAccount_ECDH>(
-      addrAccountObj->getOuterAccount());
+   auto assAccPtr = addrAccountObj->getOuterAccount();
+   auto accPtr = dynamic_cast<AssetAccount_ECDH*>(assAccPtr.get());
    ASSERT_NE(accPtr, nullptr);
 
    for (unsigned i = 0; i < 5; i++)
    {
+      auto tx = assetWlt->beginSubDBTransaction(assetWlt->getID(), true);
       auto&& salt = CryptoPRNG::generateRandom(32);
-      accPtr->addSalt(salt);
+      accPtr->addSalt(tx, salt);
    }
 
    vector<shared_ptr<AddressEntry>> addrVec;
    for (unsigned i = 0; i < 5; i++)
       addrVec.push_back(assetWlt->getNewAddress());
 
-   EXPECT_EQ(assetWlt->getMainAccountAssetCount(), 5);
+   EXPECT_EQ(TestUtils::getMainAccountAssetCount(assetWlt), 5U);
 
    {
       ////spend 27 from wlt to newAddr
@@ -6452,7 +6347,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -6521,7 +6416,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    //mine some blocks
    DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrC, 2);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
 
    //check balances
    scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
@@ -6538,7 +6433,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
 
    //spend from the new address
    {
@@ -6552,7 +6447,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -6579,7 +6474,9 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 
       //sign, verify then broadcast
       {
-         auto passlbd = [passphrase](const set<BinaryData>&)->SecureBinaryData
+         auto passlbd = [passphrase]
+            (const set<EncryptionKeyId>&)
+            ->SecureBinaryData
          {
             return passphrase;
          };
@@ -6612,7 +6509,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
    EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
 
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0);
+   EXPECT_EQ(scrObj->getFullBalance(), 0ULL);
    scrObj = dbAssetWlt->getScrAddrObjByKey(hashVec[1]);
    EXPECT_EQ(scrObj->getFullBalance(), 27 * COIN);
 }
@@ -6620,23 +6517,13 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_InjectSignature)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -6648,10 +6535,9 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
    //// create assetWlt ////
 
    auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
+   auto assetWlt = AssetWallet_Single::createFromSeed_BIP32(
       homedir_,
       move(wltRoot), //root as a rvalue
-      {},
       SecureBinaryData(),
       SecureBinaryData(),
       5); //set lookup computation to 3 entries
@@ -6716,7 +6602,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -6946,7 +6832,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
             }
          }
       }
-      ASSERT_EQ(sigs.size(), 2);
+      ASSERT_EQ(sigs.size(), 2ULL);
 
       //try to inject into unresolved signer, should fail
       for (unsigned i=0; i<sigs.size(); i++)
@@ -7017,23 +6903,13 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 {
-   //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(
-      clients_, NetworkConfig::getMagicBytes());
+      clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -7073,21 +6949,22 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 
    //create 2-of-3 multisig asset entry from 3 different wallets
    map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
-   auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
+   auto asset1 = TestUtils::getMainAccountAssetForIndex(assetWlt_1, 0);
    auto wltid1_bd = assetWlt_1->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid1_bd), asset1));
 
-   auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
+   auto asset2 = TestUtils::getMainAccountAssetForIndex(assetWlt_2, 0);
    auto wltid2_bd = assetWlt_2->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid2_bd), asset2));
 
    auto asset4_singlesig = assetWlt_2->getNewAddress();
 
-   auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
+   auto asset3 = TestUtils::getMainAccountAssetForIndex(assetWlt_3, 0);
    auto wltid3_bd = assetWlt_3->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid3_bd), asset3));
 
-   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
+   auto ae_ms = make_shared<AssetEntry_Multisig>(
+      AssetId::getRootAssetId(),
       asset_single_map, 2, 3);
    auto addr_ms_raw = make_shared<AddressEntry_Multisig>(ae_ms, true);
    auto addr_p2wsh = make_shared<AddressEntry_P2WSH>(addr_ms_raw);
@@ -7150,7 +7027,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -7233,10 +7110,10 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    //get the zc utxo (ms script)
    auto&& unspentVec =
       ms_wlt->getSpendableTxOutListZC();
-   ASSERT_EQ(unspentVec.size(), 1);
+   ASSERT_EQ(unspentVec.size(), 1ULL);
 
    auto&& unspentVec_singleSig = wlt_singleSig->getSpendableTxOutListZC();
-   ASSERT_EQ(unspentVec_singleSig.size(), 1);
+   ASSERT_EQ(unspentVec_singleSig.size(), 1ULL);
 
    unspentVec.insert(unspentVec.end(),
       unspentVec_singleSig.begin(), unspentVec_singleSig.end());
@@ -7274,17 +7151,17 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    auto&& signerState = signer2.evaluateSignedState();
 
    {
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2ULL);
 
-      auto&& txinEval = signerState.getSignedStateForInput(0);
-      auto& pubkeyMap = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap.size(), 3);
+      const auto& txinEval = signerState.getSignedStateForInput(0);
+      const auto& pubkeyMap = txinEval.getPubKeyMap();
+      EXPECT_EQ(pubkeyMap.size(), 3ULL);
       for (auto& pubkeyState : pubkeyMap)
          EXPECT_FALSE(pubkeyState.second);
 
-      txinEval = signerState.getSignedStateForInput(1);
-      auto& pubkeyMap_2 = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap_2.size(), 0);
+      const auto& txinEval2 = signerState.getSignedStateForInput(1);
+      const auto& pubkeyMap_2 = txinEval2.getPubKeyMap();
+      EXPECT_EQ(pubkeyMap_2.size(), 0ULL);
    }
 
    {
@@ -7299,10 +7176,10 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       EXPECT_FALSE(signer2.isSigned());
       signerState = signer2.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
 
-      auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      const auto& txinEval = signerState.getSignedStateForInput(0);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -7320,9 +7197,9 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       EXPECT_FALSE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -7336,9 +7213,9 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       signer3.sign();
 
       signerState = signer3.evaluateSignedState();
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 2);
+      EXPECT_EQ(txinEval.getSigCount(), 2U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset2);
       ASSERT_NE(asset_single, nullptr);
@@ -7361,9 +7238,9 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       EXPECT_TRUE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 2);
+      EXPECT_EQ(txinEval.getSigCount(), 2U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -7422,7 +7299,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
          }
       }
 
-      ASSERT_EQ(sigs.size(), 3);
+      ASSERT_EQ(sigs.size(), 3ULL);
    }
 
    //resolve spender
@@ -7496,7 +7373,47 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(SignerTest, Serialization)
+class ExtrasTest : public ::testing::Test
+{
+protected:
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void SetUp()
+   {
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      DBSettings::setServiceType(SERVICE_UNITTEST);
+      Armory::Config::parseArgs({
+         "--offline",
+         "--testnet",
+         "--datadir=./fakehomedir",
+         "--satoshi-datadir=./blkfiletest" },
+         Armory::Config::ProcessType::DB);
+
+      wallet1id = "wallet1";
+      wallet2id = "wallet2";
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void TearDown(void)
+   {
+      DBUtils::removeDirectory(homedir_);
+
+      Armory::Config::reset();
+      CLEANUP_ALL_TIMERS();
+   }
+
+   string blkdir_;
+   string homedir_;
+
+   string wallet1id;
+   string wallet2id;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ExtrasTest, Serialization)
 {
    //resolver
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
@@ -7672,8 +7589,8 @@ TEST_F(SignerTest, Serialization)
             else
                protoMsg.set_version_min(SCRIPT_SPENDER_VERSION_MIN);
 
-            protoMsg.set_legacy_status((uint8_t)SpenderStatus_Empty);
-            protoMsg.set_segwit_status((uint8_t)SpenderStatus_Resolved);
+            protoMsg.set_legacy_status((uint8_t)SpenderStatus::Empty);
+            protoMsg.set_segwit_status((uint8_t)SpenderStatus::Resolved);
 
             protoMsg.set_sighash_type((uint8_t)SIGHASH_ALL);
             protoMsg.set_sequence(UINT32_MAX);
@@ -7767,12 +7684,12 @@ TEST_F(SignerTest, Serialization)
             if (counter_ == 0)
                protoMsg.set_legacy_status((uint8_t)30);
             else 
-               protoMsg.set_legacy_status((uint8_t)SpenderStatus_Empty);
+               protoMsg.set_legacy_status((uint8_t)SpenderStatus::Empty);
 
             if (counter_ == 1)
-               protoMsg.set_segwit_status((uint8_t)SpenderStatus_Signed);
+               protoMsg.set_segwit_status((uint8_t)SpenderStatus::Signed);
             else
-               protoMsg.set_segwit_status((uint8_t)SpenderStatus_Resolved);
+               protoMsg.set_segwit_status((uint8_t)SpenderStatus::Resolved);
 
             protoMsg.set_sighash_type((uint8_t)SIGHASH_ALL);
             protoMsg.set_sequence(UINT32_MAX);
@@ -8681,94 +8598,7 @@ TEST_F(SignerTest, Serialization)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(SignerTest, Bip32PathDiscovery)
-{
-   auto seed = CryptoPRNG::generateRandom(32);
-
-   BIP32_Node node;
-   node.initFromSeed(seed);
-   auto masterFingerprint = node.getThisFingerprint();
-
-   vector<uint32_t> derPath = { 0x8000002C, 0x80000000, 0x80000000 };
-
-   for (auto& step : derPath)
-      node.derivePrivate(step);
-   node.derivePublic(0);
-
-   map<BinaryData, vector<uint32_t>> keyAndPath;
-   for (unsigned i=0; i<10; i++)
-   {
-      auto nodeSoft = node;
-      nodeSoft.derivePublic(i);
-
-      vector<uint32_t> path = { masterFingerprint };
-      path.insert(path.end(), derPath.begin(), derPath.end());
-      path.push_back(0);
-      path.push_back(i);
-
-      keyAndPath.emplace(nodeSoft.getPublicKey(), path);
-   }
-
-   auto passLbd = [](const set<BinaryData>&)->SecureBinaryData
-   {
-      return SecureBinaryData();
-   };
-
-   string wltPath;
-   {
-      auto wallet = AssetWallet_Single::createFromSeed_BIP32(
-      homedir_, seed, 
-      SecureBinaryData(), SecureBinaryData(), 
-      10);
-
-      wltPath = wallet->getDbFilename();
-      auto woWalletPath = wallet->forkWatchingOnly(wltPath, passLbd);
-      auto woWallet = AssetWallet::loadMainWalletFromFile(woWalletPath, passLbd);
-      auto woWalletSingle = dynamic_pointer_cast<AssetWallet_Single>(woWallet);
-
-      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(wallet);
-      for (auto& keyPathPair : keyAndPath)
-      {
-         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
-         vector<unsigned> pathVec;
-         pathVec.push_back(resolvedPath.getThisFingerprint());
-         pathVec.insert(pathVec.end(),
-            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
-         EXPECT_EQ(pathVec, keyPathPair.second);
-      }
-
-      auto resolverPublic = make_shared<ResolverFeed_AssetWalletSingle>(woWalletSingle);
-      for (auto& keyPathPair : keyAndPath)
-      {
-         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
-         vector<unsigned> pathVec;
-         pathVec.push_back(resolvedPath.getThisFingerprint());
-         pathVec.insert(pathVec.end(),
-            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
-         EXPECT_EQ(pathVec, keyPathPair.second);
-      }
-   }
-
-   //reopen the wallet, check again
-   {
-      auto loadedWlt = AssetWallet::loadMainWalletFromFile(wltPath, passLbd);
-      auto loadedWltSingle = dynamic_pointer_cast<AssetWallet_Single>(loadedWlt);
-      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(loadedWltSingle);
-
-      for (auto& keyPathPair : keyAndPath)
-      {
-         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
-         vector<unsigned> pathVec;
-         pathVec.push_back(resolvedPath.getThisFingerprint());
-         pathVec.insert(pathVec.end(),
-            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
-         EXPECT_EQ(pathVec, keyPathPair.second);
-      }
-   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(SignerTest, PSBT)
+TEST_F(ExtrasTest, PSBT)
 {
    //
    auto getUtxoFromRawTx = [](const BinaryDataRef rawTx, unsigned index)->UTXO
@@ -8836,7 +8666,7 @@ TEST_F(SignerTest, PSBT)
    };
 
    //
-   NetworkConfig::selectNetwork(NETWORK_MODE_TESTNET);
+   //BitcoinSettings::selectNetwork(NETWORK_MODE_TESTNET);
    auto b58seed = SecureBinaryData::fromString(
       "tprv8ZgxMBicQKsPd9TeAdPADNnSyH9SSUUbTVeFszDE23Ki6TBB5nCefAdHkK8Fm3qMQR6sHwA56zqRmKmxnHk37JkiFzvncDqoKmPWubu7hDF");
 
@@ -9160,9 +8990,9 @@ TEST_F(SignerTest, PSBT)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(SignerTest, BitcoinMessage)
+TEST_F(ExtrasTest, BitcoinMessage)
 {
-   NetworkConfig::selectNetwork(NETWORK_MODE_TESTNET);
+   //BitcoinSettings::selectNetwork(NETWORK_MODE_TESTNET);
    struct ResolverFeed_SignMessage : public ResolverFeed
    {
       std::map<BinaryData, BinaryData> addrToPubKey;
@@ -9197,7 +9027,7 @@ TEST_F(SignerTest, BitcoinMessage)
 
       auto assetPubKey = make_shared<Asset_PublicKey>(pubkeyCopy);
       auto assetSingle = make_shared<AssetEntry_Single>(
-         -1, BinaryData(), assetPubKey, nullptr);
+         AssetId(0, 0, -1), assetPubKey, nullptr);
       auto addr = make_shared<AddressEntry_P2WPKH>(assetSingle);
 
       auto resolver = make_shared<ResolverFeed_SignMessage>();
@@ -9225,7 +9055,7 @@ TEST_F(SignerTest, BitcoinMessage)
 
       auto assetPubKey = make_shared<Asset_PublicKey>(pubkeyCopy);
       auto assetSingle = make_shared<AssetEntry_Single>(
-         -1, BinaryData(), assetPubKey, nullptr);
+         AssetId::getRootAssetId(), assetPubKey, nullptr);
       auto addr = make_shared<AddressEntry_P2WPKH>(assetSingle);
 
       auto resolver = make_shared<ResolverFeed_SignMessage>();
@@ -9240,6 +9070,132 @@ TEST_F(SignerTest, BitcoinMessage)
       EXPECT_EQ(sigCompute, sigDecodeBD);
       EXPECT_TRUE(Signer::verifyMessageSignature(
          msgBD, addr->getPrefixedHash(), sigDecodeBD));
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+class ExtrasTest_Mainnet : public ::testing::Test
+{
+protected:
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void SetUp()
+   {
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+
+      DBSettings::setServiceType(SERVICE_UNITTEST);
+      Armory::Config::parseArgs({
+         "--offline",
+         "--datadir=./fakehomedir",
+         "--satoshi-datadir=./blkfiletest" },
+         Armory::Config::ProcessType::DB);
+
+      wallet1id = "wallet1";
+      wallet2id = "wallet2";
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
+   virtual void TearDown(void)
+   {
+      DBUtils::removeDirectory(homedir_);
+
+      Armory::Config::reset();
+      CLEANUP_ALL_TIMERS();
+   }
+
+   string blkdir_;
+   string homedir_;
+
+   string wallet1id;
+   string wallet2id;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(ExtrasTest_Mainnet, Bip32PathDiscovery)
+{
+   auto seed = CryptoPRNG::generateRandom(32);
+
+   BIP32_Node node;
+   node.initFromSeed(seed);
+   auto masterFingerprint = node.getThisFingerprint();
+
+   vector<uint32_t> derPath = { 0x8000002C, 0x80000000, 0x80000000 };
+
+   for (auto& step : derPath)
+      node.derivePrivate(step);
+   node.derivePublic(0);
+
+   map<BinaryData, vector<uint32_t>> keyAndPath;
+   for (unsigned i=0; i<10; i++)
+   {
+      auto nodeSoft = node;
+      nodeSoft.derivePublic(i);
+
+      vector<uint32_t> path = { masterFingerprint };
+      path.insert(path.end(), derPath.begin(), derPath.end());
+      path.push_back(0);
+      path.push_back(i);
+
+      keyAndPath.emplace(nodeSoft.getPublicKey(), path);
+   }
+
+   auto passLbd = [](const set<EncryptionKeyId>&)->SecureBinaryData
+   {
+      return SecureBinaryData();
+   };
+
+   string wltPath;
+   {
+      auto wallet = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_, seed, 
+      SecureBinaryData(), SecureBinaryData(), 
+      10);
+
+      wltPath = wallet->getDbFilename();
+      auto woWalletPath = wallet->forkWatchingOnly(wltPath, passLbd);
+      auto woWallet = AssetWallet::loadMainWalletFromFile(woWalletPath, passLbd);
+      auto woWalletSingle = dynamic_pointer_cast<AssetWallet_Single>(woWallet);
+
+      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(wallet);
+      for (auto& keyPathPair : keyAndPath)
+      {
+         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
+         vector<unsigned> pathVec;
+         pathVec.push_back(resolvedPath.getThisFingerprint());
+         pathVec.insert(pathVec.end(),
+            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
+         EXPECT_EQ(pathVec, keyPathPair.second);
+      }
+
+      auto resolverPublic = make_shared<ResolverFeed_AssetWalletSingle>(woWalletSingle);
+      for (auto& keyPathPair : keyAndPath)
+      {
+         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
+         vector<unsigned> pathVec;
+         pathVec.push_back(resolvedPath.getThisFingerprint());
+         pathVec.insert(pathVec.end(),
+            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
+         EXPECT_EQ(pathVec, keyPathPair.second);
+      }
+   }
+
+   //reopen the wallet, check again
+   {
+      auto loadedWlt = AssetWallet::loadMainWalletFromFile(wltPath, passLbd);
+      auto loadedWltSingle = dynamic_pointer_cast<AssetWallet_Single>(loadedWlt);
+      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(loadedWltSingle);
+
+      for (auto& keyPathPair : keyAndPath)
+      {
+         auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
+         vector<unsigned> pathVec;
+         pathVec.push_back(resolvedPath.getThisFingerprint());
+         pathVec.insert(pathVec.end(),
+            resolvedPath.getPath().begin(), resolvedPath.getPath().end());
+         EXPECT_EQ(pathVec, keyPathPair.second);
+      }
    }
 }
 
@@ -9261,9 +9217,6 @@ GTEST_API_ int main(int argc, char **argv)
    srand(time(0));
    std::cout << "Running main() from gtest_main.cc\n";
 
-   // Setup the log file 
-   STARTLOGGING("cppTestsLog.txt", LogLvlDebug2);
-   //LOGDISABLESTDOUT();
    btc_ecc_start();
 
    testing::InitGoogleTest(&argc, argv);

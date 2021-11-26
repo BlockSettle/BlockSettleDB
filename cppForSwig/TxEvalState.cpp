@@ -41,7 +41,7 @@ unsigned TxInEvalState::getSigCount(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool TxInEvalState::isSignedForPubKey(const BinaryData& pubkey)
+bool TxInEvalState::isSignedForPubKey(const BinaryData& pubkey) const
 {
    if (pubKeyState_.size() == 0)
       return false;
@@ -143,7 +143,7 @@ bool TxEvalState::isValid(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TxInEvalState TxEvalState::getSignedStateForInput(unsigned i)
+const TxInEvalState& TxEvalState::getSignedStateForInput(unsigned i) const
 {
    auto iter = evalMap_.find(i);
    if (iter == evalMap_.end())

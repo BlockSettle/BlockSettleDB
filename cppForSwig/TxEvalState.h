@@ -48,9 +48,10 @@ private:
 public:
    bool isValid(void) const;
    unsigned getSigCount(void) const;
-   bool isSignedForPubKey(const BinaryData& pubkey);
-   const std::map<BinaryData, bool> getPubKeyMap(void) const { return pubKeyState_; }
-   
+   bool isSignedForPubKey(const BinaryData& pubkey) const;
+   const std::map<BinaryData, bool>& getPubKeyMap(void) const
+   { return pubKeyState_; }
+
    unsigned getM(void) const { return m_; }
    unsigned getN(void) const { return n_; }
 };
@@ -66,7 +67,7 @@ public:
    void reset(void) { evalMap_.clear(); }
    void updateState(unsigned id, TxInEvalState state);
    bool isValid(void) const;
-   TxInEvalState getSignedStateForInput(unsigned i);
+   const TxInEvalState& getSignedStateForInput(unsigned i) const;
 };
 
 #endif

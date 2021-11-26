@@ -39,5 +39,8 @@
     <ClCompile Include="..\protobuf\NodeStatus.pb.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\protobuf\Signer.pb.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

@@ -287,13 +287,13 @@ bool TxIOPair::hasTxInInMain(LMDBBlockDatabase *db) const
 //////////////////////////////////////////////////////////////////////////////
 bool TxIOPair::hasTxOutZC(void) const
 {
-   return txRefOfOutput_.getDBKey().startsWith(READHEX("ffff"));
+   return txRefOfOutput_.getDBKey().startsWith(DBUtils::ZeroConfHeader_);
 }
 
 //////////////////////////////////////////////////////////////////////////////
 bool TxIOPair::hasTxInZC(void) const
 {
-   return txRefOfInput_.getDBKey().startsWith(READHEX("ffff"));
+   return txRefOfInput_.getDBKey().startsWith(DBUtils::ZeroConfHeader_);
 }
 
 //////////////////////////////////////////////////////////////////////////////

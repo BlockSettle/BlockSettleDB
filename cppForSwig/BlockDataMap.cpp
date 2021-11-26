@@ -89,7 +89,9 @@ void BlockData::deserialize(const uint8_t* data, size_t size,
       throw BlockDeserializingException("invalid merkle root");
    }
 
-   uniqueID_ = getID(bh.getThisHash());
+   uniqueID_ = UINT32_MAX;
+   if (getID)
+      uniqueID_ = getID(bh.getThisHash());
 
    txFilter_ = move(computeTxFilter(allhashes));
 }
@@ -101,7 +103,7 @@ BlockData::computeTxFilter(const vector<BinaryData>& allHashes) const
    TxFilter<TxFilterType> txFilter(uniqueID_, allHashes.size());
    txFilter.update(allHashes);
 
-   return move(txFilter);
+   return txFilter;
 }
 
 /////////////////////////////////////////////////////////////////////////////

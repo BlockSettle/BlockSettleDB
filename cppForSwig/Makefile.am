@@ -8,12 +8,14 @@ BUILT_SOURCES =
 
 LIBBTC = libbtc/libbtc.la
 LIBCHACHA20POLY1305 = chacha20poly1305/libchacha20poly1305.la
-LIBCPPBLOCKUTILS = libCppBlockUtils.la
+
+LIBARMORYWALLETS = libArmoryWallets.la
+LIBARMORYSIGNER = libArmorySigner.la
 LIBARMORYCOMMON = libArmoryCommon.la
 LIBARMORYGUI = libArmoryGUI.la
 LIBARMORYCLI = libArmoryCLI.la
-LIBCRYPTOPP =
-LIBLMDB = liblmdb.la
+LIBLMDBPP = liblmdbpp.la
+LIBHKDF = hkdf/libhkdf.la
 LIBSECP256K1 = libbtc/src/secp256k1/libsecp256k1.la
 LIBWEBSOCKETS_STATIC = $(WEBSOCKETS_LIBDIR)/libwebsockets.a
 LIBPROTOBUF_STATIC = $(PROTOBUF_LIBDIR)/libprotobuf.a
@@ -28,8 +30,8 @@ if BUILD_LIBEVENT_SUPPORT
 LIBEVENT_STATIC = $(LIBEVENT_LIBDIR)/libevent.a
 endif
 
-DIST_SUBDIRS = libbtc chacha20poly1305
-SUBDIRS = libbtc chacha20poly1305 $(MAYBE_BUILD)
+DIST_SUBDIRS = libbtc chacha20poly1305 hkdf
+SUBDIRS = libbtc chacha20poly1305 hkdf $(MAYBE_BUILD)
 
 # Unit test flags.
 UNIT_TEST_CXXFLAGS=
@@ -37,16 +39,7 @@ if BUILD_TESTS
 UNIT_TEST_CXXFLAGS += -DUNIT_TESTS -Wunused-parameter
 endif
 
-# Flag used to determine if the code will *only* use libbtc, and not Crypto++.
-LIBBTC_FLAGS =
-
-if USE_CRYPTOPP
-DIST_SUBDIRS += cryptopp
-SUBDIRS += cryptopp
-LIBCRYPTOPP += cryptopp/libcryptopp.la
-else
-LIBBTC_FLAGS += -DLIBBTC_ONLY
-endif
+LIBBTC_FLAGS = -DLIBBTC_ONLY
 
 AM_CXXFLAGS =
 
@@ -67,16 +60,47 @@ protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
 #	@test -f proto
 	protoc --cpp_out=protobuf --proto_path=protobuf $<
 
-INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdb/libraries/liblmdb \
+INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdbpp \
 	-Ichacha20poly1305 -Ilibbtc/src/secp256k1/include \
-	-Ilibbtc/include $(LWS_CFLAGS)
+	-Ilibbtc/include $(LWS_CFLAGS) -Ihkdf -IWallets -ISigner
 
 # Files should *not* be marked as "common" if at all possible. Also, a refactor
 # might not hurt one of these days. Some of the "common" files could be GUI/CLI
 # files but are "common" for the sake of unit testing. In an ideal world, the
 # unit tests would be split into multiple files as needed. One day....
 KEYMANAGER_SOURCE_FILES = KeyManager.cpp
-CPPBRIDGE_SOURCE_FILES = CppBridge.cpp
+
+CPPBRIDGE_SOURCE_FILES = BridgeAPI/CppBridge.cpp \
+	BridgeAPI/BridgeMain.cpp \
+	BridgeAPI/ProtobufConversions.cpp \
+	BridgeAPI/BridgeSocket.cpp \
+	BridgeAPI/WalletManager.cpp \
+	BridgeAPI/ProtobufCommandParser.cpp \
+	BridgeAPI/PassphrasePrompt.cpp
+
+ARMORYWALLETS_SOURCE_FILES = Wallets/BIP32_Node.cpp \
+	Wallets/Addresses.cpp \
+	Wallets/DecryptedDataContainer.cpp \
+	Wallets/DerivationScheme.cpp \
+	Wallets/Accounts/AccountTypes.cpp \
+	Wallets/Accounts/AssetAccounts.cpp \
+	Wallets/Accounts/AddressAccounts.cpp \
+	Wallets/Accounts/MetaAccounts.cpp \
+	Wallets/WalletIdTypes.cpp \
+	Wallets/Assets.cpp \
+	Wallets/WalletHeader.cpp \
+	Wallets/EncryptedDB.cpp \
+	Wallets/WalletFileInterface.cpp \
+	Wallets/AssetEncryption.cpp \
+	Wallets/Wallets.cpp \
+	Wallets/AuthorizedPeers.cpp
+
+ARMORYSIGNER_SOURCE_FILES = Signer/Script.cpp \
+	Signer/ScriptRecipient.cpp \
+	Signer/Signer.cpp \
+	Signer/ResolverFeed.cpp \
+	Signer/ResolverFeed_Wallets.cpp
+
 ARMORYDB_SOURCE_FILES = main.cpp
 ARMORYGUI_SOURCE_FILES = TransactionBatch.cpp
 ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
@@ -108,36 +132,25 @@ ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	SshParser.cpp \
 	StringSockets.cpp \
 	txio.cpp \
+	ZeroConfUtils.cpp \
 	ZeroConf.cpp \
 	ZeroConfNotifications.cpp \
-	TerminalPassphrasePrompt.cpp
-ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
-	WalletHeader.cpp \
-	WalletFileInterface.cpp \
-	Addresses.cpp \
-	AssetEncryption.cpp \
-	Assets.cpp \
-	AsyncClient.cpp \
-	AuthorizedPeers.cpp \
+	TerminalPassphrasePrompt.cpp \
+	gtest/NodeUnitTest.cpp
+
+ARMORYCOMMON_SOURCE_FILES = AsyncClient.cpp \
 	BinaryData.cpp \
-	BIP32_Node.cpp \
-	BlockDataManagerConfig.cpp \
+	ArmoryConfig.cpp \
 	BtcUtils.cpp \
-	ClientClasses.cpp \
+	DBClientClasses.cpp \
 	CoinSelection.cpp \
-	DecryptedDataContainer.cpp \
-	DerivationScheme.cpp \
-	hkdf.cpp \
+	EncryptionUtils_libbtc.cpp \
 	KDF.cpp \
 	log.cpp \
-	NetworkConfig.cpp \
+	BitcoinSettings.cpp \
 	ReentrantLock.cpp \
-	ResolverFeed.cpp \
-	Script.cpp \
 	SecureBinaryData.cpp \
 	ArmoryBackups.cpp \
-	ScriptRecipient.cpp \
-	Signer.cpp \
 	SocketObject.cpp \
 	StoredBlockObj.cpp \
 	Transactions.cpp \
@@ -145,16 +158,8 @@ ARMORYCOMMON_SOURCE_FILES = Accounts.cpp \
 	TxEvalState.cpp \
 	txio.cpp \
 	UniversalTimer.cpp \
-	WalletManager.cpp \
-	Wallets.cpp \
 	WebSocketClient.cpp \
 	WebSocketMessage.cpp
-
-if ! USE_CRYPTOPP
-ARMORYCOMMON_SOURCE_FILES += EncryptionUtils_libbtc.cpp
-else
-ARMORYCOMMON_SOURCE_FILES += EncryptionUtils.cpp
-endif
 
 PROTOBUF_PROTO = protobuf/AddressBook.proto \
 	protobuf/AddressData.proto \
@@ -195,15 +200,32 @@ dist_noinst_DATA = $(PROTOBUF_PROTO)
 # LMDB (DB used by Armory). On macOS, don't use SYSV semaphores (the default),
 # which cause crashes due to mutex lock/unlock issues. Use POSIX semaphores
 # (same as Linux).
-noinst_LTLIBRARIES += $(LIBLMDB)
-liblmdb_la_SOURCES = lmdb/libraries/liblmdb/lmdbpp.cpp \
-		lmdb/libraries/liblmdb/mdb.c \
-		lmdb/libraries/liblmdb/midl.c
-liblmdb_la_CPPFLAGS = -Ilmdb/libraries/liblmdb -fPIC
-if BUILD_DARWIN
-liblmdb_la_CPPFLAGS += -DMDB_USE_POSIX_SEM=1
-endif
-liblmdb_la_LDFLAGS = -static
+noinst_LTLIBRARIES += $(LIBLMDBPP)
+liblmdbpp_la_SOURCES = lmdbpp/lmdbpp.cpp
+liblmdbpp_la_CPPFLAGS = -Ilmdbpp -fPIC
+liblmdbpp_la_LIBADD = -llmdb
+liblmdbpp_la_LDFLAGS = -static
+
+# libArmoryWallets
+noinst_LTLIBRARIES += $(LIBARMORYWALLETS)
+libArmoryWallets_la_SOURCES = $(ARMORYWALLETS_SOURCE_FILES)
+libArmoryWallets_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+libArmoryWallets_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
+			      $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
+libArmoryWallets_la_LIBADD = $(LIBBTC) \
+				$(LIBSECP256K1)
+libArmoryWallets_la_LDFLAGS = $(LDFLAGS)
+
+# libArmorySigner
+noinst_LTLIBRARIES += $(LIBARMORYSIGNER)
+libArmorySigner_la_SOURCES = $(ARMORYSIGNER_SOURCE_FILES)
+libArmorySigner_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+libArmorySigner_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
+			      $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
+libArmorySigner_la_LIBADD = $(LIBBTC) \
+				$(LIBSECP256K1)
+libArmorySigner_la_LDFLAGS = $(LDFLAGS)
+
 
 # libArmoryCommon - Required by all Armory programs/libraries.
 # Common functionality across GUI and command line
@@ -213,9 +235,11 @@ nodist_libArmoryCommon_la_SOURCES = $(PROTOBUF_CC) $(PROTOBUF_H)
 libArmoryCommon_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 libArmoryCommon_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
 			      $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
-libArmoryCommon_la_LIBADD = $(LIBCRYPTOPP) \
+libArmoryCommon_la_LIBADD = $(LIBHKDF) \
 				$(LIBBTC) \
 				$(LIBSECP256K1) \
+				$(LIBARMORYWALLETS) \
+				$(LIBARMORYSIGNER) \
 				-lpthread
 libArmoryCommon_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS) $(PROTOBUF_FLAGS)
 
@@ -225,11 +249,15 @@ libArmoryCLI_la_SOURCES = $(ARMORYCLI_SOURCE_FILES)
 libArmoryCLI_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) \
 			$(PYTHON_CFLAGS)
 libArmoryCLI_la_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) \
-			   $(UNIT_TEST_CXXFLAGS) -Ilmdb/libraries/liblmdb -D__STDC_LIMIT_MACROS
+			   $(UNIT_TEST_CXXFLAGS) -D__STDC_LIMIT_MACROS
 libArmoryCLI_la_LIBADD = $(LIBCHACHA20POLY1305) \
+			 $(LIBARMORYWALLETS) \
+			 $(LIBARMORYSIGNER) \
 			 $(LIBARMORYCOMMON) \
-			 $(LIBCRYPTOPP) \
-			 $(LIBLMDB) \
+			 $(LIBLMDBPP) \
+			 $(LIBHKDF) \
+			 $(LIBBTC) \
+			 -llmdb \
 			 -lpthread
 libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS)
 
@@ -239,12 +267,15 @@ ArmoryDB_SOURCES = $(ARMORYDB_SOURCE_FILES)
 ArmoryDB_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS) \
 			-D__STDC_LIMIT_MACROS
 ArmoryDB_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
-ArmoryDB_LDADD = $(LIBARMORYCOMMON) \
+ArmoryDB_LDADD = $(LIBARMORYWALLETS) \
+		 $(LIBARMORYSIGNER) \
+		 $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
-		 $(LIBCRYPTOPP) \
+		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
-		 $(LIBLMDB) \
+		 $(LIBLMDBPP) \
+		 -llmdb \
 		 $(LIBPROTOBUF_STATIC) \
 		 $(LIBWEBSOCKETS_STATIC)
 if BUILD_OPENSSL_SUPPORT
@@ -273,14 +304,16 @@ BIP150KeyManager_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS)
 BIP150KeyManager_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 BIP150KeyManager_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
-		 $(LIBCRYPTOPP) \
+		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
-		 $(LIBLMDB) \
+		 $(LIBLMDBPP) \
+		 -llmdb \
 		 $(LIBPROTOBUF_STATIC) \
 		 -lpthread
 BIP150KeyManager_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
 
+if BUILD_CLIENT
 bin_PROGRAMS += CppBridge
 CppBridge_SOURCES = $(CPPBRIDGE_SOURCE_FILES)
 CppBridge_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS) \
@@ -288,10 +321,11 @@ CppBridge_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS) \
 CppBridge_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
 CppBridge_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
-		 $(LIBCRYPTOPP) \
+		 $(LIBHKDF) \
 		 $(LIBBTC) \
 		 $(LIBCHACHA20POLY1305) \
-		 $(LIBLMDB) \
+		 $(LIBLMDBPP) \
+		 -llmdb \
 		 $(LIBPROTOBUF_STATIC) \
 		 $(LIBWEBSOCKETS_STATIC)
 if BUILD_OPENSSL_SUPPORT
@@ -311,14 +345,13 @@ if BUILD_LDL_REQUIRED
 CppBridge_LDADD += -ldl
 endif
 CppBridge_LDFLAGS = $(LWSLDFLAGS) $(LDFLAGS) -static
+endif
 
 MOSTLYCLEANFILES = $(PROTOBUF_CC) $(PROTOBUF_H)
 BUILT_SOURCES += $(PROTOBUF_CC)
 
 clean-local:
-	rm -f CppBlockUtils.py
-	rm -f CppBlockUtils_wrap.cxx
-	rm -f CppBlockUtils_wrap.h
+	rm -f CppBridge
 	rm -f BIP150KeyManager
 
 protobuf_clean:

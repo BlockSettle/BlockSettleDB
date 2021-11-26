@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,8 +87,10 @@ public:
    void putBareHeaders(LMDBBlockDatabase *db, bool updateDupID=true);
    void putNewBareHeaders(LMDBBlockDatabase *db);
 
-   unsigned int getNewUniqueID(void) { return topID_.fetch_add(1, std::memory_order_relaxed); }
-   unsigned int getTopIdFromDb(LMDBBlockDatabase*) const;
+   uint32_t getNewUniqueID(void) { return topID_.fetch_add(1, std::memory_order_relaxed); }
+   uint32_t getTopId(void) { return topID_.load(std::memory_order_relaxed); }
+   uint32_t getTopIdFromDb(LMDBBlockDatabase*) const;
+   void initTopBlockId(LMDBBlockDatabase* db);
    void updateTopIdInDb(LMDBBlockDatabase*);
 
    std::map<unsigned, std::set<unsigned>> mapIDsPerBlockFile(void) const;
@@ -119,7 +121,7 @@ private:
    unsigned topBlockId_ = 0;
    Blockchain(const Blockchain&); // not defined
 
-   std::atomic<unsigned int> topID_;
+   std::atomic<uint32_t> topID_;
    static const BinaryData topIdKey_;
 
    mutable std::mutex mu_;

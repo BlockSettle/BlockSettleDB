@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +21,7 @@
 
 #include "ThreadSafeClasses.h"
 #include "BinaryData.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "BtcUtils.h"
 #include "StoredBlockObj.h"
 #include "lmdb_wrapper.h"
@@ -162,9 +162,6 @@ private:
 
    std::shared_ptr<ArmoryThreading::TransactionalMap<
       BinaryDataRef, std::shared_ptr<AddrAndHash>>> scanFilterAddrMap_;
-   std::shared_ptr<ArmoryThreading::TransactionalMap<
-      BinaryDataRef, std::shared_ptr<AddrAndHash>>> zcFilterAddrMap_;
-
 
    ArmoryThreading::BlockingQueue<
       std::shared_ptr<AddressBatch>> registrationStack_;
@@ -181,7 +178,7 @@ private:
    std::shared_ptr<ArmoryThreading::TransactionalMap<
       BinaryDataRef, std::shared_ptr<AddrAndHash>>> getZcFilterMapPtr(void) const
    {
-      return zcFilterAddrMap_;
+      return scanFilterAddrMap_;
    }
 
    std::set<BinaryDataRef> updateAddrMap(
@@ -199,10 +196,6 @@ public:
       : sdbiKey_(sdbiKey), lmdb_(lmdb)
    {
       scanFilterAddrMap_ = std::make_shared<
-         ArmoryThreading::TransactionalMap<
-         BinaryDataRef, std::shared_ptr<AddrAndHash>>>();
-
-      zcFilterAddrMap_ = std::make_shared<
          ArmoryThreading::TransactionalMap<
          BinaryDataRef, std::shared_ptr<AddrAndHash>>>();
    }

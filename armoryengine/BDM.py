@@ -324,7 +324,7 @@ class BlockDataManager(object):
             self.bdmState = BDM_SCANNING
 
             for cppNotificationListener in self.getListenerList():
-               cppNotificationListener(BDM_SCAN_PROGRESS, [None, None])            
+               cppNotificationListener(BDM_SCAN_PROGRESS, [None, None])
          else:
             progInfo = [walletVec, prog]
             for cppNotificationListener in self.getListenerList():
@@ -336,7 +336,7 @@ class BlockDataManager(object):
 
    #############################################################################
    def pushFromBridge(self, payloadType, payload, uniqueId, callerId):
-      
+
       if payloadType == OpaquePayloadType.Value("commandWithCallback"):
          if len(uniqueId) == 0 or uniqueId not in self.pythonPrompts:
             LOGWARN("Unknown prompt id")
@@ -384,7 +384,3 @@ else:
    cpplf = cppLogFile
    if OS_WINDOWS and isinstance(cppLogFile, unicode):
       cpplf = cppLogFile.encode('utf8')
-
-# Put the import at the end to avoid circular reference problem
-from armoryengine.MultiSigUtils import MultiSigLockbox
-from armoryengine.Transaction import PyTx

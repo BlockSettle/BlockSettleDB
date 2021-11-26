@@ -351,7 +351,7 @@ public:
 		T val = std::move(queue_.front());
 		queue_.pop_front();
 		count_.fetch_sub(1, std::memory_order_relaxed);
-		return std::move(val);
+		return val;
    }
 
    virtual void push_back(T&& obj)
@@ -637,7 +637,7 @@ public:
 		catch (IsEmpty&)
 		{}
 
-		return std::move(vecT);
+		return vecT;
    }
 
    void push_back(T&& obj)

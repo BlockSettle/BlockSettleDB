@@ -5,15 +5,17 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "TestUtils.h"
 using namespace std;
 using namespace ArmorySigner;
+using namespace Armory::Config;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -227,19 +229,22 @@ protected:
    {
       DBTestUtils::init();
 
-      auto& magicBytes = NetworkConfig::getMagicBytes();
+      Armory::Config::reset();
+      DBSettings::setServiceType(SERVICE_UNITTEST);
+      Armory::Config::parseArgs({
+         "--datadir=./fakehomedir",
+         "--dbdir=./ldbtestdir",
+         "--satoshi-datadir=./blkfiletest",
+         "--db-type=DB_SUPER",
+         "--thread-count=3"},
+         Armory::Config::ProcessType::DB);
 
-      auto nodePtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), false);
-      auto watcherPtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), true);
-      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
-      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(
-         nodePtr, watcherPtr);
-
-      theBDMt_ = new BlockDataManagerThread(config);
+      theBDMt_ = new BlockDataManagerThread();
       iface_ = theBDMt_->bdm()->getIFace();
 
+      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(
+         NetworkSettings::bitcoinNodes().first);
+      
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
 
@@ -261,26 +266,13 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory(ldbdir_);
 
-      mkdir(blkdir_);
+      mkdir(blkdir_ + "/blocks");
       mkdir(homedir_);
       mkdir(ldbdir_);
 
       // Put the first 5 blocks into the blkdir
-      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
-      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
-
-      blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
+      blk0dat_ = BtcUtils::getBlkFilename(blkdir_ + "/blocks", 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-
-      BlockDataManagerConfig::setDbType(ARMORY_DB_SUPER);
-      config.blkFileLocation_ = blkdir_;
-      config.dbDir_ = ldbdir_;
-      config.threadCount_ = 3;
-
-      unsigned port_int = 50000 + rand() % 10000;
-      stringstream port_ss;
-      port_ss << port_int;
-      config.listenPort_ = port_ss.str();
 
       initBDM();
    }
@@ -306,11 +298,11 @@ protected:
 
       mkdir("./ldbtestdir");
 
+      Armory::Config::reset();
+
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
    }
-
-   BlockDataManagerConfig config;
 
    LMDBBlockDatabase* iface_;
    BinaryData zeros_;
@@ -324,8 +316,8 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsSuper, Load5Blocks)
 {
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -336,59 +328,59 @@ TEST_F(BlockUtilsSuper, Load5Blocks)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
 {
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -397,52 +389,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    //restart bdm
    clients_->exitRequestLoop();
@@ -454,72 +446,72 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM)
    initBDM();
 
    auto&& subssh_sdbi = iface_->getStoredDBInfo(SUBSSH, 0);
-   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 5);
+   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 5ULL);
 
    auto&& ssh_sdbi = iface_->getStoredDBInfo(SSH, 0);
-   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5);
+   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5ULL);
 
-   theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsSuper, Load5Blocks_Reload_Rescan)
 {
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -528,52 +520,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_Reload_Rescan)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    //restart bdm
    clients_->exitRequestLoop();
@@ -585,65 +577,65 @@ TEST_F(BlockUtilsSuper, Load5Blocks_Reload_Rescan)
    initBDM();
 
    auto&& subssh_sdbi = iface_->getStoredDBInfo(SUBSSH, 0);
-   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 5);
+   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 5U);
 
    auto&& ssh_sdbi = iface_->getStoredDBInfo(SSH, 0);
-   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5);
+   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 5U);
 
    theBDMt_->start(INIT_RESCAN);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -651,8 +643,8 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
 {
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -662,52 +654,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 55 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 55 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 5);
+   EXPECT_EQ(ssh.totalTxioCount_, 5U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 10 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 20 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    //restart bdm
    clients_->exitRequestLoop();
@@ -719,65 +711,65 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    initBDM();
 
    auto&& subssh_sdbi = iface_->getStoredDBInfo(SUBSSH, 0);
-   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 3);
+   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 3U);
 
    auto&& ssh_sdbi = iface_->getStoredDBInfo(SSH, 0);
-   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 3);
+   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 3U);
 
    theBDMt_->start(INIT_SSH);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 55 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 55 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 5);
+   EXPECT_EQ(ssh.totalTxioCount_, 5U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 10 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 20 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    //restart bdm
    clients_->exitRequestLoop();
@@ -790,74 +782,74 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    initBDM();
 
    subssh_sdbi = iface_->getStoredDBInfo(SUBSSH, 0);
-   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 3);
+   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 3U);
 
    ssh_sdbi = iface_->getStoredDBInfo(SSH, 0);
-   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 3);
+   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 3U);
 
    //add next block
    TestUtils::appendBlocks({ "4" }, blk0dat_);
 
    theBDMt_->start(INIT_SSH);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
    subssh_sdbi = iface_->getStoredDBInfo(SUBSSH, 0);
-   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 4);
+   EXPECT_EQ(subssh_sdbi.topBlkHgt_, 4U);
 
    ssh_sdbi = iface_->getStoredDBInfo(SSH, 0);
-   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 4);
+   EXPECT_EQ(ssh_sdbi.topBlkHgt_, 4U);
    
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 5);
+   EXPECT_EQ(ssh.totalTxioCount_, 5U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 60 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    //add last block
    TestUtils::appendBlocks({ "5" }, blk0dat_);
@@ -867,52 +859,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_RescanSSH)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -922,12 +914,12 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
    // readBlkFileUpdate method on non-reorg blocks.
    TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 2);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 2U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash2);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->
       getHeaderByHash(TestChain::blkHash2)->isMainBranch());
@@ -947,8 +939,8 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
 
    initBDM();
 
-   theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -957,7 +949,7 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
    DBTestUtils::triggerNewBlockNotification(theBDMt_);
    DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
 
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5);
+   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 5U);
    EXPECT_EQ(DBTestUtils::getTopBlockHash(iface_, HEADERS), TestChain::blkHash5);
    EXPECT_TRUE(theBDMt_->bdm()->blockchain()->
       getHeaderByHash(TestChain::blkHash5)->isMainBranch());
@@ -967,52 +959,52 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    //grab a tx by hash for coverage
    auto& txioHeightMap = ssh.subHistMap_.rbegin()->second;
@@ -1026,8 +1018,8 @@ TEST_F(BlockUtilsSuper, Load3BlocksPlus3)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsSuper, Load5Blocks_FullReorg)
 {
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1040,59 +1032,59 @@ TEST_F(BlockUtilsSuper, Load5Blocks_FullReorg)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 55 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 55 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 60 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 95 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 20 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM_Reorg)
 {
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1107,64 +1099,64 @@ TEST_F(BlockUtilsSuper, Load5Blocks_ReloadBDM_Reorg)
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5", "4A", "5A" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
-   EXPECT_EQ(theBDMt_->bdm()->blockchain()->top()->getBlockHeight(), 5);
+   EXPECT_EQ(theBDMt_->bdm()->blockchain()->top()->getBlockHeight(), 5U);
 
    StoredScriptHistory ssh;
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 55 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 55 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 60 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 95 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 20 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1174,8 +1166,8 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DoubleReorg)
 
    TestUtils::setBlocks({ "0", "1", "2", "3", "4A" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1187,52 +1179,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DoubleReorg)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 25 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 40 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    //second reorg: up to 5A
    TestUtils::setBlocks({ "0", "1", "2", "3", "4A", "4", "5", "5A" }, blk0dat_);
@@ -1242,52 +1234,52 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DoubleReorg)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 9);
+   EXPECT_EQ(ssh.totalTxioCount_, 9U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 55 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 55 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 60 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 95 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb1ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 15 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddr);
    EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 20 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 3);
+   EXPECT_EQ(ssh.totalTxioCount_, 3U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::lb2ScrAddrP2SH);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 5 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1296,8 +1288,8 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
    StoredScriptHistory ssh;
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
    DBTestUtils::goOnline(clients_, bdvID);
    DBTestUtils::waitOnBDMReady(clients_, bdvID);
 
@@ -1316,32 +1308,32 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 50 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 50 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 1);
+   EXPECT_EQ(ssh.totalTxioCount_, 1U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 70 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 230 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 12);
+   EXPECT_EQ(ssh.totalTxioCount_, 12U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 20 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 75 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 65 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 30 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 30 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 2);
+   EXPECT_EQ(ssh.totalTxioCount_, 2U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 45 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    //reorg from block 3
    {
@@ -1483,32 +1475,32 @@ TEST_F(BlockUtilsSuper, Load5Blocks_DynamicReorg_GrabSTXO)
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrA);
    EXPECT_EQ(ssh.getScriptBalance(), 211 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 211 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 6);
+   EXPECT_EQ(ssh.totalTxioCount_, 6U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrB);
    EXPECT_EQ(ssh.getScriptBalance(), 0 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 160 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 10);
+   EXPECT_EQ(ssh.totalTxioCount_, 10U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrC);
    EXPECT_EQ(ssh.getScriptBalance(), 49 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 99 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
    EXPECT_EQ(ssh.getScriptBalance(), 13 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 38 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrE);
    EXPECT_EQ(ssh.getScriptBalance(), 47 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 47 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 4);
+   EXPECT_EQ(ssh.totalTxioCount_, 4U);
 
    iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
    EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
    EXPECT_EQ(ssh.getScriptReceived(), 80 * COIN);
-   EXPECT_EQ(ssh.totalTxioCount_, 7);
+   EXPECT_EQ(ssh.totalTxioCount_, 7U);
 
    /*grab STXOs*/
 
@@ -1555,18 +1547,21 @@ protected:
    {
       DBTestUtils::init();
 
-      auto& magicBytes = NetworkConfig::getMagicBytes();
+      Armory::Config::reset();
+      DBSettings::setServiceType(SERVICE_UNITTEST);
+      Armory::Config::parseArgs({
+         "--datadir=./fakehomedir",
+         "--dbdir=./ldbtestdir",
+         "--satoshi-datadir=./blkfiletest",
+         "--db-type=DB_SUPER",
+         "--thread-count=3"},
+         Armory::Config::ProcessType::DB);
 
-      auto nodePtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), false);
-      auto watcherPtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), true);
-      config.bitcoinNodes_ = make_pair(nodePtr, watcherPtr);
-      config.rpcNode_ = make_shared<NodeRPC_UnitTest>(
-         nodePtr, watcherPtr);
-
-      theBDMt_ = new BlockDataManagerThread(config);
+      theBDMt_ = new BlockDataManagerThread();
       iface_ = theBDMt_->bdm()->getIFace();
+
+      auto nodePtr = dynamic_pointer_cast<NodeUnitTest>(
+         NetworkSettings::bitcoinNodes().first);
 
       nodePtr->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr->setBlockFiles(theBDMt_->bdm()->blockFiles());
@@ -1590,26 +1585,13 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory(ldbdir_);
 
-      mkdir(blkdir_);
+      mkdir(blkdir_ + "/blocks");
       mkdir(homedir_);
       mkdir(ldbdir_);
 
       // Put the first 5 blocks into the blkdir
-      BlockDataManagerConfig::setServiceType(SERVICE_UNITTEST);
-      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
-
-      blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
+      blk0dat_ = BtcUtils::getBlkFilename(blkdir_ + "/blocks", 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-
-      BlockDataManagerConfig::setDbType(ARMORY_DB_SUPER);
-      config.blkFileLocation_ = blkdir_;
-      config.dbDir_ = ldbdir_;
-      config.threadCount_ = 3;
-
-      unsigned port_int = 50000 + rand() % 10000;
-      stringstream port_ss;
-      port_ss << port_int;
-      config.listenPort_ = port_ss.str();
 
       initBDM();
 
@@ -1637,11 +1619,11 @@ protected:
 
       mkdir("./ldbtestdir");
 
+      Armory::Config::reset();
+
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
-      }
-
-   BlockDataManagerConfig config;
+   }
 
    LMDBBlockDatabase* iface_;
    BinaryData zeros_;
@@ -1662,8 +1644,8 @@ TEST_F(BlockUtilsWithWalletTest, Test_WithWallet)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
 
@@ -1708,8 +1690,8 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAddrAfterWallet)
    scrAddrVec.push_back(TestChain::scrAddrB);
    scrAddrVec.push_back(TestChain::scrAddrC);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
    auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
@@ -1754,594 +1736,19 @@ TEST_F(BlockUtilsWithWalletTest, RegisterAddrAfterWallet)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsWithWalletTest, ZeroConfUpdate)
-{
-   //create script spender objects
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo)
-      ->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      auto spender = make_shared<ScriptSpender>(entry);
-      spender->setSequence(UINT32_MAX - 2);
-
-      return spender;
-   };
-
-   TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-   scrAddrVec.push_back(TestChain::scrAddrE);
-
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
-
-   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
-
-   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
-
-   //wait on signals
-   DBTestUtils::goOnline(clients_, bdvID);
-   DBTestUtils::waitOnBDMReady(clients_, bdvID);
-   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-
-   BinaryData ZChash;
-
-   {
-      ////spend 27 from wlt to assetWlt's first 2 unused addresses
-      ////send rest back to scrAddrA
-
-      auto spendVal = 27 * COIN;
-      Signer signer;
-      signer.setLockTime(3);
-
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-
-      //get utxo list for spend value
-      auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
-
-      vector<UnspentTxOut> utxoVec;
-      uint64_t tval = 0;
-      auto utxoIter = unspentVec.begin();
-      while (utxoIter != unspentVec.end())
-      {
-         tval += utxoIter->getValue();
-         utxoVec.push_back(*utxoIter);
-
-         if (tval > spendVal)
-            break;
-
-         ++utxoIter;
-      }
-
-      //create script spender objects
-      uint64_t total = 0;
-      for (auto& utxo : utxoVec)
-      {
-         total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo));
-      }
-
-      //spendVal to addrE
-      auto recipientChange = make_shared<Recipient_P2PKH>(
-         TestChain::scrAddrD.getSliceCopy(1, 20), spendVal);
-      signer.addRecipient(recipientChange);
-
-      if (total > spendVal)
-      {
-         //change to scrAddrD, no fee
-         auto changeVal = total - spendVal;
-         auto recipientChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), changeVal);
-         signer.addRecipient(recipientChange);
-      }
-
-      //sign, verify then broadcast
-      signer.setFeed(feed);
-      signer.sign();
-      EXPECT_TRUE(signer.verify());
-
-      Tx zctx(signer.serializeSignedTx());
-      ZChash = zctx.getThisHash();
-
-      DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serializeSignedTx(), 1300000000);
-
-      DBTestUtils::pushNewZc(theBDMt_, zcVec);
-      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-   }
-
-   EXPECT_EQ(wlt->getScrAddrObjByKey(TestChain::scrAddrA)->getFullBalance(), 50 * COIN);
-   EXPECT_EQ(wlt->getScrAddrObjByKey(TestChain::scrAddrB)->getFullBalance(), 30 * COIN);
-   EXPECT_EQ(wlt->getScrAddrObjByKey(TestChain::scrAddrC)->getFullBalance(), 55 * COIN);
-   EXPECT_EQ(wlt->getScrAddrObjByKey(TestChain::scrAddrE)->getFullBalance(), 3 * COIN);
-
-   //test ledger entry
-   LedgerEntry le = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash);
-
-   //EXPECT_EQ(le.getTxTime(), 1300000000);
-   EXPECT_EQ(le.isSentToSelf(), false);
-   EXPECT_EQ(le.getValue(), -27 * COIN);
-
-   //check ZChash in DB
-   BinaryData zcKey = WRITE_UINT16_BE(0xFFFF);
-   zcKey.append(WRITE_UINT32_LE(0));
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getHashForKey(zcKey), ZChash);
-
-   //grab ZC by hash
-   auto&& txobj = DBTestUtils::getTxByHash(clients_, bdvID, ZChash);
-   EXPECT_EQ(txobj.getThisHash(), ZChash);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsWithWalletTest, UnrelatedZC_CheckLedgers)
-{
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4" }, blk0dat_);
-
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
-
-   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
-
-   //wait on signals
-   DBTestUtils::goOnline(clients_, bdvID);
-   DBTestUtils::waitOnBDMReady(clients_, bdvID);
-   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   auto delegateID = DBTestUtils::getLedgerDelegate(clients_, bdvID);
-
-   //check balances
-   const ScrAddrObj* scrObj;
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 10 * COIN);
-
-   StoredScriptHistory ssh;
-   iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
-   EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
-   iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
-   EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
-
-   //Create zc that spends from addr D to F. This is supernode so the DB
-   //should track this ZC even though it isn't registered. Send the ZC as
-   //a batch along with a ZC that hits our wallets, in order to get the 
-   //notification, which comes at the BDV level (i.e. only for registered
-   //wallets).
-   
-   auto&& ZC1 = TestUtils::getTx(5, 2); //block 5, tx 2
-   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
-
-   auto&& ZC2 = TestUtils::getTx(5, 1); //block 5, tx 1
-   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-   DBTestUtils::ZcVector zcVec1;
-   zcVec1.push_back(ZC1, 14000000);
-   zcVec1.push_back(ZC2, 14100000);
-
-   DBTestUtils::pushNewZc(theBDMt_, zcVec1);
-   DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
-
-   try
-   {
-      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
-            TestChain::scrAddrD);
-      EXPECT_EQ(zcTxios.size(), 1);
-      iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
-      DBTestUtils::addTxioToSsh(ssh, zcTxios);
-      EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
-   }
-   catch (exception&)
-   {
-      ASSERT_TRUE(false);
-   }
-
-   try
-   {
-      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
-            TestChain::scrAddrF);
-      iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
-      DBTestUtils::addTxioToSsh(ssh, zcTxios);
-      EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
-   }
-   catch (exception&)
-   {
-      ASSERT_TRUE(false);
-   }
-
-   //grab ledger for 1st ZC, should be empty
-   auto zcledger = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash1);
-   EXPECT_EQ(zcledger.getTxHash(), BtcUtils::EmptyHash());
-
-   //grab ledger for 2nd ZC
-   zcledger = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash2);
-   EXPECT_EQ(zcledger.getValue(), 30 * COIN);
-   EXPECT_EQ(zcledger.getBlockNum(), UINT32_MAX);
-   EXPECT_FALSE(zcledger.isOptInRBF());
-
-   //grab delegate ledger
-   auto&& delegateLedger = 
-      DBTestUtils::getHistoryPage(clients_, bdvID, delegateID, 0);
-
-   unsigned zc2_count = 0;
-   for (auto& ld : delegateLedger)
-   {
-      if (ld.getTxHash() == ZChash2)
-         zc2_count++;
-   }
-
-   EXPECT_EQ(zc2_count, 1);
-
-   //push last block
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 70 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
-
-   try
-   {
-      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
-         TestChain::scrAddrD);
-      ASSERT_TRUE(false);
-   }
-   catch (exception&)
-   {}
-   
-   iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
-   EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
-
-   try
-   {   
-      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
-            TestChain::scrAddrF);
-      ASSERT_TRUE(false);
-   }
-   catch (exception&)
-   {}
-
-   iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
-   EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
-
-   //try to get ledgers, ZCs should be all gone
-   zcledger = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash1);
-   EXPECT_EQ(zcledger.getTxHash(), BtcUtils::EmptyHash());
-   
-   zcledger = DBTestUtils::getLedgerEntryFromWallet(wlt, ZChash2);
-   EXPECT_EQ(zcledger.getTxTime(), 1231009513);
-   EXPECT_EQ(zcledger.getBlockNum(), 5);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsWithWalletTest, RegisterAfterZC)
-{
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4" }, blk0dat_);
-
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
-
-   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
-
-   //wait on signals
-   DBTestUtils::goOnline(clients_, bdvID);
-   DBTestUtils::waitOnBDMReady(clients_, bdvID);
-   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   auto delegateID = DBTestUtils::getLedgerDelegate(clients_, bdvID);
-
-   //check balances
-   const ScrAddrObj* scrObj;
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 10 * COIN);
-
-   StoredScriptHistory ssh;
-   iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
-   EXPECT_EQ(ssh.getScriptBalance(), 60 * COIN);
-   iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
-   EXPECT_EQ(ssh.getScriptBalance(), 10 * COIN);
-
-   //Create zc that spends from addr D to F. This is supernode so the DB
-   //should track this ZC even though it isn't registered. Send the ZC as
-   //a batch along with a ZC that hits our wallets, in order to get the
-   //notification, which comes at the BDV level (i.e. only for registered
-   //wallets).
-
-   auto&& ZC1 = TestUtils::getTx(5, 2); //block 5, tx 2
-   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
-
-   auto&& ZC2 = TestUtils::getTx(5, 1); //block 5, tx 1
-   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-   DBTestUtils::ZcVector zcVec1;
-   zcVec1.push_back(ZC1, 14000000);
-   zcVec1.push_back(ZC2, 14100000);
-
-   DBTestUtils::pushNewZc(theBDMt_, zcVec1);
-   DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
-
-   try
-   {
-      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
-            TestChain::scrAddrD);
-      iface_->getStoredScriptHistory(ssh, TestChain::scrAddrD);
-      DBTestUtils::addTxioToSsh(ssh, zcTxios);
-      EXPECT_EQ(ssh.getScriptBalance(), 65 * COIN);
-   }
-   catch (exception&)
-   {
-      ASSERT_TRUE(false);
-   }
-
-   try
-   {
-      auto zcTxios = theBDMt_->bdm()->zeroConfCont()->getTxioMapForScrAddr(
-            TestChain::scrAddrF);
-      iface_->getStoredScriptHistory(ssh, TestChain::scrAddrF);
-      DBTestUtils::addTxioToSsh(ssh, zcTxios);
-      EXPECT_EQ(ssh.getScriptBalance(), 5 * COIN);
-   }
-   catch (exception&)
-   {
-      ASSERT_TRUE(false);
-   }
-
-   //Register scrAddrD with the wallet. It should have the ZC balance
-   scrAddrVec.push_back(TestChain::scrAddrD);
-   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
-   EXPECT_EQ(scrObj->getFullBalance(), 65 * COIN);
-
-   //add last block
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 70 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
-   EXPECT_EQ(scrObj->getFullBalance(), 65 * COIN);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsWithWalletTest, ZC_Reorg)
-{
-   //create spender lamba
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo)
-      ->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
-   };
-
-   //
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
-
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a rvalue
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(),
-      3); //set lookup computation to 3 entries
-   auto addr1_ptr = assetWlt->getNewAddress();
-   auto addr2_ptr = assetWlt->getNewAddress();
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-   
-   auto&& wltSet = assetWlt->getAddrHashSet();
-   vector<BinaryData> wltVec;
-   for (auto& addr : wltSet)
-      wltVec.push_back(addr);
-
-   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
-   DBTestUtils::registerWallet(clients_, bdvID, wltVec, assetWlt->getID());
-   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
-
-   //wait on signals
-   DBTestUtils::goOnline(clients_, bdvID);
-   DBTestUtils::waitOnBDMReady(clients_, bdvID);
-   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   auto assetWltDbObj = bdvPtr->getWalletOrLockbox(assetWlt->getID());
-   auto delegateID = DBTestUtils::getLedgerDelegate(clients_, bdvID);
-
-   //check balances
-   const ScrAddrObj* scrObj;
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 70 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 20 * COIN);
-
-   BinaryData ZCHash1, ZCHash2;
-   for (auto& sa : wltSet)
-   {
-      scrObj = assetWltDbObj->getScrAddrObjByKey(sa);
-      EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-   }
-
-   {
-      Signer signer;
-
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //get utxo list for spend value
-      auto&& unspentVec = wlt->getSpendableTxOutListForValue(UINT64_MAX);
-
-      //consume 1st utxo, send 2 to scrAddrA, 3 to new wallet
-      signer.addSpender(getSpenderPtr(unspentVec[0]));
-      signer.addRecipient(addr1_ptr->getRecipient(3 * COIN));
-      auto recipientChange = make_shared<Recipient_P2PKH>(
-         TestChain::scrAddrA.getSliceCopy(1, 20), 2 * COIN);
-      signer.addRecipient(recipientChange);
-      signer.setFeed(feed);
-      signer.sign();
-
-      //2nd tx, 2nd utxo, 5 to scrAddrB, 5 new wallet
-      Signer signer2;
-      signer2.addSpender(getSpenderPtr(unspentVec[1]));
-      signer2.addRecipient(addr2_ptr->getRecipient(5 * COIN));
-      auto recipientChange2 = make_shared<Recipient_P2PKH>(
-         TestChain::scrAddrB.getSliceCopy(1, 20), 5 * COIN);
-      signer2.addRecipient(recipientChange2);
-      signer2.setFeed(feed);
-      signer2.sign();
-
-      DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(signer.serializeSignedTx(), 14000000);
-      ZCHash1 = zcVec.zcVec_.back().first.getThisHash();
-
-      zcVec.push_back(signer2.serializeSignedTx(), 14100000);
-      ZCHash2 = zcVec.zcVec_.back().first.getThisHash();
-
-      DBTestUtils::pushNewZc(theBDMt_, zcVec);
-      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-   }
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 52 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 75 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-
-   scrObj = assetWltDbObj->getScrAddrObjByKey(addr1_ptr->getPrefixedHash());
-   EXPECT_EQ(scrObj->getFullBalance(), 3 * COIN);
-   scrObj = assetWltDbObj->getScrAddrObjByKey(addr2_ptr->getPrefixedHash());
-   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
-
-   //reorg the chain
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5", "4A", "5A" }, blk0dat_);
-   DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   auto&& newBlockNotif = DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-   
-   //check new block callback carries an invalidated zc notif as well
-   auto notifPtr = get<0>(newBlockNotif);
-   auto notifIndex = get<1>(newBlockNotif);
-
-   EXPECT_EQ(notifIndex, 0);
-   EXPECT_EQ(notifPtr->notification_size(), 2);
-
-   //grab the invalidated zc notif, it should carry the hash for both our ZC
-   auto& zcNotif = notifPtr->notification(1);
-   EXPECT_EQ(zcNotif.type(), ::Codec_BDVCommand::NotificationType::invalidated_zc);
-   EXPECT_TRUE(zcNotif.has_ids());
-   
-   auto& ids = zcNotif.ids();
-   EXPECT_EQ(ids.value_size(), 2);
-   
-   //check zc hash 1
-   auto& id0_str = ids.value(0).data();
-   BinaryData id0_bd((uint8_t*)id0_str.c_str(), id0_str.size());
-   EXPECT_EQ(ZCHash1, id0_bd);
-
-   //check zc hash 2
-   auto& id1_str = ids.value(1).data();
-   BinaryData id1_bd((uint8_t*)id1_str.c_str(), id1_str.size());
-   EXPECT_EQ(ZCHash2, id1_bd);
-
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
-
-   scrObj = assetWltDbObj->getScrAddrObjByKey(addr1_ptr->getPrefixedHash());
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-   scrObj = assetWltDbObj->getScrAddrObjByKey(addr2_ptr->getPrefixedHash());
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 {
    //create spender lamba
-   auto getSpenderPtr = [](const UnspentTxOut& utxo)->shared_ptr<ScriptSpender>
+   auto getSpenderPtr = [](const UTXO& utxo)->shared_ptr<ScriptSpender>
    {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      return make_shared<ScriptSpender>(entry);
+      return make_shared<ScriptSpender>(utxo);
    };
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
+   theBDMt_->start(DBSettings::initMode());
+   auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
 
    vector<BinaryData> scrAddrVec;
    scrAddrVec.push_back(TestChain::scrAddrA);
@@ -2382,21 +1789,22 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
           //create 2-of-3 multisig asset entry from 3 different wallets
    map<BinaryData, shared_ptr<AssetEntry>> asset_single_map;
-   auto asset1 = assetWlt_1->getMainAccountAssetForIndex(0);
+   auto asset1 = TestUtils::getMainAccountAssetForIndex(assetWlt_1, 0);
    auto wltid1_bd = assetWlt_1->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid1_bd), asset1));
 
-   auto asset2 = assetWlt_2->getMainAccountAssetForIndex(0);
+   auto asset2 = TestUtils::getMainAccountAssetForIndex(assetWlt_2, 0);
    auto wltid2_bd = assetWlt_2->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid2_bd), asset2));
 
    auto asset4_singlesig = assetWlt_2->getNewAddress();
 
-   auto asset3 = assetWlt_3->getMainAccountAssetForIndex(0);
+   auto asset3 = TestUtils::getMainAccountAssetForIndex(assetWlt_3, 0);
    auto wltid3_bd = assetWlt_3->getID();
    asset_single_map.insert(make_pair(BinaryData::fromString(wltid3_bd), asset3));
 
-   auto ae_ms = make_shared<AssetEntry_Multisig>(0, BinaryData::fromString("test"),
+   auto ae_ms = make_shared<AssetEntry_Multisig>(
+      AssetId(0, 0, 0),
       asset_single_map, 2, 3);
    auto addr_ms_raw = make_shared<AddressEntry_Multisig>(ae_ms, true);
    auto addr_p2wsh = make_shared<AddressEntry_P2WSH>(addr_ms_raw);
@@ -2459,7 +1867,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       //get utxo list for spend value
       auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
 
-      vector<UnspentTxOut> utxoVec;
+      vector<UTXO> utxoVec;
       uint64_t tval = 0;
       auto utxoIter = unspentVec.begin();
       while (utxoIter != unspentVec.end())
@@ -2579,17 +1987,17 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    auto&& signerState = signer2.evaluateSignedState();
 
    {
-      ASSERT_EQ(signerState.getEvalMapSize(), 2);
+      ASSERT_EQ(signerState.getEvalMapSize(), 2U);
 
-      auto&& txinEval = signerState.getSignedStateForInput(0);
-      auto& pubkeyMap = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap.size(), 3);
-      for (auto& pubkeyState : pubkeyMap)
+      const auto& txinEval = signerState.getSignedStateForInput(0);
+      const auto& pubkeyMap = txinEval.getPubKeyMap();
+      EXPECT_EQ(pubkeyMap.size(), 3U);
+      for (const auto& pubkeyState : pubkeyMap)
          EXPECT_FALSE(pubkeyState.second);
 
-      txinEval = signerState.getSignedStateForInput(1);
-      auto& pubkeyMap_2 = txinEval.getPubKeyMap();
-      EXPECT_EQ(pubkeyMap_2.size(), 0);
+      const auto& txinEval2 = signerState.getSignedStateForInput(1);
+      const auto& pubkeyMap_2 = txinEval2.getPubKeyMap();
+      EXPECT_EQ(pubkeyMap_2.size(), 0U);
    }
 
    {
@@ -2604,10 +2012,10 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       EXPECT_FALSE(signer2.isSigned());
       signerState = signer2.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
 
-      auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      const auto& txinEval = signerState.getSignedStateForInput(0);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -2625,9 +2033,9 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       EXPECT_FALSE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
-      auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 1);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
+      const auto& txinEval = signerState.getSignedStateForInput(0);
+      EXPECT_EQ(txinEval.getSigCount(), 1U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -2665,9 +2073,9 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       EXPECT_TRUE(signer3.isSigned());
       signerState = signer3.evaluateSignedState();
 
-      EXPECT_EQ(signerState.getEvalMapSize(), 2);
+      EXPECT_EQ(signerState.getEvalMapSize(), 2U);
       auto&& txinEval = signerState.getSignedStateForInput(0);
-      EXPECT_EQ(txinEval.getSigCount(), 2);
+      EXPECT_EQ(txinEval.getSigCount(), 2U);
 
       auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset1);
       ASSERT_NE(asset_single, nullptr);
@@ -2717,670 +2125,6 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsWithWalletTest, ChainZC_RBFchild_Test)
-{
-   //create spender lambda
-   auto getSpenderPtr = [](
-      const UnspentTxOut& utxo, bool flagRBF)
-      ->shared_ptr<ScriptSpender>
-   {
-      UTXO entry(utxo.value_, utxo.txHeight_, utxo.txIndex_, utxo.txOutIndex_,
-         move(utxo.txHash_), move(utxo.script_));
-
-      auto spender = make_shared<ScriptSpender>(entry);
-
-      if (flagRBF)
-         spender->setSequence(UINT32_MAX - 2);
-
-      return spender;
-   };
-
-   BinaryData ZCHash1, ZCHash2, ZCHash3;
-
-   //
-   TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
-
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-   scrAddrVec.push_back(TestChain::scrAddrD);
-   scrAddrVec.push_back(TestChain::scrAddrE);
-
-   //// create assetWlt ////
-
-   //create a root private key
-   auto&& wltRoot = CryptoPRNG::generateRandom(32);
-   auto assetWlt = AssetWallet_Single::createFromPrivateRoot_Armory135(
-      homedir_,
-      move(wltRoot), //root as a r value
-      {},
-      SecureBinaryData(),
-      SecureBinaryData(), 
-      10); //set lookup computation to 5 entries
-
-           //register with db
-   vector<BinaryData> addrVec;
-
-   auto hashSet = assetWlt->getAddrHashSet();
-   vector<BinaryData> hashVec;
-   hashVec.insert(hashVec.begin(), hashSet.begin(), hashSet.end());
-
-   DBTestUtils::registerWallet(clients_, bdvID, hashVec, assetWlt->getID());
-   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
-
-   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
-
-   //wait on signals
-   DBTestUtils::goOnline(clients_, bdvID);
-   DBTestUtils::waitOnBDMReady(clients_, bdvID);
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 3);
-
-   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-   auto dbAssetWlt = bdvPtr->getWalletOrLockbox(assetWlt->getID());
-
-   //check balances
-   const ScrAddrObj* scrObj;
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
-   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
-   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
-
-   //check new wallet balances
-   for (auto& scripthash : hashSet)
-   {
-      scrObj = dbAssetWlt->getScrAddrObjByKey(scripthash);
-      EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-   }
-
-   {
-      ////spend 27 from wlt to assetWlt's first 2 unused addresses
-      ////send rest back to scrAddrA
-
-      auto spendVal = 27 * COIN;
-      Signer signer;
-
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-
-      //get utxo list for spend value
-      auto&& unspentVec = wlt->getSpendableTxOutListForValue(spendVal);
-
-      vector<UnspentTxOut> utxoVec;
-      uint64_t tval = 0;
-      auto utxoIter = unspentVec.begin();
-      while (utxoIter != unspentVec.end())
-      {
-         tval += utxoIter->getValue();
-         utxoVec.push_back(*utxoIter);
-
-         if (tval > spendVal)
-            break;
-
-         ++utxoIter;
-      }
-
-      //create script spender objects
-      uint64_t total = 0;
-      for (auto& utxo : utxoVec)
-      {
-         total += utxo.getValue();
-         signer.addSpender(getSpenderPtr(utxo, true));
-      }
-
-      //spend 12 to first address
-      auto addr0 = assetWlt->getNewAddress();
-      signer.addRecipient(addr0->getRecipient(12 * COIN));
-      addrVec.push_back(addr0->getPrefixedHash());
-
-      //spend 15 to addr 1, use P2PKH
-      auto addr1 = assetWlt->getNewAddress();
-      signer.addRecipient(addr1->getRecipient(15 * COIN));
-      addrVec.push_back(addr1->getPrefixedHash());
-
-      if (total > spendVal)
-      {
-         //deal with change, no fee
-         auto changeVal = total - spendVal;
-         auto recipientChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), changeVal);
-         signer.addRecipient(recipientChange);
-      }
-
-      //sign, verify then broadcast
-      signer.setFeed(feed);
-      signer.sign();
-      EXPECT_TRUE(signer.verify());
-
-      auto rawTx = signer.serializeSignedTx();
-      DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(rawTx, 14000000);
-
-      ZCHash1 = move(BtcUtils::getHash256(rawTx));
-      DBTestUtils::pushNewZc(theBDMt_, zcVec);
-      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-   }
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
-   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-
-   //check new wallet balances
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 12 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 15 * COIN);
-
-   //grab ledger
-   auto zcledger = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger.getValue(), 27 * COIN);
-   //EXPECT_EQ(zcledger.getTxTime(), 14000000);
-   EXPECT_TRUE(zcledger.isOptInRBF());
-
-   //cpfp the first zc
-   {
-      Signer signer3;
-
-      //instantiate resolver feed overloaded object
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
-
-      //get utxo list for spend value
-      auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
-
-      //create script spender objects
-      uint64_t total = 0;
-      for (auto& utxo : unspentVec)
-      {
-         total += utxo.getValue();
-         signer3.addSpender(getSpenderPtr(utxo, true));
-      }
-
-      //spend 4 to new address
-      auto addr0 = assetWlt->getNewAddress();
-      signer3.addRecipient(addr0->getRecipient(4 * COIN));
-      addrVec.push_back(addr0->getPrefixedHash());
-
-      //spend 6 to new address
-      auto addr1 = assetWlt->getNewAddress();
-      signer3.addRecipient(addr1->getRecipient(6 * COIN));
-      addrVec.push_back(addr1->getPrefixedHash());
-
-      //deal with change, no fee
-      auto changeVal = total - 10 * COIN;
-      auto recipientChange = make_shared<Recipient_P2PKH>(
-         TestChain::scrAddrD.getSliceCopy(1, 20), changeVal);
-      signer3.addRecipient(recipientChange);
-
-      //sign, verify then broadcast
-      {
-         auto lock = assetWlt->lockDecryptedContainer();
-         signer3.setFeed(assetFeed);
-         signer3.sign();
-      }
-
-      auto rawTx = signer3.serializeSignedTx();
-      DBTestUtils::ZcVector zcVec3;
-      zcVec3.push_back(rawTx, 15000000);
-
-      ZCHash2 = move(BtcUtils::getHash256(rawTx));
-      DBTestUtils::pushNewZc(theBDMt_, zcVec3);
-      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-   }
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
-   EXPECT_EQ(scrObj->getFullBalance(), 25 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-
-   //check new wallet balances
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[2]);
-   EXPECT_EQ(scrObj->getFullBalance(), 4 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[3]);
-   EXPECT_EQ(scrObj->getFullBalance(), 6 * COIN);
-
-
-   //grab ledgers
-
-   //first zc should be valid still
-   auto zcledger1 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger1.getValue(), 27 * COIN);
-   //EXPECT_EQ(zcledger1.getTxTime(), 14000000);
-   EXPECT_TRUE(zcledger1.isOptInRBF());
-
-   //second zc should be valid
-   auto zcledger2 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash2);
-   EXPECT_EQ(zcledger2.getValue(), -17 * COIN);
-   //EXPECT_EQ(zcledger2.getTxTime(), 15000000);
-   EXPECT_TRUE(zcledger2.isOptInRBF());
-
-   //rbf the child
-   {
-      auto spendVal = 10 * COIN;
-      Signer signer2;
-
-      //instantiate resolver feed
-      auto assetFeed =
-         make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
-
-      //get utxo list for spend value
-      auto&& unspentVec = dbAssetWlt->getRBFTxOutList();
-
-      vector<UnspentTxOut> utxoVec;
-      uint64_t tval = 0;
-      auto utxoIter = unspentVec.begin();
-      while (utxoIter != unspentVec.end())
-      {
-         tval += utxoIter->getValue();
-         utxoVec.push_back(*utxoIter);
-
-         if (tval > spendVal)
-            break;
-
-         ++utxoIter;
-      }
-
-      //create script spender objects
-      uint64_t total = 0;
-      for (auto& utxo : utxoVec)
-      {
-         total += utxo.getValue();
-         signer2.addSpender(getSpenderPtr(utxo, true));
-      }
-
-      //spend 5 to new address
-      auto addr0 = assetWlt->getNewAddress();
-      signer2.addRecipient(addr0->getRecipient(6 * COIN));
-      addrVec.push_back(addr0->getPrefixedHash());
-
-
-      if (total > spendVal)
-      {
-         //change addrE, 1 btc fee
-         auto changeVal = 5 * COIN;
-         auto recipientChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), changeVal);
-         signer2.addRecipient(recipientChange);
-      }
-
-      //sign, verify then broadcast
-      {
-         auto lock = assetWlt->lockDecryptedContainer();
-         signer2.setFeed(assetFeed);
-         signer2.sign();
-      }
-      EXPECT_TRUE(signer2.verify());
-
-      auto rawTx = signer2.serializeSignedTx();
-      DBTestUtils::ZcVector zcVec2;
-      zcVec2.push_back(rawTx, 17000000);
-
-      ZCHash3 = move(BtcUtils::getHash256(rawTx));
-      DBTestUtils::pushNewZc(theBDMt_, zcVec2);
-      DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-   }
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
-   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
-   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
-
-   //check new wallet balances
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 15 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[2]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[3]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[4]);
-   EXPECT_EQ(scrObj->getFullBalance(), 6 * COIN);
-
-   //grab ledgers
-
-   //first zc should be replaced, hence the ledger should be empty
-   auto zcledger3 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger3.getValue(), 27 * COIN);
-   EXPECT_EQ(zcledger3.getBlockNum(), UINT32_MAX);
-   EXPECT_TRUE(zcledger3.isOptInRBF());
-
-   //second zc should be replaced
-   auto zcledger8 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash2);
-   EXPECT_EQ(zcledger8.getTxHash(), BtcUtils::EmptyHash_);
-
-   //third zc should be valid
-   auto zcledger9 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash3);
-   EXPECT_EQ(zcledger9.getValue(), -6 * COIN);
-   EXPECT_EQ(zcledger9.getBlockNum(), UINT32_MAX);
-   EXPECT_TRUE(zcledger9.isOptInRBF());
-
-   //mine a new block
-   DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA, 3);
-   DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-
-   //check chain is 3 block longer
-   EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 6);
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 200 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 30 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrD);
-   EXPECT_EQ(scrObj->getFullBalance(), 8 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrE);
-   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
-
-   //check new wallet balances
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[0]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[1]);
-   EXPECT_EQ(scrObj->getFullBalance(), 15 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[2]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[3]);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-   scrObj = dbAssetWlt->getScrAddrObjByKey(addrVec[4]);
-   EXPECT_EQ(scrObj->getFullBalance(), 6 * COIN);
-
-   //check all zc are mined with 1 conf
-   zcledger3 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash1);
-   EXPECT_EQ(zcledger3.getValue(), 27 * COIN);
-   EXPECT_EQ(zcledger3.getBlockNum(), 4);
-   EXPECT_FALSE(zcledger3.isOptInRBF());
-
-   zcledger9 = DBTestUtils::getLedgerEntryFromWallet(dbAssetWlt, ZCHash3);
-   EXPECT_EQ(zcledger9.getValue(), -6 * COIN);
-   EXPECT_EQ(zcledger9.getBlockNum(), 4);
-   EXPECT_FALSE(zcledger9.isOptInRBF());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsWithWalletTest, ZC_InOut_SameBlock)
-{
-   BinaryData ZCHash1, ZCHash2, ZCHash3;
-
-   //
-   TestUtils::setBlocks({ "0", "1" }, blk0dat_);
-
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-
-   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
-
-   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
-
-   //wait on signals
-   DBTestUtils::goOnline(clients_, bdvID);
-   DBTestUtils::waitOnBDMReady(clients_, bdvID);
-   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-
-   //check balances
-   const ScrAddrObj* scrObj;
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-
-   //add the 2 zc
-   auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
-   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
-
-   auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
-   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-   DBTestUtils::ZcVector rawZcVec;
-   rawZcVec.push_back(ZC1, 1300000000);
-   rawZcVec.push_back(ZC2, 1310000000);
-
-   DBTestUtils::pushNewZc(theBDMt_, rawZcVec);
-   DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 5 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-
-   //add last block
-   TestUtils::appendBlocks({ "2" }, blk0dat_);
-   DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-
-   //check balances
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrA);
-   EXPECT_EQ(scrObj->getFullBalance(), 50 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrB);
-   EXPECT_EQ(scrObj->getFullBalance(), 55 * COIN);
-   scrObj = wlt->getScrAddrObjByKey(TestChain::scrAddrC);
-   EXPECT_EQ(scrObj->getFullBalance(), 0 * COIN);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(BlockUtilsWithWalletTest, ZC_MineAfter1Block)
-{
-   auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-   feed->addPrivKey(TestChain::privKeyAddrB);
-   feed->addPrivKey(TestChain::privKeyAddrC);
-   feed->addPrivKey(TestChain::privKeyAddrD);
-
-   ////
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-   scrAddrVec.push_back(TestChain::scrAddrD);
-
-   theBDMt_->start(config.initMode_);
-   auto&& bdvID = DBTestUtils::registerBDV(clients_, NetworkConfig::getMagicBytes());
-
-   DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
-
-   auto bdvPtr = DBTestUtils::getBDV(clients_, bdvID);
-
-   //wait on signals
-   DBTestUtils::goOnline(clients_, bdvID);
-   DBTestUtils::waitOnBDMReady(clients_, bdvID);
-   auto wlt = bdvPtr->getWalletOrLockbox(wallet1id);
-
-   uint64_t balanceWlt;
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrA)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 50 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrB)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 70 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrC)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 20 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrD)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 65 * COIN);
-
-   //spend from B to C
-   auto&& utxoVec = wlt->getSpendableTxOutListForValue();
-
-   UTXO utxoA, utxoB;
-   for (auto& utxo : utxoVec)
-   {
-      if (utxo.getRecipientScrAddr() == TestChain::scrAddrD)
-      {
-         utxoA.value_ = utxo.value_;
-         utxoA.script_ = utxo.script_;
-         utxoA.txHeight_ = utxo.txHeight_;
-         utxoA.txIndex_ = utxo.txIndex_;
-         utxoA.txOutIndex_ = utxo.txOutIndex_;
-         utxoA.txHash_ = utxo.txHash_;
-      }
-      else if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-      {
-         utxoB.value_ = utxo.value_;
-         utxoB.script_ = utxo.script_;
-         utxoB.txHeight_ = utxo.txHeight_;
-         utxoB.txIndex_ = utxo.txIndex_;
-         utxoB.txOutIndex_ = utxo.txOutIndex_;
-         utxoB.txHash_ = utxo.txHash_;
-      }
-   }
-
-   auto spenderA = make_shared<ScriptSpender>(utxoA);
-   auto spenderB = make_shared<ScriptSpender>(utxoB);
-
-   DBTestUtils::ZcVector zcVec;
-
-   //spend from D to C
-   {
-      Signer signer;
-      signer.addSpender(spenderA);
-
-      auto recipient = std::make_shared<Recipient_P2PKH>(
-         TestChain::scrAddrC.getSliceCopy(1, 20), utxoA.getValue());
-      signer.addRecipient(recipient);
-
-      signer.setFeed(feed);
-      signer.sign();
-      auto rawTx = signer.serializeSignedTx();
-      zcVec.push_back(signer.serializeSignedTx(), 130000000, 0);
-   }
-   
-   //spend from B to C
-   {
-      Signer signer;
-      signer.addSpender(spenderB);
-
-      auto recipient = std::make_shared<Recipient_P2PKH>(
-         TestChain::scrAddrC.getSliceCopy(1, 20), utxoB.getValue());
-      signer.addRecipient(recipient);
-
-      signer.setFeed(feed);
-      signer.sign();
-      zcVec.push_back(signer.serializeSignedTx(), 131000000, 1);
-   }
-
-   auto hash1 = zcVec.zcVec_[0].first.getThisHash();
-   auto hash2 = zcVec.zcVec_[1].first.getThisHash();
-
-   //broadcast
-   DBTestUtils::pushNewZc(theBDMt_, zcVec);
-   DBTestUtils::waitOnNewZcSignal(clients_, bdvID);
-
-   //check balances
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrA)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 50 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrB)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 50 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrC)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 45 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrD)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 60 * COIN);
-
-   auto zc1 = bdvPtr->getTxByHash(hash1);
-   auto zc2 = bdvPtr->getTxByHash(hash2);
-
-   EXPECT_EQ(zc1.getTxHeight(), UINT32_MAX);
-   EXPECT_EQ(zc2.getTxHeight(), UINT32_MAX);
-
-   //mine 1 block
-   DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA, 1);
-   DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-
-   //check balances
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrA)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 100 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrB)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 50 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrC)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 45 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrD)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 60 * COIN);
-
-   zc1 = bdvPtr->getTxByHash(hash1);
-   zc2 = bdvPtr->getTxByHash(hash2);
-
-   EXPECT_EQ(zc1.getTxHeight(), 6);
-   EXPECT_EQ(zc2.getTxHeight(), UINT32_MAX);
-
-   //mine last block
-   DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB, 1);
-   DBTestUtils::waitOnNewBlockSignal(clients_, bdvID);
-
-   //check balances
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrA)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 100 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrB)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 100 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrC)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 45 * COIN);
-
-   balanceWlt = wlt->getScrAddrObjByKey(TestChain::scrAddrD)->getFullBalance();
-   EXPECT_EQ(balanceWlt, 60 * COIN);
-
-   zc1 = bdvPtr->getTxByHash(hash1);
-   zc2 = bdvPtr->getTxByHash(hash2);
-
-   EXPECT_EQ(zc1.getTxHeight(), 6);
-   EXPECT_EQ(zc2.getTxHeight(), 7);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 class WebSocketTests : public ::testing::Test
 {
 protected:
@@ -3389,26 +2133,16 @@ protected:
 
    void initBDM(void)
    {
-      auto& magicBytes = NetworkConfig::getMagicBytes();
-        
-      nodePtr_ = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), false);
-      auto watcherPtr = make_shared<NodeUnitTest>(
-         *(uint32_t*)magicBytes.getPtr(), true);
-
-      rpcNode_ =  make_shared<NodeRPC_UnitTest>(
-         nodePtr_, watcherPtr);
-
-      config.bitcoinNodes_ = make_pair(nodePtr_, watcherPtr);
-      config.rpcNode_ = rpcNode_;
-
-      //randomized peer keys, in ram only
-      config.ephemeralPeers_ = true;
-
-      theBDMt_ = new BlockDataManagerThread(config);
+      theBDMt_ = new BlockDataManagerThread();
       iface_ = theBDMt_->bdm()->getIFace();
-      nodePtr_->setIface(iface_);
 
+      nodePtr_ = dynamic_pointer_cast<NodeUnitTest>(
+         NetworkSettings::bitcoinNodes().first);
+
+      rpcNode_ = dynamic_pointer_cast<NodeRPC_UnitTest>(
+         NetworkSettings::rpcNode());
+
+      nodePtr_->setIface(iface_);
       nodePtr_->setBlockchain(theBDMt_->bdm()->blockchain());
       nodePtr_->setBlockFiles(theBDMt_->bdm()->blockFiles());
    }
@@ -3427,35 +2161,30 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory(ldbdir_);
 
-      mkdir(blkdir_);
+      mkdir(blkdir_ + "/blocks");
       mkdir(homedir_);
       mkdir(ldbdir_);
 
       // Put the first 5 blocks into the blkdir
-      BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
-      BlockDataManagerConfig::setOperationMode(OPERATION_UNITTEST);
-
-      blk0dat_ = BtcUtils::getBlkFilename(blkdir_, 0);
+      blk0dat_ = BtcUtils::getBlkFilename(blkdir_ + "/blocks", 0);
       TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-
-      BlockDataManagerConfig::setDbType(ARMORY_DB_SUPER);
-      config.blkFileLocation_ = blkdir_;
-      config.dbDir_ = ldbdir_;
-      config.threadCount_ = 3;
-      config.dataDir_ = homedir_;
-      config.ephemeralPeers_ = false;
-      config.oneWayAuth_ = true;
-
-      unsigned port_int = 51152;
-      stringstream port_ss;
-      port_ss << port_int;
-      config.listenPort_ = port_ss.str();
 
       startupBIP151CTX();
       startupBIP150CTX(4);
 
+      DBSettings::setServiceType(SERVICE_UNITTEST_WITHWS);
+      Armory::Config::parseArgs({
+         "--datadir=./fakehomedir",
+         "--dbdir=./ldbtestdir",
+         "--satoshi-datadir=./blkfiletest",
+         "--db-type=DB_SUPER",
+         "--thread-count=3",
+         "--public",
+         "--cookie"},
+         Armory::Config::ProcessType::DB);
+
       //setup auth peers for server and client
-      authPeersPassLbd_ = [](const set<BinaryData>&)->SecureBinaryData
+      authPeersPassLbd_ = [](const set<EncryptionKeyId>&)->SecureBinaryData
       {
          return SecureBinaryData::fromString("authpeerpass");
       };
@@ -3470,7 +2199,7 @@ protected:
       auto& clientPubkey = clientPeers.getOwnPublicKey();
 
       stringstream serverAddr;
-      serverAddr << "127.0.0.1:" << config.listenPort_;
+      serverAddr << "127.0.0.1:" << NetworkSettings::listenPort();
       clientPeers.addPeer(serverPubkey, serverAddr.str());
       serverPeers.addPeer(clientPubkey, "127.0.0.1");
 
@@ -3491,13 +2220,11 @@ protected:
       DBUtils::removeDirectory(homedir_);
       DBUtils::removeDirectory("./ldbtestdir");
 
-      mkdir("./ldbtestdir");
+      Armory::Config::reset();
 
       LOGENABLESTDOUT();
       CLEANUP_ALL_TIMERS();
    }
-
-   BlockDataManagerConfig config;
 
    LMDBBlockDatabase* iface_;
    BinaryData zeros_;
@@ -3516,8 +2243,6 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 {
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    auto&& firstHash = READHEX("b6b6f145742a9072fd85f96772e63a00eb4101709aa34ec5dd59e8fc904191a7");
@@ -3550,19 +2275,19 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
    _scrAddrVec.push_back(TestChain::scrAddrC);
    _scrAddrVec.push_back(TestChain::scrAddrE);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_,
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
       
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -3599,14 +2324,14 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       //go online
       bdvObj->goOnline();
@@ -3695,26 +2420,26 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
 
       //get ledgers
       auto ledger_prom = 
-         make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+         make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
       auto ledger_fut = ledger_prom->get_future();
       auto ledger_get = 
-         [ledger_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+         [ledger_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
       {
          ledger_prom->set_value(move(ledgerV.get()));
       };
       delegate.getHistoryPage(0, ledger_get);
 
       //get addr ledgers
-      deque<vector<::ClientClasses::LedgerEntry>> addrLedgerV(21);
+      deque<vector<DBClientClasses::LedgerEntry>> addrLedgerV(21);
       auto getAddrLedger = [bdvObj](
          AsyncClient::LedgerDelegate delegate, 
-         vector<::ClientClasses::LedgerEntry>* addrLedger)->void
+         vector<DBClientClasses::LedgerEntry>* addrLedger)->void
       {
          auto ledger_prom = 
-            make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
+            make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
          auto ledger_fut = ledger_prom->get_future();
          auto ledger_get = 
-            [ledger_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
+            [ledger_prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> ledgerV)->void
          {
             ledger_prom->set_value(move(ledgerV.get()));
          };
@@ -3843,7 +2568,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       balanceVec = lb2AddrBalances[TestChain::lb2ScrAddr];
       EXPECT_EQ(balanceVec[0], 30 * COIN);
       balanceVec = lb2AddrBalances[TestChain::lb2ScrAddrP2SH];
-      EXPECT_EQ(balanceVec.size(), 0);
+      EXPECT_EQ(balanceVec.size(), 0ULL);
 
       //lb1 balances
       EXPECT_EQ(lb1Balances[0], 30 * COIN);
@@ -3860,7 +2585,7 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       EXPECT_EQ(tx->getThisHash(), firstHash);
 
       //check utxos
-      EXPECT_EQ(utxos.size(), 5);
+      EXPECT_EQ(utxos.size(), 5ULL);
 
       //grab all tx for each utxo
       map<BinaryData, shared_future<AsyncClient::TxResult>> futMap;
@@ -3892,31 +2617,35 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
       }
 
       for (unsigned i = 0; i < 6; i++)
-         EXPECT_EQ(addrLedgerV[i].size(), 0);
-      EXPECT_EQ(addrLedgerV[6].size(), 1);
-      EXPECT_EQ(addrLedgerV[7].size(), 7);
-      EXPECT_EQ(addrLedgerV[8].size(), 4);
-      EXPECT_EQ(addrLedgerV[9].size(), 2);
-      EXPECT_EQ(addrLedgerV[20].size(), 4);
+         EXPECT_EQ(addrLedgerV[i].size(), 0ULL);
+      EXPECT_EQ(addrLedgerV[6].size(), 1ULL);
+      EXPECT_EQ(addrLedgerV[7].size(), 7ULL);
+      EXPECT_EQ(addrLedgerV[8].size(), 4ULL);
+      EXPECT_EQ(addrLedgerV[9].size(), 2ULL);
+      EXPECT_EQ(addrLedgerV[20].size(), 4ULL);
 
       for (unsigned i = 0; i < 10; i++)
       {
-         auto& v1 = addrLedgerV[i];         
+         auto& v1 = addrLedgerV[i];
          auto& v2 = addrLedgerV[i + 10];
 
          if (v1.size() != v2.size())
+         {
             EXPECT_TRUE(false);
+         }
 
          for (unsigned y = 0; y < v1.size(); y++)
          {
             if(!(v1[y] == v2[y]))
+            {
                EXPECT_TRUE(false);
+            }
          }
       }
 
       auto rekeyCount = bdvObj->getRekeyCount();
-      EXPECT_EQ(rekeyCount.first, 2);
-      EXPECT_TRUE(rekeyCount.second > 7);
+      EXPECT_EQ(rekeyCount.first, 2U);
+      EXPECT_TRUE(rekeyCount.second > 7U);
       bdvObj->unregisterFromDB();
 
       auto time_ms = chrono::duration_cast<chrono::milliseconds>(
@@ -3959,15 +2688,15 @@ TEST_F(WebSocketTests, WebSocketStack_ParallelAsync)
    }
 
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -3980,7 +2709,6 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
    Create a lot of client connections in parallel and slam the db with requests,
    then shutdown some of the clients before the requests are met.
    ***/
-   startupBIP150CTX(4);
 
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
@@ -4014,19 +2742,19 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
    _scrAddrVec.push_back(TestChain::scrAddrC);
    _scrAddrVec.push_back(TestChain::scrAddrE);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
       
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -4073,14 +2801,14 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
 
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_,
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(),
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       //go online
       bdvObj->goOnline();
@@ -4433,2342 +3161,23 @@ TEST_F(WebSocketTests, DISABLED_WebSocketStack_ParallelAsync_ShutdownClients)
    }
 
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_ZcUpdate)
-{
-   startupBIP150CTX(4);
-
-   /*
-   Some sigs in static test chain are borked. P2SH scripts are borked too. This
-   test plucks transactions from the static chain to push as ZC. Skip sig checks
-   on the unit test mock P2P node to avoid faililng the test.
-   */
-   nodePtr_->checkSigs(false);
-
-   TestUtils::setBlocks({ "0", "1" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-
-   theBDMt_->start(config.initMode_);
-
-   auto pCallback = make_shared<DBTestUtils::UTCallback>();
-   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
-      pCallback);
-   bdvObj->addPublicKey(serverPubkey);
-   bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-   //go online
-   bdvObj->goOnline();
-   pCallback->waitOnSignal(BDMAction_Ready);
-
-   vector<string> walletRegIDs;
-
-   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-   walletRegIDs.push_back(
-      wallet1.registerAddresses(scrAddrVec, false));
-
-   //wait on registration ack
-   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-   //get wallets delegate
-   auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
-   auto del1_fut = del1_prom->get_future();
-   auto del1_get = [del1_prom](
-      ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
-   {
-      del1_prom->set_value(move(delegate.get()));
-   };
-   bdvObj->getLedgerDelegateForWallets(del1_get);
-   auto&& main_delegate = del1_fut.get();
-
-   auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger_fut = ledger_prom->get_future();
-   auto ledger_get =
-      [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger_get);
-   auto&& main_ledger = ledger_fut.get();
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
-
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
-
-   //add the 2 zc
-   auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
-   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
-
-   auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
-   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-   vector<BinaryData> zcVec = {ZC1, ZC2};
-   auto broadcastID = bdvObj->broadcastZC(zcVec);
-   
-   {
-      set<BinaryData> zcHashes = { ZChash1, ZChash2 };
-      set<BinaryData> scrAddrSet;
-
-      Tx zctx1(ZC1);
-      for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx1.getScrAddrForTxOut(i));
-
-      Tx zctx2(ZC2);
-      for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
-
-      pCallback->waitOnZc(zcHashes, scrAddrSet, broadcastID);
-   }
-
-   //get the new ledgers
-   auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger2_fut = ledger2_prom->get_future();
-   auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger2_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger2_get);
-   main_ledger = move(ledger2_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 1);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   //tx cache testing
-   //grab ZC1 from async client
-   auto zc_prom1 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut1 = zc_prom1->get_future();
-   auto zc_get1 =
-      [zc_prom1](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom1->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get1);
-   auto zc_obj1 = zc_fut1.get();
-   EXPECT_EQ(ZChash1, zc_obj1->getThisHash());
-   EXPECT_EQ(zc_obj1->getTxHeight(), UINT32_MAX);
-
-   //grab both zc from async client
-   auto zc_prom2 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut2 = zc_prom2->get_future();
-   auto zc_get2 =
-      [zc_prom2](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom2->set_value(move(txVec));
-   };
-
-   set<BinaryData> bothZC = { ZChash1, ZChash2 };
-   bdvObj->getTxBatchByHash(bothZC, zc_get2);
-   auto zc_obj2 = zc_fut2.get();
-
-   ASSERT_EQ(zc_obj2.size(), 2);
-
-   auto iterZc1 = zc_obj2.find(ZChash1);
-   ASSERT_NE(iterZc1, zc_obj2.end());
-   ASSERT_NE(iterZc1->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc1->second->getThisHash());
-   EXPECT_EQ(iterZc1->second->getTxHeight(), UINT32_MAX);
-
-   auto iterZc2 = zc_obj2.find(ZChash2);
-   ASSERT_NE(iterZc2, zc_obj2.end());
-   ASSERT_NE(iterZc2->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc2->second->getThisHash());
-   EXPECT_EQ(iterZc2->second->getTxHeight(), UINT32_MAX);
-
-   //push an extra block
-   TestUtils::appendBlocks({ "2" }, blk0dat_);
-   DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   pCallback->waitOnSignal(BDMAction_NewBlock);
-
-   //get the new ledgers
-   auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger3_fut = ledger3_prom->get_future();
-   auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger3_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger3_get);
-   main_ledger = move(ledger3_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
-
-
-   //grab ZC1 from async client
-   auto zc_prom3 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut3 = zc_prom3->get_future();
-   auto zc_get3 =
-      [zc_prom3](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom3->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get3);
-   auto zc_obj3 = zc_fut3.get();
-   EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
-
-   //grab both zc from async client
-   auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut4 = zc_prom4->get_future();
-   auto zc_get4 =
-      [zc_prom4](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom4->set_value(move(txVec));
-   };
-
-   bdvObj->getTxBatchByHash(bothZC, zc_get4);
-   auto zc_obj4 = zc_fut4.get();
-
-   ASSERT_EQ(zc_obj4.size(), 2);
-
-   auto iterZc3 = zc_obj4.find(ZChash1);
-   ASSERT_NE(iterZc3, zc_obj4.end());
-   ASSERT_NE(iterZc3->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
-
-   auto iterZc4 = zc_obj4.find(ZChash2);
-   ASSERT_NE(iterZc4, zc_obj4.end());
-   ASSERT_NE(iterZc4->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
-
-   //disconnect
-   bdvObj->unregisterFromDB();
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC)
-{
-   startupBIP150CTX(4);
-
-   /*
-   Some sigs in static test chain are borked. P2SH scripts are borked too. This
-   test plucks transactions from the static chain to push as ZC. Skip sig checks
-   on the unit test mock P2P node to avoid faililng the test.
-   */
-   nodePtr_->checkSigs(false);
-
-   TestUtils::setBlocks({ "0", "1" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-
-   theBDMt_->start(config.initMode_);
-
-   auto pCallback = make_shared<DBTestUtils::UTCallback>();
-   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, 
-      pCallback);
-   bdvObj->addPublicKey(serverPubkey);
-   bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-   //go online
-   bdvObj->goOnline();
-   pCallback->waitOnSignal(BDMAction_Ready);
-
-   vector<string> walletRegIDs;
-
-   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-   walletRegIDs.push_back(
-      wallet1.registerAddresses(scrAddrVec, false));
-
-   //wait on registration ack
-   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-   //get wallets delegate
-   auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
-   auto del1_fut = del1_prom->get_future();
-   auto del1_get = [del1_prom](
-      ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
-   {
-      del1_prom->set_value(move(delegate.get()));
-   };
-   bdvObj->getLedgerDelegateForWallets(del1_get);
-   auto&& main_delegate = del1_fut.get();
-
-   auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger_fut = ledger_prom->get_future();
-   auto ledger_get =
-      [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger_get);
-   auto&& main_ledger = ledger_fut.get();
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
-
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
-
-   //add the 2 zc
-   auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
-   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
-
-   auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
-   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-   auto broadcastId1 = bdvObj->broadcastThroughRPC(ZC1);
-   auto broadcastId2 = bdvObj->broadcastThroughRPC(ZC2);
-   
-   {
-      set<BinaryData> zcHashes = { ZChash1, ZChash2 };
-      set<BinaryData> scrAddrSet1, scrAddrSet2;
-
-      Tx zctx1(ZC1);
-      for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
-         scrAddrSet1.insert(zctx1.getScrAddrForTxOut(i));
-
-      Tx zctx2(ZC2);
-      for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
-         scrAddrSet2.insert(zctx2.getScrAddrForTxOut(i));
-
-      pCallback->waitOnZc({ZChash1}, scrAddrSet1, broadcastId1);
-      pCallback->waitOnZc({ZChash2}, scrAddrSet2, broadcastId2);
-   }
-
-   //get the new ledgers
-   auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger2_fut = ledger2_prom->get_future();
-   auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger2_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger2_get);
-   main_ledger = move(ledger2_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 1);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   /*tx cache coverage*/
-   //grab ZC1 from async client
-   auto zc_prom1 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut1 = zc_prom1->get_future();
-   auto zc_get1 =
-      [zc_prom1](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom1->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get1);
-   auto zc_obj1 = zc_fut1.get();
-   EXPECT_EQ(ZChash1, zc_obj1->getThisHash());
-   EXPECT_EQ(zc_obj1->getTxHeight(), UINT32_MAX);
-
-   //grab both zc from async client
-   auto zc_prom2 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut2 = zc_prom2->get_future();
-   auto zc_get2 =
-      [zc_prom2](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom2->set_value(move(txVec));
-   };
-
-   set<BinaryData> bothZC = { ZChash1, ZChash2 };
-   bdvObj->getTxBatchByHash(bothZC, zc_get2);
-   auto zc_obj2 = zc_fut2.get();
-
-   ASSERT_EQ(zc_obj2.size(), 2);
-   
-   auto iterZc1 = zc_obj2.find(ZChash1);
-   ASSERT_NE(iterZc1, zc_obj2.end());
-   ASSERT_NE(iterZc1->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc1->second->getThisHash());
-   EXPECT_EQ(iterZc1->second->getTxHeight(), UINT32_MAX);
-
-   auto iterZc2 = zc_obj2.find(ZChash2);
-   ASSERT_NE(iterZc2, zc_obj2.end());
-   ASSERT_NE(iterZc2->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc2->second->getThisHash());
-   EXPECT_EQ(iterZc2->second->getTxHeight(), UINT32_MAX);
-
-   //push an extra block
-   TestUtils::appendBlocks({ "2" }, blk0dat_);
-   DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   pCallback->waitOnSignal(BDMAction_NewBlock);
-
-   //get the new ledgers
-   auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger3_fut = ledger3_prom->get_future();
-   auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger3_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger3_get);
-   main_ledger = move(ledger3_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
-
-
-   //grab ZC1 from async client
-   auto zc_prom3 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut3 = zc_prom3->get_future();
-   auto zc_get3 =
-      [zc_prom3](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom3->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get3);
-   auto zc_obj3 = zc_fut3.get();
-   EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
-
-   //grab both zc from async client
-   auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut4 = zc_prom4->get_future();
-   auto zc_get4 =
-      [zc_prom4](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom4->set_value(move(txVec));
-   };
-
-   bdvObj->getTxBatchByHash(bothZC, zc_get4);
-   auto zc_obj4 = zc_fut4.get();
-
-   ASSERT_EQ(zc_obj4.size(), 2);
-   auto iterZc3 = zc_obj4.find(ZChash1);
-   ASSERT_NE(iterZc3, zc_obj4.end());
-   ASSERT_NE(iterZc3->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
-
-   auto iterZc4 = zc_obj4.find(ZChash2);
-   ASSERT_NE(iterZc4, zc_obj4.end());
-   ASSERT_NE(iterZc4->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
-
-   //disconnect
-   bdvObj->unregisterFromDB();
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback)
-{
-   startupBIP150CTX(4);
-
-   /*
-   Some sigs in static test chain are borked. P2SH scripts are borked too. This
-   test plucks transactions from the static chain to push as ZC. Skip sig checks
-   on the unit test mock P2P node to avoid faililng the test.
-   */
-   nodePtr_->checkSigs(false);
-
-   TestUtils::setBlocks({ "0", "1" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-
-   theBDMt_->start(config.initMode_);
-
-   auto pCallback = make_shared<DBTestUtils::UTCallback>();
-   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
-      pCallback);
-   bdvObj->addPublicKey(serverPubkey);
-   bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-   //go online
-   bdvObj->goOnline();
-   pCallback->waitOnSignal(BDMAction_Ready);
-
-   vector<string> walletRegIDs;
-
-   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-   walletRegIDs.push_back(
-      wallet1.registerAddresses(scrAddrVec, false));
-
-   //wait on registration ack
-   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-   //get wallets delegate
-   auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
-   auto del1_fut = del1_prom->get_future();
-   auto del1_get = [del1_prom](
-      ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
-   {
-      del1_prom->set_value(move(delegate.get()));
-   };
-   bdvObj->getLedgerDelegateForWallets(del1_get);
-   auto&& main_delegate = del1_fut.get();
-
-   auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger_fut = ledger_prom->get_future();
-   auto ledger_get =
-      [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger_get);
-   auto&& main_ledger = ledger_fut.get();
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
-
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
-
-   //add the 2 zc
-   auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
-   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
-
-   auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
-   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-   //both these zc will be skipped by the p2p broadcast interface,
-   //should trigger a RPC broadcast
-   nodePtr_->skipZc(2);
-   auto broadcastId1 = bdvObj->broadcastZC(ZC1);
-   auto broadcastId2 = bdvObj->broadcastZC(ZC2);
-   
-   {
-      set<BinaryData> scrAddrSet1, scrAddrSet2;
-
-      Tx zctx1(ZC1);
-      for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
-         scrAddrSet1.insert(zctx1.getScrAddrForTxOut(i));
-
-      Tx zctx2(ZC2);
-      for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
-         scrAddrSet2.insert(zctx2.getScrAddrForTxOut(i));
-
-      pCallback->waitOnZc({ZChash1}, scrAddrSet1, broadcastId1);
-      pCallback->waitOnZc({ZChash2}, scrAddrSet2, broadcastId2);
-   }
-
-   //get the new ledgers
-   auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger2_fut = ledger2_prom->get_future();
-   auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger2_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger2_get);
-   main_ledger = move(ledger2_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 3);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 2);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   //tx cache testing
-   //grab ZC1 from async client
-   auto zc_prom1 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut1 = zc_prom1->get_future();
-   auto zc_get1 =
-      [zc_prom1](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom1->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get1);
-   auto zc_obj1 = zc_fut1.get();
-   EXPECT_EQ(ZChash1, zc_obj1->getThisHash());
-   EXPECT_EQ(zc_obj1->getTxHeight(), UINT32_MAX);
-
-   //grab both zc from async client
-   auto zc_prom2 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut2 = zc_prom2->get_future();
-   auto zc_get2 =
-      [zc_prom2](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom2->set_value(move(txVec));
-   };
-
-   set<BinaryData> bothZC = { ZChash1, ZChash2 };
-   bdvObj->getTxBatchByHash(bothZC, zc_get2);
-   auto zc_obj2 = zc_fut2.get();
-
-   ASSERT_EQ(zc_obj2.size(), 2);
-
-   auto iterZc1 = zc_obj2.find(ZChash1);
-   ASSERT_NE(iterZc1, zc_obj2.end());
-   ASSERT_NE(iterZc1->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc1->second->getThisHash());
-   EXPECT_EQ(iterZc1->second->getTxHeight(), UINT32_MAX);
-
-   auto iterZc2 = zc_obj2.find(ZChash2);
-   ASSERT_NE(iterZc2, zc_obj2.end());
-   ASSERT_NE(iterZc2->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc2->second->getThisHash());
-   EXPECT_EQ(iterZc2->second->getTxHeight(), UINT32_MAX);
-
-   //push an extra block
-   TestUtils::appendBlocks({ "2" }, blk0dat_);
-   DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   pCallback->waitOnSignal(BDMAction_NewBlock);
-
-   //get the new ledgers
-   auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger3_fut = ledger3_prom->get_future();
-   auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger3_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger3_get);
-   main_ledger = move(ledger3_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
-
-
-   //grab ZC1 from async client
-   auto zc_prom3 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut3 = zc_prom3->get_future();
-   auto zc_get3 =
-      [zc_prom3](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom3->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get3);
-   auto zc_obj3 = zc_fut3.get();
-   EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
-
-   //grab both zc from async client
-   auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut4 = zc_prom4->get_future();
-   auto zc_get4 =
-      [zc_prom4](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom4->set_value(move(txVec));
-   };
-
-   bdvObj->getTxBatchByHash(bothZC, zc_get4);
-   auto zc_obj4 = zc_fut4.get();
-
-   ASSERT_EQ(zc_obj4.size(), 2);
-
-   auto iterZc3 = zc_obj4.find(ZChash1);
-   ASSERT_NE(iterZc3, zc_obj4.end());
-   ASSERT_NE(iterZc3->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
-
-   auto iterZc4 = zc_obj4.find(ZChash2);
-   ASSERT_NE(iterZc4, zc_obj4.end());
-   ASSERT_NE(iterZc4->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
-
-   //disconnect
-   bdvObj->unregisterFromDB();
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RPC_Fallback_SingleBatch)
-{
-   startupBIP150CTX(4);
-
-   /*
-   Some sigs in static test chain are borked. P2SH scripts are borked too. This
-   test plucks transactions from the static chain to push as ZC. Skip sig checks
-   on the unit test mock P2P node to avoid faililng the test.
-   */
-   nodePtr_->checkSigs(false);
-
-   TestUtils::setBlocks({ "0", "1" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-
-   theBDMt_->start(config.initMode_);
-
-   auto pCallback = make_shared<DBTestUtils::UTCallback>();
-   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
-      pCallback);
-   bdvObj->addPublicKey(serverPubkey);
-   bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-   //go online
-   bdvObj->goOnline();
-   pCallback->waitOnSignal(BDMAction_Ready);
-
-   vector<string> walletRegIDs;
-
-   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-   walletRegIDs.push_back(
-      wallet1.registerAddresses(scrAddrVec, false));
-
-   //wait on registration ack
-   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-   //get wallets delegate
-   auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
-   auto del1_fut = del1_prom->get_future();
-   auto del1_get = [del1_prom](
-      ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
-   {
-      del1_prom->set_value(move(delegate.get()));
-   };
-   bdvObj->getLedgerDelegateForWallets(del1_get);
-   auto&& main_delegate = del1_fut.get();
-
-   auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger_fut = ledger_prom->get_future();
-   auto ledger_get =
-      [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger_get);
-   auto&& main_ledger = ledger_fut.get();
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
-
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
-
-   //add the 2 zc
-   auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
-   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
-
-   auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
-   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-   //both these zc will be skipped by the p2p broadcast interface,
-   //should trigger a RPC broadcast
-   nodePtr_->skipZc(2);
-   vector<BinaryData> zcVec = {ZC1, ZC2};
-   auto broadcastId1 = bdvObj->broadcastZC(zcVec);
-   
-   {
-      set<BinaryData> zcHashes = { ZChash1, ZChash2 };
-      set<BinaryData> scrAddrSet;
-
-      Tx zctx1(ZC1);
-      for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx1.getScrAddrForTxOut(i));
-
-      Tx zctx2(ZC2);
-      for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
-
-      pCallback->waitOnZc(zcHashes, scrAddrSet, broadcastId1);
-   }
-
-   //get the new ledgers
-   auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger2_fut = ledger2_prom->get_future();
-   auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger2_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger2_get);
-   main_ledger = move(ledger2_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 3);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 2);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   //tx cache testing
-   //grab ZC1 from async client
-   auto zc_prom1 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut1 = zc_prom1->get_future();
-   auto zc_get1 =
-      [zc_prom1](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom1->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get1);
-   auto zc_obj1 = zc_fut1.get();
-   EXPECT_EQ(ZChash1, zc_obj1->getThisHash());
-   EXPECT_EQ(zc_obj1->getTxHeight(), UINT32_MAX);
-
-   //grab both zc from async client
-   auto zc_prom2 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut2 = zc_prom2->get_future();
-   auto zc_get2 =
-      [zc_prom2](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom2->set_value(move(txVec));
-   };
-
-   set<BinaryData> bothZC = { ZChash1, ZChash2 };
-   bdvObj->getTxBatchByHash(bothZC, zc_get2);
-   auto zc_obj2 = zc_fut2.get();
-
-   ASSERT_EQ(zc_obj2.size(), 2);
-
-   auto iterZc1 = zc_obj2.find(ZChash1);
-   ASSERT_NE(iterZc1, zc_obj2.end());
-   ASSERT_NE(iterZc1->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc1->second->getThisHash());
-   EXPECT_EQ(iterZc1->second->getTxHeight(), UINT32_MAX);
-
-   auto iterZc2 = zc_obj2.find(ZChash2);
-   ASSERT_NE(iterZc2, zc_obj2.end());
-   ASSERT_NE(iterZc2->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc2->second->getThisHash());
-   EXPECT_EQ(iterZc2->second->getTxHeight(), UINT32_MAX);
-
-   //push an extra block
-   TestUtils::appendBlocks({ "2" }, blk0dat_);
-   DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   pCallback->waitOnSignal(BDMAction_NewBlock);
-
-   //get the new ledgers
-   auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger3_fut = ledger3_prom->get_future();
-   auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger3_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger3_get);
-   main_ledger = move(ledger3_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
-
-
-   //grab ZC1 from async client
-   auto zc_prom3 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut3 = zc_prom3->get_future();
-   auto zc_get3 =
-      [zc_prom3](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom3->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get3);
-   auto zc_obj3 = zc_fut3.get();
-   EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
-
-   //grab both zc from async client
-   auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut4 = zc_prom4->get_future();
-   auto zc_get4 =
-      [zc_prom4](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom4->set_value(move(txVec));
-   };
-
-   bdvObj->getTxBatchByHash(bothZC, zc_get4);
-   auto zc_obj4 = zc_fut4.get();
-
-   ASSERT_EQ(zc_obj4.size(), 2);
-
-   auto iterZc3 = zc_obj4.find(ZChash1);
-   ASSERT_NE(iterZc3, zc_obj4.end());
-   ASSERT_NE(iterZc3->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
-
-   auto iterZc4 = zc_obj4.find(ZChash2);
-   ASSERT_NE(iterZc4, zc_obj4.end());
-   ASSERT_NE(iterZc4->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
-
-   //disconnect
-   bdvObj->unregisterFromDB();
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool)
-{
-   startupBIP150CTX(4);
-
-   /*
-   Some sigs in static test chain are borked. P2SH scripts are borked too. This
-   test plucks transactions from the static chain to push as ZC. Skip sig checks
-   on the unit test mock P2P node to avoid faililng the test.
-   */
-   nodePtr_->checkSigs(false);
-
-   TestUtils::setBlocks({ "0", "1" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-
-   theBDMt_->start(config.initMode_);
-
-   auto pCallback = make_shared<DBTestUtils::UTCallback>();
-   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
-      pCallback);
-   bdvObj->addPublicKey(serverPubkey);
-   bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-   //go online
-   bdvObj->goOnline();
-   pCallback->waitOnSignal(BDMAction_Ready);
-
-   vector<string> walletRegIDs;
-
-   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-   walletRegIDs.push_back(
-      wallet1.registerAddresses(scrAddrVec, false));
-
-   //wait on registration ack
-   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-   //get wallets delegate
-   auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
-   auto del1_fut = del1_prom->get_future();
-   auto del1_get = [del1_prom](
-      ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
-   {
-      del1_prom->set_value(move(delegate.get()));
-   };
-   bdvObj->getLedgerDelegateForWallets(del1_get);
-   auto&& main_delegate = del1_fut.get();
-
-   auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger_fut = ledger_prom->get_future();
-   auto ledger_get =
-      [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger_get);
-   auto&& main_ledger = ledger_fut.get();
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
-
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
-
-   //add the 2 zc
-   auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
-   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
-
-   auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
-   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-   //pushZC
-   auto broadcastId1 = bdvObj->broadcastZC(ZC1);
-   auto broadcastId2 = bdvObj->broadcastZC(ZC2);
-   
-   {
-      set<BinaryData> scrAddrSet1, scrAddrSet2;
-
-      Tx zctx1(ZC1);
-      for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
-         scrAddrSet1.insert(zctx1.getScrAddrForTxOut(i));
-
-      Tx zctx2(ZC2);
-      for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
-         scrAddrSet2.insert(zctx2.getScrAddrForTxOut(i));
-
-      pCallback->waitOnZc({ZChash1}, scrAddrSet1, broadcastId1);
-      pCallback->waitOnZc({ZChash2}, scrAddrSet2, broadcastId2);
-   }
-
-   //push them again, should get already in mempool error
-   auto broadcastId3 = bdvObj->broadcastZC(ZC1);
-   auto broadcastId4 = bdvObj->broadcastZC(ZC2);
-
-   pCallback->waitOnError(
-      ZChash1, ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId3);
-   pCallback->waitOnError(
-      ZChash2, ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId4);
-
-   //get the new ledgers
-   auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger2_fut = ledger2_prom->get_future();
-   auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger2_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger2_get);
-   main_ledger = move(ledger2_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 1);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   //tx cache testing
-   //grab ZC1 from async client
-   auto zc_prom1 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut1 = zc_prom1->get_future();
-   auto zc_get1 =
-      [zc_prom1](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom1->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get1);
-   auto zc_obj1 = zc_fut1.get();
-   EXPECT_EQ(ZChash1, zc_obj1->getThisHash());
-   EXPECT_EQ(zc_obj1->getTxHeight(), UINT32_MAX);
-
-   //grab both zc from async client
-   auto zc_prom2 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut2 = zc_prom2->get_future();
-   auto zc_get2 =
-      [zc_prom2](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom2->set_value(move(txVec));
-   };
-
-   set<BinaryData> bothZC = { ZChash1, ZChash2 };
-   bdvObj->getTxBatchByHash(bothZC, zc_get2);
-   auto zc_obj2 = zc_fut2.get();
-
-   ASSERT_EQ(zc_obj2.size(), 2);
-
-   auto iterZc1 = zc_obj2.find(ZChash1);
-   ASSERT_NE(iterZc1, zc_obj2.end());
-   ASSERT_NE(iterZc1->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc1->second->getThisHash());
-   EXPECT_EQ(iterZc1->second->getTxHeight(), UINT32_MAX);
-
-   auto iterZc2 = zc_obj2.find(ZChash2);
-   ASSERT_NE(iterZc2, zc_obj2.end());
-   ASSERT_NE(iterZc2->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc2->second->getThisHash());
-   EXPECT_EQ(iterZc2->second->getTxHeight(), UINT32_MAX);
-
-   //push an extra block
-   TestUtils::appendBlocks({ "2" }, blk0dat_);
-   DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   pCallback->waitOnSignal(BDMAction_NewBlock);
-
-   //get the new ledgers
-   auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger3_fut = ledger3_prom->get_future();
-   auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger3_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger3_get);
-   main_ledger = move(ledger3_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
-
-
-   //grab ZC1 from async client
-   auto zc_prom3 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut3 = zc_prom3->get_future();
-   auto zc_get3 =
-      [zc_prom3](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom3->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get3);
-   auto zc_obj3 = zc_fut3.get();
-   EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
-
-   //grab both zc from async client
-   auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut4 = zc_prom4->get_future();
-   auto zc_get4 =
-      [zc_prom4](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom4->set_value(move(txVec));
-   };
-
-   bdvObj->getTxBatchByHash(bothZC, zc_get4);
-   auto zc_obj4 = zc_fut4.get();
-
-   ASSERT_EQ(zc_obj4.size(), 2);
-
-   auto iterZc3 = zc_obj4.find(ZChash1);
-   ASSERT_NE(iterZc3, zc_obj4.end());
-   ASSERT_NE(iterZc3->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
-
-   auto iterZc4 = zc_obj4.find(ZChash2);
-   ASSERT_NE(iterZc4, zc_obj4.end());
-   ASSERT_NE(iterZc4->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
-
-   //disconnect
-   bdvObj->unregisterFromDB();
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInMempool_Batched)
-{
-   startupBIP150CTX(4);
-
-   /*
-   Some sigs in static test chain are borked. P2SH scripts are borked too. This
-   test plucks transactions from the static chain to push as ZC. Skip sig checks
-   on the unit test mock P2P node to avoid faililng the test.
-   */
-   nodePtr_->checkSigs(false);
-
-   TestUtils::setBlocks({ "0", "1" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-
-   theBDMt_->start(config.initMode_);
-
-   auto pCallback = make_shared<DBTestUtils::UTCallback>();
-   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
-      pCallback);
-   bdvObj->addPublicKey(serverPubkey);
-   bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-   //go online
-   bdvObj->goOnline();
-   pCallback->waitOnSignal(BDMAction_Ready);
-
-   vector<string> walletRegIDs;
-
-   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-   walletRegIDs.push_back(
-      wallet1.registerAddresses(scrAddrVec, false));
-
-   //wait on registration ack
-   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-   //get wallets delegate
-   auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
-   auto del1_fut = del1_prom->get_future();
-   auto del1_get = [del1_prom](
-      ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
-   {
-      del1_prom->set_value(move(delegate.get()));
-   };
-   bdvObj->getLedgerDelegateForWallets(del1_get);
-   auto&& main_delegate = del1_fut.get();
-
-   auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger_fut = ledger_prom->get_future();
-   auto ledger_get =
-      [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger_get);
-   auto&& main_ledger = ledger_fut.get();
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
-
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
-
-   //add the 2 zc
-   auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
-   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
-
-   auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
-   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-   //push the first zc
-   auto broadcastId1 = bdvObj->broadcastZC(ZC1);
-   
-   {
-      set<BinaryData> zcHashes = { ZChash1 };
-      set<BinaryData> scrAddrSet;
-
-      Tx zctx1(ZC1);
-      for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx1.getScrAddrForTxOut(i));
-
-      pCallback->waitOnZc(zcHashes, scrAddrSet, broadcastId1);
-   }
-
-   //push them again, should get already in mempool error for first zc, notif for 2nd
-   auto broadcastId2 = bdvObj->broadcastZC( { ZC1, ZC2 } );
-   pCallback->waitOnError(
-      ZChash1, ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId2);
-
-   {
-      set<BinaryData> zcHashes = { ZChash2 };
-      set<BinaryData> scrAddrSet;
-
-      Tx zctx2(ZC2);
-      for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
-
-      pCallback->waitOnZc(zcHashes, scrAddrSet, broadcastId2);
-   }
-
-   //get the new ledgers
-   auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger2_fut = ledger2_prom->get_future();
-   auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger2_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger2_get);
-   main_ledger = move(ledger2_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   //zc index is 2 since 0 and 1 were assigned to the first zc: 0 at
-   //the solo broadcast, 1 at the batched broadcast, which had the first
-   //zc fail as already-in-mempool
-   EXPECT_EQ(main_ledger[0].getIndex(), 2); 
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   //tx cache testing
-   //grab ZC1 from async client
-   auto zc_prom1 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut1 = zc_prom1->get_future();
-   auto zc_get1 =
-      [zc_prom1](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom1->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get1);
-   auto zc_obj1 = zc_fut1.get();
-   EXPECT_EQ(ZChash1, zc_obj1->getThisHash());
-   EXPECT_EQ(zc_obj1->getTxHeight(), UINT32_MAX);
-
-   //grab both zc from async client
-   auto zc_prom2 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut2 = zc_prom2->get_future();
-   auto zc_get2 =
-      [zc_prom2](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom2->set_value(move(txVec));
-   };
-
-   set<BinaryData> bothZC = { ZChash1, ZChash2 };
-   bdvObj->getTxBatchByHash(bothZC, zc_get2);
-   auto zc_obj2 = zc_fut2.get();
-
-   ASSERT_EQ(zc_obj2.size(), 2);
-
-   auto iterZc1 = zc_obj2.find(ZChash1);
-   ASSERT_NE(iterZc1, zc_obj2.end());
-   ASSERT_NE(iterZc1->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc1->second->getThisHash());
-   EXPECT_EQ(iterZc1->second->getTxHeight(), UINT32_MAX);
-
-   auto iterZc2 = zc_obj2.find(ZChash2);
-   ASSERT_NE(iterZc2, zc_obj2.end());
-   ASSERT_NE(iterZc2->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc2->second->getThisHash());
-   EXPECT_EQ(iterZc2->second->getTxHeight(), UINT32_MAX);
-   
-   //push an extra block
-   TestUtils::appendBlocks({ "2" }, blk0dat_);
-   DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   pCallback->waitOnSignal(BDMAction_NewBlock);
-
-   //get the new ledgers
-   auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger3_fut = ledger3_prom->get_future();
-   auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger3_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger3_get);
-   main_ledger = move(ledger3_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
-
-
-   //grab ZC1 from async client
-   auto zc_prom3 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut3 = zc_prom3->get_future();
-   auto zc_get3 =
-      [zc_prom3](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom3->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get3);
-   auto zc_obj3 = zc_fut3.get();
-   EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
-
-   //grab both zc from async client
-   auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut4 = zc_prom4->get_future();
-   auto zc_get4 =
-      [zc_prom4](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom4->set_value(move(txVec));
-   };
-
-   bdvObj->getTxBatchByHash(bothZC, zc_get4);
-   auto zc_obj4 = zc_fut4.get();
-
-   ASSERT_EQ(zc_obj4.size(), 2);
-
-   auto iterZc3 = zc_obj4.find(ZChash1);
-   ASSERT_NE(iterZc3, zc_obj4.end());
-   ASSERT_NE(iterZc3->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
-
-   auto iterZc4 = zc_obj4.find(ZChash2);
-   ASSERT_NE(iterZc4, zc_obj4.end());
-   ASSERT_NE(iterZc4->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
-
-   //disconnect
-   bdvObj->unregisterFromDB();
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_AlreadyInNodeMempool)
-{
-   /*
-   Some sigs in static test chain are borked. P2SH scripts are borked too. This
-   test plucks transactions from the static chain to push as ZC. Skip sig checks
-   on the unit test mock P2P node to avoid faililng the test.
-   */
-   nodePtr_->checkSigs(false);
-
-   //grab the first zc
-   auto&& ZC1 = TestUtils::getTx(2, 1); //block 2, tx 1
-   auto&& ZChash1 = BtcUtils::getHash256(ZC1);
-
-   {
-      //feed to node mempool while the zc parser is down
-      DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(ZC1, 0);
-      DBTestUtils::pushNewZc(theBDMt_, zcVec, 0);
-   }
-
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-
-   theBDMt_->start(config.initMode_);
-
-   auto pCallback = make_shared<DBTestUtils::UTCallback>();
-   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
-      pCallback);
-   bdvObj->addPublicKey(serverPubkey);
-   bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-   //go online
-   bdvObj->goOnline();
-   pCallback->waitOnSignal(BDMAction_Ready);
-
-   vector<string> walletRegIDs;
-
-   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-   walletRegIDs.push_back(
-      wallet1.registerAddresses(scrAddrVec, false));
-
-   //wait on registration ack
-   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-   //get wallets delegate
-   auto del1_prom = make_shared<promise<AsyncClient::LedgerDelegate>>();
-   auto del1_fut = del1_prom->get_future();
-   auto del1_get = [del1_prom](
-      ReturnMessage<AsyncClient::LedgerDelegate> delegate)->void
-   {
-      del1_prom->set_value(move(delegate.get()));
-   };
-   bdvObj->getLedgerDelegateForWallets(del1_get);
-   auto&& main_delegate = del1_fut.get();
-
-   auto ledger_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger_fut = ledger_prom->get_future();
-   auto ledger_get =
-      [ledger_prom](
-         ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger_get);
-   auto&& main_ledger = ledger_fut.get();
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 2);
-
-   EXPECT_EQ(main_ledger[0].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[0].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[1].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[1].getIndex(), 0);
-
-   //add the 2 zc
-
-   auto&& ZC2 = TestUtils::getTx(2, 2); //block 2, tx 2
-   auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-   vector<BinaryData> zcVec = {ZC1, ZC2};
-   auto broadcastId1 = bdvObj->broadcastZC(zcVec);
-   
-   {
-      set<BinaryData> zcHashes = { ZChash1, ZChash2 };
-      set<BinaryData> scrAddrSet;
-
-      Tx zctx1(ZC1);
-      for (unsigned i = 0; i < zctx1.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx1.getScrAddrForTxOut(i));
-
-      Tx zctx2(ZC2);
-      for (unsigned i = 0; i < zctx2.getNumTxOut(); i++)
-         scrAddrSet.insert(zctx2.getScrAddrForTxOut(i));
-
-      pCallback->waitOnZc(zcHashes, scrAddrSet, broadcastId1);
-   }
-
-   //get the new ledgers
-   auto ledger2_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger2_fut = ledger2_prom->get_future();
-   auto ledger2_get =
-      [ledger2_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger2_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger2_get);
-   main_ledger = move(ledger2_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 4);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[0].getIndex(), 3);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), UINT32_MAX);
-   EXPECT_EQ(main_ledger[1].getIndex(), 2);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   //tx cache testing
-   //grab ZC1 from async client
-   auto zc_prom1 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut1 = zc_prom1->get_future();
-   auto zc_get1 =
-      [zc_prom1](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom1->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get1);
-   auto zc_obj1 = zc_fut1.get();
-   EXPECT_EQ(ZChash1, zc_obj1->getThisHash());
-   EXPECT_EQ(zc_obj1->getTxHeight(), UINT32_MAX);
-
-   //grab both zc from async client
-   auto zc_prom2 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut2 = zc_prom2->get_future();
-   auto zc_get2 =
-      [zc_prom2](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom2->set_value(move(txVec));
-   };
-
-   set<BinaryData> bothZC = { ZChash1, ZChash2 };
-   bdvObj->getTxBatchByHash(bothZC, zc_get2);
-   auto zc_obj2 = zc_fut2.get();
-
-   ASSERT_EQ(zc_obj2.size(), 2);
-
-   auto iterZc1 = zc_obj2.find(ZChash1);
-   ASSERT_NE(iterZc1, zc_obj2.end());
-   ASSERT_NE(iterZc1->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc1->second->getThisHash());
-   EXPECT_EQ(iterZc1->second->getTxHeight(), UINT32_MAX);
-
-   auto iterZc2 = zc_obj2.find(ZChash2);
-   ASSERT_NE(iterZc2, zc_obj2.end());
-   ASSERT_NE(iterZc2->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc2->second->getThisHash());
-   EXPECT_EQ(iterZc2->second->getTxHeight(), UINT32_MAX);
-
-   //push an extra block
-   TestUtils::appendBlocks({ "2" }, blk0dat_);
-   DBTestUtils::triggerNewBlockNotification(theBDMt_);
-   pCallback->waitOnSignal(BDMAction_NewBlock);
-
-   //get the new ledgers
-   auto ledger3_prom =
-      make_shared<promise<vector<::ClientClasses::LedgerEntry>>>();
-   auto ledger3_fut = ledger3_prom->get_future();
-   auto ledger3_get =
-      [ledger3_prom](ReturnMessage<vector<::ClientClasses::LedgerEntry>> ledgerV)->void
-   {
-      ledger3_prom->set_value(move(ledgerV.get()));
-   };
-   main_delegate.getHistoryPage(0, ledger3_get);
-   main_ledger = move(ledger3_fut.get());
-
-   //check ledgers
-   EXPECT_EQ(main_ledger.size(), 5);
-
-   EXPECT_EQ(main_ledger[0].getValue(), -20 * COIN);
-   EXPECT_EQ(main_ledger[0].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[0].getIndex(), 2);
-
-   EXPECT_EQ(main_ledger[1].getValue(), -25 * COIN);
-   EXPECT_EQ(main_ledger[1].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[1].getIndex(), 1);
-
-   EXPECT_EQ(main_ledger[2].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[2].getBlockNum(), 2);
-   EXPECT_EQ(main_ledger[2].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[3].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[3].getBlockNum(), 1);
-   EXPECT_EQ(main_ledger[3].getIndex(), 0);
-
-   EXPECT_EQ(main_ledger[4].getValue(), 50 * COIN);
-   EXPECT_EQ(main_ledger[4].getBlockNum(), 0);
-   EXPECT_EQ(main_ledger[4].getIndex(), 0);
-
-
-   //grab ZC1 from async client
-   auto zc_prom3 = make_shared<promise<AsyncClient::TxResult>>();
-   auto zc_fut3 = zc_prom3->get_future();
-   auto zc_get3 =
-      [zc_prom3](ReturnMessage<AsyncClient::TxResult> txObj)->void
-   {
-      auto&& tx = txObj.get();
-      zc_prom3->set_value(move(tx));
-   };
-
-   bdvObj->getTxByHash(ZChash1, zc_get3);
-   auto zc_obj3 = zc_fut3.get();
-   EXPECT_EQ(ZChash1, zc_obj3->getThisHash());
-   EXPECT_EQ(zc_obj3->getTxHeight(), 2);
-
-   //grab both zc from async client
-   auto zc_prom4 = make_shared<promise<AsyncClient::TxBatchResult>>();
-   auto zc_fut4 = zc_prom4->get_future();
-   auto zc_get4 =
-      [zc_prom4](ReturnMessage<AsyncClient::TxBatchResult> txObj)->void
-   {
-      auto&& txVec = txObj.get();
-      zc_prom4->set_value(move(txVec));
-   };
-
-   bdvObj->getTxBatchByHash(bothZC, zc_get4);
-   auto zc_obj4 = zc_fut4.get();
-
-   ASSERT_EQ(zc_obj4.size(), 2);
-
-   auto iterZc3 = zc_obj4.find(ZChash1);
-   ASSERT_NE(iterZc3, zc_obj4.end());
-   ASSERT_NE(iterZc3->second, nullptr);
-   EXPECT_EQ(ZChash1, iterZc3->second->getThisHash());
-   EXPECT_EQ(iterZc3->second->getTxHeight(), 2);
-
-   auto iterZc4 = zc_obj4.find(ZChash2);
-   ASSERT_NE(iterZc4, zc_obj4.end());
-   ASSERT_NE(iterZc4->second, nullptr);
-   EXPECT_EQ(ZChash2, iterZc4->second->getThisHash());
-   EXPECT_EQ(iterZc4->second->getTxHeight(), 2);
-
-   //disconnect
-   bdvObj->unregisterFromDB();
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_ZcUpdate_RBFLowFee)
-{
-   //instantiate resolver feed overloaded object
-   auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-   feed->addPrivKey(TestChain::privKeyAddrB);
-   feed->addPrivKey(TestChain::privKeyAddrC);
-   feed->addPrivKey(TestChain::privKeyAddrD);
-   feed->addPrivKey(TestChain::privKeyAddrE);
-   feed->addPrivKey(TestChain::privKeyAddrF);
-
-   startupBIP150CTX(4);
-
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-
-   vector<BinaryData> scrAddrVec;
-   scrAddrVec.push_back(TestChain::scrAddrA);
-   scrAddrVec.push_back(TestChain::scrAddrB);
-   scrAddrVec.push_back(TestChain::scrAddrC);
-   scrAddrVec.push_back(TestChain::scrAddrD);
-   scrAddrVec.push_back(TestChain::scrAddrE);
-   scrAddrVec.push_back(TestChain::scrAddrF);
-
-   theBDMt_->start(config.initMode_);
-
-   auto pCallback = make_shared<DBTestUtils::UTCallback>();
-   auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
-      pCallback);
-   bdvObj->addPublicKey(serverPubkey);
-   bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-   auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-   vector<string> walletRegIDs;
-   walletRegIDs.push_back(
-      wallet1.registerAddresses(scrAddrVec, false));
-
-   //wait on registration ack
-   pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-   //go online
-   bdvObj->goOnline();
-   pCallback->waitOnSignal(BDMAction_Ready);
-
-   //create tx from utxo lambda
-   auto makeTxFromUtxo = [feed](const UTXO& utxo, const BinaryData& recipient)->BinaryData
-   {
-      auto spender = make_shared<ScriptSpender>(utxo);
-      spender->setSequence(0xFFFFFFFF - 2); //flag rbf
-
-      auto recPtr = make_shared<Recipient_P2PKH>(
-         recipient.getSliceCopy(1, 20), utxo.getValue());
-
-      Signer signer;
-      signer.setFeed(feed);
-      signer.addSpender(spender);
-      signer.addRecipient(recPtr);
-
-      signer.sign();
-      return signer.serializeSignedTx();
-   };
-
-   //grab utxo from db
-   auto getUtxo = [bdvObj](const BinaryData& addr)->vector<UTXO>
-   {
-      auto promPtr = make_shared<promise<vector<UTXO>>>();
-      auto fut = promPtr->get_future();
-      auto getUtxoLbd = [promPtr](ReturnMessage<vector<UTXO>> batch)->void
-      {
-         promPtr->set_value(batch.get());
-      };
-
-      bdvObj->getUTXOsForAddress(addr, false, getUtxoLbd);
-      return fut.get();
-   };
-
-   //create tx from spender address lambda
-   auto makeTx = [makeTxFromUtxo, getUtxo, bdvObj](
-      const BinaryData& payer, const BinaryData& recipient)->BinaryData
-   {
-      auto utxoVec = getUtxo(payer);
-      if (utxoVec.size() == 0)
-         throw runtime_error("unexpected utxo vec size");
-
-      auto& utxo = utxoVec[0];
-      return makeTxFromUtxo(utxo, recipient);
-   };
-
-   //grab utxo from raw tx lambda
-   auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
-   {
-      Tx tx(rawTx);
-      if (id > tx.getNumTxOut())
-         throw runtime_error("invalid txout count");
-
-      auto&& txOut = tx.getTxOutCopy(id);
-      
-      UTXO utxo;
-      utxo.unserializeRaw(txOut.serialize());
-      utxo.txOutIndex_ = id;
-      utxo.txHash_ = tx.getThisHash();
-
-      return utxo;
-   };
-
-   vector<string> walletIDs;
-   walletIDs.push_back(wallet1.walletID());
-
-   //grab combined balances lambda
-   auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
-   {
-      auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
-      auto fut = promPtr->get_future();
-      auto balLbd = [promPtr](
-         ReturnMessage<map<string, CombinedBalances>> combBal)->void
-      {
-         promPtr->set_value(combBal.get());
-      };
-
-      bdvObj->getCombinedBalances(walletIDs, balLbd);
-      auto&& balMap = fut.get();
-
-      if (balMap.size() != 1)
-         throw runtime_error("unexpected balance map size");
-
-      return balMap.begin()->second;
-   };
-
-   //check original balances
-   {
-      auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-      ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
-      EXPECT_EQ(iterA->second[0], 50 * COIN);
-
-      auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-      ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
-      EXPECT_EQ(iterB->second[0], 70 * COIN);
-
-      auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-      ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
-      EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-      auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-      ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterD->second.size(), 3);
-      EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-      auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-      ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
-      EXPECT_EQ(iterE->second[0], 30 * COIN);
-
-      auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-      ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterF->second.size(), 3);
-      EXPECT_EQ(iterF->second[0], 5 * COIN);
-   }
-
-   BinaryData branchPointBlockHash, mainBranchBlockHash;
-   {
-      auto top = theBDMt_->bdm()->blockchain()->top();
-      branchPointBlockHash = top->getThisHash();
-   }
-
-   BinaryData bd_BtoC;
-   UTXO utxoF;
-   {
-      //tx from B to C
-      bd_BtoC = makeTx(TestChain::scrAddrB, TestChain::scrAddrC);
-
-      //tx from F to A
-      auto&& utxoVec = getUtxo(TestChain::scrAddrF);
-      ASSERT_EQ(utxoVec.size(), 1);
-      utxoF = utxoVec[0];
-      auto bd_FtoD = makeTxFromUtxo(utxoF, TestChain::scrAddrA);
-
-      //broadcast
-      auto broadcastId1 = bdvObj->broadcastZC(bd_BtoC);
-      auto broadcastId2 = bdvObj->broadcastZC(bd_FtoD);
-
-      set<BinaryData> scrAddrSet1, scrAddrSet2;
-      
-      {
-         Tx tx1(bd_BtoC);
-         
-         Tx tx2(bd_FtoD);
-         
-         scrAddrSet1.insert(TestChain::scrAddrB);
-         scrAddrSet1.insert(TestChain::scrAddrC);
-
-         scrAddrSet2.insert(TestChain::scrAddrF);
-         scrAddrSet2.insert(TestChain::scrAddrA);
-
-         pCallback->waitOnZc({tx1.getThisHash()}, scrAddrSet1, broadcastId1);
-         pCallback->waitOnZc({tx2.getThisHash()}, scrAddrSet2, broadcastId2);
-      }
-
-      //tx from B to A, should fail with RBF low fee
-      auto bd_BtoA = makeTx(TestChain::scrAddrB, TestChain::scrAddrA);
-      Tx tx(bd_BtoA);
-
-      auto broadcastId3 = bdvObj->broadcastZC(bd_BtoA);
-      pCallback->waitOnError(tx.getThisHash(), 
-         ArmoryErrorCodes::P2PReject_InsufficientFee, broadcastId3);
- 
-      //mine
-      DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA, 1);
-      pCallback->waitOnSignal(BDMAction_NewBlock);
-
-      //zc C to E
-      auto&& utxo = getUtxoFromRawTx(bd_BtoC, 0);
-      auto bd_CtoE = makeTxFromUtxo(utxo, TestChain::scrAddrE);
-      
-      //broadcast
-      bdvObj->broadcastZC(bd_CtoE);
-      pCallback->waitOnSignal(BDMAction_ZC);
-
-      //mine
-      DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrA, 1);
-      pCallback->waitOnSignal(BDMAction_NewBlock);
-
-      //check balances
-      auto&& combineBalances = getBalances();
-
-      /*
-      D doesn't change so there should only be 5 balance entries
-      C value does not change but the address sees a ZC in and a
-      ZC out so the internal value change tracker counter was 
-      incremented, resulting in an entry.
-      */
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 5);
-
-      auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-      ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
-      EXPECT_EQ(iterA->second[0], 155 * COIN);
-
-      auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-      ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
-      EXPECT_EQ(iterB->second[0], 20 * COIN);
-
-      auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-      ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
-      EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-      auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-      ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
-      EXPECT_EQ(iterE->second[0], 80 * COIN);
-
-      auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-      ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterF->second.size(), 3);
-      EXPECT_EQ(iterF->second[0], 0 * COIN);
-   }
-
-   //cleanup
-   bdvObj->unregisterFromDB();
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;   
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
 {
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
@@ -6813,19 +3222,19 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
 
    auto&& _scrAddrVec8 = createNAddresses(2);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -6871,15 +3280,15 @@ TEST_F(WebSocketTests, WebSocketStack_ManyLargeWallets)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -6891,14 +3300,12 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
    feed->addPrivKey(TestChain::privKeyAddrB);
 
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
    {
@@ -6932,14 +3339,14 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -6993,7 +3400,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
             signer.setFeed(feed);
             signer.sign();
-            auto rawTx = signer.serializeSignedTx();
+            signer.serializeSignedTx();
             zcVec.push_back(signer.serializeSignedTx(), 130000000, stagger++);
          }
 
@@ -7038,36 +3445,36 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
       unsigned heightOffset = 0;
       auto&& addrOp = getAddrOp(heightOffset, UINT32_MAX);
       heightOffset = addrOp.heightCutoff_ + 1;
-      ASSERT_EQ(addrOp.outpoints_.size(), 6);
+      ASSERT_EQ(addrOp.outpoints_.size(), 6ULL);
       
       auto iterAddrA = addrOp.outpoints_.find(TestChain::scrAddrA);
       EXPECT_NE(iterAddrA, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrA->second.size(), 1);
+      EXPECT_EQ(iterAddrA->second.size(), 1ULL);
       EXPECT_EQ(computeBalance(iterAddrA->second), 50 * COIN);
 
       auto iterAddrB = addrOp.outpoints_.find(TestChain::scrAddrB);
       EXPECT_NE(iterAddrB, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrB->second.size(), 1007);
+      EXPECT_EQ(iterAddrB->second.size(), 1007ULL);
       EXPECT_EQ(computeBalance(iterAddrB->second), 50070 * COIN);
 
       auto iterAddrC = addrOp.outpoints_.find(TestChain::scrAddrC);
       EXPECT_NE(iterAddrC, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrC->second.size(), 4);
+      EXPECT_EQ(iterAddrC->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrC->second), 20 * COIN);
 
       auto iterAddrD = addrOp.outpoints_.find(TestChain::scrAddrD);
       EXPECT_NE(iterAddrD, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrD->second.size(), 4);
+      EXPECT_EQ(iterAddrD->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrD->second), 65 * COIN);
 
       auto iterAddrE = addrOp.outpoints_.find(TestChain::scrAddrE);
       EXPECT_NE(iterAddrE, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrE->second.size(), 2);
+      EXPECT_EQ(iterAddrE->second.size(), 2ULL);
       EXPECT_EQ(computeBalance(iterAddrE->second), 30 * COIN);
 
       auto iterAddrF = addrOp.outpoints_.find(TestChain::scrAddrF);
       EXPECT_NE(iterAddrF, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrF->second.size(), 4);
+      EXPECT_EQ(iterAddrF->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrF->second), 5 * COIN);
 
       //check zc outputs
@@ -7076,12 +3483,12 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
       auto iterZcB = zcAddrOp.outpoints_.find(TestChain::scrAddrB);
       ASSERT_NE(iterZcB, zcAddrOp.outpoints_.end());
-      EXPECT_EQ(iterZcB->second.size(), 10);
+      EXPECT_EQ(iterZcB->second.size(), 10ULL);
 
       for (auto& opB : iterZcB->second)
       {
          EXPECT_EQ(opB.value_, 50 * COIN);
-         EXPECT_EQ(opB.txIndex_, 0);
+         EXPECT_EQ(opB.txIndex_, 0U);
          EXPECT_TRUE(opB.isSpent_);
       }
 
@@ -7092,7 +3499,7 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
          
          auto addrIter = zcAddrOp.outpoints_.find(addr);
          ASSERT_NE(addrIter, zcAddrOp.outpoints_.end());
-         EXPECT_EQ(addrIter->second.size(), 1);
+         EXPECT_EQ(addrIter->second.size(), 1ULL);
 
          auto& op = addrIter->second[0];
          EXPECT_EQ(op.value_, 50 * COIN);
@@ -7108,27 +3515,27 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
          //grab addrop
          auto&& addr_op = getAddrOp(heightOffset, UINT32_MAX);
-         EXPECT_EQ(addr_op.outpoints_.size(), 3);
+         EXPECT_EQ(addr_op.outpoints_.size(), 3ULL);
 
          //new coinbase to A
          auto iterA = addr_op.outpoints_.find(TestChain::scrAddrA);
          ASSERT_NE(iterA, addr_op.outpoints_.end());
-         EXPECT_EQ(iterA->second.size(), 1);
+         EXPECT_EQ(iterA->second.size(), 1ULL);
 
          auto& opA = *iterA->second.begin();
-         EXPECT_EQ(opA.txIndex_, 0);
-         EXPECT_EQ(opA.txOutIndex_, 0);
+         EXPECT_EQ(opA.txIndex_, 0U);
+         EXPECT_EQ(opA.txOutIndex_, 0U);
          EXPECT_EQ(opA.value_, 50 * COIN);
          EXPECT_FALSE(opA.isSpent_);
 
          //B coinbase input
          auto iterB = addr_op.outpoints_.find(TestChain::scrAddrB);
          ASSERT_NE(iterB, addr_op.outpoints_.end());
-         EXPECT_EQ(iterB->second.size(), 1);
+         EXPECT_EQ(iterB->second.size(), 1ULL);
 
          auto& opB = *iterB->second.begin();
-         EXPECT_EQ(opB.txIndex_, 0);
-         EXPECT_EQ(opB.txOutIndex_, 0);
+         EXPECT_EQ(opB.txIndex_, 0U);
+         EXPECT_EQ(opB.txOutIndex_, 0U);
          EXPECT_EQ(opB.value_, 50 * COIN);
          EXPECT_TRUE(opB.isSpent_);
          
@@ -7137,10 +3544,10 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
          auto& recAddr = _scrAddrVec1[id];
          auto iterR = addr_op.outpoints_.find(recAddr);
          ASSERT_NE(iterR, addr_op.outpoints_.end());
-         EXPECT_EQ(iterR->second.size(), 1);
+         EXPECT_EQ(iterR->second.size(), 1ULL);
 
          auto& opR = *iterR->second.begin();
-         EXPECT_EQ(opR.txIndex_, 1);
+         EXPECT_EQ(opR.txIndex_, 1U);
          EXPECT_EQ(opR.value_, 50 * COIN);
 
          //update cutoff
@@ -7150,15 +3557,15 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -7167,14 +3574,12 @@ TEST_F(WebSocketTests, WebSocketStack_AddrOpLoop)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 {
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
    {
@@ -7203,14 +3608,14 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -7243,28 +3648,28 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 
       bdvObj->getCombinedBalances(walletIDs, balLbd);
       auto&& balMap = fut.get();
-      ASSERT_EQ(balMap.size(), 2);
+      ASSERT_EQ(balMap.size(), 2ULL);
 
       //wallet1
       auto iter1 = balMap.find(walletIDs[0]);
       ASSERT_NE(iter1, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter1->second.addressBalances_.size(), 1);
+      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter1->second.addressBalances_.size(), 1ULL);
 
       //wallet balance
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[0], 50 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0ULL);
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[2], 50 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 1);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 1ULL);
 
       //scrAddrA balance
       auto addrIter1 = iter1->second.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(addrIter1, iter1->second.addressBalances_.end());
-      ASSERT_EQ(addrIter1->second.size(), 3);
+      ASSERT_EQ(addrIter1->second.size(), 3ULL);
       EXPECT_EQ(addrIter1->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter1->second[1], 0);
+      EXPECT_EQ(addrIter1->second[1], 0U);
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //wallet2
@@ -7272,19 +3677,19 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
       ASSERT_NE(iter2, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter2->second.addressBalances_.size(), 1);
+      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter2->second.addressBalances_.size(), 1ULL);
 
       //wallet balance
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[0], 70 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[1], 20 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[2], 70 * COIN);
-      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 12);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 12ULL);
 
       //scrAddrB balance
       auto addrIter2 = iter2->second.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(addrIter2, iter2->second.addressBalances_.end());
-      ASSERT_EQ(addrIter2->second.size(), 3);
+      ASSERT_EQ(addrIter2->second.size(), 3ULL);
       EXPECT_EQ(addrIter2->second[0], 70 * COIN);
       EXPECT_EQ(addrIter2->second[1], 20 * COIN);
       EXPECT_EQ(addrIter2->second[2], 70 * COIN);
@@ -7300,25 +3705,25 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 
       bdvObj->getCombinedAddrTxnCounts(walletIDs, countLbd);
       auto&& countMap = fut2.get();
-      ASSERT_EQ(countMap.size(), 2);
+      ASSERT_EQ(countMap.size(), 2ULL);
 
       //wallet1
       auto iter3 = countMap.find(walletIDs[0]);
       ASSERT_NE(iter3, countMap.end());
-      ASSERT_EQ(iter3->second.addressTxnCounts_.size(), 1);
+      ASSERT_EQ(iter3->second.addressTxnCounts_.size(), 1ULL);
 
       auto addrIter3 = iter3->second.addressTxnCounts_.find(TestChain::scrAddrA);
       ASSERT_NE(addrIter3, iter3->second.addressTxnCounts_.end());
-      EXPECT_EQ(addrIter3->second, 1);
+      EXPECT_EQ(addrIter3->second, 1U);
 
       //wallet2
       auto iter4 = countMap.find(walletIDs[1]);
       ASSERT_NE(iter4, countMap.end());
-      ASSERT_EQ(iter4->second.addressTxnCounts_.size(), 1);
+      ASSERT_EQ(iter4->second.addressTxnCounts_.size(), 1ULL);
 
       auto addrIter4 = iter4->second.addressTxnCounts_.find(TestChain::scrAddrB);
       ASSERT_NE(addrIter4, iter4->second.addressTxnCounts_.end());
-      EXPECT_EQ(addrIter4->second, 12);
+      EXPECT_EQ(addrIter4->second, 12U);
 
       //utxos
       auto promPtr3 = make_shared<promise<vector<UTXO>>>();
@@ -7331,7 +3736,7 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
       bdvObj->getCombinedSpendableTxOutListForValue(
          walletIDs, UINT64_MAX, utxoLbd);
       auto&& utxoVec = fut3.get();
-      ASSERT_EQ(utxoVec.size(), 1);
+      ASSERT_EQ(utxoVec.size(), 1ULL);
 
       auto& utxo1 = utxoVec[0];
       EXPECT_EQ(utxo1.getValue(), 20 * COIN);
@@ -7343,15 +3748,15 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0ULL);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -7360,14 +3765,12 @@ TEST_F(WebSocketTests, WebSocketStack_CombinedCalls)
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 {
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto createNAddresses = [](unsigned count)->vector<BinaryData>
    {
@@ -7396,14 +3799,14 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -7441,28 +3844,28 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
       };
 
       auto&& balMap = getCombinedBalances(walletIDs);
-      ASSERT_EQ(balMap.size(), 2);
+      ASSERT_EQ(balMap.size(), 2ULL);
 
       //wallet1
       auto iter1 = balMap.find(walletIDs[0]);
       ASSERT_NE(iter1, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter1->second.addressBalances_.size(), 1);
+      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter1->second.addressBalances_.size(), 1ULL);
 
       //wallet balance
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[0], 50 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0U);
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[2], 50 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 1);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 1ULL);
 
       //scrAddrA balance
       auto addrIter1 = iter1->second.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(addrIter1, iter1->second.addressBalances_.end());
-      ASSERT_EQ(addrIter1->second.size(), 3);
+      ASSERT_EQ(addrIter1->second.size(), 3ULL);
       EXPECT_EQ(addrIter1->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter1->second[1], 0);
+      EXPECT_EQ(addrIter1->second[1], 0U);
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //wallet2
@@ -7470,19 +3873,19 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
       ASSERT_NE(iter2, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter2->second.addressBalances_.size(), 1);
+      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter2->second.addressBalances_.size(), 1ULL);
 
       //wallet balance
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[0], 70 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[1], 20 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[2], 70 * COIN);
-      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 12);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 12ULL);
 
       //scrAddrB balance
       auto addrIter2 = iter2->second.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(addrIter2, iter2->second.addressBalances_.end());
-      ASSERT_EQ(addrIter2->second.size(), 3);
+      ASSERT_EQ(addrIter2->second.size(), 3ULL);
       EXPECT_EQ(addrIter2->second[0], 70 * COIN);
       EXPECT_EQ(addrIter2->second[1], 20 * COIN);
       EXPECT_EQ(addrIter2->second[2], 70 * COIN);
@@ -7498,25 +3901,25 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
       bdvObj->getCombinedAddrTxnCounts(walletIDs, countLbd);
       auto&& countMap = fut2.get();
-      ASSERT_EQ(countMap.size(), 2);
+      ASSERT_EQ(countMap.size(), 2ULL);
 
       //wallet1
       auto iter3 = countMap.find(walletIDs[0]);
       ASSERT_NE(iter3, countMap.end());
-      ASSERT_EQ(iter3->second.addressTxnCounts_.size(), 1);
+      ASSERT_EQ(iter3->second.addressTxnCounts_.size(), 1ULL);
 
       auto addrIter3 = iter3->second.addressTxnCounts_.find(TestChain::scrAddrA);
       ASSERT_NE(addrIter3, iter3->second.addressTxnCounts_.end());
-      EXPECT_EQ(addrIter3->second, 1);
+      EXPECT_EQ(addrIter3->second, 1U);
 
       //wallet2
       auto iter4 = countMap.find(walletIDs[1]);
       ASSERT_NE(iter4, countMap.end());
-      ASSERT_EQ(iter4->second.addressTxnCounts_.size(), 1);
+      ASSERT_EQ(iter4->second.addressTxnCounts_.size(), 1ULL);
 
       auto addrIter4 = iter4->second.addressTxnCounts_.find(TestChain::scrAddrB);
       ASSERT_NE(addrIter4, iter4->second.addressTxnCounts_.end());
-      EXPECT_EQ(addrIter4->second, 12);
+      EXPECT_EQ(addrIter4->second, 12U);
 
       //utxos
       auto promPtr3 = make_shared<promise<vector<UTXO>>>();
@@ -7529,7 +3932,7 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
       bdvObj->getCombinedSpendableTxOutListForValue(
          walletIDs, UINT64_MAX, utxoLbd);
       auto&& utxoVec = fut3.get();
-      ASSERT_EQ(utxoVec.size(), 1);
+      ASSERT_EQ(utxoVec.size(), 1ULL);
 
       auto& utxo1 = utxoVec[0];
       EXPECT_EQ(utxo1.getValue(), 20 * COIN);
@@ -7550,36 +3953,36 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
       //grab balances
       balMap = getCombinedBalances(walletIDs);
-      ASSERT_EQ(balMap.size(), 2);
+      ASSERT_EQ(balMap.size(), 2ULL);
 
       //wallet1
       iter1 = balMap.find(walletIDs[0]);
       ASSERT_NE(iter1, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter1->second.addressBalances_.size(), 2);
+      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter1->second.addressBalances_.size(), 2ULL);
 
       //wallet balance
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[0], 150 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0ULL);
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[2], 150 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 3);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 3ULL);
 
       //_scrAddrVec1[0] balance
       addrIter1 = iter1->second.addressBalances_.find(_scrAddrVec1[0]);
       ASSERT_NE(addrIter1, iter1->second.addressBalances_.end());
-      ASSERT_EQ(addrIter1->second.size(), 3);
+      ASSERT_EQ(addrIter1->second.size(), 3ULL);
       EXPECT_EQ(addrIter1->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter1->second[1], 0);
+      EXPECT_EQ(addrIter1->second[1], 0ULL);
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //_scrAddrVec1[1] balance
       addrIter1 = iter1->second.addressBalances_.find(_scrAddrVec1[1]);
       ASSERT_NE(addrIter1, iter1->second.addressBalances_.end());
-      ASSERT_EQ(addrIter1->second.size(), 3);
+      ASSERT_EQ(addrIter1->second.size(), 3ULL);
       EXPECT_EQ(addrIter1->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter1->second[1], 0);
+      EXPECT_EQ(addrIter1->second[1], 0ULL);
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //wallet2
@@ -7587,29 +3990,29 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
       ASSERT_NE(iter2, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter2->second.addressBalances_.size(), 2);
+      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter2->second.addressBalances_.size(), 2ULL);
 
       //wallet balance
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[0], 170 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[1], 20 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[2], 170 * COIN);
-      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 14);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 14ULL);
 
       //_scrAddrVec2[0] balance
       addrIter2 = iter2->second.addressBalances_.find(_scrAddrVec2[0]);
       ASSERT_NE(addrIter2, iter2->second.addressBalances_.end());
-      ASSERT_EQ(addrIter2->second.size(), 3);
+      ASSERT_EQ(addrIter2->second.size(), 3ULL);
       EXPECT_EQ(addrIter2->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter2->second[1], 0);
+      EXPECT_EQ(addrIter2->second[1], 0ULL);
       EXPECT_EQ(addrIter2->second[2], 50 * COIN);
 
       //_scrAddrVec2[1] balance
       addrIter2 = iter2->second.addressBalances_.find(_scrAddrVec2[1]);
       ASSERT_NE(addrIter2, iter2->second.addressBalances_.end());
-      ASSERT_EQ(addrIter2->second.size(), 3);
+      ASSERT_EQ(addrIter2->second.size(), 3ULL);
       EXPECT_EQ(addrIter2->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter2->second[1], 0);
+      EXPECT_EQ(addrIter2->second[1], 0ULL);
       EXPECT_EQ(addrIter2->second[2], 50 * COIN);
 
       //unregister some addresses
@@ -7623,35 +4026,35 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
       //grab balances again
       balMap = getCombinedBalances(walletIDs);
-      ASSERT_EQ(balMap.size(), 2);
+      ASSERT_EQ(balMap.size(), 2ULL);
 
       //wallet1
       iter1 = balMap.find(walletIDs[0]);
       ASSERT_NE(iter1, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter1->second.addressBalances_.size(), 0);
+      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter1->second.addressBalances_.size(), 0ULL);
 
       //wallet balance
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[0], 100 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0ULL);
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[2], 100 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 2);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 2ULL);
 
       //wallet2
       iter2 = balMap.find(walletIDs[1]);
       ASSERT_NE(iter2, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter2->second.addressBalances_.size(), 0);
+      ASSERT_EQ(iter2->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter2->second.addressBalances_.size(), 0ULL);
 
       //wallet balance
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[0], 120 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[1], 20 * COIN);
       EXPECT_EQ(iter2->second.walletBalanceAndCount_[2], 120 * COIN);
-      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 13);
+      EXPECT_EQ(iter2->second.walletBalanceAndCount_[3], 13ULL);
 
       //unregister a wallet
       walletRegIDs.clear();
@@ -7660,11 +4063,11 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
       //grab balances again
       balMap = getCombinedBalances(walletIDs);
-      ASSERT_EQ(balMap.size(), 0); //should be 0, as one wallet in walletIDs is invalid
+      ASSERT_EQ(balMap.size(), 0ULL); //should be 0, as one wallet in walletIDs is invalid
 
       //grab balances again
       balMap = getCombinedBalances({wallet1id});
-      ASSERT_EQ(balMap.size(), 1);
+      ASSERT_EQ(balMap.size(), 1ULL);
 
       //mine a block
       DBTestUtils::mineNewBlock(theBDMt_, _scrAddrVec1[2].getSliceCopy(1, 20), 1);
@@ -7672,27 +4075,27 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
       //grab balances again
       balMap = getCombinedBalances({wallet1id});
-      ASSERT_EQ(balMap.size(), 1);
+      ASSERT_EQ(balMap.size(), 1ULL);
       
       //wallet1
       iter1 = balMap.find(walletIDs[0]);
       ASSERT_NE(iter1, balMap.end());
 
       //sizes
-      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4);
-      ASSERT_EQ(iter1->second.addressBalances_.size(), 1);
+      ASSERT_EQ(iter1->second.walletBalanceAndCount_.size(), 4ULL);
+      ASSERT_EQ(iter1->second.addressBalances_.size(), 1ULL);
 
       //wallet balance
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[0], 150 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[1], 0ULL);
       EXPECT_EQ(iter1->second.walletBalanceAndCount_[2], 150 * COIN);
-      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 3);
+      EXPECT_EQ(iter1->second.walletBalanceAndCount_[3], 3ULL);
 
       addrIter1 = iter1->second.addressBalances_.find(_scrAddrVec1[2]);
       ASSERT_NE(addrIter1, iter1->second.addressBalances_.end());
-      ASSERT_EQ(addrIter1->second.size(), 3);
+      ASSERT_EQ(addrIter1->second.size(), 3ULL);
       EXPECT_EQ(addrIter1->second[0], 50 * COIN);
-      EXPECT_EQ(addrIter1->second[1], 0);
+      EXPECT_EQ(addrIter1->second[1], 0ULL);
       EXPECT_EQ(addrIter1->second[2], 50 * COIN);
 
       //done
@@ -7701,15 +4104,15 @@ TEST_F(WebSocketTests, WebSocketStack_UnregisterAddresses)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0ULL);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -7726,8 +4129,6 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    feed->addPrivKey(TestChain::privKeyAddrE);
    feed->addPrivKey(TestChain::privKeyAddrF);
 
-   startupBIP150CTX(4);
-
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
@@ -7740,18 +4141,18 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    scrAddrVec.push_back(TestChain::scrAddrE);
    scrAddrVec.push_back(TestChain::scrAddrF);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      Armory::Config::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
    vector<string> walletRegIDs;
@@ -7849,36 +4250,36 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
    //check original balances
    {
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
+      ASSERT_EQ(iterA->second.size(), 3ULL);
       EXPECT_EQ(iterA->second[0], 50 * COIN);
 
       auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
+      ASSERT_EQ(iterB->second.size(), 3ULL);
       EXPECT_EQ(iterB->second[0], 70 * COIN);
 
       auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
+      ASSERT_EQ(iterC->second.size(), 3ULL);
       EXPECT_EQ(iterC->second[0], 20 * COIN);
 
       auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
       ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterD->second.size(), 3);
+      ASSERT_EQ(iterD->second.size(), 3ULL);
       EXPECT_EQ(iterD->second[0], 65 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
+      ASSERT_EQ(iterE->second.size(), 3ULL);
       EXPECT_EQ(iterE->second[0], 30 * COIN);
 
       auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
       ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterF->second.size(), 3);
+      ASSERT_EQ(iterF->second.size(), 3ULL);
       EXPECT_EQ(iterF->second[0], 5 * COIN);
    }
 
@@ -7897,7 +4298,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
       //tx from F to A
       auto&& utxoVec = getUtxo(TestChain::scrAddrF);
-      ASSERT_EQ(utxoVec.size(), 1);
+      ASSERT_EQ(utxoVec.size(), 1ULL);
       utxoF = utxoVec[0];
       auto bd_FtoD = makeTxFromUtxo(utxoF, TestChain::scrAddrA);
 
@@ -7935,31 +4336,31 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       ZC out so the internal value change tracker counter was 
       incremented, resulting in an entry.
       */
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 5);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 5ULL);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
+      ASSERT_EQ(iterA->second.size(), 3ULL);
       EXPECT_EQ(iterA->second[0], 155 * COIN);
 
       auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
+      ASSERT_EQ(iterB->second.size(), 3ULL);
       EXPECT_EQ(iterB->second[0], 20 * COIN);
 
       auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
+      ASSERT_EQ(iterC->second.size(), 3ULL);
       EXPECT_EQ(iterC->second[0], 20 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
+      ASSERT_EQ(iterE->second.size(), 3ULL);
       EXPECT_EQ(iterE->second[0], 80 * COIN);
 
       auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
       ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterF->second.size(), 3);
+      ASSERT_EQ(iterF->second.size(), 3ULL);
       EXPECT_EQ(iterF->second[0], 0 * COIN);
 
       {
@@ -7996,7 +4397,7 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
       //mine 3 blocks to outpace original chain
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrB, 3);
-      EXPECT_EQ(pCallback->waitOnReorg(), 5);
+      EXPECT_EQ(pCallback->waitOnReorg(), 5U);
 
       //wait on ZC now, as the staged transactions have been pushed
       pCallback->waitOnSignal(BDMAction_ZC);
@@ -8012,31 +4413,31 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
       D value does not change but this is due to a ZC spending the coins
       out, so the internal id is updated.
       */
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 5);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 5ULL);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
+      ASSERT_EQ(iterA->second.size(), 3ULL);
       EXPECT_EQ(iterA->second[0], 50 * COIN);
 
       auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
+      ASSERT_EQ(iterB->second.size(), 3ULL);
       EXPECT_EQ(iterB->second[0], 170 * COIN);
 
       auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
+      ASSERT_EQ(iterC->second.size(), 3ULL);
       EXPECT_EQ(iterC->second[0], 70 * COIN);
 
       auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
       ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterD->second.size(), 3);
+      ASSERT_EQ(iterD->second.size(), 3ULL);
       EXPECT_EQ(iterD->second[0], 65 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
+      ASSERT_EQ(iterE->second.size(), 3ULL);
       EXPECT_EQ(iterE->second[0], 35 * COIN);
    }
 
@@ -8047,40 +4448,40 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
       //mine 2 blocks to outpace forked chain
       DBTestUtils::mineNewBlock(theBDMt_, TestChain::addrF, 2);
-      EXPECT_EQ(pCallback->waitOnReorg(), 5);
+      EXPECT_EQ(pCallback->waitOnReorg(), 5U);
 
       //check balances
       auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
+      EXPECT_EQ(combineBalances.addressBalances_.size(), 6ULL);
 
       auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
       ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterA->second.size(), 3);
+      ASSERT_EQ(iterA->second.size(), 3ULL);
       EXPECT_EQ(iterA->second[0], 155 * COIN);
 
       auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
       ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterB->second.size(), 3);
+      ASSERT_EQ(iterB->second.size(), 3ULL);
       EXPECT_EQ(iterB->second[0], 20 * COIN);
 
       auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
       ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterC->second.size(), 3);
+      ASSERT_EQ(iterC->second.size(), 3ULL);
       EXPECT_EQ(iterC->second[0], 20 * COIN);
 
       auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
       ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterD->second.size(), 3);
+      ASSERT_EQ(iterD->second.size(), 3ULL);
       EXPECT_EQ(iterD->second[0], 65 * COIN);
 
       auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
       ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterE->second.size(), 3);
+      ASSERT_EQ(iterE->second.size(), 3ULL);
       EXPECT_EQ(iterE->second[0], 80 * COIN);
 
       auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
       ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-      ASSERT_EQ(iterF->second.size(), 3);
+      ASSERT_EQ(iterF->second.size(), 3ULL);
       EXPECT_EQ(iterF->second[0], 100 * COIN);
    }
 
@@ -8089,15 +4490,15 @@ TEST_F(WebSocketTests, WebSocketStack_DynamicReorg)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -8114,8 +4515,6 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    feed->addPrivKey(TestChain::privKeyAddrE);
    feed->addPrivKey(TestChain::privKeyAddrF);
 
-   startupBIP150CTX(4);
-
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
@@ -8128,18 +4527,18 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
    scrAddrVec.push_back(TestChain::scrAddrE);
    scrAddrVec.push_back(TestChain::scrAddrF);
 
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    auto pCallback = make_shared<DBTestUtils::UTCallback>();
    auto bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, 
-      BlockDataManagerConfig::getDataDir(),
+      "127.0.0.1", NetworkSettings::listenPort(), 
+      Armory::Config::getDataDir(),
       authPeersPassLbd_, 
-      BlockDataManagerConfig::ephemeralPeers_, true, //public server
+      NetworkSettings::ephemeralPeers(), true, //public server
       pCallback);
    bdvObj->addPublicKey(serverPubkey);
    bdvObj->connectToRemote();
-   bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+   bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
    auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
    vector<string> walletRegIDs;
@@ -8300,11 +4699,11 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
    EXPECT_EQ(txObj4->getThisHash(), tx1.getThisHash());
    EXPECT_EQ(txObj4->getTxHeight(), UINT32_MAX);
-   EXPECT_EQ(txObj4->getTxIndex(), 0);
+   EXPECT_EQ(txObj4->getTxIndex(), 0U);
 
    EXPECT_EQ(txObj5->getThisHash(), tx2.getThisHash());
    EXPECT_EQ(txObj5->getTxHeight(), UINT32_MAX);
-   EXPECT_EQ(txObj5->getTxIndex(), 1);
+   EXPECT_EQ(txObj5->getTxIndex(), 1U);
 
    //create 2 more zc
    BinaryData rawTx3;
@@ -8382,24 +4781,24 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
    EXPECT_EQ(txObj6->getThisHash(), tx3.getThisHash());
    EXPECT_EQ(txObj6->getTxHeight(), UINT32_MAX);
-   EXPECT_EQ(txObj6->getTxIndex(), 2);
+   EXPECT_EQ(txObj6->getTxIndex(), 2U);
 
    EXPECT_EQ(txObj7->getThisHash(), tx4.getThisHash());
    EXPECT_EQ(txObj7->getTxHeight(), UINT32_MAX);
-   EXPECT_EQ(txObj7->getTxIndex(), 3);
+   EXPECT_EQ(txObj7->getTxIndex(), 3U);
 
    {
       //try to grab from another bdvobj
       auto pCallback2 = make_shared<DBTestUtils::UTCallback>();
       auto bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback2);
       bdvObj2->addPublicKey(serverPubkey);
       bdvObj2->connectToRemote();
-      bdvObj2->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj2->registerWithDB(BitcoinSettings::getMagicBytes());
 
       bdvObj2->goOnline();
       pCallback2->waitOnSignal(BDMAction_Ready);
@@ -8427,11 +4826,11 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
       EXPECT_EQ(txObj8->getThisHash(), tx1.getThisHash());
       EXPECT_EQ(txObj8->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(txObj8->getTxIndex(), 0);
+      EXPECT_EQ(txObj8->getTxIndex(), 0U);
 
       EXPECT_EQ(txObj10->getThisHash(), tx3.getThisHash());
       EXPECT_EQ(txObj10->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(txObj10->getTxIndex(), 2);
+      EXPECT_EQ(txObj10->getTxIndex(), 2U);
 
       //batch fetch partial cache hit
       auto getTxLbd3 = [bdvObj2](const set<BinaryData>& hashes)->
@@ -8458,59 +4857,59 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
       };
 
       auto&& txMap = getTxLbd3(zcHashes).get();
-      ASSERT_EQ(txMap.size(), 4);
+      ASSERT_EQ(txMap.size(), 4ULL);
 
       auto iter = txMap.find(tx1.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx1.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 0);
+      EXPECT_EQ(iter->second->getTxIndex(), 0U);
 
       iter = txMap.find(tx2.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx2.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 1);
+      EXPECT_EQ(iter->second->getTxIndex(), 1U);
 
       iter = txMap.find(tx3.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx3.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 2);
+      EXPECT_EQ(iter->second->getTxIndex(), 2U);
 
       iter = txMap.find(tx4.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx4.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 3);
+      EXPECT_EQ(iter->second->getTxIndex(), 3U);
 
       //batch fetch full cache hit
       txMap = getTxLbd3(zcHashes).get();
-      ASSERT_EQ(txMap.size(), 4);
+      ASSERT_EQ(txMap.size(), 4ULL);
 
       iter = txMap.find(tx1.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx1.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 0);
+      EXPECT_EQ(iter->second->getTxIndex(), 0U);
 
       iter = txMap.find(tx2.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx2.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 1);
+      EXPECT_EQ(iter->second->getTxIndex(), 1U);
 
       iter = txMap.find(tx3.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx3.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 2);
+      EXPECT_EQ(iter->second->getTxIndex(), 2U);
 
       iter = txMap.find(tx4.getThisHash());
       ASSERT_NE(iter, txMap.end());
       EXPECT_EQ(iter->second->getThisHash(), tx4.getThisHash());
       EXPECT_EQ(iter->second->getTxHeight(), UINT32_MAX);
-      EXPECT_EQ(iter->second->getTxIndex(), 3);
+      EXPECT_EQ(iter->second->getTxIndex(), 3U);
 
       //batch fetch an empty hash
       {
@@ -8572,15 +4971,15 @@ TEST_F(WebSocketTests, WebSocketStack_GetTxByHash)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -8592,14 +4991,12 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
    auto feed = make_shared<ResolverUtils::TestResolverFeed>();
    feed->addPrivKey(TestChain::privKeyAddrB);
 
-   startupBIP150CTX(4);
-
    //
    TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
    WebSocketServer::initAuthPeers(authPeersPassLbd_);
    WebSocketServer::start(theBDMt_, true);
    auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
 
    struct KeyPair
    {
@@ -8644,14 +5041,14 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
    {
       auto pCallback = make_shared<DBTestUtils::UTCallback>();
       auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
+         "127.0.0.1", NetworkSettings::listenPort(), 
+         Armory::Config::getDataDir(),
          authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
+         NetworkSettings::ephemeralPeers(), true, //public server
          pCallback);
       bdvObj->addPublicKey(serverPubkey);
       bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
+      bdvObj->registerWithDB(BitcoinSettings::getMagicBytes());
 
       auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
       vector<string> walletRegIDs;
@@ -8749,45 +5146,45 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
       unsigned heightOffset = 0;
       auto&& addrOp = getAddrOp(heightOffset, UINT32_MAX);
       heightOffset = addrOp.heightCutoff_ + 1;
-      ASSERT_EQ(addrOp.outpoints_.size(), 6);
+      ASSERT_EQ(addrOp.outpoints_.size(), 6ULL);
 
       auto iterAddrA = addrOp.outpoints_.find(TestChain::scrAddrA);
       EXPECT_NE(iterAddrA, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrA->second.size(), 1);
+      EXPECT_EQ(iterAddrA->second.size(), 1ULL);
       EXPECT_EQ(computeBalance(iterAddrA->second), 50 * COIN);
 
       auto iterAddrB = addrOp.outpoints_.find(TestChain::scrAddrB);
       EXPECT_NE(iterAddrB, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrB->second.size(), 1007);
+      EXPECT_EQ(iterAddrB->second.size(), 1007ULL);
       EXPECT_EQ(computeBalance(iterAddrB->second), 50070 * COIN);
 
       auto iterAddrC = addrOp.outpoints_.find(TestChain::scrAddrC);
       EXPECT_NE(iterAddrC, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrC->second.size(), 4);
+      EXPECT_EQ(iterAddrC->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrC->second), 20 * COIN);
 
       auto iterAddrD = addrOp.outpoints_.find(TestChain::scrAddrD);
       EXPECT_NE(iterAddrD, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrD->second.size(), 4);
+      EXPECT_EQ(iterAddrD->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrD->second), 65 * COIN);
 
       auto iterAddrE = addrOp.outpoints_.find(TestChain::scrAddrE);
       EXPECT_NE(iterAddrE, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrE->second.size(), 2);
+      EXPECT_EQ(iterAddrE->second.size(), 2ULL);
       EXPECT_EQ(computeBalance(iterAddrE->second), 30 * COIN);
 
       auto iterAddrF = addrOp.outpoints_.find(TestChain::scrAddrF);
       EXPECT_NE(iterAddrF, addrOp.outpoints_.end());
-      EXPECT_EQ(iterAddrF->second.size(), 4);
+      EXPECT_EQ(iterAddrF->second.size(), 4ULL);
       EXPECT_EQ(computeBalance(iterAddrF->second), 5 * COIN);
 
       //check zc outputs
-      auto zcAddrOp = getAddrOp(UINT32_MAX, 0);
-      ASSERT_EQ(zcAddrOp.outpoints_.size(), loopCount + 1);
+      auto zcAddrOp = getAddrOp(UINT32_MAX, 0U);
+      ASSERT_EQ(zcAddrOp.outpoints_.size(), loopCount + 1ULL);
 
       auto iterZcB = zcAddrOp.outpoints_.find(TestChain::scrAddrB);
       ASSERT_NE(iterZcB, zcAddrOp.outpoints_.end());
-      EXPECT_EQ(iterZcB->second.size(), 10);
+      EXPECT_EQ(iterZcB->second.size(), 10ULL);
 
       map<BinaryData, set<unsigned>> zcSpentnessToGet;
       for (unsigned z = 0; z < loopCount; z++)
@@ -8797,7 +5194,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
          auto addrIter = zcAddrOp.outpoints_.find(addr);
          ASSERT_NE(addrIter, zcAddrOp.outpoints_.end());
-         EXPECT_EQ(addrIter->second.size(), 1);
+         EXPECT_EQ(addrIter->second.size(), 1ULL);
 
          auto& op = addrIter->second[0];
          EXPECT_EQ(op.value_, 50 * COIN);
@@ -8883,7 +5280,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
                auto idIter = iter->second.find(op.txOutIndex_);
                ASSERT_NE(idIter, iter->second.end());
 
-               EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+               EXPECT_EQ(idIter->second.spender_.getSize(), 0ULL);
                EXPECT_EQ(idIter->second.height_, UINT32_MAX);
                EXPECT_EQ(idIter->second.state_, OutputSpentnessState::Unspent);
             }
@@ -8898,7 +5295,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
          auto idIter = iter->second.find(0);
          ASSERT_NE(idIter, iter->second.end());
 
-         EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+         EXPECT_EQ(idIter->second.spender_.getSize(), 0ULL);
          EXPECT_EQ(idIter->second.height_, UINT32_MAX);
          EXPECT_EQ(idIter->second.state_, OutputSpentnessState::Invalid);
       }
@@ -9022,7 +5419,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
             if (iter == newZcHashes.end())
             {
                ASSERT_TRUE(op.isSpent_);
-               ASSERT_EQ(op.spenderHash_.getSize(), 32);
+               ASSERT_EQ(op.spenderHash_.getSize(), 32ULL);
 
                auto spenderIter = newZcHashes.find(op.spenderHash_);
                ASSERT_TRUE(spenderIter != newZcHashes.end());
@@ -9030,7 +5427,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
             else
             {
                ASSERT_FALSE(op.isSpent_);
-               ASSERT_EQ(op.spenderHash_.getSize(), 0);
+               ASSERT_EQ(op.spenderHash_.getSize(), 0ULL);
             }
          }
       }
@@ -9086,7 +5483,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
                case OutputSpentnessState::Unspent:
                {
-                  EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+                  EXPECT_EQ(idIter->second.spender_.getSize(), 0ULL);
 
                   ++unspentCount;
                   break;
@@ -9105,7 +5502,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
       EXPECT_EQ(spentCount, loopCount/2);
       EXPECT_EQ(unspentCount, loopCount/2);
-      EXPECT_EQ(invalidCount, 1);
+      EXPECT_EQ(invalidCount, 1U);
 
       //check the invalid hash
       {
@@ -9115,7 +5512,7 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
          auto idIter = iter->second.find(0);
          ASSERT_NE(idIter, iter->second.end());
 
-         EXPECT_EQ(idIter->second.spender_.getSize(), 0);
+         EXPECT_EQ(idIter->second.spender_.getSize(), 0ULL);
          EXPECT_EQ(idIter->second.height_, UINT32_MAX);
          EXPECT_EQ(idIter->second.state_, OutputSpentnessState::Invalid);
       }
@@ -9123,5025 +5520,15 @@ TEST_F(WebSocketTests, WebSocketStack_GetSpentness)
 
    //cleanup
    auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
+      "127.0.0.1", NetworkSettings::listenPort(), Armory::Config::getDataDir(),
+      authPeersPassLbd_, NetworkSettings::ephemeralPeers(), true, nullptr);
    bdvObj2->addPublicKey(serverPubkey);
    bdvObj2->connectToRemote();
 
-   bdvObj2->shutdown(config.cookie_);
+   bdvObj2->shutdown(NetworkSettings::cookie());
    WebSocketServer::waitOnShutdown();
 
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BatchZcChain)
-{
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true,  //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      //balance fetching routine
-      vector<string> walletIDs = { wallet1.walletID() };
-      auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
-      {
-         auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
-         auto fut = promPtr->get_future();
-         auto balLbd = [promPtr](
-            ReturnMessage<map<string, CombinedBalances>> combBal)->void
-         {
-            promPtr->set_value(combBal.get());
-         };
-
-         bdvObj->getCombinedBalances(walletIDs, balLbd);
-         auto&& balMap = fut.get();
-
-         if (balMap.size() != 1)
-            throw runtime_error("unexpected balance map size");
-
-         return balMap.begin()->second;
-      };
-
-      //check balances before pushing zc
-      auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 50 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 70 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 30 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //grab utxos for scrAddrB
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      wallet1.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() != TestChain::scrAddrB)
-               continue;
-
-            utxosB.push_back(utxo);
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-
-      /*create the transactions*/
-
-      //grab utxo from raw tx
-      auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         return utxo;
-      };
-
-      BinaryData rawTx1, rawTx2;
-
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1 = signer.serializeSignedTx();
-      }
-
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1, 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx2 = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx3;
-      {
-         //10 from E, 5 from F, 3 to A, 2 to E, 5 to D, change to C
-         auto zcUtxo1 = getUtxoFromRawTx(rawTx2, 0);
-         auto zcUtxo2 = getUtxoFromRawTx(rawTx2, 1);
-
-         Signer signer;
-         
-         auto spender1 = make_shared<ScriptSpender>(zcUtxo1);
-         auto spender2 = make_shared<ScriptSpender>(zcUtxo2);
-         signer.addSpender(spender1);
-         signer.addSpender(spender2);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 3 * COIN);
-         signer.addRecipient(recA);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 2 * COIN);
-         signer.addRecipient(recE);
-         
-         auto recD = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recD);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20),
-            spender1->getValue() + spender2->getValue() - 
-            recA->getValue() - recE->getValue() - recD->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx3 = signer.serializeSignedTx();
-      }
-
-      //batch push tx
-      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1, rawTx2, rawTx3 });
-
-      Tx tx1(rawTx1);
-      Tx tx2(rawTx2);
-      Tx tx3(rawTx3);
-      
-      set<BinaryData> txHashes;
-      txHashes.insert(tx1.getThisHash());
-      txHashes.insert(tx2.getThisHash());
-      txHashes.insert(tx3.getThisHash());
-
-      set<BinaryData> scrAddrSet;
-      scrAddrSet.insert(TestChain::scrAddrA);
-      scrAddrSet.insert(TestChain::scrAddrB);
-      scrAddrSet.insert(TestChain::scrAddrC);
-      scrAddrSet.insert(TestChain::scrAddrD);
-      scrAddrSet.insert(TestChain::scrAddrE);
-      scrAddrSet.insert(TestChain::scrAddrF);
-
-      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
-
-      //check balances
-      combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 58 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 50 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 25 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 70 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 32 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInMempool)
-{
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      //balance fetching routine
-      vector<string> walletIDs = { wallet1.walletID() };
-      auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
-      {
-         auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
-         auto fut = promPtr->get_future();
-         auto balLbd = [promPtr](
-            ReturnMessage<map<string, CombinedBalances>> combBal)->void
-         {
-            promPtr->set_value(combBal.get());
-         };
-
-         bdvObj->getCombinedBalances(walletIDs, balLbd);
-         auto&& balMap = fut.get();
-
-         if (balMap.size() != 1)
-            throw runtime_error("unexpected balance map size");
-
-         return balMap.begin()->second;
-      };
-
-      //check balances before pushing zc
-      auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 50 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 70 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 30 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //grab utxos for scrAddrB
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      wallet1.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() != TestChain::scrAddrB)
-               continue;
-
-            utxosB.push_back(utxo);
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-
-      /*create the transactions*/
-
-      //grab utxo from raw tx
-      auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         return utxo;
-      };
-
-      BinaryData rawTx1, rawTx2;
-
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1 = signer.serializeSignedTx();
-      }
-
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1, 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx2 = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx3;
-      {
-         //10 from E, 5 from F, 3 to A, 2 to E, 5 to D, change to C
-         auto zcUtxo1 = getUtxoFromRawTx(rawTx2, 0);
-         auto zcUtxo2 = getUtxoFromRawTx(rawTx2, 1);
-
-         Signer signer;
-         
-         auto spender1 = make_shared<ScriptSpender>(zcUtxo1);
-         auto spender2 = make_shared<ScriptSpender>(zcUtxo2);
-         signer.addSpender(spender1);
-         signer.addSpender(spender2);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 3 * COIN);
-         signer.addRecipient(recA);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 2 * COIN);
-         signer.addRecipient(recE);
-         
-         auto recD = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recD);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20),
-            spender1->getValue() + spender2->getValue() - 
-            recA->getValue() - recE->getValue() - recD->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx3 = signer.serializeSignedTx();
-      }
-      
-      Tx tx1(rawTx1);
-      Tx tx2(rawTx2);
-      Tx tx3(rawTx3);
-
-      //push first tx
-      auto broadcastId1 = bdvObj->broadcastZC(rawTx1);
-
-      set<BinaryData> txHashes;
-      txHashes.insert(tx1.getThisHash());
-
-      set<BinaryData> scrAddrSet;
-      scrAddrSet.insert(TestChain::scrAddrA);
-      scrAddrSet.insert(TestChain::scrAddrB);
-      scrAddrSet.insert(TestChain::scrAddrD);
-
-      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
-
-      //batch push all tx
-      auto broadcastId2 = bdvObj->broadcastZC({ rawTx1, rawTx2, rawTx3 });
-      
-      txHashes.clear();
-      txHashes.insert(tx2.getThisHash());
-      txHashes.insert(tx3.getThisHash());
-
-      scrAddrSet.clear();
-      scrAddrSet.insert(TestChain::scrAddrA);
-      scrAddrSet.insert(TestChain::scrAddrC);
-      scrAddrSet.insert(TestChain::scrAddrD);
-      scrAddrSet.insert(TestChain::scrAddrE);
-      scrAddrSet.insert(TestChain::scrAddrF);
-
-      //wait on already in mempool error
-      pCallback->waitOnError(tx1.getThisHash(), 
-         ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId2);
-
-      //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId2);
-
-      //check balances
-      combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 58 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 50 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 25 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 70 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 32 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInNodeMempool)
-{
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      //balance fetching routine
-      vector<string> walletIDs = { wallet1.walletID() };
-      auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
-      {
-         auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
-         auto fut = promPtr->get_future();
-         auto balLbd = [promPtr](
-            ReturnMessage<map<string, CombinedBalances>> combBal)->void
-         {
-            promPtr->set_value(combBal.get());
-         };
-
-         bdvObj->getCombinedBalances(walletIDs, balLbd);
-         auto&& balMap = fut.get();
-
-         if (balMap.size() != 1)
-            throw runtime_error("unexpected balance map size");
-
-         return balMap.begin()->second;
-      };
-
-      //check balances before pushing zc
-      auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 50 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 70 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 30 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //grab utxos for scrAddrB & scrAddrC
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      wallet1.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB, utxosC;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-               utxosB.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
-               utxosC.push_back(utxo);
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-      ASSERT_FALSE(utxosC.empty());
-
-      /*create the transactions*/
-
-      //grab utxo from raw tx
-      auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         return utxo;
-      };
-
-      BinaryData rawTx1_B;
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_B = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx1_C;
-      {
-         //20 from C, 5 to E, change to C
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosC[0]);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_C = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx2;
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1_B, 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx2 = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx3;
-      {
-         //10 from E, 5 from F, 3 to A, 2 to E, 5 to D, change to C
-         auto zcUtxo1 = getUtxoFromRawTx(rawTx2, 0);
-         auto zcUtxo2 = getUtxoFromRawTx(rawTx2, 1);
-
-         Signer signer;
-         
-         auto spender1 = make_shared<ScriptSpender>(zcUtxo1);
-         auto spender2 = make_shared<ScriptSpender>(zcUtxo2);
-         signer.addSpender(spender1);
-         signer.addSpender(spender2);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 3 * COIN);
-         signer.addRecipient(recA);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 2 * COIN);
-         signer.addRecipient(recE);
-         
-         auto recD = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recD);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20),
-            spender1->getValue() + spender2->getValue() - 
-            recA->getValue() - recE->getValue() - recD->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx3 = signer.serializeSignedTx();
-      }
-      
-      Tx tx1_B(rawTx1_B);
-      Tx tx1_C(rawTx1_C);
-      Tx tx2(rawTx2);
-      Tx tx3(rawTx3);
-
-      //push through the node
-      DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(rawTx1_B, 1000000000);
-      DBTestUtils::pushNewZc(theBDMt_, zcVec, true);
-
-      //batch push all tx
-      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
-      
-      set<BinaryData> txHashes;
-      txHashes.insert(tx1_B.getThisHash());
-      txHashes.insert(tx1_C.getThisHash());
-      txHashes.insert(tx2.getThisHash());
-      txHashes.insert(tx3.getThisHash());
-
-      set<BinaryData> scrAddrSet;
-      scrAddrSet.insert(TestChain::scrAddrA);
-      scrAddrSet.insert(TestChain::scrAddrB);
-      scrAddrSet.insert(TestChain::scrAddrC);
-      scrAddrSet.insert(TestChain::scrAddrD);
-      scrAddrSet.insert(TestChain::scrAddrE);
-      scrAddrSet.insert(TestChain::scrAddrF);
-
-      //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
-
-      //check balances
-      combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 58 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 50 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 70 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 37 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_AlreadyInChain)
-{
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      //balance fetching routine
-      vector<string> walletIDs = { wallet1.walletID() };
-      auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
-      {
-         auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
-         auto fut = promPtr->get_future();
-         auto balLbd = [promPtr](
-            ReturnMessage<map<string, CombinedBalances>> combBal)->void
-         {
-            promPtr->set_value(combBal.get());
-         };
-
-         bdvObj->getCombinedBalances(walletIDs, balLbd);
-         auto&& balMap = fut.get();
-
-         if (balMap.size() != 1)
-            throw runtime_error("unexpected balance map size");
-
-         return balMap.begin()->second;
-      };
-
-      //check balances before pushing zc
-      auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 50 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 70 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 30 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //grab utxos for scrAddrB & scrAddrC
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      wallet1.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB, utxosC;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-               utxosB.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
-               utxosC.push_back(utxo);
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-      ASSERT_FALSE(utxosC.empty());
-
-      /*create the transactions*/
-
-      //grab utxo from raw tx
-      auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         return utxo;
-      };
-
-      BinaryData rawTx1_B;
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_B = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx1_C;
-      {
-         //20 from C, 5 to E, change to C
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosC[0]);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_C = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx2;
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1_B, 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx2 = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx3;
-      {
-         //10 from E, 5 from F, 3 to A, 2 to E, 5 to D, change to C
-         auto zcUtxo1 = getUtxoFromRawTx(rawTx2, 0);
-         auto zcUtxo2 = getUtxoFromRawTx(rawTx2, 1);
-
-         Signer signer;
-         
-         auto spender1 = make_shared<ScriptSpender>(zcUtxo1);
-         auto spender2 = make_shared<ScriptSpender>(zcUtxo2);
-         signer.addSpender(spender1);
-         signer.addSpender(spender2);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 3 * COIN);
-         signer.addRecipient(recA);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 2 * COIN);
-         signer.addRecipient(recE);
-         
-         auto recD = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recD);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20),
-            spender1->getValue() + spender2->getValue() - 
-            recA->getValue() - recE->getValue() - recD->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx3 = signer.serializeSignedTx();
-      }
-      
-      Tx tx1_B(rawTx1_B);
-      Tx tx1_C(rawTx1_C);
-      Tx tx2(rawTx2);
-      Tx tx3(rawTx3);
-
-      //push through the node
-      DBTestUtils::ZcVector zcVec;
-      zcVec.push_back(rawTx1_B, 1000000000);
-      DBTestUtils::pushNewZc(theBDMt_, zcVec, true);
-
-      //mine 1 block
-      DBTestUtils::mineNewBlock(theBDMt_, CryptoPRNG::generateRandom(20), 1);
-      pCallback->waitOnSignal(BDMAction_NewBlock);
-
-      //batch push all tx
-      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
-      
-      set<BinaryData> txHashes;
-      txHashes.insert(tx1_C.getThisHash());
-      txHashes.insert(tx2.getThisHash());
-      txHashes.insert(tx3.getThisHash());
-
-      set<BinaryData> scrAddrSet;
-      scrAddrSet.insert(TestChain::scrAddrA);
-      scrAddrSet.insert(TestChain::scrAddrC);
-      scrAddrSet.insert(TestChain::scrAddrD);
-      scrAddrSet.insert(TestChain::scrAddrE);
-      scrAddrSet.insert(TestChain::scrAddrF);
-
-      //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
-
-      //check balances
-      combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 58 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 50 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 70 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 37 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_MissInv)
-{
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      //balance fetching routine
-      vector<string> walletIDs = { wallet1.walletID() };
-      auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
-      {
-         auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
-         auto fut = promPtr->get_future();
-         auto balLbd = [promPtr](
-            ReturnMessage<map<string, CombinedBalances>> combBal)->void
-         {
-            promPtr->set_value(combBal.get());
-         };
-
-         bdvObj->getCombinedBalances(walletIDs, balLbd);
-         auto&& balMap = fut.get();
-
-         if (balMap.size() != 1)
-            throw runtime_error("unexpected balance map size");
-
-         return balMap.begin()->second;
-      };
-
-      //check balances before pushing zc
-      auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 50 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 70 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 30 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //grab utxos for scrAddrB & scrAddrC
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      wallet1.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB, utxosC;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-               utxosB.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
-               utxosC.push_back(utxo);
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-      ASSERT_FALSE(utxosC.empty());
-
-      /*create the transactions*/
-
-      //grab utxo from raw tx
-      auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         return utxo;
-      };
-
-      BinaryData rawTx1_B;
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_B = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx1_C;
-      {
-         //20 from C, 5 to E, change to C
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosC[0]);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_C = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx2;
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1_B, 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx2 = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx3;
-      {
-         //10 from E, 5 from F, 3 to A, 2 to E, 5 to D, change to C
-         auto zcUtxo1 = getUtxoFromRawTx(rawTx2, 0);
-         auto zcUtxo2 = getUtxoFromRawTx(rawTx2, 1);
-
-         Signer signer;
-         
-         auto spender1 = make_shared<ScriptSpender>(zcUtxo1);
-         auto spender2 = make_shared<ScriptSpender>(zcUtxo2);
-         signer.addSpender(spender1);
-         signer.addSpender(spender2);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 3 * COIN);
-         signer.addRecipient(recA);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 2 * COIN);
-         signer.addRecipient(recE);
-         
-         auto recD = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recD);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20),
-            spender1->getValue() + spender2->getValue() - 
-            recA->getValue() - recE->getValue() - recD->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx3 = signer.serializeSignedTx();
-      }
-      
-      Tx tx1_B(rawTx1_B);
-      Tx tx1_C(rawTx1_C);
-      Tx tx2(rawTx2);
-      Tx tx3(rawTx3);
-
-      //push through the node
-      nodePtr_->presentZcHash(tx2.getThisHash());
-
-      //batch push all tx
-      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
-      
-      set<BinaryData> txHashes;
-      txHashes.insert(tx1_B.getThisHash());
-      txHashes.insert(tx1_C.getThisHash());
-      txHashes.insert(tx2.getThisHash());
-      txHashes.insert(tx3.getThisHash());
-
-      set<BinaryData> scrAddrSet;
-      scrAddrSet.insert(TestChain::scrAddrA);
-      scrAddrSet.insert(TestChain::scrAddrB);
-      scrAddrSet.insert(TestChain::scrAddrC);
-      scrAddrSet.insert(TestChain::scrAddrD);
-      scrAddrSet.insert(TestChain::scrAddrE);
-      scrAddrSet.insert(TestChain::scrAddrF);
-
-      //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
-
-      //check balances
-      combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 58 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 50 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 70 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 37 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren)
-{
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      //balance fetching routine
-      vector<string> walletIDs = { wallet1.walletID() };
-      auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
-      {
-         auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
-         auto fut = promPtr->get_future();
-         auto balLbd = [promPtr](
-            ReturnMessage<map<string, CombinedBalances>> combBal)->void
-         {
-            promPtr->set_value(combBal.get());
-         };
-
-         bdvObj->getCombinedBalances(walletIDs, balLbd);
-         auto&& balMap = fut.get();
-
-         if (balMap.size() != 1)
-            throw runtime_error("unexpected balance map size");
-
-         return balMap.begin()->second;
-      };
-
-      //check balances before pushing zc
-      auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 50 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 70 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 30 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //grab utxos for scrAddrB & scrAddrC
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      wallet1.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB, utxosC;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-               utxosB.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
-               utxosC.push_back(utxo);
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-      ASSERT_FALSE(utxosC.empty());
-
-      /*create the transactions*/
-
-      //grab utxo from raw tx
-      auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         return utxo;
-      };
-
-      BinaryData rawTx1_B;
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_B = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx1_C;
-      {
-         //20 from C, 5 to E, change to C
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosC[0]);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_C = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx2;
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1_B, 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx2 = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx3;
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1_B, 1);
-
-         //15 from D, 10 to E, change to A
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx3 = signer.serializeSignedTx();
-      }
-      
-      Tx tx1_B(rawTx1_B);
-      Tx tx1_C(rawTx1_C);
-      Tx tx2(rawTx2);
-      Tx tx3(rawTx3);
-
-      //batch push all tx
-      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
-      
-      set<BinaryData> txHashes;
-      txHashes.insert(tx1_B.getThisHash());
-      txHashes.insert(tx1_C.getThisHash());
-      txHashes.insert(tx2.getThisHash());
-      txHashes.insert(tx3.getThisHash());
-
-      set<BinaryData> scrAddrSet;
-      scrAddrSet.insert(TestChain::scrAddrA);
-      scrAddrSet.insert(TestChain::scrAddrB);
-      scrAddrSet.insert(TestChain::scrAddrC);
-      scrAddrSet.insert(TestChain::scrAddrD);
-      scrAddrSet.insert(TestChain::scrAddrE);
-      scrAddrSet.insert(TestChain::scrAddrF);
-
-      //wait on zc error for conflicting child
-      pCallback->waitOnError(
-         tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
-
-      //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
-
-      //check balances
-      combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 55 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 50 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 15 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 45 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 10 * COIN);
-      }
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyInChain1)
-{
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      //balance fetching routine
-      vector<string> walletIDs = { wallet1.walletID() };
-      auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
-      {
-         auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
-         auto fut = promPtr->get_future();
-         auto balLbd = [promPtr](
-            ReturnMessage<map<string, CombinedBalances>> combBal)->void
-         {
-            promPtr->set_value(combBal.get());
-         };
-
-         bdvObj->getCombinedBalances(walletIDs, balLbd);
-         auto&& balMap = fut.get();
-
-         if (balMap.size() != 1)
-            throw runtime_error("unexpected balance map size");
-
-         return balMap.begin()->second;
-      };
-
-      //check balances before pushing zc
-      auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 50 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 70 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 30 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //grab utxos for scrAddrB & scrAddrC
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      wallet1.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB, utxosC;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-               utxosB.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
-               utxosC.push_back(utxo);
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-      ASSERT_FALSE(utxosC.empty());
-
-      /*create the transactions*/
-
-      //grab utxo from raw tx
-      auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         return utxo;
-      };
-
-      BinaryData rawTx1_B;
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_B = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx1_C;
-      {
-         //20 from C, 5 to E, change to C
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosC[0]);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_C = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx2;
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1_B, 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx2 = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx3;
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1_B, 1);
-
-         //15 from D, 10 to E, change to A
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx3 = signer.serializeSignedTx();
-      }
-      
-      Tx tx1_B(rawTx1_B);
-      Tx tx1_C(rawTx1_C);
-      Tx tx2(rawTx2);
-      Tx tx3(rawTx3);
-
-      {
-         set<BinaryData> txHashes;
-         txHashes.insert(tx1_B.getThisHash());
-
-         set<BinaryData> scrAddrSet;
-         scrAddrSet.insert(TestChain::scrAddrA);
-         scrAddrSet.insert(TestChain::scrAddrB);
-         scrAddrSet.insert(TestChain::scrAddrD);
-
-         //push the first zc
-         auto broadcastId1 = bdvObj->broadcastZC(rawTx1_B);
-
-         //wait on notification
-         pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
-      }
-         
-      //batch push all tx
-      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx2, rawTx3 });
-      
-      set<BinaryData> txHashes;
-      txHashes.insert(tx1_C.getThisHash());
-      txHashes.insert(tx2.getThisHash());
-      txHashes.insert(tx3.getThisHash());
-
-      set<BinaryData> scrAddrSet;
-      scrAddrSet.insert(TestChain::scrAddrC);
-      scrAddrSet.insert(TestChain::scrAddrD);
-      scrAddrSet.insert(TestChain::scrAddrE);
-      scrAddrSet.insert(TestChain::scrAddrF);
-
-      //wait on zc error for conflicting child
-      pCallback->waitOnError(
-         tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
-
-      //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
-
-      //check balances
-      combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 55 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 50 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 15 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 45 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 10 * COIN);
-      }
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyInChain2)
-{
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      //balance fetching routine
-      vector<string> walletIDs = { wallet1.walletID() };
-      auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
-      {
-         auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
-         auto fut = promPtr->get_future();
-         auto balLbd = [promPtr](
-            ReturnMessage<map<string, CombinedBalances>> combBal)->void
-         {
-            promPtr->set_value(combBal.get());
-         };
-
-         bdvObj->getCombinedBalances(walletIDs, balLbd);
-         auto&& balMap = fut.get();
-
-         if (balMap.size() != 1)
-            throw runtime_error("unexpected balance map size");
-
-         return balMap.begin()->second;
-      };
-
-      //check balances before pushing zc
-      auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 50 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 70 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 30 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //grab utxos for scrAddrB & scrAddrC
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      wallet1.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB, utxosC;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-               utxosB.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
-               utxosC.push_back(utxo);
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-      ASSERT_FALSE(utxosC.empty());
-
-      /*create the transactions*/
-
-      //grab utxo from raw tx
-      auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         return utxo;
-      };
-
-      BinaryData rawTx1_B;
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_B = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx1_C;
-      {
-         //20 from C, 5 to E, change to C
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosC[0]);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_C = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx2;
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1_B, 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx2 = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx3;
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1_B, 1);
-
-         //15 from D, 10 to E, change to A
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx3 = signer.serializeSignedTx();
-      }
-      
-      Tx tx1_B(rawTx1_B);
-      Tx tx1_C(rawTx1_C);
-      Tx tx2(rawTx2);
-      Tx tx3(rawTx3);
-
-      {
-         set<BinaryData> txHashes;
-         txHashes.insert(tx1_B.getThisHash());
-         txHashes.insert(tx2.getThisHash());
-
-         set<BinaryData> scrAddrSet;
-         scrAddrSet.insert(TestChain::scrAddrA);
-         scrAddrSet.insert(TestChain::scrAddrB);
-         scrAddrSet.insert(TestChain::scrAddrD);
-         scrAddrSet.insert(TestChain::scrAddrE);
-         scrAddrSet.insert(TestChain::scrAddrF);
-
-         //push the first zc and its child through the node
-         nodePtr_->pushZC({ {rawTx1_B, 0}, {rawTx2, 0} }, false);
-
-         //wait on notification
-         pCallback->waitOnZc(txHashes, scrAddrSet, "");
-      }
-         
-      //batch push first zc (already in chain), C (unrelated) 
-      //and tx3 (child of first, mempool conflict with tx2)
-      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx3 });
-      
-      set<BinaryData> txHashes;
-      txHashes.insert(tx1_C.getThisHash());
-
-      set<BinaryData> scrAddrSet;
-      scrAddrSet.insert(TestChain::scrAddrC);
-      scrAddrSet.insert(TestChain::scrAddrE);
-
-      //wait on zc error for conflicting child
-      pCallback->waitOnError(
-         tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
-
-      //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
-
-      //check balances
-      combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 55 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 50 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 15 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 45 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 10 * COIN);
-      }
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BatchZcChain_ConflictingChildren_AlreadyInChain3)
-{
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      //balance fetching routine
-      vector<string> walletIDs = { wallet1.walletID() };
-      auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
-      {
-         auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
-         auto fut = promPtr->get_future();
-         auto balLbd = [promPtr](
-            ReturnMessage<map<string, CombinedBalances>> combBal)->void
-         {
-            promPtr->set_value(combBal.get());
-         };
-
-         bdvObj->getCombinedBalances(walletIDs, balLbd);
-         auto&& balMap = fut.get();
-
-         if (balMap.size() != 1)
-            throw runtime_error("unexpected balance map size");
-
-         return balMap.begin()->second;
-      };
-
-      //check balances before pushing zc
-      auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 50 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 70 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 30 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //grab utxos for scrAddrB & scrAddrC
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      wallet1.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB, utxosC;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-               utxosB.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
-               utxosC.push_back(utxo);
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-      ASSERT_FALSE(utxosC.empty());
-
-      /*create the transactions*/
-
-      //grab utxo from raw tx
-      auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         return utxo;
-      };
-
-      BinaryData rawTx1_B;
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_B = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx1_C;
-      {
-         //20 from C, 5 to E, change to C
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosC[0]);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1_C = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx2;
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1_B, 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx2 = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx3;
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1_B, 1);
-         auto utxoE = getUtxoFromRawTx(rawTx1_C, 0);
-
-         //15+5 from D & E, 10 to E, change to A
-         Signer signer;
-
-         auto spender1 = make_shared<ScriptSpender>(utxoD);
-         auto spender2 = make_shared<ScriptSpender>(utxoE);
-         signer.addSpender(spender1);
-         signer.addSpender(spender2);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx3 = signer.serializeSignedTx();
-      }
-      
-      Tx tx1_B(rawTx1_B);
-      Tx tx1_C(rawTx1_C);
-      Tx tx2(rawTx2);
-      Tx tx3(rawTx3);
-
-      {
-         set<BinaryData> txHashes;
-         txHashes.insert(tx1_B.getThisHash());
-         txHashes.insert(tx2.getThisHash());
-
-         set<BinaryData> scrAddrSet;
-         scrAddrSet.insert(TestChain::scrAddrA);
-         scrAddrSet.insert(TestChain::scrAddrB);
-         scrAddrSet.insert(TestChain::scrAddrD);
-         scrAddrSet.insert(TestChain::scrAddrE);
-         scrAddrSet.insert(TestChain::scrAddrF);
-
-         //push the first zc and its child
-         auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx2 });
-
-         //wait on notification
-         pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
-      }
-         
-      //batch push first zc (already in chain), C (unrelated) 
-      //and tx3 (child of first & C, mempool conflict with tx2 on utxo from first)
-      auto broadcastId1 = bdvObj->broadcastZC({ rawTx1_B, rawTx1_C, rawTx3 });
-      
-      set<BinaryData> txHashes;
-      txHashes.insert(tx1_C.getThisHash());
-
-      set<BinaryData> scrAddrSet;
-      scrAddrSet.insert(TestChain::scrAddrC);
-      scrAddrSet.insert(TestChain::scrAddrE);
-
-      //wait on zc error for conflicting child
-      pCallback->waitOnError(
-         tx3.getThisHash(), ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
-
-      //wait on zc notifs
-      pCallback->waitOnZc(txHashes, scrAddrSet, broadcastId1);
-
-      //check balances
-      combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 55 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 50 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 15 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 45 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 10 * COIN);
-      }
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BroadcastAlreadyMinedTx)
-{
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      //grab a mined tx with unspent outputs
-      auto&& ZC1 = TestUtils::getTx(5, 2); //block 5, tx 2
-      auto&& ZChash1 = BtcUtils::getHash256(ZC1);
-
-      //and one with spent outputs
-      auto&& ZC2 = TestUtils::getTx(2, 1); //block 5, tx 2
-      auto&& ZChash2 = BtcUtils::getHash256(ZC2);
-
-      //try and broadcast both
-      auto broadcastId1 = bdvObj->broadcastZC({ZC1, ZC2});
-
-      //wait on zc errors
-      pCallback->waitOnError(ZChash1, 
-         ArmoryErrorCodes::ZcBroadcast_AlreadyInChain, broadcastId1);
-      
-      pCallback->waitOnError(ZChash2, 
-         ArmoryErrorCodes::ZcBroadcast_AlreadyInChain, broadcastId1);
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads)
-{
-   struct WSClient
-   {
-      shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_;
-      AsyncClient::BtcWallet wlt_;
-      shared_ptr<DBTestUtils::UTCallback> callbackPtr_;
-
-      WSClient(
-         shared_ptr<AsyncClient::BlockDataViewer> bdvPtr, 
-         AsyncClient::BtcWallet& wlt,
-         shared_ptr<DBTestUtils::UTCallback> callbackPtr) :
-         bdvPtr_(bdvPtr), wlt_(move(wlt)), callbackPtr_(callbackPtr)
-      {}
-   };
-
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   //create BDV lambda
-   auto setupBDV = [this, &serverPubkey](void)->shared_ptr<WSClient>
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      auto client = make_shared<WSClient>(bdvObj, wallet1, pCallback);
-      return client;
-   };
-
-   //create main bdv instance
-   auto mainInstance = setupBDV();
-
-   /*
-   create a batch of zc with chains:
-      1-2-3
-      1-4 (4 conflicts with 2)
-      5-6
-      7
-   */
-
-   vector<BinaryData> rawTxVec, zcHashes;
-   map<BinaryData, map<unsigned, UTXO>> outputMap;
-   {
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //utxo from raw tx lambda
-      auto getUtxoFromRawTx = [&outputMap](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         auto& idMap = outputMap[utxo.txHash_];
-         idMap[id] = utxo;
-
-         return utxo;
-      };
-
-      //grab utxos for scrAddrB, scrAddrC, scrAddrE
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      mainInstance->wlt_.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB, utxosC, utxosE;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-               utxosB.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
-               utxosC.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrE)
-               utxosE.push_back(utxo);
-
-            auto& idMap = outputMap[utxo.txHash_];
-            idMap[utxo.txOutIndex_] = utxo;
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-      ASSERT_FALSE(utxosC.empty());
-      ASSERT_FALSE(utxosE.empty());
-
-      /*create the transactions*/
-
-      //1
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //2
-      {
-         auto utxoD = getUtxoFromRawTx(rawTxVec[0], 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-      
-      //3
-      {
-         auto utxoF = getUtxoFromRawTx(rawTxVec[1], 1);
-
-         //5 from F, 5 to B
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoF);
-         signer.addSpender(spender);
-
-         auto recB = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrB.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recB);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //4
-      {
-         auto utxoA = getUtxoFromRawTx(rawTxVec[0], 1);
-
-         //15 from D, 14 to C
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoA);
-         signer.addSpender(spender);
-
-         auto recC = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20), 14 * COIN);
-         signer.addRecipient(recC);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //5
-      {
-         //10 from C, 10 to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosC[0]);
-         signer.addSpender(spender);
-
-         auto recD = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recD);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //6
-      {
-         auto utxoD = getUtxoFromRawTx(rawTxVec[4], 0);
-
-         //10 from D, 5 to F, change to A
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recF = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recF);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 
-            spender->getValue() - recF->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //7
-      {
-         //20 from E, 10 to F, change to A
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosE[0]);
-         signer.addSpender(spender);
-
-         auto recF = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recF);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 
-            spender->getValue() - recF->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }      
-   }
-
-   //3 case1, 3 case2, 1 case3, 3 case4, 3 case5
-   unsigned N = 13;
-
-   //create N side instances
-   vector<shared_ptr<WSClient>> sideInstances;
-   for (unsigned i=0; i<N; i++)
-      sideInstances.emplace_back(setupBDV());
-
-   //get addresses for tx lambda
-   auto getAddressesForRawTx = [&outputMap](const Tx& tx)->set<BinaryData>
-   {
-      set<BinaryData> addrSet;
-
-      for (unsigned i=0; i<tx.getNumTxIn(); i++)
-      {
-         auto txin = tx.getTxInCopy(i);
-         auto op = txin.getOutPoint();
-
-         auto hashIter = outputMap.find(op.getTxHash());
-         EXPECT_TRUE(hashIter != outputMap.end());
-
-         auto idIter = hashIter->second.find(op.getTxOutIndex());
-         EXPECT_TRUE(idIter != hashIter->second.end());
-
-         auto& utxo = idIter->second;
-         addrSet.insert(utxo.getRecipientScrAddr());
-      }
-
-      for (unsigned i=0; i<tx.getNumTxOut(); i++)
-      {
-         auto txout = tx.getTxOutCopy(i);
-         addrSet.insert(txout.getScrAddressStr());
-      }
-
-      return addrSet;
-   };
-
-   set<BinaryData> mainScrAddrSet;
-   set<BinaryData> mainHashes;   
-   {
-      vector<unsigned> zcIds = {1, 2, 3, 5, 6};
-      for (auto& id : zcIds)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         mainHashes.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         mainScrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }   
-   }
-
-   //case 1
-   auto case1 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 1-2-3
-      vector<unsigned> zcIds = {1, 2, 3};
-
-      //ids for the zc we are not broadcasting but which addresses we watch
-      vector<unsigned> zcIds_skipped = {5, 6};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> addrSet;
-      set<BinaryData> hashSet;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(rawTxVec[id - 1]);
-         hashSet.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      set<BinaryData> addrSet_skipped;
-      set<BinaryData> hashSet_skipped;
-      for (auto& id : zcIds_skipped)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet_skipped.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
-   };
-
-   //case 2
-   auto case2 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 5-6
-      vector<unsigned> zcIds = {5, 6};
-      vector<unsigned> zcIds_skipped = {1, 2, 3};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> addrSet;
-      set<BinaryData> hashSet;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(rawTxVec[id - 1]);
-         hashSet.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }   
-
-      set<BinaryData> addrSet_skipped;
-      set<BinaryData> hashSet_skipped;
-      for (auto& id : zcIds_skipped)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet_skipped.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
-   };
-
-   //case 3
-   auto case3 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 1-4 7
-      auto broadcastId1 = instance->bdvPtr_->broadcastZC({
-         rawTxVec[0], rawTxVec[3],
-         rawTxVec[6]
-      });
-
-      //don't grab 4 as it can't broadcast
-      vector<unsigned> zcIds = {1, 7};
-      vector<unsigned> zcIds_skipped = {2, 3, 5, 6};
-
-      set<BinaryData> addrSet;
-      set<BinaryData> hashSet;
-      for (auto& id : zcIds)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }  
-
-      set<BinaryData> addrSet_skipped;
-      set<BinaryData> hashSet_skipped;
-      for (auto& id : zcIds_skipped)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet_skipped.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-
-      //wait on broadcast errors
-      instance->callbackPtr_->waitOnError(
-         zcHashes[0], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId1);
-
-      instance->callbackPtr_->waitOnError(
-         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-
-      //wait on 7
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
-   };
-
-   //case 4
-   auto case4 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 5-6 7
-      vector<unsigned> zcIds = {5, 6, 7};
-      vector<unsigned> zcIds_skipped = {1, 2, 3};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> addrSet;
-      set<BinaryData> hashSet;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(rawTxVec[id - 1]);
-         hashSet.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      set<BinaryData> addrSet_skipped;
-      set<BinaryData> hashSet_skipped;
-      for (auto& id : zcIds_skipped)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet_skipped.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
-   };
-
-   //case 5
-   auto case5 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 4 5-6
-      auto broadcastId1 = instance->bdvPtr_->broadcastZC({
-         rawTxVec[3], 
-         rawTxVec[4], rawTxVec[5]
-      });
-
-      //skip 4 as it can't broadcast
-      vector<unsigned> zcIds = {5, 6};
-      vector<unsigned> zcIds_skipped = {1, 2, 3};
-
-      set<BinaryData> addrSet;
-      set<BinaryData> hashSet;
-      for (auto& id : zcIds)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      set<BinaryData> addrSet_skipped;
-      set<BinaryData> hashSet_skipped;
-      for (auto& id : zcIds_skipped)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet_skipped.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
-
-      instance->callbackPtr_->waitOnError(
-         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
-   };
-
-   //main instance
-   {
-      //set zc inv delay, this will allow for batches in side jobs to 
-      //collide with the original one
-      nodePtr_->stallNextZc(3); //in seconds
-
-      //push 1-2-3 & 5-6
-      vector<unsigned> zcIds = {1, 2, 3, 5, 6};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> scrAddrSet;
-      set<BinaryData> hashes;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(zcs.back());
-         hashes.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      auto broadcastId1 = mainInstance->bdvPtr_->broadcastZC(zcs);
-      
-      /*
-      delay for 1 second before starting side jobs to make sure the 
-      primary broadcast is first in line
-      */
-      this_thread::sleep_for(chrono::seconds(1));
-
-      //start the side jobs
-      vector<thread> threads;
-      for (unsigned i=0; i<3; i++)
-         threads.push_back(thread(case1, i));
-
-      for (unsigned i=3; i<6; i++)
-         threads.push_back(thread(case2, i));
-
-      //needs case3 to broadcast before case 4
-      threads.push_back(thread(case3, 6));
-      this_thread::sleep_for(chrono::milliseconds(500));
-
-      for (unsigned i=7; i<10; i++)
-         threads.push_back(thread(case4, i));
-
-      for (unsigned i=10; i<13; i++)
-         threads.push_back(thread(case5, i));
-
-      //wait on zc
-      mainInstance->callbackPtr_->waitOnZc(hashes, scrAddrSet, broadcastId1);
-
-      //wait on side jobs
-      for (auto& thr : threads)
-      {
-         if (thr.joinable())
-            thr.join();
-      }
-
-      //done
-   }
-
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_ManyThreads_RPCFallback)
-{
-   struct WSClient
-   {
-      shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_;
-      AsyncClient::BtcWallet wlt_;
-      shared_ptr<DBTestUtils::UTCallback> callbackPtr_;
-
-      WSClient(
-         shared_ptr<AsyncClient::BlockDataViewer> bdvPtr, 
-         AsyncClient::BtcWallet& wlt,
-         shared_ptr<DBTestUtils::UTCallback> callbackPtr) :
-         bdvPtr_(bdvPtr), wlt_(move(wlt)), callbackPtr_(callbackPtr)
-      {}
-   };
-
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   //create BDV lambda
-   auto setupBDV = [this, &serverPubkey](void)->shared_ptr<WSClient>
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      auto client = make_shared<WSClient>(bdvObj, wallet1, pCallback);
-      return client;
-   };
-
-   //create main bdv instance
-   auto mainInstance = setupBDV();
-
-   /*
-   create a batch of zc with chains:
-      1-2-3
-      1-4 (4 conflicts with 2)
-      5-6
-      7
-   */
-
-   vector<BinaryData> rawTxVec, zcHashes;
-   map<BinaryData, map<unsigned, UTXO>> outputMap;
-   {
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //utxo from raw tx lambda
-      auto getUtxoFromRawTx = [&outputMap](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         auto& idMap = outputMap[utxo.txHash_];
-         idMap[id] = utxo;
-
-         return utxo;
-      };
-
-      //grab utxos for scrAddrB, scrAddrC, scrAddrE
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      mainInstance->wlt_.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB, utxosC, utxosE;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-               utxosB.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
-               utxosC.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrE)
-               utxosE.push_back(utxo);
-
-            auto& idMap = outputMap[utxo.txHash_];
-            idMap[utxo.txOutIndex_] = utxo;
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-      ASSERT_FALSE(utxosC.empty());
-      ASSERT_FALSE(utxosE.empty());
-
-      /*create the transactions*/
-
-      //1
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //2
-      {
-         auto utxoD = getUtxoFromRawTx(rawTxVec[0], 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-      
-      //3
-      {
-         auto utxoF = getUtxoFromRawTx(rawTxVec[1], 1);
-
-         //5 from F, 5 to B
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoF);
-         signer.addSpender(spender);
-
-         auto recB = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrB.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recB);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //4
-      {
-         auto utxoA = getUtxoFromRawTx(rawTxVec[0], 1);
-
-         //15 from D, 14 to C
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoA);
-         signer.addSpender(spender);
-
-         auto recC = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20), 14 * COIN);
-         signer.addRecipient(recC);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //5
-      {
-         //10 from C, 10 to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosC[0]);
-         signer.addSpender(spender);
-
-         auto recD = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recD);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //6
-      {
-         auto utxoD = getUtxoFromRawTx(rawTxVec[4], 0);
-
-         //10 from D, 5 to F, change to A
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recF = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recF);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 
-            spender->getValue() - recF->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //7
-      {
-         //20 from E, 10 to F, change to A
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosE[0]);
-         signer.addSpender(spender);
-
-         auto recF = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recF);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 
-            spender->getValue() - recF->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-   }
-
-   //3 case1, 3 case2, 1 case3, 3 case4, 3 case5
-   unsigned N = 13;
-
-   //create N side instances
-   vector<shared_ptr<WSClient>> sideInstances;
-   for (unsigned i=0; i<N; i++)
-      sideInstances.emplace_back(setupBDV());
-
-   //get addresses for tx lambda
-   auto getAddressesForRawTx = [&outputMap](const Tx& tx)->set<BinaryData>
-   {
-      set<BinaryData> addrSet;
-
-      for (unsigned i=0; i<tx.getNumTxIn(); i++)
-      {
-         auto txin = tx.getTxInCopy(i);
-         auto op = txin.getOutPoint();
-
-         auto hashIter = outputMap.find(op.getTxHash());
-         EXPECT_TRUE(hashIter != outputMap.end());
-
-         auto idIter = hashIter->second.find(op.getTxOutIndex());
-         EXPECT_TRUE(idIter != hashIter->second.end());
-
-         auto& utxo = idIter->second;
-         addrSet.insert(utxo.getRecipientScrAddr());
-      }
-
-      for (unsigned i=0; i<tx.getNumTxOut(); i++)
-      {
-         auto txout = tx.getTxOutCopy(i);
-         addrSet.insert(txout.getScrAddressStr());
-      }
-
-      return addrSet;
-   };
-
-   set<BinaryData> mainScrAddrSet;
-   set<BinaryData> mainHashes;   
-   {
-      vector<unsigned> zcIds = {1, 2, 3, 5, 6};
-      for (auto& id : zcIds)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         mainHashes.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         mainScrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }   
-   }
-
-   //case 1
-   auto case1 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 1-2-3
-      vector<unsigned> zcIds = {1, 2, 3};
-
-      //ids for the zc we are not broadcasting but which addresses we watch
-      vector<unsigned> zcIds_skipped = {5, 6};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> addrSet;
-      set<BinaryData> hashSet;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(rawTxVec[id - 1]);
-         hashSet.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      set<BinaryData> addrSet_skipped;
-      set<BinaryData> hashSet_skipped;
-      for (auto& id : zcIds_skipped)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet_skipped.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
-   };
-
-   //case 2
-   auto case2 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 5-6
-      vector<unsigned> zcIds = {5, 6};
-      vector<unsigned> zcIds_skipped = {1, 2, 3};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> addrSet;
-      set<BinaryData> hashSet;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(rawTxVec[id - 1]);
-         hashSet.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }   
-
-      set<BinaryData> addrSet_skipped;
-      set<BinaryData> hashSet_skipped;
-      for (auto& id : zcIds_skipped)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet_skipped.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
-
-   };
-
-   //case 3
-   auto case3 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 1-4 7
-      auto broadcastId1 = instance->bdvPtr_->broadcastZC({
-         rawTxVec[0], rawTxVec[3],
-         rawTxVec[6]
-      });
-
-      //don't grab 4 as it can't broadcast
-      vector<unsigned> zcIds = {1, 7};
-      vector<unsigned> zcIds_skipped = {2, 3, 5, 6};
-
-      set<BinaryData> addrSet;
-      set<BinaryData> hashSet;
-      for (auto& id : zcIds)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }  
-
-      set<BinaryData> addrSet_skipped;
-      set<BinaryData> hashSet_skipped;
-      for (auto& id : zcIds_skipped)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet_skipped.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc_OutOfOrder(hashSet_skipped, "");
-
-      //wait on 7
-      instance->callbackPtr_->waitOnZc_OutOfOrder(hashSet, broadcastId1);
-
-      //wait on broadcast errors
-      instance->callbackPtr_->waitOnError(
-         zcHashes[0], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool, broadcastId1);
-
-      instance->callbackPtr_->waitOnError(
-         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
-   };
-
-   //case 4
-   auto case4 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 5-6 7
-      vector<unsigned> zcIds = {5, 6, 7};
-      vector<unsigned> zcIds_skipped = {1, 2, 3};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> addrSet;
-      set<BinaryData> hashSet;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(rawTxVec[id - 1]);
-         hashSet.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      set<BinaryData> addrSet_skipped;
-      set<BinaryData> hashSet_skipped;
-      for (auto& id : zcIds_skipped)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet_skipped.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
-   };
-
-   //case 5
-   auto case5 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 4 5-6
-      auto broadcastId1 = instance->bdvPtr_->broadcastZC({
-         rawTxVec[3], 
-         rawTxVec[4], rawTxVec[5]
-      });
-
-      //skip 4 as it can't broadcast
-      vector<unsigned> zcIds = {5, 6};
-      vector<unsigned> zcIds_skipped = {1, 2, 3};
-
-      set<BinaryData> addrSet;
-      set<BinaryData> hashSet;
-      for (auto& id : zcIds)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      set<BinaryData> addrSet_skipped;
-      set<BinaryData> hashSet_skipped;
-      for (auto& id : zcIds_skipped)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         hashSet_skipped.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet_skipped.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      for (auto& id : zcIds)
-         errorMap.emplace(zcHashes[id - 1], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
-
-      instance->callbackPtr_->waitOnError(
-         zcHashes[3], ArmoryErrorCodes::ZcBroadcast_VerifyRejected, broadcastId1);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet_skipped, addrSet_skipped, "");
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
-   };
-
-   //main instance
-   {
-      //skip all zc to force a RPC fallback
-      nodePtr_->skipZc(100000);
-
-      //push 1-2-3 & 5-6
-      vector<unsigned> zcIds = {1, 2, 3, 5, 6};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> scrAddrSet;
-      set<BinaryData> hashes;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(zcs.back());
-         hashes.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         scrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      auto broadcastId1 = mainInstance->bdvPtr_->broadcastZC(zcs);
-      
-      /*
-      delay for 1 second before starting side jobs to make sure the 
-      primary broadcast is first in line
-      */
-      this_thread::sleep_for(chrono::seconds(1));
-
-      //start the side jobs
-      vector<thread> threads;
-      for (unsigned i=0; i<3; i++)
-         threads.push_back(thread(case1, i));
-
-      for (unsigned i=3; i<6; i++)
-         threads.push_back(thread(case2, i));
-
-      //needs case3 to broadcast before case 4
-      threads.push_back(thread(case3, 6));
-      this_thread::sleep_for(chrono::milliseconds(500));
-
-      for (unsigned i=7; i<10; i++)
-         threads.push_back(thread(case4, i));
-
-      for (unsigned i=10; i<13; i++)
-         threads.push_back(thread(case5, i));
-
-      //wait on zc
-      mainInstance->callbackPtr_->waitOnZc(hashes, scrAddrSet, broadcastId1);
-
-      //wait on side jobs
-      for (auto& thr : threads)
-      {
-         if (thr.joinable())
-            thr.join();
-      }
-
-      //done
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_BroadcastSameZC_RPCThenP2P)
-{
-   struct WSClient
-   {
-      shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_;
-      AsyncClient::BtcWallet wlt_;
-      shared_ptr<DBTestUtils::UTCallback> callbackPtr_;
-
-      WSClient(
-         shared_ptr<AsyncClient::BlockDataViewer> bdvPtr, 
-         AsyncClient::BtcWallet& wlt,
-         shared_ptr<DBTestUtils::UTCallback> callbackPtr) :
-         bdvPtr_(bdvPtr), wlt_(move(wlt)), callbackPtr_(callbackPtr)
-      {}
-   };
-
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   //create BDV lambda
-   auto setupBDV = [this, &serverPubkey](void)->shared_ptr<WSClient>
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      auto client = make_shared<WSClient>(bdvObj, wallet1, pCallback);
-      return client;
-   };
-
-   //create main bdv instance
-   auto mainInstance = setupBDV();
-
-   /*
-   create a batch of zc with chains:
-      1-2
-      3
-   */
-
-   vector<BinaryData> rawTxVec, zcHashes;
-   map<BinaryData, map<unsigned, UTXO>> outputMap;
-   {
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //utxo from raw tx lambda
-      auto getUtxoFromRawTx = [&outputMap](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         auto& idMap = outputMap[utxo.txHash_];
-         idMap[id] = utxo;
-
-         return utxo;
-      };
-
-      //grab utxos for scrAddrB, scrAddrC, scrAddrE
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      mainInstance->wlt_.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB, utxosC, utxosE;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() == TestChain::scrAddrB)
-               utxosB.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrC)
-               utxosC.push_back(utxo);
-            else if (utxo.getRecipientScrAddr() == TestChain::scrAddrE)
-               utxosE.push_back(utxo);
-
-            auto& idMap = outputMap[utxo.txHash_];
-            idMap[utxo.txOutIndex_] = utxo;
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-      ASSERT_FALSE(utxosC.empty());
-      ASSERT_FALSE(utxosE.empty());
-
-      /*create the transactions*/
-
-      //1
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-
-      //2
-      {
-         auto utxoD = getUtxoFromRawTx(rawTxVec[0], 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-      
-      //3
-      {
-         //20 from E, 10 to F, change to A
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosE[0]);
-         signer.addSpender(spender);
-
-         auto recF = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recF);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 
-            spender->getValue() - recF->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTxVec.push_back(signer.serializeSignedTx());
-         Tx tx(rawTxVec.back());
-         zcHashes.push_back(tx.getThisHash());
-      }
-   }
-
-   unsigned N = 1;
-
-   //create N side instances
-   vector<shared_ptr<WSClient>> sideInstances;
-   for (unsigned i=0; i<N; i++)
-      sideInstances.emplace_back(setupBDV());   
-
-   //get addresses for tx lambda
-   auto getAddressesForRawTx = [&outputMap](const Tx& tx)->set<BinaryData>
-   {
-      set<BinaryData> addrSet;
-
-      for (unsigned i=0; i<tx.getNumTxIn(); i++)
-      {
-         auto txin = tx.getTxInCopy(i);
-         auto op = txin.getOutPoint();
-
-         auto hashIter = outputMap.find(op.getTxHash());
-         EXPECT_TRUE(hashIter != outputMap.end());
-
-         auto idIter = hashIter->second.find(op.getTxOutIndex());
-         EXPECT_TRUE(idIter != hashIter->second.end());
-
-         auto& utxo = idIter->second;
-         addrSet.insert(utxo.getRecipientScrAddr());
-      }
-
-      for (unsigned i=0; i<tx.getNumTxOut(); i++)
-      {
-         auto txout = tx.getTxOutCopy(i);
-         addrSet.insert(txout.getScrAddressStr());
-      }
-
-      return addrSet;
-   };
-
-   set<BinaryData> mainScrAddrSet;
-   set<BinaryData> mainHashes;   
-   {
-      vector<unsigned> zcIds = {1, 2};
-      for (auto& id : zcIds)
-      {
-         Tx tx(rawTxVec[id - 1]);
-         mainHashes.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         mainScrAddrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }   
-   }
-
-   //case 1
-   auto case1 = [&](unsigned instanceId)->void
-   {
-      auto instance = sideInstances[instanceId];
-
-      //push 1-2, 3
-      vector<unsigned> zcIds = {1, 2, 3};
-
-      vector<BinaryData> zcs;
-      set<BinaryData> addrSet;
-      set<BinaryData> hashSet;
-      for (auto& id : zcIds)
-      {
-         zcs.push_back(rawTxVec[id - 1]);
-         Tx tx(rawTxVec[id - 1]);
-         hashSet.insert(tx.getThisHash());
-         auto localAddrSet = getAddressesForRawTx(tx);
-         addrSet.insert(localAddrSet.begin(), localAddrSet.end());
-      }
-
-      auto broadcastId1 = instance->bdvPtr_->broadcastZC(zcs);
-
-      //wait on broadcast errors
-      map<BinaryData, ArmoryErrorCodes> errorMap;
-      errorMap.emplace(zcHashes[0], ArmoryErrorCodes::ZcBroadcast_AlreadyInMempool);
-      instance->callbackPtr_->waitOnErrors(errorMap, broadcastId1);
-
-      //wait on zc
-      instance->callbackPtr_->waitOnZc(hashSet, addrSet, broadcastId1);
-   };
-
-   //main instance
-   {
-      //set RPC, this will allow for batches in side jobs to 
-      //collide with the original one
-      rpcNode_->stallNextZc(3); //in seconds
-
-      //push 1-2
-
-      set<BinaryData> scrAddrSet1, scrAddrSet2;
-      BinaryData hash1, hash2;
-         
-      {
-         Tx tx(rawTxVec[0]);
-         hash1 = tx.getThisHash();
-         scrAddrSet1 = getAddressesForRawTx(tx);
-      }
-
-      {
-         Tx tx(rawTxVec[1]);
-         hash2 = tx.getThisHash();
-         scrAddrSet2 = getAddressesForRawTx(tx);
-      }
-
-      auto broadcastId1 = mainInstance->bdvPtr_->broadcastThroughRPC(rawTxVec[0]);
-      auto broadcastId2 = mainInstance->bdvPtr_->broadcastThroughRPC(rawTxVec[1]);
-
-      /*
-      delay for 1 second before starting side jobs to make sure the 
-      primary broadcast is first in line
-      */
-      this_thread::sleep_for(chrono::seconds(1));
-
-      //start the side jobs
-      vector<thread> threads;
-      threads.push_back(thread(case1, 0));
-
-      //wait on zc
-      mainInstance->callbackPtr_->waitOnZc({hash1}, scrAddrSet1, broadcastId1);
-      mainInstance->callbackPtr_->waitOnZc({hash2}, scrAddrSet2, broadcastId2);
-
-      //wait on side jobs
-      for (auto& thr : threads)
-      {
-         if (thr.joinable())
-            thr.join();
-      }
-
-      //done
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
-
-   delete theBDMt_;
-   theBDMt_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-TEST_F(WebSocketTests, WebSocketStack_RebroadcastInvalidBatch)
-{
-   startupBIP150CTX(4);
-
-   TestUtils::setBlocks({ "0", "1", "2", "3", "4", "5" }, blk0dat_);
-   WebSocketServer::initAuthPeers(authPeersPassLbd_);
-   WebSocketServer::start(theBDMt_, true);
-   auto&& serverPubkey = WebSocketServer::getPublicKey();
-   theBDMt_->start(config.initMode_);
-
-   {
-      auto pCallback = make_shared<DBTestUtils::UTCallback>();
-      auto&& bdvObj = AsyncClient::BlockDataViewer::getNewBDV(
-         "127.0.0.1", config.listenPort_, 
-         BlockDataManagerConfig::getDataDir(),
-         authPeersPassLbd_, 
-         BlockDataManagerConfig::ephemeralPeers_, true, //public server
-         pCallback);
-      bdvObj->addPublicKey(serverPubkey);
-      bdvObj->connectToRemote();
-      bdvObj->registerWithDB(NetworkConfig::getMagicBytes());
-
-      auto&& wallet1 = bdvObj->instantiateWallet("wallet1");
-
-      vector<BinaryData> _scrAddrVec1;
-      _scrAddrVec1.push_back(TestChain::scrAddrA);
-      _scrAddrVec1.push_back(TestChain::scrAddrB);
-      _scrAddrVec1.push_back(TestChain::scrAddrC);
-      _scrAddrVec1.push_back(TestChain::scrAddrD);
-      _scrAddrVec1.push_back(TestChain::scrAddrE);
-      _scrAddrVec1.push_back(TestChain::scrAddrF);
-
-      vector<string> walletRegIDs;
-      walletRegIDs.push_back(
-         wallet1.registerAddresses(_scrAddrVec1, false));
-
-      //wait on registration ack
-      pCallback->waitOnManySignals(BDMAction_Refresh, walletRegIDs);
-
-      //go online
-      bdvObj->goOnline();
-      pCallback->waitOnSignal(BDMAction_Ready);
-
-      //balance fetching routine
-      vector<string> walletIDs = { wallet1.walletID() };
-      auto getBalances = [bdvObj, walletIDs](void)->CombinedBalances
-      {
-         auto promPtr = make_shared<promise<map<string, CombinedBalances>>>();
-         auto fut = promPtr->get_future();
-         auto balLbd = [promPtr](
-            ReturnMessage<map<string, CombinedBalances>> combBal)->void
-         {
-            promPtr->set_value(combBal.get());
-         };
-
-         bdvObj->getCombinedBalances(walletIDs, balLbd);
-         auto&& balMap = fut.get();
-
-         if (balMap.size() != 1)
-            throw runtime_error("unexpected balance map size");
-
-         return balMap.begin()->second;
-      };
-
-      //check balances before pushing zc
-      auto&& combineBalances = getBalances();
-      EXPECT_EQ(combineBalances.addressBalances_.size(), 6);
-
-      {
-         auto iterA = combineBalances.addressBalances_.find(TestChain::scrAddrA);
-         ASSERT_NE(iterA, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterA->second.size(), 3);
-         EXPECT_EQ(iterA->second[0], 50 * COIN);
-
-         auto iterB = combineBalances.addressBalances_.find(TestChain::scrAddrB);
-         ASSERT_NE(iterB, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterB->second.size(), 3);
-         EXPECT_EQ(iterB->second[0], 70 * COIN);
-
-         auto iterC = combineBalances.addressBalances_.find(TestChain::scrAddrC);
-         ASSERT_NE(iterC, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterC->second.size(), 3);
-         EXPECT_EQ(iterC->second[0], 20 * COIN);
-
-         auto iterD = combineBalances.addressBalances_.find(TestChain::scrAddrD);
-         ASSERT_NE(iterD, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterD->second.size(), 3);
-         EXPECT_EQ(iterD->second[0], 65 * COIN);
-
-         auto iterE = combineBalances.addressBalances_.find(TestChain::scrAddrE);
-         ASSERT_NE(iterE, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterE->second.size(), 3);
-         EXPECT_EQ(iterE->second[0], 30 * COIN);
-
-         auto iterF = combineBalances.addressBalances_.find(TestChain::scrAddrF);
-         ASSERT_NE(iterF, combineBalances.addressBalances_.end());
-         ASSERT_EQ(iterF->second.size(), 3);
-         EXPECT_EQ(iterF->second[0], 5 * COIN);
-      }
-   
-      //instantiate resolver feed overloaded object
-      auto feed = make_shared<ResolverUtils::TestResolverFeed>();
-      feed->addPrivKey(TestChain::privKeyAddrB);
-      feed->addPrivKey(TestChain::privKeyAddrC);
-      feed->addPrivKey(TestChain::privKeyAddrD);
-      feed->addPrivKey(TestChain::privKeyAddrE);
-      feed->addPrivKey(TestChain::privKeyAddrF);
-
-      //grab utxos for scrAddrB
-      auto promUtxo = make_shared<promise<vector<UTXO>>>();
-      auto futUtxo = promUtxo->get_future();
-      auto getUtxoLbd = [promUtxo](ReturnMessage<vector<UTXO>> msg)->void
-      {
-         promUtxo->set_value(msg.get());
-      };
-
-      wallet1.getSpendableTxOutListForValue(UINT64_MAX, getUtxoLbd);
-      vector<UTXO> utxosB;
-      {
-         auto&& utxoVec = futUtxo.get();
-         for (auto& utxo : utxoVec)
-         {
-            if (utxo.getRecipientScrAddr() != TestChain::scrAddrB)
-               continue;
-
-            utxosB.push_back(utxo);
-         }
-      }
-
-      ASSERT_FALSE(utxosB.empty());
-
-      /*create the transactions*/
-
-      //grab utxo from raw tx
-      auto getUtxoFromRawTx = [](BinaryData& rawTx, unsigned id)->UTXO
-      {
-         Tx tx(rawTx);
-         if (id > tx.getNumTxOut())
-            throw runtime_error("invalid txout count");
-
-         auto&& txOut = tx.getTxOutCopy(id);
-
-         UTXO utxo;
-         utxo.unserializeRaw(txOut.serialize());
-         utxo.txOutIndex_ = id;
-         utxo.txHash_ = tx.getThisHash();
-
-         return utxo;
-      };
-
-      BinaryData rawTx1, rawTx2;
-
-      {
-         //20 from B, 5 to A, change to D
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxosB[0]);
-         signer.addSpender(spender);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recA);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 
-            spender->getValue() - recA->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx1 = signer.serializeSignedTx();
-      }
-
-      {
-         auto utxoD = getUtxoFromRawTx(rawTx1, 1);
-
-         //15 from D, 10 to E, change to F
-         Signer signer;
-
-         auto spender = make_shared<ScriptSpender>(utxoD);
-         signer.addSpender(spender);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 10 * COIN);
-         signer.addRecipient(recE);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrF.getSliceCopy(1, 20), 
-            spender->getValue() - recE->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx2 = signer.serializeSignedTx();
-      }
-
-      BinaryData rawTx3;
-      {
-         //10 from E, 5 from F, 3 to A, 2 to E, 5 to D, change to C
-         auto zcUtxo1 = getUtxoFromRawTx(rawTx2, 0);
-         auto zcUtxo2 = getUtxoFromRawTx(rawTx2, 1);
-
-         Signer signer;
-         
-         auto spender1 = make_shared<ScriptSpender>(zcUtxo1);
-         auto spender2 = make_shared<ScriptSpender>(zcUtxo2);
-         signer.addSpender(spender1);
-         signer.addSpender(spender2);
-
-         auto recA = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrA.getSliceCopy(1, 20), 3 * COIN);
-         signer.addRecipient(recA);
-
-         auto recE = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrE.getSliceCopy(1, 20), 2 * COIN);
-         signer.addRecipient(recE);
-         
-         auto recD = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrD.getSliceCopy(1, 20), 5 * COIN);
-         signer.addRecipient(recD);
-
-         auto recChange = make_shared<Recipient_P2PKH>(
-            TestChain::scrAddrC.getSliceCopy(1, 20),
-            spender1->getValue() + spender2->getValue() - 
-            recA->getValue() - recE->getValue() - recD->getValue());
-         signer.addRecipient(recChange);
-
-         signer.setFeed(feed);
-         signer.sign();
-         rawTx3 = signer.serializeSignedTx();
-      }
-
-      //batch push tx
-      auto broadcastId1 = bdvObj->broadcastZC({ rawTx2, rawTx3 });
-      map<BinaryData, ArmoryErrorCodes> errMap;
-         
-      Tx tx1(rawTx2);
-      Tx tx2(rawTx3);
-      errMap.emplace(tx1.getThisHash(), ArmoryErrorCodes::ZcBroadcast_Error);
-      errMap.emplace(tx2.getThisHash(), ArmoryErrorCodes::ZcBroadcast_Error);
-      pCallback->waitOnErrors(errMap, broadcastId1);
-
-      //try again
-      auto broadcastId2 = bdvObj->broadcastZC({ rawTx2, rawTx3 });
-      pCallback->waitOnErrors(errMap, broadcastId2);
-   }
-
-   //cleanup
-   auto&& bdvObj2 = AsyncClient::BlockDataViewer::getNewBDV(
-      "127.0.0.1", config.listenPort_, BlockDataManagerConfig::getDataDir(),
-      authPeersPassLbd_, BlockDataManagerConfig::ephemeralPeers_, true, nullptr);
-   bdvObj2->addPublicKey(serverPubkey);
-   bdvObj2->connectToRemote();
-
-   bdvObj2->shutdown(config.cookie_);
-   WebSocketServer::waitOnShutdown();
-
-   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0);
+   EXPECT_EQ(theBDMt_->bdm()->zeroConfCont()->getMatcherMapSize(), 0U);
 
    delete theBDMt_;
    theBDMt_ = nullptr;
@@ -14174,10 +5561,6 @@ GTEST_API_ int main(int argc, char **argv)
    GOOGLE_PROTOBUF_VERIFY_VERSION;
    srand(time(0));
    std::cout << "Running main() from gtest_main.cc\n";
-
-   // Setup the log file 
-   STARTLOGGING("cppTestsLog.txt", LogLvlDebug2);
-   //LOGDISABLESTDOUT();
 
    testing::InitGoogleTest(&argc, argv);
    int exitCode = RUN_ALL_TESTS();

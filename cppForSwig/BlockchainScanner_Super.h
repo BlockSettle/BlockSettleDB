@@ -135,9 +135,7 @@ struct ParserBatch_Spentness
 ////////////////////////////////////////////////////////////////////////////////
 struct StxoRef
 {
-   uint64_t* valuePtr_;
-   uint16_t* indexPtr_;
-
+   BinaryDataRef theData_;
    BinaryDataRef scriptRef_;
    BinaryDataRef hashRef_;
 
@@ -151,6 +149,8 @@ struct StxoRef
 
    BinaryData getScrAddressCopy(void) const;
    BinaryData getDBKey(void) const;
+
+   uint64_t getValue(void) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

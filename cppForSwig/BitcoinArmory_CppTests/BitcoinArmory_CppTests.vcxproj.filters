@@ -141,7 +141,7 @@
     <ClInclude Include="..\BDVCodec.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\NetworkConfig.h">
+    <ClInclude Include="..\BitcoinSettings.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\SecureBinaryData.h">
@@ -171,9 +171,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\BtcUtils.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\EncryptionUtils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\StoredBlockObj.cpp">
@@ -257,9 +254,6 @@
     <ClCompile Include="..\SocketObject.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\SwigClient.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\Transactions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -272,10 +266,7 @@
     <ClCompile Include="..\Wallets.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\WalletManager.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\BlockDataManagerConfig.cpp">
+    <ClCompile Include="..\ArmoryConfig.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\JSON_codec.cpp">
@@ -341,13 +332,10 @@
     <ClCompile Include="..\AsyncClient.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\ClientClasses.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\SocketService_win32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\NetworkConfig.cpp">
+    <ClCompile Include="..\BitcoinSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\StringSockets.cpp">
@@ -369,9 +357,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\BIP150_151.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\hkdf.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\chacha20poly1305\chacha.c">
@@ -399,6 +384,21 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\TerminalPassphrasePrompt.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\BIP15x_Handshake.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\DBClientClasses.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hkdf\hkdf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ZeroConfNotifications.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ResolverFeed.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -42,9 +42,6 @@
     <ClCompile Include="..\BtcWallet.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\EncryptionUtils.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\HistoryPager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -111,7 +108,7 @@
     <ClCompile Include="..\Script.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\BlockDataManagerConfig.cpp">
+    <ClCompile Include="..\ArmoryConfig.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\nodeRPC.cpp">
@@ -153,7 +150,7 @@
     <ClCompile Include="..\WebSocketMessage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\NetworkConfig.cpp">
+    <ClCompile Include="..\BitcoinSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\HttpMessage.cpp">
@@ -213,9 +210,6 @@
     <ClCompile Include="..\AssetEncryption.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\hkdf.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\chacha20poly1305\chacha.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -223,6 +217,21 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\chacha20poly1305\poly1305.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hkdf\hkdf.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ResolverFeed.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ZeroConfNotifications.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gtest\NodeUnitTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\BIP15x_Handshake.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -299,7 +308,7 @@
     <ClInclude Include="..\JSON_codec.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\BlockDataManagerConfig.h">
+    <ClInclude Include="..\ArmoryConfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\BinaryData.h">

@@ -8,7 +8,7 @@
 
 #include "NodeUnitTest.h"
 #include "../BlockUtils.h"
-#include "Signer.h"
+#include "../Signer/Signer.h"
 
 using namespace std;
 using namespace ArmoryThreading;
@@ -97,6 +97,12 @@ NodeUnitTest::NodeUnitTest(uint32_t magic_word, bool watcher) :
    };
 
    watcherThread_ = thread(watcherLbd);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+NodeUnitTest::~NodeUnitTest()
+{
+   shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

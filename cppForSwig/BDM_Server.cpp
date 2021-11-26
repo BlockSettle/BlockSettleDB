@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig.                                              //
+//  Copyright (C) 2016-2021, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -881,17 +881,17 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
       auto&& nodeStatus = this->bdmPtr_->getNodeStatus();
 
       auto response = make_shared<::Codec_NodeStatus::NodeStatus>();
-      response->set_status((unsigned)nodeStatus.status_);
+      response->set_state((unsigned)nodeStatus.state_);
       response->set_segwitenabled(nodeStatus.SegWitEnabled_);
-      response->set_rpcstatus((unsigned)nodeStatus.rpcStatus_);
+      response->set_rpcstate((unsigned)nodeStatus.rpcState_);
 
-      auto chainState_proto = new ::Codec_NodeStatus::NodeChainState();
-      chainState_proto->set_state((unsigned)nodeStatus.chainState_.state());
-      chainState_proto->set_blockspeed(nodeStatus.chainState_.getBlockSpeed());
-      chainState_proto->set_eta(nodeStatus.chainState_.getETA());
-      chainState_proto->set_pct(nodeStatus.chainState_.getProgressPct());
-      chainState_proto->set_blocksleft(nodeStatus.chainState_.getBlocksLeft());
-      response->set_allocated_chainstate(chainState_proto);
+      auto chainStatus_proto = new ::Codec_NodeStatus::NodeChainStatus();
+      chainStatus_proto->set_state((unsigned)nodeStatus.chainStatus_.state());
+      chainStatus_proto->set_blockspeed(nodeStatus.chainStatus_.getBlockSpeed());
+      chainStatus_proto->set_eta(nodeStatus.chainStatus_.getETA());
+      chainStatus_proto->set_pct(nodeStatus.chainStatus_.getProgressPct());
+      chainStatus_proto->set_blocksleft(nodeStatus.chainStatus_.getBlocksLeft());
+      response->set_allocated_chainstatus(chainStatus_proto);
 
       resultingPayload = response;
       break;
@@ -1653,21 +1653,15 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
             auto& opMap = spenderMap[txHashRef];
 
             //get zctx
-            shared_ptr<ParsedTx> txPtr;
-            {
-               auto zcIter = snapshot->txHashToDBKey_.find(txHashRef);
-               if (zcIter != snapshot->txHashToDBKey_.end())
-               {
-                  auto txIter = snapshot->txMap_.find(zcIter->second);
-                  if (txIter != snapshot->txMap_.end())
-                     txPtr = txIter->second;
-               }
-            }
+            auto txPtr = snapshot->getTxByHash(txHashRef);
 
             //TODO: harden loops running on count from client msg
 
             //run through txout indices
             auto outputCount = brr.get_var_int();
+            if (outputCount >= 10000)
+               throw runtime_error("outpout count overflow");
+
             for (size_t y = 0; y < outputCount; y++)
             {
                auto txOutIdx = brr.get_var_int();
@@ -1682,9 +1676,7 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
                auto& scrAddr = txPtr->outputs_[txOutIdx].scrAddr_;
 
                //get txiopair for this scrAddr
-               auto txioMapIter = snapshot->txioMap_.find(scrAddr);
-               if (txioMapIter == snapshot->txioMap_.end())
-                  continue;
+               auto txioMap = snapshot->getTxioMapForScrAddr(scrAddr);
 
                //create dbkey for output
                BinaryWriter bwKey;
@@ -1692,22 +1684,22 @@ BDVCommandProcessingResultType BDV_Server_Object::processCommand(
                bwKey.put_uint16_t((uint16_t)y, BE);
 
                //grab txio
-               auto txioIter = txioMapIter->second.find(bwKey.getData());
-               if (txioIter == txioMapIter->second.end())
+               auto txioIter = txioMap.find(bwKey.getData());
+               if (txioIter == txioMap.end())
                   continue;
 
                auto txRef = txioIter->second->getTxRefOfInput();
                auto spenderKey = txRef.getDBKeyRef();
-               if (spenderKey.getSize() == 0)
+               if (spenderKey.empty())
                   continue;
 
-               //we have a spender in this txio, resolve the hash               
-               auto spenderIter = snapshot->txMap_.find(spenderKey);
-               if (spenderIter == snapshot->txMap_.end())
+               //we have a spender in this txio, resolve the hash
+               auto txFromSS = snapshot->getTxByKey(spenderKey);
+               if (txFromSS == nullptr)
                   continue;
 
-               spentnessData.spender_ = spenderIter->second->getTxHash();
-               auto&& inputRef = txioIter->second->getTxRefOfInput();
+               spentnessData.spender_ = txFromSS->getTxHash();
+               const auto& inputRef = txioIter->second->getTxRefOfInput();
                BinaryRefReader brr(inputRef.getDBKeyRef());
                brr.advance(2);
                spentnessData.height_ = brr.get_uint32_t(BE);
@@ -1848,9 +1840,10 @@ void BDV_Server_Object::setup()
       return UINT32_MAX;
    };
 
-   switch (BlockDataManagerConfig::getServiceType())
+   switch (Armory::Config::DBSettings::getServiceType())
    {
    case SERVICE_WEBSOCKET:
+   case SERVICE_UNITTEST_WITHWS:
    {
       auto&& bdid = READHEX(getID());
       if (bdid.getSize() != 8)
@@ -1963,15 +1956,10 @@ void BDV_Server_Object::init()
    scanWallets(move(notifPtr));
 
    //create zc packet and pass to wallets
-   auto filterLbd = [this](const BinaryData& scrAddr)->bool
-   {
-      return hasScrAddress(scrAddr);
-   };
-
-   auto zcstruct = createZcNotification(filterLbd);
-   auto zcAction =
-      dynamic_cast<BDV_Notification_ZC*>(zcstruct.get());
-   if(zcAction != nullptr && zcAction->packet_.txioMap_.size() > 0)
+   auto addrSet = getAddrSet();
+   auto zcstruct = createZcNotification(addrSet);
+   auto zcAction = dynamic_cast<BDV_Notification_ZC*>(zcstruct.get());
+   if (zcAction != nullptr && zcAction->packet_.scrAddrToTxioKeys_.size() > 0)
       scanWallets(move(zcstruct));
    
    //mark bdv object as ready
@@ -2020,7 +2008,7 @@ void BDV_Server_Object::processNotification(
       }
 
       if (payload->zcPurgePacket_ != nullptr && 
-          payload->zcPurgePacket_->invalidatedZcKeys_.size() != 0)
+         payload->zcPurgePacket_->invalidatedZcKeys_.size() != 0)
       {
          auto notif = callbackPtr->add_notification();
          notif->set_type(NotificationType::invalidated_zc);
@@ -2091,17 +2079,17 @@ void BDV_Server_Object::processNotification(
 
       auto& nodeStatus = payload->status_;
 
-      status->set_status((unsigned)nodeStatus.status_);
+      status->set_state((unsigned)nodeStatus.state_);
       status->set_segwitenabled(nodeStatus.SegWitEnabled_);
-      status->set_rpcstatus((unsigned)nodeStatus.rpcStatus_);
+      status->set_rpcstate((unsigned)nodeStatus.rpcState_);
 
-      auto chainState_proto = new ::Codec_NodeStatus::NodeChainState();
-      chainState_proto->set_state((unsigned)nodeStatus.chainState_.state());
-      chainState_proto->set_blockspeed(nodeStatus.chainState_.getBlockSpeed());
-      chainState_proto->set_eta(nodeStatus.chainState_.getETA());
-      chainState_proto->set_pct(nodeStatus.chainState_.getProgressPct());
-      chainState_proto->set_blocksleft(nodeStatus.chainState_.getBlocksLeft());
-      status->set_allocated_chainstate(chainState_proto);
+      auto chainStatus_proto = new Codec_NodeStatus::NodeChainStatus();
+      chainStatus_proto->set_state((unsigned)nodeStatus.chainStatus_.state());
+      chainStatus_proto->set_blockspeed(nodeStatus.chainStatus_.getBlockSpeed());
+      chainStatus_proto->set_eta(nodeStatus.chainStatus_.getETA());
+      chainStatus_proto->set_pct(nodeStatus.chainStatus_.getProgressPct());
+      chainStatus_proto->set_blocksleft(nodeStatus.chainStatus_.getBlocksLeft());
+      status->set_allocated_chainstatus(chainStatus_proto);
 
       break;
    }
@@ -2436,8 +2424,8 @@ void Clients::init(BlockDataManagerThread* bdmT,
    unregThread_ = thread(unregistrationThread);
 
    unsigned innerThreadCount = 2;
-   if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER &&
-      BlockDataManagerConfig::getOperationMode() != OPERATION_UNITTEST)
+   if (Armory::Config::DBSettings::getDbType() == ARMORY_DB_SUPER &&
+      Armory::Config::DBSettings::getServiceType() != SERVICE_UNITTEST)
       innerThreadCount = thread::hardware_concurrency();
    for (unsigned i = 0; i < innerThreadCount; i++)
    {
@@ -2537,8 +2525,8 @@ void Clients::bdvMaintenanceThread()
 ///////////////////////////////////////////////////////////////////////////////
 void Clients::processShutdownCommand(shared_ptr<StaticCommand> command)
 {
-   auto& thisCookie = bdmT_->bdm()->config().cookie_;
-   if (thisCookie.size() == 0)
+   const auto& thisCookie = Armory::Config::NetworkSettings::cookie();
+   if (thisCookie.empty())
       return;
 
    try
@@ -2665,7 +2653,7 @@ shared_ptr<Message> Clients::registerBDV(
          throw runtime_error("invalid command for registerBDV");
       auto& magic_word = command->magicword();
       BinaryDataRef magic_word_ref; magic_word_ref.setRef(magic_word);
-      auto& thisMagicWord = NetworkConfig::getMagicBytes();
+      auto& thisMagicWord = Armory::Config::BitcoinSettings::getMagicBytes();
 
       if (thisMagicWord != magic_word_ref)
          throw runtime_error("magic word mismatch");
@@ -3103,7 +3091,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
 
       vector<BinaryDataRef> rawZcVec;
       rawZcVec.reserve(message->bindata_size());
-      for (unsigned i=0; i<message->bindata_size(); i++)
+      for (int i=0; i<message->bindata_size(); i++)
       {
          const auto& rawTx = message->bindata(i);
          if (rawTx.size() == 0)
@@ -3317,7 +3305,7 @@ shared_ptr<Message> Clients::processCommand(shared_ptr<BDV_Payload> payload)
       }
       else
       {
-         for (unsigned i=0; i<message->bindata_size(); i++)
+         for (int i=0; i<message->bindata_size(); i++)
          {
             const auto& scrAddrProto = message->bindata(i);
             if (scrAddrProto.size() == 0 || scrAddrProto.size() > 50)

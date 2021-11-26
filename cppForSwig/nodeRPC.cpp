@@ -9,7 +9,7 @@
 #include "ArmoryErrors.h"
 #include "nodeRPC.h"
 #include "DBUtils.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "SocketWritePayload.h"
 
 #ifdef _WIN32
@@ -19,6 +19,8 @@
 #endif
 
 using namespace std;
+using namespace CoreRPC;
+using namespace Armory::Config;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -29,11 +31,11 @@ NodeRPCInterface::~NodeRPCInterface()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
-const NodeChainState& NodeRPCInterface::getChainStatus(void) const
+const NodeChainStatus& NodeRPCInterface::getChainStatus(void) const
 {
    ReentrantLock lock(this);
    
-   return nodeChainState_;
+   return nodeChainStatus_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,9 +59,7 @@ map<unsigned, FeeEstimateResult> NodeRPCInterface::getFeeSchedule(
 // NodeRPC
 //
 ////////////////////////////////////////////////////////////////////////////////
-NodeRPC::NodeRPC(
-   BlockDataManagerConfig& config) :
-   bdmConfig_(config)
+NodeRPC::NodeRPC()
 {
    //start fee estimate polling thread
    auto pollLbd = [this](void)->void
@@ -107,11 +107,11 @@ void NodeRPC::resetAuthString()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-RpcStatus NodeRPC::testConnection()
+RpcState NodeRPC::testConnection()
 {
    ReentrantLock lock(this);
 
-   RpcStatus state = RpcStatus_Disabled;
+   RpcState state = RpcState_Disabled;
    JSON_object json_obj;
    json_obj.add_pair("method", "getblockcount");
 
@@ -122,7 +122,7 @@ RpcStatus NodeRPC::testConnection()
 
       if (response_obj.isResponseValid(json_obj.id_))
       {
-         state = RpcStatus_Online;
+         state = RpcState_Online;
       }
       else
       {
@@ -138,12 +138,12 @@ RpcStatus NodeRPC::testConnection()
 
             if ((int)error_code->val_ == -28)
             {
-               state = RpcStatus_Error_28;
+               state = RpcState_Error_28;
             }
          }
          else
          {
-            state = RpcStatus_Disabled;
+            state = RpcState_Disabled;
 
             auto error_val = dynamic_pointer_cast<JSON_string>(error_ptr);
             if (error_val != nullptr)
@@ -156,16 +156,16 @@ RpcStatus NodeRPC::testConnection()
    }
    catch (RpcError&)
    {
-      state = RpcStatus_Disabled;
+      state = RpcState_Disabled;
    }
    catch (SocketError&)
    {
-      state = RpcStatus_Disabled;
+      state = RpcState_Disabled;
    }
    catch (JSON_Exception& e)
    {
       LOGERR << "RPC connection test error: " << e.what();
-      state = RpcStatus_BadAuth;
+      state = RpcState_BadAuth;
    }
 
    return state;
@@ -174,14 +174,14 @@ RpcStatus NodeRPC::testConnection()
 ////////////////////////////////////////////////////////////////////////////////
 string NodeRPC::getDatadir()
 {
-   string datadir = bdmConfig_.blkFileLocation_;
-   auto len = bdmConfig_.blkFileLocation_.size();
+   string datadir = Pathing::blkFilePath();
+   auto len = datadir.size();
 
    if (len >= 6)
    {
-      auto&& term = bdmConfig_.blkFileLocation_.substr(len - 6, 6);
+      auto&& term = datadir.substr(len - 6, 6);
       if (term == "blocks")
-         datadir = bdmConfig_.blkFileLocation_.substr(0, len - 6);
+         datadir = datadir.substr(0, len - 6);
    }
 
    return datadir;
@@ -198,13 +198,13 @@ string NodeRPC::getAuthString()
    auto getAuthStringFromCookieFile = [&datadir](void)->string
    {
       DBUtils::appendPath(datadir, ".cookie");
-      auto&& lines = BlockDataManagerConfig::getLines(datadir);
+      auto&& lines = SettingsUtils::getLines(datadir);
       if (lines.size() != 1)
       {
          throw runtime_error("unexpected cookie file content");
       }
 
-      auto&& keyVals = BlockDataManagerConfig::getKeyValsFromLines(lines, ':');
+      auto&& keyVals = SettingsUtils::getKeyValsFromLines(lines, ':');
       auto keyIter = keyVals.find("__cookie__");
       if (keyIter == keyVals.end())
       {
@@ -217,8 +217,8 @@ string NodeRPC::getAuthString()
    //open and parse .conf file
    try
    {
-      auto&& lines = BlockDataManagerConfig::getLines(confPath);
-      auto&& keyVals = BlockDataManagerConfig::getKeyValsFromLines(lines, '=');
+      auto&& lines = SettingsUtils::getLines(confPath);
+      auto&& keyVals = SettingsUtils::getKeyValsFromLines(lines, '=');
       
       //get rpcuser
       auto userIter = keyVals.find("rpcuser");
@@ -381,7 +381,7 @@ void NodeRPC::aggregateFeeEstimates()
    static vector<string> strategies = { 
       FEE_STRAT_CONSERVATIVE, FEE_STRAT_ECONOMICAL };
 
-   HttpSocket sock("127.0.0.1", bdmConfig_.rpcPort_);
+   HttpSocket sock("127.0.0.1", NetworkSettings::rpcPort());
    if (!setupConnection(sock))
       throw RpcError("aggregateFeeEstimates: failed to setup RPC socket");
 
@@ -459,25 +459,25 @@ bool NodeRPC::updateChainStatus(void)
    if (time_val == nullptr)
       throw JSON_Exception("invalid response");
 
-   nodeChainState_.appendHeightAndTime(height_val->val_, time_val->val_);
+   nodeChainStatus_.appendHeightAndTime(height_val->val_, time_val->val_);
 
    //figure out state
-   return nodeChainState_.processState(getblockchaininfo_object);
+   return nodeChainStatus_.processState(getblockchaininfo_object);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void NodeRPC::waitOnChainSync(function<void(void)> callbck)
 {
-   nodeChainState_.reset();
+   nodeChainStatus_.reset();
    callbck();
 
    while (1)
    {
       //keep trying as long as the node is initializing
-      auto status = testConnection();
-      if (status != RpcStatus_Error_28)
+      auto state = testConnection();
+      if (state != RpcState_Error_28)
       {
-         if (status != RpcStatus_Online)
+         if (state != RpcState_Online)
             return;
 
          break;
@@ -500,15 +500,15 @@ void NodeRPC::waitOnChainSync(function<void(void)> callbck)
             callbck();
 
          auto& chainStatus = getChainStatus();
-         if (chainStatus.state() == ChainStatus_Ready)
+         if (chainStatus.state() == ChainState_Ready)
             break;
       
          blkSpeed = chainStatus.getBlockSpeed();
       }
       catch (...)
       {
-         auto status = testConnection();
-         if (status == RpcStatus_Online)
+         auto state = testConnection();
+         if (state == RpcState_Online)
             throw runtime_error("unsupported RPC method");
       }
 
@@ -610,7 +610,7 @@ void NodeRPC::shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 string NodeRPC::queryRPC(JSON_object& request)
 {
-   HttpSocket sock("127.0.0.1", bdmConfig_.rpcPort_);
+   HttpSocket sock("127.0.0.1", NetworkSettings::rpcPort());
    if (!setupConnection(sock))
       throw RpcError("node_down");
 
@@ -667,7 +667,7 @@ void NodeRPC::pollThread()
             if (doCallback)
                callback();
 
-            if (rpcState == RpcStatus_Online)
+            if (rpcState == RpcState_Online)
             {
                LOGINFO << "RPC connection established";
                status = true;
@@ -717,13 +717,13 @@ NodeRPC::~NodeRPC()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-// NodeChainState
+// NodeChainStatus
 //
 ////////////////////////////////////////////////////////////////////////////////
-bool ::NodeChainState::processState(
+bool NodeChainStatus::processState(
    shared_ptr<JSON_object> const getblockchaininfo_obj)
 {
-   if (state_ == ChainStatus_Ready)
+   if (state_ == ChainState_Ready)
       return false;
 
    //progress status
@@ -743,7 +743,7 @@ bool ::NodeChainState::processState(
 
    if (pct_ >= 0.9995)
    {
-      state_ = ChainStatus_Ready;
+      state_ = ChainState_Ready;
       return true;
    }
 
@@ -759,7 +759,7 @@ bool ::NodeChainState::processState(
       diff = now - blocktime;
 
    //we got this far, node is still syncing, let's compute progress and eta
-   state_ = ChainStatus_Syncing;
+   state_ = ChainState_Syncing;
 
    //average amount of blocks left to sync based on timestamp diff
    auto blocksLeft = diff / 600;
@@ -788,7 +788,7 @@ bool ::NodeChainState::processState(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unsigned ::NodeChainState::getTopBlock() const
+unsigned NodeChainStatus::getTopBlock() const
 {
    if (heightTimeVec_.size() == 0)
       throw runtime_error("");
@@ -797,7 +797,7 @@ unsigned ::NodeChainState::getTopBlock() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ::NodeChainState::appendHeightAndTime(unsigned height, uint64_t timestamp)
+void NodeChainStatus::appendHeightAndTime(unsigned height, uint64_t timestamp)
 {
    try
    {
@@ -816,10 +816,10 @@ void ::NodeChainState::appendHeightAndTime(unsigned height, uint64_t timestamp)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ::NodeChainState::reset()
+void NodeChainStatus::reset()
 {
    heightTimeVec_.clear();
-   state_ = ChainStatus_Unknown;
+   state_ = ChainState_Unknown;
    blockSpeed_ = 0.0f;
    eta_ = 0;
 }

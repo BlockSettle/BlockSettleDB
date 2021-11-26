@@ -181,7 +181,21 @@ public:
       if (theTx.usesWitness_)
          setFlags(SCRIPT_VERIFY_SEGWIT);
    }
-   
+
+   TransactionVerifier(
+      const BCTX& theTx, const std::vector<UTXO>& utxoVec) :
+      theTx_(theTx)
+   {
+      for (auto& utxo : utxoVec)
+      {
+         auto& inner_map = utxos_[utxo.getTxHash()];
+         inner_map.insert(std::make_pair(utxo.getTxOutIndex(), utxo));
+      }
+
+      if (theTx.usesWitness_)
+         setFlags(SCRIPT_VERIFY_SEGWIT);
+   }
+
    bool verify(bool noCatch = true, bool strict = true) const;
    TxEvalState evaluateState(bool strict = true) const;
 

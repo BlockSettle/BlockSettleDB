@@ -138,10 +138,7 @@ public:
       txPtr->version_ = READ_UINT32_LE(data);
 
       // Check the marker and flag for witness transaction
-      auto brrPtr = data + 4;
-      auto marker = (const uint16_t*)brrPtr;
-      if (*marker == 0x0100)
-         txPtr->usesWitness_ = true;
+      txPtr->usesWitness_ = BtcUtils::checkSwMarker(data + 4);
 
       //convert offsets to offset + size pairs
       for (unsigned int y = 0; y < offsetIns.size() - 1; y++)

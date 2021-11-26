@@ -59,24 +59,30 @@ uint64_t TransactionVerifier::checkOutputs() const
    uint64_t spendVal = 0;
    for (auto& txout : theTx_.txouts_)
    {
-      auto val = (uint64_t*)(theTx_.data_ + txout.first);
-      spendVal += *val;
+      //memcpy should TBAA optimized by compiler
+      uint64_t val;
+      memcpy(&val, theTx_.data_ + txout.first, sizeof(uint64_t));
+      spendVal += val;
    }
 
    //tally input val
    uint64_t inputVal = 0;
    for (auto& txin : theTx_.txins_)
    {
-      //grab outpoint
+      //grab outpoint hash
       BinaryDataRef opHashRef(theTx_.data_ + txin.first, 32);
-      auto opId = (uint32_t*)(theTx_.data_ + txin.first + 32);
 
-      //find utxo
+      //look for the utxo's hash
       auto hashIter = utxos_.find(opHashRef);
       if (hashIter == utxos_.end())
          throw runtime_error("cannot verify tx cause a utxo is missing");
 
-      auto idIter = hashIter->second.find(*opId);
+      //grab outpoint id, should be TBAA optimized
+      uint32_t opId;
+      memcpy(&opId, theTx_.data_ + txin.first + 32, sizeof(uint32_t));
+
+      //look for this id amoung the utxos matching the tx hash
+      auto idIter = hashIter->second.find(opId);
       if (idIter == hashIter->second.end())
          throw runtime_error("cannot verify tx cause a utxo is missing");
 
@@ -103,7 +109,7 @@ void TransactionVerifier::checkSigs() const
       }
       catch (exception&)
       {}
-         
+
       txEvalState_.updateState(i, stack_ptr->getTxInEvalState());
    }
 }
@@ -128,7 +134,7 @@ unique_ptr<StackInterpreter> TransactionVerifier::getStackInterpreter(
    auto flags = sstack->getFlags();
    flags |= flags_;
    sstack->setFlags(flags);
-   return move(sstack);
+   return sstack;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,8 +224,14 @@ vector<TxInData> TransactionVerifier::getTxInsData(void) const
 
       TxInData data;
       data.outputHash_ = txinref.getSliceRef(0, 32);
-      data.outputIndex_ = *(uint32_t*)(txinref.getPtr() + 32);
-      data.sequence_ = *(uint32_t*)(txinref.getPtr() + txinref.getSize() - 4);
+
+      memcpy(&data.outputIndex_,
+         txinref.getPtr() + 32,
+         sizeof(uint32_t));
+
+      memcpy(&data.sequence_,
+         txinref.getPtr() + txinref.getSize() - 4,
+         sizeof(uint32_t));
 
       datavec.push_back(move(data));
    }
@@ -304,7 +316,8 @@ uint64_t TransactionVerifier::getOutpointValue(unsigned inputID) const
    auto outpoint = getOutpoint(inputID);
 
    auto&& outputHash = outpoint.getSliceRef(0, 32);
-   auto outputIndex = *(uint32_t*)(outpoint.getPtr() + 32);
+   uint32_t outputIndex;
+   memcpy(&outputIndex, outpoint.getPtr() + 32, sizeof(uint32_t));
 
    auto utxoIter = utxos_.find(outputHash);
    if (utxoIter == utxos_.end())
@@ -326,8 +339,9 @@ unsigned TransactionVerifier::getTxInSequence(unsigned inputID) const
    auto& inputOnS = theTx_.txins_[inputID];
    auto sequenceOffset = inputOnS.first + inputOnS.second - 4;
 
-   auto sequence = (unsigned*)(theTx_.data_ + sequenceOffset);
-   return *sequence;
+   uint32_t sequence;
+   memcpy(&sequence, theTx_.data_ + sequenceOffset, sizeof(uint32_t));
+   return sequence;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

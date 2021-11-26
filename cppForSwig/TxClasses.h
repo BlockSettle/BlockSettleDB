@@ -301,6 +301,7 @@ public:
    // These are not pointers to persistent object, these methods actually 
    // CREATES the TxIn/TxOut.  But the construction is fast, so it's
    // okay to do it on the fly
+   //TODO: convert to pointer/reference instaed of copy
    TxIn     getTxInCopy(int i) const;
    TxOut    getTxOutCopy(int i) const;
 
@@ -471,7 +472,7 @@ struct UTXO
       return false;
    }
 
-   bool isInitialized(void) const { return script_.getSize() > 0; }
+   bool isInitialized(void) const { return !script_.empty(); }
 
    void toProtobuf(Codec_Utxo::Utxo&) const;
    static UTXO fromProtobuf(const Codec_Utxo::Utxo&);

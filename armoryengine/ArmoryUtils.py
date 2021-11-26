@@ -30,7 +30,6 @@ import multiprocessing
 import optparse
 import os
 import platform
-from PyQt4.QtCore import QByteArray
 import random
 import signal
 import smtplib
@@ -44,9 +43,6 @@ import base64
 import socket
 import subprocess
 import binascii
-
-#from psutil import Popen
-import psutil
 
 try:
    if os.path.exists('update_version.py') and os.path.exists('.git'):
@@ -70,7 +66,7 @@ LEVELDB_HEADERS = 'leveldb_headers'
 
 # Version Numbers
 BTCARMORY_VERSION    = (0, 96, 99, 0)  # (Major, Minor, Bugfix, AutoIncrement)
-PYBTCWALLET_VERSION  = (1, 35,  0, 0)  # (Major, Minor, Bugfix, AutoIncrement)
+PYBTCWALLET_VERSION  = (1, 99,  0, 0)  # (Major, Minor, Bugfix, AutoIncrement)
 
 # ARMORY_DONATION_ADDR = '1ArmoryXcfq7TnCSuZa9fQjRYwJ4bkRKfv'
 # ARMORY_DONATION_PUBKEY = ( '04'
@@ -347,8 +343,9 @@ if OS_WINDOWS:
    BLKFILE_DIR     = os.path.join(BTC_HOME_DIR, 'blocks')
    BLKFILE_1stFILE = os.path.join(BLKFILE_DIR, 'blk00000.dat')
 elif OS_LINUX:
+   import distro
    OS_NAME         = 'Linux'
-   OS_VARIANT      = platform.linux_distribution()
+   OS_VARIANT      = distro.linux_distribution()
    USER_HOME_DIR   = os.getenv('HOME')
    
    if BTC_HOME_DIR == '':
@@ -627,8 +624,15 @@ CPP_TXIN_SCRIPT_NAMES[CPP_TXIN_SPENDMULTI]  = 'Spend Multisig'
 CPP_TXIN_SCRIPT_NAMES[CPP_TXIN_SPENDP2SH]   = 'Spend P2SH'
 CPP_TXIN_SCRIPT_NAMES[CPP_TXIN_NONSTANDARD] = 'Non-Standard'
 
-#default address type
-DEFAULT_ADDR_TYPE = 'P2PKH'
+#address types, copied from cppForSwig/Wallets/Addresses.h
+AddressEntryType_Default = 0
+AddressEntryType_P2PKH = 1
+AddressEntryType_P2PK = 2
+AddressEntryType_P2WPKH = 3
+AddressEntryType_Multisig = 4
+AddressEntryType_Uncompressed = 0x10000000
+AddressEntryType_P2SH = 0x40000000
+AddressEntryType_P2WSH = 0x80000000
 
 ################################################################################
 if not CLI_OPTIONS.satoshiPort == DEFAULT:
@@ -718,95 +722,6 @@ def launchProcess(cmd, useStartInfo=True, *args, **kwargs):
                      stdout=PIPE, \
                      stderr=PIPE, \
                      **kwargs)
-
-
-################################################################################
-def killProcess(pid, sig='default'):
-   # I had to do this, because killing a process in Windows has issues
-   # when using py2exe (yes, os.kill does not work, for the same reason
-   # I had to pass stdin/stdout/stderr everywhere...
-   LOGWARN('Killing process pid=%d', pid)
-   if not OS_WINDOWS:
-      import os
-      sig = signal.SIGKILL if sig=='default' else sig
-      os.kill(pid, sig)
-   else:
-      import sys, os.path, ctypes, ctypes.wintypes
-      k32 = ctypes.WinDLL('kernel32.dll')
-      k32.OpenProcess.restype = ctypes.wintypes.HANDLE
-      k32.TerminateProcess.restype = ctypes.wintypes.BOOL
-      hProcess = k32.OpenProcess(1, False, pid)
-      k32.TerminateProcess(hProcess, 1)
-      k32.CloseHandle(hProcess)
-
-
-
-################################################################################
-def subprocess_check_output(*popenargs, **kwargs):
-   """
-   Run command with arguments and return its output as a byte string.
-   Backported from Python 2.7, because it's stupid useful, short, and
-   won't exist on systems using Python 2.6 or earlier
-   """
-   if not OS_WINDOWS:
-      from subprocess import CalledProcessError
-   else:
-      from subprocess_win import CalledProcessError
-
-   process = launchProcess(*popenargs, **kwargs)
-   output, unused_err = process.communicate()
-   retcode = process.poll()
-   if retcode:
-      cmd = kwargs.get("args")
-      if cmd is None:
-         cmd = popenargs[0]
-      error = CalledProcessError(retcode, cmd)
-      error.output = output
-      raise error
-   return output
-
-
-################################################################################
-def killProcessTree(pid):
-   # In this case, Windows is easier because we know it has the get_children
-   # call, because have bundled a recent version of psutil.  Linux, however,
-   # does not have that function call in earlier versions.
-   if not OS_WINDOWS:
-      from subprocess import Popen, PIPE
-   else:
-      from subprocess_win import Popen, PIPE
-
-   if not OS_LINUX:
-      for child in psutil.Process(pid).get_children():
-         killProcess(child.pid)
-   else:
-      proc = Popen("ps -o pid --ppid %d --noheaders" % pid, shell=True, stdout=PIPE)
-      out,err = proc.communicate()
-      for pid_str in out.split("\n")[:-1]:
-         killProcess(int(pid_str))
-
-
-################################################################################
-# Similar to subprocess_check_output, but used for long-running commands
-def execAndWait(cli_str, timeout=0, useStartInfo=True):
-   """
-   There may actually still be references to this function where check_output
-   would've been more appropriate.  But I didn't know about check_output at
-   the time...
-   """
-
-   process = launchProcess(cli_str, shell=True, useStartInfo=useStartInfo)
-   pid = process.pid
-   start = RightNow()
-   while process.poll() == None:
-      time.sleep(0.1)
-      if timeout>0 and (RightNow() - start)>timeout:
-         print('Process exceeded timeout, killing it')
-         killProcess(pid)
-   out,err = process.communicate()
-   return [out,err]
-
-
 
 
 #########  INITIALIZE LOGGING UTILITIES  ##########
@@ -1122,43 +1037,6 @@ if CLI_OPTIONS.useTorSettings:
    CLI_OPTIONS.skipStatsReport = True
    CLI_OPTIONS.forceOnline = True
 
-
-
-################################################################################
-def addWalletToList(inWltPath, inWltList):
-   '''Helper function that checks to see if a path contains a valid wallet. If
-      so, the wallet will be added to the incoming list.'''
-   if os.path.isfile(inWltPath):
-      if not inWltPath.endswith('backup.wallet'):
-         openfile = open(inWltPath, 'rb')
-         first8 = openfile.read(8)
-         openfile.close()
-         if first8=='\xbaWALLET\x00':
-            inWltList.append(inWltPath)
-   else:
-      if not os.path.isdir(inWltPath):
-         LOGWARN('Path %s does not exist.' % inWltPath)
-      else:
-         LOGDEBUG('%s is a directory.' % inWltPath)
-
-
-################################################################################
-def readWalletFiles(inWltList=None):
-   '''Function that finds the paths of all non-backup wallets in the Armory
-      data directory (nothing passed in) or in a list of wallet paths (paths
-      passed in.'''
-   wltPaths = []
-
-   if not inWltList:
-      for f in os.listdir(ARMORY_HOME_DIR):
-         fullPath = os.path.join(ARMORY_HOME_DIR, f)
-         addWalletToList(fullPath, wltPaths)
-   else:
-      for w in inWltList:
-         addWalletToList(w, wltPaths)
-
-   return wltPaths
-
 ################################################################################
 # Get system details for logging purposes
 class DumbStruct(object): pass
@@ -1173,17 +1051,17 @@ def GetSystemDetails():
    out.Machine  = platform.machine().lower()
    if OS_LINUX:
       # Get total RAM
-      freeStr = subprocess_check_output('free -m', shell=True)
-      totalMemory = freeStr.split(b'\n')[1].split()[1]
-      out.Memory = int(totalMemory) * 1024
+      #freeStr = subprocess_check_output('free -m', shell=True)
+      #totalMemory = freeStr.split(b'\n')[1].split()[1]
+      out.Memory = 0 #int(totalMemory) * 1024
 
       # Get CPU name
       out.CpuStr = 'Unknown'
-      cpuinfo = subprocess_check_output(['cat','/proc/cpuinfo'])
-      for line in cpuinfo.split(b'\n'):
-         if line.strip().lower().startswith(b'model name'):
-            out.CpuStr = line.split(b':')[1].strip()
-            break
+      #cpuinfo = subprocess_check_output(['cat','/proc/cpuinfo'])
+      #for line in cpuinfo.split(b'\n'):
+      #   if line.strip().lower().startswith(b'model name'):
+      #      out.CpuStr = str(line.split(b':')[1].strip())
+      #      break
 
 
    elif OS_WINDOWS:
@@ -1278,7 +1156,7 @@ LOGINFO('   Satoshi BTC directory : ' + BTC_HOME_DIR)
 LOGINFO('   Armory home dir       : ' + ARMORY_HOME_DIR)
 LOGINFO('Detected System Specs    : ')
 LOGINFO('   Total Available RAM   : %0.2f GB', SystemSpecs.Memory)
-LOGINFO('   CPU ID string         : ' + SystemSpecs.CpuStr.decode(encoding='UTF-8'))
+LOGINFO('   CPU ID string         : ' + SystemSpecs.CpuStr)
 LOGINFO('   Number of CPU cores   : %d cores', SystemSpecs.NumCores)
 LOGINFO('   System is 64-bit      : ' + str(SystemSpecs.IsX64))
 LOGINFO('   Preferred Encoding    : ' + prefEnc)
@@ -1323,6 +1201,7 @@ def GetExecDir():
 
 
 
+################################################################################
 def coin2str(nSatoshi, ndec=8, rJust=True, maxZeros=8):
    """
    Converts a raw value (1e-8 BTC) into a formatted string for display
@@ -1354,7 +1233,6 @@ def coin2str(nSatoshi, ndec=8, rJust=True, maxZeros=8):
 
    return s
 
-
 def coin2strNZ(nSatoshi):
    """ Right-justified, minimum zeros, but with padding for alignment"""
    return coin2str(nSatoshi, 8, True, 0)
@@ -1374,7 +1252,6 @@ def coin2str_approx(nSatoshi, sigfig=3):
    nChop = max(nDig-2, 0 )
    approxVal = round((10**nChop) * round(posVal / (10**nChop)))
    return coin2str( (-1 if isNeg else 1)*approxVal,  maxZeros=0)
-
 
 def str2coin(theStr, negAllowed=True, maxDec=8, roundHighPrec=True):
    coinStr = str(theStr)
@@ -1399,7 +1276,6 @@ def str2coin(theStr, negAllowed=True, maxDec=8, roundHighPrec=True):
       return fullInt*(-1 if isNeg else 1)
 
 
-
 ################################################################################
 def makeAsciiBlock(binStr, headStr='', wid=64, newline='\n'):
    # Convert the raw chunk of binary data
@@ -1407,7 +1283,8 @@ def makeAsciiBlock(binStr, headStr='', wid=64, newline='\n'):
    sz = len(b64Data)
    firstLine = '=====%s' % headStr
    lines = [firstLine.ljust(wid, '=')]
-   lines.extend([b64Data[wid*i:wid*(i+1)] for i in range(int((sz-1)/wid)+1)])
+   lines.extend([b64Data[wid*i:wid*(i+1)].decode('ascii') \
+      for i in range(int((sz-1)/wid)+1)])
    lines.append("="*wid)
    return newline.join(lines)
 
@@ -1417,7 +1294,7 @@ def readAsciiBlock(ablock, headStr=''):
    headStr = ''
    rawData = None
 
-   # Contiue only if we actually get data.
+   # Continue only if we actually get data.
    if len(ablock) > 0:
       lines = ablock.strip().split()
       if not lines[0].startswith('=====%s' % headStr) or \
@@ -1677,6 +1554,55 @@ def addrStr_to_script(addrStr):
    return scrAddr_to_script(addrStr_to_scrAddr(addrStr))
 
 ################################################################################
+# output script type to address type resolution
+def getAddressTypeForOutputType(scriptType):
+   if scriptType == CPP_TXOUT_STDHASH160:
+      return AddressEntryType_P2PKH
+
+   elif scriptType == CPP_TXOUT_STDPUBKEY33:
+      return AddressEntryType_P2PK
+
+   elif scriptType == CPP_TXOUT_STDPUBKEY65:
+      return AddressEntryType_P2PK + AddressEntryType_Uncompressed
+
+   elif scriptType == CPP_TXOUT_MULTISIG:
+      return AddressEntryType_Multisig
+
+   elif scriptType == CPP_TXOUT_P2SH:
+      return AddressEntryType_P2SH
+
+   elif scriptType == CPP_TXOUT_P2WPKH:
+      return AddressEntryType_P2WPKH
+
+   elif scriptType == CPP_TXOUT_P2WSH:
+      return AddressEntryType_P2WSH
+
+   raise Exception("unknown address type")
+
+################################################################################
+def addrTypeInSet(addrType, addrTypeSet):
+   if addrType in addrTypeSet:
+      return True
+
+   def nestedSearch(nestedType):
+      if not (addrType & nestedType):
+         return False
+
+      for aType in addrTypeSet:
+         if aType & nestedType:
+            return True
+      return False
+
+   #couldn't find an exact address type match, try to filter by nested types
+   if nestedSearch(AddressEntryType_P2SH):
+      return True
+
+   if nestedSearch(AddressEntryType_P2WSH):
+      return True
+
+   return False
+
+################################################################################
 # We need to have some methods for casting ASCII<->Unicode<->Preferred
 DEFAULT_ENCODING = 'utf-8'
 
@@ -1810,16 +1736,6 @@ def HexHash160ToScrAddr(a160):
       LOGERROR('Invalid hash160 value!')
    return HASH160PREFIX + hex_to_binary(a160)
 
-# Some more constants that are needed to play nice with the C++ utilities
-ARMORY_DB_BARE = 0
-ARMORY_DB_LITE = 1
-ARMORY_DB_PARTIAL = 2
-ARMORY_DB_FULL = 3
-ARMORY_DB_SUPER = 4
-DB_PRUNE_ALL = 0
-DB_PRUNE_NONE = 1
-
-
 # Some time methods (RightNow() return local unix timestamp)
 RightNow = time.time
 def RightNowUTC():
@@ -1837,7 +1753,7 @@ def RightNowStr(fmt=DEFAULT_DATE_FORMAT):
 def sha1(bits):
    return hashlib.new('sha1', bits).digest()
 def sha256(bits):
-   return hashlib.new('sha256', str(bits).encode('utf-8')).digest()
+   return hashlib.new('sha256', bits).digest()
 def sha512(bits):
    return hashlib.new('sha512', bits).digest()
 def ripemd160(bits):
@@ -3386,6 +3302,17 @@ def decompressPK(inKey, inStr=False):
       outKey = binary_to_hex(outKey)
    return outKey
 
+################################################################################
+class BlockComponent(object):
+
+   def copy(self):
+      return self.__class__().unserialize(self.serialize())
+
+   def serialize(self):
+      raise NotImplementedError
+
+   def unserialize(self):
+      raise NotImplementedError
 
 ################################################################################
 # Function that can be used to send an e-mail to multiple recipients.
@@ -3544,6 +3471,8 @@ class SettingsFile(object):
       for key,val in self.settingsMap.items():
          try:
             # Skip anything that throws an exception
+            from PySide2.QtCore import QByteArray
+
             valStr = ''
             if   isinstance(val, str):
                valStr = val
@@ -3634,11 +3563,40 @@ def touchFile(fname):
       os.fsync(f.fileno())
       f.close()
 
+################################################################################
+def calcLockboxID(script=None, scraddr=None):
+   # ScrAddr is "Script/Address" and for multisig it is 0xfe followed by
+   # M and N, then the SORTED hash160 values of the public keys
+   # Part of the reason for using "ScrAddrs" is to bundle together
+   # different scripts that have the same effective signing authority.
+   # Different sortings of the same public key list have same signing
+   # authority and therefore should have the same ScrAddr
+
+   if script is not None:
+      scrType = getTxOutScriptType(script)
+      if not scrType==CPP_TXOUT_MULTISIG:
+         LOGERROR('Not a multisig script!')
+         return None
+      scraddr = script_to_scrAddr(script)
+
+   if not scraddr.startswith(SCRADDR_MULTISIG_BYTE):
+      LOGERROR('ScrAddr is not a multisig script!')
+      return None
+
+   hashedData = hash160(MAGIC_BYTES + scraddr)
+   return binary_to_base58(hashedData)[1:9]
+
+
+################################################################################
+def getNameForAddrType(addrType):
+   from armoryengine.CppBridge import TheBridge
+   return TheBridge.getNameForAddrType(addrType)
+
 #################
 # bridge setup
 #################
 
-def startBridge():
+def startBridge(notifyReadyCB):
    from armoryengine.CppBridge import TheBridge
 
    #gather cli args for bridge
@@ -3661,9 +3619,9 @@ def startBridge():
    #enforce --public for now
    bridgeArgs.append(["public", ""])
 
-   #offline 
+   #offline
    if CLI_OPTIONS.offline:
-      bridgeArgs.append(["offline", ""])      
+      bridgeArgs.append(["offline", ""])
 
    stringArgs = ""
    for argPair in bridgeArgs:
@@ -3674,4 +3632,4 @@ def startBridge():
          stringArgs += argPair[1]
 
    #set bridge
-   TheBridge.start(stringArgs)
+   TheBridge.start(stringArgs, notifyReadyCB)

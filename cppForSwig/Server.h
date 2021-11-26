@@ -22,7 +22,7 @@
 #include "BDV_Notification.h"
 #include "BinaryData.h"
 #include "EncryptionUtils.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "SocketService.h"
 #include "AuthorizedPeers.h"
 

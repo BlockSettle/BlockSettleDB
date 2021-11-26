@@ -9,6 +9,7 @@
 #include "ArmoryBackups.h"
 #include "EncryptionUtils.h"
 #include "BtcUtils.h"
+#include "Wallets/WalletIdTypes.h"
 
 #define EASY16_CHECKSUM_LEN 2
 #define EASY16_INDEX_MAX   15
@@ -223,7 +224,7 @@ BackupEasy16DecodeResult BackupEasy16::decode(const vector<BinaryDataRef>& lines
       auto ptr = line.toCharPtr();
 
       unsigned i=0;
-      for (i; i<line.getSize() - (EASY16_CHECKSUM_LEN * 2); i++)
+      for (; i<line.getSize() - (EASY16_CHECKSUM_LEN * 2); i++)
       {
          //skip spaces
          if (!checkSpace(ptr + i))
@@ -245,7 +246,7 @@ BackupEasy16DecodeResult BackupEasy16::decode(const vector<BinaryDataRef>& lines
       checksum.resize(EASY16_CHECKSUM_LEN);
       uint8_t* checksumPtr = checksum.getPtr();
       size_t checksumLen = 0;
-      for (i; i<line.getSize(); i++)
+      for (; i<line.getSize(); i++)
       {
          //skip spaces
          if (!checkSpace(ptr + i))
@@ -282,7 +283,7 @@ BackupEasy16DecodeResult BackupEasy16::decode(const vector<BinaryDataRef>& lines
 
       pos += len;
 
-      switch (result)      
+      switch (result)
       {
       case -1: //could not match checksum
       case -2: //invalid checksum length
@@ -771,7 +772,8 @@ WalletRootData Helpers::getRootData(
 {
    WalletRootData rootData;
    rootData.wltId_ = wltSingle->getID();
-   const auto& root = wltSingle->getRoot();
+   auto root = dynamic_pointer_cast<AssetEntry_Single>(
+      wltSingle->getRoot());
 
    //lock wallet
    auto lock = wltSingle->lockDecryptedContainer();
@@ -1068,7 +1070,7 @@ shared_ptr<AssetWallet> Helpers::restoreFromBackup(
 
       auto pubkey = CryptoECDSA().ComputePublicKey(root);
       auto asset_single = make_shared<AssetEntry_Single>(
-         ROOT_ASSETENTRY_ID, BinaryData(), pubkey, nullptr);
+         Armory::Wallets::AssetId::getRootAssetId(), pubkey, nullptr);
 
       return AssetWallet_Single::computeWalletID(derScheme, asset_single);
    };
