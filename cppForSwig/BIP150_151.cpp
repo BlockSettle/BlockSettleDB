@@ -541,7 +541,7 @@ void BIP151Session::gettempECDHPubKey(btc_pubkey* tempECDHPubKey)
 {
    if(ecdhPubKeyGenerated_ == false)
    {
-      btc_pubkey_from_key(&genSymECDHPrivKey_, tempECDHPubKey);
+      btc_pubkey_from_key(&genSymECDHPrivKey_, tempECDHPubKey, true);
       ecdhPubKeyGenerated_ = true;
    }
 }

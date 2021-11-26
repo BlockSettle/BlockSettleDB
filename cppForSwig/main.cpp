@@ -9,7 +9,7 @@
 #include <string>
 #include <iostream>
 #include <sstream>
-#include "btc/ecc.h"
+#include <btc/ecc.h>
 
 #include "ArmoryConfig.h"
 #include "BDM_mainthread.h"
