@@ -17,10 +17,12 @@ Multi-signature transactions are accommodated under-the-hood about 80%, and will
 ## Building Armory From Source
 
 [Instructions for Windows](windowsbuild/Windows_build_notes.md)
+
 `build.bat Debug|Release`
 
 [Instructions for macOS](osxbuild/macOS_build_notes.md)
 [Instructions for Ubuntu and Arch Linux](linuxbuild/Linux_build_notes.md)
+
 ```
 mkdir build
 cd build
