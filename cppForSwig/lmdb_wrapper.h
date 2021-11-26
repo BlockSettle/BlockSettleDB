@@ -955,8 +955,8 @@ private:
 
    uint32_t             lowestScannedUpTo_;
 
-   ArmoryThreading::TransactionalMap<unsigned, uint8_t> validDupByHeight_;
-   ArmoryThreading::TransactionalMap<unsigned, bool> blockIDMainChainMap_;
+   Armory::Threading::TransactionalMap<unsigned, uint8_t> validDupByHeight_;
+   Armory::Threading::TransactionalMap<unsigned, bool> blockIDMainChainMap_;
 
    // In this case, a address is any TxOut script, which is usually
    // just a 25-byte script.  But this generically captures all types
@@ -966,7 +966,7 @@ private:
    std::string blkFolder_;
    const static std::set<DB_SELECT> supernodeDBs_;
 
-   ArmoryThreading::TransactionalMap<unsigned, unsigned> heightToBatchId_;
+   Armory::Threading::TransactionalMap<unsigned, unsigned> heightToBatchId_;
 };
 
 #endif

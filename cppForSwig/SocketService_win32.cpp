@@ -9,7 +9,7 @@
 #include "SocketService.h"
 
 using namespace std;
-using namespace ArmoryThreading;
+using namespace Armory::Threading;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -68,7 +68,7 @@ void SocketService::serviceSockets()
                sockStruct.sockfd_, move(sockStruct))));
          }
       }
-      catch (ArmoryThreading::IsEmpty&)
+      catch (Armory::Threading::IsEmpty&)
       {
          return;
       }

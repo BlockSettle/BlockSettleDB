@@ -33,7 +33,7 @@ private:
    notifLbd pushNotifLbd_;
    
    //id members
-   ArmoryThreading::BlockingQueue<std::string> idQueue_;
+   Armory::Threading::BlockingQueue<std::string> idQueue_;
    std::set<std::string> validIds_;
    std::mutex idMutex_;
 
@@ -73,7 +73,7 @@ struct CppBridgeSignerStruct
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-using CommandQueue = std::shared_ptr<ArmoryThreading::BlockingQueue<
+using CommandQueue = std::shared_ptr<Armory::Threading::BlockingQueue<
    ::Codec_ClientProto::ClientCommand>>;
 
 ////

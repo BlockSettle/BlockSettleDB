@@ -89,7 +89,7 @@ private:
 private:
    PacketData currentRead_;
    std::unique_ptr<HttpMessage> messageWithPrecacheHeaders_;
-   ArmoryThreading::Queue<std::shared_ptr<Socket_ReadPayload>> readStack_;
+   Armory::Threading::Queue<std::shared_ptr<Socket_ReadPayload>> readStack_;
 
 protected:
    void addReadPayload(std::shared_ptr<Socket_ReadPayload>);

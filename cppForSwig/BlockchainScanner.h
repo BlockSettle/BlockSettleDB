@@ -115,9 +115,9 @@ private:
 
    std::mutex resolverMutex_;
 
-   ArmoryThreading::BlockingQueue<std::unique_ptr<ParserBatch>> outputQueue_;
-   ArmoryThreading::BlockingQueue<std::unique_ptr<ParserBatch>> inputQueue_;
-   ArmoryThreading::BlockingQueue<std::unique_ptr<ParserBatch>> commitQueue_;
+   Armory::Threading::BlockingQueue<std::unique_ptr<ParserBatch>> outputQueue_;
+   Armory::Threading::BlockingQueue<std::unique_ptr<ParserBatch>> inputQueue_;
+   Armory::Threading::BlockingQueue<std::unique_ptr<ParserBatch>> commitQueue_;
 
    std::atomic<unsigned> completedBatches_;
 
@@ -136,7 +136,7 @@ private:
    void processFilterHitsThread(
       std::map<uint32_t, std::map<uint32_t,
       std::set<const TxFilterResults*>>>& filtersResultMap,
-      ArmoryThreading::TransactionalSet<BinaryData>& missingHashes,
+      Armory::Threading::TransactionalSet<BinaryData>& missingHashes,
       std::atomic<int>& counter, std::map<BinaryData, BinaryData>& results,
       std::function<void(size_t)> prog);
 

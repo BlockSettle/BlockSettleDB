@@ -20,7 +20,7 @@ using namespace std;
 
 using namespace ::google::protobuf;
 using namespace ::Codec_ClientProto;
-using namespace ArmoryThreading;
+using namespace Armory::Threading;
 using namespace Armory::Signer;
 using namespace ArmoryBridge;
 
@@ -45,7 +45,7 @@ CppBridge::CppBridge(const string& path, const string& dbAddr,
    dbOneWayAuth_(oneWayAuth), dbOffline_(offline)
 {
    commandWithCallbackQueue_ = make_shared<
-      ArmoryThreading::BlockingQueue<ClientCommand>>();
+      Armory::Threading::BlockingQueue<ClientCommand>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

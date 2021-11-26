@@ -224,7 +224,7 @@ namespace DBTestUtils
       };
 
    private:
-      ArmoryThreading::BlockingQueue<std::unique_ptr<BdmNotif>> actionStack_;
+      Armory::Threading::BlockingQueue<std::unique_ptr<BdmNotif>> actionStack_;
       std::deque<std::unique_ptr<BdmNotif>> actionDeque_;
       std::vector<BdmNotif> zcNotifVec_;
 

@@ -97,7 +97,7 @@ public:
    std::chrono::time_point<std::chrono::system_clock> outKeyTimePoint_;
    std::shared_ptr<std::atomic<int>> run_;
 
-   std::shared_ptr<ArmoryThreading::Queue<BinaryData>> readQueue_;
+   std::shared_ptr<Armory::Threading::Queue<BinaryData>> readQueue_;
 
 private:
    void processAEADHandshake(BinaryData);
@@ -114,27 +114,27 @@ class WebSocketServer
 {
 private:
    std::vector<std::thread> threads_;
-   ArmoryThreading::BlockingQueue<std::shared_ptr<BDV_packet>> packetQueue_;
-   ArmoryThreading::TransactionalMap<uint64_t, ClientConnection> clientStateMap_;
+   Armory::Threading::BlockingQueue<std::shared_ptr<BDV_packet>> packetQueue_;
+   Armory::Threading::TransactionalMap<uint64_t, ClientConnection> clientStateMap_;
 
    static std::atomic<WebSocketServer*> instance_;
    static std::mutex mu_;
    static std::promise<bool> shutdownPromise_;
    static std::shared_future<bool> shutdownFuture_;
    BinaryData encInitPacket_;
-   
+
    std::shared_ptr<Clients> clients_;
    std::atomic<unsigned> run_;
    std::promise<bool> isReadyProm_;
 
-   ArmoryThreading::BlockingQueue<std::unique_ptr<PendingMessage>> msgQueue_;
-   ArmoryThreading::BlockingQueue<uint64_t> clientConnectionInterruptQueue_;
+   Armory::Threading::BlockingQueue<std::unique_ptr<PendingMessage>> msgQueue_;
+   Armory::Threading::BlockingQueue<uint64_t> clientConnectionInterruptQueue_;
 
    std::shared_ptr<AuthorizedPeers> authorizedPeers_;
    std::map<struct lws*, std::list<std::list<BinaryData>>> writeMap_;
    lws_context* contextPtr_;
-   ArmoryThreading::Queue<std::pair<struct lws*, std::list<BinaryData>>> writeQueue_;
-   
+   Armory::Threading::Queue<std::pair<struct lws*, std::list<BinaryData>>> writeQueue_;
+
    std::set<struct lws*> pendingWrites_;
    std::set<struct lws*>::const_iterator pendingWritesIter_;
    
@@ -148,7 +148,7 @@ private:
    void webSocketService(int port);
    void commandThread(void);
    void setIsReady(void);
-   
+
    void prepareWriteThread(void);
 
    AuthPeersLambdas getAuthPeerLambda(void) const;

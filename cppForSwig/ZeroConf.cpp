@@ -16,7 +16,7 @@
 #include "ArmoryErrors.h"
 
 using namespace std;
-using namespace ArmoryThreading;
+using namespace Armory::Threading;
 using namespace Armory::Config;
 
 #define ZC_GETDATA_TIMEOUT_MS 60000

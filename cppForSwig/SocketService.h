@@ -31,7 +31,7 @@ private:
    std::thread thr_;
    std::atomic<bool> run_;
 
-   ArmoryThreading::Queue<SocketStruct> socketQueue_;
+   Armory::Threading::Queue<SocketStruct> socketQueue_;
 
 private:
    void serviceSockets(void);
@@ -56,7 +56,7 @@ private:
    std::thread thr_;
    std::atomic<bool> run_;
 
-   ArmoryThreading::Queue<SocketStruct> socketQueue_;
+   Armory::Threading::Queue<SocketStruct> socketQueue_;
 
 private:
    void serviceSockets(void);

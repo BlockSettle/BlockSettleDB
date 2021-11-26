@@ -79,9 +79,9 @@ private:
 
    MinedHeader header_;
 
-   ArmoryThreading::TransactionalMap<BinaryData, BinaryData> rawTxMap_;
+   Armory::Threading::TransactionalMap<BinaryData, BinaryData> rawTxMap_;
 
-   static ArmoryThreading::BlockingQueue<BinaryData> watcherInvQueue_;
+   static Armory::Threading::BlockingQueue<BinaryData> watcherInvQueue_;
    std::thread watcherThread_;
    LMDBBlockDatabase* iface_ = nullptr;
 

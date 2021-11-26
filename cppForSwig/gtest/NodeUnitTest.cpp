@@ -11,7 +11,7 @@
 #include "../Signer/Signer.h"
 
 using namespace std;
-using namespace ArmoryThreading;
+using namespace Armory::Threading;
 using namespace Armory::Signer;
 
 ////////////////////////////////////////////////////////////////////////////////
