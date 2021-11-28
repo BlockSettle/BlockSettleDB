@@ -18,25 +18,31 @@
 #include "../Wallets/Addresses.h"
 
 ////////////////////////////////////////////////////////////////////////////////
-class AssetEntry;
-class AssetEntry_Single;
-class AssetWallet;
-class AssetWallet_Single;
-
-////////////////////////////////////////////////////////////////////////////////
 namespace Armory
 {
+   namespace Assets
+   {
+      class AssetEntry;
+      class AssetEntry_Single;
+   };
+
+   namespace Wallets
+   {
+      class AssetWallet;
+      class AssetWallet_Single;
+   };
+
    namespace Signer
    {
       class ResolverFeed_AssetWalletSingle : public ResolverFeed
       {
       private:
-         std::shared_ptr<AssetWallet_Single> wltPtr_;
+         std::shared_ptr<Wallets::AssetWallet_Single> wltPtr_;
 
       protected:
          std::map<BinaryData, BinaryData> hash_to_preimage_;
          std::map<BinaryData,
-            std::shared_ptr<AssetEntry_Single>> pubkey_to_asset_;
+            std::shared_ptr<Assets::AssetEntry_Single>> pubkey_to_asset_;
          std::map<BinaryData,
             std::pair<BIP32_AssetPath, Armory::Wallets::AssetId>> bip32Paths_;
 
@@ -47,7 +53,7 @@ namespace Armory
       public:
          //tors
          ResolverFeed_AssetWalletSingle(
-            std::shared_ptr<AssetWallet_Single> wltPtr) :
+            std::shared_ptr<Wallets::AssetWallet_Single> wltPtr) :
             wltPtr_(wltPtr)
          {
             if (wltPtr_ == nullptr)
@@ -66,7 +72,7 @@ namespace Armory
          void setBip32PathForPubkey(const BinaryData& pubkey, 
             const BIP32_AssetPath& path) override;
 
-         std::pair<std::shared_ptr<AssetEntry>, AddressEntryType> 
+         std::pair<std::shared_ptr<Assets::AssetEntry>, AddressEntryType> 
             getAssetPairForKey(const BinaryData&) const;
       };
 
@@ -76,7 +82,7 @@ namespace Armory
       {
          //tors
          ResolverFeed_AssetWalletSingle_Exotic(
-            std::shared_ptr<AssetWallet_Single> wltPtr) :
+            std::shared_ptr<Wallets::AssetWallet_Single> wltPtr) :
             ResolverFeed_AssetWalletSingle(wltPtr)
          {}
 
@@ -107,20 +113,20 @@ namespace Armory
       class ResolverFeed_AssetWalletSingle_ForMultisig : public ResolverFeed
       {
       private:
-         std::shared_ptr<AssetWallet> wltPtr_;
+         std::shared_ptr<Wallets::AssetWallet> wltPtr_;
 
       protected:
          std::map<BinaryDataRef,
-            std::shared_ptr<AssetEntry_Single>> pubkey_to_asset_;
+            std::shared_ptr<Assets::AssetEntry_Single>> pubkey_to_asset_;
 
       private:
 
-         void addToMap(std::shared_ptr<AssetEntry> asset);
+         void addToMap(std::shared_ptr<Assets::AssetEntry> asset);
 
       public:
          //tors
          ResolverFeed_AssetWalletSingle_ForMultisig(
-            std::shared_ptr<AssetWallet_Single>);
+            std::shared_ptr<Wallets::AssetWallet_Single>);
 
          //virtual
          BinaryData getByVal(const BinaryData&) override;

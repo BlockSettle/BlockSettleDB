@@ -358,7 +358,13 @@ struct SelectionScoring
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class AssetWallet;
+namespace Armory
+{
+   namespace Wallets
+   {
+      class AssetWallet;
+   };
+};
 
 ////
 class CoinSelectionInstance
@@ -371,15 +377,15 @@ private:
    
    RecipientMap recipients_;
    UtxoSelection selection_;
-   std::shared_ptr<AssetWallet> const walletPtr_;
+   std::shared_ptr<Armory::Wallets::AssetWallet> const walletPtr_;
 
    std::vector<UTXO> state_utxoVec_;
    uint64_t spendableBalance_;
 
 private:
-   static void decorateUTXOs(std::shared_ptr<AssetWallet> const, std::vector<UTXO>&);
+   static void decorateUTXOs(std::shared_ptr<Armory::Wallets::AssetWallet> const, std::vector<UTXO>&);
    static std::function<std::vector<UTXO>(uint64_t)> getFetchLambdaFromWallet(
-      std::shared_ptr<AssetWallet> const, std::function<std::vector<UTXO>(uint64_t)>);
+      std::shared_ptr<Armory::Wallets::AssetWallet> const, std::function<std::vector<UTXO>(uint64_t)>);
 
    uint64_t getSpendVal(void) const;
    void checkSpendVal(uint64_t) const;
@@ -387,7 +393,7 @@ private:
    void selectUTXOs(std::vector<UTXO>&, uint64_t fee, float fee_byte, unsigned flags);
 
 public:
-   CoinSelectionInstance(std::shared_ptr<AssetWallet>, 
+   CoinSelectionInstance(std::shared_ptr<Armory::Wallets::AssetWallet>, 
       std::function<std::vector<UTXO>(uint64_t)>,
       const std::vector<AddressBookEntry>& addrBook, 
       uint64_t spendableBalance, unsigned topHeight);

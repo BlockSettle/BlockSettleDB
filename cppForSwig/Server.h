@@ -130,7 +130,7 @@ private:
    Armory::Threading::BlockingQueue<std::unique_ptr<PendingMessage>> msgQueue_;
    Armory::Threading::BlockingQueue<uint64_t> clientConnectionInterruptQueue_;
 
-   std::shared_ptr<AuthorizedPeers> authorizedPeers_;
+   std::shared_ptr<Armory::Wallets::AuthorizedPeers> authorizedPeers_;
    std::map<struct lws*, std::list<std::list<BinaryData>>> writeMap_;
    lws_context* contextPtr_;
    Armory::Threading::Queue<std::pair<struct lws*, std::list<BinaryData>>> writeQueue_;

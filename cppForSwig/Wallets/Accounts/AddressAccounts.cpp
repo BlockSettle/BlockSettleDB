@@ -7,12 +7,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "AccountTypes.h"
+#include "Assets.h"
 #include "AddressAccounts.h"
 #include "../EncryptedDB.h"
 #include "../WalletFileInterface.h"
 #include "../DecryptedDataContainer.h"
 
 using namespace std;
+using namespace Armory::Assets;
+using namespace Armory::Accounts;
 using namespace Armory::Wallets;
 
 std::string legacyChangeComment("[[ Change received ]]");
@@ -21,9 +24,8 @@ std::string legacyChangeComment("[[ Change received ]]");
 ////////////////////////////////////////////////////////////////////////////////
 //// AddressAccount
 ////////////////////////////////////////////////////////////////////////////////
-AddressAccount::AddressAccount(
-   const std::string& dbName,
-   const Armory::Wallets::AddressAccountId& id) :
+AddressAccount::AddressAccount(const std::string& dbName,
+   const AddressAccountId& id) :
    dbName_(dbName), ID_(id)
 {}
 

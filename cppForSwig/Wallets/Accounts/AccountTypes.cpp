@@ -11,6 +11,8 @@
 #include "../DecryptedDataContainer.h"
 
 using namespace std;
+using namespace Armory::Assets;
+using namespace Armory::Accounts;
 using namespace Armory::Wallets;
 
 #define ARMORY135_PRIVKEY_PREFIX    1

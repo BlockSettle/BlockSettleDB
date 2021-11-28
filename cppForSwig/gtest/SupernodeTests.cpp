@@ -15,6 +15,8 @@
 using namespace std;
 using namespace Armory::Signer;
 using namespace Armory::Config;
+using namespace Armory::Assets;
+using namespace Armory::Accounts;
 using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////

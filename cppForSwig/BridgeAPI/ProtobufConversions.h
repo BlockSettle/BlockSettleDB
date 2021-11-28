@@ -24,9 +24,15 @@ namespace DBClientClasses
 
 namespace Armory
 {
+   namespace Accounts
+   {
+      class AddressAccount;
+   }
+
    namespace Wallets
    {
       class AddressAccountId;
+      class AssetWallet;
    };
 
    namespace Signer
@@ -36,8 +42,6 @@ namespace Armory
 };
 
 class UTXO;
-class AssetWallet;
-class AddressAccount;
 class AddressEntry;
 
 ////
@@ -52,11 +56,11 @@ namespace ArmoryBridge
       static void addr(
          Codec_ClientProto::WalletAsset*,
          std::shared_ptr<AddressEntry>,
-         std::shared_ptr<AddressAccount>);
+         std::shared_ptr<Armory::Accounts::AddressAccount>);
 
       static void wallet(
          Codec_ClientProto::WalletData* wltProto,
-         std::shared_ptr<AssetWallet> wltPtr,
+         std::shared_ptr<Armory::Wallets::AssetWallet> wltPtr,
          const Armory::Wallets::AddressAccountId&);
 
       static void utxo(

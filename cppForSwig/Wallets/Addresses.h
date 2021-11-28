@@ -91,7 +91,7 @@ public:
 
    //static
    static std::shared_ptr<AddressEntry> instantiate(
-      std::shared_ptr<AssetEntry>, AddressEntryType);
+      std::shared_ptr<Armory::Assets::AssetEntry>, AddressEntryType);
    static uint8_t getPrefixByte(AddressEntryType);
 };
 
@@ -99,17 +99,20 @@ public:
 class AddressEntry_WithAsset
 {
 private:
-   const std::shared_ptr<AssetEntry> asset_;
+   const std::shared_ptr<Armory::Assets::AssetEntry> asset_;
    const bool isCompressed_;
 
 public:
-   AddressEntry_WithAsset(std::shared_ptr<AssetEntry> asset, bool isCompressed) :
+   AddressEntry_WithAsset(std::shared_ptr<Armory::Assets::AssetEntry> asset,
+      bool isCompressed) :
       asset_(asset), isCompressed_(isCompressed)
    {}
 
    virtual ~AddressEntry_WithAsset(void) = 0;
 
-   const std::shared_ptr<AssetEntry> getAsset(void) const { return asset_; }
+   const std::shared_ptr<Armory::Assets::AssetEntry> getAsset(void) const
+   { return asset_; }
+
    bool isCompressed(void) const { return isCompressed_; }
 };
 
@@ -118,11 +121,13 @@ class AddressEntry_P2PKH : public AddressEntry, public AddressEntry_WithAsset
 {
 public:
    //tors
-   AddressEntry_P2PKH(std::shared_ptr<AssetEntry> asset, bool isCompressed) :
+   AddressEntry_P2PKH(std::shared_ptr<Armory::Assets::AssetEntry> asset,
+      bool isCompressed) :
       AddressEntry(WITH_COMPRESSED_FLAG(AddressEntryType_P2PKH, isCompressed)),
       AddressEntry_WithAsset(asset, isCompressed)
    {
-      auto asset_single = std::dynamic_pointer_cast<AssetEntry_Single>(asset);
+      auto asset_single = std::dynamic_pointer_cast<
+         Armory::Assets::AssetEntry_Single>(asset);
       if (asset_single == nullptr)
          throw AddressException("[AddressEntry_P2PKH] unexpected asset type");
    }
@@ -148,11 +153,13 @@ class AddressEntry_P2PK : public AddressEntry, public AddressEntry_WithAsset
 {
 public:
    //tors
-   AddressEntry_P2PK(std::shared_ptr<AssetEntry> asset, bool isCompressed) :
+   AddressEntry_P2PK(std::shared_ptr<Armory::Assets::AssetEntry> asset,
+      bool isCompressed) :
       AddressEntry(WITH_COMPRESSED_FLAG(AddressEntryType_P2PK, isCompressed)),
       AddressEntry_WithAsset(asset, isCompressed)
    {
-      auto asset_single = std::dynamic_pointer_cast<AssetEntry_Single>(asset);
+      auto asset_single = std::dynamic_pointer_cast<
+         Armory::Assets::AssetEntry_Single>(asset);
       if (asset_single == nullptr)
          throw AddressException("[AddressEntry_P2PK] unexpected asset type");
    }
@@ -178,11 +185,12 @@ class AddressEntry_P2WPKH : public AddressEntry, public AddressEntry_WithAsset
 {
 public:
    //tors
-   AddressEntry_P2WPKH(std::shared_ptr<AssetEntry> asset) :
+   AddressEntry_P2WPKH(std::shared_ptr<Armory::Assets::AssetEntry> asset) :
       AddressEntry(AddressEntryType_P2WPKH),
       AddressEntry_WithAsset(asset, true)
    {
-      auto asset_single = std::dynamic_pointer_cast<AssetEntry_Single>(asset);
+      auto asset_single = std::dynamic_pointer_cast<
+         Armory::Assets::AssetEntry_Single>(asset);
       if (asset_single == nullptr)
          throw AddressException("[AddressEntry_P2WPKH] unexpected asset type");
    }
@@ -209,11 +217,13 @@ class AddressEntry_Multisig : public AddressEntry, public AddressEntry_WithAsset
 {
 public:
    //tors
-   AddressEntry_Multisig(std::shared_ptr<AssetEntry> asset, bool compressed) :
+   AddressEntry_Multisig(std::shared_ptr<Armory::Assets::AssetEntry> asset,
+      bool compressed) :
       AddressEntry(WITH_COMPRESSED_FLAG(AddressEntryType_Multisig, compressed)),
       AddressEntry_WithAsset(asset, compressed)
    {
-      auto asset_ms = std::dynamic_pointer_cast<AssetEntry_Multisig>(asset);
+      auto asset_ms = std::dynamic_pointer_cast<
+         Armory::Assets::AssetEntry_Multisig>(asset);
       if (asset_ms == nullptr)
          throw AddressException("[AddressEntry_Multisig] unexpected asset type");
    }

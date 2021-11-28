@@ -11,6 +11,7 @@
 
 using namespace std;
 using namespace Armory::Signer;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //

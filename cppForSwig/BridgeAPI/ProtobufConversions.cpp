@@ -15,6 +15,8 @@
 
 using namespace std;
 using namespace ArmoryBridge;
+using namespace Armory::Accounts;
+using namespace Armory::Wallets;
 
 using namespace Codec_ClientProto;
 

@@ -10,9 +10,10 @@
 #include "BIP15x_Handshake.h"
 
 using namespace std;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
-static struct lws_protocols protocols[] = 
+static struct lws_protocols protocols[] =
 {
    /* first protocol must always be HTTP handler */
 

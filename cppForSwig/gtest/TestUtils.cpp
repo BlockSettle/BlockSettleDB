@@ -10,7 +10,10 @@
 #include "BIP15x_Handshake.h"
 
 using namespace std;
-using namespace ::Codec_BDVCommand;
+using namespace Codec_BDVCommand;
+
+using namespace Armory::Assets;
+using namespace Armory::Wallets;
 
 #if ! defined(_MSC_VER) && ! defined(__MINGW32__)
 

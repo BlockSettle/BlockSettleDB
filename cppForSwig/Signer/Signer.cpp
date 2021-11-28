@@ -18,6 +18,7 @@
 
 using namespace std;
 using namespace Armory::Signer;
+using namespace Armory::Assets;
 using namespace Armory::Wallets;
 
 StackItem::~StackItem()

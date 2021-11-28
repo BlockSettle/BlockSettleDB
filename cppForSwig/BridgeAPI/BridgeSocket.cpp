@@ -30,7 +30,7 @@ CppBridgeSocket::CppBridgeSocket(
    serverName_(addr + ":" + port)
 {
    //setup auth peers db
-   authPeers_ = make_shared<AuthorizedPeers>();
+   authPeers_ = make_shared<Armory::Wallets::AuthorizedPeers>();
 
    auto uiPubKey = Armory::Config::NetworkSettings::uiPublicKey();
    if (uiPubKey.getSize() != 33)
@@ -44,7 +44,8 @@ CppBridgeSocket::CppBridgeSocket(
    //inject UI key (UI is the server, bridge connects to it)
    vector<string> peerNames = { serverName_ };
    authPeers_->addPeer(uiPubKey, peerNames);
-   auto lbds = AuthorizedPeers::getAuthPeersLambdas(authPeers_);
+   auto lbds = Armory::Wallets::AuthorizedPeers::getAuthPeersLambdas(
+      authPeers_);
 
    //write own public key to cookie file
    {

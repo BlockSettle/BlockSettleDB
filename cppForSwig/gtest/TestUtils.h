@@ -80,6 +80,14 @@
    void mkdir(std::string newdir);
 #endif
 
+namespace Armory
+{
+   namespace Assets
+   {
+      class AssetEntry;
+   };
+};
+
 namespace TestUtils
 {
    // This function assumes src to be a zero terminated sanitized string with
@@ -99,9 +107,9 @@ namespace TestUtils
    void nullProgress(unsigned, double, unsigned, unsigned);
    BinaryData getTx(unsigned height, unsigned id);
 
-   std::shared_ptr<AssetEntry> getMainAccountAssetForIndex(
-      std::shared_ptr<AssetWallet>, Armory::Wallets::AssetKeyType);
-   size_t getMainAccountAssetCount(std::shared_ptr<AssetWallet>);
+   std::shared_ptr<Armory::Assets::AssetEntry> getMainAccountAssetForIndex(
+      std::shared_ptr<Armory::Wallets::AssetWallet>, Armory::Wallets::AssetKeyType);
+   size_t getMainAccountAssetCount(std::shared_ptr<Armory::Wallets::AssetWallet>);
 }
 
 namespace DBTestUtils
@@ -553,7 +561,7 @@ namespace ResolverUtils
       TestResolverFeed testFeed_;
 
    public:
-      HybridFeed(std::shared_ptr<AssetWallet_Single> wltPtr)
+      HybridFeed(std::shared_ptr<Armory::Wallets::AssetWallet_Single> wltPtr)
       {
          feedPtr_ = std::make_shared<
             Armory::Signer::ResolverFeed_AssetWalletSingle>(wltPtr);
@@ -620,7 +628,7 @@ namespace ResolverUtils
 
    public:
       CustomFeed(std::shared_ptr<AddressEntry> addrPtr,
-         std::shared_ptr<AssetWallet_Single> wlt) :
+         std::shared_ptr<Armory::Wallets::AssetWallet_Single> wlt) :
          wltFeed_(std::make_shared<
             Armory::Signer::ResolverFeed_AssetWalletSingle>(wlt))
       {

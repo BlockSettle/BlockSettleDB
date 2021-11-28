@@ -114,7 +114,7 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////////
 struct ProtobufCommandParser;
-using BridgeReply = std::unique_ptr<::google::protobuf::Message>;
+using BridgeReply = std::unique_ptr<google::protobuf::Message>;
 
 class CppBridge
 {
@@ -210,7 +210,7 @@ private:
    BridgeReply cs_getUtxoSelection(const std::string&);
    BridgeReply cs_getFlatFee(const std::string&);
    BridgeReply cs_getFeeByte(const std::string&);
-   bool cs_ProcessCustomUtxoList(const ::Codec_ClientProto::ClientCommand&);
+   bool cs_ProcessCustomUtxoList(const Codec_ClientProto::ClientCommand&);
 
    //signer
    BridgeReply initNewSigner(void);

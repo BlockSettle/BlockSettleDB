@@ -194,18 +194,25 @@ struct WalletHeader_Custom : public WalletHeader
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-struct EncryptionKey;
-struct ClearTextEncryptionKey;
-struct KeyDerivationFunction;
-class Cipher;
+namespace Armory
+{
+   namespace Assets
+   {
+      struct ClearTextEncryptionKey;
+      struct EncryptionKey;
+      class Cipher;
+      struct KeyDerivationFunction;
+   };
+};
+
 class DecryptedDataContainer;
 
 struct MasterKeyStruct
 {
-   std::shared_ptr<EncryptionKey> masterKey_;
-   std::shared_ptr<ClearTextEncryptionKey> decryptedMasterKey_;
-   std::shared_ptr<KeyDerivationFunction> kdf_;
-   std::unique_ptr<Cipher> cipher_;
+   std::shared_ptr<Armory::Assets::EncryptionKey> masterKey_;
+   std::shared_ptr<Armory::Assets::ClearTextEncryptionKey> decryptedMasterKey_;
+   std::shared_ptr<Armory::Assets::KeyDerivationFunction> kdf_;
+   std::unique_ptr<Armory::Assets::Cipher> cipher_;
 };
 
 ////

@@ -33,6 +33,7 @@
 #define COMMENT_DATA_VERSION           0x00000001
 
 using namespace std;
+using namespace Armory::Assets;
 using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -147,7 +147,7 @@ private:
    unsigned outerRekeyCount_ = 0;
    unsigned innerRekeyCount_ = 0;
 
-   std::shared_ptr<AuthorizedPeers> authPeers_;
+   std::shared_ptr<Armory::Wallets::AuthorizedPeers> authPeers_;
    BinaryData leftOverData_;
 
    std::shared_ptr<std::promise<bool>> serverPubkeyProm_;

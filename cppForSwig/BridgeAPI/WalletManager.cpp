@@ -18,6 +18,7 @@
 
 using namespace std;
 using namespace Armory::Signer;
+using namespace Armory::Accounts;
 using namespace Armory::Wallets;
 
 #define WALLET_135_HEADER "\xbaWALLET\x00"
@@ -591,7 +592,7 @@ map<BinaryData, shared_ptr<AddressEntry>> WalletContainer::getUpdatedAddressMap(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-ArmoryBackups::WalletBackup WalletContainer::getBackupStrings(
+Armory::Backups::WalletBackup WalletContainer::getBackupStrings(
    const PassphraseLambda& passLbd) const
 {
    auto wltSingle = dynamic_pointer_cast<AssetWallet_Single>(wallet_);
@@ -603,7 +604,7 @@ ArmoryBackups::WalletBackup WalletContainer::getBackupStrings(
    }
 
    wltSingle->setPassphrasePromptLambda(passLbd);
-   auto backupStrings = ArmoryBackups::Helpers::getWalletBackup(wltSingle);
+   auto backupStrings = Armory::Backups::Helpers::getWalletBackup(wltSingle);
    wltSingle->resetPassphrasePromptLambda();
 
    return backupStrings;
