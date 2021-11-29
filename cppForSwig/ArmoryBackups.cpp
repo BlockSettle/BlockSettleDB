@@ -18,7 +18,9 @@
 #define WALLET_RESTORE_LOOKUP 1000
 
 using namespace std;
-using namespace ArmoryBackups;
+using namespace Armory::Backups;
+using namespace Armory::Assets;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 const vector<char> BackupEasy16::e16chars_ = 

@@ -18,6 +18,7 @@
 #define DERSCHEME_ECDH_VERSION   0x00000001
 
 using namespace std;
+using namespace Armory::Assets;
 using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -592,8 +593,8 @@ AssetKeyType DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DerivationScheme_ECDH::putSalt(AssetKeyType id, const SecureBinaryData& salt, 
-   shared_ptr<DBIfaceTransaction> txPtr)
+void DerivationScheme_ECDH::putSalt(AssetKeyType id,
+   const SecureBinaryData& salt, shared_ptr<DBIfaceTransaction> txPtr)
 {
    //update on disk
    BinaryWriter bwKey;

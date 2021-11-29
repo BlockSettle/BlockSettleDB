@@ -13,8 +13,9 @@
 #include "BIP15x_Handshake.h"
 
 using namespace std;
-using namespace ::google::protobuf;
-using namespace ArmoryThreading;
+using namespace google::protobuf;
+using namespace Armory::Threading;
+using namespace Armory::Wallets;
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -752,8 +753,8 @@ ClientConnection::ClientConnection(
    readLock_ = std::make_shared<std::atomic<unsigned>>();
    readLock_->store(0);
 
-   readQueue_ = std::make_shared<ArmoryThreading::Queue<BinaryData>>();
-      
+   readQueue_ = std::make_shared<Queue<BinaryData>>();
+
    run_ = std::make_shared<std::atomic<int>>();
    run_->store(0, std::memory_order_relaxed);
 }

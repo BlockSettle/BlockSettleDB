@@ -1072,9 +1072,9 @@ void DatabaseBuilder::verifyTransactions()
       };
 
       auto getUtxoMap = [&bdl, stateStruct, getFileMap, this]
-         (shared_ptr<BCTX> txn)->TransactionVerifier::utxoMap
+         (shared_ptr<BCTX> txn)->Armory::Signer::TransactionVerifier::utxoMap
       {
-         TransactionVerifier::utxoMap utxomap;
+         Armory::Signer::TransactionVerifier::utxoMap utxomap;
          for (auto& txin : txn->txins_)
          {
             //get output hash
@@ -1204,7 +1204,7 @@ void DatabaseBuilder::verifyTransactions()
                auto&& utxomap = getUtxoMap(txn);
 
                //verify tx
-               TransactionVerifier txV(*txn, utxomap);
+               Armory::Signer::TransactionVerifier txV(*txn, utxomap);
                auto flags = txV.getFlags();
 
                if (blockheader->getTimestamp() > P2SH_TIMESTAMP)
@@ -1220,7 +1220,7 @@ void DatabaseBuilder::verifyTransactions()
                else
                   ++failedVerifications;
             }
-            catch (UnsupportedSigHashTypeException&)
+            catch (Armory::Signer::UnsupportedSigHashTypeException&)
             {
                stateStruct->unsupportedSigHash_.fetch_add(1, memory_order_relaxed);
             }

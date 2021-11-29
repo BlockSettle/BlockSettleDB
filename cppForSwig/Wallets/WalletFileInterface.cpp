@@ -14,6 +14,7 @@
 #include "Assets.h"
 
 using namespace std;
+using namespace Armory::Assets;
 
 #define COMPACT_FILE_SWAP_NAME "swapOld"
 #define COMPACT_FILE_COPY_NAME "compactCopy"

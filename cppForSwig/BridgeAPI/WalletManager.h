@@ -25,16 +25,22 @@
 #include "ReentrantLock.h"
 
 
-namespace ArmoryBackups
-{
-   class WalletBackup;
-};
-
 namespace Armory
 {
+   namespace Backups
+   {
+      class WalletBackup;
+   };
+
+   namespace Accounts
+   {
+      class AddressAccount;
+   }
+
    namespace Wallets
    {
       class AddressAccountId;
+      class AssetWallet;
    };
 };
 
@@ -59,7 +65,7 @@ class WalletContainer
 
 private:
    const std::string wltId_;
-   std::shared_ptr<AssetWallet> wallet_;
+   std::shared_ptr<Armory::Wallets::AssetWallet> wallet_;
    const Armory::Wallets::AddressAccountId accountId_;
 
    std::shared_ptr<AsyncClient::BlockDataViewer> bdvPtr_;
@@ -85,13 +91,13 @@ private:
    {}
 
    void resetCache(void);
-   void setBdvPtr( std::shared_ptr<AsyncClient::BlockDataViewer> bdv)
+   void setBdvPtr(std::shared_ptr<AsyncClient::BlockDataViewer> bdv)
    {
       std::unique_lock<std::mutex> lock(stateMutex_);
       bdvPtr_ = bdv;
    }
 
-   void setWalletPtr(std::shared_ptr<AssetWallet>,
+   void setWalletPtr(std::shared_ptr<Armory::Wallets::AssetWallet>,
       const Armory::Wallets::AddressAccountId&);
    void eraseFromDisk(void);
 
@@ -99,8 +105,10 @@ public:
    std::string registerWithBDV(bool isNew);
    void unregisterFromBDV(void);
 
-   virtual std::shared_ptr<AssetWallet> getWalletPtr(void) const;
-   std::shared_ptr<AddressAccount> getAddressAccount(void) const;
+   virtual std::shared_ptr<Armory::Wallets::AssetWallet>
+      getWalletPtr(void) const;
+   std::shared_ptr<Armory::Accounts::AddressAccount>
+      getAddressAccount(void) const;
    Armory::Wallets::AddressAccountId getAccountId(void) const;
 
    void updateBalancesAndCount(uint32_t topBlockHeight)
@@ -205,7 +213,7 @@ public:
    uint32_t getHighestUsedIndex(void) const { return highestUsedIndex_; }
    std::map<BinaryData, std::shared_ptr<AddressEntry>> getUpdatedAddressMap();
 
-   ArmoryBackups::WalletBackup getBackupStrings(const PassphraseLambda&) const;
+   Armory::Backups::WalletBackup getBackupStrings(const PassphraseLambda&) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,7 +312,7 @@ public:
 
    bool isInitialized(void) { return version_ != UINT32_MAX; }
    const std::string& getID(void) const { return walletID_; }
-   std::shared_ptr<AssetWallet_Single> migrate(
+   std::shared_ptr<Armory::Wallets::AssetWallet_Single> migrate(
       const PassphraseLambda&) const;
 
    //static
@@ -360,7 +368,8 @@ public:
       const Armory::Wallets::AddressAccountId&, bool);
 
    std::shared_ptr<WalletContainer> addWallet(
-      std::shared_ptr<AssetWallet>, const Armory::Wallets::AddressAccountId&);
+      std::shared_ptr<Armory::Wallets::AssetWallet>,
+      const Armory::Wallets::AddressAccountId&);
 
    void updateStateFromDB(const std::function<void(void)>&);
    std::shared_ptr<WalletContainer> createNewWallet(

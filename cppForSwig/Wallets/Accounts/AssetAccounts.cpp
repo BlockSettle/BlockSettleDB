@@ -14,6 +14,8 @@
 #include "../WalletFileInterface.h"
 
 using namespace std;
+using namespace Armory::Assets;
+using namespace Armory::Accounts;
 using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,7 +119,7 @@ void AssetAccount::commit(shared_ptr<WalletDBInterface> iface)
    bwData.put_var_int(0);
 
    //der scheme
-   auto&& derSchemeSerData = data_->derScheme_->serialize();
+   auto derSchemeSerData = data_->derScheme_->serialize();
    bwData.put_var_int(derSchemeSerData.getSize());
    bwData.put_BinaryData(derSchemeSerData);
 

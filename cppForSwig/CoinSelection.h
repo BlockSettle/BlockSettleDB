@@ -114,7 +114,7 @@ struct RestrictedUtxoSet
 class PaymentStruct
 {
    using RecipientMap = const std::map<unsigned, 
-      std::vector<std::shared_ptr<ArmorySigner::ScriptRecipient>>>;
+      std::vector<std::shared_ptr<Armory::Signer::ScriptRecipient>>>;
 
 private:
    const RecipientMap& recipients_;
@@ -358,7 +358,13 @@ struct SelectionScoring
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class AssetWallet;
+namespace Armory
+{
+   namespace Wallets
+   {
+      class AssetWallet;
+   };
+};
 
 ////
 class CoinSelectionInstance
@@ -366,20 +372,20 @@ class CoinSelectionInstance
 private:
    CoinSelection cs_;
 
-   using RecipientMap = std::map<unsigned, 
-      std::vector<std::shared_ptr<ArmorySigner::ScriptRecipient>>>;
+   using RecipientMap = std::map<unsigned,
+      std::vector<std::shared_ptr<Armory::Signer::ScriptRecipient>>>;
    
    RecipientMap recipients_;
    UtxoSelection selection_;
-   std::shared_ptr<AssetWallet> const walletPtr_;
+   std::shared_ptr<Armory::Wallets::AssetWallet> const walletPtr_;
 
    std::vector<UTXO> state_utxoVec_;
    uint64_t spendableBalance_;
 
 private:
-   static void decorateUTXOs(std::shared_ptr<AssetWallet> const, std::vector<UTXO>&);
+   static void decorateUTXOs(std::shared_ptr<Armory::Wallets::AssetWallet> const, std::vector<UTXO>&);
    static std::function<std::vector<UTXO>(uint64_t)> getFetchLambdaFromWallet(
-      std::shared_ptr<AssetWallet> const, std::function<std::vector<UTXO>(uint64_t)>);
+      std::shared_ptr<Armory::Wallets::AssetWallet> const, std::function<std::vector<UTXO>(uint64_t)>);
 
    uint64_t getSpendVal(void) const;
    void checkSpendVal(uint64_t) const;
@@ -387,7 +393,7 @@ private:
    void selectUTXOs(std::vector<UTXO>&, uint64_t fee, float fee_byte, unsigned flags);
 
 public:
-   CoinSelectionInstance(std::shared_ptr<AssetWallet>, 
+   CoinSelectionInstance(std::shared_ptr<Armory::Wallets::AssetWallet>, 
       std::function<std::vector<UTXO>(uint64_t)>,
       const std::vector<AddressBookEntry>& addrBook, 
       uint64_t spendableBalance, unsigned topHeight);
@@ -418,6 +424,6 @@ public:
    bool isSW(void) const { return selection_.witnessSize_ != 0; }
    void rethrow(void) { cs_.rethrow(); }
 
-   static std::shared_ptr<ArmorySigner::ScriptRecipient> createRecipient(
+   static std::shared_ptr<Armory::Signer::ScriptRecipient> createRecipient(
       const BinaryData&, uint64_t);
 };

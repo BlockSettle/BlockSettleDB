@@ -307,7 +307,7 @@ struct ZcActionStruct
    Blockchain::ReorganizationState reorgState_;
 };
 
-typedef ArmoryThreading::BlockingQueue<std::shared_ptr<ZcGetPacket>> PreprocessQueue;
+typedef Armory::Threading::BlockingQueue<std::shared_ptr<ZcGetPacket>> PreprocessQueue;
 
 ////////////////////////////////////////////////////////////////////////////////
 class ZcActionQueue
@@ -326,18 +326,18 @@ private:
    std::vector<std::thread> processThreads_;
 
    //queue of batches served to newZcFunction_
-   ArmoryThreading::BlockingQueue<ZcActionStruct> newZcQueue_;
+   Armory::Threading::BlockingQueue<ZcActionStruct> newZcQueue_;
 
    //queue of batches for the matcher thread to populate its local map of 
    //hashes to batches
-   ArmoryThreading::Queue<std::shared_ptr<ZeroConfBatch>> batchQueue_;
+   Armory::Threading::Queue<std::shared_ptr<ZeroConfBatch>> batchQueue_;
 
    //queue of getData response from the node
-   ArmoryThreading::BlockingQueue<
+   Armory::Threading::BlockingQueue<
       std::shared_ptr<ZcGetPacket>> getDataResponseQueue_;
 
    //queue of hashes to clear from macther thread local map
-   ArmoryThreading::Queue<std::set<BinaryData>> hashesToClear_;
+   Armory::Threading::Queue<std::set<BinaryData>> hashesToClear_;
 
    //tracks the size of the matcher thread local map, for unit test 
    //coverage purposes
@@ -404,9 +404,9 @@ private:
    std::shared_ptr<BitcoinNodeInterface> networkNode_;
 
    std::shared_ptr<PreprocessQueue> zcPreprocessQueue_;
-   ArmoryThreading::TimedQueue<
+   Armory::Threading::TimedQueue<
       std::shared_ptr<ZcPreprocessPacket>> zcWatcherQueue_;
-   ArmoryThreading::BlockingQueue<ZcUpdateBatch> updateBatch_;
+   Armory::Threading::BlockingQueue<ZcUpdateBatch> updateBatch_;
 
    std::mutex parserMutex_;
    std::mutex parserThreadMutex_;
@@ -415,7 +415,7 @@ private:
    std::atomic<bool> zcEnabled_;
    const unsigned maxZcThreadCount_;
 
-   std::shared_ptr<ArmoryThreading::TransactionalMap<
+   std::shared_ptr<Armory::Threading::TransactionalMap<
       BinaryDataRef, std::shared_ptr<AddrAndHash>>> scrAddrMap_;
 
    unsigned parserThreadCount_ = 0;

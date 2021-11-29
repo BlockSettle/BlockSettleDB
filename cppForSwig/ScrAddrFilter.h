@@ -160,10 +160,10 @@ private:
    const unsigned sdbiKey_;
    LMDBBlockDatabase *const lmdb_;
 
-   std::shared_ptr<ArmoryThreading::TransactionalMap<
+   std::shared_ptr<Armory::Threading::TransactionalMap<
       BinaryDataRef, std::shared_ptr<AddrAndHash>>> scanFilterAddrMap_;
 
-   ArmoryThreading::BlockingQueue<
+   Armory::Threading::BlockingQueue<
       std::shared_ptr<AddressBatch>> registrationStack_;
 
    std::thread thr_;
@@ -175,7 +175,7 @@ private:
    static void cleanUpPreviousChildren(LMDBBlockDatabase* lmdb);
    void registrationThread(void);
 
-   std::shared_ptr<ArmoryThreading::TransactionalMap<
+   std::shared_ptr<Armory::Threading::TransactionalMap<
       BinaryDataRef, std::shared_ptr<AddrAndHash>>> getZcFilterMapPtr(void) const
    {
       return scanFilterAddrMap_;
@@ -196,21 +196,21 @@ public:
       : sdbiKey_(sdbiKey), lmdb_(lmdb)
    {
       scanFilterAddrMap_ = std::make_shared<
-         ArmoryThreading::TransactionalMap<
+         Armory::Threading::TransactionalMap<
          BinaryDataRef, std::shared_ptr<AddrAndHash>>>();
    }
-   
+
    virtual ~ScrAddrFilter() { shutdown(); }
-   
+
    LMDBBlockDatabase* db() { return lmdb_; }
 
    ////
    std::shared_ptr<const std::map<BinaryDataRef, std::shared_ptr<AddrAndHash>>>
       getScanFilterAddrMap(void) const
-   { 
+   {
       return scanFilterAddrMap_->get(); 
    }
-   
+
    size_t getScanFilterAddrCount(void) const
    {
       return scanFilterAddrMap_->size();
@@ -230,7 +230,7 @@ public:
    BinaryData getAddressMapMerkle(void) const;
    void updateAddressMerkleInDB(void);
    bool hasNewAddresses(void) const;
-   
+
    StoredDBInfo getSubSshSDBI(void) const;
    void putSubSshSDBI(const StoredDBInfo&);
    StoredDBInfo getSshSDBI(void) const;

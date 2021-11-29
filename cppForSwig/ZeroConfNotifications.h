@@ -304,7 +304,7 @@ private:
 
 private:
    Clients * clientsPtr_;
-   ArmoryThreading::BlockingQueue<
+   Armory::Threading::BlockingQueue<
       std::shared_ptr<ZeroConfCallbacks_BDV::ZcNotifRequest>> requestQueue_;
 
    std::thread requestThread_;

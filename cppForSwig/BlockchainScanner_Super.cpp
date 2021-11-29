@@ -10,7 +10,7 @@
 #include "EncryptionUtils.h"
 
 using namespace std;
-using namespace ArmoryThreading;
+using namespace Armory::Threading;
 
 ////////////////////////////////////////////////////////////////////////////////
 void BlockchainScanner_Super::scan()

@@ -10,6 +10,7 @@
 #include "EncryptionUtils.h"
 
 using namespace std;
+using namespace Armory::Signer;
 
 ////////////////////////////////////////////////////////////////////////////////
 bool TxInEvalState::isValid(void) const

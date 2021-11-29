@@ -26,7 +26,8 @@ class AssetUnavailableException
 class DecryptedDataContainerException : public std::runtime_error
 {
 public:
-   DecryptedDataContainerException(const std::string& msg) : std::runtime_error(msg)
+   DecryptedDataContainerException(const std::string& msg) :
+      std::runtime_error(msg)
    {}
 };
 
@@ -39,7 +40,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 class DBIfaceTransaction;
-using WriteTxFuncType = 
+using WriteTxFuncType =
    std::function<std::unique_ptr<DBIfaceTransaction>(const std::string&)>;
 
 ////
@@ -49,14 +50,15 @@ private:
    struct DecryptedDataMaps
    {
       std::map<Armory::Wallets::EncryptionKeyId,
-         std::unique_ptr<ClearTextEncryptionKey>> encryptionKeys_;
+         std::unique_ptr<Armory::Assets::ClearTextEncryptionKey>> encryptionKeys_;
 
       std::map<Armory::Wallets::AssetId,
-         std::unique_ptr<ClearTextAssetData>> assetData_;
+         std::unique_ptr<Armory::Assets::ClearTextAssetData>> assetData_;
    };
 
 private:
-   std::map<BinaryData, std::shared_ptr<KeyDerivationFunction>> kdfMap_ = {};
+   std::map<BinaryData,
+      std::shared_ptr<Armory::Assets::KeyDerivationFunction>> kdfMap_ = {};
    std::unique_ptr<DecryptedDataMaps> lockedDecryptedData_ = nullptr;
 
    struct OtherLockedContainer
@@ -99,16 +101,17 @@ private:
 
 protected:
    std::map<Armory::Wallets::EncryptionKeyId,
-      std::shared_ptr<EncryptionKey>> encryptedKeys_;
+      std::shared_ptr<Armory::Assets::EncryptionKey>> encryptedKeys_;
 
 private:
    PassphraseLambda getPassphraseLambda_;
 
 private:
-   std::unique_ptr<ClearTextEncryptionKey> deriveEncryptionKey(
-      std::unique_ptr<ClearTextEncryptionKey>, const BinaryData& kdfid) const;
+   std::unique_ptr<Armory::Assets::ClearTextEncryptionKey> deriveEncryptionKey(
+      std::unique_ptr<Armory::Assets::ClearTextEncryptionKey>,
+      const BinaryData& kdfid) const;
 
-   std::unique_ptr<ClearTextEncryptionKey> promptPassphrase(
+   std::unique_ptr<Armory::Assets::ClearTextEncryptionKey> promptPassphrase(
       const std::map<Armory::Wallets::EncryptionKeyId, BinaryData>&) const;
 
    void initAfterLock(void);
@@ -129,26 +132,26 @@ public:
       const Armory::Wallets::EncryptionKeyId& masterKeyId);
 
    const SecureBinaryData& getClearTextAssetData(
-      const std::shared_ptr<EncryptedAssetData>& data);
+      const std::shared_ptr<Armory::Assets::EncryptedAssetData>& data);
    const SecureBinaryData& getClearTextAssetData(
-      const EncryptedAssetData* data);
+      const Armory::Assets::EncryptedAssetData* data);
    const SecureBinaryData& getClearTextAssetData(
       const Armory::Wallets::AssetId&) const;
    const Armory::Wallets::AssetId& insertClearTextAssetData(
       const uint8_t*, size_t);
 
    SecureBinaryData encryptData(
-      Cipher* const cipher, const SecureBinaryData& data);
+      Armory::Assets::Cipher* const cipher, const SecureBinaryData& data);
 
    Armory::Wallets::EncryptionKeyId populateEncryptionKey(
       const std::map<Armory::Wallets::EncryptionKeyId, BinaryData>&);
 
-   void addKdf(std::shared_ptr<KeyDerivationFunction> kdfPtr)
+   void addKdf(std::shared_ptr<Armory::Assets::KeyDerivationFunction> kdfPtr)
    {
       kdfMap_.insert(std::make_pair(kdfPtr->getId(), kdfPtr));
    }
 
-   void addEncryptionKey(std::shared_ptr<EncryptionKey> keyPtr)
+   void addEncryptionKey(std::shared_ptr<Armory::Assets::EncryptionKey> keyPtr)
    {
       encryptedKeys_.insert(std::make_pair(keyPtr->getId(), keyPtr));
    }
@@ -158,9 +161,10 @@ public:
    void readFromDisk(std::shared_ptr<DBIfaceTransaction>);
 
    void updateOnDiskRaw(std::shared_ptr<DBIfaceTransaction>,
-      const BinaryData&, std::shared_ptr<EncryptionKey>);
+      const BinaryData&, std::shared_ptr<Armory::Assets::EncryptionKey>);
    void updateOnDisk(std::shared_ptr<DBIfaceTransaction>,
-      const Armory::Wallets::EncryptionKeyId&, std::shared_ptr<EncryptionKey>);
+      const Armory::Wallets::EncryptionKeyId&,
+      std::shared_ptr<Armory::Assets::EncryptionKey>);
    void deleteFromDisk(std::shared_ptr<DBIfaceTransaction>, const BinaryData&);
 
    void setPassphrasePromptLambda(const PassphraseLambda& lambda)

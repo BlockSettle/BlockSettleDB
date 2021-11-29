@@ -11,7 +11,7 @@
 #include "Signer.h"
 
 using namespace std;
-using namespace ArmorySigner;
+using namespace Armory::Signer;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -104,19 +104,22 @@ shared_ptr<ScriptRecipient> ScriptRecipient::fromPSBT(
 
       switch (*typePtr)
       {
-      case ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION:
+      case PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION:
       {
          auto assetPath = BIP32_AssetPath::fromPSBT(key, val);
          auto insertIter = bip32Paths.emplace(
             assetPath.getPublicKey(), move(assetPath));
 
          if (!insertIter.second)
-            throw ArmorySigner::PSBTDeserializationError("txout pubkey collision");
+         {
+            throw PSBTDeserializationError(
+               "txout pubkey collision");
+         }
 
          break;
       }
 
-      case ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_PROPRIETARY:
+      case PSBT::ENUM_OUTPUT::PSBT_OUT_PROPRIETARY:
       {
          prioprietaryPSBTData.emplace(
             key.getSliceRef(1, key.getSize() - 1), val);
@@ -124,7 +127,7 @@ shared_ptr<ScriptRecipient> ScriptRecipient::fromPSBT(
       }
 
       default: 
-         throw ArmorySigner::PSBTDeserializationError("unexpected txout key");
+         throw PSBTDeserializationError("unexpected txout key");
       }
    }
 
@@ -142,7 +145,7 @@ void ScriptRecipient::toPSBT(BinaryWriter& bw) const
    {
       bw.put_uint8_t(34); //key length
       bw.put_uint8_t( //key type
-         ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION);
+         PSBT::ENUM_OUTPUT::PSBT_OUT_BIP32_DERIVATION);
       bw.put_BinaryData(bip32Path.first);
 
       //path
@@ -154,14 +157,14 @@ void ScriptRecipient::toPSBT(BinaryWriter& bw) const
       //key
       bw.put_var_int(data.first.getSize() + 1);
       bw.put_uint8_t(
-         ArmorySigner::PSBT::ENUM_OUTPUT::PSBT_OUT_PROPRIETARY);
+         PSBT::ENUM_OUTPUT::PSBT_OUT_PROPRIETARY);
       bw.put_BinaryData(data.first);
 
       //val
       bw.put_var_int(data.second.getSize());
       bw.put_BinaryData(data.second);
    }
-         
+
    //terminate
    bw.put_uint8_t(0);
 }
@@ -169,11 +172,11 @@ void ScriptRecipient::toPSBT(BinaryWriter& bw) const
 ////////////////////////////////////////////////////////////////////////////////
 void ScriptRecipient::toProtobuf(
    Codec_SignerState::RecipientState& protoMsg, unsigned group) const
-{ 
+{
    const auto& script = getSerializedScript();
    protoMsg.set_data(script.getPtr(), script.getSize());
    protoMsg.set_groupid(group);
-   
+
    for (auto& keyPair : bip32Paths_)
    {
       auto pathPtr = protoMsg.add_bip32paths();

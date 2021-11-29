@@ -20,8 +20,10 @@ using namespace std;
 
 using namespace ::google::protobuf;
 using namespace ::Codec_ClientProto;
-using namespace ArmoryThreading;
-using namespace ArmorySigner;
+using namespace Armory::Threading;
+using namespace Armory::Signer;
+using namespace Armory::Wallets;
+
 using namespace ArmoryBridge;
 
 enum CppBridgeState
@@ -45,7 +47,7 @@ CppBridge::CppBridge(const string& path, const string& dbAddr,
    dbOneWayAuth_(oneWayAuth), dbOffline_(offline)
 {
    commandWithCallbackQueue_ = make_shared<
-      ArmoryThreading::BlockingQueue<ClientCommand>>();
+      Armory::Threading::BlockingQueue<ClientCommand>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -396,7 +398,7 @@ void CppBridge::createBackupStringForWallet(
    const auto& walletId = wai.walletId;
    auto backupStringLbd = [this, walletId, msgId, passLbd]()->void
    {
-      ArmoryBackups::WalletBackup backupData;
+      Armory::Backups::WalletBackup backupData;
       try
       {
          //grab wallet
@@ -500,7 +502,7 @@ void CppBridge::restoreWallet(
       };
 
       auto callback = [this, handler, createCallbackMessage](
-         ArmoryBackups::RestorePromptType promptType, 
+         Armory::Backups::RestorePromptType promptType, 
          const vector<int> chkResults, 
          SecureBinaryData& extra)->bool
       {
@@ -556,7 +558,7 @@ void CppBridge::restoreWallet(
       try
       {
          //create wallet from backup
-         auto wltPtr = ArmoryBackups::Helpers::restoreFromBackup(
+         auto wltPtr = Armory::Backups::Helpers::restoreFromBackup(
             lines, passphrase, wltManager_->getWalletDir(), callback);
 
          if (wltPtr == nullptr)
@@ -573,7 +575,7 @@ void CppBridge::restoreWallet(
             RestorePromptType::Success, {}, dummy);
          writeToClient(move(successMsg), BRIDGE_CALLBACK_PROMPTUSER);
       }
-      catch (const ArmoryBackups::RestoreUserException& e)
+      catch (const Armory::Backups::RestoreUserException& e)
       {
          /*
          These type of errors are the result of user actions. They should have
