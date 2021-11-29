@@ -26,7 +26,7 @@ int main(int argc, char* argv[])
    LOGDISABLESTDOUT();
 
    //setup the bridge
-   auto bridge = std::make_shared<ArmoryBridge::CppBridge>(
+   auto bridge = std::make_shared<Armory::Bridge::CppBridge>(
       Armory::Config::getDataDir(),
       "127.0.0.1", Armory::Config::NetworkSettings::listenPort(),
       Armory::Config::NetworkSettings::oneWayAuth(),
@@ -35,12 +35,12 @@ int main(int argc, char* argv[])
    bridge->startThreads();
 
    //setup the socket
-   auto sockPtr = std::make_shared<ArmoryBridge::CppBridgeSocket>(
+   auto sockPtr = std::make_shared<Armory::Bridge::CppBridgeSocket>(
       "127.0.0.1", "46122", bridge);
 
    //set bridge write lambda
    auto pushPayloadLbd = [sockPtr](
-      std::unique_ptr<ArmoryBridge::WritePayload_Bridge> payload)->void
+      std::unique_ptr<Armory::Bridge::WritePayload_Bridge> payload)->void
    {
       sockPtr->pushPayload(move(payload), nullptr);
    };
