@@ -9,9 +9,15 @@
 #ifndef _H_SIGHASHENUM_
 #define _H_SIGHASHENUM_
 
-enum SIGHASH_TYPE
+namespace Armory
 {
-   SIGHASH_ALL = 1
+   namespace Signer
+   {
+      enum SIGHASH_TYPE
+      {
+         SIGHASH_ALL = 1
+      };
+   };
 };
 
 #endif
