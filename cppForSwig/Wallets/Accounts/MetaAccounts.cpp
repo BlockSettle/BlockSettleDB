@@ -14,6 +14,7 @@
 using namespace std;
 using namespace Armory::Assets;
 using namespace Armory::Accounts;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +45,7 @@ void MetaDataAccount::make_new(MetaAccountType type)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MetaDataAccount::commit(unique_ptr<DBIfaceTransaction> txPtr) const
+void MetaDataAccount::commit(unique_ptr<IO::DBIfaceTransaction> txPtr) const
 {
    ReentrantLock lock(this);
 
@@ -57,7 +58,7 @@ void MetaDataAccount::commit(unique_ptr<DBIfaceTransaction> txPtr) const
    bwData.put_uint32_t((uint32_t)type_);
 
    //commit assets
-   shared_ptr<DBIfaceTransaction> sharedTx(move(txPtr));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(txPtr));
    for (auto& asset : assets_)
       writeAssetToDisk(sharedTx, asset.second);
 
@@ -67,7 +68,7 @@ void MetaDataAccount::commit(unique_ptr<DBIfaceTransaction> txPtr) const
 
 ////////////////////////////////////////////////////////////////////////////////
 bool MetaDataAccount::writeAssetToDisk(
-   shared_ptr<DBIfaceTransaction> txPtr,
+   shared_ptr<IO::DBIfaceTransaction> txPtr,
    shared_ptr<MetaData> assetPtr) const
 {
    if (!assetPtr->needsCommit())
@@ -91,7 +92,7 @@ bool MetaDataAccount::writeAssetToDisk(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void MetaDataAccount::updateOnDisk(shared_ptr<DBIfaceTransaction> txPtr)
+void MetaDataAccount::updateOnDisk(shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    ReentrantLock lock(this);
 
@@ -125,7 +126,7 @@ void MetaDataAccount::reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 void MetaDataAccount::readFromDisk(
-   shared_ptr<WalletDBInterface> iface, const BinaryData& key)
+   shared_ptr<IO::WalletDBInterface> iface, const BinaryData& key)
 {
    //sanity checks
    if (iface == nullptr || dbName_.size() == 0)
@@ -345,7 +346,7 @@ map<SecureBinaryData, set<unsigned>>
 int AuthPeerAssetConversion::addAsset(
    MetaDataAccount* account, const SecureBinaryData& pubkey,
    const std::vector<std::string>& names,
-   shared_ptr<DBIfaceTransaction> txPtr)
+   shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    ReentrantLock lock(account);
 
@@ -370,7 +371,7 @@ int AuthPeerAssetConversion::addAsset(
 ////////////////////////////////////////////////////////////////////////////////
 void AuthPeerAssetConversion::addRootSignature(MetaDataAccount* account,
    const SecureBinaryData& key, const SecureBinaryData& sig,
-   shared_ptr<DBIfaceTransaction> txPtr)
+   shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    ReentrantLock lock(account);
 
@@ -390,7 +391,7 @@ void AuthPeerAssetConversion::addRootSignature(MetaDataAccount* account,
 ////////////////////////////////////////////////////////////////////////////////
 unsigned AuthPeerAssetConversion::addRootPeer(MetaDataAccount* account,
    const SecureBinaryData& key, const std::string& desc, 
-   shared_ptr<DBIfaceTransaction> txPtr)
+   shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    ReentrantLock lock(account);
 
@@ -439,7 +440,7 @@ shared_ptr<CommentData> CommentAssetConversion::getByKey(
 ////////////////////////////////////////////////////////////////////////////////
 int CommentAssetConversion::setAsset(MetaDataAccount* account,
    const BinaryData& key, const std::string& comment,
-   shared_ptr<DBIfaceTransaction> txPtr)
+   shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    if (comment.size() == 0)
       return INT32_MIN;
@@ -472,7 +473,7 @@ int CommentAssetConversion::setAsset(MetaDataAccount* account,
 ////////////////////////////////////////////////////////////////////////////////
 int CommentAssetConversion::deleteAsset(
    MetaDataAccount* account, const BinaryData& key,
-   shared_ptr<DBIfaceTransaction> txPtr)
+   shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    auto metaObject = getByKey(account, key);
    if (metaObject == nullptr)

@@ -15,6 +15,7 @@
 
 using namespace std;
 using namespace Armory::Assets;
+using namespace Armory::Wallets::IO;
 
 #define COMPACT_FILE_SWAP_NAME "swapOld"
 #define COMPACT_FILE_COPY_NAME "compactCopy"

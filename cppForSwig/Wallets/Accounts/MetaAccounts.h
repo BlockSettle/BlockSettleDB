@@ -23,11 +23,17 @@
 #define META_ACCOUNT_PREFIX      0xF1
 
 ////
-class DBIfaceTransaction;
-class WalletDBInterface;
-
 namespace Armory
 {
+   namespace Wallets
+   {
+      namespace IO
+      {
+         class DBIfaceTransaction;
+         class WalletDBInterface;
+      };
+   };
+
    namespace Accounts
    {
       //////////////////////////////////////////////////////////////////////////
@@ -46,7 +52,7 @@ namespace Armory
 
       private:
          bool writeAssetToDisk(
-            std::shared_ptr<DBIfaceTransaction>,
+            std::shared_ptr<Wallets::IO::DBIfaceTransaction>,
             std::shared_ptr<Assets::MetaData>) const;
 
       public:
@@ -59,10 +65,10 @@ namespace Armory
          void cleanUpBeforeUnlock(void) {}
 
          //storage methods
-         void readFromDisk(std::shared_ptr<WalletDBInterface>,
+         void readFromDisk(std::shared_ptr<Wallets::IO::WalletDBInterface>,
             const BinaryData&);
-         void commit(std::unique_ptr<DBIfaceTransaction>) const;
-         void updateOnDisk(std::shared_ptr<DBIfaceTransaction>);
+         void commit(std::unique_ptr<Wallets::IO::DBIfaceTransaction>) const;
+         void updateOnDisk(std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
          std::shared_ptr<MetaDataAccount> copy(const std::string&) const;
 
          //setup methods
@@ -98,15 +104,15 @@ namespace Armory
 
          static int addAsset(MetaDataAccount*, const SecureBinaryData&,
             const std::vector<std::string>&,
-            std::shared_ptr<DBIfaceTransaction>);
+            std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
 
          static void addRootSignature(MetaDataAccount*,
             const SecureBinaryData&, const SecureBinaryData&,
-            std::shared_ptr<DBIfaceTransaction>);
+            std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
 
          static unsigned addRootPeer(MetaDataAccount*,
             const SecureBinaryData&, const std::string&,
-            std::shared_ptr<DBIfaceTransaction>);
+            std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -118,15 +124,15 @@ namespace Armory
          static int setAsset(
             MetaDataAccount*, const BinaryData&,
             const std::string&,
-            std::shared_ptr<DBIfaceTransaction>);
+            std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
 
          static int deleteAsset(
             MetaDataAccount*, const BinaryData&,
-            std::shared_ptr<DBIfaceTransaction>);
+            std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
 
          static std::map<BinaryData, std::string> getCommentMap(MetaDataAccount*);
       };
-   };
-};
+   }; //namespace Accounts
+}; //namespace Armory
 
 #endif

@@ -28,13 +28,17 @@ class DecryptedDataContainer;
 
 #define DERIVATION_LOOKUP        100
 
-class DBIfaceTransaction;
 
 namespace Armory
 {
    namespace Wallets
    {
       class AssetWallet_Single;
+
+      namespace IO
+      {
+         class DBIfaceTransaction;
+      };
    };
 
    namespace Assets
@@ -232,7 +236,7 @@ namespace Armory
             Wallets::AssetId);
 
          void putSalt(Wallets::AssetKeyType, const SecureBinaryData&,
-            std::shared_ptr<DBIfaceTransaction>);
+            std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
 
       public:
          DerivationScheme_ECDH(void) :
@@ -254,9 +258,9 @@ namespace Armory
 
          //locals
          Wallets::AssetKeyType addSalt(const SecureBinaryData&,
-            std::shared_ptr<DBIfaceTransaction>);
-         void putAllSalts(std::shared_ptr<DBIfaceTransaction>);
-         void getAllSalts(std::shared_ptr<DBIfaceTransaction>);
+            std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
+         void putAllSalts(std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
+         void getAllSalts(std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
          Wallets::AssetKeyType getIdForSalt(const SecureBinaryData&);
       };
    }; //namespace Assets

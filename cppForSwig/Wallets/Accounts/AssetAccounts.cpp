@@ -49,7 +49,7 @@ const AssetAccountId& AssetAccount::getID(void) const
 
 ////////////////////////////////////////////////////////////////////////////////
 size_t AssetAccount::writeAssetEntry(shared_ptr<AssetEntry> entryPtr,
-   shared_ptr<WalletDBInterface> iface)
+   shared_ptr<IO::WalletDBInterface> iface)
 {
    if (!entryPtr->needsCommit())
       return SIZE_MAX;
@@ -69,7 +69,7 @@ size_t AssetAccount::writeAssetEntry(shared_ptr<AssetEntry> entryPtr,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::updateOnDiskAssets(shared_ptr<WalletDBInterface> iface)
+void AssetAccount::updateOnDiskAssets(shared_ptr<IO::WalletDBInterface> iface)
 {
    if (iface == nullptr)
       throw AccountException("updateOnDiskAssets: null iface");
@@ -82,7 +82,7 @@ void AssetAccount::updateOnDiskAssets(shared_ptr<WalletDBInterface> iface)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::updateAssetCount(shared_ptr<WalletDBInterface> iface)
+void AssetAccount::updateAssetCount(shared_ptr<IO::WalletDBInterface> iface)
 {
    if (iface == nullptr)
       throw AccountException("updateAssetCount: null iface");
@@ -100,7 +100,7 @@ void AssetAccount::updateAssetCount(shared_ptr<WalletDBInterface> iface)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::commit(shared_ptr<WalletDBInterface> iface)
+void AssetAccount::commit(shared_ptr<IO::WalletDBInterface> iface)
 {
    if (iface == nullptr)
       throw AccountException("commit: null iface");
@@ -141,7 +141,7 @@ void AssetAccount::commit(shared_ptr<WalletDBInterface> iface)
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetAccountData> AssetAccount::loadFromDisk(const BinaryData& key,
-   shared_ptr<WalletIfaceTransaction> tx)
+   shared_ptr<IO::WalletIfaceTransaction> tx)
 {
    //sanity checks
    if (tx == nullptr)
@@ -320,7 +320,7 @@ size_t AssetAccount::getAssetCount() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::extendPublicChain(shared_ptr<WalletDBInterface> iface,
+void AssetAccount::extendPublicChain(shared_ptr<IO::WalletDBInterface> iface,
    unsigned count)
 {
    if (count == 0)
@@ -340,7 +340,7 @@ void AssetAccount::extendPublicChain(shared_ptr<WalletDBInterface> iface,
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::extendPublicChainToIndex(
-   shared_ptr<WalletDBInterface> iface, unsigned index)
+   shared_ptr<IO::WalletDBInterface> iface, unsigned index)
 {
    ReentrantLock lock(this);
 
@@ -357,7 +357,7 @@ void AssetAccount::extendPublicChainToIndex(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::extendPublicChain(shared_ptr<WalletDBInterface> iface,
+void AssetAccount::extendPublicChain(shared_ptr<IO::WalletDBInterface> iface,
    shared_ptr<AssetEntry> assetPtr, unsigned count)
 {
    if (count == 0)
@@ -419,7 +419,7 @@ vector<shared_ptr<AssetEntry>> AssetAccount::extendPublicChain(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::extendPrivateChain(
-   shared_ptr<WalletDBInterface> iface,
+   shared_ptr<IO::WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    unsigned count)
 {
@@ -438,7 +438,7 @@ void AssetAccount::extendPrivateChain(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::extendPrivateChainToIndex(
-   shared_ptr<WalletDBInterface> iface,
+   shared_ptr<IO::WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    unsigned id)
 {
@@ -463,7 +463,7 @@ void AssetAccount::extendPrivateChainToIndex(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::extendPrivateChain(shared_ptr<WalletDBInterface> iface,
+void AssetAccount::extendPrivateChain(shared_ptr<IO::WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    shared_ptr<AssetEntry> assetPtr, unsigned count)
 {
@@ -560,7 +560,7 @@ shared_ptr<AssetEntry> AssetAccount::getLastAssetWithPrivateKey() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount::updateHighestUsedIndex(shared_ptr<WalletDBInterface> iface)
+void AssetAccount::updateHighestUsedIndex(shared_ptr<IO::WalletDBInterface> iface)
 {
    if (iface == nullptr)
       throw AccountException("updateHighestUsedIndex: null iface");
@@ -579,7 +579,7 @@ void AssetAccount::updateHighestUsedIndex(shared_ptr<WalletDBInterface> iface)
 
 ////////////////////////////////////////////////////////////////////////////////
 unsigned AssetAccount::getAndBumpHighestUsedIndex(
-   shared_ptr<WalletDBInterface> iface)
+   shared_ptr<IO::WalletDBInterface> iface)
 {
    ReentrantLock lock(this);
 
@@ -590,7 +590,7 @@ unsigned AssetAccount::getAndBumpHighestUsedIndex(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry> AssetAccount::getOrSetAssetAtIndex(
-   shared_ptr<WalletDBInterface> iface, unsigned index)
+   shared_ptr<IO::WalletDBInterface> iface, unsigned index)
 {
    ReentrantLock lock(this);
 
@@ -609,7 +609,7 @@ shared_ptr<AssetEntry> AssetAccount::getOrSetAssetAtIndex(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry> AssetAccount::getNewAsset(
-   shared_ptr<WalletDBInterface> iface)
+   shared_ptr<IO::WalletDBInterface> iface)
 {
    auto index = getAndBumpHighestUsedIndex(iface);
    return getOrSetAssetAtIndex(iface, index);
@@ -617,7 +617,7 @@ shared_ptr<AssetEntry> AssetAccount::getNewAsset(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry> AssetAccount::peekNextAsset(
-   shared_ptr<WalletDBInterface> iface)
+   shared_ptr<IO::WalletDBInterface> iface)
 {
    auto index = data_->lastUsedIndex_ + 1;
    return getOrSetAssetAtIndex(iface, index);
@@ -638,7 +638,7 @@ shared_ptr<AssetEntry> AssetAccount::getAssetForID(const AssetId& ID) const
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry> AssetAccount::getAssetForKey(
-   const Armory::Wallets::AssetKeyType& key) const
+   const AssetKeyType& key) const
 {
    AssetId id(data_->id_, key);
    return getAssetForID(id);
@@ -715,7 +715,7 @@ const SecureBinaryData& AssetAccount::getChaincode() const
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<Asset_PrivateKey> AssetAccount::fillPrivateKey(
-   shared_ptr<WalletDBInterface> iface,
+   shared_ptr<IO::WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    const AssetId& id)
 {
@@ -795,7 +795,8 @@ shared_ptr<AssetEntry> AssetAccount::getRoot() const
 //// AssetAccount_ECDH
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-AssetKeyType AssetAccount_ECDH::addSalt(shared_ptr<WalletIfaceTransaction> tx,
+AssetKeyType AssetAccount_ECDH::addSalt(
+   shared_ptr<IO::WalletIfaceTransaction> tx,
    const SecureBinaryData& salt)
 {
    auto derScheme = 
@@ -820,7 +821,7 @@ AssetKeyType AssetAccount_ECDH::getSaltIndex(const SecureBinaryData& salt) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AssetAccount_ECDH::commit(shared_ptr<WalletDBInterface> iface)
+void AssetAccount_ECDH::commit(shared_ptr<IO::WalletDBInterface> iface)
 {
    if (iface == nullptr)
       throw AccountException("commit: null iface");
@@ -833,6 +834,6 @@ void AssetAccount_ECDH::commit(shared_ptr<WalletDBInterface> iface)
    auto uniqueTx = iface->beginWriteTransaction(data_->dbName_);
    AssetAccount::commit(iface);
 
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
    schemeECDH->putAllSalts(sharedTx);
 }

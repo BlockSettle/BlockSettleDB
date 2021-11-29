@@ -285,7 +285,7 @@ void AuthorizedPeers::addPeer(const SecureBinaryData& pubkey,
    auto peerAccount = wallet_->getMetaAccount(MetaAccount_AuthPeers);
    auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
       wallet_->getDbName());
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
    auto index = AuthPeerAssetConversion::addAsset(
       peerAccount.get(), pubkey_cmp, names, sharedTx);
 
@@ -334,7 +334,7 @@ void AuthorizedPeers::addPeer(const btc_pubkey& pubkey,
    auto peerAccount = wallet_->getMetaAccount(MetaAccount_AuthPeers);   
    auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
       wallet_->getDbName());
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
    auto index = AuthPeerAssetConversion::addAsset(
       peerAccount.get(), keySbd, names, sharedTx);
 
@@ -453,7 +453,7 @@ void AuthorizedPeers::eraseName(const string& name)
 
    auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
       wallet_->getDbName());
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
    metaAccount->updateOnDisk(sharedTx);
 }
 
@@ -545,7 +545,7 @@ void AuthorizedPeers::eraseKey(const SecureBinaryData& pubkey)
    //update on disk
    auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
       wallet_->getDbName());
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
    metaAccount->updateOnDisk(sharedTx);
 
    //erase from index map
@@ -587,7 +587,7 @@ void AuthorizedPeers::addRootSignature(
 
    auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
       wallet_->getDbName());
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
    auto peerAccount = wallet_->getMetaAccount(MetaAccount_AuthPeers);
    AuthPeerAssetConversion::addRootSignature(
       peerAccount.get(), key, sig, sharedTx);
@@ -611,7 +611,7 @@ void AuthorizedPeers::addPeerRootKey(
    auto peerAccount = wallet_->getMetaAccount(MetaAccount_AuthPeers);
    auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
       wallet_->getDbName());
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
    auto index = AuthPeerAssetConversion::addRootPeer(
       peerAccount.get(), key, description, sharedTx);
 
@@ -635,7 +635,7 @@ void AuthorizedPeers::erasePeerRootKey(const SecureBinaryData& key)
       //update on disk
       auto uniqueTx = wallet_->getIface()->beginWriteTransaction(
          wallet_->getDbName());
-      shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+      shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
       metaAccount->updateOnDisk(sharedTx);
    }
 

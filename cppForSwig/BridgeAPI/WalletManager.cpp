@@ -439,7 +439,7 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
    unique_lock<mutex> lock(stateMutex_);
 
    AssetKeyType topIndex = -1;
-   shared_ptr<WalletIfaceTransaction> dbtx;
+   shared_ptr<IO::WalletIfaceTransaction> dbtx;
    map<BinaryData, shared_ptr<AddressEntry>> updatedAddressMap;
    map<AssetId, AddressEntryType> orderedUpdatedAddresses;
 

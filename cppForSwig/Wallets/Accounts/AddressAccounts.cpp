@@ -352,7 +352,7 @@ unique_ptr<AddressAccount> AddressAccount::make_new(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::commit(shared_ptr<WalletDBInterface> iface)
+void AddressAccount::commit(shared_ptr<IO::WalletDBInterface> iface)
 {
    if (iface == nullptr)
       throw AccountException("commit: null iface");
@@ -380,7 +380,7 @@ void AddressAccount::commit(shared_ptr<WalletDBInterface> iface)
    bwData.put_var_int(accountDataMap_.size());
 
    auto uniqueTx = iface->beginWriteTransaction(dbName_);
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
 
    //asset accounts
    for (auto& accDataPair : accountDataMap_)
@@ -441,7 +441,7 @@ void AddressAccount::addAccount(std::shared_ptr<AssetAccountData> accPtr)
 
 ////////////////////////////////////////////////////////////////////////////////
 unique_ptr<AddressAccount> AddressAccount::readFromDisk(
-   shared_ptr<WalletIfaceTransaction> tx, const AddressAccountId& ID)
+   shared_ptr<IO::WalletIfaceTransaction> tx, const AddressAccountId& ID)
 {
    const auto& dbName = tx->getDbName();
 
@@ -544,7 +544,7 @@ unique_ptr<AddressAccount> AddressAccount::readFromDisk(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPublicChain(
-   std::shared_ptr<WalletDBInterface> iface, unsigned count)
+   std::shared_ptr<IO::WalletDBInterface> iface, unsigned count)
 {
    for (auto& accDataPair : accountDataMap_)
    {
@@ -555,7 +555,7 @@ void AddressAccount::extendPublicChain(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPublicChain(
-   std::shared_ptr<WalletDBInterface> iface,
+   std::shared_ptr<IO::WalletDBInterface> iface,
    const AssetAccountId& id, unsigned count)
 {
    auto accountPtr = getAccountForID(id);
@@ -564,7 +564,7 @@ void AddressAccount::extendPublicChain(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPublicChainToIndex(
-   std::shared_ptr<WalletDBInterface> iface,
+   std::shared_ptr<IO::WalletDBInterface> iface,
    const AssetAccountId& accountID, unsigned index)
 {
    auto accountPtr = getAccountForID(accountID);
@@ -573,7 +573,7 @@ void AddressAccount::extendPublicChainToIndex(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPrivateChain(
-   std::shared_ptr<WalletDBInterface> iface,
+   std::shared_ptr<IO::WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    unsigned count)
 {
@@ -586,7 +586,7 @@ void AddressAccount::extendPrivateChain(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPrivateChainToIndex(
-   std::shared_ptr<WalletDBInterface> iface,
+   std::shared_ptr<IO::WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    const AssetAccountId& accountID, unsigned count)
 {
@@ -596,7 +596,7 @@ void AddressAccount::extendPrivateChainToIndex(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressEntry> AddressAccount::getNewAddress(
-   std::shared_ptr<WalletDBInterface> iface, AddressEntryType aeType)
+   std::shared_ptr<IO::WalletDBInterface> iface, AddressEntryType aeType)
 {
    if (!outerAccountId_.isValid())
       throw AccountException("no currently active asset account");
@@ -606,7 +606,7 @@ shared_ptr<AddressEntry> AddressAccount::getNewAddress(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressEntry> AddressAccount::getNewAddress(
-   std::shared_ptr<WalletDBInterface> iface,
+   std::shared_ptr<IO::WalletDBInterface> iface,
    const AssetAccountId& accountId, AddressEntryType aeType)
 {
    if (aeType == AddressEntryType_Default)
@@ -636,7 +636,7 @@ shared_ptr<AddressEntry> AddressAccount::getNewAddress(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressEntry> AddressAccount::getNewChangeAddress(
-   std::shared_ptr<WalletDBInterface> iface, AddressEntryType aeType)
+   std::shared_ptr<IO::WalletDBInterface> iface, AddressEntryType aeType)
 {
    if (!innerAccountId_.isValid())
    {
@@ -649,7 +649,7 @@ shared_ptr<AddressEntry> AddressAccount::getNewChangeAddress(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AddressEntry> AddressAccount::peekNextChangeAddress(
-   std::shared_ptr<WalletDBInterface> iface, AddressEntryType aeType)
+   std::shared_ptr<IO::WalletDBInterface> iface, AddressEntryType aeType)
 {
    if (aeType == AddressEntryType_Default)
       aeType = defaultAddressEntryType_;
@@ -688,7 +688,7 @@ bool AddressAccount::isAssetChange(const AssetId& id) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool AddressAccount::isAssetInUse(const Armory::Wallets::AssetId& id) const
+bool AddressAccount::isAssetInUse(const AssetId& id) const
 {
    auto accPtr = getAccountForID(id);
    return accPtr->isAssetInUse(id);
@@ -956,7 +956,7 @@ void AddressAccount::importPublicData(const AddressAccountPublicData& aapd)
 
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::updateInstantiatedAddressType(
-   shared_ptr<WalletDBInterface> iface,
+   shared_ptr<IO::WalletDBInterface> iface,
    shared_ptr<AddressEntry> addrPtr)
 {
    /***
@@ -979,7 +979,7 @@ void AddressAccount::updateInstantiatedAddressType(
   
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::updateInstantiatedAddressType(
-   shared_ptr<WalletDBInterface> iface,
+   shared_ptr<IO::WalletDBInterface> iface,
    const AssetId& id, AddressEntryType aeType)
 {
    //sanity check
@@ -1012,17 +1012,17 @@ void AddressAccount::updateInstantiatedAddressType(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::writeAddressType(shared_ptr<WalletDBInterface> iface,
+void AddressAccount::writeAddressType(shared_ptr<IO::WalletDBInterface> iface,
    const AssetId& id, AddressEntryType aeType)
 {
    auto uniqueTx = iface->beginWriteTransaction(dbName_);
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
 
    writeAddressType(sharedTx, id, aeType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AddressAccount::writeAddressType(shared_ptr<DBIfaceTransaction> tx,
+void AddressAccount::writeAddressType(shared_ptr<IO::DBIfaceTransaction> tx,
    const AssetId& id, AddressEntryType aeType)
 {
    ReentrantLock lock(this);
@@ -1037,7 +1037,7 @@ void AddressAccount::writeAddressType(shared_ptr<DBIfaceTransaction> tx,
 
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::eraseInstantiatedAddressType(
-   std::shared_ptr<WalletDBInterface> iface, const AssetId& id)
+   std::shared_ptr<IO::WalletDBInterface> iface, const AssetId& id)
 {
    if (iface == nullptr)
       throw AccountException("eraseInstantiatedAddressType: null iface");
@@ -1111,7 +1111,7 @@ map<AssetId, shared_ptr<AddressEntry>> AddressAccount::getUsedAddressMap()
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<Asset_PrivateKey> AddressAccount::fillPrivateKey(
-   shared_ptr<WalletDBInterface> iface,
+   shared_ptr<IO::WalletDBInterface> iface,
    shared_ptr<DecryptedDataContainer> ddc,
    const AssetId& id)
 {
@@ -1192,8 +1192,8 @@ bool AddressAccount::isLegacy() const
 
 ////////////////////////////////////////////////////////////////////////////////
 AddressAccountPublicData::AddressAccountPublicData(
-   const Armory::Wallets::AddressAccountId& accId,
-   const Armory::Wallets::AssetAccountId& outId,
-   const Armory::Wallets::AssetAccountId& innId) :
+   const AddressAccountId& accId,
+   const AssetAccountId& outId,
+   const AssetAccountId& innId) :
    ID_(accId), outerAccountId_(outId), innerAccountId_(innId)
 {}

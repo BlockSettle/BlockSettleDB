@@ -22,8 +22,8 @@ using namespace Armory::Wallets;
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 AssetWallet::AssetWallet(
-   shared_ptr<WalletDBInterface> iface,
-   shared_ptr<WalletHeader> headerPtr, 
+   shared_ptr<IO::WalletDBInterface> iface,
+   shared_ptr<IO::WalletHeader> headerPtr, 
    const string& masterID) :
    iface_(iface), 
    dbName_(headerPtr->getDbName()),
@@ -31,7 +31,7 @@ AssetWallet::AssetWallet(
 {
    auto ifaceCopy = iface_;
    auto getWriteTx = [ifaceCopy](const string& name)->
-      unique_ptr<DBIfaceTransaction>
+      unique_ptr<IO::DBIfaceTransaction>
    {
       return ifaceCopy->beginWriteTransaction(name);
    };
@@ -52,7 +52,7 @@ AssetWallet::~AssetWallet()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<WalletDBInterface> AssetWallet::getIfaceFromFile(
+shared_ptr<IO::WalletDBInterface> AssetWallet::getIfaceFromFile(
     const string& path, bool fileExists, const PassphraseLambda& passLbd)
 {
    /*
@@ -60,14 +60,14 @@ shared_ptr<WalletDBInterface> AssetWallet::getIfaceFromFile(
    passphrase. Private keys use a different passphrase, with its own prompt.
    */
 
-   auto iface = make_shared<WalletDBInterface>();
+   auto iface = make_shared<IO::WalletDBInterface>();
    iface->setupEnv(path, fileExists, passLbd);
 
    return iface;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-std::shared_ptr<WalletDBInterface> AssetWallet::getIface() const
+std::shared_ptr<IO::WalletDBInterface> AssetWallet::getIface() const
 {
    return iface_;
 }
@@ -118,7 +118,7 @@ shared_ptr<AddressAccount> AssetWallet::createAccount(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::setMainWallet(
-   shared_ptr<WalletDBInterface> iface, const string& walletID)
+   shared_ptr<IO::WalletDBInterface> iface, const string& walletID)
 {
    BinaryWriter bwKey;
    bwKey.put_uint32_t(MAINWALLET_KEY);
@@ -132,7 +132,7 @@ void AssetWallet::setMainWallet(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-string AssetWallet::getMainWalletID(shared_ptr<WalletDBInterface> iface)
+string AssetWallet::getMainWalletID(shared_ptr<IO::WalletDBInterface> iface)
 {
    BinaryWriter bwKey;
    bwKey.put_uint32_t(MAINWALLET_KEY);
@@ -145,7 +145,7 @@ string AssetWallet::getMainWalletID(shared_ptr<WalletDBInterface> iface)
       string idStr(dataRef.toCharPtr(), dataRef.getSize());
       return idStr;
    }
-   catch (NoEntryInWalletException&)
+   catch (IO::NoEntryInWalletException&)
    {
       LOGERR << "main wallet ID is not set!";
       throw WalletException("main wallet ID is not set!");
@@ -153,7 +153,7 @@ string AssetWallet::getMainWalletID(shared_ptr<WalletDBInterface> iface)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-string AssetWallet::getMasterID(shared_ptr<WalletDBInterface> iface)
+string AssetWallet::getMasterID(shared_ptr<IO::WalletDBInterface> iface)
 {
    BinaryWriter bwKey;
    bwKey.put_uint32_t(MASTERID_KEY);
@@ -194,9 +194,9 @@ void AssetWallet::checkMasterID(const string& masterID)
       masterID_ = fromDisk;
       return;
    }
-   catch(NoEntryInWalletException&)
+   catch(IO::NoEntryInWalletException&)
    {}
-      
+
    /*
    This wallet has no masterID entry if we got this far, let's set it.
    */
@@ -229,8 +229,8 @@ void AssetWallet_Single::readFromFile()
       throw WalletException("uninitialized wallet object");
 
    auto uniqueTx = iface_->beginReadTransaction(dbName_);
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
-   auto walletTx = dynamic_pointer_cast<WalletIfaceTransaction>(sharedTx);
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
+   auto walletTx = dynamic_pointer_cast<IO::WalletIfaceTransaction>(sharedTx);
 
    {
       //main account
@@ -260,7 +260,7 @@ void AssetWallet_Single::readFromFile()
             AssetId::getRootAssetId(), rootAssetRef);
          root_ = dynamic_pointer_cast<AssetEntry_Single>(asset_root);
       }
-      catch(const NoEntryInWalletException&)
+      catch(const IO::NoEntryInWalletException&)
       {}
    }
 
@@ -282,7 +282,7 @@ void AssetWallet_Single::readFromFile()
 
          seed_ = seedObj;
       }
-      catch(NoEntryInWalletException&)
+      catch(IO::NoEntryInWalletException&)
       {}
    }
 
@@ -295,7 +295,7 @@ void AssetWallet_Single::readFromFile()
          auto labelRef = getDataRefForKey(sharedTx.get(), bwKey.getData());
          label_ = string(labelRef.toCharPtr(), labelRef.getSize());
       }
-      catch(NoEntryInWalletException& )
+      catch(IO::NoEntryInWalletException& )
       {}
    }
 
@@ -308,7 +308,7 @@ void AssetWallet_Single::readFromFile()
          auto labelRef = getDataRefForKey(sharedTx.get(), bwKey.getData());
          description_ = string(labelRef.toCharPtr(), labelRef.getSize());
       }
-      catch(NoEntryInWalletException& )
+      catch(IO::NoEntryInWalletException& )
       {}
    }
 
@@ -712,7 +712,7 @@ void AssetWallet::addSubDB(
    if (iface_->getFreeDbCount() == 0)
       iface_->setDbCount(iface_->getDbCount() + 1);
 
-   auto headerPtr = make_shared<WalletHeader_Custom>();
+   auto headerPtr = make_shared<IO::WalletHeader_Custom>();
    headerPtr->walletID_ = dbName;
 
    try
@@ -729,16 +729,16 @@ void AssetWallet::addSubDB(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<WalletIfaceTransaction> AssetWallet::beginSubDBTransaction(
+shared_ptr<IO::WalletIfaceTransaction> AssetWallet::beginSubDBTransaction(
    const string& dbName, bool write)
 {
-   shared_ptr<DBIfaceTransaction> tx;
+   shared_ptr<IO::DBIfaceTransaction> tx;
    if (!write)
       tx = iface_->beginReadTransaction(dbName);
    else
       tx = iface_->beginWriteTransaction(dbName);
 
-   auto wltTx = dynamic_pointer_cast<WalletIfaceTransaction>(tx);
+   auto wltTx = dynamic_pointer_cast<IO::WalletIfaceTransaction>(tx);
    if (wltTx == nullptr)
       throw WalletException("[beginSubDBTransaction] invalid dbtx type");
    return wltTx;
@@ -756,7 +756,7 @@ shared_ptr<AssetWallet> AssetWallet::loadMainWalletFromFile(
 
    switch (headerPtr->type_)
    {
-   case WalletHeaderType_Single:
+   case IO::WalletHeaderType_Single:
    {
       auto wltSingle = make_shared<AssetWallet_Single>(
          iface, headerPtr, string());
@@ -766,7 +766,7 @@ shared_ptr<AssetWallet> AssetWallet::loadMainWalletFromFile(
       break;
    }
 
-   case WalletHeaderType_Multisig:
+   case IO::WalletHeaderType_Multisig:
    {
       auto wltMS = make_shared<AssetWallet_Multisig>(
          iface, headerPtr, string());
@@ -785,7 +785,7 @@ shared_ptr<AssetWallet> AssetWallet::loadMainWalletFromFile(
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef AssetWallet::getDataRefForKey(
-   DBIfaceTransaction* tx, const BinaryData& key)
+   IO::DBIfaceTransaction* tx, const BinaryData& key)
 {
    /** The reference lifetime is tied to the db tx lifetime. The caller has to
    maintain the tx for as long as the data ref needs to be valid **/
@@ -793,7 +793,7 @@ BinaryDataRef AssetWallet::getDataRefForKey(
    auto ref = tx->getDataRef(key);
 
    if (ref.getSize() == 0)
-      throw NoEntryInWalletException();
+      throw IO::NoEntryInWalletException();
 
    return DBUtils::getDataRefForPacket(ref);
 }
@@ -889,7 +889,7 @@ string AssetWallet::forkWatchingOnly(
    {
       switch (metaPtr.second->type_)
       {
-      case WalletHeaderType_Single:
+      case IO::WalletHeaderType_Single:
       {
          woIface->addHeader(metaPtr.second);
 
@@ -971,7 +971,7 @@ void AssetWallet::setComment(const BinaryData& key, const string& comment)
 {
    auto accPtr = getMetaAccount(MetaAccountType::MetaAccount_Comments);
    auto uniqueTx = iface_->beginWriteTransaction(dbName_);
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
    CommentAssetConversion::setAsset(accPtr.get(), key, comment, sharedTx);
 }
 
@@ -992,7 +992,7 @@ void AssetWallet::deleteComment(const BinaryData& key)
 {
    auto accPtr = getMetaAccount(MetaAccountType::MetaAccount_Comments);
    auto uniqueTx = iface_->beginWriteTransaction(dbName_);
-   shared_ptr<DBIfaceTransaction> sharedTx(move(uniqueTx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(uniqueTx));
    CommentAssetConversion::deleteAsset(accPtr.get(), key, sharedTx);
 }
 
@@ -1061,8 +1061,8 @@ void AssetWallet::eraseFromDisk(AssetWallet* wltPtr)
 //// AssetWallet_Single
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-AssetWallet_Single::AssetWallet_Single(shared_ptr<WalletDBInterface> iface,
-   shared_ptr<WalletHeader> metaPtr, const string& masterID) :
+AssetWallet_Single::AssetWallet_Single(shared_ptr<IO::WalletDBInterface> iface,
+   shared_ptr<IO::WalletHeader> metaPtr, const string& masterID) :
    AssetWallet(iface, metaPtr, masterID)
 {
    if (metaPtr == nullptr ||
@@ -1542,7 +1542,7 @@ string AssetWallet_Single::computeWalletID(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
-   shared_ptr<WalletDBInterface> iface,
+   shared_ptr<IO::WalletDBInterface> iface,
    const string& masterID, const string& walletID,
    const SecureBinaryData& passphrase,
    const SecureBinaryData& controlPassphrase,
@@ -1550,12 +1550,12 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
    const SecureBinaryData& chaincode,
    uint32_t seedFingerprint)
 {
-   auto headerPtr = make_shared<WalletHeader_Single>(
+   auto headerPtr = make_shared<IO::WalletHeader_Single>(
       Armory::Config::BitcoinSettings::getMagicBytes());
    headerPtr->walletID_ = walletID;
 
    //init headerPtr object
-   auto masterKeyStruct = WalletDBInterface::initWalletHeaderObject(
+   auto masterKeyStruct = IO::WalletDBInterface::initWalletHeaderObject(
       headerPtr, passphrase);
 
    //copy cipher to cycle the IV then encrypt the private root
@@ -1641,7 +1641,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbWithPubRoot(
-   shared_ptr<WalletDBInterface> iface,
+   shared_ptr<IO::WalletDBInterface> iface,
    const SecureBinaryData& controlPassphrase,
    const string& masterID, const string& walletID,
    shared_ptr<AssetEntry_Single> pubRoot)
@@ -1652,10 +1652,10 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbWithPubRoot(
          throw WalletException("[initWalletDbWithPubRoot] root has priv key");
    }
 
-   auto headerPtr = make_shared<WalletHeader_Single>(
+   auto headerPtr = make_shared<IO::WalletHeader_Single>(
       Armory::Config::BitcoinSettings::getMagicBytes());
    headerPtr->walletID_ = walletID;
-   WalletDBInterface::initWalletHeaderObject(headerPtr, {});
+   IO::WalletDBInterface::initWalletHeaderObject(headerPtr, {});
    auto walletPtr = make_shared<AssetWallet_Single>(iface, headerPtr, masterID);
 
    auto controlPassLbd = 
@@ -1827,7 +1827,7 @@ const SecureBinaryData& AssetWallet_Single::getArmory135Chaincode() const
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet_Single::importPublicData(
-   const WalletPublicData& wpd, std::shared_ptr<WalletDBInterface> iface)
+   const WalletPublicData& wpd, std::shared_ptr<IO::WalletDBInterface> iface)
 {
    //TODO: merging from exported data
 
@@ -1835,7 +1835,7 @@ void AssetWallet_Single::importPublicData(
    auto&& tx = iface->beginWriteTransaction(wpd.dbName_);
 
    //open the wallet
-   auto headerPtr = make_shared<WalletHeader_Single>(
+   auto headerPtr = make_shared<IO::WalletHeader_Single>(
       Armory::Config::BitcoinSettings::getMagicBytes());
    headerPtr->walletID_ = wpd.walletID_;
    auto wltWO = make_unique<AssetWallet_Single>(iface, headerPtr, wpd.masterID_);
@@ -2264,8 +2264,8 @@ std::shared_ptr<AccountType_BIP32> AssetWallet_Single::makeNewBip32AccTypeObject
 //// AssetWallet_Multisig
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-AssetWallet_Multisig::AssetWallet_Multisig(shared_ptr<WalletDBInterface> iface,
-   shared_ptr<WalletHeader> metaPtr, const string& masterID) :
+AssetWallet_Multisig::AssetWallet_Multisig(shared_ptr<IO::WalletDBInterface> iface,
+   shared_ptr<IO::WalletHeader> metaPtr, const string& masterID) :
    AssetWallet(iface, metaPtr, masterID)
 {
    if (metaPtr == nullptr ||
@@ -2317,7 +2317,7 @@ void AssetWallet_Multisig::readFromFile()
          stringstream ss;
          ss << "Subwallet-" << i;
 
-         auto subWltMeta = make_shared<WalletHeader_Subwallet>();
+         auto subWltMeta = make_shared<IO::WalletHeader_Subwallet>();
          subWltMeta->walletID_ = ss.str();
 
          auto subwalletPtr = make_shared<AssetWallet_Single>(

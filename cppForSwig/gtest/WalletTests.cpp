@@ -1439,10 +1439,10 @@ TEST_F(DerivationTests, DerivationTree_FromWalletRoot)
 
    {
       //generate bip32 encrypted root
-      auto whs = make_shared<WalletHeader_Single>(
+      auto whs = make_shared<IO::WalletHeader_Single>(
          Armory::Config::BitcoinSettings::getMagicBytes());
       whs->walletID_ = "abc";
-      auto mks = WalletDBInterface::initWalletHeaderObject(whs, {});
+      auto mks = IO::WalletDBInterface::initWalletHeaderObject(whs, {});
 
       auto rootCipher = mks.cipher_->getCopy(
          whs->masterEncryptionKeyId_);
@@ -2010,7 +2010,7 @@ protected:
 
       //decryption private key sanity check
       if (!CryptoECDSA::checkPrivKeyIsValid(decrPrivKey))
-         throw WalletInterfaceException("invalid decryption private key");
+         throw IO::WalletInterfaceException("invalid decryption private key");
 
       return make_pair(move(decrPrivKey), move(macKey));
    }
@@ -2098,7 +2098,7 @@ protected:
 TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 {
    //utils
-   auto checkVals = [](WalletIfaceTransaction& tx, 
+   auto checkVals = [](IO::WalletIfaceTransaction& tx, 
       map<BinaryData, BinaryData>& keyValMap)->bool
    {
       for (auto& keyVal : keyValMap)
@@ -2122,7 +2122,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
    string dbName("test");
 
    //setup db
-   auto dbIface = make_shared<DBInterface>(
+   auto dbIface = make_shared<IO::DBInterface>(
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
    dbIface->loadAllEntries(rawRoot); 
 
@@ -2138,7 +2138,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 
    {
       //add the values
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       auto mapToWrite = keyValMap;
       for (auto& keyVal : mapToWrite)
          tx.insert(keyVal.first, keyVal.second);
@@ -2149,10 +2149,10 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
       //try to create read tx, should fail
       try
       {
-         WalletIfaceTransaction readTx(nullptr, dbIface.get(), false);
+         IO::WalletIfaceTransaction readTx(nullptr, dbIface.get(), false);
          ASSERT_TRUE(false);
       }
-      catch (WalletInterfaceException& e)
+      catch (IO::WalletInterfaceException& e)
       {
          EXPECT_EQ(e.what(), string("failed to create db tx"));
       }
@@ -2162,7 +2162,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 
       //create nested write tx, shouldn't affect anything
       {
-         WalletIfaceTransaction txInner(nullptr, dbIface.get(), true);
+         IO::WalletIfaceTransaction txInner(nullptr, dbIface.get(), true);
 
          //check data map isn't affected
          EXPECT_TRUE(checkVals(tx, keyValMap));
@@ -2177,12 +2177,12 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 
    {
       //check data them from read tx
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
       EXPECT_TRUE(checkVals(tx, keyValMap));
 
       //check them from nested read tx
       {
-         WalletIfaceTransaction tx2(nullptr, dbIface.get(), false);
+         IO::WalletIfaceTransaction tx2(nullptr, dbIface.get(), false);
          EXPECT_TRUE(checkVals(tx2, keyValMap));
          EXPECT_TRUE(checkVals(tx, keyValMap));
       }
@@ -2193,10 +2193,10 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
       //should fail to open write tx while read tx is live
       try
       {
-         WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+         IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
          ASSERT_TRUE(false);
       }
-      catch (WalletInterfaceException& e)
+      catch (IO::WalletInterfaceException& e)
       {
          EXPECT_EQ(e.what(), string("failed to create db tx"));
       }
@@ -2207,11 +2207,11 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
 
    {
       //modify db
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
 
       {
          //nest tx
-         WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+         IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
          auto iter = keyValMap.begin();
          for (unsigned i=0; i<10; i++)
             ++iter;
@@ -2241,7 +2241,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Test)
    }
 
    //check data after commit
-   WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
+   IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
    EXPECT_TRUE(checkVals(tx, keyValMap));
 }
 
@@ -2258,7 +2258,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
    auto&& rawRoot = CryptoPRNG::generateRandom(32);
    string dbName("test");
 
-   auto dbIface = make_shared<DBInterface>(
+   auto dbIface = make_shared<IO::DBInterface>(
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
@@ -2305,7 +2305,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    dataMap2.insert(modifiedMap.begin(), modifiedMap.end());
 
-   auto checkDbValues = [](DBIfaceTransaction* tx, 
+   auto checkDbValues = [](IO::DBIfaceTransaction* tx, 
       map<BinaryData, BinaryData> dataMap)->unsigned
    {
       auto iter = dataMap.begin();
@@ -2329,8 +2329,8 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    auto writeThread2 = [&](void)->void
    {
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
-      
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+
       //check dataMap1 is in
       EXPECT_EQ(checkDbValues(&tx, dataMap1), 0U);
 
@@ -2344,7 +2344,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    {
       //create write tx in main thread
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
 
       //fire second thread with another write tx
       writeThr = new thread(writeThread2);
@@ -2367,7 +2367,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    {
       //check db is consistent with main thread -> 2nd thread modification order
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
       EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
    }
    
@@ -2402,7 +2402,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    auto writeThread4 = [&](void)->void
    {
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
 
       for (auto& dataPair : dataMap5)
@@ -2413,7 +2413,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
 
    //create read tx
    {
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
       EXPECT_EQ(checkDbValues(&tx, finalMap), 0U);
 
       //create write thread
@@ -2427,7 +2427,7 @@ TEST_F(WalletInterfaceTest, WalletIfaceTransaction_Concurrency_Test)
    }
 
    //final check
-   WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
+   IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
    EXPECT_EQ(checkDbValues(&tx, finalMap2), 0U);
 }
 
@@ -2443,7 +2443,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
    auto&& rawRoot = CryptoPRNG::generateRandom(32);
    string dbName("test");
 
-   auto dbIface = make_shared<DBInterface>(
+   auto dbIface = make_shared<IO::DBInterface>(
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //setup new db
@@ -2477,7 +2477,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest)
 
    {
       //write data
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       auto valToWrite = val1;
       tx.insert(key1, valToWrite);
       valToWrite = val2;
@@ -2639,7 +2639,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
    auto&& rawRoot = CryptoPRNG::generateRandom(32);
    string dbName("test");
 
-   auto dbIface = make_shared<DBInterface>(
+   auto dbIface = make_shared<IO::DBInterface>(
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
@@ -2673,7 +2673,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
 
    {
       //write data
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       auto valToWrite = val1;
       tx.insert(key1, valToWrite);
       valToWrite = val2;
@@ -2700,7 +2700,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_AmendValues)
 
    {
       //amend db in new transaction
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       tx.erase(key2);
 
       tx.erase(key3);
@@ -2876,7 +2876,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    auto&& rawRoot = CryptoPRNG::generateRandom(32);
    string dbName("test");
 
-   auto dbIface = make_shared<DBInterface>(
+   auto dbIface = make_shared<IO::DBInterface>(
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
@@ -2910,7 +2910,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    {
       //write data
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       auto valToWrite = val1;
       tx.insert(key1, valToWrite);
       valToWrite = val2;
@@ -2937,7 +2937,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    {
       //amend db in new transaction
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
       
       tx.erase(key3);
       auto valToWrite = val4;
@@ -3106,7 +3106,7 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
    dbEnv->open(filename, 0);
 
    //reopen db
-   dbIface = make_shared<DBInterface>(
+   dbIface = make_shared<IO::DBInterface>(
       dbEnv.get(), dbName, controlSalt, ENCRYPTION_TOPLAYER_VERSION);
 
    //sanity check
@@ -3116,8 +3116,8 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    {
       //read db values
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
-      
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), false);
+
       auto key1Data = tx.getDataRef(key1);
       EXPECT_EQ(key1Data, val1);
 
@@ -3133,8 +3133,8 @@ TEST_F(WalletInterfaceTest, EncryptionTest_OpenCloseAmend)
 
    {
       //amend db in new transaction
-      WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
-      
+      IO::WalletIfaceTransaction tx(nullptr, dbIface.get(), true);
+
       auto valToWrite = val5;
       tx.insert(key2, valToWrite);
       valToWrite = val3;
@@ -3322,7 +3322,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
 
    {
       //create wallet iface
-      WalletDBInterface dbIface;
+      IO::WalletDBInterface dbIface;
       dbIface.setupEnv(dbPath_, false, passLbd);
 
       //close iface
@@ -3333,7 +3333,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
       //try to open iface with wrong passphrase
       try
       {
-         WalletDBInterface dbIface;
+         IO::WalletDBInterface dbIface;
          dbIface.setupEnv(dbPath_, true, passEmpty);
          ASSERT_TRUE(false);
       }
@@ -3345,11 +3345,11 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
       //try to open iface with wrong file flag
       try
       {
-         WalletDBInterface dbIface;
+         IO::WalletDBInterface dbIface;
          dbIface.setupEnv(dbPath_, false, passLbd);
          ASSERT_TRUE(false);
       }
-      catch (WalletInterfaceException& e)
+      catch (IO::WalletInterfaceException& e)
       {
          EXPECT_EQ(e.what(), string("[openEnv] file flag mismatch"));
       }
@@ -3357,7 +3357,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
       //open with proper passphrase
       try
       {
-         WalletDBInterface dbIface;
+         IO::WalletDBInterface dbIface;
          dbIface.setupEnv(dbPath_, true, passLbd);
          dbIface.shutdown();
       }
@@ -3372,7 +3372,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
 
    {
       //create wallet iface with empty passphrase lambda
-      WalletDBInterface dbIface;
+      IO::WalletDBInterface dbIface;
       dbIface.setupEnv(dbPath2, false, passEmpty);
 
       //close iface
@@ -3386,7 +3386,7 @@ TEST_F(WalletInterfaceTest, Passphrase_Test)
       };
 
       //reopen iface, check it won't hit the passphrase lambda
-      WalletDBInterface dbIface;
+      IO::WalletDBInterface dbIface;
       try
       {
          dbIface.setupEnv(dbPath2, true, passLbd2);
@@ -3408,7 +3408,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
       return SecureBinaryData::fromString("abcd");
    };
 
-   auto checkDbValues = [](WalletDBInterface& iface, string dbName, 
+   auto checkDbValues = [](IO::WalletDBInterface& iface, string dbName, 
       map<BinaryData, BinaryData> dataMap)->bool
    {
       auto tx = iface.beginReadTransaction(dbName);
@@ -3433,14 +3433,14 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    };
 
    //create wallet dbEnv
-   WalletDBInterface dbIface;
+   IO::WalletDBInterface dbIface;
    dbIface.setupEnv(dbPath_, false, passLbd);
 
    //add db
    {
       EXPECT_EQ(dbIface.getDbCount(), 0U);
 
-      auto headerPtr = make_shared<WalletHeader_Custom>();
+      auto headerPtr = make_shared<IO::WalletHeader_Custom>();
       headerPtr->walletID_ = "db1";
 
       dbIface.lockControlContainer(passLbd);
@@ -3452,7 +3452,8 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    {
       auto dbHeader = dbIface.getWalletHeader("db1");
       ASSERT_EQ(dbHeader->getDbName(), "db1");
-      ASSERT_NE(dynamic_pointer_cast<WalletHeader_Custom>(dbHeader), nullptr);
+      ASSERT_NE(
+         dynamic_pointer_cast<IO::WalletHeader_Custom>(dbHeader), nullptr);
    }
 
    //set db1 values
@@ -3508,7 +3509,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    //add new db
    {
       EXPECT_EQ(dbIface.getDbCount(), 1U);
-      auto headerPtr = make_shared<WalletHeader_Custom>();
+      auto headerPtr = make_shared<IO::WalletHeader_Custom>();
       headerPtr->walletID_ = "db2";
 
       dbIface.lockControlContainer(passLbd);
@@ -3544,14 +3545,14 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    try
    {
       EXPECT_EQ(dbIface.getDbCount(), 2U);
-      auto headerPtr = make_shared<WalletHeader_Custom>();
+      auto headerPtr = make_shared<IO::WalletHeader_Custom>();
       headerPtr->walletID_ = "db3";
 
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
       ASSERT_TRUE(false);
    }
-   catch (WalletInterfaceException& e)
+   catch (IO::WalletInterfaceException& e)
    {
       EXPECT_EQ(e.what(), string("dbCount is too low"));
       dbIface.unlockControlContainer();
@@ -3577,7 +3578,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
       auto tx = dbIface.beginReadTransaction("db1");
       ASSERT_TRUE(false);
    } 
-   catch (WalletInterfaceException& e)
+   catch (IO::WalletInterfaceException& e)
    {
       EXPECT_EQ(e.what(), string("invalid db name"));
    }
@@ -3601,7 +3602,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
       auto tx = dbIface.beginReadTransaction("db1");
       dbIface.setDbCount(5);
    }
-   catch (WalletInterfaceException& e)
+   catch (IO::WalletInterfaceException& e)
    {
       EXPECT_EQ(e.what(), string("live transactions, cannot change dbCount"));
    }
@@ -3618,7 +3619,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
 
    //add 3rd db
    {
-      auto headerPtr = make_shared<WalletHeader_Custom>();
+      auto headerPtr = make_shared<IO::WalletHeader_Custom>();
       headerPtr->walletID_ = "db3";
 
       dbIface.lockControlContainer(passLbd);
@@ -3674,14 +3675,14 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
    try
    {
       EXPECT_EQ(dbIface.getDbCount(), 3U);
-      auto headerPtr = make_shared<WalletHeader_Custom>();
+      auto headerPtr = make_shared<IO::WalletHeader_Custom>();
       headerPtr->walletID_ = "db3";
 
       dbIface.lockControlContainer(passLbd);
       dbIface.addHeader(headerPtr);
       ASSERT_FALSE(true);
    }
-   catch (WalletInterfaceException& e)
+   catch (IO::WalletInterfaceException& e)
    {
       dbIface.unlockControlContainer();
       EXPECT_EQ(e.what(), string("header already in map"));
@@ -3699,7 +3700,7 @@ TEST_F(WalletInterfaceTest, DbCount_Test)
       dbIface.shutdown();
       ASSERT_FALSE(true);
    }
-   catch (WalletInterfaceException& e)
+   catch (IO::WalletInterfaceException& e)
    {
       EXPECT_EQ(e.what(), string("live transactions, cannot shutdown env"));
    }
@@ -3724,11 +3725,11 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
       return SecureBinaryData();
    };
 
-   auto iface = make_shared<WalletDBInterface>();
+   auto iface = make_shared<IO::WalletDBInterface>();
    iface->setupEnv(dbPath_, false, passLbd);
 
    string dbName("test");
-   auto dbHeader = make_shared<WalletHeader_Custom>();
+   auto dbHeader = make_shared<IO::WalletHeader_Custom>();
    dbHeader->walletID_ = dbName;
    iface->lockControlContainer(passLbd);
    iface->addHeader(dbHeader);
@@ -3766,7 +3767,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
       dbCtrl.open(dbEnv.get(), CONTROL_DB_NAME);
 
       //grab control header
-      shared_ptr<WalletHeader_Control> controlHeader;
+      shared_ptr<IO::WalletHeader_Control> controlHeader;
       {
          BinaryWriter bw;
          bw.put_uint8_t(WALLETHEADER_PREFIX);
@@ -3778,9 +3779,9 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
          BinaryRefReader brrVal(refVal);
          auto len = brrVal.get_var_int();
          auto headerVal = brrVal.get_BinaryDataRef(len);
-         controlHeader = dynamic_pointer_cast<WalletHeader_Control>(
-            WalletHeader::deserialize(bw.getData(), headerVal));
-         
+         controlHeader = dynamic_pointer_cast<IO::WalletHeader_Control>(
+            IO::WalletHeader::deserialize(bw.getData(), headerVal));
+
          controlSalt = controlHeader->controlSalt_;
       }
 
@@ -3792,7 +3793,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
             controlHeader->defaultKdfId_, controlHeader->masterEncryptionKeyId_);
       {
          auto txInner = 
-            make_shared<RawIfaceTransaction>(dbEnv.get(), &dbCtrl, true);
+            make_shared<IO::RawIfaceTransaction>(dbEnv.get(), &dbCtrl, true);
          decryptedData->readFromDisk(txInner);
       }
 
@@ -3878,7 +3879,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
       BinaryRefReader brr(iter->second);
       auto len = brr.get_var_int();
       auto headerRef = brr.get_BinaryData(len);
-      auto headerPtr = WalletHeader::deserialize(iter->first, headerRef);
+      auto headerPtr = IO::WalletHeader::deserialize(iter->first, headerRef);
 
       dbSalt = headerPtr->controlSalt_;
    }
@@ -3969,7 +3970,7 @@ TEST_F(WalletInterfaceTest, WipeEntries_Test)
    dbEnv.reset();
 
    //reopen db iface
-   iface = make_shared<WalletDBInterface>();
+   iface = make_shared<IO::WalletDBInterface>();
    iface->setupEnv(dbPath_, true, passLbd);
 
    //replace a couple entries
@@ -4068,7 +4069,7 @@ protected:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   unsigned checkDb(DBIfaceTransaction* tx, 
+   unsigned checkDb(IO::DBIfaceTransaction* tx, 
       const vector<SecureBinaryData>& data)
    {
       auto binaryParse = [](const BinaryDataRef& a, const BinaryDataRef& b)->bool
@@ -4480,7 +4481,7 @@ TEST_F(WalletsTest, Encryption_Test)
       return SecureBinaryData::fromString("control");
    };
 
-   WalletDBInterface dbIface;
+   IO::WalletDBInterface dbIface;
    dbIface.setupEnv(filename, true, passLbd);
    string dbName;
    
@@ -5062,7 +5063,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
          auto tx = wltWO->beginSubDBTransaction("test-subdb", false);
          ASSERT_FALSE(true);
       }
-      catch (WalletInterfaceException& e)
+      catch (IO::WalletInterfaceException& e)
       {
          EXPECT_EQ(e.what(), string("invalid db name"));
       }
@@ -5122,7 +5123,7 @@ TEST_F(WalletsTest, ControlPassphrase_Test)
          auto tx = wltWO->beginSubDBTransaction("test-subdb", false);
          ASSERT_FALSE(true);
       }
-      catch (WalletInterfaceException& e)
+      catch (IO::WalletInterfaceException& e)
       {
          EXPECT_EQ(e.what(), string("invalid db name"));
       }
@@ -5681,10 +5682,10 @@ TEST_F(WalletsTest, ChangePassphrase_Test)
       return SecureBinaryData::fromString("control");
    };
 
-   WalletDBInterface dbIface;
+   IO::WalletDBInterface dbIface;
    dbIface.setupEnv(filename, true, passLbd);
    string dbName;
-   
+
    {
       auto tx = dbIface.beginReadTransaction(WALLETHEADER_DBNAME);
       BinaryWriter bwKey;

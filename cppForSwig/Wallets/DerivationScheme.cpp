@@ -565,7 +565,7 @@ BinaryData DerivationScheme_ECDH::serialize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 AssetKeyType DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
-   shared_ptr<DBIfaceTransaction> txPtr)
+   shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    if (txPtr == nullptr)
       throw DerivationSchemeException("addSalt: null tx");
@@ -594,7 +594,7 @@ AssetKeyType DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
 
 ////////////////////////////////////////////////////////////////////////////////
 void DerivationScheme_ECDH::putSalt(AssetKeyType id,
-   const SecureBinaryData& salt, shared_ptr<DBIfaceTransaction> txPtr)
+   const SecureBinaryData& salt, shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    //update on disk
    BinaryWriter bwKey;
@@ -623,7 +623,7 @@ void DerivationScheme_ECDH::putSalt(AssetKeyType id,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DerivationScheme_ECDH::putAllSalts(shared_ptr<DBIfaceTransaction> txPtr)
+void DerivationScheme_ECDH::putAllSalts(shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    //expects live read-write db tx
    for (auto& saltPair : saltMap_)
@@ -631,7 +631,7 @@ void DerivationScheme_ECDH::putAllSalts(shared_ptr<DBIfaceTransaction> txPtr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DerivationScheme_ECDH::getAllSalts(shared_ptr<DBIfaceTransaction> txPtr)
+void DerivationScheme_ECDH::getAllSalts(shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    BinaryWriter bwKey;
    bwKey.put_uint8_t(ECDH_SALT_PREFIX);

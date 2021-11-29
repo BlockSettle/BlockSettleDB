@@ -39,9 +39,19 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-class DBIfaceTransaction;
-using WriteTxFuncType =
-   std::function<std::unique_ptr<DBIfaceTransaction>(const std::string&)>;
+namespace Armory
+{
+   namespace Wallets
+   {
+      namespace IO
+      {
+         class DBIfaceTransaction;
+      };
+   };
+};
+
+using WriteTxFuncType = std::function<std::unique_ptr<
+   Armory::Wallets::IO::DBIfaceTransaction>(const std::string&)>;
 
 ////
 class DecryptedDataContainer : public Lockable
@@ -157,15 +167,15 @@ public:
    }
 
    void updateOnDisk(void);
-   void updateOnDisk(std::unique_ptr<DBIfaceTransaction>);
-   void readFromDisk(std::shared_ptr<DBIfaceTransaction>);
+   void updateOnDisk(std::unique_ptr<Armory::Wallets::IO::DBIfaceTransaction>);
+   void readFromDisk(std::shared_ptr<Armory::Wallets::IO::DBIfaceTransaction>);
 
-   void updateOnDiskRaw(std::shared_ptr<DBIfaceTransaction>,
+   void updateOnDiskRaw(std::shared_ptr<Armory::Wallets::IO::DBIfaceTransaction>,
       const BinaryData&, std::shared_ptr<Armory::Assets::EncryptionKey>);
-   void updateOnDisk(std::shared_ptr<DBIfaceTransaction>,
+   void updateOnDisk(std::shared_ptr<Armory::Wallets::IO::DBIfaceTransaction>,
       const Armory::Wallets::EncryptionKeyId&,
       std::shared_ptr<Armory::Assets::EncryptionKey>);
-   void deleteFromDisk(std::shared_ptr<DBIfaceTransaction>, const BinaryData&);
+   void deleteFromDisk(std::shared_ptr<Armory::Wallets::IO::DBIfaceTransaction>, const BinaryData&);
 
    void setPassphrasePromptLambda(const PassphraseLambda& lambda)
    {
