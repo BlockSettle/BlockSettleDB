@@ -14,7 +14,7 @@
 #include "Wallets.h"
 
 using namespace std;
-using namespace ArmoryBridge;
+using namespace Armory::Bridge;
 using namespace Armory::Accounts;
 using namespace Armory::Wallets;
 

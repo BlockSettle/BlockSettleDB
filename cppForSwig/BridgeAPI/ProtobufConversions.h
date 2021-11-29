@@ -16,6 +16,9 @@
 #define PROTO_ASSETID_PREFIX 0xAFu
 
 //forward declarations
+class UTXO;
+class AddressEntry;
+
 namespace DBClientClasses
 {
    class LedgerEntry;
@@ -39,42 +42,39 @@ namespace Armory
    {
       class TxInEvalState;
    };
-};
 
-class UTXO;
-class AddressEntry;
-
-////
-namespace ArmoryBridge
-{
-   struct CppToProto
+   ////
+   namespace Bridge
    {
-      static void ledger(
-         Codec_ClientProto::BridgeLedger*,
-         const DBClientClasses::LedgerEntry&);
+      struct CppToProto
+      {
+         static void ledger(
+            Codec_ClientProto::BridgeLedger*,
+            const DBClientClasses::LedgerEntry&);
 
-      static void addr(
-         Codec_ClientProto::WalletAsset*,
-         std::shared_ptr<AddressEntry>,
-         std::shared_ptr<Armory::Accounts::AddressAccount>);
+         static void addr(
+            Codec_ClientProto::WalletAsset*,
+            std::shared_ptr<AddressEntry>,
+            std::shared_ptr<Accounts::AddressAccount>);
 
-      static void wallet(
-         Codec_ClientProto::WalletData* wltProto,
-         std::shared_ptr<Armory::Wallets::AssetWallet> wltPtr,
-         const Armory::Wallets::AddressAccountId&);
+         static void wallet(
+            Codec_ClientProto::WalletData* wltProto,
+            std::shared_ptr<Wallets::AssetWallet> wltPtr,
+            const Wallets::AddressAccountId&);
 
-      static void utxo(
-         Codec_ClientProto::BridgeUtxo*,
-         const UTXO& utxo);
+         static void utxo(
+            Codec_ClientProto::BridgeUtxo*,
+            const UTXO& utxo);
 
-      static void nodeStatus(
-         Codec_ClientProto::BridgeNodeStatus*,
-         const DBClientClasses::NodeStatus&);
+         static void nodeStatus(
+            Codec_ClientProto::BridgeNodeStatus*,
+            const DBClientClasses::NodeStatus&);
 
-      static void signatureState(
-         Codec_ClientProto::BridgeInputSignedState*,
-         const Armory::Signer::TxInEvalState&);
-   };
-}; //namespace ArmoryBridge
+         static void signatureState(
+            Codec_ClientProto::BridgeInputSignedState*,
+            const Signer::TxInEvalState&);
+      };
+   }; //namespace Bridge
+}; //namespace Armory
 
 #endif

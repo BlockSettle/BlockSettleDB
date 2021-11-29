@@ -17,34 +17,37 @@
 
 #define BRIDGE_CALLBACK_PROMPTUSER  UINT32_MAX - 2
 
-namespace ArmoryBridge
+namespace Armory
 {
-   struct WritePayload_Bridge;
-
-   ////////////////////////////////////////////////////////////////////////////
-   class BridgePassphrasePrompt
+   namespace Bridge
    {
-   private:
-      std::unique_ptr<std::promise<SecureBinaryData>> promPtr_;
-      std::unique_ptr<std::shared_future<SecureBinaryData>> futPtr_;
+      struct WritePayload_Bridge;
 
-      const std::string promptId_;
-      std::function<void(std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
+      //////////////////////////////////////////////////////////////////////////
+      class BridgePassphrasePrompt
+      {
+      private:
+         std::unique_ptr<std::promise<SecureBinaryData>> promPtr_;
+         std::unique_ptr<std::shared_future<SecureBinaryData>> futPtr_;
 
-      std::set<Armory::Wallets::EncryptionKeyId> encryptionKeyIds_;
+         const std::string promptId_;
+         std::function<void(std::unique_ptr<WritePayload_Bridge>)> writeLambda_;
 
-   public:
-      static const Armory::Wallets::EncryptionKeyId concludeKey;
+         std::set<Wallets::EncryptionKeyId> encryptionKeyIds_;
 
-   public:
-      BridgePassphrasePrompt(const std::string& id,
-         std::function<void(std::unique_ptr<WritePayload_Bridge>)> lbd) :
-         promptId_(id), writeLambda_(lbd)
-      {}
+      public:
+         static const Wallets::EncryptionKeyId concludeKey;
 
-      PassphraseLambda getLambda(::Codec_ClientProto::UnlockPromptType);
-      void setReply(const std::string&);
-   };
-};
+      public:
+         BridgePassphrasePrompt(const std::string& id,
+            std::function<void(std::unique_ptr<WritePayload_Bridge>)> lbd) :
+            promptId_(id), writeLambda_(lbd)
+         {}
+
+         PassphraseLambda getLambda(::Codec_ClientProto::UnlockPromptType);
+         void setReply(const std::string&);
+      };
+   }; //namespace Bridge
+}; //namespace Armory
 
 #endif

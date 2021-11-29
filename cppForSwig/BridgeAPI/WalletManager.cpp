@@ -854,7 +854,7 @@ shared_ptr<AssetWallet_Single> Armory135Header::migrate(
          decryptedRoot = move(decryptPrivKey(passLbd, rootAddrObj));
       }
 
-      passLbd({ArmoryBridge::BridgePassphrasePrompt::concludeKey});
+      passLbd({Armory::Bridge::BridgePassphrasePrompt::concludeKey});
    }
 
    //create wallet

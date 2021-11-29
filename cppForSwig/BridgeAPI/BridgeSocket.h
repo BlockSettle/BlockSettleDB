@@ -30,54 +30,54 @@ namespace Armory
    {
       class AuthorizedPeers;
    }
-}
 
-namespace ArmoryBridge
-{
-   class CppBridge;
-
-   /////////////////////////////////////////////////////////////////////////////
-   struct WritePayload_Bridge : public Socket_WritePayload
+   namespace Bridge
    {
-      std::unique_ptr<google::protobuf::Message> message_;
+      class CppBridge;
 
-      void serialize(std::vector<uint8_t>&) override;
-      std::string serializeToText(void) override
+      /////////////////////////////////////////////////////////////////////////////
+      struct WritePayload_Bridge : public Socket_WritePayload
       {
-         throw std::runtime_error("not implemented"); 
-      }
+         std::unique_ptr<google::protobuf::Message> message_;
 
-      size_t getSerializedSize(void) const override;
-   };
+         void serialize(std::vector<uint8_t>&) override;
+         std::string serializeToText(void) override
+         {
+            throw std::runtime_error("not implemented");
+         }
 
-   /////////////////////////////////////////////////////////////////////////////
-   class CppBridgeSocket : public PersistentSocket
-   {
-   private:
-      std::shared_ptr<CppBridge> bridgePtr_;
-      const std::string serverName_;
-      
-      std::shared_ptr<BIP151Connection> bip151Connection_;
-      std::shared_ptr<Armory::Wallets::AuthorizedPeers> authPeers_;
-      std::vector<uint8_t> leftOverData_;
+         size_t getSerializedSize(void) const override;
+      };
 
-      std::mutex writeMutex_;
-      std::chrono::time_point<std::chrono::system_clock> outKeyTimePoint_;
+      /////////////////////////////////////////////////////////////////////////////
+      class CppBridgeSocket : public PersistentSocket
+      {
+      private:
+         std::shared_ptr<CppBridge> bridgePtr_;
+         const std::string serverName_;
 
-   private:
-      bool processAEADHandshake(BinaryDataRef);
+         std::shared_ptr<BIP151Connection> bip151Connection_;
+         std::shared_ptr<Wallets::AuthorizedPeers> authPeers_;
+         std::vector<uint8_t> leftOverData_;
 
-   public:
-      CppBridgeSocket(
-         const std::string& addr, const std::string& port,
-         std::shared_ptr<CppBridge> bridgePtr);
+         std::mutex writeMutex_;
+         std::chrono::time_point<std::chrono::system_clock> outKeyTimePoint_;
 
-      SocketType type(void) const override { return SocketCppBridge; }
-      void respond(std::vector<uint8_t>& data) override;
-      void pushPayload(
-         std::unique_ptr<Socket_WritePayload>,
-         std::shared_ptr<Socket_ReadPayload>) override;
-   };
-}; //namespace ArmoryBridge
+      private:
+         bool processAEADHandshake(BinaryDataRef);
+
+      public:
+         CppBridgeSocket(
+            const std::string& addr, const std::string& port,
+            std::shared_ptr<CppBridge> bridgePtr);
+
+         SocketType type(void) const override { return SocketCppBridge; }
+         void respond(std::vector<uint8_t>& data) override;
+         void pushPayload(
+            std::unique_ptr<Socket_WritePayload>,
+            std::shared_ptr<Socket_ReadPayload>) override;
+      };
+   }; //namespace Bridge
+}; //namespace Armory
 
 #endif
