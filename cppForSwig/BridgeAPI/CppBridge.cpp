@@ -23,6 +23,7 @@ using namespace ::Codec_ClientProto;
 using namespace Armory::Threading;
 using namespace Armory::Signer;
 using namespace Armory::Wallets;
+using namespace Armory::CoinSelection;
 
 using namespace ArmoryBridge;
 

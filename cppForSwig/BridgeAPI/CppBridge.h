@@ -132,7 +132,8 @@ private:
    std::shared_ptr<BridgeCallback> callbackPtr_;
 
    std::map<std::string, AsyncClient::LedgerDelegate> delegateMap_;
-   std::map<std::string, std::shared_ptr<CoinSelectionInstance>> csMap_;
+   std::map<std::string,
+      std::shared_ptr<Armory::CoinSelection::CoinSelectionInstance>> csMap_;
    std::map<std::string, std::shared_ptr<CppBridgeSignerStruct>> signerMap_;
 
    PRNG_Fortuna fortuna_;
