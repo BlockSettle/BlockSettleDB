@@ -37,8 +37,15 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 class WalletDBInterface;
-class EncryptedSeed;
 class DecryptedDataContainer;
+
+namespace Armory
+{
+   namespace Assets
+   {
+      class EncryptedSeed;
+   };
+};
 
 ////
 class WalletIfaceTransaction : public DBIfaceTransaction
@@ -147,7 +154,7 @@ private:
 
    std::unique_ptr<DecryptedDataContainer> decryptedData_;
    std::unique_ptr<ReentrantLock> controlLock_;
-   std::unique_ptr<EncryptedSeed> controlSeed_;
+   std::unique_ptr<Armory::Assets::EncryptedSeed> controlSeed_;
 
    unsigned encryptionVersion_ = UINT32_MAX;
    std::unique_ptr<PRNG_Fortuna> fortuna_;

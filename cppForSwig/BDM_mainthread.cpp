@@ -248,14 +248,14 @@ try
                   invVec = move(newBlockStack->pop_front(false));
                   hasNewBlocks = true;
                }
-               catch (ArmoryThreading::IsEmpty&)
+               catch (Armory::Threading::IsEmpty&)
                {
                   break;
                }
             }
          }
       }
-      catch (ArmoryThreading::StopBlockingLoop&)
+      catch (Armory::Threading::StopBlockingLoop&)
       {
          break;
       }

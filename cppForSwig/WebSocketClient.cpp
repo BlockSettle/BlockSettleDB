@@ -10,9 +10,10 @@
 #include "BIP15x_Handshake.h"
 
 using namespace std;
+using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
-static struct lws_protocols protocols[] = 
+static struct lws_protocols protocols[] =
 {
    /* first protocol must always be HTTP handler */
 
@@ -86,7 +87,7 @@ void WebSocketClient::writeService()
       {
          message = move(writeSerializationQueue_.pop_front());
       }
-      catch (ArmoryThreading::StopBlockingLoop&)
+      catch (Armory::Threading::StopBlockingLoop&)
       {
          break;
       }
@@ -422,7 +423,7 @@ int WebSocketClient::callback(struct lws *wsi,
             instance->currentWriteMessage_ =
                move(instance->writeQueue_->pop_front());
          }
-         catch (ArmoryThreading::IsEmpty&)
+         catch (Armory::Threading::IsEmpty&)
          {
             break;
          }
@@ -467,7 +468,7 @@ void WebSocketClient::readService()
       {
          payload = move(readQueue_.pop_front());
       }
-      catch (ArmoryThreading::StopBlockingLoop&)
+      catch (Armory::Threading::StopBlockingLoop&)
       {
          break;
       }

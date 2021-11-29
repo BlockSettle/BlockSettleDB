@@ -8,8 +8,10 @@
 
 #include "DecryptedDataContainer.h"
 #include "EncryptedDB.h"
+#include "Assets.h"
 
 using namespace std;
+using namespace Armory::Assets;
 using namespace Armory::Wallets;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,8 +43,8 @@ void DecryptedDataContainer::initAfterLock()
    //copy default encryption key
    auto&& defaultEncryptionKeyCopy = defaultEncryptionKey_.copy();
 
-   auto defaultKey =
-      make_unique<ClearTextEncryptionKey>(defaultEncryptionKeyCopy);
+   auto defaultKey = make_unique<Armory::Assets::ClearTextEncryptionKey>(
+      defaultEncryptionKeyCopy);
    decryptedDataInstance->encryptionKeys_.insert(make_pair(
       defaultEncryptionKeyId_, move(defaultKey)));
 
@@ -71,8 +73,10 @@ void DecryptedDataContainer::lockOther(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<ClearTextEncryptionKey> DecryptedDataContainer::deriveEncryptionKey(
-   unique_ptr<ClearTextEncryptionKey> decrKey, const BinaryData& kdfid) const
+unique_ptr<Armory::Assets::ClearTextEncryptionKey>
+DecryptedDataContainer::deriveEncryptionKey(
+   unique_ptr<Armory::Assets::ClearTextEncryptionKey> decrKey,
+   const BinaryData& kdfid) const
 {
    //sanity check
    if (!ownsLock())

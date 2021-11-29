@@ -24,6 +24,14 @@ namespace google
    };
 };
 
+namespace Armory
+{
+   namespace Wallets
+   {
+      class AuthorizedPeers;
+   }
+}
+
 namespace ArmoryBridge
 {
    class CppBridge;
@@ -50,7 +58,7 @@ namespace ArmoryBridge
       const std::string serverName_;
       
       std::shared_ptr<BIP151Connection> bip151Connection_;
-      std::shared_ptr<AuthorizedPeers> authPeers_;
+      std::shared_ptr<Armory::Wallets::AuthorizedPeers> authPeers_;
       std::vector<uint8_t> leftOverData_;
 
       std::mutex writeMutex_;

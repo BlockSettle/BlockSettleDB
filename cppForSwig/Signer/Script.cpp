@@ -12,7 +12,7 @@
 #include "make_unique.h"
 
 using namespace std;
-using namespace ArmorySigner;
+using namespace Armory::Signer;
 
 //dtors
 StackValue::~StackValue()

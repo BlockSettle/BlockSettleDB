@@ -9,8 +9,9 @@
 #include "Addresses.h"
 
 using namespace std;
-using namespace ArmorySigner;
 using namespace Armory::Config;
+using namespace Armory::Signer;
+using namespace Armory::Assets;
 
 ////////////////////////////////////////////////////////////////////////////////
 AddressEntry::~AddressEntry()

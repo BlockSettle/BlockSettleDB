@@ -98,7 +98,7 @@ void ZeroConfCallbacks_BDV::processNotifRequests()
       {
          notifReqPtr = requestQueue_.pop_front();
       }
-      catch (const ArmoryThreading::StopBlockingLoop&)
+      catch (const Armory::Threading::StopBlockingLoop&)
       {
          break;
       }

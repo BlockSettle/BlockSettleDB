@@ -33,7 +33,7 @@ private:
    notifLbd pushNotifLbd_;
    
    //id members
-   ArmoryThreading::BlockingQueue<std::string> idQueue_;
+   Armory::Threading::BlockingQueue<std::string> idQueue_;
    std::set<std::string> validIds_;
    std::mutex idMutex_;
 
@@ -68,12 +68,12 @@ public:
 ///////////////////////////////////////////////////////////////////////////////
 struct CppBridgeSignerStruct
 {
-   ArmorySigner::Signer signer_;
-   std::unique_ptr<TxEvalState> signState_;
+   Armory::Signer::Signer signer_;
+   std::unique_ptr<Armory::Signer::TxEvalState> signState_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-using CommandQueue = std::shared_ptr<ArmoryThreading::BlockingQueue<
+using CommandQueue = std::shared_ptr<Armory::Threading::BlockingQueue<
    ::Codec_ClientProto::ClientCommand>>;
 
 ////
@@ -114,7 +114,7 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////////
 struct ProtobufCommandParser;
-using BridgeReply = std::unique_ptr<::google::protobuf::Message>;
+using BridgeReply = std::unique_ptr<google::protobuf::Message>;
 
 class CppBridge
 {
@@ -210,7 +210,7 @@ private:
    BridgeReply cs_getUtxoSelection(const std::string&);
    BridgeReply cs_getFlatFee(const std::string&);
    BridgeReply cs_getFeeByte(const std::string&);
-   bool cs_ProcessCustomUtxoList(const ::Codec_ClientProto::ClientCommand&);
+   bool cs_ProcessCustomUtxoList(const Codec_ClientProto::ClientCommand&);
 
    //signer
    BridgeReply initNewSigner(void);

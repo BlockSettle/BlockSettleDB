@@ -7,12 +7,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "AccountTypes.h"
+#include "Assets.h"
 #include "AddressAccounts.h"
 #include "../EncryptedDB.h"
 #include "../WalletFileInterface.h"
 #include "../DecryptedDataContainer.h"
 
 using namespace std;
+using namespace Armory::Assets;
+using namespace Armory::Accounts;
 using namespace Armory::Wallets;
 
 std::string legacyChangeComment("[[ Change received ]]");
@@ -21,9 +24,8 @@ std::string legacyChangeComment("[[ Change received ]]");
 ////////////////////////////////////////////////////////////////////////////////
 //// AddressAccount
 ////////////////////////////////////////////////////////////////////////////////
-AddressAccount::AddressAccount(
-   const std::string& dbName,
-   const Armory::Wallets::AddressAccountId& id) :
+AddressAccount::AddressAccount(const std::string& dbName,
+   const AddressAccountId& id) :
    dbName_(dbName), ID_(id)
 {}
 
@@ -1144,7 +1146,7 @@ shared_ptr<AssetEntry_BIP32Root> AddressAccount::getBip32RootForAssetId(
 
 ////////////////////////////////////////////////////////////////////////////////
 bool AddressAccount::hasBip32Path(
-   const ArmorySigner::BIP32_AssetPath& path) const
+   const Armory::Signer::BIP32_AssetPath& path) const
 {
    //look for an account which root's path matches that of our desired path
    for (const auto& accountPair : accountDataMap_)

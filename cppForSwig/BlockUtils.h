@@ -140,7 +140,7 @@ private:
    
    mutable std::shared_ptr<std::mutex> nodeStatusPollMutex_;
 
-   ArmoryThreading::Queue<std::shared_ptr<BDVNotificationHook>> oneTimeHooks_;
+   Armory::Threading::Queue<std::shared_ptr<BDVNotificationHook>> oneTimeHooks_;
 
 public:
    typedef std::function<void(BDMPhase, double,unsigned, unsigned)> ProgressCallback;
@@ -148,7 +148,7 @@ public:
    std::shared_future<bool> isReadyFuture_;
    mutable std::shared_ptr<CoreRPC::NodeRPCInterface> nodeRPC_;
 
-   ArmoryThreading::TimedQueue<std::unique_ptr<BDV_Notification>> notificationStack_;
+   Armory::Threading::TimedQueue<std::unique_ptr<BDV_Notification>> notificationStack_;
    std::shared_ptr<ZeroConfContainer> zeroConfCont_;
 
 public:

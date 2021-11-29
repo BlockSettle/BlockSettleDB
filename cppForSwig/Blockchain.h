@@ -109,11 +109,11 @@ private:
    //TODO: make this whole class thread safe
 
    const BinaryData genesisHash_;
-   ArmoryThreading::TransactionalMap<
+   Armory::Threading::TransactionalMap<
       BinaryData, std::shared_ptr<BlockHeader>> headerMap_;
-   ArmoryThreading::TransactionalMap<
+   Armory::Threading::TransactionalMap<
       unsigned, std::shared_ptr<BlockHeader>> headersById_;
-   ArmoryThreading::TransactionalMap<
+   Armory::Threading::TransactionalMap<
       unsigned, std::shared_ptr<BlockHeader>> headersByHeight_;
 
    std::vector<std::shared_ptr<BlockHeader>> newlyParsedBlocks_;
