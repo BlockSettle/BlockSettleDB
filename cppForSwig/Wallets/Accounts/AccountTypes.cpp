@@ -153,7 +153,7 @@ AddressAccountId AccountType_BIP32::getAccountID() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void AccountType_BIP32::setNodes(const std::set<unsigned>& nodes)
+void AccountType_BIP32::setNodes(const set<unsigned>& nodes)
 {
    for (auto& node : nodes)
    {
@@ -644,7 +644,7 @@ vector<DerivationBranch::Path> DerivationTree::getPaths() const
 
 ////////////////////////////////////////////////////////////////////////////////
 vector<NodeRoot> DerivationTree::resolveNodeRoots(
-   shared_ptr<DecryptedDataContainer> decrData,
+   shared_ptr<Encryption::DecryptedDataContainer> decrData,
    shared_ptr<AssetEntry_BIP32Root> walletRoot) const
 {
    vector<NodeRoot> result;

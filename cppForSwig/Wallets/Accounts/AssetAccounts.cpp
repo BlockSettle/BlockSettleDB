@@ -420,7 +420,7 @@ vector<shared_ptr<AssetEntry>> AssetAccount::extendPublicChain(
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::extendPrivateChain(
    shared_ptr<IO::WalletDBInterface> iface,
-   shared_ptr<DecryptedDataContainer> ddc,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
    unsigned count)
 {
    ReentrantLock lock(this);
@@ -439,7 +439,7 @@ void AssetAccount::extendPrivateChain(
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::extendPrivateChainToIndex(
    shared_ptr<IO::WalletDBInterface> iface,
-   shared_ptr<DecryptedDataContainer> ddc,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
    unsigned id)
 {
    ReentrantLock lock(this);
@@ -464,7 +464,7 @@ void AssetAccount::extendPrivateChainToIndex(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::extendPrivateChain(shared_ptr<IO::WalletDBInterface> iface,
-   shared_ptr<DecryptedDataContainer> ddc,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
    shared_ptr<AssetEntry> assetPtr, unsigned count)
 {
    if (count == 0)
@@ -508,7 +508,7 @@ void AssetAccount::extendPrivateChain(shared_ptr<IO::WalletDBInterface> iface,
 
 ////////////////////////////////////////////////////////////////////////////////
 vector<shared_ptr<AssetEntry>> AssetAccount::extendPrivateChain(
-   shared_ptr<DecryptedDataContainer> ddc,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
    shared_ptr<AssetEntry> assetPtr,
    unsigned start, unsigned end)
 {
@@ -605,7 +605,6 @@ shared_ptr<AssetEntry> AssetAccount::getOrSetAssetAtIndex(
 
    return entryIter->second;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry> AssetAccount::getNewAsset(
@@ -716,7 +715,7 @@ const SecureBinaryData& AssetAccount::getChaincode() const
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<Asset_PrivateKey> AssetAccount::fillPrivateKey(
    shared_ptr<IO::WalletDBInterface> iface,
-   shared_ptr<DecryptedDataContainer> ddc,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
    const AssetId& id)
 {
    if (!id.isValid())

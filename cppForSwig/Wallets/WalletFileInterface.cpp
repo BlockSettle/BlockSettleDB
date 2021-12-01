@@ -16,6 +16,7 @@
 using namespace std;
 using namespace Armory::Assets;
 using namespace Armory::Wallets::IO;
+using namespace Armory::Wallets::Encryption;
 
 #define COMPACT_FILE_SWAP_NAME "swapOld"
 #define COMPACT_FILE_COPY_NAME "compactCopy"
@@ -340,13 +341,9 @@ void WalletDBInterface::loadSeed(shared_ptr<WalletHeader> headerPtr)
    bwKey.put_uint32_t(WALLET_SEED_KEY);
    auto rootAssetRef = getDataRefForKey(tx.get(), bwKey.getData());
 
-   auto seedPtr = EncryptedAssetData::deserialize(rootAssetRef);
-   auto ptrCast = dynamic_cast<EncryptedSeed*>(seedPtr.get());
-   if (ptrCast == nullptr)
+   controlSeed_ = EncryptedSeed::deserialize(rootAssetRef);
+   if (controlSeed_ == nullptr)
       throw WalletException("failed to deser wallet seed");
-
-   controlSeed_ = unique_ptr<EncryptedSeed>(ptrCast);
-   seedPtr.release();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

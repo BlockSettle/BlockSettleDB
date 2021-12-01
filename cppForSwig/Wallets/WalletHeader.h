@@ -39,20 +39,19 @@
 #define VERSION_REVISION   0
 #define ENCRYPTION_TOPLAYER_VERSION 1
 
-class DecryptedDataContainer;
-
 namespace Armory
 {
-   namespace Assets
-   {
-      struct ClearTextEncryptionKey;
-      struct EncryptionKey;
-      class Cipher;
-      struct KeyDerivationFunction;
-   };
-
    namespace Wallets
    {
+      namespace Encryption
+      {
+         class EncryptionKey;
+         class Cipher;
+         class KeyDerivationFunction;
+         class DecryptedDataContainer;
+         struct ClearTextEncryptionKey;
+      };
+
       class WalletException : public std::runtime_error
       {
       public:
@@ -211,17 +210,17 @@ namespace Armory
          ///////////////////////////////////////////////////////////////////////
          struct MasterKeyStruct
          {
-            std::shared_ptr<Assets::EncryptionKey> masterKey_;
-            std::shared_ptr<Assets::ClearTextEncryptionKey> decryptedMasterKey_;
-            std::shared_ptr<Assets::KeyDerivationFunction> kdf_;
-            std::unique_ptr<Assets::Cipher> cipher_;
+            std::shared_ptr<Encryption::EncryptionKey> masterKey_;
+            std::shared_ptr<Encryption::ClearTextEncryptionKey> decryptedMasterKey_;
+            std::shared_ptr<Encryption::KeyDerivationFunction> kdf_;
+            std::unique_ptr<Encryption::Cipher> cipher_;
          };
 
          ////
          struct ControlStruct
          {
             std::shared_ptr<WalletHeader_Control> metaPtr_;
-            std::shared_ptr<DecryptedDataContainer> decryptedData_;
+            std::shared_ptr<Encryption::DecryptedDataContainer> decryptedData_;
          };
       }; //namespace IO
    }; //namespace Wallets

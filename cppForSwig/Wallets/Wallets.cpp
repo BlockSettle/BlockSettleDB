@@ -36,7 +36,7 @@ AssetWallet::AssetWallet(
       return ifaceCopy->beginWriteTransaction(name);
    };
 
-   decryptedData_ = make_shared<DecryptedDataContainer>(
+   decryptedData_ = make_shared<Encryption::DecryptedDataContainer>(
       getWriteTx, dbName_,
       headerPtr->getDefaultEncryptionKey(),
       headerPtr->getDefaultEncryptionKeyId(),
@@ -76,7 +76,7 @@ std::shared_ptr<IO::WalletDBInterface> AssetWallet::getIface() const
 shared_ptr<AddressAccount> AssetWallet::createAccount(
    shared_ptr<AccountType> accountType)
 {
-   auto cipher = make_unique<Cipher_AES>(
+   auto cipher = make_unique<Encryption::Cipher_AES>(
       decryptedData_->getDefaultKdfId(),
       decryptedData_->getMasterEncryptionKeyId());
 
@@ -274,13 +274,10 @@ void AssetWallet_Single::readFromFile()
          bwKey.put_uint32_t(WALLET_SEED_KEY);
          auto rootAssetRef = getDataRefForKey(sharedTx.get(), bwKey.getData());
 
-         auto seedUPtr = EncryptedAssetData::deserialize(rootAssetRef);
-         shared_ptr<EncryptedAssetData> seedSPtr(move(seedUPtr));
-         auto seedObj = dynamic_pointer_cast<EncryptedSeed>(seedSPtr);
-         if (seedObj == nullptr)
+         auto seedUPtr = EncryptedSeed::deserialize(rootAssetRef);
+         seed_ = shared_ptr<EncryptedSeed>(move(seedUPtr));
+         if (seed_ == nullptr)
             throw WalletException("failed to deser wallet seed");
-
-         seed_ = seedObj;
       }
       catch(IO::NoEntryInWalletException&)
       {}
@@ -1569,7 +1566,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDb(
 
    //create encrypted object
    AssetId rootAssetId = AssetId::getRootAssetId();
-   auto cipherData = make_unique<CipherData>(
+   auto cipherData = make_unique<Encryption::CipherData>(
       encryptedRoot, move(rootCipher));
    auto rootAsset = make_shared<Asset_PrivateKey>(
       rootAssetId, move(cipherData));
@@ -1697,7 +1694,7 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::initWalletDbWithPubRoot(
 
 ////////////////////////////////////////////////////////////////////////////////
 const SecureBinaryData& AssetWallet_Single::getDecryptedValue(
-   shared_ptr<EncryptedAssetData> assetPtr)
+   shared_ptr<Encryption::EncryptedAssetData> assetPtr)
 {
    //have to lock the decryptedData object before calling this method
    return decryptedData_->getClearTextAssetData(assetPtr);
@@ -2126,7 +2123,8 @@ void AssetWallet_Single::setSeed(
       auto lock = lockDecryptedContainer();
 
       auto cipherText = decryptedData_->encryptData(cipherCopy.get(), seed);
-      auto cipherData = make_unique<CipherData>(cipherText, move(cipherCopy));
+      auto cipherData = make_unique<Encryption::CipherData>(
+         cipherText, move(cipherCopy));
       seed_ = make_shared<EncryptedSeed>(move(cipherData));
    }
 
@@ -2333,7 +2331,7 @@ void AssetWallet_Multisig::readFromFile()
 
 ////////////////////////////////////////////////////////////////////////////////
 const SecureBinaryData& AssetWallet_Multisig::getDecryptedValue(
-   shared_ptr<EncryptedAssetData> assetPtr)
+   shared_ptr<Encryption::EncryptedAssetData> assetPtr)
 {
    return decryptedData_->getClearTextAssetData(assetPtr);
 }

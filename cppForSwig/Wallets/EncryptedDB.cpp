@@ -12,7 +12,6 @@
 #include "AssetEncryption.h"
 
 using namespace std;
-using namespace Armory::Assets;
 using namespace Armory::Wallets::IO;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,7 +334,7 @@ BinaryData DBInterface::createDataPacket(const BinaryData& dbKey,
    /* encryption leg */
       //generate IV
       auto&& iv = BtcUtils::fortuna_.generateRandom(
-         Cipher::getBlockSize(CipherType_AES));
+         Encryption::Cipher::getBlockSize(CipherType_AES));
 
       //AES_CBC (hmac | payload)
       auto&& cipherText = CryptoAES::EncryptCBC(
@@ -386,7 +385,7 @@ pair<BinaryData, BothBinaryDatas> DBInterface::readDataPacket(
    /* decryption leg */
       //get iv
       auto&& iv = brrCipher.get_SecureBinaryData(
-         Cipher::getBlockSize(CipherType_AES));
+         Encryption::Cipher::getBlockSize(CipherType_AES));
 
       //get cipher text
       auto&& cipherText = brrCipher.get_SecureBinaryData(

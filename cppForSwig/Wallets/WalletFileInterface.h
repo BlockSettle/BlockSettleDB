@@ -27,7 +27,6 @@
 #define CONTROL_DB_NAME "control_db"
 
 ////////////////////////////////////////////////////////////////////////////////
-class DecryptedDataContainer;
 class PRNG_Fortuna;
 
 namespace Armory
@@ -39,6 +38,11 @@ namespace Armory
 
    namespace Wallets
    {
+      namespace Encryption
+      {
+         class DecryptedDataContainer;
+      };
+
       namespace IO
       {
          class WalletInterfaceException : public EncryptedDBException
@@ -154,7 +158,7 @@ namespace Armory
             std::string path_;
             unsigned dbCount_ = 0;
 
-            std::unique_ptr<DecryptedDataContainer> decryptedData_;
+            std::unique_ptr<Encryption::DecryptedDataContainer> decryptedData_;
             std::unique_ptr<ReentrantLock> controlLock_;
             std::unique_ptr<Armory::Assets::EncryptedSeed> controlSeed_;
 

@@ -136,8 +136,8 @@ namespace Armory
 
          std::shared_ptr<Assets::Asset_PrivateKey> fillPrivateKey(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer> ddc,
-            const Wallets::AssetId& id);
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
+            const Wallets::AssetId&);
 
          std::shared_ptr<Assets::AssetEntry_BIP32Root> getBip32RootForAssetId(
             const Wallets::AssetId&) const;
@@ -151,8 +151,8 @@ namespace Armory
          static std::unique_ptr<AddressAccount> make_new(
             const std::string&,
             std::shared_ptr<AccountType>,
-            std::shared_ptr<DecryptedDataContainer>,
-            std::unique_ptr<Assets::Cipher>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
+            std::unique_ptr<Wallets::Encryption::Cipher>,
             const std::function<std::shared_ptr<Assets::AssetEntry>(void)>&);
 
          static std::unique_ptr<AddressAccount> readFromDisk(
@@ -170,11 +170,11 @@ namespace Armory
 
          void extendPrivateChain(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             unsigned);
          void extendPrivateChainToIndex(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             const Wallets::AssetAccountId&, unsigned);
 
          std::shared_ptr<AddressEntry> getNewAddress(

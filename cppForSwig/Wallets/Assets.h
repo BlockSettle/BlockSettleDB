@@ -21,15 +21,9 @@
 #include "AssetEncryption.h"
 
 
-#define HMAC_KEY_ENCRYPTIONKEYS "EncyrptionKey"
-#define HMAC_KEY_PRIVATEKEYS "PrivateKey"
-
 #define ASSETENTRY_PREFIX        0x8A
 #define PUBKEY_UNCOMPRESSED_BYTE 0x80
 #define PUBKEY_COMPRESSED_BYTE   0x81
-#define PRIVKEY_BYTE             0x82
-#define ENCRYPTIONKEY_BYTE       0x83
-#define WALLET_SEED_BYTE         0x84
 #define ECDH_SALT_PREFIX         0x85
 
 #define METADATA_COMMENTS_PREFIX 0x90
@@ -38,7 +32,6 @@
 #define METADATA_ROOTSIG_PREFIX  0x93
 
 class AddressEntry_Multisig;
-class DecryptedDataContainer;
 
 namespace Armory
 {
@@ -46,6 +39,12 @@ namespace Armory
    {
       class AssetWallet;
       class AssetWallet_Single;
+
+      namespace Encryption
+      {
+         struct CipherData;
+         class EncryptedAssetData;
+      };
    };
 
    namespace Accounts
@@ -93,54 +92,6 @@ namespace Armory
          ScriptHash_P2PKH_Compressed,
          ScriptHash_P2WPKH,
          ScriptHash_Nested_P2PK
-      };
-
-      //////////////////////////////////////////////////////////////////////////
-      struct ClearTextEncryptionKey
-      {
-         friend class ::DecryptedDataContainer;
-         friend class Cipher_AES;
-         friend class Wallets::AssetWallet_Single;
-         friend class Wallets::AssetWallet;
-
-      private:
-         const SecureBinaryData rawKey_;
-         std::map<BinaryData, SecureBinaryData> derivedKeys_;
-
-      private:
-         Wallets::EncryptionKeyId computeId(
-            const SecureBinaryData& key) const;
-         const SecureBinaryData& getData(void) const { return rawKey_; }
-         const SecureBinaryData& getDerivedKey(const BinaryData& id) const;
-
-      public:
-         ClearTextEncryptionKey(SecureBinaryData& key) :
-            rawKey_(std::move(key))
-         {}
-
-         void deriveKey(std::shared_ptr<KeyDerivationFunction> kdf);
-         Wallets::EncryptionKeyId getId(const BinaryData& kdfid) const;
-
-         std::unique_ptr<ClearTextEncryptionKey> copy(void) const;
-         bool hasData(void) const { return !rawKey_.empty(); }
-      };
-
-      //////////////////////////////////////////////////////////////////////////
-      class ClearTextAssetData
-      {
-      private:
-         const Wallets::AssetId id_;
-         const SecureBinaryData clearText_;
-
-      public:
-         ClearTextAssetData(const Wallets::AssetId& id,
-            SecureBinaryData& clearText) :
-            id_(id), clearText_(std::move(clearText))
-         {}
-
-         bool hasData(void) const { return !clearText_.empty(); }
-         const Wallets::AssetId& getId(void) const { return id_; }
-         const SecureBinaryData& getData(void) const { return clearText_; }
       };
 
       //////////////////////////////////////////////////////////////////////////
@@ -212,162 +163,33 @@ namespace Armory
       };
 
       //////////////////////////////////////////////////////////////////////////
-      struct CipherData
-      {
-         /*
-         Cipher text and its relevant cipher object
-         */
-
-         const SecureBinaryData cipherText_;
-         std::unique_ptr<Cipher> cipher_;
-
-         CipherData(SecureBinaryData& cipherText,
-            std::unique_ptr<Cipher> cipher) :
-            cipherText_(std::move(cipherText)), cipher_(std::move(cipher))
-         {
-            if (cipherText_.getSize() == 0)
-               throw AssetException("empty cipher text");
-
-            if (cipher_ == nullptr)
-               throw AssetException("null cipher for privkey");
-         }
-
-         BinaryData serialize(void) const;
-         bool isSame(CipherData* const) const;
-
-         static std::unique_ptr<CipherData> deserialize(BinaryRefReader&);
-      };
-
-      //////////////////////////////////////////////////////////////////////////
-      class EncryptionKey
-      {
-         /*
-         May have multiple cipher data objects
-         */
-
-         friend class ::DecryptedDataContainer;
-
-      protected:
-         const Wallets::EncryptionKeyId id_;
-         std::map<Wallets::EncryptionKeyId,
-            std::unique_ptr<CipherData>> cipherDataMap_;
-
-      private:
-         Cipher* getCipherPtrForId(
-            const Wallets::EncryptionKeyId&) const;
-         bool removeCipherData(const Wallets::EncryptionKeyId&);
-         bool addCipherData(std::unique_ptr<CipherData>);
-
-      public:
-         EncryptionKey(Wallets::EncryptionKeyId&,
-            SecureBinaryData&,
-            std::unique_ptr<Cipher>);
-
-         EncryptionKey(Wallets::EncryptionKeyId&,
-            std::map<Wallets::EncryptionKeyId,
-               std::unique_ptr<CipherData>>);
-
-         ////
-         bool isSame(EncryptionKey* const) const;
-         const Wallets::EncryptionKeyId& getId(void) const
-         { return id_; }
-         BinaryData serialize(void) const;
-         static std::unique_ptr<EncryptionKey> deserialize(
-            const BinaryDataRef&);
-
-         /*
-         TODO:
-            - dedicated decrypt per sub class instead of virtual (
-            otherwise the return type is always ClearTextAssetData)
-            - dedicated encryption key id
-         */
-
-         std::unique_ptr<ClearTextAssetData> decrypt(
-            const SecureBinaryData& key) const;
-         CipherData* getCipherDataPtr(void) const;
-      };
-
-      //////////////////////////////////////////////////////////////////////////
-      class EncryptedAssetData
-      {
-         /***
-         This class holds the cipher data for an encrypted key. It can yield
-         the clear text secret, provided the kdf'ed encryption key. It cannot
-         generate the cipher text.
-
-         Use Cipher::encrypt to generate the cipher text first. Pass that cipher
-         data at construction time.
-         ***/
-
-         friend class ::DecryptedDataContainer;
-
-      protected:
-         const Wallets::EncryptionKeyId& encryptionKeyId_;
-         const std::unique_ptr<CipherData> cipherData_;
-
-      public:
-         EncryptedAssetData(std::unique_ptr<CipherData> cipherData) :
-            encryptionKeyId_(cipherData->cipher_->getEncryptionKeyId()),
-            cipherData_(std::move(cipherData))
-         {
-            if (cipherData_ == nullptr)
-               throw std::runtime_error("nullptr cipher data");
-         }
-
-         //virtual
-         virtual ~EncryptedAssetData(void) = 0;
-
-         virtual bool isSame(EncryptedAssetData* const) const;
-         virtual BinaryData serialize(void) const = 0;
-         virtual const Wallets::AssetId& getAssetId(void) const = 0;
-
-         virtual std::unique_ptr<ClearTextAssetData> decrypt(
-            const SecureBinaryData& key) const;
-
-         //local
-         const SecureBinaryData& getCipherText(void) const;
-         const SecureBinaryData& getIV(void) const;
-         const Wallets::EncryptionKeyId& getEncryptionKeyId(void) const;
-         const BinaryData& getKdfId(void) const;
-
-         bool hasData(void) const
-         {
-            return cipherData_ != nullptr;
-         }
-
-         const CipherData* getCipherDataPtr() const
-         {
-            return cipherData_.get();
-         }
-
-         //static
-         static std::unique_ptr<EncryptedAssetData> deserialize(
-            const BinaryDataRef&);
-         static std::unique_ptr<EncryptedAssetData> deserializeOld(
-            const Wallets::AssetId&, const BinaryDataRef&);
-      };
-
-      //////////////////////////////////////////////////////////////////////////
-      struct Asset_PrivateKey : public EncryptedAssetData, public Asset
+      struct Asset_PrivateKey :
+         public Wallets::Encryption::EncryptedAssetData, public Asset
       {
       public:
          const Wallets::AssetId id_;
 
       public:
          Asset_PrivateKey(const Wallets::AssetId& id,
-            std::unique_ptr<CipherData> cipherData) :
-            EncryptedAssetData(std::move(cipherData)),
+            std::unique_ptr<Wallets::Encryption::CipherData> cipherData) :
+            Wallets::Encryption::EncryptedAssetData(std::move(cipherData)),
             Asset(AssetType::PrivateKey), id_(id)
          {}
 
-         ////
+         //virtual
          bool isSame(EncryptedAssetData* const) const override;
          BinaryData serialize(void) const override;
          const Wallets::AssetId& getAssetId(void) const override;
+
+         //static
+         static std::unique_ptr<Asset_PrivateKey> deserialize(
+            const BinaryDataRef&);
+         static std::unique_ptr<Asset_PrivateKey> deserializeOld(
+            const Wallets::AssetId&, const BinaryDataRef&);
       };
 
       //////////////////////////////////////////////////////////////////////////
-      class EncryptedSeed : public EncryptedAssetData
+      class EncryptedSeed : public Wallets::Encryption::EncryptedAssetData
       {
       public:
          static const Wallets::AssetId seedAssetId_;
@@ -375,14 +197,19 @@ namespace Armory
       public:
          //tors
          EncryptedSeed(
-            std::unique_ptr<CipherData> cipher) :
-            EncryptedAssetData(move(cipher))
+            std::unique_ptr<Wallets::Encryption::CipherData> cipher) :
+            Wallets::Encryption::EncryptedAssetData(move(cipher))
          {}
 
          //virtual
-         bool isSame(EncryptedAssetData* const) const override;
+         bool isSame(
+            Wallets::Encryption::EncryptedAssetData* const) const override;
          BinaryData serialize(void) const override;
          const Wallets::AssetId& getAssetId(void) const override;
+
+         //static
+         static std::unique_ptr<EncryptedSeed> deserialize(
+            const BinaryDataRef&);
       };
 
       //////////////////////////////////////////////////////////////////////////

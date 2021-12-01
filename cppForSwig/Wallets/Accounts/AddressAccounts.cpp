@@ -32,7 +32,8 @@ AddressAccount::AddressAccount(const std::string& dbName,
 ////////////////////////////////////////////////////////////////////////////////
 unique_ptr<AddressAccount> AddressAccount::make_new(
    const string& dbName, shared_ptr<AccountType> accType,
-   shared_ptr<DecryptedDataContainer> decrData, unique_ptr<Cipher> cipher,
+   shared_ptr<Encryption::DecryptedDataContainer> decrData,
+   unique_ptr<Encryption::Cipher> cipher,
    const std::function<std::shared_ptr<AssetEntry>(void)>& getRootLbd)
 {
    if (accType == nullptr)
@@ -47,7 +48,7 @@ unique_ptr<AddressAccount> AddressAccount::make_new(
       [&decrData, &getRootLbd, &addressAccountId](
          shared_ptr<AccountType_BIP32> accBip32,
          const NodeRoot& nodeRoot,
-         unique_ptr<Cipher> cipher_copy)->
+         unique_ptr<Encryption::Cipher> cipher_copy)->
       shared_ptr<AssetEntry_BIP32Root>
    {
       //get last node
@@ -91,7 +92,7 @@ unique_ptr<AddressAccount> AddressAccount::make_new(
 
          //create assets
          auto cipherData =
-            make_unique<CipherData>(encrypted_root, move(cipher_copy));
+            make_unique<Encryption::CipherData>(encrypted_root, move(cipher_copy));
          auto priv_asset =
             make_shared<Asset_PrivateKey>(assetId ,move(cipherData));
 
@@ -211,7 +212,7 @@ unique_ptr<AddressAccount> AddressAccount::make_new(
          if (nodeRoot.b58Root.empty())
             throw AccountException("[make_new] skipped path");
 
-         unique_ptr<Cipher> cipher_copy;
+         unique_ptr<Encryption::Cipher> cipher_copy;
          if (cipher != nullptr)
             cipher_copy = cipher->getCopy();
 
@@ -283,8 +284,8 @@ unique_ptr<AddressAccount> AddressAccount::make_new(
             decrData->encryptData(cipher_copy.get(), accEcdh->getPrivKey());
 
          //create assets
-         auto cipherData =
-            make_unique<CipherData>(encrypted_root, move(cipher_copy));
+         auto cipherData = make_unique<Encryption::CipherData>(
+            encrypted_root, move(cipher_copy));
          auto priv_asset =
             make_shared<Asset_PrivateKey>(assetId, move(cipherData));
          rootAsset = make_shared<AssetEntry_Single>(
@@ -574,7 +575,7 @@ void AddressAccount::extendPublicChainToIndex(
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPrivateChain(
    std::shared_ptr<IO::WalletDBInterface> iface,
-   shared_ptr<DecryptedDataContainer> ddc,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
    unsigned count)
 {
    for (auto& accDataPair : accountDataMap_)
@@ -587,7 +588,7 @@ void AddressAccount::extendPrivateChain(
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPrivateChainToIndex(
    std::shared_ptr<IO::WalletDBInterface> iface,
-   shared_ptr<DecryptedDataContainer> ddc,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
    const AssetAccountId& accountID, unsigned count)
 {
    auto account = getAccountForID(accountID);
@@ -1112,7 +1113,7 @@ map<AssetId, shared_ptr<AddressEntry>> AddressAccount::getUsedAddressMap()
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<Asset_PrivateKey> AddressAccount::fillPrivateKey(
    shared_ptr<IO::WalletDBInterface> iface,
-   shared_ptr<DecryptedDataContainer> ddc,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
    const AssetId& id)
 {
    if (!id.isValid())

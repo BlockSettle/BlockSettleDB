@@ -18,6 +18,7 @@ using namespace Armory::Config;
 using namespace Armory::Assets;
 using namespace Armory::Accounts;
 using namespace Armory::Wallets;
+using namespace Armory::Wallets::Encryption;
 
 ////////////////////////////////////////////////////////////////////////////////
 #define METHOD_ASSERT_EQ(a, b) \

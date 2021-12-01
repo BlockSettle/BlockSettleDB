@@ -18,13 +18,19 @@
 #define ECDH_ASSET_ACCOUNTID           0x20000000U
 #define SEED_DEPTH                     0xFFFF
 
-class DecryptedDataContainer;
-
 namespace Armory
 {
    namespace Assets
    {
       class AssetEntry_BIP32Root;
+   };
+
+   namespace Wallets
+   {
+      namespace Encryption
+      {
+         class DecryptedDataContainer;
+      };
    };
 
    namespace Accounts
@@ -271,7 +277,7 @@ namespace Armory
 
          std::vector<DerivationBranch::Path> getPaths(void) const;
          std::vector<NodeRoot> resolveNodeRoots(
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             std::shared_ptr<Assets::AssetEntry_BIP32Root>) const;
 
          static std::vector<uint32_t> toPath32(const DerivationBranch::Path&);

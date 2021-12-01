@@ -22,8 +22,6 @@
 #define ASSET_TOP_INDEX_PREFIX_V2   0xE4
 
 ////////////////////////////////////////////////////////////////////////////////
-class DecryptedDataContainer;
-
 namespace Armory
 {
    namespace Assets
@@ -38,8 +36,13 @@ namespace Armory
       {
          class WalletIfaceTransaction;
          class WalletDBInterface;
-      }
-   }
+      };
+
+      namespace Encryption
+      {
+         class DecryptedDataContainer;
+      };
+   };
 
    namespace Accounts
    {
@@ -127,18 +130,18 @@ namespace Armory
 
          void extendPrivateChain(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             unsigned);
          void extendPrivateChainToIndex(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             unsigned);
          void extendPrivateChain(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             std::shared_ptr<Assets::AssetEntry>, unsigned);
          std::vector<std::shared_ptr<Assets::AssetEntry>> extendPrivateChain(
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             std::shared_ptr<Assets::AssetEntry>,
             unsigned, unsigned);
 
@@ -151,7 +154,7 @@ namespace Armory
 
          std::shared_ptr<Assets::Asset_PrivateKey> fillPrivateKey(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             const Wallets::AssetId&);
 
          virtual unsigned getLookup(void) const;

@@ -8,11 +8,11 @@
 
 #include "DecryptedDataContainer.h"
 #include "EncryptedDB.h"
-#include "Assets.h"
+#include "AssetEncryption.h"
 
 using namespace std;
-using namespace Armory::Assets;
 using namespace Armory::Wallets;
+using namespace Armory::Wallets::Encryption;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

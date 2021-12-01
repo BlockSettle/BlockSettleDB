@@ -80,7 +80,7 @@ namespace Armory
          std::shared_ptr<IO::WalletDBInterface> iface_;
          const std::string dbName_;
 
-         std::shared_ptr<DecryptedDataContainer> decryptedData_;
+         std::shared_ptr<Encryption::DecryptedDataContainer> decryptedData_;
          std::map<AddressAccountId,
             std::shared_ptr<Accounts::AddressAccount>> accounts_;
          std::map<Accounts::MetaAccountType, std::shared_ptr<
@@ -216,7 +216,7 @@ namespace Armory
          //virtual
          virtual std::set<BinaryData> getAddrHashSet();
          virtual const SecureBinaryData& getDecryptedValue(
-            std::shared_ptr<Assets::EncryptedAssetData>) = 0;
+            std::shared_ptr<Encryption::EncryptedAssetData>) = 0;
          virtual std::shared_ptr<Assets::AssetEntry> getRoot(void) const = 0;
 
          //static
@@ -315,7 +315,7 @@ namespace Armory
 
          //virtual
          const SecureBinaryData& getDecryptedValue(
-            std::shared_ptr<Assets::EncryptedAssetData>);
+            std::shared_ptr<Encryption::EncryptedAssetData>);
 
          //static
          static std::shared_ptr<AssetWallet_Single> createFromBIP32Node(
@@ -379,7 +379,7 @@ namespace Armory
          //virtual
          void readFromFile(void);
          const SecureBinaryData& getDecryptedValue(
-            std::shared_ptr<Assets::EncryptedAssetData>);
+            std::shared_ptr<Encryption::EncryptedAssetData>);
 
       public:
          //tors
