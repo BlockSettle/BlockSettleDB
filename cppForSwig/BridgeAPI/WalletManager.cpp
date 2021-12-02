@@ -251,7 +251,8 @@ void WalletManager::loadWallets(const PassphraseLambda& passLbd)
       catch (exception& e)
       {
          stringstream ss;
-         ss << "Failed to open wallet with error:" << endl << e.what();
+         ss << "Failed to open wallet at " << wltPath <<
+            " with error:" << endl << e.what();
          LOGERR << ss.str();
       }
    }
