@@ -297,43 +297,7 @@ target_compile_definitions(ArmoryCLI
     PUBLIC -D__STDC_LIMIT_MACROS
 )
 
-string_option(WITH_GUI "with GUI" OFF)
-
-#find_package(Qt4 COMPONENTS QtGui QUIET)
-
-#find_program(PYRCC4_EXECUTABLE   pyrcc4)
 find_program(LRELEASE_EXECUTABLE lrelease)
-
-if(WITH_GUI STREQUAL AUTO)
-    if(Qt4_FOUND AND PYRCC4_EXECUTABLE AND LRELEASE_EXECUTABLE)
-        set(WITH_GUI ON)
-    else()
-        set(WITH_GUI OFF)
-    endif()
-endif()
-
-if(WITH_GUI)
-    if(NOT PYRCC4_EXECUTABLE)
-        message(FATAL_ERROR "pyrcc4 not found, install python2-qt4-devel")
-    endif()
-
-    if(NOT LRELEASE_EXECUTABLE)
-        message(FATAL_ERROR "lrelease not found, install qt4-linguist")
-    endif()
-
-    add_library(ArmoryGUI
-        TransactionBatch.cpp
-    )
-
-    target_link_libraries(ArmoryGUI
-        ArmoryCommon
-        Qt4::QtGui
-    )
-
-    target_compile_definitions(ArmoryGUI
-        PUBLIC -D__STDC_LIMIT_MACROS
-    )
-endif()
 
 add_executable(armorydb
     main.cpp
@@ -451,73 +415,6 @@ if(WITH_CLIENT)
             ${PROJECT_BINARY_DIR}/_CppBlockUtils${CMAKE_SHARED_LIBRARY_SUFFIX}
         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
     )
-
-    if(WITH_GUI)
-        list(APPEND CPPBLOCKUTILS_LINK_LIBRARIES
-            ArmoryGUI
-        )
-
-        # this mechanism for dependent custom targets I found here:
-        # https://cmake.org/pipermail/cmake/2010-March/035621.html
-        add_custom_command(
-            OUTPUT  ${PROJECT_BINARY_DIR}/qrc_img_resources.py
-            COMMAND ${PYRCC4_EXECUTABLE} -o ${PROJECT_BINARY_DIR}/qrc_img_resources.py ${PROJECT_SOURCE_DIR}/imgList.xml
-            DEPENDS ${PROJECT_SOURCE_DIR}/imgList.xml
-            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-        )
-
-        add_custom_target(qrc_img_resources_py DEPENDS ${PROJECT_BINARY_DIR}/qrc_img_resources.py)
-
-        file(COPY ${PROJECT_SOURCE_DIR}/lang DESTINATION ${PROJECT_BINARY_DIR})
-
-        set(LANG_SOURCES
-            armory_da.ts
-            armory_de.ts
-            armory_el.ts
-            armory_en.ts
-            armory_es.ts
-            armory_fr.ts
-            armory_he.ts
-            armory_hr.ts
-            armory_id.ts
-            armory_ru.ts
-            armory_sv.ts
-        )
-
-        unset(LANG_QM_FILES)
-
-        foreach(lang_file ${LANG_SOURCES})
-            string(REGEX REPLACE "\\.ts$" ".qm" lang_qm_file ${lang_file})
-
-            add_custom_command(
-                OUTPUT  ${PROJECT_BINARY_DIR}/lang/${lang_qm_file}
-                COMMAND ${LRELEASE_EXECUTABLE} ${PROJECT_BINARY_DIR}/lang/${lang_file}
-                WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/lang
-            )
-
-            list(APPEND LANG_QM_FILES
-                ${PROJECT_BINARY_DIR}/lang/${lang_qm_file}
-            )
-        endforeach()
-
-        add_custom_target(lang_lrelease DEPENDS ${LANG_QM_FILES})
-
-        add_dependencies(CppBlockUtils
-            qrc_img_resources_py
-            lang_lrelease
-        )
-
-        install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_LIBDIR}/armory/ui)")
-
-        install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_LIBDIR}/armory/lang)")
-
-        install(DIRECTORY ../ui DESTINATION ${CMAKE_INSTALL_LIBDIR}/armory)
-
-        install(DIRECTORY ${PROJECT_BINARY_DIR}/lang
-                DESTINATION ${CMAKE_INSTALL_LIBDIR}/armory
-                FILES_MATCHING PATTERN "*.qm"
-        )
-    endif()
 
     target_link_libraries(CppBlockUtils
         ${CPPBLOCKUTILS_LINK_LIBRARIES}
