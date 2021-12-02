@@ -8,11 +8,11 @@
 
 #include "DecryptedDataContainer.h"
 #include "EncryptedDB.h"
-#include "Assets.h"
+#include "AssetEncryption.h"
 
 using namespace std;
-using namespace Armory::Assets;
 using namespace Armory::Wallets;
+using namespace Armory::Wallets::Encryption;
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,7 +43,7 @@ void DecryptedDataContainer::initAfterLock()
    //copy default encryption key
    auto&& defaultEncryptionKeyCopy = defaultEncryptionKey_.copy();
 
-   auto defaultKey = make_unique<Armory::Assets::ClearTextEncryptionKey>(
+   auto defaultKey = make_unique<ClearTextEncryptionKey>(
       defaultEncryptionKeyCopy);
    decryptedDataInstance->encryptionKeys_.insert(make_pair(
       defaultEncryptionKeyId_, move(defaultKey)));
@@ -73,9 +73,8 @@ void DecryptedDataContainer::lockOther(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<Armory::Assets::ClearTextEncryptionKey>
-DecryptedDataContainer::deriveEncryptionKey(
-   unique_ptr<Armory::Assets::ClearTextEncryptionKey> decrKey,
+unique_ptr<ClearTextEncryptionKey> DecryptedDataContainer::deriveEncryptionKey(
+   unique_ptr<ClearTextEncryptionKey> decrKey,
    const BinaryData& kdfid) const
 {
    //sanity check
@@ -465,7 +464,7 @@ unique_ptr<ClearTextEncryptionKey> DecryptedDataContainer::promptPassphrase(
 
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::updateOnDisk(
-   shared_ptr<DBIfaceTransaction> tx,
+   shared_ptr<IO::DBIfaceTransaction> tx,
    const EncryptionKeyId& key, shared_ptr<EncryptionKey> dataPtr)
 {
    //serialize db key
@@ -475,7 +474,7 @@ void DecryptedDataContainer::updateOnDisk(
 
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::updateOnDiskRaw(
-   shared_ptr<DBIfaceTransaction> tx,
+   shared_ptr<IO::DBIfaceTransaction> tx,
    const BinaryData& dbKey, shared_ptr<EncryptionKey> dataPtr)
 {
    //check if data is on disk already
@@ -509,10 +508,10 @@ void DecryptedDataContainer::updateOnDisk()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DecryptedDataContainer::updateOnDisk(unique_ptr<DBIfaceTransaction> tx)
+void DecryptedDataContainer::updateOnDisk(unique_ptr<IO::DBIfaceTransaction> tx)
 {
    //encryption keys
-   shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
+   shared_ptr<IO::DBIfaceTransaction> sharedTx(move(tx));
    for (auto& key : encryptedKeys_)
       updateOnDisk(sharedTx, key.first, key.second);
 
@@ -546,7 +545,7 @@ void DecryptedDataContainer::updateOnDisk(unique_ptr<DBIfaceTransaction> tx)
 
 ////////////////////////////////////////////////////////////////////////////////
 void DecryptedDataContainer::deleteFromDisk(
-   shared_ptr<DBIfaceTransaction> tx, const BinaryData& key)
+   shared_ptr<IO::DBIfaceTransaction> tx, const BinaryData& key)
 {
    //sanity checks
    if (!ownsLock())
@@ -557,7 +556,7 @@ void DecryptedDataContainer::deleteFromDisk(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DecryptedDataContainer::readFromDisk(shared_ptr<DBIfaceTransaction> tx)
+void DecryptedDataContainer::readFromDisk(shared_ptr<IO::DBIfaceTransaction> tx)
 {
    //encryption key and kdf entries
    auto dbIter = tx->getIterator();
@@ -723,13 +722,13 @@ void DecryptedDataContainer::encryptEncryptionKey(
    {
       //write new encrypted key as temp key within it's own transaction
       auto&& tx = getWriteTx_(dbName_);
-      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
+      shared_ptr<IO::DBIfaceTransaction> sharedTx(move(tx));
       updateOnDiskRaw(sharedTx, temp_key, encryptedKey);
    }
 
    {
       auto&& tx = getWriteTx_(dbName_);
-      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
+      shared_ptr<IO::DBIfaceTransaction> sharedTx(move(tx));
 
       //wipe old key from disk
       deleteFromDisk(sharedTx, perm_key);
@@ -741,7 +740,7 @@ void DecryptedDataContainer::encryptEncryptionKey(
    {
       //wipe temp entry
       auto&& tx = getWriteTx_(dbName_);
-      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
+      shared_ptr<IO::DBIfaceTransaction> sharedTx(move(tx));
       deleteFromDisk(sharedTx, temp_key);
    }
 }
@@ -837,13 +836,13 @@ void DecryptedDataContainer::eraseEncryptionKey(
    {
       //write new encrypted key as temp key within it's own transaction
       auto&& tx = getWriteTx_(dbName_);
-      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
+      shared_ptr<IO::DBIfaceTransaction> sharedTx(move(tx));
       updateOnDiskRaw(sharedTx, temp_key, encryptedKey);
    }
 
    {
       auto&& tx = getWriteTx_(dbName_);
-      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
+      shared_ptr<IO::DBIfaceTransaction> sharedTx(move(tx));
 
       //wipe old key from disk
       deleteFromDisk(sharedTx, perm_key);
@@ -855,7 +854,7 @@ void DecryptedDataContainer::eraseEncryptionKey(
    {
       //wipe temp entry
       auto&& tx = getWriteTx_(dbName_);
-      shared_ptr<DBIfaceTransaction> sharedTx(move(tx));
+      shared_ptr<IO::DBIfaceTransaction> sharedTx(move(tx));
       deleteFromDisk(sharedTx, temp_key);
    }
 }

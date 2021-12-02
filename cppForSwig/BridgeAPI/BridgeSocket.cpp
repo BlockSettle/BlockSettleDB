@@ -14,7 +14,7 @@
 #include <google/protobuf/message.h>
 
 using namespace std;
-using namespace ArmoryBridge;
+using namespace Armory::Bridge;
 
 #define BRIDGE_SOCKET_MAXLEN 1024 * 1024 * 1024 //1MB
 

@@ -22,10 +22,6 @@
 #define ASSET_TOP_INDEX_PREFIX_V2   0xE4
 
 ////////////////////////////////////////////////////////////////////////////////
-class WalletIfaceTransaction;
-class WalletDBInterface;
-class DecryptedDataContainer;
-
 namespace Armory
 {
    namespace Assets
@@ -34,10 +30,22 @@ namespace Armory
       class DerivationScheme;
    };
 
+   namespace Wallets
+   {
+      namespace IO
+      {
+         class WalletIfaceTransaction;
+         class WalletDBInterface;
+      };
+
+      namespace Encryption
+      {
+         class DecryptedDataContainer;
+      };
+   };
+
    namespace Accounts
    {
-
-      //////////////////////////////////////////////////////////////////////////
       struct AssetAccountData
       {
       public:
@@ -97,49 +105,56 @@ namespace Armory
 
       private:
          size_t writeAssetEntry(std::shared_ptr<Assets::AssetEntry>,
-            std::shared_ptr<WalletDBInterface>);
-         void updateOnDiskAssets(std::shared_ptr<WalletDBInterface>);
+            std::shared_ptr<Wallets::IO::WalletDBInterface>);
+         void updateOnDiskAssets(
+            std::shared_ptr<Wallets::IO::WalletDBInterface>);
 
-         void updateHighestUsedIndex(std::shared_ptr<WalletDBInterface>);
-         unsigned getAndBumpHighestUsedIndex(std::shared_ptr<WalletDBInterface>);
+         void updateHighestUsedIndex(
+            std::shared_ptr<Wallets::IO::WalletDBInterface>);
+         unsigned getAndBumpHighestUsedIndex(
+            std::shared_ptr<Wallets::IO::WalletDBInterface>);
 
-         virtual void commit(std::shared_ptr<WalletDBInterface>);
-         void updateAssetCount(std::shared_ptr<WalletDBInterface>);
+         virtual void commit(
+            std::shared_ptr<Wallets::IO::WalletDBInterface>);
+         void updateAssetCount(
+            std::shared_ptr<Wallets::IO::WalletDBInterface>);
 
-         void extendPublicChainToIndex(std::shared_ptr<WalletDBInterface>
+         void extendPublicChainToIndex(
+            std::shared_ptr<Wallets::IO::WalletDBInterface>
             , unsigned);
-         void extendPublicChain(std::shared_ptr<WalletDBInterface>
+         void extendPublicChain(
+            std::shared_ptr<Wallets::IO::WalletDBInterface>
             , std::shared_ptr<Assets::AssetEntry>, unsigned);
          std::vector<std::shared_ptr<Assets::AssetEntry>> extendPublicChain(
             std::shared_ptr<Assets::AssetEntry>, unsigned, unsigned);
 
          void extendPrivateChain(
-            std::shared_ptr<WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             unsigned);
          void extendPrivateChainToIndex(
-            std::shared_ptr<WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             unsigned);
          void extendPrivateChain(
-            std::shared_ptr<WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             std::shared_ptr<Assets::AssetEntry>, unsigned);
          std::vector<std::shared_ptr<Assets::AssetEntry>> extendPrivateChain(
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             std::shared_ptr<Assets::AssetEntry>,
             unsigned, unsigned);
 
          std::shared_ptr<Assets::AssetEntry> getOrSetAssetAtIndex(
-            std::shared_ptr<WalletDBInterface>, unsigned);
+            std::shared_ptr<Wallets::IO::WalletDBInterface>, unsigned);
          std::shared_ptr<Assets::AssetEntry> getNewAsset(
-            std::shared_ptr<WalletDBInterface>);
+            std::shared_ptr<Wallets::IO::WalletDBInterface>);
          std::shared_ptr<Assets::AssetEntry> peekNextAsset(
-            std::shared_ptr<WalletDBInterface>);
+            std::shared_ptr<Wallets::IO::WalletDBInterface>);
 
          std::shared_ptr<Assets::Asset_PrivateKey> fillPrivateKey(
-            std::shared_ptr<WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             const Wallets::AssetId&);
 
          virtual unsigned getLookup(void) const;
@@ -174,11 +189,13 @@ namespace Armory
          const SecureBinaryData& getChaincode(void) const;
          std::shared_ptr<Assets::AssetEntry> getRoot(void) const;
 
-         void extendPublicChain(std::shared_ptr<WalletDBInterface>, unsigned);
+         void extendPublicChain(
+            std::shared_ptr<Wallets::IO::WalletDBInterface>, unsigned);
 
          //static
          static std::shared_ptr<AssetAccountData> loadFromDisk(
-            const BinaryData& key, std::shared_ptr<WalletIfaceTransaction>);
+            const BinaryData& key,
+            std::shared_ptr<Wallets::IO::WalletIfaceTransaction>);
 
          //Lockable virtuals
          void initAfterLock(void) {}
@@ -193,7 +210,7 @@ namespace Armory
          AssetAccountTypeEnum type(void) const override
          { return AssetAccountTypeEnum_ECDH; }
 
-         void commit(std::shared_ptr<WalletDBInterface>) override;
+         void commit(std::shared_ptr<Wallets::IO::WalletDBInterface>) override;
 
       public:
          AssetAccount_ECDH(
@@ -202,7 +219,8 @@ namespace Armory
          {}
 
          Wallets::AssetKeyType addSalt(
-            std::shared_ptr<WalletIfaceTransaction>, const SecureBinaryData&);
+            std::shared_ptr<Wallets::IO::WalletIfaceTransaction>,
+            const SecureBinaryData&);
          Wallets::AssetKeyType getSaltIndex(
             const SecureBinaryData&) const;
       };

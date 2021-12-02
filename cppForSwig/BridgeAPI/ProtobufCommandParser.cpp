@@ -11,7 +11,7 @@
 #include "../protobuf/ClientProto.pb.h"
 
 using namespace std;
-using namespace ArmoryBridge;
+using namespace Armory::Bridge;
 using namespace ::google::protobuf;
 using namespace ::Codec_ClientProto;
 

@@ -16,6 +16,7 @@ using namespace Armory::Config;
 using namespace Armory::Assets;
 using namespace Armory::Accounts;
 using namespace Armory::Wallets;
+using namespace Armory::CoinSelection;
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<ScriptSpender> getSpenderPtr(const UTXO& utxo, bool RBF = false)

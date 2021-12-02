@@ -201,10 +201,11 @@ vector<shared_ptr<AssetEntry>> DerivationScheme_ArmoryLegacy::extendPublicChain(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<AssetEntry_Single> 
+shared_ptr<AssetEntry_Single>
    DerivationScheme_ArmoryLegacy::computeNextPrivateEntry(
-   shared_ptr<DecryptedDataContainer> ddc,
-   const SecureBinaryData& privKeyData, unique_ptr<Cipher> cipher,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
+   const SecureBinaryData& privKeyData,
+   unique_ptr<Encryption::Cipher> cipher,
    AssetId id)
 {
    //chain the private key
@@ -224,7 +225,7 @@ shared_ptr<AssetEntry_Single>
 
    //instantiate new encrypted key object
    auto cipherData =
-      make_unique<CipherData>(encryptedNextPrivKey, move(newCipher));
+      make_unique<Encryption::CipherData>(encryptedNextPrivKey, move(newCipher));
    auto nextPrivKey = make_shared<Asset_PrivateKey>(id, move(cipherData));
 
    //instantiate and return new asset entry
@@ -232,9 +233,9 @@ shared_ptr<AssetEntry_Single>
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<shared_ptr<AssetEntry>> 
+vector<shared_ptr<AssetEntry>>
    DerivationScheme_ArmoryLegacy::extendPrivateChain(
-   shared_ptr<DecryptedDataContainer> ddc,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
    shared_ptr<AssetEntry> firstAsset,
    unsigned start, unsigned end)
 {
@@ -302,8 +303,9 @@ BinaryData DerivationScheme_ArmoryLegacy::serialize() const
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry_Single>
    DerivationScheme_BIP32::computeNextPrivateEntry(
-   shared_ptr<DecryptedDataContainer> ddc,
-   const SecureBinaryData& privKeyData, unique_ptr<Cipher> cipher,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
+   const SecureBinaryData& privKeyData,
+   unique_ptr<Encryption::Cipher> cipher,
    AssetId id)
 {
    auto index = id.getAssetKey();
@@ -323,7 +325,8 @@ shared_ptr<AssetEntry_Single>
 
    //instantiate new encrypted key object
    auto cipherData =
-      make_unique<CipherData>(encryptedNextPrivKey, move(newCipher));
+      make_unique<Encryption::CipherData>(
+         encryptedNextPrivKey, move(newCipher));
    auto nextPrivKey = make_shared<Asset_PrivateKey>(id, move(cipherData));
 
    //instantiate and return new asset entry
@@ -334,7 +337,7 @@ shared_ptr<AssetEntry_Single>
 ////////////////////////////////////////////////////////////////////////////////
 vector<shared_ptr<AssetEntry>>
    DerivationScheme_BIP32::extendPrivateChain(
-   shared_ptr<DecryptedDataContainer> ddc,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
    shared_ptr<AssetEntry> rootAsset,
    unsigned start, unsigned end)
 {
@@ -449,8 +452,9 @@ BinaryData DerivationScheme_BIP32::serialize() const
 ////////////////////////////////////////////////////////////////////////////////
 std::shared_ptr<AssetEntry_Single> 
 DerivationScheme_BIP32_Salted::computeNextPrivateEntry(
-   std::shared_ptr<DecryptedDataContainer> ddc,
-   const SecureBinaryData& privKey, std::unique_ptr<Cipher> cipher,
+   std::shared_ptr<Encryption::DecryptedDataContainer> ddc,
+   const SecureBinaryData& privKey,
+   std::unique_ptr<Encryption::Cipher> cipher,
    AssetId id)
 {
    auto index = id.getAssetKey();
@@ -477,8 +481,8 @@ DerivationScheme_BIP32_Salted::computeNextPrivateEntry(
       newCipher.get(), saltedPrivKey);
 
    //instantiate encrypted salted privkey object
-   auto cipherData =
-      make_unique<CipherData>(encryptedNextPrivKey, move(newCipher));
+   auto cipherData = make_unique<Encryption::CipherData>(
+         encryptedNextPrivKey, move(newCipher));
    auto nextPrivKey = make_shared<Asset_PrivateKey>(id, move(cipherData));
 
    //instantiate and return new asset entry
@@ -565,7 +569,7 @@ BinaryData DerivationScheme_ECDH::serialize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 AssetKeyType DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
-   shared_ptr<DBIfaceTransaction> txPtr)
+   shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    if (txPtr == nullptr)
       throw DerivationSchemeException("addSalt: null tx");
@@ -594,7 +598,7 @@ AssetKeyType DerivationScheme_ECDH::addSalt(const SecureBinaryData& salt,
 
 ////////////////////////////////////////////////////////////////////////////////
 void DerivationScheme_ECDH::putSalt(AssetKeyType id,
-   const SecureBinaryData& salt, shared_ptr<DBIfaceTransaction> txPtr)
+   const SecureBinaryData& salt, shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    //update on disk
    BinaryWriter bwKey;
@@ -623,7 +627,7 @@ void DerivationScheme_ECDH::putSalt(AssetKeyType id,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DerivationScheme_ECDH::putAllSalts(shared_ptr<DBIfaceTransaction> txPtr)
+void DerivationScheme_ECDH::putAllSalts(shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    //expects live read-write db tx
    for (auto& saltPair : saltMap_)
@@ -631,7 +635,7 @@ void DerivationScheme_ECDH::putAllSalts(shared_ptr<DBIfaceTransaction> txPtr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void DerivationScheme_ECDH::getAllSalts(shared_ptr<DBIfaceTransaction> txPtr)
+void DerivationScheme_ECDH::getAllSalts(shared_ptr<IO::DBIfaceTransaction> txPtr)
 {
    BinaryWriter bwKey;
    bwKey.put_uint8_t(ECDH_SALT_PREFIX);
@@ -741,7 +745,7 @@ shared_ptr<AssetEntry_Single> DerivationScheme_ECDH::computeNextPublicEntry(
 
 ////////////////////////////////////////////////////////////////////////////////
 vector<shared_ptr<AssetEntry>> DerivationScheme_ECDH::extendPrivateChain(
-   shared_ptr<DecryptedDataContainer> ddc,
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
    shared_ptr<AssetEntry> rootAsset, uint32_t start, uint32_t end)
 {
    //throws if the wallet is locked or the asset is missing its private key
@@ -784,8 +788,9 @@ vector<shared_ptr<AssetEntry>> DerivationScheme_ECDH::extendPrivateChain(
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<AssetEntry_Single>
 DerivationScheme_ECDH::computeNextPrivateEntry(
-   shared_ptr<DecryptedDataContainer> ddc,
-   const SecureBinaryData& privKeyData, unique_ptr<Cipher> cipher, AssetId id)
+   shared_ptr<Encryption::DecryptedDataContainer> ddc,
+   const SecureBinaryData& privKeyData,
+   unique_ptr<Encryption::Cipher> cipher, AssetId id)
 {
    //get salt
    auto assetKey = id.getAssetKey();
@@ -817,8 +822,8 @@ DerivationScheme_ECDH::computeNextPrivateEntry(
       newCipher.get(), saltedPrivKey);
 
    //instantiate new encrypted key object
-   auto cipherData =
-      make_unique<CipherData>(encryptedNextPrivKey, move(newCipher));
+   auto cipherData = make_unique<Encryption::CipherData>(
+      encryptedNextPrivKey, move(newCipher));
    auto nextPrivKey = make_shared<Asset_PrivateKey>(id, move(cipherData));
 
    //instantiate and return new asset entry

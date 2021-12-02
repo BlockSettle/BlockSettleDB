@@ -11,14 +11,17 @@
 
 #include "BinaryData.h"
 
-namespace ArmoryBridge
+namespace Armory
 {
-class CppBridge;
+   namespace Bridge
+   {
+      class CppBridge;
 
-struct ProtobufCommandParser
-{
-   static bool processData(CppBridge*, BinaryDataRef);
-};
-};
+      struct ProtobufCommandParser
+      {
+         static bool processData(CppBridge*, BinaryDataRef);
+      };
+   }; //namespace Bridge
+}; //namespace Armory
 
 #endif

@@ -14,13 +14,13 @@
 #include "../BinaryData.h"
 #include "../BtcUtils.h"
 
-namespace ArmoryBridge
-{
-   class BridgePassphrasePrompt;
-};
-
 namespace Armory
 {
+   namespace Bridge
+   {
+      class BridgePassphrasePrompt;
+   };
+
    namespace Wallets
    {
       ////////////////////////////////////////////////////////////////////////
@@ -156,7 +156,7 @@ namespace Armory
       ////////////////////////////////////////////////////////////////////////
       class EncryptionKeyId
       {
-         friend class ArmoryBridge::BridgePassphrasePrompt;
+         friend class Bridge::BridgePassphrasePrompt;
 
       private:
          BinaryData data_;

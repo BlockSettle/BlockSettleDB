@@ -27,11 +27,7 @@
 #define BIP32_OUTER_ACCOUNT_DERIVATIONID 0x00000000
 #define BIP32_INNER_ACCOUNT_DERIVATIONID 0x00000001
 
-#define ADDRESS_ACCOUNT_PREFIX   0xD0
-
-////
-class WalletDBInterface;
-class WalletIfaceTransaction;
+#define ADDRESS_ACCOUNT_PREFIX 0xD0
 
 ////
 namespace Armory
@@ -45,6 +41,12 @@ namespace Armory
    {
       class AssetWallet;
       class AssetWallet_Single;
+
+      namespace IO
+      {
+         class WalletDBInterface;
+         class WalletIfaceTransaction;
+      };
    }
 
    namespace Accounts
@@ -112,30 +114,30 @@ namespace Armory
             const Wallets::AddressAccountId&);
 
          //used for initial commit to disk
-         void commit(std::shared_ptr<WalletDBInterface>);
+         void commit(std::shared_ptr<Wallets::IO::WalletDBInterface>);
 
          void addAccount(std::shared_ptr<AssetAccount>);
          void addAccount(std::shared_ptr<AssetAccountData>);
 
          void updateInstantiatedAddressType(
-            std::shared_ptr<WalletDBInterface>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
             std::shared_ptr<AddressEntry>);
          void updateInstantiatedAddressType(
-            std::shared_ptr<WalletDBInterface>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
             const Wallets::AssetId&, AddressEntryType);
          void eraseInstantiatedAddressType(
-            std::shared_ptr<WalletDBInterface>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
             const Wallets::AssetId&);
 
-         void writeAddressType(std::shared_ptr<WalletDBInterface>,
+         void writeAddressType(std::shared_ptr<Wallets::IO::WalletDBInterface>,
             const Wallets::AssetId&, AddressEntryType);
-         void writeAddressType(std::shared_ptr<DBIfaceTransaction>,
+         void writeAddressType(std::shared_ptr<Wallets::IO::DBIfaceTransaction>,
             const Wallets::AssetId&, AddressEntryType);
 
          std::shared_ptr<Assets::Asset_PrivateKey> fillPrivateKey(
-            std::shared_ptr<WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer> ddc,
-            const Wallets::AssetId& id);
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
+            const Wallets::AssetId&);
 
          std::shared_ptr<Assets::AssetEntry_BIP32Root> getBip32RootForAssetId(
             const Wallets::AssetId&) const;
@@ -149,40 +151,43 @@ namespace Armory
          static std::unique_ptr<AddressAccount> make_new(
             const std::string&,
             std::shared_ptr<AccountType>,
-            std::shared_ptr<DecryptedDataContainer>,
-            std::unique_ptr<Assets::Cipher>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
+            std::unique_ptr<Wallets::Encryption::Cipher>,
             const std::function<std::shared_ptr<Assets::AssetEntry>(void)>&);
 
          static std::unique_ptr<AddressAccount> readFromDisk(
-            std::shared_ptr<WalletIfaceTransaction>,
+            std::shared_ptr<Wallets::IO::WalletIfaceTransaction>,
             const Wallets::AddressAccountId&);
 
-         void extendPublicChain(std::shared_ptr<WalletDBInterface>, unsigned);
-         void extendPublicChain(std::shared_ptr<WalletDBInterface>,
+         void extendPublicChain(
+            std::shared_ptr<Wallets::IO::WalletDBInterface>, unsigned);
+         void extendPublicChain(
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
             const Wallets::AssetAccountId&, unsigned);
-         void extendPublicChainToIndex(std::shared_ptr<WalletDBInterface>,
+         void extendPublicChainToIndex(
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
             const Wallets::AssetAccountId&, unsigned);
 
          void extendPrivateChain(
-            std::shared_ptr<WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             unsigned);
          void extendPrivateChainToIndex(
-            std::shared_ptr<WalletDBInterface>,
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             const Wallets::AssetAccountId&, unsigned);
 
          std::shared_ptr<AddressEntry> getNewAddress(
-            std::shared_ptr<WalletDBInterface>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
             AddressEntryType aeType = AddressEntryType_Default);
          std::shared_ptr<AddressEntry> getNewAddress(
-            std::shared_ptr<WalletDBInterface>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
             const Wallets::AssetAccountId&, AddressEntryType);
          std::shared_ptr<AddressEntry> getNewChangeAddress(
-            std::shared_ptr<WalletDBInterface>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
             AddressEntryType aeType = AddressEntryType_Default);
          std::shared_ptr<AddressEntry> peekNextChangeAddress(
-            std::shared_ptr<WalletDBInterface>,
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
             AddressEntryType aeType = AddressEntryType_Default);
          bool isAssetChange(const Wallets::AssetId&) const;
          bool isAssetInUse(const Wallets::AssetId&) const;

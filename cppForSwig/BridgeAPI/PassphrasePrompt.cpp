@@ -9,7 +9,7 @@
 #include "PassphrasePrompt.h"
 #include "BridgeSocket.h"
 
-using namespace ArmoryBridge;
+using namespace Armory::Bridge;
 using namespace std;
 using namespace Codec_ClientProto;
 

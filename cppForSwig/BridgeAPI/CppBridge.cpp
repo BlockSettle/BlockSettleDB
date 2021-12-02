@@ -23,8 +23,8 @@ using namespace ::Codec_ClientProto;
 using namespace Armory::Threading;
 using namespace Armory::Signer;
 using namespace Armory::Wallets;
-
-using namespace ArmoryBridge;
+using namespace Armory::CoinSelection;
+using namespace Armory::Bridge;
 
 enum CppBridgeState
 {

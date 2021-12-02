@@ -33,9 +33,6 @@
 #include "Accounts/MetaAccounts.h"
 
 ////
-class WalletDBInterface;
-
-////
 namespace Armory
 {
    namespace Signer
@@ -45,6 +42,12 @@ namespace Armory
 
    namespace Wallets
    {
+      namespace IO
+      {
+         class WalletDBInterface;
+         class WalletHeader;
+      };
+
       //////////////////////////////////////////////////////////////////////////
       struct WalletPublicData
       {
@@ -70,14 +73,14 @@ namespace Armory
          virtual void initAfterLock(void) {}
          virtual void cleanUpBeforeUnlock(void) {}
 
-         static std::string getMasterID(std::shared_ptr<WalletDBInterface>);
+         static std::string getMasterID(std::shared_ptr<IO::WalletDBInterface>);
          void checkMasterID(const std::string& masterID);
 
       protected:
-         std::shared_ptr<WalletDBInterface> iface_;
+         std::shared_ptr<IO::WalletDBInterface> iface_;
          const std::string dbName_;
 
-         std::shared_ptr<DecryptedDataContainer> decryptedData_;
+         std::shared_ptr<Encryption::DecryptedDataContainer> decryptedData_;
          std::map<AddressAccountId,
             std::shared_ptr<Accounts::AddressAccount>> accounts_;
          std::map<Accounts::MetaAccountType, std::shared_ptr<
@@ -95,10 +98,10 @@ namespace Armory
 
       protected:
          //tors
-         AssetWallet(std::shared_ptr<WalletDBInterface>,
-            std::shared_ptr<WalletHeader>, const std::string&);
+         AssetWallet(std::shared_ptr<IO::WalletDBInterface>,
+            std::shared_ptr<IO::WalletHeader>, const std::string&);
 
-         static std::shared_ptr<WalletDBInterface> getIfaceFromFile(
+         static std::shared_ptr<IO::WalletDBInterface> getIfaceFromFile(
             const std::string&, bool, const PassphraseLambda&);
 
          //locals
@@ -113,7 +116,7 @@ namespace Armory
 
          //static
          static BinaryDataRef getDataRefForKey(
-            DBIfaceTransaction*, const BinaryData& key);
+            IO::DBIfaceTransaction*, const BinaryData& key);
 
       public:
          //tors
@@ -187,7 +190,7 @@ namespace Armory
             std::shared_ptr<Accounts::AccountType>);
 
          void addSubDB(const std::string& dbName, const PassphraseLambda&);
-         std::shared_ptr<WalletIfaceTransaction> beginSubDBTransaction(
+         std::shared_ptr<IO::WalletIfaceTransaction> beginSubDBTransaction(
             const std::string&, bool);
 
          void changeControlPassphrase(
@@ -208,18 +211,19 @@ namespace Armory
          const std::string& getLabel(void) const;
          const std::string& getDescription(void) const;
 
-         std::shared_ptr<WalletDBInterface> getIface(void) const;
+         std::shared_ptr<IO::WalletDBInterface> getIface(void) const;
 
          //virtual
          virtual std::set<BinaryData> getAddrHashSet();
          virtual const SecureBinaryData& getDecryptedValue(
-            std::shared_ptr<Assets::EncryptedAssetData>) = 0;
+            std::shared_ptr<Encryption::EncryptedAssetData>) = 0;
          virtual std::shared_ptr<Assets::AssetEntry> getRoot(void) const = 0;
 
          //static
          static void setMainWallet(
-            std::shared_ptr<WalletDBInterface>, const std::string&);
-         static std::string getMainWalletID(std::shared_ptr<WalletDBInterface>);
+            std::shared_ptr<IO::WalletDBInterface>, const std::string&);
+         static std::string getMainWalletID(
+            std::shared_ptr<IO::WalletDBInterface>);
 
          static std::string forkWatchingOnly(
             const std::string&, const PassphraseLambda& = nullptr);
@@ -245,7 +249,7 @@ namespace Armory
 
          //static
          static std::shared_ptr<AssetWallet_Single> initWalletDb(
-            std::shared_ptr<WalletDBInterface> iface,
+            std::shared_ptr<IO::WalletDBInterface> iface,
             const std::string& masterID, const std::string& walletID,
             const SecureBinaryData& passphrase,
             const SecureBinaryData& controlPassphrase,
@@ -254,7 +258,7 @@ namespace Armory
             uint32_t seedFingerprint);
 
          static std::shared_ptr<AssetWallet_Single> initWalletDbWithPubRoot(
-            std::shared_ptr<WalletDBInterface> iface,
+            std::shared_ptr<IO::WalletDBInterface> iface,
             const SecureBinaryData& controlPassphrase,
             const std::string& masterID, const std::string& walletID,
             std::shared_ptr<Assets::AssetEntry_Single> pubRoot);
@@ -263,14 +267,14 @@ namespace Armory
          static WalletPublicData exportPublicData(
             std::shared_ptr<AssetWallet_Single>);
          static void importPublicData(const WalletPublicData&,
-            std::shared_ptr<WalletDBInterface>);
+            std::shared_ptr<IO::WalletDBInterface>);
 
          void setSeed(const SecureBinaryData&, const SecureBinaryData&);
 
       public:
          //tors
-         AssetWallet_Single(std::shared_ptr<WalletDBInterface>,
-            std::shared_ptr<WalletHeader>, const std::string&);
+         AssetWallet_Single(std::shared_ptr<IO::WalletDBInterface>,
+            std::shared_ptr<IO::WalletHeader>, const std::string&);
 
          //locals
          void addPrivateKeyPassphrase(
@@ -311,7 +315,7 @@ namespace Armory
 
          //virtual
          const SecureBinaryData& getDecryptedValue(
-            std::shared_ptr<Assets::EncryptedAssetData>);
+            std::shared_ptr<Encryption::EncryptedAssetData>);
 
          //static
          static std::shared_ptr<AssetWallet_Single> createFromBIP32Node(
@@ -375,12 +379,12 @@ namespace Armory
          //virtual
          void readFromFile(void);
          const SecureBinaryData& getDecryptedValue(
-            std::shared_ptr<Assets::EncryptedAssetData>);
+            std::shared_ptr<Encryption::EncryptedAssetData>);
 
       public:
          //tors
-         AssetWallet_Multisig(std::shared_ptr<WalletDBInterface>,
-            std::shared_ptr<WalletHeader>, const std::string&);
+         AssetWallet_Multisig(std::shared_ptr<IO::WalletDBInterface>,
+            std::shared_ptr<IO::WalletHeader>, const std::string&);
 
          //virtual
          bool setImport(int importID, const SecureBinaryData& pubkey);

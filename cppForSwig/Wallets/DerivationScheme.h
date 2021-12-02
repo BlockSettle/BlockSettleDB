@@ -17,8 +17,6 @@
 #include "EncryptionUtils.h"
 #include "Assets.h"
 
-class DecryptedDataContainer;
-
 #define DERIVATIONSCHEME_LEGACY        0xA0
 #define DERIVATIONSCHEME_BIP32         0xA1
 #define DERIVATIONSCHEME_BIP32_SALTED  0xA2
@@ -28,13 +26,23 @@ class DecryptedDataContainer;
 
 #define DERIVATION_LOOKUP        100
 
-class DBIfaceTransaction;
 
 namespace Armory
 {
    namespace Wallets
    {
       class AssetWallet_Single;
+
+      namespace IO
+      {
+         class DBIfaceTransaction;
+      };
+
+      namespace Encryption
+      {
+         class Cipher;
+         class DecryptedDataContainer;
+      };
    };
 
    namespace Assets
@@ -77,12 +85,13 @@ namespace Armory
          DerivationSchemeType getType(void) const { return type_; }
 
          //virtual
-         virtual std::vector<std::shared_ptr<Armory::Assets::AssetEntry>>
-         extendPublicChain(std::shared_ptr<Armory::Assets::AssetEntry>,
+         virtual std::vector<std::shared_ptr<Assets::AssetEntry>>
+         extendPublicChain(std::shared_ptr<Assets::AssetEntry>,
             uint32_t start, uint32_t end) = 0;
-         virtual std::vector<std::shared_ptr<Armory::Assets::AssetEntry>>
-         extendPrivateChain(std::shared_ptr<DecryptedDataContainer>,
-            std::shared_ptr<Armory::Assets::AssetEntry>,
+         virtual std::vector<std::shared_ptr<Assets::AssetEntry>>
+         extendPrivateChain(
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
+            std::shared_ptr<Assets::AssetEntry>,
             uint32_t start, uint32_t end) = 0;
          virtual BinaryData serialize(void) const = 0;
 
@@ -109,8 +118,9 @@ namespace Armory
 
          //locals
          std::shared_ptr<AssetEntry_Single> computeNextPrivateEntry(
-            std::shared_ptr<DecryptedDataContainer>,
-            const SecureBinaryData& privKey, std::unique_ptr<Cipher>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
+            const SecureBinaryData&,
+            std::unique_ptr<Wallets::Encryption::Cipher>,
             Wallets::AssetId);
 
          std::shared_ptr<AssetEntry_Single> computeNextPublicEntry(
@@ -120,7 +130,7 @@ namespace Armory
          std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
             std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
          std::vector<std::shared_ptr<AssetEntry>> extendPrivateChain(
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
 
          BinaryData serialize(void) const;
@@ -159,19 +169,20 @@ namespace Armory
 
          //locals
          virtual std::shared_ptr<AssetEntry_Single> computeNextPrivateEntry(
-            std::shared_ptr<DecryptedDataContainer>,
-            const SecureBinaryData& privKey, std::unique_ptr<Cipher>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
+            const SecureBinaryData&,
+            std::unique_ptr<Wallets::Encryption::Cipher>,
             Wallets::AssetId);
 
          virtual std::shared_ptr<AssetEntry_Single> computeNextPublicEntry(
-            const SecureBinaryData& pubKey,
+            const SecureBinaryData&,
             Wallets::AssetId);
 
          //virtuals
          std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
             std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
          std::vector<std::shared_ptr<AssetEntry>> extendPrivateChain(
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
 
          virtual BinaryData serialize(void) const;
@@ -200,8 +211,9 @@ namespace Armory
 
          //virtuals
          std::shared_ptr<AssetEntry_Single> computeNextPrivateEntry(
-            std::shared_ptr<DecryptedDataContainer>,
-            const SecureBinaryData& privKey, std::unique_ptr<Cipher>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
+            const SecureBinaryData&,
+            std::unique_ptr<Wallets::Encryption::Cipher>,
             Wallets::AssetId) override;
 
          std::shared_ptr<AssetEntry_Single> computeNextPublicEntry(
@@ -227,12 +239,13 @@ namespace Armory
             Wallets::AssetId);
 
          std::shared_ptr<AssetEntry_Single> computeNextPrivateEntry(
-            std::shared_ptr<DecryptedDataContainer>,
-            const SecureBinaryData& privKey, std::unique_ptr<Cipher>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
+            const SecureBinaryData&,
+            std::unique_ptr<Wallets::Encryption::Cipher>,
             Wallets::AssetId);
 
          void putSalt(Wallets::AssetKeyType, const SecureBinaryData&,
-            std::shared_ptr<DBIfaceTransaction>);
+            std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
 
       public:
          DerivationScheme_ECDH(void) :
@@ -246,7 +259,7 @@ namespace Armory
          std::vector<std::shared_ptr<AssetEntry>> extendPublicChain(
             std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
          std::vector<std::shared_ptr<AssetEntry>> extendPrivateChain(
-            std::shared_ptr<DecryptedDataContainer>,
+            std::shared_ptr<Wallets::Encryption::DecryptedDataContainer>,
             std::shared_ptr<AssetEntry>, uint32_t start, uint32_t end) override;
          BinaryData serialize(void) const override;
 
@@ -254,9 +267,9 @@ namespace Armory
 
          //locals
          Wallets::AssetKeyType addSalt(const SecureBinaryData&,
-            std::shared_ptr<DBIfaceTransaction>);
-         void putAllSalts(std::shared_ptr<DBIfaceTransaction>);
-         void getAllSalts(std::shared_ptr<DBIfaceTransaction>);
+            std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
+         void putAllSalts(std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
+         void getAllSalts(std::shared_ptr<Wallets::IO::DBIfaceTransaction>);
          Wallets::AssetKeyType getIdForSalt(const SecureBinaryData&);
       };
    }; //namespace Assets
