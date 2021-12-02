@@ -299,9 +299,9 @@ target_compile_definitions(ArmoryCLI
 
 string_option(WITH_GUI "with GUI" OFF)
 
-find_package(Qt4 COMPONENTS QtGui QUIET)
+#find_package(Qt4 COMPONENTS QtGui QUIET)
 
-find_program(PYRCC4_EXECUTABLE   pyrcc4)
+#find_program(PYRCC4_EXECUTABLE   pyrcc4)
 find_program(LRELEASE_EXECUTABLE lrelease)
 
 if(WITH_GUI STREQUAL AUTO)
