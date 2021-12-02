@@ -20,7 +20,7 @@ using namespace Armory::Wallets;
 //// ResolverFeed_AssetWalletSingle
 ////
 ////////////////////////////////////////////////////////////////////////////////
-void ArmorySigner::ResolverFeed_AssetWalletSingle::addToMap(shared_ptr<AddressEntry> addrPtr)
+void Armory::Signer::ResolverFeed_AssetWalletSingle::addToMap(shared_ptr<AddressEntry> addrPtr)
 {
    try
    {
@@ -55,7 +55,7 @@ void ArmorySigner::ResolverFeed_AssetWalletSingle::addToMap(shared_ptr<AddressEn
 
 ////////////////////////////////////////////////////////////////////////////////
 pair<shared_ptr<AssetEntry>, AddressEntryType>
-   ArmorySigner::ResolverFeed_AssetWalletSingle::getAssetPairForKey(const BinaryData& key) const
+Armory::Signer::ResolverFeed_AssetWalletSingle::getAssetPairForKey(const BinaryData& key) const
 {
    //run through accounts
    auto accountIDs = wltPtr_->getAccountIDs();
@@ -118,7 +118,7 @@ pair<shared_ptr<AssetEntry>, AddressEntryType>
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData ArmorySigner::ResolverFeed_AssetWalletSingle::getByVal(const BinaryData& key)
+BinaryData Armory::Signer::ResolverFeed_AssetWalletSingle::getByVal(const BinaryData& key)
 {
    //check cached hits first
    auto iter = hash_to_preimage_.find(key);
@@ -151,7 +151,7 @@ BinaryData ArmorySigner::ResolverFeed_AssetWalletSingle::getByVal(const BinaryDa
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& ArmorySigner::ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
+const SecureBinaryData& Armory::Signer::ResolverFeed_AssetWalletSingle::getPrivKeyForPubkey(
    const BinaryData& pubkey)
 {
    //check cache first
@@ -218,7 +218,7 @@ const SecureBinaryData& ArmorySigner::ResolverFeed_AssetWalletSingle::getPrivKey
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BIP32_AssetPath ArmorySigner::ResolverFeed_AssetWalletSingle::resolveBip32PathForPubkey(
+BIP32_AssetPath Armory::Signer::ResolverFeed_AssetWalletSingle::resolveBip32PathForPubkey(
    const BinaryData& pubkey)
 {
    //check cache first
@@ -238,7 +238,7 @@ BIP32_AssetPath ArmorySigner::ResolverFeed_AssetWalletSingle::resolveBip32PathFo
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ArmorySigner::ResolverFeed_AssetWalletSingle::seedFromAddressEntry(
+void Armory::Signer::ResolverFeed_AssetWalletSingle::seedFromAddressEntry(
    shared_ptr<AddressEntry> addrPtr)
 {
    try
@@ -264,7 +264,7 @@ void ArmorySigner::ResolverFeed_AssetWalletSingle::seedFromAddressEntry(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ArmorySigner::ResolverFeed_AssetWalletSingle::setBip32PathForPubkey(
+void Armory::Signer::ResolverFeed_AssetWalletSingle::setBip32PathForPubkey(
    const BinaryData& pubkey, const BIP32_AssetPath& path)
 {
    bip32Paths_.emplace(pubkey, make_pair(path, Armory::Wallets::AssetId()));
@@ -275,7 +275,7 @@ void ArmorySigner::ResolverFeed_AssetWalletSingle::setBip32PathForPubkey(
 //// ResolverFeed_AssetWalletSingle
 ////
 ////////////////////////////////////////////////////////////////////////////////
-ArmorySigner::ResolverFeed_AssetWalletSingle_ForMultisig::ResolverFeed_AssetWalletSingle_ForMultisig(
+Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::ResolverFeed_AssetWalletSingle_ForMultisig(
    shared_ptr<AssetWallet_Single> wltPtr) :
    wltPtr_(wltPtr)
 {
@@ -296,7 +296,7 @@ ArmorySigner::ResolverFeed_AssetWalletSingle_ForMultisig::ResolverFeed_AssetWall
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ArmorySigner::ResolverFeed_AssetWalletSingle_ForMultisig::
+void Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::
    addToMap(shared_ptr<AssetEntry> asset)
 {
    auto asset_single = dynamic_pointer_cast<AssetEntry_Single>(asset);
@@ -312,7 +312,7 @@ void ArmorySigner::ResolverFeed_AssetWalletSingle_ForMultisig::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData ArmorySigner::ResolverFeed_AssetWalletSingle_ForMultisig::
+BinaryData Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::
    getByVal(const BinaryData&)
 {
    //find id for the key
@@ -320,7 +320,7 @@ BinaryData ArmorySigner::ResolverFeed_AssetWalletSingle_ForMultisig::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const SecureBinaryData& ArmorySigner::ResolverFeed_AssetWalletSingle_ForMultisig::
+const SecureBinaryData& Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::
    getPrivKeyForPubkey(const BinaryData& pubkey)
 {
    auto pubkeyref = BinaryDataRef(pubkey);
@@ -333,13 +333,13 @@ const SecureBinaryData& ArmorySigner::ResolverFeed_AssetWalletSingle_ForMultisig
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BIP32_AssetPath ArmorySigner::ResolverFeed_AssetWalletSingle_ForMultisig::
+BIP32_AssetPath Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::
    resolveBip32PathForPubkey(const BinaryData&)
 {
    throw runtime_error("invalid pubkey");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void ArmorySigner::ResolverFeed_AssetWalletSingle_ForMultisig::
+void Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig::
    setBip32PathForPubkey(const BinaryData&, const BIP32_AssetPath&)
 {}

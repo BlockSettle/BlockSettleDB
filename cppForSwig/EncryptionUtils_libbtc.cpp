@@ -9,7 +9,6 @@
 #include "EncryptionUtils.h"
 #include "log.h"
 #include "btc/ecc.h"
-#include "btc/ecc_key.h"
 #include "btc/sha2.h"
 #include "btc/hash.h"
 #include "btc/ripemd160.h"
@@ -321,12 +320,12 @@ SecureBinaryData CryptoECDSA::ComputePublicKey(
    if (!compressed)
    {
       len = BTC_ECKEY_UNCOMPRESSED_LENGTH;
-      btc_pubkey_from_key(&pkey, &pubkey, false);
+      btc_pubkey_from_key_uncompressed(&pkey, &pubkey);
    }
    else
    {
       len = BTC_ECKEY_COMPRESSED_LENGTH;
-      btc_pubkey_from_key(&pkey, &pubkey, false);
+      btc_pubkey_from_key(&pkey, &pubkey);
    }
 
    result.resize(len);

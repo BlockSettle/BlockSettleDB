@@ -2904,10 +2904,10 @@ shared_ptr<SigHashData> Signer::getSigHashDataForSpender(bool sw) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<TransactionVerifier> Signer::getVerifier(shared_ptr<BCTX> bctx,
+unique_ptr<Armory::Signer::TransactionVerifier> Signer::getVerifier(shared_ptr<BCTX> bctx,
    map<BinaryData, map<unsigned, UTXO>>& utxoMap)
 {
-   return move(make_unique<TransactionVerifier>(*bctx, utxoMap));
+   return move(make_unique<Armory::Signer::TransactionVerifier>(*bctx, utxoMap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
