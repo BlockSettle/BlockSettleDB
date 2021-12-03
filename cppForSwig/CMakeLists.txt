@@ -86,6 +86,7 @@ IF (MSVC)
 ELSE (MSVC)
     list(REMOVE_ITEM LIBARMORYCOMMON_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/SocketService_win32.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/Win_TranslatePath.cpp
     )
 ENDIF (MSVC)
 
