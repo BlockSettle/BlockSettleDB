@@ -126,7 +126,6 @@ _CppBlockUtils.*
 /*.wallet
 
 /findpass.py
-/*.txt
 /sandbox.py
 
 /lang/*.qm
