@@ -718,7 +718,7 @@ unique_ptr<Asset_PrivateKey> Asset_PrivateKey::deserializeOld(
 
          if (onDiskId.getSize() != 4)
          {
-            throw runtime_error("[EncryptedAssetData::deserialize]"
+            throw runtime_error("[Asset_PrivateKey::deserialize]"
                " invalid id size");
          }
 
@@ -726,7 +726,7 @@ unique_ptr<Asset_PrivateKey> Asset_PrivateKey::deserializeOld(
          AssetKeyType assetKey = keyRefReader.get_int32_t();
          if (id.getAssetKey() != assetKey)
          {
-            throw runtime_error("[EncryptedAssetData::deserialize]"
+            throw runtime_error("[Asset_PrivateKey::deserialize]"
                " privkey id mismatch");
          }
 
@@ -734,7 +734,7 @@ unique_ptr<Asset_PrivateKey> Asset_PrivateKey::deserializeOld(
          len = brr.get_var_int();
          if (len > brr.getSizeRemaining())
          {
-            throw runtime_error("[EncryptedAssetData::deserialize]"
+            throw runtime_error("[Asset_PrivateKey::deserialize]"
                " invalid serialized encrypted data len");
          }
 
@@ -749,7 +749,7 @@ unique_ptr<Asset_PrivateKey> Asset_PrivateKey::deserializeOld(
       }
 
       default:
-         throw runtime_error("[EncryptedAssetData::deserialize]"
+         throw runtime_error("[Asset_PrivateKey::deserialize]"
             "unsupported privkey version");
       }
 
@@ -762,7 +762,7 @@ unique_ptr<Asset_PrivateKey> Asset_PrivateKey::deserializeOld(
 
    if (assetPtr == nullptr)
    {
-      throw runtime_error("[EncryptedAssetData::deserialize]"
+      throw runtime_error("[Asset_PrivateKey::deserialize]"
          " failed to deserialize encrypted asset");
    }
 
@@ -790,6 +790,7 @@ unique_ptr<Asset_PrivateKey> Asset_PrivateKey::deserialize(
    {
       switch (version)
       {
+      case 0x00000001:
       case 0x00000002:
       {
          //id
