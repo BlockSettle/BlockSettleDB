@@ -242,8 +242,8 @@ BinaryData BlockDataManager::applyBlockRangeToDB(
    ScrAddrFilter& scrAddrData)
 {
    // Start scanning and timer
-   BlockchainScanner bcs(blockchain_, iface_, &scrAddrData, 
-      *blockFiles_.get(), 
+   BlockchainScanner bcs(blockchain_, iface_, &scrAddrData,
+      *blockFiles_.get(),
       DBSettings::threadCount(), DBSettings::ramUsage(),
       prog, DBSettings::reportProgress());
    bcs.scan_nocheck(blk0);

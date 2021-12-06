@@ -25,6 +25,7 @@
 #include "txio.h"
 #include "BlockDataMap.h"
 #include "Blockchain.h"
+#include "TxHashFilters.h"
 
 #ifdef _WIN32
 #include "win32_posix.h"
@@ -1739,14 +1740,11 @@ Tx LMDBBlockDatabase::getFullTxCopy(
    auto getID = [bhPtr]
       (const BinaryData&)->uint32_t {return bhPtr->getThisID(); };
 
-   BlockData block;
-   block.deserialize(dataPtr + bhPtr->getOffset(),
+   auto block = BlockData::deserialize(dataPtr + bhPtr->getOffset(),
       bhPtr->getBlockSize(), bhPtr, getID, false, false);
 
-   auto bctx = block.getTxns()[txIndex];
-
+   const auto& bctx = block->getTxns()[txIndex];
    BinaryRefReader brr(bctx->data_, bctx->size_);
-
    return Tx(brr);
 }
 
@@ -2878,6 +2876,58 @@ void LMDBBlockDatabase::resetSSHdb_Super()
 }
 
 /////////////////////////////////////////////////////////////////////////////
+TxFilterPoolWriter LMDBBlockDatabase::getFilterPoolWriter(
+   uint32_t fileNum) const
+{
+   auto key = DBUtils::getFilterPoolKey(fileNum);
+
+   auto db = TXFILTERS;
+   auto tx = beginTransaction(db, LMDB::ReadOnly);
+
+   auto val = getValueNoCopy(TXFILTERS, key);
+   try
+   {
+      return TxFilterPoolWriter(val);
+   }
+   catch (const TxFilterException&)
+   {
+      //return empty pool if data is missing
+      return TxFilterPoolWriter();
+   }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+BinaryDataRef LMDBBlockDatabase::getFilterPoolDataRef(
+   uint32_t fileNum) const
+{
+   auto key = DBUtils::getFilterPoolKey(fileNum);
+
+   auto db = TXFILTERS;
+   auto tx = beginTransaction(db, LMDB::ReadOnly);
+
+   auto val = getValueNoCopy(TXFILTERS, key);
+   if (val.empty())
+      throw TxFilterException("invalid txfilter key");
+
+   return val;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void LMDBBlockDatabase::putFilterPoolForFileNum(
+   uint32_t fileNum, const TxFilterPoolWriter& pool)
+{
+   BinaryWriter bw;
+   pool.serialize(bw);
+   const auto& data = bw.getData();
+   auto key = DBUtils::getFilterPoolKey(fileNum);
+
+   //update on disk
+   auto db = TXFILTERS;
+   auto tx = beginTransaction(db, LMDB::ReadWrite);
+   putValue(TXFILTERS, key, data);
+}
+
+/////////////////////////////////////////////////////////////////////////////
 void LMDBBlockDatabase::putMissingHashes(
    const set<BinaryData>& hashSet, uint32_t id)
 {
@@ -2963,7 +3013,6 @@ void LMDBBlockDatabase::loadHeightToIdMap()
 
    do
    {
-
       auto brr_value = dbIter->getValueReader();
       auto height = brr_value.get_uint32_t();
 

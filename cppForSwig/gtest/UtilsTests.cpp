@@ -10,8 +10,10 @@
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
+#include <chrono>
 #include "TestUtils.h"
 #include "hkdf.h"
+#include "TxHashFilters.h"
 
 using namespace std;
 using namespace Armory::Signer;
@@ -1886,7 +1888,6 @@ TEST_F(BinaryDataTest, Constructor)
    delete[] ptr;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataTest, CopyFrom)
 {
@@ -1906,7 +1907,6 @@ TEST_F(BinaryDataTest, CopyFrom)
    EXPECT_EQ(a,e);
    EXPECT_EQ(b,c);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataTest, CopyTo)
@@ -2000,7 +2000,6 @@ TEST_F(BinaryDataTest, StartsEndsWith)
    EXPECT_FALSE(bd0_.endsWith(a));
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataTest, Append)
 {
@@ -2039,7 +2038,6 @@ TEST_F(BinaryDataTest, Append)
    EXPECT_EQ(a, k);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataTest, Inequality)
 {
@@ -2068,7 +2066,6 @@ TEST_F(BinaryDataTest, Equality)
    EXPECT_FALSE(bd4_!=bd4_);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataTest, ToString)
 {
@@ -2087,9 +2084,7 @@ TEST_F(BinaryDataTest, ToString)
 
    EXPECT_EQ(bd4_.toHexStr(true), stra);
    EXPECT_EQ(bd4_.toBinStr(true), bda.toBinStr());
-
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataTest, Endianness)
@@ -2121,7 +2116,7 @@ TEST_F(BinaryDataTest, Endianness)
    EXPECT_EQ(bd4_, b);
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataTest, IntToBinData)
 {
    // 0x1234 in src code is always interpreted by the compiler as
@@ -2163,6 +2158,7 @@ TEST_F(BinaryDataTest, IntToBinData)
 
 }
 
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataTest, BinDataToInt)
 {
    uint8_t   a8,  b8;
@@ -2274,7 +2270,7 @@ TEST_F(BinaryDataTest, Find)
    EXPECT_EQ(bd4_.find(c, 8), -1);
    EXPECT_EQ(bd4_.find(d, 8), -1);
 }
-    
+
 TEST_F(BinaryDataTest, Contains)
 {
    BinaryData a = READHEX("12");
@@ -2347,8 +2343,6 @@ protected:
    BinaryDataRef bdr5_;
 };
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataRefTest, Constructor)
 {
@@ -2399,8 +2393,6 @@ TEST_F(BinaryDataRefTest, Constructor)
    EXPECT_TRUE( h.empty());
    EXPECT_FALSE(i.empty());
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataRefTest, PostConstruct)
@@ -2454,8 +2446,6 @@ TEST_F(BinaryDataRefTest, PostConstruct)
    EXPECT_FALSE(i.empty());
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataRefTest, CopyTo)
 {
@@ -2501,8 +2491,6 @@ TEST_F(BinaryDataRefTest, CopyTo)
    EXPECT_EQ(bdr4_.copy(), h);
 }
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataRefTest, ToString)
 {
@@ -2523,7 +2511,6 @@ TEST_F(BinaryDataRefTest, ToString)
    EXPECT_EQ(bdr4_.toBinStr(true), bda.toBinStr());
 
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataRefTest, Find)
@@ -2570,7 +2557,7 @@ TEST_F(BinaryDataRefTest, Find)
    EXPECT_EQ(bdr4_.find(d.getRef(), 0), -1);
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataRefTest, Contains)
 {
    BinaryData a = READHEX("12");
@@ -2613,7 +2600,6 @@ TEST_F(BinaryDataRefTest, Contains)
    EXPECT_FALSE(bdr4_.contains(d.getRef(), 0));
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataRefTest, StartsEndsWith)
 {
@@ -2637,7 +2623,6 @@ TEST_F(BinaryDataRefTest, StartsEndsWith)
    EXPECT_TRUE( bdr4_.endsWith(a));
    EXPECT_FALSE(bdr0_.endsWith(a));
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(BinaryDataRefTest, Inequality)
@@ -2705,7 +2690,7 @@ TEST_F(BinaryDataRefTest, Equality)
 TEST(BitReadWriteTest, Writer8)
 {
    BitPacker<uint8_t> bitp;
-   
+
    //EXPECT_EQ( bitp.getValue(), 0);
    EXPECT_EQ( bitp.getBitsUsed(), 0ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("00"));
@@ -2736,11 +2721,12 @@ TEST(BitReadWriteTest, Writer8)
    EXPECT_EQ( bitp.getBinaryData(), READHEX("a3"));
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 TEST(BitReadWriteTest, Writer16)
 {
    BitPacker<uint16_t> bitp;
-   
+
    //EXPECT_EQ( bitp.getValue(), 0);
    EXPECT_EQ( bitp.getBitsUsed(), 0ULL);
    EXPECT_EQ( bitp.getBinaryData(), READHEX("0000"));
@@ -2781,7 +2767,7 @@ TEST(BitReadWriteTest, Writer16)
 TEST(BitReadWriteTest, Writer32)
 {
    BitPacker<uint32_t> bitp;
-   
+
    bitp.putBits(0xffffff00, 32);
    //EXPECT_EQ( bitp.getValue(),  0xffffff00);
    EXPECT_EQ( bitp.getBitsUsed(), 32ULL);
@@ -2792,7 +2778,7 @@ TEST(BitReadWriteTest, Writer32)
 TEST(BitReadWriteTest, Writer64)
 {
    BitPacker<uint64_t> bitp;
-   
+
    bitp.putBits(0xffffff00ffffffaaULL, 64);
    //EXPECT_EQ( bitp.getValue(),  0xffffff00ffffffaaULL);
    EXPECT_EQ( bitp.getBitsUsed(), 64ULL);
@@ -5939,7 +5925,7 @@ protected:
    }
 
    /////
-   bool standardOpenDBs(void) 
+   bool standardOpenDBs(void)
    {
       iface_->openDatabases(Pathing::dbDir());
       auto&& tx = iface_->beginTransaction(HISTORY, LMDB::ReadWrite);
@@ -5987,7 +5973,7 @@ TEST_F(LMDBTest, OpenClose)
    ASSERT_TRUE(iface_->databasesAreOpen());
 
    EXPECT_EQ(DBTestUtils::getTopBlockHeight(iface_, HEADERS), 0ULL);
-                          
+
    KVLIST HList = iface_->getAllDatabaseEntries(HEADERS);
    KVLIST BList = iface_->getAllDatabaseEntries(HISTORY);
 
@@ -6009,7 +5995,7 @@ TEST_F(LMDBTest, OpenClose)
       EXPECT_EQ(BList[i].second, magic_ + flags + zeros_ + zeros_ + 
          BtcUtils::EmptyHash_ + BtcUtils::EmptyHash_ + ff);
    }
-                         
+
    iface_->closeDatabases();
 }
 
@@ -6043,7 +6029,7 @@ TEST_F(LMDBTest, OpenCloseOpenNominal)
       EXPECT_EQ(BList[i].second, magic_ + flags + zeros_ + zeros_ + 
          BtcUtils::EmptyHash_ + BtcUtils::EmptyHash_ + ff);
    }
-                         
+
    iface_->closeDatabases();
 }
 
@@ -6325,6 +6311,9 @@ TEST_F(TxRefTest, TxRefKeyParts)
    EXPECT_EQ(txr.getBlockTxIndex(), 15ULL);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 class TestCryptoECDSA : public ::testing::Test
 {
 protected:
@@ -6421,6 +6410,519 @@ TEST_F(TestCryptoECDSA, VerifyPubKeyValidity)
    EXPECT_TRUE(CryptoECDSA().VerifyPublicKeyValid(compPointPub2));
    EXPECT_TRUE(CryptoECDSA().VerifyPublicKeyValid(uncompPointPub1));
    EXPECT_TRUE(CryptoECDSA().VerifyPublicKeyValid(uncompPointPub2));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+class TestTxHashFilters : public ::testing::Test
+{
+protected:
+   virtual void SetUp(void)
+   {
+      homedir_ = string("./fakehomedir");
+      DBUtils::removeDirectory(homedir_);
+      mkdir(homedir_);
+      mkdir(homedir_ + "/databases");
+
+      Armory::Config::parseArgs({
+         "--datadir=./fakehomedir",
+         "--offline" },
+         Armory::Config::ProcessType::DB);
+
+      iface_ = new LMDBBlockDatabase(nullptr, string());
+   }
+
+   virtual void TearDown(void)
+   {
+      iface_->closeDatabases();
+      delete iface_;
+      iface_ = NULL;
+
+      DBUtils::removeDirectory(homedir_);
+      Armory::Config::reset();
+
+      CLEANUP_ALL_TIMERS();
+   }
+
+   bool standardOpenDBs(void)
+   {
+      iface_->openDatabases(Pathing::dbDir());
+      return iface_->databasesAreOpen();
+   }
+
+   LMDBBlockDatabase* iface_;
+   string homedir_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(TestTxHashFilters, SerializeWriter)
+{
+   unsigned bucketCount = 10;
+   unsigned hashCount = 10;
+   ASSERT_TRUE(standardOpenDBs());
+
+   map<uint32_t, list<BinaryData>> hashMap;
+
+   {
+      //build the pool
+      TxFilterPoolWriter pool;
+      map<uint32_t, BlockHashVector> bucketMap;
+      for (unsigned i=0; i<bucketCount; i++)
+      {
+         BlockHashVector bucket(i);
+         auto insertIt = hashMap.emplace(i, list<BinaryData>{});
+         auto& hashList = insertIt.first->second;
+         for (unsigned y=0; y<hashCount; y++)
+         {
+            auto hash = BtcUtils::fortuna_.generateRandom(32);
+            bucket.update(hash);
+            hashList.emplace_back(hash);
+         }
+
+         bucketMap.emplace(i, move(bucket));
+      }
+
+      pool.update(bucketMap);
+
+      //write the pool
+      iface_->putFilterPoolForFileNum(0, pool);
+   }
+
+   {
+      //read the pool
+      TxFilterPoolWriter pool(iface_->getFilterPoolDataRef(0));
+
+      //append the pool
+      map<uint32_t, BlockHashVector> bucketMap;
+      for (unsigned i=bucketCount; i<bucketCount*2; i++)
+      {
+         BlockHashVector bucket(i);
+         auto insertIt = hashMap.emplace(i, list<BinaryData>{});
+         auto& hashList = insertIt.first->second;
+         for (unsigned y=0; y<hashCount; y++)
+         {
+            auto hash = BtcUtils::fortuna_.generateRandom(32);
+            bucket.update(hash);
+            hashList.emplace_back(hash);
+         }
+
+         bucketMap.emplace(i, move(bucket));
+      }
+
+      pool.update(bucketMap);
+
+      //write the pool again
+      iface_->putFilterPoolForFileNum(0, pool);
+   }
+
+   //reconstruct serialized pool locally
+   BinaryWriter bw;
+   bw.put_uint32_t(bucketCount*2);
+
+   for (const auto& it : hashMap)
+   {
+      auto size = 12 + it.second.size() * 4;
+      bw.put_uint32_t(size);
+      bw.put_uint32_t(it.first);
+      bw.put_uint32_t(it.second.size());
+
+      for (const auto& hash : it.second)
+      {
+         uint32_t shortHand;
+         memcpy(&shortHand, hash.getPtr(), 4);
+         bw.put_uint32_t(shortHand);
+      }
+   }
+
+   //checked serialized data matches data on disk
+   const auto& serData = bw.getData();
+   auto poolDataRef = iface_->getFilterPoolDataRef(0);
+   EXPECT_EQ(poolDataRef, serData.getRef());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(TestTxHashFilters, FilterALot)
+{
+   ASSERT_TRUE(standardOpenDBs());
+
+   auto start = chrono::system_clock::now();
+   unsigned poolSize = 100;
+   unsigned bucketCount = 10000;
+   unsigned poolCount = bucketCount / poolSize;
+   unsigned hashCount = 30000;
+   unsigned hashPerBlock = 1000;
+   unsigned hashesPerBucket = hashCount/bucketCount;
+
+   //create 30MIL hashes in 10000 buckets of 3000 hashes each,
+   //save in pools on disk
+   map<BinaryData, pair<uint32_t, uint32_t>> hashes;
+   map<BinaryData, pair<uint32_t, uint32_t>> hashes5k;
+   map<BinaryData, pair<uint32_t, uint32_t>> hashes1k;
+   map<BinaryData, pair<uint32_t, uint32_t>> hashes100;
+
+   auto counter = make_shared<atomic<uint32_t>>();
+   counter->store(0, memory_order_relaxed);
+
+   //worker lambda
+   auto createHashes = [this, &poolCount, &hashesPerBucket,
+      &poolSize, &hashPerBlock, counter]()->
+      map<BinaryData, pair<uint32_t, uint32_t>>
+   {
+      map<uint32_t, TxFilterPoolWriter> pools;
+      map<BinaryData, pair<uint32_t, uint32_t>> hashes;
+
+      while (true)
+      {
+         auto poolId = counter->fetch_add(1, memory_order_relaxed);
+         if (poolId >= poolCount)
+            break;
+
+         map<unsigned, BlockHashVector> filters;
+
+         for (unsigned i=0; i<poolSize; i++)
+         {
+            map<BinaryData, pair<uint32_t, uint32_t>> localHashes;
+            uint32_t bucketId = poolId * poolSize + i;
+
+            BlockHashVector bucket(bucketId);
+            bucket.reserve(hashPerBlock);
+            for (unsigned y=0; y<hashPerBlock; y++)
+            {
+               auto hash = BtcUtils::fortuna_.generateRandom(32);
+               bucket.update(hash);
+
+               if (hash.getPtr()[y%32] < 10 &&
+                  localHashes.size() < hashesPerBucket)
+               {
+                  localHashes.emplace(hash, make_pair(bucketId, y));
+               }
+            }
+
+            filters.emplace(bucketId, move(bucket));
+            hashes.insert(localHashes.begin(), localHashes.end());
+         }
+         
+         TxFilterPoolWriter filterPool;
+         filterPool.update(filters);
+         EXPECT_TRUE(filterPool.isValid());
+
+         pools.emplace(poolId, move(filterPool));
+      }
+
+      //write pools to disk
+      auto tx = iface_->beginTransaction(TXFILTERS, LMDB::ReadWrite);
+      for (const auto& pool : pools)
+         iface_->putFilterPoolForFileNum(pool.first, pool.second);
+
+      return hashes;
+   };
+
+   {
+      auto mutexPtr = make_shared<mutex>();
+      auto worker = [&createHashes, &hashes, mutexPtr]()
+      {
+         auto poolHashes = createHashes();
+
+         auto lock = unique_lock<mutex>(*mutexPtr);
+         hashes.insert(poolHashes.begin(), poolHashes.end());
+      };
+
+      //start the worker threads
+      vector<thread> threads;
+      for (unsigned i=1; i<thread::hardware_concurrency()/2; i++)
+         threads.emplace_back(thread(worker));
+      worker();
+
+      //join on them
+      for (auto& thr : threads)
+         thr.join();
+   }
+
+   //setup the hash maps
+   for (const auto& hash : hashes)
+   {
+      if (hashes100.size() < 100)
+         hashes100.insert(hash);
+
+      if (hashes1k.size() < 1000)
+         hashes1k.insert(hash);
+
+      if (hashes5k.size() == 5000)
+         break;
+
+      hashes5k.insert(hash);
+   }
+
+   EXPECT_EQ(hashes.size(), hashCount);
+   EXPECT_EQ(hashes5k.size(), 5000u);
+   EXPECT_EQ(hashes1k.size(), 1000u);
+   EXPECT_EQ(hashes100.size(), 100u);
+
+   auto stop = chrono::system_clock::now();
+   auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+   std::cout << "--- setup in " << duration.count() << " ms ---" << std::endl;
+   std::cout << "--- running with " << hashes.size() << " hashes" << std::endl;
+
+   //search vector
+   auto searchPoolVec = [](const TxFilterPoolReader& pool,
+      const map<BinaryData, pair<uint32_t, uint32_t>>& hashes)
+      ->set<BinaryDataRef>
+   {
+      set<BinaryDataRef> hits;
+      for (const auto& hashIt : hashes)
+      {
+         auto result = pool.compare(hashIt.first);
+         auto resultIt = result.find(hashIt.second.first);
+         if (resultIt != result.end())
+         {
+            auto txidIt = resultIt->second.find(hashIt.second.second);
+            if (txidIt != resultIt->second.end())
+            {
+               hits.emplace(hashIt.first.getRef());
+               continue;
+            }
+         }
+      }
+
+      return hits;
+   };
+
+   //search map
+   auto searchPoolMap = [](const TxFilterPoolReader& pool,
+      const map<BinaryData, pair<uint32_t, uint32_t>>& hashes)
+      ->set<BinaryDataRef>
+   {
+      set<BinaryDataRef> hits;
+      for (const auto& hashIt : hashes)
+      {
+         auto result = pool.compare(hashIt.first);
+         auto resultIt = result.find(hashIt.second.first);
+         if (resultIt != result.end())
+         {
+            auto txidIt = resultIt->second.find(hashIt.second.second);
+            if (txidIt != resultIt->second.end())
+            {
+               hits.emplace(hashIt.first.getRef());
+               continue;
+            }
+         }
+      }
+
+      return hits;
+   };
+
+   //load pools as vectors & search
+   {
+      std::cout << std::endl;
+      start = chrono::system_clock::now();
+      map<unsigned, TxFilterPoolReader> vectorPools;
+      for (unsigned i=0; i<poolCount; i++)
+      {
+         TxFilterPoolReader pool(iface_->getFilterPoolDataRef(i),
+            TxFilterPoolMode::Bucket_Vector);
+
+         vectorPools.emplace(i, move(pool));
+      }
+
+      stop = chrono::system_clock::now();
+      duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+      std::cout << "1. loaded bucket vector in " << duration.count() << " ms" << std::endl;
+
+      //search
+      auto search = [&searchPoolVec, &vectorPools](
+         const map<BinaryData, pair<uint32_t, uint32_t>>& hashes)
+      {
+         auto start = chrono::system_clock::now();
+
+         set<BinaryDataRef> foundHashes;
+         for (const auto& pool : vectorPools)
+         {
+            auto hits = searchPoolVec(pool.second, hashes);
+            foundHashes.insert(hits.begin(), hits.end());
+         }
+         EXPECT_EQ(foundHashes.size(), hashes.size());
+
+         auto stop = chrono::system_clock::now();
+         auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+         std::cout << "1. filtered vector (" << hashes.size() << ") in " <<
+            duration.count() << " ms" << std::endl;
+      };
+
+      //search(hashes);
+      //search(hashes5k);
+      search(hashes1k);
+      search(hashes100);
+   }
+
+   //load pools as maps (mode 1) & search
+   {
+      std::cout << std::endl;
+      start = chrono::system_clock::now();
+      map<unsigned, TxFilterPoolReader> mapPools;
+      for (unsigned i=0; i<poolCount; i++)
+      {
+         TxFilterPoolReader pool(iface_->getFilterPoolDataRef(i),
+            TxFilterPoolMode::Bucket_Map);
+
+         mapPools.emplace(i, move(pool));
+      }
+
+      stop = chrono::system_clock::now();
+      duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+      std::cout << "2. loaded bucket maps in " << duration.count() << " ms" << std::endl;
+
+      //search the pool map
+      auto search = [&searchPoolMap, &mapPools](
+         const map<BinaryData, pair<uint32_t, uint32_t>>& hashes)
+      {
+         auto start = chrono::system_clock::now();
+
+         set<BinaryDataRef> foundHashes;
+         for (const auto& pool : mapPools)
+         {
+            auto hits = searchPoolMap(pool.second, hashes);
+            foundHashes.insert(hits.begin(), hits.end());
+         }
+         EXPECT_EQ(foundHashes.size(), hashes.size());
+
+         auto stop = chrono::system_clock::now();
+         auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+         std::cout << "2. filtered map (" << hashes.size() << ") in " <<
+            duration.count() << " ms" << std::endl;
+      };
+
+      search(hashes);
+      search(hashes5k);
+      search(hashes1k);
+      search(hashes100);
+   }
+
+   //load pools as maps (mode 2) & search
+   {
+      std::cout << std::endl;
+      start = chrono::system_clock::now();
+      map<unsigned, TxFilterPoolReader> mapPools;
+      for (unsigned i=0; i<poolCount; i++)
+      {
+         TxFilterPoolReader pool(iface_->getFilterPoolDataRef(i),
+            TxFilterPoolMode::Pool_Map);
+
+         mapPools.emplace(i, move(pool));
+      }
+
+      stop = chrono::system_clock::now();
+      duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+      std::cout << "3. loaded pool maps in " << duration.count() << " ms" << std::endl;
+
+      //search the pool map
+      auto search = [&searchPoolMap, &mapPools](
+         const map<BinaryData, pair<uint32_t, uint32_t>>& hashes)
+      {
+         auto start = chrono::system_clock::now();
+
+         set<BinaryDataRef> foundHashes;
+         for (const auto& pool : mapPools)
+         {
+            auto hits = searchPoolMap(pool.second, hashes);
+            foundHashes.insert(hits.begin(), hits.end());
+         }
+         EXPECT_EQ(foundHashes.size(), hashes.size());
+
+         auto stop = chrono::system_clock::now();
+         auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+         std::cout << "3. filtered map (" << hashes.size() << ") in " <<
+            duration.count() << " ms" << std::endl;
+      };
+
+      search(hashes);
+      search(hashes5k);
+      search(hashes1k);
+      search(hashes100);
+   }
+
+   //search via multithreaded func
+   {
+      auto search = [this, &poolCount](
+         const map<BinaryData, pair<uint32_t, uint32_t>>& hashes,
+         TxFilterPoolMode mode)
+      {
+         auto start = chrono::system_clock::now();
+
+         set<BinaryData> hashSet;
+         for (const auto& hash : hashes)
+            hashSet.emplace(hash.first);
+
+         auto fetchFunc = [this](uint32_t fileID)->BinaryDataRef
+         {
+            return this->iface_->getFilterPoolDataRef(fileID);
+         };
+         auto filterResult = TxFilterPoolReader::scanHashes(
+            poolCount, fetchFunc, hashSet, mode);
+
+         auto hashesCopy = hashes;
+         auto hashIt = hashesCopy.begin();
+         while (hashIt != hashesCopy.end())
+         {
+            bool found = false;
+            for (const auto& resultIt : filterResult)
+            {
+               auto filterIter = resultIt.second.find(hashIt->first);
+               if (filterIter == resultIt.second.end())
+                  continue;
+
+               auto blockIter = filterIter->filterHits_.find(hashIt->second.first);
+               if (blockIter == filterIter->filterHits_.end())
+                  continue;
+
+               auto txIter = blockIter->second.find(hashIt->second.second);
+               if (txIter != blockIter->second.end())
+               {
+                  found = true;
+                  break;
+               }
+            }
+
+            if (found)
+            {
+               hashesCopy.erase(hashIt++);
+               continue;
+            }
+
+            ++hashIt;
+         }
+
+         EXPECT_TRUE(hashesCopy.empty());
+
+         auto stop = chrono::system_clock::now();
+         auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+         std::cout << ". filtered map (" << hashes.size() <<
+            ", " << (int)mode << ") in " <<
+            duration.count() << " ms" << std::endl;
+      };
+
+      std::cout << std::endl;
+      search(hashes1k, TxFilterPoolMode::Bucket_Vector);
+      search(hashes100, TxFilterPoolMode::Bucket_Vector);
+
+      std::cout << std::endl;
+      search(hashes, TxFilterPoolMode::Bucket_Map);
+      search(hashes5k, TxFilterPoolMode::Bucket_Map);
+      search(hashes1k, TxFilterPoolMode::Bucket_Map);
+      search(hashes100, TxFilterPoolMode::Bucket_Map);
+
+      std::cout << std::endl;
+      search(hashes, TxFilterPoolMode::Pool_Map);
+      search(hashes5k, TxFilterPoolMode::Pool_Map);
+      search(hashes1k, TxFilterPoolMode::Pool_Map);
+      search(hashes100, TxFilterPoolMode::Pool_Map);
+
+      std::cout << std::endl;
+      search(hashes, TxFilterPoolMode::Auto);
+      search(hashes5k, TxFilterPoolMode::Auto);
+      search(hashes1k, TxFilterPoolMode::Auto);
+      search(hashes100, TxFilterPoolMode::Auto);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
