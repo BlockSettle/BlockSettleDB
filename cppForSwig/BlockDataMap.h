@@ -29,6 +29,7 @@
 #include "BinaryData.h"
 
 #define OffsetAndSize std::pair<size_t, size_t>
+struct BlockHashVector;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct BCTX
@@ -184,6 +185,9 @@ public:
 class BlockData
 {
 private:
+   uint32_t uniqueID_ = UINT32_MAX;
+   std::shared_ptr<BlockHashVector> txFilter_;
+
    std::shared_ptr<BlockHeader> headerPtr_;
    const uint8_t* data_ = nullptr;
    size_t size_ = SIZE_MAX;
@@ -194,21 +198,15 @@ private:
    size_t offset_ = SIZE_MAX;
 
    BinaryData blockHash_;
-   TxFilter<TxFilterType> txFilter_;
-
-   uint32_t uniqueID_ = UINT32_MAX;
 
 public:
-   BlockData(void) {}
+   BlockData(uint32_t);
 
-   BlockData(uint32_t blockid) 
-      : uniqueID_(blockid)
-   {}
-
-   void deserialize(const uint8_t* data, size_t size,
+   static std::shared_ptr<BlockData> deserialize(
+      const uint8_t*, size_t,
       const std::shared_ptr<BlockHeader>,
-      std::function<unsigned int(const BinaryData&)> getID, bool checkMerkle,
-      bool keepHashes);
+      std::function<unsigned int(const BinaryData&)> getID,
+      bool checkMerkle, bool keepHashes);
 
    bool isInitialized(void) const
    {
@@ -235,9 +233,9 @@ public:
 
    std::shared_ptr<BlockHeader> createBlockHeader(void) const;
    const BinaryData& getHash(void) const { return blockHash_; }
-   
-   TxFilter<TxFilterType> computeTxFilter(const std::vector<BinaryData>&) const;
-   const TxFilter<TxFilterType>& getTxFilter(void) const { return txFilter_; }
+
+   void computeTxFilter(const std::vector<BinaryData>&);
+   std::shared_ptr<BlockHashVector> getTxFilter(void) const;
    uint32_t uniqueID(void) const { return uniqueID_; }
    std::shared_ptr<BlockHeader> getHeaderPtr(void) const { return headerPtr_; }
 };

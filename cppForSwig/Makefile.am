@@ -18,7 +18,7 @@ LIBLMDBPP = liblmdbpp.la
 LIBHKDF = hkdf/libhkdf.la
 LIBSECP256K1 = libbtc/src/secp256k1/libsecp256k1.la
 LIBWEBSOCKETS_STATIC = $(WEBSOCKETS_LIBDIR)/libwebsockets.a
-LIBPROTOBUF_STATIC = $(PROTOBUF_LIBDIR)/libprotobuf.a
+LIBPROTOBUF_STATIC = $(PROTOBUF_LIBDIR)/libprotobuf.so
 if BUILD_OPENSSL_SUPPORT
 LIBCRYPTO_STATIC = $(CRYPTO_LIBDIR)/libcrypto.a
 LIBSSL_STATIC = $(SSL_LIBDIR)/libssl.a
@@ -124,6 +124,7 @@ ARMORYCLI_SOURCE_FILES = BDM_mainthread.cpp \
 	HttpMessage.cpp \
 	JSON_codec.cpp \
 	LedgerEntry.cpp \
+	TxHashFilters.cpp \
 	lmdb_wrapper.cpp \
 	nodeRPC.cpp \
 	Progress.cpp \

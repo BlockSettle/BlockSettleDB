@@ -159,12 +159,11 @@ map<BinaryData, shared_ptr<ParsedTx>> ZeroConfContainer::purgeToBranchpoint(
       //grab block
       auto&& rawBlock = db_->getRawBlock(currentHeader);
 
-      BlockData block;
-      block.deserialize(
+      auto block = BlockData::deserialize(
          rawBlock.getPtr(), rawBlock.getSize(),
          currentHeader, nullptr,
          false, false);
-      const auto& txns = block.getTxns();
+      const auto& txns = block->getTxns();
 
       for (unsigned txid = 0; txid < txns.size(); txid++)
       {
@@ -176,7 +175,7 @@ map<BinaryData, shared_ptr<ParsedTx>> ZeroConfContainer::purgeToBranchpoint(
          if (hashIter == outPointsSpentByKey_.end())
             continue;
 
-         for (auto& opid : hashIter->second)
+         for (const auto& opid : hashIter->second)
             keysToDelete.emplace(opid.second.getSliceCopy(0, 6));
       }
 
@@ -266,12 +265,11 @@ map<BinaryData, shared_ptr<ParsedTx>> ZeroConfContainer::purge(
       //grab block
       auto&& rawBlock = db_->getRawBlock(currentHeader);
 
-      BlockData block;
-      block.deserialize(
+      auto block = BlockData::deserialize(
          rawBlock.getPtr(), rawBlock.getSize(),
          currentHeader, nullptr,
          false, false);
-      const auto& txns = block.getTxns();
+      const auto& txns = block->getTxns();
 
       //gather all outpoints spent by this block
       map<BinaryDataRef, set<unsigned>> spentOutpoints;

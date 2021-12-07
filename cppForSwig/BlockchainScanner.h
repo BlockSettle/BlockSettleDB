@@ -36,6 +36,8 @@ public:
    { }
 };
 
+struct TxHashHints;
+
 ////////////////////////////////////////////////////////////////////////////////
 struct ParserBatch
 {
@@ -79,20 +81,6 @@ public:
 class BlockchainScanner
 {
 private:
-
-   struct TxFilterResults
-   {
-      BinaryData hash_;
-
-      //map<blockId, set<tx offset>>
-      std::map<uint32_t, std::set<uint32_t>> filterHits_;
-
-      bool operator < (const TxFilterResults& rhs) const
-      {
-         return hash_ < rhs.hash_;
-      }
-   };
-
    std::shared_ptr<Blockchain> blockchain_;
    LMDBBlockDatabase* db_;
    ScrAddrFilter* scrAddrFilter_;
@@ -128,14 +116,9 @@ private:
 
    int32_t check_merkle(int32_t startHeight);
 
-   void getFilterHitsThread(
-      const std::set<BinaryData>& hashSet,
-      std::atomic<int>& counter,
-      std::map<uint32_t, std::set<TxFilterResults>>& resultMap);
-
    void processFilterHitsThread(
       std::map<uint32_t, std::map<uint32_t,
-      std::set<const TxFilterResults*>>>& filtersResultMap,
+      std::set<const TxHashHints*>>>& filtersResultMap,
       Armory::Threading::TransactionalSet<BinaryData>& missingHashes,
       std::atomic<int>& counter, std::map<BinaryData, BinaryData>& results,
       std::function<void(size_t)> prog);

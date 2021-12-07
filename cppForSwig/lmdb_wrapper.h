@@ -42,6 +42,7 @@
 #endif
 
 class Blockchain;
+class TxFilterPoolWriter;
 
 ////
 struct FilterException : public std::runtime_error
@@ -75,13 +76,6 @@ struct SshAccessorException : public std::runtime_error
 struct SpentnessAccessorException : public std::runtime_error
 {
    SpentnessAccessorException(const std::string& err) : std::runtime_error(err)
-   {}
-};
-
-////
-struct TxFilterException : public std::runtime_error
-{
-   TxFilterException(const std::string& err) : std::runtime_error(err)
    {}
 };
 
@@ -270,179 +264,6 @@ public:
    DbTransaction_Single(LMDBEnv::Transaction&& dbtx) :
       dbtx_(std::move(dbtx))
    {}
-};
-
-////////////////////////////////////////////////////////////////////////////////
-template<typename T> class TxFilterPool
-{
-   //16 bytes bucket filter for transactions hash lookup
-   //each bucket represents on blk file
-
-private:
-   std::set<TxFilter<T>> pool_;
-   const uint8_t* poolPtr_ = nullptr;
-   size_t len_ = SIZE_MAX;
-
-public:
-   TxFilterPool(void) 
-   {}
-
-   TxFilterPool(std::set<TxFilter<T>> pool) :
-      pool_(move(pool)), len_(pool_.size())
-   {}
-
-   TxFilterPool(const TxFilterPool<T>& filter) :
-      pool_(filter.pool_), len_(filter.len_)
-   {}
-
-   TxFilterPool(const uint8_t* ptr, size_t len) :
-      poolPtr_(ptr), len_(len)
-   {}
-
-   void update(const std::set<TxFilter<T>>& hashSet)
-   {
-      pool_.insert(hashSet.begin(), hashSet.end());
-      len_ = pool_.size();
-   }
-
-   bool isValid(void) const { return len_ != SIZE_MAX; }
-
-   std::map<uint32_t, std::set<uint32_t>> compare(const BinaryData& hash) const
-   {
-      if (hash.getSize() != 32)
-         throw TxFilterException("hash is 32 bytes long");
-
-      if (!isValid())
-         throw TxFilterException("invalid pool");
-
-      //get key
-
-      std::map<uint32_t, std::set<uint32_t>> returnMap;
-
-      if (pool_.size())
-      {
-         for (auto& filter : pool_)
-         {
-            auto&& resultSet = filter.compare(hash);
-            if (resultSet.size() > 0)
-            {
-               returnMap.insert(make_pair(
-                  filter.getBlockKey(),
-                  move(resultSet)));
-            }
-         }
-      }
-      else if (poolPtr_ != nullptr) //running against a pointer
-      {
-         //get count
-         auto size = (uint32_t*)poolPtr_;
-         uint32_t* filterSize;
-         size_t pos = 4;
-
-         for (uint32_t i = 0; i < *size; i++)
-         {
-            if (pos >= len_)
-               throw TxFilterException("overflow while reading pool ptr");
-
-            //iterate through entries
-            filterSize = (uint32_t*)(poolPtr_ + pos);
-
-            TxFilter<T> filterPtr(poolPtr_ + pos);
-            auto&& resultSet = filterPtr.compare(hash);
-            if (resultSet.size() > 0)
-            {
-               returnMap.insert(std::make_pair(
-                  filterPtr.getBlockKey(),
-                  move(resultSet)));
-            }
-
-            pos += *filterSize;
-         }
-      }
-      else
-         throw TxFilterException("invalid pool");
-
-      return returnMap;
-   }
-
-   std::vector<TxFilter<T>> getFilterPoolPtr(void)
-   {
-      if (poolPtr_ == nullptr)
-         throw TxFilterException("missing pool ptr");
-
-      std::vector<TxFilter<T>> filters;
-
-      //get count
-      auto size = (uint32_t*)poolPtr_;
-      uint32_t* filterSize;
-      size_t pos = 4;
-
-      for (uint32_t i = 0; i < *size; i++)
-      {
-         if (pos >= len_)
-            throw TxFilterException("overflow while reading pool ptr");
-
-         //iterate through entries
-         filterSize = (uint32_t*)(poolPtr_ + pos);
-
-         TxFilter<T> filterPtr(poolPtr_ + pos);
-         filters.push_back(filterPtr);
-
-         pos += *filterSize;
-      }
-
-      return filters;
-   }
-
-   void serialize(BinaryWriter& bw) const
-   {
-      bw.put_uint32_t(len_); //item count
-
-      for (auto& filter : pool_)
-      {
-         filter.serialize(bw);
-      }
-   }
-
-   void deserialize(uint8_t* ptr, size_t len)
-   {
-      //sanity check
-      if (ptr == nullptr || len < 4)
-         throw TxFilterException("invalid pointer");
-
-      len_ = *(uint32_t*)ptr;
-
-      if (len_ == 0)
-         throw TxFilterException("empty pool ptr");
-
-      size_t offset = 4;
-
-      for (unsigned i = 0; i < len_; i++)
-      {
-         if (offset >= len)
-            throw TxFilterException("deser error");
-
-         auto filtersize = (uint32_t*)(ptr + offset);
-
-         TxFilter<TxFilterType> filter;
-         filter.deserialize(ptr + offset);
-
-         offset += *filtersize;
-
-         pool_.insert(std::move(filter));
-      }
-   }
-
-   const TxFilter<T>& getFilterById(uint32_t id)
-   {
-      TxFilter<T> filter(id, 0);
-      auto filterIter = pool_.find(filter);
-
-      if (filterIter == pool_.end())
-         throw TxFilterException("invalid filter id");
-
-      return *filterIter;
-   }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -876,66 +697,15 @@ public:
 
    const std::shared_ptr<Blockchain> blockchain(void) const { return blockchainPtr_; }
 
-   /////////////////////////////////////////////////////////////////////////////
-   template <typename T> TxFilterPool<T> getFilterPoolForFileNum(
-      uint32_t fileNum) const
-   {
-      auto&& key = DBUtils::getFilterPoolKey(fileNum);
-
-      auto db = TXFILTERS;
-      auto&& tx = beginTransaction(db, LMDB::ReadOnly);
-
-      auto val = getValueNoCopy(TXFILTERS, key);
-
-      TxFilterPool<T> pool;
-      try
-      {
-         pool.deserialize((uint8_t*)val.getPtr(), val.getSize());
-      }
-      catch (std::exception&)
-      { }
-
-      return pool;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   template <typename T> TxFilterPool<T> getFilterPoolRefForFileNum(
-      uint32_t fileNum) const
-   {
-      auto&& key = DBUtils::getFilterPoolKey(fileNum);
-
-      auto db = TXFILTERS;
-      auto&& tx = beginTransaction(db, LMDB::ReadOnly);
-
-      auto val = getValueNoCopy(TXFILTERS, key);
-      if (val.getSize() == 0)
-         throw TxFilterException("invalid txfilter key");
-
-      return TxFilterPool<T>(val.getPtr(), val.getSize());
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   template <typename T> void putFilterPoolForFileNum(
-      uint32_t fileNum, const TxFilterPool<T>& pool)
-   {
-      if (!pool.isValid())
-         throw std::runtime_error("invalid filterpool");
-
-      //update on disk
-      auto db = TXFILTERS;
-      auto&& tx = beginTransaction(db, LMDB::ReadWrite);
-
-      auto&& key = DBUtils::getFilterPoolKey(fileNum);
-      BinaryWriter bw;
-      pool.serialize(bw);
-
-      auto data = bw.getData();
-      putValue(TXFILTERS, key, data);
-   }
+   ////
+   TxFilterPoolWriter getFilterPoolWriter(uint32_t) const;
+   BinaryDataRef getFilterPoolDataRef(uint32_t) const;
+   void putFilterPoolForFileNum(uint32_t, const TxFilterPoolWriter& pool);
 
    void putMissingHashes(const std::set<BinaryData>&, uint32_t);
    std::set<BinaryData> getMissingHashes(uint32_t) const;
 
+   ////
    void updateHeightToIdMap(std::map<unsigned, unsigned>& idmap)
    {
       heightToBatchId_.update(move(idmap));

@@ -1264,19 +1264,20 @@ void BlockchainScanner_Super::undo(Blockchain::ReorganizationState& reorgState)
       auto getID = [blockPtr]
          (const BinaryData&)->uint32_t {return blockPtr->getThisID(); };
 
-      BlockData bdata;
-      bdata.deserialize(filemap.get()->getPtr() + blockPtr->getOffset(),
-         blockPtr->getBlockSize(), blockPtr, getID, false, false);
+      auto bdata = BlockData::deserialize(
+         filemap.get()->getPtr() + blockPtr->getOffset(),
+         blockPtr->getBlockSize(), blockPtr, getID,
+         false, false);
 
-      auto& txns = bdata.getTxns();
+      const auto& txns = bdata->getTxns();
       for (unsigned i = 0; i < txns.size(); i++)
       {
-         auto& txn = txns[i];
+         const auto& txn = txns[i];
 
          //undo spends from this block
          for (unsigned y = 0; y < txn->txins_.size(); y++)
          {
-            auto& txin = txn->txins_[y];
+            const auto& txin = txn->txins_[y];
 
             BinaryDataRef outHash(
                txn->data_ + txin.first, 32);
@@ -1438,8 +1439,7 @@ shared_ptr<BlockData> BlockDataBatch::getBlockData(unsigned height)
       return blockheader->getThisID();
    };
 
-   auto bdata = make_shared<BlockData>();
-   bdata->deserialize(
+   auto bdata = BlockData::deserialize(
       filemap->getPtr() + blockheader->getOffset(),
       blockheader->getBlockSize(),
       blockheader, getID, false, false);
