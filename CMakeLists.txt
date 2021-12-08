@@ -15,7 +15,7 @@ IF (WIN32 OR MSVC)
 ELSEIF (UNIX)
     set(CMAKE_FIND_LIBRARY_SUFFIXES .a .so)
     set(CMAKE_FIND_LIBRARY_PREFIXES lib)
-    set(CMAKE_LIBRARY_HINTS /lib/x86_64-linux-gnu)
+    set(CMAKE_LIBRARY_HINTS /lib/x86_64-linux-gnu /usr/lib)
 ENDIF ()
 
 find_library(LMDB_LIB lmdb HINTS ${CMAKE_LIBRARY_HINTS})

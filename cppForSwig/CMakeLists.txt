@@ -51,6 +51,7 @@ set(LIBARMORYCOMMON_LINK_LIBRARIES
     chacha20poly1305
     libbtc
     ${LMDB_LIB}
+    ${LIBWEBSOCKETS_LIB}
 )
 
 IF (NOT MSVC)
