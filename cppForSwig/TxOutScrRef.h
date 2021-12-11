@@ -1,91 +1,46 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig.                                              //
+//  Copyright (C) 2016-2021, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifndef _H_TXOUTSCRIPTREF
 #define _H_TXOUTSCRIPTREF
 
+#include "BinaryData.h"
+#include "BitcoinSettings.h"
+
 struct TxOutScriptRef
 {
+public:
    SCRIPT_PREFIX type_ = SCRIPT_PREFIX_NONSTD;
    BinaryDataRef scriptRef_;
    BinaryData scriptCopy_;
 
-   void copyFrom(const TxOutScriptRef& outscr)
-   {
-      type_ = outscr.type_;
-      if(outscr.scriptCopy_.getSize())
-      {
-         scriptCopy_ = outscr.scriptCopy_;
-         scriptRef_.setRef(scriptCopy_);
-      }
-      else
-      {
-         scriptRef_ = outscr.scriptRef_;
-      }
-   }
+public:
+   TxOutScriptRef(void);
+   TxOutScriptRef(const TxOutScriptRef&);
+   TxOutScriptRef(TxOutScriptRef&&);
 
-   TxOutScriptRef()
-   {}
+   TxOutScriptRef& operator=(const TxOutScriptRef&);
+   bool operator==(const TxOutScriptRef&) const;
+   bool operator<(const TxOutScriptRef&) const;
 
-   TxOutScriptRef(const TxOutScriptRef& outscr)
-   {
-      copyFrom(outscr);
-   }
+   void copyFrom(const TxOutScriptRef&);
+   void setRef(const BinaryDataRef& bd);
 
-   TxOutScriptRef(TxOutScriptRef&& outscr)
-   {
-      type_ = std::move(outscr.type_);
-      if (outscr.scriptCopy_.getSize() > 0)
-      {
-         scriptCopy_ = std::move(outscr.scriptCopy_);
-         outscr.scriptRef_.setRef(scriptCopy_);
-      }
-
-      scriptRef_ = std::move(outscr.scriptRef_);
-   }
-
-   TxOutScriptRef& operator=(const TxOutScriptRef& rhs)
-   {
-      if(this !=  &rhs)
-         copyFrom(rhs);
-      return *this;
-   }
-
-   bool operator == (const TxOutScriptRef& rhs) const
-   {
-      if (this->type_ != rhs.type_)
-         return false;
-
-      return this->scriptRef_ == rhs.scriptRef_;
-   }
-
-   bool operator < (const TxOutScriptRef& rhs) const
-   {
-      if (this->type_ == rhs.type_)
-         return this->scriptRef_ < rhs.scriptRef_;
-      else
-         return this->type_ < rhs.type_;
-   }
-
-   void setRef(const BinaryDataRef& bd)
-   {
-      type_ = (SCRIPT_PREFIX)bd.getPtr()[0];
-      scriptRef_ = bd.getSliceRef(1, bd.getSize() - 1);
-   }
-
-   BinaryData getScrAddr(void) const
-   {
-      BinaryWriter bw(1 + scriptRef_.getSize());
-      bw.put_uint8_t(type_);
-      bw.put_BinaryData(scriptRef_);
-
-      return bw.getData();
-   }
+   BinaryData getScrAddr(void) const;
 };
+
+namespace std
+{
+   template<> struct hash<TxOutScriptRef>
+   {
+      std::size_t operator()(const TxOutScriptRef&) const;
+   };
+};
+
 
 #endif

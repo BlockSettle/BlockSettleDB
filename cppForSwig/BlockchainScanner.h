@@ -37,6 +37,7 @@ public:
 };
 
 struct TxHashHints;
+struct TxOutScrRef;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct ParserBatch
@@ -58,14 +59,14 @@ public:
    std::map<BinaryData, std::map<BinaryData, StoredSubHistory>> sshMap_;
    std::vector<StoredTxOut> spentOutputs_;
 
-   const std::shared_ptr<std::map<TxOutScriptRef, int>> scriptRefMap_;
+   const std::shared_ptr<std::unordered_map<TxOutScriptRef, int>> scriptRefMap_;
    std::promise<bool> completedPromise_;
    unsigned count_;
 
 public:
-   ParserBatch(unsigned start, unsigned end, 
+   ParserBatch(unsigned start, unsigned end,
       unsigned startID, unsigned endID,
-      std::shared_ptr<std::map<TxOutScriptRef, int>> scriptRefMap) :
+      std::shared_ptr<std::unordered_map<TxOutScriptRef, int>> scriptRefMap) :
       start_(start), end_(end), 
       startBlockFileID_(startID), targetBlockFileID_(endID),
       scriptRefMap_(scriptRefMap)

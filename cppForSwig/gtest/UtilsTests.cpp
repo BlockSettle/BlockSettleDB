@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016-17, goatpig                                            //            
+//  Copyright (C) 2016-17, goatpig                                            //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #include <chrono>
@@ -2308,6 +2308,69 @@ TEST_F(BinaryDataTest, Contains)
    EXPECT_FALSE(bd4_.contains(d, 8));
 }
 
+TEST_F(BinaryDataTest, CompareBench)
+{
+   auto start = chrono::system_clock::now();
+
+   unsigned setSize = 5000000;
+   unsigned compareSize = 100000;
+
+   //setup
+   set<BinaryData> dataSet;
+   unordered_set<BinaryData> udSet;
+   set<BinaryData> compareSet;
+   for (unsigned i=0; i<setSize; i++)
+   {
+      auto hash = BtcUtils::fortuna_.generateRandom(32);
+
+      if ((hash.getPtr()[0] % 8) == 0 && compareSet.size() < compareSize)
+         compareSet.emplace(hash);
+
+      udSet.emplace(hash);
+      dataSet.emplace(move(hash));
+   }
+
+   for (unsigned i=0; i<compareSize; i++)
+      compareSet.emplace(move(BtcUtils::fortuna_.generateRandom(32)));
+
+   ASSERT_EQ(dataSet.size(), setSize);
+   ASSERT_EQ(compareSet.size(), compareSize*2);
+
+   auto stop = chrono::system_clock::now();
+   auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+   std::cout << "setup in " << duration.count() << " ms" << std::endl;
+
+   //set
+   start = chrono::system_clock::now();
+   unsigned hits = 0;
+   for (const auto& hash : compareSet)
+   {
+      auto iter = dataSet.find(hash);
+      if (iter != dataSet.end())
+         hits++;
+   }
+
+   EXPECT_EQ(hits, compareSize);
+   stop = chrono::system_clock::now();
+   duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+   std::cout << "compared set in " << duration.count() << " ms" << std::endl;
+
+   //unordered set
+   start = chrono::system_clock::now();
+   hits = 0;
+   for (const auto& hash : compareSet)
+   {
+      auto iter = udSet.find(hash);
+      if (iter != udSet.end())
+         hits++;
+   }
+
+   EXPECT_EQ(hits, compareSize);
+   stop = chrono::system_clock::now();
+   duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+   std::cout << "compared unordered set in " << duration.count() << " ms" << std::endl;
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 class BinaryDataRefTest : public ::testing::Test

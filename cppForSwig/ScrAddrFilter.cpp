@@ -14,6 +14,7 @@
 #include "ScrAddrFilter.h"
 #include "BlockUtils.h"
 #include "txio.h"
+#include "TxOutScrRef.h"
 
 #include <thread>
 #include <google/protobuf/message.h>
@@ -504,22 +505,21 @@ bool ScrAddrFilter::hasNewAddresses(void) const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<map<TxOutScriptRef, int>> ScrAddrFilter::getOutScrRefMap(void)
+shared_ptr<unordered_map<TxOutScriptRef, int>> ScrAddrFilter::getOutScrRefMap()
 {
    getScrAddrCurrentSyncState();
-   auto outset = make_shared<map<TxOutScriptRef, int>>();
+   auto outset = make_shared<unordered_map<TxOutScriptRef, int>>();
 
    auto scrAddrMap = scanFilterAddrMap_->get();
 
    for (auto& scrAddr : *scrAddrMap)
    {
-      if (scrAddr.first.getSize() == 0)
+      if (scrAddr.first.empty())
          continue;
 
       TxOutScriptRef scrRef;
       scrRef.setRef(scrAddr.first);
-      outset->insert(move(make_pair(
-         scrRef, scrAddr.second->scannedHeight_)));
+      outset->emplace(move(scrRef), scrAddr.second->scannedHeight_);
    }
 
    return outset;

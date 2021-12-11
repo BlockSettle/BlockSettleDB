@@ -114,6 +114,8 @@ public:
    }
 };
 
+struct TxOutScriptRef;
+
 ////////////////////////////////////////////////////////////////////////////////
 class ScrAddrFilter
 {
@@ -217,7 +219,7 @@ public:
    }
 
    ////
-   std::shared_ptr<std::map<TxOutScriptRef, int>> getOutScrRefMap(void);
+   std::shared_ptr<std::unordered_map<TxOutScriptRef, int>> getOutScrRefMap(void);
    int32_t scanFrom(void) const;
    void pushAddressBatch(std::shared_ptr<AddressBatch>);
 

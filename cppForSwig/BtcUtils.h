@@ -249,9 +249,6 @@ enum OPCODETYPE
     OP_INVALIDOPCODE = 0xff,
 };
 
-
-#include "TxOutScrRef.h"
-
 class BlockDeserializingException : public std::runtime_error
 {
 public:
@@ -284,6 +281,8 @@ public:
 // This class holds only static methods.  
 // NOTE:  added default ctor and a few non-static, to support SWIG
 //        (-classic SWIG doesn't support static methods)
+struct TxOutScriptRef;
+
 class BtcUtils
 {
    static const BinaryData        BadAddress_;
