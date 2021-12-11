@@ -106,7 +106,8 @@ void CppToProto::addr(WalletAsset* assetPtr,
 
 ////////////////////////////////////////////////////////////////////////////////
 void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr,
-   const Armory::Wallets::AddressAccountId& accId)
+   const Armory::Wallets::AddressAccountId& accId,
+   const map<BinaryData, string>& commentMap)
 {
    string wltId = wltPtr->getID() + ":" + accId.toHexStr();
    wltProto->set_id(wltId);
@@ -140,9 +141,18 @@ void CppToProto::wallet(WalletData* wltProto, shared_ptr<AssetWallet> wltPtr,
       CppToProto::addr(assetPtr, addrPair.second, accPtr);
    }
 
-   //comments
+   //labels
    wltProto->set_label(wltPtr->getLabel());
    wltProto->set_desc(wltPtr->getDescription());
+
+   //comments
+   for (const auto& commentIt : commentMap)
+   {
+      auto commentProto = wltProto->add_comments();
+      commentProto->set_key(
+         commentIt.first.getPtr(), commentIt.first.getSize());
+      commentProto->set_val(commentIt.second);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

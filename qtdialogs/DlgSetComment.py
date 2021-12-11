@@ -11,8 +11,9 @@ from PySide2.QtGui import QIcon
 from PySide2.QtWidgets import QLabel, QLineEdit, \
    QDialogButtonBox, QGridLayout
 
-from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH
-from qtdialogs.qtdefines import ArmoryDialog
+from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH, isASCII
+from qtdialogs.qtdefines import ArmoryDialog, relaxedSizeNChar, \
+   UnicodeErrorBox
 
 
 ################################################################################
@@ -20,8 +21,8 @@ class DlgSetComment(ArmoryDialog):
    """ This will be a dumb dialog for retrieving a comment from user """
 
    #############################################################################
-   def __init__(self, parent, main, currcomment='', clbl = QObject().tr("Add comment"),
-                                                               maxChars=MAX_COMMENT_LENGTH):
+   def __init__(self, parent, main, currcomment='',
+      clbl = QObject().tr("Add comment"), maxChars=MAX_COMMENT_LENGTH):
       super(DlgSetComment, self).__init__(parent, main)
 
 
@@ -47,7 +48,7 @@ class DlgSetComment(ArmoryDialog):
 
    #############################################################################
    def accept(self):
-      if not isASCII(unicode(self.edtComment.text())):
+      if not isASCII(self.edtComment.text()):
          UnicodeErrorBox(self)
          return
       else:

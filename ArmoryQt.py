@@ -94,6 +94,7 @@ from qtdialogs.DlgNewAddress import \
 from qtdialogs.DlgOfflineTx import DlgOfflineSelect, DlgSignBroadcastOfflineTx
 from qtdialogs.DlgUnlockWallet import DlgUnlockWallet
 from qtdialogs.DlgDispTxInfo import DlgDispTxInfo
+from qtdialogs.DlgSetComment import DlgSetComment
 
 from ui.QtExecuteSignal import QtExecuteSignal
 
@@ -2599,7 +2600,7 @@ class ArmoryMainWindow(QMainWindow):
       else:
          dialog = DlgSetComment(self, self, currComment, self.tr('Change Transaction Comment'))
       if dialog.exec_():
-         newComment = str(dialog.edtComment.text())
+         newComment = dialog.edtComment.text()
          view.model().updateIndexComment(index, newComment)
          self.walletMap[wltID].setComment(hex_to_binary(txHash), newComment)
          self.walletListChanged()
@@ -2617,7 +2618,7 @@ class ArmoryMainWindow(QMainWindow):
       else:
          dialog = DlgSetComment(self, self, currComment, self.tr('Change Address Comment'))
       if dialog.exec_():
-         newComment = str(dialog.edtComment.text())
+         newComment = dialog.edtComment.text()
          atype, addr160 = addrStr_to_hash160(addrStr)
          if atype==P2SHBYTE:
             LOGWARN('Setting comment for P2SH address: %s' % addrStr)

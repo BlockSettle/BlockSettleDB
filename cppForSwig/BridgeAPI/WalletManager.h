@@ -214,6 +214,8 @@ public:
    std::map<BinaryData, std::shared_ptr<AddressEntry>> getUpdatedAddressMap();
 
    Armory::Backups::WalletBackup getBackupStrings(const PassphraseLambda&) const;
+
+   void setComment(const std::string&, const std::string&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

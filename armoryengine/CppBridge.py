@@ -1112,6 +1112,18 @@ class ArmoryBridge(object):
       response.ParseFromString(socketResponse)
       return response
 
+   #############################################################################
+   def setComment(self, wltId, key, val):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.setComment
+
+      packet.stringArgs.append(wltId)
+      packet.byteArgs.append(key)
+      packet.stringArgs.append(val)
+
+      self.sendToBridgeProto(packet, False)
+
+
 ################################################################################
 class BridgeSigner(object):
    def __init__(self):

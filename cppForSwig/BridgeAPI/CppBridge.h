@@ -197,6 +197,7 @@ namespace Armory
             const std::string&, const BinaryDataRef&);
          void getHistoryPageForDelegate(const std::string&, unsigned, unsigned);
          void createAddressBook(const std::string&, unsigned);
+         void setComment(const Codec_ClientProto::ClientCommand&);
 
          //txs & headers
          void getTxByHash(const BinaryData&, unsigned);

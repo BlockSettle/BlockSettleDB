@@ -252,14 +252,21 @@ BridgeReply CppBridge::createWalletsPacket()
    auto accountIdMap = wltManager_->getAccountIdMap();
    for (auto& idIt : accountIdMap)
    {
+      if (idIt.first.empty() || idIt.second.empty())
+         continue;
+
+      auto firstCont = wltManager_->getWalletContainer(
+         idIt.first, *idIt.second.begin());
+      auto wltPtr = firstCont->getWalletPtr();
+      auto commentMap = wltPtr->getCommentMap();
+
       for (auto& accId : idIt.second)
       {
          auto wltContainer = wltManager_->getWalletContainer(
             idIt.first, accId);
-         auto wltPtr = wltContainer->getWalletPtr();
 
          auto payload = response->add_wallets();
-         CppToProto::wallet(payload, wltPtr, accId);
+         CppToProto::wallet(payload, wltPtr, accId, commentMap);
       }
    }
 
@@ -799,7 +806,7 @@ void CppBridge::extendAddressPool(const string& id,
       accPtr->extendPublicChain(wltPtr->getIface(), count);
 
       auto msg = make_unique<WalletData>();
-      CppToProto::wallet(msg.get(), wltPtr, accId);
+      CppToProto::wallet(msg.get(), wltPtr, accId, {});
       this->writeToClient(move(msg), msgId);
    };
 
@@ -871,8 +878,9 @@ BridgeReply CppBridge::getWalletPacket(const string& id) const
       wai.walletId, wai.accountId);
    auto response = make_unique<WalletPayload>();
    auto wltPtr = wltContainer->getWalletPtr();
+   auto commentMap = wltPtr->getCommentMap();
    auto payload = response->add_wallets();
-   CppToProto::wallet(payload, wltPtr, wai.accountId);
+   CppToProto::wallet(payload, wltPtr, wai.accountId, commentMap);
 
    return move(response);
 }
@@ -1366,6 +1374,23 @@ void CppBridge::createAddressBook(const string& id, unsigned msgId)
    };
 
    wltContainer->createAddressBook(lbd);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CppBridge::setComment(const ClientCommand& msg)
+{
+   if (msg.stringargs_size() != 2 || msg.byteargs_size() != 1)
+      throw runtime_error("invalid command: setComment");
+
+   const auto& walletId = msg.stringargs(0);
+
+   auto wai = WalletAccountIdentifier::deserialize(walletId);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+
+   const auto& hashKey = msg.byteargs(0);
+   const auto& comment = msg.stringargs(1);
+   wltContainer->setComment(hashKey, comment);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -27,6 +27,7 @@ enum Methods
     getTxByHash = 70;
     getHeaderByHeight = 71;
     createAddressBook = 72;
+    setComment = 73;
 
     getNewAddress = 80;
     getChangeAddress = 81;
@@ -133,11 +134,16 @@ message WalletData
 
     optional string label = 10;
     optional string desc = 11;
-    
+
     repeated WalletAsset assets = 20;
 
-    repeated bytes commentKey = 30;
-    repeated string commentVal = 31;
+    message Comment
+    {
+        required bytes key = 1;
+        required bytes val = 2;
+    }
+
+    repeated Comment comments = 30;
 }
 
 message WalletPayload
