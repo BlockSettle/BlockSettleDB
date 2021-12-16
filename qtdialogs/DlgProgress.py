@@ -13,8 +13,8 @@ from PySide2.QtCore import Qt, QPoint
 from PySide2.QtWidgets import QPushButton, QVBoxLayout, QLabel, \
    QProgressBar, QGridLayout
 
-from qtdialogs.qtdefines import ArmoryDialog
 from qtdialogs.qtdialogs import STRETCH
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 from armoryengine.ArmoryUtils import PyBackgroundThread
 from armoryengine.BDM import BDMPhase_Completed

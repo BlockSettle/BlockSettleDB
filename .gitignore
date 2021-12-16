@@ -1,3 +1,4 @@
+*.bak
 *.swp
 *.pyc
 *~
@@ -44,6 +45,7 @@ stamp-h1
 .dirstamp
 1
 .vs
+client_cookie
 
 Makefile
 ArmoryDB

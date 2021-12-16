@@ -7,35 +7,40 @@ from __future__ import (absolute_import, division,
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
 #                                                                              #
 ################################################################################
-from armoryengine.MultiSigUtils import MultiSigLockbox, calcLockboxID,\
-   createLockboxEntryStr, readLockboxEntryStr, isMofNNonStandardToSpend
 
-from armoryengine.ArmoryUtils import LB_MAXM, LB_MAXN
-
-from qtdialogs.qtdefines import ArmoryDialog
-from qtdialogs.qtdialogs import STRETCH
-
-from qtdialogs.DlgSetComment     import DlgSetComment
-from qtdialogs.DlgUnlockWallet   import DlgUnlockWallet
-from qtdialogs.DlgSendBitcoins   import DlgSendBitcoins
-from qtdialogs.DlgDispTxInfo     import DlgDispTxInfo
-from qtdialogs.DlgRequestPayment import DlgRequestPayment
-from qtdialogs.DlgQRCodeDisplay  import DlgQRCodeDisplay
-from qtdialogs.DlgBrowserWarn    import DlgBrowserWarn
-from qtdialogs.DlgAddressBook    import DlgAddressBook, createAddrBookButton
-
-
-from ui.MultiSigModels import \
-            LockboxDisplayModel,  LockboxDisplayProxy, LOCKBOXCOLS
-from armoryengine.CoinSelection import PySelectCoins, PyUnspentTxOut, \
-                                    pprintUnspentTxOutList
-from io import StringIO
 import textwrap
+from io import StringIO
+
+from PySide2.QtWidgets import QApplication, QCheckBox, QComboBox, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView, QLabel, QLayout, QLineEdit, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSpacerItem, QSplitter, QStackedWidget, QTabWidget, QTableView, QTextEdit, QVBoxLayout, QWidget
+from PySide2.QtCore import QByteArray, QUrl, Qt, SIGNAL
+from PySide2.QtGui import QCursor, QDesktopServices, QIcon, QPixmap
+
+from armorycolors import htmlColor
+from qtdialogs.ArmoryDialog import ArmoryDialog
+from armoryengine.ArmoryUtils import BLOCKEXPLORE_NAME, BLOCKEXPLORE_URL_ADDR, BadAddressError, CPP_TXOUT_MULTISIG, CheckHash160, DATATYPE, DEFAULT_DATE_FORMAT, LB_MAXM, LB_MAXN, LOGDEBUG, LOGERROR, LOGEXCEPT, LOGINFO, NegativeValueError, RightNow, SignerException, TooMuchPrecisionError, USE_REGTEST, USE_TESTNET, addrStr_is_p2sh, addrStr_to_hash160, binScript_to_p2shAddrStr, binary_to_hex, checkAddrStrValid, coin2strNZS, getBlockID, hash160_to_addrStr, hash160_to_p2pkhash_script, hex_switchEndian, hex_to_binary, isLikelyDataType, pubkeylist_to_multisig_script, scrAddr_to_addrStr, script_to_addrStr, script_to_p2sh_script, script_to_scrAddr, str2coin, unixTimeToFormatStr
+from armoryengine.BDM import BDM_BLOCKCHAIN_READY, TheBDM
+from armoryengine.CoinSelection import PySelectCoins, sumTxOutList
+from armoryengine.Transaction import BASE_SCRIPT, DecoratedTxOut, PyTx, TXIN_SIGSTAT, UnsignedTransaction, UnsignedTxInput, convertScriptToOpStrings, getTxOutScriptType
+from armorymodels import ArmoryTableView, LEDGERCOLS, LedgerDispDelegate, PromissoryCollectModel
+#from CppBlockUtils import CryptoECDSA, SecureBinaryData
+from qtdialogs.DlgBrowserWarn import DlgBrowserWarn
+from qtdialogs.DlgDispTxInfo import DlgDispTxInfo
+from qtdialogs.DlgQRCodeDisplay import DlgQRCodeDisplay
+from qtdialogs.DlgRequestPayment import DlgRequestPayment
+from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
+from qtdialogs.DlgSetComment import DlgSetComment
+from qtdialogs.DlgUnlockWallet import DlgUnlockWallet
+from qtdialogs.qtdefines import GETFONT, HLINE, HORIZONTAL, MSGBOX, NETWORKMODE, QLabelButton, QMoneyLabel, QRichLabel, STRETCH, STYLE_RAISED, STYLE_STYLED, STYLE_SUNKEN, USERMODE, VERTICAL, WLTTYPES, determineWalletType, initialColResize, makeHorizFrame, makeVertFrame, relaxedSizeNChar, restoreTableView, saveTableView, tightSizeNChar, tightSizeStr
+from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
+from ui.MultiSigModels import LOCKBOXCOLS, LockboxDisplayModel, LockboxDisplayProxy
+from ui.WalletFrames import SelectWalletFrame
+
+from armoryengine.MultiSigUtils import *
 
 #############################################################################
 class DlgLockboxEditor(ArmoryDialog):
 
-   #############################################################################
+    #############################################################################
    def __init__(self, parent, main, maxM=LB_MAXM, maxN=LB_MAXN, loadBox=None):
       super(DlgLockboxEditor, self).__init__(parent, main)
 
@@ -53,33 +58,33 @@ class DlgLockboxEditor(ArmoryDialog):
          'the address strings most Bitcoin users are familiar with.</b> '
          '<a href="None">Click for more info</a>.'))
 
-      def openMoreInfo(*args): 
+      def openMoreInfo(*args):
          QMessageBox.information(self, self.tr('Public Key Information'), self.tr(
-            'A public key is much longer than an '
-            'address string, and always starts with "02", "03" or "04". '
-            'Most wallet applications do not provide an easy way to access '
-            'a public key associated with a given address.  This is easiest '
-            'if everyone is using Armory. '
-            '<br><br>'
-            'The address book buttons next to each input box below will show you '
-            'normal address strings, but will enter the correct public '
-            'key of the address you select.'
-            '<br><br>'
-            'If you are creating this lockbox with other '
-            'Armory users, they can use the "Select Public Key" button '
-            'from the Lockbox Manager dashboard to pick a key and enter '
-            'their contact info.  You can use the "Import" button '
-            'on each public key line to import the data they send you.'),
-            QMessageBox.Ok)
-            
-            
+             'A public key is much longer than an '
+             'address string, and always starts with "02", "03" or "04". '
+             'Most wallet applications do not provide an easy way to access '
+             'a public key associated with a given address.  This is easiest '
+             'if everyone is using Armory. '
+             '<br><br>'
+             'The address book buttons next to each input box below will show you '
+             'normal address strings, but will enter the correct public '
+             'key of the address you select.'
+             '<br><br>'
+             'If you are creating this lockbox with other '
+             'Armory users, they can use the "Select Public Key" button '
+             'from the Lockbox Manager dashboard to pick a key and enter '
+             'their contact info.  You can use the "Import" button '
+             'on each public key line to import the data they send you.'),
+             QMessageBox.Ok)
+
+
 
       lblDescr3.setOpenExternalLinks(False)
       self.connect(lblDescr3, SIGNAL('linkActivated(const QString &)'), \
                                                                openMoreInfo)
 
 
-      self.createDate = long(RightNow())
+      self.createDate = int(RightNow())
       self.loadedID = None
       self.comboM = QComboBox()
       self.comboN = QComboBox()
@@ -95,7 +100,7 @@ class DlgLockboxEditor(ArmoryDialog):
       self.comboN.setFont(GETFONT('Var', 14, bold=True))
       self.lblMasterIcon = QLabel()
 
-      # Used to optimize update-on-every-key-press
+        # Used to optimize update-on-every-key-press
       self.prevPubKeyStr = ['']*self.maxN
 
 
@@ -123,7 +128,7 @@ class DlgLockboxEditor(ArmoryDialog):
                                                     hAlign=Qt.AlignRight)
 
 
-         addrWidgets = self.main.createAddressEntryWidgets(self, '', 60, 2, 
+         addrWidgets = self.main.createAddressEntryWidgets(self, '', 60, 2,
                                        getPubKey=True, showLockboxes=False, selectMineOnly=True)
          self.widgetMap[i]['QLE_PUBK'] = addrWidgets['QLE_ADDR']
          self.widgetMap[i]['BTN_BOOK'] = addrWidgets['BTN_BOOK']
@@ -134,14 +139,14 @@ class DlgLockboxEditor(ArmoryDialog):
          self.widgetMap[i]['BTN_NAME'].setContentsMargins(0,0,0,0)
          self.widgetMap[i]['LBL_DETECT'].setWordWrap(False)
 
-         # METADATA for a DecoratedPublicKey helps lite wallets
-         # identify their own keys, or authenticate keys of others.
-         # When a pubkey block is imported we store the public key and 
-         # its metadata here indexed by pubkey.  Later, we serialize
-         # these into the wallet definition.  We index by public
-         # key with it so that we can identify if the user changed the
-         # public key since they imported this data in which case we
-         # should zero-out the METADATA
+            # METADATA for a DecoratedPublicKey helps lite wallets
+            # identify their own keys, or authenticate keys of others.
+            # When a pubkey block is imported we store the public key and
+            # its metadata here indexed by pubkey.  Later, we serialize
+            # these into the wallet definition.  We index by public
+            # key with it so that we can identify if the user changed the
+            # public key since they imported this data in which case we
+            # should zero-out the METADATA
          self.widgetMap[i]['METADATA'] = {}
 
 
@@ -161,15 +166,15 @@ class DlgLockboxEditor(ArmoryDialog):
                                                        createImportCallback(i))
          
          self.prevPubKeyStr[i] = ''
-         
-         #self.widgetMap[i]['QLE_PUBK'].setFont(GETFONT('Fixed', 9))
+
+            #self.widgetMap[i]['QLE_PUBK'].setFont(GETFONT('Fixed', 9))
          w,h = tightSizeNChar(self.widgetMap[i]['QLE_PUBK'], 50)
          self.widgetMap[i]['QLE_PUBK'].setMinimumWidth(w)
-         
-         
+
+
       self.btnCancel   = QPushButton(self.tr('Exit'))
       self.btnContinue = QPushButton(self.tr('Save Lockbox'))
-      #self.btnContinue.setEnabled(False)
+        #self.btnContinue.setEnabled(False)
       self.connect(self.btnContinue, SIGNAL('clicked()'), self.doContinue)
       self.connect(self.btnCancel, SIGNAL('clicked()'), self.reject)
       self.lblFinal = QRichLabel('')
@@ -184,12 +189,12 @@ class DlgLockboxEditor(ArmoryDialog):
       self.longDescr = u''
       self.connect(self.btnLongDescr, SIGNAL('clicked()'), self.setLongDescr)
 
-      frmName = makeHorizFrame(['Stretch', 
+      frmName = makeHorizFrame(['Stretch',
                                 QLabel('Lockbox Name:'),
                                 self.edtBoxName,
                                 self.btnLongDescr,
                                 'Stretch'])
-                                
+
 
 
       layoutPubKeys = QGridLayout()
@@ -204,7 +209,7 @@ class DlgLockboxEditor(ArmoryDialog):
          layoutThisRow.addWidget(self.widgetMap[i]['QLE_PUBK'],   0,3)
          layoutThisRow.addWidget(self.widgetMap[i]['BTN_BOOK'],   0,4)
 
-      
+
          layoutDetect = QHBoxLayout()
          layoutDetect.addWidget(self.widgetMap[i]['LBL_DETECT'])
          layoutDetect.addStretch()
@@ -234,10 +239,10 @@ class DlgLockboxEditor(ArmoryDialog):
 
 
       frmTop = makeVertFrame([lblDescr, lblDescr2, lblDescr3], STYLE_RAISED)
-      
 
-      
-      # Create the M,N select frame (stolen from frag-create dialog
+
+
+        # Create the M,N select frame (stolen from frag-create dialog
       lblMNSelect = QRichLabel(self.tr('<font color="%s" size=4><b>Create '
          'Multi-Sig Lockbox</b></font>' % htmlColor("TextBlue")), \
          doWrap=False, hAlign=Qt.AlignHCenter)
@@ -269,10 +274,10 @@ class DlgLockboxEditor(ArmoryDialog):
       frmMNSelect.setLayout(layoutMNSelect)
 
 
-      frmFinish = makeHorizFrame([self.btnCancel, 
-                                  'Stretch', 
+      frmFinish = makeHorizFrame([self.btnCancel,
+                                  'Stretch',
                                   btnClear,
-                                  'Stretch', 
+                                  'Stretch',
                                   self.btnContinue])
 
       layoutMaster = QVBoxLayout()
@@ -286,16 +291,16 @@ class DlgLockboxEditor(ArmoryDialog):
 
       if loadBox is not None:
          self.fillForm(loadBox)
-         
+
 
       self.setLayout(layoutMaster)
       self.setWindowTitle('Multi-Sig Lockbox Editor')
       self.setMinimumWidth(750)
-       
 
-   #############################################################################
+
+    #############################################################################
    def clickNameButton(self, i):
-      currName = unicode(self.widgetMap[i]['LBL_NAME'].text())
+      currName = str(self.widgetMap[i]['LBL_NAME'].text())
       if not currName:
          dlgComm = DlgSetComment(self, self.main, currName, self.tr('Add public key ID or contact info'))
       else:
@@ -304,7 +309,7 @@ class DlgLockboxEditor(ArmoryDialog):
          self.widgetMap[i]['LBL_NAME'].setText(dlgComm.edtComment.text())
 
 
-   #############################################################################
+    #############################################################################
    def clickImportButton(self, i):
 
       title = self.tr("Import Public Key Block")
@@ -319,7 +324,7 @@ class DlgLockboxEditor(ArmoryDialog):
          'lockbox creation window.')
       ftypes = ['Public Key Blocks (*.lockbox.pub)']
 
-      dlgImport = DlgImportAsciiBlock(self, self.main, 
+      dlgImport = DlgImportAsciiBlock(self, self.main,
                         title, descr, ftypes, DecoratedPublicKey)
       dlgImport.exec_()
       if dlgImport.returnObj:
@@ -334,7 +339,7 @@ class DlgLockboxEditor(ArmoryDialog):
          self.widgetMap[i]['METADATA'][binPub] = [wltLoc, authMeth, authData]
 
 
-   #############################################################################
+    #############################################################################
    def setLongDescr(self):
 
       class DlgSetLongDescr(ArmoryDialog):
@@ -365,14 +370,14 @@ class DlgLockboxEditor(ArmoryDialog):
 
       dlg = DlgSetLongDescr(self, self.longDescr)
       if dlg.exec_():
-         self.longDescr = unicode(dlg.descr.toPlainText())
-   
-      
+         self.longDescr = str(dlg.descr.toPlainText())
 
-   #############################################################################
+
+
+    #############################################################################
    def isPotentiallyValidHexPubKey(self, pkstr):
-      # Don't check for valid pub keys in 65-byte fields; it would be slow
-      # (this will be run after every key press)
+        # Don't check for valid pub keys in 65-byte fields; it would be slow
+        # (this will be run after every key press)
       if len(pkstr) == 33*2:
          return pkstr[:2] in ['02','03']
       elif len(pkstr) == 65*2:
@@ -381,32 +386,32 @@ class DlgLockboxEditor(ArmoryDialog):
          return False
 
 
-   #############################################################################
+    #############################################################################
    def updateLabels(self, *args, **kwargs):
 
-      # Disable the continue button if not all keys are in
+        # Disable the continue button if not all keys are in
       M = int(str(self.comboM.currentText()))
       N = int(str(self.comboN.currentText()))
 
       for i in range(N):
          pkStr = str(self.widgetMap[i]['QLE_PUBK'].text()).strip()
          if not self.isPotentiallyValidHexPubKey(pkStr):
-            #self.btnContinue.setEnabled(False)
+                #self.btnContinue.setEnabled(False)
             self.lblFinal.setText('')
             break
       else:
          self.formFilled = True
-         #self.btnContinue.setEnabled(True)
+            #self.btnContinue.setEnabled(True)
          self.lblFinal.setText(self.tr(
-            'Using the <font color="%s"><b>%d</b></font> public keys above, '
-            'a multi-sig lockbox will be created requiring '
-            '<font color="%s"><b>%d</b></font> signatures to spend '
-            'money.' % (htmlColor('TextBlue'), M, htmlColor('TextBlue'), N)))
+               'Using the <font color="%s"><b>%d</b></font> public keys above, '
+               'a multi-sig lockbox will be created requiring '
+               '<font color="%s"><b>%d</b></font> signatures to spend '
+               'money.' % (htmlColor('TextBlue'), M, htmlColor('TextBlue'), N)))
 
 
-         
-      
-   #############################################################################
+
+
+    #############################################################################
    def updateWidgetTable_M(self, idxM):
       currN = int(str(self.comboN.currentText()))
       currM = idxM + 1
@@ -423,17 +428,17 @@ class DlgLockboxEditor(ArmoryDialog):
       self.comboN.setCurrentIndex(setIndex)
       self.updateWidgetTable(currM, currN)
 
-   #############################################################################
+    #############################################################################
    def updateWidgetTable_N(self, idxN):
       currM = int(str(self.comboM.currentText()))
       self.updateWidgetTable(currM, idxN+self.minN)
 
-   #############################################################################
+    #############################################################################
    def updateWidgetTable(self, M, N):
 
       self.imgPie = QPixmap(':/frag%df.png' % M)
 
-      # Do the bulk of processing stuff
+        # Do the bulk of processing stuff
       for i in range(self.maxN):
          self.widgetMap[i]['IMG_ICON'].setPixmap(self.imgPie.scaled(40,40))
 
@@ -445,11 +450,11 @@ class DlgLockboxEditor(ArmoryDialog):
             self.widgetMap[i]['QLE_PUBK'].setText('')
 
       self.updateLabels()
-         
 
 
 
-   #############################################################################
+
+    #############################################################################
    def clearAll(self):
       self.edtBoxName.clear()
       self.longDescr = ''
@@ -458,8 +463,8 @@ class DlgLockboxEditor(ArmoryDialog):
             if key in ['QLE_PUBK', 'LBL_NAME']:
                widget.clear()
 
-   
-   #############################################################################
+
+    #############################################################################
    def fillForm(self, lboxObj):
 
       self.edtBoxName.setText(lboxObj.shortName)
@@ -482,9 +487,9 @@ class DlgLockboxEditor(ArmoryDialog):
 
       self.updateWidgetTable(lboxObj.M, lboxObj.N)
       self.updateLabels()
-      
-   
-   #############################################################################
+
+
+    #############################################################################
    def doContinue(self):
 
       currM = int(str(self.comboM.currentText()))
@@ -498,7 +503,7 @@ class DlgLockboxEditor(ArmoryDialog):
             'of the lockbox.'), QMessageBox.Ok)
          return
 
-      # If we got here, we already know all the public keys are valid strings
+        # If we got here, we already know all the public keys are valid strings
       pubKeyList = []
       acceptedBlankComment = False
       for i in range(currN):
@@ -515,25 +520,25 @@ class DlgLockboxEditor(ArmoryDialog):
          if isValid:
             pkBin = hex_to_binary(pkHex)
             isValid = self.isPotentiallyValidHexPubKey(pkHex)
-            if len(pkBin) == 65:
-               if not CryptoECDSA().VerifyPublicKeyValid(SecureBinaryData(pkBin)):
-                  isValid = False
-            
-         if not isValid: 
+#                if len(pkBin) == 65:
+#                    if not CryptoECDSA().VerifyPublicKeyValid(SecureBinaryData(pkBin)):
+#                        isValid = False
+
+         if not isValid:
             QMessageBox.critical(self, self.tr('Invalid Public Key'), self.tr(
                'The data specified for public key <b>%d</b> is not valid. '
                'Please double-check the data was entered correctly.' % (i+1)),
                QMessageBox.Ok)
             return
 
-         keyComment = unicode(self.widgetMap[i]['LBL_NAME'].text())
-         #self.widgetMap[i]['METADATA'][binPub] = [wltLoc, authMeth, authData]
+         keyComment = str(self.widgetMap[i]['LBL_NAME'].text())
+            #self.widgetMap[i]['METADATA'][binPub] = [wltLoc, authMeth, authData]
          extras = [None, None, None]
          if pkBin in self.widgetMap[i]['METADATA']:
             extras = self.widgetMap[i]['METADATA'][pkBin][:]
          pubKeyList.append(DecoratedPublicKey(pkBin, keyComment, *extras))
 
-         # Finally, throw a warning if the comment is not set 
+            # Finally, throw a warning if the comment is not set
          strComment = str(self.widgetMap[i]['LBL_NAME'].text()).strip()
          if len(strComment)==0 and not acceptedBlankComment:
             reply =QMessageBox.warning(self, self.tr('Empty Name/ID Field'), self.tr(
@@ -544,21 +549,21 @@ class DlgLockboxEditor(ArmoryDialog):
                'for each party, such as name, email and/or phone number. '
                '<br><br>'
                'Continue with some fields blank? '
-               '<br>(click "No" to go back and finish filling in the form)'), 
+               '<br>(click "No" to go back and finish filling in the form)'),
                QMessageBox.Yes | QMessageBox.No)
 
             if reply==QMessageBox.Yes:
                acceptedBlankComment = True
             else:
                return
-      
 
 
-      # Sort the public keys lexicographically
+
+        # Sort the public keys lexicographically
       dPubKeys = sorted(pubKeyList, key=lambda lbKey: lbKey.binPubKey)
-      binPubKeys = [p.binPubKey for p in dPubKeys] 
+      binPubKeys = [p.binPubKey for p in dPubKeys]
 
-      txOutScript = pubkeylist_to_multisig_script(binPubKeys, currM)  
+      txOutScript = pubkeylist_to_multisig_script(binPubKeys, currM)
       opCodeList = convertScriptToOpStrings(txOutScript)
       scraddr = script_to_scrAddr(txOutScript)
 
@@ -577,7 +582,7 @@ class DlgLockboxEditor(ArmoryDialog):
             if not reply==QMessageBox.Ok:
                return
             else:
-               self.createDate = long(RightNow())
+               self.createDate = int(RightNow())
       
       if not USE_TESTNET and isMofNNonStandardToSpend(currM, currN) and not USE_REGTEST:
          reply = QMessageBox.warning(self, self.tr('Non-Standard to Spend'), self.tr(
@@ -599,9 +604,9 @@ class DlgLockboxEditor(ArmoryDialog):
       LOGINFO('HR Script: \n   ' + '\n   '.join(opCodeList))
       LOGINFO('Lockbox ID: ' + lockboxID)
 
-      self.lockbox = MultiSigLockbox( toUnicode(self.edtBoxName.text()),
-                                      toUnicode(self.longDescr),
-                                      currM, 
+      self.lockbox = MultiSigLockbox( str(self.edtBoxName.text()),
+                                      str(self.longDescr),
+                                      currM,
                                       currN,
                                       dPubKeys,
                                       self.createDate)
@@ -633,39 +638,39 @@ def doExportLockbox(parent, main, lockbox):
    ftypes = ['Lockbox definitions (*.lockbox.def)']
    defaultFN = 'Lockbox_%s_.lockbox.def' % lockbox.asciiID
 
-   DlgExportAsciiBlock(parent, main, lockbox, title, descr, 
-                                                 ftypes, defaultFN).exec_()
+   DlgExportAsciiBlock(parent, main, lockbox, title, descr,
+                                                  ftypes, defaultFN).exec_()
 
-      
+
 
 ################################################################################
 class DlgLockboxManager(ArmoryDialog):
    def __init__(self, parent, main):
       super(DlgLockboxManager, self).__init__(parent, main)
 
-      #if not USE_TESTNET:
-         #QMessageBox.warning(self, self.tr('Dangerous Feature!'), self.tr(
-            #'Multi-signature transactions are an '
-            #'<b>EXPERIMENTAL</b> feature in this version of Armory.  It is '
-            #'<u><b>not</b></u> intended to be used with real money, until all '
-            #'the warnings like this one go away.'
-            #'<br><br>'
-            #'<b>Use at your own risk!</b>'), QMessageBox.Ok)
+        #if not USE_TESTNET:
+            #QMessageBox.warning(self, self.tr('Dangerous Feature!'), self.tr(
+                #'Multi-signature transactions are an '
+                #'<b>EXPERIMENTAL</b> feature in this version of Armory.  It is '
+                #'<u><b>not</b></u> intended to be used with real money, until all '
+                #'the warnings like this one go away.'
+                #'<br><br>'
+                #'<b>Use at your own risk!</b>'), QMessageBox.Ok)
 
       if len(self.main.allLockboxes) > 0:
          lblDescr = QRichLabel(self.tr(
-            '<font color="%s" size=4><b>Manage Multi-Sig Lockboxes</b></font> '
-            '<br>Double-click on a lockbox to edit' % htmlColor('TextBlue')), hAlign=Qt.AlignHCenter)
+             '<font color="%s" size=4><b>Manage Multi-Sig Lockboxes</b></font> '
+             '<br>Double-click on a lockbox to edit' % htmlColor('TextBlue')), hAlign=Qt.AlignHCenter)
       else:
          lblDescr = QRichLabel(self.tr(
-            '<font color="%s" size=4><b>Manage Multi-Sig Lockboxes</b></font> ' % htmlColor('TextBlue')), hAlign=Qt.AlignHCenter)
+             '<font color="%s" size=4><b>Manage Multi-Sig Lockboxes</b></font> ' % htmlColor('TextBlue')), hAlign=Qt.AlignHCenter)
       
       frmDescr = makeVertFrame([lblDescr], STYLE_RAISED)
 
 
-      # For the dashboard
+        # For the dashboard
       self.updateDashboardFuncs = []
-   
+
       self.lboxModel = LockboxDisplayModel(self.main, \
                                     self.main.allLockboxes, \
                                     self.main.getPreferredDateFormat())
@@ -686,12 +691,12 @@ class DlgLockboxManager(ArmoryDialog):
       self.lboxView.customContextMenuRequested.connect(self.showLboxContextMenu)
 
       self.connect( \
-            self.lboxView, 
-            SIGNAL('clicked(QModelIndex)'), 
+            self.lboxView,
+            SIGNAL('clicked(QModelIndex)'),
             self.singleClickLockbox)
       self.connect( \
-            self.lboxView, 
-            SIGNAL('doubleClicked(QModelIndex)'), 
+            self.lboxView,
+            SIGNAL('doubleClicked(QModelIndex)'),
             self.dblClickLockbox)
 
       self.txtLockboxInfo = QTextEdit()
@@ -743,14 +748,14 @@ class DlgLockboxManager(ArmoryDialog):
       self.ledgerView.customContextMenuRequested.connect(self.showContextMenuLedger)
 
 
-      # Setup the details tab
+        # Setup the details tab
       self.tabDetails = QWidget()
       layoutDetails = QHBoxLayout()
-      #layoutDetails.addWidget(frmManageBtns)  # Removed when added dash tab
+        #layoutDetails.addWidget(frmManageBtns)  # Removed when added dash tab
       layoutDetails.addWidget(self.txtLockboxInfo, 1)
       self.tabDetails.setLayout(layoutDetails)
 
-      # Setup the ledger tab
+        # Setup the ledger tab
       self.tabLedger = QWidget()
       layoutLedger = QVBoxLayout()
       layoutLedger.addWidget(self.ledgerView)
@@ -758,7 +763,7 @@ class DlgLockboxManager(ArmoryDialog):
       layoutLedger.addWidget(bottomRow)
       self.tabLedger.setLayout(layoutLedger)
 
-      # Creates self.stkDashboard
+        # Creates self.stkDashboard
       self.createLockboxDashboardTab()
 
       self.tabbedDisplay = QTabWidget()
@@ -805,7 +810,7 @@ class DlgLockboxManager(ArmoryDialog):
 
       self.changeLBFilter()
 
-   #############################################################################
+    #############################################################################
    def createLockboxDashboardTab(self):
 
       ORGANIZER   = 'Organizer'
@@ -814,172 +819,172 @@ class DlgLockboxManager(ArmoryDialog):
       self.allDashButtons = [{}, {}]
 
 
-      # We need two of these dictionaries:  we're going to put the widgets
-      # directly into them, and we need one for each of the two stack pages
+        # We need two of these dictionaries:  we're going to put the widgets
+        # directly into them, and we need one for each of the two stack pages
       for i in [0,1]:
          self.allDashButtons[i] = \
-         {
-         'CreateLB':   { \
-               'button':  self.tr('Create Lockbox'),
-               'callbk':  self.doCreate,
-               'organiz': True,
-               'lbltxt':  self.tr('Collect public keys'),
-               'tiptxt':  self.tr('Create a lockbox by collecting public keys '
-                                'from each device or person that will be '
-                                'a signing authority over the funds.  Once '
-                                'created you will be given a chunk of text '
-                                'to send to each party so they can recognize '
-                                'and sign transactions related to the '
-                                'lockbox.'),
-               'select':  None,
-               'offline': None},
+            {
+            'CreateLB':   { \
+                  'button':  self.tr('Create Lockbox'),
+                  'callbk':  self.doCreate,
+                  'organiz': True,
+                  'lbltxt':  self.tr('Collect public keys'),
+                  'tiptxt':  self.tr('Create a lockbox by collecting public keys '
+                                   'from each device or person that will be '
+                                   'a signing authority over the funds.  Once '
+                                   'created you will be given a chunk of text '
+                                   'to send to each party so they can recognize '
+                                   'and sign transactions related to the '
+                                   'lockbox.'),
+                  'select':  None,
+                  'offline': None},
 
-         'SelectKey':  { \
-               'button':  self.tr('Select Public Key'),
-               'callbk':  self.doSelectKey,
-               'organiz': False,
-               'lbltxt':  self.tr('Send to organizer'),
-               'tiptxt':  self.tr('In order to create a lockbox all devices '
-                                'and/or parties need to provide a public key '
-                                'that they control to be merged by the '
-                                'organizer.  Once all keys are collected, '
-                                'the organizer will send you the final '
-                                'lockbox definition to import.'),
-               'select':  None,
-               'offline': None},
+            'SelectKey':  { \
+                  'button':  self.tr('Select Public Key'),
+                  'callbk':  self.doSelectKey,
+                  'organiz': False,
+                  'lbltxt':  self.tr('Send to organizer'),
+                  'tiptxt':  self.tr('In order to create a lockbox all devices '
+                                   'and/or parties need to provide a public key '
+                                   'that they control to be merged by the '
+                                   'organizer.  Once all keys are collected, '
+                                   'the organizer will send you the final '
+                                   'lockbox definition to import.'),
+                  'select':  None,
+                  'offline': None},
 
-         'ExportLB':   { \
-               'button':  self.tr('Export Lockbox'),
-               'callbk':  self.doExport,
-               'organiz': False,
-               'lbltxt':  self.tr('Send to other devices or parties'),
-               'tiptxt':  self.tr('Export a lockbox definition to be imported '
-                                'by other devices or parties.  Normally the '
-                                'lockbox organizer will do this after all public '
-                                'keys are collected, but any participant who '
-                                'already has it can send it, such as if one '
-                                'party/device accidentally deletes it.'),
-               'select':  self.tr('Select lockbox to export'),
-               'offline': None},
+            'ExportLB':   { \
+                  'button':  self.tr('Export Lockbox'),
+                  'callbk':  self.doExport,
+                  'organiz': False,
+                  'lbltxt':  self.tr('Send to other devices or parties'),
+                  'tiptxt':  self.tr('Export a lockbox definition to be imported '
+                                   'by other devices or parties.  Normally the '
+                                   'lockbox organizer will do this after all public '
+                                   'keys are collected, but any participant who '
+                                   'already has it can send it, such as if one '
+                                   'party/device accidentally deletes it.'),
+                  'select':  self.tr('Select lockbox to export'),
+                  'offline': None},
 
-         'ImportLB':   { \
-               'button':  self.tr('Import Lockbox'),
-               'callbk':  self.doImport,
-               'organiz': False,
-               'lbltxt':  self.tr('From organizer or other device'),
-               'tiptxt':  self.tr('Import a lockbox definition to begin '
-                                'tracking its funds and to be able to '
-                                'sign related transactions. '
-                                'Normally, the organizer will send you '
-                                'the data to import after you '
-                                'provide a public key from one of your '
-                                'wallets.'),
-               'select':  None,
-               'offline': None},
+            'ImportLB':   { \
+                  'button':  self.tr('Import Lockbox'),
+                  'callbk':  self.doImport,
+                  'organiz': False,
+                  'lbltxt':  self.tr('From organizer or other device'),
+                  'tiptxt':  self.tr('Import a lockbox definition to begin '
+                                   'tracking its funds and to be able to '
+                                   'sign related transactions. '
+                                   'Normally, the organizer will send you '
+                                   'the data to import after you '
+                                   'provide a public key from one of your '
+                                   'wallets.'),
+                  'select':  None,
+                  'offline': None},
 
-         'EditLB':     { \
-               'button':  self.tr('Edit Lockbox'),
-               'callbk':  self.doEdit,
-               'organiz': False,
-               'lbltxt':  '',
-               'tiptxt':  self.tr('Edit an existing lockbox'),
-               'select':  self.tr('Select lockbox to edit'),
-               'offline': None},
+            'EditLB':     { \
+                  'button':  self.tr('Edit Lockbox'),
+                  'callbk':  self.doEdit,
+                  'organiz': False,
+                  'lbltxt':  '',
+                  'tiptxt':  self.tr('Edit an existing lockbox'),
+                  'select':  self.tr('Select lockbox to edit'),
+                  'offline': None},
 
-         #'RegFund':    { \
-               #'button':  self.tr('Fund Lockbox'),
-               #'callbk':  self.doFundIt,
-               #'organiz': False,
-               #'lbltxt':  self.tr('Fund selected lockbox from any wallet'),
-               #'tiptxt':  self.tr('If you would like to fund this lockbox
-                                #'from another lockbox, select the funding '
-                                #'lockbox in the table and click the '
-                                #'"Create Spending Tx" button.  Use the '
-                                #'address book to select this lockbox as the '
-                                #'recipient of that transaction. '
-                                #'<br><br> '
-                                #'If multiple people will be funding '
-                                #'this lockbox and not all of them are fully '
-                                #'trusted, click the "Simul" checkbox on the '
-                                #'left to see the Simulfunding options.'),
-               #'select':  self.tr('Select a lockbox to fund<br>'),
-               #'offline': self.tr('Must be online to fund<br>')},
-               # Added <br> to the labels to force to be two lines... this
-               # is a hack to make sure that the row inits to a reasonable
-               # size on open
-               
-
-         'MergeProm':  { \
-               'button':  self.tr('Merge Promissory Notes'),
-               'callbk':  self.doMergeProm,
-               'organiz': True,
-               'lbltxt':  '',
-               'tiptxt':  self.tr('Collect promissory notes from all funders '
-                                'of a Simulfunding transaction.  Use this to '
-                                'merge them into a single transaction that '
-                                'the funders can review and sign.'),
-               'select':  None,
-               'offline': None},
-
-         'CreateProm': { \
-               'button':  self.tr('Create Promissory Note'),
-               'callbk':  self.doCreateProm,
-               'organiz': False,
-               'lbltxt':  self.tr('Make a funding commitment to a lockbox'),
-               'tiptxt':  self.tr('A "promissory note" provides blockchain '
-                                'information about how your wallet will '
-                                'contribute funds to a Simulfunding transaction. '
-                                'A promissory note does <b>not</b> '
-                                'move any money in your wallet.  The organizer '
-                                'will create a single transaction that includes '
-                                'all promissory notes and you will be able to  '
-                                'review it in its entirety before signing.'),
-               'select':  self.tr('Select lockbox to commit funds to'),
-               'offline': self.tr('Must be online to create')},
-
-         'RevSign':    { \
-               'button':  self.tr('Review and Sign'),
-               'callbk':  self.doReview,
-               'organiz': False,
-               'lbltxt':  self.tr('Multi-sig spend or Simulfunding'),
-               'tiptxt':  self.tr('Review and sign any lockbox-related '
-                                'transaction that requires multiple '
-                                'signatures.  This includes spending '
-                                'transactions from a regular lockbox, '
-                                'as well as completing a Simulfunding '
-                                'transaction.'),
-               'select':  None,
-               'offline': None},
-
-         'CreateTx':   { \
-               'button':  self.tr('Create Spending Tx'),
-               'callbk':  self.doSpend,
-               'organiz': True,
-               'lbltxt':  self.tr('Send bitcoins from lockbox'),
-               'tiptxt':  self.tr('Create a proposed transaction sending bitcoins '
-                                'to an address, wallet or another lockbox. '
-                                'The transaction will not be final until enough '
-                                'signatures have been collected and then '
-                                'broadcast from an online computer.'),
-               'select':  self.tr('Select lockbox to spend from'),
-               'offline': self.tr('Must be online to spend')},
+            #'RegFund':    { \
+                  #'button':  self.tr('Fund Lockbox'),
+                  #'callbk':  self.doFundIt,
+                  #'organiz': False,
+                  #'lbltxt':  self.tr('Fund selected lockbox from any wallet'),
+                  #'tiptxt':  self.tr('If you would like to fund this lockbox
+                                   #'from another lockbox, select the funding '
+                                   #'lockbox in the table and click the '
+                                   #'"Create Spending Tx" button.  Use the '
+                                   #'address book to select this lockbox as the '
+                                   #'recipient of that transaction. '
+                                   #'<br><br> '
+                                   #'If multiple people will be funding '
+                                   #'this lockbox and not all of them are fully '
+                                   #'trusted, click the "Simul" checkbox on the '
+                                   #'left to see the Simulfunding options.'),
+                  #'select':  self.tr('Select a lockbox to fund<br>'),
+                  #'offline': self.tr('Must be online to fund<br>')},
+                  # Added <br> to the labels to force to be two lines... this
+                  # is a hack to make sure that the row inits to a reasonable
+                  # size on open
 
 
-         'MergeSigs':  { \
-               'button':  self.tr('Collect Sigs && Broadcast'),
-               'callbk':  self.doReview,
-               'organiz': True,
-               'lbltxt':  self.tr('Merge signatures to finalize'),
-               'tiptxt':  self.tr('Merge signatures and broadcast transaction'),
-               'select':  None,
-               'offline': self.tr('(must be online to broadcast)')},
-      }
+            'MergeProm':  { \
+                  'button':  self.tr('Merge Promissory Notes'),
+                  'callbk':  self.doMergeProm,
+                  'organiz': True,
+                  'lbltxt':  '',
+                  'tiptxt':  self.tr('Collect promissory notes from all funders '
+                                   'of a Simulfunding transaction.  Use this to '
+                                   'merge them into a single transaction that '
+                                   'the funders can review and sign.'),
+                  'select':  None,
+                  'offline': None},
+
+            'CreateProm': { \
+                  'button':  self.tr('Create Promissory Note'),
+                  'callbk':  self.doCreateProm,
+                  'organiz': False,
+                  'lbltxt':  self.tr('Make a funding commitment to a lockbox'),
+                  'tiptxt':  self.tr('A "promissory note" provides blockchain '
+                                   'information about how your wallet will '
+                                   'contribute funds to a Simulfunding transaction. '
+                                   'A promissory note does <b>not</b> '
+                                   'move any money in your wallet.  The organizer '
+                                   'will create a single transaction that includes '
+                                   'all promissory notes and you will be able to  '
+                                   'review it in its entirety before signing.'),
+                  'select':  self.tr('Select lockbox to commit funds to'),
+                  'offline': self.tr('Must be online to create')},
+
+            'RevSign':    { \
+                  'button':  self.tr('Review and Sign'),
+                  'callbk':  self.doReview,
+                  'organiz': False,
+                  'lbltxt':  self.tr('Multi-sig spend or Simulfunding'),
+                  'tiptxt':  self.tr('Review and sign any lockbox-related '
+                                   'transaction that requires multiple '
+                                   'signatures.  This includes spending '
+                                   'transactions from a regular lockbox, '
+                                   'as well as completing a Simulfunding '
+                                   'transaction.'),
+                  'select':  None,
+                  'offline': None},
+
+            'CreateTx':   { \
+                  'button':  self.tr('Create Spending Tx'),
+                  'callbk':  self.doSpend,
+                  'organiz': True,
+                  'lbltxt':  self.tr('Send bitcoins from lockbox'),
+                  'tiptxt':  self.tr('Create a proposed transaction sending bitcoins '
+                                   'to an address, wallet or another lockbox. '
+                                   'The transaction will not be final until enough '
+                                   'signatures have been collected and then '
+                                   'broadcast from an online computer.'),
+                  'select':  self.tr('Select lockbox to spend from'),
+                  'offline': self.tr('Must be online to spend')},
 
 
-      # We will have two pages on the stack.  The first one is for regular
-      # funding with all the Simulfunding options missing.  The second one
-      # is re-arranged (but mostly the same widgets) but with the additional
-      # Simulfunding widgets
+            'MergeSigs':  { \
+                  'button':  self.tr('Collect Sigs && Broadcast'),
+                  'callbk':  self.doReview,
+                  'organiz': True,
+                  'lbltxt':  self.tr('Merge signatures to finalize'),
+                  'tiptxt':  self.tr('Merge signatures and broadcast transaction'),
+                  'select':  None,
+                  'offline': self.tr('(must be online to broadcast)')},
+         }
+
+
+        # We will have two pages on the stack.  The first one is for regular
+        # funding with all the Simulfunding options missing.  The second one
+        # is re-arranged (but mostly the same widgets) but with the additional
+        # Simulfunding widgets
       self.stkDashboard = QStackedWidget()
 
       simultxt = 'Simulfund'
@@ -993,7 +998,7 @@ class DlgLockboxManager(ArmoryDialog):
          'Simulfunding options in the table.')
       ttipSimulA = self.main.createToolTipWidget(ttipSimulTxt)
       ttipSimulB = self.main.createToolTipWidget(ttipSimulTxt)
-         
+
 
       def clickSimulA():
          self.chkSimulfundB.setChecked(self.chkSimulfundA.isChecked())
@@ -1004,7 +1009,7 @@ class DlgLockboxManager(ArmoryDialog):
          self.chkSimulfundA.setChecked(self.chkSimulfundB.isChecked())
          stk = 1 if self.chkSimulfundB.isChecked() else 0
          self.stkDashboard.setCurrentIndex(stk)
-      
+
          self.chkSimulfundB.setChecked(self.chkSimulfundA.isChecked())
 
       self.connect(self.chkSimulfundA, SIGNAL('clicked()'), clickSimulA)
@@ -1017,10 +1022,10 @@ class DlgLockboxManager(ArmoryDialog):
          lbl = QRichLabel(headStr, bold=True, size=4,
                                    hAlign=Qt.AlignHCenter,
                                    vAlign=Qt.AlignVCenter)
-          
-          
+
+
          if extraWidgList is None:
-            frm = makeVertFrame([lbl], cellStyle) 
+            frm = makeVertFrame([lbl], cellStyle)
          else:
             botLayout = QHBoxLayout()
             for widg in extraWidgList:
@@ -1032,7 +1037,7 @@ class DlgLockboxManager(ArmoryDialog):
             frm = QFrame()
             frm.setLayout(cellLayout)
             frm.setFrameStyle(cellStyle)
-            
+
 
          return frm
 
@@ -1050,7 +1055,7 @@ class DlgLockboxManager(ArmoryDialog):
             if btnMap['organiz']:
                btnMap['BTN'].setAutoFillBackground(True)
                btnMap['BTN'].setStyleSheet(\
-                  'QPushButton { background-color : %s }' % htmlColor('SlightMoreBlue'))
+                   'QPushButton { background-color : %s }' % htmlColor('SlightMoreBlue'))
 
             layout.addWidget(btnMap['BTN'],   0,0)
             layout.addWidget(btnMap['TTIP'],  0,1)
@@ -1068,7 +1073,7 @@ class DlgLockboxManager(ArmoryDialog):
             def updateWidgets(stkPage, btnKey):
                btnMap = self.allDashButtons[stkPage][btnKey]
                def updateFunc(hasSelect, isOnline):
-                  # Default to regular label
+                        # Default to regular label
                   lbltxt = btnMap['lbltxt']
                   orgtxt = '<font color="%s"><b>Organizer</b></font><br>' % \
                                                        htmlColor('TextBlue')
@@ -1098,38 +1103,38 @@ class DlgLockboxManager(ArmoryDialog):
                   else:
                      btnMap['LBL'].setText(lbltxt)
 
-                  # Semi-hack:  
-                  #    The 'MergeSigs' button is the only one that kinda makes 
-                  #    sense to not work offline, but there may be isolated 
-                  #    cases where the user would merge without intending to 
-                  #    broadcast.  Having it disabled in offline mode would
-                  #    make them go mad.  So I'm going to explicitly make sure
-                  #    that just that button is always enabled, even though
-                  #    it might look like a bug.
+                        # Semi-hack:
+                        #    The 'MergeSigs' button is the only one that kinda makes
+                        #    sense to not work offline, but there may be isolated
+                        #    cases where the user would merge without intending to
+                        #    broadcast.  Having it disabled in offline mode would
+                        #    make them go mad.  So I'm going to explicitly make sure
+                        #    that just that button is always enabled, even though
+                        #    it might look like a bug.
                   if btnKey=='MergeSigs':
                      btnMap['BTN'].setEnabled(True)
 
                return updateFunc
 
-            # Add the func to the list of things to call on context change
+                # Add the func to the list of things to call on context change
             self.updateDashFuncs.append(updateWidgets(stk, key))
 
          frmCell = QFrame()
          frmCell.setLayout(layoutMulti)
          frmCell.setFrameStyle(STYLE_RAISED)
 
-         
-         # This was calibrated to linux, but at least it will work on one OS
-         # The alternative was squished text on every OS
+
+            # This was calibrated to linux, but at least it will work on one OS
+            # The alternative was squished text on every OS
          w,h = tightSizeNChar(btnMap['LBL'], 30)
          frmCell.setMinimumHeight(5.5*h)
 
          return frmCell
 
 
-      ##### REGULAR FUNDING - Special Cell ####
-      # This FUND row for regular funding will be totally unlike the others
-      # Create it here instead of with the the createCell() function
+        ##### REGULAR FUNDING - Special Cell ####
+        # This FUND row for regular funding will be totally unlike the others
+        # Create it here instead of with the the createCell() function
       self.lblDispAddr = QRichLabel('', doWrap=False, hAlign=Qt.AlignHCenter)
       self.lblDispAddr.setTextInteractionFlags(Qt.TextSelectableByMouse | \
                                                Qt.TextSelectableByKeyboard)
@@ -1137,8 +1142,8 @@ class DlgLockboxManager(ArmoryDialog):
       self.btnQRCodeDisp  = QPushButton(self.tr('QR Code'))
       self.btnFundRequest = QPushButton(self.tr('Request Payment'))
       self.btnCopyClip = QPushButton(self.tr('Copy Address'))
-      
-      #segwit checkbox
+
+        #segwit checkbox
       self.chkSegWit = QCheckBox("SegWit")
       self.chkSegWit.setChecked(False)
       
@@ -1149,10 +1154,10 @@ class DlgLockboxManager(ArmoryDialog):
          else:
             lbox.setScriptType(LBTYPE_P2SH)
          updateRegFundCell(True, TheBDM.getState() == BDM_BLOCKCHAIN_READY)
-         
+
       self.connect(self.chkSegWit, SIGNAL('clicked()'), checkSegWit)
 
-      def funcCopyClip():  
+      def funcCopyClip():
          lbox = self.getSelectedLockbox()
          if not lbox:
             return
@@ -1162,7 +1167,7 @@ class DlgLockboxManager(ArmoryDialog):
          clipb.setText(scrAddr_to_addrStr(lbox.getAddr()))
          self.main.signalExecution.callLater(1, lambda: self.btnCopyClip.setText('Copy Address'))
 
-      def funcReqPayment():  
+      def funcReqPayment():
          lbox = self.getSelectedLockbox()
          if not lbox:
             return
@@ -1174,7 +1179,7 @@ class DlgLockboxManager(ArmoryDialog):
          if not lbox:
             return
          p2shAddr = scrAddr_to_addrStr(lbox.getAddr())
-         lboxDisp = 'Lockbox %d-of-%d: "%s" (%s)' % (lbox.M, lbox.N, 
+         lboxDisp = 'Lockbox %d-of-%d: "%s" (%s)' % (lbox.M, lbox.N,
                            lbox.shortName, lbox.uniqueIDB58)
          DlgQRCodeDisplay(self, self.main, p2shAddr, p2shAddr, lboxDisp).exec_()
 
@@ -1203,9 +1208,9 @@ class DlgLockboxManager(ArmoryDialog):
             self.lblDispAddr.setEnabled(True)
             self.chkSegWit.setEnabled(True)
             self.lblDispAddr.setText(self.tr(
-               'Anyone can send funds to this lockbox using this '
-               'Bitcoin address: <br><b>%s</b>' % p2shAddr))
-            
+                 'Anyone can send funds to this lockbox using this '
+                 'Bitcoin address: <br><b>%s</b>' % p2shAddr))
+
       def setSWCheckBox(arg1, arg2):
          lbox = self.getSelectedLockbox()
          if lbox == None:
@@ -1215,7 +1220,7 @@ class DlgLockboxManager(ArmoryDialog):
             self.chkSegWit.setChecked(False)
          else:
             self.chkSegWit.setChecked(True)
-            
+
       self.updateDashFuncs.append(updateRegFundCell)
       self.updateDashFuncs.append(setSWCheckBox)
 
@@ -1238,21 +1243,21 @@ class DlgLockboxManager(ArmoryDialog):
       frmFundRegCell.setLayout(layoutFundRow)
       frmFundRegCell.setFrameStyle(STYLE_RAISED)
 
-      ##### REGULAR FUNDING - Special Cell ####
-            
+        ##### REGULAR FUNDING - Special Cell ####
 
-      # First frame is for regular funding.  Switch to frmMulti if chkSimulfundA
+
+        # First frame is for regular funding.  Switch to frmMulti if chkSimulfundA
       frmSingle = QFrame()
       frmSingleLayout = QGridLayout()
 
       firstRow  = createCell(0, ['CreateLB', 'SelectKey', 'ExportLB', 'ImportLB'], HORIZONTAL)
-      #secondRow = createCell(0, ['RegFund'], HORIZONTAL)
+        #secondRow = createCell(0, ['RegFund'], HORIZONTAL)
       thirdRow  = createCell(0, ['CreateTx', 'RevSign', 'MergeSigs'], HORIZONTAL)
 
       frmSingleLayout.addWidget(createHeaderCell('CREATE'),    0,0)
       frmSingleLayout.addWidget(firstRow,                      0,1,  1,3)
 
-      frmSingleLayout.addWidget(createHeaderCell('FUND', 
+      frmSingleLayout.addWidget(createHeaderCell('FUND',
                             [self.chkSimulfundA, ttipSimulA]), 1,0)
       frmSingleLayout.addWidget(frmFundRegCell,                   1,1,  1,3)
 
@@ -1271,7 +1276,7 @@ class DlgLockboxManager(ArmoryDialog):
       self.stkDashboard.addWidget(frmSingle)
 
 
-      # Second frame is for Simulfunding
+        # Second frame is for Simulfunding
       frmMulti = QFrame()
       frmMultiLayout = QGridLayout()
 
@@ -1283,7 +1288,7 @@ class DlgLockboxManager(ArmoryDialog):
       frmMultiLayout.addWidget(createHeaderCell('CREATE'),    0,0)
       frmMultiLayout.addWidget(firstRow,                      0,1,  1,3)
 
-      frmMultiLayout.addWidget(createHeaderCell('FUND', 
+      frmMultiLayout.addWidget(createHeaderCell('FUND',
                            [self.chkSimulfundB, ttipSimulB]), 1,0)
       frmMultiLayout.addWidget(secondRow,                     1,1,  1,2)
       frmMultiLayout.addWidget(lastCol,                       1,3,  2,1)
@@ -1305,18 +1310,18 @@ class DlgLockboxManager(ArmoryDialog):
       frmMulti.setFrameStyle(STYLE_STYLED)
       self.stkDashboard.addWidget(frmMulti)
 
-      # Default is to use frmSingle
+        # Default is to use frmSingle
       self.stkDashboard.setCurrentIndex(0)
 
 
-   #############################################################################
+    #############################################################################
    def updateTxCommentFromView(self, view):
       index = view.selectedIndexes()[0]
       row, col = index.row(), index.column()
       currComment = str(view.model().index(row, LEDGERCOLS.Comment).data().toString())
       if not currComment:
          dialog = DlgSetComment(self, self.main, currComment, self.tr('Add Transaction Comment'))
-      else:          
+      else:
          dialog = DlgSetComment(self, self.main, currComment, self.tr('Change Transaction Comment'))
       if dialog.exec_():
          newComment = str(dialog.edtComment.text())
@@ -1329,18 +1334,18 @@ class DlgLockboxManager(ArmoryDialog):
                self.main.walletMap[wltID].setComment(hex_to_binary(txHash), newComment)
          self.main.walletListChanged()
 
-   #############################################################################
+    #############################################################################
    def dblClickLedger(self, index):
       if index.column()==LEDGERCOLS.Comment:
          self.updateTxCommentFromView(self.ledgerView)
       else:
          self.showLedgerTx()
-   
-   #############################################################################
+
+    #############################################################################
    def showLedgerTx(self):
       row = self.ledgerView.selectedIndexes()[0].row()
       txHash = str(self.ledgerView.model().index(row, LEDGERCOLS.TxHash).data().toString())
-      txtime = unicode(self.ledgerView.model().index(row, LEDGERCOLS.DateStr).data().toString())
+      txtime = str(self.ledgerView.model().index(row, LEDGERCOLS.DateStr).data().toString())
 
       pytx = None
       txHashBin = hex_to_binary(txHash)
@@ -1366,8 +1371,8 @@ class DlgLockboxManager(ArmoryDialog):
             break
 
       DlgDispTxInfo( pytx, wlt, self, self.main, txtime=txtime).exec_()
-   
-   #############################################################################
+
+    #############################################################################
    def showContextMenuLedger(self):
       menu = QMenu(self.ledgerView)
 
@@ -1403,10 +1408,10 @@ class DlgLockboxManager(ArmoryDialog):
          except:
             LOGEXCEPT('Failed to open webbrowser')
             QMessageBox.critical(self, self.tr('Could not open browser'), \
-               self.tr('Armory encountered an error opening your web browser.  To view '
-               'this transaction on blockchain.info, please copy and paste '
-               'the following URL into your browser: '
-               '<br><br>%s' % blkExploreURL), QMessageBox.Ok)
+                 self.tr('Armory encountered an error opening your web browser.  To view '
+                 'this transaction on blockchain.info, please copy and paste '
+                 'the following URL into your browser: '
+                 '<br><br>%s' % blkExploreURL), QMessageBox.Ok)
       elif action==actCopyTxID:
          clipb = QApplication.clipboard()
          clipb.clear()
@@ -1414,15 +1419,15 @@ class DlgLockboxManager(ArmoryDialog):
       elif action==actComment:
          self.updateTxCommentFromView(self.ledgerView)
 
-         
-   #############################################################################
+
+    #############################################################################
    def showLboxContextMenu(self, pos):
       menu = QMenu(self.lboxView)
       std = (self.main.usermode == USERMODE.Standard)
       adv = (self.main.usermode == USERMODE.Advanced)
       dev = (self.main.usermode == USERMODE.Expert)
-
       
+
 
       if True:  actionCopyAddr    = menu.addAction(self.tr("Copy P2SH address"))
       if True:  actionShowQRCode  = menu.addAction(self.tr("Display address QR code"))
@@ -1434,27 +1439,27 @@ class DlgLockboxManager(ArmoryDialog):
       if dev:   actionCopyHash160 = menu.addAction(self.tr("Copy hash160 value (hex)"))
       if True:  actionCopyBalance = menu.addAction(self.tr("Copy balance"))
       if True:  actionRemoveLB    = menu.addAction(self.tr("Delete Lockbox"))
-      #if ENABLE_SUPERNODE is False:  
-      #  actionRescanLB    = menu.addAction(self.tr("Rescan Lockbox"))
+        #if ENABLE_SUPERNODE is False:
+        #  actionRescanLB    = menu.addAction(self.tr("Rescan Lockbox"))
 
       selectedIndexes = self.lboxView.selectedIndexes()
 
       if len(selectedIndexes)>0:
          idx = selectedIndexes[0]
          action = menu.exec_(QCursor.pos())
-   
-   
-         # Get data on a given row, easily
+
+
+            # Get data on a given row, easily
          def getModelStr(col):
             model = self.lboxView.model()
             qstr = model.index(idx.row(), col).data().toString()
             return str(qstr).strip()
-   
-   
+
+
          lboxId = getModelStr(LOCKBOXCOLS.ID)
          lbox = self.main.getLockboxByID(lboxId)
          p2shAddr = script_to_addrStr(script_to_p2sh_script(lbox.binScript)) if lbox else None
-   
+
          if action == actionCopyAddr:
             clippy = p2shAddr
          elif action == actionBlkChnInfo:
@@ -1463,12 +1468,12 @@ class DlgLockboxManager(ArmoryDialog):
                DlgBrowserWarn(urlToOpen).exec_()
             except:
                QMessageBox.critical(self, self.tr('Could not open browser'), self.tr(
-                  'Armory encountered an error opening your web browser.  To view '
-                  'this address on %s, please copy and paste '
-                  'the following URL into your browser: '
-                  '<br><br>'
-                  '<a href="%s">%s</a>' % (BLOCKEXPLORE_NAME, urlToOpen,
-                  urlToOpen)), QMessageBox.Ok)
+                   'Armory encountered an error opening your web browser.  To view '
+                   'this address on %s, please copy and paste '
+                   'the following URL into your browser: '
+                   '<br><br>'
+                   '<a href="%s">%s</a>' % (BLOCKEXPLORE_NAME, urlToOpen,
+                   urlToOpen)), QMessageBox.Ok)
             return
          elif action == actionShowQRCode:
             DlgQRCodeDisplay(self, self.main, p2shAddr, p2shAddr, createLockboxEntryStr(lboxId)).exec_()
@@ -1492,7 +1497,7 @@ class DlgLockboxManager(ArmoryDialog):
                
                if reply[1]==True:
                   self.main.writeSetting('DNAA_P2SHCompatWarn', True)
-         
+
             DlgRequestPayment(self, self.main, p2shAddr).exec_()
             return
          elif dev and action == actionCopyHash160:
@@ -1503,7 +1508,7 @@ class DlgLockboxManager(ArmoryDialog):
             dispInfo = self.main.getDisplayStringForScript(lbox.getScript())
             reply = QMessageBox.warning(self, self.tr('Confirm Delete'), self.tr(
                '"Removing" a lockbox does not delete any signing keys, so you '
-               'maintain signing authority for any coins that are sent there. '  
+               'maintain signing authority for any coins that are sent there. '
                'However, it will remove it from the list of lockboxes, and you '
                'will have to re-import it later in order to send any funds '
                'to or from the lockbox.'
@@ -1518,33 +1523,33 @@ class DlgLockboxManager(ArmoryDialog):
                self.singleClickLockbox()
 
             return
-         
-         #elif action == actionRescanLB:
-         #   dispInfo = self.main.getDisplayStringForScript(lbox.binScript)            
-         #   reply = QMessageBox.warning(self, self.tr('Confirm Rescan'), self.tr(
-         #      'Rescaning a Lockbox will make it unavailable for the duration '
-         #      'of the process.'
-         #      '<br><br>'
-         #      'You are about to rescan the following lockbox: '
-         #      '<br><br>'
-         #      '<font color="%s">%s</font>' % (htmlColor('TextBlue'),
-         #      dispInfo['String'])), QMessageBox.Yes | QMessageBox.No)
-         #
-         #   if reply==QMessageBox.Yes:    
-         #      lwlt = self.main.cppLockboxWltMap[lbox.uniqueIDB58]  
-         #      lwlt.forceScan()          
-         #      self.lboxModel.reset()
-         #      
-         #   return
+
+            #elif action == actionRescanLB:
+            #   dispInfo = self.main.getDisplayStringForScript(lbox.binScript)
+            #   reply = QMessageBox.warning(self, self.tr('Confirm Rescan'), self.tr(
+            #      'Rescaning a Lockbox will make it unavailable for the duration '
+            #      'of the process.'
+            #      '<br><br>'
+            #      'You are about to rescan the following lockbox: '
+            #      '<br><br>'
+            #      '<font color="%s">%s</font>' % (htmlColor('TextBlue'),
+            #      dispInfo['String'])), QMessageBox.Yes | QMessageBox.No)
+            #
+            #   if reply==QMessageBox.Yes:
+            #      lwlt = self.main.cppLockboxWltMap[lbox.uniqueIDB58]
+            #      lwlt.forceScan()
+            #      self.lboxModel.reset()
+            #
+            #   return
          
          else:
             return
-   
+
          clipb = QApplication.clipboard()
          clipb.clear()
          clipb.setText(str(clippy).strip())
 
-   #############################################################################
+    #############################################################################
    def updateButtonDisable(self):
       noSelection = (self.getSelectedLBID() is None)
       isOffline = (not TheBDM.getState()==BDM_BLOCKCHAIN_READY)
@@ -1562,14 +1567,14 @@ class DlgLockboxManager(ArmoryDialog):
       
       if noSelection:
          self.txtLockboxInfo.setText(self.tr('<br><br><font color="%s"><center><b> '
-            'Select a lockbox from the table above to view its info</b></center> '
-            '</font>' % htmlColor('DisableFG')))
+             'Select a lockbox from the table above to view its info</b></center> '
+             '</font>' % htmlColor('DisableFG')))
 
       for fn in self.updateDashFuncs:
-         # Whoops, made the args inverses of what the func takes, oh well
+            # Whoops, made the args inverses of what the func takes, oh well
          fn(not noSelection, not isOffline)
-      
-   #############################################################################
+
+    #############################################################################
    def getSelectedLBID(self):
       selection = self.lboxView.selectedIndexes()
       if len(selection)==0:
@@ -1578,43 +1583,42 @@ class DlgLockboxManager(ArmoryDialog):
       idCol = LOCKBOXCOLS.ID
       return str(self.lboxView.model().index(row, idCol).data().toString())
 
-   #############################################################################
+    #############################################################################
    def getSelectedLockbox(self):
       lbID = self.getSelectedLBID()
       if lbID:
          return self.main.getLockboxByID(lbID)
       return None
-   
-   #############################################################################
+
+    #############################################################################
    def resetLBSelection(self):
       self.lboxView.clearSelection()
       self.singleClickLockbox(None, [])
 
-   #############################################################################
+    #############################################################################
    def getDisplayRichText(self, lb, tr=None, dateFmt=None):
 
       if dateFmt is None:
          dateFmt = DEFAULT_DATE_FORMAT
 
       if tr is None:
-         tr = lambda x: unicode(x)
+         tr = lambda x: str(x)
 
       EMPTYLINE = u''
 
-      shortName = toUnicode(lb.shortName)
+      shortName = str(lb.shortName)
       if len(shortName.strip())==0:
          shortName = u'<No Lockbox Name'
 
-      longDescr = toUnicode(lb.longDescr)
+      longDescr = str(lb.longDescr)
       if len(longDescr.strip())==0:
          longDescr = '--- No Extended Info ---'
       longDescr = longDescr.replace('\n','<br>')
       longDescr = textwrap.fill(longDescr, width=60)
 
-
       formattedDate = unixTimeToFormatStr(lb.createDate, dateFmt)
       
-      lines = QStringList()
+      lines = []
       lines.append(self.tr('<font color="%s" size=4><center><u>Lockbox Information for '
          '<b>%s</b></u></center></font>' % (htmlColor("TextBlue"), lb.uniqueIDB58)))
       lines.append(self.tr('<b>Multisig:</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;%d-of-%d' % (lb.M, lb.N)))
@@ -1641,7 +1645,7 @@ class DlgLockboxManager(ArmoryDialog):
       lines.append(self.tr('</font>'))
       return lines.join('<br>')
 
-   #############################################################################
+    #############################################################################
    def singleClickLockbox(self, index=None, *args):
       lb = self.getSelectedLockbox()
       if lb:
@@ -1652,7 +1656,7 @@ class DlgLockboxManager(ArmoryDialog):
       self.updateButtonDisable()
 
 
-   #############################################################################
+    #############################################################################
    def dblClickLockbox(self, index, *args):
       lb = self.getSelectedLockbox()
       if lb:
@@ -1661,31 +1665,31 @@ class DlgLockboxManager(ArmoryDialog):
          self.singleClickLockbox()
 
 
-   #############################################################################
+    #############################################################################
    def doCreate(self):
       dlg = DlgLockboxEditor(self, self.main).exec_()
       if dlg:
          self.lboxModel.reset()
          self.singleClickLockbox()
       self.updateButtonDisable()
-         
-   #############################################################################
+
+    #############################################################################
    def doSelectKey(self):
       dlg = DlgSelectPublicKey(self, self.main).exec_()
 
-   #############################################################################
+    #############################################################################
    def doImport(self):
       dlg = DlgImportLockbox(self, self.main)
       if dlg.exec_():
          if dlg.importedLockbox is not None:
             self.main.updateOrAddLockbox(dlg.importedLockbox, isFresh=False)
-               
+
          self.lboxModel.reset()
          self.singleClickLockbox()
       self.updateButtonDisable()
-         
 
-   #############################################################################
+
+    #############################################################################
    def doEdit(self):
       lb = self.getSelectedLockbox()
       DlgLockboxEditor(self, self.main, loadBox=lb).exec_()
@@ -1693,29 +1697,29 @@ class DlgLockboxManager(ArmoryDialog):
       self.singleClickLockbox()
       self.updateButtonDisable()
 
-   #############################################################################
+    #############################################################################
    def doExport(self):
       lb = self.getSelectedLockbox()
       doExportLockbox(self, self.main, lb)
       self.updateButtonDisable()
 
 
-   #############################################################################
+    #############################################################################
    def doMergeProm(self):
       lb = self.getSelectedLockbox()
       lbID = None if lb is None else lb.uniqueIDB58
       DlgMergePromNotes(self, self.main, lbID).exec_()
-                        
 
-   #############################################################################
+
+    #############################################################################
    def doCreateProm(self):
       lb = self.getSelectedLockbox()
       lbID = None if lb is None else lb.uniqueIDB58
       DlgCreatePromNote(self, self.main, lbID).exec_()
 
 
-   
-   #############################################################################
+
+    #############################################################################
    def doReview(self):
       title = self.tr("Import Signature Collector")
       descr = self.tr(
@@ -1726,7 +1730,7 @@ class DlgLockboxManager(ArmoryDialog):
          'a file, which is saved by default with a '
          '<i>*.sigcollect.tx</i> extension.')
       ftypes = ['Signature Collectors (*.sigcollect.tx)']
-      dlgImport = DlgImportAsciiBlock(self, self.main, 
+      dlgImport = DlgImportAsciiBlock(self, self.main,
                         title, descr, ftypes, UnsignedTransaction)
       dlgImport.exec_()
       if dlgImport.returnObj:
@@ -1734,7 +1738,7 @@ class DlgLockboxManager(ArmoryDialog):
          DlgMultiSpendReview(self, self.main, ustx).exec_()
 
 
-   #############################################################################
+    #############################################################################
    def doDelete(self):
       lb = self.getSelectedLockbox()
       dispInfo = self.main.getDisplayStringForScript(lb.binScript, 100, 2,
@@ -1758,8 +1762,8 @@ class DlgLockboxManager(ArmoryDialog):
       self.updateButtonDisable()
 
 
-   
-   #############################################################################
+
+    #############################################################################
    def doFundIt(self):
 
       reply = QMessageBox.warning(self, self.tr('[WARNING]'), self.tr(
@@ -1782,18 +1786,18 @@ class DlgLockboxManager(ArmoryDialog):
 
 
       if not reply==QMessageBox.Ok:
-         return 
+         return
 
       lbID = self.getSelectedLBID()
       lb = self.main.getLockboxByID(lbID)
-      prefillMap = {'lockbox': lbID, 
+      prefillMap = {'lockbox': lbID,
                     'message': self.tr('Funding %d-of-%d' % (lb.M, lb.N)) }
       
       DlgSendBitcoins(None, self, self.main, \
          wltIDList=prefillMap, spendFromLockboxID=lbID).exec_()
       self.updateButtonDisable()
 
-   #############################################################################
+    #############################################################################
    def doSimul(self):
       
       lbID = self.getSelectedLBID()
@@ -1816,7 +1820,7 @@ class DlgLockboxManager(ArmoryDialog):
             'Files containing signature-collecting data usually end with '
             '<i>*.sigcollect.tx</i>.')
          ftypes = ['Signature Collectors (*.sigcollect.tx)']
-         dlgImport = DlgImportAsciiBlock(self, self.main, 
+         dlgImport = DlgImportAsciiBlock(self, self.main,
                            title, descr, ftypes, UnsignedTransaction)
          dlgImport.exec_()
          if dlgImport.returnObj:
@@ -1826,52 +1830,52 @@ class DlgLockboxManager(ArmoryDialog):
       self.updateButtonDisable()
 
 
-   #############################################################################
+    #############################################################################
    def doSpend(self):
       lbID = self.getSelectedLBID()
       dlg = DlgSendBitcoins(None, self, self.main, spendFromLockboxID=lbID)
       dlg.exec_()
       self.updateButtonDisable()
-      
 
-   #############################################################################
+
+    #############################################################################
    def saveGeometrySettings(self):
       self.main.writeSetting('LockboxGeometry', self.saveGeometry().toHex())
       self.main.writeSetting('LockboxAddrCols', saveTableView(self.lboxView))
       self.main.writeSetting('LockboxLedgerCols', saveTableView(self.ledgerView))
 
-   #############################################################################
+    #############################################################################
    def closeEvent(self, event):
       self.saveGeometrySettings()
       super(DlgLockboxManager, self).closeEvent(event)
 
-   #############################################################################
+    #############################################################################
    def accept(self, *args):
       self.saveGeometrySettings()
       self.main.lbDialogModel = None
       super(DlgLockboxManager, self).accept(*args)
 
-   #############################################################################
+    #############################################################################
    def reject(self, *args):
       self.saveGeometrySettings()
-      self.main.lbDialogModel = None      
+      self.main.lbDialogModel = None
       super(DlgLockboxManager, self).reject(*args)
-      
-   #############################################################################
+
+    #############################################################################
    def changeLBFilter(self):
       lbIDList = []
       for lb in self.main.allLockboxes:
          if lb.isEnabled:
             lbIDList.append(lb.uniqueIDB58)
-            
-      self.main.currentLBPage = 0      
-      #TheBDM.bdv().updateLockboxesLedgerFilter(lbIDList)
+
+      self.main.currentLBPage = 0
+        #TheBDM.bdv().updateLockboxesLedgerFilter(lbIDList)
 
 ################################################################################
 class DlgFundLockbox(ArmoryDialog):
    def __init__(self, parent, main):
       super(DlgFundLockbox, self).__init__(parent, main)
-   
+
       self.selection = None
 
       lblDescr = QRichLabel(self.tr(
@@ -1935,7 +1939,7 @@ class DlgFundLockbox(ArmoryDialog):
 class DlgSpendFromLockbox(ArmoryDialog):
    def __init__(self, parent, main):
       super(DlgSpendFromLockbox, self).__init__(parent, main)
-   
+
       self.selection = None
 
       lblDescr = QRichLabel(self.tr(
@@ -1950,8 +1954,8 @@ class DlgSpendFromLockbox(ArmoryDialog):
 
       if TheBDM.getState()==BDM_BLOCKCHAIN_READY:
          lblCreate = QRichLabel(self.tr(
-            'I am creating a new proposed spending transaction and will pass '
-            'it to each party or device that needs to sign it'))
+             'I am creating a new proposed spending transaction and will pass '
+             'it to each party or device that needs to sign it'))
       else:
          btnCreate.setEnabled(False)
          lblCreate = QRichLabel(self.tr('Transaction creation is not available when offline.'))
@@ -2003,12 +2007,12 @@ class DlgSpendFromLockbox(ArmoryDialog):
 class DlgSimulfundSelect(ArmoryDialog):
    def __init__(self, parent, main, lbID):
       super(DlgSimulfundSelect, self).__init__(parent, main)
-   
+
       self.selection = None
 
       lbox = self.main.getLockboxByID(lbID)
-      #dispStr = '<font color="%s"><b>%s-of-%s</b>: %s (%s)</font>' % \
-         #(htmlColor('TextBlue'), lbox.M, lbox.N, lbox.shortName, lbox.uniqueIDB58)
+        #dispStr = '<font color="%s"><b>%s-of-%s</b>: %s (%s)</font>' % \
+            #(htmlColor('TextBlue'), lbox.M, lbox.N, lbox.shortName, lbox.uniqueIDB58)
       dispStr = self.main.getDisplayStringForScript(lbox.binScript)['String']
 
       lblTitle = QRichLabel(self.tr(
@@ -2034,7 +2038,7 @@ class DlgSimulfundSelect(ArmoryDialog):
          '<br><br>'
          'You are currently handling a Simulfunding operation for lockbox: '
          '<br>%s.' % dispStr))
-         
+
 
       btnCreate  = QPushButton(self.tr('Create Promissory Note'))
       btnCollect = QPushButton(self.tr('Collect and Merge Notes'))
@@ -2119,7 +2123,7 @@ class DlgImportAsciiBlock(ArmoryDialog):
       btnDone = QPushButton(self.tr("Done"))
       btnCancel = QPushButton(self.tr("Cancel"))
 
-                              
+
       self.connect(btnLoad,   SIGNAL('clicked()'), self.loadfile)
       self.connect(btnDone,   SIGNAL('clicked()'), self.clickedDone)
       self.connect(btnCancel, SIGNAL('clicked()'), self.reject)
@@ -2136,10 +2140,10 @@ class DlgImportAsciiBlock(ArmoryDialog):
       self.setWindowTitle(titleStr)
       self.setMinimumWidth(450)
 
-   #############################################################################
+    #############################################################################
    def loadfile(self):
       loadPath = self.main.getFileLoad(self.tr('Load Data'), self.fileTypes)
-                                                 
+
       if not loadPath:
          return
       with open(loadPath) as f:
@@ -2147,7 +2151,7 @@ class DlgImportAsciiBlock(ArmoryDialog):
       self.txtAscii.setPlainText(data)
 
 
-   #############################################################################
+    #############################################################################
    def clickedDone(self):
       try:
          txt = str(self.txtAscii.toPlainText()).strip()
@@ -2157,10 +2161,10 @@ class DlgImportAsciiBlock(ArmoryDialog):
          QMessageBox.warning(self, self.tr('Error'), self.tr(
             'There was an error reading the ASCII block entered.  Please '
             'make sure it was entered/copied correctly, and that you have '
-            'copied the header and footer lines that start with "=====".'), 
+            'copied the header and footer lines that start with "=====".'),
             QMessageBox.Ok)
          return
-         
+
       self.accept()
 
 
@@ -2213,7 +2217,7 @@ class DlgSelectPublicKey(ArmoryDialog):
       
       frmDescr = makeVertFrame([lblDescr], STYLE_RAISED)
 
-      addrWidgets = self.main.createAddressEntryWidgets(self, '', 60, 2, 
+      addrWidgets = self.main.createAddressEntryWidgets(self, '', 60, 2,
                                        getPubKey=True, showLockboxes=False)
 
       self.edtPubKey   = addrWidgets['QLE_ADDR']
@@ -2221,11 +2225,11 @@ class DlgSelectPublicKey(ArmoryDialog):
       self.lblDetect   = addrWidgets['LBL_DETECT']
       self.lblDetect.setVisible(True)
 
-      #btnExportKey = QPushButton(self.tr('Send to Organizer'))
-      #self.connect(btnExportKey, SIGNAL('clicked()'), self.doExportKey)
-      #frmButtons = makeHorizFrame([QRichLabel(self.tr('When finished:')),
-                                   #btnExportKey, 
-                                   #'Stretch'])
+        #btnExportKey = QPushButton(self.tr('Send to Organizer'))
+        #self.connect(btnExportKey, SIGNAL('clicked()'), self.doExportKey)
+        #frmButtons = makeHorizFrame([QRichLabel(self.tr('When finished:')),
+                                     #btnExportKey,
+                                     #'Stretch'])
 
       layoutAddrEntry = QGridLayout()
       layoutAddrEntry.addWidget(lblSelect,                  0,0)
@@ -2235,7 +2239,7 @@ class DlgSelectPublicKey(ArmoryDialog):
       layoutAddrEntry.addWidget(lblContact,                 2,0)
       layoutAddrEntry.addWidget(self.edtContact,            2,1)
       layoutAddrEntry.addWidget(ttipContact,                2,2)
-      #layoutAddrEntry.addWidget(frmButtons,                 3,0,  1,3)
+        #layoutAddrEntry.addWidget(frmButtons,                 3,0,  1,3)
       layoutAddrEntry.setColumnStretch(0,0)
       layoutAddrEntry.setColumnStretch(1,1)
       layoutAddrEntry.setColumnStretch(2,0)
@@ -2262,15 +2266,15 @@ class DlgSelectPublicKey(ArmoryDialog):
       self.setWindowIcon(QIcon(self.main.iconfile))
 
 
-   #############################################################################
+    #############################################################################
    def collectKeyData(self):
       try:
          binPub = hex_to_binary(str(self.edtPubKey.text()).strip())
          if binPub[0] in ['\x02', '\x03'] and len(binPub)==33:
             pass  # valid key
-         elif binPub[0]=='\x04' and len(binPub)==65:
-            if not CryptoECDSA().VerifyPublicKeyValid(SecureBinaryData(binPub)):
-               raise BadAddressError('Public key starting with 0x04 is invalid')
+#            elif binPub[0]=='\x04' and len(binPub)==65:
+#                if not CryptoECDSA().VerifyPublicKeyValid(SecureBinaryData(binPub)):
+#                    raise BadAddressError('Public key starting with 0x04 is invalid')
          else:
             raise BadAddressError('Invalid pub key entered, or not a pub key')
 
@@ -2283,17 +2287,17 @@ class DlgSelectPublicKey(ArmoryDialog):
             '"02", "03" or "04".'), QMessageBox.Ok)
          return None
 
-      comm = unicode(self.edtContact.text()).strip() 
+      comm = str(self.edtContact.text()).strip()
       dPubKey = DecoratedPublicKey(binPub, comm)
       return dPubKey.serializeAscii()
-      
-      
 
-   #############################################################################
+
+
+    #############################################################################
    def doExportKey(self):
       toCopy = self.collectKeyData()
       if not toCopy:
-         return 
+         return
 
       dPubKey = DecoratedPublicKey().unserializeAscii(toCopy)
 
@@ -2304,21 +2308,21 @@ class DlgSelectPublicKey(ArmoryDialog):
          'to be used to create the lockbox.  This data is <u>not</u> sensitive '
          'and it is appropriate be sent via email or transferred via USB storage. '
          )
-         
+
       ftypes = ['Public Key Blocks (*.lockbox.pub)']
       defaultFN = 'PubKey_%s_.lockbox.pub' % dPubKey.pubKeyID
-         
-      DlgExportAsciiBlock(self, self.main, dPubKey, title, descr, 
-                                                    ftypes, defaultFN).exec_()
-
       
+      DlgExportAsciiBlock(self, self.main, dPubKey, title, descr,
+                                                     ftypes, defaultFN).exec_()
+
+
    def doDone(self):
       if self.collectKeyData() is None:
-         return 
+         return
 
       self.doExportKey()
       self.accept()
-      
+
 
 
 ################################################################################
@@ -2383,14 +2387,14 @@ class DlgExportAsciiBlock(ArmoryDialog):
 
 
    def mailLB(self):
-      # Iterate over the text block and get the public key ID.
-      # WARNING: For now, the code assumes there will be only one ID returned.
-      # If this changes in the future, the code must be adjusted as necessary.
+        # Iterate over the text block and get the public key ID.
+        # WARNING: For now, the code assumes there will be only one ID returned.
+        # If this changes in the future, the code must be adjusted as necessary.
       blockIO = StringIO(self.asciiBlock)
       pkID = getBlockID(blockIO, self.exportObj.BLKSTRING+'-')[0]
 
-      # Prepare to send an email with the public key. For now, the email text
-      # is the public key and nothing else.
+        # Prepare to send an email with the public key. For now, the email text
+        # is the public key and nothing else.
       subj = (self.exportObj.EMAILSUBJ) % self.exportObj.asciiID
       body = (self.exportObj.EMAILBODY)
       urlText = 'mailto:?subject=%s&body=%s\n\n%s' % (subj, body, self.asciiBlock)
@@ -2433,7 +2437,7 @@ class DlgImportLockbox(ArmoryDialog):
       btnDone = QPushButton(self.tr("Done"))
       btnCancel = QPushButton(self.tr("Cancel"))
 
-                              
+
       self.connect(btnLoad,   SIGNAL('clicked()'), self.loadfile)
       self.connect(btnDone,   SIGNAL('clicked()'), self.clickedDone)
       self.connect(btnCancel, SIGNAL('clicked()'), self.reject)
@@ -2451,7 +2455,7 @@ class DlgImportLockbox(ArmoryDialog):
       self.setMinimumWidth(450)
 
 
-   #############################################################################
+    #############################################################################
    def loadfile(self):
       boxPath = self.main.getFileLoad(self.tr('Load Lockbox'),
                                                  ['Lockboxes (*.lockbox.def)'])
@@ -2462,7 +2466,7 @@ class DlgImportLockbox(ArmoryDialog):
       self.txtBoxBlock.setPlainText(data)
 
 
-   #############################################################################
+    #############################################################################
    def clickedDone(self):
       txt = str(self.txtBoxBlock.toPlainText()).strip()
       try:
@@ -2471,8 +2475,8 @@ class DlgImportLockbox(ArmoryDialog):
          LOGEXCEPT('Error unserializing the entered text')
       if self.importedLockbox == None:
          QMessageBox.critical(self, self.tr('Non-lockbox'), self.tr(
-               'You are attempting to load something that is not a Lockbox. '
-               'Please clear the display and try again.'), QMessageBox.Ok)
+                'You are attempting to load something that is not a Lockbox. '
+                'Please clear the display and try again.'), QMessageBox.Ok)
       else:
          lbID = self.importedLockbox.uniqueIDB58
          if not self.main.getLockboxByID(lbID) is None:
@@ -2484,10 +2488,10 @@ class DlgImportLockbox(ArmoryDialog):
                'may be different.  Would you like to overwrite the lockbox '
                'information already stored for %s?' % (lbID,lbID)), \
                QMessageBox.Yes | QMessageBox.Cancel)
-   
+
             if not reply==QMessageBox.Yes:
                return
-   
+
          self.accept()
 
 
@@ -2497,12 +2501,12 @@ class DlgImportLockbox(ArmoryDialog):
 ################################################################################
 class DlgMultiSpendReview(ArmoryDialog):
 
-   #############################################################################
+    #############################################################################
    def __init__(self, parent, main, ustx):
       super(DlgMultiSpendReview, self).__init__(parent, main)
 
       LOGDEBUG('Debugging information for multi-spend USTX')
-      #ustx.pprint()
+        #ustx.pprint()
 
       lblDescr = QRichLabel(self.tr(
          'The following transaction is a proposed spend of funds controlled '
@@ -2520,7 +2524,7 @@ class DlgMultiSpendReview(ArmoryDialog):
       CHKW,CHKH = 32,32
       PIEW,PIEH = 32,32
 
-      # These need to return copies
+        # These need to return copies
       self.pixGreen = lambda: QPixmap(':/keyhole_green.png').scaled(KEYW,KEYH)
       self.pixGray  = lambda: QPixmap(':/keyhole_gray.png' ).scaled(KEYW,KEYH)
       self.pixBlue  = lambda: QPixmap(':/keyhole_blue.png' ).scaled(KEYW,KEYH)
@@ -2533,7 +2537,7 @@ class DlgMultiSpendReview(ArmoryDialog):
       self.feeAmt = self.ustx.calculateFee()
 
 
-      # Some simple container classes
+        # Some simple container classes
       class InputBundle(object):
          def __init__(self):
             self.binScript = ''
@@ -2546,7 +2550,7 @@ class DlgMultiSpendReview(ArmoryDialog):
             self.keyholePixmap = []
             self.keyUnrelated = []
 
-      # Some simple container classes
+        # Some simple container classes
       class OutputBundle(object):
          def __init__(self):
             self.recvAmt = 0
@@ -2558,17 +2562,17 @@ class DlgMultiSpendReview(ArmoryDialog):
       self.inputBundles = {}
       self.outputBundles = {}
 
-      # NOTE:  This will do some weird things if we have a contrib that 
-      #        gets back more than he puts in... i.e. he will be required
-      #        to sign, but he will be receiving money, instead of sending
-      #        it.  Right now, if that happens, he will show up as an 
-      #        input bundle with a negative send amount
+        # NOTE:  This will do some weird things if we have a contrib that
+        #        gets back more than he puts in... i.e. he will be required
+        #        to sign, but he will be receiving money, instead of sending
+        #        it.  Right now, if that happens, he will show up as an
+        #        input bundle with a negative send amount
 
-      # Accumulate and prepare all static info (that doesn't change with sigs)
+        # Accumulate and prepare all static info (that doesn't change with sigs)
       self.maxN = 0
       canPotentiallySignAny = False
       for ustxi in self.ustx.ustxInputs:
-         hrStr,idStr = self.main.getContribStr(ustxi.txoScript, 
+         hrStr,idStr = self.main.getContribStr(ustxi.txoScript,
                                                ustxi.contribID,
                                                ustxi.contribLabel)
 
@@ -2581,7 +2585,7 @@ class DlgMultiSpendReview(ArmoryDialog):
             iBundle.lockbox = self.main.getLockboxByID(idStr.split(':')[-1])
             canPotentiallySignAny = True
 
-            # Check whether we have the capability to sign this lockbox
+                # Check whether we have the capability to sign this lockbox
             iBundle.binScript = iBundle.lockbox.binScript
             M,N = iBundle.lockbox.M, iBundle.lockbox.N
             self.maxN = max(N, self.maxN)
@@ -2613,7 +2617,7 @@ class DlgMultiSpendReview(ArmoryDialog):
             iBundle.wltSignRightNow = [None]
             iBundle.keyholePixmap   = [None]
             M,N = 1,1
-            self.maxN = 1 
+            self.maxN = 1
             if idStr[:3] in ['WLT']:
                canPotentiallySignAny = True
                iBundle.keyholePixmap[0] = QLabel()
@@ -2628,15 +2632,15 @@ class DlgMultiSpendReview(ArmoryDialog):
                   iBundle.wltSignRightNow[0] = [wltID, a160, None, None]
                   iBundle.keyholePixmap[0].setPixmap(self.pixGreen())
             else:
-               # In these cases, nothing really to do
+                    # In these cases, nothing really to do
                pass
-               
-            
 
-      # The output bundles are quite a bit simpler 
+
+
+        # The output bundles are quite a bit simpler
       isReceivingAny = False
       for dtxo in self.ustx.decorTxOuts:
-         hrStr,idStr = self.main.getContribStr(dtxo.binScript, 
+         hrStr,idStr = self.main.getContribStr(dtxo.binScript,
                                                dtxo.contribID,
                                                dtxo.contribLabel)
          if idStr in self.inputBundles:
@@ -2655,33 +2659,34 @@ class DlgMultiSpendReview(ArmoryDialog):
       if not canPotentiallySignAny:
          if not isReceivingAny:
             QMessageBox.warning(self, self.tr("Unrelated Multi-Spend"), self.tr(
-               'The signature-collector you loaded appears to be '
-               'unrelated to any of the wallets or lockboxes that you have '
-               'available.  If you were expecting to be able to sign for a '
-               'lockbox input, you need to import the lockbox definition '
-               'first.  Any other person or device with the lockbox loaded '
-               'can export it to be imported by this device.'), QMessageBox.Ok)
+                'The signature-collector you loaded appears to be '
+                'unrelated to any of the wallets or lockboxes that you have '
+                'available.  If you were expecting to be able to sign for a '
+                'lockbox input, you need to import the lockbox definition '
+                'first.  Any other person or device with the lockbox loaded '
+                'can export it to be imported by this device.'), QMessageBox.Ok)
          else:
             QMessageBox.warning(self, self.tr("Cannot Sign"), self.tr(
-               'The signature-collector you loaded is sending money to one '
-               'of your wallets or lockboxes, but does not have any inputs '
-               'for which you can sign. '
-               'If you were expecting to be able to sign for a '
-               'lockbox input, you need to import the lockbox definition '
-               'first.  Any other person or device with the lockbox loaded '
-               'can export it to be imported by this device.'), QMessageBox.Ok)
-            
+                 'The signature-collector you loaded is sending money to one '
+                 'of your wallets or lockboxes, but does not have any inputs '
+                 'for which you can sign. '
+                 'If you were expecting to be able to sign for a '
+                 'lockbox input, you need to import the lockbox definition '
+                 'first.  Any other person or device with the lockbox loaded '
+                 'can export it to be imported by this device.'), QMessageBox.Ok)
+
 
       layoutInputs  = QGridLayout()
       layoutOutputs = QGridLayout()
 
       self.iWidgets = {}
       self.oWidgets = {}
-      
-      
-      self.signerType = SIGNER_DEFAULT
-      def setSignerType(_type):
-         self.signerType = _type
+
+
+        #HighPrioTODO: Replace with the bridge.
+        #self.signerType = SIGNER_DEFAULT
+        #def setSignerType(_type):
+        #    self.signerType = _type
 
       iin = 0
       iout = 0
@@ -2693,17 +2698,17 @@ class DlgMultiSpendReview(ArmoryDialog):
 
          iBundle = self.inputBundles[idStr]
 
-      
+
          contribID = ''
          contribLabel = ''
          if len(iBundle.ustxiList) > 0:
             contribID    = iBundle.ustxiList[0].contribID.strip()
             contribLabel = iBundle.ustxiList[0].contribLabel.strip()
 
-         # The header line lists the name and value and any multisig pies
+            # The header line lists the name and value and any multisig pies
          if not contribLabel:
             iWidgMap['HeadLbl'] = QRichLabel(self.tr('<b><u>Spending:</u> <font color="%s">%s</b></font>' % (htmlColor('TextBlue'), iBundle.dispStr)), doWrap=False)
-         else: 
+         else:
             if contribID:
                contribID = ' (%s)' % contribID
             iWidgMap['HeadLbl'] = QRichLabel(self.tr('<b><u>Contributor:</u> <font color="%s">%s</b>%s</font>' % (htmlColor('TextBlue'), contribLabel, contribID)), doWrap=False)
@@ -2712,7 +2717,7 @@ class DlgMultiSpendReview(ArmoryDialog):
          val = iBundle.sendAmt
          iWidgMap['Amount'] = QMoneyLabel(-val, txtSize=12, wBold=True)
 
-         # These are images that show up to N=5
+            # These are images that show up to N=5
          iWidgMap['HeadImg'] = [None]*self.maxN
          iWidgMap['KeyImg']  = [None]*self.maxN
          iWidgMap['KeyLbl']  = [None]*self.maxN
@@ -2727,17 +2732,19 @@ class DlgMultiSpendReview(ArmoryDialog):
             iWidgMap['SignBtn'][i] = QPushButton('')
             iWidgMap['ChkImg'][i].setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
 
-         # Now actually insert the widgets into a layout
+            # Now actually insert the widgets into a layout
          headerLine = [iWidgMap['HeadLbl']]
          headerLine.extend(iWidgMap['HeadImg'])
          headerLine.append('Stretch')
          headerLine.append(iWidgMap['Amount'])
          layoutInputs.addWidget(makeHorizFrame(headerLine), topRow,0, 1,4)
 
-         def createSignCallback(idstring, nIdx):
-            def doSign():
-               self.doSignForInput(idstring, nIdx, self.signerType)
-            return doSign
+            #HighPrioTODO: Replace with the bridge.
+            #def createSignCallback(idstring, nIdx):
+                #HighPrioTODO: Replace with the bridge.
+                #def doSign():
+                #    self.doSignForInput(idstring, nIdx, self.signerType)
+                #return doSign
 
 
          for i in range(self.maxN):
@@ -2748,8 +2755,9 @@ class DlgMultiSpendReview(ArmoryDialog):
             layoutInputs.addWidget(iWidgMap['KeyImg' ][i], row,2)
             layoutInputs.addWidget(iWidgMap['KeyLbl' ][i], row,3)
 
-            self.connect(iWidgMap['SignBtn'][i], SIGNAL('clicked()'), \
-                                           createSignCallback(idStr, i))
+                #HighPrioTODO: Replace with the bridge.
+                #self.connect(iWidgMap['SignBtn'][i], SIGNAL('clicked()'), \
+                #                               createSignCallback(idStr, i))
 
             lbox = iBundle.lockbox
             M = lbox.M if lbox else 1
@@ -2774,13 +2782,13 @@ class DlgMultiSpendReview(ArmoryDialog):
                elif iBundle.wltSignRightNow[i]:
                   wltID = iBundle.wltSignRightNow[i][0]
 
-               wltName = '' 
+               wltName = ''
                if wltID:
                   wltName = self.main.walletMap[wltID].getDisplayStr()
 
                if not comm:
                   if not wltName:
-                     dispStr = self.tr('[[Unknown Signer]]') 
+                     dispStr = self.tr('[[Unknown Signer]]')
                   else:
                      dispStr = wltName
                else:
@@ -2797,11 +2805,11 @@ class DlgMultiSpendReview(ArmoryDialog):
                iWidgMap['KeyImg' ][i].setMinimumSize(KEYW,KEYH)
                iWidgMap['ChkImg' ][i].setMinimumSize(CHKW,CHKH)
                iWidgMap['KeyLbl' ][i].setWordWrap(False)
-            
+
                if not lbox:
                   iWidgMap['HeadImg'][i].setVisible(False)
-   
-            
+
+
 
          for widgetName,widgetList in iWidgMap.iteritems():
             if widgetName in ['HeadLbl', 'Amount']:
@@ -2812,7 +2820,7 @@ class DlgMultiSpendReview(ArmoryDialog):
                N = lbox.N if lbox else 1
                if i >= N:
                   widgetList[i].setVisible(False)
-            
+
 
       layoutInputs.setColumnStretch(0,0)
       layoutInputs.setColumnStretch(1,0)
@@ -2821,8 +2829,8 @@ class DlgMultiSpendReview(ArmoryDialog):
       layoutInputs.setColumnStretch(4,0)
 
 
-      # Maybe one day we'll do full listing of lockboxes on the output side
-      # But for now, it will only further complicate things...
+        # Maybe one day we'll do full listing of lockboxes on the output side
+        # But for now, it will only further complicate things...
       for idStr in self.outputBundles:
          lbox = self.outputBundles[idStr].lockbox
          M,N = [1,1] if lbox is None else [lbox.M, lbox.N]
@@ -2839,13 +2847,13 @@ class DlgMultiSpendReview(ArmoryDialog):
          val = self.outputBundles[idStr].recvAmt
          oWidgMap['Amount'] = QMoneyLabel(val, txtSize=12, wBold=True)
 
-         # These are the pie images
+            # These are the pie images
          oWidgMap['HeadImg'] = [None]*N
          for i in range(N):
             oWidgMap['HeadImg'][i] = QLabel()
 
 
-         # Now actually insert the widgets into a layout
+            # Now actually insert the widgets into a layout
          headerLine = [oWidgMap['HeadLbl']]
          headerLine.extend(oWidgMap['HeadImg'])
          headerLine.append('Stretch')
@@ -2856,10 +2864,10 @@ class DlgMultiSpendReview(ArmoryDialog):
             for i in range(N):
                oWidgMap['HeadImg'][i].setPixmap(self.pixPie(M))
                oWidgMap['HeadImg'][i].setMinimumSize(PIEW,PIEH)
-            
 
 
-      # Add a fee row if needed
+
+        # Add a fee row if needed
       if self.feeAmt > 0:
          row = (self.maxN+1)*iout
          lblFee = QRichLabel('<b>Transaction Fee</b>')
@@ -2868,8 +2876,8 @@ class DlgMultiSpendReview(ArmoryDialog):
          frmTxFee = makeHorizFrame([lblFee, 'Stretch', lblAmt])
          layoutOutputs.addWidget(HLINE(),   row,0,   1,5)
          layoutOutputs.addWidget(frmTxFee,  row+1,0, 1,5)
-         
-                  
+
+
 
       frmInputs = QFrame()
       frmInputs.setLayout(layoutInputs)
@@ -2878,8 +2886,8 @@ class DlgMultiSpendReview(ArmoryDialog):
       frmOutputs = QFrame()
       frmOutputs.setLayout(layoutOutputs)
       frmOutputs.setFrameStyle(STYLE_STYLED)
-            
-      self.signerSelectFrm = SignerLabelFrame(main, self.ustx, setSignerType)
+
+        #self.signerSelectFrm = SignerLabelFrame(main, self.ustx, setSignerType)
 
 
 
@@ -2906,20 +2914,21 @@ class DlgMultiSpendReview(ArmoryDialog):
       self.connect(self.btnFinalExport, SIGNAL('clicked()'), self.doExport)
       self.connect(self.doneButton, SIGNAL('clicked()'), self.accept)
 
-      frmMain = makeVertFrame([lblDescr, 
-                               HLINE(),
-                               HLINE(),
-                               frmInputs,
-                               HLINE(),
-                               self.signerSelectFrm.getFrame(),                               
-                               HLINE(),
-                               frmOutputs,
-                               HLINE(),
-                               frmButtons])
+      frmMain = makeVertFrame([lblDescr,
+                                 HLINE(),
+                                 HLINE(),
+                                 frmInputs,
+                                 HLINE(),
+#HighPrioTODO: Replace with cpp bridge
+#                                 self.signerSelectFrm.getFrame(),
+                                 HLINE(),
+                                 frmOutputs,
+                                 HLINE(),
+                                 frmButtons])
 
-      # Actually, this dialog will not handle changing USTX objects yet
-      # For now, need to pre-select your USTX, then load this dialog with it
-      #self.btnLoadImport.setVisible(False)
+        # Actually, this dialog will not handle changing USTX objects yet
+        # For now, need to pre-select your USTX, then load this dialog with it
+        #self.btnLoadImport.setVisible(False)
 
 
       layoutMain = QVBoxLayout()
@@ -2928,17 +2937,17 @@ class DlgMultiSpendReview(ArmoryDialog):
 
       self.setWindowTitle(self.tr('Review and Sign'))
       self.setMinimumWidth(750)
-      
-      # Evaluate SigningStatus returns per-wallet details if a wlt is given
+
+        # Evaluate SigningStatus returns per-wallet details if a wlt is given
       self.relevancyMap  = {}
       self.canSignMap    = {}
       self.alreadySigned = {}
       self.evalSigStat()
 
-      
-   
-         
-   ############################################################################# 
+
+
+
+    #############################################################################
    def doSignForInput(self, idStr, keyIdx):
       ib = self.inputBundles[idStr]
       wltID, a160, dkey, ckey = ib.wltSignRightNow[keyIdx]
@@ -2954,40 +2963,47 @@ class DlgMultiSpendReview(ArmoryDialog):
       try:
          if ib.lockbox:
 
-            #if any input is not of legacy type, force cpp signer
-            if self.ustx.isSegWit():
-               signerType = SIGNER_CPP
+                #if any input is not of legacy type, force cpp signer
 
-            # If a lockbox, all USTXIs require the same signing key
+#HighPrioTODO: Replace with cpp bridge
+                #if self.ustx.isSegWit():
+                #    signerType = SIGNER_CPP
+
+                # If a lockbox, all USTXIs require the same signing key
             for ustxi in ib.ustxiList:
                addrObj = wlt.getAddrObjectForHash(a160)
-               ustxi.createAndInsertSignature(\
-                  self.ustx.pytxObj, addrObj.binPrivKey32_Plain, signerType=signerType)
+
+                    #HighPrioTODO: Replace with the bridge.
+                    #ustxi.createAndInsertSignature(\
+                    #   self.ustx.pytxObj, addrObj.binPrivKey32_Plain, signerType=signerType)
          else:
-            # Not lockboxes... may have to access multiple keys in wallet
-                        
-            #if any input is not of legacy type, force cpp signer
-            if self.ustx.isSegWit():
-               signerType = SIGNER_CPP
+                # Not lockboxes... may have to access multiple keys in wallet
+
+                #if any input is not of legacy type, force cpp signer
+                #HighPrioTODO: Replace with the bridge.
+                #if self.ustx.isSegWit():
+                #    signerType = SIGNER_CPP
 
             for ustxi in ib.ustxiList:
                a160 = CheckHash160(ustxi.scrAddrs[0])
                addrObj = wlt.getAddrObjectForHash(a160)
-               ustxi.createAndInsertSignature(\
-                  self.ustx.pytxObj, addrObj.binPrivKey32_Plain, signerType=signerType)
+
+                    #HighPrioTODO: Replace with the bridge.
+                    #ustxi.createAndInsertSignature(\
+                    #   self.ustx.pytxObj, addrObj.binPrivKey32_Plain, signerType=signerType)
          
          self.evalSigStat()
       except SignerException as e:
          QMessageBox.critical(self, self.tr('Signer Error'), e.message, QMessageBox.Ok)
 
 
-   ############################################################################# 
+    #############################################################################
    def evalSigStat(self):
       self.relevancyMap  = {}
       self.canSignMap    = {}
       self.alreadySigned = {}
 
-      # Not sure if we really need this...
+        # Not sure if we really need this...
       for wltID,pyWlt in self.main.walletMap.iteritems():
          txss = self.ustx.evaluateSigningStatus(pyWlt.cppWallet)
          self.relevancyMap[wltID]  = txss.wltIsRelevant
@@ -2995,26 +3011,26 @@ class DlgMultiSpendReview(ArmoryDialog):
          self.alreadySigned[wltID] = txss.wltAlreadySigned
 
 
-      # This is complex, for sure.  
-      #    The outermost loop goes over all inputs and outputs
-      #    Then goes over all N public keys
+        # This is complex, for sure.
+        #    The outermost loop goes over all inputs and outputs
+        #    Then goes over all N public keys
       for idStr,ib in self.inputBundles.iteritems():
          iWidgMap = self.iWidgets[idStr]
 
-         # Since we are calling this without a wlt, each key state can only
-         # be either ALREADY_SIGNED or NO_SIGNATURE (no WLT* possible)
+            # Since we are calling this without a wlt, each key state can only
+            # be either ALREADY_SIGNED or NO_SIGNATURE (no WLT* possible)
          isigstat = ib.ustxiList[0].evaluateSigningStatus(pytx=self.ustx.pytxObj)
 
          if ib.lockbox:
-            N = ib.lockbox.N 
+            N = ib.lockbox.N
             entryKeyIndex = [None]*N
 
-            #match signing dialog entries to pubkeys in the ustx
+                #match signing dialog entries to pubkeys in the ustx
             for v in range(N):
                ms_key = ib.ustxiList[0].pubKeys[v]
                for w in range(N):
                   try:
-                     #check signable wallets first
+                            #check signable wallets first
                      if ms_key in ib.wltSignRightNow[w]:
                         entryKeyIndex[v] = w
                         break
@@ -3022,7 +3038,7 @@ class DlgMultiSpendReview(ArmoryDialog):
                      pass
                   
                   try:
-                     #check offline wallets otherwise
+                            #check offline wallets otherwise
                      if ms_key in ib.wltOfflineSign[w]:
                         entryKeyIndex[v] = w
                         break
@@ -3030,14 +3046,14 @@ class DlgMultiSpendReview(ArmoryDialog):
                      pass
 
                   try:
-                     #lastly, check unrelated keys
+                            #lastly, check unrelated keys
                      if ms_key in ib.keyUnrelated[w]:
                         entryKeyIndex[v] = w
                         break
                   except:
                      continue
 
-               #set default index if there are no matches (unkonwn key)
+                    #set default index if there are no matches (unkonwn key)
                if entryKeyIndex[v] == None:
                   entryKeyIndex[v] = v
          else:
@@ -3089,18 +3105,18 @@ class DlgMultiSpendReview(ArmoryDialog):
                keyImg.setPixmap(self.pixWhite())
                signBtn.setVisible(False)
 
-      # Now modify the window/buttons based on the whole transaction state
-      # (i.e. Can broadcast, etc)
+        # Now modify the window/buttons based on the whole transaction state
+        # (i.e. Can broadcast, etc)
       txss = self.ustx.evaluateSigningStatus()
       if txss.canBroadcast:
          if not self.main.netMode == NETWORKMODE.Full:
             self.lblFinalMsg.setText(self.tr(
-            '<font color="%s">This transaction has enough signatures and '
-            'can be broadcast from any online computer (you are currently offline)</font>' % htmlColor('TextGreen')))
+             '<font color="%s">This transaction has enough signatures and '
+             'can be broadcast from any online computer (you are currently offline)</font>' % htmlColor('TextGreen')))
          else:
             self.lblFinalMsg.setText(self.tr(
-            '<font color="%s">This transaction has enough signatures and '
-            'can be broadcast</font>' % htmlColor('TextGreen')))
+             '<font color="%s">This transaction has enough signatures and '
+             'can be broadcast</font>' % htmlColor('TextGreen')))
          self.btnFinalBroad.setVisible(True)
          self.btnFinalBroad.setEnabled(self.main.netMode == NETWORKMODE.Full)
          self.btnFinalExport.setVisible(True)
@@ -3117,11 +3133,11 @@ class DlgMultiSpendReview(ArmoryDialog):
          self.btnFinalExport.setEnabled(True)
          self.lblFinalChk.setPixmap(QPixmap())
 
-      
+
 
    def doExport(self):
-      #class DlgExportAsciiBlock(ArmoryDialog):
-      #def __init__(self, parent, main, exportObj, title, descr, fileTypes, defaultFN)
+        #class DlgExportAsciiBlock(ArmoryDialog):
+        #def __init__(self, parent, main, exportObj, title, descr, fileTypes, defaultFN)
       title = self.tr("Export Signature Collector")
       descr = self.tr(
          'The text below includes all data about this multi-sig transaction, '
@@ -3134,9 +3150,9 @@ class DlgMultiSpendReview(ArmoryDialog):
          'that would compromise the security of any of the signing devices.')
       ftypes = ['Signature Collectors (*.sigcollect.tx)']
       defaultFN = 'MultisigTransaction_%s_.sigcollect.tx' % self.ustx.uniqueIDB58
-         
-      DlgExportAsciiBlock(self, self.main, self.ustx, title, descr, 
-                                                    ftypes, defaultFN).exec_()
+
+      DlgExportAsciiBlock(self, self.main, self.ustx, title, descr,
+                                                     ftypes, defaultFN).exec_()
 
    
    def doImport(self):
@@ -3152,37 +3168,37 @@ class DlgMultiSpendReview(ArmoryDialog):
 
       dlg = DlgImportAsciiBlock(self, self.main, title, descr, ftypes, importType)
       if dlg.exec_():
-         # Merge signatures if the current ustx ID matchs the imported file
+            # Merge signatures if the current ustx ID matchs the imported file
          if self.ustx.uniqueIDB58 == dlg.returnObj.uniqueIDB58:
             for i in range(len(dlg.returnObj.ustxInputs)):
                for j in range(len(dlg.returnObj.ustxInputs[i].signatures)):
                   if len(self.ustx.ustxInputs[i].signatures[j]) > 0:
                      dlg.returnObj.ustxInputs[i].signatures[j] = \
-                        self.ustx.ustxInputs[i].signatures[j]
-               
-         # FIXME: This is a serious hack because I didn't have time to implement
-         #        reloading an existing dialog with a new USTX, so I just recurse
-         #        for now (it's because all the layouts are set in the __init__
-         #        function, etc...
-         self.accept() 
+                               self.ustx.ustxInputs[i].signatures[j]
+
+            # FIXME: This is a serious hack because I didn't have time to implement
+            #        reloading an existing dialog with a new USTX, so I just recurse
+            #        for now (it's because all the layouts are set in the __init__
+            #        function, etc...
+         self.accept()
          DlgMultiSpendReview(self.parent, self.main, dlg.returnObj).exec_()
 
 
    def doBroadcast(self):
       finalTx = self.ustx.getSignedPyTx(doVerifySigs=True)
       if not finalTx:
-         #self.ustx.evaluateSigningStatus().pprint()
+            #self.ustx.evaluateSigningStatus().pprint()
          QMessageBox.critical(self, self.tr('Invalid Signatures'), self.tr(
-            'Somehow not all inputs have valid sigantures!  You can choose '  
+            'Somehow not all inputs have valid sigantures!  You can choose '
             'to attempt to broadcast anyway, in case you think Armory is '
             'not evaluating the transaction state correctly. '
             '<br><br>'
             'Otherwise, please confirm that you have created signatures '
             'from the correct wallets.  Perhaps try collecting signatures '
             'again...?'), QMessageBox.Ok)
-
-         finalTx = self.ustx.getSignedPyTx(doVerifySigs=False)
          
+         finalTx = self.ustx.getSignedPyTx(doVerifySigs=False)
+
 
       self.main.broadcastTransaction(finalTx)
       try:
@@ -3193,13 +3209,13 @@ class DlgMultiSpendReview(ArmoryDialog):
          except:
             pass
       self.accept()
-         
+
 
 
 ################################################################################
 class DlgCreatePromNote(ArmoryDialog):
 
-   #############################################################################
+    #############################################################################
    def __init__(self, parent, main, defaultIDorAddr=None, skipExport=False):
       super(DlgCreatePromNote, self).__init__(parent, main)
 
@@ -3239,11 +3255,11 @@ class DlgCreatePromNote(ArmoryDialog):
       def selectWalletFunc(wlt):
          self.spendFromWltID = wlt.uniqueIDB58
       
-      wltFrame = SelectWalletFrame(self, self.main, HORIZONTAL, 
-                           selectWltCallback=selectWalletFunc)
-                                                  
+      wltFrame = SelectWalletFrame(self, self.main, HORIZONTAL,
+                             selectWltCallback=selectWalletFunc)
 
-      # Create the frame that specifies the target of the funding
+
+        # Create the frame that specifies the target of the funding
 
       lblAddress = QRichLabel(self.tr('Address:'))
       lblAmount  = QRichLabel(self.tr('Amount:'))
@@ -3258,13 +3274,13 @@ class DlgCreatePromNote(ArmoryDialog):
          else:
             startStr = createLockboxEntryStr(defaultIDorAddr)
 
-      aewMap = self.main.createAddressEntryWidgets(self, startStr, 
+      aewMap = self.main.createAddressEntryWidgets(self, startStr,
                                        maxDetectLen=72, boldDetectParts=2)
       self.edtFundTarget = aewMap['QLE_ADDR']
       self.btnSelectTarg = aewMap['BTN_BOOK']
       self.lblAutoDetect = aewMap['LBL_DETECT']
       self.parseEntryFunc = aewMap['CALLBACK_GETSCRIPT']
-                                          
+
       self.lblAutoDetect.setWordWrap(False)
 
       self.edtAmountBTC = QLineEdit()
@@ -3286,7 +3302,7 @@ class DlgCreatePromNote(ArmoryDialog):
          'This label will be attached to the promissory note to help identify '
          'who is committing these funds.  If you do not fill this in, each '
          'other party signing will see <i>[[Unknown Signer]]</i> for the ID.'))
-         
+
 
       frmKeyComment = makeHorizFrame([lblComment, self.edtKeyLabel, ttipFunder])
 
@@ -3295,7 +3311,7 @@ class DlgCreatePromNote(ArmoryDialog):
       gboxInLayout.addWidget(lblNoteSrc)
       gboxInLayout.addWidget(wltFrame)
       gboxInLayout.addWidget(frmKeyComment)
-      gboxIn.setLayout(gboxInLayout) 
+      gboxIn.setLayout(gboxInLayout)
 
       gboxOut = QGroupBox(self.tr('Funding Destination'))
       gboxOutLayout = QGridLayout()
@@ -3341,11 +3357,11 @@ class DlgCreatePromNote(ArmoryDialog):
 
       self.setWindowTitle('Create Promissory Note')
 
-      #self.updateTargetLabel()
+        #self.updateTargetLabel()
       self.setMinimumWidth(600)
 
 
-   #############################################################################
+    #############################################################################
    def updateTargetLabel(self):
       try:
          addrText = str(self.edtFundTarget.text())
@@ -3380,7 +3396,7 @@ class DlgCreatePromNote(ArmoryDialog):
          self.lblTargetID.setVisible(False)
 
 
-   #############################################################################
+    #############################################################################
    def doContinue(self):
 
 
@@ -3393,15 +3409,15 @@ class DlgCreatePromNote(ArmoryDialog):
             'or after restarting Armory'), QMessageBox.Ok)
          return False
 
-      # TODO:  Expand this to allow Simulfunding from lockbox(es)
+        # TODO:  Expand this to allow Simulfunding from lockbox(es)
       wlt   = self.main.walletMap.get(self.spendFromWltID, None)
       lbox  = self.main.getLockboxByID(self.spendFromWltID)
       if lbox is not None:
          LOGERROR('Simulfunding from lockbox not currently implemented')
          QMessageBox.critical(self, self.tr('Lockbox Selected'), self.tr(
-            'Currently, Armory does not implement Simulfunding with lockbox '
-            'inputs.  Please choose a regular wallet as your input'),
-            QMessageBox.Ok)
+             'Currently, Armory does not implement Simulfunding with lockbox '
+             'inputs.  Please choose a regular wallet as your input'),
+             QMessageBox.Ok)
       elif wlt is None:
          LOGERROR('No wallet in map with ID: "%s"' % self.spendFromWltID)
          QMessageBox.critical(self, self.tr('No Wallet Selected'), self.tr(
@@ -3409,7 +3425,7 @@ class DlgCreatePromNote(ArmoryDialog):
             QMessageBox.Ok)
          return False
 
-      # Read the user-supplied BTC value to contribute
+        # Read the user-supplied BTC value to contribute
       try:
          valueStr = str(self.edtAmountBTC.text())
          valueAmt = str2coin(valueStr)
@@ -3439,8 +3455,8 @@ class DlgCreatePromNote(ArmoryDialog):
             QMessageBox.Ok)
          LOGEXCEPT('Invalid amount specified: "%s"', valueStr)
          return False
-      
-      # Read the fee string
+
+        # Read the fee string
       try:
          feeStr = str(self.edtFeeBTC.text())
          feeAmt = str2coin(feeStr)
@@ -3487,13 +3503,13 @@ class DlgCreatePromNote(ArmoryDialog):
             'separate transactions.'), QMessageBox.Ok)
          return False
 
-      # Create the target DTXO
+        # Create the target DTXO
       targetScript = self.parseEntryFunc()['Script']
       dtxoTarget = DecoratedTxOut(targetScript, valueAmt)
 
-      # Create the change DTXO
-      # TODO:  Expand this to allow Simulfunding from lockbox(es)
-      #pprintUnspentTxOutList(utxoSelect)
+        # Create the change DTXO
+        # TODO:  Expand this to allow Simulfunding from lockbox(es)
+        #pprintUnspentTxOutList(utxoSelect)
       changeAmt = sumTxOutList(utxoSelect) - (valueAmt + feeAmt)
       dtxoChange = None
       if changeAmt > 0:
@@ -3503,7 +3519,7 @@ class DlgCreatePromNote(ArmoryDialog):
       else:
          LOGINFO('Had exact change for prom note:  dtxoChange=None')
 
-      # If we got here, we can carry through with creating the prom note
+        # If we got here, we can carry through with creating the prom note
       ustxiList = []
       for i in range(len(utxoSelect)):
          utxo = utxoSelect[i]
@@ -3513,11 +3529,11 @@ class DlgCreatePromNote(ArmoryDialog):
          if not cppTx.isInitialized():
             LOGERROR('UTXO was supplied for which we could not find prev Tx')
             QMessageBox.warning(self, self.tr('Transaction Not Found'), self.trUtf8(
-               'There was an error creating the promissory note -- the selected '
-               'coins were not found in the blockchain.  Please go to '
-               '"<i>Help</i>"\xe2\x86\x92"<i>Submit Bug Report</i>" from '
-               'the main window and submit your log files so the Armory team '
-               'can review this error.'), QMessageBox.Ok)
+                'There was an error creating the promissory note -- the selected '
+                'coins were not found in the blockchain.  Please go to '
+                '"<i>Help</i>"\xe2\x86\x92"<i>Submit Bug Report</i>" from '
+                'the main window and submit your log files so the Armory team '
+                'can review this error.'), QMessageBox.Ok)
 
          rawTx = cppTx.serialize()
          utxoScrAddr = utxo.getRecipientScrAddr()
@@ -3529,26 +3545,27 @@ class DlgCreatePromNote(ArmoryDialog):
          if len(p2shScript) > 0:
             p2shKey = binary_to_hex(script_to_scrAddr(script_to_p2sh_script(
                p2shScript)))
-            p2shMap[p2shKey] = p2shScript  
+            p2shMap[p2shKey] = p2shScript
             p2shMap[BASE_SCRIPT] = p2shScript
 
-         try:
-            scriptType = Cpp.BtcUtils().getTxOutScriptTypeInt(p2shScript)
-            if scriptType == CPP_TXOUT_P2WPKH:
-               nestedScript = binary_to_hex(p2shScript[2:])
-               pubkey = SecureBinaryData(aobj.getPubKey())
-               compressed_key = CryptoECDSA().CompressPoint(pubkey)
-               p2shMap[nestedScript] = compressed_key.toBinStr()
-         except:
-            pass
-
-         ustxiList.append(UnsignedTxInput(rawTx, txoIdx, p2shMap, pubKeys))
+            #HighPrioTODO: Replace with the bridge.
+            #try:
+                #scriptType = Cpp.BtcUtils().getTxOutScriptTypeInt(p2shScript)
+                #if scriptType == CPP_TXOUT_P2WPKH:
+                #    nestedScript = binary_to_hex(p2shScript[2:])
+                #    pubkey = SecureBinaryData(aobj.getPubKey())
+                #    compressed_key = CryptoECDSA().CompressPoint(pubkey)
+                #    p2shMap[nestedScript] = compressed_key.toBinStr()
+            #except:
+            #    pass
          
+         ustxiList.append(UnsignedTxInput(rawTx, txoIdx, p2shMap, pubKeys))
+
 
       funderStr = str(self.edtKeyLabel.text()).strip()
-      self.finalPromNote = MultiSigPromissoryNote(dtxoTarget, feeAmt, 
+      self.finalPromNote = MultiSigPromissoryNote(dtxoTarget, feeAmt,
                                        ustxiList, dtxoChange, funderStr)
-                                          
+
 
       LOGINFO('Successfully created prom note: %s' % self.finalPromNote.promID)
 
@@ -3566,22 +3583,22 @@ class DlgCreatePromNote(ArmoryDialog):
          ftypes = ['Promissory Notes (*.promnote)']
          defaultFN = 'Contrib_%s_%sBTC.promnote' % \
                (self.finalPromNote.promID, coin2strNZS(valueAmt))
-            
-   
-         if not DlgExportAsciiBlock(self, self.main, self.finalPromNote, title, 
-                                             descr, ftypes, defaultFN).exec_():
+
+
+         if not DlgExportAsciiBlock(self, self.main, self.finalPromNote, title,
+                                            descr, ftypes, defaultFN).exec_():
             return False
          else:
             self.accept()
-      
-      
 
-         
+
+
+
 
 ################################################################################
 class DlgMergePromNotes(ArmoryDialog):
 
-   #############################################################################
+    #############################################################################
    def __init__(self, parent, main, lboxID=None):
       super(DlgMergePromNotes, self).__init__(parent, main)
 
@@ -3591,7 +3608,7 @@ class DlgMergePromNotes(ArmoryDialog):
       self.promNotes = []
       self.promIDSet = set([])
 
-      # Will be none
+        # Will be none
       if lboxID is None:
          self.lbox = None
          self.promMustMatch = None
@@ -3604,7 +3621,7 @@ class DlgMergePromNotes(ArmoryDialog):
          '<font color="%s" size=4><b>Merge Promissory Notes '
          '</b></font>' % htmlColor('TextBlue')),
          hAlign=Qt.AlignHCenter, doWrap=False)
-         
+
       lblDescr = QRichLabel(self.tr(
          'Collect promissory notes from two or more parties '
          'to combine them into a single <i>Simulfunding</i> transaction.  Once '
@@ -3613,9 +3630,9 @@ class DlgMergePromNotes(ArmoryDialog):
 
 
       if self.lbox:
-         #lbTargStr = '<font color="%s"><b>Lockbox %s-of-%s</b>: %s (%s)</font>' % \
-            #(htmlColor('TextBlue'), self.lbox.M, self.lbox.N, 
-            #self.lbox.shortName, self.lbox.uniqueIDB58)
+            #lbTargStr = '<font color="%s"><b>Lockbox %s-of-%s</b>: %s (%s)</font>' % \
+                #(htmlColor('TextBlue'), self.lbox.M, self.lbox.N,
+                #self.lbox.shortName, self.lbox.uniqueIDB58)
          lbTargStr = self.main.getDisplayStringForScript(self.lbox.getScript())
          lbTargStr = lbTargStr['String']
          gboxTarget  = QGroupBox(self.tr('Lockbox Being Funded'))
@@ -3631,8 +3648,8 @@ class DlgMergePromNotes(ArmoryDialog):
       self.lblCurrFee = QMoneyLabel(0, maxZeros=2)
       self.lblPayUnits = QRichLabel('BTC')
       self.lblFeeUnits = QRichLabel('BTC')
-
       
+
 
       gboxTargetLayout = QGridLayout()
       gboxTargetLayout.addWidget(self.lblTarg,      1,0,  1,6)
@@ -3654,10 +3671,10 @@ class DlgMergePromNotes(ArmoryDialog):
       gboxTargetLayout.setColumnStretch(3,0)
       gboxTargetLayout.setColumnStretch(4,0)
       gboxTargetLayout.setColumnStretch(5,1)
-      gboxTarget.setLayout(gboxTargetLayout) 
+      gboxTarget.setLayout(gboxTargetLayout)
 
 
-      # For when there's no prom note yet
+        # For when there's no prom note yet
       self.gboxLoaded = QGroupBox(self.tr('Loaded Promissory Notes'))
       lblNoInfo = QRichLabel(self.tr(
          '<font size=4><b>No Promissory Notes Have Been Added</b></font>'),
@@ -3698,20 +3715,20 @@ class DlgMergePromNotes(ArmoryDialog):
       btnFinish = QPushButton(self.tr('Continue'))
       self.connect(btnCancel, SIGNAL('clicked()'), self.reject)
       self.connect(btnFinish, SIGNAL('clicked()'), self.mergeNotesCreateUSTX)
-      frmButtons = makeHorizFrame([btnCancel, 
-                                   'Stretch', 
-                                   self.chkBareMS, 
-                                   self.ttipBareMS,
-                                   btnFinish])
+      frmButtons = makeHorizFrame([btnCancel,
+                                     'Stretch',
+                                     self.chkBareMS,
+                                     self.ttipBareMS,
+                                     btnFinish])
 
-      # If this was opened with default lockbox, set visibility, save ms script
-      # If opened generic, this will be set first time importNote() is called
+        # If this was opened with default lockbox, set visibility, save ms script
+        # If opened generic, this will be set first time importNote() is called
       self.chkBareMS.setVisible(False)
       self.ttipBareMS.setVisible(False)
       if self.lbox is not None:
          self.chkBareMS.setVisible(True)
          self.ttipBareMS.setVisible(True)
-         self.msTarget = self.lbox.binScript   
+         self.msTarget = self.lbox.binScript
 
       
       mainLayout = QVBoxLayout()
@@ -3729,21 +3746,21 @@ class DlgMergePromNotes(ArmoryDialog):
       self.setLayout(mainLayout)
       self.setMinimumWidth(700)
 
-      
-      
-   #############################################################################
+
+
+    #############################################################################
    def importNote(self):
       title = self.tr('Import Promissory Note')
       descr = self.tr(
-         'Import a promissory note to add to this Simulfunding transaction') 
+         'Import a promissory note to add to this Simulfunding transaction')
       ftypes = ['Promissory Notes (*.promnote)']
-      dlgImport = DlgImportAsciiBlock(self, self.main, 
+      dlgImport = DlgImportAsciiBlock(self, self.main,
                         title, descr, ftypes, MultiSigPromissoryNote)
       dlgImport.exec_()
       promnote = None
       if dlgImport.returnObj:
          promnote = dlgImport.returnObj
-         #promnote.pprint()
+            #promnote.pprint()
 
       if not promnote:
          QMessageBox.critical(self, self.tr('Invalid Promissory Note'), self.tr(
@@ -3754,7 +3771,7 @@ class DlgMergePromNotes(ArmoryDialog):
       self.addNote(promnote)
 
 
-   #############################################################################
+    #############################################################################
    def createPromAdd(self):
       if not TheBDM.getState()==BDM_BLOCKCHAIN_READY:
          QMessageBox.warning(self, self.tr("Not Online"), self.tr(
@@ -3762,8 +3779,8 @@ class DlgMergePromNotes(ArmoryDialog):
             'transactions or promissory notes.  You can only merge '
             'pre-existing promissory notes at this time.'), QMessageBox.Ok)
          return
-            
-  
+
+
       defaultTarg = None
       if self.promMustMatch:
          for lbox in self.main.allLockboxes:
@@ -3772,57 +3789,57 @@ class DlgMergePromNotes(ArmoryDialog):
                break
          else:
             defaultTarg = scrAddr_to_addrStr(self.promMustMatch)
-               
-         
+
+
       dlg = DlgCreatePromNote(self, self.main, defaultTarg, skipExport=True)
       dlg.exec_()
       if dlg.finalPromNote:
          self.addNote(dlg.finalPromNote)
-      
 
 
-   #############################################################################
+
+    #############################################################################
    def addNote(self, promnote):
       
       if promnote.promID in self.promIDSet:
-         QMessageBox.critical(self, self.tr('Already Loaded'), self.tr('This ' 
+         QMessageBox.critical(self, self.tr('Already Loaded'), self.tr('This '
             'promissory note has already been loaded!'), QMessageBox.Ok)
          return
 
-      # reduceScript returns the same scrAddr for a bare multi-sig as it does
-      # for it's P2SH form
-      targetScript = promnote.dtxoTarget.binScript 
+        # reduceScript returns the same scrAddr for a bare multi-sig as it does
+        # for it's P2SH form
+      targetScript = promnote.dtxoTarget.binScript
       promTarget = self.reduceScript(targetScript)
-      
-      # If loaded from main window menu, we have nothing to match yet; set it
+
+        # If loaded from main window menu, we have nothing to match yet; set it
       if not self.promMustMatch:
          self.promMustMatch = promTarget
 
          contribStr = self.main.getContribStr(targetScript)[0]
          self.lblTarg.setText('<font color="%s"><b>%s</b></font>' % \
-            (htmlColor('TextBlue'), contribStr))
+               (htmlColor('TextBlue'), contribStr))
 
 
 
-         # If this is a multi-sig target, or it's a P2SH multisig we recognize
-         # then provide the option to use bare multi-sig (which may be 
-         # desriable in certain contexts).
+            # If this is a multi-sig target, or it's a P2SH multisig we recognize
+            # then provide the option to use bare multi-sig (which may be
+            # desriable in certain contexts).
          self.chkBareMS.setVisible(False)
          self.ttipBareMS.setVisible(False)
          for lbID,cppWlt in self.main.cppLockboxWltMap.iteritems():
             if cppWlt.hasScrAddress(promTarget):
                LOGINFO('Have lockbox for the funding target: %s' % lbID)
-               lb = self.main.getLockboxByID(lbID) 
+               lb = self.main.getLockboxByID(lbID)
                if lb and lb.binScript and \
-                      getTxOutScriptType(lb.binScript)==CPP_TXOUT_MULTISIG:
-                  self.msTarget = lb.binScript   
-                  self.chkBareMS.setVisible(True)  
-                  self.ttipBareMS.setVisible(True)                 
+                     getTxOutScriptType(lb.binScript)==CPP_TXOUT_MULTISIG:
+                  self.msTarget = lb.binScript
+                  self.chkBareMS.setVisible(True)
+                  self.ttipBareMS.setVisible(True)
                   break
-               
 
 
-      # By now, we should always know what target addr ... make sure it matches
+
+        # By now, we should always know what target addr ... make sure it matches
       if not promTarget==self.promMustMatch:
          QMessageBox.critical(self, self.tr('Mismatched Funding Target'), self.tr(
             'The promissory note you loaded is for a different funding target. '
@@ -3842,34 +3859,34 @@ class DlgMergePromNotes(ArmoryDialog):
 
 
 
-   #############################################################################
+    #############################################################################
    def reduceScript(self, script):
       scrType = getTxOutScriptType(script)
       if scrType==CPP_TXOUT_MULTISIG:
-         # This is already 
+            # This is already
          script = script_to_p2sh_script(script)
       return script_to_scrAddr(script)
-         
 
-   #############################################################################
+
+    #############################################################################
    def updatePromTable(self):
       if len(self.promNotes)==0:
          self.promLoadStacked.setCurrentIndex(0)
       else:
          self.promLoadStacked.setCurrentIndex(1)
       self.promModel.reset()
-   
-      
 
 
-   #############################################################################
+
+
+    #############################################################################
    def mergeNotesCreateUSTX(self):
 
       if len(self.promNotes)==0:
          QMessageBox.warning(self, self.tr('Nothing Loaded'), self.tr(
             'No promissory notes were loaded.  Cannot create Simulfunding '
             'transaction.'), QMessageBox.Ok)
-         return 
+         return
 
       if len(self.promNotes)==1:
          reply = QMessageBox.warning(self, self.tr('Merging One Note'), self.tr(
@@ -3892,7 +3909,7 @@ class DlgMergePromNotes(ArmoryDialog):
       ustxiList = []
       dtxoList = []
 
-      # We've already made sure all promNotes have the same target
+        # We've already made sure all promNotes have the same target
       firstDtxo = self.promNotes[0].dtxoTarget
       dtxoTarget = DecoratedTxOut().unserialize(firstDtxo.serialize())
 
@@ -3941,12 +3958,12 @@ class DlgMergePromNotes(ArmoryDialog):
 ################################################################################
 class DlgSelectMultiSigOption(ArmoryDialog):
 
-   #############################################################################
+    #############################################################################
    def __init__(self, parent, main):
       super(DlgSelectMultiSigOption, self).__init__(parent, main)
 
       self.btnCreate = QPushButton(self.tr('Create/Manage lockboxes'))
-      #self.btnImport = QPushButton(self.tr('Import multi-sig lockbox'))
+        #self.btnImport = QPushButton(self.tr('Import multi-sig lockbox'))
       self.btnFund   = QPushButton(self.tr('Fund a lockbox'))
       self.btnSpend  = QPushButton(self.tr('Spend from a lockbox'))
 
@@ -3974,11 +3991,11 @@ class DlgSelectMultiSigOption(ArmoryDialog):
 
 
       self.lblCreate = QRichLabel(self.tr(
-         'Collect public keys to create an "address" that can be used '
-         'to send funds to the multi-sig container'))
-      #self.lblImport = QRichLabel(self.tr(
-         #'If someone has already created the lockbox you can add it '
-         #'to your lockbox list'))
+           'Collect public keys to create an "address" that can be used '
+           'to send funds to the multi-sig container'))
+        #self.lblImport = QRichLabel(self.tr(
+            #'If someone has already created the lockbox you can add it '
+            #'to your lockbox list'))
       self.lblFund = QRichLabel(self.tr(
          'Send money to an lockbox simultaneously with other '
          'parties involved in the lockbox'))
@@ -4049,16 +4066,16 @@ class DlgSelectMultiSigOption(ArmoryDialog):
       self.setWindowTitle(self.tr('Multi-Sig Lockboxes'))
 
 
-   #############################################################################
+    #############################################################################
    def openCreate(self):
       DlgLockboxEditor(self, self.main).exec_()
 
 
-   #############################################################################
+    #############################################################################
    def openFund(self):
       DlgFundLockbox(self, self.main).exec_()
 
 
-   #############################################################################
+    #############################################################################
    def openSpend(self):
       DlgSpendFromLockbox(self, self.main).exec_()

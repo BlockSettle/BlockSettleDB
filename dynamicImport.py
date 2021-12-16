@@ -11,7 +11,7 @@ import os
 import sys
 from armoryengine.ArmoryUtils import *
 from zipfile import ZipFile
-from CppBlockUtils import SecureBinaryData, CryptoECDSA
+#from CppBlockUtils import SecureBinaryData, CryptoECDSA
 PY_EXTENSION = '.py'
 ZIP_EXTENSION = '.zip'
 SIG_EXTENSION = '.sig'
@@ -34,34 +34,34 @@ MODULE_ZIP_STATUS = enum("Valid", 'Invalid', 'Unsigned')
 #    signature.txt (signature of the inner zip file)
 def verifyZipSignature(outerZipFilePath):
    result = MODULE_ZIP_STATUS.Invalid
-   try:
-      dataToSign = None
-      signature = None
-      outerZipFile = ZipFile(outerZipFilePath)
-      # look for a zip file in the name list.
-      # There should only be 2 files in this zip:
-      #    The inner zip file and the sig file
-      if len(outerZipFile.namelist()) == 3:
-         dataToSign = sha256(sha256(outerZipFile.read(INNER_ZIP_FILENAME)) +
-                      sha256(outerZipFile.read(PROPERTIES_FILENAME)))
-         signature = outerZipFile.read(SIGNATURE_FILENAME)
-               
-      if dataToSign and signature:
-         """
-         Signature file contains multiple lines, of the form "key=value\n"
-         The last line is the hex-encoded signature, which is over the 
-         source code + everything in the sig file up to the last line.
-         The key-value lines may contain properties such as signature 
-         validity times/expiration, contact info of author, etc.
-         """
-         dataToSignSBD = SecureBinaryData(dataToSign)
-         sigSBD = SecureBinaryData(hex_to_binary(signature.strip()))
-         publicKeySBD = SecureBinaryData(hex_to_binary(ARMORY_INFO_SIGN_PUBLICKEY))
-         result = MODULE_ZIP_STATUS.Valid if CryptoECDSA().VerifyData(dataToSignSBD, sigSBD, publicKeySBD) else \
-                  MODULE_ZIP_STATUS.Unsigned
-   except:
+#   try:
+#      dataToSign = None
+#      signature = None
+#      outerZipFile = ZipFile(outerZipFilePath)
+#      # look for a zip file in the name list.
+#      # There should only be 2 files in this zip:
+#      #    The inner zip file and the sig file
+#      if len(outerZipFile.namelist()) == 3:
+#         dataToSign = sha256(sha256(outerZipFile.read(INNER_ZIP_FILENAME)) +
+#                      sha256(outerZipFile.read(PROPERTIES_FILENAME)))
+#         signature = outerZipFile.read(SIGNATURE_FILENAME)
+#
+#      if dataToSign and signature:
+#         """
+#         Signature file contains multiple lines, of the form "key=value\n"
+#         The last line is the hex-encoded signature, which is over the
+#         source code + everything in the sig file up to the last line.
+#         The key-value lines may contain properties such as signature
+#         validity times/expiration, contact info of author, etc.
+#         """
+#         dataToSignSBD = SecureBinaryData(dataToSign)
+#         sigSBD = SecureBinaryData(hex_to_binary(signature.strip()))
+#         publicKeySBD = SecureBinaryData(hex_to_binary(ARMORY_INFO_SIGN_PUBLICKEY))
+#         result = MODULE_ZIP_STATUS.Valid if CryptoECDSA().VerifyData(dataToSignSBD, sigSBD, publicKeySBD) else \
+#                  MODULE_ZIP_STATUS.Unsigned
+#   except:
       # if anything goes wrong an invalid zip file indicator will get returned 
-      pass
+#      pass
    return result
 
 # TODO - Write this method - currently this just a place holder
@@ -74,13 +74,13 @@ def signZipFile(zipFilePath, propertiesDictionary=None):
    # else if ti's a dictionary save it to a file and use that.
    
    # Read the contents of the Zip File and the properties file
-   zipFileData = None
-   propertiesFileData = None
-   dataToSign = sha256(sha256(zipFileData) + sha256(propertiesFileData))
-   dataToSignSBD = SecureBinaryData(dataToSign)
+#   zipFileData = None
+#   propertiesFileData = None
+#   dataToSign = sha256(sha256(zipFileData) + sha256(propertiesFileData))
+#   dataToSignSBD = SecureBinaryData(dataToSign)
    # get the privKeySBD
-   privKeySBD = None
-   signature = CryptoECDSA().SignData(dataToSignSBD, privKeySBD, ENABLE_DETSIGN)
+#   privKeySBD = None
+#   signature = CryptoECDSA().SignData(dataToSignSBD, privKeySBD, ENABLE_DETSIGN)
    # Write the Signature to signature.txt
    # rename the source Zip file to inner.zip
    # Create a new Zip File with the original name of the source zip file
@@ -216,4 +216,3 @@ def dynamicImportNoZip(inDir, moduleName, injectLocals=None):
       exit(1)
    
    return modTemp
-   

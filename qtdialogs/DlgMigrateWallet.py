@@ -12,10 +12,12 @@ from PySide2.QtWidgets import QLabel, QLineEdit, QFrame, \
    QDialogButtonBox, QGridLayout, QPushButton, QVBoxLayout, \
    QSizePolicy, QRadioButton, QButtonGroup, QLayout
 
-from qtdialogs.qtdefines import ArmoryDialog, tightSizeStr, \
+from qtdialogs.qtdefines import tightSizeStr, \
    makeHorizFrame
 from qtdialogs.qtdialogs import MIN_PASSWD_WIDTH, LetterButton, \
    STRETCH
+
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 from armoryengine.CppBridge import TheBridge
 

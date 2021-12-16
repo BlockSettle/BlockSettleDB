@@ -2,6 +2,7 @@ import sys
 sys.path.append('..')
 from pytest.Tiab import TiabTest
 
+
 from CppBlockUtils import CryptoECDSA, CryptoAES
 from armoryengine.PyBtcAddress import PyBtcAddress
 from armoryengine.ArmoryUtils import *

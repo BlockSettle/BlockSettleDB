@@ -316,6 +316,7 @@ USER_HOME_DIR    = ''
 BTC_HOME_DIR     = ''
 ARMORY_HOME_DIR  = ''
 ARMORY_DB_DIR    = ''
+DEFAULT_ADDR_TYPE= ''
 SUBDIR = 'testnet3' if USE_TESTNET else '' + 'regtest' if USE_REGTEST else ''
 
 #settingsObject = SettingsFile(CLI_OPTIONS.settingsPath)

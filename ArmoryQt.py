@@ -55,7 +55,7 @@ from armoryengine.ArmoryUtils import HMAC256, GUI_LANGUAGE, \
    ARMORY_DB_DIR, coin2str, DEFAULT_DATE_FORMAT, \
    unixTimeToFormatStr, binary_to_hex, BTC_HOME_DIR, secondsToHumanTime, \
    LEVELDB_BLKDATA, LOGRAWDATA, LOGPPRINT, hex_to_binary, \
-   getRandomHexits_NotSecure, coin2strNZS
+   getRandomHexits_NotSecure, coin2strNZS, DEFAULT_ADDR_TYPE
 
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
@@ -80,9 +80,10 @@ from qtdialogs.qtdefines import GETFONT, NETWORKMODE, \
    makeLayoutFrame, HORIZONTAL, QRichLabel, relaxedSizeStr, STYLE_SUNKEN, \
    makeHorizFrame, DASHBTNS, STYLE_NONE, UserModeStr, makeVertFrame, \
    restoreTableView, determineWalletType, WLTTYPES, tightSizeStr, \
-   QLabelButton, MsgBoxWithDNAA, MSGBOX, saveTableView
+   QLabelButton, MSGBOX, saveTableView
 
 from qtdialogs.qtdialogs import URLHandler, ArmorySplashScreen, LoadingDisp
+from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.DlgMigrateWallet import DlgMigrateWallet
 from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
 from qtdialogs.DlgAddressBook import DlgAddressBook, createAddrBookButton
@@ -96,6 +97,12 @@ from qtdialogs.DlgOfflineTx import DlgOfflineSelect, DlgSignBroadcastOfflineTx
 from qtdialogs.DlgUnlockWallet import DlgUnlockWallet
 from qtdialogs.DlgDispTxInfo import DlgDispTxInfo
 from qtdialogs.DlgSetComment import DlgSetComment
+from qtdialogs.DlgSettings import DlgSettings
+from qtdialogs.DlgExportTxHistory import DlgExportTxHistory
+from qtdialogs.DlgWltRecoverWallet import DlgWltRecoverWallet
+from qtdialogs.DlgHelpAbout import DlgHelpAbout
+from qtdialogs.MsgBoxCustom import MsgBoxCustom
+from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
 
 from ui.QtExecuteSignal import QtExecuteSignal
 

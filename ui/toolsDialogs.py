@@ -8,15 +8,20 @@ from __future__ import (absolute_import, division,
 #                                                                              #
 ################################################################################
 
-from PySide2.QtWidgets import QWidget
+from PySide2.QtWidgets import QApplication, QDialogButtonBox, QGridLayout, \
+        QLabel, QLineEdit, QMessageBox, QPushButton, QTabWidget, QTextEdit, \
+        QVBoxLayout, QWidget
+from PySide2.QtGui import QIcon
+from PySide2.QtCore import SIGNAL
 
-from armoryengine.ArmoryUtils import isASCII
-from armorycolors import htmlColor
-from qtdialogs.qtdialogs import MIN_PASSWD_WIDTH, DlgPasswd3
+from armoryengine.ArmoryUtils import ADDRBYTE, LOGWARN, P2SHBYTE, \
+        addrStr_to_hash160, isASCII
+from jasvet import ASv0, ASv1B64, ASv1CS, readSigBlock, verifySignature
+from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.DlgUnlockWallet import DlgUnlockWallet
+from qtdialogs.qtdefines import MSGBOX, QRichLabel, makeHorizFrame
+from qtdialogs.MsgBoxCustom import MsgBoxCustom
 from qtdialogs.DlgAddressBook import createAddrBookButton
-
-from qtdialogs.qtdefines import ArmoryDialog
 
 class MessageSigningVerificationDialog(ArmoryDialog):
 

@@ -19,10 +19,11 @@ from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE, \
 from armoryengine.MultiSigUtils import isBareLockbox, isP2SHLockbox
 
 from qtdialogs.qtdialogs import STRETCH
-from qtdialogs.qtdefines import ArmoryDialog, QRichLabel, tightSizeStr, \
+from qtdialogs.qtdefines import QRichLabel, tightSizeStr, \
    initialColResize, USERMODE, HLINE, makeHorizFrame, restoreTableView, \
    saveTableView
 from qtdialogs.DlgSetComment import DlgSetComment
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 from ui.MultiSigModels import LockboxDisplayModel, LockboxDisplayProxy, \
    LOCKBOXCOLS

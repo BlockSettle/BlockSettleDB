@@ -8,8 +8,9 @@ from __future__ import (absolute_import, division,
 #                                                                            #
 ##############################################################################
 
-from qtdialogs.qtdefines import ArmoryDialog, QRichLabel, makeHorizFrame, \
+from qtdialogs.qtdefines import QRichLabel, makeHorizFrame, \
    saveTableView, restoreTableView
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 from ui.TreeViewGUI import CoinControlTreeModel, RBFTreeModel
 

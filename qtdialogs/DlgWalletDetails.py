@@ -16,10 +16,13 @@ from armoryengine.BDM import TheBDM, BDM_UNINITIALIZED, BDM_OFFLINE, \
 from armorycolors import htmlColor
 from ui.TreeViewGUI import AddressTreeModel
 
-from qtdialogs.qtdefines import ArmoryDialog, USERMODE, determineWalletType, \
+from qtdialogs.qtdefines import USERMODE, determineWalletType, \
    relaxedSizeNChar, relaxedSizeStr, QLabelButton, STYLE_SUNKEN, STYLE_NONE, \
-   QRichLabel, makeHorizFrame, MsgBoxWithDNAA, restoreTableView, WLTTYPES, \
+   QRichLabel, makeHorizFrame, restoreTableView, WLTTYPES, \
    WLTFIELDS, tightSizeStr, saveTableView
+
+from qtdialogs.ArmoryDialog import ArmoryDialog
+from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
 
 from qtdialogs.qtdialogs import STRETCH, LoadingDisp
 from qtdialogs.DlgNewAddress import \

@@ -10,8 +10,9 @@ from PySide2.QtCore import QSize
 from PySide2.QtGui import QIcon
 from PySide2.QtWidgets import QVBoxLayout, QTextEdit, QCheckBox, QPushButton
 
-from qtdialogs.qtdefines import ArmoryDialog, GETFONT, tightSizeNChar, \
+from qtdialogs.qtdefines import GETFONT, tightSizeNChar, \
    makeHorizFrame, makeVertFrame, QRichLabel
+from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.qtdialogs import STRETCH
 
 #############################################################################

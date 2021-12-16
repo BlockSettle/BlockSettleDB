@@ -12,10 +12,12 @@ from PySide2.QtWidgets import QFrame, QGridLayout, QPushButton, QLabel, \
    QLineEdit, QHBoxLayout, QDialogButtonBox, QTextEdit, QMessageBox
 
 from armorycolors import Colors
-from qtdialogs.qtdefines import ArmoryDialog, determineWalletType, \
-   STYLE_RAISED, QRichLabel, tightSizeStr, QRCodeWidget, makeHorizFrame, \
+from qtdialogs.qtdefines import determineWalletType, \
+   STYLE_RAISED, QRichLabel, tightSizeStr, makeHorizFrame, \
    makeVertFrame, WLTTYPES, tightSizeNChar, STYLE_SUNKEN
 from qtdialogs.qtdialogs import STRETCH
+from qtdialogs.ArmoryDialog import ArmoryDialog
+from qtdialogs.QRCodeWidget import QRCodeWidget
 from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE
 
 from armoryengine.BDM import TheBDM, BDM_OFFLINE

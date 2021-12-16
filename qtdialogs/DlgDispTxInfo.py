@@ -28,10 +28,11 @@ from armoryengine.Script import convertScriptToOpStrings
 from armoryengine.CppBridge import TheBridge
 
 from armorymodels import TxInDispModel, TxOutDispModel, TXINCOLS, TXOUTCOLS
-from qtdialogs.qtdefines import ArmoryDialog, STYLE_RAISED, USERMODE, \
+from qtdialogs.qtdefines import STYLE_RAISED, USERMODE, \
    QRichLabel, relaxedSizeStr, GETFONT, tightSizeNChar, STYLE_SUNKEN, \
    HORIZONTAL, makeHorizFrame, initialColResize, makeLayoutFrame
 from qtdialogs.qtdialogs import STRETCH
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 ################################################################################
 class DlgDisplayTxIn(ArmoryDialog):
@@ -1020,4 +1021,3 @@ def extractTxInfo(pytx, rcvTime=None):
       sumTxIn = None
 
    return [txHash, txOutToList, sumTxOut, txinFromList, sumTxIn, \
-           txTime, txBlk, txIdx, txSize, txWeight]

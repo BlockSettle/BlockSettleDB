@@ -9,7 +9,8 @@
 from PySide2.QtWidgets import QMessageBox, QPushButton, QDialogButtonBox, \
    QVBoxLayout
 
-from qtdialogs.qtdefines import ArmoryDialog, HORIZONTAL
+from qtdialogs.qtdefines import HORIZONTAL
+from qtdialogs.ArmoryDialog import ArmoryDialog
 from ui.WalletFrames import SelectWalletFrame
 
 ################################################################################

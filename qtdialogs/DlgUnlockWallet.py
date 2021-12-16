@@ -12,7 +12,8 @@ from PySide2.QtWidgets import QFrame, QVBoxLayout, QGridLayout, \
    QPushButton, QLabel, QLineEdit, QDialogButtonBox, QButtonGroup, \
    QRadioButton, QSizePolicy, QLayout
 
-from qtdialogs.qtdefines import ArmoryDialog, makeHorizFrame
+from qtdialogs.qtdefines import makeHorizFrame
+from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.qtdialogs import STRETCH, MIN_PASSWD_WIDTH, LetterButton
 
 ################################################################################

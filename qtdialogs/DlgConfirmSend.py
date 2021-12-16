@@ -6,21 +6,22 @@
 #                                                                              #
 ################################################################################
 
+from PySide2.QtCore import Qt
+from PySide2.QtGui import QPixmap, QFont
+from PySide2.QtWidgets import QLabel, QGridLayout, QSpacerItem, QPushButton, \
+   QDialogButtonBox, QFrame
+
 from armoryengine.ArmoryUtils import CPP_TXOUT_HAS_ADDRSTR, \
    CPP_TXOUT_P2WPKH, CPP_TXOUT_P2WSH, script_to_scrAddr, \
    scrAddr_to_hash160, coin2strNZS, coin2str
 from armoryengine.Transaction import getTxOutScriptType
 from armorycolors import htmlColor
 
-from PySide2.QtCore import Qt
-from PySide2.QtGui import QPixmap, QFont
-from PySide2.QtWidgets import QLabel, QGridLayout, QSpacerItem, QPushButton, \
-   QDialogButtonBox, QFrame
-
-from qtdialogs.qtdefines import ArmoryDialog, USERMODE, QRichLabel, \
+from qtdialogs.qtdefines import USERMODE, QRichLabel, \
    GETFONT, HLINE, makeLayoutFrame, makeVertFrame, makeHorizFrame, \
    VERTICAL, STYLE_RAISED
 from qtdialogs.DlgDispTxInfo import DlgDispTxInfo
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 #############################################################################
 def excludeChange(outputPairs, wlt):

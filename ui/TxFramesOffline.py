@@ -20,11 +20,12 @@ from qtdialogs.qtdefines import ArmoryFrame, tightSizeNChar, \
    GETFONT, QRichLabel, HLINE, QLabelButton, USERMODE, \
    VERTICAL, HORIZONTAL, STYLE_RAISED, relaxedSizeNChar, STYLE_SUNKEN, \
    relaxedSizeStr, makeLayoutFrame, tightSizeStr, NETWORKMODE, \
-   MsgBoxWithDNAA, MSGBOX
+   MSGBOX
 
 from qtdialogs.qtdialogs import STRETCH
 from qtdialogs.DlgDispTxInfo import DlgDispTxInfo, extractTxInfo
 from qtdialogs.DlgConfirmSend import DlgConfirmSend
+from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
 
 from armoryengine.Transaction import UnsignedTransaction
 from armoryengine.ArmoryUtils import LOGEXCEPT, LOGERROR, LOGINFO, \

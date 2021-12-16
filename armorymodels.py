@@ -34,8 +34,10 @@ from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.CppBridge import TheBridge
 
 from armorycolors import Colors
-from qtdialogs.qtdefines import ArmoryDialog, determineWalletType, WLTTYPES, \
+from qtdialogs.qtdefines import determineWalletType, WLTTYPES, \
    GETFONT, CHANGE_ADDR_DESCR_STRING
+
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 WLTVIEWCOLS = enum('Visible', 'ID', 'Name', 'Secure', 'Bal')
 LEDGERCOLS  = enum('NumConf', 'UnixTime', 'DateStr', 'TxDir', 'WltName', 'Comment', \

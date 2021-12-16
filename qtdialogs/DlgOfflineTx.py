@@ -14,11 +14,12 @@ from PySide2.QtWidgets import QVBoxLayout, QPushButton, QTextEdit, \
 from armoryengine.ArmoryUtils import OS_WINDOWS, LOGINFO, LOGEXCEPT
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 
-from qtdialogs.qtdefines import ArmoryDialog, QRichLabel, HORIZONTAL, \
+from qtdialogs.qtdefines import QRichLabel, HORIZONTAL, \
    STYLE_SUNKEN, GETFONT, STYLE_RAISED, VERTICAL, makeLayoutFrame, \
    relaxedSizeNChar, determineWalletType, WLTTYPES, makeHorizFrame, \
    makeVertFrame, STYLE_PLAIN, HLINE, tightSizeNChar
 from qtdialogs.qtdialogs import STRETCH
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 from ui.TxFramesOffline import SignBroadcastOfflineTxFrame
 
@@ -126,7 +127,7 @@ class ReviewOfflineTxFrame(ArmoryDialog):
             'On the offline computer, click "Offline Transactions" on the main '
             'window.  Load the transaction, <b>review it</b>, then sign it '
             '(the filename now end with <i>*.signed.tx</i>).  Click "Continue" '
-            'below when you have the signed transaction on this computer. ' 
+            'below when you have the signed transaction on this computer. '
             '<br><br>'
             '<b>NOTE:</b> The USB drive only ever holds public transaction '
             'data that will be broadcast to the network.  This data may be '
@@ -323,4 +324,3 @@ class DlgSignBroadcastOfflineTx(ArmoryDialog):
       dlgLayout.addWidget(doneForm)
       self.setLayout(dlgLayout)
       signBroadcastOfflineTxFrame.processUSTX()
-

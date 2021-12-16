@@ -11,8 +11,9 @@ from PySide2.QtWidgets import QLineEdit, QPushButton, QDialogButtonBox, \
 
 from armorycolors import htmlColor
 
-from qtdialogs.qtdefines import ArmoryDialog, relaxedSizeStr, \
+from qtdialogs.qtdefines import relaxedSizeStr, \
    STYLE_SUNKEN, QRichLabel, makeHorizFrame, makeVertFrame
+from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.qtdialogs import STRETCH
 from qtdialogs.DlgProgress import DlgProgress
 

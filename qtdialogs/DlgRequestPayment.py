@@ -6,7 +6,7 @@
 #                                                                              #
 ################################################################################
 
-from qtdialogs.qtdefines import ArmoryDialog
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 ################################################################################
 class DlgRequestPayment(ArmoryDialog):

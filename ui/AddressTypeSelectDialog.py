@@ -12,13 +12,15 @@ from PySide2.QtCore import Qt
 from PySide2.QtWidgets import QPushButton, QGridLayout, QFrame, QLabel, \
    QRadioButton
 
-from qtdialogs.qtdefines import ArmoryDialog, STYLE_RAISED, QLabelButton
+from qtdialogs.qtdefines import STYLE_RAISED, QLabelButton
 from armoryengine.BDM import TheBDM
 from armoryengine.CppBridge import TheBridge
 from armoryengine.PyBtcAddress import AddressEntryType_P2PKH, \
    AddressEntryType_P2PK, AddressEntryType_P2WPKH, \
    AddressEntryType_Multisig, AddressEntryType_Uncompressed, \
    AddressEntryType_P2SH, AddressEntryType_P2WSH
+
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 selectorDescriptions = {}
 selectorDescriptions[AddressEntryType_P2PKH] = str(

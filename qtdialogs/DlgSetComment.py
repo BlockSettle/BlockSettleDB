@@ -12,9 +12,9 @@ from PySide2.QtWidgets import QLabel, QLineEdit, \
    QDialogButtonBox, QGridLayout
 
 from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH, isASCII
-from qtdialogs.qtdefines import ArmoryDialog, relaxedSizeNChar, \
+from qtdialogs.qtdefines import relaxedSizeNChar, \
    UnicodeErrorBox
-
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 ################################################################################
 class DlgSetComment(ArmoryDialog):

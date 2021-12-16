@@ -9,8 +9,8 @@
 from PySide2.QtCore import QSize
 from PySide2.QtWidgets import QVBoxLayout
 
-from qtdialogs.qtdefines import ArmoryDialog
 from qtdialogs.DlgOfflineTx import DlgOfflineTxCreated
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 from ui.TxFrames import SendBitcoinsFrame
 

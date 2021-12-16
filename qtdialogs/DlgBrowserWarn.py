@@ -6,7 +6,7 @@
 #                                                                              #
 ################################################################################
 
-from qtdialogs.qtdefines import ArmoryDialog
+from qtdialogs.ArmoryDialog import ArmoryDialog
 
 ################################################################################
 class DlgBrowserWarn(ArmoryDialog):
@@ -33,6 +33,6 @@ class DlgBrowserWarn(ArmoryDialog):
       super(DlgBrowserWarn, self).reject()
 
    def accept(self):
-     import webbrowser
-     webbrowser.open(self.link)
-     super(DlgBrowserWarn, self).accept()
+      import webbrowser
+      webbrowser.open(self.link)
+      super(DlgBrowserWarn, self).accept()
