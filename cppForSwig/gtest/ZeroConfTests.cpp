@@ -2616,7 +2616,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
       Signer signer3;
 
       //instantiate resolver feed overloaded object
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
@@ -3252,7 +3252,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
       Signer signer3;
 
       //instantiate resolver feed overloaded object
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
@@ -3360,7 +3360,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
 
       //instantiate resolver feed
       auto assetFeed = 
-         make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+         make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getRBFTxOutList();
@@ -4692,7 +4692,7 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
       Signer signer3;
 
       //instantiate resolver feed overloaded object
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
@@ -4781,7 +4781,7 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
 
       //instantiate resolver feed
       auto assetFeed =
-         make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+         make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getRBFTxOutList();

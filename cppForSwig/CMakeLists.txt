@@ -30,13 +30,14 @@ add_definitions(-DLIBBTC_ONLY)
 set(LIBARMORYCOMMON_INCLUDE_DIRECTORIES
     PUBLIC .
     PUBLIC hkdf
-    PRIVATE lmdbpp
+    PUBLIC lmdbpp
+    PUBLIC leveldb_windows_port/win32_posix
     PRIVATE bech32/ref/c++
     PRIVATE chacha20poly1305
-    PRIVATE libbtc/src/secp256k1/include
+    PUBLIC libbtc/src/secp256k1/include
     PUBLIC libbtc/include
-    PRIVATE Signer
-    PRIVATE Wallets
+    PUBLIC Signer
+    PUBLIC Wallets
     PRIVATE Wallets/Accounts
     PRIVATE ${PROJECT_BINARY_DIR} # for protobuf protoc genned .h files
 )

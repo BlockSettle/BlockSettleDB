@@ -7394,7 +7394,7 @@ TEST_F(WalletsTest, AssetPathResolution)
       fullPath.push_back(5);
 
       auto wlt_single = dynamic_pointer_cast<AssetWallet_Single>(wltPtr);
-      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(wlt_single);
+      auto resolver = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(wlt_single);
       auto assetPath = resolver->resolveBip32PathForPubkey(pubkey);
       auto pathFromSeed = assetPath.getDerivationPathFromSeed();
 

@@ -568,7 +568,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       auto&& utxoSelect = csi.getUtxoSelection();
 
       //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //create spenders
       uint64_t total = 0;
@@ -695,7 +695,7 @@ TEST_F(SignerTest, SpendTest_SizeEstimates)
       auto&& utxoSelect = csi.getUtxoSelection();
 
       //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //create spenders
       uint64_t total = 0;
@@ -938,7 +938,7 @@ TEST_F(SignerTest, SpendTest_P2WPKH)
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
 
       //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //create spenders
       uint64_t total = 0;
@@ -1218,7 +1218,7 @@ TEST_F(SignerTest, SpendTest_MixedInputTypes)
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
 
       //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //create spenders
       uint64_t total = 0;
@@ -1491,7 +1491,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_1of3)
          ms_wlt->getSpendableTxOutListZC();
 
       //create feed from asset wallet
-      auto feed = make_shared<ResolverFeed_AssetWalletSingle_ForMultisig>(wltPtr);
+      auto feed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig>(wltPtr);
       auto assetFeed = make_shared<ResolverUtils::CustomFeed>(addr_ms, feed);
 
       //create spenders
@@ -1766,7 +1766,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
       auto&& raw_tx = zc_from_db.serialize();
       auto bctx = BCTX::parse(raw_tx);
-      TransactionVerifier tx_verifier(*bctx, utxoVec);
+      Armory::Signer::TransactionVerifier tx_verifier(*bctx, utxoVec);
 
       ASSERT_TRUE(tx_verifier.evaluateState().isValid());
    }
@@ -1805,7 +1805,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
       unspentVec_singleSig.begin(), unspentVec_singleSig.end());
 
    //create feed from asset wallet 1
-   auto feed_ms = make_shared<ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_1);
+   auto feed_ms = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_1);
    auto assetFeed = make_shared<ResolverUtils::CustomFeed>(addr_p2wsh, feed_ms);
 
    //create spenders
@@ -1872,7 +1872,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
 
    Signer signer3;
    //create feed from asset wallet 2
-   auto feed_ms3 = make_shared<ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_2);
+   auto feed_ms3 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_2);
    auto assetFeed3 = make_shared<ResolverUtils::CustomFeed>(addr_p2wsh, feed_ms3);
    signer3.deserializeState(signer2.serializeState());
 
@@ -1907,7 +1907,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    }
 
    {
-      auto assetFeed4 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+      auto assetFeed4 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_2);
       signer3.resetFeed();
       signer3.setFeed(assetFeed4);
       auto lock = assetWlt_2->lockDecryptedContainer();
@@ -1949,7 +1949,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_2of3_NativeP2WSH)
    auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
    auto&& raw_tx = zc_from_db.serialize();
    auto bctx = BCTX::parse(raw_tx);
-   TransactionVerifier tx_verifier(*bctx, unspentVec);
+   Armory::Signer::TransactionVerifier tx_verifier(*bctx, unspentVec);
 
    ASSERT_TRUE(tx_verifier.evaluateState().isValid());
 
@@ -2154,8 +2154,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_DifferentInputs)
 
    Codec_SignerState::SignerState serializedSignerState;
 
-   auto assetFeed2 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
-   auto assetFeed3 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+   auto assetFeed2 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_1);
+   auto assetFeed3 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_2);
 
    {
       auto spendVal = 8 * COIN;
@@ -2507,8 +2507,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning)
       serializedSignerState = move(signer3.serializeState());
    }
 
-   auto assetFeed2 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
-   auto assetFeed3 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+   auto assetFeed2 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_1);
+   auto assetFeed3 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_2);
 
    //deser to new signer, this time populate with feed and utxo from wlt_1
    Signer signer4;
@@ -2790,7 +2790,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       //create feed from asset wallet 1
 
       //create wlt_1 spenders
-      auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
+      auto _assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_1);
       uint64_t total = 0;
       for (auto& utxo : unspentVec_1)
       {
@@ -2860,7 +2860,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       }
 
       //get txid & unsigned tx, should be valid
-      auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+      auto _assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_2);
       signer3.setFeed(_assetFeed);
       unsignedHash = signer3.getTxId();
       unsignedTxRaw = signer3.serializeUnsignedTx();
@@ -2871,8 +2871,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx)
       EXPECT_TRUE(signer3.isResolved());
    }
 
-   auto assetFeed2 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
-   auto assetFeed3 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+   auto assetFeed2 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_1);
+   auto assetFeed3 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_2);
 
    //deser to new signer, this time populate with feed and utxo from wlt_1
    Signer signer4;
@@ -3158,7 +3158,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       //create feed from asset wallet 1
 
       //create wlt_1 spenders
-      auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
+      auto _assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_1);
       uint64_t total = 0;
       for (auto& utxo : unspentVec_1)
       {
@@ -3238,7 +3238,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       }
 
       //get txid & unsigned tx, should be valid now
-      auto _assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+      auto _assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_2);
       signer3.setFeed(_assetFeed);
       EXPECT_FALSE(signer3.isResolved());
       unsignedHash = signer3.getTxId();
@@ -3249,8 +3249,8 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
       serializedSignerState = move(signer3.serializeState());
    }
 
-   auto assetFeed2 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
-   auto assetFeed3 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+   auto assetFeed2 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_1);
+   auto assetFeed3 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_2);
 
    //deser to new signer, this time populate with feed and utxo from wlt_1
    Signer signer4;
@@ -3639,8 +3639,8 @@ TEST_F(SignerTest, GetUnsignedTxId)
       serializedSignerState = move(signer3.serializeState());
    }
 
-   auto assetFeed2 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_1);
-   auto assetFeed3 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+   auto assetFeed2 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_1);
+   auto assetFeed3 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_2);
 
    //deser to new signer, this time populate with feed and utxo from wlt_1
    Signer signer4;
@@ -3917,7 +3917,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
          dbAssetWlt->getSpendableTxOutListZC();
 
       //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //create spenders
       uint64_t total = 0;
@@ -3954,7 +3954,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH)
 
    {
       Signer signer3(signerState);
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //sign, verify & broadcast
       {
@@ -4199,7 +4199,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
          dbAssetWlt->getSpendableTxOutListZC();
 
       //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(wltWO);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(wltWO);
 
       //create spenders
       uint64_t total = 0;
@@ -4243,7 +4243,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromWOCopy)
    //-- sign tx with empty wallet --//
    {
       signer3.deserializeState(signerState);
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(emptyWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(emptyWlt);
 
       //sign, verify & broadcast
       {
@@ -4478,7 +4478,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
          dbAssetWlt->getSpendableTxOutListZC();
 
       //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(wltWO);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(wltWO);
 
       //create spenders
       uint64_t total = 0;
@@ -4515,7 +4515,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2WPKH_WOResolution_fromXPub)
 
    {
       Signer signer3(signerState);
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(emptyWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(emptyWlt);
 
       //sign, verify & broadcast
       {
@@ -4724,7 +4724,7 @@ TEST_F(SignerTest, Wallet_SpendTest_Nested_P2PK)
          dbAssetWlt->getSpendableTxOutListZC();
 
       //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //create spenders
       uint64_t total = 0;
@@ -4996,7 +4996,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
 
       //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //create spenders
       uint64_t total = 0;
@@ -5130,7 +5130,7 @@ TEST_F(SignerTest, SpendTest_FromAccount_Reload)
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue();
 
       //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //create spenders
       uint64_t total = 0;
@@ -5393,7 +5393,7 @@ TEST_F(SignerTest, SpendTest_BIP32_Accounts)
       auto spendVal = 27 * COIN;
       Signer signer;
 
-      auto feed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto feed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
@@ -5644,7 +5644,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Armory135)
       auto spendVal = 27 * COIN;
       Signer signer;
 
-      auto feed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto feed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
@@ -5892,7 +5892,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_BIP32)
       auto spendVal = 27 * COIN;
       Signer signer;
 
-      auto feed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto feed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
@@ -6166,7 +6166,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_Salted)
       auto spendVal = 27 * COIN;
       Signer signer;
 
-      auto feed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto feed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
@@ -6445,7 +6445,7 @@ TEST_F(SignerTest, SpendTest_FromExtendedAddress_ECDH)
       auto spendVal = 27 * COIN;
       Signer signer;
 
-      auto feed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto feed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListForValue(spendVal);
@@ -6756,7 +6756,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature)
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
 
       //create feed from asset wallet
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //create spenders
       uint64_t total = 0;
@@ -7083,7 +7083,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
       auto&& raw_tx = zc_from_db.serialize();
       auto bctx = BCTX::parse(raw_tx);
-      TransactionVerifier tx_verifier(*bctx, utxoVec);
+      Armory::Signer::TransactionVerifier tx_verifier(*bctx, utxoVec);
 
       ASSERT_TRUE(tx_verifier.evaluateState().isValid());
    }
@@ -7122,7 +7122,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       unspentVec_singleSig.begin(), unspentVec_singleSig.end());
 
    //create feed from asset wallet 1
-   auto feed_ms = make_shared<ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_1);
+   auto feed_ms = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_1);
    auto assetFeed = make_shared<ResolverUtils::CustomFeed>(addr_p2wsh, feed_ms);
 
    //create spenders
@@ -7191,7 +7191,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
 
    Signer signer3;
    //create feed from asset wallet 2
-   auto feed_ms3 = make_shared<ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_2);
+   auto feed_ms3 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_2);
    auto assetFeed3 = make_shared<ResolverUtils::CustomFeed>(addr_p2wsh, feed_ms3);
    signer3.deserializeState(signer2.serializeState());
 
@@ -7226,7 +7226,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    }
 
    {
-      auto assetFeed4 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+      auto assetFeed4 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_2);
       signer3.resetFeed();
       signer3.setFeed(assetFeed4);
       auto lock = assetWlt_2->lockDecryptedContainer();
@@ -7314,7 +7314,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
       EXPECT_FALSE(signer_inject.verify());
 
       signer_inject.resetFeed();
-      auto assetFeed5 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+      auto assetFeed5 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_2);
       signer_inject.setFeed(assetFeed5);
       signer_inject.resolvePublicData();
       EXPECT_TRUE(signer_inject.isResolved());
@@ -7351,7 +7351,7 @@ TEST_F(SignerTest, SpendTest_InjectSignature_Multisig)
    auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
    auto&& raw_tx = zc_from_db.serialize();
    auto bctx = BCTX::parse(raw_tx);
-   TransactionVerifier tx_verifier(*bctx, unspentVec);
+   Armory::Signer::TransactionVerifier tx_verifier(*bctx, unspentVec);
 
    ASSERT_TRUE(tx_verifier.evaluateState().isValid());
 
@@ -8981,7 +8981,7 @@ TEST_F(ExtrasTest, PSBT)
       //sign with wallet
       {
          auto signer5 = Signer::fromPSBT(resolvedPSBT);
-         auto wltFeed = make_shared<ResolverFeed_AssetWalletSingle>(wallet);
+         auto wltFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(wallet);
          signer5.setFeed(wltFeed);
 
          auto lock = wallet->lockDecryptedContainer();
@@ -9161,7 +9161,7 @@ TEST_F(ExtrasTest_Mainnet, Bip32PathDiscovery)
       auto woWallet = AssetWallet::loadMainWalletFromFile(woWalletPath, passLbd);
       auto woWalletSingle = dynamic_pointer_cast<AssetWallet_Single>(woWallet);
 
-      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(wallet);
+      auto resolver = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(wallet);
       for (auto& keyPathPair : keyAndPath)
       {
          auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
@@ -9172,7 +9172,7 @@ TEST_F(ExtrasTest_Mainnet, Bip32PathDiscovery)
          EXPECT_EQ(pathVec, keyPathPair.second);
       }
 
-      auto resolverPublic = make_shared<ResolverFeed_AssetWalletSingle>(woWalletSingle);
+      auto resolverPublic = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(woWalletSingle);
       for (auto& keyPathPair : keyAndPath)
       {
          auto resolvedPath = resolver->resolveBip32PathForPubkey(keyPathPair.first);
@@ -9188,7 +9188,7 @@ TEST_F(ExtrasTest_Mainnet, Bip32PathDiscovery)
    {
       auto loadedWlt = AssetWallet::loadMainWalletFromFile(wltPath, passLbd);
       auto loadedWltSingle = dynamic_pointer_cast<AssetWallet_Single>(loadedWlt);
-      auto resolver = make_shared<ResolverFeed_AssetWalletSingle>(loadedWltSingle);
+      auto resolver = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(loadedWltSingle);
 
       for (auto& keyPathPair : keyAndPath)
       {
