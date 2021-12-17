@@ -31,7 +31,6 @@ set(LIBARMORYCOMMON_INCLUDE_DIRECTORIES
     PUBLIC .
     PUBLIC hkdf
     PUBLIC lmdbpp
-    PUBLIC leveldb_windows_port/win32_posix
     PRIVATE bech32/ref/c++
     PRIVATE chacha20poly1305
     PUBLIC libbtc/src/secp256k1/include
@@ -44,7 +43,7 @@ set(LIBARMORYCOMMON_INCLUDE_DIRECTORIES
 
 IF (MSVC)
     LIST(APPEND LIBARMORYCOMMON_INCLUDE_DIRECTORIES
-        PRIVATE leveldb_windows_port/win32_posix
+        PUBLIC leveldb_windows_port/win32_posix
     )
 ENDIF (MSVC)
 
