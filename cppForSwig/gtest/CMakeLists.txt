@@ -21,6 +21,7 @@ target_include_directories(BIP151RekeyTest
 target_link_libraries(BIP151RekeyTest
     ${GTEST_LIB}
     ArmoryCommon
+    ${OS_SPECIFIC_LIBS}
 )
 
 add_executable(ContainerTests

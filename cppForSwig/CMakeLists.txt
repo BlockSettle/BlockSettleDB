@@ -84,11 +84,17 @@ IF (MSVC)
     list(REMOVE_ITEM LIBARMORYCOMMON_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/SocketService_unix.cpp
     )
+
+    set(OS_SPECIFIC_LIBS )
+
 ELSE (MSVC)
     list(REMOVE_ITEM LIBARMORYCOMMON_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/SocketService_win32.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Win_TranslatePath.cpp
     )
+
+    set(OS_SPECIFIC_LIBS gmp)
+
 ENDIF (MSVC)
 
 list(REMOVE_ITEM LIBARMORYCOMMON_SOURCES
@@ -315,6 +321,7 @@ target_include_directories(armorydb
 
 target_link_libraries(armorydb
     ArmoryCLI
+    ${OS_SPECIFIC_LIBS}
 )
 
 include(GNUInstallDirs)
@@ -335,6 +342,7 @@ target_include_directories(BIP150KeyManager
 
 target_link_libraries(BIP150KeyManager
     ArmoryCLI
+    ${OS_SPECIFIC_LIBS}
 )
 
 install(TARGETS BIP150KeyManager DESTINATION ${CMAKE_INSTALL_BINDIR})
