@@ -81,7 +81,6 @@ _CppBlockUtils.*
 /cppForSwig/gtest/CppBlockUtilsTests
 /cppForSwig/gtest/SupernodeTests
 /cppForSwig/gtest/WalletTests
-/cppForSwig/gtest/*.txt
 /cppForSwig/gtest/*.a
 /cppForSwig/gtest/*.out.*
 /cppForSwig/gtest/blkfiletest/*
