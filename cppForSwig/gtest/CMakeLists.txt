@@ -37,6 +37,7 @@ target_include_directories(ContainerTests
 target_link_libraries(ContainerTests
     ${GTEST_LIB}
     ArmoryCommon
+    ${OS_SPECIFIC_LIBS}
 )
 
 add_executable(CppBlockUtilsTests
@@ -52,6 +53,7 @@ target_include_directories(CppBlockUtilsTests
 target_link_libraries(CppBlockUtilsTests
     ${GTEST_LIB}
     ArmoryCommon
+    ${OS_SPECIFIC_LIBS}
 )
 
 # Seems to be outdated - re-enable when fixed
@@ -83,6 +85,7 @@ target_include_directories(NodeUnitTest
 target_link_libraries(NodeUnitTest
     ${GTEST_LIB}
     ArmoryCommon
+    ${OS_SPECIFIC_LIBS}
 )
 
 add_executable(SignerTests
@@ -98,6 +101,7 @@ target_include_directories(SignerTests
 target_link_libraries(SignerTests
     ${GTEST_LIB}
     ArmoryCommon
+    ${OS_SPECIFIC_LIBS}
 )
 
 add_executable(SupernodeTests
@@ -113,6 +117,7 @@ target_include_directories(SupernodeTests
 target_link_libraries(SupernodeTests
     ${GTEST_LIB}
     ArmoryCommon
+    ${OS_SPECIFIC_LIBS}
 )
 
 add_executable(UtilsTests
@@ -128,6 +133,7 @@ target_include_directories(UtilsTests
 target_link_libraries(UtilsTests
     ${GTEST_LIB}
     ArmoryCommon
+    ${OS_SPECIFIC_LIBS}
 )
 
 add_executable(WalletTests
@@ -143,6 +149,7 @@ target_include_directories(WalletTests
 target_link_libraries(WalletTests
     ${GTEST_LIB}
     ArmoryCommon
+    ${OS_SPECIFIC_LIBS}
 )
 
 add_executable(ZeroConfTests
@@ -158,4 +165,5 @@ target_include_directories(ZeroConfTests
 target_link_libraries(ZeroConfTests
     ${GTEST_LIB}
     ArmoryCommon
+    ${OS_SPECIFIC_LIBS}
 )
