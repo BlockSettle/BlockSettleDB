@@ -9,9 +9,9 @@ from __future__ import (absolute_import, division,
 ################################################################################
 from armoryengine.ArmoryUtils import *
 from armoryengine.MultiSigUtils import readLockboxEntryStr, calcLockboxID, \
-                                       isBareLockbox, isP2SHLockbox
+   isBareLockbox, isP2SHLockbox
 from armoryengine.Transaction import getTxOutScriptType, getMultisigScriptInfo
-from armoryengine.CppBridge import TheBridge
+from armoryengine.CppBridge import TheBridge, BridgeError
 
 #############################################################################
 def getScriptForUserStringImpl(userStr, wltMap, lboxList):
@@ -85,22 +85,18 @@ def getScriptForUserStringImpl(userStr, wltMap, lboxList):
             scrAddr = script_to_scrAddr(outScript)
             wltID = getWltIDForScrAddr(a160, wltMap)
       else:
-         try:
-            scrAddr = addrStr_to_scrAddr(userStr, ADDRBYTE, P2SHBYTE)
-            outScript = TheBridge.getTxOutScriptForScrAddr(scrAddr)
-            hasAddrInIt = True
+         scrAddr = TheBridge.getScrAddrForAddrStr(userStr)
+         outScript = TheBridge.getTxOutScriptForScrAddr(scrAddr)
+         hasAddrInIt = True
 
-            # Check if it's a wallet scrAddr
-            wltID = getWltIDForScrAddr(scrAddr, wltMap)
+         # Check if it's a wallet scrAddr
+         wltID = getWltIDForScrAddr(scrAddr, wltMap)
 
-            # Check if it's a known P2SH
-            for lbox in lboxList:
-               if lbox.getAddr() == scrAddr:
-                  lboxID = lbox.uniqueIDB58
-                  break
-         except:
-            outScript = Cpp.BtcUtils.bech32ToScript(userStr, BECH32_PREFIX)
-            isBech32 = True
+         # Check if it's a known P2SH
+         for lbox in lboxList:
+            if lbox.getAddr() == scrAddr:
+               lboxID = lbox.uniqueIDB58
+               break
 
       # Caller might be expecting to see None, instead of '' (empty string)
       wltID  = None if not wltID  else wltID
@@ -111,7 +107,7 @@ def getScriptForUserStringImpl(userStr, wltMap, lboxList):
               'ShowID': hasAddrInIt,
               'IsBech32' : isBech32}
    except:
-      #LOGEXCEPT('Invalid user string entered')
+      LOGEXCEPT('Invalid user string entered')
       return {'Script': None,
               'WltID':  None,
               'LboxID': None,
@@ -279,7 +275,11 @@ def getDisplayStringForScriptImpl(binScript, wltMap, lboxList, maxChars=256,
    # If we're here, it didn't match any loaded wlt or lockbox
    dispStr = ''
    if scriptType == CPP_TXOUT_P2WPKH or scriptType == CPP_TXOUT_P2WSH:
-      dispStr = Cpp.BtcUtils_scriptToBech32(binScript[2:], BECH32_PREFIX)
+      try:
+         dispStr = TheBridge.getAddrStrForScrAddr(binScript)
+      except BridgeError as e:
+         scrAddr = TheBridge.getScrAddrForScript(binScript)
+         dispStr = TheBridge.getAddrStrForScrAddr(scrAddr)
       addrStr = dispStr
    elif scriptType in CPP_TXOUT_HAS_ADDRSTR:
       addrStr = script_to_addrStr(binScript)

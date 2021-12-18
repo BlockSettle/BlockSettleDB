@@ -97,10 +97,12 @@ TEST_F(AddressTests, bech32_Tests)
    EXPECT_EQ(p2wshAddr, scrAddr_p2wsh);
 
    auto&& pubkey_hash2 = BtcUtils::segWitAddressToScrAddr(scrAddr_p2wpkh);
-   EXPECT_EQ(pubkey_hash, pubkey_hash2);
+   EXPECT_EQ(pubkey_hash2.second, 0);
+   EXPECT_EQ(pubkey_hash, pubkey_hash2.first);
 
    auto&& script_hash2 = BtcUtils::segWitAddressToScrAddr(scrAddr_p2wsh);
-   EXPECT_EQ(script_hash, script_hash2);
+   EXPECT_EQ(script_hash2.second, 0);
+   EXPECT_EQ(script_hash, script_hash2.first);
 
    //buffer overrun issue check
    try

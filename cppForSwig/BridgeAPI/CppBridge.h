@@ -249,6 +249,7 @@ namespace Armory
             const BinaryData&, const BinaryData&) const;
          BridgeReply getTxOutScriptType(const BinaryData&) const;
          BridgeReply getScrAddrForScript(const BinaryData&) const;
+         BridgeReply getScrAddrForAddrStr(const std::string&) const;
          BridgeReply getLastPushDataInScript(const BinaryData&) const;
          BridgeReply getHash160(const BinaryDataRef&) const;
          void broadcastTx(const std::vector<BinaryData>&);

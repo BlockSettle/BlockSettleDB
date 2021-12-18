@@ -302,6 +302,49 @@ BinaryData BtcUtils::rsToDerSig(BinaryDataRef bdr)
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
+BinaryData BtcUtils::getScrAddrForAddrStr(const string& addrStr)
+{
+   BinaryData scrAddr;
+
+   try
+   {
+      scrAddr = move(base58toScrAddr(addrStr));
+   }
+   catch (const exception&)
+   {
+      auto scrAddrPair = move(BtcUtils::segWitAddressToScrAddr(addrStr));
+      if (scrAddrPair.second != 0)
+         throw runtime_error("[createRecipient] unsupported sw version");
+
+      switch (scrAddrPair.first.getSize())
+      {
+      case 20:
+         scrAddr.resize(21);
+         memset(scrAddr.getPtr(), SCRIPT_PREFIX_P2WPKH, 1);
+         memcpy(scrAddr.getPtr() + 1, scrAddrPair.first.getPtr(), 20);
+         break;
+
+      case 32:
+         scrAddr.resize(33);
+         memset(scrAddr.getPtr(), SCRIPT_PREFIX_P2WSH, 1);
+         memcpy(scrAddr.getPtr() + 1, scrAddrPair.first.getPtr(), 32);
+         break;
+
+      default:
+         break;
+      }
+   }
+
+   if (scrAddr.empty())
+   {
+      throw runtime_error(
+         "[getScrAddrForAddrStr] failed to create recipient");
+   }
+
+   return scrAddr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 BinaryData BtcUtils::getTxOutScrAddr(BinaryDataRef script,
    TXOUT_SCRIPT_TYPE type)
 {
@@ -709,7 +752,7 @@ string BtcUtils::scrAddrToSegWitAddress(const BinaryData& scrAddr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData BtcUtils::segWitAddressToScrAddr(const string& swAddr)
+pair<BinaryData, int> BtcUtils::segWitAddressToScrAddr(const string& swAddr)
 {
    const string* headerPtr;
 
@@ -738,7 +781,7 @@ BinaryData BtcUtils::segWitAddressToScrAddr(const string& swAddr)
    //resize result
    result.resize(len);
    
-   return result;
+   return make_pair(result, ver);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

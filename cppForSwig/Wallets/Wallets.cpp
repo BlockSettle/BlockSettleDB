@@ -492,9 +492,7 @@ const pair<AssetId, AddressEntryType>&
    AssetWallet::getAssetIDForAddrStr(const string& addrStr) const
 {
    //this takes b58 or bech32 addresses
-
    ReentrantLock lock(this);
-   
    BinaryData scrAddr;
 
    try
@@ -503,7 +501,7 @@ const pair<AssetId, AddressEntryType>&
    }
    catch(runtime_error&)
    {
-      scrAddr = move(BtcUtils::segWitAddressToScrAddr(addrStr));
+      scrAddr = move(BtcUtils::segWitAddressToScrAddr(addrStr).first);
    }
 
    return getAssetIDForScrAddr(scrAddr);

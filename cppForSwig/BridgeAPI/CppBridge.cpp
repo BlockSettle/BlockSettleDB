@@ -1000,12 +1000,31 @@ BridgeReply CppBridge::getScrAddrForScript(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+BridgeReply CppBridge::getScrAddrForAddrStr(const string& addrStr) const
+{
+   try
+   {
+      auto msg = make_unique<ReplyBinary>();
+      auto resultBd = BtcUtils::getScrAddrForAddrStr(addrStr);
+      msg->add_reply(resultBd.toCharPtr(), resultBd.getSize());
+      return msg;
+   }
+   catch (const exception& e)
+   {
+      auto msg = make_unique<ReplyError>();
+      msg->set_iserror(true);
+      msg->set_error(e.what());
+      return msg;
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 BridgeReply CppBridge::getLastPushDataInScript(
    const BinaryData& script) const
 {
    auto msg = make_unique<ReplyBinary>();
-   auto&& result = BtcUtils::getLastPushDataInScript(script);
-   if (result.getSize() > 0)
+   auto result = BtcUtils::getLastPushDataInScript(script);
+   if (!result.empty())
       msg->add_reply(result.getCharPtr(), result.getSize());
    return msg;
 }
@@ -1043,6 +1062,7 @@ BridgeReply CppBridge::getAddrStrForScrAddr(
    catch (const exception& e)
    {
       auto msg = make_unique<ReplyError>();
+      msg->set_iserror(true);
       msg->set_error(e.what());
       return msg;
    }
@@ -1217,26 +1237,20 @@ bool CppBridge::setCoinSelectionRecipient(
 {
    auto iter = csMap_.find(csId);
    if (iter == csMap_.end())
-      throw runtime_error("invalid cs id");
+   {
+      LOGERR << "[setCoinSelectionRecipient] invalid csId";
+      return false;
+   }
 
-   BinaryData scrAddr;
    try
    {
-      scrAddr = move(BtcUtils::base58toScrAddr(addrStr));
+      iter->second->updateRecipient(recId, addrStr, value);
    }
-   catch(const exception&)
+   catch (const exception&)
    {
-      try
-      {
-         scrAddr = move(BtcUtils::segWitAddressToScrAddr(addrStr));
-      }
-      catch(const exception&)
-      {
-         return false;
-      }
+      return false;
    }
 
-   iter->second->updateRecipient(recId, scrAddr, value);
    return true;
 }
 

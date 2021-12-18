@@ -2263,9 +2263,9 @@ class ArmoryMainWindow(QMainWindow):
       return ''
 
    #############################################################################
-   def getWalletForAddressString(self, scrAddr):
+   def getWalletForAddressString(self, addrStr):
       for wltID, wlt in self.walletMap.items():
-         if wlt.hasAddrString(scrAddr):
+         if wlt.hasAddrString(addrStr):
             return wltID
       return ''
 

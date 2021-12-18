@@ -631,6 +631,23 @@ class ArmoryBridge(object):
       return response.reply[0]
 
    #############################################################################
+   def getScrAddrForAddrStr(self, addrStr):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.getScrAddrForAddrStr
+      packet.stringArgs.append(addrStr)
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      errorResponse = ClientProto_pb2.ReplyError()
+      errorResponse.ParseFromString(socketResponse)
+      if errorResponse.isError == False:
+         response = ClientProto_pb2.ReplyStrings()
+         response.ParseFromString(socketResponse)
+         return response.reply[0]
+      raise BridgeError("error in getScrAddrForAddrStr: " + errorResponse.error)
+
+   #############################################################################
    def getAddrStrForScrAddr(self, scrAddr):
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.getAddrStrForScrAddr
@@ -639,14 +656,13 @@ class ArmoryBridge(object):
       fut = self.sendToBridgeProto(packet)
       socketResponse = fut.getVal()
 
-      response = ClientProto_pb2.ReplyStrings()
-      if response.ParseFromString(socketResponse) == False:
-         errorResponse = ClientProto_pb2.ReplyError()
-         if errorResponse.ParseFromString(socketResponse) == False:
-            raise BridgeError("unkonwn error in getAddrStrForScrAddr")
-         raise BridgeError("error in getAddrStrForScrAddr: " + errorResponse.error())
-
-      return response.reply[0]
+      errorResponse = ClientProto_pb2.ReplyError()
+      errorResponse.ParseFromString(socketResponse)
+      if errorResponse.isError == False:
+         response = ClientProto_pb2.ReplyStrings()
+         response.ParseFromString(socketResponse)
+         return response.reply[0]
+      raise BridgeError("error in getAddrStrForScrAddr: " + errorResponse.error)
 
    #############################################################################
    def initCoinSelectionInstance(self, wltId, height):
