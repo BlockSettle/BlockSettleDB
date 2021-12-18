@@ -330,6 +330,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
          self.infoLbls[3][2].setText('')
       else:
          ##### 0
+         self.btnSign.setDisabled(True)
 
          ##### 1
          if self.wlt:
