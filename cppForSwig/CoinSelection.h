@@ -399,6 +399,7 @@ namespace Armory
          uint64_t getSpendVal(void) const;
          void checkSpendVal(uint64_t) const;
          void addRecipient(unsigned, const BinaryData&, uint64_t);
+         void addRecipient(unsigned, const std::string&, uint64_t);
          void selectUTXOs(std::vector<UTXO>&, uint64_t fee,
             float fee_byte, unsigned flags);
 
@@ -410,6 +411,7 @@ namespace Armory
 
          unsigned addRecipient(const BinaryData&, uint64_t);
          void updateRecipient(unsigned, const BinaryData&, uint64_t);
+         void updateRecipient(unsigned, const std::string&, uint64_t);
          void updateOpReturnRecipient(unsigned, const BinaryData&);
          void removeRecipient(unsigned);
          void resetRecipients(void);
@@ -438,7 +440,9 @@ namespace Armory
          void rethrow(void) { cs_.rethrow(); }
 
          static std::shared_ptr<Signer::ScriptRecipient>
-         createRecipient(const BinaryData&, uint64_t);
+            createRecipient(const BinaryData&, uint64_t);
+         static std::shared_ptr<Signer::ScriptRecipient>
+            createRecipient(const std::string&, uint64_t);
       };
    }; //namespace CoinSelection
 }; //namespace Armory
