@@ -48,6 +48,7 @@ enum Methods
     getAddrStrForScrAddr = 96;
     getNameForAddrType = 97;
     setAddressTypeFor = 98;
+    getScrAddrForAddrStr = 99;
 
     getUtxosForValue = 100;
     getSpendableZCList = 101;
@@ -268,19 +269,19 @@ message BridgeTx
 
 message ReplyBinary
 {
-    repeated bytes reply = 1;
+    repeated bytes reply = 30;
 }
 
 message ReplyStrings
 {
-    repeated string reply = 1;
+    repeated string reply = 31;
 }
 
 message ReplyNumbers
 {
-    repeated uint32 ints = 1;
-    repeated uint64 longs = 2;
-    repeated float  floats = 3;
+    repeated uint32 ints = 40;
+    repeated uint64 longs = 41;
+    repeated float  floats = 42;
 }
 
 message BridgeAddressBookEntry
@@ -330,8 +331,9 @@ message BridgeInputSignedState
 
 message ReplyError
 {
-    required string error = 1;
-    optional uint32 code = 2;
+    required bool isError = 24;
+    required string error = 25;
+    optional uint32 code = 26;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
