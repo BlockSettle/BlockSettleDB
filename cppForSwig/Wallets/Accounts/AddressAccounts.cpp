@@ -856,7 +856,7 @@ unique_ptr<AssetAccount> AddressAccount::getAccountForID(
          return make_unique<AssetAccount_ECDH>(accData);
 
       default:
-         throw runtime_error("unknown asset account type");
+         throw AccountException("[getAccountForID] unknown asset account type");
    }
 }
 
@@ -1109,6 +1109,18 @@ map<AssetId, shared_ptr<AddressEntry>> AddressAccount::getUsedAddressMap()
 
    return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+bool AddressAccount::isAssetUsed(const Wallets::AssetId& id) const
+{
+   auto acc = getAccountForID(id);
+   if (acc == nullptr)
+      return false;
+
+   auto assetKey = id.getAssetKey();
+   return assetKey > -1 && assetKey <= acc->getHighestUsedIndex();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<Asset_PrivateKey> AddressAccount::fillPrivateKey(

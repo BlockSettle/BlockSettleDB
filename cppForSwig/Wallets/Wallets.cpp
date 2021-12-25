@@ -530,7 +530,6 @@ const pair<AssetId, AddressEntryType>&
    throw runtime_error("unknown scrAddr");
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 AddressEntryType AssetWallet::getAddrTypeForID(const AssetId& id) const
 {
@@ -538,6 +537,23 @@ AddressEntryType AssetWallet::getAddrTypeForID(const AssetId& id) const
    
    auto addrPtr = getAddressEntryForID(id);
    return addrPtr->getType();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool AssetWallet::isAssetUsed(const AssetId& id) const
+{
+   try
+   {
+      auto acc = getAccountForID(id.getAddressAccountId());
+      if (acc == nullptr)
+         return false;
+
+      return acc->isAssetUsed(id);
+   }
+   catch (const exception&)
+   {
+      return false;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1256,8 +1272,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    const SecureBinaryData& controlPassphrase,
    unsigned lookup)
 {
-   if (seed.getSize() == 0)
-      throw WalletException("empty seed");
+   if (seed.empty())
+      throw WalletException("[createFromSeed_BIP32] empty seed");
 
    BIP32_Node rootNode;
    rootNode.initFromSeed(seed);

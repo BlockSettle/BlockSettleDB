@@ -7500,6 +7500,65 @@ TEST_F(WalletsTest, AssetPathResolution)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, isAssetIdInUse)
+{
+   //create wallet
+   auto passphrase = SecureBinaryData::fromString("password");
+
+   //create regular wallet
+   auto seed = CryptoPRNG::generateRandom(32);
+   auto wlt = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_, seed, passphrase, controlPass_, 10);
+
+   //grab a bunch of addresses of various types
+   map<AssetId, BinaryData> addrHashesInUse;
+
+   //5 default addresses
+   for (unsigned i = 0; i < 5; i++)
+   {
+      auto addrPtr = wlt->getNewAddress();
+      addrHashesInUse.emplace(addrPtr->getID(), addrPtr->getPrefixedHash());
+   }
+
+   //5 p2wpkh
+   for (unsigned i = 0; i < 5; i++)
+   {
+      auto addrPtr = wlt->getNewAddress(AddressEntryType_P2WPKH);
+      addrHashesInUse.emplace(addrPtr->getID(), addrPtr->getPrefixedHash());
+   }
+
+   //grab all address hashes for wallet
+   auto addrHashes = wlt->getAddrHashSet();
+
+   ASSERT_EQ(addrHashesInUse.size(), 10ULL);
+   ASSERT_EQ(addrHashes.size(), 80ULL);
+
+   set<AssetId> detectedIds;
+   for (const auto& addrIt : addrHashes)
+   {
+      const auto& idAndType = wlt->getAssetIDForScrAddr(addrIt);
+      const auto& id = idAndType.first;
+
+      //is this one of our grabbed addresses?
+      auto inUseIt = addrHashesInUse.find(id);
+      if (inUseIt == addrHashesInUse.end())
+      {
+         //it isn't, should be seen as unused
+         EXPECT_FALSE(wlt->isAssetUsed(id));
+         continue;
+      }
+
+      EXPECT_TRUE(wlt->isAssetUsed(id));
+      detectedIds.emplace(id);
+   }
+
+   //make sure we've seen every address
+   for (const auto& id : detectedIds)
+      addrHashesInUse.erase(id);
+   ASSERT_TRUE(addrHashesInUse.empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 class WalletMetaDataTest : public ::testing::Test

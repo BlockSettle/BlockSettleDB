@@ -1418,7 +1418,6 @@ class PyBtcWallet(object):
 
          addrHash = addrObj.getPrefixedAddr()
          self.addrMap[addrHash] = addrObj
-         self.chainIndexMap[addrObj.chainIndex] = addrHash
 
       #update balances and txio count
       for i in range(0, len(result.ids)):

@@ -183,6 +183,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       self.enoughSigs = False
       self.sigsValid = False
       self.ustxReadable = False
+      self.btnSign.setEnabled(False)
 
       ustxStr = str(self.txtUSTX.toPlainText())
       if len(ustxStr) > 0:
@@ -330,7 +331,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
          self.infoLbls[3][2].setText('')
       else:
          ##### 0
-         self.btnSign.setDisabled(True)
+         #self.btnSign.setDisabled(True)
 
          ##### 1
          if self.wlt:

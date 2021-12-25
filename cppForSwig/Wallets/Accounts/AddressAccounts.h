@@ -233,6 +233,7 @@ namespace Armory
             const Wallets::AssetId&) const;
          std::map<Wallets::AssetId, std::shared_ptr<AddressEntry>>
             getUsedAddressMap(void) const;
+         bool isAssetUsed(const Wallets::AssetId&) const;
 
          //Lockable virtuals
          void initAfterLock(void) {}
