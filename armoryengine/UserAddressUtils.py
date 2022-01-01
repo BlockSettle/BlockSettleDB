@@ -106,7 +106,8 @@ def getScriptForUserStringImpl(userStr, wltMap, lboxList):
               'LboxID': lboxID,
               'ShowID': hasAddrInIt,
               'IsBech32' : isBech32}
-   except:
+
+   except Exception as e:
       LOGEXCEPT('Invalid user string entered')
       return {'Script': None,
               'WltID':  None,

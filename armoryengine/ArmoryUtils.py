@@ -151,6 +151,7 @@ parser.add_option("--coverage_include", dest="coverageInclude", default=None, ty
 # Some useful constants to be used throughout everything
 BASE58CHARS  = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 BASE16CHARS  = '0123456789abcdefABCDEF'
+BASE16CHARS_NOCAPS = '0123456789abcdef'
 LITTLEENDIAN  = '<'
 BIGENDIAN     = '>'
 NETWORKENDIAN = '!'
@@ -3591,6 +3592,10 @@ def calcLockboxID(script=None, scraddr=None):
 def getNameForAddrType(addrType):
    from armoryengine.CppBridge import TheBridge
    return TheBridge.getNameForAddrType(addrType)
+
+################################################################################
+def getRandomHexits_NotSecure(count):
+   return ''.join([random.choice(BASE16CHARS_NOCAPS) for x in range(count)])
 
 #################
 # bridge setup

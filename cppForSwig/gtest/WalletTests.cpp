@@ -4730,11 +4730,18 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       //check privkey
       ASSERT_EQ(privkey3, privateKeys[3]);
 
+      int deriveCount = 0;
+      auto deriveCallback = [&deriveCount](int count)->void
+      {
+         deriveCount += count;
+      };
+
       //extend address chain to 10 entries
       assetWlt->extendPublicChainToIndex(
-         assetWlt->getMainAccountID(), 9);
+         assetWlt->getMainAccountID(), 9, deriveCallback);
 
       ASSERT_EQ(outerAcc->getAssetCount(), 10U);
+      ASSERT_EQ(deriveCount, 21);
 
       //none of the new assets should have private keys
       for (unsigned i = 4; i < 10; i++)

@@ -611,7 +611,7 @@ void CppBridge::restoreWallet(
 
          string serializedOpaqueData;
          errorVerbose.SerializeToString(&serializedOpaqueData);
-         errorMsg->set_payload(serializedOpaqueData);         
+         errorMsg->set_payload(serializedOpaqueData);
          
          writeToClient(move(errorMsg), BRIDGE_CALLBACK_PROMPTUSER);
       }
@@ -791,26 +791,69 @@ BridgeReply CppBridge::getHighestUsedIndex(const string& id)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::extendAddressPool(const string& id,
-   unsigned count, unsigned msgId)
+void CppBridge::extendAddressPool(const string& wltId,
+   unsigned count, const string& callbackId, unsigned msgId)
 {
-   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wai = WalletAccountIdentifier::deserialize(wltId);
    auto wltContainer = wltManager_->getWalletContainer(
       wai.walletId, wai.accountId);
    auto wltPtr = wltContainer->getWalletPtr();
-
    const auto& accId = wai.accountId;
-   auto lbd = [this, wltPtr, accId, count, msgId](void)->void
+
+   //run chain extention in another thread
+   auto extendChain =
+      [this, wltPtr, accId, count, msgId, callbackId]()
    {
       auto accPtr = wltPtr->getAccountForID(accId);
-      accPtr->extendPublicChain(wltPtr->getIface(), count);
 
-      auto msg = make_unique<WalletData>();
-      CppToProto::wallet(msg.get(), wltPtr, accId, {});
-      this->writeToClient(move(msg), msgId);
+      //setup progress reporting
+      size_t tickTotal = count * accPtr->getNumAssetAccounts();
+      size_t tickCount = 0;
+      int reportedTicks = -1;
+      auto now = chrono::system_clock::now();
+
+      //progress callback
+      auto updateProgress = [this, callbackId, tickTotal,
+         &tickCount, &reportedTicks, now](int)
+      {
+         ++tickCount;
+         auto msElapsed = chrono::duration_cast<chrono::milliseconds>(
+            chrono::system_clock::now() - now).count();
+
+         //report an event every 250ms
+         int eventCount = msElapsed / 250;
+         if (eventCount < reportedTicks)
+            return;
+
+         reportedTicks = eventCount;
+         float progressFloat = float(tickCount) / float(tickTotal);
+
+         auto msg = make_unique<CppProgressCallback>();
+         msg->set_progress(progressFloat);
+         msg->set_progressnumeric(tickCount);
+         msg->add_ids(callbackId);
+
+         this->writeToClient(move(msg), BRIDGE_CALLBACK_PROGRESS);
+      };
+
+      //extend chain
+      accPtr->extendPublicChain(wltPtr->getIface(), count, updateProgress);
+
+      //shutdown progress dialog
+      auto msgProgress = make_unique<CppProgressCallback>();
+      msgProgress->set_progress(0);
+      msgProgress->set_progressnumeric(0);
+      msgProgress->set_phase(BDMPhase_Completed);
+      msgProgress->add_ids(callbackId);
+      this->writeToClient(move(msgProgress), BRIDGE_CALLBACK_PROGRESS);
+
+      //complete process
+      auto msgComplete = make_unique<WalletData>();
+      CppToProto::wallet(msgComplete.get(), wltPtr, accId, {});
+      this->writeToClient(move(msgComplete), msgId);
    };
 
-   thread thr(lbd);
+   thread thr(extendChain);
    if (thr.joinable())
       thr.detach();
 }

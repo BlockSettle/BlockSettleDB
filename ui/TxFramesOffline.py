@@ -9,6 +9,7 @@ from __future__ import (absolute_import, division,
 ################################################################################
 
 import os
+import shutil
 
 from PySide2.QtCore import Qt
 from PySide2.QtWidgets import QPushButton, QGridLayout, QFrame, \

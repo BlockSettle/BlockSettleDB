@@ -699,11 +699,12 @@ void AssetWallet::extendPrivateChain(unsigned count)
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::extendPublicChainToIndex(
-   const AddressAccountId& account_id, unsigned count)
+   const AddressAccountId& account_id, unsigned count,
+   const std::function<void(int)>& progressCallback)
 {
    auto account = getAccountForID(account_id);
    account->extendPublicChainToIndex(iface_,
-      account->getOuterAccount()->getID(), count);
+      account->getOuterAccount()->getID(), count, progressCallback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1540,7 +1541,7 @@ string AssetWallet_Single::computeWalletID(
    shared_ptr<DerivationScheme> derScheme,
    shared_ptr<AssetEntry> rootEntry)
 {
-   auto&& addrVec = derScheme->extendPublicChain(rootEntry, 1, 1);
+   auto&& addrVec = derScheme->extendPublicChain(rootEntry, 1, 1, nullptr);
    if (addrVec.size() != 1)
       throw WalletException("unexpected chain derivation output");
 

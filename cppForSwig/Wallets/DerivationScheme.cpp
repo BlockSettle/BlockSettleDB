@@ -171,8 +171,8 @@ shared_ptr<AssetEntry_Single>
 
 ////////////////////////////////////////////////////////////////////////////////
 vector<shared_ptr<AssetEntry>> DerivationScheme_ArmoryLegacy::extendPublicChain(
-   shared_ptr<AssetEntry> firstAsset,
-   unsigned start, unsigned end)
+   shared_ptr<AssetEntry> firstAsset, unsigned start, unsigned end,
+   const std::function<void(int)>& progressCallback)
 {
    auto nextAsset = [this](
       shared_ptr<AssetEntry> assetPtr)->shared_ptr<AssetEntry>
@@ -194,7 +194,10 @@ vector<shared_ptr<AssetEntry>> DerivationScheme_ArmoryLegacy::extendPublicChain(
    for (unsigned i = start; i <= end; i++)
    {
       currentAsset = nextAsset(currentAsset);
-      assetVec.push_back(currentAsset);
+      assetVec.emplace_back(currentAsset);
+
+      if (progressCallback)
+         progressCallback(i-start+1);
    }
 
    return assetVec;
@@ -400,8 +403,8 @@ shared_ptr<AssetEntry_Single>
 
 ////////////////////////////////////////////////////////////////////////////////
 vector<shared_ptr<AssetEntry>> DerivationScheme_BIP32::extendPublicChain(
-   shared_ptr<AssetEntry> rootAsset,
-   uint32_t start, uint32_t end)
+   shared_ptr<AssetEntry> rootAsset, uint32_t start, uint32_t end,
+   const std::function<void(int)>& progressCallback)
 {
    auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(rootAsset);
 
@@ -421,7 +424,10 @@ vector<shared_ptr<AssetEntry>> DerivationScheme_BIP32::extendPublicChain(
    for (unsigned i = start; i <= end; i++)
    {
       auto newAsset = nextAsset(i);
-      assetVec.push_back(newAsset);
+      assetVec.emplace_back(move(newAsset));
+
+      if (progressCallback)
+         progressCallback(i-start+1);
    }
 
    return assetVec;
@@ -684,7 +690,8 @@ void DerivationScheme_ECDH::getAllSalts(shared_ptr<IO::DBIfaceTransaction> txPtr
 
 ////////////////////////////////////////////////////////////////////////////////
 vector<shared_ptr<AssetEntry>> DerivationScheme_ECDH::extendPublicChain(
-   shared_ptr<AssetEntry> root, unsigned start, unsigned end)
+   shared_ptr<AssetEntry> root, unsigned start, unsigned end,
+   const std::function<void(int)>& progressCallback)
 {
    auto rootSingle = dynamic_pointer_cast<AssetEntry_Single>(root);
    if (rootSingle == nullptr)
@@ -706,7 +713,10 @@ vector<shared_ptr<AssetEntry>> DerivationScheme_ECDH::extendPublicChain(
    for (unsigned i = start; i <= end; i++)
    {
       auto newAsset = nextAsset(i);
-      assetVec.push_back(newAsset);
+      assetVec.emplace_back(move(newAsset));
+
+      if (progressCallback)
+         progressCallback(i-start+1);
    }
 
    return assetVec;

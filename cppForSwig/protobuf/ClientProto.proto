@@ -166,9 +166,9 @@ message CppBridgeCallback
 
 message CppProgressCallback
 {
-    required uint32 phase = 1;
+    optional uint32 phase = 1;
     required float progress = 2;
-    required uint32 etaSec = 3;
+    optional uint32 etaSec = 3;
     required uint32 progressNumeric = 4;
 
     repeated string ids = 10;

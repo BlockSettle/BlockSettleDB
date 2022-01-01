@@ -147,7 +147,8 @@ namespace Armory
             const AssetId&) const;
 
          void extendPublicChain(unsigned);
-         void extendPublicChainToIndex(const AddressAccountId&, unsigned);
+         void extendPublicChainToIndex(const AddressAccountId&, unsigned,
+            const std::function<void(int)>& = nullptr);
          void extendPrivateChain(unsigned);
          void extendPrivateChainToIndex(const AddressAccountId&, unsigned);
 

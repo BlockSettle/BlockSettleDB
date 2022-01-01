@@ -178,9 +178,10 @@ bool ProtobufCommandParser::processData(
 
    case Methods::extendAddressPool:
    {
-      if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-         throw runtime_error("invalid command: getHighestUsedIndex");
-      bridge->extendAddressPool(msg.stringargs(0), msg.intargs(0), id);
+      if (msg.stringargs_size() != 2 || msg.intargs_size() != 1)
+         throw runtime_error("invalid command: extendAddressPool");
+      bridge->extendAddressPool(
+         msg.stringargs(0), msg.intargs(0), msg.stringargs(1), id);
       break;
    }
 

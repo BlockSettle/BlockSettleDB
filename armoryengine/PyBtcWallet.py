@@ -1618,18 +1618,21 @@ class PyBtcWallet(object):
          self.commentsMap[commentIt.key] = commentIt.val.decode('utf-8')
 
    #############################################################################
-   def fillAddressPool(self, numPool, isActuallyNew=True, 
-                       doRegister=True, Progress=emptyFunc):
+   def fillAddressPool(self, numPool, progressId, callback=None):
       """
       Usually, when we fill the address pool, we are generating addresses
       for the first time, and thus there is no chance it's ever seen the
-      blockchain.  However, this method is also used for recovery/import 
+      blockchain.  However, this method is also used for recovery/import
       of wallets, where the address pool has addresses that probably have
-      transactions already in the blockchain.  
+      transactions already in the blockchain.
       """
 
+      def completeProcess(*args):
+         self.loadFromProtobufPayload(*args)
+         callback()
+
       TheBridge.extendAddressPool(\
-         self.uniqueIDB58, numPool, self.loadFromProtobufPayload)
+         self.uniqueIDB58, progressId, numPool, completeProcess)
 
    #############################################################################
    def registerWallet(self, isNew):

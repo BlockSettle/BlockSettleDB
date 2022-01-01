@@ -160,13 +160,16 @@ namespace Armory
             const Wallets::AddressAccountId&);
 
          void extendPublicChain(
-            std::shared_ptr<Wallets::IO::WalletDBInterface>, unsigned);
+            std::shared_ptr<Wallets::IO::WalletDBInterface>, unsigned,
+            const std::function<void(int)>& = nullptr);
          void extendPublicChain(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            const Wallets::AssetAccountId&, unsigned);
+            const Wallets::AssetAccountId&, unsigned,
+            const std::function<void(int)>& = nullptr);
          void extendPublicChainToIndex(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
-            const Wallets::AssetAccountId&, unsigned);
+            const Wallets::AssetAccountId&, unsigned,
+            const std::function<void(int)>& = nullptr);
 
          void extendPrivateChain(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
@@ -214,6 +217,7 @@ namespace Armory
             std::pair<Wallets::AssetId, AddressEntryType>>&
                getAddressHashMap(void);
 
+         size_t getNumAssetAccounts(void) const;
          std::set<Wallets::AssetAccountId> getAccountIdSet(void) const;
          std::unique_ptr<AssetAccount> getAccountForID(
             const Wallets::AssetId&) const;

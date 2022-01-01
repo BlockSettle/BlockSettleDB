@@ -333,10 +333,7 @@ class ArmoryBridge(object):
       payload = ClientProto_pb2.CppProgressCallback()
       payload.ParseFromString(data)
 
-      notifThread = threading.Thread(\
-         group=None, target=TheBDM.reportProgress, \
-         name=None, args=[payload], kwargs={})
-      notifThread.start()
+      TheBDM.reportProgress(payload)
 
    #############################################################################
    def promptUser(self, data):
@@ -642,7 +639,7 @@ class ArmoryBridge(object):
       errorResponse = ClientProto_pb2.ReplyError()
       errorResponse.ParseFromString(socketResponse)
       if errorResponse.isError == False:
-         response = ClientProto_pb2.ReplyStrings()
+         response = ClientProto_pb2.ReplyBinary()
          response.ParseFromString(socketResponse)
          return response.reply[0]
       raise BridgeError("error in getScrAddrForAddrStr: " + errorResponse.error)
@@ -936,13 +933,15 @@ class ArmoryBridge(object):
       self.sendToBridgeProto(packet, False)
 
    #############################################################################
-   def extendAddressPool(self, wltId, count, callback):
+   def extendAddressPool(self, wltId, progressId, count, callback):
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.extendAddressPool
       packet.stringArgs.append(wltId)
+      packet.stringArgs.append(progressId)
       packet.intArgs.append(count)
 
-      self.sendToBridgeProto(packet, False, self.finishExtendAddressPool, [callback])
+      self.sendToBridgeProto(packet, False,
+         self.finishExtendAddressPool, [callback])
 
    #############################################################################
    def finishExtendAddressPool(self, socketResponse, args):

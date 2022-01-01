@@ -182,7 +182,8 @@ namespace Armory
          BridgeReply getHighestUsedIndex(const std::string&);
 
          //wallet & addresses
-         void extendAddressPool(const std::string&, unsigned, unsigned);
+         void extendAddressPool(const std::string&, unsigned,
+            const std::string&, unsigned);
          BridgeReply getNewAddress(const std::string&, unsigned);
          BridgeReply getChangeAddress(const std::string&, unsigned);
          BridgeReply peekChangeAddress(const std::string&, unsigned);

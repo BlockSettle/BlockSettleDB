@@ -41,6 +41,7 @@ BDMPhase_Rescan = 5
 BDMPhase_Balance = 6
 BDMPhase_SearchHashes = 7
 BDMPhase_ResolveHashes = 8
+BDMPhase_Completed = 9
 
 
 BDM_OFFLINE = 'Offline'
@@ -326,7 +327,7 @@ class BlockDataManager(object):
             for cppNotificationListener in self.getListenerList():
                cppNotificationListener(BDM_SCAN_PROGRESS, [None, None])
          else:
-            progInfo = [walletVec, prog]
+            progInfo = [walletVec, prog, phase]
             for cppNotificationListener in self.getListenerList():
                cppNotificationListener(SCAN_ACTION, progInfo)
 

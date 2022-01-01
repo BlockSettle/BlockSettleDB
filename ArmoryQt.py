@@ -54,7 +54,8 @@ from armoryengine.ArmoryUtils import HMAC256, GUI_LANGUAGE, \
    enum, GetExecDir, RightNow, CLI_ARGS, ARMORY_HOME_DIR, DEFAULT, \
    ARMORY_DB_DIR, coin2str, DEFAULT_DATE_FORMAT, \
    unixTimeToFormatStr, binary_to_hex, BTC_HOME_DIR, secondsToHumanTime, \
-   LEVELDB_BLKDATA, LOGRAWDATA, LOGPPRINT, hex_to_binary
+   LEVELDB_BLKDATA, LOGRAWDATA, LOGPPRINT, hex_to_binary, \
+   getRandomHexits_NotSecure, coin2strNZS
 
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
@@ -169,11 +170,7 @@ MODULES_ZIP_DIR_NAME = 'modules'
 
 class ArmoryMainWindow(QMainWindow):
    """ The primary Armory window """
-
-   initTriggerSignal = Signal()
-   execTriggerSignal = Signal()
    processMutexNotificationSignal = Signal()
-
    scriptDispStrings = {}
 
    #############################################################################
@@ -276,11 +273,6 @@ class ArmoryMainWindow(QMainWindow):
       self.delayedURIData = {}
       self.delayedURIData['qLen'] = 0
 
-      #Setup the signal to spawn progress dialogs from the main thread
-      self.initTriggerSignal.connect(self.initTrigger)
-      self.execTriggerSignal.connect(self.execTrigger)
-      #self.connect(self, SIGNAL('checkForNegImports'), self.checkForNegImports)
-
       '''
       With Qt, all GUI operations need to happen in the main thread. If
       the GUI operation is triggered from another thread, it needs to
@@ -298,6 +290,7 @@ class ArmoryMainWindow(QMainWindow):
 
       TheBDM.registerCppNotification(cppNotifySignal)
       TheBDM.registerUserPrompt(self.promptUser)
+      self.progressCallbacks = {}
 
       # We want to determine whether the user just upgraded to a new version
       self.firstLoadNewVersion = False
@@ -4862,33 +4855,38 @@ class ArmoryMainWindow(QMainWindow):
          os._exit(0)
 
       elif action == SCAN_ACTION:
-         wltIDList = args[0]
+         idList = args[0]
          prog = args[1]
 
          hasWallet = False
          hasLockbox = False
 
-         for wltID in wltIDList:
-            self.walletSideScanProgress[wltID] = prog*100
-            if len(wltID) > 0:
-               if wltID in self.walletMap:
-                  wlt = self.walletMap[wltID]
+         for progId in idList:
+            self.walletSideScanProgress[progId] = prog*100
+            if len(progId) > 0:
+               if progId in self.walletMap:
+                  wlt = self.walletMap[progId]
                   wlt.disableWalletUI()
-                  if wltID in self.walletDialogDict:
-                     self.walletDialogDict[wltID].reject()
-                     del self.walletDialogDict[wltID]
-
+                  if progId in self.walletDialogDict:
+                     self.walletDialogDict[progId].reject()
+                     del self.walletDialogDict[progId]
                   hasWallet = True
 
-               else:
-                  lbID = self.lockboxIDMap[wltID]
+               elif progId in self.lockboxIDMap:
+                  lbID = self.lockboxIDMap[progId]
                   self.allLockboxes[lbID].isEnabled = False
                   hasLockbox = True
 
-               self.walletModel.reset()
+               elif progId in self.progressCallbacks:
+                  progressObj = self.progressCallbacks[progId]
+                  progressObj.UpdateDlg(HBar=prog*100, phase=args[2])
+
+               else:
+                  LOGWARN("Unknown progress callback id")
 
          if hasWallet:
             self.changeWltFilter()
+            self.walletModel.reset()
 
          if hasLockbox:
             if self.lbDialogModel != None:
@@ -5181,7 +5179,7 @@ class ArmoryMainWindow(QMainWindow):
                   if pywlt.hasAddrString(addr):
                      continue
                   if len(recipStr)==0:
-                     recipStr = scrAddr_to_addrStr(addr)
+                     recipStr = TheBridge.getScrAddrForAddrStr(addr)
                   else:
                      recipStr = self.tr('<Multiple Recipients>')
 
@@ -5232,51 +5230,6 @@ class ArmoryMainWindow(QMainWindow):
       else:
          return  # how would we get here?
 
-
-
-   #############################################################################
-   def unpackLinuxTarGz(self, targzFile, changeSettings=True):
-      if targzFile is None:
-         return None
-
-      if not os.path.exists(targzFile):
-         return None
-
-      unpackDir  = os.path.join(ARMORY_HOME_DIR, 'latestBitcoinInst')
-      unpackDir2 = os.path.join(ARMORY_HOME_DIR, 'latestBitcoinInstOld')
-      if os.path.exists(unpackDir):
-         if os.path.exists(unpackDir2):
-            shutil.rmtree(unpackDir2)
-         shutil.move(unpackDir, unpackDir2)
-
-      os.mkdir(unpackDir)
-
-      out,err = execAndWait('tar -zxf %s -C %s' % (targzFile, unpackDir), \
-                                                                  timeout=5)
-
-      LOGINFO('UNPACK STDOUT: "' + out + '"')
-      LOGINFO('UNPACK STDERR: "' + err + '"')
-
-
-      # There should only be one subdir
-      unpackDirChild = None
-      for fn in os.listdir(unpackDir):
-         unpackDirChild = os.path.join(unpackDir, fn)
-
-      if unpackDirChild is None:
-         LOGERROR('There was apparently an error unpacking the file')
-         return None
-
-      finalDir = os.path.abspath(unpackDirChild)
-      LOGWARN('Bitcoin Core unpacked into: %s', finalDir)
-
-      if changeSettings:
-         self.settings.set('SatoshiExe', finalDir)
-
-      return finalDir
-
-
-
    #############################################################################
    def closeForReal(self):
       '''
@@ -5317,18 +5270,6 @@ class ArmoryMainWindow(QMainWindow):
 
       LOGINFO('Attempting to close the main window!')
       self.signalExecution.executeMethod([QAPP.quit])
-
-   #############################################################################
-   def execTrigger(self, toSpawn):
-      super(ArmoryDialog, toSpawn).exec_()
-
-
-   #############################################################################
-   def initTrigger(self, toInit):
-      if isinstance(toInit, DlgProgress):
-         toInit.setup(self)
-         toInit.status = 1
-
 
    #############################################################################
    def checkForNegImports(self):
@@ -5374,158 +5315,6 @@ class ArmoryMainWindow(QMainWindow):
          self.logDirs.append([wltID, logdir])
 
       return self.logDirs
-
-
-   #############################################################################
-   @AllowAsync
-   def CheckWalletConsistency(self, wallets, prgAt=None):
-
-      if prgAt:
-         totalSize = 0
-         walletSize = {}
-         for wlt in wallets:
-            statinfo = os.stat(wallets[wlt].walletPath)
-            walletSize[wlt] = statinfo.st_size
-            totalSize = totalSize + statinfo.st_size
-
-      i=0
-      dlgrdy = [0]
-      nerrors = 0
-
-      for wlt in wallets:
-         if prgAt:
-            prgAt[0] = i
-            f = 10000*walletSize[wlt]/totalSize
-            prgAt[1] = f
-            i = f +i
-
-         self.wltCstStatus = WalletConsistencyCheck(wallets[wlt], prgAt)
-         if self.wltCstStatus[0] != 0:
-            self.WltCstError(wallets[wlt], self.wltCstStatus[1], dlgrdy)
-            while not dlgrdy[0]:
-               time.sleep(0.01)
-            nerrors = nerrors +1
-
-      prgAt[2] = 1
-
-      dlgrdy[0] = 0
-      while prgAt[2] != 2:
-         time.sleep(0.1)
-      if nerrors == 0:
-         self.emit(SIGNAL('UWCS'), [1, self.tr('All wallets are consistent'), 10000, dlgrdy])
-         self.emit(SIGNAL('checkForNegImports'))
-      else:
-         while not dlgrdy:
-            self.emit(SIGNAL('UWCS'), [1, self.tr('Consistency Check Failed!'), 0, dlgrdy])
-            time.sleep(1)
-
-         self.checkRdyForFix()
-
-
-   def checkRdyForFix(self):
-      #check BDM first
-      time.sleep(1)
-      self.dlgCptWlt.emit(SIGNAL('Show'))
-      while 1:
-         if TheBDM.getState() == BDM_SCANNING:
-            canFix = self.tr(
-               'The wallet analysis tool will become available '
-               'as soon as Armory is done loading. You can close this '
-               'window and it will reappear when ready.')
-            self.dlgCptWlt.UpdateCanFix([canFix])
-            time.sleep(1)
-         elif TheBDM.getState() == BDM_OFFLINE or \
-              TheBDM.getState() == BDM_UNINITIALIZED:
-            TheSDM.setDisabled(True)
-            CLI_OPTIONS.offline = True
-            break
-         else:
-            break
-
-      #check running dialogs
-      self.dlgCptWlt.emit(SIGNAL('Show'))
-      runningList = []
-      while 1:
-         listchanged = 0
-         canFix = []
-         for dlg in runningList:
-            if dlg not in runningDialogsList:
-               runningList.remove(dlg)
-               listchanged = 1
-
-         for dlg in runningDialogsList:
-            if not isinstance(dlg, DlgCorruptWallet):
-               if dlg not in runningList:
-                  runningList.append(dlg)
-                  listchanged = 1
-
-         if len(runningList):
-            if listchanged:
-               canFix.append(self.tr(
-                  '<b>The following dialogs need closed before you can '
-                  'run the wallet analysis tool:</b>'))
-               canFix.extend([str(myobj.windowTitle()) for myobj in runningList])
-               self.dlgCptWlt.UpdateCanFix(canFix)
-            time.sleep(0.2)
-         else:
-            break
-
-
-      canFix.append('Ready to analyze inconsistent wallets!')
-      self.dlgCptWlt.UpdateCanFix(canFix, True)
-      self.dlgCptWlt.exec_()
-
-   def checkWallets(self):
-      nwallets = len(self.walletMap)
-
-      if nwallets > 0:
-         self.prgAt = [0, 0, 0]
-
-         self.pbarWalletProgress = QProgressBar()
-         self.pbarWalletProgress.setMaximum(10000)
-         self.pbarWalletProgress.setMaximumSize(300, 22)
-         self.pbarWalletProgress.setStyleSheet('text-align: center; margin-bottom: 2px; margin-left: 10px;')
-         self.pbarWalletProgress.setFormat(self.tr('Wallet Consistency Check: %p%'))
-         self.pbarWalletProgress.setValue(0)
-         self.statusBar().addWidget(self.pbarWalletProgress)
-
-         self.connect(self, SIGNAL('UWCS'), self.UpdateWalletConsistencyStatus)
-         self.connect(self, SIGNAL('PWCE'), self.PromptWltCstError)
-         self.CheckWalletConsistency(self.walletMap, self.prgAt, async_=True)
-         self.UpdateConsistencyCheckMessage(async_ = True)
-   @AllowAsync
-   def UpdateConsistencyCheckMessage(self):
-      while self.prgAt[2] == 0:
-         self.emit(SIGNAL('UWCS'), [0, self.prgAt[0]])
-         time.sleep(0.5)
-
-      self.emit(SIGNAL('UWCS'), [2])
-      self.prgAt[2] = 2
-
-   def UpdateWalletConsistencyStatus(self, msg):
-      if msg[0] == 0:
-         self.pbarWalletProgress.setValue(msg[1])
-      elif msg[0] == 1:
-         self.statusBar().showMessage(msg[1], msg[2])
-         msg[3][0] = 1
-      else:
-         self.pbarWalletProgress.hide()
-
-   def WltCstError(self, wlt, status, dlgrdy):
-      self.emit(SIGNAL('PWCE'), dlgrdy, wlt, status)
-      LOGERROR('Wallet consistency check failed! (%s)', wlt.uniqueIDB58)
-
-   def PromptWltCstError(self, dlgrdy, wallet=None, status='', mode=None):
-      if not self.dlgCptWlt:
-         self.dlgCptWlt = DlgCorruptWallet(wallet, status, self, self)
-         dlgrdy[0] = 1
-      else:
-         self.dlgCptWlt.addStatus(wallet, status)
-
-      if not mode:
-         self.dlgCptWlt.show()
-      else:
-         self.dlgCptWlt.exec_()
 
    #############################################################################
    def loadNewPage(self):
@@ -5796,6 +5585,15 @@ class ArmoryMainWindow(QMainWindow):
          raise Exception("missing prompt ID")
       del self.promptMap[promptID]
 
+   #############################################################################
+   def registerProgressCallback(self, progressObj):
+      callbackId = getRandomHexits_NotSecure(16)
+      self.progressCallbacks[callbackId] = progressObj
+      return callbackId
+
+   #############################################################################
+   def unregisterProgressCallback(self, id):
+      del self.progressCallbacks[id]
 
 ############################################
 
