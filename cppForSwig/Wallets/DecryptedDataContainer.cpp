@@ -98,7 +98,7 @@ unique_ptr<ClearTextEncryptionKey> DecryptedDataContainer::deriveEncryptionKey(
       decrKey->deriveKey(kdfIter->second);
    }
 
-   return move(decrKey);
+   return decrKey;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

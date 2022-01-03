@@ -480,6 +480,8 @@ void ZeroConfContainer::parseNewZC(ZcActionStruct zcAction)
          zcAction.batch_ = make_shared<ZeroConfBatch>(false);
       zcAction.batch_->zcMap_ = result;
       zcAction.batch_->isReadyPromise_->set_value(ArmoryErrorCodes::Success);
+
+      [[fallthrough]];
    }
 
    case Zc_NewTx:

@@ -219,8 +219,8 @@ public:
    std::vector<Recipient> getRecipients(void) const { return recipients_; }
    std::vector<Spender> getSpenders(void) const { return spenders_; }
    const Recipient& getChange(void) const { return change_; }
-   const uint64_t getFeeRate(void) const { return fee_rate_; }
-   const float getFlatFee(void) const { return fee_; }
+   uint64_t getFeeRate(void) const { return fee_rate_; }
+   float getFlatFee(void) const { return fee_; }
    unsigned getLockTime(void) const { return locktime_; }
 };
 

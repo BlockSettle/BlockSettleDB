@@ -169,22 +169,23 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
       size_t left_over = data_len - header_room;
       
       //1 extra bytes for fragment count < 253
-      size_t fragment_room = payload_room - 1; 
-      uint16_t fragment_count = left_over / fragment_room + 1;
-      if (fragment_count >= 253)
+      size_t fragment_room = payload_room - 1;
+      uint32_t fragment_count32 = left_over / fragment_room + 1;
+      if (fragment_count32 >= 253)
       {
          left_over -= 252 * fragment_room;
          
          //3 extra bytes for fragment count >= 253
          fragment_room = payload_room - 3; 
-         fragment_count = 253 + left_over / fragment_room;
+         fragment_count32 = 253 + left_over / fragment_room;
       }
 
       if (left_over % fragment_room != 0)
-         ++fragment_count;
+         ++fragment_count32;
 
-      if (fragment_count > 65535)
+      if (fragment_count32 > UINT16_MAX)
          throw runtime_error("payload too large for serialization");
+      uint16_t fragment_count = (uint16_t)fragment_count32;
 
       BinaryData header_packet(WEBSOCKET_MESSAGE_PACKET_SIZE);
 

@@ -19,6 +19,11 @@ AddressAccountId::AddressAccountId()
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
+AddressAccountId::AddressAccountId(const AddressAccountId& id) :
+   data_(id.data_)
+{}
+
+////////////////////////////////////////////////////////////////////////////////
 AddressAccountId::AddressAccountId(AccountKeyType key)
 {
    data_ = BinaryData::IntToStrBE(key);
@@ -65,7 +70,7 @@ bool AddressAccountId::isValid() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const AccountKeyType AddressAccountId::getAddressAccountKey() const
+AccountKeyType AddressAccountId::getAddressAccountKey() const
 {
    if (!isValid())
       throw IdException("[AddressAccountId] invalid id, cannot get key");
@@ -234,7 +239,7 @@ bool AssetAccountId::isValid() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const AddressAccountId AssetAccountId::getAddressAccountId() const
+AddressAccountId AssetAccountId::getAddressAccountId() const
 {
    if (!isValid())
       throw IdException("[getAddressAccountId] invalid asset account id");
@@ -243,7 +248,7 @@ const AddressAccountId AssetAccountId::getAddressAccountId() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const AccountKeyType AssetAccountId::getAddressAccountKey() const
+AccountKeyType AssetAccountId::getAddressAccountKey() const
 {
    if (!isValid())
       throw IdException("[getAddressAccountKey] invalid asset account id");
@@ -253,7 +258,7 @@ const AccountKeyType AssetAccountId::getAddressAccountKey() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const AccountKeyType AssetAccountId::getAssetAccountKey() const
+AccountKeyType AssetAccountId::getAssetAccountKey() const
 {
    if (!isValid())
       throw IdException("[getAddressAccountKey] invalid asset account id");
@@ -346,6 +351,11 @@ AssetKeyType AssetId::dummyId_ = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 AssetId::AssetId()
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+AssetId::AssetId(const AssetId& id) :
+   data_(id.data_)
 {}
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -451,7 +461,7 @@ bool AssetId::isValid() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const AssetKeyType AssetId::getAssetKey() const
+AssetKeyType AssetId::getAssetKey() const
 {
    if (!isValid())
       throw IdException("[getAssetKey] invalid asset id");
@@ -462,7 +472,7 @@ const AssetKeyType AssetId::getAssetKey() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const AccountKeyType AssetId::getAddressAccountKey() const
+AccountKeyType AssetId::getAddressAccountKey() const
 {
    if (!isValid())
       throw IdException("[getAddressAccountKey] invalid asset id");
@@ -472,13 +482,13 @@ const AccountKeyType AssetId::getAddressAccountKey() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const AddressAccountId AssetId::getAddressAccountId() const
+AddressAccountId AssetId::getAddressAccountId() const
 {
    return AddressAccountId(getAddressAccountKey());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-const AssetAccountId AssetId::getAssetAccountId() const
+AssetAccountId AssetId::getAssetAccountId() const
 {
    if (!isValid())
       throw IdException("[getAssetAccountId] invalid asset id");
@@ -555,6 +565,11 @@ AssetId AssetId::deserializeKey(const BinaryData& data, uint8_t prefix)
 //
 ////////////////////////////////////////////////////////////////////////////////
 EncryptionKeyId::EncryptionKeyId()
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+EncryptionKeyId::EncryptionKeyId(const EncryptionKeyId& id) :
+   data_(id.data_)
 {}
 
 ////////////////////////////////////////////////////////////////////////////////

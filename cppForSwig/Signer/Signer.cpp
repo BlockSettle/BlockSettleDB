@@ -978,7 +978,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
       case SpenderStatus::Signed:
       {
          finalInputScript_ = obj.finalInputScript_;
-         //fallthrough
+         [[fallthrough]];
       }
       
       default:
@@ -1009,7 +1009,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
       case SpenderStatus::Signed:
       {
          finalWitnessData_ = obj.finalWitnessData_;
-         //fallthrough
+         [[fallthrough]];
       }
 
       default:

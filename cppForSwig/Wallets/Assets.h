@@ -235,7 +235,7 @@ namespace Armory
          const Wallets::AssetAccountId getAccountID(void) const;
          const Wallets::AssetId& getID(void) const { return ID_; }
 
-         virtual const AssetEntryType getType(void) const { return type_; }
+         virtual AssetEntryType getType(void) const { return type_; }
          bool needsCommit(void) const { return needsCommit_; }
          void doNotCommit(void) { needsCommit_ = false; }
          void flagForCommit(void) { needsCommit_ = true; }
@@ -325,7 +325,7 @@ namespace Armory
          {}
 
          BinaryData serialize(void) const override;
-         const AssetEntryType getType(void) const override
+         AssetEntryType getType(void) const override
          { return AssetEntryType_ArmoryLegacyRoot; }
 
          const SecureBinaryData& getChaincode(void) const
@@ -401,7 +401,7 @@ namespace Armory
 
          //virtual
          BinaryData serialize(void) const override;
-         const AssetEntryType getType(void) const override
+         AssetEntryType getType(void) const override
          { return AssetEntryType_BIP32Root; }
 
          std::shared_ptr<AssetEntry_Single> getPublicCopy(void) override;

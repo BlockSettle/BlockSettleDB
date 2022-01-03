@@ -55,6 +55,7 @@ namespace Armory
 
       public:
          AddressAccountId(void);
+         AddressAccountId(const AddressAccountId&);
          AddressAccountId(AccountKeyType);
 
          AddressAccountId& operator=(const AddressAccountId&);
@@ -63,7 +64,7 @@ namespace Armory
          bool operator!=(const AddressAccountId&) const;
 
          bool isValid(void) const;
-         const AccountKeyType getAddressAccountKey(void) const;
+         AccountKeyType getAddressAccountKey(void) const;
          std::string toHexStr(void) const;
          static AddressAccountId fromHex(const std::string&);
 
@@ -99,9 +100,9 @@ namespace Armory
          bool operator!=(const AssetAccountId&) const;
 
          bool isValid(void) const;
-         const AddressAccountId getAddressAccountId(void) const;
-         const AccountKeyType getAddressAccountKey(void) const;
-         const AccountKeyType getAssetAccountKey(void) const;
+         AddressAccountId getAddressAccountId(void) const;
+         AccountKeyType getAddressAccountKey(void) const;
+         AccountKeyType getAssetAccountKey(void) const;
          std::string toHexStr(void) const;
 
          void serializeValue(BinaryWriter&) const;
@@ -126,6 +127,7 @@ namespace Armory
 
       public:
          AssetId(void);
+         AssetId(const AssetId&);
          AssetId(AccountKeyType, AccountKeyType, AssetKeyType);
          AssetId(const AssetAccountId&, AssetKeyType);
          AssetId(const AddressAccountId&, AccountKeyType, AssetKeyType);
@@ -137,10 +139,10 @@ namespace Armory
          bool belongsTo(const AssetAccountId&) const;
 
          bool isValid(void) const;
-         const AssetKeyType getAssetKey(void) const;
-         const AccountKeyType getAddressAccountKey(void) const;
-         const AddressAccountId getAddressAccountId(void) const;
-         const AssetAccountId getAssetAccountId(void) const;
+         AssetKeyType getAssetKey(void) const;
+         AccountKeyType getAddressAccountKey(void) const;
+         AddressAccountId getAddressAccountId(void) const;
+         AssetAccountId getAssetAccountId(void) const;
 
          void serializeValue(BinaryWriter&) const;
          BinaryData getSerializedKey(uint8_t) const;
@@ -166,6 +168,7 @@ namespace Armory
 
       public:
          EncryptionKeyId(void);
+         EncryptionKeyId(const EncryptionKeyId&);
          EncryptionKeyId(const BinaryData&);
 
          EncryptionKeyId& operator=(const EncryptionKeyId&);

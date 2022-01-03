@@ -223,7 +223,7 @@ public:
       return headerPtr_;
    }
 
-   const size_t size(void) const
+   size_t size(void) const
    {
       return size_;
    }
@@ -246,8 +246,12 @@ struct BlockOffset
    uint16_t fileID_;
    size_t offset_;
 
-   BlockOffset(uint16_t fileID, size_t offset)
-      : fileID_(fileID), offset_(offset)
+   BlockOffset(uint16_t fileID, size_t offset) :
+      fileID_(fileID), offset_(offset)
+   {}
+
+   BlockOffset(const BlockOffset& bo) :
+      fileID_(bo.fileID_), offset_(bo.offset_)
    {}
 
    bool operator>(const BlockOffset& rhs)
@@ -285,7 +289,7 @@ public:
 
    void detectAllBlockFiles(void);
    const std::string& folderPath(void) const { return folderPath_; }
-   const unsigned fileCount(void) const { return filePaths_.size(); }
+   unsigned fileCount(void) const { return filePaths_.size(); }
    const std::string& getLastFileName(void) const;
 };
 
