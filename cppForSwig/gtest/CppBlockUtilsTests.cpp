@@ -81,7 +81,7 @@ TEST_F(BlockDir, HeadersFirst)
 {
    // Put the first 5 blocks out of order
    TestUtils::setBlocks({ "0", "1", "2", "4", "3", "5" }, blk0dat_);
-   
+
    BlockDataManagerThread* BDMt = new BlockDataManagerThread();
    auto fakeshutdown = [](void)->void {};
    Clients *clients = new Clients(BDMt, fakeshutdown);
@@ -582,7 +582,8 @@ TEST_F(BlockUtilsFull, Load5Blocks)
 TEST_F(BlockUtilsFull, Load5Blocks_DamagedBlkFile)
 {
    // this test should be reworked to be in terms of createTestChain.py
-   BtcUtils::copyFile("../reorgTest/botched_block.dat", blk0dat_);
+   string path(TestUtils::dataDir + "/botched_block.dat");
+   BtcUtils::copyFile(path.c_str(), blk0dat_);
 
    theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(clients_, BitcoinSettings::getMagicBytes());
@@ -1881,13 +1882,15 @@ TEST_F(WebSocketTests_1Way, WebSocketStack)
    EXPECT_EQ(lb2Balances[0], 15 * COIN);
 
    //add ZC
+   string zcPath(TestUtils::dataDir + "/ZCtx.tx");
    BinaryData rawZC(TestChain::zcTxSize);
-   FILE *ff = fopen("../reorgTest/ZCtx.tx", "rb");
+   FILE *ff = fopen(zcPath.c_str(), "rb");
    fread(rawZC.getPtr(), TestChain::zcTxSize, 1, ff);
    fclose(ff);
 
+   string lbPath(TestUtils::dataDir + "/LBZC.tx");
    BinaryData rawLBZC(TestChain::lbZCTxSize);
-   FILE *flb = fopen("../reorgTest/LBZC.tx", "rb");
+   FILE *flb = fopen(lbPath.c_str(), "rb");
    fread(rawLBZC.getPtr(), TestChain::lbZCTxSize, 1, flb);
    fclose(flb);
 

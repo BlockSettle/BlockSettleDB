@@ -1492,15 +1492,17 @@ TEST_F(ZeroConfTests_FullNode, Load4Blocks_ReloadBDM_ZC_Plus2)
    EXPECT_EQ(wltLB2->getFullBalance(), 15 * COIN);
 
    //add ZC
+   string zcPath(TestUtils::dataDir + "/ZCtx.tx");
    BinaryData rawZC(TestChain::zcTxSize);
-   FILE *ff = fopen("../reorgTest/ZCtx.tx", "rb");
+   FILE *ff = fopen(zcPath.c_str(), "rb");
    fread(rawZC.getPtr(), TestChain::zcTxSize, 1, ff);
    fclose(ff);
    DBTestUtils::ZcVector rawZcVec;
    rawZcVec.push_back(move(rawZC), 0);
 
+   string lbPath(TestUtils::dataDir + "/LBZC.tx");
    BinaryData rawLBZC(TestChain::lbZCTxSize);
-   FILE *flb = fopen("../reorgTest/LBZC.tx", "rb");
+   FILE *flb = fopen(lbPath.c_str(), "rb");
    fread(rawLBZC.getPtr(), TestChain::lbZCTxSize, 1, flb);
    fclose(flb);
    DBTestUtils::ZcVector rawLBZcVec;
@@ -2285,13 +2287,15 @@ TEST_F(ZeroConfTests_FullNode, Load4Blocks_ZC_GetUtxos)
 
 
    //add ZC
+   string zcPath(TestUtils::dataDir + "/ZCtx.tx");
    BinaryData rawZC(TestChain::zcTxSize);
-   FILE *ff = fopen("../reorgTest/ZCtx.tx", "rb");
+   FILE *ff = fopen(zcPath.c_str(), "rb");
    fread(rawZC.getPtr(), TestChain::zcTxSize, 1, ff);
    fclose(ff);
 
+   string lbPath(TestUtils::dataDir + "/LBZC.tx");
    BinaryData rawLBZC(TestChain::lbZCTxSize);
-   FILE *flb = fopen("../reorgTest/LBZC.tx", "rb");
+   FILE *flb = fopen(lbPath.c_str(), "rb");
    fread(rawLBZC.getPtr(), TestChain::lbZCTxSize, 1, flb);
    fclose(flb);
 

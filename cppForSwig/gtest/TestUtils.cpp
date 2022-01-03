@@ -124,7 +124,7 @@ namespace TestUtils
    void appendBlocks(const std::vector<std::string> &files, const std::string &to)
    {
       for (const std::string &f : files)
-         concatFile("../reorgTest/blk_" + f + ".dat", to);
+         concatFile(dataDir + "/blk_" + f + ".dat", to);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -134,7 +134,7 @@ namespace TestUtils
       o.close();
 
       for (const std::string &f : files)
-         concatFile("../reorgTest/blk_" + f + ".dat", to);
+         concatFile(dataDir + "/blk_" + f + ".dat", to);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -145,7 +145,7 @@ namespace TestUtils
    BinaryData getTx(unsigned height, unsigned id)
    {
       stringstream ss;
-      ss << "../reorgTest/blk_" << height << ".dat";
+      ss << dataDir << "/blk_" << height << ".dat";
 
       ifstream blkfile(ss.str(), ios::binary);
       blkfile.seekg(0, ios::end);
