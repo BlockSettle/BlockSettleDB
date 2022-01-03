@@ -249,9 +249,6 @@ enum OPCODETYPE
     OP_INVALIDOPCODE = 0xff,
 };
 
-
-#include "TxOutScrRef.h"
-
 class BlockDeserializingException : public std::runtime_error
 {
 public:
@@ -284,6 +281,8 @@ public:
 // This class holds only static methods.  
 // NOTE:  added default ctor and a few non-static, to support SWIG
 //        (-classic SWIG doesn't support static methods)
+struct TxOutScriptRef;
+
 class BtcUtils
 {
    static const BinaryData        BadAddress_;
@@ -1036,7 +1035,7 @@ public:
    static BinaryData getTxOutScriptForScrAddr(BinaryDataRef scrAddr);
    static TXOUT_SCRIPT_TYPE getScriptTypeForScrAddr(BinaryDataRef);
    static std::string getAddressStrFromScrAddr(BinaryDataRef);
-
+   static BinaryData getScrAddrForAddrStr(const std::string&);
 
    /////////////////////////////////////////////////////////////////////////////
    //no copy version, the regular one is too slow for scanning operations
@@ -2003,7 +2002,7 @@ public:
    static const std::string swHeaderMain_;
    static const std::string swHeaderTest_;
    static std::string scrAddrToSegWitAddress(const BinaryData& scrAddr);
-   static BinaryData segWitAddressToScrAddr(const std::string& swAddr);
+   static std::pair<BinaryData, int> segWitAddressToScrAddr(const std::string& swAddr);
    
    ////
    static int get_varint_len(const int64_t& value);

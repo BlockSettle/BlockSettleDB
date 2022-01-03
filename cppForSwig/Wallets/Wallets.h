@@ -147,12 +147,14 @@ namespace Armory
             const AssetId&) const;
 
          void extendPublicChain(unsigned);
-         void extendPublicChainToIndex(const AddressAccountId&, unsigned);
+         void extendPublicChainToIndex(const AddressAccountId&, unsigned,
+            const std::function<void(int)>& = nullptr);
          void extendPrivateChain(unsigned);
          void extendPrivateChainToIndex(const AddressAccountId&, unsigned);
 
          bool hasScrAddr(const BinaryData& scrAddr) const;
          bool hasAddrStr(const std::string& scrAddr) const;
+         bool isAssetUsed(const AssetId&) const;
 
          const std::pair<AssetId, AddressEntryType>&
             getAssetIDForAddrStr(const std::string& scrAddr) const;
@@ -183,7 +185,7 @@ namespace Armory
          const std::string& getDbName(void) const;
 
          std::set<AddressAccountId> getAccountIDs(void) const;
-         std::map<AssetId, std::shared_ptr<AddressEntry>> 
+         std::map<AssetId, std::shared_ptr<AddressEntry>>
             getUsedAddressMap(void) const;
 
          std::shared_ptr<Accounts::AddressAccount> createAccount(

@@ -283,14 +283,13 @@ bool BinaryData::operator==(BinaryDataRef const & bd2) const
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryData::operator<(BinaryDataRef const & bd2) const
 {
-   size_t minLen = min(getSize(), bd2.getSize());
-   auto ref_ptr = bd2.getPtr();
-   for (size_t i = 0; i<minLen; i++)
-   {
-      if (data_[i] == ref_ptr[i])
-         continue;
-      return data_[i] < ref_ptr[i];
-   }
+   size_t minLen = std::min(getSize(), bd2.getSize());
+   int result = 0;
+   if (minLen != 0)
+      result = memcmp(getPtr(), bd2.getPtr(), minLen);
+   
+   if (result != 0)
+      return result < 0;
    return (getSize() < bd2.getSize());
 }
 
@@ -298,26 +297,52 @@ bool BinaryData::operator<(BinaryDataRef const & bd2) const
 bool BinaryData::operator<(BinaryData const & bd2) const
 {
    size_t minLen = std::min(getSize(), bd2.getSize());
-   for (size_t i = 0; i < minLen; i++)
-   {
-      if (data_[i] == bd2.data_[i])
-         continue;
-      return data_[i] < bd2.data_[i];
-   }
+   int result = 0;
+   if (minLen != 0)
+      result = memcmp(getPtr(), bd2.getPtr(), minLen);
+   
+   if (result != 0)
+      return result < 0;
    return (getSize() < bd2.getSize());
 }
 
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryData::operator>(BinaryData const & bd2) const
 {
-   size_t minLen = min(getSize(), bd2.getSize());
-   for (size_t i = 0; i < minLen; i++)
-   {
-      if (data_[i] == bd2.data_[i])
-         continue;
-      return data_[i] > bd2.data_[i];
-   }
+   size_t minLen = std::min(getSize(), bd2.getSize());
+   int result = 0;
+   if (minLen != 0)
+      result = memcmp(getPtr(), bd2.getPtr(), minLen);
+   
+   if (result != 0)
+      return result > 0;
    return (getSize() > bd2.getSize());
+}
+
+/////////////////////////////////////////////////////////////////////////////
+bool BinaryData::operator==(BinaryData const & bd2) const
+{
+   if (!empty())
+   {
+      if (getSize() != bd2.getSize())
+         return false;
+
+      return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
+   }
+
+   return bd2.empty();
+}
+
+/////////////////////////////////////////////////////////////////////////////
+std::size_t hash<BinaryData>::operator()(const BinaryData& key) const
+{
+   if (key.empty())
+      return 0;
+
+   std::size_t result;
+   auto len = std::min(sizeof(std::size_t), key.getSize());
+   memcpy(&result, key.getPtr(), len);
+   return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -327,28 +352,27 @@ bool BinaryData::operator>(BinaryData const & bd2) const
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryDataRef::operator<(BinaryDataRef const & bd2) const
 {
-   auto minsize = min(nBytes_, bd2.nBytes_);
-   for (size_t i = 0; i < minsize; i++)
-   {
-      if (ptr_[i] == bd2.ptr_[i])
-         continue;
-      return ptr_[i] < bd2.ptr_[i];
-   }
-
-   return (nBytes_ < bd2.nBytes_);
+   size_t minLen = std::min(getSize(), bd2.getSize());
+   int result = 0;
+   if (minLen != 0)
+      result = memcmp(getPtr(), bd2.getPtr(), minLen);
+   
+   if (result != 0)
+      return result < 0;
+   return (getSize() < bd2.getSize());
 }
 
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryDataRef::operator>(BinaryDataRef const & bd2) const
 {
-   size_t minLen = min(nBytes_, bd2.nBytes_);
-   for (size_t i = 0; i < minLen; i++)
-   {
-      if (ptr_[i] == bd2.ptr_[i])
-         continue;
-      return ptr_[i] > bd2.ptr_[i];
-   }
-   return (nBytes_ > bd2.nBytes_);
+   size_t minLen = std::min(getSize(), bd2.getSize());
+   int result = 0;
+   if (minLen != 0)
+      result = memcmp(getPtr(), bd2.getPtr(), minLen);
+   
+   if (result != 0)
+      return result > 0;
+   return (getSize() > bd2.getSize());
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -375,6 +399,18 @@ bool BinaryDataRef::startsWith(BinaryData const & matchStr) const
          return false;
    
    return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+std::size_t hash<BinaryDataRef>::operator()(const BinaryDataRef& key) const
+{
+   if (key.empty())
+      return 0;
+
+   std::size_t result;
+   auto len = std::min(sizeof(std::size_t), key.getSize());
+   memcpy(&result, key.getPtr(), len);
+   return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////

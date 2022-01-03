@@ -1097,34 +1097,9 @@ class PyBtcWallet(object):
       In the first case, use the 20-byte binary pubkeyhash.  Use 32-byte tx
       hash for the tx-comment case.
       """
-      #TODO: fix this
-      return
 
-      updEntry = []
-      isNewComment = False
-      if hashVal in self.commentsMap:
-         # If there is already a comment for this address, overwrite it
-         oldCommentLen = len(self.commentsMap[hashVal])
-         oldCommentLoc = self.commentLocs[hashVal]
-         # The first 23 bytes are the datatype, hashVal, and 2-byte comment size
-         offset = 1 + len(hashVal) + 2
-         updEntry.append([WLT_UPDATE_MODIFY, oldCommentLoc+offset, '\x00'*oldCommentLen])
-      else:
-         isNewComment = True
-
-
-      dtype = WLT_DATATYPE_ADDRCOMMENT
-      if len(hashVal)>20:
-         dtype = WLT_DATATYPE_TXCOMMENT
-         
-      updEntry.append([WLT_UPDATE_ADD, dtype, hashVal, newComment])
-      newCommentLoc = self.walletFileSafeUpdate(updEntry)
       self.commentsMap[hashVal] = newComment
-
-      # If there was a wallet overwrite, it's location is the first element
-      self.commentLocs[hashVal] = newCommentLoc[-1]
-
-
+      TheBridge.setComment(self.uniqueIDB58, hashVal, newComment)
 
    #############################################################################
    def getAddrCommentIfAvail(self, txHash):
@@ -1175,7 +1150,7 @@ class PyBtcWallet(object):
                      
    #############################################################################
    def getCommentForLE(self, le):
-      # Smart comments for LedgerEntry objects:  get any direct comments ... 
+      # Smart comments for LedgerEntry objects:  get any direct comments ...
       # if none, then grab the one for any associated addresses.
       txHash = le.hash
       if txHash in self.commentsMap:
@@ -1443,7 +1418,6 @@ class PyBtcWallet(object):
 
          addrHash = addrObj.getPrefixedAddr()
          self.addrMap[addrHash] = addrObj
-         self.chainIndexMap[addrObj.chainIndex] = addrHash
 
       #update balances and txio count
       for i in range(0, len(result.ids)):
@@ -1609,7 +1583,7 @@ class PyBtcWallet(object):
 
          addrList.append(addrObj)
 
-      return addrList  
+      return addrList
 
    ###############################################################################
    def hasImports(self):
@@ -1639,19 +1613,26 @@ class PyBtcWallet(object):
          if addrObj.chainIndex <= -2:
             self.importList.append(len(self.linearAddr160List) - 1)
 
+      #comments
+      for commentIt in payload.comments:
+         self.commentsMap[commentIt.key] = commentIt.val.decode('utf-8')
+
    #############################################################################
-   def fillAddressPool(self, numPool, isActuallyNew=True, 
-                       doRegister=True, Progress=emptyFunc):
+   def fillAddressPool(self, numPool, progressId, callback=None):
       """
       Usually, when we fill the address pool, we are generating addresses
       for the first time, and thus there is no chance it's ever seen the
-      blockchain.  However, this method is also used for recovery/import 
+      blockchain.  However, this method is also used for recovery/import
       of wallets, where the address pool has addresses that probably have
-      transactions already in the blockchain.  
+      transactions already in the blockchain.
       """
 
+      def completeProcess(*args):
+         self.loadFromProtobufPayload(*args)
+         callback()
+
       TheBridge.extendAddressPool(\
-         self.uniqueIDB58, numPool, self.loadFromProtobufPayload)
+         self.uniqueIDB58, progressId, numPool, completeProcess)
 
    #############################################################################
    def registerWallet(self, isNew):

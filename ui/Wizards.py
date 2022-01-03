@@ -20,7 +20,7 @@ from ui.TxFramesOffline import SignBroadcastOfflineTxFrame
 from qtdialogs.qtdefines import USERMODE, GETFONT, AddToRunningDialogsList
 from armoryengine.PyBtcWallet import PyBtcWallet
 from armoryengine.BDM import TheBDM, BDM_OFFLINE, BDM_UNINITIALIZED
-from qtdialogs.qtdialogs import DlgProgress
+from qtdialogs.DlgProgress import DlgProgress
 from qtdialogs.DlgOfflineTx import ReviewOfflineTxFrame
 
 # This class is intended to be an abstract Wizard class that

@@ -545,31 +545,34 @@ unique_ptr<AddressAccount> AddressAccount::readFromDisk(
 
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPublicChain(
-   std::shared_ptr<IO::WalletDBInterface> iface, unsigned count)
+   std::shared_ptr<IO::WalletDBInterface> iface, unsigned count,
+   const function<void(int)>& progressCallback)
 {
    for (auto& accDataPair : accountDataMap_)
    {
       auto accountPtr = getAccountForID(accDataPair.first);
-      accountPtr->extendPublicChain(iface, count);
+      accountPtr->extendPublicChain(iface, count, progressCallback);
    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPublicChain(
    std::shared_ptr<IO::WalletDBInterface> iface,
-   const AssetAccountId& id, unsigned count)
+   const AssetAccountId& id, unsigned count,
+   const function<void(int)>& progressCallback)
 {
    auto accountPtr = getAccountForID(id);
-   accountPtr->extendPublicChain(iface, count);
+   accountPtr->extendPublicChain(iface, count, progressCallback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void AddressAccount::extendPublicChainToIndex(
    std::shared_ptr<IO::WalletDBInterface> iface,
-   const AssetAccountId& accountID, unsigned index)
+   const AssetAccountId& accountID, unsigned index,
+   const std::function<void(int)>& progressCallback)
 {
    auto accountPtr = getAccountForID(accountID);
-   accountPtr->extendPublicChainToIndex(iface, index);
+   accountPtr->extendPublicChainToIndex(iface, index, progressCallback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -826,6 +829,12 @@ const shared_ptr<AssetAccountData>& AddressAccount::getAccountDataForID(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+size_t AddressAccount::getNumAssetAccounts() const
+{
+   return accountDataMap_.size();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 set<AssetAccountId> AddressAccount::getAccountIdSet(void) const
 {
    set<AssetAccountId> result;
@@ -856,7 +865,7 @@ unique_ptr<AssetAccount> AddressAccount::getAccountForID(
          return make_unique<AssetAccount_ECDH>(accData);
 
       default:
-         throw runtime_error("unknown asset account type");
+         throw AccountException("[getAccountForID] unknown asset account type");
    }
 }
 
@@ -941,7 +950,7 @@ void AddressAccount::importPublicData(const AddressAccountPublicData& aapd)
       if (assapd.second.lastComputedIndex_ > accPtr->getLastComputedIndex())
       {
          accPtr->extendPublicChainToIndex(
-            nullptr, assapd.second.lastComputedIndex_);
+            nullptr, assapd.second.lastComputedIndex_, nullptr);
       }
 
       if (assapd.second.lastUsedIndex_ > accPtr->getHighestUsedIndex())
@@ -1109,6 +1118,18 @@ map<AssetId, shared_ptr<AddressEntry>> AddressAccount::getUsedAddressMap()
 
    return result;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+bool AddressAccount::isAssetUsed(const Wallets::AssetId& id) const
+{
+   auto acc = getAccountForID(id);
+   if (acc == nullptr)
+      return false;
+
+   auto assetKey = id.getAssetKey();
+   return assetKey > -1 && assetKey <= acc->getHighestUsedIndex();
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 shared_ptr<Asset_PrivateKey> AddressAccount::fillPrivateKey(

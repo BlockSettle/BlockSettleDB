@@ -120,13 +120,15 @@ namespace Armory
             std::shared_ptr<Wallets::IO::WalletDBInterface>);
 
          void extendPublicChainToIndex(
-            std::shared_ptr<Wallets::IO::WalletDBInterface>
-            , unsigned);
+            std::shared_ptr<Wallets::IO::WalletDBInterface>, unsigned,
+            const std::function<void(int)>&);
          void extendPublicChain(
-            std::shared_ptr<Wallets::IO::WalletDBInterface>
-            , std::shared_ptr<Assets::AssetEntry>, unsigned);
+            std::shared_ptr<Wallets::IO::WalletDBInterface>,
+            std::shared_ptr<Assets::AssetEntry>, unsigned,
+            const std::function<void(int)>&);
          std::vector<std::shared_ptr<Assets::AssetEntry>> extendPublicChain(
-            std::shared_ptr<Assets::AssetEntry>, unsigned, unsigned);
+            std::shared_ptr<Assets::AssetEntry>, unsigned, unsigned,
+            const std::function<void(int)>&);
 
          void extendPrivateChain(
             std::shared_ptr<Wallets::IO::WalletDBInterface>,
@@ -190,7 +192,8 @@ namespace Armory
          std::shared_ptr<Assets::AssetEntry> getRoot(void) const;
 
          void extendPublicChain(
-            std::shared_ptr<Wallets::IO::WalletDBInterface>, unsigned);
+            std::shared_ptr<Wallets::IO::WalletDBInterface>, unsigned,
+            const std::function<void(int)>& = nullptr);
 
          //static
          static std::shared_ptr<AssetAccountData> loadFromDisk(

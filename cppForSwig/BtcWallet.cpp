@@ -14,6 +14,7 @@
 #include "BlockUtils.h"
 #include "txio.h"
 #include "BlockDataViewer.h"
+#include "TxOutScrRef.h"
 
 using namespace std;
 

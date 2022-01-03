@@ -35,7 +35,8 @@ enum BDMPhase
    BDMPhase_Rescan,
    BDMPhase_Balance,
    BDMPhase_SearchHashes,
-   BDMPhase_ResolveHashes
+   BDMPhase_ResolveHashes,
+   BDMPhase_Completed
 };
 
 enum BDMAction

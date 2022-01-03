@@ -15,7 +15,7 @@
 #include "../Wallets/WalletIdTypes.h"
 #include "../Wallets/PassphraseLambda.h"
 
-#define BRIDGE_CALLBACK_PROMPTUSER  UINT32_MAX - 2
+#define BRIDGE_CALLBACK_PROMPTUSER UINT32_MAX - 2
 
 namespace Armory
 {

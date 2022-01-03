@@ -158,6 +158,7 @@ ARMORYCOMMON_SOURCE_FILES = AsyncClient.cpp \
 	StoredBlockObj.cpp \
 	TxClasses.cpp \
 	txio.cpp \
+	TxOutScrRef.cpp \
 	UniversalTimer.cpp \
 	WebSocketClient.cpp \
 	WebSocketMessage.cpp

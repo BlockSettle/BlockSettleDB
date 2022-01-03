@@ -182,7 +182,8 @@ namespace Armory
          BridgeReply getHighestUsedIndex(const std::string&);
 
          //wallet & addresses
-         void extendAddressPool(const std::string&, unsigned, unsigned);
+         void extendAddressPool(const std::string&, unsigned,
+            const std::string&, unsigned);
          BridgeReply getNewAddress(const std::string&, unsigned);
          BridgeReply getChangeAddress(const std::string&, unsigned);
          BridgeReply peekChangeAddress(const std::string&, unsigned);
@@ -197,6 +198,7 @@ namespace Armory
             const std::string&, const BinaryDataRef&);
          void getHistoryPageForDelegate(const std::string&, unsigned, unsigned);
          void createAddressBook(const std::string&, unsigned);
+         void setComment(const Codec_ClientProto::ClientCommand&);
 
          //txs & headers
          void getTxByHash(const BinaryData&, unsigned);
@@ -248,6 +250,7 @@ namespace Armory
             const BinaryData&, const BinaryData&) const;
          BridgeReply getTxOutScriptType(const BinaryData&) const;
          BridgeReply getScrAddrForScript(const BinaryData&) const;
+         BridgeReply getScrAddrForAddrStr(const std::string&) const;
          BridgeReply getLastPushDataInScript(const BinaryData&) const;
          BridgeReply getHash160(const BinaryDataRef&) const;
          void broadcastTx(const std::vector<BinaryData>&);

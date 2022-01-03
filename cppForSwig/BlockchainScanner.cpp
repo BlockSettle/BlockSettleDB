@@ -9,6 +9,7 @@
 #include "BlockchainScanner.h"
 #include "log.h"
 #include "TxHashFilters.h"
+#include "TxOutScrRef.h"
 
 using namespace std;
 using namespace Armory::Threading;
@@ -1595,7 +1596,7 @@ bool BlockchainScanner::resolveTxHashes()
       TIMER_STOP("resolveHashes");
       return true;
    }
-   
+
    if (missingHashes.size() == 0)
    {
       TIMER_STOP("resolveHashes");

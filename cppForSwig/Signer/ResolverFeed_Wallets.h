@@ -96,6 +96,8 @@ namespace Armory
             catch (NoAssetException&)
             {}
 
+            throw std::runtime_error("not implemented yet");
+
             /*
             Failed to get the asset for the pukbey by hashing it, run through
             all assets linearly instead.

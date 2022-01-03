@@ -29,10 +29,14 @@ struct TxFilterException : public std::runtime_error
 ////////////////////////////////////////////////////////////////////////////////
 struct TxHashHints
 {
-   BinaryData hash_;
+   const BinaryData hash_;
 
    //map<blockId, set<tx id>>
    std::map<uint32_t, std::set<uint32_t>> filterHits_= {};
+
+   TxHashHints(const BinaryData& hash) :
+      hash_(hash)
+   {}
 };
 
 ////

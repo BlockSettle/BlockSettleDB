@@ -18,6 +18,7 @@
 //forward declarations
 class UTXO;
 class AddressEntry;
+class BinaryData;
 
 namespace DBClientClasses
 {
@@ -58,9 +59,10 @@ namespace Armory
             std::shared_ptr<Accounts::AddressAccount>);
 
          static void wallet(
-            Codec_ClientProto::WalletData* wltProto,
-            std::shared_ptr<Wallets::AssetWallet> wltPtr,
-            const Wallets::AddressAccountId&);
+            Codec_ClientProto::WalletData*,
+            std::shared_ptr<Wallets::AssetWallet>,
+            const Wallets::AddressAccountId&,
+            const std::map<BinaryData, std::string>&);
 
          static void utxo(
             Codec_ClientProto::BridgeUtxo*,

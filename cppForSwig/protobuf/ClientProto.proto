@@ -27,6 +27,7 @@ enum Methods
     getTxByHash = 70;
     getHeaderByHeight = 71;
     createAddressBook = 72;
+    setComment = 73;
 
     getNewAddress = 80;
     getChangeAddress = 81;
@@ -47,6 +48,7 @@ enum Methods
     getAddrStrForScrAddr = 96;
     getNameForAddrType = 97;
     setAddressTypeFor = 98;
+    getScrAddrForAddrStr = 99;
 
     getUtxosForValue = 100;
     getSpendableZCList = 101;
@@ -133,11 +135,16 @@ message WalletData
 
     optional string label = 10;
     optional string desc = 11;
-    
+
     repeated WalletAsset assets = 20;
 
-    repeated bytes commentKey = 30;
-    repeated string commentVal = 31;
+    message Comment
+    {
+        required bytes key = 1;
+        required bytes val = 2;
+    }
+
+    repeated Comment comments = 30;
 }
 
 message WalletPayload
@@ -159,9 +166,9 @@ message CppBridgeCallback
 
 message CppProgressCallback
 {
-    required uint32 phase = 1;
+    optional uint32 phase = 1;
     required float progress = 2;
-    required uint32 etaSec = 3;
+    optional uint32 etaSec = 3;
     required uint32 progressNumeric = 4;
 
     repeated string ids = 10;
@@ -262,19 +269,19 @@ message BridgeTx
 
 message ReplyBinary
 {
-    repeated bytes reply = 1;
+    repeated bytes reply = 30;
 }
 
 message ReplyStrings
 {
-    repeated string reply = 1;
+    repeated string reply = 31;
 }
 
 message ReplyNumbers
 {
-    repeated uint32 ints = 1;
-    repeated uint64 longs = 2;
-    repeated float  floats = 3;
+    repeated uint32 ints = 40;
+    repeated uint64 longs = 41;
+    repeated float  floats = 42;
 }
 
 message BridgeAddressBookEntry
@@ -324,8 +331,9 @@ message BridgeInputSignedState
 
 message ReplyError
 {
-    required string error = 1;
-    optional uint32 code = 2;
+    required bool isError = 24;
+    required string error = 25;
+    optional uint32 code = 26;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

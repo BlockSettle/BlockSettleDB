@@ -492,9 +492,7 @@ const pair<AssetId, AddressEntryType>&
    AssetWallet::getAssetIDForAddrStr(const string& addrStr) const
 {
    //this takes b58 or bech32 addresses
-
    ReentrantLock lock(this);
-   
    BinaryData scrAddr;
 
    try
@@ -503,7 +501,7 @@ const pair<AssetId, AddressEntryType>&
    }
    catch(runtime_error&)
    {
-      scrAddr = move(BtcUtils::segWitAddressToScrAddr(addrStr));
+      scrAddr = move(BtcUtils::segWitAddressToScrAddr(addrStr).first);
    }
 
    return getAssetIDForScrAddr(scrAddr);
@@ -532,7 +530,6 @@ const pair<AssetId, AddressEntryType>&
    throw runtime_error("unknown scrAddr");
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 AddressEntryType AssetWallet::getAddrTypeForID(const AssetId& id) const
 {
@@ -540,6 +537,23 @@ AddressEntryType AssetWallet::getAddrTypeForID(const AssetId& id) const
    
    auto addrPtr = getAddressEntryForID(id);
    return addrPtr->getType();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool AssetWallet::isAssetUsed(const AssetId& id) const
+{
+   try
+   {
+      auto acc = getAccountForID(id.getAddressAccountId());
+      if (acc == nullptr)
+         return false;
+
+      return acc->isAssetUsed(id);
+   }
+   catch (const exception&)
+   {
+      return false;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -685,11 +699,12 @@ void AssetWallet::extendPrivateChain(unsigned count)
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetWallet::extendPublicChainToIndex(
-   const AddressAccountId& account_id, unsigned count)
+   const AddressAccountId& account_id, unsigned count,
+   const std::function<void(int)>& progressCallback)
 {
    auto account = getAccountForID(account_id);
    account->extendPublicChainToIndex(iface_,
-      account->getOuterAccount()->getID(), count);
+      account->getOuterAccount()->getID(), count, progressCallback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1258,8 +1273,8 @@ shared_ptr<AssetWallet_Single> AssetWallet_Single::createFromSeed_BIP32(
    const SecureBinaryData& controlPassphrase,
    unsigned lookup)
 {
-   if (seed.getSize() == 0)
-      throw WalletException("empty seed");
+   if (seed.empty())
+      throw WalletException("[createFromSeed_BIP32] empty seed");
 
    BIP32_Node rootNode;
    rootNode.initFromSeed(seed);
@@ -1526,7 +1541,7 @@ string AssetWallet_Single::computeWalletID(
    shared_ptr<DerivationScheme> derScheme,
    shared_ptr<AssetEntry> rootEntry)
 {
-   auto&& addrVec = derScheme->extendPublicChain(rootEntry, 1, 1);
+   auto&& addrVec = derScheme->extendPublicChain(rootEntry, 1, 1, nullptr);
    if (addrVec.size() != 1)
       throw WalletException("unexpected chain derivation output");
 

@@ -97,10 +97,12 @@ TEST_F(AddressTests, bech32_Tests)
    EXPECT_EQ(p2wshAddr, scrAddr_p2wsh);
 
    auto&& pubkey_hash2 = BtcUtils::segWitAddressToScrAddr(scrAddr_p2wpkh);
-   EXPECT_EQ(pubkey_hash, pubkey_hash2);
+   EXPECT_EQ(pubkey_hash2.second, 0);
+   EXPECT_EQ(pubkey_hash, pubkey_hash2.first);
 
    auto&& script_hash2 = BtcUtils::segWitAddressToScrAddr(scrAddr_p2wsh);
-   EXPECT_EQ(script_hash, script_hash2);
+   EXPECT_EQ(script_hash2.second, 0);
+   EXPECT_EQ(script_hash, script_hash2.first);
 
    //buffer overrun issue check
    try
@@ -4728,11 +4730,18 @@ TEST_F(WalletsTest, LockAndExtend_Test)
       //check privkey
       ASSERT_EQ(privkey3, privateKeys[3]);
 
+      int deriveCount = 0;
+      auto deriveCallback = [&deriveCount](int count)->void
+      {
+         deriveCount += count;
+      };
+
       //extend address chain to 10 entries
       assetWlt->extendPublicChainToIndex(
-         assetWlt->getMainAccountID(), 9);
+         assetWlt->getMainAccountID(), 9, deriveCallback);
 
       ASSERT_EQ(outerAcc->getAssetCount(), 10U);
+      ASSERT_EQ(deriveCount, 21);
 
       //none of the new assets should have private keys
       for (unsigned i = 4; i < 10; i++)
@@ -7495,6 +7504,65 @@ TEST_F(WalletsTest, AssetPathResolution)
       wltWO->createBIP32Account(mainAccType);
       EXPECT_TRUE(checkWlt(wltWO));
    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TEST_F(WalletsTest, isAssetIdInUse)
+{
+   //create wallet
+   auto passphrase = SecureBinaryData::fromString("password");
+
+   //create regular wallet
+   auto seed = CryptoPRNG::generateRandom(32);
+   auto wlt = AssetWallet_Single::createFromSeed_BIP32(
+      homedir_, seed, passphrase, controlPass_, 10);
+
+   //grab a bunch of addresses of various types
+   map<AssetId, BinaryData> addrHashesInUse;
+
+   //5 default addresses
+   for (unsigned i = 0; i < 5; i++)
+   {
+      auto addrPtr = wlt->getNewAddress();
+      addrHashesInUse.emplace(addrPtr->getID(), addrPtr->getPrefixedHash());
+   }
+
+   //5 p2wpkh
+   for (unsigned i = 0; i < 5; i++)
+   {
+      auto addrPtr = wlt->getNewAddress(AddressEntryType_P2WPKH);
+      addrHashesInUse.emplace(addrPtr->getID(), addrPtr->getPrefixedHash());
+   }
+
+   //grab all address hashes for wallet
+   auto addrHashes = wlt->getAddrHashSet();
+
+   ASSERT_EQ(addrHashesInUse.size(), 10ULL);
+   ASSERT_EQ(addrHashes.size(), 80ULL);
+
+   set<AssetId> detectedIds;
+   for (const auto& addrIt : addrHashes)
+   {
+      const auto& idAndType = wlt->getAssetIDForScrAddr(addrIt);
+      const auto& id = idAndType.first;
+
+      //is this one of our grabbed addresses?
+      auto inUseIt = addrHashesInUse.find(id);
+      if (inUseIt == addrHashesInUse.end())
+      {
+         //it isn't, should be seen as unused
+         EXPECT_FALSE(wlt->isAssetUsed(id));
+         continue;
+      }
+
+      EXPECT_TRUE(wlt->isAssetUsed(id));
+      detectedIds.emplace(id);
+   }
+
+   //make sure we've seen every address
+   for (const auto& id : detectedIds)
+      addrHashesInUse.erase(id);
+   ASSERT_TRUE(addrHashesInUse.empty());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -41,6 +41,7 @@ bool ProtobufCommandParser::processData(
       {
          LOGERR << "[methodWithCallback] " << e.what();
          auto errMsg = make_unique<ReplyError>();
+         errMsg->set_iserror(true);
          errMsg->set_error(e.what());
 
          response = move(errMsg);
@@ -177,9 +178,10 @@ bool ProtobufCommandParser::processData(
 
    case Methods::extendAddressPool:
    {
-      if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
-         throw runtime_error("invalid command: getHighestUsedIndex");
-      bridge->extendAddressPool(msg.stringargs(0), msg.intargs(0), id);
+      if (msg.stringargs_size() != 2 || msg.intargs_size() != 1)
+         throw runtime_error("invalid command: extendAddressPool");
+      bridge->extendAddressPool(
+         msg.stringargs(0), msg.intargs(0), msg.stringargs(1), id);
       break;
    }
 
@@ -227,10 +229,10 @@ bool ProtobufCommandParser::processData(
       if (msg.byteargs_size() != 2)
          throw runtime_error("invalid command: getTxInScriptType");
 
-      auto& script = msg.byteargs(0);
+      const auto& script = msg.byteargs(0);
       BinaryData scriptBd((uint8_t*)script.c_str(), script.size());
 
-      auto& hash = msg.byteargs(1);
+      const auto& hash = msg.byteargs(1);
       BinaryData hashBd((uint8_t*)hash.c_str(), hash.size());
 
       response = bridge->getTxInScriptType(scriptBd, hashBd);
@@ -241,7 +243,7 @@ bool ProtobufCommandParser::processData(
    {
       if (msg.byteargs_size() != 1)
          throw runtime_error("invalid command: getTxOutScriptType");
-      auto& byteargs = msg.byteargs(0);
+      const auto& byteargs = msg.byteargs(0);
       BinaryData script((uint8_t*)byteargs.c_str(), byteargs.size());
       response = bridge->getTxOutScriptType(script);
       break;
@@ -251,9 +253,17 @@ bool ProtobufCommandParser::processData(
    {
       if (msg.byteargs_size() != 1)
          throw runtime_error("invalid command: getScrAddrForScript");
-      auto& byteargs = msg.byteargs(0);
+      const auto& byteargs = msg.byteargs(0);
       BinaryData script((uint8_t*)byteargs.c_str(), byteargs.size());
       response = bridge->getScrAddrForScript(script);
+      break;
+   }
+
+   case Methods::getScrAddrForAddrStr:
+   {
+      if (msg.stringargs_size() != 1)
+         throw runtime_error("invalid command: getScrAddrForScript");
+      response = bridge->getScrAddrForAddrStr(msg.stringargs(0));
       break;
    }
 
@@ -262,7 +272,7 @@ bool ProtobufCommandParser::processData(
       if (msg.byteargs_size() != 1)
          throw runtime_error("invalid command: getLastPushDataInScript");
 
-      auto& script = msg.byteargs(0);
+      const auto& script = msg.byteargs(0);
       BinaryData scriptBd((uint8_t*)script.c_str(), script.size());
 
       response = bridge->getLastPushDataInScript(scriptBd);
@@ -274,7 +284,7 @@ bool ProtobufCommandParser::processData(
       if (msg.byteargs_size() != 1)
          throw runtime_error("invalid command: getTxOutScriptForScrAddr");
 
-      auto& script = msg.byteargs(0);
+      const auto& script = msg.byteargs(0);
       BinaryData scriptBd((uint8_t*)script.c_str(), script.size());
 
       response = bridge->getTxOutScriptForScrAddr(scriptBd);
@@ -285,7 +295,7 @@ bool ProtobufCommandParser::processData(
    {
       if (msg.byteargs_size() != 1)
          throw runtime_error("invalid command: getAddrStrForScrAddr");
-      auto& byteargs = msg.byteargs(0);
+      const auto& byteargs = msg.byteargs(0);
       BinaryData script((uint8_t*)byteargs.c_str(), byteargs.size());
       response = bridge->getAddrStrForScrAddr(script);
       break;
@@ -444,6 +454,12 @@ bool ProtobufCommandParser::processData(
       if (msg.stringargs_size() != 1)
          throw runtime_error("invalid command: createAddressBook");
       bridge->createAddressBook(msg.stringargs(0), id);
+      break;
+   }
+
+   case Methods::setComment:
+   {
+      bridge->setComment(msg);
       break;
    }
 

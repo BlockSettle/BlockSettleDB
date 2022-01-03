@@ -15,6 +15,7 @@
 #include "Assets.h"
 
 #include "Addresses.h"
+#include "../TxOutScrRef.h"
 
 using namespace std;
 using namespace Armory::Signer;

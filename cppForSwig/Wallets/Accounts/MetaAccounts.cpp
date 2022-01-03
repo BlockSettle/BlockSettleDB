@@ -501,7 +501,7 @@ map<BinaryData, string> CommentAssetConversion::getCommentMap(
       if (objPtr == nullptr)
          continue;
 
-      result.insert(make_pair(objPtr->getKey(), objPtr->getValue()));
+      result.emplace(objPtr->getKey(), objPtr->getValue());
    }
 
    return result;

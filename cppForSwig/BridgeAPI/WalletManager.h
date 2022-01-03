@@ -79,7 +79,8 @@ private:
    uint64_t unconfirmedBalance_ = 0;
    uint64_t txioCount_ = 0;
 
-   Armory::Wallets::AssetKeyType highestUsedIndex_ = -1;
+   std::map<Armory::Wallets::AssetAccountId,
+      Armory::Wallets::AssetKeyType> highestUsedIndex_;
    std::mutex stateMutex_;
 
    std::map<BinaryData, std::shared_ptr<AddressEntry>> updatedAddressMap_;
@@ -210,10 +211,12 @@ public:
    uint64_t getTxIOCount(void) const { return txioCount_; }
 
    std::map<BinaryData, std::vector<uint64_t>> getAddrBalanceMap(void) const;
-   uint32_t getHighestUsedIndex(void) const { return highestUsedIndex_; }
+   Armory::Wallets::AssetKeyType getHighestUsedIndex(void) const;
    std::map<BinaryData, std::shared_ptr<AddressEntry>> getUpdatedAddressMap();
 
    Armory::Backups::WalletBackup getBackupStrings(const PassphraseLambda&) const;
+
+   void setComment(const std::string&, const std::string&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1279,8 +1279,8 @@ unsigned CoinSelectionInstance::addRecipient(
 void CoinSelectionInstance::addRecipient(
    unsigned id, const BinaryData& hash, uint64_t value)
 {
-   if (hash.getSize() == 0)
-      throw CoinSelectionException("empty script hash");
+   if (hash.empty())
+      throw CoinSelectionException("[addRecipient] empty script hash");
    
    vector<shared_ptr<ScriptRecipient>> recVec;
    recVec.emplace_back(createRecipient(hash, value));
@@ -1288,11 +1288,23 @@ void CoinSelectionInstance::addRecipient(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-shared_ptr<ScriptRecipient> CoinSelectionInstance::createRecipient(
-   const BinaryData& hash, uint64_t value)
+void CoinSelectionInstance::addRecipient(
+   unsigned id, const string& addrStr, uint64_t value)
 {
+   vector<shared_ptr<ScriptRecipient>> recVec;
+   recVec.emplace_back(createRecipient(addrStr, value));
+   recipients_.emplace(id, move(recVec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptRecipient> CoinSelectionInstance::createRecipient(
+   const BinaryData& prefixedHash, uint64_t value)
+{
+   if (prefixedHash.empty())
+      throw ScriptRecipientException("[createRecipient] empty hash");
+
    shared_ptr<ScriptRecipient> rec;
-   auto scrType = *hash.getPtr();
+   uint8_t scrType = *prefixedHash.getPtr();
 
    const auto p2pkh_byte = Armory::Config::BitcoinSettings::getPubkeyHashPrefix();
    const auto p2sh_byte = Armory::Config::BitcoinSettings::getScriptHashPrefix();
@@ -1300,22 +1312,22 @@ shared_ptr<ScriptRecipient> CoinSelectionInstance::createRecipient(
    if (scrType == p2pkh_byte)
    {
       rec = make_shared<Recipient_P2PKH>(
-         hash.getSliceRef(1, hash.getSize() - 1), value);
+         prefixedHash.getSliceRef(1, prefixedHash.getSize() - 1), value);
    }
    else if (scrType == p2sh_byte)
    {
       rec = make_shared<Recipient_P2SH>(
-         hash.getSliceRef(1, hash.getSize() - 1), value);
+         prefixedHash.getSliceRef(1, prefixedHash.getSize() - 1), value);
    }
    else if(scrType == SCRIPT_PREFIX_P2WPKH)
    {
-      auto&& hashVal = hash.getSliceCopy(1, hash.getSize() - 1);
+      auto&& hashVal = prefixedHash.getSliceCopy(1, prefixedHash.getSize() - 1);
       rec = make_shared<Recipient_P2WPKH>(
          hashVal, value);
    }
    else if (scrType == SCRIPT_PREFIX_P2WSH)
    {
-      auto&& hashVal = hash.getSliceCopy(1, hash.getSize() - 1);
+      auto&& hashVal = prefixedHash.getSliceCopy(1, prefixedHash.getSize() - 1);
       rec = make_shared<Recipient_P2WSH>(
          hashVal, value);
    }
@@ -1328,12 +1340,71 @@ shared_ptr<ScriptRecipient> CoinSelectionInstance::createRecipient(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+shared_ptr<ScriptRecipient> CoinSelectionInstance::createRecipient(
+   const string& addrStr, uint64_t value)
+{
+   shared_ptr<ScriptRecipient> rec;
+
+   try
+   {
+      auto scrAddr = move(BtcUtils::base58toScrAddr(addrStr));
+      uint8_t scrType = *scrAddr.getPtr();
+
+      if (scrType == Armory::Config::BitcoinSettings::getPubkeyHashPrefix())
+      {
+         rec = make_shared<Recipient_P2PKH>(
+            scrAddr.getSliceRef(1, scrAddr.getSize() - 1), value);
+      }
+      else if (scrType == Armory::Config::BitcoinSettings::getScriptHashPrefix())
+      {
+         rec = make_shared<Recipient_P2SH>(
+            scrAddr.getSliceRef(1, scrAddr.getSize() - 1), value);
+      }
+   }
+   catch (const exception&)
+   {
+      auto scrAddrPair = move(BtcUtils::segWitAddressToScrAddr(addrStr));
+      if (scrAddrPair.second != 0)
+         throw runtime_error("[createRecipient] unsupported sw version");
+
+      switch (scrAddrPair.first.getSize())
+      {
+      case 20:
+         rec = make_shared<Recipient_P2WPKH>(scrAddrPair.first, value);
+         break;
+
+      case 32:
+         rec = make_shared<Recipient_P2WSH>(scrAddrPair.first, value);
+         break;
+
+      default:
+         break;
+      }
+   }
+
+   if (rec == nullptr)
+   {
+      throw ScriptRecipientException(
+         "[createRecipient] failed to create recipient");
+   }
+
+   return rec;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void CoinSelectionInstance::updateRecipient(
    unsigned id, const BinaryData& hash, uint64_t value)
 {
    recipients_.erase(id);
-   
    addRecipient(id, hash, value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CoinSelectionInstance::updateRecipient(
+   unsigned id, const string& addrStr, uint64_t value)
+{
+   recipients_.erase(id);
+   addRecipient(id, addrStr, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

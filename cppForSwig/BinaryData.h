@@ -323,18 +323,7 @@ public:
    bool operator<(BinaryDataRef const & bd2) const;
 
    /////////////////////////////////////////////////////////////////////////////
-   bool operator==(BinaryData const & bd2) const
-   {
-      if (!empty())
-      {
-         if (getSize() != bd2.getSize())
-            return false;
-
-         return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
-      }
-
-      return bd2.empty();
-   }
+   bool operator==(BinaryData const & bd2) const;
 
    /////////////////////////////////////////////////////////////////////////////
    bool operator!=(BinaryData const & bd2) const { return (!((*this)==bd2)); }
@@ -1425,8 +1414,6 @@ public:
       }
    }
 
-
-
    /////////////////////////////////////////////////////////////////////////////
    void put_BinaryData(BinaryData const & str, size_t offset=0, uint32_t sz=0)
    {
@@ -1651,15 +1638,17 @@ private:
 
 };
 
-struct BinaryDataHash
+namespace std
 {
-   size_t operator()(const BinaryData &x) const
+   template<> struct hash<BinaryData>
    {
-      // use the first size_t bytes of HashString in our hashtable
-      // hash256 should have good even distribution
-      const char *y = x.toCharPtr();
-      return *reinterpret_cast<const size_t*>(y);
-   }
+      std::size_t operator()(const BinaryData&) const;
+   };
+
+   template<> struct hash<BinaryDataRef>
+   {
+      std::size_t operator()(const BinaryDataRef&) const;
+   };
 };
 
 

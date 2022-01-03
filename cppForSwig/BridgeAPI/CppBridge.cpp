@@ -252,14 +252,21 @@ BridgeReply CppBridge::createWalletsPacket()
    auto accountIdMap = wltManager_->getAccountIdMap();
    for (auto& idIt : accountIdMap)
    {
+      if (idIt.first.empty() || idIt.second.empty())
+         continue;
+
+      auto firstCont = wltManager_->getWalletContainer(
+         idIt.first, *idIt.second.begin());
+      auto wltPtr = firstCont->getWalletPtr();
+      auto commentMap = wltPtr->getCommentMap();
+
       for (auto& accId : idIt.second)
       {
          auto wltContainer = wltManager_->getWalletContainer(
             idIt.first, accId);
-         auto wltPtr = wltContainer->getWalletPtr();
 
          auto payload = response->add_wallets();
-         CppToProto::wallet(payload, wltPtr, accId);
+         CppToProto::wallet(payload, wltPtr, accId, commentMap);
       }
    }
 
@@ -604,7 +611,7 @@ void CppBridge::restoreWallet(
 
          string serializedOpaqueData;
          errorVerbose.SerializeToString(&serializedOpaqueData);
-         errorMsg->set_payload(serializedOpaqueData);         
+         errorMsg->set_payload(serializedOpaqueData);
          
          writeToClient(move(errorMsg), BRIDGE_CALLBACK_PROMPTUSER);
       }
@@ -784,26 +791,69 @@ BridgeReply CppBridge::getHighestUsedIndex(const string& id)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void CppBridge::extendAddressPool(const string& id,
-   unsigned count, unsigned msgId)
+void CppBridge::extendAddressPool(const string& wltId,
+   unsigned count, const string& callbackId, unsigned msgId)
 {
-   auto wai = WalletAccountIdentifier::deserialize(id);
+   auto wai = WalletAccountIdentifier::deserialize(wltId);
    auto wltContainer = wltManager_->getWalletContainer(
       wai.walletId, wai.accountId);
    auto wltPtr = wltContainer->getWalletPtr();
-
    const auto& accId = wai.accountId;
-   auto lbd = [this, wltPtr, accId, count, msgId](void)->void
+
+   //run chain extention in another thread
+   auto extendChain =
+      [this, wltPtr, accId, count, msgId, callbackId]()
    {
       auto accPtr = wltPtr->getAccountForID(accId);
-      accPtr->extendPublicChain(wltPtr->getIface(), count);
 
-      auto msg = make_unique<WalletData>();
-      CppToProto::wallet(msg.get(), wltPtr, accId);
-      this->writeToClient(move(msg), msgId);
+      //setup progress reporting
+      size_t tickTotal = count * accPtr->getNumAssetAccounts();
+      size_t tickCount = 0;
+      int reportedTicks = -1;
+      auto now = chrono::system_clock::now();
+
+      //progress callback
+      auto updateProgress = [this, callbackId, tickTotal,
+         &tickCount, &reportedTicks, now](int)
+      {
+         ++tickCount;
+         auto msElapsed = chrono::duration_cast<chrono::milliseconds>(
+            chrono::system_clock::now() - now).count();
+
+         //report an event every 250ms
+         int eventCount = msElapsed / 250;
+         if (eventCount < reportedTicks)
+            return;
+
+         reportedTicks = eventCount;
+         float progressFloat = float(tickCount) / float(tickTotal);
+
+         auto msg = make_unique<CppProgressCallback>();
+         msg->set_progress(progressFloat);
+         msg->set_progressnumeric(tickCount);
+         msg->add_ids(callbackId);
+
+         this->writeToClient(move(msg), BRIDGE_CALLBACK_PROGRESS);
+      };
+
+      //extend chain
+      accPtr->extendPublicChain(wltPtr->getIface(), count, updateProgress);
+
+      //shutdown progress dialog
+      auto msgProgress = make_unique<CppProgressCallback>();
+      msgProgress->set_progress(0);
+      msgProgress->set_progressnumeric(0);
+      msgProgress->set_phase(BDMPhase_Completed);
+      msgProgress->add_ids(callbackId);
+      this->writeToClient(move(msgProgress), BRIDGE_CALLBACK_PROGRESS);
+
+      //complete process
+      auto msgComplete = make_unique<WalletData>();
+      CppToProto::wallet(msgComplete.get(), wltPtr, accId, {});
+      this->writeToClient(move(msgComplete), msgId);
    };
 
-   thread thr(lbd);
+   thread thr(extendChain);
    if (thr.joinable())
       thr.detach();
 }
@@ -871,8 +921,9 @@ BridgeReply CppBridge::getWalletPacket(const string& id) const
       wai.walletId, wai.accountId);
    auto response = make_unique<WalletPayload>();
    auto wltPtr = wltContainer->getWalletPtr();
+   auto commentMap = wltPtr->getCommentMap();
    auto payload = response->add_wallets();
-   CppToProto::wallet(payload, wltPtr, wai.accountId);
+   CppToProto::wallet(payload, wltPtr, wai.accountId, commentMap);
 
    return move(response);
 }
@@ -992,12 +1043,31 @@ BridgeReply CppBridge::getScrAddrForScript(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+BridgeReply CppBridge::getScrAddrForAddrStr(const string& addrStr) const
+{
+   try
+   {
+      auto msg = make_unique<ReplyBinary>();
+      auto resultBd = BtcUtils::getScrAddrForAddrStr(addrStr);
+      msg->add_reply(resultBd.toCharPtr(), resultBd.getSize());
+      return msg;
+   }
+   catch (const exception& e)
+   {
+      auto msg = make_unique<ReplyError>();
+      msg->set_iserror(true);
+      msg->set_error(e.what());
+      return msg;
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 BridgeReply CppBridge::getLastPushDataInScript(
    const BinaryData& script) const
 {
    auto msg = make_unique<ReplyBinary>();
-   auto&& result = BtcUtils::getLastPushDataInScript(script);
-   if (result.getSize() > 0)
+   auto result = BtcUtils::getLastPushDataInScript(script);
+   if (!result.empty())
       msg->add_reply(result.getCharPtr(), result.getSize());
    return msg;
 }
@@ -1035,6 +1105,7 @@ BridgeReply CppBridge::getAddrStrForScrAddr(
    catch (const exception& e)
    {
       auto msg = make_unique<ReplyError>();
+      msg->set_iserror(true);
       msg->set_error(e.what());
       return msg;
    }
@@ -1209,26 +1280,20 @@ bool CppBridge::setCoinSelectionRecipient(
 {
    auto iter = csMap_.find(csId);
    if (iter == csMap_.end())
-      throw runtime_error("invalid cs id");
+   {
+      LOGERR << "[setCoinSelectionRecipient] invalid csId";
+      return false;
+   }
 
-   BinaryData scrAddr;
    try
    {
-      scrAddr = move(BtcUtils::base58toScrAddr(addrStr));
+      iter->second->updateRecipient(recId, addrStr, value);
    }
-   catch(const exception&)
+   catch (const exception&)
    {
-      try
-      {
-         scrAddr = move(BtcUtils::segWitAddressToScrAddr(addrStr));
-      }
-      catch(const exception&)
-      {
-         return false;
-      }
+      return false;
    }
 
-   iter->second->updateRecipient(recId, scrAddr, value);
    return true;
 }
 
@@ -1366,6 +1431,23 @@ void CppBridge::createAddressBook(const string& id, unsigned msgId)
    };
 
    wltContainer->createAddressBook(lbd);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CppBridge::setComment(const ClientCommand& msg)
+{
+   if (msg.stringargs_size() != 2 || msg.byteargs_size() != 1)
+      throw runtime_error("invalid command: setComment");
+
+   const auto& walletId = msg.stringargs(0);
+
+   auto wai = WalletAccountIdentifier::deserialize(walletId);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+
+   const auto& hashKey = msg.byteargs(0);
+   const auto& comment = msg.stringargs(1);
+   wltContainer->setComment(hashKey, comment);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

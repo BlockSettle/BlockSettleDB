@@ -333,10 +333,7 @@ class ArmoryBridge(object):
       payload = ClientProto_pb2.CppProgressCallback()
       payload.ParseFromString(data)
 
-      notifThread = threading.Thread(\
-         group=None, target=TheBDM.reportProgress, \
-         name=None, args=[payload], kwargs={})
-      notifThread.start()
+      TheBDM.reportProgress(payload)
 
    #############################################################################
    def promptUser(self, data):
@@ -631,6 +628,23 @@ class ArmoryBridge(object):
       return response.reply[0]
 
    #############################################################################
+   def getScrAddrForAddrStr(self, addrStr):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.getScrAddrForAddrStr
+      packet.stringArgs.append(addrStr)
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      errorResponse = ClientProto_pb2.ReplyError()
+      errorResponse.ParseFromString(socketResponse)
+      if errorResponse.isError == False:
+         response = ClientProto_pb2.ReplyBinary()
+         response.ParseFromString(socketResponse)
+         return response.reply[0]
+      raise BridgeError("error in getScrAddrForAddrStr: " + errorResponse.error)
+
+   #############################################################################
    def getAddrStrForScrAddr(self, scrAddr):
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.getAddrStrForScrAddr
@@ -639,14 +653,13 @@ class ArmoryBridge(object):
       fut = self.sendToBridgeProto(packet)
       socketResponse = fut.getVal()
 
-      response = ClientProto_pb2.ReplyStrings()
-      if response.ParseFromString(socketResponse) == False:
-         errorResponse = ClientProto_pb2.ReplyError()
-         if errorResponse.ParseFromString(socketResponse) == False:
-            raise BridgeError("unkonwn error in getAddrStrForScrAddr")
-         raise BridgeError("error in getAddrStrForScrAddr: " + errorResponse.error())
-
-      return response.reply[0]
+      errorResponse = ClientProto_pb2.ReplyError()
+      errorResponse.ParseFromString(socketResponse)
+      if errorResponse.isError == False:
+         response = ClientProto_pb2.ReplyStrings()
+         response.ParseFromString(socketResponse)
+         return response.reply[0]
+      raise BridgeError("error in getAddrStrForScrAddr: " + errorResponse.error)
 
    #############################################################################
    def initCoinSelectionInstance(self, wltId, height):
@@ -920,13 +933,15 @@ class ArmoryBridge(object):
       self.sendToBridgeProto(packet, False)
 
    #############################################################################
-   def extendAddressPool(self, wltId, count, callback):
+   def extendAddressPool(self, wltId, progressId, count, callback):
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.extendAddressPool
       packet.stringArgs.append(wltId)
+      packet.stringArgs.append(progressId)
       packet.intArgs.append(count)
 
-      self.sendToBridgeProto(packet, False, self.finishExtendAddressPool, [callback])
+      self.sendToBridgeProto(packet, False,
+         self.finishExtendAddressPool, [callback])
 
    #############################################################################
    def finishExtendAddressPool(self, socketResponse, args):
@@ -1111,6 +1126,18 @@ class ArmoryBridge(object):
       response = ClientProto_pb2.WalletAsset()
       response.ParseFromString(socketResponse)
       return response
+
+   #############################################################################
+   def setComment(self, wltId, key, val):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.setComment
+
+      packet.stringArgs.append(wltId)
+      packet.byteArgs.append(key)
+      packet.stringArgs.append(val)
+
+      self.sendToBridgeProto(packet, False)
+
 
 ################################################################################
 class BridgeSigner(object):

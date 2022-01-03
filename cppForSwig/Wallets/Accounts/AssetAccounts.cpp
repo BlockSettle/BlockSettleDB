@@ -321,7 +321,7 @@ size_t AssetAccount::getAssetCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::extendPublicChain(shared_ptr<IO::WalletDBInterface> iface,
-   unsigned count)
+   unsigned count, const function<void(int)>& progressCallback)
 {
    if (count == 0)
       return;
@@ -335,12 +335,13 @@ void AssetAccount::extendPublicChain(shared_ptr<IO::WalletDBInterface> iface,
    else
       assetPtr = data_->root_;
 
-   extendPublicChain(iface, assetPtr, count);
+   extendPublicChain(iface, assetPtr, count, progressCallback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::extendPublicChainToIndex(
-   shared_ptr<IO::WalletDBInterface> iface, unsigned index)
+   shared_ptr<IO::WalletDBInterface> iface, unsigned index,
+   const std::function<void(int)>& progressCallback)
 {
    ReentrantLock lock(this);
 
@@ -353,12 +354,13 @@ void AssetAccount::extendPublicChainToIndex(
    if (toCompute < 0)
       throw AccountException("extendPublicChainToIndex: invalid index");
 
-   extendPublicChain(iface, (unsigned)toCompute);
+   extendPublicChain(iface, (unsigned)toCompute, progressCallback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void AssetAccount::extendPublicChain(shared_ptr<IO::WalletDBInterface> iface,
-   shared_ptr<AssetEntry> assetPtr, unsigned count)
+   shared_ptr<AssetEntry> assetPtr, unsigned count,
+   const function<void(int)>& progressCallback)
 {
    if (count == 0)
       return;
@@ -367,7 +369,8 @@ void AssetAccount::extendPublicChain(shared_ptr<IO::WalletDBInterface> iface,
 
    auto assetVec = extendPublicChain(assetPtr,
       assetPtr->getIndex() + 1,
-      assetPtr->getIndex() + count);
+      assetPtr->getIndex() + count,
+      progressCallback);
 
    for (auto& asset : assetVec)
    {
@@ -385,8 +388,8 @@ void AssetAccount::extendPublicChain(shared_ptr<IO::WalletDBInterface> iface,
 
 ////////////////////////////////////////////////////////////////////////////////
 vector<shared_ptr<AssetEntry>> AssetAccount::extendPublicChain(
-   shared_ptr<AssetEntry> assetPtr, 
-   unsigned start, unsigned end)
+   shared_ptr<AssetEntry> assetPtr, unsigned start, unsigned end,
+   const function<void(int)>& progressCallback)
 {
    vector<shared_ptr<AssetEntry>> result;
 
@@ -396,7 +399,7 @@ vector<shared_ptr<AssetEntry>> AssetAccount::extendPublicChain(
    {
       //Armory legacy derivation operates from the last valid asset
       result = move(data_->derScheme_->extendPublicChain(
-         assetPtr, start, end));
+         assetPtr, start, end, progressCallback));
       break;
    }
 
@@ -406,7 +409,7 @@ vector<shared_ptr<AssetEntry>> AssetAccount::extendPublicChain(
    {
       //BIP32 operates from the node's root asset
       result = move(data_->derScheme_->extendPublicChain(
-         data_->root_, start, end));
+         data_->root_, start, end, progressCallback));
       break;
    }
 

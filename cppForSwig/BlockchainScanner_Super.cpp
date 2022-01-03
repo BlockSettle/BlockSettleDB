@@ -8,6 +8,7 @@
 
 #include "BlockchainScanner_Super.h"
 #include "EncryptionUtils.h"
+#include "TxOutScrRef.h"
 
 using namespace std;
 using namespace Armory::Threading;

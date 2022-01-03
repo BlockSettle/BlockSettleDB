@@ -251,7 +251,8 @@ void WalletManager::loadWallets(const PassphraseLambda& passLbd)
       catch (exception& e)
       {
          stringstream ss;
-         ss << "Failed to open wallet with error:" << endl << e.what();
+         ss << "Failed to open wallet at " << wltPath <<
+            " with error:" << endl << e.what();
          LOGERR << ss.str();
       }
    }
@@ -357,8 +358,16 @@ void WalletContainer::setWalletPtr(shared_ptr<AssetWallet> wltPtr,
 {
    wallet_ = wltPtr;
    auto acc = wallet_->getAccountForID(accId);
-   auto outerAccount = acc->getOuterAccount();
-   highestUsedIndex_ = outerAccount->getHighestUsedIndex();
+   auto assetAccountIds = acc->getAccountIdSet();
+
+   for (const auto& aaId : assetAccountIds)
+   {
+      auto accPtr = acc->getAccountForID(aaId);
+      if (accPtr == nullptr)
+         throw runtime_error("[setWalletPtr] missing asset account id");
+
+      highestUsedIndex_.emplace(aaId, accPtr->getHighestUsedIndex());
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -434,14 +443,32 @@ void WalletContainer::updateWalletBalanceState(const CombinedBalances& bal)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+AssetKeyType WalletContainer::getHighestUsedIndex(void) const
+{
+   auto accPtr = wallet_->getAccountForID(accountId_);
+   if (accPtr == nullptr)
+      throw runtime_error("[getHighestUsedIndex] invalid acc id");
+
+   auto outerAccId = accPtr->getOuterAccountID();
+   if (!outerAccId.isValid())
+      throw runtime_error("[getHighestUsedIndex] invalid outer acc id");
+
+   auto indexIter = highestUsedIndex_.find(outerAccId);
+   if (indexIter == highestUsedIndex_.end())
+      throw runtime_error("[getHighestUsedIndex] missing index for id");
+
+   return indexIter->second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
 {
    unique_lock<mutex> lock(stateMutex_);
 
-   AssetKeyType topIndex = -1;
+   map<AssetAccountId, AssetKeyType> topIndexMap;
    shared_ptr<IO::WalletIfaceTransaction> dbtx;
    map<BinaryData, shared_ptr<AddressEntry>> updatedAddressMap;
-   map<AssetId, AddressEntryType> orderedUpdatedAddresses;
+   map<AssetId, AddressEntryType> addrAndTypeMap;
 
    for (auto& addrPair : cnt.addressTxnCounts_)
    {
@@ -453,38 +480,40 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
          continue;
       }
 
-      auto& ID = wallet_->getAssetIDForScrAddr(addrPair.first);
+      const auto& ID = wallet_->getAssetIDForScrAddr(addrPair.first);
 
-      //grab asset to track top used index
+      auto topIdIter = topIndexMap.find(ID.first.getAssetAccountId());
+      if (topIdIter == topIndexMap.end())
+         topIdIter = topIndexMap.emplace(ID.first.getAssetAccountId(), -1).first;
+
+      //track top used index
       auto idKey = ID.first.getAssetKey();
-      if (idKey > topIndex)
-         topIndex = idKey;
+      if (idKey > topIdIter->second)
+         topIdIter->second = idKey;
 
       //mark newly seen addresses for further processing
-      orderedUpdatedAddresses.insert(ID);
+      addrAndTypeMap.insert(ID);
 
       //add count to map
       countMap_.emplace(addrPair);
    }
 
    map<AssetId, AddressEntryType> unpulledAddresses;
-   for (auto& idPair : orderedUpdatedAddresses)
+   for (auto& idPair : addrAndTypeMap)
    {
-      //check scrAddr with on chain data matches scrAddr for 
+      //check scrAddr with on chain data matches scrAddr for
       //address entry in wallet
-      try
-      {
-         auto addrType = wallet_->getAddrTypeForID(idPair.first);
-         if (addrType == idPair.second)
-            continue;
-      }
-      catch (const UnrequestedAddressException&)
+      if (!wallet_->isAssetUsed(idPair.first))
       {
          //db has history for an address that hasn't been pulled
          //from the wallet yet, save it for further processing
          unpulledAddresses.insert(idPair);
          continue;
       }
+
+      auto addrType = wallet_->getAddrTypeForID(idPair.first);
+      if (addrType == idPair.second)
+         continue;
 
       //if we don't have a db tx yet, get one, as we're about to update
       //the address type on disk
@@ -542,7 +571,21 @@ void WalletContainer::updateAddressCountState(const CombinedCounts& cnt)
       }
    }
 
-   highestUsedIndex_ = std::max(topIndex, highestUsedIndex_);
+   for (const auto& topIndexIt : topIndexMap)
+   {
+      auto usedIndexIter = highestUsedIndex_.find(topIndexIt.first);
+      if (usedIndexIter == highestUsedIndex_.end())
+      {
+         LOGWARN << "[updateAddressCountState]" <<
+            " missing asset account, skipping";
+         continue;
+      }
+
+      usedIndexIter->second = std::max(
+         topIndexIt.second,
+         usedIndexIter->second);
+   }
+
    for (auto& addrPair : updatedAddressMap)
    {
       auto insertIter = updatedAddressMap_.insert(addrPair);
@@ -616,6 +659,13 @@ void WalletContainer::eraseFromDisk()
    auto wltPtr = move(wallet_);
    AssetWallet::eraseFromDisk(wltPtr.get());
    wltPtr.reset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void WalletContainer::setComment(const string& key, const string& val)
+{
+   auto keyBd = BinaryData::fromString(key);
+   wallet_->setComment(keyBd, val);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
