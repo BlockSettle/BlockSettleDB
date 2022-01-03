@@ -26,7 +26,6 @@ endif()
 add_subdirectory(libbtc)
 add_definitions(-DLIBBTC_ONLY)
 
-
 set(LIBARMORYCOMMON_INCLUDE_DIRECTORIES
     PUBLIC .
     PUBLIC hkdf
@@ -107,6 +106,10 @@ list(REMOVE_ITEM LIBARMORYCOMMON_SOURCES
 set(LIBARMORYCOMMON_COMPILE_DEFINITIONS
     PRIVATE LIBBTC_ONLY
 )
+
+if(ENABLE_TESTS)
+    add_definitions(-DUNIT_TESTS)
+endif()
 
 if(NOT CMAKE_TOOLCHAIN_FILE MATCHES vcpkg)
     find_package(PkgConfig REQUIRED)
