@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5) # ubuntu 16 version
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-option(ENABLE_TESTS "enable building of tests" ON)
+option(ENABLE_TESTS "enable building of tests" OFF)
 
 if(WIN32)
     set(VCPKG_DEPS protobuf libwebsockets lmdb mpir)
