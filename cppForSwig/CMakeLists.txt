@@ -30,20 +30,20 @@ add_definitions(-DLIBBTC_ONLY)
 set(LIBARMORYCOMMON_INCLUDE_DIRECTORIES
     PUBLIC .
     PUBLIC hkdf
-    PRIVATE lmdbpp
+    PUBLIC lmdbpp
     PRIVATE bech32/ref/c++
     PRIVATE chacha20poly1305
-    PRIVATE libbtc/src/secp256k1/include
+    PUBLIC libbtc/src/secp256k1/include
     PUBLIC libbtc/include
-    PRIVATE Signer
-    PRIVATE Wallets
+    PUBLIC Signer
+    PUBLIC Wallets
     PRIVATE Wallets/Accounts
     PRIVATE ${PROJECT_BINARY_DIR} # for protobuf protoc genned .h files
 )
 
 IF (MSVC)
     LIST(APPEND LIBARMORYCOMMON_INCLUDE_DIRECTORIES
-        PRIVATE leveldb_windows_port/win32_posix
+        PUBLIC leveldb_windows_port/win32_posix
     )
 ENDIF (MSVC)
 
@@ -84,11 +84,17 @@ IF (MSVC)
     list(REMOVE_ITEM LIBARMORYCOMMON_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/SocketService_unix.cpp
     )
+
+    set(OS_SPECIFIC_LIBS )
+
 ELSE (MSVC)
     list(REMOVE_ITEM LIBARMORYCOMMON_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/SocketService_win32.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Win_TranslatePath.cpp
     )
+
+    set(OS_SPECIFIC_LIBS gmp)
+
 ENDIF (MSVC)
 
 list(REMOVE_ITEM LIBARMORYCOMMON_SOURCES
@@ -315,6 +321,7 @@ target_include_directories(armorydb
 
 target_link_libraries(armorydb
     ArmoryCLI
+    ${OS_SPECIFIC_LIBS}
 )
 
 include(GNUInstallDirs)
@@ -335,6 +342,7 @@ target_include_directories(BIP150KeyManager
 
 target_link_libraries(BIP150KeyManager
     ArmoryCLI
+    ${OS_SPECIFIC_LIBS}
 )
 
 install(TARGETS BIP150KeyManager DESTINATION ${CMAKE_INSTALL_BINDIR})

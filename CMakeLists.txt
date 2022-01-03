@@ -2,11 +2,17 @@ cmake_minimum_required(VERSION 3.5) # ubuntu 16 version
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
+option(ENABLE_TESTS "enable building of tests" ON)
+
 if(WIN32)
     set(VCPKG_DEPS protobuf libwebsockets lmdb mpir)
 else()
     set(VCPKG_DEPS protobuf)
 endif()
+
+if (ENABLE_TESTS)
+    list(APPEND VCPKG_DEPS gtest)
+endif ()
 
 include(Set-Toolchain-vcpkg)
 
@@ -22,6 +28,15 @@ find_library(LMDB_LIB lmdb HINTS ${CMAKE_LIBRARY_HINTS})
 IF (NOT LMDB_LIB)
     MESSAGE(FATAL_ERROR "Could not find LMDB lib")
 ENDIF ()
+
+
+if (ENABLE_TESTS)
+    find_library(GTEST_LIB gtest HINTS ${CMAKE_LIBRARY_HINTS})
+    IF (NOT GTEST_LIB)
+        MESSAGE(FATAL_ERROR "Could not find gtest lib")
+    ENDIF ()
+endif (ENABLE_TESTS)
+
 
 project(BitcoinArmory C CXX)
 
