@@ -65,12 +65,10 @@
 #include "UniversalTimer.h"
 #include "SecureBinaryData.h"
 
-#ifdef LIBBTC_ONLY
-#include "btc/random.h"
-#include "btc/ctaes.h"
+#include <btc/random.h>
+#include <btc/ctaes.h>
 #include <btc/aes256_cbc.h>
 #include <btc/ecc_key.h>
-#endif
 
 // We will look for a high memory value to use in the KDF
 // But as a safety check, we should probably put a cap
@@ -81,37 +79,9 @@
 
 #define CRYPTO_DEBUG false
 
-#ifndef LIBBTC_ONLY
-#include "cryptopp/cryptlib.h"
-#include "cryptopp/osrng.h"
-#include "cryptopp/sha.h"
-#include "cryptopp/aes.h"
-#include "cryptopp/modes.h"
-#include "cryptopp/eccrypto.h"
-#include "cryptopp/filters.h"
-#include "cryptopp/DetSign.h"
-
-#define UNSIGNED    ((CryptoPP::Integer::Signedness)(0))
-#define BTC_AES       CryptoPP::AES
-#define BTC_CFB_MODE  CryptoPP::CFB_Mode
-#define BTC_CBC_MODE  CryptoPP::CBC_Mode
-#define BTC_PRNG      CryptoPP::AutoSeededX917RNG<CryptoPP::AES>
-
-#define BTC_ECPOINT   CryptoPP::ECP::Point
-#define BTC_PUBKEY    CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PublicKey
-#define BTC_PRIVKEY   CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::PrivateKey
-
-#define BTC_ECDSA     CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>
-#define BTC_SIGNER    CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::Signer
-#define BTC_DETSIGNER CryptoPP::ECDSA_DetSign<CryptoPP::ECP, CryptoPP::SHA256>::DetSigner
-#define BTC_VERIFIER  CryptoPP::ECDSA<CryptoPP::ECP, CryptoPP::SHA256>::Verifier
-
-// Make some libbtc-specific #defines and #includes as needed.
-#else
 // libbtc doesn't have some #defines AES bits, so we'll make them.
 #define AES_MIN_KEY_LEN AES_BLOCK_SIZE
 #define AES_MAX_KEY_LEN AES_BLOCK_SIZE*2
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 class CryptoSHA2
@@ -260,7 +230,30 @@ public:
 };
 
 
-
+/*
+Serialize a pubkey object into a serialized byte sequence.
+ *
+ *  Returns: 1 always.
+ *  Args:   ctx:        a secp256k1 context object.
+ *  Out:    output:     a pointer to a 65-byte (if compressed==0) or 33-byte (if
+ *                      compressed==1) byte array to place the serialized key
+ *                      in.
+ *  In/Out: outputlen:  a pointer to an integer which is initially set to the
+ *                      size of output, and is overwritten with the written
+ *                      size.
+ *  In:     pubkey:     a pointer to a secp256k1_pubkey containing an
+ *                      initialized public key.
+ *          flags:      SECP256K1_EC_COMPRESSED if serialization should be in
+ *                      compressed format, otherwise SECP256K1_EC_UNCOMPRESSED.
+ *
+SECP256K1_API int secp256k1_ec_pubkey_serialize(
+    const secp256k1_context* ctx,
+    unsigned char *output,
+    size_t *outputlen,
+    const secp256k1_pubkey* pubkey,
+    unsigned int flags
+) SECP256K1_ARG_NONNULL(1) SECP256K1_ARG_NONNULL(2) SECP256K1_ARG_NONNULL(3) SECP256K1_ARG_NONNULL(4);
+*/
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,6 +269,10 @@ private:
 
 public:
    CryptoECDSA(void) {}
+
+   ////////////////////////////////////////////////////////////////////////////
+   static void setupContext(void);
+   static void shutdown(void);
 
    /////////////////////////////////////////////////////////////////////////////
    static bool checkPrivKeyIsValid(const SecureBinaryData& privKey);
@@ -357,6 +354,7 @@ public:
    /////////////////////////////////////////////////////////////////////////////
    // For Point-compression
    static SecureBinaryData CompressPoint(SecureBinaryData const & pubKey65);
+   static btc_pubkey CompressPoint(btc_pubkey const & pubKey65);
    static SecureBinaryData UncompressPoint(SecureBinaryData const & pubKey33);
 
    ////////////////////////////////////////////////////////////////////////////////

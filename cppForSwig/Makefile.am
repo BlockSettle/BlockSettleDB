@@ -6,7 +6,7 @@ noinst_LTLIBRARIES =
 TESTS =
 BUILT_SOURCES =
 
-LIBBTC = libbtc/libbtc.la
+LIBBTC = $(LIBBTC_LIBDIR)/libbtc.la
 LIBCHACHA20POLY1305 = chacha20poly1305/libchacha20poly1305.la
 
 LIBARMORYWALLETS = libArmoryWallets.la
@@ -16,7 +16,7 @@ LIBARMORYGUI = libArmoryGUI.la
 LIBARMORYCLI = libArmoryCLI.la
 LIBLMDBPP = liblmdbpp.la
 LIBHKDF = hkdf/libhkdf.la
-LIBSECP256K1 = libbtc/src/secp256k1/libsecp256k1.la
+LIBSECP256K1 = $(LIBBTC_LIBDIR)/src/secp256k1/libsecp256k1.la
 LIBWEBSOCKETS_STATIC = $(WEBSOCKETS_LIBDIR)/libwebsockets.a
 LIBPROTOBUF_STATIC = $(PROTOBUF_LIBDIR)/libprotobuf.so
 if BUILD_OPENSSL_SUPPORT
@@ -30,8 +30,7 @@ if BUILD_LIBEVENT_SUPPORT
 LIBEVENT_STATIC = $(LIBEVENT_LIBDIR)/libevent.a
 endif
 
-DIST_SUBDIRS = libbtc chacha20poly1305 hkdf
-SUBDIRS = libbtc chacha20poly1305 hkdf $(MAYBE_BUILD)
+SUBDIRS = chacha20poly1305 hkdf $(MAYBE_BUILD)
 
 # Unit test flags.
 UNIT_TEST_CXXFLAGS=
@@ -61,8 +60,8 @@ protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
 	protoc --cpp_out=protobuf --proto_path=protobuf $<
 
 INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdbpp \
-	-Ichacha20poly1305 -Ilibbtc/src/secp256k1/include \
-	-Ilibbtc/include $(LWS_CFLAGS) -Ihkdf -IWallets -ISigner
+	-Ichacha20poly1305 -I$(LIBBTC_LIBDIR)/src/secp256k1/include \
+	-I$(LIBBTC_LIBDIR)/include $(LWS_CFLAGS) -Ihkdf -IWallets -ISigner
 
 # Files should *not* be marked as "common" if at all possible. Also, a refactor
 # might not hurt one of these days. Some of the "common" files could be GUI/CLI
@@ -259,6 +258,7 @@ libArmoryCLI_la_LIBADD = $(LIBCHACHA20POLY1305) \
 			 $(LIBLMDBPP) \
 			 $(LIBHKDF) \
 			 $(LIBBTC) \
+			 $(LIBSECP256K1) \
 			 -llmdb \
 			 -lpthread
 libArmoryCLI_la_LDFLAGS = $(LDFLAGS) $(LWSLDFLAGS)
@@ -275,6 +275,7 @@ ArmoryDB_LDADD = $(LIBARMORYWALLETS) \
 		 $(LIBARMORYCLI) \
 		 $(LIBHKDF) \
 		 $(LIBBTC) \
+		 $(LIBSECP256K1) \
 		 $(LIBCHACHA20POLY1305) \
 		 $(LIBLMDBPP) \
 		 -llmdb \

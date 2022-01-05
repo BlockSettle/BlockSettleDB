@@ -9220,11 +9220,11 @@ GTEST_API_ int main(int argc, char **argv)
    srand(time(0));
    std::cout << "Running main() from gtest_main.cc\n";
 
-   btc_ecc_start();
+   CryptoECDSA::setupContext();
 
    testing::InitGoogleTest(&argc, argv);
    int exitCode = RUN_ALL_TESTS();
-   btc_ecc_stop();
+   CryptoECDSA::shutdown();
 
    FLUSHLOG();
    CLEANUPLOG();

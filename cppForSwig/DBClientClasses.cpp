@@ -21,7 +21,7 @@ void initLibrary()
 {
    startupBIP150CTX(4);
    startupBIP151CTX();
-   btc_ecc_start();
+   CryptoECDSA::setupContext();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

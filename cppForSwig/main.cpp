@@ -23,7 +23,7 @@ using namespace Armory::Config;
 
 int main(int argc, char* argv[])
 {
-   btc_ecc_start();
+   CryptoECDSA::setupContext();
    startupBIP151CTX();
    startupBIP150CTX(4);
 
@@ -91,7 +91,7 @@ int main(int argc, char* argv[])
    google::protobuf::ShutdownProtobufLibrary();
 
    shutdownBIP151CTX();
-   btc_ecc_stop();
+   CryptoECDSA::shutdown();
 
    return 0;
 }

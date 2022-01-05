@@ -90,7 +90,7 @@ namespace Armory
 
 namespace TestUtils
 {
-   const std::string dataDir("../cppForSwig/reorgTest");
+   const std::string dataDir("../reorgTest");
 
    // This function assumes src to be a zero terminated sanitized string with
    // an even number of [0-9a-f] characters, and target to be sufficiently large

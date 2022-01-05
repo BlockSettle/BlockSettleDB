@@ -9,7 +9,8 @@
 #include <assert.h>
 
 #include "hkdf.h"
-#include "btc/sha2.h"
+#include <btc/sha2.h>
+#include <btc/hmac.h>
 
 
 // HKDF (RFC 5869) code for SHA-256. Based on libbtc's HMAC SHA-256 code.

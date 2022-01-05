@@ -7739,10 +7739,7 @@ TEST_F(WalletMetaDataTest, AuthPeers)
    btc_pubkey btckey4;
    btc_pubkey_init(&btckey4);
    std::memcpy(btckey4.pubkey, pubkey4.getPtr(), 65);
-   btc_pubkey btckey4_cmp;
-   btc_pubkey_init(&btckey4_cmp);
-   btc_ecc_public_key_compress(btckey4.pubkey, btckey4_cmp.pubkey);
-   btckey4_cmp.compressed = true;
+   btc_pubkey btckey4_cmp = CryptoECDSA::CompressPoint(btckey4);
 
    authPeers->addPeer(btckey4,
       "4.4.4.4", "more.com");
@@ -8139,10 +8136,7 @@ TEST_F(WalletMetaDataTest, AuthPeers_Ephemeral)
    btc_pubkey btckey4;
    btc_pubkey_init(&btckey4);
    std::memcpy(btckey4.pubkey, pubkey4.getPtr(), 65);
-   btc_pubkey btckey4_cmp;
-   btc_pubkey_init(&btckey4_cmp);
-   btc_ecc_public_key_compress(btckey4.pubkey, btckey4_cmp.pubkey);
-   btckey4_cmp.compressed = true;
+   btc_pubkey btckey4_cmp = CryptoECDSA::CompressPoint(btckey4);
 
    authPeers->addPeer(btckey4,
       "4.4.4.4", "more.com");
@@ -9356,7 +9350,7 @@ GTEST_API_ int main(int argc, char **argv)
    WSAStartup(wVersion, &wsaData);
 #endif
 
-   btc_ecc_start();
+   CryptoECDSA::setupContext();
 
    GOOGLE_PROTOBUF_VERIFY_VERSION;
    srand(time(0));
@@ -9373,6 +9367,6 @@ GTEST_API_ int main(int argc, char **argv)
    CLEANUPLOG();
    google::protobuf::ShutdownProtobufLibrary();
 
-   btc_ecc_stop();
+   CryptoECDSA::shutdown();
    return exitCode;
 }

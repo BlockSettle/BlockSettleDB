@@ -8,17 +8,20 @@
 #ifdef LIBBTC_ONLY
 #include "EncryptionUtils.h"
 #include "log.h"
-#include "btc/ecc.h"
-#include "btc/sha2.h"
-#include "btc/hash.h"
-#include "btc/ripemd160.h"
-#include "btc/ctaes.h"
+#include <btc/ecc.h>
+#include <btc/sha2.h>
+#include <btc/hash.h>
+#include <btc/ripemd160.h>
+#include <btc/ctaes.h>
+#include <btc/hmac.h>
+#include <secp256k1.h>
 
 using namespace std;
 
 #define CRYPTO_DEBUG false
 
 const string CryptoECDSA::bitcoinMessageMagic_("Bitcoin Signed Message:\n");
+static secp256k1_context* crypto_ecdsa_ctx = nullptr;
 
 /////////////////////////////////////////////////////////////////////////////
 //// CryptoPRNG
@@ -287,6 +290,31 @@ SecureBinaryData CryptoAES::DecryptCBC(const SecureBinaryData & data,
 }
 
 /////////////////////////////////////////////////////////////////////////////
+//// CryptoECDSA
+/////////////////////////////////////////////////////////////////////////////
+void CryptoECDSA::setupContext()
+{
+   btc_ecc_start();
+   crypto_ecdsa_ctx = secp256k1_context_create(
+      SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
+
+   auto rando = CryptoPRNG::generateRandom(32);
+   if (!secp256k1_context_randomize(crypto_ecdsa_ctx, rando.getPtr()))
+      throw runtime_error("[CryptoECDSA::setupContext]");
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void CryptoECDSA::shutdown()
+{
+   btc_ecc_stop();
+   if (crypto_ecdsa_ctx != nullptr)
+   {
+      secp256k1_context_destroy(crypto_ecdsa_ctx);
+      crypto_ecdsa_ctx = nullptr;
+   }
+}
+
+/////////////////////////////////////////////////////////////////////////////
 bool CryptoECDSA::checkPrivKeyIsValid(const SecureBinaryData& privKey)
 {
    if (privKey.getSize() != 32)
@@ -320,12 +348,12 @@ SecureBinaryData CryptoECDSA::ComputePublicKey(
    if (!compressed)
    {
       len = BTC_ECKEY_UNCOMPRESSED_LENGTH;
-      btc_pubkey_from_key_uncompressed(&pkey, &pubkey);
+      btc_ecc_get_pubkey(pkey.privkey, pubkey.pubkey, &len, false);
    }
    else
    {
       len = BTC_ECKEY_COMPRESSED_LENGTH;
-      btc_pubkey_from_key(&pkey, &pubkey);
+      btc_ecc_get_pubkey(pkey.privkey, pubkey.pubkey, &len, true);
    }
 
    result.resize(len);
@@ -348,8 +376,6 @@ bool CryptoECDSA::VerifyPublicKeyValid(SecureBinaryData const & pubKey)
    return btc_pubkey_is_valid(&key);
 }
 
-/////////////////////////////////////////////////////////////////////////////
-//// CryptoECDSA
 /////////////////////////////////////////////////////////////////////////////
 // Use the secp256k1 curve to sign data of an arbitrary length.
 // Input:  Data to sign  (const SecureBinaryData&)
@@ -441,22 +467,32 @@ SecureBinaryData CryptoECDSA::ComputeChainedPrivateKey(
    }
 
    SecureBinaryData newPrivData(binPrivKey);
-   if (!btc_ecc_private_key_tweak_mul((uint8_t*)newPrivData.getPtr(), chainXor.getPtr()))
-      throw runtime_error("failed to multiply priv key");
+   if (!secp256k1_ec_seckey_tweak_mul(crypto_ecdsa_ctx,
+      newPrivData.getPtr(), chainXor.getPtr()))
+   {
+      throw runtime_error(
+         "[ComputeChainedPrivateKey] failed to multiply priv key");
+   }
 
    if(multiplierOut != NULL)
       (*multiplierOut) = SecureBinaryData(chainXor);
 
    return newPrivData;
 }
-                            
+
 /////////////////////////////////////////////////////////////////////////////
 // Deterministically generate new public key using a chaincode
 SecureBinaryData CryptoECDSA::ComputeChainedPublicKey(
-                                SecureBinaryData const & binPubKey,
-                                SecureBinaryData const & chainCode,
-                                SecureBinaryData* multiplierOut)
+   SecureBinaryData const & binPubKey, SecureBinaryData const & chainCode,
+   SecureBinaryData* multiplierOut)
 {
+   secp256k1_pubkey pubkey;
+   if (!secp256k1_ec_pubkey_parse(
+      crypto_ecdsa_ctx, &pubkey, binPubKey.getPtr(), binPubKey.getSize()))
+   {
+      throw runtime_error("[ComputeChainedPublicKey] invalid pubkey");
+   }
+
    if(CRYPTO_DEBUG)
    {
       cout << "ComputeChainedPUBLICKey:" << endl;
@@ -468,28 +504,40 @@ SecureBinaryData CryptoECDSA::ComputeChainedPublicKey(
    BinaryData chainMod  = binPubKey.getHash256();
    BinaryData chainOrig = chainCode.getRawCopy();
    BinaryData chainXor(32);
-      
+
    for(uint8_t i=0; i<8; i++)
    {
       uint8_t offset = 4*i;
       *(uint32_t*)(chainXor.getPtr()+offset) =
-                           *(uint32_t*)( chainMod.getPtr()+offset) ^ 
-                           *(uint32_t*)(chainOrig.getPtr()+offset);
+         *(uint32_t*)( chainMod.getPtr()+offset) ^
+         *(uint32_t*)(chainOrig.getPtr()+offset);
    }
 
-   SecureBinaryData pubKeyResult(binPubKey);
-   if (!btc_ecc_public_key_tweak_mul((uint8_t*)pubKeyResult.getPtr(), chainXor.getPtr()))
-      throw runtime_error("failed to multiply pubkey");
+   if (!secp256k1_ec_pubkey_tweak_mul(
+      crypto_ecdsa_ctx, &pubkey, chainXor.getPtr()))
+   {
+      throw runtime_error(
+         "[ComputeChainedPublicKey] failed to multiply pubkey");
+   }
 
    if(multiplierOut != NULL)
       (*multiplierOut) = SecureBinaryData(chainXor);
 
+   SecureBinaryData pubKeyResult(binPubKey.getSize());
+   size_t outputLen = binPubKey.getSize();
+   if (!secp256k1_ec_pubkey_serialize(
+      crypto_ecdsa_ctx, pubKeyResult.getPtr(), &outputLen, &pubkey,
+      binPubKey.getSize() == 65 ?
+         SECP256K1_EC_UNCOMPRESSED : SECP256K1_EC_COMPRESSED))
+   {
+      throw runtime_error(
+         "[ComputeChainedPublicKey] failed to serialize pubkey");
+   }
    return pubKeyResult;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool CryptoECDSA::ECVerifyPoint(BinaryData const & x,
-                                BinaryData const & y)
+bool CryptoECDSA::ECVerifyPoint(BinaryData const & x, BinaryData const & y)
 {
    BinaryWriter bw;
    bw.put_uint8_t(4);
@@ -503,22 +551,86 @@ bool CryptoECDSA::ECVerifyPoint(BinaryData const & x,
 ////////////////////////////////////////////////////////////////////////////////
 SecureBinaryData CryptoECDSA::CompressPoint(SecureBinaryData const & pubKey65)
 {
-   SecureBinaryData ptCompressed(33);
-   if (!btc_ecc_public_key_compress(
-      (uint8_t*)pubKey65.getPtr(), ptCompressed.getPtr()))
+   if (pubKey65.getSize() != 65)
    {
-      ptCompressed = pubKey65;
+      if (pubKey65.getSize() == 33)
+         return pubKey65;
+
+      throw runtime_error("[CompressPoint] invalid key size");
+   }
+
+   secp256k1_pubkey pubkey;
+   if (!secp256k1_ec_pubkey_parse(
+      crypto_ecdsa_ctx, &pubkey, pubKey65.getPtr(), 65))
+   {
+      throw runtime_error("[CompressPoint] invalid pubkey");
+   }
+
+   SecureBinaryData ptCompressed(33);
+   size_t outputLen = 33;
+   if (!secp256k1_ec_pubkey_serialize(
+      crypto_ecdsa_ctx, ptCompressed.getPtr(),
+      &outputLen, &pubkey, SECP256K1_EC_COMPRESSED) || outputLen != 33)
+   {
+      throw runtime_error("[CompressPoint] failed to compress pubkey");
    }
 
    return ptCompressed; 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+btc_pubkey CryptoECDSA::CompressPoint(btc_pubkey const & pubKey65)
+{
+   if (pubKey65.compressed)
+      return pubKey65;
+
+   secp256k1_pubkey pubkey;
+   if (!secp256k1_ec_pubkey_parse(
+      crypto_ecdsa_ctx, &pubkey, pubKey65.pubkey, 65))
+   {
+      throw runtime_error("[CompressPoint] invalid pubkey");
+   }
+
+   btc_pubkey pbCompressed;
+   btc_pubkey_init(&pbCompressed);
+   size_t outputLen = 33;
+   if (!secp256k1_ec_pubkey_serialize(
+      crypto_ecdsa_ctx, pbCompressed.pubkey,
+      &outputLen, &pubkey, SECP256K1_EC_COMPRESSED) || outputLen != 33)
+   {
+      throw runtime_error("[CompressPoint] failed to compress pubkey");
+   }
+
+   pbCompressed.compressed = true;
+   return pbCompressed; 
+}
+
+////////////////////////////////////////////////////////////////////////////////
 SecureBinaryData CryptoECDSA::UncompressPoint(SecureBinaryData const & pubKey33)
 {
+   if (pubKey33.getSize() != 33)
+   {
+      if (pubKey33.getSize() == 65)
+         return pubKey33;
+
+      throw runtime_error("[UncompressPoint] invalid key size");
+   }
+
+   secp256k1_pubkey pubkey;
+   if (!secp256k1_ec_pubkey_parse(
+      crypto_ecdsa_ctx, &pubkey, pubKey33.getPtr(), 33))
+   {
+      throw runtime_error("[UncompressPoint] invalid pubkey");
+   }
+
    SecureBinaryData ptUncompressed(65);
-   if(!btc_ecc_public_key_uncompress((uint8_t*)pubKey33.getPtr(), ptUncompressed.getPtr()))
-      ptUncompressed = pubKey33;
+   size_t outputLen = 65;
+   if (!secp256k1_ec_pubkey_serialize(
+      crypto_ecdsa_ctx, ptUncompressed.getPtr(),
+      &outputLen, &pubkey, SECP256K1_EC_UNCOMPRESSED) || outputLen != 65)
+   {
+      throw runtime_error("[CompressPoint] failed to compress pubkey");
+   }
 
    return ptUncompressed; 
 }
@@ -529,41 +641,44 @@ SecureBinaryData CryptoECDSA::PrivKeyScalarMultiply(
    const SecureBinaryData& scalar)
 {
    SecureBinaryData newPrivData(privKey);
-   if (!btc_ecc_private_key_tweak_mul(
-      (uint8_t*)newPrivData.getPtr(), scalar.getPtr()))
+   if (!secp256k1_ec_seckey_tweak_mul(crypto_ecdsa_ctx,
+      newPrivData.getPtr(), scalar.getPtr()))
+   {
       throw runtime_error("failed to multiply priv key");
+   }
 
    return newPrivData;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 SecureBinaryData CryptoECDSA::PubKeyScalarMultiply(
-   const SecureBinaryData& pubKey,
+   const SecureBinaryData& pubKeyIn,
    const SecureBinaryData& scalar)
 {
-   SecureBinaryData newPubData;
-   if (pubKey.getSize() == 33)
-   {
-      newPubData.resize(65);
-      if (!btc_ecc_public_key_uncompress(
-         (uint8_t*)pubKey.getPtr(), (uint8_t*)newPubData.getPtr()))
-         throw runtime_error("failed to uncompress point");
-   }
-   else
-   {
-      newPubData = pubKey;
-   }
-   
-   if (!btc_ecc_public_key_tweak_mul(
-      (uint8_t*)newPubData.getPtr(), scalar.getPtr()))
-      throw runtime_error("failed to multiply pub key");
+   if (scalar.getSize() != 32)
+      throw runtime_error("[PubKeyScalarMultiply]");
 
-   if (pubKey.getSize() == 65)
-      return newPubData;
+   secp256k1_pubkey pubkey;
+   if (!secp256k1_ec_pubkey_parse(
+      crypto_ecdsa_ctx, &pubkey, pubKeyIn.getPtr(), pubKeyIn.getSize()))
+   {
+      throw runtime_error("[PubKeyScalarMultiply] invalid pubkey");
+   }
 
-   SecureBinaryData result(33);
-   if (!btc_ecc_public_key_compress(newPubData.getPtr(), (uint8_t*)result.getPtr()))
+   if (!secp256k1_ec_pubkey_tweak_mul(
+      crypto_ecdsa_ctx, &pubkey, scalar.getPtr()))
+   {
+      throw runtime_error("[PubKeyScalarMultiply] failed to multiply pub key");
+   }
+
+   size_t outputLen = pubKeyIn.getSize();
+   SecureBinaryData result(outputLen);
+   if (!secp256k1_ec_pubkey_serialize(crypto_ecdsa_ctx, result.getPtr(),
+      &outputLen, &pubkey, pubKeyIn.getSize() == 65 ?
+      SECP256K1_EC_UNCOMPRESSED : SECP256K1_EC_COMPRESSED))
+   {
       throw runtime_error("failed to compress point");
+   }
 
    return result;
 }

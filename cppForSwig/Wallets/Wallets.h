@@ -51,6 +51,7 @@ namespace Armory
       //////////////////////////////////////////////////////////////////////////
       struct WalletPublicData
       {
+      public:
          const std::string dbName_;
          const std::string masterID_;
          const std::string walletID_;
@@ -61,6 +62,10 @@ namespace Armory
             Accounts::AddressAccountPublicData> accounts_{};
          std::map<Accounts::MetaAccountType,
             std::shared_ptr<Accounts::MetaDataAccount>> metaAccounts_{};
+
+      public:
+         WalletPublicData(const std::string&, const std::string&,
+            const std::string&, const AddressAccountId&);
       };
 
       //////////////////////////////////////////////////////////////////////////

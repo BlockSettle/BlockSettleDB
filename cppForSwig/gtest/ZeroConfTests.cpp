@@ -12599,7 +12599,7 @@ GTEST_API_ int main(int argc, char **argv)
    cout << "   POOL_MERGE_THRESHOLD: " << POOL_MERGE_THRESHOLD << endl;
    cout << "   COINBASE_MATURITY: " << COINBASE_MATURITY << endl;
 
-   btc_ecc_start();
+   CryptoECDSA::setupContext();
 
    GOOGLE_PROTOBUF_VERIFY_VERSION;
    srand(time(0));
@@ -12612,6 +12612,6 @@ GTEST_API_ int main(int argc, char **argv)
    CLEANUPLOG();
    google::protobuf::ShutdownProtobufLibrary();
 
-   btc_ecc_stop();
+   CryptoECDSA::shutdown();
    return exitCode;
 }

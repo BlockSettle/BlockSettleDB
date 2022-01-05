@@ -5558,7 +5558,7 @@ GTEST_API_ int main(int argc, char **argv)
    WSAStartup(wVersion, &wsaData);
 #endif
 
-   btc_ecc_start();
+   CryptoECDSA::setupContext();
 
    GOOGLE_PROTOBUF_VERIFY_VERSION;
    srand(time(0));
@@ -5571,6 +5571,6 @@ GTEST_API_ int main(int argc, char **argv)
    CLEANUPLOG();
    google::protobuf::ShutdownProtobufLibrary();
 
-   btc_ecc_stop();
+   CryptoECDSA::shutdown();
    return exitCode;
 }
