@@ -1,3 +1,11 @@
+################################################################################
+#                                                                              #
+# Copyright (C) 2021, goatpig.                                                 #
+#  Distributed under the MIT license                                           #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
+#                                                                              #
+################################################################################
+
 """
 This is the CFFI setup file. Here all C methods and structs/typedefs that
 need python access are first declared. The C code is then made available to

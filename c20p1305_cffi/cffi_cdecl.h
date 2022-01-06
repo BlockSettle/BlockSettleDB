@@ -1,3 +1,11 @@
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//  Copyright (C) 2021, goatpig.                                              //
+//  Distributed under the MIT license                                         //
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
 /*
 Header for the dedicated code CFFI has to pythonize. This is directly
 included in the ffi.set_source source field so that the resulting C
