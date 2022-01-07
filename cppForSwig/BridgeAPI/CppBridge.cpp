@@ -1356,6 +1356,20 @@ BridgeReply CppBridge::cs_getFeeByte(const string& csId)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+BridgeReply CppBridge::cs_getSizeEstimate(const string& csId)
+{
+   auto iter = csMap_.find(csId);
+   if (iter == csMap_.end())
+      throw runtime_error("invalid cs id");
+   
+   auto sizeEstimate = iter->second->getSizeEstimate();
+
+   auto msg = make_unique<ReplyNumbers>();
+   msg->add_longs(sizeEstimate);
+   return msg;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 bool CppBridge::cs_ProcessCustomUtxoList(const ClientCommand& msg)
 {
    if (msg.stringargs_size() != 1 ||
@@ -1836,6 +1850,35 @@ void CppBridge::getBlockTimeByHeight(uint32_t height, uint32_t msgId) const
    };
 
    bdvPtr_->getHeaderByHeight(height, callback);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CppBridge::estimateFee(uint32_t blocks,
+   const string& strat, uint32_t msgId) const
+{
+   auto callback = [this, msgId](
+      ReturnMessage<DBClientClasses::FeeEstimateStruct> feeResult)
+   {
+      auto result = make_unique<BridgeFeeEstimate>();
+      try
+      {
+         auto feeData = feeResult.get();
+
+         result->set_feebyte(feeData.val_);
+         result->set_smartfee(feeData.isSmart_);
+         result->set_error(feeData.error_);
+      }
+      catch (const ClientMessageError& e)
+      {
+         result->set_feebyte(0);
+         result->set_smartfee(false);
+         result->set_error(e.what());
+      }
+
+      this->writeToClient(move(result), msgId);
+   };
+
+   bdvPtr_->estimateFee(blocks, strat, callback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

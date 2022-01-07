@@ -14,8 +14,10 @@ from PySide2.QtWidgets import QFrame, QRadioButton, QLineEdit, QGridLayout, \
 
 from qtdialogs.qtdefines import ArmoryDialog, STYLE_RAISED, GETFONT, \
    tightSizeNChar, QLabelButton, makeHorizFrame, STYLE_NONE
+
+from armoryengine.CppBridge import TheBridge
 from armoryengine.ArmoryUtils import str2coin, coin2str
-from armoryengine.CoinSelection import estimateFee, NBLOCKS_TO_CONFIRM, \
+from armoryengine.CoinSelection import NBLOCKS_TO_CONFIRM, \
    FEEBYTE_CONSERVATIVE, FEEBYTE_ECONOMICAL
 from armoryengine.ArmoryUtils import MIN_TX_FEE, MIN_FEE_BYTE, DEFAULT_FEE_TYPE
 
@@ -42,11 +44,8 @@ class FeeSelectionDialog(ArmoryDialog):
       self.validAutoFee = True
 
       isSmartFee = True
-      try:
-         feeEstimate, isSmartFee, errorMsg = self.getFeeByteFromNode(blocksToConfirm, feeStrategy)
-      except:
-         feeEstimate = "N/A"
-         self.validAutoFee = False
+      feeEstimate, isSmartFee, errorMsg = self.getFeeByteFromNode(
+         blocksToConfirm, feeStrategy)
 
       defaultCheckState = \
          self.main.getSettingOrSetDefault("FeeOption", DEFAULT_FEE_TYPE)
@@ -324,14 +323,14 @@ class FeeSelectionDialog(ArmoryDialog):
 
    #############################################################################
    def getFeeByteFromNode(self, blocksToConfirm, strategy):
-      try:
-         feeEstimateResult = estimateFee(blocksToConfirm, strategy)
-         return feeEstimateResult.val_ * 100000, \
-            feeEstimateResult.isSmart_, \
-            feeEstimateResult.error_
-      except:
+      feeEstimateResult = TheBridge.estimateFee(blocksToConfirm, strategy)
+      if feeEstimateResult.error == None or len(feeEstimateResult.error) == 0:
+         return feeEstimateResult.feeByte * 100000, \
+            feeEstimateResult.smartFee, \
+            feeEstimateResult.error
+      else:
          self.validAutoFee = False
-         return "N/A", False, ""
+         return "N/A", False, str(feeEstimateResult.error)
 
    #############################################################################
    def selectType(self, strType):

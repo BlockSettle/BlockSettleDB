@@ -426,6 +426,15 @@ bool ProtobufCommandParser::processData(
       break;
    }
 
+   case Methods::cs_getSizeEstimate:
+   {
+      if (msg.stringargs_size() != 1)
+         throw runtime_error("invalid command: cs_getSizeEstimate");
+
+      response = bridge->cs_getSizeEstimate(msg.stringargs(0));
+      break;
+   }
+
    case Methods::cs_ProcessCustomUtxoList:
    {
       auto success = bridge->cs_ProcessCustomUtxoList(msg);
@@ -712,6 +721,14 @@ bool ProtobufCommandParser::processData(
       if (msg.intargs_size() != 1)
          throw runtime_error("invalid command: getBlockTimeByHeight");
       bridge->getBlockTimeByHeight(msg.intargs(0), id);
+      break;
+   }
+
+   case Methods::estimateFee:
+   {
+      if (msg.intargs_size() != 1 || msg.stringargs_size() != 1)
+         throw runtime_error("invalid command: estimateFee");
+      bridge->estimateFee(msg.intargs(0), msg.stringargs(0), id);
       break;
    }
 
