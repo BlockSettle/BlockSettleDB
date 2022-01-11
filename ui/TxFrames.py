@@ -29,7 +29,6 @@ from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH, getAddrByte, \
    str2coin, CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, \
    coin2str, MIN_FEE_BYTE, getNameForAddrType, addrTypeInSet, \
    getAddressTypeForOutputType
-from armoryengine.UserAddressUtils import getScriptForUserStringImpl
 
 from ui.FeeSelectUI import FeeSelectionDialog
 
@@ -746,7 +745,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          addrIsValid = True
          addrList.append(addrStr)
          try:
-            enteredScript = getScriptForUserStringImpl(addrStr)['Script']
+            enteredScript = widget_obj['FUNC_GETSCRIPT']()['Script']
             if not enteredScript:
                addrIsValid = False
             else:
@@ -833,8 +832,7 @@ class SendBitcoinsFrame(ArmoryFrame):
 
          totalSend += value
 
-         addrStr = str(self.widgetTable[row]['QLE_ADDR'].text()).strip()
-         script = getScriptForUserStringImpl(addrStr)['Script']
+         script = self.widgetTable[row]['FUNC_GETSCRIPT']()['Script']
          scriptValPairs.append([script, value])
          self.comments.append((str(self.widgetTable[row]['QLE_COMM'].text()), value))
 
