@@ -5,25 +5,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_subdirectory(chacha20poly1305)
 
-# this is the right way to set options for sub-projects
-# we allow these to be overridden by the user
-if(NOT DEFINED LIBBTC_WITH_WALLET)
-    set(LIBBTC_WITH_WALLET OFF CACHE BOOL "disable libbtc wallet"     FORCE)
-endif()
-
-if(NOT DEFINED LIBBTC_WITH_NET)
-    set(LIBBTC_WITH_NET    OFF CACHE BOOL "disable libbtc networking" FORCE)
-endif()
-
-if(NOT DEFINED LIBBTC_WITH_TOOLS)
-    set(LIBBTC_WITH_TOOLS  OFF CACHE BOOL "disable libbtc tools"      FORCE)
-endif()
-
-if(NOT DEFINED LIBBTC_WITH_TESTS)
-    set(LIBBTC_WITH_TESTS  OFF CACHE BOOL "do not build libbtc tests" FORCE)
-endif()
-
-add_subdirectory(libbtc)
 add_definitions(-DLIBBTC_ONLY)
 
 set(LIBARMORYCOMMON_INCLUDE_DIRECTORIES
@@ -33,7 +14,8 @@ set(LIBARMORYCOMMON_INCLUDE_DIRECTORIES
     PRIVATE bech32/ref/c++
     PRIVATE chacha20poly1305
     PUBLIC libbtc/src/secp256k1/include
-    PUBLIC libbtc/include
+    PUBLIC ${LIBBTC_INCLUDE_DIR}
+    PUBLIC ${SECP256k1_INCLUDE_DIR}
     PUBLIC Signer
     PUBLIC Wallets
     PRIVATE Wallets/Accounts
@@ -48,7 +30,7 @@ ENDIF (MSVC)
 
 set(LIBARMORYCOMMON_LINK_LIBRARIES
     chacha20poly1305
-    libbtc
+    ${LIBBTC_LIB}
     ${LMDB_LIB}
     ${LIBWEBSOCKETS_LIB}
 )

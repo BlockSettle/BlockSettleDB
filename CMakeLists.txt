@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.5) # ubuntu 16 version
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
 option(ENABLE_TESTS "enable building of tests" OFF)
+set(WITH_LIBBTC "../libbtc" CACHE STRING "path to libbtc built sources")
 
 if(WIN32)
     set(VCPKG_DEPS protobuf libwebsockets lmdb mpir)
@@ -28,6 +29,20 @@ find_library(LMDB_LIB lmdb HINTS ${CMAKE_LIBRARY_HINTS})
 IF (NOT LMDB_LIB)
     MESSAGE(FATAL_ERROR "Could not find LMDB lib")
 ENDIF ()
+
+if(IS_ABSOLUTE ${WITH_LIBBTC})
+# do nothing
+else()
+    set(WITH_LIBBTC ${CMAKE_SOURCE_DIR}/${WITH_LIBBTC})
+endif()
+
+MESSAGE("WITH_LIBBTC: ${WITH_LIBBTC}")
+find_library(LIBBTC_LIB libbtc btc HINTS ${WITH_LIBBTC}/lib ${WITH_LIBBTC}/build/Debug ${WITH_LIBBTC}/build/Release)
+IF (NOT LIBBTC_LIB)
+    MESSAGE(FATAL_ERROR "Could not find libbtc")
+ENDIF ()
+set(LIBBTC_INCLUDE_DIR ${WITH_LIBBTC}/include)
+set(SECP256k1_INCLUDE_DIR ${WITH_LIBBTC}/src/secp256k1/include)
 
 
 if (ENABLE_TESTS)
