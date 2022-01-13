@@ -35,8 +35,19 @@ int main(int argc, char* argv[])
    WSAStartup(wVersion, &wsaData);
 #endif
 
-   Armory::Config::parseArgs(argc, argv, Armory::Config::ProcessType::DB);
-   
+   try
+   {
+      Armory::Config::parseArgs(argc, argv, Armory::Config::ProcessType::DB);
+   }
+   catch (const DbErrorMsg& e)
+   {
+      cout << "Failed to setup with error:" << endl;
+      cout << "   " << e.what() << endl;
+      cout << "Aborting!" << endl;
+
+      return -1;
+   }
+
    cout << "logging in " << Pathing::logFilePath(LOG_FILE_NAME) << endl;
    STARTLOGGING(Pathing::logFilePath(LOG_FILE_NAME), LogLvlDebug);
    if (!NetworkSettings::useCookie())
@@ -72,7 +83,7 @@ int main(int argc, char* argv[])
       auto&& passLbd = TerminalPassphrasePrompt::getLambda("peers db");
       WebSocketServer::initAuthPeers(passLbd);
    }
-    
+
    //start up blockchain service
    bdmThread.start(DBSettings::initMode());
 
