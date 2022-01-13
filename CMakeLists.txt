@@ -37,7 +37,7 @@ else()
 endif()
 
 MESSAGE("WITH_LIBBTC: ${WITH_LIBBTC}")
-find_library(LIBBTC_LIB libbtc btc HINTS ${WITH_LIBBTC}/lib ${WITH_LIBBTC}/build
+find_library(LIBBTC_LIB libbtc btc HINTS ${WITH_LIBBTC}/.libs ${WITH_LIBBTC}/lib ${WITH_LIBBTC}/build
     ${WITH_LIBBTC}/build/Debug ${WITH_LIBBTC}/build/Release
 )
 IF (NOT LIBBTC_LIB)
