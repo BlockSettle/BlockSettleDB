@@ -4,8 +4,8 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(TEST_SOURCES
-    gtest-all.cc
     TestUtils.cpp
+    NodeUnitTest.cpp
 )
 
 add_executable(BIP151RekeyTest
@@ -71,22 +71,6 @@ target_link_libraries(CppBlockUtilsTests
 #    ${GTEST_LIB}
 #    ArmoryCommon
 #)
-
-add_executable(NodeUnitTest
-    NodeUnitTest.cpp
-    ${TEST_SOURCES}
-)
-set_target_properties(NodeUnitTest
-    PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}
-)
-target_include_directories(NodeUnitTest
-    ${LIBARMORYCOMMON_INCLUDE_DIRECTORIES}
-)
-target_link_libraries(NodeUnitTest
-    ${GTEST_LIB}
-    ArmoryCommon
-    ${OS_SPECIFIC_LIBS}
-)
 
 add_executable(SignerTests
     SignerTests.cpp

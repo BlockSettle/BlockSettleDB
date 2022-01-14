@@ -17,9 +17,10 @@ endif
 noinst_LTLIBRARIES += gtest/libgtest.la
 gtest_libgtest_la_CXXFLAGS = $(AM_CXXFLAGS) $(UNIT_TEST_CXXFLAGS) $(LIBBTC_FLAGS)
 gtest_libgtest_la_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
-gtest_libgtest_la_SOURCES = gtest/TestUtils.cpp gtest/NodeUnitTest.cpp gtest/gtest-all.cc
+gtest_libgtest_la_SOURCES = gtest/TestUtils.cpp gtest/NodeUnitTest.cpp
 gtest_libgtest_la_LIBADD = $(LIBARMORYCOMMON) $(LIBARMORYCLI) \
-				$(LIBBTC)
+				$(LIBBTC) \
+				-lgtest
 gtest_libgtest_la_LDFLAGS = $(AM_LDFLAGS) $(LWSLDFLAGS) $(LDFLAGS)
 
 # ContainerTests

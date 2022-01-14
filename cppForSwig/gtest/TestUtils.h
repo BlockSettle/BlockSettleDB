@@ -15,8 +15,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <thread>
-#include "gtest.h"
-#include "btc/ecc.h"
+#include <gtest/gtest.h>
+#include <btc/ecc.h>
 
 #include "../log.h"
 #include "../BinaryData.h"
@@ -30,11 +30,6 @@
 #include "../ScrAddrObj.h"
 #include "../BtcWallet.h"
 #include "../BlockDataViewer.h"
-
-#ifndef LIBBTC_ONLY
-#include "../cryptopp/DetSign.h"
-#include "../cryptopp/integer.h"
-#endif
 
 #include "../ArmoryErrors.h"
 #include "../Progress.h"
