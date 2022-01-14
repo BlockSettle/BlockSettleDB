@@ -771,6 +771,20 @@ class ArmoryBridge(object):
       return response.floats[0]
 
    #############################################################################
+   def cs_getSizeEstimate(self, csId):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.cs_getSizeEstimate
+      packet.stringArgs.append(csId)
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      return response.longs[0]
+
+   #############################################################################
    def cs_ProcessCustomUtxoList(self, csId, \
       utxoList, fee, feePerByte, processFlags):
 
@@ -1137,6 +1151,21 @@ class ArmoryBridge(object):
       packet.stringArgs.append(val)
 
       self.sendToBridgeProto(packet, False)
+
+   #############################################################################
+   def estimateFee(self, blocks, strat):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.estimateFee
+      packet.intArgs.append(blocks)
+      packet.stringArgs.append(strat)
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.BridgeFeeEstimate()
+      response.ParseFromString(socketResponse)
+
+      return response
 
 
 ################################################################################

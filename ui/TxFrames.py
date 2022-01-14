@@ -123,6 +123,13 @@ class CoinSelectionInstance(object):
 
       return TheBridge.cs_getFeeByte(self.id)
 
+   #############################################################################
+   def getSizeEstimate(self):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      return TheBridge.cs_getSizeEstimate(self.id)
+
 
 ################################################################################
 class SendBitcoinsFrame(ArmoryFrame):
