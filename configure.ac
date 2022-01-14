@@ -51,13 +51,6 @@ AC_ARG_WITH([own-libbtc],
     [pass path of your own libbtc binary and headers @<:@default=no@:>@]),
     [with_own_libbtc="$withval"], [with_own_libbtc=no])
 
-# Crypto++ usage. Armory defaults to using libbtc for most crypto. However, a
-# legacy transition period where Crypto++ can be used instead is in effect.
-AC_ARG_WITH([cryptopp],
-    AS_HELP_STRING([--with-cryptopp],
-    [use Crypto++ instead of libbtc for crypto functions @<:@default=no@:>@]),
-    [with_cryptopp="$withval"], [with_cryptopp=no])
-
 if test "x$want_debug" = "xyes" -a $ac_cv_c_compiler_gnu != no; then
   CFLAGS="$CFLAGS -O0 -g3"
   CXXFLAGS="$CXXFLAGS -O0 -g3"

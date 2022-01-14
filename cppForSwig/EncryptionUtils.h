@@ -204,7 +204,6 @@ private:
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Leverage CryptoPP library for AES encryption/decryption
 class CryptoAES
 {
 public:
@@ -367,15 +366,6 @@ public:
    static SecureBinaryData PubKeyScalarMultiply(
       const SecureBinaryData& pubKey,
       const SecureBinaryData& scalar);
-
-#ifndef LIBBTC_ONLY
-   /////////////////////////////////////////////////////////////////////////////
-   static BTC_PRIVKEY ParsePrivateKey(SecureBinaryData const & privKeyData);
-   static BTC_PUBKEY ComputePublicKey(BTC_PRIVKEY const & cppPrivKey);
-   
-   /////////////////////////////////////////////////////////////////////////////
-   static BinaryData computeLowS(BinaryDataRef s);
-#endif
 
    /////////////////////////////////////////////////////////////////////////////
    // takes unhashed, unprefixed message

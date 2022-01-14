@@ -38,7 +38,7 @@ if BUILD_TESTS
 UNIT_TEST_CXXFLAGS += -DUNIT_TESTS -Wunused-parameter
 endif
 
-LIBBTC_FLAGS = -DLIBBTC_ONLY
+LIBBTC_FLAGS =
 
 AM_CXXFLAGS =
 
@@ -146,7 +146,7 @@ ARMORYCOMMON_SOURCE_FILES = AsyncClient.cpp \
 	BtcUtils.cpp \
 	DBClientClasses.cpp \
 	CoinSelection.cpp \
-	EncryptionUtils_libbtc.cpp \
+	EncryptionUtils.cpp \
 	KDF.cpp \
 	log.cpp \
 	BitcoinSettings.cpp \

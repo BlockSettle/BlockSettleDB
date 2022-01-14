@@ -5,7 +5,6 @@
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
-#ifdef LIBBTC_ONLY
 #include "EncryptionUtils.h"
 #include "log.h"
 #include <btc/ecc.h>
@@ -792,5 +791,3 @@ void CryptoHASH160::getHash160(BinaryDataRef bdr, uint8_t* digest)
 {
    btc_ripemd160(bdr.getPtr(), bdr.getSize(), digest);
 }
-
-#endif

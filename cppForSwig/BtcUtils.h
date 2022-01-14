@@ -1815,10 +1815,6 @@ public:
       return output.getData();
    }
 
-#ifndef LIBBTC_ONLY
-   static BinaryData rsToDerSig(BinaryDataRef bdr);
-#endif
-
    static BinaryData getPushDataHeader(const BinaryData& data)
    {
       BinaryWriter bw;
