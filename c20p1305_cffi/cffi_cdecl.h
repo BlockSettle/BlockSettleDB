@@ -18,7 +18,7 @@ translation unit.
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "../cppForSwig/libbtc/include/btc/ecc_key.h"
+#include "btc/ecc_key.h"
 
 
 struct chachapolyaead_ctx;

@@ -22,8 +22,25 @@ to those definitions too.
 """
 
 import cffi
+import os
+import optparse
 
-ffi = cffi.FFI()
+parser = optparse.OptionParser(usage="%prog [options]\n")
+parser.add_option("--libbtc_path", dest="libbtc_path",default="", type="str", help="path to libbtc folder")
+
+CLI_OPTIONS = None
+CLI_ARGS = None
+(CLI_OPTIONS, CLI_ARGS) = parser.parse_args()
+
+chachapoly_path = "../cppForSwig/chacha20poly1305"
+
+#libbtc paths
+libbtc_libpath = os.path.join(CLI_OPTIONS.libbtc_path, ".libs")
+libbtc_includepath = os.path.join(CLI_OPTIONS.libbtc_path, "include")
+libbtc_libfile = os.path.join(libbtc_libpath, "libbtc.a")
+
+#chachapoly paths
+chachapoly_libpath = os.path.join(chachapoly_path, ".libs")
 
 """
 cffi.FFI.cdef() takes the C declarations of the functions to pythonize (
@@ -42,6 +59,7 @@ of the strict set of functions that Python needs to see is a lot cleaner,
 and less opaque for reviewers.
 """
 
+ffi = cffi.FFI()
 with open('cffi_declarations.cffi') as f:
     data = ''
     for line in f:
@@ -58,18 +76,24 @@ ffi.set_source(
     ''',
 
     #source file for the dedicated cffi code
-    sources = ["cffi_cdef.c"], 
+    sources = ["cffi_cdef.c"],
+
+    #include paths
+    include_dirs = [
+        CLI_OPTIONS.libbtc_path,
+        libbtc_includepath
+    ],
 
     #link time custom path for lib discovery
     library_dirs = [
-        "../cppForSwig/libbtc/.libs",
-        "../cppForSwig/libbtc/src/secp256k1/.libs",
-        "../cppForSwig/chacha20poly1305/.libs",
+        libbtc_libpath,
+        chachapoly_libpath,
         "../cppForSwig/hkdf/.libs"
         ],
 
     #dependencies
-    libraries = ["hkdf", "btc", "chacha20poly1305", "secp256k1"]
+    libraries = ["hkdf", "btc", "chacha20poly1305"],
+    runtime_library_dirs = [libbtc_libpath]
     )
 
 ffi.compile(verbose=True)
