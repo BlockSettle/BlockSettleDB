@@ -4,70 +4,91 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_subdirectory(chacha20poly1305)
-add_subdirectory(lmdb/libraries/liblmdb)
-
-# this is the right way to set options for sub-projects
-# we allow these to be overridden by the user
-if(NOT DEFINED LIBBTC_WITH_WALLET)
-    set(LIBBTC_WITH_WALLET OFF CACHE BOOL "disable libbtc wallet"     FORCE)
-endif()
-
-if(NOT DEFINED LIBBTC_WITH_NET)
-    set(LIBBTC_WITH_NET    OFF CACHE BOOL "disable libbtc networking" FORCE)
-endif()
-
-if(NOT DEFINED LIBBTC_WITH_TOOLS)
-    set(LIBBTC_WITH_TOOLS  OFF CACHE BOOL "disable libbtc tools"      FORCE)
-endif()
-
-if(NOT DEFINED LIBBTC_WITH_TESTS)
-    set(LIBBTC_WITH_TESTS  OFF CACHE BOOL "do not build libbtc tests" FORCE)
-endif()
-
-add_subdirectory(libbtc)
 
 set(LIBARMORYCOMMON_INCLUDE_DIRECTORIES
-    PUBLIC lmdb/libraries/liblmdb
     PUBLIC .
+    PUBLIC hkdf
+    PUBLIC lmdbpp
     PRIVATE bech32/ref/c++
     PRIVATE chacha20poly1305
-    PRIVATE libbtc/src/secp256k1/include
-    PRIVATE libbtc/include
+    PUBLIC libbtc/src/secp256k1/include
+    PUBLIC ${LIBBTC_INCLUDE_DIR}
+    PUBLIC ${SECP256k1_INCLUDE_DIR}
+    PUBLIC Signer
+    PUBLIC Wallets
+    PRIVATE Wallets/Accounts
     PRIVATE ${PROJECT_BINARY_DIR} # for protobuf protoc genned .h files
 )
 
+IF (MSVC)
+    LIST(APPEND LIBARMORYCOMMON_INCLUDE_DIRECTORIES
+        PUBLIC leveldb_windows_port/win32_posix
+    )
+ENDIF (MSVC)
+
 set(LIBARMORYCOMMON_LINK_LIBRARIES
     chacha20poly1305
-    btc
-    lmdb
+    ${LIBBTC_LIB}
+    ${LMDB_LIB}
+    ${LIBWEBSOCKETS_LIB}
 )
 
-if(NOT MSVC)
+IF (NOT MSVC)
     list(APPEND LIBARMORYCOMMON_LINK_LIBRARIES
         pthread
     )
-endif()
+ENDIF (NOT MSVC)
 
-# TODO: fix cryptopp build
-option(WITH_CRYPTOPP "use Crypto++ crypto functions" OFF)
 
-unset(LIBARMORYCOMMON_SOURCES)
-unset(LIBARMORYCOMMON_COMPILE_DEFINITIONS)
+FILE(GLOB LIBARMORYCOMMON_SOURCES *.cpp)
+FILE(GLOB WALLETS_SOURCES Wallets/*.cpp)
+FILE(GLOB ACCOUNTS_SOURCES Wallets/Accounts/*.cpp)
+FILE(GLOB SIGNER_SOURCES Signer/*.cpp)
 
-if(WITH_CRYPTOPP)
-    add_subdirectory(cryptopp)
+list(APPEND LIBARMORYCOMMON_SOURCES
+    hkdf/hkdf.c
+    gtest/NodeUnitTest.cpp
+    lmdbpp/lmdbpp.cpp
+    ${WALLETS_SOURCES}
+    ${ACCOUNTS_SOURCES}
+    ${SIGNER_SOURCES}
+)
 
-    list(APPEND LIBARMORYCOMMON_SOURCES EncryptionUtils.cpp)
-
-    list(APPEND LIBARMORYCOMMON_LINK_LIBRARIES
-        cryptopp
+IF (MSVC)
+    list(APPEND LIBARMORYCOMMON_SOURCES
+        leveldb_windows_port/win32_posix/dirent_win32.cpp
+        leveldb_windows_port/win32_posix/mman.cpp
+        leveldb_windows_port/win32_posix/win32_posix.cc
     )
-else()
-    list(APPEND LIBARMORYCOMMON_COMPILE_DEFINITIONS
-        PRIVATE LIBBTC_ONLY
+    list(REMOVE_ITEM LIBARMORYCOMMON_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/SocketService_unix.cpp
     )
 
-    list(APPEND LIBARMORYCOMMON_SOURCES EncryptionUtils_libbtc.cpp)
+    set(OS_SPECIFIC_LIBS )
+
+ELSE (MSVC)
+    list(REMOVE_ITEM LIBARMORYCOMMON_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/SocketService_win32.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/Win_TranslatePath.cpp
+    )
+
+    set(OS_SPECIFIC_LIBS gmp)
+
+ENDIF (MSVC)
+
+list(REMOVE_ITEM LIBARMORYCOMMON_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/old_not_very_good_tests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/playground.cpp
+)
+
+
+set(LIBARMORYCOMMON_COMPILE_DEFINITIONS
+    PRIVATE
+)
+
+if(ENABLE_TESTS)
+    add_definitions(-DUNIT_TESTS)
 endif()
 
 if(NOT CMAKE_TOOLCHAIN_FILE MATCHES vcpkg)
@@ -154,50 +175,6 @@ list(APPEND LIBARMORYCOMMON_INCLUDE_DIRECTORIES
 
 list(APPEND LIBARMORYCOMMON_LINK_LIBRARIES
     ${PROTOBUF_LIBRARIES}
-)
-
-list(APPEND LIBARMORYCOMMON_SOURCES
-    Accounts.cpp
-    Addresses.cpp
-    ArmoryBackups.cpp
-    AssetEncryption.cpp
-    Assets.cpp
-    AsyncClient.cpp
-    AuthorizedPeers.cpp
-    BinaryData.cpp
-    BIP32_Node.cpp
-    BlockDataManagerConfig.cpp
-    BtcUtils.cpp
-    ClientClasses.cpp
-    CoinSelection.cpp
-    DecryptedDataContainer.cpp
-    DerivationScheme.cpp
-    hkdf.cpp
-    KDF.cpp
-    log.cpp
-    NetworkConfig.cpp
-    ReentrantLock.cpp
-    Script.cpp
-    SecureBinaryData.cpp
-    ScriptRecipient.cpp
-    Signer.cpp
-    SocketObject.cpp
-    StoredBlockObj.cpp
-    TerminalPassphrasePrompt.cpp
-    Transactions.cpp
-    TxClasses.cpp
-    TxEvalState.cpp
-    txio.cpp
-    UniversalTimer.cpp
-    WalletHeader.cpp
-    WalletManager.cpp
-    WalletFileInterface.cpp
-    Wallets.cpp
-    WebSocketClient.cpp
-    WebSocketMessage.cpp
-    DBUtils.cpp
-    ZeroConfNotifications.cpp
-    ResolverFeed.cpp
 )
 
 set(PROTOBUF_FILES
@@ -299,6 +276,10 @@ add_library(ArmoryCLI
 set_target_properties(ArmoryCLI PROPERTIES CXX_STANDARD 14)
 target_compile_features(ArmoryCLI PUBLIC cxx_std_11)
 
+target_include_directories(ArmoryCLI
+    ${LIBARMORYCOMMON_INCLUDE_DIRECTORIES}
+)
+
 target_link_libraries(ArmoryCLI
     ArmoryCommon
 )
@@ -307,43 +288,7 @@ target_compile_definitions(ArmoryCLI
     PUBLIC -D__STDC_LIMIT_MACROS
 )
 
-string_option(WITH_GUI "with GUI" OFF)
-
-find_package(Qt4 COMPONENTS QtGui QUIET)
-
-find_program(PYRCC4_EXECUTABLE   pyrcc4)
 find_program(LRELEASE_EXECUTABLE lrelease)
-
-if(WITH_GUI STREQUAL AUTO)
-    if(Qt4_FOUND AND PYRCC4_EXECUTABLE AND LRELEASE_EXECUTABLE)
-        set(WITH_GUI ON)
-    else()
-        set(WITH_GUI OFF)
-    endif()
-endif()
-
-if(WITH_GUI)
-    if(NOT PYRCC4_EXECUTABLE)
-        message(FATAL_ERROR "pyrcc4 not found, install python2-qt4-devel")
-    endif()
-
-    if(NOT LRELEASE_EXECUTABLE)
-        message(FATAL_ERROR "lrelease not found, install qt4-linguist")
-    endif()
-
-    add_library(ArmoryGUI
-        TransactionBatch.cpp
-    )
-
-    target_link_libraries(ArmoryGUI
-        ArmoryCommon
-        Qt4::QtGui
-    )
-
-    target_compile_definitions(ArmoryGUI
-        PUBLIC -D__STDC_LIMIT_MACROS
-    )
-endif()
 
 add_executable(blocksettledb
     main.cpp
@@ -353,8 +298,13 @@ set_target_properties(blocksettledb
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}
 )
 
+target_include_directories(blocksettledb
+    ${LIBARMORYCOMMON_INCLUDE_DIRECTORIES}
+)
+
 target_link_libraries(blocksettledb
     ArmoryCLI
+    ${OS_SPECIFIC_LIBS}
 )
 
 include(GNUInstallDirs)
@@ -369,8 +319,13 @@ set_target_properties(BIP150KeyManager
     PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}
 )
 
+target_include_directories(BIP150KeyManager
+    ${LIBARMORYCOMMON_INCLUDE_DIRECTORIES}
+)
+
 target_link_libraries(BIP150KeyManager
     ArmoryCLI
+    ${OS_SPECIFIC_LIBS}
 )
 
 install(TARGETS BIP150KeyManager DESTINATION ${CMAKE_INSTALL_BINDIR})
@@ -453,73 +408,6 @@ if(WITH_CLIENT)
             ${PROJECT_BINARY_DIR}/_CppBlockUtils${CMAKE_SHARED_LIBRARY_SUFFIX}
         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
     )
-
-    if(WITH_GUI)
-        list(APPEND CPPBLOCKUTILS_LINK_LIBRARIES
-            ArmoryGUI
-        )
-
-        # this mechanism for dependent custom targets I found here:
-        # https://cmake.org/pipermail/cmake/2010-March/035621.html
-        add_custom_command(
-            OUTPUT  ${PROJECT_BINARY_DIR}/qrc_img_resources.py
-            COMMAND ${PYRCC4_EXECUTABLE} -o ${PROJECT_BINARY_DIR}/qrc_img_resources.py ${PROJECT_SOURCE_DIR}/imgList.xml
-            DEPENDS ${PROJECT_SOURCE_DIR}/imgList.xml
-            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-        )
-
-        add_custom_target(qrc_img_resources_py DEPENDS ${PROJECT_BINARY_DIR}/qrc_img_resources.py)
-
-        file(COPY ${PROJECT_SOURCE_DIR}/lang DESTINATION ${PROJECT_BINARY_DIR})
-
-        set(LANG_SOURCES
-            armory_da.ts
-            armory_de.ts
-            armory_el.ts
-            armory_en.ts
-            armory_es.ts
-            armory_fr.ts
-            armory_he.ts
-            armory_hr.ts
-            armory_id.ts
-            armory_ru.ts
-            armory_sv.ts
-        )
-
-        unset(LANG_QM_FILES)
-
-        foreach(lang_file ${LANG_SOURCES})
-            string(REGEX REPLACE "\\.ts$" ".qm" lang_qm_file ${lang_file})
-
-            add_custom_command(
-                OUTPUT  ${PROJECT_BINARY_DIR}/lang/${lang_qm_file}
-                COMMAND ${LRELEASE_EXECUTABLE} ${PROJECT_BINARY_DIR}/lang/${lang_file}
-                WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/lang
-            )
-
-            list(APPEND LANG_QM_FILES
-                ${PROJECT_BINARY_DIR}/lang/${lang_qm_file}
-            )
-        endforeach()
-
-        add_custom_target(lang_lrelease DEPENDS ${LANG_QM_FILES})
-
-        add_dependencies(CppBlockUtils
-            qrc_img_resources_py
-            lang_lrelease
-        )
-
-        install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_LIBDIR}/armory/ui)")
-
-        install(CODE "file(MAKE_DIRECTORY ${CMAKE_INSTALL_LIBDIR}/armory/lang)")
-
-        install(DIRECTORY ../ui DESTINATION ${CMAKE_INSTALL_LIBDIR}/armory)
-
-        install(DIRECTORY ${PROJECT_BINARY_DIR}/lang
-                DESTINATION ${CMAKE_INSTALL_LIBDIR}/armory
-                FILES_MATCHING PATTERN "*.qm"
-        )
-    endif()
 
     target_link_libraries(CppBlockUtils
         ${CPPBLOCKUTILS_LINK_LIBRARIES}

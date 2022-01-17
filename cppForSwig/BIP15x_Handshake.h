@@ -55,8 +55,14 @@ enum HandshakeState
    Completed
 };
 
-enum HandshakeSequence
+enum class BIP151_PayloadType : uint8_t
 {
+   Undefined            = 0,
+
+   SinglePacket         = 1,
+   FragmentHeader       = 2,
+   FragmentPacket       = 3,
+
    Threshold_Begin      = 100,
    Start                = 101,
    PresentPubKey        = 102,
@@ -79,14 +85,16 @@ class BIP15x_Handshake
 {
 public:
    //args: msg, msg type, encrypt
-   using WriteCallback = std::function<void(const BinaryData&, uint8_t, bool)>;
+   using WriteCallback = std::function<void(
+      const BinaryData&, BIP151_PayloadType, bool)>;
 
    //args: bip15x object, ip:port, msg type, msg, write callback
    static HandshakeState serverSideHandshake(
-      BIP151Connection*, uint8_t, const BinaryDataRef&, const WriteCallback&);
+      BIP151Connection*, BIP151_PayloadType,
+      const BinaryDataRef&, const WriteCallback&);
    static HandshakeState clientSideHandshake(
-      BIP151Connection*, const std::string&,
-      uint8_t, const BinaryDataRef&, const WriteCallback&);
+      BIP151Connection*, const std::string&, BIP151_PayloadType,
+      const BinaryDataRef&, const WriteCallback&);
 };
 }; //namespace ArmoryAEAD
 #endif

@@ -19,7 +19,7 @@
 #include "../BlockUtils.h"
 #include "../BitcoinP2p.h"
 #include "../Blockchain.h"
-#include "../ScriptRecipient.h"
+#include "../Signer/ScriptRecipient.h"
 #include "../BlockDataMap.h"
 #include "../nodeRPC.h"
 
@@ -79,9 +79,9 @@ private:
 
    MinedHeader header_;
 
-   ArmoryThreading::TransactionalMap<BinaryData, BinaryData> rawTxMap_;
+   Armory::Threading::TransactionalMap<BinaryData, BinaryData> rawTxMap_;
 
-   static ArmoryThreading::BlockingQueue<BinaryData> watcherInvQueue_;
+   static Armory::Threading::BlockingQueue<BinaryData> watcherInvQueue_;
    std::thread watcherThread_;
    LMDBBlockDatabase* iface_ = nullptr;
 
@@ -93,6 +93,7 @@ private:
 
 public:
    NodeUnitTest(uint32_t magic_word, bool watcher);
+   ~NodeUnitTest(void);
 
    //locals
    void updateNodeStatus(bool connected);
@@ -102,7 +103,7 @@ public:
    std::map<unsigned, BinaryData> mineNewBlock(
       BlockDataManager* bdm, unsigned count, const BinaryData& h160, double diff = 1.0);
    std::map<unsigned, BinaryData> mineNewBlock(
-      BlockDataManager* bdm, unsigned, ArmorySigner::ScriptRecipient*, double diff = 1.0);
+      BlockDataManager* bdm, unsigned, Armory::Signer::ScriptRecipient*, double diff = 1.0);
 
    std::vector<UnitTestBlock> getMinedBlocks(void) const { return blocks_; }
    void setReorgBranchPoint(std::shared_ptr<BlockHeader>);
@@ -135,7 +136,7 @@ public:
 
 
 ////////////////////////////////////////////////////////////////////////////////
-class NodeRPC_UnitTest : public NodeRPCInterface
+class NodeRPC_UnitTest : public CoreRPC::NodeRPCInterface
 {
 private:
    std::shared_ptr<NodeUnitTest> primaryNode_;
@@ -149,21 +150,23 @@ public:
    NodeRPC_UnitTest(
       std::shared_ptr<NodeUnitTest> primaryNode,
       std::shared_ptr<NodeUnitTest> watcherNode) :
-      NodeRPCInterface(), 
+      CoreRPC::NodeRPCInterface(), 
       primaryNode_(primaryNode), watcherNode_(watcherNode)
    {}
 
    //virtuals
    void shutdown(void) override {}
-   RpcStatus testConnection(void) override { return RpcStatus_Online; }
+   CoreRPC::RpcState testConnection(void) override 
+   { return CoreRPC::RpcState_Online; }
+   
    bool canPoll(void) const override { return false; }
 
    void waitOnChainSync(std::function<void(void)>) {}
    int broadcastTx(const BinaryDataRef&, std::string&) override;
 
-   FeeEstimateResult getFeeByte(
+   CoreRPC::FeeEstimateResult getFeeByte(
       unsigned, const std::string&) override
-   { return FeeEstimateResult(); }
+   { return CoreRPC::FeeEstimateResult(); }
 
    //locals
    void stallNextZc(unsigned);

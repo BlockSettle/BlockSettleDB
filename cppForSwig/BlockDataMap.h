@@ -29,6 +29,7 @@
 #include "BinaryData.h"
 
 #define OffsetAndSize std::pair<size_t, size_t>
+struct BlockHashVector;
 
 ////////////////////////////////////////////////////////////////////////////////
 struct BCTX
@@ -138,10 +139,7 @@ public:
       txPtr->version_ = READ_UINT32_LE(data);
 
       // Check the marker and flag for witness transaction
-      auto brrPtr = data + 4;
-      auto marker = (const uint16_t*)brrPtr;
-      if (*marker == 0x0100)
-         txPtr->usesWitness_ = true;
+      txPtr->usesWitness_ = BtcUtils::checkSwMarker(data + 4);
 
       //convert offsets to offset + size pairs
       for (unsigned int y = 0; y < offsetIns.size() - 1; y++)
@@ -187,6 +185,9 @@ public:
 class BlockData
 {
 private:
+   uint32_t uniqueID_ = UINT32_MAX;
+   std::shared_ptr<BlockHashVector> txFilter_;
+
    std::shared_ptr<BlockHeader> headerPtr_;
    const uint8_t* data_ = nullptr;
    size_t size_ = SIZE_MAX;
@@ -197,21 +198,15 @@ private:
    size_t offset_ = SIZE_MAX;
 
    BinaryData blockHash_;
-   TxFilter<TxFilterType> txFilter_;
-
-   uint32_t uniqueID_ = UINT32_MAX;
 
 public:
-   BlockData(void) {}
+   BlockData(uint32_t);
 
-   BlockData(uint32_t blockid) 
-      : uniqueID_(blockid)
-   {}
-
-   void deserialize(const uint8_t* data, size_t size,
+   static std::shared_ptr<BlockData> deserialize(
+      const uint8_t*, size_t,
       const std::shared_ptr<BlockHeader>,
-      std::function<unsigned int(const BinaryData&)> getID, bool checkMerkle,
-      bool keepHashes);
+      std::function<unsigned int(const BinaryData&)> getID,
+      bool checkMerkle, bool keepHashes);
 
    bool isInitialized(void) const
    {
@@ -228,7 +223,7 @@ public:
       return headerPtr_;
    }
 
-   const size_t size(void) const
+   size_t size(void) const
    {
       return size_;
    }
@@ -238,9 +233,9 @@ public:
 
    std::shared_ptr<BlockHeader> createBlockHeader(void) const;
    const BinaryData& getHash(void) const { return blockHash_; }
-   
-   TxFilter<TxFilterType> computeTxFilter(const std::vector<BinaryData>&) const;
-   const TxFilter<TxFilterType>& getTxFilter(void) const { return txFilter_; }
+
+   void computeTxFilter(const std::vector<BinaryData>&);
+   std::shared_ptr<BlockHashVector> getTxFilter(void) const;
    uint32_t uniqueID(void) const { return uniqueID_; }
    std::shared_ptr<BlockHeader> getHeaderPtr(void) const { return headerPtr_; }
 };
@@ -251,8 +246,12 @@ struct BlockOffset
    uint16_t fileID_;
    size_t offset_;
 
-   BlockOffset(uint16_t fileID, size_t offset)
-      : fileID_(fileID), offset_(offset)
+   BlockOffset(uint16_t fileID, size_t offset) :
+      fileID_(fileID), offset_(offset)
+   {}
+
+   BlockOffset(const BlockOffset& bo) :
+      fileID_(bo.fileID_), offset_(bo.offset_)
    {}
 
    bool operator>(const BlockOffset& rhs)
@@ -290,7 +289,7 @@ public:
 
    void detectAllBlockFiles(void);
    const std::string& folderPath(void) const { return folderPath_; }
-   const unsigned fileCount(void) const { return filePaths_.size(); }
+   unsigned fileCount(void) const { return filePaths_.size(); }
    const std::string& getLastFileName(void) const;
 };
 

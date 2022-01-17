@@ -97,17 +97,17 @@
 
 inline std::string NowTime();
 
-typedef enum 
+typedef enum
 {
-   LogLvlDisabled, 
-   LogLvlError, 
-   LogLvlWarn, 
-   LogLvlInfo, 
-   LogLvlDebug, 
-   LogLvlDebug1, 
-   LogLvlDebug2, 
-   LogLvlDebug3, 
-   LogLvlDebug4 
+   LogLvlDisabled,
+   LogLvlError,
+   LogLvlWarn,
+   LogLvlInfo,
+   LogLvlDebug,
+   LogLvlDebug1,
+   LogLvlDebug2,
+   LogLvlDebug3,
+   LogLvlDebug4
 } LogLevel;
 
 
@@ -356,17 +356,17 @@ private:
    StreamBuffer buffer_;
 
 public:
-   LoggerObj(LogLevel lvl) : logLevel_(lvl) 
+   LoggerObj(LogLevel lvl) : logLevel_(lvl)
    {}
 
-   LogStream & getLogStream(void) 
+   LogStream & getLogStream(void)
    { 
       buffer_ << "-" << Log::ToString(logLevel_);
       buffer_ << "- " << NowTime() << ": ";
       return buffer_;
    }
 
-   ~LoggerObj(void) 
+   ~LoggerObj(void)
    { 
       //terminate buffer with newline
       buffer_ << "\n";

@@ -8,10 +8,12 @@
 
 #include "BtcUtils.h"
 #include "EncryptionUtils.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "btc/segwit_addr.h"
+#include "TxOutScrRef.h"
 
 using namespace std;
+using namespace Armory::Config;
 
 const BinaryData BtcUtils::BadAddress_ = BinaryData::CreateFromHex("0000000000000000000000000000000000000000");
 const BinaryData BtcUtils::EmptyHash_  = BinaryData::CreateFromHex("0000000000000000000000000000000000000000000000000000000000000000");
@@ -34,13 +36,53 @@ const map<char, uint8_t> BtcUtils::base64Vals_ = {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+uint64_t BtcUtils::readVarInt(uint8_t const * strmPtr, size_t remaining,
+   uint32_t* lenOutPtr)
+{
+   if (remaining < 1)
+      throw VarIntException("invalid varint");
+   uint8_t firstByte = strmPtr[0];
+
+   if(firstByte < 0xfd)
+   {
+      if(lenOutPtr != NULL) 
+         *lenOutPtr = 1;
+      return firstByte;
+   }
+   if(firstByte == 0xfd)
+   {
+      if (remaining < 3)
+         throw VarIntException("invalid varint");
+      if(lenOutPtr != NULL) 
+         *lenOutPtr = 3;
+      return READ_UINT16_LE(strmPtr+1);
+   }
+   else if(firstByte == 0xfe)
+   {
+      if (remaining < 5)
+         throw VarIntException("invalid varint");
+      if(lenOutPtr != NULL) 
+         *lenOutPtr = 5;
+      return READ_UINT32_LE(strmPtr+1);
+   }
+   else //if(firstByte == 0xff)
+   {
+      if (remaining < 9)
+         throw VarIntException("invalid varint");
+      if(lenOutPtr != NULL) 
+         *lenOutPtr = 9;
+      return READ_UINT64_LE(strmPtr+1);
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 string BtcUtils::computeID(const SecureBinaryData& pubkey)
 {
    BinaryDataRef bdr(pubkey);
    auto&& h160 = getHash160(bdr);
    
    BinaryWriter bw;
-   bw.put_uint8_t(NetworkConfig::getPubkeyHashPrefix());
+   bw.put_uint8_t(BitcoinSettings::getPubkeyHashPrefix());
    bw.put_BinaryDataRef(h160.getSliceRef(0, 5));
 
    //now reverse it
@@ -173,10 +215,10 @@ SecureBinaryData BtcUtils::computeChainCode_Armory135(
 BinaryData BtcUtils::computeDataId(const SecureBinaryData& data,
    const string& message)
 {
-   if (data.getSize() == 0)
+   if (data.empty())
       throw runtime_error("cannot compute id for empty data");
 
-   if (message.size() == 0)
+   if (message.empty())
       throw runtime_error("cannot compute id for empty message");
 
    //hmac the hash256 of the data with message
@@ -190,74 +232,48 @@ BinaryData BtcUtils::computeDataId(const SecureBinaryData& data,
    return id.getSliceCopy(16, 16);
 }
 
-#ifndef LIBBTC_ONLY
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData BtcUtils::rsToDerSig(BinaryDataRef bdr)
+BinaryData BtcUtils::getScrAddrForAddrStr(const string& addrStr)
 {
-   if (bdr.getSize() != 64)
-      throw runtime_error("unexpected rs sig length");
+   BinaryData scrAddr;
 
-   //split r and s
-   auto r_bdr = bdr.getSliceRef(0, 32);
-   auto s_bdr = bdr.getSliceRef(32, 32);
-
-   //trim r
-   unsigned trim = 0;
-   auto ptr = r_bdr.getPtr();
-   while (trim < r_bdr.getSize())
+   try
    {
-      if (ptr[trim] != 0)
+      scrAddr = move(base58toScrAddr(addrStr));
+   }
+   catch (const exception&)
+   {
+      auto scrAddrPair = move(BtcUtils::segWitAddressToScrAddr(addrStr));
+      if (scrAddrPair.second != 0)
+         throw runtime_error("[createRecipient] unsupported sw version");
+
+      switch (scrAddrPair.first.getSize())
+      {
+      case 20:
+         scrAddr.resize(21);
+         memset(scrAddr.getPtr(), SCRIPT_PREFIX_P2WPKH, 1);
+         memcpy(scrAddr.getPtr() + 1, scrAddrPair.first.getPtr(), 20);
          break;
 
-      trim++;
+      case 32:
+         scrAddr.resize(33);
+         memset(scrAddr.getPtr(), SCRIPT_PREFIX_P2WSH, 1);
+         memcpy(scrAddr.getPtr() + 1, scrAddrPair.first.getPtr(), 32);
+         break;
+
+      default:
+         break;
+      }
    }
 
-   auto r_trim = bdr.getSliceRef(trim, 32 - trim);
-   
-   //prepend 0 for negative values
-   BinaryWriter bwR;
-   if (*r_trim.getPtr() > 0x7f)
-      bwR.put_uint8_t(0);
-   bwR.put_BinaryDataRef(r_trim);
+   if (scrAddr.empty())
+   {
+      throw runtime_error(
+         "[getScrAddrForAddrStr] failed to create recipient");
+   }
 
-   //get lowS
-   auto&& lowS = CryptoECDSA::computeLowS(s_bdr);
-
-   //prepend 0 for negative values
-   BinaryWriter bwS;
-   if (*lowS.getPtr() > 0x7f)
-      bwS.put_uint8_t(0);
-   bwS.put_BinaryData(lowS);
-
-   BinaryWriter bw;
-
-   //code byte
-   bw.put_uint8_t(0x30);
-
-   //size
-   bw.put_uint8_t(4 + bwR.getSize() + bwS.getSize());
-
-   //r code byte
-   bw.put_uint8_t(0x02);
-
-   //r size
-   bw.put_uint8_t(bwR.getSize());
-
-   //r
-   bw.put_BinaryDataRef(bwR.getDataRef());
-
-   //s code byte
-   bw.put_uint8_t(0x02);
-
-   //s size
-   bw.put_uint8_t(bwS.getSize());
-
-   //s
-   bw.put_BinaryDataRef(bwS.getDataRef());
-
-   return bw.getData();
+   return scrAddr;
 }
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData BtcUtils::getTxOutScrAddr(BinaryDataRef script,
@@ -267,8 +283,8 @@ BinaryData BtcUtils::getTxOutScrAddr(BinaryDataRef script,
    if (type == TXOUT_SCRIPT_NONSTANDARD)
       type = getTxOutScriptType(script);
 
-   auto h160Prefix = NetworkConfig::getPubkeyHashPrefix();
-   auto scriptPrefix = NetworkConfig::getScriptHashPrefix();
+   auto h160Prefix = BitcoinSettings::getPubkeyHashPrefix();
+   auto scriptPrefix = BitcoinSettings::getScriptHashPrefix();
 
    switch (type)
    {
@@ -359,8 +375,8 @@ TXOUT_SCRIPT_TYPE BtcUtils::getScriptTypeForScrAddr(BinaryDataRef scrAddr)
 {
    if (scrAddr.getSize() == 21)
    {
-      auto h160Prefix = NetworkConfig::getPubkeyHashPrefix();
-      auto scriptPrefix = NetworkConfig::getScriptHashPrefix();
+      auto h160Prefix = BitcoinSettings::getPubkeyHashPrefix();
+      auto scriptPrefix = BitcoinSettings::getScriptHashPrefix();
 
       auto prefix = *scrAddr.getPtr();
       if (prefix == h160Prefix)
@@ -412,9 +428,9 @@ TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)
    TxOutScriptRef outputRef;
 
    auto p2pkh_prefix = 
-      SCRIPT_PREFIX(NetworkConfig::getPubkeyHashPrefix());
+      SCRIPT_PREFIX(BitcoinSettings::getPubkeyHashPrefix());
    auto p2sh_prefix = 
-      SCRIPT_PREFIX(NetworkConfig::getScriptHashPrefix());
+      SCRIPT_PREFIX(BitcoinSettings::getScriptHashPrefix());
    
    auto type = getTxOutScriptType(script);
    switch (type)
@@ -595,7 +611,7 @@ string BtcUtils::base64_decode(const string& in)
 string BtcUtils::encodePrivKeyBase58(const SecureBinaryData& privKey)
 {
    BinaryWriter bwPrivKey;
-   bwPrivKey.put_uint8_t(NetworkConfig::getPrivKeyPrefix());
+   bwPrivKey.put_uint8_t(BitcoinSettings::getPrivKeyPrefix());
    bwPrivKey.put_BinaryData(privKey);
    bwPrivKey.put_uint8_t(0x01);
 
@@ -614,7 +630,7 @@ SecureBinaryData BtcUtils::decodePrivKeyBase58(const string& strPrivKey)
 
    //prefix
    auto prefix = brr.get_uint8_t();
-   if (prefix != NetworkConfig::getPrivKeyPrefix())
+   if (prefix != BitcoinSettings::getPrivKeyPrefix())
       throw runtime_error("network prefix mismatch");
    brr.rewind(1);
 
@@ -640,9 +656,9 @@ string BtcUtils::scrAddrToSegWitAddress(const BinaryData& scrAddr)
    //hardcoded for version 0 witness programs for now
    const string* headerPtr;
 
-   if (NetworkConfig::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160)
+   if (BitcoinSettings::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160)
       headerPtr = &swHeaderMain_;
-   else if (NetworkConfig::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160_TESTNET)
+   else if (BitcoinSettings::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160_TESTNET)
       headerPtr = &swHeaderTest_;
    else
       throw runtime_error("invalid network for segwit address");
@@ -667,13 +683,13 @@ string BtcUtils::scrAddrToSegWitAddress(const BinaryData& scrAddr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData BtcUtils::segWitAddressToScrAddr(const string& swAddr)
+pair<BinaryData, int> BtcUtils::segWitAddressToScrAddr(const string& swAddr)
 {
    const string* headerPtr;
 
-   if (NetworkConfig::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160)
+   if (BitcoinSettings::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160)
       headerPtr = &swHeaderMain_;
-   else if (NetworkConfig::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160_TESTNET)
+   else if (BitcoinSettings::getPubkeyHashPrefix() == SCRIPT_PREFIX_HASH160_TESTNET)
       headerPtr = &swHeaderTest_;
    else
       throw runtime_error("invalid network for segwit address");
@@ -696,7 +712,7 @@ BinaryData BtcUtils::segWitAddressToScrAddr(const string& swAddr)
    //resize result
    result.resize(len);
    
-   return result;
+   return make_pair(result, ver);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

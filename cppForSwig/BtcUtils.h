@@ -31,7 +31,7 @@
 #include "BinaryData.h"
 #include "UniversalTimer.h"
 #include "log.h"
-#include "NetworkConfig.h"
+#include "BitcoinSettings.h"
 #include "EncryptionUtils.h"
 
 #include "btc/base58.h"
@@ -40,11 +40,8 @@
 #define COIN 100000000ULL
 #define NBLOCKS_REGARDED_AS_RESCAN 144
 #define MIN_CONFIRMATIONS   6
-#ifndef COINBASE_MATURITY_TESTS
+
 #define COINBASE_MATURITY 100
-#else
-#define COINBASE_MATURITY 1
-#endif
 
 #define TX_0_UNCONFIRMED    0 
 #define TX_NOT_EXIST       -1
@@ -87,7 +84,7 @@ class SecureBinaryData;
 
 typedef enum
 {
-   TXOUT_SCRIPT_STDHASH160,
+   TXOUT_SCRIPT_STDHASH160=0,
    TXOUT_SCRIPT_STDPUBKEY65,
    TXOUT_SCRIPT_STDPUBKEY33,
    TXOUT_SCRIPT_MULTISIG,
@@ -252,14 +249,19 @@ enum OPCODETYPE
     OP_INVALIDOPCODE = 0xff,
 };
 
-
-#include "TxOutScrRef.h"
-
 class BlockDeserializingException : public std::runtime_error
 {
 public:
    BlockDeserializingException(const std::string &what="")
       : std::runtime_error(what)
+   { }
+};
+
+class VarIntException : public BlockDeserializingException
+{
+public:
+   VarIntException(const std::string &what="")
+      : BlockDeserializingException(what)
    { }
 };
 
@@ -279,6 +281,8 @@ public:
 // This class holds only static methods.  
 // NOTE:  added default ctor and a few non-static, to support SWIG
 //        (-classic SWIG doesn't support static methods)
+struct TxOutScriptRef;
+
 class BtcUtils
 {
    static const BinaryData        BadAddress_;
@@ -300,44 +304,7 @@ public:
 
    /////////////////////////////////////////////////////////////////////////////
    static uint64_t readVarInt(uint8_t const * strmPtr, size_t remaining, 
-      uint32_t* lenOutPtr=NULL)
-   {
-      if (remaining < 1)
-         throw BlockDeserializingException("invalid varint");
-      uint8_t firstByte = strmPtr[0];
-
-      if(firstByte < 0xfd)
-      {
-         if(lenOutPtr != NULL) 
-            *lenOutPtr = 1;
-         return firstByte;
-      }
-      if(firstByte == 0xfd)
-      {
-         if (remaining < 3)
-            throw BlockDeserializingException("invalid varint");
-         if(lenOutPtr != NULL) 
-            *lenOutPtr = 3;
-         return READ_UINT16_LE(strmPtr+1);
-         
-      }
-      else if(firstByte == 0xfe)
-      {
-         if (remaining < 5)
-            throw BlockDeserializingException("invalid varint");
-         if(lenOutPtr != NULL) 
-            *lenOutPtr = 5;
-         return READ_UINT32_LE(strmPtr+1);
-      }
-      else //if(firstByte == 0xff)
-      {
-         if (remaining < 9)
-            throw BlockDeserializingException("invalid varint");
-         if(lenOutPtr != NULL) 
-            *lenOutPtr = 9;
-         return READ_UINT64_LE(strmPtr+1);
-      }
-   }
+      uint32_t* lenOutPtr=NULL);
 
    /////////////////////////////////////////////////////////////////////////////
    static std::pair<uint64_t, uint8_t> readVarInt(BinaryRefReader & brr)
@@ -585,14 +552,6 @@ public:
       return hashOutput;
    }
 
-
-   /////////////////////////////////////////////////////////////////////////////
-   //  I need a non-static, non-overloaded method to be able to use this in SWIG
-   BinaryData getHash160_SWIG(BinaryData const & strToHash)
-   {
-      return getHash160(strToHash);
-   }
-
    /////////////////////////////////////////////////////////////////////////////
    //  I need a non-static, non-overloaded method to be able to use this in SWIG
    BinaryData ripemd160(BinaryData const & strToHash)
@@ -728,13 +687,19 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
+   static bool checkSwMarker(uint8_t const * ptr)
+   {
+      return ptr[0] == 0x00 && ptr[1] == 0x01;
+   }
+
+   /////////////////////////////////////////////////////////////////////////////
    static size_t TxCalcLength(uint8_t const * ptr,
                               size_t size,
                               std::vector<size_t> * offsetsIn,
                               std::vector<size_t> * offsetsOut,
                               std::vector<size_t> * offsetsWitness)
    {
-      BinaryRefReader brr(ptr, size);  
+      BinaryRefReader brr(ptr, size);
       
       if (brr.getSizeRemaining() < 4)
          throw BlockDeserializingException();
@@ -742,13 +707,9 @@ public:
       brr.advance(4);
 
       // Get marker and flag if transaction uses segwit
-      bool usesWitness = false;
-      auto marker = (const uint16_t*)brr.getCurrPtr();
-      if (*marker == 0x0100)
-      {
-         usesWitness = true;
+      auto usesWitness = checkSwMarker(brr.getCurrPtr());
+      if (usesWitness)
          brr.advance(2);
-      }
 
       // TxIn List
       uint32_t nIn = (uint32_t)brr.get_var_int();
@@ -837,13 +798,9 @@ public:
       brr.advance(4);
 
       // Get marker and flag if transaction uses segwit
-      bool usesWitness = false;
-      auto marker = (const uint16_t*)brr.getCurrPtr();
-      if (*marker == 0x0100)
-      {
-         usesWitness = true;
+      auto usesWitness = checkSwMarker(brr.getCurrPtr());
+      if (usesWitness)
          brr.advance(2);
-      }
 
       // TxIn List
       uint32_t nIn = (uint32_t)brr.get_var_int();
@@ -903,11 +860,12 @@ public:
          if (offsetsWitness != nullptr)
          {
             offsetsWitness->resize(nIn + 1);
-            for (uint32_t i = 0; i < nIn; i++) {
+            for (uint32_t i = 0; i < nIn; i++)
+            {
                (*offsetsWitness)[i] = brr.getPosition();
                brr.advance(TxWitnessCalcLength(brr.getCurrPtr(), brr.getSizeRemaining()));
-			}
-			(*offsetsWitness)[nIn] = brr.getPosition();
+            }
+            (*offsetsWitness)[nIn] = brr.getPosition();
          }
          else
          {
@@ -1077,7 +1035,7 @@ public:
    static BinaryData getTxOutScriptForScrAddr(BinaryDataRef scrAddr);
    static TXOUT_SCRIPT_TYPE getScriptTypeForScrAddr(BinaryDataRef);
    static std::string getAddressStrFromScrAddr(BinaryDataRef);
-
+   static BinaryData getScrAddrForAddrStr(const std::string&);
 
    /////////////////////////////////////////////////////////////////////////////
    //no copy version, the regular one is too slow for scanning operations
@@ -1193,7 +1151,17 @@ public:
          if( nextSz != 0x41 && nextSz != 0x21 )
             return 0;
 
-         pkList[i] = brr.get_BinaryDataRef(nextSz);
+         try
+         {
+            pkList[i] = brr.get_BinaryDataRef(nextSz);
+         }
+         catch (const std::exception& e)
+         {
+            LOGERR << "Failed to decode pub keys for multisig script," <<
+               " with error: " << e.what();
+            LOGERR << script.toHexStr();
+            return 0;
+         }
       }
 
       return M;
@@ -1847,10 +1815,6 @@ public:
       return output.getData();
    }
 
-#ifndef LIBBTC_ONLY
-   static BinaryData rsToDerSig(BinaryDataRef bdr);
-#endif
-
    static BinaryData getPushDataHeader(const BinaryData& data)
    {
       BinaryWriter bw;
@@ -2034,7 +1998,7 @@ public:
    static const std::string swHeaderMain_;
    static const std::string swHeaderTest_;
    static std::string scrAddrToSegWitAddress(const BinaryData& scrAddr);
-   static BinaryData segWitAddressToScrAddr(const std::string& swAddr);
+   static std::pair<BinaryData, int> segWitAddressToScrAddr(const std::string& swAddr);
    
    ////
    static int get_varint_len(const int64_t& value);

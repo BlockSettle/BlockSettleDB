@@ -36,6 +36,9 @@ public:
    { }
 };
 
+struct TxHashHints;
+struct TxOutScrRef;
+
 ////////////////////////////////////////////////////////////////////////////////
 struct ParserBatch
 {
@@ -56,14 +59,14 @@ public:
    std::map<BinaryData, std::map<BinaryData, StoredSubHistory>> sshMap_;
    std::vector<StoredTxOut> spentOutputs_;
 
-   const std::shared_ptr<std::map<TxOutScriptRef, int>> scriptRefMap_;
+   const std::shared_ptr<std::unordered_map<TxOutScriptRef, int>> scriptRefMap_;
    std::promise<bool> completedPromise_;
    unsigned count_;
 
 public:
-   ParserBatch(unsigned start, unsigned end, 
+   ParserBatch(unsigned start, unsigned end,
       unsigned startID, unsigned endID,
-      std::shared_ptr<std::map<TxOutScriptRef, int>> scriptRefMap) :
+      std::shared_ptr<std::unordered_map<TxOutScriptRef, int>> scriptRefMap) :
       start_(start), end_(end), 
       startBlockFileID_(startID), targetBlockFileID_(endID),
       scriptRefMap_(scriptRefMap)
@@ -79,20 +82,6 @@ public:
 class BlockchainScanner
 {
 private:
-
-   struct TxFilterResults
-   {
-      BinaryData hash_;
-
-      //map<blockId, set<tx offset>>
-      std::map<uint32_t, std::set<uint32_t>> filterHits_;
-
-      bool operator < (const TxFilterResults& rhs) const
-      {
-         return hash_ < rhs.hash_;
-      }
-   };
-
    std::shared_ptr<Blockchain> blockchain_;
    LMDBBlockDatabase* db_;
    ScrAddrFilter* scrAddrFilter_;
@@ -115,9 +104,9 @@ private:
 
    std::mutex resolverMutex_;
 
-   ArmoryThreading::BlockingQueue<std::unique_ptr<ParserBatch>> outputQueue_;
-   ArmoryThreading::BlockingQueue<std::unique_ptr<ParserBatch>> inputQueue_;
-   ArmoryThreading::BlockingQueue<std::unique_ptr<ParserBatch>> commitQueue_;
+   Armory::Threading::BlockingQueue<std::unique_ptr<ParserBatch>> outputQueue_;
+   Armory::Threading::BlockingQueue<std::unique_ptr<ParserBatch>> inputQueue_;
+   Armory::Threading::BlockingQueue<std::unique_ptr<ParserBatch>> commitQueue_;
 
    std::atomic<unsigned> completedBatches_;
 
@@ -128,15 +117,10 @@ private:
 
    int32_t check_merkle(int32_t startHeight);
 
-   void getFilterHitsThread(
-      const std::set<BinaryData>& hashSet,
-      std::atomic<int>& counter,
-      std::map<uint32_t, std::set<TxFilterResults>>& resultMap);
-
    void processFilterHitsThread(
       std::map<uint32_t, std::map<uint32_t,
-      std::set<const TxFilterResults*>>>& filtersResultMap,
-      ArmoryThreading::TransactionalSet<BinaryData>& missingHashes,
+      std::set<const TxHashHints*>>>& filtersResultMap,
+      Armory::Threading::TransactionalSet<BinaryData>& missingHashes,
       std::atomic<int>& counter, std::map<BinaryData, BinaryData>& results,
       std::function<void(size_t)> prog);
 

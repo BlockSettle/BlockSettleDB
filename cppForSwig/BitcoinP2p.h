@@ -508,12 +508,12 @@ public:
 class BitcoinP2PSocket : public PersistentSocket
 {
 private:
-   std::shared_ptr<ArmoryThreading::BlockingQueue<
+   std::shared_ptr<Armory::Threading::BlockingQueue<
       std::vector<uint8_t>>> readDataStack_;
 
 public:
    BitcoinP2PSocket(const std::string& addr, const std::string& port,
-      std::shared_ptr<ArmoryThreading::BlockingQueue<
+      std::shared_ptr<Armory::Threading::BlockingQueue<
       std::vector<uint8_t>>> readStack) :
       PersistentSocket(addr, port), readDataStack_(readStack)
    {}
@@ -534,7 +534,7 @@ protected:
    std::atomic<bool> run_;
       
    //new block notification queue
-   std::shared_ptr<ArmoryThreading::BlockingQueue<
+   std::shared_ptr<Armory::Threading::BlockingQueue<
       std::vector<InvEntry>>> invBlockStack_;
 
    //callback lambdas
@@ -551,7 +551,7 @@ public:
       std::unique_ptr<Payload> payload_;
    };
    
-   ArmoryThreading::TransactionalMap<
+   Armory::Threading::TransactionalMap<
       BinaryData, std::shared_ptr<getDataPayload>> getDataPayloadMap_;
 
 public:
@@ -569,7 +569,7 @@ public:
    //locals
    bool isSegWit(void) const { return PEER_USES_WITNESS; }
    uint32_t getMagicWord(void) const { return magic_word_; }
-   std::shared_ptr<ArmoryThreading::BlockingQueue<std::vector<InvEntry>>> 
+   std::shared_ptr<Armory::Threading::BlockingQueue<std::vector<InvEntry>>> 
       getInvBlockStack(void) const { return invBlockStack_; }
 
    void processInvTx(std::vector<InvEntry>);   
@@ -599,7 +599,7 @@ private:
    std::atomic<bool> nodeConnected_;
 
    //to pass payloads between the poll thread and the processing one
-   std::shared_ptr<ArmoryThreading::BlockingQueue<
+   std::shared_ptr<Armory::Threading::BlockingQueue<
       std::vector<uint8_t>>> dataStack_;
 
    std::exception_ptr select_except_ = nullptr;

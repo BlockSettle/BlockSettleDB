@@ -2,7 +2,7 @@
 //                                                                            //
 //  Copyright (C) 2018, goatpig.                                              //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,10 +25,6 @@
 #define WEBSOCKET_MAGIC_WORD 0x56E1
 #define AEAD_REKEY_INVERVAL_SECONDS 600
 
-#define WS_MSGTYPE_SINGLEPACKET              1
-#define WS_MSGTYPE_FRAGMENTEDPACKET_HEADER   2
-#define WS_MSGTYPE_FRAGMENTEDPACKET_FRAGMENT 3
-
 class LWS_Error : public std::runtime_error
 {
 public:
@@ -37,18 +33,27 @@ public:
    {}
 };
 
+namespace ArmoryAEAD
+{
+   enum class BIP151_PayloadType : uint8_t;
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 class WebSocketMessageCodec
 {
 public:
    static std::vector<BinaryData> serialize(
-      const BinaryDataRef&, BIP151Connection*, uint8_t, uint32_t);
+      const BinaryDataRef&, BIP151Connection*,
+      ArmoryAEAD::BIP151_PayloadType, uint32_t);
    static std::vector<BinaryData> serialize(
-      const std::vector<uint8_t>&, BIP151Connection*, uint8_t, uint32_t);
+      const std::vector<uint8_t>&, BIP151Connection*,
+      ArmoryAEAD::BIP151_PayloadType, uint32_t);
    static std::vector<BinaryData> serialize(
-      const std::string&, BIP151Connection*, uint8_t, uint32_t);
+      const std::string&, BIP151Connection*,
+      ArmoryAEAD::BIP151_PayloadType, uint32_t);
    static std::vector<BinaryData> serializePacketWithoutId(
-      const BinaryDataRef&, BIP151Connection*, uint8_t);
+      const BinaryDataRef&, BIP151Connection*,
+      ArmoryAEAD::BIP151_PayloadType);
 
    static uint32_t getMessageId(const BinaryDataRef&);
     
@@ -69,9 +74,9 @@ public:
    {}
 
    void construct(const std::vector<uint8_t>& data, BIP151Connection*,
-      uint8_t, uint32_t id = 0);
+      ArmoryAEAD::BIP151_PayloadType, uint32_t id = 0);
    void construct(const BinaryDataRef& data, BIP151Connection*,
-      uint8_t, uint32_t id = 0);
+      ArmoryAEAD::BIP151_PayloadType, uint32_t id = 0);
 
    bool isDone(void) const { return index_ >= packets_.size(); }
    BinaryData consumeNextPacket(void);
@@ -86,7 +91,7 @@ private:
    std::map<uint16_t, BinaryDataRef> packets_;
 
    uint32_t id_ = UINT32_MAX;
-   uint8_t type_ = UINT8_MAX;
+   ArmoryAEAD::BIP151_PayloadType type_;
    uint32_t packetCount_ = UINT32_MAX;
 
 private:
@@ -96,16 +101,20 @@ private:
    bool parseMessageWithoutId(const BinaryDataRef& bdr);
 
 public:
+   WebSocketMessagePartial(void);
+
    void reset(void);
    bool parsePacket(const BinaryDataRef&);
    bool isReady(void) const;
    bool getMessage(::google::protobuf::Message*) const;
    BinaryDataRef getSingleBinaryMessage(void) const;
    const uint32_t& getId(void) const { return id_; }
-   uint8_t getType(void) const { return type_; }
+   ArmoryAEAD::BIP151_PayloadType getType(void) const { return type_; }
 
-   const std::map<uint16_t, BinaryDataRef>& getPacketMap(void) const { return packets_; }
-   static uint8_t getPacketType(const BinaryDataRef&);
+   const std::map<uint16_t, BinaryDataRef>& getPacketMap(void) const
+   { return packets_; }
+
+   static ArmoryAEAD::BIP151_PayloadType getPacketType(const BinaryDataRef&);
    static unsigned getMessageId(const BinaryDataRef&);
 };
 

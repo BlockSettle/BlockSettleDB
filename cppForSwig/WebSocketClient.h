@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2018, goatpig.                                              //
+//  Copyright (C) 2018-2021, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,8 +19,8 @@
 #include "BinaryData.h"
 #include "SocketObject.h"
 #include "WebSocketMessage.h"
-#include "BlockDataManagerConfig.h"
-#include "ClientClasses.h"
+#include "ArmoryConfig.h"
+#include "DBClientClasses.h"
 #include "AsyncClient.h" //TODO <-- nuke this
 
 #include "BIP150_151.h"
@@ -62,7 +62,7 @@ namespace SwigClient
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-struct ClientPartialMessage
+class ClientPartialMessage
 {
 private:
    int counter_ = 0;
@@ -94,29 +94,47 @@ public:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+class WSClientWriteQueue
+{
+private:
+   struct lws_context* contextPtr_;
+   Armory::Threading::Queue<SerializedMessage> writeQueue_;
+
+public:
+   WSClientWriteQueue(struct lws_context* contextPtr) :
+      contextPtr_(contextPtr)
+   {}
+
+   void push_back(SerializedMessage&);
+   SerializedMessage pop_front(void);
+   bool empty(void) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 class WebSocketClient : public SocketPrototype
 {
 private:
    std::atomic<void*> wsiPtr_;
+   std::atomic<void*> contextPtr_;
    const std::string servName_;
 
    std::atomic<unsigned> requestID_;
    std::atomic<bool> connected_ = { false };
 
-   ArmoryThreading::Queue<SerializedMessage> writeQueue_;
+   std::unique_ptr<WSClientWriteQueue> writeQueue_;
    SerializedMessage currentWriteMessage_;
 
    //AEAD requires messages to be sent in order of encryption, since the 
    //sequence number is the IV. Push all messages to a queue for serialization,
    //to guarantee payloads are queued for writing in the order they were encrypted
-   ArmoryThreading::BlockingQueue<
+   Armory::Threading::BlockingQueue<
       std::unique_ptr<Socket_WritePayload>> writeSerializationQueue_;
 
    std::atomic<unsigned> run_ = { 1 };
    std::thread serviceThr_, readThr_, writeThr_;
 
-   ArmoryThreading::BlockingQueue<BinaryData> readQueue_;
-   ArmoryThreading::TransactionalMap<
+   Armory::Threading::BlockingQueue<BinaryData> readQueue_;
+   Armory::Threading::TransactionalMap<
       uint64_t, std::shared_ptr<WriteAndReadPacket>> readPackets_;
 
    std::shared_ptr<RemoteCallback> callbackPtr_ = nullptr;
@@ -129,7 +147,7 @@ private:
    unsigned outerRekeyCount_ = 0;
    unsigned innerRekeyCount_ = 0;
 
-   std::shared_ptr<AuthorizedPeers> authPeers_;
+   std::shared_ptr<Armory::Wallets::AuthorizedPeers> authPeers_;
    BinaryData leftOverData_;
 
    std::shared_ptr<std::promise<bool>> serverPubkeyProm_;
@@ -144,7 +162,6 @@ private:
    void writeService(void);
    void service(lws_context*);
    bool processAEADHandshake(const WebSocketMessagePartial&);
-   AuthPeersLambdas getAuthPeerLambda(void) const;
    void promptUser(const BinaryDataRef&, const std::string&);
 
 public:

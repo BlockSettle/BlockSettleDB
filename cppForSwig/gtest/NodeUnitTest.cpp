@@ -8,11 +8,11 @@
 
 #include "NodeUnitTest.h"
 #include "../BlockUtils.h"
-#include "Signer.h"
+#include "../Signer/Signer.h"
 
 using namespace std;
-using namespace ArmoryThreading;
-using namespace ArmorySigner;
+using namespace Armory::Threading;
+using namespace Armory::Signer;
 
 ////////////////////////////////////////////////////////////////////////////////
 int verifyTxSigs(const BinaryData& rawTx, const LMDBBlockDatabase* iface, 
@@ -26,7 +26,7 @@ int verifyTxSigs(const BinaryData& rawTx, const LMDBBlockDatabase* iface,
       //grab all utxos
       auto&& txin = tx.getTxInCopy(i);
       auto&& outpoint = txin.getOutPoint();
-         
+
       StoredTxOut stxo;
       if (iface->getStoredTxOut(
          stxo, outpoint.getTxHash(), outpoint.getTxOutIndex()))
@@ -97,6 +97,12 @@ NodeUnitTest::NodeUnitTest(uint32_t magic_word, bool watcher) :
    };
 
    watcherThread_ = thread(watcherLbd);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+NodeUnitTest::~NodeUnitTest()
+{
+   shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

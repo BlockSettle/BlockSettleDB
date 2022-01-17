@@ -5,15 +5,16 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "ScrAddrFilter.h"
 #include "BlockUtils.h"
 #include "txio.h"
+#include "TxOutScrRef.h"
 
 #include <thread>
 #include <google/protobuf/message.h>
@@ -116,7 +117,7 @@ void ScrAddrFilter::updateAddressMerkleInDB()
    }
    catch (runtime_error&)
    {
-      sshSdbi.magic_ = NetworkConfig::getMagicBytes();
+      sshSdbi.magic_ = Armory::Config::BitcoinSettings::getMagicBytes();
       sshSdbi.metaHash_ = BtcUtils::EmptyHash_;
       sshSdbi.topBlkHgt_ = 0;
       sshSdbi.armoryType_ = ARMORY_DB_BARE;
@@ -230,16 +231,13 @@ set<BinaryDataRef> ScrAddrFilter::updateAddrMap(
       set<BinaryDataRef> addrRefSet;
       auto scraddrmap = scanFilterAddrMap_->get();
       map<BinaryDataRef, shared_ptr<AddrAndHash>> updateMap;
-      map<BinaryDataRef, shared_ptr<AddrAndHash>> zcUpdateMap;
 
       for (auto& sa : addrSet)
       {
          auto iter = scraddrmap->find(sa);
          if (iter != scraddrmap->end())
          {
-            //zc filter map may not have this address while the scan map does
             addrRefSet.insert(iter->first);
-            zcUpdateMap.insert(*iter);
             continue;
          }
 
@@ -248,26 +246,20 @@ set<BinaryDataRef> ScrAddrFilter::updateAddrMap(
          pair<BinaryDataRef, shared_ptr<AddrAndHash>> addrPair = { 
             aah->scrAddr_.getRef(), aah };
          
-         zcUpdateMap.insert(addrPair);
          updateMap.insert(move(addrPair));
          addrRefSet.insert(aah->scrAddr_.getRef());
       }
 
       scanFilterAddrMap_->update(updateMap);
-      zcFilterAddrMap_->update(zcUpdateMap);
       return addrRefSet;
    }
 
    case true:
-   {
-      //remove addresses from the zc filter map only
-      vector<BinaryDataRef> removeVec;
-      removeVec.insert(removeVec.end(), addrSet.begin(), addrSet.end());
-      zcFilterAddrMap_->erase(removeVec);
-
       return {};
    }
-   }
+
+   //this is to mute the msvc eroneous warning about return values
+   return {};
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -286,7 +278,7 @@ void ScrAddrFilter::registrationThread()
       {
          batch = move(registrationStack_.pop_front());
       }
-      catch (ArmoryThreading::StopBlockingLoop&)
+      catch (Armory::Threading::StopBlockingLoop&)
       {
          //end loop condition
          break;
@@ -300,7 +292,7 @@ void ScrAddrFilter::registrationThread()
          if (batchPtr == nullptr)
             throw runtime_error("unexpected batch ptr type");
 
-         if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
+         if (Armory::Config::DBSettings::getDbType() == ARMORY_DB_SUPER)
          {
             //no scanning required in supernode, just update the address map
             auto&& scaSet = updateAddrMap(batchPtr->scrAddrSet_, 0, false);
@@ -513,22 +505,21 @@ bool ScrAddrFilter::hasNewAddresses(void) const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-shared_ptr<map<TxOutScriptRef, int>> ScrAddrFilter::getOutScrRefMap(void)
+shared_ptr<unordered_map<TxOutScriptRef, int>> ScrAddrFilter::getOutScrRefMap()
 {
    getScrAddrCurrentSyncState();
-   auto outset = make_shared<map<TxOutScriptRef, int>>();
+   auto outset = make_shared<unordered_map<TxOutScriptRef, int>>();
 
    auto scrAddrMap = scanFilterAddrMap_->get();
 
    for (auto& scrAddr : *scrAddrMap)
    {
-      if (scrAddr.first.getSize() == 0)
+      if (scrAddr.first.empty())
          continue;
 
       TxOutScriptRef scrRef;
       scrRef.setRef(scrAddr.first);
-      outset->insert(move(make_pair(
-         scrRef, scrAddr.second->scannedHeight_)));
+      outset->emplace(move(scrRef), scrAddr.second->scannedHeight_);
    }
 
    return outset;

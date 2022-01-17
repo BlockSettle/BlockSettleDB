@@ -26,7 +26,7 @@
 
 // Because libbtc doesn't export its libsecp256k1 context, and we need one for
 // direct access to libsecp256k1 calls, just create one.
-secp256k1_context* secp256k1_ecdh_ctx = nullptr;
+static secp256k1_context* secp256k1_ecdh_ctx = nullptr;
 uint32_t ipType_ = 0;
 uint8_t oneWayAuthClientPubKey_[33];
 
@@ -45,8 +45,12 @@ void startupBIP151CTX()
       // SIGN used to generate public keys from private keys. (Can be removed
       // once libbtc exports compressed public keys.)
       // VERIFY used to allow for EC multiplication, which won't work otherwise.
-      secp256k1_ecdh_ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | \
-                                                    SECP256K1_CONTEXT_VERIFY);
+      secp256k1_ecdh_ctx = secp256k1_context_create(
+         SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
+
+      auto rando = CryptoPRNG::generateRandom(32);
+      if (!secp256k1_context_randomize(secp256k1_ecdh_ctx, rando.getPtr()))
+         throw std::runtime_error("[startupBIP151CTX");
    }
    assert(secp256k1_ecdh_ctx != nullptr);
 }
@@ -287,35 +291,35 @@ void BIP151Session::sessionRekey(const bool& bip151Rekey,
    case BIP151SymCiphers::CHACHA20POLY1305_OPENSSH:
       // Process both symmetric keys at the same time. Reset the # of bytes on
       // the session but *not* the sequence number.
-      uint8_t* poly1305Key;
-      uint8_t* chacha20Key;
-      poly1305Key = &hkdfKeySet_[0];
-      chacha20Key = &hkdfKeySet_[BIP151PRVKEYSIZE];
+      uint8_t* mainKey;
+      uint8_t* aadKey;
+      mainKey = &hkdfKeySet_[0];
+      aadKey = &hkdfKeySet_[BIP151PRVKEYSIZE];
 
       if(bip151Rekey == true)
       {
-         chacha20Poly1305Rekey(poly1305Key, BIP151PRVKEYSIZE,
+         chacha20Poly1305Rekey(mainKey, BIP151PRVKEYSIZE,
                                true, nullptr, 0, nullptr, 0, nullptr, 0);
-         chacha20Poly1305Rekey(chacha20Key, BIP151PRVKEYSIZE,
+         chacha20Poly1305Rekey(aadKey, BIP151PRVKEYSIZE,
                                true, nullptr, 0, nullptr, 0, nullptr, 0);
       }
       else
       {
          assert(oppositeSessionKeySize == BIP151PRVKEYSIZE * 2);
 
-         const uint8_t* oppositePoly1305Key;
-         const uint8_t* oppositeChacha20Key;
-         oppositePoly1305Key = oppositeSessionKey;
-         oppositeChacha20Key = oppositeSessionKey + BIP151PRVKEYSIZE;
+         const uint8_t* oppositeMainKey;
+         const uint8_t* oppositeAadKey;
+         oppositeMainKey = oppositeSessionKey;
+         oppositeAadKey = oppositeSessionKey + BIP151PRVKEYSIZE;
 
-         chacha20Poly1305Rekey(poly1305Key, BIP151PRVKEYSIZE,
+         chacha20Poly1305Rekey(mainKey, BIP151PRVKEYSIZE,
                                false, reqIDKey, reqIDKeySize,
-                               resIDKey, resIDKeySize, 
-                               oppositePoly1305Key, BIP151PRVKEYSIZE);
-         chacha20Poly1305Rekey(chacha20Key, BIP151PRVKEYSIZE,
+                               resIDKey, resIDKeySize,
+                               oppositeMainKey, BIP151PRVKEYSIZE);
+         chacha20Poly1305Rekey(aadKey, BIP151PRVKEYSIZE,
                                false, reqIDKey, reqIDKeySize,
-                               resIDKey, resIDKeySize, 
-                               oppositeChacha20Key, BIP151PRVKEYSIZE);
+                               resIDKey, resIDKeySize,
+                               oppositeAadKey, BIP151PRVKEYSIZE);
       }
 
       //upload new keys to chacha session
@@ -692,7 +696,6 @@ BIP151Connection::BIP151Connection(btc_key* inSymECDHPrivKeyIn,
 int BIP151Connection::processEncinit(const uint8_t* inMsg,
    const size_t& inMsgSize, const bool outDir)
 {
-   
    int retVal = -1;
    if(inMsgSize != ENCINITMSGSIZE)
    {
@@ -1683,7 +1686,6 @@ int BIP150StateMachine::processAuthreply(BinaryData& inData,
    }
 
    //2-way auth: check client signed session id
-   BinaryData dersigstr(derSig.data(), derSigSize);
    if(btc_ecc_verify_sig(hashKey->pubkey,
                          true,
                          inSes_->getSessionID(),

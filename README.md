@@ -40,6 +40,7 @@ changed without recompiling BlocksettleDB (and changing the design at your own r
 Only the node's port can be changed via the `satoshirpc-port` parameter. This
 design may change in the future.
 
+<<<<<<< HEAD
 It is possible for BlocksettleDB and other clients to talk to BlocksettleDB remotely.
 Possibilities for reaching BlocksettleDB include placing BlocksettleDB behind an HTTP
 daemon or logging into the BlocksettleDB machine remotely via VPN. Talking to
@@ -53,6 +54,23 @@ scanned for that wallet, BlocksettleDB will keep an eye on the blockchain. Any
 transactions relevant to the addresses controlled by wallets/lockboxes will be
 resolved. In addition, as BlocksettleDB builds its own mempool by talking to the Core
 node, any relevant zero-confirmation transactions will be resolved by BlocksettleDB.
+=======
+[Instructions for Windows](windowsbuild/Windows_build_notes.md)
+
+`build.bat Debug|Release`
+
+[Instructions for macOS](osxbuild/macOS_build_notes.md)
+[Instructions for Ubuntu and Arch Linux](linuxbuild/Linux_build_notes.md)
+
+```
+mkdir build
+cd build
+cmake ..
+make -j<N>
+```
+
+### Dependencies
+>>>>>>> upstream/dev
 
 ### Start BlocksettleDB headless Server.
 By default it will try to connect to your running bitcoin core RPC API, and also read data from your bitcoin core block files on your disk. If your bitcoin core configuration differs from the default and you have setup data directories on non standard locations, then you will also have to tell armorydb using command-line parameters or using a config file where it can locate the block files downloaded by bitcoin core. The supported parameters are listed at [Armorydb FAQ](https://btcarmory.com/docs/faq)

@@ -1,15 +1,19 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016-17, goatpig                                            //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #include "TestUtils.h"
+#include "BIP15x_Handshake.h"
 
 using namespace std;
-using namespace ::Codec_BDVCommand;
+using namespace Codec_BDVCommand;
+
+using namespace Armory::Assets;
+using namespace Armory::Wallets;
 
 #if ! defined(_MSC_VER) && ! defined(__MINGW32__)
 
@@ -37,14 +41,14 @@ namespace TestUtils
          throw runtime_error("only for buffers 8 bytes and larger");
 
       //search it
-      uint64_t* sample;
+      uint64_t sample;
       uint64_t* data_head = (uint64_t*)data.getPtr();
 
       bool result = false;
       for (unsigned i = 0; i < filemap.size_ - data.getSize(); i++)
       {
-         sample = (uint64_t*)(filemap.filePtr_ + i);
-         if (*sample == *data_head)
+         memcpy(&sample, filemap.filePtr_ + i, 8);
+         if (sample == *data_head)
          {
             BinaryDataRef bdr(filemap.filePtr_ + i, data.getSize());
             if (bdr == data.getRef())
@@ -120,7 +124,7 @@ namespace TestUtils
    void appendBlocks(const std::vector<std::string> &files, const std::string &to)
    {
       for (const std::string &f : files)
-         concatFile("../reorgTest/blk_" + f + ".dat", to);
+         concatFile(dataDir + "/blk_" + f + ".dat", to);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -130,7 +134,7 @@ namespace TestUtils
       o.close();
 
       for (const std::string &f : files)
-         concatFile("../reorgTest/blk_" + f + ".dat", to);
+         concatFile(dataDir + "/blk_" + f + ".dat", to);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -141,7 +145,7 @@ namespace TestUtils
    BinaryData getTx(unsigned height, unsigned id)
    {
       stringstream ss;
-      ss << "../reorgTest/blk_" << height << ".dat";
+      ss << dataDir << "/blk_" << height << ".dat";
 
       ifstream blkfile(ss.str(), ios::binary);
       blkfile.seekg(0, ios::end);
@@ -162,6 +166,23 @@ namespace TestUtils
 
       auto& stx = sbh.stxMap_[id];
       return stx.dataCopy_;
+   }
+
+   ////////////////////////////////////////////////////////////////////////////////
+   std::shared_ptr<AssetEntry> getMainAccountAssetForIndex(
+      std::shared_ptr<AssetWallet> wlt, Armory::Wallets::AssetKeyType index)
+   {
+      auto mainAcc = wlt->getAccountForID(wlt->getMainAccountID());
+      auto outerAcc = mainAcc->getOuterAccount();
+      return outerAcc->getAssetForKey(index);
+   }
+
+   ////////////////////////////////////////////////////////////////////////////////
+   size_t getMainAccountAssetCount(std::shared_ptr<AssetWallet> wlt)
+   {
+      auto mainAcc = wlt->getAccountForID(wlt->getMainAccountID());
+      auto outerAcc = mainAcc->getOuterAccount();
+      return outerAcc->getAssetCount();
    }
 }
 
@@ -324,7 +345,7 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   vector<::ClientClasses::LedgerEntry> getHistoryPage(
+   vector<DBClientClasses::LedgerEntry> getHistoryPage(
       Clients* clients, const string& bdvId,
       const string& delegateId, uint32_t pageId)
    {
@@ -337,12 +358,12 @@ namespace DBTestUtils
 
       auto&& result = processCommand(clients, message);
       auto response =
-         dynamic_pointer_cast<::Codec_LedgerEntry::ManyLedgerEntry>(result);
+         dynamic_pointer_cast<Codec_LedgerEntry::ManyLedgerEntry>(result);
 
-      vector<::ClientClasses::LedgerEntry> levData;
-      for (unsigned i = 0; i < response->values_size(); i++)
+      vector<DBClientClasses::LedgerEntry> levData;
+      for (int i = 0; i < response->values_size(); i++)
       {
-         ::ClientClasses::LedgerEntry led(response, i);
+         DBClientClasses::LedgerEntry led(response, i);
          levData.push_back(led);
       }
 
@@ -360,7 +381,7 @@ namespace DBTestUtils
       [&](shared_ptr<::google::protobuf::Message> cmd)->bool
       {
          auto notifPtr = dynamic_pointer_cast<BDVCallback>(cmd);
-         for (unsigned i = 0; i < notifPtr->notification_size(); i++)
+         for (int i = 0; i < notifPtr->notification_size(); i++)
          {
             auto& notif = notifPtr->notification(i);
             if (notif.type() == signal)
@@ -402,7 +423,7 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   pair<vector<::ClientClasses::LedgerEntry>, set<BinaryData>> waitOnNewZcSignal(
+   pair<vector<DBClientClasses::LedgerEntry>, set<BinaryData>> waitOnNewZcSignal(
       Clients* clients, const string& bdvId)
    {
       auto&& result = waitOnSignal(
@@ -420,20 +441,20 @@ namespace DBTestUtils
 
       auto lev = notif.ledgers();
 
-      pair<vector<::ClientClasses::LedgerEntry>, set<BinaryData>> levData;
-      for (unsigned i = 0; i < lev.values_size(); i++)
+      pair<vector<DBClientClasses::LedgerEntry>, set<BinaryData>> levData;
+      for (int i = 0; i < lev.values_size(); i++)
       {
-         ::ClientClasses::LedgerEntry led(callbackPtr, index, i);
+         DBClientClasses::LedgerEntry led(callbackPtr, index, i);
          levData.first.push_back(led);
       }
 
-      if (callbackPtr->notification_size() >= index + 2)
+      if (callbackPtr->notification_size() >= (int)index + 2)
       {
          auto& invalidated_notif = callbackPtr->notification(index + 1);
          if (invalidated_notif.has_ids())
          {
             auto ids = invalidated_notif.ids();
-            for (unsigned i = 0; i < ids.value_size(); i++)
+            for (int i = 0; i < ids.value_size(); i++)
             {
                auto& id_str = ids.value(i).data();
                BinaryData id_bd((uint8_t*)id_str.c_str(), id_str.size());
@@ -468,7 +489,7 @@ namespace DBTestUtils
          }
 
          auto& refresh = notif.refresh();
-         for (unsigned i = 0; i < refresh.id_size(); i++)
+         for (int i = 0; i < refresh.id_size(); i++)
          {
             auto& id = notif.refresh().id(i);
             BinaryDataRef bdr;
@@ -625,9 +646,8 @@ namespace DBTestUtils
 
 
    /////////////////////////////////////////////////////////////////////////////
-   void addTxioToSsh(
-      StoredScriptHistory& ssh, 
-      const map<BinaryData, shared_ptr<TxIOPair>>& txioMap)
+   void addTxioToSsh(StoredScriptHistory& ssh, 
+      const map<BinaryDataRef, shared_ptr<const TxIOPair>>& txioMap)
    {
       for (auto& txio_pair : txioMap)
       {
@@ -752,12 +772,13 @@ namespace DBTestUtils
    shared_ptr<::google::protobuf::Message> processCommand(
       Clients* clients, shared_ptr<::google::protobuf::Message> msg)
    {
-      auto len = msg->ByteSize();
+      auto len = msg->ByteSizeLong();
       vector<uint8_t> buffer(len);
       msg->SerializeToArray(&buffer[0], len);
       auto&& bdVec = WebSocketMessageCodec::serialize(
-         buffer, nullptr, WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, commandCtr_++);
-      
+         buffer, nullptr,
+         ArmoryAEAD::BIP151_PayloadType::FragmentHeader, commandCtr_++);
+
       if (bdVec.size() > 1)
          LOGWARN << "large message in unit tests";
 
@@ -768,7 +789,7 @@ namespace DBTestUtils
       auto bdRef = bdVec[0].getSliceRef(
          LWS_PRE, bdVec[0].getSize() - LWS_PRE);
       payload->packetData_ = bdRef;
-      
+
       BinaryData zero;
       zero.resize(8);
       memset(zero.getPtr(), 0, 8);
@@ -809,12 +830,12 @@ namespace DBTestUtils
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   vector<ClientClasses::LedgerEntry> getHistoryPage(
+   vector<DBClientClasses::LedgerEntry> getHistoryPage(
       AsyncClient::LedgerDelegate& del, uint32_t id)
    {
-      auto prom = make_shared<promise<vector<ClientClasses::LedgerEntry>>>();
+      auto prom = make_shared<promise<vector<DBClientClasses::LedgerEntry>>>();
       auto fut = prom->get_future();
-      auto lbd = [prom](ReturnMessage<vector<ClientClasses::LedgerEntry>> msg)
+      auto lbd = [prom](ReturnMessage<vector<DBClientClasses::LedgerEntry>> msg)
       {
          prom->set_value(msg.get());
       };
