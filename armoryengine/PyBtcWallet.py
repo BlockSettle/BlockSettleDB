@@ -15,7 +15,8 @@ import os.path
 import shutil
 
 from armoryengine.ArmoryUtils import AddressEntryType_Default, UINT32_MAX, \
-   emptyFunc, PYBTCWALLET_VERSION, USE_TESTNET, USE_REGTEST, CLI_OPTIONS
+   emptyFunc, PYBTCWALLET_VERSION, USE_TESTNET, USE_REGTEST, CLI_OPTIONS, \
+   LOGINFO, LOGEXCEPT, LOGWARN, LOGERROR
 from armoryengine.BinaryPacker import *
 from armoryengine.BinaryUnpacker import *
 from armoryengine.Timer import Timer, TimeThisFunction
