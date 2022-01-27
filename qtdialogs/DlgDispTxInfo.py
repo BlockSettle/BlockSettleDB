@@ -17,7 +17,8 @@ from armoryengine.ArmoryUtils import enum, CPP_TXOUT_MULTISIG, \
    addrStr_to_hash160, script_to_scrAddr, BIGENDIAN, binary_to_hex, \
    hex_to_binary, coin2str, coin2strNZS, LOGEXCEPT, LOGERROR, \
    CPP_TXIN_SCRIPT_NAMES, CPP_TXOUT_SCRIPT_NAMES, int_to_hex, \
-   script_to_scrAddr, scrAddr_to_addrStr, unixTimeToFormatStr
+   script_to_scrAddr, scrAddr_to_addrStr, unixTimeToFormatStr, \
+   UINT32_MAX
 
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.Transaction import UnsignedTransaction, \
@@ -945,7 +946,7 @@ def extractTxInfo(pytx, rcvTime=None):
                txTime = 'Unknown'
             elif rcvTime == -1:
                txTime = '[[Not broadcast yet]]'
-            elif isinstance(rcvTime, basestring):
+            elif isinstance(rcvTime, str):
                txTime = rcvTime
             else:
                txTime = unixTimeToFormatStr(rcvTime)

@@ -35,27 +35,28 @@ import threading
 import time
 import traceback
 import glob
+from struct import pack
 
 from PySide2.QtGui import QDesktopServices, QPixmap, QPalette, \
    QCursor, QIcon
 from PySide2.QtCore import Qt, QTranslator, Signal, QByteArray, \
-   QSize, QModelIndex
+   QSize, QModelIndex, QBuffer, QIODevice
 from PySide2.QtWidgets import QMainWindow, QSystemTrayIcon, \
    QMenu, QAction, QGridLayout, QTabWidget, QScrollArea, \
    QComboBox, QSizePolicy, QActionGroup, QMessageBox, QLabel, \
    QTableView, QPushButton, QFrame, QWidget, QProgressBar, QVBoxLayout, \
-   QLineEdit, QFileDialog
+   QLineEdit, QFileDialog, QApplication, QWhatsThis
 
 from armorycolors import Colors, htmlColor, QAPP
 from armoryengine.ArmoryUtils import HMAC256, GUI_LANGUAGE, \
-   OS_MACOSX, OS_WINDOWS, AllowAsync, USE_TESTNET, USE_REGTEST, \
+   OS_LINUX, OS_MACOSX, OS_WINDOWS, AllowAsync, USE_TESTNET, USE_REGTEST, \
    CLI_OPTIONS, SettingsFile, getVersionString, BTCARMORY_VERSION, \
    LOGINFO, LOGWARN, LOGDEBUG, LOGEXCEPT, LOGERROR, INTERNET_STATUS, \
    enum, GetExecDir, RightNow, CLI_ARGS, ARMORY_HOME_DIR, DEFAULT, \
    ARMORY_DB_DIR, coin2str, DEFAULT_DATE_FORMAT, \
    unixTimeToFormatStr, binary_to_hex, BTC_HOME_DIR, secondsToHumanTime, \
    LEVELDB_BLKDATA, LOGRAWDATA, LOGPPRINT, hex_to_binary, \
-   getRandomHexits_NotSecure, coin2strNZS
+   getRandomHexits_NotSecure, coin2strNZS, bytesToHumanSize, hash256
 
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
@@ -1185,7 +1186,7 @@ class ArmoryMainWindow(QMainWindow):
          LOGEXCEPT('Error getting extra entropy from filesystem')
 
 
-      source3 = ''
+      source3 = bytes()
       try:
          pixDesk = QPixmap.grabWindow(QApplication.desktop().winId())
          pixRaw = QByteArray()
@@ -1463,7 +1464,7 @@ class ArmoryMainWindow(QMainWindow):
             'transactions.  This format is <u>not</u> compatible with '
             'versions of Armory before 0.92. '
             '<br><br>'
-            'To continue, the other system will need to be upgraded to '
+            'To continue, the other system will need to be upgraded '
             'to version 0.92 or later.  If you cannot upgrade the other '
             'system, you will need to reinstall an older version of Armory '
             'on this system.'), dnaaMsg=self.tr('Do not show this warning again'))
@@ -3328,7 +3329,7 @@ class ArmoryMainWindow(QMainWindow):
       elif len(self.walletMap)==1:
          loading = LoadingDisp(self, self)
          loading.show()
-         wltID = self.walletMap.keys()[0]
+         wltID = next(iter(self.walletMap))
       else:
          wltSelect = self.walletsView.selectedIndexes()
          if len(wltSelect)>0:
@@ -5188,6 +5189,7 @@ class ArmoryMainWindow(QMainWindow):
                dispLines.append(str(self.tr('From:    %s' % wltName )))
                dispLines.append(str(self.tr('To:      %s' % recipStr)))
             except Exception as e:
+               #TODO: fix this
                LOGERROR('tx broadcast systray display failed with error: %s' % e)
 
          if title:
