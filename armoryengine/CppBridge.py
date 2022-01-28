@@ -809,6 +809,40 @@ class ArmoryBridge(object):
          raise BridgeError("ProcessCustomUtxoList failed")
 
    #############################################################################
+   def cs_getFeeForMaxVal(self, csId, feePerByte):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.cs_getFeeForMaxVal
+      packet.stringArgs.append(csId)
+      packet.floatArgs.append(feePerByte)
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      return response.longs[0]
+
+   #############################################################################
+   def cs_getFeeForMaxValUtxoVector(self, csId, utxoList, feePerByte):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.cs_getFeeForMaxValUtxoVector
+      packet.stringArgs.append(csId)
+      packet.floatArgs.append(feePerByte)
+
+      for utxo in utxoList:
+         bridgeUtxo = utxo.toBridgeUtxo()
+         packet.byteArgs.append(bridgeUtxo.SerializeToString())
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      return response.longs[0]
+
+   #############################################################################
    def generateRandomHex(self, size):
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.generateRandomHex
@@ -1128,7 +1162,7 @@ class ArmoryBridge(object):
    #############################################################################
    def setAddressTypeFor(self, walletId, assetId, addrType):
       packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getAddressStrFor
+      packet.method = ClientProto_pb2.setAddressTypeFor
 
       packet.stringArgs.append(walletId)
       packet.byteArgs.append(assetId)
