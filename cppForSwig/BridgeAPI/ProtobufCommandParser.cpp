@@ -445,6 +445,18 @@ bool ProtobufCommandParser::processData(
       break;
    }
 
+   case Methods::cs_getFeeForMaxVal:
+   {
+      response = bridge->cs_getFeeForMaxVal(msg);
+      break;
+   }
+
+   case Methods::cs_getFeeForMaxValUtxoVector:
+   {
+      response = bridge->cs_getFeeForMaxValUtxoVector(msg);
+      break;
+   }
+
    case Methods::generateRandomHex:
    {
       if (msg.intargs_size() != 1)

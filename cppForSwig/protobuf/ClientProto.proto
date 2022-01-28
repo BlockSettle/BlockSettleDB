@@ -64,6 +64,8 @@ enum Methods
     cs_getFeeByte = 117;
     cs_getSizeEstimate = 118;
     cs_ProcessCustomUtxoList = 119;
+    cs_getFeeForMaxVal = 120;
+    cs_getFeeForMaxValUtxoVector = 121;
 
     initNewSigner = 130;
     destroySigner = 131;

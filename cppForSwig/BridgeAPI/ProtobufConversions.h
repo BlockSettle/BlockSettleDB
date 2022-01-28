@@ -16,7 +16,7 @@
 #define PROTO_ASSETID_PREFIX 0xAFu
 
 //forward declarations
-class UTXO;
+struct UTXO;
 class AddressEntry;
 class BinaryData;
 

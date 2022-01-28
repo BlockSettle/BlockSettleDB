@@ -1406,7 +1406,7 @@ bool CppBridge::cs_ProcessCustomUtxoList(const ClientCommand& msg)
    }
 
    try
-   {   
+   {
       iter->second->processCustomUtxoList(utxos, flatFee, feeByte, flags);
       return true;
    }
@@ -1414,6 +1414,68 @@ bool CppBridge::cs_ProcessCustomUtxoList(const ClientCommand& msg)
    {}
 
    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BridgeReply CppBridge::cs_getFeeForMaxVal(const ClientCommand& msg)
+{
+   if (msg.stringargs_size() != 1 ||
+      msg.floatargs_size() != 1)
+   {
+      throw runtime_error("invalid command cs_getFeeForMaxVal");
+   }
+
+   auto iter = csMap_.find(msg.stringargs(0));
+   if (iter == csMap_.end())
+      throw runtime_error("invalid cs id");
+
+   auto feeByte = msg.floatargs(0);
+   auto flatFee = iter->second->getFeeForMaxVal(feeByte);
+
+   auto response = make_unique<ReplyNumbers>();
+   response->add_longs(flatFee);
+   return response;
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BridgeReply CppBridge::cs_getFeeForMaxValUtxoVector(const ClientCommand& msg)
+{
+   if (msg.stringargs_size() != 1 ||
+      msg.floatargs_size() != 1)
+   {
+      throw runtime_error("invalid command cs_getFeeForMaxValUtxoVector");
+   }
+
+   auto iter = csMap_.find(msg.stringargs(0));
+   if (iter == csMap_.end())
+      throw runtime_error("invalid cs id");
+
+   auto feeByte = msg.floatargs(0);
+
+   vector<BinaryData> serUtxos;
+   for (int i=0; i<msg.byteargs_size(); i++)
+   {
+      auto& utxoSer = msg.byteargs(i);
+      BridgeUtxo utxoProto;
+      if (!utxoProto.ParseFromArray(utxoSer.c_str(), utxoSer.size()))
+         throw runtime_error("invalid utxo");
+
+      BinaryData hash(utxoProto.txhash().c_str(), utxoProto.txhash().size());
+      BinaryData script(utxoProto.script().c_str(), utxoProto.script().size());
+      UTXO utxo(utxoProto.value(), 
+         utxoProto.txheight(), utxoProto.txindex(), utxoProto.txoutindex(),
+         hash, script);
+
+      serUtxos.emplace_back(utxo.serialize());
+   }
+
+   auto flatFee = iter->second->getFeeForMaxValUtxoVector(serUtxos, feeByte);
+
+   auto response = make_unique<ReplyNumbers>();
+   response->add_longs(flatFee);
+   return response;
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1636,7 +1698,7 @@ BridgeReply CppBridge::signer_getSerializedState(const string& id) const
    auto iter = signerMap_.find(id);
    if (iter == signerMap_.end())
       throw runtime_error("invalid signer id");
- 
+
    auto signerState = iter->second->signer_.serializeState();
    string signerStateStr;
    if (!signerState.SerializeToString(&signerStateStr))

@@ -222,6 +222,8 @@ namespace Armory
          BridgeReply cs_getFeeByte(const std::string&);
          BridgeReply cs_getSizeEstimate(const std::string&);
          bool cs_ProcessCustomUtxoList(const Codec_ClientProto::ClientCommand&);
+         BridgeReply cs_getFeeForMaxVal(const Codec_ClientProto::ClientCommand&);
+         BridgeReply cs_getFeeForMaxValUtxoVector(const Codec_ClientProto::ClientCommand&);
 
          //signer
          BridgeReply initNewSigner(void);
