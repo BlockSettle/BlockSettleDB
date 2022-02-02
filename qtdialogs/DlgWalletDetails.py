@@ -1,10 +1,14 @@
-################################################################################
-#                                                                              #
-# Copyright (C) 2011-2021, Armory Technologies, Inc.                           #
-# Distributed under the GNU Affero General Public License (AGPL v3)            #
-# See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
-#                                                                              #
-################################################################################
+##############################################################################
+#                                                                            #
+# Copyright (C) 2011-2015, Armory Technologies, Inc.                         #
+# Distributed under the GNU Affero General Public License (AGPL v3)          #
+# See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
+#                                                                            #
+# Copyright (C) 2016-2022, goatpig                                           #
+#  Distributed under the MIT license                                         #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
+#                                                                            #
+##############################################################################
 
 from PySide2.QtCore import Qt, QByteArray
 from PySide2.QtWidgets import QFrame, QVBoxLayout, QGridLayout, QPushButton, \
@@ -29,6 +33,7 @@ from qtdialogs.DlgNewAddress import \
    DlgNewAddressDisp, ShowRecvCoinsWarningIfNecessary
 from qtdialogs.DlgKeypoolSettings import DlgKeypoolSettings
 from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
+from qtdialogs.DlgBackupCenter import DlgBackupCenter
 
 
 ################################################################################
@@ -65,7 +70,7 @@ class DlgWalletDetails(ArmoryDialog):
 
       # Now add all the options buttons, dependent on the type of wallet.
 
-      lbtnChangeLabels = QLabelButton(self.tr('Change Wallet Labels'));
+      lbtnChangeLabels = QLabelButton(self.tr('Change Wallet Labels'))
       lbtnChangeLabels.linkActivated.connect(self.changeLabels)
 
       if not self.wlt.watchingOnly:
@@ -558,7 +563,6 @@ class DlgWalletDetails(ArmoryDialog):
       feature implemented, but I don't have a GUI for it
       """
       pass
-
 
    def execBackupDlg(self):
       if self.main.usermode == USERMODE.Expert:

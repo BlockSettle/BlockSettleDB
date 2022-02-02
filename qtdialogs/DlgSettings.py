@@ -2,14 +2,17 @@
 from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
 
-###############################################################################
-#                                                                             #
-# Copyright (C) 2011-2021, Armory Technologies, Inc.                          #
-# Distributed under the GNU Affero General Public License (AGPL v3)           #
-# See LICENSE or http://www.gnu.org/licenses/agpl.html                        #
-#                                                                             #
-###############################################################################
-
+##############################################################################
+#                                                                            #
+# Copyright (C) 2011-2015, Armory Technologies, Inc.                         #
+# Distributed under the GNU Affero General Public License (AGPL v3)          #
+# See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
+#                                                                            #
+# Copyright (C) 2016-2022, goatpig                                           #
+#  Distributed under the MIT license                                         #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
+#                                                                            #
+##############################################################################
 import time
 import os
 

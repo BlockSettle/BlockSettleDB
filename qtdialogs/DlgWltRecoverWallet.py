@@ -1,15 +1,19 @@
-################################################################################
-#                                                                              #
-# Copyright (C) 2011-2021, Armory Technologies, Inc.                           #
-# Distributed under the GNU Affero General Public License (AGPL v3)            #
-# See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
-#                                                                              #
-################################################################################
-
+##############################################################################
+#                                                                            #
+# Copyright (C) 2011-2015, Armory Technologies, Inc.                         #
+# Distributed under the GNU Affero General Public License (AGPL v3)          #
+# See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
+#                                                                            #
+# Copyright (C) 2016-2022, goatpig                                           #
+#  Distributed under the MIT license                                         #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
+#                                                                            #
+##############################################################################
 import os
 
 from PySide2.QtCore import SIGNAL
-from PySide2.QtWidgets import QFileDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLayout, QLineEdit, QPushButton, QRadioButton
+from PySide2.QtWidgets import QFileDialog, QFrame, QGridLayout, \
+   QHBoxLayout, QLabel, QLayout, QLineEdit, QPushButton, QRadioButton
 
 from armorycolors import htmlColor
 from armoryengine.ArmoryUtils import ARMORY_HOME_DIR, LOGINFO, OS_MACOSX
@@ -17,7 +21,8 @@ from armoryengine.ArmoryUtils import ARMORY_HOME_DIR, LOGINFO, OS_MACOSX
 from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.DlgCorruptWallet import DlgCorruptWallet
 from qtdialogs.DlgWalletSelect import DlgWalletSelect
-from qtdialogs.qtdefines import GETFONT, QRichLabel, STYLE_SUNKEN, makeHorizFrame, tightSizeNChar
+from qtdialogs.qtdefines import GETFONT, QRichLabel, STYLE_SUNKEN, \
+   makeHorizFrame, tightSizeNChar
 
 ###############################################################################
 class DlgWltRecoverWallet(ArmoryDialog):

@@ -1,18 +1,23 @@
-################################################################################
-#                                                                              #
-# Copyright (C) 2011-2021, Armory Technologies, Inc.                           #
-# Distributed under the GNU Affero General Public License (AGPL v3)            #
-# See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
-#                                                                              #
-################################################################################
+##############################################################################
+#                                                                            #
+# Copyright (C) 2011-2015, Armory Technologies, Inc.                         #
+# Distributed under the GNU Affero General Public License (AGPL v3)          #
+# See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
+#                                                                            #
+# Copyright (C) 2016-2022, goatpig                                           #
+#  Distributed under the MIT license                                         #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
+#                                                                            #
+##############################################################################
 
-from PySide2.QtWidgets import QCheckBox, QFrame, QGridLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea, QTabWidget, QVBoxLayout
+from PySide2.QtWidgets import QCheckBox, QFrame, QGridLayout, QLabel, \
+   QLineEdit, QMessageBox, QPushButton, QScrollArea, QTabWidget, QVBoxLayout
 from PySide2.QtGui import QPixmap
 from PySide2.QtCore import QSize, Qt, SIGNAL
 
 from qtdialogs.ArmoryDialog import ArmoryDialog
-from qtdialogs.qtdefines import HLINE, QRichLabel, STRETCH, STYLE_RAISED, STYLE_SUNKEN, makeHorizFrame, makeVertFrame, relaxedSizeNChar
-#from CppBlockUtils import SecureBinaryData
+from qtdialogs.qtdefines import HLINE, QRichLabel, STRETCH, STYLE_RAISED, \
+   STYLE_SUNKEN, makeHorizFrame, makeVertFrame, relaxedSizeNChar
 
 ################################################################################
 class DlgRestoreFragged(ArmoryDialog):

@@ -1,12 +1,18 @@
-################################################################################
-#                                                                              #
-# Copyright (C) 2011-2021, Armory Technologies, Inc.                           #
-# Distributed under the GNU Affero General Public License (AGPL v3)            #
-# See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
-#                                                                              #
-################################################################################
+##############################################################################
+#                                                                            #
+# Copyright (C) 2011-2015, Armory Technologies, Inc.                         #
+# Distributed under the GNU Affero General Public License (AGPL v3)          #
+# See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
+#                                                                            #
+# Copyright (C) 2016-2022, goatpig                                           #
+#  Distributed under the MIT license                                         #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
+#                                                                            #
+##############################################################################
 
-from PySide2.QtWidgets import QButtonGroup, QCheckBox, QDialogButtonBox, QFrame, QGridLayout, QLabel, QLayout, QLineEdit, QMessageBox, QPushButton, QRadioButton, QTabWidget, QVBoxLayout
+from PySide2.QtWidgets import QButtonGroup, QCheckBox, QDialogButtonBox, \
+   QFrame, QGridLayout, QLabel, QLayout, QLineEdit, QMessageBox, \
+   QPushButton, QRadioButton, QTabWidget, QVBoxLayout
 from PySide2.QtCore import SIGNAL
 
 from armoryengine import ClientProto_pb2
@@ -17,7 +23,8 @@ from armoryengine.PyBtcWallet import PyBtcWallet
 from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.DlgChangePassphrase import DlgChangePassphrase
 from qtdialogs.DlgReplaceWallet import DlgReplaceWallet
-from qtdialogs.qtdefines import HLINE, QRichLabel, STRETCH, STYLE_RAISED, makeHorizFrame, makeVertFrame
+from qtdialogs.qtdefines import HLINE, QRichLabel, STRETCH, STYLE_RAISED, \
+   makeHorizFrame, makeVertFrame
 from qtdialogs.qtdialogs import MaskedInputLineEdit, verifyRecoveryTestID
 
 from ui.WalletFrames import AdvancedOptionsFrame

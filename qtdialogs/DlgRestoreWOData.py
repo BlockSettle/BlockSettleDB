@@ -1,10 +1,14 @@
-################################################################################
-#                                                                              #
-# Copyright (C) 2011-2021, Armory Technologies, Inc.                           #
-# Distributed under the GNU Affero General Public License (AGPL v3)            #
-# See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
-#                                                                              #
-################################################################################
+##############################################################################
+#                                                                            #
+# Copyright (C) 2011-2015, Armory Technologies, Inc.                         #
+# Distributed under the GNU Affero General Public License (AGPL v3)          #
+# See LICENSE or http://www.gnu.org/licenses/agpl.html                       #
+#                                                                            #
+# Copyright (C) 2016-2022, goatpig                                           #
+#  Distributed under the MIT license                                         #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
+#                                                                            #
+##############################################################################
 
 # Class that will create the watch-only wallet data (root public key & chain
 # code) restoration window.
@@ -13,17 +17,21 @@
 import os
 import sys
 
-from PySide2.QtWidgets import QDialogButtonBox, QFrame, QGridLayout, QLabel, QLayout, QMessageBox, QPushButton, QVBoxLayout
+from PySide2.QtWidgets import QDialogButtonBox, QFrame, QGridLayout, \
+   QLabel, QLayout, QMessageBox, QPushButton, QVBoxLayout
 from PySide2.QtCore import SIGNAL
 
-from armoryengine.ArmoryUtils import LOGERROR, binary_to_base58, binary_to_int, easyType16_to_binary, int_to_binary, readSixteenEasyBytes, verifyChecksum
-from armoryengine.PyBtcWallet import PYROOTPKCCSIGNMASK, PYROOTPKCCVERMASK, PyBtcWallet
+from armoryengine.ArmoryUtils import LOGERROR, binary_to_base58, \
+   binary_to_int, easyType16_to_binary, int_to_binary, \
+   readSixteenEasyBytes, verifyChecksum
+from armoryengine.PyBtcWallet import PYROOTPKCCSIGNMASK, \
+   PYROOTPKCCVERMASK, PyBtcWallet
 from armoryengine.PyBtcAddress import PyBtcAddress
-#from CppBlockUtils import CryptoECDSA, SecureBinaryData
 
 from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.DlgProgress import DlgProgress
-from qtdialogs.qtdefines import GETFONT, HLINE, QRichLabel, STRETCH, STYLE_RAISED, makeHorizFrame
+from qtdialogs.qtdefines import GETFONT, HLINE, QRichLabel, STRETCH, \
+   STYLE_RAISED, makeHorizFrame
 from qtdialogs.qtdialogs import MaskedInputLineEdit, verifyRecoveryTestID
 
 class DlgRestoreWOData(ArmoryDialog):
