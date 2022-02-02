@@ -176,11 +176,7 @@ unsigned Cipher::getBlockSize(CipherType type)
    {
    case CipherType_AES:
    {
-#ifdef LIBBTC_ONLY
       blockSize = AES_BLOCK_SIZE;
-#else
-      blockSize = BTC_AES::BLOCKSIZE;
-#endif
       break;
    }
 

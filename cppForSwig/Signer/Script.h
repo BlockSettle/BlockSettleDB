@@ -193,6 +193,7 @@ namespace Armory
                case OP_ENDIF:
                   if (depth-- > 0)
                      break;
+                  [[fallthrough]];
 
                case OP_ELSE:
                {

@@ -336,6 +336,7 @@ shared_ptr<Payload::DeserializedPayloads> Payload::deserialize(
                case Payload_reject:
                   payloadVec.push_back(move(make_unique<Payload_Reject>(
                      payloadptr, *length)));
+                  break;
 
                default:
                   payloadVec.push_back(move(make_unique<Payload_Unknown>(

@@ -28,6 +28,7 @@ from qtdialogs.qtdialogs import STRETCH, LoadingDisp
 from qtdialogs.DlgNewAddress import \
    DlgNewAddressDisp, ShowRecvCoinsWarningIfNecessary
 from qtdialogs.DlgKeypoolSettings import DlgKeypoolSettings
+from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
 
 
 ################################################################################

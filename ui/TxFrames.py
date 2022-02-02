@@ -28,7 +28,7 @@ from armoryengine.ArmoryUtils import MAX_COMMENT_LENGTH, getAddrByte, \
    LOGEXCEPT, LOGERROR, LOGINFO, NegativeValueError, TooMuchPrecisionError, \
    str2coin, CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, \
    coin2str, MIN_FEE_BYTE, getNameForAddrType, addrTypeInSet, \
-   getAddressTypeForOutputType
+   getAddressTypeForOutputType, binary_to_hex
 
 from ui.FeeSelectUI import FeeSelectionDialog
 
@@ -122,6 +122,27 @@ class CoinSelectionInstance(object):
          raise Exception("uninitialized coin selection instance")
 
       return TheBridge.cs_getFeeByte(self.id)
+
+   #############################################################################
+   def getSizeEstimate(self):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      return TheBridge.cs_getSizeEstimate(self.id)
+
+   #############################################################################
+   def getFeeForMaxVal(self, feePerByte):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      return TheBridge.cs_getFeeForMaxVal(self.id, feePerByte)
+
+   #############################################################################
+   def getFeeForMaxValUtxoVector(self, utxoList, feePerByte):
+      if self.id == None:
+         raise Exception("uninitialized coin selection instance")
+
+      return TheBridge.cs_getFeeForMaxValUtxoVector(self.id, utxoList, feePerByte)
 
 
 ################################################################################
@@ -578,16 +599,7 @@ class SendBitcoinsFrame(ArmoryFrame):
    def serializeUtxoList(self, utxoList):
       serializedUtxoList = []
       for utxo in utxoList:
-         bp = BinaryPacker()
-         bp.put(UINT64, utxo.getValue())
-         bp.put(UINT32, utxo.getTxHeight())
-         bp.put(UINT16, utxo.getTxIndex())
-         bp.put(UINT16, utxo.getTxOutIndex())
-         bp.put(VAR_STR, utxo.getTxHash())
-         bp.put(VAR_STR, utxo.getScript())
-         bp.put(UINT32, utxo.sequence)         
-         
-         serializedUtxoList.append(bp.getBinaryString())
+         serializedUtxoList.append(utxo)
 
       return serializedUtxoList
 
@@ -1021,9 +1033,9 @@ class SendBitcoinsFrame(ArmoryFrame):
                         self.sendCallback()
 
                   self.main.signalExecution.executeMethod(\
-                     signTxLastStep, success, signerObj)
+                     [signTxLastStep, [success, signerObj]])
 
-               self.wlt.signUnsignedTx(ustx, finalizeSignTx)
+               ustx.signTx(self.wlt.uniqueIDB58, finalizeSignTx)
 
             except:
                LOGEXCEPT('Problem sending transaction!')

@@ -1,13 +1,26 @@
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//  Copyright (C) 2021, goatpig.                                              //
+//  Distributed under the MIT license                                         //
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
 #include <string.h>
 
 #include "cffi_cdecl.h"
 #include "../cppForSwig/chacha20poly1305/poly1305.h"
 #include "../cppForSwig/chacha20poly1305/chachapoly_aead.h"
-#include "../cppForSwig/libbtc/src/secp256k1/include/secp256k1.h"
-#include "../cppForSwig/libbtc/include/btc/ecc.h"
-#include "../cppForSwig/libbtc/include/btc/random.h"
-#include "../cppForSwig/libbtc/include/btc/hash.h"
+#include <src/secp256k1/include/secp256k1.h>
+#include <include/btc/ecc.h>
+#include <include/btc/random.h>
+#include <include/btc/hash.h>
+#include <include/btc/hmac.h>
 #include "../cppForSwig/hkdf/hkdf.h"
+
+//so that assert isn't a no-op in release builds
+#undef NDEBUG
+#include <assert.h>
 
 #define BIP151PUBKEYSIZE 33
 #define BIP151PRVKEYSIZE 32
@@ -86,9 +99,14 @@ void freeBuffer(void* buffer)
 size_t bip15x_init_lib()
 {
    //call this once before using any other calls
+   uint8_t seed[32];
+
    btc_ecc_start();
    cffi_secp256k1_context = secp256k1_context_create(
       SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
+
+   assert(btc_random_bytes(seed, 32, 0));
+   assert(secp256k1_context_randomize(cffi_secp256k1_context, seed));
 
    return POLY1305_TAGLEN;
 }

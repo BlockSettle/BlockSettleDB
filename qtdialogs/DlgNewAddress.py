@@ -9,7 +9,8 @@
 from PySide2.QtCore import Qt
 from PySide2.QtGui import QPalette, QFont
 from PySide2.QtWidgets import QFrame, QGridLayout, QPushButton, QLabel, \
-   QLineEdit, QHBoxLayout, QDialogButtonBox, QTextEdit, QMessageBox
+   QLineEdit, QHBoxLayout, QDialogButtonBox, QTextEdit, QMessageBox, \
+   QApplication
 
 from armorycolors import Colors
 from qtdialogs.qtdefines import determineWalletType, \

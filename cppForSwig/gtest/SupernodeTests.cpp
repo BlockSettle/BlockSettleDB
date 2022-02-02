@@ -1922,7 +1922,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
       auto&& raw_tx = zc_from_db.serialize();
       auto bctx = BCTX::parse(raw_tx);
-      TransactionVerifier tx_verifier(*bctx, utxoVec);
+      Armory::Signer::TransactionVerifier tx_verifier(*bctx, utxoVec);
 
       ASSERT_TRUE(tx_verifier.evaluateState().isValid());
    }
@@ -1959,7 +1959,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
       unspentVec_singleSig.begin(), unspentVec_singleSig.end());
 
    //create feed from asset wallet 1
-   auto feed_ms = make_shared<ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_1);
+   auto feed_ms = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_1);
    auto assetFeed = make_shared<ResolverUtils::CustomFeed>(addr_p2wsh, feed_ms);
 
    //create spenders
@@ -2026,7 +2026,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
 
    Signer signer3;
    //create feed from asset wallet 2
-   auto feed_ms3 = make_shared<ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_2);
+   auto feed_ms3 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle_ForMultisig>(assetWlt_2);
    auto assetFeed3 = make_shared<ResolverUtils::CustomFeed>(addr_p2wsh, feed_ms3);
    signer3.deserializeState(signer2.serializeState());
 
@@ -2052,7 +2052,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    }
 
    {
-      auto assetFeed4 = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt_2);
+      auto assetFeed4 = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt_2);
       signer3.resetFeed();
       signer3.setFeed(assetFeed4);
       auto lock = assetWlt_2->lockDecryptedContainer();
@@ -2102,7 +2102,7 @@ TEST_F(BlockUtilsWithWalletTest, MultipleSigners_2of3_NativeP2WSH)
    auto&& zc_from_db = DBTestUtils::getTxByHash(clients_, bdvID, zcHash);
    auto&& raw_tx = zc_from_db.serialize();
    auto bctx = BCTX::parse(raw_tx);
-   TransactionVerifier tx_verifier(*bctx, unspentVec);
+   Armory::Signer::TransactionVerifier tx_verifier(*bctx, unspentVec);
 
    ASSERT_TRUE(tx_verifier.evaluateState().isValid());
 
@@ -5558,7 +5558,7 @@ GTEST_API_ int main(int argc, char **argv)
    WSAStartup(wVersion, &wsaData);
 #endif
 
-   btc_ecc_start();
+   CryptoECDSA::setupContext();
 
    GOOGLE_PROTOBUF_VERIFY_VERSION;
    srand(time(0));
@@ -5571,6 +5571,6 @@ GTEST_API_ int main(int argc, char **argv)
    CLEANUPLOG();
    google::protobuf::ShutdownProtobufLibrary();
 
-   btc_ecc_stop();
+   CryptoECDSA::shutdown();
    return exitCode;
 }

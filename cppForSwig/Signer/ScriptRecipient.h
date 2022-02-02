@@ -63,7 +63,7 @@ namespace Armory
          //virtuals
          virtual const BinaryData& getSerializedScript(void) const
          {
-            if (script_.getSize() == 0)
+            if (script_.empty())
                serialize();
 
             return script_;

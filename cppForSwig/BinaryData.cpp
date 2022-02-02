@@ -350,6 +350,13 @@ std::size_t hash<BinaryData>::operator()(const BinaryData& key) const
 ////BinaryDataRef
 //
 /////////////////////////////////////////////////////////////////////////////
+BinaryDataRef& BinaryDataRef::operator=(const BinaryDataRef& rhs)
+{
+   setRef(rhs.ptr_, rhs.nBytes_);
+   return *this;
+}
+
+/////////////////////////////////////////////////////////////////////////////
 bool BinaryDataRef::operator<(BinaryDataRef const & bd2) const
 {
    size_t minLen = std::min(getSize(), bd2.getSize());

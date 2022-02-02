@@ -1,8 +1,8 @@
 ################################################################################
 #                                                                              #
-# Copyright (C) 2019-2020, Armory Technologies, Inc.                           #
-# Distributed under the GNU Affero General Public License (AGPL v3)            #
-# See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
+# Copyright (C) 2019-2021, goatpig.                                            #
+#  Distributed under the MIT license                                           #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
 #                                                                              #
 ################################################################################
 
@@ -771,6 +771,20 @@ class ArmoryBridge(object):
       return response.floats[0]
 
    #############################################################################
+   def cs_getSizeEstimate(self, csId):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.cs_getSizeEstimate
+      packet.stringArgs.append(csId)
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      return response.longs[0]
+
+   #############################################################################
    def cs_ProcessCustomUtxoList(self, csId, \
       utxoList, fee, feePerByte, processFlags):
 
@@ -793,6 +807,40 @@ class ArmoryBridge(object):
 
       if response.ints[0] == 0:
          raise BridgeError("ProcessCustomUtxoList failed")
+
+   #############################################################################
+   def cs_getFeeForMaxVal(self, csId, feePerByte):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.cs_getFeeForMaxVal
+      packet.stringArgs.append(csId)
+      packet.floatArgs.append(feePerByte)
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      return response.longs[0]
+
+   #############################################################################
+   def cs_getFeeForMaxValUtxoVector(self, csId, utxoList, feePerByte):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.cs_getFeeForMaxValUtxoVector
+      packet.stringArgs.append(csId)
+      packet.floatArgs.append(feePerByte)
+
+      for utxo in utxoList:
+         bridgeUtxo = utxo.toBridgeUtxo()
+         packet.byteArgs.append(bridgeUtxo.SerializeToString())
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      return response.longs[0]
 
    #############################################################################
    def generateRandomHex(self, size):
@@ -1114,7 +1162,7 @@ class ArmoryBridge(object):
    #############################################################################
    def setAddressTypeFor(self, walletId, assetId, addrType):
       packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.getAddressStrFor
+      packet.method = ClientProto_pb2.setAddressTypeFor
 
       packet.stringArgs.append(walletId)
       packet.byteArgs.append(assetId)
@@ -1137,6 +1185,21 @@ class ArmoryBridge(object):
       packet.stringArgs.append(val)
 
       self.sendToBridgeProto(packet, False)
+
+   #############################################################################
+   def estimateFee(self, blocks, strat):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.estimateFee
+      packet.intArgs.append(blocks)
+      packet.stringArgs.append(strat)
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.BridgeFeeEstimate()
+      response.ParseFromString(socketResponse)
+
+      return response
 
 
 ################################################################################

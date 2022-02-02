@@ -37,12 +37,6 @@ AC_ARG_WITH([client],
               [do not build client @<:@default=no@:>@]),
               [with_client="$withval"], [with_client=yes])
 
-#build gui arg
-AC_ARG_WITH([gui],
-              AS_HELP_STRING([--without-gui],
-              [do not build GUI @<:@default=no@:>@]),
-              [with_gui="$withval"], [with_gui=yes])
-
 # Custom libwebsockets path. This will be a mandatory flag, even if the user
 # uses /usr/local. The problem is that Ubuntu has a pretty old version of LWS.
 # We should just use a newer version and link it in.
@@ -51,12 +45,11 @@ AC_ARG_WITH([own-lws],
     [pass path of your own lws binary and headers @<:@default=no@:>@]),
     [with_own_lws="$withval"], [with_own_lws=no])
 
-# Crypto++ usage. Armory defaults to using libbtc for most crypto. However, a
-# legacy transition period where Crypto++ can be used instead is in effect.
-AC_ARG_WITH([cryptopp],
-    AS_HELP_STRING([--with-cryptopp],
-    [use Crypto++ instead of libbtc for crypto functions @<:@default=no@:>@]),
-    [with_cryptopp="$withval"], [with_cryptopp=no])
+# Custom libbtc path
+AC_ARG_WITH([own-libbtc],
+    AS_HELP_STRING([--with-own-libbtc],
+    [pass path of your own libbtc binary and headers @<:@default=no@:>@]),
+    [with_own_libbtc="$withval"], [with_own_libbtc=no])
 
 if test "x$want_debug" = "xyes" -a $ac_cv_c_compiler_gnu != no; then
   CFLAGS="$CFLAGS -O0 -g3"
@@ -225,6 +218,13 @@ else
     CXXFLAGS="${CXXFLAGS} -I$with_own_lws/include"
 fi
 
+if test x$with_own_libbtc = xno; then
+    AC_MSG_FAILURE([No path to libbtc, check README section on libbtc])
+else
+    AC_SUBST([LIBBTC_LIBDIR], ["$with_own_libbtc"])
+    CXXFLAGS="${CXXFLAGS} -I$with_own_libbtc/include"
+fi
+
 AC_MSG_CHECKING(for LWS_WITH_TLS)
 AC_LANG_PUSH([C++])
 AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
@@ -384,19 +384,6 @@ AC_CONFIG_FILES(Makefile
 
 AM_CONDITIONAL([BUILD_BENCH], [test x$want_benchmark = xyes])
 AM_CONDITIONAL([BUILD_TESTS], [test "x$want_tests" = "xyes"])
-AM_CONDITIONAL([USE_CRYPTOPP], [test x$with_cryptopp = xyes])
-
-dnl ac_configure_args can only be set once and affects all subdirs.
-dnl Place all params here.
-dnl Crypto++ - No customs
-dnl libchacha20poly1305 - No customs
-dnl libbtc - --disable-wallet --disable-net --disable-tools
-dnl libsecp256k1 (libbtc) - --disable-shared --with-pic --with-bignum=no
-dnl NB: For libbtc, wallet & net are basically intertwined. If disabling one,
-dnl     both must be disabled, else weird compiler/linker errors appear.
-ac_configure_args="${orig_config_args} --disable-wallet --disable-net --disable-tools --disable-shared --with-pic --with-bignum=no"
-AC_CONFIG_SUBDIRS([cppForSwig/libbtc])
-AM_COND_IF([USE_CRYPTOPP], [AC_CONFIG_SUBDIRS([cppForSwig/cryptopp])], [])
 
 AC_OUTPUT
 
@@ -415,6 +402,5 @@ echo "  with tests        = $want_tests"
 echo "  with benchmarks   = $want_benchmark"
 echo "  debug symbols     = $want_debug"
 echo "  with client       = $build_client"
-echo "  with GUI          = $build_gui"
 echo "  custom lws path   = $with_own_lws"
-echo "  use Crypto++      = $with_cryptopp"
+echo "  custom libbtc     = $with_own_libbtc"

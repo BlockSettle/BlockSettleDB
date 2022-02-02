@@ -220,7 +220,10 @@ namespace Armory
          BridgeReply cs_getUtxoSelection(const std::string&);
          BridgeReply cs_getFlatFee(const std::string&);
          BridgeReply cs_getFeeByte(const std::string&);
+         BridgeReply cs_getSizeEstimate(const std::string&);
          bool cs_ProcessCustomUtxoList(const Codec_ClientProto::ClientCommand&);
+         BridgeReply cs_getFeeForMaxVal(const Codec_ClientProto::ClientCommand&);
+         BridgeReply cs_getFeeForMaxValUtxoVector(const Codec_ClientProto::ClientCommand&);
 
          //signer
          BridgeReply initNewSigner(void);
@@ -260,6 +263,7 @@ namespace Armory
          BridgeReply setAddressTypeFor(
             const std::string&, const std::string&, uint32_t) const;
          void getBlockTimeByHeight(uint32_t, uint32_t) const;
+         void estimateFee(uint32_t, const std::string&, uint32_t) const;
 
          //passphrase prompt
          PassphraseLambda createPassphrasePrompt(

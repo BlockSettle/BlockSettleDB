@@ -1028,16 +1028,17 @@ void Pathing::processArgs(const map<string, string>& args, ProcessType procType)
    }
 
    //test all paths
-   auto testPath = [](const string& path, int mode)
+   auto testPath = [](const string& path, int mode)->bool
    {
-      if (!SettingsUtils::fileExists(path, mode))
-      {
-         string errMsg = path + " is not a valid path";
-         throw DbErrorMsg(errMsg);
-      }
+      return SettingsUtils::fileExists(path, mode);
    };
 
-   testPath(Armory::Config::getDataDir(), 6);
+   if (!testPath(Armory::Config::getDataDir(), 6))
+   {
+      string errMsg = Armory::Config::getDataDir() +
+         " is not a valid datadir path";
+      throw DbErrorMsg(errMsg); 
+   }
 
    if (procType != ProcessType::DB)
    {
@@ -1054,11 +1055,7 @@ void Pathing::processArgs(const map<string, string>& args, ProcessType procType)
    //create dbdir if was set automatically
    if (autoDbDir)
    {
-      try
-      {
-         testPath(dbDir_, 0);
-      }
-      catch (DbErrorMsg&)
+      if (!testPath(dbDir_, 0))
       {
 #ifdef _WIN32
          CreateDirectory(dbDir_.c_str(), NULL);
@@ -1069,7 +1066,12 @@ void Pathing::processArgs(const map<string, string>& args, ProcessType procType)
    }
 
    //now for the regular test, let it throw if it fails
-   testPath(dbDir_, 6);
+   if (!testPath(dbDir_, 6))
+   {
+      string errMsg = Armory::Config::getDataDir() +
+         " is not a valid db path";
+      throw DbErrorMsg(errMsg); 
+   }
 
    /*
    TODO: differentiate path defaults and checks between local automated
@@ -1077,7 +1079,14 @@ void Pathing::processArgs(const map<string, string>& args, ProcessType procType)
    */
 
    if (!NetworkSettings::isOffline())
-      testPath(blkFilePath_, 2);
+   {
+      if (!testPath(blkFilePath_, 2))
+      {
+         string errMsg = Armory::Config::getDataDir() +
+            " is not a valid blockchain data path";
+         throw DbErrorMsg(errMsg); 
+      }
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

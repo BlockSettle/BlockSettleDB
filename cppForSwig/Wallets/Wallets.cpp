@@ -2350,3 +2350,15 @@ const SecureBinaryData& AssetWallet_Multisig::getDecryptedValue(
 {
    return decryptedData_->getClearTextAssetData(assetPtr);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//// WalletPublicData
+//
+////////////////////////////////////////////////////////////////////////////////
+WalletPublicData::WalletPublicData(const std::string& dbName,
+   const std::string& masterID, const std::string& walletID,
+   const AddressAccountId& mainAccID) :
+   dbName_(dbName), masterID_(masterID), walletID_(walletID),
+   mainAccountID_(mainAccID)
+{}

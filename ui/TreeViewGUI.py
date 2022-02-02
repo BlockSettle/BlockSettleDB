@@ -614,11 +614,11 @@ class TreeStructure_CoinControl():
       #arrange by script type
       for utxo in utxoList:
          binAddr = utxo.getRecipientScrAddr()
-         addrStr = TheBridge.getAddrStrForScrAddr(binAddr)
-
-         addrObj = self.wallet.getAddrByHash160(binAddr[1:])
+         addrObj = self.wallet.getAddrByHash(binAddr)
          if addrObj == None:
             continue
+
+         addrStr = addrObj.getAddressString()
          addrType = addrObj.addrType
 
          addrDict = self.treeData['UTXO'][addrType]

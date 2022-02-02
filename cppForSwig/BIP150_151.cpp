@@ -26,7 +26,7 @@
 
 // Because libbtc doesn't export its libsecp256k1 context, and we need one for
 // direct access to libsecp256k1 calls, just create one.
-secp256k1_context* secp256k1_ecdh_ctx = nullptr;
+static secp256k1_context* secp256k1_ecdh_ctx = nullptr;
 uint32_t ipType_ = 0;
 uint8_t oneWayAuthClientPubKey_[33];
 
@@ -45,8 +45,12 @@ void startupBIP151CTX()
       // SIGN used to generate public keys from private keys. (Can be removed
       // once libbtc exports compressed public keys.)
       // VERIFY used to allow for EC multiplication, which won't work otherwise.
-      secp256k1_ecdh_ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | \
-                                                    SECP256K1_CONTEXT_VERIFY);
+      secp256k1_ecdh_ctx = secp256k1_context_create(
+         SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
+
+      auto rando = CryptoPRNG::generateRandom(32);
+      if (!secp256k1_context_randomize(secp256k1_ecdh_ctx, rando.getPtr()))
+         throw std::runtime_error("[startupBIP151CTX");
    }
    assert(secp256k1_ecdh_ctx != nullptr);
 }

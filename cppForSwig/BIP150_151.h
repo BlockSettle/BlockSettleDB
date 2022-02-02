@@ -39,8 +39,8 @@
 #include <unordered_map>
 #include <functional>
 
-#include "secp256k1.h"
-#include "btc/ecc_key.h"
+#include <secp256k1.h>
+#include <btc/ecc_key.h>
 extern "C" {
 #include "chachapoly_aead.h"
 }

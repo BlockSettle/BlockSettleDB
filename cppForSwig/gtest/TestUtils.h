@@ -15,8 +15,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <thread>
-#include "gtest.h"
-#include "btc/ecc.h"
+#include <gtest/gtest.h>
+#include <btc/ecc.h>
 
 #include "../log.h"
 #include "../BinaryData.h"
@@ -30,11 +30,6 @@
 #include "../ScrAddrObj.h"
 #include "../BtcWallet.h"
 #include "../BlockDataViewer.h"
-
-#ifndef LIBBTC_ONLY
-#include "../cryptopp/DetSign.h"
-#include "../cryptopp/integer.h"
-#endif
 
 #include "../ArmoryErrors.h"
 #include "../Progress.h"
@@ -90,6 +85,8 @@ namespace Armory
 
 namespace TestUtils
 {
+   const std::string dataDir("../reorgTest");
+
    // This function assumes src to be a zero terminated sanitized string with
    // an even number of [0-9a-f] characters, and target to be sufficiently large
    void hex2bin(const char* src, unsigned char* target);
@@ -116,6 +113,7 @@ namespace DBTestUtils
 {
    extern unsigned commandCtr_;
    extern std::deque<unsigned> zcDelays_;
+
    void init(void);
 
    unsigned getTopBlockHeight(LMDBBlockDatabase*, DB_SELECT);

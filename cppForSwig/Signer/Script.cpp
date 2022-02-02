@@ -812,13 +812,7 @@ void StackInterpreter::op_checksig()
       throw runtime_error("invalid pubkey");
 
    //check signature
-   bool result;
-#ifndef LIBBTC_ONLY
-   auto&& rs = BtcUtils::extractRSFromDERSig(sig);
-   result = CryptoECDSA().VerifyData(sighashdata, rs, pubkey);
-#else
-   result = CryptoECDSA().VerifyData(sighashdata, sig, pubkey);
-#endif
+   auto result = CryptoECDSA().VerifyData(sighashdata, sig, pubkey);
    stack_.push_back(move(intToRawBinary(result)));
 
    if (result)
@@ -927,11 +921,7 @@ void StackInterpreter::op_checkmultisig()
          auto&& msg_hash = BtcUtils::getHash256(hashdata);
          LOGWARN << "   message: " << hashdata.toHexStr();
 #endif
-#ifndef LIBBTC_ONLY   
-         if (CryptoECDSA().VerifyData(hashdata, rs, pubkey))
-#else
          if(CryptoECDSA().VerifyData(hashdata, sigD.sig_, pubkey))
-#endif
          {
             txInEvalState_.pubKeyState_[pubkey] = true;
             validSigCount++;

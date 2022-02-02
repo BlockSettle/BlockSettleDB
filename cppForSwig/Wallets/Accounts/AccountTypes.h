@@ -103,7 +103,7 @@ namespace Armory
 
          //locals
          void setMain(bool ismain) { isMain_ = ismain; }
-         const bool isMain(void) const { return isMain_; }
+         bool isMain(void) const { return isMain_; }
 
          const std::set<AddressEntryType>& getAddressTypes(void) const
          { return addressTypes_; }

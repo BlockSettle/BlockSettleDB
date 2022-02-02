@@ -310,9 +310,7 @@ void AuthorizedPeers::addPeer(const btc_pubkey& pubkey,
    //convert sbd pubkey to libbtc pubkey
    if (!pubkey.compressed)
    {
-      btc_pubkey_init(&pubkey_cmp);
-      btc_ecc_public_key_compress((uint8_t*)pubkey.pubkey, pubkey_cmp.pubkey);
-      pubkey_cmp.compressed = true;
+      pubkey_cmp = CryptoECDSA::CompressPoint(pubkey);
       keyPtr = &pubkey_cmp;
    }
    else

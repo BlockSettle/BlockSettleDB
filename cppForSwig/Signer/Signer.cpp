@@ -978,7 +978,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
       case SpenderStatus::Signed:
       {
          finalInputScript_ = obj.finalInputScript_;
-         //fallthrough
+         [[fallthrough]];
       }
       
       default:
@@ -1009,7 +1009,7 @@ void ScriptSpender::merge(const ScriptSpender& obj)
       case SpenderStatus::Signed:
       {
          finalWitnessData_ = obj.finalWitnessData_;
-         //fallthrough
+         [[fallthrough]];
       }
 
       default:
@@ -2905,10 +2905,10 @@ shared_ptr<SigHashData> Signer::getSigHashDataForSpender(bool sw) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unique_ptr<TransactionVerifier> Signer::getVerifier(shared_ptr<BCTX> bctx,
+unique_ptr<Armory::Signer::TransactionVerifier> Signer::getVerifier(shared_ptr<BCTX> bctx,
    map<BinaryData, map<unsigned, UTXO>>& utxoMap)
 {
-   return move(make_unique<TransactionVerifier>(*bctx, utxoMap));
+   return move(make_unique<Armory::Signer::TransactionVerifier>(*bctx, utxoMap));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3986,20 +3986,11 @@ void SignerProxyFromSigner::setLambda(
       //sign
       auto&& sig = signer->signScript(script, privKey, SHD, index);
 
-      //convert to DER
-#ifndef LIBBTC_ONLY
-      auto&& derSig = BtcUtils::rsToDerSig(sig.getRef());
-
-      //append sighash byte
-      derSig.append(spender->getSigHashByte());
-      return SecureBinaryData(derSig);
-#else
       //append sighash byte
       SecureBinaryData sbd_hashbyte(1);
       *sbd_hashbyte.getPtr() = spender->getSigHashByte();
       sig.append(sbd_hashbyte);
       return sig;
-#endif
    };
 
    signerLambda_ = signerLBD;

@@ -144,6 +144,9 @@ public:
 
    static SecureBinaryData fromString(const std::string& str)
    {
+      if (str.empty())
+         return {};
+
       SecureBinaryData sbd(str.size());
       memcpy(sbd.getPtr(), str.c_str(), str.size());
       return sbd;

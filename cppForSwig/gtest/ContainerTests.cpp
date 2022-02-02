@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <thread>
-#include "gtest.h"
+#include <gtest/gtest.h>
 
 #include "../ThreadSafeClasses.h"
 

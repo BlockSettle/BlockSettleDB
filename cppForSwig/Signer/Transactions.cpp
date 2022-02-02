@@ -21,7 +21,7 @@ TransactionStub::~TransactionStub(void)
 //// TransactionVerifier
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-bool TransactionVerifier::verify(bool noCatch, bool strict) const
+bool Armory::Signer::TransactionVerifier::verify(bool noCatch, bool strict) const
 {
    if (strict)
    {
@@ -40,7 +40,7 @@ bool TransactionVerifier::verify(bool noCatch, bool strict) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TxEvalState TransactionVerifier::evaluateState(bool strict) const
+TxEvalState Armory::Signer::TransactionVerifier::evaluateState(bool strict) const
 {
    /*
    Strict checks verify spend value as well but require the full supporting
@@ -52,7 +52,7 @@ TxEvalState TransactionVerifier::evaluateState(bool strict) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint64_t TransactionVerifier::checkOutputs() const
+uint64_t Armory::Signer::TransactionVerifier::checkOutputs() const
 {
    /*check values and return fee, return UINT64_MAX on failure*/
    
@@ -97,7 +97,7 @@ uint64_t TransactionVerifier::checkOutputs() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void TransactionVerifier::checkSigs() const
+void Armory::Signer::TransactionVerifier::checkSigs() const
 {
    txEvalState_.reset();
 
@@ -116,7 +116,7 @@ void TransactionVerifier::checkSigs() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-void TransactionVerifier::checkSigs_NoCatch() const
+void Armory::Signer::TransactionVerifier::checkSigs_NoCatch() const
 {
    txEvalState_.reset();
 
@@ -129,7 +129,7 @@ void TransactionVerifier::checkSigs_NoCatch() const
 
 ////////////////////////////////////////////////////////////////////////////////
 unique_ptr<Armory::Signer::StackInterpreter>
-TransactionVerifier::getStackInterpreter(unsigned inputid) const
+Armory::Signer::TransactionVerifier::getStackInterpreter(unsigned inputid) const
 {
    auto sstack = make_unique<Armory::Signer::StackInterpreter>(this, inputid);
    auto flags = sstack->getFlags();
@@ -139,7 +139,7 @@ TransactionVerifier::getStackInterpreter(unsigned inputid) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-TxInEvalState TransactionVerifier::checkSig(unsigned inputId,
+TxInEvalState Armory::Signer::TransactionVerifier::checkSig(unsigned inputId,
    Armory::Signer::StackInterpreter* sstack_ptr) const
 {
    //grab the uxto
@@ -202,7 +202,7 @@ TxInEvalState TransactionVerifier::checkSig(unsigned inputId,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef TransactionVerifier::getSerializedOutputScripts(void) const
+BinaryDataRef Armory::Signer::TransactionVerifier::getSerializedOutputScripts(void) const
 {
    auto txOutCount = theTx_.txouts_.size();
    auto firstTxOutOffset = theTx_.txouts_[0].first;
@@ -214,7 +214,7 @@ BinaryDataRef TransactionVerifier::getSerializedOutputScripts(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<TxInData> TransactionVerifier::getTxInsData(void) const
+vector<TxInData> Armory::Signer::TransactionVerifier::getTxInsData(void) const
 {
    vector<TxInData> datavec;
 
@@ -241,7 +241,7 @@ vector<TxInData> TransactionVerifier::getTxInsData(void) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData TransactionVerifier::getSubScript(unsigned index) const
+BinaryData Armory::Signer::TransactionVerifier::getSubScript(unsigned index) const
 {
    auto&& txinref = theTx_.getTxInRef(index);
    auto&& outputHash = txinref.getSliceRef(0, 32);
@@ -265,7 +265,7 @@ BinaryData TransactionVerifier::getSubScript(unsigned index) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef TransactionVerifier::getWitnessData(unsigned inputId) const
+BinaryDataRef Armory::Signer::TransactionVerifier::getWitnessData(unsigned inputId) const
 {
    if (inputId >= theTx_.witnesses_.size())
       throw runtime_error("invalid witness data id");
@@ -276,7 +276,7 @@ BinaryDataRef TransactionVerifier::getWitnessData(unsigned inputId) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData TransactionVerifier::serializeAllOutpoints() const
+BinaryData Armory::Signer::TransactionVerifier::serializeAllOutpoints() const
 {
    BinaryWriter bw;
    for (unsigned i = 0; i < theTx_.txins_.size(); i++)
@@ -286,7 +286,7 @@ BinaryData TransactionVerifier::serializeAllOutpoints() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryData TransactionVerifier::serializeAllSequences() const
+BinaryData Armory::Signer::TransactionVerifier::serializeAllSequences() const
 {
    BinaryWriter bw;
    for (auto& txinOnS : theTx_.txins_)
@@ -301,7 +301,7 @@ BinaryData TransactionVerifier::serializeAllSequences() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BinaryDataRef TransactionVerifier::getOutpoint(unsigned inputID) const
+BinaryDataRef Armory::Signer::TransactionVerifier::getOutpoint(unsigned inputID) const
 {
    if (inputID >= theTx_.txins_.size())
       throw runtime_error("invalid txin index");
@@ -312,7 +312,7 @@ BinaryDataRef TransactionVerifier::getOutpoint(unsigned inputID) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-uint64_t TransactionVerifier::getOutpointValue(unsigned inputID) const
+uint64_t Armory::Signer::TransactionVerifier::getOutpointValue(unsigned inputID) const
 {
    auto outpoint = getOutpoint(inputID);
 
@@ -332,7 +332,7 @@ uint64_t TransactionVerifier::getOutpointValue(unsigned inputID) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-unsigned TransactionVerifier::getTxInSequence(unsigned inputID) const
+unsigned Armory::Signer::TransactionVerifier::getTxInSequence(unsigned inputID) const
 {
    if (inputID >= theTx_.txins_.size())
       throw Armory::Signer::ScriptException("invalid txin index");

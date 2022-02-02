@@ -17,7 +17,7 @@
 #include "../SecureBinaryData.h"
 #include "../Wallets/BIP32_Node.h"
 
-#include "../protobuf/Signer.pb.h"
+#include "protobuf/Signer.pb.h"
 
 ////
 class NoAssetException : public std::runtime_error

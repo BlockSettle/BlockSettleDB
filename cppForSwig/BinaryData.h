@@ -581,19 +581,19 @@ class BinaryDataRef
 {
 public:
    /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef(void) : ptr_(NULL), nBytes_(0)     
+   BinaryDataRef(void) : ptr_(NULL), nBytes_(0)
    {
       // Nothing to put here
    }
    /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef(uint8_t const * inData, size_t sz) 
+   BinaryDataRef(uint8_t const * inData, size_t sz)
    { 
-      setRef(inData, sz); 
+      setRef(inData, sz);
    }
    /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef(uint8_t const * dstart, uint8_t const * dend )
+   BinaryDataRef(uint8_t const * dstart, uint8_t const * dend)
    { 
-      setRef(dstart,dend); 
+      setRef(dstart,dend);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -631,16 +631,16 @@ public:
    bool empty(void) const { return nBytes_ == 0; }
 
    /////////////////////////////////////////////////////////////////////////////
-   void setRef(uint8_t const * inData, size_t sz)          
-   { 
-      ptr_ = inData; 
+   void setRef(uint8_t const * inData, size_t sz)
+   {
+      ptr_ = inData;
       nBytes_ = sz;
    }
-   void setRef(uint8_t const * start, uint8_t const * end) 
+   void setRef(uint8_t const * start, uint8_t const * end)
                   { setRef( start, (end-start)); }  // [start, end)
    void setRef(std::string const & str)
-                  { setRef( (uint8_t*)str.data(), str.size()); } 
-   void setRef(BinaryData const & bd)                      
+                  { setRef( (uint8_t*)str.data(), str.size()); }
+   void setRef(BinaryData const & bd)
                   { setRef( bd.getPtr(), bd.getSize() ); }
 
    static BinaryDataRef fromString(const std::string& str, size_t len=SIZE_MAX)
@@ -826,6 +826,9 @@ public:
    {
       return (ptr_ == bdRef2.ptr_ && nBytes_ == bdRef2.nBytes_);
    }
+
+   /////////////////////////////////////////////////////////////////////////////
+   BinaryDataRef& operator=(const BinaryDataRef&);
 
    /////////////////////////////////////////////////////////////////////////////
    bool operator<(BinaryDataRef const & bd2) const;

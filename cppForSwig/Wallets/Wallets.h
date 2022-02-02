@@ -51,16 +51,21 @@ namespace Armory
       //////////////////////////////////////////////////////////////////////////
       struct WalletPublicData
       {
+      public:
          const std::string dbName_;
          const std::string masterID_;
          const std::string walletID_;
          const AddressAccountId mainAccountID_;
 
-         std::shared_ptr<Assets::AssetEntry_Single> pubRoot_;
+         std::shared_ptr<Assets::AssetEntry_Single> pubRoot_{};
          std::map<AddressAccountId,
-            Accounts::AddressAccountPublicData> accounts_;
+            Accounts::AddressAccountPublicData> accounts_{};
          std::map<Accounts::MetaAccountType,
-            std::shared_ptr<Accounts::MetaDataAccount>> metaAccounts_;
+            std::shared_ptr<Accounts::MetaDataAccount>> metaAccounts_{};
+
+      public:
+         WalletPublicData(const std::string&, const std::string&,
+            const std::string&, const AddressAccountId&);
       };
 
       //////////////////////////////////////////////////////////////////////////

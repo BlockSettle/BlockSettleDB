@@ -9,7 +9,7 @@
 #include <string>
 #include <iostream>
 #include <sstream>
-#include "btc/ecc.h"
+#include <btc/ecc.h>
 
 #include "ArmoryConfig.h"
 #include "BDM_mainthread.h"
@@ -23,7 +23,7 @@ using namespace Armory::Config;
 
 int main(int argc, char* argv[])
 {
-   btc_ecc_start();
+   CryptoECDSA::setupContext();
    startupBIP151CTX();
    startupBIP150CTX(4);
 
@@ -35,8 +35,19 @@ int main(int argc, char* argv[])
    WSAStartup(wVersion, &wsaData);
 #endif
 
-   Armory::Config::parseArgs(argc, argv, Armory::Config::ProcessType::DB);
-   
+   try
+   {
+      Armory::Config::parseArgs(argc, argv, Armory::Config::ProcessType::DB);
+   }
+   catch (const DbErrorMsg& e)
+   {
+      cout << "Failed to setup with error:" << endl;
+      cout << "   " << e.what() << endl;
+      cout << "Aborting!" << endl;
+
+      return -1;
+   }
+
    cout << "logging in " << Pathing::logFilePath(LOG_FILE_NAME) << endl;
    STARTLOGGING(Pathing::logFilePath(LOG_FILE_NAME), LogLvlDebug);
    if (!NetworkSettings::useCookie())
@@ -69,10 +80,11 @@ int main(int argc, char* argv[])
    {
       //setup remote peers db, this will block the init process until 
       //peers db is unlocked
+      LOGINFO << "datadir: " << Armory::Config::getDataDir();
       auto&& passLbd = TerminalPassphrasePrompt::getLambda("peers db");
       WebSocketServer::initAuthPeers(passLbd);
    }
-    
+
    //start up blockchain service
    bdmThread.start(DBSettings::initMode());
 
@@ -91,7 +103,7 @@ int main(int argc, char* argv[])
    google::protobuf::ShutdownProtobufLibrary();
 
    shutdownBIP151CTX();
-   btc_ecc_stop();
+   CryptoECDSA::shutdown();
 
    return 0;
 }

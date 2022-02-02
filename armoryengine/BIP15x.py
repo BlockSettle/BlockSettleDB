@@ -1,8 +1,8 @@
 ################################################################################
 #                                                                              #
-# Copyright (C) 2020, Armory Technologies, Inc.                                #
-# Distributed under the GNU Affero General Public License (AGPL v3)            #
-# See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
+# Copyright (C) 2020-2021, goatpig.                                            #
+#  Distributed under the MIT license                                           #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
 #                                                                              #
 ################################################################################
 

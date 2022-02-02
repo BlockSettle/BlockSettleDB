@@ -534,25 +534,8 @@ class DlgAddressBook(ArmoryDialog):
          isP2SHLockbox(str(self.btnSelectAddr.text())):
          self.acceptLockBoxSelection()
       else:
-         atype,a160 = addrStr_to_hash160(self.selectedAddr)
-         if atype==P2SHBYTE and self.returnPubKey:
-            LOGERROR('Cannot select P2SH address when selecting a public key!')
-            QMessageBox.critical(self, self.tr("P2SH Not Allowed"), self.tr(
-               'This operation requires a public key, but you selected a '
-               'P2SH address which does not have a public key (these addresses '
-               'start with "2" or "3").  Please select a different address.'), \
-               QMessageBox.Ok)
-            return
-
          if self.target:
-            if not self.returnPubKey:
-               self.target.setText(self.selectedAddr)
-            else:
-               pubKeyHash = self.getPubKeyForAddr160(a160)
-               if pubKeyHash is None:
-                  return
-               self.target.setText(pubKeyHash)
-
+            self.target.setText(self.selectedAddr)
             self.target.setCursorPosition(0)
             self.accept()
 

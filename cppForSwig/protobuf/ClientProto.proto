@@ -62,7 +62,10 @@ enum Methods
     cs_getUtxoSelection = 115;
     cs_getFlatFee = 116;
     cs_getFeeByte = 117;
-    cs_ProcessCustomUtxoList = 118;
+    cs_getSizeEstimate = 118;
+    cs_ProcessCustomUtxoList = 119;
+    cs_getFeeForMaxVal = 120;
+    cs_getFeeForMaxValUtxoVector = 121;
 
     initNewSigner = 130;
     destroySigner = 131;
@@ -81,6 +84,7 @@ enum Methods
 
     getHash160 = 200;
     getBlockTimeByHeight = 201;
+    estimateFee = 202;
 
     methodWithCallback = 220;
 }
@@ -334,6 +338,13 @@ message ReplyError
     required bool isError = 24;
     required string error = 25;
     optional uint32 code = 26;
+}
+
+message BridgeFeeEstimate
+{
+    required float feeByte = 1;
+    optional bool smartFee = 2;
+    optional string error = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

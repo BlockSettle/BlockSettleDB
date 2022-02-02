@@ -1492,15 +1492,17 @@ TEST_F(ZeroConfTests_FullNode, Load4Blocks_ReloadBDM_ZC_Plus2)
    EXPECT_EQ(wltLB2->getFullBalance(), 15 * COIN);
 
    //add ZC
+   string zcPath(TestUtils::dataDir + "/ZCtx.tx");
    BinaryData rawZC(TestChain::zcTxSize);
-   FILE *ff = fopen("../reorgTest/ZCtx.tx", "rb");
+   FILE *ff = fopen(zcPath.c_str(), "rb");
    fread(rawZC.getPtr(), TestChain::zcTxSize, 1, ff);
    fclose(ff);
    DBTestUtils::ZcVector rawZcVec;
    rawZcVec.push_back(move(rawZC), 0);
 
+   string lbPath(TestUtils::dataDir + "/LBZC.tx");
    BinaryData rawLBZC(TestChain::lbZCTxSize);
-   FILE *flb = fopen("../reorgTest/LBZC.tx", "rb");
+   FILE *flb = fopen(lbPath.c_str(), "rb");
    fread(rawLBZC.getPtr(), TestChain::lbZCTxSize, 1, flb);
    fclose(flb);
    DBTestUtils::ZcVector rawLBZcVec;
@@ -2285,13 +2287,15 @@ TEST_F(ZeroConfTests_FullNode, Load4Blocks_ZC_GetUtxos)
 
 
    //add ZC
+   string zcPath(TestUtils::dataDir + "/ZCtx.tx");
    BinaryData rawZC(TestChain::zcTxSize);
-   FILE *ff = fopen("../reorgTest/ZCtx.tx", "rb");
+   FILE *ff = fopen(zcPath.c_str(), "rb");
    fread(rawZC.getPtr(), TestChain::zcTxSize, 1, ff);
    fclose(ff);
 
+   string lbPath(TestUtils::dataDir + "/LBZC.tx");
    BinaryData rawLBZC(TestChain::lbZCTxSize);
-   FILE *flb = fopen("../reorgTest/LBZC.tx", "rb");
+   FILE *flb = fopen(lbPath.c_str(), "rb");
    fread(rawLBZC.getPtr(), TestChain::lbZCTxSize, 1, flb);
    fclose(flb);
 
@@ -2616,7 +2620,7 @@ TEST_F(ZeroConfTests_FullNode, Replace_ZC_Test)
       Signer signer3;
 
       //instantiate resolver feed overloaded object
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
@@ -3252,7 +3256,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
       Signer signer3;
 
       //instantiate resolver feed overloaded object
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
@@ -3360,7 +3364,7 @@ TEST_F(ZeroConfTests_FullNode, ChainZC_RBFchild_Test)
 
       //instantiate resolver feed
       auto assetFeed = 
-         make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+         make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getRBFTxOutList();
@@ -4692,7 +4696,7 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
       Signer signer3;
 
       //instantiate resolver feed overloaded object
-      auto assetFeed = make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+      auto assetFeed = make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getSpendableTxOutListZC();
@@ -4781,7 +4785,7 @@ TEST_F(ZeroConfTests_Supernode, ChainZC_RBFchild_Test)
 
       //instantiate resolver feed
       auto assetFeed =
-         make_shared<ResolverFeed_AssetWalletSingle>(assetWlt);
+         make_shared<Armory::Signer::ResolverFeed_AssetWalletSingle>(assetWlt);
 
       //get utxo list for spend value
       auto&& unspentVec = dbAssetWlt->getRBFTxOutList();
@@ -12595,7 +12599,7 @@ GTEST_API_ int main(int argc, char **argv)
    cout << "   POOL_MERGE_THRESHOLD: " << POOL_MERGE_THRESHOLD << endl;
    cout << "   COINBASE_MATURITY: " << COINBASE_MATURITY << endl;
 
-   btc_ecc_start();
+   CryptoECDSA::setupContext();
 
    GOOGLE_PROTOBUF_VERIFY_VERSION;
    srand(time(0));
@@ -12608,6 +12612,6 @@ GTEST_API_ int main(int argc, char **argv)
    CLEANUPLOG();
    google::protobuf::ShutdownProtobufLibrary();
 
-   btc_ecc_stop();
+   CryptoECDSA::shutdown();
    return exitCode;
 }

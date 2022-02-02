@@ -22,9 +22,12 @@ static struct lws_protocols protocols[] =
       WebSocketClient::callback,
       sizeof(struct per_session_data__client),
       per_session_data__client::rcv_size,
+      1,
+      NULL,
+      0
    },
 
-   { NULL, NULL, 0, 0 } /* terminator */
+   { NULL, NULL, 0, 0, 0, NULL, 0 } /* terminator */
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -376,7 +379,7 @@ int WebSocketClient::callback(struct lws *wsi,
          LOGERR << "no error message was provided by lws";
       }
 
-      //fallthrough
+      [[fallthrough]];
    }
 
    case LWS_CALLBACK_CLIENT_CLOSED:

@@ -38,19 +38,25 @@ static struct lws_protocols protocols[] = {
    /* first protocol must always be HTTP handler */
 
    {
-      "http-only",		/* name */
-      callback_http,		/* callback */
-      sizeof(struct per_session_data__http),	/* per_session_data_size */
-      0,			/* max frame size / rx buffer */
+      "http-only",   /* name */
+      callback_http, /* callback */
+      sizeof(struct per_session_data__http), /* per_session_data_size */
+      0,    /* max frame size / rx buffer */
+      1,    /* id, custom value ignored by lws */
+      NULL, /* user, custom value ignored by lws */
+      0     /* rx_buffer_size, 0 for backwards compatibility */
    },
    {
       "armory-bdm-protocol",
       WebSocketServer::callback,
       sizeof(struct per_session_data__bdv),
       per_session_data__bdv::rcv_size,
+      2,
+      nullptr,
+      0
    },
 
-{ NULL, NULL, 0, 0 } /* terminator */
+{ NULL, NULL, 0, 0, 0, NULL, 0 } /* terminator */
 };
 
 ///////////////////////////////////////////////////////////////////////////////
