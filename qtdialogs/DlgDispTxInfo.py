@@ -1022,3 +1022,4 @@ def extractTxInfo(pytx, rcvTime=None):
       sumTxIn = None
 
    return [txHash, txOutToList, sumTxOut, txinFromList, sumTxIn, \
+      txTime, txBlk, txIdx, txSize, txWeight]
