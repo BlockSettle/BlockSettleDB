@@ -1052,7 +1052,7 @@ void Pathing::processArgs(const map<string, string>& args, ProcessType procType)
       return;
    }
 
-   //create dbdir if was set automatically
+   //create dbdir if set automatically
    if (autoDbDir)
    {
       if (!testPath(dbDir_, 0))
@@ -1068,8 +1068,7 @@ void Pathing::processArgs(const map<string, string>& args, ProcessType procType)
    //now for the regular test, let it throw if it fails
    if (!testPath(dbDir_, 6))
    {
-      string errMsg = Armory::Config::getDataDir() +
-         " is not a valid db path";
+      string errMsg = dbDir_ + " is not a valid db path";
       throw DbErrorMsg(errMsg); 
    }
 
@@ -1082,8 +1081,7 @@ void Pathing::processArgs(const map<string, string>& args, ProcessType procType)
    {
       if (!testPath(blkFilePath_, 2))
       {
-         string errMsg = Armory::Config::getDataDir() +
-            " is not a valid blockchain data path";
+         string errMsg = blkFilePath_ + " is not a valid blockchain data path";
          throw DbErrorMsg(errMsg); 
       }
    }
