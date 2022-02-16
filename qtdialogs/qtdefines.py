@@ -22,7 +22,7 @@ from PySide2.QtGui import QFont, QIcon, QFontMetricsF, QPixmap, \
 from PySide2.QtWidgets import QWidget, QDialog, QFrame, QLabel, \
    QStyledItemDelegate, QTableView, QHBoxLayout, QLayoutItem, \
    QVBoxLayout, QCheckBox, QDialogButtonBox, QPushButton, \
-   QSpacerItem, QSizePolicy, QGridLayout, QApplication
+   QSpacerItem, QSizePolicy, QGridLayout, QApplication, QRadioButton
 
 import urllib
 
@@ -415,6 +415,7 @@ class QLabelButton(QLabel):
       ssStr = "QLabel { background-color : %s }" % htmlColor('LBtnNormalBG')
       self.setStyleSheet(ssStr)
 
+################################################################################
 def makeLayoutFrame(dirStr, widgetList, style=QFrame.NoFrame, condenseMargins=False):
    frm = QFrame()
    frm.setFrameStyle(style)
@@ -526,7 +527,24 @@ def saveTableView(qtbl):
    return 'ff' + first + ''.join(rest)
 
 
+################################################################################
+class QRadioButtonBackupCtr(QRadioButton):
+   def __init__(self, parent, txt, index):
+      super(QRadioButtonBackupCtr, self).__init__(txt)
+      self.parent = parent
+      self.index = index
 
+   def enterEvent(self, ev):
+      pass
+      # self.parent.setDispFrame(self.index)
+      # self.setStyleSheet('QRadioButton { background-color : %s }' % \
+                                          # htmlColor('SlightBkgdDark'))
+
+   def leaveEvent(self, ev):
+      pass
+      # self.parent.setDispFrame(-1)
+      # self.setStyleSheet('QRadioButton { background-color : %s }' % \
+                                          # htmlColor('Background'))
 
 
 ################################################################################

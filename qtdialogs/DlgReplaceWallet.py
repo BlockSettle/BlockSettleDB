@@ -12,11 +12,9 @@
 
 import os
 
-from PySide2.QtCore import SIGNAL
 from PySide2.QtWidgets import QGridLayout, QLabel, QPushButton
 
 from armoryengine.ArmoryUtils import LOGEXCEPT, RightNowStr
-from armoryengine.PyBtcWalletRecovery import RECOVERMODE
 
 from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.DlgProgress import DlgProgress
@@ -24,7 +22,7 @@ from qtdialogs.DlgProgress import DlgProgress
 ################################################################################
 class DlgReplaceWallet(ArmoryDialog):
 
-    #############################################################################
+   #############################################################################
    def __init__(self, WalletID, parent, main):
       super(DlgReplaceWallet, self).__init__(parent, main)
 
@@ -46,9 +44,9 @@ class DlgReplaceWallet(ArmoryDialog):
       self.btnReplace = QPushButton(self.tr('Overwrite'))
       self.btnSaveMeta = QPushButton(self.tr('Merge'))
 
-      self.connect(self.btnAbort, SIGNAL('clicked()'), self.reject)
-      self.connect(self.btnReplace, SIGNAL('clicked()'), self.Replace)
-      self.connect(self.btnSaveMeta, SIGNAL('clicked()'), self.SaveMeta)
+      self.btnAbort.clicked.connect(self.reject)
+      self.btnReplace.clicked.connect(self.Replace)
+      self.btnSaveMeta.clicked.connect(self.SaveMeta)
 
       layoutDlg = QGridLayout()
 
@@ -60,7 +58,7 @@ class DlgReplaceWallet(ArmoryDialog):
       self.setLayout(layoutDlg)
       self.setWindowTitle('Wallet already exists')
 
-    #########
+   #########
    def Replace(self):
       self.main.removeWalletFromApplication(self.WalletID)
 
@@ -88,8 +86,10 @@ class DlgReplaceWallet(ArmoryDialog):
       self.output =1
       self.accept()
 
-    #########
+   #########
    def SaveMeta(self):
+      raise Exception("regression, fix me")
+      '''
       from armoryengine.PyBtcWalletRecovery import PyBtcWalletRecovery
 
       metaProgress = DlgProgress(self, self.main, Title=self.tr('Ripping Meta Data'))
@@ -99,3 +99,4 @@ class DlgReplaceWallet(ArmoryDialog):
                                      Mode=RECOVERMODE.Meta,
                                      Progress=metaProgress.UpdateText)
       self.Replace()
+      '''

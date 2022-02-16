@@ -10,7 +10,8 @@
 #                                                                            #
 ##############################################################################
 
-from PySide2.QtWidgets import QCheckBox, QDialogButtonBox, QGridLayout, QLabel, QLineEdit, QMessageBox, QPushButton
+from PySide2.QtWidgets import QCheckBox, QDialogButtonBox, QGridLayout, \
+   QLabel, QLineEdit, QMessageBox, QPushButton
 from PySide2.QtGui import QIcon
 from PySide2.QtCore import Qt, SIGNAL, SLOT
 
@@ -114,8 +115,7 @@ class DlgChangePassphrase(ArmoryDialog):
       p2 = self.edtPasswd2.text()
       goodColor = htmlColor('TextGreen')
       badColor = htmlColor('TextRed')
-      if not isASCII(p1) or \
-         ot isASCII(p2):
+      if not isASCII(p1) or not isASCII(p2):
          self.lblMatches.setText(self.tr('<font color=%s><b>Passphrase is non-ASCII!</b></font>' % badColor))
          return False
       if not p1 == p2:

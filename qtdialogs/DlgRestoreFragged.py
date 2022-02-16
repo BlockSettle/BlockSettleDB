@@ -585,3 +585,4 @@ class DlgRestoreFragged(ArmoryDialog):
       subsAndIDs = [(row[0], calcWalletIDFromRoot(*row[1])) for row in results]
 
       DlgShowTestResults(self, isRandom, subsAndIDs, \
+         M, len(fragMtrx), self.testWltID).exec_()

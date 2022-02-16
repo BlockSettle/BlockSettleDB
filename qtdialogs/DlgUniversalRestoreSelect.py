@@ -9,11 +9,15 @@
 #  See LICENSE-MIT or https://opensource.org/licenses/MIT                    #
 #                                                                            #
 ##############################################################################
-from qtdialogs.ArmoryDialog import ArmoryDialog
-from qtdialogs.qtdefines import HLINE, QRichLabel
+from PySide2.QtWidgets import QCheckBox, QDialogButtonBox, QPushButton, \
+   QVBoxLayout, QRadioButton, QButtonGroup
+
 from armoryengine.ArmoryUtils import LOGINFO
-from PySide2.QtWidgets import QCheckBox, QDialogButtonBox, QPushButton, QVBoxLayout
-from PySide2.QtCore import SIGNAL
+from qtdialogs.qtdefines import HLINE, QRichLabel
+from qtdialogs.ArmoryDialog import ArmoryDialog
+from qtdialogs.DlgRestoreSingle import DlgRestoreSingle
+from qtdialogs.DlgRestoreFragged import DlgRestoreFragged
+from qtdialogs.DlgRestoreWOData import DlgRestoreWOData
 
 ################################################################################
 class DlgUniversalRestoreSelect(ArmoryDialog):
@@ -42,18 +46,18 @@ class DlgUniversalRestoreSelect(ArmoryDialog):
       btngrp.setExclusive(True)
 
       self.rdoSingle.setChecked(True)
-      self.connect(self.rdoSingle, SIGNAL("clicked()"), self.clickedRadio)
-      self.connect(self.rdoFragged, SIGNAL("clicked()"), self.clickedRadio)
-      self.connect(self.rdoDigital, SIGNAL("clicked()"), self.clickedRadio)
-      self.connect(self.rdoWOData, SIGNAL("clicked()"), self.clickedRadio)
+      self.rdoSingle.clicked.connect(self.clickedRadio)
+      self.rdoFragged.clicked.connect(self.clickedRadio)
+      self.rdoDigital.clicked.connect(self.clickedRadio)
+      self.rdoWOData.clicked.connect(self.clickedRadio)
 
       self.btnOkay = QPushButton(self.tr('Continue'))
       self.btnCancel = QPushButton(self.tr('Cancel'))
       buttonBox = QDialogButtonBox()
       buttonBox.addButton(self.btnOkay, QDialogButtonBox.AcceptRole)
       buttonBox.addButton(self.btnCancel, QDialogButtonBox.RejectRole)
-      self.connect(self.btnOkay, SIGNAL("clicked()"), self.clickedOkay)
-      self.connect(self.btnCancel, SIGNAL("clicked()"), self.reject)
+      self.btnOkay.clicked.connect(self.clickedOkay)
+      self.btnCancel.clicked.connect(self.reject)
 
 
       layout = QVBoxLayout()

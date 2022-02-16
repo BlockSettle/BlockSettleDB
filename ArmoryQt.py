@@ -84,8 +84,8 @@ from qtdialogs.qtdefines import GETFONT, NETWORKMODE, \
    restoreTableView, determineWalletType, WLTTYPES, tightSizeStr, \
    QLabelButton, MSGBOX, saveTableView
 
-from qtdialogs.qtdialogs import URLHandler, ArmorySplashScreen, LoadingDisp
 from qtdialogs.ArmoryDialog import ArmoryDialog
+from qtdialogs.qtdialogs import URLHandler, ArmorySplashScreen, LoadingDisp
 from qtdialogs.DlgMigrateWallet import DlgMigrateWallet
 from qtdialogs.DlgSendBitcoins import DlgSendBitcoins
 from qtdialogs.DlgAddressBook import DlgAddressBook, createAddrBookButton
@@ -105,6 +105,8 @@ from qtdialogs.DlgWltRecoverWallet import DlgWltRecoverWallet
 from qtdialogs.DlgHelpAbout import DlgHelpAbout
 from qtdialogs.MsgBoxCustom import MsgBoxCustom
 from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
+from qtdialogs.DlgUniversalRestoreSelect import DlgUniversalRestoreSelect
+
 
 from ui.QtExecuteSignal import QtExecuteSignal
 

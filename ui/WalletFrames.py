@@ -37,7 +37,8 @@ from qtdialogs.DlgShowKeyList    import DlgShowKeyList
 
 # Need to put circular imports at the end of the script to avoid an import deadlock
 from qtdialogs.qtdialogs import STRETCH, MIN_PASSWD_WIDTH, \
-   QRadioButtonBackupCtr, OpenPaperBackupWindow
+   OpenPaperBackupWindow
+from qtdialogs.qtdefines import QRadioButtonBackupCtr
 
 from ui.CoinControlUI import CoinControlDlg, RBFDlg
 

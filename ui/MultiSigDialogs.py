@@ -3528,12 +3528,12 @@ class DlgCreatePromNote(ArmoryDialog):
          cppTx = TheBDM.getTxByHash(txHash)
          if not cppTx.isInitialized():
             LOGERROR('UTXO was supplied for which we could not find prev Tx')
-            QMessageBox.warning(self, self.tr('Transaction Not Found'), self.trUtf8(
-                'There was an error creating the promissory note -- the selected '
-                'coins were not found in the blockchain.  Please go to '
-                '"<i>Help</i>"\xe2\x86\x92"<i>Submit Bug Report</i>" from '
-                'the main window and submit your log files so the Armory team '
-                'can review this error.'), QMessageBox.Ok)
+            QMessageBox.warning(self, self.tr('Transaction Not Found'), self.tr(
+               'There was an error creating the promissory note -- the selected '
+               'coins were not found in the blockchain.  Please go to '
+               '"<i>Help</i>"\xe2\x86\x92"<i>Submit Bug Report</i>" from '
+               'the main window and submit your log files so the Armory team '
+               'can review this error.'), QMessageBox.Ok)
 
          rawTx = cppTx.serialize()
          utxoScrAddr = utxo.getRecipientScrAddr()
