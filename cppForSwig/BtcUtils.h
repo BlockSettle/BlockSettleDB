@@ -1857,13 +1857,13 @@ public:
 
    static std::string computeID(const SecureBinaryData& pubkey);
 
+   //HMAC
    static BinaryData getHMAC256(
       const SecureBinaryData& key,
       const SecureBinaryData& message);
    static BinaryData getHMAC512(
       const SecureBinaryData& key,
       const SecureBinaryData& message);
-
 
    static BinaryData getHMAC256(
       const BinaryData& key,
@@ -1876,12 +1876,14 @@ public:
       const std::string& key,
       const SecureBinaryData& message);
 
-
-
    static void getHMAC256(const uint8_t* keyptr, size_t keylen,
       const char* msg, size_t msglen, uint8_t* digest);
    static void getHMAC512(const void* keyptr, size_t keylen,
       const void* msg, size_t msglen, void* digest);
+
+   static BinaryData getBotchedArmoryHMAC256(
+      const BinaryData& key, const BinaryData& msg);
+   
 
    static SecureBinaryData computeChainCode_Armory135(
       const SecureBinaryData& privateRoot);

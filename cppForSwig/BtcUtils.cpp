@@ -189,6 +189,40 @@ void BtcUtils::getHMAC512(const void* keyptr, size_t keylen,
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+BinaryData BtcUtils::getBotchedArmoryHMAC256(
+   const BinaryData& key, const BinaryData& msg)
+{
+   BinaryData hmacKey;
+   if (key.getSize() > 32)
+   {
+      hmacKey = BtcUtils::getSha256(key);
+   }
+   else if (key.getSize() <= 32)
+   {
+      hmacKey.resize(32);
+      memcpy(hmacKey.getPtr(), key.getPtr(), key.getSize());
+      memset(hmacKey.getPtr() + key.getSize(), 0, 32 - key.getSize());
+   }
+
+   BinaryData oxor(32), ixor(32);
+   for (int i=0; i<32; i++)
+   {
+      oxor.getPtr()[i] = hmacKey.getPtr()[i] ^ 0x5c;
+      ixor.getPtr()[i] = hmacKey.getPtr()[i] ^ 0x36;
+   }
+
+   ixor.append(msg);
+   auto iHash = BtcUtils::getSha256(ixor);
+
+   BinaryWriter bw;
+   bw.put_BinaryData(oxor);
+   bw.put_BinaryData(iHash);
+
+   return BtcUtils::getSha256(bw.getData());
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
 SecureBinaryData BtcUtils::computeChainCode_Armory135(
    const SecureBinaryData& privateRoot)
 {
@@ -197,18 +231,16 @@ SecureBinaryData BtcUtils::computeChainCode_Armory135(
    key: double SHA256 of the root key
    message: 'Derive Chaincode from Root Key'
 
-   TODO: The Armory Python code uses a botched self implemented HMAC256, 
+   TODO: The Armory Python code uses a botched self implemented HMAC256,
    reproduce it here.
    */
 
-   auto&& hmacKey = BtcUtils::hash256(privateRoot);
-   string hmacMsg("Derive Chaincode from Root Key");
-   SecureBinaryData chainCode(32);
+   auto hmacKey = BtcUtils::hash256(privateRoot);
+   auto hmacMsg = BinaryData::fromString("Derive Chaincode from Root Key");
 
-   getHMAC256(hmacKey.getPtr(), hmacKey.getSize(),
-      hmacMsg.c_str(), hmacMsg.size(), chainCode.getPtr());
-
-   return chainCode;
+   //use key as is for invalid armory hmac256: armory erroneously uses the
+   //output size for sha256 (32 bytes) instead of the block size (64 bytes)
+   return getBotchedArmoryHMAC256(hmacKey, hmacMsg);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
