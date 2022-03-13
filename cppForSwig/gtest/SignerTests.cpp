@@ -3395,6 +3395,7 @@ TEST_F(SignerTest, SpendTest_MultipleSigners_ParallelSigning_GetUnsignedTx_Neste
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(SignerTest, GetUnsignedTxId)
 {
+   auto locktime = 1946132849;
    TestUtils::setBlocks({ "0", "1", "2", "3" }, blk0dat_);
 
    initBDM();
@@ -3540,8 +3541,22 @@ TEST_F(SignerTest, GetUnsignedTxId)
          signer.getTxId();
          EXPECT_TRUE(false);
       }
-      catch (exception&)
+      catch (const exception&)
       {}
+
+      try
+      {
+         //set a lock time, check it's encoded correctly
+         signer.setLockTime(locktime);
+         auto unsignedTx = signer.serializeUnsignedTx();
+
+         Tx tx(unsignedTx);
+         EXPECT_EQ(tx.getLockTime(), locktime);
+      }
+      catch (const exception&)
+      {
+         EXPECT_TRUE(false);
+      }
 
       //sign, verify then broadcast
       signer.sign();
@@ -3610,6 +3625,14 @@ TEST_F(SignerTest, GetUnsignedTxId)
          signer2.addRecipient(addrVec_1[1]->getRecipient(total - spendVal));
       }
 
+      //locktime deser test
+      {
+         signer2.setLockTime(++locktime);
+         auto unsignedTx = signer2.serializeUnsignedTx();
+
+         Tx tx(unsignedTx);
+         EXPECT_EQ(tx.getLockTime(), locktime);
+      }
       serializedSignerState = move(signer2.serializeState());
    }
 
@@ -3636,6 +3659,13 @@ TEST_F(SignerTest, GetUnsignedTxId)
          signer3.addRecipient(addrVec_2[1]->getRecipient(total - spendVal));
       }
 
+      //locktime deser test
+      {
+         auto unsignedTx = signer3.serializeUnsignedTx();
+
+         Tx tx(unsignedTx);
+         EXPECT_EQ(tx.getLockTime(), locktime);
+      }
       serializedSignerState = move(signer3.serializeState());
    }
 
@@ -3649,6 +3679,11 @@ TEST_F(SignerTest, GetUnsignedTxId)
    signer4.setFeed(assetFeed2);
 
    {
+      auto unsignedTx = signer4.serializeUnsignedTx();
+
+      Tx tx(unsignedTx);
+      EXPECT_EQ(tx.getLockTime(), locktime);
+
       auto lock = assetWlt_1->lockDecryptedContainer();
       signer4.sign();
    }
@@ -3714,6 +3749,11 @@ TEST_F(SignerTest, GetUnsignedTxId)
    BinaryData txid;
    try
    {
+      auto unsignedTx = signer5.serializeUnsignedTx();
+
+      Tx tx(unsignedTx);
+      EXPECT_EQ(tx.getLockTime(), locktime);
+
       txid = signer5.getTxId();
    }
    catch (...)

@@ -371,7 +371,6 @@ namespace Armory
             BinaryDataRef&, std::shared_ptr<ResolverFeed>);
 
          /*spender data getters*/
-
          std::shared_ptr<ScriptSpender> getSpender(unsigned) const;
          uint64_t getOutpointValue(unsigned) const override;
          unsigned getTxInSequence(unsigned) const override;
@@ -392,6 +391,12 @@ namespace Armory
          Codec_SignerState::SignerState serializeState(void) const;
          void deserializeState(const Codec_SignerState::SignerState&);
          void merge(const Signer& rhs);
+
+         BinaryData serializeState_Legacy(void) const;
+         std::string getLegacyB58ID(void);
+
+         std::string getTxSigCollect(void) const;
+         void fromTxSigCollect(const std::string&);
 
          //PSBT
          BinaryData toPSBT(void) const;

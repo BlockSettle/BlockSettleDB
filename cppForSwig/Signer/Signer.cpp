@@ -16,6 +16,7 @@
 
 #include "Addresses.h"
 #include "../TxOutScrRef.h"
+#include "../BitcoinSettings.h"
 
 using namespace std;
 using namespace Armory::Signer;
@@ -744,7 +745,7 @@ void ScriptSpender::serializeStateUtxo(
    else
    {
       auto outpoint = protoMsg.mutable_outpoint();
-      
+
       auto outputHashRef = getOutputHash();
       outpoint->set_txhash(outputHashRef.getPtr(), outputHashRef.getSize());
       outpoint->set_txoutindex(getOutputIndex());
@@ -1614,11 +1615,11 @@ void ScriptSpender::injectSignature(SecureBinaryData& sig, unsigned sigId)
 BinaryDataRef ScriptSpender::getRedeemScriptFromStack(
    const map<unsigned, shared_ptr<StackItem>>* stackPtr) const
 {
-   if (stackPtr == nullptr)   
+   if (stackPtr == nullptr)
       return BinaryDataRef();
 
    shared_ptr<StackItem> firstPushData;
-   
+
    //look for redeem script from sig stack items
    for (auto stackPair : *stackPtr)
    {
@@ -1801,7 +1802,7 @@ void ScriptSpender::toPSBT(BinaryWriter& bw) const
    //partial sigs
    {
       /*
-      This section only applies to MS or exotic scripts that can be 
+      This section only applies to MS or exotic scripts that can be
       partially signed. Single sig scripts go to the finalized
       section right away.
       */
@@ -2805,8 +2806,11 @@ BinaryDataRef Signer::serializeUnsignedTx(bool loose)
       bw.put_BinaryData(recipient->getSerializedScript());
 
    //no witness data for unsigned transactions
-   for (unsigned i=0; i < spenders_.size(); i++)
-      bw.put_uint8_t(0);
+   if (isSW)
+   {
+      for (unsigned i=0; i < spenders_.size(); i++)
+         bw.put_uint8_t(0);
+   }
 
    //lock time
    bw.put_uint32_t(lockTime_);
@@ -3214,6 +3218,203 @@ void Signer::merge(const Signer& rhs)
    bip32PublicRoots_.insert(
       rhs.bip32PublicRoots_.begin(), rhs.bip32PublicRoots_.end());
    matchAssetPathsWithRoots();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+BinaryData Signer::serializeState_Legacy() const
+{
+   if (isSegWit())
+      throw runtime_error("SW txs cannot be serialized to legacy format");
+
+   BinaryWriter bw;
+   bw.put_uint32_t(1);
+   auto magicBytes = Armory::Config::BitcoinSettings::getMagicBytes();
+   bw.put_BinaryData(magicBytes);
+   bw.put_uint32_t(0); //4 empty bytes
+
+   //inputs
+   bw.put_var_int(spenders_.size());
+   for (const auto& spender : spenders_)
+   {
+      BinaryWriter bwTxIn;
+      bwTxIn.put_uint32_t(1); //unsigned_tx_version
+      bwTxIn.put_BinaryData(magicBytes);
+      bwTxIn.put_BinaryData(spender->getOutpoint());
+
+      //supporting tx
+      try
+      {
+         const auto& tx = spender->getSupportingTx();
+         bwTxIn.put_var_int(tx.getSize());
+         bwTxIn.put_BinaryData(tx.serialize());
+      }
+      catch (const runtime_error&)
+      {
+         bwTxIn.put_var_int(0);
+      }
+
+      //p2sh map BASE_SCRIPT
+      if (!spender->isP2SH())
+      {
+         bwTxIn.put_var_int(0);
+      }
+      else
+      {
+         //we assume the spender is resolved since it's flagged as p2sh
+         if (spender->isSigned())
+         {
+            //if the spender is signed then the stack is empty, we'll have
+            //to retrieve the base script from the finalized stack. Let's
+            //keep it simple for now and look at it later.
+            throw runtime_error(
+               "Legacy signing across multiple wallets not supported yet");
+         }
+
+         auto script = spender->getRedeemScriptFromStack(
+            &spender->legacyStack_);
+         bwTxIn.put_var_int(script.getSize());
+         bwTxIn.put_BinaryData(script);
+      }
+
+      //contribID & label (lockbox fields, leaving them empty)
+      bwTxIn.put_var_int(0);
+      bwTxIn.put_var_int(0);
+
+      //sequence
+      bwTxIn.put_uint32_t(spender->getSequence());
+
+      //key & sig list
+      auto pubkeys = spender->getRelevantPubkeys();
+      bwTxIn.put_var_int(pubkeys.size());
+
+      for (const auto& pubkeyIt : pubkeys)
+      {
+         //pubkey
+         bwTxIn.put_var_int(pubkeyIt.second.getSize());
+         bwTxIn.put_BinaryData(pubkeyIt.second);
+
+         //sig, skipping for now
+         bwTxIn.put_var_int(0);
+
+         //wallet locator, skipping for now
+         bwTxIn.put_var_int(0);
+      }
+
+
+      //rest of p2sh map, for nested SW
+      //we'll ignore this as we dont allow legacy ser for SW txs
+
+      //finalize
+      bw.put_var_int(bwTxIn.getSize());
+      bw.put_BinaryData(bwTxIn.getData());
+   }
+
+   //outputs
+   list<BinaryWriter> serializedRecipients;
+   for (const auto& recipientList : recipients_)
+   {
+      BinaryWriter bwTxOut;
+      for (const auto& recipient : recipientList.second)
+      {
+         bwTxOut.put_uint32_t(1); //unsigned_tx_version
+         bwTxOut.put_BinaryData(magicBytes);
+
+         auto output = recipient->getSerializedScript();
+         auto script = output.getSliceRef(8, output.getSize()-8);
+
+         bwTxOut.put_BinaryData(script);
+         bwTxOut.put_uint64_t(recipient->getValue());
+
+         //p2sh script (ignore for now)
+         bwTxOut.put_var_int(0);
+
+         //wltLocator
+         bwTxOut.put_var_int(0);
+
+         //auth method & data, ignore
+         bwTxOut.put_var_int(0);
+         bwTxOut.put_var_int(0);
+
+         //contrib id & label (lockbox stuff, ignore)
+         bwTxOut.put_var_int(0);
+         bwTxOut.put_var_int(0);
+      
+         //add to list
+         serializedRecipients.emplace_back(move(bwTxOut));
+      }
+   }
+
+   //finalize outputs
+   bw.put_var_int(serializedRecipients.size());
+   for (const auto& rec : serializedRecipients)
+   {
+      bw.put_var_int(rec.getSize());
+      bw.put_BinaryData(rec.getData());
+   }
+
+   //locktime
+   bw.put_uint32_t(lockTime_);
+
+   //done
+   return bw.getData();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+string Signer::getLegacyB58ID()
+{
+   //legacy unsigned serialization with hardcoded version
+   BinaryWriter bw;
+   bw.put_uint32_t(1); //version
+
+   //inputs
+   bw.put_var_int(spenders_.size());
+   for (const auto& spender : spenders_)
+   {
+      //outpoint
+      bw.put_BinaryData(spender->getOutpoint());
+
+      //empty scriptsig
+      bw.put_uint8_t(0);
+
+      //sequence
+      bw.put_uint32_t(spender->getSequence());
+   }
+
+   //outputs
+   list<BinaryWriter> serializedRecipients;
+   for (const auto& recipientList : recipients_)
+   {
+      BinaryWriter bwTxOut;
+      for (const auto& recipient : recipientList.second)
+      {
+         auto output = recipient->getSerializedScript();
+         auto script = output.getSliceRef(8, output.getSize()-8);
+
+         //value
+         bwTxOut.put_uint64_t(recipient->getValue());
+
+         //script
+         bwTxOut.put_BinaryData(script);
+
+         //add to list
+         serializedRecipients.emplace_back(move(bwTxOut));
+      }
+   }
+
+   //finalize outputs
+   bw.put_var_int(serializedRecipients.size());
+   for (const auto& rec : serializedRecipients)
+      bw.put_BinaryData(rec.getData());
+
+   //locktime
+   bw.put_uint32_t(0);
+
+   auto serializedTx = bw.getData();
+   if (serializedTx.getSize() < 4)
+      throw runtime_error("invalid serialized tx");
+
+   auto hashedTxPrefix = BtcUtils::getHash256(serializedTx);
+   return BtcUtils::base58_encode(hashedTxPrefix).substr(0, 8);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
