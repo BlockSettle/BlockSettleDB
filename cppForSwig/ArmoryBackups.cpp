@@ -1002,7 +1002,7 @@ shared_ptr<AssetWallet> Helpers::restoreFromBackup(
          SecureBinaryData dummy;
          callerPrompt(
             RestorePromptType::ChecksumError, checksumIndexes, dummy);
-         throw RestoreUserException("checksum error");             
+         throw RestoreUserException("checksum error");
       };
 
       vector<int> repairedIndexes;

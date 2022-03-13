@@ -97,11 +97,11 @@ public:
       error_ = std::make_shared<ClientMessageError>(err);
    }
 
-   U get(void) 
+   U get(void)
    { 
       if (error_ != nullptr)
          throw *error_;
-         
+
       return std::move(value_);
    }
 };
