@@ -1460,13 +1460,13 @@ public:
    void put_BitPacker(BitPacker<T> & bp) { put_BinaryData(bp.getBinaryData()); }
 
    /////////////////////////////////////////////////////////////////////////////
-   BinaryData const & getData(void)
+   BinaryData const & getData(void) const
    {
       return theString_;
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   size_t getSize(void)
+   size_t getSize(void) const
    {
       return theString_.getSize();
    }
@@ -1478,13 +1478,13 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   std::string toString(void)
+   std::string toString(void) const
    {
       return theString_.toBinStr();
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   std::string toHex(void)
+   std::string toHex(void) const
    {
       return theString_.toHexStr();
    }
