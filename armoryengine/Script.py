@@ -12,14 +12,292 @@ from __future__ import (absolute_import, division,
 # SCRIPTING!
 #
 ################################################################################
-from armoryengine.ArmoryUtils import *
 from armoryengine.BinaryPacker import UINT8, BINARY_CHUNK, UINT16, UINT32
 from armoryengine.BinaryUnpacker import BinaryUnpacker
 from armoryengine.Timer import TimeThisFunction
-from armoryengine.Transaction import *
 
+################################################################################
+# Identify all the codes/strings that are needed for dealing with scripts
+################################################################################
+# Start list of OP codes
+opnames = ['']*256
+opnames[0] =   'OP_0'
+for i in range(1,76):
+   opnames[i] ='OP_PUSHDATA'
+opnames[76] =   'OP_PUSHDATA1'
+opnames[77] =   'OP_PUSHDATA2'
+opnames[78] =   'OP_PUSHDATA4'
+opnames[79] =   'OP_1NEGATE'
+opnames[81] =  'OP_1'
+opnames[81] =   'OP_TRUE'
+for i in range(1,17):
+   opnames[80+i] = 'OP_' + str(i)
+opnames[97] =   'OP_NOP'
+opnames[99] =   'OP_IF'
+opnames[100] =   'OP_NOTIF'
+opnames[103] = 'OP_ELSE'
+opnames[104] = 'OP_ENDIF'
+opnames[105] =   'OP_VERIFY'
+opnames[106] = 'OP_RETURN'
+opnames[107] =   'OP_TOALTSTACK'
+opnames[108] =   'OP_FROMALTSTACK'
+opnames[115] =   'OP_IFDUP'
+opnames[116] =   'OP_DEPTH'
+opnames[117] =   'OP_DROP'
+opnames[118] =   'OP_DUP'
+opnames[119] =   'OP_NIP'
+opnames[120] =   'OP_OVER'
+opnames[121] =   'OP_PICK'
+opnames[122] =   'OP_ROLL'
+opnames[123] =   'OP_ROT'
+opnames[124] =   'OP_SWAP'
+opnames[125] =   'OP_TUCK'
+opnames[109] =   'OP_2DROP'
+opnames[110] =   'OP_2DUP'
+opnames[111] =   'OP_3DUP'
+opnames[112] =   'OP_2OVER'
+opnames[113] =   'OP_2ROT'
+opnames[114] =   'OP_2SWAP'
+opnames[126] =   'OP_CAT'
+opnames[127] = 'OP_SUBSTR'
+opnames[128] =   'OP_LEFT'
+opnames[129] =   'OP_RIGHT'
+opnames[130] =   'OP_SIZE'
+opnames[131] =   'OP_INVERT'
+opnames[132] =   'OP_AND'
+opnames[133] =   'OP_OR'
+opnames[134] = 'OP_XOR'
+opnames[135] = 'OP_EQUAL'
+opnames[136] =   'OP_EQUALVERIFY'
+opnames[139] =   'OP_1ADD'
+opnames[140] =   'OP_1SUB'
+opnames[141] =   'OP_2MUL'
+opnames[142] =   'OP_2DIV'
+opnames[143] =   'OP_NEGATE'
+opnames[144] =   'OP_ABS'
+opnames[145] =   'OP_NOT'
+opnames[146] =   'OP_0NOTEQUAL'
+opnames[147] =   'OP_ADD'
+opnames[148] =   'OP_SUB'
+opnames[149] =   'OP_MUL'
+opnames[150] =   'OP_DIV'
+opnames[151] =   'OP_MOD'
+opnames[152] =   'OP_LSHIFT'
+opnames[153] =   'OP_RSHIFT'
+opnames[154] =   'OP_BOOLAND'
+opnames[155] =   'OP_BOOLOR'
+opnames[156] =   'OP_NUMEQUAL'
+opnames[157] =   'OP_NUMEQUALVERIFY'
+opnames[158] =   'OP_NUMNOTEQUAL'
+opnames[159] =   'OP_LESSTHAN'
+opnames[160] =   'OP_GREATERTHAN'
+opnames[161] =   'OP_LESSTHANOREQUAL'
+opnames[162] = 'OP_GREATERTHANOREQUAL'
+opnames[163] =   'OP_MIN'
+opnames[164] =   'OP_MAX'
+opnames[165] = 'OP_WITHIN'
+opnames[166] =   'OP_RIPEMD160'
+opnames[167] =   'OP_SHA1'
+opnames[168] =   'OP_SHA256'
+opnames[169] =   'OP_HASH160'
+opnames[170] =   'OP_HASH256'
+opnames[171] =   'OP_CODESEPARATOR'
+opnames[172] =   'OP_CHECKSIG'
+opnames[173] =   'OP_CHECKSIGVERIFY'
+opnames[174] =   'OP_CHECKMULTISIG'
+opnames[175] =   'OP_CHECKMULTISIGVERIFY'
 
+OP_0 = 0
+OP_FALSE = 0
+OP_PUSHDATA1 = 76
+OP_PUSHDATA2 = 77
+OP_PUSHDATA4 = 78
+OP_1NEGATE = 79
+OP_1 = 81
+OP_TRUE = 81
+OP_2 = 82
+OP_3 = 83
+OP_4 = 84
+OP_5 = 85
+OP_6 = 86
+OP_7 = 87
+OP_8 = 88
+OP_9 = 89
+OP_10 = 90
+OP_11 = 91
+OP_12 = 92
+OP_13 = 93
+OP_14 = 94
+OP_15 = 95
+OP_16 = 96
+OP_NOP = 97
+OP_IF = 99
+OP_NOTIF = 100
+OP_ELSE = 103
+OP_ENDIF = 104
+OP_VERIFY = 105
+OP_RETURN = 106
+OP_TOALTSTACK = 107
+OP_FROMALTSTACK = 108
+OP_IFDUP = 115
+OP_DEPTH = 116
+OP_DROP = 117
+OP_DUP = 118
+OP_NIP = 119
+OP_OVER = 120
+OP_PICK = 121
+OP_ROLL = 122
+OP_ROT = 123
+OP_SWAP = 124
+OP_TUCK = 125
+OP_2DROP = 109
+OP_2DUP = 110
+OP_3DUP = 111
+OP_2OVER = 112
+OP_2ROT = 113
+OP_2SWAP = 114
+OP_CAT = 126
+OP_SUBSTR = 127
+OP_LEFT = 128
+OP_RIGHT = 129
+OP_SIZE = 130
+OP_INVERT = 131
+OP_AND = 132
+OP_OR = 133
+OP_XOR = 134
+OP_EQUAL = 135
+OP_EQUALVERIFY = 136
+OP_1ADD = 139
+OP_1SUB = 140
+OP_2MUL = 141
+OP_2DIV = 142
+OP_NEGATE = 143
+OP_ABS = 144
+OP_NOT = 145
+OP_0NOTEQUAL = 146
+OP_ADD = 147
+OP_SUB = 148
+OP_MUL = 149
+OP_DIV = 150
+OP_MOD = 151
+OP_LSHIFT = 152
+OP_RSHIFT = 153
+OP_BOOLAND = 154
+OP_BOOLOR = 155
+OP_NUMEQUAL = 156
+OP_NUMEQUALVERIFY = 157
+OP_NUMNOTEQUAL = 158
+OP_LESSTHAN = 159
+OP_GREATERTHAN = 160
+OP_LESSTHANOREQUAL = 161
+OP_GREATERTHANOREQUAL = 162
+OP_MIN = 163
+OP_MAX = 164
+OP_WITHIN = 165
+OP_RIPEMD160 = 166
+OP_SHA1 = 167
+OP_SHA256 = 168
+OP_HASH160 = 169
+OP_HASH256 = 170
+OP_CODESEPARATOR = 171
+OP_CHECKSIG = 172
+OP_CHECKSIGVERIFY = 173
+OP_CHECKMULTISIG = 174
+OP_CHECKMULTISIGVERIFY = 175
+
+opCodeLookup = {}
+opCodeLookup['OP_FALSE'] = 0
+opCodeLookup['OP_0']     = 0
+opCodeLookup['OP_PUSHDATA1'] =   76
+opCodeLookup['OP_PUSHDATA2'] =   77
+opCodeLookup['OP_PUSHDATA4'] =   78
+opCodeLookup['OP_1NEGATE'] =   79
+opCodeLookup['OP_1'] =  81
+for i in range(1,17):
+   opCodeLookup['OP_'+str(i)] =  80+i
+opCodeLookup['OP_TRUE'] =   81
+opCodeLookup['OP_NOP'] =   97
+opCodeLookup['OP_IF'] =   99
+opCodeLookup['OP_NOTIF'] =   100
+opCodeLookup['OP_ELSE'] = 103
+opCodeLookup['OP_ENDIF'] = 104
+opCodeLookup['OP_VERIFY'] =   105
+opCodeLookup['OP_RETURN'] = 106
+opCodeLookup['OP_TOALTSTACK'] =   107
+opCodeLookup['OP_FROMALTSTACK'] =   108
+opCodeLookup['OP_IFDUP'] =   115
+opCodeLookup['OP_DEPTH'] =   116
+opCodeLookup['OP_DROP'] =   117
+opCodeLookup['OP_DUP'] =   118
+opCodeLookup['OP_NIP'] =   119
+opCodeLookup['OP_OVER'] =   120
+opCodeLookup['OP_PICK'] =   121
+opCodeLookup['OP_ROLL'] =   122
+opCodeLookup['OP_ROT'] =   123
+opCodeLookup['OP_SWAP'] =   124
+opCodeLookup['OP_TUCK'] =   125
+opCodeLookup['OP_2DROP'] =   109
+opCodeLookup['OP_2DUP'] =   110
+opCodeLookup['OP_3DUP'] =   111
+opCodeLookup['OP_2OVER'] =   112
+opCodeLookup['OP_2ROT'] =   113
+opCodeLookup['OP_2SWAP'] =   114
+opCodeLookup['OP_CAT'] =   126
+opCodeLookup['OP_SUBSTR'] = 127
+opCodeLookup['OP_LEFT'] =   128
+opCodeLookup['OP_RIGHT'] =   129
+opCodeLookup['OP_SIZE'] =   130
+opCodeLookup['OP_INVERT'] =   131
+opCodeLookup['OP_AND'] =   132
+opCodeLookup['OP_OR'] =   133
+opCodeLookup['OP_XOR'] = 134
+opCodeLookup['OP_EQUAL'] = 135
+opCodeLookup['OP_EQUALVERIFY'] =   136
+opCodeLookup['OP_1ADD'] =   139
+opCodeLookup['OP_1SUB'] =   140
+opCodeLookup['OP_2MUL'] =   141
+opCodeLookup['OP_2DIV'] =   142
+opCodeLookup['OP_NEGATE'] =   143
+opCodeLookup['OP_ABS'] =   144
+opCodeLookup['OP_NOT'] =   145
+opCodeLookup['OP_0NOTEQUAL'] =   146
+opCodeLookup['OP_ADD'] =   147
+opCodeLookup['OP_SUB'] =   148
+opCodeLookup['OP_MUL'] =   149
+opCodeLookup['OP_DIV'] =   150
+opCodeLookup['OP_MOD'] =   151
+opCodeLookup['OP_LSHIFT'] =   152
+opCodeLookup['OP_RSHIFT'] =   153
+opCodeLookup['OP_BOOLAND'] =   154
+opCodeLookup['OP_BOOLOR'] =   155
+opCodeLookup['OP_NUMEQUAL'] =   156
+opCodeLookup['OP_NUMEQUALVERIFY'] =   157
+opCodeLookup['OP_NUMNOTEQUAL'] =   158
+opCodeLookup['OP_LESSTHAN'] =   159
+opCodeLookup['OP_GREATERTHAN'] =   160
+opCodeLookup['OP_LESSTHANOREQUAL'] =   161
+opCodeLookup['OP_GREATERTHANOREQUAL'] = 162
+opCodeLookup['OP_MIN'] =   163
+opCodeLookup['OP_MAX'] =   164
+opCodeLookup['OP_WITHIN'] = 165
+opCodeLookup['OP_RIPEMD160'] =   166
+opCodeLookup['OP_SHA1'] =   167
+opCodeLookup['OP_SHA256'] =   168
+opCodeLookup['OP_HASH160'] =   169
+opCodeLookup['OP_HASH256'] =   170
+opCodeLookup['OP_CODESEPARATOR'] =   171
+opCodeLookup['OP_CHECKSIG'] =   172
+opCodeLookup['OP_CHECKSIGVERIFY'] =   173
+opCodeLookup['OP_CHECKMULTISIG'] =   174
+opCodeLookup['OP_CHECKMULTISIGVERIFY'] =   175
+
+################################################################################
+def getOpCode(name):
+   return int_to_binary(opCodeLookup[name], widthBytes=1)
+
+################################################################################
 def convertScriptToOpStrings(binScript):
+   from armoryengine.ArmoryUtils import binary_to_hex
    opList = []
 
    i = 0
@@ -112,6 +390,7 @@ class ScriptBuilder(object):
       return ''.join(self.opList)
 
    def getHexScript(self):
+      from armoryengine.ArmoryUtils import binary_to_hex
       return binary_to_hex(''.join(self.opList))
 
    def getHumanScript(self):
@@ -303,7 +582,7 @@ class PyScriptProcessor(object):
       """
 
       # TODO: Gavin clarified the effects of OP_0, and OP_1-OP_16.
-      #       OP_0 puts an empty string onto the stack, which evaluateses to
+      #       OP_0 puts an empty string onto the stack, which evaluates to
       #            false and is plugged into HASH160 as ''
       #       OP_X puts a single byte onto the stack, 0x01 to 0x10
       #

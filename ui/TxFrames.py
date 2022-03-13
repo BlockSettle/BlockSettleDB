@@ -942,6 +942,7 @@ class SendBitcoinsFrame(ArmoryFrame):
          # If this has nothing to do with lockboxes, we need to make sure
          # we're providing a key map for the inputs
 
+         '''
          for utxo in utxoSelect:
             scrType = getTxOutScriptType(utxo.getScript())
             scrAddr = utxo.getRecipientScrAddr()
@@ -965,6 +966,7 @@ class SendBitcoinsFrame(ArmoryFrame):
                      raise Exception("invalid address index")
 
                pubKeyMap[scrAddr] = addrObj.getPubKey()
+         '''
 
          '''
          If we are consuming any number of SegWit utxos, pass the utxo selection
@@ -974,7 +976,7 @@ class SendBitcoinsFrame(ArmoryFrame):
 
          # Now create the unsigned USTX
          ustx = UnsignedTransaction().createFromTxOutSelection(\
-            utxoSelect, scriptValPairs, pubKeyMap, p2shMap=p2shMap, \
+            utxoSelect, scriptValPairs, {}, {}, \
             lockTime=TheBDM.getTopBlockHeight())
 
          for msg in opreturn_list:
