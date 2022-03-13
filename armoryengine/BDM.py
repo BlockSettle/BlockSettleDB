@@ -267,7 +267,7 @@ class BlockDataManager(object):
 
          elif action == BDMAction_Refresh:
             act = REFRESH_ACTION
-            arglist = arg
+            arglist = notifProto.ids
             
          elif action == BDMAction_Exited:
             act = STOPPED_ACTION

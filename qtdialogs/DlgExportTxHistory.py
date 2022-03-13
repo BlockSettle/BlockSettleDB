@@ -23,6 +23,7 @@ from qtdialogs.ArmoryDialog import ArmoryDialog
 
 from armorymodels import LEDGERCOLS
 from armoryengine.Transaction import getFeeForTx
+from armoryengine.CppBridge import TheBridge
 
 
 #######################################################################
@@ -45,7 +46,7 @@ class DlgExportTxHistory(ArmoryDialog):
 
       self.cmbWltSelect.insertSeparator(8)
       for wltID in self.main.walletIDList:
-         self.cmbWltSelect.addItem(self.main.walletMap[wltID].labelName)
+         self.cmbWltSelect.addItem(self.main.walletMap[wltID].getDisplayStr())
 
       self.cmbWltSelect.insertSeparator(8 + len(self.main.walletIDList))
       for idx in self.reversedLBdict:
@@ -219,7 +220,7 @@ class DlgExportTxHistory(ArmoryDialog):
                wltBalances[wltID] = wlt.getBalance('Total')
 
          else:
-                #lockbox
+            #lockbox
             cppwlt = self.main.cppLockboxWltMap[wltID]
             totalFunds += cppwlt.getFullBalance()
             spendFunds += cppwlt.getSpendableBalance(TheBDM.getTopBlockHeight(), IGNOREZC)
@@ -235,7 +236,7 @@ class DlgExportTxHistory(ArmoryDialog):
          allBalances = totalFunds
 
 
-        #prepare csv file
+      #prepare csv file
       wltSelectStr = str(self.cmbWltSelect.currentText()).replace(' ', '_')
       timestampStr = unixTimeToFormatStr(RightNow(), '%Y%m%d_%H%M')
       filenamePrefix = 'ArmoryTxHistory_%s_%s' % (wltSelectStr, timestampStr)
@@ -276,22 +277,22 @@ class DlgExportTxHistory(ArmoryDialog):
 
          f.write(','.join(str(header) for header in headerRow) + '\n')
 
-            #get history
-         historyLedger = TheBDM.bdv().getHistoryForWalletSelection(wltIDList, order)
+         #get history
+         historyLedger = TheBridge.getHistoryForWalletSelection(wltIDList, order)
 
-            # Each value in COL.Amount will be exactly how much the wallet balance
-            # increased or decreased as a result of this transaction.
+         # Each value in COL.Amount will be exactly how much the wallet balance
+         # increased or decreased as a result of this transaction.
          ledgerTable = self.main.convertLedgerToTable(historyLedger,
                                                          showSentToSelfAmt=True)
 
-            # Sort the data chronologically first, compute the running balance for
-            # each row, then sort it the way that was requested by the user.
+         # Sort the data chronologically first, compute the running balance for
+         # each row, then sort it the way that was requested by the user.
          for row in ledgerTable:
             if row[COL.toSelf] == False:
                rawAmt = str2coin(row[COL.Amount])
             else:
-                    #if SentToSelf, balance and total rolling balance should only
-                    #take fee in account
+               #if SentToSelf, balance and total rolling balance should only
+               #take fee in account
                rawAmt, fee_byte = getFeeForTx(hex_to_binary(row[COL.TxHash]))
                rawAmt = -1 * rawAmt
 

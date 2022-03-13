@@ -2356,6 +2356,9 @@ class ArmoryMainWindow(QMainWindow):
       Create a ledger to display on the main screen, that consists of ledger
       entries of any SUBSET of available wallets.
       """
+      if self.ledgerView == None:
+         return
+
       bdmState = TheBDM.getState()
 
 
@@ -2397,7 +2400,7 @@ class ArmoryMainWindow(QMainWindow):
          if resetMainLedger == False:
             self.ledgerModel.reset()
          else:
-            self.ledgerView.goToTop()
+            self.ledgerView.scrollToTop()
 
       except AttributeError:
          raise
@@ -2439,7 +2442,7 @@ class ArmoryMainWindow(QMainWindow):
 
          if wlt:
             isWatch = (determineWalletType(wlt, self)[0] == WLTTYPES.WatchOnly)
-            wltName = wlt.labelName
+            wltName = wlt.getDisplayStr(pref="Wlt")
             dispComment = self.getCommentForLE(le, wltID)
          else:
             lboxId = wltID
@@ -4794,6 +4797,10 @@ class ArmoryMainWindow(QMainWindow):
             self.updateStatusBarText()
 
       elif action == REFRESH_ACTION:
+         #ignore refresh notification until the bdm_ready notification
+         if TheBDM.getState() != BDM_BLOCKCHAIN_READY:
+            return
+
          #The wallet ledgers have been updated from an event outside of new ZC
          #or new blocks (usually a wallet or address was imported, or the
          #wallet filter was modified)

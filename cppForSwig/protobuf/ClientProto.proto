@@ -23,6 +23,7 @@ enum Methods
     getHistoryPageForDelegate = 40;
     getBalanceAndCount = 41;
     getAddrCombinedList = 42;
+    getHistoryForWalletSelection = 43;
 
     getTxByHash = 70;
     getHeaderByHeight = 71;
@@ -81,6 +82,7 @@ enum Methods
     signer_getUnsignedTx = 141;
     signer_getSignedStateForInput = 142;
     signer_resolve = 143;
+    signer_addSupportingTx = 144;
 
     getHash160 = 200;
     getBlockTimeByHeight = 201;
@@ -158,7 +160,7 @@ message WalletPayload
 
 ////////////////////////////////////////////////////////////////////////////////
 // BDV callback
-message CppBridgeCallback
+message CppBridgeCallbackMsg
 {
     required uint32 type = 1;
 
@@ -168,7 +170,7 @@ message CppBridgeCallback
     repeated bytes opaque = 20;
 }
 
-message CppProgressCallback
+message CppProgressCallbackMsg
 {
     optional uint32 phase = 1;
     required float progress = 2;

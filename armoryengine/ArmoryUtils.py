@@ -1260,22 +1260,20 @@ def str2coin(theStr, negAllowed=True, maxDec=8, roundHighPrec=True):
    if len(coinStr.strip())==0:
       raise ValueError
 
-   isNeg = ('-' in coinStr)
-   coinStrPos = coinStr.replace('-','')
-   if not '.' in coinStrPos:
-      if not negAllowed and isNeg:
-         raise NegativeValueError
-      return (int(coinStrPos)*ONE_BTC)*(-1 if isNeg else 1)
+
+   if not '.' in coinStr:
+      result = int(coinStr)*ONE_BTC
    else:
-      lhs,rhs = coinStrPos.strip().split('.')
-      if len(lhs.strip('-'))==0:
-         lhs='0'
-      if len(rhs)>maxDec and not roundHighPrec:
-         raise TooMuchPrecisionError
-      if not negAllowed and isNeg:
-         raise NegativeValueError
-      fullInt = int(float(coinStr) * ONE_BTC)
-      return fullInt*(-1 if isNeg else 1)
+      isNeg = ('-' in coinStr)
+      coinStrPos = coinStr.replace('-', '')
+      lhs,rhs = coinStrPos.strip(' ').split('.')
+      result = int(lhs) * ONE_BTC + int(rhs.ljust(8, "0"))
+      if isNeg:
+         result = -result
+   
+   if not negAllowed and result < 0:
+      raise NegativeValueError
+   return result
 
 
 ################################################################################
@@ -1404,8 +1402,7 @@ def hash160_to_p2pkhash_script(binStr20):
    if not len(binStr20)==20:
       raise InvalidHashError('Tried to convert non-20-byte str to p2pkh script')
 
-   from armoryengine.Transaction import getOpCode
-   from armoryengine.Script import scriptPushData
+   from armoryengine.Script import scriptPushData, getOpCode
    outScript = ''.join([  getOpCode('OP_DUP'        ), \
                           getOpCode('OP_HASH160'    ), \
                           scriptPushData(binStr20),
@@ -1421,8 +1418,7 @@ def hash160_to_p2sh_script(binStr20):
    if not len(binStr20)==20:
       raise InvalidHashError('Tried to convert non-20-byte str to p2sh script')
 
-   from armoryengine.Transaction import getOpCode
-   from armoryengine.Script import scriptPushData
+   from armoryengine.Script import scriptPushData, getOpCode
    outScript = ''.join([  getOpCode('OP_HASH160'),
                           scriptPushData(binStr20),
                           getOpCode('OP_EQUAL')])
@@ -1443,8 +1439,7 @@ def pubkey_to_p2pk_script(binStr33or65):
    if not len(binStr33or65) in [33, 65]:
       raise KeyDataError('Invalid public key supplied to p2pk script')
 
-   from armoryengine.Transaction import getOpCode
-   from armoryengine.Script import scriptPushData
+   from armoryengine.Script import scriptPushData, getOpCode
    serPubKey = scriptPushData(binStr33or65)
    outScript = serPubKey + getOpCode('OP_CHECKSIG')
    return outScript
@@ -1465,7 +1460,7 @@ def pubkeylist_to_multisig_script(pkList, M, withSort=True):
    if sum([  (0 if len(pk) in [33,65] else 1)   for pk in pkList]) > 0:
       raise KeyDataError('Not all strings in pkList are 33 or 65 bytes!')
 
-   from armoryengine.Transaction import getOpCode
+   from armoryengine.Script import getOpCode
    opM = getOpCode('OP_%d' % M)
    opN = getOpCode('OP_%d' % len(pkList))
 
@@ -2192,7 +2187,7 @@ def unixTimeToFormatStr(unixTime, formatStr=DEFAULT_DATE_FORMAT):
    pleasant, human-readable format
    """
    dtobj = datetime.fromtimestamp(unixTime)
-   return dtobj
+   return dtobj.strftime(formatStr)
 
 def secondsToHumanTime(nSec):
    strPieces = []

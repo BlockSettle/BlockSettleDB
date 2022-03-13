@@ -669,7 +669,7 @@ const string& CppBridge::getLedgerDelegateIdForScrAddr(
 
 ////////////////////////////////////////////////////////////////////////////////
 void CppBridge::getHistoryPageForDelegate(
-   const std::string& id, unsigned pageId, unsigned msgId)
+   const string& id, unsigned pageId, unsigned msgId)
 {
    auto iter = delegateMap_.find(id);
    if (iter == delegateMap_.end())
@@ -690,6 +690,27 @@ void CppBridge::getHistoryPageForDelegate(
    };
 
    iter->second.getHistoryPage(pageId, lbd);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void CppBridge::getHistoryForWalletSelection(
+   const string& order, vector<string> wltIds, unsigned msgId)
+{
+   auto lbd = [this, msgId](
+      ReturnMessage<vector<DBClientClasses::LedgerEntry>> result)->void
+   {
+      auto&& leVec = result.get();
+      auto msgProto = make_unique<BridgeLedgers>();
+      for (auto& le : leVec)
+      {
+         auto leProto = msgProto->add_le();
+         CppToProto::ledger(leProto, le);
+      }
+
+      this->writeToClient(move(msgProto), msgId);
+   };
+
+   bdvPtr_->getHistoryForWalletSelection(wltIds, order, lbd);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -828,7 +849,7 @@ void CppBridge::extendAddressPool(const string& wltId,
          reportedTicks = eventCount;
          float progressFloat = float(tickCount) / float(tickTotal);
 
-         auto msg = make_unique<CppProgressCallback>();
+         auto msg = make_unique<CppProgressCallbackMsg>();
          msg->set_progress(progressFloat);
          msg->set_progressnumeric(tickCount);
          msg->add_ids(callbackId);
@@ -840,7 +861,7 @@ void CppBridge::extendAddressPool(const string& wltId,
       accPtr->extendPublicChain(wltPtr->getIface(), count, updateProgress);
 
       //shutdown progress dialog
-      auto msgProgress = make_unique<CppProgressCallback>();
+      auto msgProgress = make_unique<CppProgressCallbackMsg>();
       msgProgress->set_progress(0);
       msgProgress->set_progressnumeric(0);
       msgProgress->set_phase(BDMPhase_Completed);
@@ -1637,7 +1658,7 @@ bool CppBridge::signer_SetLockTime(const string& id, unsigned locktime)
 
 ////////////////////////////////////////////////////////////////////////////////
 bool CppBridge::signer_addSpenderByOutpoint(
-   const string& id, const BinaryDataRef& hash, 
+   const string& id, const BinaryDataRef& hash,
    unsigned txOutId, unsigned sequence)
 {
    auto iter = signerMap_.find(id);
@@ -1650,7 +1671,7 @@ bool CppBridge::signer_addSpenderByOutpoint(
 
 ////////////////////////////////////////////////////////////////////////////////
 bool CppBridge::signer_populateUtxo(
-   const string& id, const BinaryDataRef& hash, 
+   const string& id, const BinaryDataRef& hash,
    unsigned txOutId, uint64_t value, const BinaryDataRef& script)
 {
    auto iter = signerMap_.find(id);
@@ -1661,6 +1682,26 @@ bool CppBridge::signer_populateUtxo(
    {
       UTXO utxo(value, UINT32_MAX, UINT32_MAX, txOutId, hash, script);
       iter->second->signer_.populateUtxo(utxo);
+   }
+   catch(exception&)
+   {
+      return false;
+   }
+
+   return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool CppBridge::signer_addSupportingTx(
+   const string& id, const BinaryDataRef& rawTxData)
+{
+   auto iter = signerMap_.find(id);
+   if (iter == signerMap_.end())
+      return false;
+   
+   try
+   {
+      iter->second->signer_.addSupportingTx(rawTxData);
    }
    catch(exception&)
    {
@@ -1688,7 +1729,7 @@ bool CppBridge::signer_addRecipient(
    {
       return false;
    }
-   
+
    return true;
 }
 
@@ -2002,7 +2043,7 @@ void BridgeCallback::run(BdmNotification notif)
          vector<uint8_t> payloadVec(payload.ByteSizeLong());
          payload.SerializeToArray(&payloadVec[0], payloadVec.size());
 
-         auto msg = make_unique<CppBridgeCallback>();
+         auto msg = make_unique<CppBridgeCallbackMsg>();
          msg->set_type(BDMAction_ZC);
          msg->add_opaque(&payloadVec[0], payloadVec.size());
          
@@ -2018,17 +2059,21 @@ void BridgeCallback::run(BdmNotification notif)
 
       case BDMAction_Refresh:
       {
+         auto msg = make_unique<CppBridgeCallbackMsg>();
+         msg->set_type(BDMAction_Refresh);
+
          for (auto& id : notif.ids_)
          {
             string idStr(id.toCharPtr(), id.getSize());
-            if (idStr == FILTER_CHANGE_FLAG)
-            {
-               //notify filter change
-            }
+            msg->add_ids(idStr);
 
-            idQueue_.push_back(move(idStr));
+            //TODO: dumb way to watch over the pre bdm_ready wallet
+            //registration, fix this crap
+            if (idStr != FILTER_CHANGE_FLAG)
+               idQueue_.push_back(move(idStr));
          }
 
+         pushNotifLbd_(move(msg), BRIDGE_CALLBACK_BDM);
          break;
       }
 
@@ -2053,7 +2098,7 @@ void BridgeCallback::run(BdmNotification notif)
          nodeStatusMsg.SerializeToArray(
             &serializedNodeStatus[0], serializedNodeStatus.size());
          
-         auto msg = make_unique<CppBridgeCallback>();
+         auto msg = make_unique<CppBridgeCallbackMsg>();
          msg->set_type(BDMAction_NodeStatus);
          msg->add_opaque(
             &serializedNodeStatus[0], serializedNodeStatus.size());
@@ -2084,7 +2129,7 @@ void BridgeCallback::progress(
    float progress, unsigned secondsRem,
    unsigned progressNumeric)
 {
-   auto msg = make_unique<CppProgressCallback>();
+   auto msg = make_unique<CppProgressCallbackMsg>();
    msg->set_phase((uint32_t)phase);
    msg->set_progress(progress);
    msg->set_etasec(secondsRem);
@@ -2099,7 +2144,7 @@ void BridgeCallback::progress(
 ////////////////////////////////////////////////////////////////////////////////
 void BridgeCallback::notify_SetupDone()
 {
-   auto msg = make_unique<CppBridgeCallback>();
+   auto msg = make_unique<CppBridgeCallbackMsg>();
    msg->set_type(CppBridgeState::CppBridge_Ready);
 
    pushNotifLbd_(move(msg), BRIDGE_CALLBACK_BDM);
@@ -2108,7 +2153,7 @@ void BridgeCallback::notify_SetupDone()
 ////////////////////////////////////////////////////////////////////////////////
 void BridgeCallback::notify_SetupRegistrationDone(const set<string>& ids)
 {
-   auto msg = make_unique<CppBridgeCallback>();
+   auto msg = make_unique<CppBridgeCallbackMsg>();
    msg->set_type(CppBridgeState::CppBridge_Registered);
    for (auto& id : ids)
       msg->add_ids(id);
@@ -2119,7 +2164,7 @@ void BridgeCallback::notify_SetupRegistrationDone(const set<string>& ids)
 ////////////////////////////////////////////////////////////////////////////////
 void BridgeCallback::notify_RegistrationDone(const set<string>& ids)
 {
-   auto msg = make_unique<CppBridgeCallback>();
+   auto msg = make_unique<CppBridgeCallbackMsg>();
    msg->set_type(BDMAction_Refresh);
    for (auto& id : ids)
       msg->add_ids(id);
@@ -2130,7 +2175,7 @@ void BridgeCallback::notify_RegistrationDone(const set<string>& ids)
 ////////////////////////////////////////////////////////////////////////////////
 void BridgeCallback::notify_NewBlock(unsigned height)
 {
-   auto msg = make_unique<CppBridgeCallback>();
+   auto msg = make_unique<CppBridgeCallbackMsg>();
    msg->set_type(BDMAction_NewBlock);
    msg->set_height(height);
 
@@ -2140,7 +2185,7 @@ void BridgeCallback::notify_NewBlock(unsigned height)
 ////////////////////////////////////////////////////////////////////////////////
 void BridgeCallback::notify_Ready(unsigned height)
 {
-   auto msg = make_unique<CppBridgeCallback>();
+   auto msg = make_unique<CppBridgeCallbackMsg>();
    msg->set_type(BDMAction_Ready);
    msg->set_height(height);
 
@@ -2150,7 +2195,7 @@ void BridgeCallback::notify_Ready(unsigned height)
 ////////////////////////////////////////////////////////////////////////////////
 void BridgeCallback::disconnected()
 {
-   auto msg = make_unique<CppBridgeCallback>();
+   auto msg = make_unique<CppBridgeCallbackMsg>();
    msg->set_type(DISCONNECTED_CALLBACK_ID);
 
    pushNotifLbd_(move(msg), BRIDGE_CALLBACK_BDM);

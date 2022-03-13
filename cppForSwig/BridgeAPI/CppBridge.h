@@ -197,6 +197,8 @@ namespace Armory
          const std::string& getLedgerDelegateIdForScrAddr(
             const std::string&, const BinaryDataRef&);
          void getHistoryPageForDelegate(const std::string&, unsigned, unsigned);
+         void getHistoryForWalletSelection(const std::string&,
+            std::vector<std::string>, unsigned);
          void createAddressBook(const std::string&, unsigned);
          void setComment(const Codec_ClientProto::ClientCommand&);
 
@@ -236,6 +238,7 @@ namespace Armory
          bool signer_populateUtxo(
             const std::string&, const BinaryDataRef&, unsigned, uint64_t,
             const BinaryDataRef&);
+         bool signer_addSupportingTx(const std::string&, const BinaryDataRef&);
 
          bool signer_addRecipient(
             const std::string&, const BinaryDataRef&, uint64_t);

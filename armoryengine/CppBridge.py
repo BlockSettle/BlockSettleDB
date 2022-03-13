@@ -320,7 +320,7 @@ class ArmoryBridge(object):
 
    #############################################################################
    def pushNotification(self, data):
-      payload = ClientProto_pb2.CppBridgeCallback()
+      payload = ClientProto_pb2.CppBridgeCallbackMsg()
       payload.ParseFromString(data)
 
       notifThread = threading.Thread(\
@@ -330,7 +330,7 @@ class ArmoryBridge(object):
 
    #############################################################################
    def pushProgressNotification(self, data):
-      payload = ClientProto_pb2.CppProgressCallback()
+      payload = ClientProto_pb2.CppProgressCallbackMsg()
       payload.ParseFromString(data)
 
       TheBDM.reportProgress(payload)
@@ -1201,6 +1201,21 @@ class ArmoryBridge(object):
 
       return response
 
+   #############################################################################
+   def getHistoryForWalletSelection(self, wltIDList, order):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.getHistoryForWalletSelection
+      packet.stringArgs.append(order)
+      for wltID in wltIDList:
+         packet.stringArgs.append(wltID)
+
+      fut = self.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.BridgeLedgers()
+      response.ParseFromString(socketResponse)
+
+      return response
 
 ################################################################################
 class BridgeSigner(object):
@@ -1298,6 +1313,22 @@ class BridgeSigner(object):
       packet.intArgs.append(txoutid)
       packet.longArgs.append(value)
       packet.byteArgs.append(script)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      if response.ints[0] == 0:
+         raise BridgeSignerError("addSpenderByOutpoint")
+
+   #############################################################################
+   def addSupportingTx(self, rawTxData):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_addSupportingTx
+      packet.stringArgs.append(self.signerId)
+      packet.byteArgs.append(rawTxData)
 
       fut = TheBridge.sendToBridgeProto(packet)
       socketResponse = fut.getVal()

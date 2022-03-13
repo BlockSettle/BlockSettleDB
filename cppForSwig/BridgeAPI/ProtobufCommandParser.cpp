@@ -146,6 +146,19 @@ bool ProtobufCommandParser::processData(
       break;
    }
 
+   case Methods::getHistoryForWalletSelection:
+   {
+      if (msg.stringargs_size() < 1)
+         throw runtime_error("invalid command: getHistoryForWalletSelection");
+
+      vector<string> wltIdVec;
+      for (unsigned i=1; i<msg.stringargs_size(); i++)
+         wltIdVec.emplace_back(msg.stringargs(i));
+
+      bridge->getHistoryForWalletSelection(msg.stringargs(0), wltIdVec, id);
+      break;
+   }
+
    case Methods::getNodeStatus:
    {
       response = move(bridge->getNodeStatus());
@@ -604,6 +617,22 @@ bool ProtobufCommandParser::processData(
 
       auto result = bridge->signer_populateUtxo(msg.stringargs(0),
          hash, msg.intargs(0), msg.longargs(0), script);
+
+      auto resultProto = make_unique<ReplyNumbers>();
+      resultProto->add_ints(result);
+      response = move(resultProto);
+      break;
+   }
+
+   case Methods::signer_addSupportingTx:
+   {
+      if (msg.stringargs_size() != 1 || msg.byteargs_size() != 1)
+         throw runtime_error("invalid command: signer_addSupportingTx");
+
+      BinaryDataRef rawTxData; rawTxData.setRef(msg.byteargs(0));
+
+      auto result = bridge->signer_addSupportingTx(
+         msg.stringargs(0), rawTxData);
 
       auto resultProto = make_unique<ReplyNumbers>();
       resultProto->add_ints(result);
