@@ -242,14 +242,17 @@ namespace Armory
 
          bool signer_addRecipient(
             const std::string&, const BinaryDataRef&, uint64_t);
-         BridgeReply signer_getSerializedState(const std::string&) const;
-         bool signer_unserializeState(const std::string&, const BinaryData&);
+         BridgeReply signer_toTxSigCollect(const std::string&, int) const;
+         bool signer_fromTxSigCollect(const std::string&, const std::string&);
          void signer_signTx(const std::string&, const std::string&, unsigned);
          BridgeReply signer_getSignedTx(const std::string&) const;
          BridgeReply signer_getUnsignedTx(const std::string&) const;
          BridgeReply signer_getSignedStateForInput(
             const std::string&, unsigned);
          int signer_resolve(const std::string&, const std::string&) const;
+
+         Armory::Signer::SignerStringFormat signer_fromType(const std::string&) const;
+         bool signer_canLegacySerialize(const std::string&) const;
 
          //utils
          BridgeReply getTxInScriptType(

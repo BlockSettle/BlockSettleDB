@@ -25,7 +25,7 @@ from qtdialogs.qtdefines import QRichLabel, HORIZONTAL, \
 from qtdialogs.qtdialogs import STRETCH
 from qtdialogs.ArmoryDialog import ArmoryDialog
 
-from ui.TxFramesOffline import SignBroadcastOfflineTxFrame
+from ui.TxFramesOffline import SignBroadcastOfflineTxFrame, SignerSerializeTypeSelector
 
 ################################################################################
 class ReviewOfflineTxFrame(ArmoryDialog):
@@ -94,10 +94,11 @@ class ReviewOfflineTxFrame(ArmoryDialog):
       frmLowerLayout.setRowStretch(3, 1)
 
       frmLower.setLayout(frmLowerLayout)
-
+      self.signerTypeSelector = SignerSerializeTypeSelector()
+      self.signerTypeSelector.connectSignal(self.update)
 
       frmAll = makeLayoutFrame(VERTICAL, \
-         [lblInstruct, frmUpper, 'Space(5)', frmLower])
+         [lblInstruct, frmUpper, 'Space(5)', self.signerTypeSelector.getFrame(), frmLower])
       frmAll.layout().setStretch(0, 0)
       frmAll.layout().setStretch(1, 0)
       frmAll.layout().setStretch(2, 0)
@@ -113,7 +114,11 @@ class ReviewOfflineTxFrame(ArmoryDialog):
    def setUSTX(self, ustx):
       self.ustx = ustx
       self.lblUTX.setText(self.tr('<b>Transaction Data</b> \t (Unsigned ID: %s)' % ustx.uniqueIDB58))
-      self.txtUSTX.setText(ustx.serializeAscii())
+      self.signerTypeSelector.setUSTX(ustx)
+      self.update()
+
+   def update(self):
+      self.txtUSTX.setText(self.ustx.serialize(self.signerTypeSelector.selectedType()))
 
    def setWallet(self, wlt):
       self.wlt = wlt

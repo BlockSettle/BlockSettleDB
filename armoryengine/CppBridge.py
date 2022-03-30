@@ -1357,25 +1357,26 @@ class BridgeSigner(object):
          raise BridgeSignerError("addRecipient")
 
    #############################################################################
-   def getSerializedState(self):
+   def toTxSigCollect(self, ustxType):
       packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_getSerializedState
+      packet.method = ClientProto_pb2.signer_toTxSigCollect
       packet.stringArgs.append(self.signerId)
+      packet.intArgs.append(ustxType)
 
       fut = TheBridge.sendToBridgeProto(packet)
       socketResponse = fut.getVal()
 
-      response = ClientProto_pb2.ReplyBinary()
+      response = ClientProto_pb2.ReplyStrings()
       response.ParseFromString(socketResponse)
 
       return response.reply[0]
 
    #############################################################################
-   def unserializeState(self, state):
+   def fromTxSigCollect(self, txSigCollect):
       packet = ClientProto_pb2.ClientCommand()
-      packet.method = ClientProto_pb2.signer_unserializeState
+      packet.method = ClientProto_pb2.signer_fromTxSigCollect
       packet.stringArgs.append(self.signerId)
-      packet.byteArgs.append(state)
+      packet.stringArgs.append(txSigCollect)
 
       fut = TheBridge.sendToBridgeProto(packet)
       socketResponse = fut.getVal()
@@ -1384,7 +1385,7 @@ class BridgeSigner(object):
       response.ParseFromString(socketResponse)
 
       if response.ints[0] == 0:
-         raise BridgeSignerError("unserializeState")
+         raise BridgeSignerError("fromTxSigCollect")
 
    #############################################################################
    def resolve(self, wltId):
@@ -1403,14 +1404,13 @@ class BridgeSigner(object):
          raise BridgeSignerError("resolve")
 
    #############################################################################
-   def signTx(self, wltId, callback, args):
+   def signTx(self, wltId, callback):
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.signer_signTx
       packet.stringArgs.append(self.signerId)
       packet.stringArgs.append(wltId)
 
       callbackArgs = [callback]
-      callbackArgs.extend(args)
       TheBridge.sendToBridgeProto(
          packet, False, self.signTxCallback, callbackArgs)
 
@@ -1419,11 +1419,9 @@ class BridgeSigner(object):
       response = ClientProto_pb2.ReplyNumbers()
       response.ParseFromString(socketResponse)
 
-      callbackArgs = [response.ints[0]]
-      callbackArgs.extend(args[1:])
       callbackThread = threading.Thread(\
          group=None, target=args[0], \
-         name=None, args=callbackArgs, kwargs={})
+         name=None, args=[], kwargs={})
       callbackThread.start()
 
    #############################################################################
@@ -1469,6 +1467,34 @@ class BridgeSigner(object):
       response.ParseFromString(socketResponse)
 
       return response
+
+   #############################################################################
+   def fromType(self):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_fromType
+      packet.stringArgs.append(self.signerId)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      return response.ints[0]
+
+   #############################################################################
+   def canLegacySerialize(self):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.signer_canLegacySerialize
+      packet.stringArgs.append(self.signerId)
+
+      fut = TheBridge.sendToBridgeProto(packet)
+      socketResponse = fut.getVal()
+
+      response = ClientProto_pb2.ReplyNumbers()
+      response.ParseFromString(socketResponse)
+
+      return bool(response.ints[0])
 
 ####
 TheBridge = ArmoryBridge()

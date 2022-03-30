@@ -1734,25 +1734,23 @@ bool CppBridge::signer_addRecipient(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-BridgeReply CppBridge::signer_getSerializedState(const string& id) const
+BridgeReply CppBridge::signer_toTxSigCollect(
+   const string& id, int ustxType) const
 {
    auto iter = signerMap_.find(id);
    if (iter == signerMap_.end())
       throw runtime_error("invalid signer id");
 
-   auto signerState = iter->second->signer_.serializeState();
-   string signerStateStr;
-   if (!signerState.SerializeToString(&signerStateStr))
-      throw runtime_error("failed to serialized signer state");
-
-   auto msg = make_unique<ReplyBinary>();
-   msg->add_reply(signerStateStr);
+   auto msg = make_unique<ReplyStrings>();
+   auto txSigCollect = iter->second->signer_.toString(
+      static_cast<Signer::SignerStringFormat>(ustxType));
+   msg->add_reply(txSigCollect);
    return msg;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool CppBridge::signer_unserializeState(
-   const string& id, const BinaryData& state)
+bool CppBridge::signer_fromTxSigCollect(
+   const string& id, const string& txSigCollect)
 {
    auto iter = signerMap_.find(id);
    if (iter == signerMap_.end())
@@ -1760,14 +1758,12 @@ bool CppBridge::signer_unserializeState(
 
    try
    {
-      Codec_SignerState::SignerState signerState;
-      if (!signerState.ParseFromArray(state.getPtr(), state.getSize()))
-         throw runtime_error("invalid signer state");
-
-      iter->second->signer_.deserializeState(signerState);
+      iter->second->signer_ = Armory::Signer::Signer::fromString(txSigCollect);
    }
-   catch (exception&)
+   catch (const exception& e)
    {
+      LOGWARN << "failed to parse TxSigCollect with error:";
+      LOGWARN << e.what();
       return false;
    }
 
@@ -1921,6 +1917,26 @@ BridgeReply CppBridge::signer_getSignedStateForInput(
    auto signStateInput = signState->getSignedStateForInput(inputId);
    CppToProto::signatureState(result.get(), signStateInput);
    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+SignerStringFormat CppBridge::signer_fromType(const string& id) const
+{
+   auto iter = signerMap_.find(id);
+   if (iter == signerMap_.end())
+      throw runtime_error("invalid signer id");
+
+   return iter->second->signer_.deserializedFromType();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool CppBridge::signer_canLegacySerialize(const string& id) const
+{
+   auto iter = signerMap_.find(id);
+   if (iter == signerMap_.end())
+      throw runtime_error("invalid signer id");
+
+   return iter->second->signer_.canLegacySerialize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

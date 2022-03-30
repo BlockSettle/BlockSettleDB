@@ -33,6 +33,11 @@ SIGHASH_NONE = 2
 SIGHASH_SINGLE = 3
 SIGHASH_ANYONECANPAY = 0x80
 
+USTX_TYPE_UNKNOWN = 0
+USTX_TYPE_MODERN  = 1
+USTX_TYPE_LEGACY  = 2
+USTX_TYPE_PSBT    = 3
+
 BASE_SCRIPT = 'base_script'
 
 ################################################################################
@@ -94,16 +99,16 @@ class SignerObject(object):
       self.signer.addRecipient(value, script)
 
    #############################################################################
-   def serializeState(self):
-      return self.signer.getSerializedState()
+   def toTxSigCollect(self, ustxType):
+      return self.signer.toTxSigCollect(ustxType)
 
    #############################################################################
-   def unserializeState(self, signerState):
-      self.signer.unserializeState(signerState)
+   def fromTxSigCollect(self, txSigCollect):
+      self.signer.fromTxSigCollect(txSigCollect)
 
    #############################################################################
    def signTx(self, wltId, callback):
-      self.signer.signTx(wltId, callback, [self])
+      self.signer.signTx(wltId, callback)
 
    #############################################################################
    def getSignedTx(self):
@@ -133,6 +138,15 @@ class SignerObject(object):
    #############################################################################
    def resolve(self, wltId):
       return self.signer.resolve(wltId)
+
+   #############################################################################
+   def fromType(self):
+      return self.signer.fromType()
+
+   #############################################################################
+   def canLegacySerialize(self):
+      return self.signer.canLegacySerialize()
+
 
 ################################################################################
 def getMultisigScriptInfo(rawScript):
@@ -2107,13 +2121,13 @@ class UnsignedTransaction(AsciiSerializable):
       return self.createFromUnsignedTxIO(ustxiList, dtxoList, lockTime)
 
    #############################################################################
-   def createFromSignerState(self, signerState):
+   def createFromTxSigCollect(self, txSigCollect):
       if self.signer != None:
          raise Exception("Initialized signer, cannot overwrite")
 
       self.signer = SignerObject()
       self.signer.setup()
-      self.signer.unserializeState(signerState)
+      self.signer.fromTxSigCollect(txSigCollect)
       self.pytxObj = self.signer.getUnsignedTx()
 
       return self.createFromPyTx(self.pytxObj)
@@ -2126,7 +2140,7 @@ class UnsignedTransaction(AsciiSerializable):
 
 
    #############################################################################
-   def serialize(self):
+   def serialize(self, ustxType=USTX_TYPE_MODERN):
       """
       TODO:  We should consider the idea that we don't even need to serialize
              the pytxObj at all... it seems there should only be a single,
@@ -2136,22 +2150,12 @@ class UnsignedTransaction(AsciiSerializable):
          LOGERROR('Cannot serialize an uninitialized tx')
          return None
 
-      """
-      bp = BinaryPacker()
-      bp.put(UINT32,       self.version)
-      bp.put(BINARY_CHUNK, MAGIC_BYTES, 4)
-      bp.put(UINT32,       0)
-
-      bp.put(UINT8, USTX_EXT_SIGNERSTATE)
-      bp.put(VAR_STR, self.pytxObj.signerState)
-      """
-
-      return self.signer.serializeState()
+      return self.signer.toTxSigCollect(ustxType)
 
 
    #############################################################################
-   def unserialize(self, rawData, expectID=None, skipMagicCheck=False):
-      self.createFromSignerState(rawData)
+   def unserialize(self, txSigCollect):
+      self.createFromTxSigCollect(txSigCollect)
       return self
 
 

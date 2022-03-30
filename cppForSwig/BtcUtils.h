@@ -1742,20 +1742,15 @@ public:
          throw std::range_error("empty BinaryData");
 
       size_t size = b58.size();
-      uint8_t* result = new uint8_t[size];
+      BinaryData result(size);
 
-      if (!btc_base58_decode(result, &size, b58.c_str()) ||
+      if (!btc_base58_decode(result.getPtr(), &size, b58.c_str()) ||
          size > b58.size())
       {
-         delete[] result;
          throw std::runtime_error("failed to decode b58 string");
       }
 
-      BinaryData result_bd(size);
-      memcpy(result_bd.getPtr(), result + b58.size() - size, size);
-
-      delete[] result;
-      return result_bd;
+      return result.getSliceCopy(b58.size() - size, size);
    }
 
    static BinaryData extractRSFromDERSig(BinaryDataRef bdr)

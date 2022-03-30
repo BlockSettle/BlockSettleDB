@@ -271,11 +271,11 @@ BinaryData BtcUtils::getScrAddrForAddrStr(const string& addrStr)
 
    try
    {
-      scrAddr = move(base58toScrAddr(addrStr));
+      scrAddr = base58toScrAddr(addrStr);
    }
    catch (const exception&)
    {
-      auto scrAddrPair = move(BtcUtils::segWitAddressToScrAddr(addrStr));
+      auto scrAddrPair = BtcUtils::segWitAddressToScrAddr(addrStr);
       if (scrAddrPair.second != 0)
          throw runtime_error("[createRecipient] unsupported sw version");
 
@@ -470,28 +470,28 @@ TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)
    case(TXOUT_SCRIPT_STDHASH160) :
    {
       outputRef.type_ = p2pkh_prefix;
-      outputRef.scriptRef_ = move(script.getSliceRef(3, 20));
+      outputRef.scriptRef_ = script.getSliceRef(3, 20);
       break;
    }
 
    case(TXOUT_SCRIPT_P2WPKH) :
    {
       outputRef.type_ = SCRIPT_PREFIX_P2WPKH;
-      outputRef.scriptRef_ = move(script.getSliceRef(2, 20));
+      outputRef.scriptRef_ = script.getSliceRef(2, 20);
       break;
    }
 
    case(TXOUT_SCRIPT_P2WSH) :
    {
       outputRef.type_ = SCRIPT_PREFIX_P2WSH;
-      outputRef.scriptRef_ = move(script.getSliceRef(2, 32));
+      outputRef.scriptRef_ = script.getSliceRef(2, 32);
       break;
    }
 
    case(TXOUT_SCRIPT_STDPUBKEY65) :
    {
       outputRef.type_ = p2pkh_prefix;
-      outputRef.scriptCopy_ = move(getHash160(script.getSliceRef(1, 65)));
+      outputRef.scriptCopy_ = getHash160(script.getSliceRef(1, 65));
       outputRef.scriptRef_.setRef(outputRef.scriptCopy_);
       break;
    }
@@ -499,7 +499,7 @@ TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)
    case(TXOUT_SCRIPT_STDPUBKEY33) :
    {
       outputRef.type_ = p2pkh_prefix;
-      outputRef.scriptCopy_ = move(getHash160(script.getSliceRef(1, 33)));
+      outputRef.scriptCopy_ = getHash160(script.getSliceRef(1, 33));
       outputRef.scriptRef_.setRef(outputRef.scriptCopy_);
       break;
    }
@@ -507,14 +507,14 @@ TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)
    case(TXOUT_SCRIPT_P2SH) :
    {
       outputRef.type_ = p2sh_prefix;
-      outputRef.scriptRef_ = move(script.getSliceRef(2, 20));
+      outputRef.scriptRef_ = script.getSliceRef(2, 20);
       break;
    }
 
    case(TXOUT_SCRIPT_NONSTANDARD) :
    {
       outputRef.type_ = SCRIPT_PREFIX_NONSTD;
-      outputRef.scriptCopy_ = move(getHash160(script));
+      outputRef.scriptCopy_ = getHash160(script);
       outputRef.scriptRef_.setRef(outputRef.scriptCopy_);
       break;
    }
@@ -522,7 +522,7 @@ TxOutScriptRef BtcUtils::getTxOutScrAddrNoCopy(BinaryDataRef script)
    case(TXOUT_SCRIPT_MULTISIG) :
    {
       outputRef.type_ = SCRIPT_PREFIX_MULTISIG;
-      outputRef.scriptCopy_ = move(getMultisigUniqueKey(script));
+      outputRef.scriptCopy_ = getMultisigUniqueKey(script);
       outputRef.scriptRef_.setRef(outputRef.scriptCopy_);
       break;
    }

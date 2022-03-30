@@ -152,7 +152,7 @@ bool ProtobufCommandParser::processData(
          throw runtime_error("invalid command: getHistoryForWalletSelection");
 
       vector<string> wltIdVec;
-      for (unsigned i=1; i<msg.stringargs_size(); i++)
+      for (int i=1; i<msg.stringargs_size(); i++)
          wltIdVec.emplace_back(msg.stringargs(i));
 
       bridge->getHistoryForWalletSelection(msg.stringargs(0), wltIdVec, id);
@@ -656,21 +656,22 @@ bool ProtobufCommandParser::processData(
       break;
    }
 
-   case Methods::signer_getSerializedState:
+   case Methods::signer_toTxSigCollect:
    {
-      if (msg.stringargs_size() != 1)
-         throw runtime_error("invalid command: signer_getSerializedState");
-      response = bridge->signer_getSerializedState(msg.stringargs(0));
+      if (msg.stringargs_size() != 1 || msg.intargs_size() != 1)
+         throw runtime_error("invalid command: signer_toTxSigCollect");
+      response = bridge->signer_toTxSigCollect(
+         msg.stringargs(0), msg.intargs(0));
       break;
    }
 
-   case Methods::signer_unserializeState:
+   case Methods::signer_fromTxSigCollect:
    {
-      if (msg.stringargs_size() != 1 || msg.byteargs_size() != 1)
-         throw runtime_error("invalid command: signer_unserializeState");
+      if (msg.stringargs_size() != 2)
+         throw runtime_error("invalid command: signer_fromTxSigCollect");
 
-      auto result = bridge->signer_unserializeState(
-         msg.stringargs(0), BinaryData::fromString(msg.byteargs(0)));
+      auto result = bridge->signer_fromTxSigCollect(
+         msg.stringargs(0), msg.stringargs(1));
 
       auto resultProto = make_unique<ReplyNumbers>();
       resultProto->add_ints(result);
@@ -728,6 +729,36 @@ bool ProtobufCommandParser::processData(
 
       response = bridge->signer_getSignedStateForInput(
          msg.stringargs(0), msg.intargs(0));
+      break;
+   }
+
+   case Methods::signer_fromType:
+   {
+      if (msg.stringargs_size() != 1)
+      {
+         throw runtime_error(
+            "invalid command: signer_fromType");
+      }
+
+      auto result = (int)bridge->signer_fromType(msg.stringargs(0));
+      auto resultProto = make_unique<ReplyNumbers>();
+      resultProto->add_ints(result);
+      response = move(resultProto);
+      break;
+   }
+
+   case Methods::signer_canLegacySerialize:
+   {
+      if (msg.stringargs_size() != 1)
+      {
+         throw runtime_error(
+            "invalid command: signer_canLegacySerialize");
+      }
+
+      auto result = bridge->signer_canLegacySerialize(msg.stringargs(0));
+      auto resultProto = make_unique<ReplyNumbers>();
+      resultProto->add_ints(result);
+      response = move(resultProto);
       break;
    }
 

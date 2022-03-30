@@ -1022,10 +1022,10 @@ class SendBitcoinsFrame(ArmoryFrame):
                      if len(self.comments[i][0].strip()) > 0:
                         commentStr += '%s (%s);  ' % (self.comments[i][0], coin2str_approx(amt).strip())
 
-               def finalizeSignTx(success, signerObj):
+               def finalizeSignTx():
                   #this needs to run in the GUI thread
-                  def signTxLastStep(success, signerObj):
-                     finalTx = signerObj.getSignedTx()
+                  def signTxLastStep():
+                     finalTx = ustx.getSignedPyTx()
 
                      if len(commentStr) > 0:
                         self.wlt.setComment(finalTx.getHash(), commentStr)
@@ -1034,8 +1034,7 @@ class SendBitcoinsFrame(ArmoryFrame):
                      if self.sendCallback:
                         self.sendCallback()
 
-                  self.main.signalExecution.executeMethod(\
-                     [signTxLastStep, [success, signerObj]])
+                  self.main.signalExecution.executeMethod([signTxLastStep])
 
                ustx.signTx(self.wlt.uniqueIDB58, finalizeSignTx)
 

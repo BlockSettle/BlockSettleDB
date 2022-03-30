@@ -76,6 +76,14 @@ namespace Armory
          Signed
       };
 
+      enum class SignerStringFormat
+      {
+         Unknown = 0,
+         TxSigCollect_Modern,
+         TxSigCollect_Legacy,
+         PSBT
+      };
+
       //////////////////////////////////////////////////////////////////////////
       class ScriptSpender
       {
@@ -288,6 +296,7 @@ namespace Armory
       protected:
          unsigned version_ = 1;
          unsigned lockTime_ = 0;
+         SignerStringFormat fromType_ = SignerStringFormat::Unknown;
 
          mutable BinaryData serializedSignedTx_;
          mutable BinaryData serializedUnsignedTx_;
@@ -388,15 +397,17 @@ namespace Armory
          BinaryData getTxId_const(void) const;
 
          //state import/export
-         Codec_SignerState::SignerState serializeState(void) const;
          void deserializeState(const Codec_SignerState::SignerState&);
+         void deserializeState_Legacy(const BinaryDataRef&);
          void merge(const Signer& rhs);
 
+         Codec_SignerState::SignerState serializeState(void) const;
          BinaryData serializeState_Legacy(void) const;
-         std::string getLegacyB58ID(void);
+         std::string getSigCollectID(void) const;
 
-         std::string getTxSigCollect(void) const;
-         void fromTxSigCollect(const std::string&);
+         std::string toString(SignerStringFormat) const;
+         static Signer fromString(const std::string&);
+         std::string toTxSigCollect(bool) const;
 
          //PSBT
          BinaryData toPSBT(void) const;
@@ -417,6 +428,10 @@ namespace Armory
          bool isInputSW(unsigned inputId) const;
          bool isSegWit(void) const;
          bool hasLegacyInputs (void) const;
+
+         //string state
+         SignerStringFormat deserializedFromType(void) const;
+         bool canLegacySerialize(void) const;
 
          /*signer setup*/
 

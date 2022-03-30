@@ -2,19 +2,23 @@ from __future__ import (absolute_import, division,
                         print_function, unicode_literals)
 ################################################################################
 #                                                                              #
-# Copyright (C) 2011-2021, Armory Technologies, Inc.                           #
+# Copyright (C) 2011-2015, Armory Technologies, Inc.                           #
 # Distributed under the GNU Affero General Public License (AGPL v3)            #
 # See LICENSE or http://www.gnu.org/licenses/agpl.html                         #
+#                                                                              #
+# Copyright (C) 2016-2021, goatpig                                             #
+#  Distributed under the MIT license                                           #
+#  See LICENSE-MIT or https://opensource.org/licenses/MIT                      #
 #                                                                              #
 ################################################################################
 
 import os
 import shutil
 
-from PySide2.QtCore import Qt
+from PySide2.QtCore import Qt, QObject, Signal
 from PySide2.QtWidgets import QPushButton, QGridLayout, QFrame, \
    QVBoxLayout, QLabel, QMessageBox, QTextEdit, QSizePolicy, \
-   QApplication
+   QApplication, QRadioButton
 
 from qtdialogs.qtdefines import ArmoryFrame, tightSizeNChar, \
    GETFONT, QRichLabel, HLINE, QLabelButton, USERMODE, \
@@ -27,10 +31,12 @@ from qtdialogs.DlgDispTxInfo import DlgDispTxInfo, extractTxInfo
 from qtdialogs.DlgConfirmSend import DlgConfirmSend
 from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
 
-from armoryengine.Transaction import UnsignedTransaction
+from armoryengine.Transaction import UnsignedTransaction, \
+   USTX_TYPE_MODERN, USTX_TYPE_LEGACY, USTX_TYPE_PSBT, USTX_TYPE_UNKNOWN
 from armoryengine.ArmoryUtils import LOGEXCEPT, LOGERROR, LOGINFO, \
    CPP_TXOUT_STDSINGLESIG, CPP_TXOUT_P2SH, coin2str, enum, \
-   script_to_scrAddr, binary_to_hex, coin2strNZS
+   script_to_scrAddr, binary_to_hex, coin2strNZS, BadAddressError, \
+   NetworkIDError, UnserializeError
 
 ################################################################################
 class SignBroadcastOfflineTxFrame(ArmoryFrame):
@@ -163,8 +169,11 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       # frmBottomLayout.addWidget(frmMoreInfo,   1,1,  1,1)
       frmBottom.setLayout(frmBottomLayout)
 
+      self.signerTypeSelect = SignerSerializeTypeSelector(False)
+
       layout = QVBoxLayout()
       layout.addWidget(frmDescr)
+      layout.addWidget(self.signerTypeSelect.getFrame())
       layout.addWidget(frmBottom)
 
       self.setLayout(layout)
@@ -190,7 +199,10 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       ustxStr = str(self.txtUSTX.toPlainText())
       if len(ustxStr) > 0:
          try:
-            self.ustxObj = UnsignedTransaction().unserializeAscii(ustxStr)
+            ustxObj = UnsignedTransaction().unserialize(ustxStr)
+            self.signerTypeSelect.setUSTX(ustxObj)
+
+            self.ustxObj = ustxObj
             self.signStat = self.ustxObj.evaluateSigningStatus()
             self.enoughSigs = self.signStat.canBroadcast
             self.sigsValid = self.ustxObj.verifySigsAllInputs()
@@ -224,6 +236,7 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
          self.ustxReadable = False
          self.btnBroadcast.setEnabled(False)
 
+      self.signerTypeSelect.update()
 
       self.btnSave.setEnabled(True)
       self.btnCopyHex.setEnabled(False)
@@ -427,16 +440,15 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       if not dlg.exec_():
          return
 
-      def completeSignProcess(success, signerObj):
-         def signTxLastStep(success, signerObj):
-            serTx = self.ustxObj.serializeAscii()
+      def completeSignProcess():
+         def signTxLastStep():
+            serTx = self.ustxObj.serialize(self.signerTypeSelect.fromType())
             self.txtUSTX.setText(serTx)
 
             if not self.fileLoaded == None:
                self.saveTxAuto()
 
-         self.main.signalExecution.executeMethod(\
-            [signTxLastStep, [success, signerObj]])
+         self.main.signalExecution.executeMethod([signTxLastStep])
 
       self.ustxObj.signTx(self.wlt.uniqueIDB58, completeSignProcess)
 
@@ -582,3 +594,96 @@ class SignBroadcastOfflineTxFrame(ArmoryFrame):
       clipb.setText(binary_to_hex(\
          self.ustxObj.getSignedPyTx().serialize()))
       self.lblCopied.setText(self.tr('<i>Copied!</i>'))
+
+################################################################################
+class SignerSerializeTypeSelector(QObject):
+   toggledSignal = Signal()
+
+   def __init__(self, selectable=True):
+      super(SignerSerializeTypeSelector, self).__init__()
+      self.ustx = None
+      self.signerStrCurrentType = None
+      self.selectable = selectable
+
+      #ustx type version radio
+      self.typesRadio = {}
+      lblType = QRichLabel("<u><b>USTX Type:</b></u>")
+      self.typesRadio[USTX_TYPE_MODERN] = QRadioButton("Modern (0.97+)")
+      self.typesRadio[USTX_TYPE_PSBT] = QRadioButton("PSBT (0.97+)")
+      self.typesRadio[USTX_TYPE_LEGACY] = QRadioButton("Legacy (0.96.5 and older)")
+      self.reset()
+
+      #connect toggle event
+      for typeR in self.typesRadio:
+         self.typesRadio[typeR].toggled.connect(self.processToggled)
+
+      #setup frame
+      widgetList = [lblType]
+      for typeR in self.typesRadio:
+         widgetList.append(self.typesRadio[typeR])
+      self.frmRadio = makeLayoutFrame(HORIZONTAL, widgetList, STYLE_RAISED)
+
+
+   def getFrame(self):
+      return self.frmRadio
+
+   def fromType(self):
+      if self.signerStrCurrentType != None:
+         return self.signerStrCurrentType
+
+      try:
+         typeR = self.ustx.signer.fromType()
+         if typeR == USTX_TYPE_UNKNOWN:
+            typeR = USTX_TYPE_MODERN
+         return typeR
+      except:
+         return USTX_TYPE_MODERN
+
+   def selectedType(self):
+      typeR = USTX_TYPE_UNKNOWN
+      for _typer in self.typesRadio:
+         if self.typesRadio[_typer].isChecked():
+            typeR = _typer
+            break
+
+      return typeR
+
+   def reset(self):
+      self.typesRadio[USTX_TYPE_PSBT].setChecked(False)
+      self.typesRadio[USTX_TYPE_LEGACY].setChecked(False)
+      self.typesRadio[USTX_TYPE_MODERN].setChecked(True)
+
+      for _typer in self.typesRadio:
+         self.typesRadio[_typer].setEnabled(self.selectable)
+      self.typesRadio[USTX_TYPE_LEGACY].setEnabled(False)
+
+      self.signerStrCurrentType = None
+
+   def update(self):
+      if self.ustx == None or self.ustx.signer == None:
+         self.reset()
+         return
+
+      if self.ustx.signer.canLegacySerialize() and self.selectable:
+         self.typesRadio[USTX_TYPE_LEGACY].setEnabled(True)
+      else:
+         self.typesRadio[USTX_TYPE_LEGACY].setEnabled(False)
+
+   def connectSignal(self, _method):
+      self.toggledSignal.connect(_method)
+
+   def processToggled(self):
+      if self.ustx == None:
+         return
+
+      typeR = self.selectedType()
+      if typeR == USTX_TYPE_UNKNOWN or typeR == self.fromType():
+         return
+
+      self.signerStrCurrentType = typeR
+      self.toggledSignal.emit()
+
+   def setUSTX(self, ustx):
+      self.ustx = ustx
+      self.update()
+      self.typesRadio[self.fromType()].setChecked(True)

@@ -75,14 +75,16 @@ enum Methods
     signer_addSpenderByOutpoint = 134;
     signer_populateUtxo = 135;
     signer_addRecipient = 136;
-    signer_getSerializedState = 137;
-    signer_unserializeState = 138;
+    signer_toTxSigCollect = 137;
+    signer_fromTxSigCollect = 138;
     signer_signTx = 139;
     signer_getSignedTx = 140;
     signer_getUnsignedTx = 141;
     signer_getSignedStateForInput = 142;
     signer_resolve = 143;
     signer_addSupportingTx = 144;
+    signer_fromType = 145;
+    signer_canLegacySerialize = 146;
 
     getHash160 = 200;
     getBlockTimeByHeight = 201;
