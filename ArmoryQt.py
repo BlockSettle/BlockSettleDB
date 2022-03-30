@@ -2013,10 +2013,10 @@ class ArmoryMainWindow(QMainWindow):
          self.execIntroDialog()
 
    #############################################################################
-   @RemoveRepeatingExtensions
+   #@RemoveRepeatingExtensions
    def getFileSave(self, title='Save Wallet File', \
-                         ffilter=['Wallet files (*.wallet)'], \
-                         defaultFilename=None):
+                        ffilter=['Wallet files (*.wallet)'], \
+                        defaultFilename=None):
       LOGDEBUG('getFileSave')
       startPath = self.settings.get('LastDirectory')
       if len(startPath)==0 or not os.path.exists(startPath):
@@ -2034,13 +2034,9 @@ class ArmoryMainWindow(QMainWindow):
       # issue of some sort. Some experimental code under ArmoryMac that directly
       # calls a dialog produces better results but still freezes under some
       # circumstances.
-      if not OS_MACOSX:
-         fullPath = str(QFileDialog.getSaveFileName(
-            self, title, startPath, typesStr))
-      else:
-         fullPath = str(QFileDialog.getSaveFileName(
-            self, title, startPath, typesStr,
-            options=QFileDialog.DontUseNativeDialog))
+      fullPath = str(QFileDialog.getSaveFileName(
+         self, title, startPath, typesStr,
+         options=QFileDialog.DontUseNativeDialog))
 
       '''
       With PySide2, QFileDialog.getSaveFileName return the user selection as

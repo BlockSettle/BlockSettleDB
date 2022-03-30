@@ -161,10 +161,11 @@ class ReviewOfflineTxFrame(ArmoryDialog):
       """ Save the Unsigned-Tx block of data """
       dpid = self.ustx.uniqueIDB58
       suffix = ('' if OS_WINDOWS else '.unsigned.tx')
+      filename = 'armory_{}_{}'.format(dpid, suffix)
       toSave = self.main.getFileSave(\
-                      'Save Unsigned Transaction', \
-                      ['Armory Transactions (*.unsigned.tx)'], \
-                      'armory_%s_%s' % (dpid, suffix))
+                     title='Save Unsigned Transaction', \
+                     ffilter=['Armory Transactions (*.unsigned.tx)'], \
+                     defaultFilename=filename)
       LOGINFO('Saving unsigned tx file: %s', toSave)
       try:
          theFile = open(toSave, 'w')
