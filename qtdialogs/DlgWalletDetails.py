@@ -12,7 +12,7 @@
 
 from PySide2.QtCore import Qt, QByteArray
 from PySide2.QtWidgets import QFrame, QVBoxLayout, QGridLayout, QPushButton, \
-   QTreeView, QLabel
+   QTreeView, QLabel, QCheckBox, QLineEdit, QDialogButtonBox
 
 from armoryengine.ArmoryUtils import getVersionString, coin2str
 from armoryengine.BDM import TheBDM, BDM_UNINITIALIZED, BDM_OFFLINE, \
@@ -993,14 +993,14 @@ class DlgWalletDetails(ArmoryDialog):
 
 
          slot = lambda b: self.edtOwnerString.setEnabled(not b)
-         self.connect(self.chkIsMine, SIGNAL('toggled(bool)'), slot)
+         self.chkIsMine.toggled.connect(slot)
 
          layout.addWidget(QLabel(self.tr('Wallet owner (optional):')), 3, 0)
          layout.addWidget(self.edtOwnerString, 3, 1)
          bbox = QDialogButtonBox(QDialogButtonBox.Ok | \
                                     QDialogButtonBox.Cancel)
-         self.connect(bbox, SIGNAL('accepted()'), self.accept)
-         self.connect(bbox, SIGNAL('rejected()'), self.reject)
+         bbox.accepted.connect(self.accept)
+         bbox.rejected.connect(self.reject)
          layout.addWidget(bbox, 4, 0)
          self.setLayout(layout)
          self.setWindowTitle(self.tr('Set Wallet Owner'))
