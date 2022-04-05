@@ -26,7 +26,7 @@ using namespace Armory::Wallets;
 #define TXSIGCOLLECT_VER_LEGACY  1
 #define USTXI_VER_LEGACY         1
 #define USTXO_VER_LEGACY         1
-#define TXSIGCOLLECT_VER         2
+#define TXSIGCOLLECT_VER_MODERN  2
 #define TXSIGCOLLECT_WIDTH       64
 #define TXSIGCOLLECT_HEADER      "=====TXSIGCOLLECT-"
 
@@ -3419,7 +3419,7 @@ void Signer::deserializeState_Legacy(const BinaryDataRef& ref)
       brrSpender.get_var_int();
 
       //sequence
-      brrSpender.get_uint32_t();
+      auto sequence = brrSpender.get_uint32_t();
 
       //pubkey & sig list
       struct KeysAndSigs
@@ -3548,6 +3548,9 @@ void Signer::deserializeState_Legacy(const BinaryDataRef& ref)
       }
 
       //sighash type
+
+      //sequence
+      spender->setSequence(sequence);
    }
 
    auto recipientCount = brr.get_var_int();
@@ -3704,7 +3707,7 @@ string Signer::toTxSigCollect(bool isLegacy) const
          throw runtime_error("failed to serialize signer proto");
 
       //txsig collect version, hardcoded to 2 for regular signers
-      signerState.put_uint32_t(TXSIGCOLLECT_VER);
+      signerState.put_uint32_t(TXSIGCOLLECT_VER_MODERN);
       signerState.put_BinaryData(stateBD);
    }
 
@@ -3860,7 +3863,7 @@ Signer Signer::fromString(const string& signerState)
       break;
    }
 
-   case TXSIGCOLLECT_VER:
+   case TXSIGCOLLECT_VER_MODERN:
    {
       //regular protobuf packet
       Codec_SignerState::SignerState signerProto;
