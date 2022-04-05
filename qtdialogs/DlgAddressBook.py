@@ -81,7 +81,7 @@ class DlgAddressBook(ArmoryDialog):
       if defaultWltID == None:
          defaultWltID = self.main.walletIDList[0]
 
-      self.wlt = self.main.walletMap[defaultWltID]
+      wltObj = self.main.walletMap[defaultWltID]
 
       lblDescr = QRichLabel(self.tr('Choose an address from your transaction history, '
                             'or your own wallet.  If you choose to send to one '
@@ -120,10 +120,9 @@ class DlgAddressBook(ArmoryDialog):
          self.wltTableClicked(self.wltDispView.selectionModel().currentIndex())
 
       from ui.AddressTypeSelectDialog import AddressLabelFrame
-      self.addrType = self.wlt.getDefaultAddressType()
+      self.addrType = wltObj.getDefaultAddressType()
       self.addrTypeSelectFrame = AddressLabelFrame(self, \
-         toggleAddrType, self.wlt.getAddressTypes(), self.addrType)
-      self.addrTypeSelectFrame.setType(self.addrType)
+         toggleAddrType, wltObj.getAddressTypes(), self.addrType)
 
       # DISPLAY sent-to addresses
       self.addrBookTxModel = None
@@ -374,19 +373,6 @@ class DlgAddressBook(ArmoryDialog):
          self.addrTableRxClicked)
 
    #############################################################################
-   def getAddrStr(self, wlt, addrObj):
-      addrStr = ""
-
-      if self.addrType == 'P2PKH':
-         addrStr = cppwlt.getP2PKHAddrForIndex(addrObj.chainIndex)
-      elif self.addrType == 'P2SH-P2PK':
-         addrStr = cppwlt.getNestedP2PKAddrForIndex(addrObj.chainIndex)
-      elif self.addrType == 'P2SH-P2WPKH':
-         addrStr = cppwlt.getNestedSWAddrForIndex(addrObj.chainIndex)
-
-      return addrStr
-
-   #############################################################################
    def wltTableClicked(self, currIndex, prevIndex=None):
       if prevIndex == currIndex:
          return
@@ -410,6 +396,11 @@ class DlgAddressBook(ArmoryDialog):
             self.selectedCmmt = ''
       self.addrBookTxModel.reset()
 
+      #update address type frame
+      wltObj = self.main.walletMap[self.selectedWltID]
+      self.addrType = wltObj.getDefaultAddressType()
+      self.addrTypeSelectFrame.updateAddressTypes(
+         wltObj.getAddressTypes(), self.addrType)
 
    #############################################################################
    def addrTableTxClicked(self, currIndex, prevIndex=None):

@@ -121,7 +121,6 @@ class AddressLabelFrame(object):
    def __init__(self, main, setAddressFunc, addressTypes, currentAddrType):
       self.main = main
       self.setAddressFunc = setAddressFunc
-      self.addressTypes = addressTypes
 
       self.frmAddrType = QFrame()
       self.frmAddrType.setFrameStyle(STYLE_RAISED)
@@ -131,13 +130,18 @@ class AddressLabelFrame(object):
       addrLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
       self.typeLabel = QLabelButton("")
       self.typeLabel.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-      self.setType(currentAddrType)
 
       self.typeLabel.linkActivated.connect(self.changeType)
 
       frmAddrTypeLayout.addWidget(addrLabel, 0, 0, 1, 1)
       frmAddrTypeLayout.addWidget(self.typeLabel, 0, 1, 1, 2)
       self.frmAddrType.setLayout(frmAddrTypeLayout)
+
+      self.updateAddressTypes(addressTypes, currentAddrType)
+
+   def updateAddressTypes(self, addrTypes, currType):
+      self.addressTypes = addrTypes
+      self.setType(currType)
 
    def setType(self, _type):
       self.addrType = _type
