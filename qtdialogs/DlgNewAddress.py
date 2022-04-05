@@ -16,16 +16,17 @@ from PySide2.QtWidgets import QFrame, QGridLayout, QPushButton, QLabel, \
    QLineEdit, QHBoxLayout, QDialogButtonBox, QTextEdit, QMessageBox, \
    QApplication
 
+from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE
+from armoryengine.BDM import TheBDM, BDM_OFFLINE
+
 from armorycolors import Colors
 from qtdialogs.qtdefines import determineWalletType, \
    STYLE_RAISED, QRichLabel, tightSizeStr, makeHorizFrame, \
-   makeVertFrame, WLTTYPES, tightSizeNChar, STYLE_SUNKEN
+   makeVertFrame, WLTTYPES, tightSizeNChar, STYLE_SUNKEN, MSGBOX
 from qtdialogs.qtdialogs import STRETCH
 from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.QRCodeWidget import QRCodeWidget
-from armoryengine.ArmoryUtils import DEFAULT_RECEIVE_TYPE
-
-from armoryengine.BDM import TheBDM, BDM_OFFLINE
+from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
 
 
 ################################################################################
@@ -256,7 +257,7 @@ def ShowRecvCoinsWarningIfNecessary(wlt, parent, main):
       return result[0]
 
    if offlineWallet and not dnaaThisWallet:
-      result = MsgBoxWithDNAA(parent, main, MSGBOX.Warning, parent.tr('This is not your wallet!'), parent.tr(
+      result = MsgBoxWithDNAA(parent, main, MSGBOX.Warning, parent.tr('This wallet has no private keys!'), parent.tr(
             'You are getting an address for a wallet that '
             'you have specified belongs to you, but you cannot actually '
             'spend the funds from this computer.  This is usually the case when '
