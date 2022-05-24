@@ -97,6 +97,7 @@ ARMORYWALLETS_SOURCE_FILES = Wallets/BIP32_Node.cpp \
 ARMORYSIGNER_SOURCE_FILES = Signer/Script.cpp \
 	Signer/ScriptRecipient.cpp \
 	Signer/Signer.cpp \
+	Signer/LegacySigner.cpp \
 	Signer/ResolverFeed.cpp \
 	Signer/ResolverFeed_Wallets.cpp \
 	Signer/Transactions.cpp \

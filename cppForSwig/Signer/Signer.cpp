@@ -1,6 +1,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-2021, goatpig                                          //
+//  Copyright (C) 2016-2022, goatpig                                          //
 //  Distributed under the MIT license                                         //
 //  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
@@ -8,8 +8,8 @@
 
 #include "Signer.h"
 #include "Script.h"
+#include "LegacySigner.h"
 #include "Transactions.h"
-#include "make_unique.h"
 
 #include "BIP32_Node.h"
 #include "Assets.h"
@@ -29,6 +29,8 @@ using namespace Armory::Wallets;
 #define TXSIGCOLLECT_VER_MODERN  2
 #define TXSIGCOLLECT_WIDTH       64
 #define TXSIGCOLLECT_HEADER      "=====TXSIGCOLLECT-"
+
+#define TXIN_EXT_P2SHSCRIPT      0x10
 
 StackItem::~StackItem()
 {}
@@ -3379,7 +3381,6 @@ void Signer::deserializeState_Legacy(const BinaryDataRef& ref)
    if (emptyBytes != 0)
       throw SignerDeserializationError("legacy deser: missing empty bytes");
 
-
    auto spenderCount = brr.get_var_int();
    for (unsigned i=0; i<spenderCount; i++)
    {
@@ -3415,8 +3416,13 @@ void Signer::deserializeState_Legacy(const BinaryDataRef& ref)
       auto p2shPreimage = brrSpender.get_BinaryDataRef(preimageSize);
 
       //contribID & label
-      brrSpender.get_var_int();
-      brrSpender.get_var_int();
+      auto contribIdSz = brrSpender.get_var_int();
+      if (contribIdSz != 0)
+         brrSpender.advance(contribIdSz);
+
+      auto labelIdSz = brrSpender.get_var_int();
+      if (labelIdSz != 0)
+         brrSpender.advance(labelIdSz);
 
       //sequence
       auto sequence = brrSpender.get_uint32_t();
@@ -3446,6 +3452,43 @@ void Signer::deserializeState_Legacy(const BinaryDataRef& ref)
          kas.wltLocator = brrSpender.get_BinaryDataRef(wltLocatorSize);
       }
 
+      //p2sh extended map
+      map<BinaryData, BinaryData> p2shExtMap;
+      while (brrSpender.getSizeRemaining() != 0)
+      {
+         auto extFlag = brrSpender.get_uint8_t();
+         auto extSize = brrSpender.get_var_int();
+         auto extRef = brrSpender.get_BinaryDataRef(extSize);
+
+         switch (extFlag)
+         {
+         case TXIN_EXT_P2SHSCRIPT:
+         {
+            BinaryRefReader brrExt(extRef);
+            auto keyCount = brrExt.get_var_int();
+
+            for (unsigned y=0; y<keyCount; y++)
+            {
+               auto keySize = brrExt.get_var_int();
+               auto key = brrExt.get_BinaryData(keySize);
+
+               auto valSize = brrExt.get_var_int();
+               auto val = brrExt.get_BinaryData(valSize);
+
+               p2shExtMap.emplace(key, val);
+            }
+            break;
+         }
+
+         default:
+            continue;
+         }
+      }
+
+      if (!p2shExtMap.empty())
+         LOGINFO << "spender " << i << "has extended p2sh data";
+
+      //setup spender
       BinaryRefReader brrOutpoint(outpointRef);
       auto hashRef = brrOutpoint.get_BinaryDataRef(32);
       auto outpointIndex = brrOutpoint.get_uint32_t();
@@ -3547,7 +3590,7 @@ void Signer::deserializeState_Legacy(const BinaryDataRef& ref)
          spender->injectSignature(sig, 0);
       }
 
-      //sighash type
+      //TODO: sighash type
 
       //sequence
       spender->setSequence(sequence);
@@ -3592,7 +3635,26 @@ void Signer::deserializeState_Legacy(const BinaryDataRef& ref)
       addRecipient(ScriptRecipient::fromScript(outputData.getDataRef()));
    }
 
-   lockTime_ = brr.get_uint32_t();
+   //lock time
+   if (brr.getSizeRemaining() > 4)
+      lockTime_ = brr.get_uint32_t();
+
+   //look for legacy signer state in extended data
+   auto legacySigner = LegacySigner::Signer::deserExtState(
+      brr.get_BinaryDataRef(brr.getSizeRemaining()));
+
+   //get the sigs if any
+   auto sigsFromLegacySigner = legacySigner.getSigs();
+
+   //inject them
+   for (auto& sigPair : sigsFromLegacySigner)
+   {
+      if (sigPair.first >= spenders_.size())
+         throw SignerDeserializationError("legacy deser: invalid spender id");
+
+      auto& spender = spenders_[sigPair.first];
+      spender->injectSignature(sigPair.second, 0);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
