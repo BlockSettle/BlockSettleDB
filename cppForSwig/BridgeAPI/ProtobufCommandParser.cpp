@@ -497,6 +497,12 @@ bool ProtobufCommandParser::processData(
       break;
    }
 
+   case Methods::setWalletLabels:
+   {
+      bridge->setWalletLabels(msg);
+      break;
+   }
+
    case Methods::getUtxosForValue:
    {
       if (msg.stringargs_size() != 1 || msg.longargs_size() != 1)

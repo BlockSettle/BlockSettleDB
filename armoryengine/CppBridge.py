@@ -1187,6 +1187,17 @@ class ArmoryBridge(object):
       self.sendToBridgeProto(packet, False)
 
    #############################################################################
+   def setWalletLabels(self, wltId, title, desc):
+      packet = ClientProto_pb2.ClientCommand()
+      packet.method = ClientProto_pb2.setWalletLabels
+
+      packet.stringArgs.append(wltId)
+      packet.stringArgs.append(title)
+      packet.stringArgs.append(desc)
+
+      self.sendToBridgeProto(packet, False)
+
+   #############################################################################
    def estimateFee(self, blocks, strat):
       packet = ClientProto_pb2.ClientCommand()
       packet.method = ClientProto_pb2.estimateFee

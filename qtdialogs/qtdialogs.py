@@ -555,55 +555,6 @@ class DlgNewWallet(ArmoryDialog):
       if self.importFile:
          self.accept()
 
-
-################################################################################
-class DlgChangeLabels(ArmoryDialog):
-   def __init__(self, currName='', currDescr='', parent=None, main=None):
-      super(DlgChangeLabels, self).__init__(parent, main)
-
-      self.edtName = QLineEdit()
-      self.edtName.setMaxLength(32)
-      lblName = QLabel(self.tr("Wallet &name:"))
-      lblName.setBuddy(self.edtName)
-
-      self.edtDescr = QTextEdit()
-      tightHeight = tightSizeNChar(self.edtDescr, 1)[1]
-      self.edtDescr.setMaximumHeight(tightHeight * 4.2)
-      lblDescr = QLabel(self.tr("Wallet &description:"))
-      lblDescr.setAlignment(Qt.AlignVCenter)
-      lblDescr.setBuddy(self.edtDescr)
-
-      self.edtName.setText(currName)
-      self.edtDescr.setText(currDescr)
-
-      buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | \
-                                   QDialogButtonBox.Cancel)
-      self.connect(buttonBox, SIGNAL('accepted()'), self.accept)
-      self.connect(buttonBox, SIGNAL('rejected()'), self.reject)
-
-      layout = QGridLayout()
-      layout.addWidget(lblName, 1, 0, 1, 1)
-      layout.addWidget(self.edtName, 1, 1, 1, 1)
-      layout.addWidget(lblDescr, 2, 0, 1, 1)
-      layout.addWidget(self.edtDescr, 2, 1, 2, 1)
-      layout.addWidget(buttonBox, 4, 0, 1, 2)
-      self.setLayout(layout)
-
-      self.setWindowTitle(self.tr('Wallet Descriptions'))
-
-
-   def accept(self, *args):
-      if not isASCII(unicode(self.edtName.text())) or \
-         not isASCII(unicode(self.edtDescr.toPlainText())):
-         UnicodeErrorBox(self)
-         return
-
-      if len(str(self.edtName.text()).strip()) == 0:
-         QMessageBox.critical(self, self.tr('Empty Name'), \
-            self.tr('All wallets must have a name. '), QMessageBox.Ok)
-         return
-      super(DlgChangeLabels, self).accept(*args)
-
 ################################################################################
 class LoadingDisp(ArmoryDialog):
    def __init__(self, parent, main):

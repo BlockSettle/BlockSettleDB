@@ -12,9 +12,9 @@
 
 from PySide2.QtCore import Qt, QByteArray
 from PySide2.QtWidgets import QFrame, QVBoxLayout, QGridLayout, QPushButton, \
-   QTreeView, QLabel, QCheckBox, QLineEdit, QDialogButtonBox
+   QTreeView, QLabel, QCheckBox, QLineEdit, QDialogButtonBox, QTextEdit
 
-from armoryengine.ArmoryUtils import getVersionString, coin2str
+from armoryengine.ArmoryUtils import getVersionString, coin2str, isASCII
 from armoryengine.BDM import TheBDM, BDM_UNINITIALIZED, BDM_OFFLINE, \
    BDM_SCANNING
 from armorycolors import htmlColor
@@ -23,7 +23,8 @@ from ui.TreeViewGUI import AddressTreeModel
 from qtdialogs.qtdefines import USERMODE, determineWalletType, \
    relaxedSizeNChar, relaxedSizeStr, QLabelButton, STYLE_SUNKEN, STYLE_NONE, \
    QRichLabel, makeHorizFrame, restoreTableView, WLTTYPES, \
-   WLTFIELDS, tightSizeStr, saveTableView
+   WLTFIELDS, tightSizeStr, saveTableView, tightSizeNChar, \
+   UnicodeErrorBox
 
 from qtdialogs.ArmoryDialog import ArmoryDialog
 from qtdialogs.MsgBoxWithDNAA import MsgBoxWithDNAA
@@ -1004,3 +1005,52 @@ class DlgWalletDetails(ArmoryDialog):
          layout.addWidget(bbox, 4, 0)
          self.setLayout(layout)
          self.setWindowTitle(self.tr('Set Wallet Owner'))
+
+################################################################################
+class DlgChangeLabels(ArmoryDialog):
+   def __init__(self, currName='', currDescr='', parent=None, main=None):
+      super(DlgChangeLabels, self).__init__(parent, main)
+
+      self.edtName = QLineEdit()
+      self.edtName.setMaxLength(32)
+      lblName = QLabel(self.tr("Wallet &name:"))
+      lblName.setBuddy(self.edtName)
+
+      self.edtDescr = QTextEdit()
+      tightHeight = tightSizeNChar(self.edtDescr, 1)[1]
+      self.edtDescr.setMaximumHeight(tightHeight * 4.2)
+      lblDescr = QLabel(self.tr("Wallet &description:"))
+      lblDescr.setAlignment(Qt.AlignVCenter)
+      lblDescr.setBuddy(self.edtDescr)
+
+      self.edtName.setText(currName)
+      self.edtDescr.setText(currDescr)
+
+      buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | \
+                                   QDialogButtonBox.Cancel)
+      buttonBox.accepted.connect(self.accept)
+      buttonBox.rejected.connect(self.reject)
+
+      layout = QGridLayout()
+      layout.addWidget(lblName, 1, 0, 1, 1)
+      layout.addWidget(self.edtName, 1, 1, 1, 1)
+      layout.addWidget(lblDescr, 2, 0, 1, 1)
+      layout.addWidget(self.edtDescr, 2, 1, 2, 1)
+      layout.addWidget(buttonBox, 4, 0, 1, 2)
+      self.setLayout(layout)
+
+      self.setWindowTitle(self.tr('Wallet Descriptions'))
+
+
+   def accept(self, *args):
+      try:
+         self.edtName.text().encode("ascii")
+      except UnicodeDecodeError:
+         UnicodeErrorBox(self)
+         return
+
+      if len(str(self.edtName.text()).strip()) == 0:
+         QMessageBox.critical(self, self.tr('Empty Name'), \
+            self.tr('All wallets must have a name. '), QMessageBox.Ok)
+         return
+      super(DlgChangeLabels, self).accept(*args)

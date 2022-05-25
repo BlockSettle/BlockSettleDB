@@ -1548,6 +1548,23 @@ void CppBridge::setComment(const ClientCommand& msg)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void CppBridge::setWalletLabels(const ClientCommand& msg)
+{
+   if (msg.stringargs_size() < 1 || msg.stringargs_size() > 3)
+      throw runtime_error("invalid command: setWalletLabels");
+
+   const auto& walletId = msg.stringargs(0);
+
+   auto wai = WalletAccountIdentifier::deserialize(walletId);
+   auto wltContainer = wltManager_->getWalletContainer(
+      wai.walletId, wai.accountId);
+
+   const auto& title = msg.stringargs(1);
+   const auto& desc = msg.stringargs(2);
+   wltContainer->setLabels(title, desc);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 void CppBridge::getUtxosForValue(const string& id,
    uint64_t value, unsigned msgId)
 {

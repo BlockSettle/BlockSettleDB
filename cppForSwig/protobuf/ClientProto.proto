@@ -29,6 +29,7 @@ enum Methods
     getHeaderByHeight = 71;
     createAddressBook = 72;
     setComment = 73;
+    setWalletLabels = 74;
 
     getNewAddress = 80;
     getChangeAddress = 81;

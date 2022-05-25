@@ -669,6 +669,14 @@ void WalletContainer::setComment(const string& key, const string& val)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+void WalletContainer::setLabels(const string& title, const string& desc)
+{
+   wallet_->setLabel(title);
+   wallet_->setDescription(desc);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
 ////
 //// Armory135Header
 ////

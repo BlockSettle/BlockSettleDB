@@ -217,6 +217,7 @@ public:
    Armory::Backups::WalletBackup getBackupStrings(const PassphraseLambda&) const;
 
    void setComment(const std::string&, const std::string&);
+   void setLabels(const std::string&, const std::string&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

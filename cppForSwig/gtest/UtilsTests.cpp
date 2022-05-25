@@ -2014,7 +2014,7 @@ TEST_F(BinaryDataTest, Contains)
    EXPECT_FALSE(bd4_.contains(d, 8));
 }
 
-TEST_F(BinaryDataTest, CompareBench)
+TEST_F(BinaryDataTest, DISABLED_CompareBench)
 {
    auto start = chrono::system_clock::now();
 

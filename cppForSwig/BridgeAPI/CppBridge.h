@@ -201,6 +201,7 @@ namespace Armory
             std::vector<std::string>, unsigned);
          void createAddressBook(const std::string&, unsigned);
          void setComment(const Codec_ClientProto::ClientCommand&);
+         void setWalletLabels(const Codec_ClientProto::ClientCommand&);
 
          //txs & headers
          void getTxByHash(const BinaryData&, unsigned);

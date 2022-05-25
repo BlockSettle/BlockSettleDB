@@ -1168,12 +1168,9 @@ class PyBtcWallet(object):
    def setWalletLabels(self, lshort, llong=''):
       self.labelName = lshort
       self.labelDescr = llong
-      toWriteS = lshort.ljust( 32, '\x00')
-      toWriteL =  llong.ljust(256, '\x00')
 
-      updList = []
-      updList.append([WLT_UPDATE_MODIFY, self.offsetLabelName,  toWriteS])
-      updList.append([WLT_UPDATE_MODIFY, self.offsetLabelDescr, toWriteL])
+      TheBridge.setWalletLabels(self.uniqueIDB58,
+         self.labelName, self.labelDescr)
 
    #############################################################################
    def deleteImportedAddress(self, addr160):
