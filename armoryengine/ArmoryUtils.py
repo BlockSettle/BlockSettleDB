@@ -1260,21 +1260,11 @@ def str2coin(theStr, negAllowed=True, maxDec=8, roundHighPrec=True):
    if len(coinStr.strip())==0:
       raise ValueError
 
-
-   if not '.' in coinStr:
-      result = int(coinStr)*ONE_BTC
-   else:
-      isNeg = ('-' in coinStr)
-      coinStrPos = coinStr.replace('-', '')
-      lhs,rhs = coinStrPos.strip(' ').split('.')
-      result = int(lhs) * ONE_BTC + int(rhs.ljust(8, "0"))
-      if isNeg:
-         result = -result
-   
-   if not negAllowed and result < 0:
+   floatVal = float(coinStr)
+   satoshiVal = int(floatVal * ONE_BTC)
+   if satoshiVal < 0 and negAllowed == False:
       raise NegativeValueError
-   return result
-
+   return satoshiVal
 
 ################################################################################
 def makeAsciiBlock(binStr, headStr='', wid=64, newline='\n'):
