@@ -383,7 +383,9 @@ private:
    LogLevel logLevel_;
 };
 
+#ifdef _MSC_VER
 #pragma warning(disable : 4996)
+#endif
 
 inline std::string NowTime()
 {
@@ -396,9 +398,8 @@ inline std::string NowTime()
     // Print time.
     time_t curTimeTT = std::chrono::system_clock::to_time_t(curTime);
     tm* tStruct = std::localtime(&curTimeTT);
-    std::string timeStr = "%04i-%02i-%02i - %02i:%02i:%02i.%03i";
     char result[LOGTIMEBUFLEN] = {0};
-    snprintf(result, sizeof(result), timeStr.c_str(), tStruct->tm_year + 1900, \
+    snprintf(result, sizeof(result), "%04i-%02i-%02i - %02i:%02i:%02i.%03i", tStruct->tm_year + 1900, \
                                                       tStruct->tm_mon + 1, \
                                                       tStruct->tm_mday, \
                                                       tStruct->tm_hour, \

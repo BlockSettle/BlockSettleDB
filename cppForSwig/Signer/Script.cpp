@@ -829,7 +829,7 @@ void StackInterpreter::op_checkmultisig()
    //pop n
    auto&& n = pop_back();
    auto nI = (unsigned)rawBinaryToInt(n);
-   if (nI < 0 || nI > 20)
+   if (nI > 20)
       throw ScriptException("invalid n");
 
    //pop pubkeys
@@ -847,7 +847,7 @@ void StackInterpreter::op_checkmultisig()
    //pop m
    auto&& m = pop_back();
    auto mI = (unsigned)rawBinaryToInt(m);
-   if (mI < 0 || mI > nI)
+   if (mI > nI)
       throw ScriptException("invalid m");
 
    txInEvalState_.n_ = nI;

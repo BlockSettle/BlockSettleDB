@@ -647,7 +647,7 @@ string DBUtils::getBaseDir(const string& path)
 {
    //crawl back until folder market is hit
    size_t pos = SIZE_MAX;
-   for (size_t i=path.size() - 1; i>-1; i--)
+   for (size_t i=path.size() - 1; i!=SIZE_MAX; i--)
    {
       auto charPtr = path.c_str() + i;
       if (*charPtr == '/' || *charPtr == '\\')
