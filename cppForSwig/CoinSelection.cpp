@@ -50,7 +50,7 @@ vector<UTXO> CoinSelection::checkForRecipientReuse(
 
          BinaryRefReader brr(output.getRef());
          brr.advance(8);
-         auto scriptLen = brr.get_var_int();
+         const auto scriptLen = (uint32_t)brr.get_var_int();
          auto script = brr.get_BinaryDataRef(scriptLen);
 
          auto&& scrAddr = BtcUtils::getScrAddrForScript(script);
@@ -145,7 +145,7 @@ UtxoSelection CoinSelection::getUtxoSelection(
          //no flat fee but a fee_byte is available
 
          //1 uncompressed p2pkh input + txoutSizeByte + 1 change output
-         compiledFee_oneOutput = float(215 + payStruct.size()) * payStruct.fee_byte();
+         compiledFee_oneOutput = uint64_t((215 + payStruct.size()) * payStruct.fee_byte());
 
          //figure out average txin count
          float valPct = float(payStruct.spendVal()) / float(utxoVecVal);
@@ -156,7 +156,7 @@ UtxoSelection CoinSelection::getUtxoSelection(
 
          //medianTxInCount p2pkh inputs + txoutSizeByte + 1 change output
          compiledFee_manyOutputs = 10 + 
-            float(averageTxInCount * 180 + 35 + payStruct.size()) * payStruct.fee_byte();
+            uint64_t((averageTxInCount * 180 + 35 + payStruct.size()) * payStruct.fee_byte());
       }
 
       //create deterministic selections
@@ -492,7 +492,7 @@ vector<UTXO> CoinSorting::sortCoins(
          auto nConf = utxo.getNumConfirm(topHeight);
          float priority = float(nConf * utxo.getValue() + 1);
          float logVal = log(priority) + 4;
-         float finalVal = pow(logVal, 4);
+         float finalVal = (float)pow(logVal, 4);
 
          ScoredUtxo_Float suf(&utxo, finalVal, i++);
          sufSet.insert(move(suf));
@@ -868,7 +868,7 @@ float SelectionScoring::computeScore(
    utxoSelect.computeSizeAndFee(payStruct);
 
    //compute address score
-   score.numAddrFactor_ = 4.0f / pow(float(addrSet.size() + 1), 2);
+   score.numAddrFactor_ = 4.0f / (float)pow(float(addrSet.size() + 1), 2);
 
    //get trailing 0 count for change and spendval
    auto targetVal = payStruct.spendVal() + utxoSelect.fee_;
@@ -921,7 +921,7 @@ float SelectionScoring::computeScore(
    }
 
    //compute tx size factor
-   unsigned numKb = utxoSelect.size_ / 1024;
+   const auto numKb = utxoSelect.size_ / 1024;
    if (numKb < 1)
       score.txSizeFactor_ = 1.0f;
    else if (numKb < 2)
@@ -966,7 +966,7 @@ void UtxoSelection::computeSizeAndFee(
    //txin and witness sizes
    value_ = 0;
    witnessSize_ = 0;
-   size_t txInSize = 0;
+   unsigned int txInSize = 0;
    bool sw = false;
 
    for (auto& utxo : utxoVec_)
@@ -981,14 +981,14 @@ void UtxoSelection::computeSizeAndFee(
       sw = true;
    }
 
-   auto txOutSize = payStruct.size();
+   unsigned int txOutSize = (unsigned int)payStruct.size();
 
    //version + locktime + txin count + txout count + txinSize + txoutSize
    unsigned txSize = 10 + txInSize + txOutSize;
    if (sw)
    {
       //witness data size + 1 varint per utxo + flag & marker
-      txSize += witnessSize_ + utxoVec_.size() + 2;
+      txSize += (unsigned)witnessSize_ + (unsigned)utxoVec_.size() + 2;
    }
 
    bool forcedFee = false;
@@ -1067,11 +1067,11 @@ void UtxoSelection::computeSizeAndFee(
          if (change_ZeroCount >= spendVal_ZeroCount)
             return;
 
-         unsigned factor = unsigned(pow(10, spendVal_ZeroCount--));
-         unsigned value_off = changeVal / factor;
+         const auto factor = unsigned(pow(10, spendVal_ZeroCount--));
+         auto value_off = unsigned(changeVal / factor);
          value_off *= factor;
 
-         unsigned stripped_val = changeVal - value_off;
+         unsigned stripped_val = (unsigned)changeVal - value_off;
          auto bumpPct = float(stripped_val) / float(compiled_fee);
          if (bumpPct > 0.10f)
             continue;
@@ -1189,11 +1189,11 @@ void CoinSelectionInstance::decorateUTXOs(
 
       while (true)
       {
-         utxo.txinRedeemSizeBytes_ += addrPtr->getInputSize();
+         utxo.txinRedeemSizeBytes_ += (unsigned)addrPtr->getInputSize();
 
          try
          {
-            utxo.witnessDataSizeBytes_ += addrPtr->getWitnessDataSize();
+            utxo.witnessDataSizeBytes_ += (unsigned)addrPtr->getWitnessDataSize();
             utxo.isInputSW_ = true;
          }
          catch (runtime_error&)
@@ -1480,7 +1480,7 @@ void CoinSelectionInstance::processCustomUtxoList(
 uint64_t CoinSelectionInstance::getFeeForMaxValUtxoVector(
    const vector<BinaryData>& serializedUtxos, float fee_byte)
 {
-   auto txoutsize = 0;
+   size_t txoutsize = 0;
    for (const auto& group : recipients_)
    {
       for (const auto& recipient : group.second)

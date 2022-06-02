@@ -227,7 +227,7 @@ public:
 
    void setTxioCount(uint64_t count) { totalTxioCount_ = count; }
    uint64_t getTxioCount(void) const { return getTxioCountFromSSH(true); }
-   uint64_t getTxioCountFromSSH(bool withZc) const;
+   uint32_t getTxioCountFromSSH(bool withZc) const;
 
    void mapHistory(void);
 

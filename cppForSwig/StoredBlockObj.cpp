@@ -334,10 +334,10 @@ void StoredHeader::unserializeFullBlock(BinaryRefReader brr,
 
    BtcUtils::getHash256(dataCopy_, thisHash_);
 
-   for(uint32_t tx=0; tx<nTx; tx++)
+   for (uint32_t tx=0; tx<nTx; tx++)
    {
       // We're going to have to come back to the beginning of the tx, later
-      uint32_t txStart = brr.getPosition();
+      const uint32_t txStart = (uint32_t)brr.getPosition();
 
       // Read a regular tx and then convert it
       Tx thisTx(brr);
@@ -494,7 +494,7 @@ BlockHeader DBBlock::getBlockHeaderCopy(void) const
    BlockHeader bh(dataCopy_);
 
    bh.setNumTx(numTx_);
-   bh.setBlockSize(numBytes_);
+   bh.setBlockSize((uint32_t)numBytes_);
    bh.setDuplicateID(duplicateID_);
 
    bh.setBlockFileNum(fileID_);
@@ -590,8 +590,8 @@ void DBBlock::unserializeDBValue( DB_SELECT         db,
 
       if( !ignoreMerkle )
       {
-         uint32_t currPos = brr.getPosition();
-         uint32_t totalSz = brr.getSize();
+         const uint32_t currPos = (uint32_t)brr.getPosition();
+         const uint32_t totalSz = (uint32_t)brr.getSize();
          if(unserMkType_ == MERKLE_SER_NONE)
             merkle_.resize(0);
          else
@@ -621,7 +621,7 @@ void DBBlock::serializeDBValue(
       BinaryData hgtx = DBUtils::heightAndDupToHgtx(blockHeight_, duplicateID_);
       bw.put_BinaryData(dataCopy_);
       bw.put_BinaryData(hgtx);
-      bw.put_uint32_t(numBytes_);
+      bw.put_uint32_t((uint32_t)numBytes_);
       bw.put_uint32_t(numTx_);
       bw.put_uint16_t(fileID_);
       bw.put_uint64_t(offset_);
@@ -665,7 +665,7 @@ void DBBlock::serializeDBValue(
       bw.put_BitPacker(bitpack);
       bw.put_BinaryData(dataCopy_);
       bw.put_uint32_t(numTx_);
-      bw.put_uint32_t(numBytes_);
+      bw.put_uint32_t((uint32_t)numBytes_);
 
       if( mtype != MERKLE_SER_NONE )
       {
@@ -764,7 +764,7 @@ void DBTx::unserialize(BinaryDataRef data, bool fragged)
 void DBTx::unserialize(BinaryRefReader & brr, bool fragged)
 {
    vector<size_t> offsetsIn, offsetsOut; 
-   uint32_t nbytes = BtcUtils::StoredTxCalcLength(brr.getCurrPtr(),
+   uint32_t nbytes = (uint32_t)BtcUtils::StoredTxCalcLength(brr.getCurrPtr(),
       brr.getSize(), fragged, &offsetsIn, &offsetsOut, nullptr);
 
    if (offsetsOut.size() < 1)
@@ -782,7 +782,7 @@ void DBTx::unserialize(BinaryRefReader & brr, bool fragged)
    brr.get_BinaryData(dataCopy_, nbytes);
 
    isFragged_ = fragged;
-   numTxOut_  = offsetsOut.size()-1;
+   numTxOut_  = uint16_t(offsetsOut.size()-1);
    txInCutOff_ = offsetsOut[0];
 
    version_   = READ_UINT32_LE(dataCopy_.getPtr());
@@ -797,7 +797,7 @@ void DBTx::unserialize(BinaryRefReader & brr, bool fragged)
    else
    {
       numBytes_ = nbytes;
-      uint32_t span = offsetsOut[numTxOut_] - offsetsOut[0];
+      uint32_t span = uint32_t(offsetsOut[numTxOut_] - offsetsOut[0]);
       fragBytes_ = numBytes_ - span;
       BtcUtils::getHash256(dataCopy_, thisHash_);
    }
@@ -933,7 +933,7 @@ BinaryData StoredTx::getSerializedTx(void) const
    if (txInCutOff_ == SIZE_MAX)
       return BinaryData(0);
 
-   bw.put_BinaryData(dataCopy_.getPtr(), txInCutOff_);
+   bw.put_BinaryData(dataCopy_.getPtr(), (uint32_t)txInCutOff_);
 
    map<uint16_t, StoredTxOut>::const_iterator iter;
    uint16_t i=0;
@@ -948,7 +948,7 @@ BinaryData StoredTx::getSerializedTx(void) const
    }
 
    bw.put_BinaryData(dataCopy_.getPtr()+txInCutOff_, 
-      dataCopy_.getSize() - txInCutOff_);
+      uint32_t(dataCopy_.getSize() - txInCutOff_));
    return bw.getData();
 }
 
@@ -971,9 +971,9 @@ BinaryData DBTx::getSerializedTxFragged(void) const
    vector<size_t> outOffsets;
    BtcUtils::StoredTxCalcLength(dataCopy_.getPtr(), dataCopy_.getSize(),
       false, nullptr, &outOffsets, nullptr);
-   uint32_t firstOut  = outOffsets[0];
-   uint32_t afterLast = outOffsets[outOffsets.size()-1];
-   uint32_t span = afterLast - firstOut;
+   const auto firstOut  = outOffsets[0];
+   const auto afterLast = outOffsets[outOffsets.size()-1];
+   const auto span = afterLast - firstOut;
 
    BinaryData output(dataCopy_.getSize() - span);
    dataCopy_.getSliceRef(0,  firstOut).copyTo(output.getPtr());
@@ -1044,7 +1044,7 @@ void StoredTxOut::unserialize(BinaryRefReader & brr)
       return;
    }
 
-   uint32_t numBytes = BtcUtils::TxOutCalcLength(
+   const uint32_t numBytes = (uint32_t)BtcUtils::TxOutCalcLength(
       brr.getCurrPtr(), brr.getSizeRemaining());
 
    if(brr.getSizeRemaining() < numBytes)
@@ -1265,13 +1265,13 @@ StoredTx & StoredTx::createFromTx(Tx & tx, bool doFrag, bool withTxOuts)
    }
 
    thisHash_  = tx.getThisHash();
-   numTxOut_  = tx.getNumTxOut();
+   numTxOut_  = (uint16_t)tx.getNumTxOut();
    version_   = tx.getVersion();
    lockTime_  = tx.getLockTime(); 
-   numBytes_  = tx.getSize(); 
+   numBytes_  = (uint32_t)tx.getSize();
    isFragged_ = doFrag;
 
-   uint32_t span = tx.getTxOutOffset(numTxOut_) - tx.getTxOutOffset(0);
+   uint32_t span = uint32_t(tx.getTxOutOffset(numTxOut_) - tx.getTxOutOffset(0));
    fragBytes_ = numBytes_ - span;
    txInCutOff_ = tx.getTxOutOffset(0);
 
@@ -1280,13 +1280,13 @@ StoredTx & StoredTx::createFromTx(Tx & tx, bool doFrag, bool withTxOuts)
    else
    {
       BinaryRefReader brr(tx.getPtr(), tx.getSize());
-      uint32_t firstOut  = tx.getTxOutOffset(0);
-      uint32_t afterLast = tx.getTxOutOffset(numTxOut_);
-      uint32_t _span = afterLast - firstOut;
+      const uint32_t firstOut  = (uint32_t)tx.getTxOutOffset(0);
+      const auto afterLast = tx.getTxOutOffset(numTxOut_);
+      const size_t _span = afterLast - firstOut;
       dataCopy_.resize(tx.getSize() - _span);
       brr.get_BinaryData(dataCopy_.getPtr(), firstOut);
       brr.advance(_span);
-      brr.get_BinaryData(dataCopy_.getPtr()+firstOut, brr.getSizeRemaining());
+      brr.get_BinaryData(dataCopy_.getPtr()+firstOut, (uint32_t)brr.getSizeRemaining());
    }
 
    if(withTxOuts)
@@ -1337,7 +1337,7 @@ TxOut StoredTxOut::getTxOutCopy(void) const
       return TxOut();
    }
    TxOut o;
-   o.unserialize_checked(dataCopy_.getPtr(), dataCopy_.getSize());
+   o.unserialize_checked(dataCopy_.getPtr(), (uint32_t)dataCopy_.getSize());
    return o;
 }
 
@@ -1452,8 +1452,8 @@ void StoredScriptHistory::unserializeDBValue(BinaryRefReader & brr)
       auto sumSize = brr.get_uint32_t();
       for (unsigned i = 0; i < sumSize; i++)
       {
-         unsigned height = brr.get_var_int();
-         unsigned sum = brr.get_var_int();
+         unsigned height = (unsigned)brr.get_var_int();
+         unsigned sum = (unsigned)brr.get_var_int();
 
          subsshSummary_[height] = sum;
       }
@@ -1499,7 +1499,7 @@ void StoredScriptHistory::serializeDBValue(BinaryWriter & bw,
    bw.put_uint64_t(totalUnspent_);
 
    //
-   bw.put_uint32_t(subsshSummary_.size());
+   bw.put_uint32_t((uint32_t)subsshSummary_.size());
    for (auto& sum : subsshSummary_)
    {
       bw.put_var_int(sum.first);
@@ -1543,7 +1543,7 @@ void StoredScriptHistory::decompressManySubssh(const BinaryDataRef& data,
       if (this_height > upper_bound)
          return;
 
-      subssh.height_ = this_height;
+      subssh.height_ = (uint32_t)this_height;
 
       //dupid
       auto dupId = brr.get_uint8_t();
@@ -1572,7 +1572,7 @@ void StoredScriptHistory::decompressManySubssh(const BinaryDataRef& data,
             auto outputid = brr.get_var_int();
 
             outputKey = move(DBUtils::getBlkDataKeyNoPrefix(
-               this_height, dupId, txid, outputid));
+               (uint32_t)this_height, dupId, (uint16_t)txid, (uint16_t)outputid));
 
             p.setTxOut(outputKey);
             if (txid == 0)
@@ -1591,9 +1591,9 @@ void StoredScriptHistory::decompressManySubssh(const BinaryDataRef& data,
             auto iid_input = brr.get_var_int();
 
             outputKey = move(DBUtils::getBlkDataKeyNoPrefix(
-               this_height, dupId, txid_output, iid_output));
+               (uint32_t)this_height, dupId, (uint16_t)txid_output, (uint16_t)iid_output));
             auto&& inputKey = DBUtils::getBlkDataKeyNoPrefix(
-               this_height, dupId, txid_input, iid_input);
+               (uint32_t)this_height, dupId, (uint16_t)txid_input, (uint16_t)iid_input);
 
             p.setTxOut(outputKey);
             p.setTxIn(inputKey);
@@ -1616,9 +1616,9 @@ void StoredScriptHistory::decompressManySubssh(const BinaryDataRef& data,
             auto iid_input = brr.get_var_int();
 
             outputKey = move(DBUtils::getBlkDataKeyNoPrefix(
-               output_height, output_dupid, txid_output, iid_output));
+               (uint32_t)output_height, output_dupid, (uint16_t)txid_output, (uint16_t)iid_output));
             auto&& inputKey = DBUtils::getBlkDataKeyNoPrefix(
-               this_height, dupId, txid_input, iid_input);
+               (uint32_t)this_height, dupId, (uint16_t)txid_input, (uint16_t)iid_input);
 
             p.setTxOut(outputKey);
             p.setTxIn(inputKey);
@@ -1637,11 +1637,11 @@ void StoredScriptHistory::decompressManySubssh(const BinaryDataRef& data,
          subssh.txioMap_.insert(move(make_pair(move(outputKey), move(p))));
       }
 
-      if (!isDupIdValid(this_height, dupId))
+      if (!isDupIdValid((unsigned)this_height, dupId))
          continue;
 
       //add to subssh map
-      auto hgtx = DBUtils::getBlkDataKeyNoPrefix(this_height, dupId);
+      auto hgtx = DBUtils::getBlkDataKeyNoPrefix((uint32_t)this_height, dupId);
       auto&& subssh_pair = make_pair(move(hgtx), move(subssh));
       subHistMap_.insert(move(subssh_pair));
    }
@@ -2043,7 +2043,7 @@ void StoredSubHistory::unserializeDBValue(BinaryDataRef bdr)
 ////////////////////////////////////////////////////////////////////////////////
 void StoredSubHistory::unserializeDBKey(BinaryDataRef key, bool withPrefix)
 {
-   uint32_t sz = key.getSize();
+   auto sz = key.getSize();
    BinaryRefReader brr(key);
    
    // Assume prefix
@@ -2053,7 +2053,7 @@ void StoredSubHistory::unserializeDBKey(BinaryDataRef key, bool withPrefix)
       sz -= 1;
    }
 
-   brr.get_BinaryData(uniqueKey_, sz-4);
+   brr.get_BinaryData(uniqueKey_, uint32_t(sz-4));
    brr.get_BinaryData(hgtX_, 4);
 
    uint8_t* hgtXptr = (uint8_t*)hgtX_.getPtr();
@@ -2380,8 +2380,8 @@ void StoredUndoData::serializeDBValue(BinaryWriter & bw) const
 {
    bw.put_BinaryData(blockHash_);
 
-   uint32_t nStxoRmd = stxOutsRemovedByBlock_.size();
-   uint32_t nOpAdded = outPointsAddedByBlock_.size();
+   uint32_t nStxoRmd = (uint32_t)stxOutsRemovedByBlock_.size();
+   uint32_t nOpAdded = (uint32_t)outPointsAddedByBlock_.size();
 
 
    // Store the full TxOuts that were removed... since they will have been
@@ -2570,7 +2570,7 @@ void StoredHeadHgtList::unserializeDBValue(BinaryRefReader & brr)
 ////////////////////////////////////////////////////////////////////////////////
 void StoredHeadHgtList::serializeDBValue(BinaryWriter & bw ) const
 {
-   bw.put_uint8_t( dupAndHashList_.size() );
+   bw.put_uint8_t((uint8_t)dupAndHashList_.size());
 
    // Write the preferred/valid block header first
    for(uint32_t i=0; i<dupAndHashList_.size(); i++)

@@ -50,8 +50,8 @@ void UniversalTimer::timer::stop(void)
 {
    if (isRunning_)
    {
-      chrono::duration<double> acc_sec = 
-         chrono::system_clock::now() - start_clock_;
+      const auto acc_sec = 
+         chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start_clock_);
       accum_time_ += acc_sec.count();
    }
    isRunning_ = false;
@@ -67,14 +67,14 @@ void UniversalTimer::timer::reset(void)
 // CALCULATE THE ELAPSED TIME BUT DON'T STOP TIMER
 double UniversalTimer::timer::read(void)
 {
-   double accum = accum_time_; // if not running, this is correct
+   auto accum = accum_time_; // if not running, this is correct
    if(isRunning_)
    {
       stop();
       accum = accum_time_;
       start();
    }
-   return accum;
+   return (double)accum;
 }
 ////////////////////////////////////////////////////////////////////////////////
 // END UniversalTimer::timer methods

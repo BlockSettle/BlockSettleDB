@@ -8,7 +8,7 @@
 
 #include "DBClientClasses.h"
 #include "WebSocketClient.h"
-#include "protobuf/BDVCommand.pb.h"
+#include "BDVCodec.h"
 #include "btc/ecc.h"
 
 using namespace std;
@@ -62,7 +62,7 @@ LedgerEntry::LedgerEntry(shared_ptr<::Codec_LedgerEntry::LedgerEntry> msg) :
 LedgerEntry::LedgerEntry(BinaryDataRef bdr)
 {
    auto msg = make_shared<::Codec_LedgerEntry::LedgerEntry>();
-   msg->ParseFromArray(bdr.getPtr(), bdr.getSize());
+   msg->ParseFromArray(bdr.getPtr(), (int)bdr.getSize());
    ptr_ = msg.get();
    msgPtr_ = msg;
 }
@@ -346,7 +346,7 @@ bool RemoteCallback::processNotifications(
             break;
 
          auto pd = ProgressData::make_new(callback, i);
-         progress(pd->phase(), pd->wltIDs(), pd->progress(),
+         progress(pd->phase(), pd->wltIDs(), (float)pd->progress(),
             pd->time(), pd->numericProgress());
 
          break;
@@ -407,7 +407,7 @@ bool RemoteCallback::processNotifications(
 NodeStatus::NodeStatus(BinaryDataRef bdr)
 {
    auto msg = make_shared<Codec_NodeStatus::NodeStatus>();
-   if (!msg->ParseFromArray(bdr.getPtr(), bdr.getSize()))
+   if (!msg->ParseFromArray(bdr.getPtr(), (int)bdr.getSize()))
       throw runtime_error("invalid node status protobuf msg");
    ptr_ = msg.get();
    msgPtr_ = move(msg);

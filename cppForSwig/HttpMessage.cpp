@@ -64,14 +64,14 @@ int32_t HttpMessage::makeHttpPayload(
    for (auto& header : headers_)
    {
       memcpy(*payload_out + pos, header.c_str(), header.size());
-      pos += header.size();
+      pos += (int32_t)header.size();
    }
 
    memcpy(*payload_out + pos, ss.str().c_str(), ss.str().size());
-   pos += ss.str().size();
+   pos += (int32_t)ss.str().size();
 
    memcpy(*payload_out + pos, payload_in, len);
-   pos += len;
+   pos += (int32_t)len;
 
    memset(*payload_out + pos, 0, 1);
    return pos;

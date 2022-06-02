@@ -400,7 +400,7 @@ public:
    {
       if (txHash_.getSize() == 0)
       {
-         Tx thisTx(&rawTx_[0], rawTx_.size());
+         Tx thisTx(&rawTx_[0], (uint32_t)rawTx_.size());
 
          txHash_ = std::move(thisTx.getThisHash());
       }

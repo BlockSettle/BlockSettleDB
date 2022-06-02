@@ -1770,10 +1770,10 @@ public:
          }
          else
          {
-            int zeroCount = 32 - len;
-            while (zeroCount-- > 0)
+            int zeroCount = 32 - (int)len;
+            while (zeroCount-- > 0) {
                output.put_uint8_t(0);
-            
+            }
             output.put_BinaryData(data);
          }
       };

@@ -505,7 +505,7 @@ unique_ptr<AddressAccount> AddressAccount::readFromDisk(
    count = brr.get_var_int();
    for (unsigned i = 0; i < count; i++)
    {
-      auto len = brr.get_var_int();
+      const uint32_t len = (uint32_t)brr.get_var_int();
       BinaryWriter bw_asset_key(1 + len);
       bw_asset_key.put_uint8_t(ASSET_ACCOUNT_PREFIX);
       bw_asset_key.put_BinaryData(brr.get_BinaryData(len));

@@ -107,16 +107,16 @@ void WalletHeader::unserializeEncryptionKey(BinaryRefReader& brr)
    {
    case 0x00000001:
    {
-      auto len = brr.get_var_int();
+      auto len = (uint32_t)brr.get_var_int();
       defaultEncryptionKeyId_ = move(brr.get_BinaryData(len));
 
-      len = brr.get_var_int();
+      len = (uint32_t)brr.get_var_int();
       defaultEncryptionKey_ = move(brr.get_BinaryData(len));
 
-      len = brr.get_var_int();
+      len = (uint32_t)brr.get_var_int();
       defaultKdfId_ = move(brr.get_BinaryData(len));
 
-      len = brr.get_var_int();
+      len = (uint32_t)brr.get_var_int();
       masterEncryptionKeyId_ = move(brr.get_BinaryData(len));
 
       break;
@@ -147,7 +147,7 @@ void WalletHeader::unserializeControlSalt(BinaryRefReader& brr)
    {
    case 0x00000001:
    {   
-      auto len = brr.get_var_int();
+      const auto len = (uint32_t)brr.get_var_int();
       controlSalt_ = brr.get_SecureBinaryData(len);
 
       break;
@@ -404,6 +404,6 @@ shared_ptr<WalletHeader> WalletHeader::deserialize(
       throw WalletException("invalid wallet type");
    }
 
-   wltHeaderPtr->walletID_ = brrKey.get_String(brrKey.getSizeRemaining());
+   wltHeaderPtr->walletID_ = brrKey.get_String((uint32_t)brrKey.getSizeRemaining());
    return wltHeaderPtr;
 }

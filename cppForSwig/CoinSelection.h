@@ -222,9 +222,10 @@ namespace Armory
             topHeight_(topHeight)
          {
             //for random shuffling
-            srand(time(0));
-            for (auto& entry : addrBook)
+            std::srand((unsigned int)time(0));
+            for (auto& entry : addrBook) {
                addrBook_.insert(entry);
+            }
          }
 
          UtxoSelection getUtxoSelectionForRecipients(

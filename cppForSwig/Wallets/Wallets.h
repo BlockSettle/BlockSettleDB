@@ -45,7 +45,7 @@ namespace Armory
       namespace IO
       {
          class WalletDBInterface;
-         class WalletHeader;
+         struct WalletHeader;
       };
 
       //////////////////////////////////////////////////////////////////////////

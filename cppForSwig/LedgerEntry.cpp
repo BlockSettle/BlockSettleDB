@@ -271,8 +271,9 @@ map<BinaryData, LedgerEntry> LedgerEntry::computeLedgerMap(
          {
             auto ss = zc->getSnapshot();
             auto ptx = ss->getTxByKey(txioVec.first);
-            if(ptx != nullptr)
-               nTxOutInTx = ptx->outputs_.size();
+            if (ptx != nullptr) {
+               nTxOutInTx = (uint32_t)ptx->outputs_.size();
+            }
          }
 
          if (nTxOutInTx == nTxOutAreOurs)

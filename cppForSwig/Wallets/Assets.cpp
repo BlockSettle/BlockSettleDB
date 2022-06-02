@@ -90,7 +90,7 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
 
       while (brr.getSizeRemaining() > 0)
       {
-         auto len = brr.get_var_int();
+         const uint32_t len = (uint32_t)brr.get_var_int();
          auto valref = brr.get_BinaryDataRef(len);
          dataVec.push_back(valref);
       }
@@ -116,7 +116,7 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
                   throw AssetException("multiple pub keys for entry");
 
                pubKeyUncompressed = move(SecureBinaryData(
-                  brrData.get_BinaryDataRef(brrData.getSizeRemaining())));
+                  brrData.get_BinaryDataRef((uint32_t)brrData.getSizeRemaining())));
 
                break;
             }
@@ -141,7 +141,7 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
                   throw AssetException("multiple pub keys for entry");
 
                pubKeyCompressed = move(SecureBinaryData(
-                  brrData.get_BinaryDataRef(brrData.getSizeRemaining())));
+                  brrData.get_BinaryDataRef((uint32_t)brrData.getSizeRemaining())));
 
                break;
             }
@@ -231,7 +231,7 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
          auto depth = brrVal.get_uint8_t();
          auto leafid = brrVal.get_uint32_t();
          auto fingerprint = brrVal.get_uint32_t();
-         auto cclen = brrVal.get_var_int();
+         const uint32_t cclen = (uint32_t)brrVal.get_var_int();
          auto&& chaincode = brrVal.get_BinaryData(cclen);
          unsigned seedFingerprint = UINT32_MAX;
 
@@ -285,7 +285,7 @@ shared_ptr<AssetEntry> AssetEntry::deserDBValue(
       {
       case 0x00000001:
       {
-         auto cclen = brrVal.get_var_int();
+         const uint32_t cclen = (uint32_t)brrVal.get_var_int();
          auto&& chaincode = brrVal.get_BinaryData(cclen);
 
          shared_ptr<Asset_PrivateKey> privKeyPtr;
@@ -713,7 +713,7 @@ unique_ptr<Asset_PrivateKey> Asset_PrivateKey::deserializeOld(
       case 0x00000001:
       {
          //id
-         auto len = brr.get_var_int();
+         uint32_t len = (uint32_t)brr.get_var_int();
          auto onDiskId = brr.get_BinaryData(len);
 
          if (onDiskId.getSize() != 4)
@@ -731,8 +731,8 @@ unique_ptr<Asset_PrivateKey> Asset_PrivateKey::deserializeOld(
          }
 
          //cipher data
-         len = brr.get_var_int();
-         if (len > brr.getSizeRemaining())
+         len = (uint32_t)brr.get_var_int();
+         if (len > (uint32_t)brr.getSizeRemaining())
          {
             throw runtime_error("[Asset_PrivateKey::deserialize]"
                " invalid serialized encrypted data len");
@@ -797,8 +797,8 @@ unique_ptr<Asset_PrivateKey> Asset_PrivateKey::deserialize(
          auto assetId = AssetId::deserializeValue(brr);
 
          //cipher data
-         auto len = brr.get_var_int();
-         if (len > brr.getSizeRemaining())
+         const uint32_t len = (uint32_t)brr.get_var_int();
+         if (len > (uint32_t)brr.getSizeRemaining())
             throw runtime_error("invalid serialized encrypted data len");
 
          auto cipherBdr = brr.get_BinaryDataRef(len);
@@ -894,10 +894,10 @@ unique_ptr<EncryptedSeed> EncryptedSeed::deserialize(
       {
       case 0x00000001:
       {
-         auto len = brr.get_var_int();
-         if (len > brr.getSizeRemaining())
+         const uint32_t len = (uint32_t)brr.get_var_int();
+         if (len > (uint32_t)brr.getSizeRemaining()) {
             throw runtime_error("invalid serialized encrypted data len");
-
+         }
          auto cipherBdr = brr.get_BinaryDataRef(len);
          BinaryRefReader cipherBrr(cipherBdr);
          auto cipherData = Encryption::CipherData::deserialize(cipherBrr);
@@ -1046,7 +1046,7 @@ void PeerPublicData::deserializeDBValue(const BinaryDataRef& data)
    {
    case 0x00000001:
    {
-      auto keyLen = brrData.get_var_int();
+      const uint32_t keyLen = (uint32_t)brrData.get_var_int();
       publicKey_ = brrData.get_BinaryData(keyLen);
       
       //check pubkey is valid
@@ -1056,7 +1056,7 @@ void PeerPublicData::deserializeDBValue(const BinaryDataRef& data)
       auto count = brrData.get_var_int();
       for (unsigned i = 0; i < count; i++)
       {
-         auto nameLen = brrData.get_var_int();
+         const uint32_t nameLen = (uint32_t)brrData.get_var_int();
          auto bdrName = brrData.get_BinaryDataRef(nameLen);
 
          string name((char*)bdrName.getPtr(), nameLen);
@@ -1173,17 +1173,17 @@ void PeerRootKey::deserializeDBValue(const BinaryDataRef& data)
    {
    case 0x00000001:
    {
-      auto keyLen = brrData.get_var_int();
+      const uint32_t keyLen = (uint32_t)brrData.get_var_int();
       publicKey_ = brrData.get_BinaryData(keyLen);
 
       //check pubkey is valid
       if (!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
          throw AssetException("invalid pubkey in peer metadata");
 
-      auto descLen = brrData.get_var_int();
-      if (descLen == 0)
+      const uint32_t descLen = (uint32_t)brrData.get_var_int();
+      if (descLen == 0) {
          return;
-
+      }
       auto descBdr = brrData.get_BinaryDataRef(descLen);
       description_ = string(descBdr.toCharPtr(), descBdr.getSize());
 
@@ -1270,24 +1270,24 @@ BinaryData PeerRootSignature::serialize() const
 void PeerRootSignature::deserializeDBValue(const BinaryDataRef& data)
 {
    BinaryRefReader brrData(data);
-   auto len = brrData.get_var_int();
-   if (len != brrData.getSizeRemaining())
+   uint32_t len = (uint32_t)brrData.get_var_int();
+   if (len != (uint32_t)brrData.getSizeRemaining()) {
       throw AssetException("size mismatch in metadata entry");
-
+   }
    auto version = brrData.get_uint32_t();
 
    switch (version)
    {
    case 0x00000001:
    {
-      auto keyLen = brrData.get_var_int();
+      const uint32_t keyLen = (uint32_t)brrData.get_var_int();
       publicKey_ = brrData.get_BinaryData(keyLen);
 
       //check pubkey is valid
       if (!CryptoECDSA().VerifyPublicKeyValid(publicKey_))
          throw AssetException("invalid pubkey in peer metadata");
 
-      len = brrData.get_var_int();
+      len = (uint32_t)brrData.get_var_int();
       signature_ = brrData.get_BinaryDataRef(len);
 
       break;
@@ -1375,20 +1375,20 @@ BinaryData CommentData::serialize() const
 void CommentData::deserializeDBValue(const BinaryDataRef& data)
 {
    BinaryRefReader brrData(data);
-   auto len = brrData.get_var_int();
-   if (len != brrData.getSizeRemaining())
+   uint32_t len = (uint32_t)brrData.get_var_int();
+   if (len != (uint32_t)brrData.getSizeRemaining()) {
       throw AssetException("size mismatch in metadata entry");
-
+   }
    auto version = brrData.get_uint32_t();
 
    switch (version)
    {
    case 0x00000001:
    {
-      len = brrData.get_var_int();
+      len = (uint32_t)brrData.get_var_int();
       key_ = brrData.get_BinaryData(len);
 
-      len = brrData.get_var_int();
+      len = (uint32_t)brrData.get_var_int();
       commentStr_ = brrData.get_String(len);
 
       break;

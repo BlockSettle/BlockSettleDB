@@ -78,7 +78,7 @@ ProgressFilter::~ProgressFilter()
 void ProgressFilter::advance(uint64_t to)
 {
    calc_.advance(to+offset_);
-   progress(calc_.fractionCompleted(), calc_.remainingSeconds());
+   progress(calc_.fractionCompleted(), (unsigned)calc_.remainingSeconds());
 }   
 
 

@@ -526,7 +526,7 @@ LedgerDelegate BlockDataViewer::getLedgerDelegateForWallets()
    { return this->groups_[group_wallet].getPageIdForBlockHeight(block); };
 
    auto getPageCount = [this](void)->uint32_t
-   { return this->getWalletsPageCount(); };
+   { return (uint32_t)this->getWalletsPageCount(); };
 
    return LedgerDelegate(getHist, getBlock, getPageId, getPageCount);
 }
@@ -544,7 +544,7 @@ LedgerDelegate BlockDataViewer::getLedgerDelegateForLockboxes()
    { return this->groups_[group_lockbox].getPageIdForBlockHeight(block); };
 
    auto getPageCount = [this](void)->uint32_t
-   { return this->getLockboxesPageCount(); };
+   { return (uint32_t)this->getLockboxesPageCount(); };
 
    return LedgerDelegate(getHist, getBlock, getPageId, getPageCount);
 }
@@ -581,7 +581,7 @@ LedgerDelegate BlockDataViewer::getLedgerDelegateForScrAddr(
    { return sca.getPageIdForBlockHeight(block); };
 
    auto getPageCount = [&](void)->uint32_t
-   { return sca.getPageCount(); };
+   { return (uint32_t)sca.getPageCount(); };
 
    return LedgerDelegate(getHist, getBlock, getPageId, getPageCount);
 }
@@ -1139,7 +1139,7 @@ vector<pair<StoredTxOut, BinaryDataRef>> BlockDataViewer::getOutputsForOutpoints
          const auto& output = txFromSS->outputs_[op];
          BinaryRefReader brr(txFromSS->tx_.getPtr(), txFromSS->tx_.getSize());
          brr.advance(output.offset_);
-         auto txOutRef = brr.get_BinaryDataRef(output.len_);
+         auto txOutRef = brr.get_BinaryDataRef((uint32_t)output.len_);
             
          stxo.unserialize(txOutRef);
          stxo.blockHeight_ = UINT32_MAX;
@@ -1374,17 +1374,17 @@ vector<LedgerEntry> WalletGroup::getHistoryPage(
    if (pageId >= hist_.getPageCount())
       throw std::range_error("pageId out of range");
 
-   if (order_ == order_ascending)
-      pageId = hist_.getPageCount() - pageId - 1;
-
-   if (rebuildLedger || remapWallets)
+   if (order_ == order_ascending) {
+      pageId = uint32_t(hist_.getPageCount() - pageId - 1);
+   }
+   if (rebuildLedger || remapWallets) {
       pageHistory(remapWallets, false);
-
+   }
    vector<LedgerEntry> vle;
 
-   if (rebuildLedger || remapWallets)
+   if (rebuildLedger || remapWallets) {
       updateID = UINT32_MAX;
-
+   }
    {
       ReadWriteLock::ReadLock rl(lock_);
 

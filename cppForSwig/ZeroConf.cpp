@@ -1168,7 +1168,7 @@ void ZeroConfContainer::handleInvTx()
                auto& invVec = invPayload->invVec_;
                if (parserThreadCount_ < invVec.size() &&
                   parserThreadCount_ < maxZcThreadCount_)
-                  increaseParserThreadPool(invVec.size());
+                  increaseParserThreadPool((unsigned)invVec.size());
 
                SingleLock lock(&watcherMapMutex_);
 
@@ -1348,7 +1348,7 @@ void ZeroConfContainer::processPayloadTx(
 
    //set raw tx and current time
    payloadPtr->pTx_->tx_.unserialize(*payloadPtr->rawTx_);
-   payloadPtr->pTx_->tx_.setTxTime(time(0));
+   payloadPtr->pTx_->tx_.setTxTime((uint32_t)time(0));
 
    preprocessTx(*payloadPtr->pTx_, db_);
    payloadPtr->incrementCounter();
@@ -1575,7 +1575,7 @@ void ZeroConfContainer::increaseParserThreadPool(unsigned count)
    for (unsigned i = parserThreadCount_; i < count; i++)
       parserThreads_.push_back(thread(processZcThread));
 
-   parserThreadCount_ = parserThreads_.size();
+   parserThreadCount_ = (unsigned)parserThreads_.size();
    LOGINFO << "now running " << parserThreadCount_ << " zc parser threads";
 }
 
@@ -1610,7 +1610,7 @@ BatchTxMap ZeroConfContainer::getBatchTxMap(shared_ptr<ZeroConfBatch> batch,
    auto delay = chrono::duration_cast<chrono::milliseconds>(
       chrono::system_clock::now() - batch->creationTime_);
    if (delay.count() < batch->timeout_)
-      timeLeft = batch->timeout_ - delay.count();
+      timeLeft = batch->timeout_ - (unsigned)delay.count();
 
    auto timeLeftMs = chrono::milliseconds(timeLeft);
 
@@ -1854,7 +1854,7 @@ shared_ptr<ZeroConfBatch> ZcActionQueue::initiateZcBatch(
       return nullptr;
    }
 
-   batch->counter_->store(batch->zcMap_.size(), memory_order_relaxed);
+   batch->counter_->store((int)batch->zcMap_.size(), memory_order_relaxed);
    batch->timeout_ = timeout; //in milliseconds
    batch->errorCallback_ = cbk;
 
@@ -2048,7 +2048,7 @@ void ZcActionQueue::getDataToBatchMatcherThread()
          }
       }
 
-      matcherMapSize_.store(hashToBatchMap.size(), memory_order_relaxed);
+      matcherMapSize_.store((int)hashToBatchMap.size(), memory_order_relaxed);
    }
 }
 

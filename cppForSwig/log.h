@@ -383,6 +383,8 @@ private:
    LogLevel logLevel_;
 };
 
+#pragma warning(disable : 4996)
+
 inline std::string NowTime()
 {
     // Getting current time in ms is way trickier than it should be.
@@ -393,7 +395,7 @@ inline std::string NowTime()
 
     // Print time.
     time_t curTimeTT = std::chrono::system_clock::to_time_t(curTime);
-    tm* tStruct = localtime(&curTimeTT);
+    tm* tStruct = std::localtime(&curTimeTT);
     std::string timeStr = "%04i-%02i-%02i - %02i:%02i:%02i.%03i";
     char result[LOGTIMEBUFLEN] = {0};
     snprintf(result, sizeof(result), timeStr.c_str(), tStruct->tm_year + 1900, \

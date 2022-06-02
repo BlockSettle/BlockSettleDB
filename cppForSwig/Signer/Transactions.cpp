@@ -151,7 +151,7 @@ TxInEvalState Armory::Signer::TransactionVerifier::checkSig(unsigned inputId,
    BinaryRefReader inputBrr(input);
    auto&& txHashRef = inputBrr.get_BinaryDataRef(32);
    auto outputId = inputBrr.get_uint32_t();
-   auto scriptSize = inputBrr.get_var_int();
+   const auto scriptSize = (uint32_t)inputBrr.get_var_int();
    auto&& inputScript = inputBrr.get_BinaryDataRef(scriptSize);
 
    auto utxoIter = utxos_.find(txHashRef);

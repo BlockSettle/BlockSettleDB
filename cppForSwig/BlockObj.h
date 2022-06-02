@@ -271,7 +271,7 @@ public:
    uint32_t     getTxtIndex(void) const    { return txIndex_; }
    uint32_t     getTxOutIndex(void) const  { return txOutIndex_; }
    uint64_t     getValue(void)  const      { return value_;      }
-   uint64_t     getTxHeight(void)  const   { return txHeight_;   }
+   uint32_t     getTxHeight(void)  const   { return txHeight_;   }
    uint32_t     isMultisigRef(void) const  { return isMultisigRef_; }
 
    OutPoint getOutPoint(void) const { return OutPoint(txHash_, txOutIndex_); }

@@ -29,7 +29,7 @@ namespace Armory
 {
    namespace Backups
    {
-      class WalletBackup;
+      struct WalletBackup;
    };
 
    namespace Accounts

@@ -11,11 +11,11 @@
 #include "BtcUtils.h"
 #include "Wallets/WalletIdTypes.h"
 
-#define EASY16_CHECKSUM_LEN 2
-#define EASY16_INDEX_MAX   15
-#define EASY16_LINE_LENGTH 16
+constexpr uint32_t EASY16_CHECKSUM_LEN = 2;
+constexpr uint32_t EASY16_INDEX_MAX = 15;
+constexpr uint32_t EASY16_LINE_LENGTH = 16;
 
-#define WALLET_RESTORE_LOOKUP 1000
+constexpr uint32_t WALLET_RESTORE_LOOKUP = 1000;
 
 using namespace std;
 using namespace Armory::Backups;
@@ -153,11 +153,11 @@ vector<string> BackupEasy16::encode(const BinaryDataRef data, uint8_t index)
    BinaryRefReader brr(data);
 
    uint32_t count = 
-      (data.getSize() + EASY16_LINE_LENGTH - 1) / EASY16_LINE_LENGTH;
+      ((uint32_t)data.getSize() + EASY16_LINE_LENGTH - 1) / EASY16_LINE_LENGTH;
    for (unsigned i=0; i<count; i++)
    {
-      size_t len = 
-         std::min(size_t(EASY16_LINE_LENGTH), brr.getSizeRemaining());
+      const uint32_t len = 
+         std::min(EASY16_LINE_LENGTH, (uint32_t)brr.getSizeRemaining());
       auto chunk = brr.get_BinaryDataRef(len);
       result.emplace_back(encodeValue(chunk));
    }
@@ -449,7 +449,7 @@ bool BackupEasy16::repair(BackupEasy16DecodeResult& faultyBackup)
          }
 
          auto dataRef = brr.get_BinaryDataRef(
-            std::min(size_t(EASY16_LINE_LENGTH), brr.getSizeRemaining()));
+            std::min(EASY16_LINE_LENGTH, (uint32_t)brr.getSizeRemaining()));
 
          auto repairResults = 
             searchChecksum(dataRef, faultyBackup.checksums_[i], hint);
@@ -485,7 +485,7 @@ bool BackupEasy16::repair(BackupEasy16DecodeResult& faultyBackup)
       for (unsigned i=0; i<faultyBackup.checksumIndexes_.size(); i++)
       {
          auto dataRef = brr.get_BinaryDataRef(
-            std::min(size_t(EASY16_LINE_LENGTH), brr.getSizeRemaining()));
+            std::min(EASY16_LINE_LENGTH, (uint32_t)brr.getSizeRemaining()));
 
          auto repairResults = 
             searchChecksum(dataRef, faultyBackup.checksums_[i], -1);
@@ -551,7 +551,7 @@ bool BackupEasy16::repair(BackupEasy16DecodeResult& faultyBackup)
             return false;
 
          auto dataRef = brr.get_BinaryDataRef(
-            std::min(size_t(EASY16_LINE_LENGTH), brr.getSizeRemaining()));
+            std::min(EASY16_LINE_LENGTH, (uint32_t)brr.getSizeRemaining()));
          
          auto ptr = (uint8_t*)(dataRef.getPtr() + valIter->first);
          *ptr = *valIter->second.begin();
@@ -573,11 +573,11 @@ SecurePrint::SecurePrint()
 {
    //setup aes IV and kdf
    auto iv32 = BtcUtils::getHash256(
-      (const uint8_t*)digits_pi_.c_str(), digits_pi_.size());
+      (const uint8_t*)digits_pi_.c_str(), (uint32_t)digits_pi_.size());
    iv16_ = move(iv32.getSliceCopy(0, AES_BLOCK_SIZE));
 
    salt_ = move(BtcUtils::getHash256(
-      (const uint8_t*)digits_e_.c_str(), digits_e_.size()));
+      (const uint8_t*)digits_e_.c_str(), (uint32_t)digits_e_.size()));
    kdf_.usePrecomputedKdfParams(kdfBytes_, 1, salt_);
 }
 
@@ -659,7 +659,7 @@ pair<SecureBinaryData, SecureBinaryData> SecurePrint::encrypt(
       //encrypt with CBC
       auto encrLen = aes256_cbc_encrypt(
          encryptionKey.getPtr(), iv16_.getPtr(),
-         cleartext.getPtr(), cleartext.getSize(),
+         cleartext.getPtr(), (int)cleartext.getSize(),
          0, //no padding
          result.getPtr());
 
@@ -743,7 +743,7 @@ SecureBinaryData SecurePrint::decrypt(
 
       auto size = aes256_cbc_decrypt(
          encryptionKey.getPtr(), iv16_.getPtr(),
-         ciphertext.getPtr(), ciphertext.getSize(),
+         ciphertext.getPtr(), (int)ciphertext.getSize(),
          0, //no padding
          result.getPtr());
 

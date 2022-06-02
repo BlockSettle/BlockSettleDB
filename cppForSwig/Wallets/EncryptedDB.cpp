@@ -140,7 +140,7 @@ void DBInterface::loadAllEntries(const SecureBinaryData& rootKey)
       {
          BinaryRefReader brr(packet.getRef());
          auto placeHolder = 
-            brr.get_BinaryDataRef(erasurePlaceHolder_.getSize());
+            brr.get_BinaryDataRef((uint32_t)erasurePlaceHolder_.getSize());
 
          if (placeHolder == erasurePlaceHolder_)
          {
@@ -389,7 +389,7 @@ pair<BinaryData, BothBinaryDatas> DBInterface::readDataPacket(
 
       //get cipher text
       auto&& cipherText = brrCipher.get_SecureBinaryData(
-         brrCipher.getSizeRemaining());
+         (uint32_t)brrCipher.getSizeRemaining());
       
       //decrypt
       auto&& plainText = CryptoAES::DecryptCBC(cipherText, decrKey, iv);
@@ -401,15 +401,15 @@ pair<BinaryData, BothBinaryDatas> DBInterface::readDataPacket(
       auto hmac = brrPlain.get_BinaryData(32);
 
       //grab data key
-      auto len = brrPlain.get_var_int();
+      uint32_t len = (uint32_t)brrPlain.get_var_int();
       dataKey = move(brrPlain.get_BinaryData(len));
 
       //grab data val
-      len = brrPlain.get_var_int();
+      len = (uint32_t)brrPlain.get_var_int();
       dataVal = move(brrPlain.get_SecureBinaryData(len));
 
       //mark the position
-      auto pos = brrPlain.getPosition() - 32;
+      const uint32_t pos = (uint32_t)brrPlain.getPosition() - 32;
 
       //sanity check
       if (brrPlain.getSizeRemaining() != 0)
@@ -444,7 +444,7 @@ pair<BinaryData, BothBinaryDatas> DBInterface::readDataPacket(
 unsigned DBInterface::getEntryCount(void) const
 {
    auto dbMapPtr = atomic_load_explicit(&dataMapPtr_, memory_order_acquire);
-   return dbMapPtr->dataMap_.size();
+   return (unsigned)dbMapPtr->dataMap_.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

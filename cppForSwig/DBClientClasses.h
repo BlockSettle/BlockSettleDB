@@ -70,7 +70,7 @@ namespace DBClientClasses
       void unserialize(uint8_t const * ptr, uint32_t size);
       void unserialize(BinaryDataRef const & str)
       {
-         unserialize(str.getPtr(), str.getSize());
+         unserialize(str.getPtr(), (uint32_t)str.getSize());
       }
 
    public:

@@ -353,17 +353,17 @@ BinaryData BtcUtils::getTxOutScriptForScrAddr(BinaryDataRef scrAddr)
    {
       case SCRIPT_PREFIX_HASH160:
       case SCRIPT_PREFIX_HASH160_TESTNET:
-         return getP2PKHScript(brr.get_BinaryData(brr.getSizeRemaining()));
+         return getP2PKHScript(brr.get_BinaryData((uint32_t)brr.getSizeRemaining()));
 
       case SCRIPT_PREFIX_P2SH:
       case SCRIPT_PREFIX_P2SH_TESTNET:
-         return getP2SHScript(brr.get_BinaryData(brr.getSizeRemaining()));
+         return getP2SHScript(brr.get_BinaryData((uint32_t)brr.getSizeRemaining()));
 
       case SCRIPT_PREFIX_P2WPKH:
-         return getP2WPKHOutputScript(brr.get_BinaryData(brr.getSizeRemaining()));
+         return getP2WPKHOutputScript(brr.get_BinaryData((uint32_t)brr.getSizeRemaining()));
       
       case SCRIPT_PREFIX_P2WSH:
-         return getP2WSHOutputScript(brr.get_BinaryData(brr.getSizeRemaining()));
+         return getP2WSHOutputScript(brr.get_BinaryData((uint32_t)brr.getSizeRemaining()));
 
       default:
          throw runtime_error("unsupported scrAddr");
@@ -635,7 +635,7 @@ SecureBinaryData BtcUtils::decodePrivKeyBase58(const string& strPrivKey)
    brr.rewind(1);
 
    //key
-   auto keyRef = brr.get_BinaryDataRef(brr.getSize() - 4);
+   auto keyRef = brr.get_BinaryDataRef((uint32_t)brr.getSize() - 4);
 
    //checksum
    auto checksum = brr.get_BinaryDataRef(4);
@@ -777,13 +777,13 @@ map<BinaryDataRef, BinaryDataRef> BtcUtils::getPSBTDataPairs(
    map<BinaryDataRef, BinaryDataRef> result;
    while (true)
    {
-      auto keylen = brr.get_var_int();
-      if (keylen == 0)
+      const uint32_t keylen = (uint32_t)brr.get_var_int();
+      if (keylen == 0) {
          break;
-
+      }
       auto key = brr.get_BinaryDataRef(keylen);
 
-      auto vallen = brr.get_var_int();
+      const auto vallen = (uint32_t)brr.get_var_int();
       auto val = brr.get_BinaryDataRef(vallen);
 
       result.emplace(key, val);

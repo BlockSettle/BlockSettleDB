@@ -1762,7 +1762,7 @@ void CallbackReturn_Map_BD_U32::callback(
          if (addrData.value_size() != 1)
             throw runtime_error("invalid msg for CallbackReturn_Map_BD_U32");
 
-         bdmap[addrRef] = addrData.value(0);
+         bdmap[addrRef] = (unsigned int)addrData.value(0);
       }
 
       ReturnMessage<map<BinaryData, uint32_t>> rm(bdmap);

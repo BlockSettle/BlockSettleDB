@@ -42,7 +42,7 @@ void BlockHeader::unserialize(uint8_t const * ptr, uint32_t size)
 ////////////////////////////////////////////////////////////////////////////////
 void BlockHeader::unserialize(BinaryDataRef const & str) 
 { 
-   unserialize(str.getPtr(), str.getSize()); 
+   unserialize(str.getPtr(), (uint32_t)str.getSize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -310,8 +310,8 @@ bool UnspentTxOut::CompareTech1(UnspentTxOut const & uto1,
 bool UnspentTxOut::CompareTech2(UnspentTxOut const & uto1,
                                 UnspentTxOut const & uto2)
 {
-   float val1 = pow(log10((float)uto1.getValue()) + 5, 5);
-   float val2 = pow(log10((float)uto2.getValue()) + 5, 5);
+   float val1 = powf(log10((float)uto1.getValue()) + 5, 5);
+   float val2 = powf(log10((float)uto2.getValue()) + 5, 5);
    return (val1*uto1.txHeight_ < val2*uto2.txHeight_);
 
 }
@@ -320,8 +320,8 @@ bool UnspentTxOut::CompareTech2(UnspentTxOut const & uto1,
 bool UnspentTxOut::CompareTech3(UnspentTxOut const & uto1,
                                 UnspentTxOut const & uto2)
 {
-   float val1 = pow(log10((float)uto1.getValue()) + 5, 4);
-   float val2 = pow(log10((float)uto2.getValue()) + 5, 4);
+   float val1 = powf(log10((float)uto1.getValue()) + 5, 4);
+   float val2 = powf(log10((float)uto2.getValue()) + 5, 4);
    return (val1*uto1.txHeight_ < val2*uto2.txHeight_);
 }
 

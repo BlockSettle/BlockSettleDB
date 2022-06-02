@@ -51,7 +51,7 @@ vector<BinaryData> WebSocketMessageCodec::serializePacketWithoutId(
    nbytes payload
    ***/
 
-   uint32_t size = payload.getSize() + 1;
+   auto size = payload.getSize() + 1;
    BinaryData plainText(4 + size + LWS_PRE + POLY1305MACLEN);
    if (plainText.getSize() > WEBSOCKET_MESSAGE_PACKET_SIZE)
       throw runtime_error("payload is too large to serialize");
@@ -149,7 +149,7 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
    if (data_len <= payload_room)
    {
       //single packet serialization
-      uint32_t size = data_len + 5;
+      auto size = data_len + 5;
       BinaryData plainText(LWS_PRE + POLY1305MACLEN + 9 + data_len);
 
       memcpy(plainText.getPtr() + LWS_PRE, &size, 4);
@@ -165,12 +165,12 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
    else
    {
       //2 extra bytes for fragment count
-      uint32_t header_room = payload_room - 2;
+      auto header_room = payload_room - 2;
       size_t left_over = data_len - header_room;
       
       //1 extra bytes for fragment count < 253
       size_t fragment_room = payload_room - 1;
-      uint32_t fragment_count32 = left_over / fragment_room + 1;
+      auto fragment_count32 = left_over / fragment_room + 1;
       if (fragment_count32 >= 253)
       {
          left_over -= 252 * fragment_room;
@@ -216,7 +216,7 @@ vector<BinaryData> WebSocketMessageCodec::serialize(
 
          BinaryData fragment_packet(data_size + fragment_overhead);
          uint32_t packet_size = 
-            data_size + fragment_overhead - LWS_PRE - POLY1305MACLEN - 4;
+            uint32_t(data_size + fragment_overhead - LWS_PRE - POLY1305MACLEN - 4);
 
          memcpy(fragment_packet.getPtr() + LWS_PRE, &packet_size, 4);
          memset(fragment_packet.getPtr() + LWS_PRE + 4,
@@ -270,7 +270,7 @@ bool WebSocketMessageCodec::reconstructFragmentedMessage(
       {
          auto& dataRef = data_pair.second;
          auto stream = new ArrayInputStream(
-            dataRef.getPtr(), dataRef.getSize());
+            dataRef.getPtr(), (int)dataRef.getSize());
          streams.push_back(stream);
       }
    }
@@ -282,7 +282,7 @@ bool WebSocketMessageCodec::reconstructFragmentedMessage(
    }
 
    //pass it all to concatenating stream
-   ConcatenatingInputStream cStream(&streams[0], streams.size());
+   ConcatenatingInputStream cStream(&streams[0], (int)streams.size());
 
    //deser message
    auto result = msg->ParseFromZeroCopyStream(&cStream);
@@ -424,7 +424,7 @@ bool WebSocketMessagePartial::parseSinglePacket(const BinaryDataRef& bdr)
 
    id_ = brr.get_uint32_t();
    packets_.emplace(make_pair(
-      0, brr.get_BinaryDataRef(brr.getSizeRemaining())));
+      0, brr.get_BinaryDataRef((uint32_t)brr.getSizeRemaining())));
 
    packetCount_ = 1;
    return true;
@@ -454,7 +454,7 @@ bool WebSocketMessagePartial::parseFragmentedMessageHeader(
 
    packetCount_ = brr.get_uint16_t();
    packets_.emplace(make_pair(
-      0, brr.get_BinaryDataRef(brr.getSizeRemaining())));
+      0, brr.get_BinaryDataRef((uint32_t)brr.getSizeRemaining())));
 
    return true;
 }
@@ -482,7 +482,7 @@ bool WebSocketMessagePartial::parseMessageFragment(const BinaryDataRef& bdr)
 
    auto packetId = (uint16_t)brr.get_var_int();
    packets_.emplace(make_pair(
-      packetId, brr.get_BinaryDataRef(brr.getSizeRemaining())));
+      packetId, brr.get_BinaryDataRef((uint32_t)brr.getSizeRemaining())));
 
    return true;
 }
@@ -502,7 +502,7 @@ bool WebSocketMessagePartial::parseMessageWithoutId(const BinaryDataRef& bdr)
       return false;
 
    packets_.emplace(make_pair(
-      0, brr.get_BinaryDataRef(brr.getSizeRemaining())));
+      0, brr.get_BinaryDataRef((uint32_t)brr.getSizeRemaining())));
 
    packetCount_ = 1;
    return true;
@@ -518,7 +518,7 @@ bool WebSocketMessagePartial::getMessage(
    if (packets_.size() == 1)
    {
       auto& dataRef = packets_.begin()->second;
-      return msgPtr->ParseFromArray(dataRef.getPtr(), dataRef.getSize());
+      return msgPtr->ParseFromArray(dataRef.getPtr(), (int)dataRef.getSize());
    }
    else
    {

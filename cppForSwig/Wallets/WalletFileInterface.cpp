@@ -111,7 +111,7 @@ void WalletDBInterface::setupEnv(const string& path, bool fileExists,
    if (!isNew)
    {
       loadHeaders();
-      dbCount = headerMap_.size() + 2;
+      dbCount = (unsigned)headerMap_.size() + 2;
    }
    else
    {
@@ -170,7 +170,7 @@ void WalletDBInterface::loadHeaders()
       try
       {
          auto headerPtr = WalletHeader::deserialize(
-            iterkey, brrVal.get_BinaryDataRef(brrVal.getSizeRemaining()));
+            iterkey, brrVal.get_BinaryDataRef((uint32_t)brrVal.getSizeRemaining()));
          //headerPtr->masterID_ = masterID_;
 
          if (headerPtr->shouldLoad())
@@ -566,14 +566,14 @@ const map<string, shared_ptr<WalletHeader>>&
 unsigned WalletDBInterface::getDbCount() const
 {
    auto lock = unique_lock<mutex>(setupMutex_);
-   return headerMap_.size();
+   return (unsigned)headerMap_.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 unsigned WalletDBInterface::getFreeDbCount() const
 {
    auto lock = unique_lock<mutex>(setupMutex_);
-   auto count = headerMap_.size() + 2;
+   const auto count = (unsigned)headerMap_.size() + 2;
    if (count >= dbCount_)
       return 0;
 
@@ -1111,7 +1111,7 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
          dataPtr->key_ = key;
          dataPtr->value_ = move(val);
 
-         unsigned vecSize = txPtr->insertVec_.size();
+         const unsigned vecSize = (unsigned)txPtr->insertVec_.size();
          txPtr->insertVec_.emplace_back(dataPtr);
 
          /*
@@ -1133,7 +1133,7 @@ bool WalletIfaceTransaction::insertTx(WalletIfaceTransaction* txPtr)
          dataPtr->key_ = key;
          dataPtr->write_ = false; //set to false to signal deletion
 
-         unsigned vecSize = txPtr->insertVec_.size();
+         const unsigned vecSize = (unsigned)txPtr->insertVec_.size();
          txPtr->insertVec_.emplace_back(dataPtr);
 
          auto insertPair = txPtr->keyToDataMap_.insert(make_pair(key, vecSize));

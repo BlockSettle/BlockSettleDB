@@ -244,7 +244,7 @@ SecureBinaryData CryptoAES::EncryptCBC(const SecureBinaryData & data,
 
    auto result = aes256_cbc_encrypt(
       key.getPtr(), iv.getPtr(),
-      data.getPtr(), data.getSize(),
+      data.getPtr(), (int)data.getSize(),
       1, //PKCS #5 padding
       encrData.getPtr());
       
@@ -275,7 +275,7 @@ SecureBinaryData CryptoAES::DecryptCBC(const SecureBinaryData & data,
 
    auto size = aes256_cbc_decrypt(
       key.getPtr(), iv.getPtr(),
-      data.getPtr(), data.getSize(),
+      data.getPtr(), (int)data.getSize(),
       1, //PKCS #5 padding
       unencrData.getPtr());
 
@@ -426,7 +426,7 @@ bool CryptoECDSA::VerifyData(BinaryData const & binMessage,
    // Verifying message 
    return btc_pubkey_verify_sig(
       &key, digest2.getPtr(),
-      (unsigned char*)sig.getCharPtr(), sig.getSize());
+      (unsigned char*)sig.getCharPtr(), (int)sig.getSize());
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -766,8 +766,8 @@ void CryptoSHA2::getSha256(BinaryDataRef bdr, uint8_t* digest)
 void CryptoSHA2::getHMAC256(BinaryDataRef data, BinaryDataRef msg, 
    uint8_t* digest)
 {
-   hmac_sha256(data.getPtr(), data.getSize(), msg.getPtr(), msg.getSize(), 
-      digest);
+   hmac_sha256(data.getPtr(), (uint32_t)data.getSize(), msg.getPtr()
+      , (uint32_t)msg.getSize(), digest);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -780,8 +780,8 @@ void CryptoSHA2::getSha512(BinaryDataRef bdr, uint8_t* digest)
 void CryptoSHA2::getHMAC512(BinaryDataRef data, BinaryDataRef msg,
    uint8_t* digest)
 {
-   hmac_sha512(data.getPtr(), data.getSize(), msg.getPtr(), msg.getSize(),
-      digest);
+   hmac_sha512(data.getPtr(), (uint32_t)data.getSize(), msg.getPtr()
+      , (uint32_t)msg.getSize(), digest);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -789,5 +789,5 @@ void CryptoSHA2::getHMAC512(BinaryDataRef data, BinaryDataRef msg,
 ////////////////////////////////////////////////////////////////////////////////
 void CryptoHASH160::getHash160(BinaryDataRef bdr, uint8_t* digest)
 {
-   btc_ripemd160(bdr.getPtr(), bdr.getSize(), digest);
+   btc_ripemd160(bdr.getPtr(), (uint32_t)bdr.getSize(), digest);
 }

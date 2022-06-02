@@ -302,13 +302,13 @@ void WebSocketClient::cleanUp()
 
    BinaryData errPacket(errMsg.ByteSizeLong());
    if (!errMsg.SerializeToArray(
-      errPacket.getPtr(), errPacket.getSize()))
+      errPacket.getPtr(), (int)errPacket.getSize()))
    {
       throw LWS_Error("error during shutdown");
    }
 
    BinaryWriter msgBW;
-   msgBW.put_uint32_t(5 + errPacket.getSize());
+   msgBW.put_uint32_t(5 + (uint32_t)errPacket.getSize());
    msgBW.put_uint8_t((uint8_t)ArmoryAEAD::BIP151_PayloadType::SinglePacket);
    msgBW.put_uint32_t(0);
    msgBW.put_BinaryData(errPacket, errPacket.getSize());
