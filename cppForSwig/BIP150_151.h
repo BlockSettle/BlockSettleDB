@@ -42,7 +42,18 @@
 #include <secp256k1.h>
 #include <btc/ecc_key.h>
 extern "C" {
+#if defined(__GNUC__)
+#  if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2)
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wattributes"
+#  endif
+#endif
 #include "chachapoly_aead.h"
+#if defined(__GNUC__)
+  #if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2)
+    #pragma GCC diagnostic pop
+  #endif
+#endif // __GNUC__
 }
 #include "BinaryData.h"
 #include "EncryptionUtils.h"

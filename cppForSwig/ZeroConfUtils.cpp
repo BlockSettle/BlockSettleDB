@@ -367,7 +367,7 @@ FilteredZeroConfData filterParsedTx(
       txio->setTxHashOfInput(txHash);
       txio->setValue(input.value_);
       auto tx_time = (uint32_t)input.opRef_.getTime();
-      if (tx_time == UINT64_MAX) {
+      if (tx_time == UINT32_MAX) {
          tx_time = parsedTx.tx_.getTxTime();
       }
       txio->setTxTime(tx_time);
