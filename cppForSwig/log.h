@@ -92,7 +92,7 @@
 #define FLUSHLOG()          Log::FlushStreams()
 #define CLEANUPLOG()        Log::CleanUp()
 
-#define LOGTIMEBUFLEN 30
+#define LOGTIMEBUFLEN 90
 #define MAX_LOG_FILE_SIZE (500*1024)
 
 inline std::string NowTime();
