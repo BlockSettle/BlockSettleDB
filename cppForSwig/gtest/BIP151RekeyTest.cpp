@@ -208,7 +208,7 @@ GTEST_API_ int main(int argc, char **argv)
    //LOGDISABLESTDOUT();
 
    // Required by libbtc.
-   btc_ecc_start();
+   CryptoECDSA::setupContext();
 
    testing::InitGoogleTest(&argc, argv);
    int exitCode = RUN_ALL_TESTS();

@@ -18,21 +18,17 @@ BinaryData::BinaryData(BinaryDataRef const & bdRef)
    copyFrom(bdRef.getPtr(), bdRef.getSize());
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 void BinaryData::copyFrom(BinaryDataRef const & bdr)
 {
    copyFrom( bdr.getPtr(), bdr.getSize() );
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 BinaryDataRef BinaryData::getRef(void) const
 {
    return BinaryDataRef(getPtr(), getSize());
 }
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 BinaryData & BinaryData::append(BinaryDataRef const & bd2)
@@ -47,7 +43,6 @@ BinaryData & BinaryData::append(BinaryDataRef const & bd2)
 
    return (*this);
 }
-
 
 /////////////////////////////////////////////////////////////////////////////
 BinaryData & BinaryData::append(uint8_t const * str, size_t sz)
@@ -85,7 +80,6 @@ int32_t BinaryData::find(BinaryDataRef const & matchStr, uint32_t startPos)
    return finalAnswer;
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 int32_t BinaryData::find(BinaryData const & matchStr, uint32_t startPos)
 {
@@ -105,8 +99,6 @@ bool BinaryData::contains(BinaryDataRef const & matchStr, uint32_t startPos)
 {
    return (find(matchStr, startPos) != -1);
 }
-
-
 
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryData::startsWith(BinaryDataRef const & matchStr) const
@@ -162,7 +154,7 @@ bool BinaryData::endsWith(BinaryData const & matchStr) const
 }
 
 /////////////////////////////////////////////////////////////////////////////
-BinaryDataRef BinaryData::getSliceRef(ssize_t start_pos, uint32_t nChar) const
+BinaryDataRef BinaryData::getSliceRef(ssize_t start_pos, size_t nChar) const
 {
    if(start_pos < 0) 
       start_pos = getSize() + start_pos;
@@ -176,7 +168,7 @@ BinaryDataRef BinaryData::getSliceRef(ssize_t start_pos, uint32_t nChar) const
 }
 
 /////////////////////////////////////////////////////////////////////////////
-BinaryData BinaryData::getSliceCopy(ssize_t start_pos, uint32_t nChar) const
+BinaryData BinaryData::getSliceCopy(ssize_t start_pos, size_t nChar) const
 {
    if(start_pos < 0) 
       start_pos = getSize() + start_pos;
@@ -274,27 +266,30 @@ uint64_t BinaryRefReader::get_var_int(uint8_t* nRead)
    return varInt;
 }
 
-
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryData::operator==(BinaryDataRef const & bd2) const
 {
-   if(getSize() != bd2.getSize())
-      return false;
+   if (!empty())
+   {
+      if(getSize() != bd2.getSize())
+         return false;
 
-   return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
+      return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
+   }
+
+   return bd2.empty();
 }
 
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryData::operator<(BinaryDataRef const & bd2) const
 {
-   size_t minLen = min(getSize(), bd2.getSize());
-   auto ref_ptr = bd2.getPtr();
-   for (size_t i = 0; i<minLen; i++)
-   {
-      if (data_[i] == ref_ptr[i])
-         continue;
-      return data_[i] < ref_ptr[i];
-   }
+   size_t minLen = std::min(getSize(), bd2.getSize());
+   int result = 0;
+   if (minLen != 0)
+      result = memcmp(getPtr(), bd2.getPtr(), minLen);
+   
+   if (result != 0)
+      return result < 0;
    return (getSize() < bd2.getSize());
 }
 
@@ -302,55 +297,133 @@ bool BinaryData::operator<(BinaryDataRef const & bd2) const
 bool BinaryData::operator<(BinaryData const & bd2) const
 {
    size_t minLen = std::min(getSize(), bd2.getSize());
-   for (size_t i = 0; i < minLen; i++)
-   {
-      if (data_[i] == bd2.data_[i])
-         continue;
-      return data_[i] < bd2.data_[i];
-   }
+   int result = 0;
+   if (minLen != 0)
+      result = memcmp(getPtr(), bd2.getPtr(), minLen);
+   
+   if (result != 0)
+      return result < 0;
    return (getSize() < bd2.getSize());
 }
 
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryData::operator>(BinaryData const & bd2) const
 {
-   size_t minLen = min(getSize(), bd2.getSize());
-   for (size_t i = 0; i < minLen; i++)
-   {
-      if (data_[i] == bd2.data_[i])
-         continue;
-      return data_[i] > bd2.data_[i];
-   }
+   size_t minLen = std::min(getSize(), bd2.getSize());
+   int result = 0;
+   if (minLen != 0)
+      result = memcmp(getPtr(), bd2.getPtr(), minLen);
+   
+   if (result != 0)
+      return result > 0;
    return (getSize() > bd2.getSize());
+}
+
+/////////////////////////////////////////////////////////////////////////////
+bool BinaryData::operator==(BinaryData const & bd2) const
+{
+   if (!empty())
+   {
+      if (getSize() != bd2.getSize())
+         return false;
+
+      return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
+   }
+
+   return bd2.empty();
+}
+
+/////////////////////////////////////////////////////////////////////////////
+std::size_t hash<BinaryData>::operator()(const BinaryData& key) const
+{
+   if (key.empty())
+      return 0;
+
+   std::size_t result;
+   auto len = std::min(sizeof(std::size_t), key.getSize());
+   memcpy(&result, key.getPtr(), len);
+   return result;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+////BinaryDataRef
+//
+/////////////////////////////////////////////////////////////////////////////
+BinaryDataRef& BinaryDataRef::operator=(const BinaryDataRef& rhs)
+{
+   setRef(rhs.ptr_, rhs.nBytes_);
+   return *this;
 }
 
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryDataRef::operator<(BinaryDataRef const & bd2) const
 {
-   auto minsize = min(nBytes_, bd2.nBytes_);
-   for (size_t i = 0; i < minsize; i++)
-   {
-      if (ptr_[i] == bd2.ptr_[i])
-         continue;
-      return ptr_[i] < bd2.ptr_[i];
-   }
-
-   return (nBytes_ < bd2.nBytes_);
+   size_t minLen = std::min(getSize(), bd2.getSize());
+   int result = 0;
+   if (minLen != 0)
+      result = memcmp(getPtr(), bd2.getPtr(), minLen);
+   
+   if (result != 0)
+      return result < 0;
+   return (getSize() < bd2.getSize());
 }
 
 /////////////////////////////////////////////////////////////////////////////
 bool BinaryDataRef::operator>(BinaryDataRef const & bd2) const
 {
-   size_t minLen = min(nBytes_, bd2.nBytes_);
-   for (size_t i = 0; i < minLen; i++)
-   {
-      if (ptr_[i] == bd2.ptr_[i])
-         continue;
-      return ptr_[i] > bd2.ptr_[i];
-   }
-   return (nBytes_ > bd2.nBytes_);
+   size_t minLen = std::min(getSize(), bd2.getSize());
+   int result = 0;
+   if (minLen != 0)
+      result = memcmp(getPtr(), bd2.getPtr(), minLen);
+   
+   if (result != 0)
+      return result > 0;
+   return (getSize() > bd2.getSize());
 }
 
+/////////////////////////////////////////////////////////////////////////////
+bool BinaryDataRef::startsWith(BinaryDataRef const & matchStr) const
+{
+   if(matchStr.getSize() > nBytes_)
+      return false;
+   
+   for(uint32_t i=0; i<matchStr.getSize(); i++)
+      if(matchStr[i] != (*this)[i])
+         return false;
+   
+   return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+bool BinaryDataRef::startsWith(BinaryData const & matchStr) const
+{
+   if(matchStr.getSize() > nBytes_)
+      return false;
+   
+   for(uint32_t i=0; i<matchStr.getSize(); i++)
+      if(matchStr[i] != (*this)[i])
+         return false;
+   
+   return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+std::size_t hash<BinaryDataRef>::operator()(const BinaryDataRef& key) const
+{
+   if (key.empty())
+      return 0;
+
+   std::size_t result;
+   auto len = std::min(sizeof(std::size_t), key.getSize());
+   memcpy(&result, key.getPtr(), len);
+   return result;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+//
+////BinaryReader
+//
 /////////////////////////////////////////////////////////////////////////////
 void BinaryReader::advance(uint32_t nBytes)
 {
@@ -373,10 +446,14 @@ void BinaryReader::resize(size_t nBytes)
 }
 
 /////////////////////////////////////////////////////////////////////////////
+//
+////BinaryRefReader
+//
+/////////////////////////////////////////////////////////////////////////////
 SecureBinaryData BinaryRefReader::get_SecureBinaryData(uint32_t nBytes)
 {
    if (getSizeRemaining() < nBytes)
-      throw runtime_error("buffer overflow");
+      throw runtime_error("[get_SecureBinaryData] buffer overflow");
    SecureBinaryData out(nBytes);
    bdRef_.copyTo(out.getPtr(), pos_, nBytes);
    pos_.fetch_add(nBytes, memory_order_relaxed);
@@ -387,11 +464,234 @@ SecureBinaryData BinaryRefReader::get_SecureBinaryData(uint32_t nBytes)
 void BinaryRefReader::advance(size_t nBytes)
 {
    if (getSizeRemaining() < nBytes)
-      throw runtime_error("buffer overflow");
+      throw runtime_error("[advance] buffer overflow");
 
    pos_.fetch_add(nBytes, memory_order_relaxed);
 }
 
+/////////////////////////////////////////////////////////////////////////////
+uint8_t BinaryRefReader::get_uint8_t()
+{
+   if (getSizeRemaining() < 1)
+   {
+      LOGERR << "[get_uint8_t] buffer overflow";
+      throw runtime_error("[get_uint8_t] buffer overflow");
+   }
+   uint8_t outVal = bdRef_[pos_];
+   pos_.fetch_add(1, memory_order_relaxed);
+   return outVal;
+}
 
+/////////////////////////////////////////////////////////////////////////////
+uint16_t BinaryRefReader::get_uint16_t(ENDIAN e)
+{
+   if (getSizeRemaining() < 2)
+   {
+      LOGERR << "[get_uint16_t] buffer overflow";
+      throw runtime_error("[get_uint16_t] buffer overflow");
+   }
+   uint16_t  outVal = (e==LE ?
+      READ_UINT16_LE(bdRef_.getPtr() + pos_) :
+      READ_UINT16_BE(bdRef_.getPtr() + pos_));
 
+   pos_.fetch_add(2, std::memory_order_relaxed);
+   return outVal;
+}
 
+/////////////////////////////////////////////////////////////////////////////
+uint32_t BinaryRefReader::get_uint32_t(ENDIAN e)
+{
+   if (getSizeRemaining() < 4)
+   {
+      LOGERR << "[get_uint32_t] buffer overflow";
+      throw runtime_error("[get_uint32_t] buffer overflow");
+   }
+   uint32_t  outVal = (e==LE ?
+      READ_UINT32_LE(bdRef_.getPtr() + pos_) :
+      READ_UINT32_BE(bdRef_.getPtr() + pos_));
+
+   pos_.fetch_add(4, memory_order_relaxed);
+   return outVal;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+int32_t BinaryRefReader::get_int32_t(ENDIAN e)
+{
+   if (getSizeRemaining() < 4)
+   {
+      LOGERR << "[get_int32_t] buffer overflow";
+      throw runtime_error("[get_int32_t] buffer overflow");
+   }
+   int32_t outVal = (e == LE ?
+      BinaryData::StrToIntLE<int32_t>(bdRef_.getPtr() + pos_) :
+      BinaryData::StrToIntBE<int32_t>(bdRef_.getPtr() + pos_));
+
+   pos_.fetch_add(4, memory_order_relaxed);
+   return outVal;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+uint64_t BinaryRefReader::get_uint64_t(ENDIAN e)
+{
+   if (getSizeRemaining() < 8)
+   {
+      LOGERR << "[get_uint64_t] buffer overflow";
+      throw runtime_error("[get_uint64_t] buffer overflow");
+   }
+   uint64_t outVal = (e==LE ?
+      READ_UINT64_LE(bdRef_.getPtr() + pos_) :
+      READ_UINT64_BE(bdRef_.getPtr() + pos_));
+
+   pos_.fetch_add(8, memory_order_relaxed);
+   return outVal;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+int64_t BinaryRefReader::get_int64_t(ENDIAN e)
+{
+   if (getSizeRemaining() < 8)
+   {
+      LOGERR << "[get_int64_t] buffer overflow";
+      throw runtime_error("[get_int64_t] buffer overflow");
+   }
+   int64_t outVal = (e == LE ?
+      BinaryData::StrToIntLE<int64_t>(bdRef_.getPtr() + pos_) :
+      BinaryData::StrToIntBE<int64_t>(bdRef_.getPtr() + pos_));
+
+   pos_.fetch_add(8, memory_order_relaxed);
+   return outVal;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+double BinaryRefReader::get_double()
+{
+   if (getSizeRemaining() < 8)
+   {
+      LOGERR << "[get_double] buffer overflow";
+      throw runtime_error("[get_double] buffer overflow");
+   }
+
+   auto doublePtr = (double*)(bdRef_.getPtr() + pos_);
+
+   pos_.fetch_add(8, memory_order_relaxed);
+   return *doublePtr;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+BinaryDataRef BinaryRefReader::get_BinaryDataRef(uint32_t nBytes)
+{
+   if (getSizeRemaining() < nBytes)
+   {
+      LOGERR << "[get_BinaryDataRef] buffer overflow";
+      throw runtime_error("[get_BinaryDataRef] buffer overflow");
+   }
+
+   BinaryDataRef bdrefout(bdRef_.getPtr() + pos_, nBytes);
+   pos_.fetch_add(nBytes, memory_order_relaxed);
+   return bdrefout;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+BinaryRefReader BinaryRefReader::fork() const
+{
+   return BinaryRefReader(
+      bdRef_.getPtr() + pos_.load(memory_order_relaxed), getSizeRemaining());
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void BinaryRefReader::get_BinaryData(BinaryData & bdTarget, uint32_t nBytes)
+{
+   if (getSizeRemaining() < nBytes)
+   {
+      LOGERR << "[get_BinaryData] buffer overflow";
+      throw runtime_error("[get_BinaryData] buffer overflow");
+   }
+
+   bdTarget.copyFrom( bdRef_.getPtr() + pos_, nBytes);
+   pos_.fetch_add(nBytes, memory_order_relaxed);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+BinaryData BinaryRefReader::get_BinaryData(uint32_t nBytes)
+{
+   if (getSizeRemaining() < nBytes)
+   {
+      LOGERR << "[get_BinaryData] buffer overflow!";
+      LOGERR << "grabbing " << nBytes << 
+         " out of " << getSizeRemaining() << " bytes";
+      throw runtime_error("[get_BinaryData] buffer overflow");
+   }
+
+   BinaryData out;
+   get_BinaryData(out, nBytes);
+   return out;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void BinaryRefReader::get_BinaryData(uint8_t* targPtr, uint32_t nBytes)
+{
+   if (getSizeRemaining() < nBytes)
+   {
+      LOGERR << "[get_BinaryData] buffer overflow";
+      throw runtime_error("[get_BinaryData] buffer overflow");
+   }
+
+   bdRef_.copyTo(targPtr, pos_, nBytes);
+   pos_.fetch_add(nBytes, memory_order_relaxed);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+string BinaryRefReader::get_String(uint32_t nBytes)
+{
+   string strOut(bdRef_.toCharPtr() + pos_, nBytes);
+   pos_.fetch_add(nBytes, memory_order_relaxed);
+   return strOut;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+void BinaryRefReader::resetPosition()
+{
+   pos_ = 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+size_t BinaryRefReader::getPosition() const
+{
+   return pos_;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+size_t BinaryRefReader::getSize() const
+{
+   return totalSize_;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+size_t BinaryRefReader::getSizeRemaining() const
+{
+   return totalSize_ - pos_.load(memory_order_relaxed);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+bool BinaryRefReader::isEndOfStream() const
+{
+   return pos_.load(memory_order_relaxed) >= totalSize_;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+uint8_t const* BinaryRefReader::exposeDataPtr()
+{
+   return bdRef_.getPtr();
+}
+
+/////////////////////////////////////////////////////////////////////////////
+uint8_t const* BinaryRefReader::getCurrPtr()
+{
+   return bdRef_.getPtr() + pos_.load(memory_order_relaxed);
+}
+
+/////////////////////////////////////////////////////////////////////////////
+BinaryDataRef BinaryRefReader::getRawRef()
+{
+   return bdRef_;
+}

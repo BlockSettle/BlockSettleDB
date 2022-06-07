@@ -28,7 +28,6 @@ private:
 
    const ProgressCallback progress_;
    BlockOffset topBlockOffset_;
-   const BlockDataManagerConfig bdmConfig_;
 
    unsigned checkedTransactions_ = 0;
    const bool forceRescanSSH_;
@@ -55,12 +54,14 @@ private:
 
    void verifyTransactions(void);
    void commitAllTxHints(
-      const std::map<uint32_t, BlockData>&, const std::set<unsigned>&);
+      const std::map<uint32_t, std::shared_ptr<BlockData>>&,
+      const std::set<unsigned>&);
    void commitAllStxos(
-      const std::map<uint32_t, BlockData>&, const std::set<unsigned>&);
+      const std::map<uint32_t, std::shared_ptr<BlockData>>&,
+      const std::set<unsigned>&);
 
-   void repairTxFilters(const std::set<unsigned>&);
-   void reprocessTxFilter(std::shared_ptr<BlockDataFileMap>, unsigned);
+   //void repairTxFilters(const std::set<unsigned>&);
+   //void reprocessTxFilter(std::shared_ptr<BlockDataFileMap>, unsigned);
 
    void cycleDatabases(void);
 
@@ -74,5 +75,5 @@ public:
    void verifyChain(void);
    unsigned getCheckedTxCount(void) const { return checkedTransactions_; }
 
-   void verifyTxFilters(void);
+   //void verifyTxFilters(void);
 };

@@ -116,7 +116,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 TEST_F(DB1kIter, DbInit1kIter)
 {
-   theBDMt_->start(config.initMode_);
+   theBDMt_->start(DBSettings::initMode());
    auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
 
    std::vector<BinaryData> scrAddrVec;
@@ -201,7 +201,7 @@ TEST_F(DB1kIter, DbInit1kIter_WithSignals)
 
       TestUtils::setBlocks({ "0", "1", "2" }, blk0dat_);
 
-      theBDMt_->start(config.initMode_);
+      theBDMt_->start(DBSettings::initMode());
       auto&& bdvID = DBTestUtils::registerBDV(clients_, magic_);
 
       DBTestUtils::registerWallet(clients_, bdvID, scrAddrVec, "wallet1");
@@ -300,7 +300,7 @@ TEST_F(DB1kIter, DbInit1kIter_WithSignals)
 
       initBDM();
 
-      theBDMt_->start(config.initMode_);
+      theBDMt_->start(DBSettings::initMode());
       bdvID = DBTestUtils::registerBDV(clients_, magic_);
 
       scrAddrVec.pop_back();

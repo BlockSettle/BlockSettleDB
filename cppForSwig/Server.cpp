@@ -8,13 +8,14 @@
 
 
 #include "Server.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "BDM_Server.h"
 #include "BIP15x_Handshake.h"
 
 using namespace std;
-using namespace ::google::protobuf;
-using namespace ArmoryThreading;
+using namespace google::protobuf;
+using namespace Armory::Threading;
+using namespace Armory::Wallets;
 
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -37,19 +38,25 @@ static struct lws_protocols protocols[] = {
    /* first protocol must always be HTTP handler */
 
    {
-      "http-only",		/* name */
-      callback_http,		/* callback */
-      sizeof(struct per_session_data__http),	/* per_session_data_size */
-      0,			/* max frame size / rx buffer */
+      "http-only",   /* name */
+      callback_http, /* callback */
+      sizeof(struct per_session_data__http), /* per_session_data_size */
+      0,    /* max frame size / rx buffer */
+      1,    /* id, custom value ignored by lws */
+      NULL, /* user, custom value ignored by lws */
+      0     /* rx_buffer_size, 0 for backwards compatibility */
    },
    {
       "armory-bdm-protocol",
       WebSocketServer::callback,
       sizeof(struct per_session_data__bdv),
       per_session_data__bdv::rcv_size,
+      2,
+      nullptr,
+      0
    },
 
-{ NULL, NULL, 0, 0 } /* terminator */
+{ NULL, NULL, 0, 0, 0, NULL, 0 } /* terminator */
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -113,8 +120,11 @@ int WebSocketServer::callback(
 
       //pending write queue iterator is always set entering the 
       //lws callback unless the pending write set is empty
-      if (*instance->pendingWritesIter_ == wsi)
+      if (instance->pendingWritesIter_ != instance->pendingWrites_.end() &&
+         *instance->pendingWritesIter_ == wsi)
+      {
          instance->pendingWritesIter_++;
+      }
       
       instance->pendingWrites_.erase(wsi);
       break;
@@ -210,11 +220,11 @@ void WebSocketServer::initAuthPeers(const PassphraseLambda& passLbd)
    //init auth peer object
    auto instance = getInstance();
 
-   if (!BlockDataManagerConfig::ephemeralPeers_)
+   if (!Armory::Config::NetworkSettings::ephemeralPeers())
    {
       string peerFilename(SERVER_AUTH_PEER_FILENAME);
       instance->authorizedPeers_ = make_shared<AuthorizedPeers>(
-         BlockDataManagerConfig::getDataDir(), peerFilename, passLbd);
+         Armory::Config::getDataDir(), peerFilename, passLbd);
    }
    else
    {
@@ -232,9 +242,9 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
    //setup encinit and pubkey present packet
    BinaryWriter encInitPacket;
    encInitPacket.put_uint32_t(1);
-   encInitPacket.put_uint8_t(ArmoryAEAD::HandshakeSequence::Start);
+   encInitPacket.put_uint8_t((uint8_t)ArmoryAEAD::BIP151_PayloadType::Start);
    instance->encInitPacket_ = encInitPacket.getData();
-   instance->oneWayAuth_ = bdmT->bdm()->config().oneWayAuth_;
+   instance->oneWayAuth_ = Armory::Config::NetworkSettings::oneWayAuth();
 
    //init Clients object
    auto shutdownLbd = [](void)->void
@@ -263,7 +273,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
       instance->clientInterruptThread();
    };
 
-   unsigned parserThreads = MAX_THREADS() / 4;
+   unsigned parserThreads = std::thread::hardware_concurrency() / 4;
    if (parserThreads == 0)
       parserThreads = 1;
    for (unsigned i = 0; i < parserThreads; i++)
@@ -272,7 +282,7 @@ void WebSocketServer::start(BlockDataManagerThread* bdmT, bool async)
       instance->threads_.push_back(thread(readProcessThread));
    }
    
-   auto port = stoi(bdmT->bdm()->config().listenPort_);
+   auto port = stoi(Armory::Config::NetworkSettings::listenPort());
    if (port == 0)
       port = WEBSOCKET_PORT;
 
@@ -332,7 +342,7 @@ void WebSocketServer::shutdown()
    {
       shutdownPromise_.set_value(true);
    }
-   catch (future_error)
+   catch (const future_error&)
    {}
 }
 
@@ -363,7 +373,6 @@ void WebSocketServer::webSocketService(int port)
    struct lws_vhost *vhost;
    const char *iface = nullptr;
    int uid = -1, gid = -1;
-   int pp_secs = 0;
    int opts = 0;
    int n = 0;
 
@@ -381,9 +390,9 @@ void WebSocketServer::webSocketService(int port)
    info.timeout_secs = 0;
    //info.ip_limit_ah = 24; /* for testing */
    //info.ip_limit_wsi = 105; /* for testing */
-   
+
    contextPtr_ = lws_create_context(&info);
-   if (contextPtr_ == nullptr) 
+   if (contextPtr_ == nullptr)
       throw LWS_Error("failed to create LWS context");
 
    vhost = lws_create_vhost(contextPtr_, &info);
@@ -555,7 +564,7 @@ void WebSocketServer::prepareWriteThread()
          bool needs_rekey = false;
          auto rightnow = chrono::system_clock::now();
 
-         if (statePtr->bip151Connection_->rekeyNeeded(msg->message_->ByteSize()))
+         if (statePtr->bip151Connection_->rekeyNeeded(msg->message_->ByteSizeLong()))
          {
             needs_rekey = true;
          }
@@ -577,7 +586,7 @@ void WebSocketServer::prepareWriteThread()
             ws_msg.construct(
                rekeyPacket.getDataVector(), 
                statePtr->bip151Connection_.get(),
-               ArmoryAEAD::HandshakeSequence::Rekey);
+               ArmoryAEAD::BIP151_PayloadType::Rekey);
 
             //push to write map
             writeToSocket(statePtr->wsiPtr_, ws_msg);
@@ -592,9 +601,9 @@ void WebSocketServer::prepareWriteThread()
 
       //serialize arg
       vector<uint8_t> serializedData;
-      if (msg->message_->ByteSize() > 0)
+      if (msg->message_->ByteSizeLong() > 0)
       {
-         serializedData.resize(msg->message_->ByteSize());
+         serializedData.resize(msg->message_->ByteSizeLong());
          auto result = msg->message_->SerializeToArray(
             &serializedData[0], serializedData.size());
          if (!result)
@@ -606,8 +615,8 @@ void WebSocketServer::prepareWriteThread()
 
       SerializedMessage ws_msg;
       ws_msg.construct(
-         serializedData, statePtr->bip151Connection_.get(), 
-         WS_MSGTYPE_FRAGMENTEDPACKET_HEADER, msg->msgid_);
+         serializedData, statePtr->bip151Connection_.get(),
+         ArmoryAEAD::BIP151_PayloadType::FragmentHeader, msg->msgid_);
 
       //push to write map
       writeToSocket(statePtr->wsiPtr_, ws_msg);
@@ -716,9 +725,9 @@ void WebSocketServer::updateWriteMap()
             continue;
 
          iter->second.emplace_back(move(packetList.second));
-         auto insertIter = pendingWrites_.insert(packetList.first);
+         pendingWrites_.insert(packetList.first);
          break;
-      }      
+      }
    }
    catch (IsEmpty&)
    {}
@@ -750,8 +759,8 @@ ClientConnection::ClientConnection(
    readLock_ = std::make_shared<std::atomic<unsigned>>();
    readLock_->store(0);
 
-   readQueue_ = std::make_shared<ArmoryThreading::Queue<BinaryData>>();
-      
+   readQueue_ = std::make_shared<Queue<BinaryData>>();
+
    run_ = std::make_shared<std::atomic<int>>();
    run_->store(0, std::memory_order_relaxed);
 }
@@ -838,10 +847,10 @@ void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
          packetData.resize(plainTextSize);
       }
 
-      uint8_t msgType =
+      auto msgType =
          WebSocketMessagePartial::getPacketType(packetData.getRef());
 
-      if (msgType > ArmoryAEAD::HandshakeSequence::Threshold_Begin)
+      if (msgType > ArmoryAEAD::BIP151_PayloadType::Threshold_Begin)
       {
          processAEADHandshake(move(packetData));
          continue;
@@ -874,7 +883,7 @@ void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
          //unregistered command
          WebSocketMessagePartial msgObj;
          msgObj.parsePacket(packetData);
-         if (msgObj.getType() != WS_MSGTYPE_SINGLEPACKET)
+         if (msgObj.getType() != ArmoryAEAD::BIP151_PayloadType::SinglePacket)
          {
             //invalid msg type, kill connection
             continue;
@@ -908,8 +917,8 @@ void ClientConnection::processReadQueue(shared_ptr<Clients> clients)
 ///////////////////////////////////////////////////////////////////////////////
 void ClientConnection::processAEADHandshake(BinaryData msg)
 {
-   auto writeToClient = [this](
-      const BinaryDataRef& msg, uint8_t type, bool encrypt)->void
+   auto writeToClient = [this](const BinaryDataRef& msg,
+      ArmoryAEAD::BIP151_PayloadType type, bool encrypt)->void
    {
       BIP151Connection* connPtr = nullptr;
       if (encrypt)
@@ -934,7 +943,7 @@ void ClientConnection::processAEADHandshake(BinaryData msg)
       auto dataBdr = wsMsg.getSingleBinaryMessage();
       switch (wsMsg.getType())
       {
-      case ArmoryAEAD::HandshakeSequence::Start:
+      case ArmoryAEAD::BIP151_PayloadType::Start:
       {
          /*
          Announce server pubkey if it's public. This is done without encryption. 
@@ -945,8 +954,8 @@ void ClientConnection::processAEADHandshake(BinaryData msg)
          if (bip151Connection_->isOneWayAuth())
          {
             writeToClient(
-               bip151Connection_->getOwnPubKey(), 
-               ArmoryAEAD::HandshakeSequence::PresentPubKey,
+               bip151Connection_->getOwnPubKey(),
+               ArmoryAEAD::BIP151_PayloadType::PresentPubKey,
                false);
          }
 

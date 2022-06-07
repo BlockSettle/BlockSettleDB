@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,7 +35,8 @@ enum BDMPhase
    BDMPhase_Rescan,
    BDMPhase_Balance,
    BDMPhase_SearchHashes,
-   BDMPhase_ResolveHashes
+   BDMPhase_ResolveHashes,
+   BDMPhase_Completed
 };
 
 enum BDMAction
@@ -61,13 +62,8 @@ enum ARMORY_DB_TYPE
 enum SOCKET_SERVICE
 {
    SERVICE_WEBSOCKET,
-   SERVICE_UNITTEST
-};
-
-enum ARMORY_OPERATION_MODE
-{
-   OPERATION_REGULAR=0,
-   OPERATION_UNITTEST
+   SERVICE_UNITTEST,
+   SERVICE_UNITTEST_WITHWS
 };
 
 enum BDM_INIT_MODE

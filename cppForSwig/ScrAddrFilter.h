@@ -5,9 +5,9 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +21,7 @@
 
 #include "ThreadSafeClasses.h"
 #include "BinaryData.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "BtcUtils.h"
 #include "StoredBlockObj.h"
 #include "lmdb_wrapper.h"
@@ -114,6 +114,8 @@ public:
    }
 };
 
+struct TxOutScriptRef;
+
 ////////////////////////////////////////////////////////////////////////////////
 class ScrAddrFilter
 {
@@ -160,13 +162,10 @@ private:
    const unsigned sdbiKey_;
    LMDBBlockDatabase *const lmdb_;
 
-   std::shared_ptr<ArmoryThreading::TransactionalMap<
+   std::shared_ptr<Armory::Threading::TransactionalMap<
       BinaryDataRef, std::shared_ptr<AddrAndHash>>> scanFilterAddrMap_;
-   std::shared_ptr<ArmoryThreading::TransactionalMap<
-      BinaryDataRef, std::shared_ptr<AddrAndHash>>> zcFilterAddrMap_;
 
-
-   ArmoryThreading::BlockingQueue<
+   Armory::Threading::BlockingQueue<
       std::shared_ptr<AddressBatch>> registrationStack_;
 
    std::thread thr_;
@@ -178,10 +177,10 @@ private:
    static void cleanUpPreviousChildren(LMDBBlockDatabase* lmdb);
    void registrationThread(void);
 
-   std::shared_ptr<ArmoryThreading::TransactionalMap<
+   std::shared_ptr<Armory::Threading::TransactionalMap<
       BinaryDataRef, std::shared_ptr<AddrAndHash>>> getZcFilterMapPtr(void) const
    {
-      return zcFilterAddrMap_;
+      return scanFilterAddrMap_;
    }
 
    std::set<BinaryDataRef> updateAddrMap(
@@ -199,32 +198,28 @@ public:
       : sdbiKey_(sdbiKey), lmdb_(lmdb)
    {
       scanFilterAddrMap_ = std::make_shared<
-         ArmoryThreading::TransactionalMap<
-         BinaryDataRef, std::shared_ptr<AddrAndHash>>>();
-
-      zcFilterAddrMap_ = std::make_shared<
-         ArmoryThreading::TransactionalMap<
+         Armory::Threading::TransactionalMap<
          BinaryDataRef, std::shared_ptr<AddrAndHash>>>();
    }
-   
+
    virtual ~ScrAddrFilter() { shutdown(); }
-   
+
    LMDBBlockDatabase* db() { return lmdb_; }
 
    ////
    std::shared_ptr<const std::map<BinaryDataRef, std::shared_ptr<AddrAndHash>>>
       getScanFilterAddrMap(void) const
-   { 
+   {
       return scanFilterAddrMap_->get(); 
    }
-   
+
    size_t getScanFilterAddrCount(void) const
    {
       return scanFilterAddrMap_->size();
    }
 
    ////
-   std::shared_ptr<std::map<TxOutScriptRef, int>> getOutScrRefMap(void);
+   std::shared_ptr<std::unordered_map<TxOutScriptRef, int>> getOutScrRefMap(void);
    int32_t scanFrom(void) const;
    void pushAddressBatch(std::shared_ptr<AddressBatch>);
 
@@ -237,7 +232,7 @@ public:
    BinaryData getAddressMapMerkle(void) const;
    void updateAddressMerkleInDB(void);
    bool hasNewAddresses(void) const;
-   
+
    StoredDBInfo getSubSshSDBI(void) const;
    void putSubSshSDBI(const StoredDBInfo&);
    StoredDBInfo getSshSDBI(void) const;

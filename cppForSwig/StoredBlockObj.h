@@ -24,7 +24,7 @@
 #include "BtcUtils.h"
 #include "BlockObj.h"
 #include "txio.h"
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 
 #define ARMORY_DB_VERSION   0x9701
 #define ARMORY_DB_DEFAULT   ARMORY_DB_FULL

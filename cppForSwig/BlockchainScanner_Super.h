@@ -135,9 +135,7 @@ struct ParserBatch_Spentness
 ////////////////////////////////////////////////////////////////////////////////
 struct StxoRef
 {
-   uint64_t* valuePtr_;
-   uint16_t* indexPtr_;
-
+   BinaryDataRef theData_;
    BinaryDataRef scriptRef_;
    BinaryDataRef hashRef_;
 
@@ -151,6 +149,8 @@ struct StxoRef
 
    BinaryData getScrAddressCopy(void) const;
    BinaryData getDBKey(void) const;
+
+   uint64_t getValue(void) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,13 +166,13 @@ private:
    LMDBBlockDatabase* db_;
    BlockDataLoader blockDataLoader_;
 
-   ArmoryThreading::BlockingQueue<
+   Armory::Threading::BlockingQueue<
       std::unique_ptr<ParserBatch_Ssh>> commitQueue_;
-   ArmoryThreading::BlockingQueue<
+   Armory::Threading::BlockingQueue<
       std::pair<BinaryData, BinaryData>> sshBoundsQueue_;
-   ArmoryThreading::BlockingQueue<
+   Armory::Threading::BlockingQueue<
       std::unique_ptr<std::map<BinaryData, BinaryWriter>>> serializedSshQueue_;
-   ArmoryThreading::BlockingQueue<
+   Armory::Threading::BlockingQueue<
       std::unique_ptr<ParserBatch_Spentness>> spentnessQueue_;
 
    std::set<BinaryData> updateSshHints_;

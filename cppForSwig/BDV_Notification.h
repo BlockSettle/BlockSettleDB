@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-2018, goatpig                                          //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +55,6 @@ struct BDV_Notification_NewBlock : public BDV_Notification
 {
    Blockchain::ReorganizationState reorgState_;
    std::shared_ptr<ZcPurgePacket> zcPurgePacket_;
-   std::shared_ptr<ZeroConfSharedStateSnapshot> zcState_;
 
    BDV_Notification_NewBlock(
       const Blockchain::ReorganizationState& ref, 
@@ -130,9 +129,9 @@ struct BDV_Notification_Progress : public BDV_Notification
 ///////////////////////////////////////////////////////////////////////////////
 struct BDV_Notification_NodeStatus : public BDV_Notification
 {
-   const NodeStatusStruct status_;
+   const CoreRPC::NodeStatus status_;
 
-   BDV_Notification_NodeStatus(NodeStatusStruct nss) :
+   BDV_Notification_NodeStatus(CoreRPC::NodeStatus nss) :
       BDV_Notification(""), status_(nss)
    {}
 

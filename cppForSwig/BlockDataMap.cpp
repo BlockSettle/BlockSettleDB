@@ -1,13 +1,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig.                                              //
+//  Copyright (C) 2016-2021, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "BlockDataMap.h"
 #include "BtcUtils.h"
+#include "TxHashFilters.h"
 
 #ifndef _WIN32
 #include <sys/mman.h>
@@ -16,22 +17,33 @@
 using namespace std;
 
 ////////////////////////////////////////////////////////////////////////////////
-void BlockData::deserialize(const uint8_t* data, size_t size,
+BlockData::BlockData(uint32_t blockid)
+   : uniqueID_(blockid)
+{}
+
+////////////////////////////////////////////////////////////////////////////////
+shared_ptr<BlockData> BlockData::deserialize(const uint8_t* data, size_t size,
    const shared_ptr<BlockHeader> blockHeader,
    function<unsigned int(const BinaryData&)> getID, 
    bool checkMerkle, bool keepHashes)
 {
-   headerPtr_ = blockHeader;
-
    //deser header from raw block and run a quick sanity check
    if (size < HEADER_SIZE)
+   {
       throw BlockDeserializingException(
       "raw data is smaller than HEADER_SIZE");
+   }
 
    BinaryDataRef bdr(data, HEADER_SIZE);
    BlockHeader bh(bdr);
 
-   blockHash_ = bh.thisHash_;
+   auto uniqueID = UINT32_MAX;
+   if (getID)
+      uniqueID = getID(bh.getThisHash());
+
+   auto result = make_shared<BlockData>(uniqueID);
+   result->headerPtr_ = blockHeader;
+   result->blockHash_ = bh.thisHash_;
 
    BinaryRefReader brr(data + HEADER_SIZE, size - HEADER_SIZE);
    auto numTx = (unsigned)brr.get_var_int();
@@ -55,18 +67,18 @@ void BlockData::deserialize(const uint8_t* data, size_t size,
       brr.advance(tx->size_);
 
       //move it to BlockData object vector
-      txns_.push_back(move(tx));
+      result->txns_.push_back(move(tx));
    }
 
-   data_ = data;
-   size_ = size;
+   result->data_ = data;
+   result->size_ = size;
 
    if (!checkMerkle)
-      return;
+      return result;
 
    //let's check the merkle root
    vector<BinaryData> allhashes;
-   for (auto& txn : txns_)
+   for (auto& txn : result->txns_)
    {
       if (!keepHashes)
       {
@@ -89,23 +101,29 @@ void BlockData::deserialize(const uint8_t* data, size_t size,
       throw BlockDeserializingException("invalid merkle root");
    }
 
-   uniqueID_ = getID(bh.getThisHash());
-
-   txFilter_ = move(computeTxFilter(allhashes));
+   result->computeTxFilter(allhashes);
+   return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////
-TxFilter<TxFilterType> 
-BlockData::computeTxFilter(const vector<BinaryData>& allHashes) const
+void BlockData::computeTxFilter(const vector<BinaryData>& allHashes)
 {
-   TxFilter<TxFilterType> txFilter(uniqueID_, allHashes.size());
-   txFilter.update(allHashes);
+   if (txFilter_ == nullptr)
+   {
+      txFilter_ = make_shared<BlockHashVector>(uniqueID_);
+      txFilter_->isValid_ = true;
+   }
+   txFilter_->update(allHashes);
+}
 
-   return move(txFilter);
+////
+shared_ptr<BlockHashVector> BlockData::getTxFilter() const
+{
+   return txFilter_;
 }
 
 /////////////////////////////////////////////////////////////////////////////
-shared_ptr<BlockHeader> BlockData::createBlockHeader(void) const
+shared_ptr<BlockHeader> BlockData::createBlockHeader() const
 {
    if (headerPtr_ != nullptr)
       return headerPtr_;

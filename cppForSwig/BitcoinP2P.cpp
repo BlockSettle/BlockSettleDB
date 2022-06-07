@@ -14,7 +14,7 @@
 #include "SocketWritePayload.h"
 
 using namespace std;
-using namespace ArmoryThreading;
+using namespace Armory::Threading;
 
 bool PEER_USES_WITNESS;
 
@@ -336,6 +336,7 @@ shared_ptr<Payload::DeserializedPayloads> Payload::deserialize(
                case Payload_reject:
                   payloadVec.push_back(move(make_unique<Payload_Reject>(
                      payloadptr, *length)));
+                  break;
 
                default:
                   payloadVec.push_back(move(make_unique<Payload_Unknown>(
@@ -1158,7 +1159,7 @@ void BitcoinP2P::checkServices(unique_ptr<Payload> payload)
 {
    Payload_Version* pver = (Payload_Version*)payload.get();
 
-   auto& this_mw = NetworkConfig::getMagicBytes();
+   auto& this_mw = Armory::Config::BitcoinSettings::getMagicBytes();
    auto mwInt = (uint32_t*)this_mw.getPtr();
 
    auto magicWord = getMagicWord();

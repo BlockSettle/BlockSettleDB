@@ -1,9 +1,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016-17, goatpig                                            //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,8 +15,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <thread>
-#include "gtest.h"
-#include "btc/ecc.h"
+#include <gtest/gtest.h>
+#include <btc/ecc.h>
 
 #include "../log.h"
 #include "../BinaryData.h"
@@ -31,11 +31,6 @@
 #include "../BtcWallet.h"
 #include "../BlockDataViewer.h"
 
-#ifndef LIBBTC_ONLY
-#include "../cryptopp/DetSign.h"
-#include "../cryptopp/integer.h"
-#endif
-
 #include "../ArmoryErrors.h"
 #include "../Progress.h"
 #include "../reorgTest/blkdata.h"
@@ -43,11 +38,12 @@
 #include "../TxClasses.h"
 #include "../txio.h"
 #include "../bdmenums.h"
-#include "../Script.h"
-#include "../Signer.h"
-#include "../Wallets.h"
-#include "../WalletManager.h"
-#include "../BIP32_Node.h"
+#include "../Signer/Script.h"
+#include "../Signer/Signer.h"
+#include "../Signer/ResolverFeed_Wallets.h"
+#include "../Wallets/Wallets.h"
+#include "../AsyncClient.h"
+#include "../Wallets/BIP32_Node.h"
 #include "../BitcoinP2p.h"
 #include "btc/ecc.h"
 
@@ -79,8 +75,18 @@
    void mkdir(std::string newdir);
 #endif
 
+namespace Armory
+{
+   namespace Assets
+   {
+      class AssetEntry;
+   };
+};
+
 namespace TestUtils
 {
+   const std::string dataDir("../reorgTest");
+
    // This function assumes src to be a zero terminated sanitized string with
    // an even number of [0-9a-f] characters, and target to be sufficiently large
    void hex2bin(const char* src, unsigned char* target);
@@ -97,12 +103,17 @@ namespace TestUtils
    void setBlocks(const std::vector<std::string> &files, const std::string &to);
    void nullProgress(unsigned, double, unsigned, unsigned);
    BinaryData getTx(unsigned height, unsigned id);
+
+   std::shared_ptr<Armory::Assets::AssetEntry> getMainAccountAssetForIndex(
+      std::shared_ptr<Armory::Wallets::AssetWallet>, Armory::Wallets::AssetKeyType);
+   size_t getMainAccountAssetCount(std::shared_ptr<Armory::Wallets::AssetWallet>);
 }
 
 namespace DBTestUtils
 {
    extern unsigned commandCtr_;
    extern std::deque<unsigned> zcDelays_;
+
    void init(void);
 
    unsigned getTopBlockHeight(LMDBBlockDatabase*, DB_SELECT);
@@ -120,7 +131,7 @@ namespace DBTestUtils
    std::vector<uint64_t> getBalanceAndCount(Clients* clients,
       const std::string& bdvId, const std::string& walletId, unsigned blockheight);
    std::string getLedgerDelegate(Clients* clients, const std::string& bdvId);
-   std::vector<::ClientClasses::LedgerEntry> getHistoryPage(
+   std::vector<DBClientClasses::LedgerEntry> getHistoryPage(
       Clients* clients, const std::string& bdvId,
       const std::string& delegateId, uint32_t pageId);
 
@@ -131,7 +142,7 @@ namespace DBTestUtils
 
    std::tuple<std::shared_ptr<::Codec_BDVCommand::BDVCallback>, unsigned> 
       waitOnNewBlockSignal(Clients* clients, const std::string& bdvId);
-   std::pair<std::vector<::ClientClasses::LedgerEntry>, std::set<BinaryData>>
+   std::pair<std::vector<DBClientClasses::LedgerEntry>, std::set<BinaryData>>
       waitOnNewZcSignal(Clients* clients, const std::string& bdvId);
    void waitOnWalletRefresh(Clients* clients, const std::string& bdvId,
       const BinaryData& wltId);
@@ -164,7 +175,8 @@ namespace DBTestUtils
    std::vector<UTXO> getUtxoForAddress(Clients* clients, const std::string bdvId, 
       const BinaryData& addr, bool withZc);
 
-   void addTxioToSsh(StoredScriptHistory&, const std::map<BinaryData, std::shared_ptr<TxIOPair>>&);
+   void addTxioToSsh(StoredScriptHistory&, 
+      const std::map<BinaryDataRef, std::shared_ptr<const TxIOPair>>&);
    void prettyPrintSsh(StoredScriptHistory& ssh);
    LedgerEntry getLedgerEntryFromWallet(std::shared_ptr<BtcWallet>, const BinaryData&);
    LedgerEntry getLedgerEntryFromAddr(ScrAddrObj*, const BinaryData&);
@@ -182,7 +194,7 @@ namespace DBTestUtils
       std::shared_ptr<AsyncClient::BlockDataViewer> bdv,
       const std::string& walletId, const BinaryData& scrAddr);
    
-   std::vector<ClientClasses::LedgerEntry> getHistoryPage(
+   std::vector<DBClientClasses::LedgerEntry> getHistoryPage(
       AsyncClient::LedgerDelegate& del, uint32_t id);
    uint64_t getPageCount(AsyncClient::LedgerDelegate& del);
 
@@ -218,7 +230,7 @@ namespace DBTestUtils
       };
 
    private:
-      ArmoryThreading::BlockingQueue<std::unique_ptr<BdmNotif>> actionStack_;
+      Armory::Threading::BlockingQueue<std::unique_ptr<BdmNotif>> actionStack_;
       std::deque<std::unique_ptr<BdmNotif>> actionDeque_;
       std::vector<BdmNotif> zcNotifVec_;
 
@@ -481,13 +493,13 @@ namespace DBTestUtils
 namespace ResolverUtils
 {
    ////////////////////////////////////////////////////////////////////////////////
-   struct TestResolverFeed : public ArmorySigner::ResolverFeed
+   struct TestResolverFeed : public Armory::Signer::ResolverFeed
    {
    private:
       std::map<BinaryData, BinaryData> hashToPreimage_;
       std::map<BinaryData, SecureBinaryData> pubKeyToPrivKey_;
 
-      std::map<BinaryData, ArmorySigner::BIP32_AssetPath> bip32Paths_;
+      std::map<BinaryData, Armory::Signer::BIP32_AssetPath> bip32Paths_;
 
    public:
       BinaryData getByVal(const BinaryData& val) override
@@ -520,7 +532,7 @@ namespace ResolverUtils
          hashToPreimage_.emplace(key, val);
       }
 
-      ArmorySigner::BIP32_AssetPath resolveBip32PathForPubkey(
+      Armory::Signer::BIP32_AssetPath resolveBip32PathForPubkey(
          const BinaryData& pubkey) override
       {
          auto iter = bip32Paths_.find(pubkey);
@@ -531,25 +543,26 @@ namespace ResolverUtils
       }
 
       void setBip32PathForPubkey(
-         const BinaryData& pubkey, const ArmorySigner::BIP32_AssetPath& path)
+         const BinaryData& pubkey, const Armory::Signer::BIP32_AssetPath& path)
       {
          bip32Paths_.emplace(pubkey, path);
       }
    };
 
    ////////////////////////////////////////////////////////////////////////////////
-   class HybridFeed : public ArmorySigner::ResolverFeed
+   class HybridFeed : public Armory::Signer::ResolverFeed
    {
    private:
-      std::shared_ptr<ResolverFeed_AssetWalletSingle> feedPtr_;
+      std::shared_ptr<Armory::Signer::ResolverFeed_AssetWalletSingle> feedPtr_;
 
    public:
       TestResolverFeed testFeed_;
 
    public:
-      HybridFeed(std::shared_ptr<AssetWallet_Single> wltPtr)
+      HybridFeed(std::shared_ptr<Armory::Wallets::AssetWallet_Single> wltPtr)
       {
-         feedPtr_ = std::make_shared<ResolverFeed_AssetWalletSingle>(wltPtr);
+         feedPtr_ = std::make_shared<
+            Armory::Signer::ResolverFeed_AssetWalletSingle>(wltPtr);
       }
 
       BinaryData getByVal(const BinaryData& val) override
@@ -576,18 +589,18 @@ namespace ResolverUtils
          return feedPtr_->getPrivKeyForPubkey(pubkey);
       }
 
-      ArmorySigner::BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override
+      Armory::Signer::BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override
       {
          throw std::runtime_error("invalid pubkey");
       }
 
       void setBip32PathForPubkey(
-         const BinaryData&, const ArmorySigner::BIP32_AssetPath&) override
+         const BinaryData&, const Armory::Signer::BIP32_AssetPath&) override
       {}
    };
 
    /////////////////////////////////////////////////////////////////////////////
-   struct CustomFeed : public ArmorySigner::ResolverFeed
+   struct CustomFeed : public Armory::Signer::ResolverFeed
    {
       std::map<BinaryDataRef, BinaryDataRef> hash_to_preimage_;
       std::shared_ptr<ResolverFeed> wltFeed_;
@@ -601,7 +614,7 @@ namespace ResolverUtils
             BinaryDataRef preimage(addrPtr->getPreimage());
             hash_to_preimage_.insert(std::make_pair(hash, preimage));
          }
-         catch (std::exception)
+         catch (const std::exception&)
          {
             return;
          }
@@ -613,14 +626,15 @@ namespace ResolverUtils
 
    public:
       CustomFeed(std::shared_ptr<AddressEntry> addrPtr,
-         std::shared_ptr<AssetWallet_Single> wlt) :
-         wltFeed_(std::make_shared<ResolverFeed_AssetWalletSingle>(wlt))
+         std::shared_ptr<Armory::Wallets::AssetWallet_Single> wlt) :
+         wltFeed_(std::make_shared<
+            Armory::Signer::ResolverFeed_AssetWalletSingle>(wlt))
       {
          addAddressEntry(addrPtr);
       }
 
       CustomFeed(std::shared_ptr<AddressEntry> addrPtr,
-         std::shared_ptr<ArmorySigner::ResolverFeed> feed) :
+         std::shared_ptr<Armory::Signer::ResolverFeed> feed) :
          wltFeed_(feed)
       {
          addAddressEntry(addrPtr);
@@ -636,18 +650,20 @@ namespace ResolverUtils
          return iter->second;
       }
 
-      const SecureBinaryData& getPrivKeyForPubkey(const BinaryData& pubkey) override
+      const SecureBinaryData& getPrivKeyForPubkey(
+         const BinaryData& pubkey) override
       {
          return wltFeed_->getPrivKeyForPubkey(pubkey);
       }
 
-      ArmorySigner::BIP32_AssetPath resolveBip32PathForPubkey(const BinaryData&) override
+      Armory::Signer::BIP32_AssetPath resolveBip32PathForPubkey(
+         const BinaryData&) override
       {
          throw std::runtime_error("invalid pubkey");
       }
 
       void setBip32PathForPubkey(
-         const BinaryData&, const ArmorySigner::BIP32_AssetPath&) override
+         const BinaryData&, const Armory::Signer::BIP32_AssetPath&) override
       {}
    };
 }

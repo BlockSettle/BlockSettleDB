@@ -5,12 +5,12 @@ package Codec_ClientProto;
 enum Methods
 {
     shutdown = 1;
-    
+
     setupDB = 10;
     goOnline = 11;
     registerWallets = 12;
     registerWallet = 13;
-    
+
     loadWallets = 20;
     getNodeStatus = 21;
     returnPassphrase = 22;
@@ -18,14 +18,16 @@ enum Methods
 
     getLedgerDelegateIdForWallets = 30;
     updateWalletsLedgerFilter = 31;
-    
+    getLedgerDelegateIdForScrAddr = 32;
+
     getHistoryPageForDelegate = 40;
     getBalanceAndCount = 41;
     getAddrCombinedList = 42;
-    
+
     getTxByHash = 70;
     getHeaderByHeight = 71;
     createAddressBook = 72;
+    setComment = 73;
 
     getNewAddress = 80;
     getChangeAddress = 81;
@@ -44,7 +46,10 @@ enum Methods
     getLastPushDataInScript = 94;
     getTxOutScriptForScrAddr = 95;
     getAddrStrForScrAddr = 96;
-    
+    getNameForAddrType = 97;
+    setAddressTypeFor = 98;
+    getScrAddrForAddrStr = 99;
+
     getUtxosForValue = 100;
     getSpendableZCList = 101;
     getRBFTxOutList = 102;
@@ -57,7 +62,8 @@ enum Methods
     cs_getUtxoSelection = 115;
     cs_getFlatFee = 116;
     cs_getFeeByte = 117;
-    cs_ProcessCustomUtxoList = 118;
+    cs_getSizeEstimate = 118;
+    cs_ProcessCustomUtxoList = 119;
 
     initNewSigner = 130;
     destroySigner = 131;
@@ -70,11 +76,13 @@ enum Methods
     signer_unserializeState = 138;
     signer_signTx = 139;
     signer_getSignedTx = 140;
-    signer_getSignedStateForInput = 141;
-    signer_resolve = 142;
+    signer_getUnsignedTx = 141;
+    signer_getSignedStateForInput = 142;
+    signer_resolve = 143;
 
     getHash160 = 200;
     getBlockTimeByHeight = 201;
+    estimateFee = 202;
 
     methodWithCallback = 220;
 }
@@ -107,6 +115,9 @@ message WalletAsset
 {
     required int32 id = 1;
     required uint32 addrType = 2;
+    required bool isUsed = 3;
+    required bool isChange = 4;
+    required bytes assetId = 5;
 
     required bytes prefixedHash = 10;
     required bytes publicKey = 11;
@@ -121,14 +132,21 @@ message WalletData
     required int64 useCount = 2;
     required int64 lookupCount = 3;
     required bool watchingOnly = 4;
+    repeated uint32 addressTypes = 5;
+    required uint32 defaultAddressType = 6;
 
     optional string label = 10;
     optional string desc = 11;
-    
+
     repeated WalletAsset assets = 20;
 
-    repeated bytes commentKey = 30;
-    repeated string commentVal = 31;
+    message Comment
+    {
+        required bytes key = 1;
+        required bytes val = 2;
+    }
+
+    repeated Comment comments = 30;
 }
 
 message WalletPayload
@@ -150,9 +168,9 @@ message CppBridgeCallback
 
 message CppProgressCallback
 {
-    required uint32 phase = 1;
+    optional uint32 phase = 1;
     required float progress = 2;
-    required uint32 etaSec = 3;
+    optional uint32 etaSec = 3;
     required uint32 progressNumeric = 4;
 
     repeated string ids = 10;
@@ -205,7 +223,7 @@ message BridgeLedgers
     repeated BridgeLedger le = 1;
 }
 
-message BridgeNodeChainState
+message BridgeNodeChainStatus
 {
     required uint32 chainState = 2;
     required float blockSpeed = 3;
@@ -218,10 +236,10 @@ message BridgeNodeStatus
 {
     required bool isValid = 1;
     
-    optional uint32 nodeStatus = 10;
+    optional uint32 nodeState = 10;
     optional bool isSegWitEnabled = 11;
-    optional uint32 rpcStatus = 12;
-    optional BridgeNodeChainState chainState = 13;
+    optional uint32 rpcState = 12;
+    optional BridgeNodeChainStatus chainStatus = 13;
 }
 
 message BridgeBalanceAndCount
@@ -253,19 +271,19 @@ message BridgeTx
 
 message ReplyBinary
 {
-    repeated bytes reply = 1;
+    repeated bytes reply = 30;
 }
 
 message ReplyStrings
 {
-    repeated string reply = 1;
+    repeated string reply = 31;
 }
 
 message ReplyNumbers
 {
-    repeated uint32 ints = 1;
-    repeated uint64 longs = 2;
-    repeated float  floats = 3;
+    repeated uint32 ints = 40;
+    repeated uint64 longs = 41;
+    repeated float  floats = 42;
 }
 
 message BridgeAddressBookEntry
@@ -315,8 +333,16 @@ message BridgeInputSignedState
 
 message ReplyError
 {
-    required string error = 1;
-    optional uint32 code = 2;
+    required bool isError = 24;
+    required string error = 25;
+    optional uint32 code = 26;
+}
+
+message BridgeFeeEstimate
+{
+    required float feeByte = 1;
+    optional bool smartFee = 2;
+    optional string error = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

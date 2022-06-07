@@ -1,9 +1,9 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016-19, goatpig.                                           //
+//  Copyright (C) 2016-2021, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,7 +16,8 @@
 
 using namespace std;
 using namespace AsyncClient;
-using namespace ::Codec_BDVCommand;
+using namespace Codec_BDVCommand;
+using namespace DBClientClasses;
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -30,7 +31,7 @@ unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(Methods method)
    message->set_method(method);
 
    payload->message_ = move(message);
-   return move(payload);
+   return payload;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -42,7 +43,7 @@ unique_ptr<WritePayload_Protobuf> BlockDataViewer::make_payload(
    message->set_method(method);
 
    payload->message_ = move(message);
-   return move(payload);
+   return payload;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -493,7 +494,7 @@ void BlockDataViewer::getHeaderByHeight(unsigned height,
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getLedgerDelegateForScrAddr(
-   const string& walletID, const BinaryData& scrAddr,
+   const string& walletID, BinaryDataRef scrAddr,
    function<void(ReturnMessage<LedgerDelegate>)> callback)
 {
    auto payload = make_payload(Methods::getLedgerDelegateForScrAddr);
@@ -520,21 +521,20 @@ void BlockDataViewer::updateWalletsLedgerFilter(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void BlockDataViewer::getNodeStatus(
-   function<void(
-      ReturnMessage<shared_ptr<::ClientClasses::NodeStatusStruct>>)> callback)
+void BlockDataViewer::getNodeStatus(function<
+   void(ReturnMessage<shared_ptr<DBClientClasses::NodeStatus>>)> callback)
 {
    auto payload = make_payload(Methods::getNodeStatus);
    auto read_payload = make_shared<Socket_ReadPayload>();
    read_payload->callbackReturn_ =
-      make_unique<CallbackReturn_NodeStatusStruct>(callback);
+      make_unique<CallbackReturn_NodeStatus>(callback);
    sock_->pushPayload(move(payload), read_payload);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::estimateFee(unsigned blocksToConfirm, 
    const string& strategy, 
-   function<void(ReturnMessage<ClientClasses::FeeEstimateStruct>)> callback)
+   function<void(ReturnMessage<FeeEstimateStruct>)> callback)
 {
    auto payload = make_payload(Methods::estimateFee);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -549,7 +549,7 @@ void BlockDataViewer::estimateFee(unsigned blocksToConfirm,
 
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getFeeSchedule(const string& strategy, function<void(
-   ReturnMessage<map<unsigned, ClientClasses::FeeEstimateStruct>>)> callback)
+   ReturnMessage<map<unsigned, FeeEstimateStruct>>)> callback)
 {
    auto payload = make_payload(Methods::getFeeSchedule);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -565,7 +565,7 @@ void BlockDataViewer::getFeeSchedule(const string& strategy, function<void(
 ///////////////////////////////////////////////////////////////////////////////
 void BlockDataViewer::getHistoryForWalletSelection(
    const vector<string>& wldIDs, const string& orderingStr,
-   function<void(ReturnMessage<vector<::ClientClasses::LedgerEntry>>)> callback)
+   function<void(ReturnMessage<vector<LedgerEntry>>)> callback)
 {
    auto payload = make_payload(Methods::getHistoryForWalletSelection);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -690,7 +690,7 @@ LedgerDelegate::LedgerDelegate(shared_ptr<SocketPrototype> sock,
 
 ///////////////////////////////////////////////////////////////////////////////
 void LedgerDelegate::getHistoryPage(uint32_t id, 
-   function<void(ReturnMessage<vector<::ClientClasses::LedgerEntry>>)> callback)
+   function<void(ReturnMessage<vector<LedgerEntry>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(Methods::getHistoryPage);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -877,7 +877,7 @@ void AsyncClient::BtcWallet::getAddrBalancesFromDB(
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getHistoryPage(uint32_t id,
-   function<void(ReturnMessage<vector<::ClientClasses::LedgerEntry>>)> callback)
+   function<void(ReturnMessage<vector<LedgerEntry>>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(Methods::getHistoryPage);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -893,7 +893,7 @@ void AsyncClient::BtcWallet::getHistoryPage(uint32_t id,
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::BtcWallet::getLedgerEntryForTxHash(
    const BinaryData& txhash, 
-   function<void(ReturnMessage<shared_ptr<::ClientClasses::LedgerEntry>>)> callback)
+   function<void(ReturnMessage<shared_ptr<LedgerEntry>>)> callback)
 {  
    //get history page with a hash as argument instead of an int will return 
    //the ledger entry for the tx instead of a page
@@ -1024,7 +1024,7 @@ AsyncClient::Blockchain::Blockchain(const BlockDataViewer& bdv) :
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::Blockchain::getHeaderByHash(const BinaryData& hash,
-   function<void(ReturnMessage<ClientClasses::BlockHeader>)> callback)
+   function<void(ReturnMessage<DBClientClasses::BlockHeader>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(Methods::getHeaderByHash);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -1038,7 +1038,7 @@ void AsyncClient::Blockchain::getHeaderByHash(const BinaryData& hash,
 
 ///////////////////////////////////////////////////////////////////////////////
 void AsyncClient::Blockchain::getHeaderByHeight(unsigned height,
-   function<void(ReturnMessage<ClientClasses::BlockHeader>)> callback)
+   function<void(ReturnMessage<DBClientClasses::BlockHeader>)> callback)
 {
    auto payload = BlockDataViewer::make_payload(Methods::getHeaderByHeight);
    auto command = dynamic_cast<BDVCommand*>(payload->message_.get());
@@ -1376,7 +1376,7 @@ void CallbackReturn_TxBatch::callback(
             (int)ArmoryErrorCodes::GetTxBatchError_Invalid);
       }
 
-      if (callMap_.size() != msg.tx_size())
+      if ((ssize_t)callMap_.size() != msg.tx_size())
       {
          throw ClientMessageError(
             "call map size mismatch", 
@@ -1499,17 +1499,17 @@ void CallbackReturn_RawHeader::callback(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void CallbackReturn_NodeStatusStruct::callback(
+void CallbackReturn_NodeStatus::callback(
    const WebSocketMessagePartial& partialMsg)
 {
    try
    {
-      auto msg = make_shared<::Codec_NodeStatus::NodeStatus>();
+      auto msg = make_shared<Codec_NodeStatus::NodeStatus>();
       AsyncClient::deserialize(msg.get(), partialMsg);
 
-      auto nss = make_shared<::ClientClasses::NodeStatusStruct>(msg);
+      auto nss = make_shared<DBClientClasses::NodeStatus>(msg);
       
-      ReturnMessage<shared_ptr<::ClientClasses::NodeStatusStruct>> rm(nss);
+      ReturnMessage<shared_ptr<DBClientClasses::NodeStatus>> rm(nss);
 
       if (runInCaller())
       {
@@ -1524,7 +1524,7 @@ void CallbackReturn_NodeStatusStruct::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<shared_ptr<::ClientClasses::NodeStatusStruct>> rm(e);
+      ReturnMessage<shared_ptr<DBClientClasses::NodeStatus>> rm(e);
       userCallbackLambda_(rm);
    }
 }
@@ -1538,10 +1538,10 @@ void CallbackReturn_FeeEstimateStruct::callback(
       ::Codec_FeeEstimate::FeeEstimate msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      ClientClasses::FeeEstimateStruct fes(
+      FeeEstimateStruct fes(
          msg.feebyte(), msg.smartfee(), msg.error());
 
-      ReturnMessage<ClientClasses::FeeEstimateStruct> rm(fes);
+      ReturnMessage<FeeEstimateStruct> rm(fes);
 
       if (runInCaller())
       {
@@ -1556,7 +1556,7 @@ void CallbackReturn_FeeEstimateStruct::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<ClientClasses::FeeEstimateStruct> rm(e);
+      ReturnMessage<FeeEstimateStruct> rm(e);
       userCallbackLambda_(rm);
    }
 }
@@ -1570,19 +1570,19 @@ void CallbackReturn_FeeSchedule::callback(
       ::Codec_FeeEstimate::FeeSchedule msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      map<unsigned, ClientClasses::FeeEstimateStruct> result;
+      map<unsigned, FeeEstimateStruct> result;
 
       for (int i = 0; i < msg.estimate_size(); i++)
       {
          auto& feeByte = msg.estimate(i);
-         ClientClasses::FeeEstimateStruct fes(
+         FeeEstimateStruct fes(
             feeByte.feebyte(), feeByte.smartfee(), feeByte.error());
 
          auto target = msg.target(i);
          result.insert(make_pair(target, move(fes)));
       }
 
-      ReturnMessage<map<unsigned, ClientClasses::FeeEstimateStruct>> rm(result);
+      ReturnMessage<map<unsigned, FeeEstimateStruct>> rm(result);
 
       if (runInCaller())
       {
@@ -1597,7 +1597,7 @@ void CallbackReturn_FeeSchedule::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<map<unsigned, ClientClasses::FeeEstimateStruct>> rm(e);
+      ReturnMessage<map<unsigned, FeeEstimateStruct>> rm(e);
       userCallbackLambda_(move(rm));
    }
 }
@@ -1612,15 +1612,15 @@ void CallbackReturn_VectorLedgerEntry::callback(
       AsyncClient::deserialize(msg.get(), partialMsg);
 
 
-      vector<::ClientClasses::LedgerEntry> lev;
+      vector<LedgerEntry> lev;
 
       for (int i = 0; i < msg->values_size(); i++)
       {
-         ::ClientClasses::LedgerEntry le(msg, i);
+         LedgerEntry le(msg, i);
          lev.push_back(move(le));
       }
 
-      ReturnMessage<vector<::ClientClasses::LedgerEntry>> rm(lev);
+      ReturnMessage<vector<LedgerEntry>> rm(lev);
 
       if (runInCaller())
       {
@@ -1635,7 +1635,7 @@ void CallbackReturn_VectorLedgerEntry::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<vector<::ClientClasses::LedgerEntry>> rm(e);
+      ReturnMessage<vector<LedgerEntry>> rm(e);
       userCallbackLambda_(move(rm));
    }
 }
@@ -1836,9 +1836,9 @@ void CallbackReturn_LedgerEntry::callback(
       auto msg = make_shared<::Codec_LedgerEntry::LedgerEntry>();
       AsyncClient::deserialize(msg.get(), partialMsg);
 
-      auto le = make_shared<::ClientClasses::LedgerEntry>(msg);
+      auto le = make_shared<LedgerEntry>(msg);
 
-      ReturnMessage<shared_ptr<::ClientClasses::LedgerEntry>> rm(le);
+      ReturnMessage<shared_ptr<LedgerEntry>> rm(le);
 
       if (runInCaller())
       {
@@ -1853,7 +1853,7 @@ void CallbackReturn_LedgerEntry::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<shared_ptr<::ClientClasses::LedgerEntry>> rm(e);
+      ReturnMessage<shared_ptr<LedgerEntry>> rm(e);
       userCallbackLambda_(move(rm));
    }
 }
@@ -1945,9 +1945,9 @@ void CallbackReturn_BlockHeader::callback(
       BinaryDataRef ref;
       ref.setRef(str);
 
-      ClientClasses::BlockHeader bh(ref, height_);
+      DBClientClasses::BlockHeader bh(ref, height_);
 
-      ReturnMessage<ClientClasses::BlockHeader> rm(bh);
+      ReturnMessage<DBClientClasses::BlockHeader> rm(bh);
 
       if (runInCaller())
       {
@@ -1962,7 +1962,7 @@ void CallbackReturn_BlockHeader::callback(
    }
    catch (ClientMessageError& e)
    {
-      ReturnMessage<ClientClasses::BlockHeader> rm(e);
+      ReturnMessage<DBClientClasses::BlockHeader> rm(e);
       userCallbackLambda_(move(rm));
    }
 }
@@ -1988,23 +1988,23 @@ void CallbackReturn_CombinedBalances::callback(
 
       map<string, CombinedBalances> result;
 
-      for (unsigned i=0; i<msg.packedbalance_size(); i++)
+      for (int i=0; i<msg.packedbalance_size(); i++)
       {
          auto wltVals = msg.packedbalance(i);
 
          CombinedBalances cbal;
          cbal.walletId_.copyFrom(wltVals.id());
 
-         for (unsigned y=0; y<wltVals.idbalances_size(); y++)
+         for (int y=0; y<wltVals.idbalances_size(); y++)
             cbal.walletBalanceAndCount_.push_back(wltVals.idbalances(y));
 
-         for (unsigned y=0; y<wltVals.addrdata_size(); y++)
+         for (int y=0; y<wltVals.addrdata_size(); y++)
          {
             auto addrBals = wltVals.addrdata(y);
             auto&& scrAddr = BinaryData::fromString(addrBals.scraddr());
 
             vector<uint64_t> abl;
-            for (unsigned z=0; z<addrBals.value_size(); z++)
+            for (int z=0; z<addrBals.value_size(); z++)
                abl.push_back(addrBals.value(z));
 
             cbal.addressBalances_.insert(make_pair(scrAddr, abl));
@@ -2044,14 +2044,14 @@ void CallbackReturn_CombinedCounts::callback(
 
       map<string, CombinedCounts> result;
 
-      for (unsigned i=0; i<msg.packedbalance_size(); i++)
+      for (int i=0; i<msg.packedbalance_size(); i++)
       {
          auto wltVals = msg.packedbalance(i);
 
          CombinedCounts cbal;
          cbal.walletId_.copyFrom(wltVals.id());
 
-         for (unsigned y=0; y<wltVals.addrdata_size(); y++)
+         for (int y=0; y<wltVals.addrdata_size(); y++)
          {
             auto addrBals = wltVals.addrdata(y);
             auto&& scrAddr = BinaryData::fromString(addrBals.scraddr());
@@ -2096,13 +2096,13 @@ void CallbackReturn_AddrOutpoints::callback(
       result.heightCutoff_ = msg.heightcutoff();
       result.zcIndexCutoff_ = msg.zcindexcutoff();
 
-      for (unsigned i = 0; i < msg.addroutpoints_size(); i++)
+      for (int i = 0; i < msg.addroutpoints_size(); i++)
       {
          auto& addrOutpoints = msg.addroutpoints(i);
          auto&& scrAddr = BinaryData::fromString(addrOutpoints.scraddr());
 
          vector<OutpointData> outpointVec(addrOutpoints.outpoints_size());
-         for (unsigned y = 0; y < addrOutpoints.outpoints_size(); y++)
+         for (int y = 0; y < addrOutpoints.outpoints_size(); y++)
          {
             auto& outpoint = addrOutpoints.outpoints(y);
             auto& opData = outpointVec[y];
@@ -2149,7 +2149,7 @@ void CallbackReturn_SpentnessData::callback(
       ::Codec_Utxo::Spentness_BatchData msg;
       AsyncClient::deserialize(&msg, partialMsg);
 
-      if (msg.count() != msg.txdata_size())
+      if ((ssize_t)msg.count() != msg.txdata_size())
          throw ClientMessageError("malformed spentness payload", -1);
 
       map<BinaryData, map<unsigned, SpentnessResult>> result;
@@ -2159,7 +2159,7 @@ void CallbackReturn_SpentnessData::callback(
          BinaryDataRef txHashRef; txHashRef.setRef(txData.hash());
 
          auto& opMap = result[txHashRef];
-         for (unsigned y=0; y<txData.outputdata_size(); y++)
+         for (int y=0; y<txData.outputdata_size(); y++)
          {
             const auto& opData = txData.outputdata(y);
             auto& spentnessData = opMap[opData.txoutindex()];

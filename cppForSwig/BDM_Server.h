@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-//  Copyright (C) 2016, goatpig.                                              //
+//  Copyright (C) 2016-2021, goatpig.                                         //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                      
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -122,7 +122,7 @@ public:
 class UnitTest_Callback : public Callback
 {
 private:
-   ArmoryThreading::BlockingQueue<
+   Armory::Threading::BlockingQueue<
       std::shared_ptr<::Codec_BDVCommand::BDVCallback>> notifQueue_;
 
 public:
@@ -211,8 +211,8 @@ class Clients
    friend class ZeroConfCallbacks_BDV;
 
 private:
-   ArmoryThreading::TransactionalMap<std::string, std::shared_ptr<BDV_Server_Object>> BDVs_;
-   mutable ArmoryThreading::BlockingQueue<bool> gcCommands_;
+   Armory::Threading::TransactionalMap<std::string, std::shared_ptr<BDV_Server_Object>> BDVs_;
+   mutable Armory::Threading::BlockingQueue<bool> gcCommands_;
    BlockDataManagerThread* bdmT_ = nullptr;
 
    std::function<void(void)> shutdownCallback_;
@@ -222,11 +222,11 @@ private:
    std::vector<std::thread> controlThreads_;
    std::thread unregThread_;
 
-   mutable ArmoryThreading::BlockingQueue<std::shared_ptr<BDV_Notification>> outerBDVNotifStack_;
-   ArmoryThreading::BlockingQueue<std::shared_ptr<BDV_Notification_Packet>> innerBDVNotifStack_;
-   ArmoryThreading::BlockingQueue<std::shared_ptr<BDV_Payload>> packetQueue_;
-   ArmoryThreading::BlockingQueue<std::string> unregBDVQueue_;
-   ArmoryThreading::BlockingQueue<RpcBroadcastPacket> rpcBroadcastQueue_;
+   mutable Armory::Threading::BlockingQueue<std::shared_ptr<BDV_Notification>> outerBDVNotifStack_;
+   Armory::Threading::BlockingQueue<std::shared_ptr<BDV_Notification_Packet>> innerBDVNotifStack_;
+   Armory::Threading::BlockingQueue<std::shared_ptr<BDV_Payload>> packetQueue_;
+   Armory::Threading::BlockingQueue<std::string> unregBDVQueue_;
+   Armory::Threading::BlockingQueue<RpcBroadcastPacket> rpcBroadcastQueue_;
 
    std::mutex shutdownMutex_;
 

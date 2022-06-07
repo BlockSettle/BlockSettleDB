@@ -14,7 +14,6 @@
 #include <memory>
 #include <string>
 
-#include "make_unique.h"
 
 class LockableException : public std::runtime_error
 {
@@ -72,7 +71,7 @@ public:
          throw AlreadyLocked();
 
       lock_ =
-         make_unique<std::unique_lock<std::mutex>>(lockablePtr_->mu_, std::defer_lock);
+         std::make_unique<std::unique_lock<std::mutex>>(lockablePtr_->mu_, std::defer_lock);
 
       lock_->lock();
       lockablePtr_->mutexTID_ = std::this_thread::get_id();
@@ -124,7 +123,7 @@ public:
       if (lockablePtr_->mutexTID_ != std::this_thread::get_id())
       {
          lock_ =
-            make_unique<std::unique_lock<std::mutex>>(lockablePtr_->mu_, std::defer_lock);
+            std::make_unique<std::unique_lock<std::mutex>>(lockablePtr_->mu_, std::defer_lock);
 
          lock_->lock();
          lockablePtr_->mutexTID_ = std::this_thread::get_id();

@@ -141,7 +141,7 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   uint8_t const * getPtr(void) const       
+   uint8_t const * getPtr(void) const
    { 
       if(getSize()==0)
          return NULL;
@@ -150,7 +150,7 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   uint8_t* getPtr(void)                   
+   uint8_t* getPtr(void)
    { 
       if(getSize()==0)
          return NULL;
@@ -201,16 +201,16 @@ public:
       copyFrom(str.c_str(), str.size());
    }
 
-   void copyFrom(BinaryData const & bd)                      
+   void copyFrom(BinaryData const & bd)
                   { copyFrom( bd.getPtr(), bd.getSize() ); }
    void copyFrom(BinaryDataRef const & bdr);
-   
+
    void copyFrom(char const * inData, size_t sz)
    {
       copyFrom((uint8_t*)inData, sz);
    }
 
-   void copyFrom(uint8_t const * inData, size_t sz)          
+   void copyFrom(uint8_t const * inData, size_t sz)
    { 
       if(inData==NULL || sz == 0)
          alloc(0);
@@ -228,11 +228,11 @@ public:
    void copyTo(uint8_t* outData, size_t offset, size_t sz) const { memcpy( outData, &(data_[offset]), (size_t)sz); }
    void copyTo(BinaryData & bd) const 
    {
-      bd.resize(data_.size());
-#ifdef _MSC_VER 
-	  if(data_.size())
-#endif
-	  memcpy( bd.getPtr(), &data_[0], data_.size());
+      if (empty())
+         return;
+
+      bd.resize(getSize());
+      memcpy(bd.getPtr(), getPtr(), getSize());
    }
 
    void fill(uint8_t ch) { if(getSize()>0) memset(getPtr(), ch, getSize()); }
@@ -246,13 +246,18 @@ public:
       os << bd.toHexStr();
       return os;
    }
-  
-   
+
    /////////////////////////////////////////////////////////////////////////////
    BinaryData operator+(BinaryData const & bd2) const
    {
+      if (bd2.empty())
+         return *this;
+
       BinaryData out(getSize() + bd2.getSize());
-      memcpy(out.getPtr(), getPtr(), getSize());
+
+      if (!empty())
+         memcpy(out.getPtr(), getPtr(), getSize());
+
       memcpy(out.getPtr()+getSize(), bd2.getPtr(), bd2.getSize());
       return out;
    }
@@ -307,9 +312,9 @@ public:
    bool endsWith(BinaryData const & matchStr) const;
 
    /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef getSliceRef(ssize_t start_pos, uint32_t nChar) const;
+   BinaryDataRef getSliceRef(ssize_t start_pos, size_t nChar) const;
    /////////////////////////////////////////////////////////////////////////////
-   BinaryData    getSliceCopy(ssize_t start_pos, uint32_t nChar) const;
+   BinaryData    getSliceCopy(ssize_t start_pos, size_t nChar) const;
 
    /////////////////////////////////////////////////////////////////////////////
    bool operator<(BinaryData const & bd2) const;
@@ -318,13 +323,7 @@ public:
    bool operator<(BinaryDataRef const & bd2) const;
 
    /////////////////////////////////////////////////////////////////////////////
-   bool operator==(BinaryData const & bd2) const
-   {
-      if(getSize() != bd2.getSize())
-         return false;
-
-      return (memcmp(getPtr(), bd2.getPtr(), getSize()) == 0);
-   }
+   bool operator==(BinaryData const & bd2) const;
 
    /////////////////////////////////////////////////////////////////////////////
    bool operator!=(BinaryData const & bd2) const { return (!((*this)==bd2)); }
@@ -347,11 +346,12 @@ public:
 
    /////////////////////////////////////////////////////////////////////////////
    // These are always memory-safe
-   void copyTo(std::string & str) {
-#ifdef _MSC_VER
-	if(getSize())
-#endif
-	   str.assign( (char const *)(&(data_[0])), getSize()); 
+   void copyTo(std::string & str)
+   {
+      if (empty())
+         return;
+
+      str.assign( (char const *)(&(data_[0])), getSize());
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -505,7 +505,13 @@ public:
    template<typename INTTYPE>
    static INTTYPE StrToIntLE(uint8_t const * ptr)
    {
-      return  *((INTTYPE*)ptr);
+      //return  *((INTTYPE*)ptr);
+      //the kind of typecasts are undefined behavior, use memcpy 
+      //instead, TBAA will optimize it away
+
+      INTTYPE result;
+      memcpy(&result, ptr, sizeof(INTTYPE));
+      return result;
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -575,19 +581,19 @@ class BinaryDataRef
 {
 public:
    /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef(void) : ptr_(NULL), nBytes_(0)     
+   BinaryDataRef(void) : ptr_(NULL), nBytes_(0)
    {
       // Nothing to put here
    }
    /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef(uint8_t const * inData, size_t sz) 
+   BinaryDataRef(uint8_t const * inData, size_t sz)
    { 
-      setRef(inData, sz); 
+      setRef(inData, sz);
    }
    /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef(uint8_t const * dstart, uint8_t const * dend )
+   BinaryDataRef(uint8_t const * dstart, uint8_t const * dend)
    { 
-      setRef(dstart,dend); 
+      setRef(dstart,dend);
    }
 
    /////////////////////////////////////////////////////////////////////////////
@@ -625,16 +631,16 @@ public:
    bool empty(void) const { return nBytes_ == 0; }
 
    /////////////////////////////////////////////////////////////////////////////
-   void setRef(uint8_t const * inData, size_t sz)          
-   { 
-      ptr_ = inData; 
+   void setRef(uint8_t const * inData, size_t sz)
+   {
+      ptr_ = inData;
       nBytes_ = sz;
    }
-   void setRef(uint8_t const * start, uint8_t const * end) 
+   void setRef(uint8_t const * start, uint8_t const * end)
                   { setRef( start, (end-start)); }  // [start, end)
    void setRef(std::string const & str)
-                  { setRef( (uint8_t*)str.data(), str.size()); } 
-   void setRef(BinaryData const & bd)                      
+                  { setRef( (uint8_t*)str.data(), str.size()); }
+   void setRef(BinaryData const & bd)
                   { setRef( bd.getPtr(), bd.getSize() ); }
 
    static BinaryDataRef fromString(const std::string& str, size_t len=SIZE_MAX)
@@ -653,8 +659,11 @@ public:
    void copyTo(uint8_t* outData, size_t sz) const { memcpy( outData, ptr_, (size_t)sz); }
    void copyTo(uint8_t* outData, size_t offset, size_t sz) const 
                                     { memcpy( outData, ptr_+offset, (size_t)sz); }
-   void copyTo(BinaryData & bd) const 
+   void copyTo(BinaryData & bd) const
    {
+      if (empty())
+         return;
+
       bd.resize(nBytes_);
       memcpy( bd.getPtr(), ptr_, (size_t)nBytes_);
    }
@@ -753,30 +762,8 @@ public:
 
 
    /////////////////////////////////////////////////////////////////////////////
-   bool startsWith(BinaryDataRef const & matchStr) const
-   {
-      if(matchStr.getSize() > nBytes_)
-         return false;
-   
-      for(uint32_t i=0; i<matchStr.getSize(); i++)
-         if(matchStr[i] != (*this)[i])
-            return false;
-   
-      return true;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   bool startsWith(BinaryData const & matchStr) const
-   {
-      if(matchStr.getSize() > nBytes_)
-         return false;
-   
-      for(uint32_t i=0; i<matchStr.getSize(); i++)
-         if(matchStr[i] != (*this)[i])
-            return false;
-   
-      return true;
-   }
+   bool startsWith(BinaryDataRef const &) const;
+   bool startsWith(BinaryData const &) const;
 
    /////////////////////////////////////////////////////////////////////////////
    bool endsWith(BinaryDataRef const & matchStr) const
@@ -839,6 +826,9 @@ public:
    {
       return (ptr_ == bdRef2.ptr_ && nBytes_ == bdRef2.nBytes_);
    }
+
+   /////////////////////////////////////////////////////////////////////////////
+   BinaryDataRef& operator=(const BinaryDataRef&);
 
    /////////////////////////////////////////////////////////////////////////////
    bool operator<(BinaryDataRef const & bd2) const;
@@ -996,9 +986,9 @@ public:
    }
 
    /////////////////////////////////////////////////////////////////////////////
-   uint32_t get_int32_t(ENDIAN e = LE)
+   int32_t get_int32_t(ENDIAN e = LE)
    {
-      uint32_t outVal = (e == LE ? 
+      int32_t outVal = (e == LE ? 
          BinaryData::StrToIntLE<int32_t>(bdStr_.getPtr() + pos_) :
          BinaryData::StrToIntBE<int32_t>(bdStr_.getPtr() + pos_));
       pos_ += 4;
@@ -1125,7 +1115,6 @@ public:
       setNewData(rawPtr, nBytes);
    }
 
-
    void setNewData(BinaryData const & toRead)
    {
       setNewData(toRead.getPtr(), toRead.getSize());
@@ -1147,204 +1136,42 @@ public:
    void advance(size_t nBytes);
 
    /////////////////////////////////////////////////////////////////////////////
-   void rewind(uint32_t nBytes) 
-   { 
+   void rewind(uint32_t nBytes)
+   {
       size_t start = pos_.load(std::memory_order_relaxed);
       pos_.fetch_sub(nBytes, std::memory_order_relaxed);
       if(pos_.load(std::memory_order_relaxed) > start)
          pos_.store(0, std::memory_order_relaxed);
    }
 
-
    /////////////////////////////////////////////////////////////////////////////
    uint64_t get_var_int(uint8_t* nRead=NULL);
-
-
-   /////////////////////////////////////////////////////////////////////////////
-   uint8_t get_uint8_t()
-   {
-      if (getSizeRemaining() < 1)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      uint8_t outVal = bdRef_[pos_];
-      pos_.fetch_add(1, std::memory_order_relaxed);
-      return outVal;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   uint16_t get_uint16_t(ENDIAN e=LE)
-   {
-      if (getSizeRemaining() < 2)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      uint16_t  outVal = (e==LE ? READ_UINT16_LE(bdRef_.getPtr() + pos_) :
-                                  READ_UINT16_BE(bdRef_.getPtr() + pos_) );
-      pos_.fetch_add(2, std::memory_order_relaxed);
-      return outVal;
-   }
+   uint8_t get_uint8_t(void);
+   uint16_t get_uint16_t(ENDIAN e=LE);
+   uint32_t get_uint32_t(ENDIAN e=LE);
+   int32_t get_int32_t(ENDIAN e = LE);
+   uint64_t get_uint64_t(ENDIAN e=LE);
+   int64_t get_int64_t(ENDIAN e = LE);
+   double get_double(void);
+   BinaryDataRef get_BinaryDataRef(uint32_t);
+   BinaryRefReader fork(void) const;
+   void get_BinaryData(BinaryData&, uint32_t);
+   BinaryData get_BinaryData(uint32_t);
+   SecureBinaryData get_SecureBinaryData(uint32_t);
+   void get_BinaryData(uint8_t*, uint32_t);
+   std::string get_String(uint32_t);
 
    /////////////////////////////////////////////////////////////////////////////
-   uint32_t get_uint32_t(ENDIAN e=LE)
-   {
-      if (getSizeRemaining() < 4)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      uint32_t  outVal = (e==LE ? READ_UINT32_LE(bdRef_.getPtr() + pos_) :
-                                  READ_UINT32_BE(bdRef_.getPtr() + pos_) );
-      pos_.fetch_add(4, std::memory_order_relaxed);
-      return outVal;
-   }
+   void resetPosition(void);
+   size_t getPosition(void) const;
+   size_t getSize(void) const;
+   size_t getSizeRemaining(void) const;
+   bool isEndOfStream(void) const;
+   uint8_t const* exposeDataPtr(void);
+   uint8_t const* getCurrPtr(void);
 
    /////////////////////////////////////////////////////////////////////////////
-   int32_t get_int32_t(ENDIAN e = LE)
-   {
-      if (getSizeRemaining() < 4)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      int32_t outVal = (e == LE ?
-         BinaryData::StrToIntLE<int32_t>(bdRef_.getPtr() + pos_) :
-         BinaryData::StrToIntBE<int32_t>(bdRef_.getPtr() + pos_));
-      pos_.fetch_add(4, std::memory_order_relaxed);
-      return outVal;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   uint64_t get_uint64_t(ENDIAN e=LE)
-   {
-      if (getSizeRemaining() < 8)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      uint64_t  outVal = (e==LE ? READ_UINT64_LE(bdRef_.getPtr() + pos_) :
-                                  READ_UINT64_BE(bdRef_.getPtr() + pos_) );
-      pos_.fetch_add(8, std::memory_order_relaxed);
-      return outVal;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   int32_t get_int64_t(ENDIAN e = LE)
-   {
-      if (getSizeRemaining() < 8)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-      int32_t outVal = (e == LE ?
-         BinaryData::StrToIntLE<int64_t>(bdRef_.getPtr() + pos_) :
-         BinaryData::StrToIntBE<int64_t>(bdRef_.getPtr() + pos_));
-      pos_.fetch_add(8, std::memory_order_relaxed);
-      return outVal;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   double get_double()
-   {
-      if (getSizeRemaining() < 8)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-
-      auto doublePtr = (double*)(bdRef_.getPtr() + pos_);
-
-      pos_.fetch_add(8, std::memory_order_relaxed);
-      return *doublePtr;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef get_BinaryDataRef(uint32_t nBytes)
-   {
-      if (getSizeRemaining() < nBytes)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-
-      BinaryDataRef bdrefout(bdRef_.getPtr() + pos_, nBytes);
-      pos_.fetch_add(nBytes, std::memory_order_relaxed);
-      return bdrefout;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   BinaryRefReader fork(void) const
-   {
-      return BinaryRefReader(
-         bdRef_.getPtr() + pos_.load(std::memory_order_relaxed), getSizeRemaining());
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   void get_BinaryData(BinaryData & bdTarget, uint32_t nBytes)
-   {
-      if (getSizeRemaining() < nBytes)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-
-      bdTarget.copyFrom( bdRef_.getPtr() + pos_, nBytes);
-      pos_.fetch_add(nBytes, std::memory_order_relaxed);
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   BinaryData get_BinaryData(uint32_t nBytes)
-   {
-      if (getSizeRemaining() < nBytes)
-      {
-         LOGERR << "buffer overflow!";
-         LOGERR << "grabbing " << nBytes << 
-            " out of " << getSizeRemaining() << " bytes";
-         throw std::runtime_error("buffer overflow");
-      }
-
-      BinaryData out;
-      get_BinaryData(out, nBytes);
-      return out;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   SecureBinaryData get_SecureBinaryData(uint32_t nBytes);
-
-   /////////////////////////////////////////////////////////////////////////////
-   void get_BinaryData(uint8_t* targPtr, uint32_t nBytes)
-   {
-      if (getSizeRemaining() < nBytes)
-      {
-         LOGERR << "buffer overflow";
-         throw std::runtime_error("buffer overflow");
-      }
-
-      bdRef_.copyTo(targPtr, pos_, nBytes);
-      pos_.fetch_add(nBytes, std::memory_order_relaxed);
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   std::string get_String(uint32_t nBytes)
-   {
-      std::string strOut(bdRef_.toCharPtr() + pos_, nBytes);
-      pos_.fetch_add(nBytes, std::memory_order_relaxed);
-      return strOut;
-   }
-
-   /////////////////////////////////////////////////////////////////////////////
-   void     resetPosition(void)           { pos_ = 0; }
-   size_t   getPosition(void) const       { return pos_; }
-   size_t   getSize(void) const           { return totalSize_; }
-   size_t   getSizeRemaining(void) const  { return totalSize_ - pos_.load(std::memory_order_relaxed); }
-   bool     isEndOfStream(void) const     { return pos_.load(std::memory_order_relaxed) >= totalSize_; }
-   uint8_t const * exposeDataPtr(void)    { return bdRef_.getPtr(); }
-   uint8_t const * getCurrPtr(void)       { return bdRef_.getPtr() + pos_.load(std::memory_order_relaxed); }
-
-   /////////////////////////////////////////////////////////////////////////////
-   BinaryDataRef getRawRef(void) { return bdRef_;   }
+   BinaryDataRef getRawRef(void);
 
 private:
    BinaryDataRef bdRef_;
@@ -1352,10 +1179,10 @@ private:
 
    /*
    On at least AMD Ryzen CPUs, gcc O1/2 compilation has demonstrated that reset
-   and advance operations can result in out of order execution on pos leading to 
+   and advance operations can result in out of order execution on pos_ leading to
    unexpected offset position, when pos_ is a simple size_t.
 
-   Upgrading pos_ to either volatile or atomic<size_t> enforces the sequential 
+   Upgrading pos_ to either volatile or atomic<size_t> enforces the sequential
    execution of operations on pos_, fixing the issue.
 
    Since the only desirable additional feature is sequentiality, relaxed atomic
@@ -1590,8 +1417,6 @@ public:
       }
    }
 
-
-
    /////////////////////////////////////////////////////////////////////////////
    void put_BinaryData(BinaryData const & str, size_t offset=0, uint32_t sz=0)
    {
@@ -1816,15 +1641,17 @@ private:
 
 };
 
-struct BinaryDataHash
+namespace std
 {
-   size_t operator()(const BinaryData &x) const
+   template<> struct hash<BinaryData>
    {
-      // use the first size_t bytes of HashString in our hashtable
-      // hash256 should have good even distribution
-      const char *y = x.toCharPtr();
-      return *reinterpret_cast<const size_t*>(y);
-   }
+      std::size_t operator()(const BinaryData&) const;
+   };
+
+   template<> struct hash<BinaryDataRef>
+   {
+      std::size_t operator()(const BinaryDataRef&) const;
+   };
 };
 
 

@@ -5,15 +5,16 @@
 //  See LICENSE-ATI or http://www.gnu.org/licenses/agpl.html                  //
 //                                                                            //
 //                                                                            //
-//  Copyright (C) 2016, goatpig                                               //            
+//  Copyright (C) 2016-2021, goatpig                                          //
 //  Distributed under the MIT license                                         //
-//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //                                   
+//  See LICENSE-MIT or https://opensource.org/licenses/MIT                    //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 #include "BtcWallet.h"
 #include "BlockUtils.h"
 #include "txio.h"
 #include "BlockDataViewer.h"
+#include "TxOutScrRef.h"
 
 using namespace std;
 
@@ -36,6 +37,17 @@ bool BtcWallet::hasScrAddress(const BinaryDataRef& scrAddr) const
    return (addrMap->find(scrAddr) != addrMap->end());
 }
 
+/////////////////////////////////////////////////////////////////////////////
+set<BinaryDataRef> BtcWallet::getAddrSet() const
+{
+   auto addrMap = scrAddrMap_.get();
+   set<BinaryDataRef> addrSet;
+
+   for (auto& addrPair : *addrMap)
+      addrSet.emplace(addrPair.first);
+   return addrSet;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 void BtcWallet::clearBlkData(void)
 {
@@ -53,9 +65,9 @@ uint64_t BtcWallet::getSpendableBalance(uint32_t currBlk) const
    auto addrMap = scrAddrMap_.get();
 
    uint64_t balance = 0;
-   for(const auto scrAddr : *addrMap)
+   for(const auto& scrAddr : *addrMap)
       balance += scrAddr.second->getSpendableBalance(currBlk);
-   
+
    return balance;
 }
 
@@ -65,7 +77,7 @@ uint64_t BtcWallet::getUnconfirmedBalance(uint32_t currBlk) const
    auto addrMap = scrAddrMap_.get();
 
    uint64_t balance = 0;
-   for (const auto scrAddr : *addrMap)
+   for (const auto& scrAddr : *addrMap)
       balance += scrAddr.second->getUnconfirmedBalance(currBlk, confTarget_);
    
    return balance;
@@ -96,7 +108,7 @@ map<BinaryData, uint32_t> BtcWallet::getAddrTxnCounts(int32_t updateID) const
    map<BinaryData, uint32_t> countMap;
 
    auto addrMap = scrAddrMap_.get();
-   for (auto& sa : *addrMap)
+   for (const auto& sa : *addrMap)
    {
       if (sa.second->updateID_ <= lastPulledCountsID_)
          continue;
@@ -240,7 +252,7 @@ void BtcWallet::resetCounters()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<UnspentTxOut> BtcWallet::getSpendableTxOutListForValue(uint64_t val)
+vector<UTXO> BtcWallet::getSpendableTxOutListForValue(uint64_t val)
 {
    /***
    Only works with DB so it naturally ignores ZC 
@@ -263,16 +275,16 @@ vector<UnspentTxOut> BtcWallet::getSpendableTxOutListForValue(uint64_t val)
    //start a RO txn to grab the txouts from DB
    auto&& tx = db->beginTransaction(STXO, LMDB::ReadOnly);
 
-   vector<UnspentTxOut> utxoList;
+   vector<UTXO> utxoList;
    uint32_t blk = bdvPtr_->getTopBlockHeight();
 
    auto addrMap = scrAddrMap_.get();
 
    for (const auto& scrAddr : *addrMap)
    {
-      const auto& utxoMap = scrAddr.second->getPreparedTxOutList();
+      const auto& txioMap = scrAddr.second->getPreparedTxOutList();
 
-      for (const auto& txioPair : utxoMap)
+      for (const auto& txioPair : txioMap)
       {
          if (!txioPair.second.isSpendable(db, blk))
             continue;
@@ -280,13 +292,13 @@ vector<UnspentTxOut> BtcWallet::getSpendableTxOutListForValue(uint64_t val)
          auto&& txout_key = txioPair.second.getDBKeyOfOutput();
          StoredTxOut stxo;
          db->getStoredTxOut(stxo, txout_key);
-         auto&& hash = db->getTxHashForLdbKey(txout_key.getSliceRef(0, 6));
+         auto hash = db->getTxHashForLdbKey(txout_key.getSliceRef(0, 6));
 
-         BinaryData script(stxo.getScriptRef());
-         UnspentTxOut UTXO(hash, txioPair.second.getIndexOfOutput(), stxo.getHeight(),
-            stxo.getValue(), script);
-
-         utxoList.push_back(UTXO);
+         UTXO utxo(
+            stxo.getValue(), stxo.getHeight(), 
+            stxo.txIndex_, stxo.txOutIndex_, 
+            hash, stxo.getScriptRef());
+         utxoList.emplace_back(move(utxo));
       }
    }
 
@@ -294,11 +306,11 @@ vector<UnspentTxOut> BtcWallet::getSpendableTxOutListForValue(uint64_t val)
    //we dont know if any TxOut will be spent
 
    resetTxOutHistory();
-   return move(utxoList);
+   return utxoList;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<UnspentTxOut> BtcWallet::getSpendableTxOutListZC()
+vector<UTXO> BtcWallet::getSpendableTxOutListZC()
 {
    set<BinaryData> txioKeys;
 
@@ -318,7 +330,7 @@ vector<UnspentTxOut> BtcWallet::getSpendableTxOutListZC()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-vector<UnspentTxOut> BtcWallet::getRBFTxOutList()
+vector<UTXO> BtcWallet::getRBFTxOutList()
 {
    set<BinaryData> zcKeys;
    set<BinaryData> txoutKeys;
@@ -347,12 +359,12 @@ vector<UnspentTxOut> BtcWallet::getRBFTxOutList()
    for (auto& txoutkey : txoutKeys)
    {
       auto&& stxo = bdvPtr_->getStoredTxOut(txoutkey);
+      UTXO utxo(
+         stxo.getValue(), stxo.getHeight(), 
+         stxo.txIndex_, stxo.txOutIndex_, 
+         stxo.parentHash_, stxo.getScriptRef());
 
-      BinaryData script(stxo.getScriptRef());
-      UnspentTxOut utxo(stxo.parentHash_, stxo.txOutIndex_, stxo.getHeight(),
-         stxo.getValue(), script);
-
-      utxoVec.push_back(move(utxo));
+      utxoVec.emplace_back(move(utxo));
    }
 
    return utxoVec;
@@ -460,18 +472,11 @@ map<BinaryData, TxIOPair> BtcWallet::scanWalletZeroConf(
 
    map<BinaryData, TxIOPair> result;
    auto addrMap = scrAddrMap_.get();
-   validZcKeys_.clear();
 
    for (auto& saPair : *addrMap)
    {
       auto&& saResult = saPair.second->scanZC(
          scanInfo.saStruct_, isZcFromWallet, updateID);
-      for (auto& zckeypair : saPair.second->validZCKeys_)
-      {
-         validZcKeys_.insert(
-            move(zckeypair.first.getSliceCopy(0, 6)));
-      }
-
       result.insert(saResult.begin(), saResult.end());
    }
 
@@ -488,7 +493,7 @@ bool BtcWallet::scanWallet(ScanWalletStruct& scanInfo, int32_t updateID)
       balance_ = getFullBalanceFromDB(updateID);
    }
   
-   if (scanInfo.saStruct_.zcMap_.size() != 0 ||
+   if (scanInfo.saStruct_.scrAddrToTxioKeys_.size() != 0 ||
       (scanInfo.saStruct_.invalidatedZcKeys_ != nullptr && 
        scanInfo.saStruct_.invalidatedZcKeys_->size() != 0))
    {
@@ -535,7 +540,7 @@ void BtcWallet::reset()
 ////////////////////////////////////////////////////////////////////////////////
 map<uint32_t, uint32_t> BtcWallet::computeScrAddrMapHistSummary()
 {
-   if (BlockDataManagerConfig::getDbType() == ARMORY_DB_SUPER)
+   if (Armory::Config::DBSettings::getDbType() == ARMORY_DB_SUPER)
       return computeScrAddrMapHistSummary_Super();
 
    struct PreHistory

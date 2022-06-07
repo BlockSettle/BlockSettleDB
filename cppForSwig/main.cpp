@@ -9,18 +9,21 @@
 #include <string>
 #include <iostream>
 #include <sstream>
-#include "btc/ecc.h"
+#include <btc/ecc.h>
 
-using namespace std;
-
-#include "BlockDataManagerConfig.h"
+#include "ArmoryConfig.h"
 #include "BDM_mainthread.h"
 #include "BDM_Server.h"
 #include "TerminalPassphrasePrompt.h"
 
+using namespace std;
+using namespace Armory::Config;
+
+#define LOG_FILE_NAME "dbLog"
+
 int main(int argc, char* argv[])
 {
-   btc_ecc_start();
+   CryptoECDSA::setupContext();
    startupBIP151CTX();
    startupBIP150CTX(4);
 
@@ -32,30 +35,40 @@ int main(int argc, char* argv[])
    WSAStartup(wVersion, &wsaData);
 #endif
 
-   BlockDataManagerConfig bdmConfig;
-   bdmConfig.parseArgs(argc, argv);
-   
-   //cout << "logging in " << bdmConfig.logFilePath_ << endl;
-   STARTLOGGING("", LogLvlDebug);
-   if (!bdmConfig.useCookie_)
+   try
+   {
+      Armory::Config::parseArgs(argc, argv, Armory::Config::ProcessType::DB);
+   }
+   catch (const DbErrorMsg& e)
+   {
+      cout << "Failed to setup with error:" << endl;
+      cout << "   " << e.what() << endl;
+      cout << "Aborting!" << endl;
+
+      return -1;
+   }
+
+   cout << "logging in " << Pathing::logFilePath(LOG_FILE_NAME) << endl;
+   STARTLOGGING(Pathing::logFilePath(LOG_FILE_NAME), LogLvlDebug);
+   if (!NetworkSettings::useCookie())
       LOGENABLESTDOUT();
    else
       LOGDISABLESTDOUT();
 
-   LOGINFO << "Running on " << bdmConfig.threadCount_ << " threads";
-   LOGINFO << "Ram usage level: " << bdmConfig.ramUsage_;
+   LOGINFO << "Running on " << DBSettings::threadCount() << " threads";
+   LOGINFO << "Ram usage level: " << DBSettings::ramUsage();
 
    //init state
-   BlockDataManagerConfig::setServiceType(SERVICE_WEBSOCKET);
-   BlockDataManagerThread bdmThread(bdmConfig);
+   DBSettings::setServiceType(SERVICE_WEBSOCKET);
+   BlockDataManagerThread bdmThread;
 
-   if (!bdmConfig.checkChain_)
+   if (!DBSettings::checkChain())
    {
       //check we can listen on this ip:port
-      if (SimpleSocket::checkSocket("127.0.0.1", bdmConfig.listenPort_))
+      if (SimpleSocket::checkSocket("127.0.0.1", NetworkSettings::listenPort()))
       {
          LOGERR << "There is already a process listening on port " << 
-            bdmConfig.listenPort_;
+            NetworkSettings::listenPort();
          LOGERR << "ArmoryDB cannot start under these conditions. Shutting down!";
          LOGERR << "Make sure to shutdown the conflicting process" <<
             "before trying again (most likely another ArmoryDB instance)";
@@ -66,31 +79,17 @@ int main(int argc, char* argv[])
 
    {
       //setup remote peers db, this will block the init process until 
-      //peers db is unlocked if --encrypt-wallet is passed
-      PassphraseLambda passLbd;
-
-      if (bdmConfig.encryptWallet_)
-      {
-         passLbd = TerminalPassphrasePrompt::getLambda("peers db");
-      }
-      else
-      {
-         passLbd = [](const std::set<BinaryData>&) {
-            return SecureBinaryData{};
-         };
-      }
-
+      //peers db is unlocked
+      auto&& passLbd = TerminalPassphrasePrompt::getLambda("peers db");
       WebSocketServer::initAuthPeers(passLbd);
    }
-    
-   //create cookie file if applicable
-   bdmConfig.createCookie();
 
    //start up blockchain service
-   bdmThread.start(bdmConfig.initMode_);
+   bdmThread.start(DBSettings::initMode());
 
-   if (!bdmConfig.checkChain_)
+   if (!DBSettings::checkChain())
    {
+      //start websocket server
       WebSocketServer::start(&bdmThread, false);
    }
    else
@@ -103,7 +102,7 @@ int main(int argc, char* argv[])
    google::protobuf::ShutdownProtobufLibrary();
 
    shutdownBIP151CTX();
-   btc_ecc_stop();
+   CryptoECDSA::shutdown();
 
    return 0;
 }
