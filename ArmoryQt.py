@@ -57,7 +57,7 @@ from armoryengine.ArmoryUtils import HMAC256, GUI_LANGUAGE, \
    unixTimeToFormatStr, binary_to_hex, BTC_HOME_DIR, secondsToHumanTime, \
    LEVELDB_BLKDATA, LOGRAWDATA, LOGPPRINT, hex_to_binary, \
    getRandomHexits_NotSecure, coin2strNZS, bytesToHumanSize, hash256, \
-   DEFAULT_ADDR_TYPE
+   DEFAULT_ADDR_TYPE, hex_switchEndian, BLOCKEXPLORE_NAME
 
 from armoryengine.Block import PyBlock
 from armoryengine.Decorators import RemoveRepeatingExtensions
@@ -3164,15 +3164,18 @@ class ArmoryMainWindow(QMainWindow):
       if len(self.ledgerView.selectedIndexes())==0:
          return
 
+      def toBool(strValue):
+         return strValue == "True"
+
       row = self.ledgerView.selectedIndexes()[0].row()
 
-      wltID = str(self.ledgerView.model().index(row, LEDGERCOLS.WltID).data().toString())
-      txHash = str(self.ledgerView.model().index(row, LEDGERCOLS.TxHash).data().toString())
+      wltID = str(self.ledgerView.model().index(row, LEDGERCOLS.WltID).data())
+      txHash = str(self.ledgerView.model().index(row, LEDGERCOLS.TxHash).data())
       txHash = hex_switchEndian(txHash)
 
-      amount, flag = self.ledgerView.model().index(row, LEDGERCOLS.Amount).data().toFloat()
-      rbf    = self.ledgerView.model().index(row, LEDGERCOLS.optInRBF).data().toBool()
-      issts  = self.ledgerView.model().index(row, LEDGERCOLS.toSelf).data().toBool()
+      amount = float(self.ledgerView.model().index(row, LEDGERCOLS.Amount).data())
+      rbf    = toBool(self.ledgerView.model().index(row, LEDGERCOLS.optInRBF).data())
+      issts  = toBool(self.ledgerView.model().index(row, LEDGERCOLS.toSelf).data())
       flagged = rbf and (amount < 0 or issts)
 
       if flagged:
