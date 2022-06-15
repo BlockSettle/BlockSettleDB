@@ -22,7 +22,7 @@ from armoryengine.ArmoryUtils import enum, CPP_TXOUT_MULTISIG, \
    hex_to_binary, coin2str, coin2strNZS, LOGEXCEPT, LOGERROR, \
    CPP_TXIN_SCRIPT_NAMES, CPP_TXOUT_SCRIPT_NAMES, int_to_hex, \
    script_to_scrAddr, scrAddr_to_addrStr, unixTimeToFormatStr, \
-   UINT32_MAX
+   UINT32_MAX, hash256
 
 from armoryengine.BDM import TheBDM, BDM_BLOCKCHAIN_READY
 from armoryengine.Transaction import UnsignedTransaction, \
@@ -929,12 +929,16 @@ def extractTxInfo(pytx, rcvTime=None):
       pytx = ustx.pytxObj
 
    txHash = pytx.getHash()
+   try:
+      hasTxHash = len(txHash) == 32
+   except TypeError:
+      hasTxHash = False
    txSize, txWeight, sumTxIn, txTime, txBlk, txIdx = [None] * 6
 
    txOutToList = pytx.makeRecipientsList()
    sumTxOut = sum([t[1] for t in txOutToList])
 
-   if TheBDM.getState() == BDM_BLOCKCHAIN_READY:
+   if TheBDM.getState() == BDM_BLOCKCHAIN_READY and hasTxHash:
       txProto = TheBridge.getTxByHash(txHash)
       if txProto.isValid:
          hgt = txProto.height
