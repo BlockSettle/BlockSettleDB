@@ -622,7 +622,7 @@ class TreeStructure_CoinControl():
          addrType = addrObj.addrType
 
          addrDict = self.treeData['UTXO'][addrType]
-         if not binAddr in addrDict:
+         if not addrStr in addrDict:
             addrDict[addrStr] = []
          addrDict[addrStr].append(utxo)
 
