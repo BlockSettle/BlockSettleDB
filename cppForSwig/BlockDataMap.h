@@ -200,13 +200,22 @@ private:
    BinaryData blockHash_;
 
 public:
+   enum class CheckHashes
+   {
+      NoChecks,
+      MerkleOnly,
+      TxFilters,
+      FullHints
+   };
+
+public:
    BlockData(uint32_t);
 
    static std::shared_ptr<BlockData> deserialize(
       const uint8_t*, size_t,
       const std::shared_ptr<BlockHeader>,
       std::function<unsigned int(const BinaryData&)> getID,
-      bool checkMerkle, bool keepHashes);
+      CheckHashes);
 
    bool isInitialized(void) const
    {

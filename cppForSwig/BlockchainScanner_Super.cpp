@@ -1268,7 +1268,7 @@ void BlockchainScanner_Super::undo(Blockchain::ReorganizationState& reorgState)
       auto bdata = BlockData::deserialize(
          filemap.get()->getPtr() + blockPtr->getOffset(),
          blockPtr->getBlockSize(), blockPtr, getID,
-         false, false);
+         BlockData::CheckHashes::NoChecks);
 
       const auto& txns = bdata->getTxns();
       for (unsigned i = 0; i < txns.size(); i++)
@@ -1443,7 +1443,7 @@ shared_ptr<BlockData> BlockDataBatch::getBlockData(unsigned height)
    auto bdata = BlockData::deserialize(
       filemap->getPtr() + blockheader->getOffset(),
       blockheader->getBlockSize(),
-      blockheader, getID, false, false);
+      blockheader, getID, BlockData::CheckHashes::NoChecks);
 
    if (!bdata->isInitialized())
    {

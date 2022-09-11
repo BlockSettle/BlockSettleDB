@@ -512,6 +512,7 @@ unsigned DBSettings::zcThreadCount_ = DEFAULT_ZCTHREAD_COUNT;
 bool DBSettings::reportProgress_ = true;
 bool DBSettings::checkChain_ = false;
 bool DBSettings::clearMempool_ = false;
+bool DBSettings::checkTxHints_ = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 void DBSettings::processArgs(const map<string, string>& args)
@@ -536,6 +537,10 @@ void DBSettings::processArgs(const map<string, string>& args)
    iter = args.find("clear-mempool");
    if (iter != args.end())
       clearMempool_ = true;
+
+   iter = args.find("check-txhints");
+   if (iter != args.end())
+      checkTxHints_ = true;
 
    //db type
    iter = args.find("db-type");
