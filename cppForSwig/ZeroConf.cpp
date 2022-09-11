@@ -12,7 +12,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "ZeroConf.h"
-#include "BlockDataMap.h"
+#include "BlockchainDatabase/BlockDataMap.h"
 #include "ArmoryErrors.h"
 
 using namespace std;

@@ -13,7 +13,7 @@
 #include <chrono>
 #include "TestUtils.h"
 #include "hkdf.h"
-#include "TxHashFilters.h"
+#include "BlockchainDatabase/TxHashFilters.h"
 
 using namespace std;
 using namespace Armory::Signer;

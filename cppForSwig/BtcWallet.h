@@ -14,9 +14,9 @@
 #define _BTCWALLET_H
 
 #include "BinaryData.h"
-#include "BlockObj.h"
+#include "BlockchainDatabase/BlockObj.h"
+#include "BlockchainDatabase/StoredBlockObj.h"
 #include "ScrAddrObj.h"
-#include "StoredBlockObj.h"
 #include "bdmenums.h"
 #include "ThreadSafeClasses.h"
 #include "TxClasses.h"

@@ -7,7 +7,6 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "NodeUnitTest.h"
-#include "../BlockUtils.h"
 #include "../Signer/Signer.h"
 
 using namespace std;
