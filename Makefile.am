@@ -18,7 +18,7 @@ copy-script:
 
 # SWIG code and requirements.
 if BUILD_CLIENT
-	protoc --python_out=armoryengine --proto_path=cppForSwig/protobuf cppForSwig/protobuf/ClientProto.proto
+	protoc --python_out=$(srcdir)/armoryengine --proto_path=$(srcdir)/cppForSwig/protobuf $(srcdir)/cppForSwig/protobuf/ClientProto.proto
 #TODO: build c20p1305 CFFI python lib
 endif
 

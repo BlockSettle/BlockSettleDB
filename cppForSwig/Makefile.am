@@ -58,11 +58,11 @@ AM_CXXFLAGS =
 
 protobuf/%.pb.cc protobuf/%.pb.h: protobuf/%.proto
 #	@test -f proto
-	protoc --cpp_out=protobuf --proto_path=protobuf $<
+	protoc --cpp_out=protobuf --proto_path=$(srcdir)/protobuf $<
 
-INCLUDE_FILES = -Ibech32/ref/c++ -Ilmdbpp \
-	-Ichacha20poly1305 -I$(LIBBTC_LIBDIR)/src/secp256k1/include \
-	-I$(LIBBTC_LIBDIR)/include $(LWS_CFLAGS) -Ihkdf -IWallets -ISigner
+INCLUDE_FILES = -I$(srcdir)/lmdbpp \
+	-I$(srcdir)/chacha20poly1305 -I$(LIBBTC_LIBDIR)/src/secp256k1/include \
+	-I$(LIBBTC_LIBDIR)/include $(LWS_CFLAGS) -I$(srcdir)/hkdf -I$(srcdir)/Wallets -I$(srcdir)/Signer
 
 # Files should *not* be marked as "common" if at all possible. Also, a refactor
 # might not hurt one of these days. Some of the "common" files could be GUI/CLI
@@ -337,7 +337,7 @@ bin_PROGRAMS += CppBridge
 CppBridge_SOURCES = $(CPPBRIDGE_SOURCE_FILES)
 CppBridge_CXXFLAGS = $(AM_CXXFLAGS) $(LIBBTC_FLAGS) $(UNIT_TEST_CXXFLAGS) \
 		-D__STDC_LIMIT_MACROS
-CppBridge_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES)
+CppBridge_CPPFLAGS = $(AM_CPPFLAGS) $(INCLUDE_FILES) -Iprotobuf
 CppBridge_LDADD = $(LIBARMORYCOMMON) \
 		 $(LIBARMORYCLI) \
 		 $(LIBHKDF) \
