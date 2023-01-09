@@ -235,7 +235,14 @@ bool WebSocketClient::connectToRemote()
 
    serviceThr_ = thread(serviceLBD);
 
-   return connectedFut.get();
+   if (connectedFut.wait_for(std::chrono::seconds{ 7 }) == std::future_status::ready) {
+      return connectedFut.get();
+   }
+   else {
+      shutdown();
+      cleanUp();
+      return false;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
