@@ -254,7 +254,7 @@ void WebSocketClient::service(lws_context* contextPtr)
    while (run_.load(memory_order_relaxed) != 0 && n >= 0)
    {
       n = lws_service(contextPtr, 500);
-      if (!currentWriteMessage_.isDone() || !writeQueue_->empty())
+      if (!currentWriteMessage_.isDone() || !writeQueue_ || !writeQueue_->empty())
          lws_callback_on_writable(wsiPtr);
    }
 
